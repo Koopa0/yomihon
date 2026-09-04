@@ -32,9 +32,9 @@ func outOfEnumVault(t *testing.T) string {
 }
 
 // homeChip cuts the status-distribution chip showing the given status name
-// out of a rendered Home body. The returned markup starts at the tail of the
-// chip's class attribute, so a caller sees both the flag modifier and the
-// link target.
+// out of the folder index's rendered body. The returned markup starts at the
+// tail of the chip's class attribute, so a caller sees both the flag modifier
+// and the link target.
 func homeChip(t *testing.T, body, name string) string {
 	t.Helper()
 	for _, chunk := range strings.Split(body, `<a class="y-homechip`)[1:] {
@@ -62,7 +62,7 @@ func TestHomeFlagsAStatusOutsideEveryCarriersEnum(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	if !strings.Contains(body, `data-home-block="lifecycle"`) {
-		t.Fatalf("home carries no lifecycle block; body = %q", body)
+		t.Fatalf("the folder index carries no lifecycle block; body = %q", body)
 	}
 
 	reviewing := homeChip(t, body, "reviewing")
@@ -214,8 +214,9 @@ func TestHealthReachesEveryOutOfEnumNote(t *testing.T) {
 	}
 }
 
-// homeRecentRow cuts the recent-changes row for one note title out of a
-// rendered Home body, so an assertion about one row cannot be answered by
+// homeRecentRow cuts the recent-changes row for one note title out of the
+// folder index's rendered body, so an assertion about one row cannot be
+// answered by
 // another row on the same page.
 func homeRecentRow(t *testing.T, body, title string) string {
 	t.Helper()
@@ -277,7 +278,7 @@ func TestHomeChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
 
 // The recent list showed a note's status as an ordinary chip whatever the
 // contract said about it, so the value the whole-folder page counts as a fault
-// sat on the landing page looking exactly like every legal one beside it.
+// sat in the recent list looking exactly like every legal one beside it.
 func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
@@ -309,7 +310,7 @@ func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 }
 
 // A folder with no contract has no vocabulary to measure against, so the
-// landing page names statuses there without ruling on any of them — the same
+// recent list names statuses there without ruling on any of them — the same
 // restraint the search row and the whole-folder page keep.
 func TestHomeRecentRowAccusesNothingWithoutAContract(t *testing.T) {
 	t.Parallel()
@@ -322,7 +323,7 @@ func TestHomeRecentRowAccusesNothingWithoutAContract(t *testing.T) {
 		t.Errorf("an ungoverned folder ruled on a status value; body = %q", body)
 	}
 	// The control: the rows are on the page, so the assertion above is not
-	// passing over a landing page that rendered nothing at all.
+	// passing over a page that rendered nothing at all.
 	if !strings.Contains(body, `data-home-recent-note`) {
 		t.Errorf("the recent list is missing, so the assertion above proves nothing; body = %q", body)
 	}

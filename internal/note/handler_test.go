@@ -375,10 +375,11 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 	}
 }
 
-// TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder is the landing
-// page's twin of the reading page's reconciliation. Home derives its lifecycle
-// block from the captured write authority and its counts from the snapshot's
-// own artifact capture; the two are sampled at different instants, so whichever
+// TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder is the folder
+// index's twin of the reading page's reconciliation. That page derives its
+// lifecycle block from the captured write authority and its counts from the
+// snapshot's own artifact capture; the two are sampled at different instants,
+// so whichever
 // was taken first, a block that one authority still allows must close when the
 // other has already stopped answering. Without the second check the page
 // renders a status list counted against exclusions it can no longer read.
@@ -449,7 +450,7 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			}
 			page := html.UnescapeString(body)
 			if strings.Contains(page, `data-home-block="lifecycle"`) {
-				t.Errorf("Home rendered a lifecycle block across torn authority captures; page = %q", page)
+				t.Errorf("the folder index rendered a lifecycle block across torn authority captures; page = %q", page)
 			}
 			const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
 			assertCauseReachesTheReader(t, page, diagnostic)
@@ -718,9 +719,9 @@ func loadContract(t *testing.T) *schema.Contract {
 	return s
 }
 
-// loadHomeContract reuses the complete schema loader fixture because Home's
-// lifecycle strip needs the default note-status group, not the lesson-only
-// group exercised by the reading-page tests above.
+// loadHomeContract reuses the complete schema loader fixture because the
+// folder index's status distribution needs the default note-status group, not
+// the lesson-only group exercised by the reading-page tests above.
 func loadHomeContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	s, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
@@ -1251,9 +1252,9 @@ func TestShowNotFound(t *testing.T) {
 }
 
 // TestHome pins the landing page's observable contract: a direct 200 in the
-// shared shell, the blocks this folder can fill, and the vault README rendered
-// beneath them. The site markers are asserted by name rather than by their
-// position in the document, so rearranging the dashboard cannot blame a correct
+// shared shell, the blocks this folder can fill, and the link to the vault
+// README under them. The site markers are asserted by name rather than by their
+// position in the document, so rearranging the desk cannot blame a correct
 // page for violating a declaration-order accident.
 //
 // This folder holds one README and declares nothing, so no block on the page
@@ -1330,7 +1331,7 @@ func TestHome(t *testing.T) {
 		}
 	}
 	// The desk is where a reader chooses what to read, so there is nothing yet
-	// being read for a rail to be. Every other full page mounts one.
+	// being read for a rail to be. The reading surfaces behind it mount one.
 	for _, absent := range []string{`class="y-rail-left"`, `id="nav-rail"`} {
 		if strings.Contains(pageHTML, absent) {
 			t.Errorf("the desk mounts a left rail (%s); the rail is the thing being read", absent)
@@ -1344,9 +1345,10 @@ func TestHome(t *testing.T) {
 }
 
 // TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder pins the same
-// separation on Home that the search results page pins on a hit. An ungoverned
-// folder's notes may still carry a "status:" line — frontmatter is the author's,
-// not the contract's — and the recent list still shows them. What it must not do
+// separation on the folder index that the search results page pins on a hit. An
+// ungoverned folder's notes may still carry a "status:" line — frontmatter is
+// the author's, not the contract's — and the recent list still shows them. What
+// it must not do
 // is render that raw word as a lifecycle chip, which would name a value from a
 // vocabulary nothing here ever declared.
 func TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder(t *testing.T) {
@@ -1631,11 +1633,13 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 	}
 }
 
-// TestHomeDashboardUsesSnapshotData pins the four blocks beyond their site
-// markers. Recently changed is the newest seven typed notes in mtime order;
-// Lifecycle links the contract-provided statuses; Study paths reports the same
-// ready/total tally as its full page. The recent section is scoped by its own
-// section marker, never by whichever block happens to follow it.
+// TestHomeDashboardUsesSnapshotData pins three blocks beyond their site
+// markers. Recently changed and Lifecycle are read from the folder index: the
+// first is the newest seven typed notes in mtime order, the second links every
+// status the notes carry to a search for it. Study paths is read from the desk,
+// where it states how large a course is rather than how much of it is done. The
+// recent section is scoped by its own section marker, never by whichever block
+// happens to follow it.
 func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -1794,7 +1798,7 @@ func TestHomeWithholdsTheLifecycleBlockAndNamesTheCause(t *testing.T) {
 			page := html.UnescapeString(body)
 
 			if strings.Contains(page, `data-home-block="lifecycle"`) {
-				t.Error("Home rendered a lifecycle block it cannot count")
+				t.Error("the folder index rendered a lifecycle block it cannot count")
 			}
 			assertCauseStatedOnce(t, page, tt.want)
 		})
@@ -2090,11 +2094,11 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 	}
 }
 
-// TestHomeWithoutReadmeKeepsDashboardReadOnly pins first-use recovery: Home is
-// still the dashboard, only the absent README body is replaced, and neither
-// route creates the missing vault file. This vault declares a lifecycle and
-// holds no notes yet, so every one of the four ways in is empty and says so,
-// with the stand-in line above them.
+// TestHomeWithoutReadmeKeepsDashboardReadOnly pins first-use recovery: the desk
+// still draws its four ways in and its search, an absent introduction costs
+// only the link to it, and neither route creates the missing vault file. This
+// vault declares a lifecycle and holds no notes yet, so every one of the four
+// ways in is empty and says so, with the stand-in line above them.
 func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -2161,18 +2165,13 @@ func homeStandInLine(t *testing.T, body string) string {
 	return line[:end+len("</p>")]
 }
 
-// TestHomeStandInNamesTheNewestFileNotTheNewestNote is the stand-in line's own
-// lock. The line exists because a folder with no contract fills none of the
-// dashboard blocks and never will, and it earns its place by doing in one row
-// what the recently-changed block was built to do. It therefore has to answer
-// over everything the folder holds: a plain folder's newest thing is often not
-// a note, and a line that quietly skipped to the newest note would point past
-// the file the reader just saved.
 // TestHomeStandInNamesTheNewestFileWhenThereAreNoNotes covers the one folder
 // shape that has nothing for any block to show: files, but no markdown. The
 // stand-in used to cover a much commoner case — a folder whose notes carried no
-// type field — and that case now fills the recent block with the notes
-// themselves, which is what the reader came for.
+// type field — and those notes are now listed like any other, which is what the
+// reader came for. It answers over everything the folder holds: a plain
+// folder's newest thing is often not a note, and a line that quietly skipped to
+// the newest note would point past the file the reader just saved.
 func TestHomeStandInNamesTheNewestFileWhenThereAreNoNotes(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -2314,12 +2313,13 @@ owner = ["reviewer"]
 	return contract
 }
 
-// TestHomeLifecycleCountsStatusDistribution pins the home block to its one
-// source: the snapshot's per-status note counts. Every status at least one
-// note carries gets its chip — whoever the contract says owns the onward
-// step, and terminal values included, because a distribution that hides a
-// bucket disagrees with its own total. A note carrying no status value sits
-// in no bucket, and a vault whose notes carry none renders no block at all.
+// TestHomeLifecycleCountsStatusDistribution pins the folder index's
+// distribution block to its one source: the snapshot's per-status note counts.
+// Every status at least one note carries gets its chip — whoever the contract
+// says owns the onward step, and terminal values included, because a
+// distribution that hides a bucket disagrees with its own total. A note
+// carrying no status value sits in no bucket, and a vault whose notes carry
+// none renders no block at all.
 func TestHomeLifecycleCountsStatusDistribution(t *testing.T) {
 	t.Parallel()
 
@@ -3871,7 +3871,7 @@ func TestNoteMetarowDateSpeaksTheInterfaceLanguage(t *testing.T) {
 	}
 }
 
-// TestHomeRecentStatesItsKnowledgeScope holds the two dashboard blocks to
+// TestHomeRecentStatesItsKnowledgeScope holds the folder index's two blocks to
 // their own scopes, stated where the reader compares them. The recent list
 // shows the declared knowledge folders; the distribution counts every indexed
 // note. On a vault holding one draft inside the layer and one outside, the

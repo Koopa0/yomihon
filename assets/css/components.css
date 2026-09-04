@@ -869,9 +869,11 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
    ============================================================ */
 .y-shell2 { display: grid; grid-template-columns: 264px minmax(0, 1fr); flex: 1; align-items: start; }
 
-/* Home — a quiet reading-desk dashboard, then the vault README in the same
-   prose measure as every note. The block markers live in markup for the HTTP
-   probe; layout may move without changing their identity. */
+/* Home — the quiet reading desk, ending in a link to the vault README. The
+   same shell dresses the four mode index pages, and the blocks here are what
+   the folder index fills with its recent list and status distribution. The
+   block markers live in markup for the HTTP probe; layout may move without
+   changing their identity. */
 .y-home { max-width: 980px; margin: 0 auto; padding: 42px 48px 120px; }
 .y-home__head { margin-bottom: 26px; }
 .y-home__kicker, .y-homereadme__kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.09em; color: var(--fg-faint); }

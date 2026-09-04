@@ -9,12 +9,14 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// sidebar is the left navigation rail every page mounts, ordered for a daily
-// reader: a filter box shipped hidden, the "here" list of the current note's
-// siblings, Paths and Maps, recent Journal entries, reports, and the folder
-// tree with the current note's branch expanded. It takes one resolved Sidebar,
-// so a report builds it with no current note and every branch renders closed. A
-// nil model renders nothing.
+// sidebar is the left navigation rail the reading surfaces mount: the note,
+// folder, file, search, report, health, not-found and status-recovery pages.
+// The desk and the mode pages carry no rail at all, and the course page draws
+// its own. It is ordered for a daily reader: a filter box shipped hidden, the
+// "here" list of the current note's siblings, Paths and Maps, recent Journal
+// entries, reports, and the folder tree with the current note's branch
+// expanded. It takes one resolved Sidebar, so a report builds it with no
+// current note and every branch renders closed. A nil model renders nothing.
 templ sidebar(sb Sidebar, c layouts.Chrome) {
 	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) }>
 		<input
@@ -45,12 +47,12 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 					}
 				</nav>
 			}
-			// The rail carries a capability fault on every page, including the
-			// ones reached straight from the command palette that never render
-			// Home. It appears only for a declaration the vault made and
-			// yomihon could not read: saying so for a folder that declared
-			// nothing would be an apology for the ordinary shape of a
-			// directory.
+			// The rail carries a capability fault on every page it appears on,
+			// including a note opened straight from the command palette by a
+			// reader who never passes the desk. It appears only for a
+			// declaration the vault made and yomihon could not read: saying so
+			// for a folder that declared nothing would be an apology for the
+			// ordinary shape of a directory.
 			if faults := sb.CapabilityFaults(c.Lang); len(faults) > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">

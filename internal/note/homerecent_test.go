@@ -40,7 +40,7 @@ func homeStatusView(t *testing.T, contract *schema.Contract, governance schema.G
 
 // A vault whose contract file exists and cannot be read is governed and shut at
 // the same time: it asserted a vocabulary and then failed to deliver one, so it
-// answers "not declared" to every value put to it. The landing page renders the
+// answers "not declared" to every value put to it. The folder index renders the
 // recent block in that state — plain reading survives a broken contract — so
 // these rows are on screen exactly when no vocabulary can back a finding, and
 // whether they accuse anyone is this function's own contract.

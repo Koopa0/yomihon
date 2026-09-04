@@ -190,7 +190,7 @@ yomihon   2 koopa 7u IPv4 0x2 0t0 TCP 192.168.1.5:19733 (LISTEN)"
 
   # Build one complete Home recording from the same marker table the live
   # verdict reads. Then remove each named invariant in turn. This proves a blank
-  # 200, a dashboard missing any block, and a dashboard missing only the README
+  # 200, a recording missing any block, and one missing only the README
   # content all go red for the invariant that was removed, regardless of table
   # order.
   local complete="" entry site marker broken reason
@@ -289,7 +289,7 @@ assert_face() {
 }
 
 # Home is fetched without redirect following: a retired 302 must not borrow the
-# README page's 200 and markers. Its body then proves every dashboard block and
+# README page's 200 and markers. Its body then proves every block on Home and
 # the fixture vault README are both present.
 code="$(curl -fsS -o "$body" -w '%{http_code}' "${base}/")" || fail "GET / did not return success"
 [ "$code" = "200" ] || fail "GET / status ${code}, want direct 200"

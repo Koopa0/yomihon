@@ -1,7 +1,7 @@
 // Behavior lock: the sidebar grows from the fixture vault's map and Diary
 // content, opens the map that contains the current note, omits unresolved rows
 // from general maps while retaining study-path warnings, and leaves lifecycle
-// state in Home.
+// state to the folder mode.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
