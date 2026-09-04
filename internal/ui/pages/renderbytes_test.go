@@ -60,8 +60,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page", Search(recordedSearchView(model), recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
-		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), recordedChrome().Lang), recordedChrome())},
-		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), recordedChrome().Lang), recordedChrome())},
+		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, recordedChrome().Lang), recordedChrome())},
+		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, recordedChrome().Lang), recordedChrome())},
 		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
@@ -319,11 +319,11 @@ func recordedFaultedIndexView() ListIndexView {
 		Title:       "Unread Course",
 		RelPath:     "Maps/unread.md",
 		Diagnostics: []sequence.Diagnostic{{Rule: "path.nesting_too_deep", Line: 4, Message: "nested past one level"}},
-	}}, recordedChrome().Lang)
+	}}, nav.Closure{}, recordedChrome().Lang)
 }
 
 func recordedWithheldIndexView() ListIndexView {
-	view := NewMapIndex(nil, recordedChrome().Lang)
+	view := NewMapIndex(nil, nav.Closure{}, recordedChrome().Lang)
 	view.Fault = "the contract could not be read"
 	return view
 }
