@@ -25,7 +25,7 @@ A name resolves to one file, to several, or to none.
 
 ## Fragments
 
-`[[Name#Section]]` points into a note. If the note resolves and the section does not, the link goes to the note and says the section was not found. [[The vault contract#A section that is not there]] does that here.
+`[[Name#Section]]` points into a note: [[The status lifecycle#published is declared and never set]] lands on that heading. If the note resolves and the section does not, the link goes to the note and says the section was not found instead — [[The vault contract#A section that is not there]] does that here.
 
 [[The vault contract#^single-source]] goes to one block rather than a whole note, named by the anchor that note carries.
 
