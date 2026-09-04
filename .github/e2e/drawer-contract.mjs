@@ -40,6 +40,7 @@ const SITES = [
   'open-tab-contained',
   'scrim-focus-return',
   'filter-escape-layering',
+  'composing-enter-stays-with-the-input',
   'escape-focus-return',
   'toggle-focus-return',
 ];
@@ -156,6 +157,12 @@ const MUTATIONS = {
   'suppress-filter-escape-layer': {
     target: 'filter-escape-layering',
     apply: rewriteRuntime('sidebar.js', '      event.stopPropagation();', '      void 0;'),
+  },
+  // The filter reading its keys while an input method is still composing with
+  // them, which is how Enter stopped meaning "commit this word".
+  'read-filter-keys-while-composing': {
+    target: 'composing-enter-stays-with-the-input',
+    apply: rewriteRuntime('sidebar.js', '    if (event.isComposing) return;\n', ''),
   },
   'suppress-escape-focus-return': {
     target: 'escape-focus-return',
@@ -383,6 +390,40 @@ try {
     if (layered.nav !== 'open' || layered.value !== '') {
       fail('filter-escape-layering', `first filter Escape left nav=${layered.nav}, value=${JSON.stringify(layered.value)}, want open/empty`);
     }
+
+    // A composing input method commits its word with Enter. The filter taking
+    // that key opened the first row it had narrowed to and the half-typed word
+    // went with it. The composition flag is set on the event rather than
+    // driven by a real input method, which no headless run has, so what is
+    // exercised is the guard and not the platform.
+    //
+    // What is counted is the row activation, not a navigation: the handler
+    // activates a link synchronously, so the count answers exactly what the
+    // handler decided, and the listener doing the counting also holds the page
+    // still enough to ask the same question twice. The second question is what
+    // keeps the first honest — a filter that had stopped answering Enter
+    // altogether would satisfy the composing case just as well.
+    await filter.fill('alpha');
+    const enter = await page.evaluate(({ railSelector, filterSelector }) => {
+      const rail = document.querySelector(railSelector);
+      const input = document.querySelector(filterSelector);
+      let hits = 0;
+      const record = (event) => { event.preventDefault(); hits += 1; };
+      rail.addEventListener('click', record, true);
+      const send = (composing) => input.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter', bubbles: true, cancelable: true, isComposing: composing,
+      }));
+      send(true);
+      const whileComposing = hits;
+      send(false);
+      const afterComposing = hits - whileComposing;
+      rail.removeEventListener('click', record, true);
+      return { whileComposing, afterComposing };
+    }, { railSelector: RAIL, filterSelector: FILTER });
+    if (enter.whileComposing !== 0 || enter.afterComposing !== 1) {
+      fail('composing-enter-stays-with-the-input', `filter Enter opened ${enter.whileComposing} rows while composing and ${enter.afterComposing} after, want 0 then 1`);
+    }
+    await filter.fill('');
 
     await page.$eval(`${RAIL} a[href]`, (link) => link.focus());
     await page.keyboard.press('Escape');

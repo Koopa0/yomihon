@@ -3,6 +3,14 @@
 export function initShortcuts({ drawer, sidebar, search }) {
   const root = document.documentElement;
   window.addEventListener('keydown', (event) => {
+    // An input method mid-composition owns the keyboard, and the exclusion has
+    // to be read before any branch rather than beside the ones that look like
+    // typing. Escape is how a half-formed word is abandoned, and it was decided
+    // above the exclusion for the target element, so abandoning a word closed
+    // the search dialog or the drawer and left the word standing. The event
+    // carries the state itself, which is why nothing here tracks composition
+    // start and end.
+    if (event.isComposing) return;
     const target = event.target;
     const typing = target && (
       target.tagName === 'INPUT'

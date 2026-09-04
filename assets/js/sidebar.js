@@ -128,6 +128,14 @@ export function initSidebar() {
     rememberFilter();
   });
   input.addEventListener('keydown', (event) => {
+    // Both keys below are an input method's own while it is composing: Enter
+    // commits the word being formed and Escape abandons it. Reading them here
+    // first opened the top row on a word the reader had not finished choosing,
+    // and the word went with the page. The event says whether a composition is
+    // running, so the flag the live-search box has to keep does not belong
+    // here — that box debounces its own input events, which is a different
+    // question from what a single key press means.
+    if (event.isComposing) return;
     if (event.key === 'Enter') {
       event.preventDefault();
       rail.querySelector('a:not([hidden])')?.click();
