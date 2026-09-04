@@ -5,3 +5,6 @@ An ordinary paragraph carrying <ruby>漢字<rt>かんじ</rt></ruby> and no mark
 
 <!-- read-aloud: ja -->
 Marked, with **emphasis** and [[Target Note]] inside it.
+
+<!-- read-aloud: en -->
+Marked for a voice this does not have, so the marker leaves no trace at all.

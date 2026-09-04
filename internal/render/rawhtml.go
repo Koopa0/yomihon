@@ -18,7 +18,14 @@ var (
 	safeMarkupEndTag  = regexp.MustCompile(`^</(?:ruby|rt|rp)[ \t\r\n]*>$`)
 	safeMarkupLangTag = regexp.MustCompile(`^<(?:ruby|rt|rp)[ \t\r\n]+lang=(?:"[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*"|'[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*')[ \t\r\n]*>$`)
 	safeReadAloudTag  = regexp.MustCompile(`^<!--[ \t\r\n]*read-aloud:[ \t\r\n]*ja[ \t\r\n]*-->$`)
-	trustedBlockTag   = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
+	// readAloudMarker matches the read-aloud marker by its shape, whatever value
+	// its author wrote after the colon. Only "ja" is spoken — the voice exists
+	// for the Japanese lessons — so this is the wider pattern that recognizes an
+	// instruction the renderer can read and cannot carry out. Recognizing it is
+	// what lets it be dropped: escaped instead, it becomes a text node in the
+	// reading column, coloured and laid out like a sentence the author wrote.
+	readAloudMarker = regexp.MustCompile(`(?s)^<!--[ \t\r\n]*read-aloud:.*-->$`)
+	trustedBlockTag = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
 )
 
 // safeMarkupRenderer is the note-body authority boundary. Authored HTML is still
@@ -91,13 +98,20 @@ func writeSafeMarkup(w util.BufWriter, raw []byte) error {
 			return err
 		}
 		tag := raw[:end+1]
-		if safeMarkupBareTag.Match(tag) || safeMarkupEndTag.Match(tag) || safeMarkupLangTag.Match(tag) ||
-			safeReadAloudTag.Match(tag) || trustedBlockTag.Match(tag) {
+		switch {
+		case safeMarkupBareTag.Match(tag) || safeMarkupEndTag.Match(tag) || safeMarkupLangTag.Match(tag) ||
+			safeReadAloudTag.Match(tag) || trustedBlockTag.Match(tag):
 			if _, err := w.Write(tag); err != nil {
 				return err
 			}
-		} else if _, err := w.Write(util.EscapeHTML(tag)); err != nil {
-			return err
+		case readAloudMarker.Match(tag):
+			// An instruction addressed to the renderer, naming something it does
+			// not do. It is not the author's prose and showing it to a reader
+			// would be showing them the machinery, so it goes no further.
+		default:
+			if _, err := w.Write(util.EscapeHTML(tag)); err != nil {
+				return err
+			}
 		}
 		raw = raw[end+1:]
 	}
