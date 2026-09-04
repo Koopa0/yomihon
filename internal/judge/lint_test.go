@@ -35,7 +35,7 @@ func TestLintFrontmatterAgreesWithTheCheckCommand(t *testing.T) {
 
 	want := map[string][]Finding{}
 	for _, f := range commanded {
-		if strings.HasPrefix(f.RuleID, "schema.") {
+		if strings.HasPrefix(string(f.RuleID), "schema.") {
 			want[f.Path] = append(want[f.Path], f)
 		}
 	}

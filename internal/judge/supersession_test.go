@@ -25,7 +25,7 @@ func TestSupersessionRulesUseConfiguredVocabulary(t *testing.T) {
 		finding := &findings[i]
 		if finding.RuleID == "supersession.predecessor_not_archived" ||
 			finding.RuleID == "supersession.archived_navigation_target" {
-			gotRules = append(gotRules, finding.RuleID+"@"+finding.Path)
+			gotRules = append(gotRules, string(finding.RuleID)+"@"+finding.Path)
 		}
 		if finding.RuleID == "provenance.unresolved" && finding.Field != nil {
 			gotProvenanceFields = append(gotProvenanceFields, *finding.Field)
@@ -175,7 +175,7 @@ func TestSupersessionCapabilityCrossProduct(t *testing.T) {
 			findings := supersessionFindings(notes, idx, authority)
 			gotRules := make([]string, len(findings))
 			for i := range findings {
-				gotRules[i] = findings[i].RuleID
+				gotRules[i] = string(findings[i].RuleID)
 			}
 			if !slices.Equal(gotRules, tt.wantRules) {
 				t.Errorf("rules = %v, want %v", gotRules, tt.wantRules)

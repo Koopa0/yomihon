@@ -429,7 +429,7 @@ func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
 			}
 			var rules []string
 			for _, f := range findings {
-				rules = append(rules, f.RuleID)
+				rules = append(rules, string(f.RuleID))
 			}
 			if diff := cmp.Diff(tt.want, rules); diff != "" {
 				t.Errorf("rules reported (-want +got):\n%s", diff)
@@ -489,7 +489,7 @@ func TestADocumentsStatusIsJudgedAgainstItsOwnGroup(t *testing.T) {
 			}
 			var rules []string
 			for _, f := range findings {
-				rules = append(rules, f.RuleID)
+				rules = append(rules, string(f.RuleID))
 			}
 			if diff := cmp.Diff(tt.want, rules); diff != "" {
 				t.Errorf("rules reported (-want +got):\n%s", diff)

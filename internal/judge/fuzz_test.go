@@ -243,7 +243,7 @@ func FuzzWriteJSONL(f *testing.F) {
 		// The severity is one of the three defined weights; any other value is a
 		// programming error the encoder is entitled to reject.
 		one := Finding{
-			RuleID:          ruleID,
+			RuleID:          RuleID(ruleID),
 			Severity:        Severity(sev % 3),
 			Path:            pth,
 			Message:         message,
@@ -261,7 +261,7 @@ func FuzzWriteJSONL(f *testing.F) {
 		findings := []Finding{one}
 		if two {
 			second := one
-			second.RuleID = ruleID + ".2"
+			second.RuleID = RuleID(ruleID + ".2")
 			findings = append(findings, second)
 		}
 
@@ -315,7 +315,7 @@ func assertLineRoundTrips(t *testing.T, want *Finding, line []byte) {
 		t.Fatalf("decoding %q: %v", line, err)
 	}
 	expected := wireFinding{
-		RuleID:           want.RuleID,
+		RuleID:           string(want.RuleID),
 		Severity:         want.Severity.String(),
 		Path:             want.Path,
 		Line:             want.Line,
@@ -366,7 +366,7 @@ func assertSpecialsRideRaw(t *testing.T, findings []Finding, out []byte) {
 // findingStrings returns every string field a finding serializes, so a check
 // can range over exactly the text the encoder writes.
 func findingStrings(fnd *Finding) []string {
-	s := []string{fnd.RuleID, fnd.Path, fnd.Message, fnd.Evidence, fnd.SuggestedAction, fnd.SourceRule, fnd.Fingerprint}
+	s := []string{string(fnd.RuleID), fnd.Path, fnd.Message, fnd.Evidence, fnd.SuggestedAction, fnd.SourceRule, fnd.Fingerprint}
 	if fnd.Field != nil {
 		s = append(s, *fnd.Field)
 	}

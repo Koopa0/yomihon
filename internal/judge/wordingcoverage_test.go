@@ -37,7 +37,8 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 	}
 
 	checked := 0
-	for _, id := range ruleIDs {
+	for _, ruleID := range ruleIDs {
+		id := string(ruleID)
 		if !strings.HasPrefix(id, "schema.") {
 			continue
 		}

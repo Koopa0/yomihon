@@ -200,9 +200,10 @@ func TestFingerprint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                 string
-		ruleID, path, target string
-		want                 string
+		name         string
+		ruleID       RuleID
+		path, target string
+		want         string
 	}{
 		{
 			// An alias collision feeds an empty path and the normalized

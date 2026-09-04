@@ -37,7 +37,7 @@ func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	}
 	var ruleIDs []string
 	for _, f := range want {
-		ruleIDs = append(ruleIDs, f.RuleID)
+		ruleIDs = append(ruleIDs, string(f.RuleID))
 	}
 	t.Logf("the fixture draws: %s", strings.Join(ruleIDs, ", "))
 

@@ -64,7 +64,7 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 		evidence = "the branch lists rows but declares no part in the course"
 	}
 	return Finding{
-		RuleID:          string(d.Rule),
+		RuleID:          RuleID(d.Rule),
 		Severity:        SeverityWarn,
 		Path:            n.path,
 		Line:            new(d.Line),
@@ -72,7 +72,7 @@ func pathFinding(n *note, d sequence.Diagnostic) Finding {
 		Evidence:        evidence,
 		SuggestedAction: action,
 		SourceRule:      sourceYomihon,
-		Fingerprint:     fingerprint(string(d.Rule), n.path, evidence),
+		Fingerprint:     fingerprint(RuleID(d.Rule), n.path, evidence),
 	}
 }
 

@@ -40,7 +40,7 @@ func TestTheExampleVaultScans(t *testing.T) {
 	}
 	found := map[string]int{}
 	for _, f := range findings {
-		found[f.RuleID]++
+		found[string(f.RuleID)]++
 	}
 	for rule, want := range demonstrates {
 		if found[rule] != want {

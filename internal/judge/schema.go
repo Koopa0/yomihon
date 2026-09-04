@@ -347,7 +347,7 @@ func hasProvenance(fm map[string]fmValue, fields []string) bool {
 // authority. The four structural rules each enforce a single key the
 // contract's [rules] table declares, so they anchor there; every other rule
 // reads several tables and cites the file without an anchor.
-func schemaRuleSource(ruleID string) string {
+func schemaRuleSource(ruleID RuleID) string {
 	switch ruleID {
 	case "schema.slug", "schema.domain_folder", "schema.legacy_tag", "schema.provenance":
 		return sourceContractRules
@@ -361,7 +361,7 @@ func schemaRuleSource(ruleID string) string {
 // the field name falling back to "frontmatter". The fingerprint folds the field
 // name and the violating value together, so two blank-valued findings on one
 // note stay distinct.
-func schemaFinding(n *note, ruleID, field, value, reason string) Finding {
+func schemaFinding(n *note, ruleID RuleID, field, value, reason string) Finding {
 	// Every caller names the field it is reporting on, or names none at all;
 	// there is no finding about an unnamed field of a known name.
 	hasField := field != ""

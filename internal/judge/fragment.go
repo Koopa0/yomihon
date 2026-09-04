@@ -464,7 +464,7 @@ func transclusionBringsSection(target *note, idx *graph.Index, byPath map[string
 // so a baseline that has accepted one cannot swallow the other, and the
 // fingerprint keys on the rule with the address for the same reason.
 func sectionMissing(n *note, link *wikiLink, resolved string) Finding {
-	rule, written := "link.section_missing", "[["
+	rule, written := RuleID("link.section_missing"), "[["
 	evidence := "the note exists and none of its headings answers the section name"
 	action := "fix the section name after #, or add the heading to the target note"
 	if link.embed {
@@ -493,7 +493,7 @@ func sectionMissing(n *note, link *wikiLink, resolved string) Finding {
 // and says so where the words would have been. The two rules are kept apart
 // the way the section rules are.
 func blockMissing(n *note, link *wikiLink, resolved string) Finding {
-	rule, written := "link.block_missing", "[["
+	rule, written := RuleID("link.block_missing"), "[["
 	evidence := "the note exists and no line in it ends with the block address"
 	action := "fix the block name after ^, or write the address at the end of the intended line"
 	if link.embed {

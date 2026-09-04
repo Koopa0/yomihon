@@ -124,7 +124,7 @@ func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
 	}
 	byRule := make(map[string][]string)
 	for i := range findings {
-		byRule[findings[i].RuleID] = append(byRule[findings[i].RuleID], *findings[i].Target)
+		byRule[string(findings[i].RuleID)] = append(byRule[string(findings[i].RuleID)], *findings[i].Target)
 	}
 	if diff := cmp.Diff(map[string][]string{
 		"collision.name":  {"dup"},

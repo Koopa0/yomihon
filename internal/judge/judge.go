@@ -54,12 +54,22 @@ func (s Severity) MarshalText() ([]byte, error) {
 	return []byte(s.String()), nil
 }
 
+// RuleID is the stable identifier of one thing this face reports, following
+// the study-path grammar's own Rule. The set is closed and [ruleIDs] is all of
+// it, so a consumer covering every rule asks for the set rather than keeping a
+// list that falls behind.
+//
+// It is a string underneath and serializes as one: the rule_id an external
+// pipeline parses is frozen bytes, and naming the type changes what the
+// compiler knows, never what a consumer reads.
+type RuleID string
+
 // Finding is one diagnostic, serialized as one JSONL line. The struct layout
 // is the wire contract: fields serialize in declaration order, and only the
 // four pointer fields and the slice are omitted when empty. Reordering fields,
 // renaming a key, or changing an omitempty option changes frozen bytes.
 type Finding struct {
-	RuleID   string   `json:"rule_id"`
+	RuleID   RuleID   `json:"rule_id"`
 	Severity Severity `json:"severity"`
 	// Path is the file that carries the finding, relative to the vault root.
 	Path string `json:"path"`
@@ -163,7 +173,7 @@ func sortFindings(findings []Finding) {
 		if c := cmp.Compare(line(&a), line(&b)); c != 0 {
 			return c
 		}
-		return strings.Compare(a.RuleID, b.RuleID)
+		return strings.Compare(string(a.RuleID), string(b.RuleID))
 	})
 }
 

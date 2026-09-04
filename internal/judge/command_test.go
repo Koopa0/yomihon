@@ -313,7 +313,7 @@ func TestCronPayloads(t *testing.T) {
 
 // mkFinding builds a minimal finding with a rule id and severity, enough to
 // exercise the gate.
-func mkFinding(rule string, sev Severity) Finding {
+func mkFinding(rule RuleID, sev Severity) Finding {
 	return Finding{RuleID: rule, Severity: sev, Path: "a.md"}
 }
 
@@ -358,7 +358,11 @@ func TestRunCheckRejectsUnknownDeny(t *testing.T) {
 	if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{"bogus"}}); err == nil {
 		t.Error("RunCheck with --deny bogus = nil error, want a tool error")
 	}
-	for _, token := range append([]string{"error", "warn", "info"}, ruleIDs...) {
+	tokens := []string{"error", "warn", "info"}
+	for _, id := range ruleIDs {
+		tokens = append(tokens, string(id))
+	}
+	for _, token := range tokens {
 		if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{token}}); err != nil {
 			t.Errorf("RunCheck with --deny %q = %v, want no error", token, err)
 		}
