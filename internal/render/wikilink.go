@@ -396,6 +396,42 @@ func fenceCloses(line string, marker byte) bool {
 	return strings.Count(t, string(marker)) == len(t)
 }
 
+// htmlBlockKind is one of the HTML blocks CommonMark ends at a particular
+// string rather than at an empty line: what opens it, and the text whose
+// appearance anywhere on a later line ends it.
+type htmlBlockKind struct {
+	opens *regexp.Regexp
+	ends  string
+}
+
+// htmlBlockKinds is the closed set of block openings that survive an empty
+// line, which is the set a scan stopping mid-block has to be able to close.
+// CommonMark's other two HTML blocks — the known-tag one and the bare-tag one —
+// are deliberately absent, because an empty line ends both and a callout's body
+// is laid into its note with one after it.
+//
+// The comment and declaration kinds are here on purpose rather than left to
+// chance. Both happen to be terminated today by the marker this renderer plants
+// to close a callout, which carries "-->" and ">" in its own spelling; that is a
+// coincidence of how the marker is written, not a property of the block, and it
+// would go away the moment the marker were respelled.
+var htmlBlockKinds = []htmlBlockKind{
+	{regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t/>]|$)`), "</pre>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t/>]|$)`), "</script>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t/>]|$)`), "</style>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<textarea(?:[ \t/>]|$)`), "</textarea>"},
+	{regexp.MustCompile(`^ {0,3}<!--`), "-->"},
+	{regexp.MustCompile(`^ {0,3}<\?`), "?>"},
+	{regexp.MustCompile(`^ {0,3}<!\[CDATA\[`), "]]>"},
+	{regexp.MustCompile(`^ {0,3}<![A-Za-z]`), ">"},
+}
+
+// leadingSpace is the indentation a line carries, which a close this scan writes
+// for that line's block has to repeat to stay inside the same container.
+func leadingSpace(line string) string {
+	return line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+}
+
 // looksRisky reports whether line contains one of the dialect patterns the
 // preprocessing passes would otherwise convert — worth one warning when found
 // inside a fence, never acted on.
@@ -412,48 +448,88 @@ func looksRisky(line string) bool {
 // preprocess is the single fence-aware, line-based pass that converts the
 // Obsidian dialect elements goldmark's parser has no concept of — wikilinks,
 // embeds, callouts, mermaid fences — before goldmark runs, treating fence contents
-// as literal source. At most one risky-fence diagnostic is recorded per call, and
-// a callout body or a transcluded embed is its own call.
+// as literal source. One note is one call, so the markup it plants is numbered
+// once across everything that note holds. At most one risky-fence diagnostic is
+// recorded per scan: a callout's body is scanned on its own, and a transcluded
+// embed is a call of its own, so each has its own budget.
 func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, col *collector) (out string, blocks, inline []string) {
-	st := &preprocessState{lines: strings.Split(body, "\n"), quoted: r.indentedCodeLines(body)}
+	st := &preprocessState{
+		lines:  strings.Split(body, "\n"),
+		quoted: r.indentedCodeLines(body),
+		marks:  &markers{},
+	}
+	r.scan(st, allowEmbed, col)
+	// Joined as scanned rather than through source: nothing follows a note's own
+	// last line, so a block still open there has nothing left to swallow and the
+	// end of the document ends it. Writing a close here would put a line the
+	// author never typed into their last block.
+	return strings.Join(st.kept, "\n"), st.marks.blocks, st.marks.inline
+}
+
+// scan reads st's lines to their end, consuming each dialect construct it
+// recognizes and keeping every other line as its author wrote it.
+func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collector) {
 	st.kept = make([]string, 0, len(st.lines))
 
 	for st.i < len(st.lines) {
 		switch {
 		case st.inFence:
 			r.scanFenceLine(st, col)
-		case r.tryOpenFence(st):
+		// While an HTML block is still running, every line belongs to it: a fence
+		// marker or a callout opener inside one is raw text, not the start of
+		// anything, so neither pass may claim it.
+		case st.htmlEnd == "" && r.tryOpenFence(st):
 			// handled: either entered a fence, or fully consumed a
 			// mermaid block — see tryOpenFence.
-		case r.tryConsumeCallout(st, allowEmbed, col):
+		case st.htmlEnd == "" && r.tryConsumeCallout(st, allowEmbed, col):
 			// handled: a known-type callout block was consumed.
 		default:
 			// An indented code block hands its line to the reader as written, so
 			// a bracket pair on it is syntax being shown and stays as typed. The
 			// address a line carries is read there all the same, because a code
 			// block is somewhere in the note a reader can be sent to and the
-			// adjudicator counts one written there.
+			// adjudicator counts one written there. A block opener shown that way
+			// is being displayed rather than opened, so it starts nothing this
+			// scan would afterwards have to close.
 			line := st.lines[st.i]
 			if !st.quoted[st.i] {
-				line = r.convertWikilinks(line, allowEmbed, col, &st.inline)
+				st.trackHTMLBlock(line)
+				line = r.convertWikilinks(line, allowEmbed, col, &st.marks.inline)
 			}
 			// A transcluded body's blocks belong to the note it came from, so an
 			// excerpt brings no addresses into the page reading it; embeds being
 			// allowed is exactly the state of being the note's own text. Links
 			// convert first, so a caret inside one is never read as an address.
 			if allowEmbed == embedsAllowed {
-				line = markBlockAnchor(line, col.page, &st.inline)
+				line = markBlockAnchor(line, col.page, &st.marks.inline)
 			}
 			st.kept = append(st.kept, line)
 			st.i++
 		}
 	}
-	return strings.Join(st.kept, "\n"), st.blocks, st.inline
 }
 
-// preprocessState carries preprocess's running scan state so the
-// per-construct handlers below (fence, mermaid, callout) can share it
-// without a long, repeated parameter list.
+// markers is the table of renderer-written markup one note's preprocessing
+// plants, kept apart from the scan that plants it because a callout's body is
+// read by a nested scan and both number into this one table. An index therefore
+// names the same markup wherever it was planted, which is what the substitution
+// pass reads it as.
+type markers struct {
+	blocks []string
+	inline []string
+}
+
+// plantBlock files markup that stands on its own line and answers with the
+// index its marker carries.
+func (m *markers) plantBlock(markup string) int {
+	m.blocks = append(m.blocks, markup)
+	return len(m.blocks) - 1
+}
+
+// preprocessState carries one scan's running state so the per-construct
+// handlers below (fence, mermaid, callout) can share it without a long,
+// repeated parameter list. A callout's body is read by a scan with a state of
+// its own over that body's lines, sharing only the marker table.
 type preprocessState struct {
 	lines []string
 	i     int
@@ -463,13 +539,64 @@ type preprocessState struct {
 	// whole body's block structure.
 	quoted map[int]bool
 
-	kept   []string
-	blocks []string
-	inline []string
+	kept  []string
+	marks *markers
 
-	inFence            bool
-	fenceByte          byte
+	inFence   bool
+	fenceByte byte
+	// htmlEnd is the text whose appearance ends the HTML block this scan is
+	// inside, empty when it is inside none.
+	htmlEnd string
+	// pendingClose is the whole line, its container's indentation included, that
+	// would end whatever block the scan is currently inside. A fenced code block
+	// and an HTML block both set it, and never both at once, since neither can
+	// open inside the other. Empty when the scan is inside no such block.
+	pendingClose       string
 	riskyFenceReported bool
+}
+
+// source is the scanned lines as one piece of markdown, with any block the scan
+// never left closed off at the end. A callout's body is written inside a
+// blockquote, and a block inside one is closed by the end of that quote; the
+// body's source is laid into the note's own, so a block left open would read on
+// past it and take the rest of the note — the renderer's own closing markup
+// included — as its own content. Only a caller that lays this source in front
+// of more text needs that; the note's own scan joins its lines untouched.
+func (st *preprocessState) source() string {
+	if st.pendingClose == "" {
+		return strings.Join(st.kept, "\n")
+	}
+	closed := make([]string, 0, len(st.kept)+1)
+	closed = append(closed, st.kept...)
+	closed = append(closed, st.pendingClose)
+	return strings.Join(closed, "\n")
+}
+
+// trackHTMLBlock records whether line leaves an HTML block open. It only reads
+// the line; what the line renders as is decided elsewhere, so noticing a block
+// here changes nothing about the page unless the scan stops while one is open.
+func (st *preprocessState) trackHTMLBlock(line string) {
+	if st.htmlEnd != "" {
+		if strings.Contains(line, st.htmlEnd) {
+			st.htmlEnd, st.pendingClose = "", ""
+		}
+		return
+	}
+	for i := range htmlBlockKinds {
+		kind := &htmlBlockKinds[i]
+		opener := kind.opens.FindStringIndex(line)
+		if opener == nil {
+			continue
+		}
+		// The end may stand on the opening line, which is where every read-aloud
+		// marker and every marker this renderer plants ends.
+		if strings.Contains(line[opener[1]:], kind.ends) {
+			return
+		}
+		st.htmlEnd = kind.ends
+		st.pendingClose = leadingSpace(line) + kind.ends
+		return
+	}
 }
 
 // scanFenceLine handles one line while st.inFence is true: it either closes the
@@ -478,7 +605,7 @@ func (r *Pipeline) scanFenceLine(st *preprocessState, col *collector) {
 	line := st.lines[st.i]
 	switch {
 	case fenceCloses(line, st.fenceByte):
-		st.inFence = false
+		st.inFence, st.pendingClose = false, ""
 	case !st.riskyFenceReported && looksRisky(line):
 		st.riskyFenceReported = true
 		col.report(&Diagnostic{
@@ -502,7 +629,15 @@ func (r *Pipeline) tryOpenFence(st *preprocessState) bool {
 		r.consumeMermaid(st, marker)
 		return true
 	}
+	// A close of this scan's own writing has to look like the opener: as many
+	// marker characters, since a shorter run does not close a longer fence, and
+	// the same indentation, since a fence opened inside a list item is closed
+	// from inside that item — a close at the margin ends the item instead and
+	// opens a fence of its own.
+	opener := strings.TrimLeft(st.lines[st.i], " \t")
+	run := len(opener) - len(strings.TrimLeft(opener, string(marker)))
 	st.inFence, st.fenceByte = true, marker
+	st.pendingClose = leadingSpace(st.lines[st.i]) + strings.Repeat(string(marker), run)
 	st.kept = append(st.kept, st.lines[st.i])
 	st.i++
 	return true
@@ -530,8 +665,7 @@ func (r *Pipeline) consumeMermaid(st *preprocessState, marker byte) {
 		url.QueryEscape(src),
 		html.EscapeString(src),
 	)
-	st.blocks = append(st.blocks, block)
-	st.kept = append(st.kept, "", blockPlaceholder(len(st.blocks)-1), "")
+	st.kept = append(st.kept, "", blockPlaceholder(st.marks.plantBlock(block)), "")
 }
 
 // tryConsumeCallout consumes a known-type callout block starting at the current
@@ -561,9 +695,26 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 		bodyLines = append(bodyLines, quotePrefix.ReplaceAllString(st.lines[st.i], ""))
 		st.i++
 	}
-	calloutHTML := r.renderCallout(bucket, defaultTitle, fold, title, strings.Join(bodyLines, "\n"), allowEmbed, col)
-	st.blocks = append(st.blocks, calloutHTML)
-	st.kept = append(st.kept, "", blockPlaceholder(len(st.blocks)-1), "")
+
+	// The two halves of the callout's own markup are planted as markers and the
+	// body's source is laid between them, so the note's one parse sees the whole
+	// of what its author wrote — a footnote reference and the definition it names
+	// among it, wherever either was written. The body is scanned by a scan of its
+	// own because it has its own fence state, its own reading of which lines an
+	// indented code block shows as written, and its own diagnostic budget; the
+	// two scans plant into one marker table.
+	open, closing := calloutShell(bucket, defaultTitle, fold, title)
+	openMark := st.marks.plantBlock(open)
+	bodySource := strings.Join(bodyLines, "\n")
+	body := &preprocessState{
+		lines:  bodyLines,
+		quoted: r.indentedCodeLines(bodySource),
+		marks:  st.marks,
+	}
+	r.scan(body, allowEmbed, col)
+	closeMark := st.marks.plantBlock(closing)
+
+	st.kept = append(st.kept, "", blockPlaceholder(openMark), "", body.source(), "", blockPlaceholder(closeMark), "")
 	return true
 }
 

@@ -349,10 +349,12 @@ func footnoteRegionPrefix(n ast.Node) []byte {
 
 // render is the shared markdown-to-HTML core: the dialect preprocessing passes
 // followed by the goldmark conversion. It serves the top-level HTML call and
-// recurses for a callout's body and a transcluded embed's, so nesting works inside
-// either. Each such body is its own region with its own footnote id space, under
-// whatever region this render was given. The body arrives with its Obsidian %%
-// comments already removed, and a second pass could reopen a marker ruled literal.
+// recurses for a transcluded embed's body, which is another note's text carrying
+// footnotes defined in the note it came from: that body is its own region with
+// its own footnote id space, under whatever region this render was given. A
+// callout's body is not among them — it is the note's own text and is read by
+// the note's own parse. The body arrives with its Obsidian %% comments already
+// removed, and a second pass could reopen a marker ruled literal.
 func (r *Pipeline) render(body string, allowEmbed embedPolicy, page *composition) Result {
 	return r.renderBody(body, allowEmbed, page, page.nextRegion())
 }

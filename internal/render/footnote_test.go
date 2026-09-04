@@ -97,17 +97,22 @@ func allMatches(re *regexp.Regexp, htmlOut string) []string {
 }
 
 // TestComposedFootnoteIDsAreUnique is the assertion site for a page assembled
-// out of more than one body. A note's own text, each callout in it, and each
-// note transcluded into it are rendered separately and then spliced together,
-// and every one of those passes numbers its footnotes from one. Composed, the
-// page carries the same id several times: the browser resolves a fragment to
-// the first element bearing it, so a reader following the second note's
-// citation is handed the first note's — silently, with nothing on screen
-// saying the wrong text was reached.
+// out of more than one body. A note's own text and each note transcluded into
+// it are rendered separately and then spliced together, and every one of those
+// passes numbers its footnotes from one. Composed, the page carries the same id
+// several times: the browser resolves a fragment to the first element bearing
+// it, so a reader following the second note's citation is handed the first
+// note's — silently, with nothing on screen saying the wrong text was reached.
 //
 // The same note is embedded twice on purpose. Two identical bodies cannot be
 // told apart by their content, so anything identifying a region has to include
 // which occurrence it is.
+//
+// Where the boundary falls is the deliberate part. A callout is the note's own
+// text, so it shares the note's numbering and its endnote list. A transcluded
+// note is somebody else's text whose definitions live in the note it came from,
+// so it keeps a numbering of its own — which is why this page carries three
+// footnote lists rather than one.
 func TestComposedFootnoteIDsAreUnique(t *testing.T) {
 	t.Parallel()
 	// The embedded note carries a callout of its own, so the composition goes
@@ -144,14 +149,14 @@ func TestComposedFootnoteIDsAreUnique(t *testing.T) {
 	got := r.HTML("Notes/host.md", "", body, wording.ZhHant).HTML
 
 	// The page has to be the composed one this test claims to describe: six
-	// definitions from six separately rendered regions, seven citations of
-	// them. Without this the assertions below could hold over a page that
-	// never assembled anything.
+	// definitions and seven citations of them, gathered into one list per
+	// separately rendered note. Without this the assertions below could hold
+	// over a page that never assembled anything.
 	if n := strings.Count(got, `class="footnote-ref"`); n != 7 {
 		t.Fatalf("page carries %d footnote references, want 7 — the composed fixture did not render:\n%s", n, got)
 	}
-	if n := strings.Count(got, `class="footnotes"`); n != 6 {
-		t.Fatalf("page carries %d footnote sections, want 6 (host, its callout, two embeds, and each embed's own callout):\n%s", n, got)
+	if n := strings.Count(got, `class="footnotes"`); n != 3 {
+		t.Fatalf("page carries %d footnote sections, want 3 (the host with its callout's, and one per embedded note with its own callout's):\n%s", n, got)
 	}
 
 	ids := allMatches(elementID, got)
@@ -190,8 +195,8 @@ func TestComposedFootnoteIDsAreUnique(t *testing.T) {
 // are rendered by their own calls and shipped inside <template> elements; the
 // moment the reader opens one it is cloned into the lesson's own document, so
 // two renders that never met are suddenly in one id space. Each therefore has
-// to be told where it sits, and the regions it opens inside itself — for a
-// callout, for a transclusion — have to be named under that too.
+// to be told where it sits, and a region it opens inside itself — for a
+// transclusion — has to be named under that too.
 //
 // Footnote ids are what this asserts, because they are what the region
 // qualifies. Heading ids are unique within a body and are not qualified, so
@@ -199,11 +204,15 @@ func TestComposedFootnoteIDsAreUnique(t *testing.T) {
 // is a separate gap and is not what this test speaks for.
 func TestSeparatelyRenderedBodiesKeepDistinctFootnoteIDs(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, nil, nil, transclusions{})
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Quoted.md"}}, nil, transclusions{
+		"Quoted.md": "Quoted text[^q].\n\n[^q]: The quoted note's own note.\n",
+	})
 
-	// One body per render call, each with a footnote of its own and a callout
-	// carrying another, which is where a region that did not compose would
-	// collide: the sheet's first callout and the lesson's first callout.
+	// One body per render call, each carrying a footnote of its own, one in a
+	// callout, and one in a note it transcludes. The callout's belongs to the
+	// body's own numbering; the transcluded note's opens a region under the
+	// body's, which is where a region that did not compose would collide: the
+	// sheet's first embed and the lesson's first embed.
 	body := strings.Join([]string{
 		"Body text[^b].",
 		"",
@@ -211,6 +220,8 @@ func TestSeparatelyRenderedBodiesKeepDistinctFootnoteIDs(t *testing.T) {
 		"> Aside text[^a].",
 		">",
 		"> [^a]: The aside's note.",
+		"",
+		"![[Quoted]]",
 		"",
 		"[^b]: The body's own note.",
 	}, "\n")
@@ -241,8 +252,10 @@ func TestSeparatelyRenderedBodiesKeepDistinctFootnoteIDs(t *testing.T) {
 		}
 	}
 
-	// The composition has to be real, or the loop above compared nothing.
-	for _, want := range []string{"fn:1", "y1-fn:1", "c1-fn:1", "c1-y1-fn:1", "c2-y1-fn:1"} {
+	// The composition has to be real, or the loop above compared nothing: each
+	// body numbers two of its own (its text's and its callout's) and opens one
+	// region for the note it quotes.
+	for _, want := range []string{"fn:1", "fn:2", "y1-fn:1", "c1-fn:1", "c1-fn:2", "c1-y1-fn:1", "c2-y1-fn:1"} {
 		if !slices.Contains(slices.Collect(maps.Keys(seen)), want) {
 			t.Errorf("no body minted the id %q, so this page did not assemble the regions the test describes: %v", want, slices.Sorted(maps.Keys(seen)))
 		}
@@ -318,5 +331,92 @@ func TestFootnoteWithoutDefinitionStaysLiteral(t *testing.T) {
 	}
 	if hs := hrefs(got.HTML); len(hs) != 0 {
 		t.Errorf("an undefined footnote reference produced hrefs %q, want none:\n%s", hs, got.HTML)
+	}
+}
+
+// TestOneNoteIsOneFootnoteScope is the cross-callout lock. A footnote's meaning
+// is a pair — a reference and the definition it names — and an author writing
+// the two on opposite sides of a callout boundary has written one pair, not
+// two halves. Rendering a callout's contents as their own document gave each
+// callout its own definition table, so a reference whose definition sat on the
+// other side of that boundary reached nothing and stayed on the page as the
+// characters the author typed, while the definition it named rendered nowhere
+// at all. Literal "[^c]" in front of a reader is the failure this forbids.
+func TestOneNoteIsOneFootnoteScope(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	// Four definitions across the boundary in every arrangement an author can
+	// write: one crossing each way, and one pair wholly on each side. The two
+	// uncrossed pairs are what a boundary that still divided the note would
+	// render as two lists numbering from one apiece.
+	body := strings.Join([]string{
+		"Host text cites a footnote defined inside the callout.[^c]",
+		"Host text cites one of its own.[^p]",
+		"",
+		"> [!note]- Folded shut",
+		"> Callout text cites a footnote defined on the host.[^h]",
+		"> Callout text cites one of its own.[^k]",
+		">",
+		"> [^c]: The definition written inside the callout.",
+		"> [^k]: The callout's own note.",
+		"",
+		"[^h]: The definition written on the host.",
+		"[^p]: The host's own note.",
+	}, "\n")
+	got := r.HTML("Notes/Crossed.md", "", body, wording.ZhHant)
+
+	// The hard condition: nothing the footnote syntax is spelled with survives
+	// into the page. A reference that reached no definition leaks as text.
+	if strings.Contains(got.HTML, "[^") {
+		t.Errorf("footnote syntax leaked into the page as text; every reference in one note must reach its definition:\n%s", got.HTML)
+	}
+
+	// Every definition's own words are on the page. A reference that resolves
+	// while its definition renders nowhere is the other half of the same fault.
+	for _, definition := range []string{
+		"The definition written inside the callout.",
+		"The callout's own note.",
+		"The definition written on the host.",
+		"The host's own note.",
+	} {
+		if !strings.Contains(got.HTML, definition) {
+			t.Errorf("the definition %q renders nowhere on the page:\n%s", definition, got.HTML)
+		}
+	}
+
+	// One scope is one list. Several endnote blocks would mean the definitions
+	// were still divided, each numbering from one, and a page that numbers two
+	// different notes "1" says nothing about which one a reference reached. The
+	// count is one because this note quotes no other: a note transcluding one
+	// that has footnotes of its own legitimately carries a second list, so this
+	// is a claim about this fixture, not a page-wide maximum.
+	if blocks := strings.Count(got.HTML, `role="doc-endnotes"`); blocks != 1 {
+		t.Errorf("the page carries %d endnote blocks, want exactly one for one note:\n%s", blocks, got.HTML)
+	}
+	// And that one list stands in the note rather than inside a callout, since
+	// a definition enclosed by the callout that happens to define it is
+	// reachable only through that callout. This asks where the markup sits, not
+	// whether a browser would have it on screen.
+	if endnotes, lastCallout := strings.Index(got.HTML, `role="doc-endnotes"`), strings.LastIndex(got.HTML, "</details>"); endnotes >= 0 && endnotes < lastCallout {
+		t.Errorf("the endnote list sits inside a callout, so the definitions it holds belong to that callout rather than to the note:\n%s", got.HTML)
+	}
+
+	// Anchors, not visibility: a fragment this page writes has to name an
+	// element this page carries, and no id may be minted twice — the risk one
+	// numbering runs when it is fed from two places that each used to start at
+	// one. Whether a closed <details> opens on a fragment jump is the browser's
+	// decision and is not asserted here.
+	ids := map[string]bool{}
+	for _, id := range allMatches(elementID, got.HTML) {
+		if ids[id] {
+			t.Errorf("the id %q is minted twice, so a fragment naming it is ambiguous:\n%s", id, got.HTML)
+		}
+		ids[id] = true
+	}
+	for _, fragment := range allMatches(fragmentHref, got.HTML) {
+		if !ids[fragment] {
+			t.Errorf("the fragment %q names no element on the page:\n%s", fragment, got.HTML)
+		}
 	}
 }

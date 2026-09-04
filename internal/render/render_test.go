@@ -1491,6 +1491,10 @@ func TestCalloutFoldSuffixes(t *testing.T) {
 // pieces exist; only an exact string proves there is exactly one body
 // wrapper, that attributes keep their order, and that the icon precedes the
 // title — the drifts a substring check waves through.
+//
+// The newline between the body wrapper and the first paragraph is the callout's
+// opening markup standing on a line of its own in the source the note is parsed
+// from. It is whitespace between two block elements and no reader sees it.
 func TestCalloutSerializationLocks(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
@@ -1505,28 +1509,28 @@ func TestCalloutSerializationLocks(t *testing.T) {
 			body: "> [!note]\n> body text\n",
 			want: `<div class="callout callout-note"><p class="callout-title">` +
 				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</p>` +
-				`<div class="callout-body"><p>body text</p>` + "\n</div></div>\n",
+				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 		{
 			name: "foldable callout closed by default",
 			body: "> [!note]-\n> body text\n",
 			want: `<details class="callout callout-note"><summary class="callout-title">` +
 				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</summary>` +
-				`<div class="callout-body"><p>body text</p>` + "\n</div></details>\n",
+				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></details>\n",
 		},
 		{
 			name: "foldable callout open by default",
 			body: "> [!note]+\n> body text\n",
 			want: `<details class="callout callout-note" open><summary class="callout-title">` +
 				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</summary>` +
-				`<div class="callout-body"><p>body text</p>` + "\n</div></details>\n",
+				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></details>\n",
 		},
 		{
 			name: "static warning callout with an authored title",
 			body: "> [!warning] 自訂標題\n> body text\n",
 			want: `<div class="callout callout-warning"><p class="callout-title">` +
 				`<span class="callout-icon" aria-hidden="true">⚠</span>自訂標題</p>` +
-				`<div class="callout-body"><p>body text</p>` + "\n</div></div>\n",
+				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 		{
 			// A quotation is not an aside about the text — it is someone's
@@ -1537,7 +1541,7 @@ func TestCalloutSerializationLocks(t *testing.T) {
 			body: "> [!quote] 口述紀錄\n> body text\n",
 			want: `<div class="callout callout-quote"><p class="callout-title">` +
 				`<span class="callout-icon" aria-hidden="true">❝</span>口述紀錄</p>` +
-				`<div class="callout-body"><p>body text</p>` + "\n</div></div>\n",
+				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 	}
 	for _, tt := range tests {

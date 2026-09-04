@@ -26,6 +26,6 @@ The sentence explaining an unwritten link is out of sight, and out of the name.
 
 > [!note] A callout around a heading
 > ### Inside a callout
-> A heading rendered from a separately parsed body.
+> A heading written inside a callout, slugged in the note's one id space.
 
 ![[Embedded Note]]
