@@ -14,13 +14,6 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// homeReadmePath is the note the desk shows as its own introduction. It is
-// named once because the lookup and the render need the same answer: the
-// renderer resolves a relative image against the note's directory, so a body
-// fetched under one path and rendered under another would address the wrong
-// files.
-const homeReadmePath = "README.md"
-
 // home renders the desk: four ways into the library, built from one coherent
 // snapshot, with whatever is wrong with the vault stated below the seam. It is
 // a read face: no status forms or write capability enter the view.
@@ -30,7 +23,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	snap := h.sources.Snapshot().Capture()
 	// The desk links to the folder's own introduction rather than reprinting
 	// it, so nothing here renders it and its absence is not news.
-	_, hasReadme := snap.Note(homeReadmePath)
+	_, hasReadme := snap.Note(pages.HomeReadmeRelPath)
 	// One reading of the folder's state, used by both halves of the notice
 	// below. Read live, it can change between two questions, and the count in
 	// the sentence would then be answered by a different set of files than the
