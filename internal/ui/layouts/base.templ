@@ -129,7 +129,7 @@ templ header(c Chrome) {
 		// this control: a reader who cannot read the interface must still be
 		// able to leave it.
 		<form class="y-langform" method="post" action="/lang">
-			<input type="hidden" name="lang" value={ string(otherLanguage(c.Lang)) }/>
+			<input type="hidden" name="lang" value={ string(c.Lang.Other()) }/>
 			<input type="hidden" name="next" value={ c.ReturnTo }/>
 			<button class="y-iconbtn y-langbtn" type="submit" aria-label={ wording.LanguageToggle.In(c.Lang) } title={ wording.LanguageToggle.In(c.Lang) }>
 				<span aria-hidden="true">{ languageMark(c.Lang) }</span>
