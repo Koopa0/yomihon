@@ -150,6 +150,13 @@ func TestLanguagePostKeepsTheRedirectLocal(t *testing.T) {
 		{name: "a decoded tab falls to Home", next: "/\t/evil.example", want: "/"},
 		{name: "a decoded newline falls to Home", next: "/\n/evil.example", want: "/"},
 		{name: "a delete byte falls to Home", next: "/\x7f/evil.example", want: "/"},
+		{name: "a next line falls to Home", next: "/\u0085/evil.example", want: "/"},
+		{name: "a line separator falls to Home", next: "/\u2028/evil.example", want: "/"},
+		{name: "a paragraph separator falls to Home", next: "/\u2029/evil.example", want: "/"},
+		// The refusal above is a set of separators, not of non-ASCII: most of
+		// this vault's own paths are CJK, and rejecting them would send every
+		// reader of them to Home on a language switch.
+		{name: "a CJK path survives, escaped", next: "/notes/讀懂.md", want: "/notes/%e8%ae%80%e6%87%82.md"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
