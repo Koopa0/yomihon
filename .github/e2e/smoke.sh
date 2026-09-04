@@ -28,31 +28,59 @@ fail() {
   exit 1
 }
 
-# One named site per dashboard block, plus one content marker that only the
-# fixture vault's rendered README can supply. The live verdict and its self-test
-# share this table, so neither can silently stop checking one block.
+# One named site per way into the library, plus the search block, one content
+# marker that only the fixture vault's rendered README can supply, and the
+# keyboard preference the layout carries. The live verdict and its self-test
+# share this table, so neither can silently stop checking one of them.
+#
+# The rail is not among them. Home carries the four ways in and no rail: a
+# listing beside a copy of itself is a second organisation of the same notes,
+# so what the rail used to promise here is promised on the note page below.
 home_markers=(
-  'recent|data-home-block="recent"'
-  'lifecycle|data-home-block="lifecycle"'
-  'study-paths|data-home-block="study-paths"'
+  'paths|data-home-block="paths"'
+  'maps|data-home-block="maps"'
+  'reports|data-home-block="reports"'
+  'folders|data-home-block="folders"'
   'search|data-home-block="search"'
   'vault-readme|data-home-readme'
-  'sidebar-paths|data-sidebar-group="paths"'
-  'sidebar-maps|data-sidebar-group="maps"'
-  'sidebar-map-fixture|data-map-tree="Maps/reading.md"'
-  'sidebar-journal|data-sidebar-group="journal"'
   'kbd-shortcut-pref|data-single-key-shortcuts-toggle'
 )
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(recent lifecycle study-paths search vault-readme sidebar-paths sidebar-maps sidebar-map-fixture sidebar-journal kbd-shortcut-pref)
+required_home_sites=(paths maps reports folders search vault-readme kbd-shortcut-pref)
+
+# The rail, checked where it now lives: beside the thing being read. The map
+# tree marker is what proves a tree rendered rather than an empty group.
+note_markers=(
+  'sidebar-paths|data-sidebar-group="paths"'
+  'sidebar-maps|data-sidebar-group="maps"'
+  'sidebar-map-fixture|data-map-tree="Maps/reading.md"'
+  'sidebar-journal|data-sidebar-group="journal"'
+)
+
+required_note_sites=(sidebar-paths sidebar-maps sidebar-map-fixture sidebar-journal)
 
 check_home_marker_table() {
   local actual required
   actual="$(printf '%s\n' "${home_markers[@]%%|*}" | sort)"
   required="$(printf '%s\n' "${required_home_sites[@]}" | sort)"
   [ "$actual" = "$required" ] || fail "Home marker sites differ from the required block and README set"
+  actual="$(printf '%s\n' "${note_markers[@]%%|*}" | sort)"
+  required="$(printf '%s\n' "${required_note_sites[@]}" | sort)"
+  [ "$actual" = "$required" ] || fail "note-page marker sites differ from the required rail set"
+}
+
+note_body_error() {
+  local content="$1" entry site marker
+  for entry in "${note_markers[@]}"; do
+    site="${entry%%|*}"
+    marker="${entry#*|}"
+    if ! grep -qF "$marker" <<<"$content"; then
+      echo "missing ${site} marker: ${marker}"
+      return 1
+    fi
+  done
 }
 
 home_body_error() {
@@ -194,8 +222,37 @@ yomihon   2 koopa 7u IPv4 0x2 0t0 TCP 192.168.1.5:19733 (LISTEN)"
     fi
   done
 
+  local note_complete=""
+  for entry in "${note_markers[@]}"; do
+    note_complete+="${entry#*|}"$'\n'
+  done
+  if ! note_body_error "$note_complete" >/dev/null; then
+    echo "  SELF-TEST FAIL: the complete note-page recording was refused" >&2
+    failures=1
+  fi
+  if note_body_error "" >/dev/null 2>&1; then
+    echo "  SELF-TEST FAIL: a blank 200 body was accepted as a note page" >&2
+    failures=1
+  else
+    echo "  ok: blank 200 -> refused as a note page"
+  fi
+  for entry in "${note_markers[@]}"; do
+    site="${entry%%|*}"
+    marker="${entry#*|}"
+    broken="${note_complete//"$marker"/}"
+    if reason="$(note_body_error "$broken")"; then
+      echo "  SELF-TEST FAIL: a note page without ${site} was accepted" >&2
+      failures=1
+    elif [ "$reason" != "missing ${site} marker: ${marker}" ]; then
+      echo "  SELF-TEST FAIL: a note page without ${site} failed at '${reason}'" >&2
+      failures=1
+    else
+      echo "  ok: note page without ${site} -> refused at ${site}"
+    fi
+  done
+
   [ "$failures" -eq 0 ] || fail "an HTTP smoke verdict accepted a recorded regression"
-  echo "self-test passed: widened binds and incomplete Home bodies were refused at their named invariants"
+  echo "self-test passed: widened binds, incomplete Home bodies and note pages without their rail were refused at their named invariants"
 }
 
 if [ "${1:-}" = "--self-test" ]; then
@@ -241,6 +298,10 @@ if ! reason="$(home_body_error "$(<"$body")")"; then
 fi
 echo "ok: /"
 assert_face "/notes/Notes/alpha.md" "tortoise"
+if ! reason="$(note_body_error "$(<"$body")")"; then
+  fail "GET /notes/Notes/alpha.md rendered but its rail is incomplete: ${reason}"
+fi
+echo "ok: the rail on /notes/Notes/alpha.md"
 assert_face "/notes/Notes/out-of-contract.md" "out-of-contract reading sentinel"
 assert_face "/syllabus/Maps/study.md" "<title>Study Path"
 assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'

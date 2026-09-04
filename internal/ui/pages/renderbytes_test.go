@@ -257,7 +257,9 @@ func recordedHomeView(model *nav.Model) HomeView {
 // recordedWithheldHomeView is the desk over a vault whose contract could not be
 // read. The builder's own lock is the withheld check in the command's route
 // tests, which drives the real site over a real broken contract; this records
-// what the markup then looks like. The two contract-derived blocks are still drawn, because they are the
+// what the markup then looks like.
+//
+// The two contract-derived blocks are still drawn, because they are the
 // only route to their pages, and they say neither how much they hold nor that
 // they hold nothing; the reason sits below the seam. Recording it is what makes
 // a block that starts speaking for a declaration nobody could read visible in a
