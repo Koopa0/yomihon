@@ -38,6 +38,8 @@ const SITES = [
   'focused-skip-link-clears-toggle',
   'open-focus-entry',
   'open-tab-contained',
+  'open-tab-reaches-the-exit',
+  'open-tab-walks-the-whole-cycle',
   'scrim-focus-return',
   'filter-escape-layering',
   'empty-filter-escape-closes-the-drawer',
@@ -147,6 +149,23 @@ const MUTATIONS = {
     target: 'open-tab-contained',
     apply: rewriteRuntime('drawer.js', "    if (!isOpen() || event.key !== 'Tab') return;", '    if (true) return;'),
   },
+  // The cycle drawn around the rail alone, which is the trap that hid the way
+  // out. Focus stays contained, so this is invisible to the case above.
+  'drop-the-exit-from-the-tab-cycle': {
+    target: 'open-tab-reaches-the-exit',
+    apply: rewriteRuntime('drawer.js', '    return [toggleButton, ...focusableElements()];', '    return focusableElements();'),
+  },
+  // Each step taken on trust: the runtime moves to the next name on its list
+  // and never asks the document whether focus arrived. One step still looks
+  // right, which is why the two cases above cannot see this.
+  'step-without-checking-focus-landed': {
+    target: 'open-tab-walks-the-whole-cycle',
+    apply: rewriteRuntime(
+      'drawer.js',
+      '      cycle[index].focus();\n      if (document.activeElement === cycle[index]) return;\n',
+      '      cycle[index].focus();\n      return;\n',
+    ),
+  },
   'suppress-scrim-focus-return': {
     target: 'scrim-focus-return',
     apply: rewriteRuntime(
@@ -232,6 +251,24 @@ const proveApplied = (proof) => {
 
 const activeInsideRail = (page) => page.$eval(RAIL, (rail) => rail.contains(document.activeElement));
 const toggleFocused = (page) => page.$eval(TOGGLE, (toggle) => document.activeElement === toggle);
+
+// What an open drawer contains is the rail and the button that opened it: the
+// button paints above the scrim and is the way back out, so reaching it is
+// still being inside. Everything else at this width is behind the curtain.
+const activeInsideDrawer = (page) => page.evaluate(({ railSelector, toggleSelector }) => {
+  const active = document.activeElement;
+  return document.querySelector(railSelector).contains(active) || active === document.querySelector(toggleSelector);
+}, { railSelector: RAIL, toggleSelector: TOGGLE });
+
+// Focuses the first or last control the open rail offers, which is where every
+// question about the cycle's boundary has to start.
+const focusRailEdge = (page, edge) => page.$eval(RAIL, (rail, which) => {
+  const focusable = [...rail.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    .filter((el) => !el.hidden && el.getClientRects().length > 0);
+  const target = which === 'last' ? focusable.at(-1) : focusable[0];
+  target.focus();
+  return focusable.length;
+}, edge);
 
 const waitForNav = (page, state) => page.waitForFunction(
   (want) => document.documentElement.dataset.nav === want,
@@ -379,23 +416,105 @@ try {
       fail('open-background-inert', `an open drawer leaves the page in the tree: ${JSON.stringify(behind)}`);
     }
 
-    const boundaryCount = await page.$eval(RAIL, (rail) => {
-      const focusable = [...rail.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-        .filter((el) => !el.hidden && el.getClientRects().length > 0);
-      if (focusable.length < 2) return focusable.length;
-      focusable.at(-1).focus();
-      return focusable.length;
-    });
+    // Containment first, and only containment: whatever else a Tab does at the
+    // rail's edge, it must not land behind the scrim. The next case asks the
+    // sharper question, and asking it here as well would let this run fire on
+    // a lost exit and leave the self-test aimed at containment reporting no
+    // catch — a mutation is only proven by the assertion it was built for.
+    const boundaryCount = await focusRailEdge(page, 'last');
     if (boundaryCount < 2) broken('the open rail has fewer than two visible focus targets, so its Tab boundary cannot be exercised');
     await page.keyboard.press('Tab');
-    if (!(await activeInsideRail(page))) fail('open-tab-contained', 'Tab from the last rail control escaped behind the scrim');
-    await page.$eval(RAIL, (rail) => {
-      const focusable = [...rail.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-        .filter((el) => !el.hidden && el.getClientRects().length > 0);
-      focusable[0].focus();
-    });
+    if (!(await activeInsideDrawer(page))) fail('open-tab-contained', 'Tab from the last rail control escaped behind the scrim');
+    await focusRailEdge(page, 'first');
     await page.keyboard.press('Shift+Tab');
-    if (!(await activeInsideRail(page))) fail('open-tab-contained', 'Shift+Tab from the first rail control escaped behind the scrim');
+    if (!(await activeInsideDrawer(page))) fail('open-tab-contained', 'Shift+Tab from the first rail control escaped behind the scrim');
+
+    // And the exit is reached, not merely not-escaped. The hamburger is the
+    // only close control a keyboard can arrive at — the scrim is a div and
+    // takes no focus — so a cycle drawn around the rail alone left the reader
+    // able to see the way out and unable to reach it. Both edges are asked,
+    // because the button leads the cycle and the rest of the header lies
+    // between it and the rail: forward off the end and backward off the front
+    // are two different steps, and only one of them is a wrap.
+    await focusRailEdge(page, 'last');
+    await page.keyboard.press('Tab');
+    if (!(await toggleFocused(page))) {
+      fail('open-tab-reaches-the-exit', 'Tab off the end of the rail did not reach the control that closes the drawer');
+    }
+    await focusRailEdge(page, 'first');
+    await page.keyboard.press('Shift+Tab');
+    if (!(await toggleFocused(page))) {
+      fail('open-tab-reaches-the-exit', 'Shift+Tab off the front of the rail did not reach the control that closes the drawer');
+    }
+    // Forward from the exit is the step the browser cannot make on its own:
+    // the header's other controls sit between the button and the rail in the
+    // document, so an unforced Tab walks into the chrome behind the scrim.
+    await page.keyboard.press('Tab');
+    if (!(await activeInsideRail(page))) {
+      fail('open-tab-reaches-the-exit', 'Tab from the close control walked into the header instead of the rail');
+    }
+
+    // And the whole way round, with real key presses. Both cases above take a
+    // single step from a control focused by the test, which is the one shape
+    // of walk that cannot see a step landing nowhere: the list of what looks
+    // focusable is not the list of what the browser will focus — most of this
+    // rail's rows sit inside collapsed disclosures, report a box, and refuse —
+    // so a runtime that moved by name without checking would come to rest on
+    // the first refusal and stay there however long the reader kept pressing.
+    //
+    // The precondition is measured rather than assumed: if no row in this
+    // fixture's rail refuses focus, a walk over it proves nothing about that
+    // and the probe says so instead of passing. Identity comes from stamping
+    // every element in the document, so the walk needs no second opinion
+    // about which of them are focusable — the browser's answer is read off
+    // document.activeElement.
+    const refusedRows = await page.evaluate(() => {
+      const before = document.activeElement;
+      let refused = 0;
+      for (const row of document.querySelectorAll('#nav-rail a[href]')) {
+        row.focus();
+        if (document.activeElement !== row) refused += 1;
+      }
+      before?.focus();
+      return refused;
+    });
+    if (refusedRows === 0) {
+      broken('no row in the fixture rail refuses focus, so walking it cannot show a step that lands nowhere');
+    }
+    const cap = await page.evaluate(() => {
+      let index = 0;
+      for (const element of document.querySelectorAll('*')) {
+        index += 1;
+        element.dataset.e2eWalk = String(index);
+      }
+      return document.querySelectorAll('#nav-rail *').length + 5;
+    });
+    const walkKey = () => page.evaluate(() => document.activeElement?.dataset?.e2eWalk ?? 'none');
+    const exitKey = await page.$eval(TOGGLE, (toggle) => toggle.dataset.e2eWalk);
+    const walk = async (chord) => {
+      const start = await walkKey();
+      const visited = new Set();
+      for (let press = 0; press < cap; press += 1) {
+        await page.keyboard.press(chord);
+        const at = await walkKey();
+        if (at === start) return { returned: true, visited };
+        visited.add(at);
+      }
+      return { returned: false, visited };
+    };
+    for (const [chord, direction] of [['Tab', 'forward'], ['Shift+Tab', 'backward']]) {
+      await focusRailEdge(page, chord === 'Tab' ? 'first' : 'last');
+      const round = await walk(chord);
+      if (!round.returned) {
+        fail('open-tab-walks-the-whole-cycle', `walking ${direction} never came back to where it started within ${cap} presses; it reached ${round.visited.size} places`);
+      }
+      if (!round.visited.has(exitKey)) {
+        fail('open-tab-walks-the-whole-cycle', `walking ${direction} came back round without passing the control that closes the drawer`);
+      }
+      if (round.visited.size < 2) {
+        fail('open-tab-walks-the-whole-cycle', `walking ${direction} visited ${round.visited.size} places, so the cycle has collapsed`);
+      }
+    }
 
     await page.locator(SCRIM).click({ position: { x: 760, y: 20 } });
     await closeState(page, 'scrim-focus-return', 'scrim click');
