@@ -32,7 +32,8 @@ Everything in this vault, grouped by what it is about.
 
 ## In another language
 
-- [[讀懂 yomihon]] — the same four ideas, written in Traditional Chinese
+- [[讀懂 yomihon]] — the same ideas, written in Traditional Chinese
+- [[把 yomihon 指向你的資料夾]] — the lesson that path does its work in
 - [[Japanese here]] — the poem and the lesson that reads it
 
 ## Seen working
