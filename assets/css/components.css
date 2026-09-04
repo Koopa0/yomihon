@@ -689,7 +689,10 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-searchresults[aria-busy="true"] { opacity: 0.58; }
 .y-searchpage__empty { margin: 28px 4px; font-family: var(--font-serif); color: var(--fg-subtle); }
 .y-searchpage__empty p { margin: 0; }
-.y-searchpage__empty .y-searchpage__hint { margin-top: 6px; font-size: var(--fs-12); color: var(--fg-faint); }
+.y-searchpage__emptytitle { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-20); font-weight: var(--fw-regular); color: var(--fg); }
+.y-searchpage__emptylede { margin-top: 6px; }
+/* The grammar sits under the sentence, quieter than it. */
+.y-searchpage__empty .y-searchpage__hint { margin-top: 14px; font-size: var(--fs-12); color: var(--fg-faint); }
 .y-results { display: flex; flex-direction: column; gap: 2px; margin: 20px 0 0; }
 .y-result { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: var(--r-sm); transition: background var(--dur-base); }
 .y-result:hover { background: var(--overlay); }

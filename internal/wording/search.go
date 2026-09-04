@@ -83,6 +83,17 @@ var ListSeparator = both("、", ", ")
 // other way, and this is the one moment saying so costs them no answer.
 var FilterKeysAvailable = both("可用的篩選器:", "Filters you can use: ")
 
+// SearchEmptyTitle and SearchEmptyLede open the search page before anything has
+// been asked. The prefixes below them are the field's grammar, which is worth
+// knowing and is not what a reader who has just arrived is looking for.
+var (
+	SearchEmptyTitle = both("搜尋這個書庫", "Search this library")
+	SearchEmptyLede  = both(
+		"打字找筆記的標題或內文；按 Enter 看全部結果。",
+		"Type to find a note by its title or its text; press Enter for every result.",
+	)
+)
+
 // ResultAliasLabel introduces the name a result answered to when it was not
 // the title the row shows. Without the word, the name would sit beside the
 // title looking like a second title. The gap after the label belongs to the
