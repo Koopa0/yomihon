@@ -61,14 +61,19 @@ func (h *Handler) language(w http.ResponseWriter, r *http.Request) {
 // backslashed address a browser would read as one — falls back to Home rather
 // than carrying the reader somewhere the form never stood.
 func localNext(next string) string {
-	// A control byte is refused before any shape check. This side writes the
-	// value into a header where a tab or a delete survives, and the WHATWG URL
-	// parser on the receiving side strips such bytes before it reads the
-	// shape — so "/\t/host" leaves here as a same-site path and arrives as a
-	// protocol-relative address. No address a page's own form carries contains
-	// one, so the fallback refuses no honest request.
-	for i := range len(next) {
-		if next[i] < 0x20 || next[i] == 0x7f {
+	// A rune that can end a line or a control sequence is refused before any
+	// shape check. This side writes the value into a header where such a rune
+	// survives, and a parser on the receiving side may drop it before it reads
+	// the shape — so "/\t/host" would leave here as a same-site path and
+	// arrive as a protocol-relative address. The refused set is C0 and delete,
+	// C1 — where U+0085 lives — and the two Unicode separators that end a line
+	// without being a newline. Invalid UTF-8 decodes to the replacement
+	// character, which is not in that set and needs no case of its own, since
+	// the redirect percent-escapes every non-ASCII byte on the way out. No
+	// address a page's own form carries contains any of these, so the fallback
+	// refuses no honest request.
+	for _, r := range next {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == '\u2028' || r == '\u2029' {
 			return "/"
 		}
 	}
