@@ -26,29 +26,6 @@ import (
 // and a name that scan cannot find is reported as an excerpt the page could
 // not cut.
 
-// foldAddress folds an address the way both fragment kinds fold on the reading
-// page: Unicode form and letter case, and nothing else. Every other difference
-// is one the author chose.
-func foldAddress(s string) string {
-	return strings.ToLower(vault.NormalizeNFC(s))
-}
-
-// sectionDrop matches every run of characters a heading id drops: anything
-// that is not a Unicode letter or digit collapses to a single hyphen.
-var sectionDrop = regexp.MustCompile(`[^\p{L}\p{N}]+`)
-
-// sectionSlug reduces a section name to the id the destination page stamps for
-// a heading: fold, keep letters and digits, collapse every other run to one
-// hyphen, trim the ends, and fall back to "section" when nothing is left. Both
-// sides of the comparison run it, so a link and a heading cannot drift apart.
-func sectionSlug(s string) string {
-	s = strings.Trim(sectionDrop.ReplaceAllString(foldAddress(s), "-"), "-")
-	if s == "" {
-		return "section"
-	}
-	return s
-}
-
 var (
 	// wikilinkInHeading matches a wikilink or transclusion written inside a
 	// heading's text, whose display words are what the rendered heading shows.
@@ -130,7 +107,7 @@ func collectParsedHeadings(body string, into map[string]bool) {
 		if r, ok := linesRange(h); ok {
 			raw = body[r.start:r.stop]
 		}
-		into[sectionSlug(headingWords(sequence.HeadingName(raw, h.Level)))] = true
+		into[graph.SectionID(headingWords(sequence.HeadingName(raw, h.Level)))] = true
 	})
 }
 
@@ -165,13 +142,13 @@ func collectGenerousHeadings(body string, into map[string]bool) {
 	for line := range strings.SplitSeq(body, "\n") {
 		candidate := withoutQuoteAndListMarks(line)
 		if m := atxHeadingText.FindStringSubmatch(candidate); m != nil {
-			into[sectionSlug(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
+			into[graph.SectionID(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
 			paragraph = nil
 			continue
 		}
 		if len(paragraph) > 0 && setextUnderline.MatchString(candidate) {
 			name := sequence.HeadingName(strings.Join(paragraph, "\n"), setextLevel(candidate))
-			into[sectionSlug(headingWords(name))] = true
+			into[graph.SectionID(headingWords(name))] = true
 			paragraph = nil
 			continue
 		}
@@ -308,14 +285,14 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 			continue
 		}
 		if m := atxHeadingText.FindStringSubmatch(line); m != nil {
-			into[sectionSlug(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
+			into[graph.SectionID(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
 			paragraph = -1
 			continue
 		}
 		switch {
 		case paragraph >= 0 && setextUnderline.MatchString(line):
 			name := sequence.HeadingName(strings.Join(lines[paragraph:i], "\n"), setextLevel(line))
-			into[sectionSlug(headingWords(name))] = true
+			into[graph.SectionID(headingWords(name))] = true
 			paragraph = -1
 		case strings.TrimSpace(line) == "", quotedLinePrefix.MatchString(line), listItemPrefix.MatchString(line),
 			breakRuleLine.MatchString(line), setextUnderline.MatchString(line),
@@ -358,7 +335,7 @@ func collectBlockLines(body string) []string {
 		if !strings.Contains(trimmed, "^") {
 			continue
 		}
-		out = append(out, foldAddress(trimmed))
+		out = append(out, graph.FoldFragment(trimmed))
 	}
 	return out
 }
@@ -441,12 +418,12 @@ func fragmentFinding(n *note, link *wikiLink, idx *graph.Index, byPath map[strin
 		return Finding{}, false
 	}
 	if link.block != "" {
-		if blockAddressed(target.blockAnchorLines, foldAddress("^"+link.block)) {
+		if blockAddressed(target.blockAnchorLines, graph.FoldFragment("^"+link.block)) {
 			return Finding{}, false
 		}
 		return blockMissing(n, link, res.RelPath), true
 	}
-	want := sectionSlug(link.heading)
+	want := graph.SectionID(link.heading)
 	if link.embed {
 		if target.excerptSectionAnchors[want] {
 			return Finding{}, false

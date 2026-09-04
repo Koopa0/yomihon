@@ -232,15 +232,15 @@ func scanHeadings(lines []string) []sectionHeading {
 // headingSlice returns the section of body that heading names: the first heading
 // whose text folds to the same slug, through to the line before the next heading
 // of the same or a higher level, deeper ones included. A repeated name takes the
-// first, as Obsidian's reading view does. The name folds through slugify over
-// heading text reduced the way the anchor pass reduces it, so the destination's
+// first, as Obsidian's reading view does. The name folds through the section id
+// over heading text reduced the way the anchor pass reduces it, so the destination's
 // own table of contents lists the spellings an embed accepts.
 func headingSlice(body, heading string) (slice string, matches int) {
-	want := slugify(heading)
+	want := graph.SectionID(heading)
 	lines := strings.Split(body, "\n")
 	headings := scanHeadings(lines)
 	for i, h := range headings {
-		if slugify(headingSourceText(h.text, h.level)) != want {
+		if graph.SectionID(headingSourceText(h.text, h.level)) != want {
 			continue
 		}
 		matches++
@@ -388,7 +388,7 @@ func blockSlice(body, block string) (string, bool) {
 // when the note has no such marker. A marker written inside a fenced block is
 // code rather than an address, so the scan tracks fences as it walks.
 func blockMarkerLine(lines []string, block string) int {
-	want := foldFragment("^" + block)
+	want := graph.FoldFragment("^" + block)
 	inFence, fenceByte := false, byte(0)
 	for i, line := range lines {
 		// A fence is looked for with any quote marker taken off it, because a
@@ -408,7 +408,7 @@ func blockMarkerLine(lines []string, block string) int {
 		if unanchorableLine(line) {
 			continue
 		}
-		trimmed := foldFragment(strings.TrimRight(line, " \t"))
+		trimmed := graph.FoldFragment(strings.TrimRight(line, " \t"))
 		if trimmed == want || strings.HasSuffix(trimmed, " "+want) || strings.HasSuffix(trimmed, "\t"+want) {
 			return i
 		}

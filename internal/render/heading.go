@@ -6,13 +6,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/sequence"
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 var (
 	headingTag = regexp.MustCompile(`(?s)<h([1-6])>(.*?)</h[1-6]>`)
-	slugDrop   = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 	tagStrip   = regexp.MustCompile(`<[^>]+>`)
 
 	// offscreenNote matches the explanation this renderer attaches out of sight
@@ -28,28 +27,6 @@ var (
 	// <hr>, <header> and <hgroup>.
 	nestedHeadingOpen = regexp.MustCompile(`<h[1-6][>\s]`)
 )
-
-// foldFragment is the fold the two kinds of "#fragment" share: Unicode form and
-// letter case, and nothing else. Those are the two ways a name differs for
-// reasons its author never chose; every other difference they did choose.
-func foldFragment(s string) string {
-	return strings.ToLower(vault.NormalizeNFC(s))
-}
-
-// slugify makes a CJK-safe fragment id from heading text: NFC, lowercase, keep
-// only Unicode letters and digits, collapse every other run to one hyphen, trim
-// hyphens, and fall back to "section" when nothing is left. Keeping every Unicode
-// letter is what lets a CJK heading produce a usable id. The NFC step comes first
-// because a combining mark otherwise counts as "not a letter" and becomes a
-// hyphen, so か+◌゙ん and がん would stamp two anchors for one heading.
-func slugify(s string) string {
-	s = slugDrop.ReplaceAllString(foldFragment(s), "-")
-	s = strings.Trim(s, "-")
-	if s == "" {
-		return "section"
-	}
-	return s
-}
 
 // headingInnerText reduces a heading's inner markup to the words the reader sees:
 // a ruby reading and the offscreen explanation of an unwritten link are dropped
@@ -88,14 +65,15 @@ func StripAnchors(htmlOut string) string {
 	return anchorAddress.ReplaceAllString(anchorAttribute.ReplaceAllString(htmlOut, ""), "")
 }
 
-// assignHeadingSlugs walks the final rendered HTML, assigns each h1-h6 a
-// slugify'd id, and collects the table of contents in document order. A repeated
-// base slug bumps a numeric suffix until it lands on an id assigned nowhere
-// earlier. Every heading gets an id, a transcluded excerpt's included, while the
-// contents list takes fewer; reserved is an id already spoken for elsewhere on the
-// page. It reads the HTML this package just wrote rather than a parsed tree,
-// because no single tree ever holds the page's headings together.
-func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
+// assignHeadingIDs walks the final rendered HTML, gives each h1-h6 the id its
+// name folds to, and collects the table of contents in document order. A name
+// that folds to an id already taken bumps a numeric suffix until it lands on one
+// assigned nowhere earlier. Every heading gets an id, a transcluded excerpt's
+// included, while the contents list takes fewer; reserved is an id already
+// spoken for elsewhere on the page. It reads the HTML this package just wrote
+// rather than a parsed tree, because no single tree ever holds the page's
+// headings together.
+func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
 	if reserved != "" {
@@ -132,7 +110,7 @@ func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 		inner = sequence.HeadingName(inner, level)
 		text := headingInnerText(inner)
 
-		id := slugify(text)
+		id := graph.SectionID(text)
 		if seen[id] {
 			for n := 2; ; n++ {
 				cand := fmt.Sprintf("%s-%d", id, n)

@@ -1585,7 +1585,7 @@ func TestHeadingSlugFallsBackToSection(t *testing.T) {
 	r := newRenderer(t, nil, nil, nil)
 
 	// A heading whose text is entirely punctuation strips to nothing —
-	// slugify falls back to the literal string "section". (A trailing
+	// the section id falls back to the literal string "section". (A trailing
 	// run of "#" would be parsed as ATX's optional closing sequence and
 	// stripped from the text by goldmark itself, so this uses "!" only.)
 	got := r.HTML("note.md", "", "## !!! !!!\n", wording.ZhHant)

@@ -1,6 +1,42 @@
 package graph
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+
+	"github.com/koopa0/yomihon/internal/vault"
+)
+
+// FoldFragment folds the half of a link written after its "#" the way both
+// kinds of fragment fold: Unicode form and letter case, and nothing else. Those
+// are the two ways a name differs for reasons its author never chose; every
+// other difference they did choose, and it is kept. A block address folds
+// through here too, which is what keeps "^quote-1" and "^quote1" two names.
+func FoldFragment(s string) string {
+	return strings.ToLower(vault.NormalizeNFC(s))
+}
+
+// sectionIDDrop matches every run of characters a section id drops: anything
+// that is neither a Unicode letter nor a digit collapses to a single hyphen.
+var sectionIDDrop = regexp.MustCompile(`[^\p{L}\p{N}]+`)
+
+// SectionID is the id a page stamps for a heading of this name, and therefore
+// the fragment a link has to carry to reach it: fold, keep letters and digits,
+// collapse every other run to one hyphen, trim the ends, and fall back to
+// "section" when nothing is left. Keeping every Unicode letter is what lets a
+// CJK heading produce a usable id, and folding first is what keeps か+◌゙ん and
+// がん one id rather than two, since a combining mark left alone is not a letter
+// and would become a hyphen.
+//
+// Every face that stamps an id, follows one, or asks whether a note answers one
+// reads it from here, so a link and the heading it names cannot drift apart.
+func SectionID(name string) string {
+	id := strings.Trim(sectionIDDrop.ReplaceAllString(FoldFragment(name), "-"), "-")
+	if id == "" {
+		return "section"
+	}
+	return id
+}
 
 // Wikilink is one wikilink's inner text — the characters between its enclosing
 // "[[" and "]]" — split into what resolution reads, what a reader sees, and

@@ -565,3 +565,48 @@ func TestKindRefusesToNameAValueItDoesNotDeclare(t *testing.T) {
 	_ = graph.Kind(99).String()
 	t.Error("Kind(99).String() returned instead of panicking")
 }
+
+// TestSectionIDNamesAPlaceTheSameWayForEveryFace pins the id a section name
+// folds to. Both the page that stamps the id and the adjudicator that asks
+// whether a note answers one read it from here, so a change made for either of
+// them moves every anchor and every fragment in the vault at once.
+//
+// The rows are the spellings that separate one plausible fold from another:
+// letter case, characters that are letters without being ASCII, characters that
+// look like letters and are not, characters that are counted as digits without
+// looking like one, and names that fold to nothing at all. The two
+// Unicode forms of one word are built rather than typed, since a source file
+// cannot show which form it is carrying.
+func TestSectionIDNamesAPlaceTheSameWayForEveryFace(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ name, want string }{
+		{"Plain Heading", "plain-heading"},
+		{"  Trailing and leading  ", "trailing-and-leading"},
+		{"CJK 標題", "cjk-標題"},
+		{"Heading -- with punctuation!", "heading-with-punctuation"},
+		{"under_score", "under-score"},
+		{"x²", "x²"},
+		{"½", "½"},
+		{"!!!", "section"},
+		{"", "section"},
+		{"   ", "section"},
+		{"ＦＵＬＬＷＩＤＴＨ", "ｆｕｌｌｗｉｄｔｈ"},
+	}
+	for _, tt := range tests {
+		if got := graph.SectionID(tt.name); got != tt.want {
+			t.Errorf("SectionID(%q) = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+
+	for _, name := range []string{"Mañana", "がん", "Å"} {
+		composed, decomposed := norm.NFC.String(name), norm.NFD.String(name)
+		if composed == decomposed {
+			t.Fatalf("%q has one Unicode form, so it says nothing about folding the other", name)
+		}
+		if graph.SectionID(composed) != graph.SectionID(decomposed) {
+			t.Errorf("the two Unicode forms of %q stamp two ids: %q and %q",
+				name, graph.SectionID(composed), graph.SectionID(decomposed))
+		}
+	}
+}
