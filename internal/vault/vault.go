@@ -225,7 +225,8 @@ func StatusLineSpan(data []byte) (start, end int, ok bool) {
 // everything else its author wrote there, a trailing comment included, stays
 // content. It reports false when data has no single status line, or the value
 // is a shape a byte replacement cannot preserve: absent, a sequence or mapping,
-// an anchor, an alias, a tag, a multi-line block scalar, or an unclosed quote.
+// an anchor, an alias, a tag, a multi-line block scalar, an unclosed quote, or
+// a value carrying a character the reader ends the line at.
 func StatusValueSpan(data []byte) (start, end int, ok bool) {
 	lineStart, lineEnd, ok := StatusLineSpan(data)
 	if !ok {
@@ -265,10 +266,14 @@ func scalarValue(value []byte) (offset, width int, ok bool) {
 	if !ok {
 		return 0, 0, false
 	}
-	// A control byte inside the run is a line break the YAML reader honours and
-	// this line scan does not, so the two would disagree where the value ends.
-	for _, b := range value[offset : offset+width] {
-		if b < 0x20 {
+	// A line break inside the run is one the YAML reader honours and this line
+	// scan does not, so the two would disagree where the value ends and a
+	// replacement would reach into what the reader reads as the next line —
+	// deleting a key, or a comment line of the author's own. The reader ends a
+	// line at more than the control bytes: U+0085, U+2028 and U+2029 end one
+	// too, and all three are invisible to a reviewer reading the note.
+	for _, r := range string(value[offset : offset+width]) {
+		if r < 0x20 || r == '\u0085' || r == '\u2028' || r == '\u2029' {
 			return 0, 0, false
 		}
 	}
