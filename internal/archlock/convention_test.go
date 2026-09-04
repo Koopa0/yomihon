@@ -109,6 +109,126 @@ func findLines(t *testing.T, accept func(string) bool) []site {
 	return found
 }
 
+// TestAConditionalClassOutranksTheClassItModifies covers the one thing that
+// decides which of two colours a reader sees. A mark is written as a base class
+// and a conditional one on the same element; both are single class selectors,
+// so neither outranks the other and the order of the stylesheet settles it. A
+// modifier declared above the class it modifies loses in silence: the markup is
+// right, a check that reads the markup is right, and the colour on the screen
+// is the other one.
+//
+// What it covers is bounded and worth stating: of the eleven conditional
+// classes the templates write, two pairs have both halves setting a colour, and
+// those two are what this compares. The rest are conditions on layout or
+// spacing, where order settles nothing a reader would notice. A modifier that
+// starts setting a colour joins the comparison by doing so; the guard below
+// fails rather than passing quietly if that set ever empties.
+func TestAConditionalClassOutranksTheClassItModifies(t *testing.T) {
+	t.Parallel()
+
+	coloured := colouredClasses(t)
+	pairs := conditionalClassPairs(t)
+	if len(pairs) == 0 {
+		t.Fatal("no conditional class was found in any template, so this compares nothing")
+	}
+	compared := 0
+	for _, pair := range pairs {
+		baseAt, baseColours := coloured[pair.base]
+		modifierAt, modifierColours := coloured[pair.modifier]
+		if !baseColours || !modifierColours {
+			continue
+		}
+		compared++
+		if modifierAt < baseAt {
+			t.Errorf("%s:%d .%s is declared before the .%s it modifies, so the base colour wins and the condition changes nothing a reader can see",
+				pair.path, pair.line, pair.modifier, pair.base)
+		}
+	}
+	if compared == 0 {
+		t.Fatal("no pair had both of its classes setting a colour, so this compares nothing")
+	}
+}
+
+// classPair is one element's base class and one class applied to it by
+// condition, as a template writes them together.
+type classPair struct {
+	path     string
+	line     int
+	base     string
+	modifier string
+}
+
+// conditionalClassPairs reads every class attribute a template builds from a
+// list, and pairs each conditional class with each unconditional one beside it.
+func conditionalClassPairs(t *testing.T) []classPair {
+	t.Helper()
+
+	attribute := regexp.MustCompile(`class=\{([^}]*)\}`)
+	literal := regexp.MustCompile(`"([A-Za-z0-9_ -]+)"`)
+	conditional := regexp.MustCompile(`templ\.KV\("([A-Za-z0-9_-]+)"`)
+
+	var pairs []classPair
+	for _, path := range productionFiles(t, ".templ") {
+		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for i, line := range strings.Split(string(data), "\n") {
+			for _, attr := range attribute.FindAllStringSubmatch(line, -1) {
+				modifiers := make([]string, 0, 2)
+				for _, m := range conditional.FindAllStringSubmatch(attr[1], -1) {
+					modifiers = append(modifiers, m[1])
+				}
+				if len(modifiers) == 0 {
+					continue
+				}
+				for _, l := range literal.FindAllStringSubmatch(attr[1], -1) {
+					for class := range strings.FieldsSeq(l[1]) {
+						if slices.Contains(modifiers, class) {
+							continue
+						}
+						for _, modifier := range modifiers {
+							pairs = append(pairs, classPair{path: path, line: i + 1, base: class, modifier: modifier})
+						}
+					}
+				}
+			}
+		}
+	}
+	return pairs
+}
+
+// colouredClasses maps each class whose own rule sets a colour to where that
+// rule sits in the stylesheet. Only rules written as one class are read: a
+// compound selector already outranks a single one, so the order does not decide
+// it.
+func colouredClasses(t *testing.T) map[string]int {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(repoRoot, "assets", "css", "components.css"))
+	if err != nil {
+		t.Fatalf("read the stylesheet: %v", err)
+	}
+	rule := regexp.MustCompile(`(?m)^\.([A-Za-z0-9_-]+)\s*\{([^}]*)\}`)
+	sets := regexp.MustCompile(`(^|[;{])\s*color:`)
+	at := make(map[string]int)
+	for _, m := range rule.FindAllStringSubmatchIndex(string(data), -1) {
+		class := string(data[m[2]:m[3]])
+		body := string(data[m[4]:m[5]])
+		if !sets.MatchString(body) {
+			continue
+		}
+		if _, seen := at[class]; seen {
+			continue
+		}
+		at[class] = m[0]
+	}
+	if len(at) == 0 {
+		t.Fatal("no single-class colour rule was read from the stylesheet, so this compares nothing")
+	}
+	return at
+}
+
 // TestAnExhaustiveSwitchPanicNamesTheValueItDidNotKnow keeps the last arm of a
 // switch over a closed set useful. A panic that says only which type it was
 // holding leaves whoever meets it in a log with no way to tell which value the

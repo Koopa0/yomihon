@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -63,6 +64,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), recordedChrome().Lang), recordedChrome())},
 		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
+		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
 		{"folder-index-page", FolderIndex(NewFolderIndex(model, recordedChrome().Lang), RecentBlock{}, StatusDistribution{}, recordedChrome())},
 		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
 	}
@@ -307,6 +309,19 @@ func recordedReportIndexView() ListIndexView {
 // recordedWithheldIndexView is a mode index whose declaration could not be
 // read: no rows, and the reason in place of the sentence about a vault that
 // declared nothing.
+// recordedFaultedIndexView is a course whose structure could not be read: it
+// lists, it says how much it plans, and it says that figure is not an answer.
+// Nothing in the shared fixture draws a row reporting a hole in its own shelf,
+// so the mark that says so had no recorded bytes and was free to lose its
+// colour to the ordinary measure beside it.
+func recordedFaultedIndexView() ListIndexView {
+	return NewPathIndex([]nav.Path{{
+		Title:       "Unread Course",
+		RelPath:     "Maps/unread.md",
+		Diagnostics: []sequence.Diagnostic{{Rule: "path.nesting_too_deep", Line: 4, Message: "nested past one level"}},
+	}}, recordedChrome().Lang)
+}
+
 func recordedWithheldIndexView() ListIndexView {
 	view := NewMapIndex(nil, recordedChrome().Lang)
 	view.Fault = "the contract could not be read"

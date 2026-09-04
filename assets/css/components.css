@@ -952,6 +952,11 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-row:hover .y-row__title { color: var(--link); }
 .y-row__title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); overflow-wrap: anywhere; }
 .y-row__measure { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+/* A row reporting a hole in its own shelf. The colour has to be written here,
+   after the measure it overrides: the shared warning colour is declared far
+   above this and would lose to the faint one on equal specificity, which is
+   how a fault came to be drawn in the colour of an ordinary figure. */
+.y-row__measure--warn { color: var(--warn); }
 
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from
