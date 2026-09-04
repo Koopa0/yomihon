@@ -464,10 +464,23 @@ func TestTheExampleVaultStillDemonstratesEveryAuthorFace(t *testing.T) {
 	})
 }
 
-// assertContractDeclaresEverythingItCanRead walks the decoded contract's own
-// struct fields, so a section added to the decoder shows up here without this
-// test being edited. Anything the example contract leaves at its zero value is
-// a capability the vault cannot exercise whatever its notes contain.
+// assertContractDeclaresEverythingItCanRead walks the decoded contract's
+// struct fields, so a key added to [enums], [fields], [rules] or [scan] is
+// demanded here without this test being edited. Anything the example contract
+// leaves at its zero value is a capability the vault cannot exercise whatever
+// its notes contain.
+//
+// The reach stops at that struct, which is less than it looks. [navigation],
+// [artifacts], [privacy], [supersession] and the lifecycle rows are decoded
+// beside it rather than as fields of it, and reach a caller only through
+// accessors, so each is named one at a time below — and a section added the
+// same way would go undemanded until somebody adds it here too.
+//
+// A bool key is the one shape the zero-value question cannot ask properly: a
+// key written "false" and a key left out decode alike. Both bools this
+// contract carries are written true, which is the value that opens the
+// capability behind them, so the walk is right about them; a contract that
+// deliberately wrote false would need a different question.
 func assertContractDeclaresEverythingItCanRead(t *testing.T, contract *schema.Contract) {
 	t.Helper()
 
