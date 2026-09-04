@@ -48,15 +48,6 @@ var (
 	HomeSearchLede     = both("尋找筆記或篩選書庫", "Find a note, or narrow the library down")
 )
 
-// What the desk says about a folder it is standing in for, and the empty case.
-var (
-	StandInEmpty      = both("這個資料夾目前沒有檔案。", "This folder holds no files.")
-	StandInBeforeOne  = both("這個資料夾有 %d 個檔案，最近一次變更是", "This folder holds %d file; the most recent change is ")
-	StandInBeforeMany = both("這個資料夾有 %d 個檔案，最近一次變更是", "This folder holds %d files; the most recent change is ")
-	StandInDateOpen   = both("（", " (")
-	StandInDateClose  = both("）。", ").")
-)
-
 // The counts beside a status chip and a study path.
 // Chinese does not inflect a noun for number and English does, so each count
 // is a pair. A tally that reads "1 notes" is the first thing a reader notices.

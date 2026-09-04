@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -9,7 +8,8 @@ import (
 // ListIndex is one mode's own page: everything the vault declares of that kind,
 // one line each. It carries no left rail — the rail is the thing being read,
 // and a list beside a copy of itself is a second organisation of the same
-// notes.
+// notes. Anything a mode has beyond its listing follows it as children, which
+// is how one mode can say more without a second page shape existing.
 templ ListIndex(v ListIndexView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
@@ -21,122 +21,87 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
 				}
 				@ShelfPage(v.Shelf)
+				{ children... }
 			</div>
 		</main>
 	}
 }
 
-// FolderIndex is the folder mode's page: the directory tree itself, which is
-// the one mode whose contents are not a list. Every folder is a closed
-// disclosure carrying what it holds, so the page opens at the shape of the
-// vault rather than at all of it.
-templ FolderIndex(v FolderIndexView, c layouts.Chrome) {
-	@layouts.Base(c) {
-		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
-			<div class="y-home">
-				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
-				if v.Fault != "" {
-					@indexFault(v.Fault, c)
-				}
-				if len(v.RootNotes) == 0 && len(v.Folders) == 0 {
-					if v.Fault == "" {
-						<p class="y-homeempty" data-index-empty>{ v.Empty }</p>
-					}
-				} else {
-					<nav class="y-foldertree" aria-label={ wording.Folders.In(c.Lang) }>
-						for _, n := range v.RootNotes {
-							<a class="ui-navitem" href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
-						}
-						for _, f := range v.Folders {
-							@folderIndexNode(f, c)
-						}
-					</nav>
-				}
-				// What changed last and where every note sits are questions
-				// about how the shelf is kept, so they are answered in the mode
-				// that browses by position rather than on the desk a reader
-				// arrives at to read something.
-				<div class="y-homegrid y-shelfblocks">
-					if v.ShowRecent {
-						<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="folders-recent-title">
-							@homeBlockHead("folders-recent-title", recentTitle(&v, c.Lang), recentLede(&v, c.Lang))
-							<div class="y-homerecent">
-								for _, n := range v.Recent {
-									<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
-										<span class="y-homenote__main">
-											<span class="y-homenote__title">{ n.Title }</span>
-											<span class="y-homenote__path">{ n.RelPath }</span>
-										</span>
-										<span class="y-homenote__meta">
-											if n.Status != "" {
-												<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
-												if n.StatusOutsideEnum {
-													@statusOutsideEnumMark(c.Lang)
-												}
-											}
-											if n.Modified != "" {
-												<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
-											}
-										</span>
-									</a>
-								}
-							</div>
-						</section>
-					}
-					if v.ShowLifecycle {
-						<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="folders-lifecycle-title">
-							@homeBlockHead("folders-lifecycle-title", wording.HomeLifecycleTitle.In(c.Lang), wording.HomeLifecycleLede.In(c.Lang))
-							<div class="y-homechips">
-								for _, it := range v.Lifecycle {
-									<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>
-										@lifecycleChipBody(it, c.Lang)
-									</a>
-								}
-							</div>
-							if len(v.Unstated) > 0 {
-								<div class="y-homeunstated">
-									for _, it := range v.Unstated {
-										if it.Href == "" {
-											<span class="y-homeunstated__cell">
-												@unstatedChipBody(it, c.Lang)
-											</span>
-										} else {
-											<a class="y-homeunstated__cell" href={ templ.URL(it.Href) }>
-												@unstatedChipBody(it, c.Lang)
-											</a>
+// FolderIndex is the folder mode's page: the same listing every mode gets, and
+// under it the two things a reader asks about how the shelf is kept — what
+// changed last, and where every note sits. Those describe how the files are
+// kept, which is a different question from what there is to read, so they are
+// answered in the mode that browses by position rather than on the desk a
+// reader arrives at to read something.
+templ FolderIndex(v ListIndexView, recent RecentBlock, statuses StatusDistribution, c layouts.Chrome) {
+	@ListIndex(v, c) {
+		@shelfKeeping(recent, statuses, c)
+	}
+}
+
+// shelfKeeping is the pair of blocks under the folder listing. Each draws only
+// when it has something to say: a folder holding no indexed note has no recent
+// list, and a vault whose vocabulary could not be read has no distribution,
+// with the reason already stated once at the head of the page.
+templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chrome) {
+	if len(recent.Notes) > 0 || len(statuses.Statuses) > 0 {
+		<div class="y-homegrid y-shelfblocks">
+			if len(recent.Notes) > 0 {
+				<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="folders-recent-title">
+					@homeBlockHead("folders-recent-title", recent.Title, recent.Lede)
+					<div class="y-homerecent">
+						for _, n := range recent.Notes {
+							<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
+								<span class="y-homenote__main">
+									<span class="y-homenote__title">{ n.Title }</span>
+									<span class="y-homenote__path">{ n.RelPath }</span>
+								</span>
+								<span class="y-homenote__meta">
+									if n.Status != "" {
+										<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
+										if n.StatusOutsideEnum {
+											@statusOutsideEnumMark(c.Lang)
 										}
 									}
-								</div>
-								<p class="y-homeblock__note">{ wording.LifecycleUnstatedNote.In(c.Lang) }</p>
-							}
-						</section>
-					}
-				</div>
-			</div>
-		</main>
-	}
-}
-
-// folderIndexNode is one folder of the index tree: a closed disclosure whose
-// summary names the folder, says how much is under it, and reaches the folder's
-// own page. It recurses to whatever depth the directory structure has.
-templ folderIndexNode(f nav.Folder, c layouts.Chrome) {
-	<details>
-		<summary class="ui-navitem">
-			@chevron()
-			{ f.Name }
-			<span class="ui-navitem__count">{ folderNoteCount(&f, c.Lang) }</span>
-		</summary>
-		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(folderHref(f.RelPath)) }>{ wording.OpenFolder.In(c.Lang) }</a>
-			for _, sub := range f.Subfolders {
-				@folderIndexNode(sub, c)
+									if n.Modified != "" {
+										<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
+									}
+								</span>
+							</a>
+						}
+					</div>
+				</section>
 			}
-			for _, n := range f.Notes {
-				<a class="ui-navitem" href={ templ.URL(notesHref(n.RelPath)) }>{ n.Name }</a>
+			if len(statuses.Statuses) > 0 {
+				<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="folders-lifecycle-title">
+					@homeBlockHead("folders-lifecycle-title", wording.HomeLifecycleTitle.In(c.Lang), wording.HomeLifecycleLede.In(c.Lang))
+					<div class="y-homechips">
+						for _, it := range statuses.Statuses {
+							<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>
+								@lifecycleChipBody(it, c.Lang)
+							</a>
+						}
+					</div>
+					if len(statuses.Unstated) > 0 {
+						<div class="y-homeunstated">
+							for _, it := range statuses.Unstated {
+								if it.Href == "" {
+									<span class="y-homeunstated__cell">
+										@unstatedChipBody(it, c.Lang)
+									</span>
+								} else {
+									<a class="y-homeunstated__cell" href={ templ.URL(it.Href) }>
+										@unstatedChipBody(it, c.Lang)
+									</a>
+								}
+							}
+						</div>
+						<p class="y-homeblock__note">{ wording.LifecycleUnstatedNote.In(c.Lang) }</p>
+					}
+				</section>
 			}
 		</div>
-	</details>
+	}
 }
 
 // indexHead is the head every mode index carries: what the mode is called and

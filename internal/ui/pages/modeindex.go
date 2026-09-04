@@ -29,64 +29,50 @@ type ListIndexView struct {
 	Shelf  Shelf
 }
 
-// FolderIndexView is the folder mode's index: the vault's own directory tree,
-// which is the only one of the four modes whose contents are not a list.
-type FolderIndexView struct {
-	Mode   string
-	Kicker string
-	Title  string
-	Lede   string
-	Empty  string
-	Fault  string
-	// RootNotes are the files at the vault root, which belong to no folder.
-	RootNotes []nav.NoteRef
-	Folders   []nav.Folder
-
-	// Recent, Lifecycle and Unstated are the librarian's view of the shelf:
-	// what changed last, and where every indexed note sits. They belong to this
-	// mode rather than to the desk because they describe how the files are
-	// kept, which is a different question from what there is to read.
-	Recent []HomeNote
-	// RecentOrdered says the recorded times actually put these in order. A
-	// fresh clone stamps every file with one moment, and where the times
-	// separate nothing the block says so rather than promising recency.
-	RecentOrdered bool
-	// RecentScoped says the recent list covers the contract's declared
-	// knowledge layer rather than the whole folder, which the lede then names:
-	// the distribution beside it counts every indexed note.
-	RecentScoped bool
-	Lifecycle    []LifecycleItem
-	// Unstated are the cells for notes carrying no status to be grouped by,
-	// kept apart from Lifecycle so the markup cannot dress them as statuses.
-	Unstated []LifecycleItem
-	// ShowRecent and ShowLifecycle say which of the two this vault fills. A
-	// withheld distribution renders nothing; Fault carries the reason.
-	ShowRecent    bool
-	ShowLifecycle bool
+// RecentBlock is what changed last, and the words the list is entitled to. It
+// belongs to the folder mode rather than to the desk because it describes how
+// the files are kept, which is a different question from what there is to read.
+//
+// The heading and the sentence are chosen together, because they answer one
+// question between them: what this list may promise. They are chosen once, at
+// the moment the notes are known, so no later reader has to work out which
+// pairing applies.
+type RecentBlock struct {
+	Title string
+	Lede  string
+	Notes []HomeNote
 }
 
-// recentTitle picks the recent block's heading: the recency one where the
-// recorded times order the list, the plain one where they separate nothing.
-func recentTitle(v *FolderIndexView, lang wording.Lang) string {
-	if v.RecentOrdered {
-		return wording.HomeRecentTitle.In(lang)
-	}
-	return wording.HomeTiedTitle.In(lang)
-}
-
-// recentLede picks the sentence under that heading — ordered or tied, and
-// naming the knowledge layer exactly when the list is scoped to one.
-func recentLede(v *FolderIndexView, lang wording.Lang) string {
+// NewRecentBlock builds that list with the words it can stand behind. A fresh
+// clone stamps every file with one moment: where the recorded times separate
+// nothing, the block says so instead of promising recency. Where the contract
+// declares a knowledge layer the list covers that layer and the sentence names
+// it, because the distribution beside it counts every indexed note, and two
+// true figures over unnamed sets read as a contradiction.
+func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) RecentBlock {
+	block := RecentBlock{Title: wording.HomeTiedTitle.In(lang), Notes: notes}
 	switch {
-	case v.RecentOrdered && v.RecentScoped:
-		return wording.HomeRecentLedeScoped.In(lang)
-	case v.RecentOrdered:
-		return wording.HomeRecentLede.In(lang)
-	case v.RecentScoped:
-		return wording.HomeTiedLedeScoped.In(lang)
+	case ordered && scoped:
+		block.Title, block.Lede = wording.HomeRecentTitle.In(lang), wording.HomeRecentLedeScoped.In(lang)
+	case ordered:
+		block.Title, block.Lede = wording.HomeRecentTitle.In(lang), wording.HomeRecentLede.In(lang)
+	case scoped:
+		block.Lede = wording.HomeTiedLedeScoped.In(lang)
 	default:
-		return wording.HomeTiedLede.In(lang)
+		block.Lede = wording.HomeTiedLede.In(lang)
 	}
+	return block
+}
+
+// StatusDistribution is where every indexed note sits: one cell per status the
+// notes carry, and beside them the cells for notes carrying none, kept apart so
+// the markup cannot dress those as statuses. A distribution holding no status
+// draws nothing — a vault whose vocabulary could not be read leaves it empty,
+// and the reason is stated once for the page rather than inside the block that
+// would have shown it.
+type StatusDistribution struct {
+	Statuses []LifecycleItem
+	Unstated []LifecycleItem
 }
 
 // NewPathIndex builds the study-path index. The measure is the course's extent
@@ -213,19 +199,41 @@ func leadingDate(name string) string {
 	return head
 }
 
-// NewFolderIndex builds the folder index over the whole directory tree.
-func NewFolderIndex(model *nav.Model, lang wording.Lang) FolderIndexView {
+// NewFolderIndex builds the folder index: the top of the vault's own directory
+// tree, listed the way every other mode is listed. Its measure is every file
+// under it at any depth, which is why a vault whose files all sit at the root
+// counts them and lists them without ever calling itself empty.
+func NewFolderIndex(model *nav.Model, lang wording.Lang) ListIndexView {
 	rootNotes := model.RootNotes()
 	folders := model.Folders()
-	return FolderIndexView{
-		Mode:      folderMode,
-		Kicker:    modeKicker(wording.Folders.In(lang), plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang)),
-		Title:     wording.Folders.In(lang),
-		Lede:      wording.FolderIndexLede.In(lang),
-		Empty:     wording.FolderIndexEmpty.In(lang),
-		RootNotes: rootNotes,
-		Folders:   folders,
+	return listIndex(folderMode, wording.Folders.In(lang),
+		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
+		wording.FolderIndexLede.In(lang), wording.FolderIndexEmpty.In(lang),
+		folderRows(rootNotes, folders, lang))
+}
+
+// folderRows is one level of the tree. The folders come first, because a reader
+// descending a tree chooses a branch before a leaf, and each says how much sits
+// under it and opens its own page. The files belonging to no folder follow,
+// carrying no measure: the measure is what a row opens onto, and a note opens
+// onto itself.
+//
+// One level is the whole of it. A page that unfolded every depth at once would
+// be the drawer the reading desk was built to replace, and the level below is
+// one row away.
+func folderRows(rootNotes []nav.NoteRef, folders []nav.Folder, lang wording.Lang) []Row {
+	rows := make([]Row, 0, len(folders)+len(rootNotes))
+	for i := range folders {
+		rows = append(rows, Row{
+			Text: folders[i].Name,
+			Href: folderHref(folders[i].RelPath),
+			Mark: folderNoteCount(&folders[i], lang),
+		})
 	}
+	for _, note := range rootNotes {
+		rows = append(rows, Row{Text: note.Name, Href: notesHref(note.RelPath)})
+	}
+	return rows
 }
 
 // countNotes totals the files the tree holds at every depth.
@@ -244,9 +252,9 @@ func modeKicker(name, count string) string {
 	return name + " · " + count
 }
 
-// folderNoteCount is what a folder's disclosure shows beside its name: the
-// files it holds at every depth, so a branch says how much is under it before
-// it is opened.
+// folderNoteCount is what a folder shows beside its name wherever it is listed:
+// the files it holds at every depth, so a row says how much is behind it before
+// anyone opens it.
 func folderNoteCount(f *nav.Folder, lang wording.Lang) string {
 	return plural(countNotes(f.Notes, f.Subfolders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang)
 }
@@ -274,18 +282,12 @@ func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
 	// one answer to that question is enough, and withhold takes back only what
 	// a block would otherwise claim about how much it holds.
 	withheld := model.DeclaredClosure().Closed()
-	paths := model.Paths()
-	declared := model.Maps()
-	folders := model.Folders()
-	rootNotes := model.RootNotes()
-	reports := model.Reports()
-	pathIndex := NewPathIndex(paths, lang)
-	mapIndex := NewMapIndex(declared, lang)
-	reportIndex := NewReportIndex(reports, lang)
-	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang),
-		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang))
-	mapBlock := deskBlock(&mapIndex, wording.DeskMapsLede.In(lang),
-		plural(len(declared), wording.MapCountOne, wording.MapCountMany, lang))
+	pathIndex := NewPathIndex(model.Paths(), lang)
+	mapIndex := NewMapIndex(model.Maps(), lang)
+	reportIndex := NewReportIndex(model.Reports(), lang)
+	folderIndex := NewFolderIndex(model, lang)
+	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))
+	mapBlock := deskBlock(&mapIndex, wording.DeskMapsLede.In(lang))
 	if withheld {
 		withhold(&pathBlock.Shelf)
 		withhold(&mapBlock.Shelf)
@@ -293,34 +295,8 @@ func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
 	return []DeskBlock{
 		pathBlock,
 		mapBlock,
-		deskBlock(&reportIndex, wording.DeskReportsLede.In(lang),
-			plural(len(reports), wording.ReportCountOne, wording.ReportCountMany, lang)),
-		folderBlock(rootNotes, folders, lang),
-	}
-}
-
-// folderBlock is the way in through the vault's own directories. Its rows are
-// the folders at the top and its measure is every file under them, so the
-// sentence for a folder mode holding nothing belongs to the measure rather than
-// to the rows: a vault whose files all sit at the root has no top-level folder
-// to list and is not empty, and saying it holds no files beside a count of them
-// is the page contradicting itself.
-func folderBlock(rootNotes []nav.NoteRef, folders []nav.Folder, lang wording.Lang) DeskBlock {
-	files := countNotes(rootNotes, folders)
-	empty := ""
-	if files == 0 {
-		empty = wording.FolderIndexEmpty.In(lang)
-	}
-	return DeskBlock{
-		Mode: folderMode,
-		Shelf: Shelf{
-			Title: wording.Folders.In(lang),
-			Count: plural(files, wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
-			Lede:  wording.DeskFoldersLede.In(lang),
-			Href:  indexHref(folderMode),
-			Empty: empty,
-			Rows:  deskFolderRows(folders, lang),
-		},
+		deskBlock(&reportIndex, wording.DeskReportsLede.In(lang)),
+		deskBlock(&folderIndex, wording.DeskFoldersLede.In(lang)),
 	}
 }
 
@@ -338,10 +314,13 @@ func withhold(s *Shelf) {
 // the same shelf, with the address of that page and the shorter sentence a
 // block has room for; narrowing it to the rows that fit is the shelf
 // component's own business.
-func deskBlock(index *ListIndexView, lede, count string) DeskBlock {
+//
+// The measure comes across untouched. A block that recomputed it could count
+// something the page did not, which is the one disagreement this arrangement
+// exists to make impossible.
+func deskBlock(index *ListIndexView, lede string) DeskBlock {
 	shelf := index.Shelf
 	shelf.Lede = lede
-	shelf.Count = count
 	shelf.Href = indexHref(index.Mode)
 	return DeskBlock{Mode: index.Mode, Shelf: shelf}
 }
@@ -357,20 +336,6 @@ func joinMarks(parts ...string) string {
 		}
 	}
 	return strings.Join(kept, " · ")
-}
-
-// deskFolderRows is the top of the tree: each lifecycle folder, how much sits
-// under it, and its own page.
-func deskFolderRows(folders []nav.Folder, lang wording.Lang) []Row {
-	rows := make([]Row, 0, len(folders))
-	for i := range folders {
-		rows = append(rows, Row{
-			Text: folders[i].Name,
-			Href: folderHref(folders[i].RelPath),
-			Mark: folderNoteCount(&folders[i], lang),
-		})
-	}
-	return rows
 }
 
 // indexHref is where a mode block's heading leads.

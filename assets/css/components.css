@@ -928,8 +928,6 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 /* the line that stands in for the content blocks on a folder that fills none of
    them. Borderless on purpose: a bordered one-liner is a smaller empty box,
    which is the thing it replaces. */
-.y-homestandin { grid-column: span 7; align-self: center; margin: 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: 1.7; color: var(--fg-subtle); }
-.y-homestandin a { color: var(--link); }
 
 .y-homesearch .y-xbtn { width: auto; height: 30px; padding: 0 13px; flex: none; }
 .y-homereadme { max-width: var(--measure-article); margin: 58px auto 0; padding-top: 34px; border-top: 1px solid var(--border); }
@@ -937,7 +935,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-homereadme__head h2 { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); font-weight: var(--fw-regular); color: var(--fg); }
 
 @media (max-width: 1180px) {
-  .y-homeblock--recent, .y-modeblock, .y-homeblock--lifecycle, .y-homeblock--search, .y-homestandin { grid-column: 1 / -1; }
+  .y-homeblock--recent, .y-modeblock, .y-homeblock--lifecycle, .y-homeblock--search { grid-column: 1 / -1; }
 }
 
 /* The four mode index pages — one kind of thing, listed whole. They carry no
@@ -953,8 +951,6 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-row:hover .y-row__title { color: var(--link); }
 .y-row__title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); overflow-wrap: anywhere; }
 .y-row__measure { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
-.y-foldertree { display: flex; flex-direction: column; border-top: 1px solid var(--border); padding-top: 6px; }
-.y-foldertree .y-tree { margin-left: 14px; border-left: 1px solid var(--border-faint); padding-left: 6px; }
 
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from

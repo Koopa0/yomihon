@@ -1310,11 +1310,10 @@ func TestHome(t *testing.T) {
 		}
 	}
 	// The reader's own file is on the first screen of a folder that declares
-	// nothing. This folder holds one file and no folders, so none of the four
-	// ways in has anything behind it and the line that states what the folder
-	// does have takes their place, linking the file itself.
-	if !strings.Contains(pageHTML, `data-home-standin`) || !strings.Contains(pageHTML, `href="/notes/README.md"`) {
-		t.Errorf("the desk does not stand in with this folder's own file; body = %q", pageHTML)
+	// nothing. Nothing here is a course, a map or a report, but the file is in
+	// the folder, so the way in through the folders offers it.
+	if folders := deskBlockMarkup(t, pageHTML, "folders"); !strings.Contains(folders, `href="/notes/README.md"`) {
+		t.Errorf("the desk does not offer this folder's own file; folders block = %q", folders)
 	}
 	// This folder carries no contract. It has no lifecycle vocabulary, so
 	// nothing on the page reports a capability that was never claimed. Before
@@ -1472,12 +1471,6 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 		if !strings.Contains(page, want) {
 			t.Errorf("the desk lost %q to a contract failure; reading never depends on one", want)
 		}
-	}
-	// Withheld is not the same as empty. The stand-in line states a cheerful
-	// fact about the folder, and beside a sentence explaining that projections
-	// closed it would read as a second, contradictory account of the same hole.
-	if strings.Contains(page, "data-home-standin") {
-		t.Error("the desk states what the folder holds beside the reason it cannot say what is in it")
 	}
 	// The shelf keeps its own reading: a contract that could not be read closes
 	// the distribution and leaves the recent list, which never depended on one.
@@ -1913,9 +1906,10 @@ body
 	if strings.Contains(recent, "不在 schema 允許清單中") {
 		t.Errorf("a drifted vocabulary flagged a value; section = %q", recent)
 	}
-	// The folder tree still lists the note: ordinary browsing never depended on
-	// the artifact policy.
-	if !strings.Contains(page, "/notes/Concepts/golang/A.md") {
+	// The folder listing still offers the way down to the note: ordinary
+	// browsing never depended on the artifact policy, and the level holding it
+	// is one row away.
+	if !strings.Contains(page, `href="/folders/Concepts"`) {
 		t.Error("ordinary folder browsing closed with the artifact authority")
 	}
 	if statusCaptures != 2 {
@@ -2098,7 +2092,7 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 // still draws its four ways in and its search, an absent introduction costs
 // only the link to it, and neither route creates the missing vault file. This
 // vault declares a lifecycle and holds no notes yet, so every one of the four
-// ways in is empty and says so, with the stand-in line above them.
+// ways in is empty and says so.
 func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -2147,32 +2141,15 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	}
 }
 
-// homeStandInLine returns the stand-in line's markup. It is a paragraph rather
-// than a block, which is the whole point of it, so the section reader cannot
-// find it.
-func homeStandInLine(t *testing.T, body string) string {
-	t.Helper()
-	const opener = `<p class="y-homestandin"`
-	start := strings.Index(body, opener)
-	if start < 0 {
-		t.Fatalf("Home body carries no stand-in line; body = %q", body)
-	}
-	line := body[start:]
-	end := strings.Index(line, "</p>")
-	if end < 0 {
-		t.Fatalf("the stand-in line is never closed; body = %q", body)
-	}
-	return line[:end+len("</p>")]
-}
-
-// TestHomeStandInNamesTheNewestFileWhenThereAreNoNotes covers the one folder
-// shape that has nothing for any block to show: files, but no markdown. The
-// stand-in used to cover a much commoner case — a folder whose notes carried no
-// type field — and those notes are now listed like any other, which is what the
-// reader came for. It answers over everything the folder holds: a plain
-// folder's newest thing is often not a note, and a line that quietly skipped to
-// the newest note would point past the file the reader just saved.
-func TestHomeStandInNamesTheNewestFileWhenThereAreNoNotes(t *testing.T) {
+// TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote covers a folder nothing
+// classifies: three files, no markdown, no contract. Every file is in the
+// folder, so the way in through the folders lists them and the reader is handed
+// the files themselves rather than one sentence about the newest of them.
+//
+// The measure counts all three and the rows are the vault's own root, which is
+// the same shelf the folder page unfolds — a block that listed only folders
+// here would have shown a count of three above nothing at all.
+func TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
@@ -2202,19 +2179,45 @@ func TestHomeStandInNamesTheNewestFileWhenThereAreNoNotes(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	standIn := homeStandInLine(t, body)
+	folders := deskBlockMarkup(t, body, "folders")
 	for _, want := range []string{
-		"這個資料夾有 3 個檔案",
+		"3 篇",
 		`href="/notes/todo.txt"`,
-		">todo.txt</a>",
-		"2026-07-03",
+		`href="/notes/older.txt"`,
+		`href="/notes/reading.html"`,
 	} {
-		if !strings.Contains(standIn, want) {
-			t.Errorf("the stand-in line is missing %q; line = %q", want, standIn)
+		if !strings.Contains(folders, want) {
+			t.Errorf("the folders block is missing %q; block = %q", want, folders)
 		}
 	}
-	if strings.Contains(standIn, "older.txt") || strings.Contains(standIn, "reading.html") {
-		t.Errorf("the stand-in line names something other than the newest file; line = %q", standIn)
+	// The stand-in speaks for a desk with nothing to offer. This one is
+	// offering three files, and two accounts of the same folder on one screen
+	// is what the block was made to replace.
+	if strings.Contains(body, "y-homestandin") {
+		t.Error("the desk stood in for a folder whose files it is already listing")
+	}
+}
+
+// TestTheDeskDrawsItsWaysInForAFolderHoldingNothing covers the first minute of
+// a vault: a folder with nothing in it at all. All four ways in are drawn, each
+// stating its own measure and its own sentence, and none of them offers a row.
+// An empty folder is where a reader starts, not a failure to report, and the
+// four sentences are the whole of what the desk has to say about it.
+func TestTheDeskDrawsItsWaysInForAFolderHoldingNothing(t *testing.T) {
+	t.Parallel()
+
+	srv := newServer(t, t.TempDir())
+	code, body := get(t, srv.Client(), srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", code)
+	}
+	for _, mode := range []string{"paths", "maps", "reports", "folders"} {
+		if !strings.Contains(body, `data-home-block="`+mode+`"`) {
+			t.Errorf("the desk lost its %s block over a folder holding nothing", mode)
+		}
+	}
+	if strings.Contains(body, "data-desk-item") {
+		t.Error("the desk offers a way on for a folder holding nothing")
 	}
 }
 
@@ -4238,14 +4241,12 @@ func TestHomeRecentFlagsAStatusOutsideTheSchema(t *testing.T) {
 	}
 }
 
-// TestHomeBadContractWithNoNotesKeepsTheStandInAway pins the stand-in's other
-// gate. A folder holding no markdown at all fills no content block, and the
-// stand-in line would normally state what the folder has — but under a broken
-// contract the lifecycle and study-path projections were withheld, the reason
-// is on the page, and a cheerful fact beside that reason would be a second,
-// contradictory account of the same hole. The recent block cannot carry this
-// case: there are no notes, so nothing else stands between the two sentences.
-func TestHomeBadContractWithNoNotesKeepsTheStandInAway(t *testing.T) {
+// TestABrokenContractOverAFolderWithNoNotesDrawsNoRecentBlock covers the two
+// answers that shape together: the reason the contract could not be read is on
+// the page, and the recent list is absent because there is no note to list —
+// not because the failure took it away. A block drawn empty beside that reason
+// would read as a second account of the same hole.
+func TestABrokenContractOverAFolderWithNoNotesDrawsNoRecentBlock(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("not markdown\n"), 0o600); err != nil {
@@ -4262,11 +4263,8 @@ func TestHomeBadContractWithNoNotesKeepsTheStandInAway(t *testing.T) {
 	if !strings.Contains(page, "toml: line 42") {
 		t.Fatalf("the parse error is missing; page = %q", page)
 	}
-	if strings.Contains(page, "data-home-standin") {
-		t.Error("Home states what the folder holds beside the reason it cannot say what is in it")
-	}
 	if strings.Contains(page, `data-home-block="recent"`) {
-		t.Error("Home renders a recent block for a folder with no markdown")
+		t.Error("the folder index renders a recent block for a folder with no markdown")
 	}
 }
 

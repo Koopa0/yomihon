@@ -144,6 +144,7 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 		pathMode:   NewPathIndex(model.Paths(), lang),
 		mapMode:    NewMapIndex(model.Maps(), lang),
 		reportMode: NewReportIndex(model.Reports(), lang),
+		folderMode: NewFolderIndex(model, lang),
 	}
 	blocks := NewDeskBlocks(model, lang)
 	seen := 0
