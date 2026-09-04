@@ -19,7 +19,8 @@ import (
 // table states what to do next — but the key set belongs to the grammar, and a
 // test holds this table to every rule the grammar can report.
 var pathRuleAction = map[sequence.Rule]string{
-	sequence.RuleRoleMissing:        "declare the branch {sequence=primary}, {sequence=local} or {sequence=none}",
+	sequence.RuleRoleMissing: "declare the branch " + sequence.Marker(sequence.RolePrimary) +
+		", " + sequence.Marker(sequence.RoleLocal) + " or " + sequence.Marker(sequence.RoleNone),
 	sequence.RuleRoleDuplicate:      "keep one sequence declaration on the branch",
 	sequence.RuleRoleConflict:       "move the branch out from under the one declared none, or declare it none too",
 	sequence.RuleLocalOrphan:        "nest the side branch under the lesson it belongs to",

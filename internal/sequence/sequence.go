@@ -774,12 +774,14 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 			// not that it lists lessons.
 			g.Role = RoleUnclassified
 			p.report(RuleRoleMissing, g.Line,
-				"this nested list never says what part it plays; declare {sequence=local} on the row that opens it, or unnest it",
+				"this nested list never says what part it plays; declare "+
+					Marker(RoleLocal)+" on the row that opens it, or unnest it",
 				"a nested list carrying no declaration")
 		case len(g.entries()) > 0:
 			g.Role = RoleUnclassified
 			p.report(RuleRoleMissing, g.Line,
-				"this branch lists lessons but never says what part it plays; declare {sequence=primary}, {sequence=local} or {sequence=none}",
+				"this branch lists lessons but never says what part it plays; declare "+
+					Marker(RolePrimary)+", "+Marker(RoleLocal)+" or "+Marker(RoleNone),
 				g.Name)
 		default:
 			g.Role = RoleStructural
