@@ -5,6 +5,7 @@ import (
 	"html"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -71,29 +72,56 @@ func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
 	return bucketUnknown, ""
 }
 
+// String names a bucket for a message about a bucket nobody gave a look to. A
+// value outside the constants is named by its number, which is all there is to
+// say about one nothing declared.
+func (b calloutBucket) String() string {
+	switch b {
+	case bucketUnknown:
+		return "unknown"
+	case bucketNote:
+		return "note"
+	case bucketWarning:
+		return "warning"
+	case bucketQuote:
+		return "quote"
+	default:
+		return strconv.Itoa(int(b))
+	}
+}
+
 // calloutIcon is a small, dependency-free (no icon font, no SVG asset)
-// glyph per bucket.
+// glyph per bucket. A type this renderer does not recognize never reaches here
+// — it is turned back into a plain blockquote before a look is chosen — so
+// bucketUnknown shares the note glyph for the caller that stops recognizing
+// that, and a bucket nobody wrote a look for stops rather than quietly
+// borrowing one.
 func calloutIcon(bucket calloutBucket) string {
 	switch bucket {
 	case bucketWarning:
 		return "⚠"
 	case bucketQuote:
 		return "❝"
-	default:
+	case bucketNote, bucketUnknown:
 		return "ℹ"
+	default:
+		panic("render: unknown calloutBucket: " + bucket.String())
 	}
 }
 
 // calloutClass is the bucket's class-name suffix, paired with calloutIcon so
-// a bucket's look is decided in one place beside its glyph.
+// a bucket's look is decided in one place beside its glyph, including what
+// happens to a bucket neither of them was taught.
 func calloutClass(bucket calloutBucket) string {
 	switch bucket {
 	case bucketWarning:
 		return "warning"
 	case bucketQuote:
 		return "quote"
-	default:
+	case bucketNote, bucketUnknown:
 		return "note"
+	default:
+		panic("render: unknown calloutBucket: " + bucket.String())
 	}
 }
 
