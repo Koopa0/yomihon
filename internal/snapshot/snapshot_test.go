@@ -86,6 +86,31 @@ func testContract(tb testing.TB, root string) *schema.Contract {
 	return contract
 }
 
+// testContractDeclaringPrivacy writes the shared contract fixture with an
+// egress declaration appended, because the fixture itself declares none and a
+// policy that was never claimed cannot go stale. The section is added before
+// the contract is read, so the digest the policy pins is the one on disk.
+func testContractDeclaringPrivacy(tb testing.TB, root, dir string) *schema.Contract {
+	tb.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		tb.Fatalf("read contract fixture: %v", err)
+	}
+	data = append(data, []byte("\n[privacy]\nnever_egress_dirs = [\""+dir+"\"]\n")...)
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
+		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
+	}
+	if writeErr := os.WriteFile(contractPath, data, 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
+		tb.Fatalf("write contract fixture: %v", writeErr)
+	}
+	contract, err := schema.Load(root)
+	if err != nil {
+		tb.Fatalf("schema.Load: %v", err)
+	}
+	return contract
+}
+
 func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vaultfs.Reader) {
 	tb.Helper()
 	reader, err := vaultfs.Open(root)
@@ -594,6 +619,59 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	}
 	if _, _, err := got.Search().SearchN(lexical.Parse("status:ready"), -1); err == nil {
 		t.Error("metadata search succeeded under source-stale artifact policy")
+	}
+}
+
+// The egress declaration is revalidated on the same beat as the artifact one.
+// Both are read once at startup, and a reader whose contract moved underneath
+// the process is owed the same sentence about each: the artifact latch already
+// said so on the home page while the egress latch stayed silent, so a vault
+// whose privacy declaration had gone out from under it looked, on that page,
+// like a vault that still had one. The oracle here is the egress policy's own
+// diagnostic, not the presence of a notice: rewriting the contract file latches
+// the artifact policy too, so "the page grew a notice" is true either way.
+func TestRescanLatchesTheEgressDeclarationWhenItsSourceChanges(t *testing.T) {
+	t.Parallel()
+
+	const stale = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Diary/Monday.md", "---\ntitle: Monday\ntype: concept\nstatus: draft\n---\nbody\n")
+	contract := testContractDeclaringPrivacy(t, root, "Diary")
+	store, _ := newTestStore(t, root, contract)
+
+	first := store.Current()
+	if !first.PrivacyPolicy().Available() || first.PrivacyPolicy().Diagnostic() != "" {
+		t.Fatalf("startup egress policy available = %v, diagnostic = %q, want an available policy and no diagnostic",
+			first.PrivacyPolicy().Available(), first.PrivacyPolicy().Diagnostic())
+	}
+	if first.PrivacyPolicy().EgressAllowed("Diary/Monday.md") {
+		t.Fatal("startup egress policy allows the directory the contract named")
+	}
+
+	// A rescan the contract did not take part in leaves the declaration alone.
+	// Without this the latch could fire on every rebuild and the assertion
+	// below would pass for a reason that has nothing to do with the source.
+	writeNote(t, root, "Concepts/Beta.md", "---\ntitle: Beta\ntype: concept\nstatus: draft\n---\nbody\n")
+	store.rescan(t.Context())
+	if unchanged := store.Current(); !unchanged.PrivacyPolicy().Available() {
+		t.Fatalf("egress policy after an unrelated rescan = %q, want it still available",
+			unchanged.PrivacyPolicy().Diagnostic())
+	}
+
+	writeNote(t, root, "System/schemas/vault-schema.toml", "not = [valid toml")
+	store.rescan(t.Context())
+
+	got := store.Current()
+	if got.PrivacyPolicy().Available() {
+		t.Error("rescanned snapshot kept egress authority derived from contract bytes that are gone")
+	}
+	if diagnostic := got.PrivacyPolicy().Diagnostic(); diagnostic != stale {
+		t.Errorf("egress diagnostic after the contract changed = %q, want %q", diagnostic, stale)
+	}
+	if got.PrivacyPolicy().EgressAllowed("Concepts/Alpha.md") {
+		t.Error("a latched egress policy still answers yes; permission must be positive authority")
 	}
 }
 

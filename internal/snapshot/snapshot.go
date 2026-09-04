@@ -413,6 +413,7 @@ func New(
 
 	capabilities := contract.Capabilities(governance)
 	capabilities.Artifacts = capabilities.Artifacts.ValidateSource()
+	validatePrivacySource(contract)
 	scan, err := source.ScanAvailable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
@@ -472,6 +473,16 @@ func runScanner(ctx context.Context, scan func()) {
 	}
 }
 
+// validatePrivacySource re-reads the contract file behind the egress
+// declaration and latches the declaration unusable if the bytes have moved,
+// on the same beat the artifact policy is checked. Nothing is assigned back:
+// every copy of the policy points at one latch inside the contract, so closing
+// it once closes it for the judging commands and for the page that has to say
+// why they stopped answering. Calling it is the whole effect.
+func validatePrivacySource(contract *schema.Contract) {
+	contract.PrivacyPolicy().ValidateSource()
+}
+
 func (s *Store) rescan(ctx context.Context) {
 	scan, err := s.source.ScanAvailable(ctx)
 	if err != nil {
@@ -497,6 +508,7 @@ func (s *Store) rescan(ctx context.Context) {
 	if s.capabilities.Artifacts.Available() {
 		s.capabilities.Artifacts = s.capabilities.Artifacts.ValidateSource()
 	}
+	validatePrivacySource(s.contract)
 	candidate, blocked, err := buildView(
 		ctx,
 		s.source,
