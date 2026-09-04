@@ -43,6 +43,13 @@ map_types = ["moc", "source-map", "topic-map"]
 [artifacts]
 non_instance_dirs = ["System/templates"]
 
+[privacy]
+# Diary/ is the one directory this fixture marks private (its note says so:
+# "Private local fixture entry"). The sidebar and reading faces still show it
+# — see .github/e2e/sidebar-content.mjs — because this policy withholds only
+# the agent-facing check/report surface, never the pages a person reads.
+never_egress_dirs = ["Diary"]
+
 [[lifecycle]]
 status = "draft"
 applies_to = ["lesson"]
