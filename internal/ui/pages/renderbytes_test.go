@@ -58,6 +58,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
 		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
 		{"search-page", Search(recordedSearchView(model), recordedChrome())},
+		{"search-page-unasked", Search(SearchView{FilterKeys: []string{"status", "type", "path"}}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
 		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, recordedChrome().Lang), recordedChrome())},

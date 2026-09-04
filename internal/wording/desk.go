@@ -10,8 +10,8 @@ var (
 		"One library. Come in through the kind of thing you want to read.",
 	)
 	HomeSeamNote = both(
-		"診斷與契約狀況只在有事時出現在這條線下方。",
-		"Diagnostics and contract faults appear below this line only when there is something to say.",
+		"這條線以下是這個書庫的說明，以及有事時才出現的診斷與契約狀況。",
+		"Below this line: what this library says about itself, and any diagnostics or contract faults there are to report.",
 	)
 )
 

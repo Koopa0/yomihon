@@ -250,6 +250,8 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 			// with room to say which constraints this field understands
 			// without standing between the reader and an answer.
 			<div class="y-searchpage__empty" data-search-filters>
+				<h2 class="y-searchpage__emptytitle">{ wording.SearchEmptyTitle.In(lang) }</h2>
+				<p class="y-searchpage__emptylede">{ wording.SearchEmptyLede.In(lang) }</p>
 				<p class="y-searchpage__hint">
 					{ wording.FilterKeysAvailable.In(lang) }
 					for i, key := range v.FilterKeys {
