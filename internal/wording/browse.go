@@ -9,8 +9,6 @@ var (
 	SubfolderCountMany  = both("%d 個資料夾、", "%d folders, ")
 	FolderNoteCountOne  = both("%d 篇", "%d note")
 	FolderNoteCountMany = both("%d 篇", "%d notes")
-	Subfolders          = both("子資料夾", "Subfolders")
-	FilesInFolder       = both("這個資料夾裡的檔案", "Files in this folder")
 	FolderEmpty         = both("這個資料夾是空的。", "This folder is empty.")
 )
 
@@ -54,11 +52,14 @@ var (
 	AddressAsked = both("你要找的位置", "The address you asked for")
 	WhatNext     = both("下一步", "What next")
 	NotFoundNext = both(
-		"從左邊的資料夾往下找，或用上方的搜尋找筆記裡的字。",
-		"Work down the folders on the left, or use the search above to look inside notes.",
+		"從資料夾那一格往下找，或用上方的搜尋找筆記裡的字。",
+		"Work down from the folders on the desk, or use the search above to look inside notes.",
 	)
 	LeaveThisPage = both("離開這一頁", "Leave this page")
 	BackHome      = both("返回首頁", "Back to home")
+	// BackToFolders climbs out of one level of the tree to the listing of all
+	// of it, which is where the crumbs above it stop.
+	BackToFolders = both("返回資料夾", "Back to folders")
 )
 
 // The syllabus's own units, in the same pairs and for the same reason.

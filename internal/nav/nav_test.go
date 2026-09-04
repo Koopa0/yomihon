@@ -1618,20 +1618,27 @@ func groupShapes(groups []*PathGroup) []groupShape {
 // the folders below them shuffled, on one screen.
 func TestAFolderPageOrdersItsSubfoldersTheWayItOrdersItsNotes(t *testing.T) {
 	t.Parallel()
-	model := &Model{dirNotes: map[string][]NoteRef{
-		"Writing/第9週":  {{Name: "a", RelPath: "Writing/第9週/a.md"}},
-		"Writing/第10週": {{Name: "b", RelPath: "Writing/第10週/b.md"}},
-	}}
+	// Built the way the model builds itself, from one list of paths: the two
+	// indexes a folder page reads are the same files seen twice, and a fixture
+	// that filled only one of them would be answering a question this test is
+	// not asking.
+	// Written in the order the tree would keep them in if nobody sorted: the
+	// builder preserves insertion order below the top level, so a fixture that
+	// listed them already sorted would pass with the sort deleted.
+	paths := []string{"Writing/第10週/b.md", "Writing/第9週/a.md"}
+	folders, rootNotes := buildFolderTree(paths)
+	model := &Model{dirNotes: buildDirNotes(paths), folders: folders, rootNotes: rootNotes}
 
 	_, subfolders, ok := model.Directory("Writing")
 	if !ok {
 		t.Fatal("Directory(Writing) reported no such folder")
 	}
-	want := []NoteRef{
-		{Name: "第9週", RelPath: "Writing/第9週"},
-		{Name: "第10週", RelPath: "Writing/第10週"},
+	got := make([]string, 0, len(subfolders))
+	for _, f := range subfolders {
+		got = append(got, f.RelPath)
 	}
-	if diff := cmp.Diff(want, subfolders); diff != "" {
+	want := []string{"Writing/第9週", "Writing/第10週"}
+	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Directory(Writing) subfolder order mismatch (-want +got):\n%s", diff)
 	}
 }

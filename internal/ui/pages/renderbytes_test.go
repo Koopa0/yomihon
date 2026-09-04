@@ -356,15 +356,20 @@ func recordedFileView(model *nav.Model) FileView {
 	}
 }
 
-func recordedFolderView(model *nav.Model) FolderView {
-	return FolderView{
-		Dir:        "Writing/lessons",
-		Name:       "lessons",
-		Crumbs:     Breadcrumb("Writing/lessons/go/L01.md"),
-		Subfolders: []nav.NoteRef{{Name: "go", RelPath: "Writing/lessons/go"}},
-		Notes:      []nav.NoteRef{{Name: "L01", RelPath: "Writing/lessons/go/L01.md"}},
-		Sidebar:    NewSidebar(model, "Writing/lessons/go/L01.md"),
-	}
+// recordedFolderView is one level with both kinds of row: a folder carrying
+// what is under it, and a file that opens onto itself.
+func recordedFolderView(*nav.Model) FolderView {
+	return NewFolderLevel("Writing/lessons", "lessons",
+		[]nav.NoteRef{{Name: "L01", RelPath: "Writing/lessons/L01.md"}},
+		[]nav.Folder{{
+			Name:    "go",
+			RelPath: "Writing/lessons/go",
+			Notes: []nav.NoteRef{
+				{Name: "L02", RelPath: "Writing/lessons/go/L02.md"},
+				{Name: "L03", RelPath: "Writing/lessons/go/L03.md"},
+			},
+		}},
+		recordedChrome().Lang)
 }
 
 func recordedRecoveryView(model *nav.Model) StatusRecoveryView {

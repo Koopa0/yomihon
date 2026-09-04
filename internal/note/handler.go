@@ -190,15 +190,9 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		h.showNotFound(w, r, r.URL.Path)
 		return
 	}
-	view := pages.FolderView{
-		Dir:        dir,
-		Name:       nav.Label(dir),
-		Crumbs:     pages.Breadcrumb(dir),
-		Subfolders: subfolders,
-		Notes:      notes,
-		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
-	}
-	if err := pages.Folder(view, layouts.ChromeFromRequest(r, view.Name)).Render(r.Context(), w); err != nil {
+	name := nav.Label(dir)
+	view := pages.NewFolderLevel(dir, name, notes, subfolders, origin.Language(r))
+	if err := pages.Folder(view, layouts.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder page", "path", dir, "error", err)
 	}
 }

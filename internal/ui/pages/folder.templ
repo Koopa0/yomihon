@@ -1,36 +1,21 @@
 package pages
 
 import (
-	"github.com/koopa0/yomihon/internal/wording"
-
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// FolderView is one folder seen whole. The rail reaches any note one disclosure
-// at a time; what it cannot do is show everything in one place — a term's
-// lessons in order, a month of entries, a year of them.
-type FolderView struct {
-	// Dir is the folder's vault-relative path; Crumbs are its parents.
-	Dir    string
-	Name   string
-	Crumbs []nav.NoteRef
-	// Subfolders come first on the page, because a reader descending a tree is
-	// choosing a branch before they are choosing a leaf.
-	Subfolders []nav.NoteRef
-	Notes      []nav.NoteRef
-	Sidebar    Sidebar
-}
-
-// Folder lists one folder's contents. It is a reading page, not a file manager:
-// no sizes, no dates, no sorting controls, just the order the folder is in.
+// Folder lists one level of the vault's directories. It is a reading page, not
+// a file manager: no sizes, no dates, no sorting controls, just the order the
+// folder is in.
+//
+// It carries no left rail. A shelf page is the listing itself, and a rail
+// beside it would be that listing a second time, in a narrower column.
 templ Folder(v FolderView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<div class="y-nav-scrim" data-nav-close></div>
-		<div class="y-shell2">
-			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main">
-				<article class="y-article">
+		<main id="main-content" tabindex="-1" class="y-main y-deskmain">
+			<div class="y-home">
+				<header class="y-home__head">
 					if len(v.Crumbs) > 0 {
 						<div class="y-crumbs">
 							for i, crumb := range v.Crumbs {
@@ -41,34 +26,15 @@ templ Folder(v FolderView, c layouts.Chrome) {
 							}
 						</div>
 					}
-					<h1 class="y-title">{ v.Name }</h1>
-					<div class="y-seam" aria-hidden="true"></div>
-					<p class="y-foldercount">
-						if len(v.Subfolders) > 0 {
-							{ plural(len(v.Subfolders), wording.SubfolderCountOne, wording.SubfolderCountMany, c.Lang) }
-						}
-						{ plural(len(v.Notes), wording.FolderNoteCountOne, wording.FolderNoteCountMany, c.Lang) }
-					</p>
-					if len(v.Subfolders) > 0 {
-						<nav class="y-folderlist" aria-label={ wording.Subfolders.In(c.Lang) }>
-							for _, sub := range v.Subfolders {
-								<a class="ui-navitem" href={ templ.URL(folderHref(sub.RelPath)) }>{ sub.Name }</a>
-							}
-						</nav>
-					}
-					if len(v.Notes) > 0 {
-						<nav class="y-folderlist" aria-label={ wording.FilesInFolder.In(c.Lang) }>
-							for _, note := range v.Notes {
-								<a class="ui-navitem" href={ templ.URL(notesHref(note.RelPath)) }>{ note.Name }</a>
-							}
-						</nav>
-					}
-					if len(v.Notes) == 0 && len(v.Subfolders) == 0 {
-						<p class="y-homeempty">{ wording.FolderEmpty.In(c.Lang) }</p>
-					}
-				</article>
-			</main>
-			<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(c.Lang) }></aside>
-		</div>
+					<h1 class="y-title">{ v.Shelf.Title }</h1>
+					<p class="y-foldercount">{ v.Count }</p>
+					<a class="y-back" href={ templ.URL(indexHref(folderMode)) }>{ wording.BackToFolders.In(c.Lang) }</a>
+				</header>
+				if len(v.Shelf.Rows) == 0 {
+					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
+				}
+				@ShelfPage(v.Shelf)
+			</div>
+		</main>
 	}
 }
