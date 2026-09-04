@@ -67,10 +67,13 @@ map_types = ["moc"]
 non_instance_dirs = ["System/templates"]
 
 [privacy]
-# Nothing under a directory named here reaches an agent's output or an
-# embedding provider, whatever else the contract allows. A directory left off
-# the list is one they may draw from, so naming it here is the whole
-# protection.
+# Nothing under a directory named here reaches yomihon's agent-facing output:
+# check, coverage and exists leave those notes out of what they report. It does
+# not bind the reading pages — a reader on this machine opens a note under
+# Diary the way they open any other — so what it declares is what a program is
+# told about the vault, not what the person at the keyboard can see. A
+# directory left off the list is one that output may draw from, so naming it
+# here is the whole protection.
 never_egress_dirs = ["Diary"]
 
 [supersession]

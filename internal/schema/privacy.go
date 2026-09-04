@@ -25,6 +25,12 @@ type privacySection struct {
 // a missing or invalid policy cannot be mistaken for permission. It is the one
 // capability where an unclaimed declaration and a rejected one behave alike;
 // only the reporting differs.
+//
+// What it binds is the agent-facing output — the check, coverage and exists
+// commands, which are its only consumers. The reading pages serve every note
+// the folder holds and never ask this question, so a note withheld from a
+// command is still served to the reader at the keyboard. Binding the pages too
+// would be a different decision, not a repair to this one.
 type PrivacyPolicy struct {
 	state *privacyPolicyState
 }
