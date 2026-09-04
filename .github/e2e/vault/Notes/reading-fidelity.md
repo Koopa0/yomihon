@@ -28,8 +28,8 @@ A sixth names a vault file that is not a note at all, [[plain.txt]], which has a
 page of its own and nothing a preview could cut a section out of.
 
 > [!note] A callout with a note of its own
-> The callout is rendered on its own and spliced in, so its footnote[^aside]
-> starts numbering from one just as the host's does.
+> The callout is read as part of the note it is written in, so its
+> footnote[^aside] joins the note's own numbering and its one endnote list.
 >
 > [^aside]: The callout's own footnote.
 

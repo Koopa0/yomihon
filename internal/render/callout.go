@@ -97,16 +97,21 @@ func calloutClass(bucket calloutBucket) string {
 	}
 }
 
-// renderCallout renders one already-classified callout: a fold suffix becomes a
-// native <details>, closed or open, and no suffix a static tinted div. The body
-// goes through the same pipeline as the top level, so nesting works inside it.
-func (r *Pipeline) renderCallout(bucket calloutBucket, defaultTitle, fold, title, body string, allowEmbed embedPolicy, col *collector) string {
+// calloutShell spells one already-classified callout's markup as the two halves
+// that enclose its body: a fold suffix becomes a native <details>, closed or
+// open, and no suffix a static tinted div.
+//
+// The halves are returned apart rather than wrapped around finished HTML
+// because the body is left in the note's own source between them. A callout
+// rendered as its own document was its own footnote scope, so a reference and
+// the definition it names could not see each other across the boundary: each
+// side reached nothing and stayed on the page as the characters the author
+// typed. One note is one document, so one note is one set of footnotes, one
+// numbering, and one endnote list standing where the reader can reach it.
+func calloutShell(bucket calloutBucket, defaultTitle, fold, title string) (open, closing string) {
 	if title == "" {
 		title = defaultTitle
 	}
-	inner := r.render(body, allowEmbed, col.page)
-	col.diags = append(col.diags, inner.Diagnostics...)
-
 	bucketClass := calloutClass(bucket)
 	header := fmt.Sprintf(`<span class="callout-icon" aria-hidden="true">%s</span>%s`,
 		calloutIcon(bucket), html.EscapeString(title))
@@ -117,12 +122,12 @@ func (r *Pipeline) renderCallout(bucket calloutBucket, defaultTitle, fold, title
 			openAttr = " open"
 		}
 		return fmt.Sprintf(
-			`<details class="callout callout-%s"%s><summary class="callout-title">%s</summary>`+
-				`<div class="callout-body">%s</div></details>`,
-			bucketClass, openAttr, header, inner.HTML)
+				`<details class="callout callout-%s"%s><summary class="callout-title">%s</summary>`+
+					`<div class="callout-body">`, bucketClass, openAttr, header),
+			`</div></details>`
 	}
 	return fmt.Sprintf(
-		`<div class="callout callout-%s"><p class="callout-title">%s</p>`+
-			`<div class="callout-body">%s</div></div>`,
-		bucketClass, header, inner.HTML)
+			`<div class="callout callout-%s"><p class="callout-title">%s</p>`+
+				`<div class="callout-body">`, bucketClass, header),
+		`</div></div>`
 }
