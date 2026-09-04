@@ -6,6 +6,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const FOLDERS = '/folders';
+const TEMPLATES = '/folders/System/templates';
 const MAP_NOTE = '/notes/System/templates/Template%20map.md';
 const MAP_RAW = '/raw/System/templates/Template%20map.md';
 const LESSON_NOTE = '/notes/System/templates/Template%20lesson.md';
@@ -76,7 +77,7 @@ const MUTATIONS = {
   },
   'drop-template-folder-link': {
     target: 'folder-links-present',
-    apply: rewriteDocument((body) => body.replaceAll(MAP_NOTE, '/notes/System/templates/Missing%20map.md')),
+    apply: rewritePath(TEMPLATES, (body) => body.replaceAll(MAP_NOTE, '/notes/System/templates/Missing%20map.md')),
   },
   'redact-template-map-note': {
     target: 'map-note-readable',
@@ -140,8 +141,14 @@ try {
   if (await projections.locator('[data-map-tree="System/templates/Template map.md"]').count() !== 0 || projectionText.includes(MAP_TITLE)) {
     fail('map-projection-omitted', 'the template map leaked into Paths or Maps');
   }
-  const sidebar = page.locator('aside.y-rail-left');
-  if (await sidebar.locator(`a[href="${MAP_NOTE}"]`).count() !== 1 || await sidebar.locator(`a[href="${LESSON_NOTE}"]`).count() !== 1) {
+  // Browsable means the folder these files sit in still offers them. The rail
+  // no longer carries the vault's folders at all, so this is asked of that
+  // folder's own page rather than of a rail beside some other note.
+  response = await page.goto(BASE + TEMPLATES, { waitUntil: 'domcontentloaded' });
+  if (!response) broken(`navigation to ${TEMPLATES} returned no response`);
+  if (response.status() !== 200) broken(`${TEMPLATES} status ${response.status()}, want 200`);
+  const folder = page.locator('main');
+  if (await folder.locator(`a[href="${MAP_NOTE}"]`).count() !== 1 || await folder.locator(`a[href="${LESSON_NOTE}"]`).count() !== 1) {
     fail('folder-links-present', 'the template folder does not retain links to both non-instance notes');
   }
 
