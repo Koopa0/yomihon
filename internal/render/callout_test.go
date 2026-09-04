@@ -305,3 +305,79 @@ func TestTheCalloutVocabularyNamesEachTypeOnce(t *testing.T) {
 		}
 	}
 }
+
+// strangeBucket is one past the last declared bucket: the value somebody
+// creates by adding a member to the block and stopping there.
+const strangeBucket calloutBucket = 4
+
+// TestABucketNamesItself covers the four the vocabulary sorts types into, and
+// the answer for a value nothing declared — a number, because a name invented
+// for it would report a look this renderer never chose.
+func TestABucketNamesItself(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		bucket calloutBucket
+		want   string
+	}{
+		{bucketUnknown, "unknown"},
+		{bucketNote, "note"},
+		{bucketWarning, "warning"},
+		{bucketQuote, "quote"},
+		{strangeBucket, "4"},
+	} {
+		if got := tc.bucket.String(); got != tc.want {
+			t.Errorf("calloutBucket(%d).String() = %q, want %q", tc.bucket, got, tc.want)
+		}
+	}
+}
+
+// TestAnUnrecognizedCalloutTypeKeepsTheNoteLook holds the half that must not
+// move. A callout type outside the vocabulary is classified as bucketUnknown
+// and turned back into a plain blockquote before a look is chosen, so nothing
+// asks these two about it today — but that filter sits a long way from here,
+// and a reader who wrote "> [!speculation]" must never meet a stopped page for
+// it. The look bucketUnknown gets if it ever arrives is the note's, which is
+// what it got when both of these ended in a default.
+func TestAnUnrecognizedCalloutTypeKeepsTheNoteLook(t *testing.T) {
+	t.Parallel()
+
+	if got, want := calloutIcon(bucketUnknown), "ℹ"; got != want {
+		t.Errorf("calloutIcon(bucketUnknown) = %q, want %q", got, want)
+	}
+	if got, want := calloutClass(bucketUnknown), "note"; got != want {
+		t.Errorf("calloutClass(bucketUnknown) = %q, want %q", got, want)
+	}
+}
+
+// TestABucketNobodyGaveALookToStops holds the arm that runs when a member is
+// added to the block and neither of these is taught what it looks like. Both
+// used to end in a default that handed back the note's glyph and class, so the
+// new bucket rendered as a note and every page kept working — the reader is
+// shown a callout that looks like something the author did not write, and
+// nothing anywhere says so.
+func TestABucketNobodyGaveALookToStops(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		look func(calloutBucket) string
+	}{
+		{"calloutIcon", calloutIcon},
+		{"calloutClass", calloutClass},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			defer func() {
+				recovered := recover()
+				text, isText := recovered.(string)
+				if !isText || !strings.Contains(text, strangeBucket.String()) {
+					t.Errorf("panic = %v, want a message naming the bucket %s", recovered, strangeBucket)
+				}
+			}()
+			_ = tc.look(strangeBucket)
+			t.Errorf("%s(%s) returned instead of panicking", tc.name, strangeBucket)
+		})
+	}
+}
