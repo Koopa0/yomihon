@@ -374,7 +374,11 @@ func (v *exampleVault) frontmatterValues(key string) map[string]bool {
 
 // declaredEnumValues flattens one enum declaration. A type-conditional enum
 // arrives as a map of groups, and every group's values are equally declared.
-func declaredEnumValues(enum reflect.Value) []string {
+// A shape it has no reading for stops the test: returning nothing would make
+// that enum demand nothing, and an enum silently exempted from the rule every
+// other enum is held to is the failure this whole check exists to prevent.
+func declaredEnumValues(t *testing.T, key string, enum reflect.Value) []string {
+	t.Helper()
 	switch declared := enum.Interface().(type) {
 	case []string:
 		return declared
@@ -385,6 +389,8 @@ func declaredEnumValues(enum reflect.Value) []string {
 		}
 		return out
 	default:
+		t.Fatalf("the contract's %s enum is declared as %s, which this check has no reading for; "+
+			"give it one, because as it stands that enum is asked for nothing at all", key, enum.Type())
 		return nil
 	}
 }
@@ -435,12 +441,26 @@ func TestTheExampleVaultStillDemonstratesEveryAuthorFace(t *testing.T) {
 		}
 		// The other half of that question, for the detectors that read what the
 		// author typed: a body where each of those constructs appears only
-		// inside a code span or a fence. One that answers yes here counts a
+		// inside a code span or a fence. One that answers yes to it counts a
 		// description of a form as a use of it, and would stay green through
 		// the deletion of the vault's last real one.
+		//
+		// Both halves are needed. Asking only that the detectors say no to the
+		// stripped body is an assertion over whatever that body happens to
+		// hold, and it holds nothing the day a quoted line is mistyped or a
+		// fourth source detector arrives without one — so the construct is
+		// required in the raw constant first, and refused only after stripping.
 		quoted := authorProse(quotedProbeBody)
 		for _, face := range faces {
-			if face.where == inSource && face.found(quoted) {
+			if face.where != inSource {
+				continue
+			}
+			if !face.found(quotedProbeBody) {
+				t.Errorf("the quoted body carries no %q for the stripper to take out, so refusing it "+
+					"afterwards proves nothing about %q", face.name, face.name)
+				continue
+			}
+			if face.found(quoted) {
 				t.Errorf("the detector for %q matches syntax that is only quoted, so it cannot tell "+
 					"a demonstration from a description of one", face.name)
 			}
@@ -542,7 +562,7 @@ func assertEveryDeclarationIsUsed(t *testing.T, loaded *exampleVault) {
 	for _, enum := range reflect.VisibleFields(enums.Type()) {
 		key := enum.Tag.Get("toml")
 		written := loaded.frontmatterValues(key)
-		for _, value := range declaredEnumValues(enums.FieldByIndex(enum.Index)) {
+		for _, value := range declaredEnumValues(t, key, enums.FieldByIndex(enum.Index)) {
 			if !written[value] {
 				t.Errorf("the contract lists %q among the values a note's %s may take, "+
 					"and no note in examples/vault takes it", value, key)
@@ -550,19 +570,21 @@ func assertEveryDeclarationIsUsed(t *testing.T, loaded *exampleVault) {
 		}
 	}
 
-	// [privacy] and [artifacts] hand out no list, so each is asked for its
-	// effect on this vault instead of for its contents. A boundary that
-	// withholds nothing and an artifact policy that covers nothing are
-	// contracts pointing at directories the vault does not have.
+	// [privacy] and [artifacts] hand out no list, so each is asked what its
+	// policy says about the paths this vault actually holds. That is all this
+	// observes: whether the policy answers about a real file, not what any
+	// page or response then does with the answer. A directory named in the
+	// contract and absent from the vault fails here; a directory that is
+	// present but wired into nothing would not.
 	privacy := loaded.contract.PrivacyPolicy()
 	if !slices.ContainsFunc(loaded.entries, func(e vaultfs.Entry) bool { return !privacy.EgressAllowed(e.Path()) }) {
-		t.Error("never_egress_dirs withholds no file in examples/vault, so the privacy boundary " +
-			"names directories this vault does not have and nothing shows it holding anything back")
+		t.Error("the privacy policy denies egress to no path in examples/vault: every file the scan " +
+			"found is allowed out, so never_egress_dirs names directories this vault does not have")
 	}
 	artifacts := loaded.contract.ArtifactPolicy()
 	if !slices.ContainsFunc(loaded.entries, func(e vaultfs.Entry) bool { return artifacts.IsNonInstance(e.Path()) }) {
-		t.Error("non_instance_dirs covers no file in examples/vault, so nothing shows a note that " +
-			"renders in full and carries no status control")
+		t.Error("the artifact policy claims no path in examples/vault: no file the scan found sits " +
+			"under non_instance_dirs, so it names a directory this vault does not have")
 	}
 
 	types := loaded.noteTypes()
