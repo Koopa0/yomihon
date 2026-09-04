@@ -264,20 +264,13 @@ func buildPathEntry(
 		return entry
 	}
 	res := idx.Resolve(c.Target)
-	switch res.Kind {
-	case graph.KindUnique:
-		if policy.IsNonInstance(res.RelPath) {
-			entry.Kind = EntryNonInstance
-			return entry
-		}
-		entry.Kind = EntryResolved
+	entry.Kind = entryKindOf(res, policy)
+	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
 		entry.Status = statusByPath[res.RelPath]
-	case graph.KindAmbiguous:
-		entry.Kind = EntryAmbiguous
+	}
+	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)
-	default:
-		entry.Kind = EntryUnresolved
 	}
 	return entry
 }
