@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -102,9 +103,14 @@ func ObsidianHref(root, rel string) string {
 func syllabusHref(p string) string { return VaultHref("/syllabus/", p) }
 
 // statusHref builds the search URL filtered to one status, with url.Values
-// escaping the colon: /search?q=status%3Adraft.
+// escaping the colon: /search?q=status%3Adraft. The key comes from the package
+// that owns the filter grammar, so a link this page draws cannot outlive the
+// filter it names. The ":" between key and value is that package's grammar
+// too and is still written here; it is left because a separator has no name to
+// ask for, and moving the whole query-building over would put the page's own
+// escaping decisions inside the parser.
 func statusHref(status string) string {
-	return "/search?" + url.Values{"q": {"status:" + status}}.Encode()
+	return "/search?" + url.Values{"q": {lexical.StatusFilterKey + ":" + status}}.Encode()
 }
 
 // plural picks the phrase that agrees with n. Chinese does not inflect a noun
