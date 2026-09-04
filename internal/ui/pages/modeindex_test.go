@@ -148,7 +148,7 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		{pathMode, ListIndex(NewPathIndex(model.Paths(), wording.ZhHant), layouts.Chrome{})},
 		{mapMode, ListIndex(NewMapIndex(model.Maps(), wording.ZhHant), layouts.Chrome{})},
 		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant), layouts.Chrome{})},
-		{folderMode, FolderIndex(NewFolderIndex(model, wording.ZhHant), layouts.Chrome{})},
+		{folderMode, FolderIndex(NewFolderIndex(model, wording.ZhHant), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode, func(t *testing.T) {

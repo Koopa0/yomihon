@@ -84,14 +84,16 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 		authority.Diagnostic(lang),
 		model.ArtifactClosure().Diagnostic(),
 	)
-	view.Recent = recent
-	view.RecentOrdered = recentOrdered
-	view.RecentScoped = model.KnowledgeScoped()
-	view.Lifecycle = lifecycle
-	view.Unstated = unstated
-	view.ShowRecent = len(recent) > 0
-	view.ShowLifecycle = pageShell.Governed && !lifecycleClosed && len(lifecycle) > 0
-	if err := pages.FolderIndex(view, layouts.ChromeFromRequest(r, view.Title)).Render(r.Context(), w); err != nil {
+	recentBlock := pages.NewRecentBlock(recent, recentOrdered, model.KnowledgeScoped(), lang)
+	// A distribution is drawn only where this page can stand behind every
+	// number in it: an ungoverned folder has no vocabulary to group by, and a
+	// closed one has a vocabulary yomihon could not read.
+	var distribution pages.StatusDistribution
+	if pageShell.Governed && !lifecycleClosed {
+		distribution = pages.StatusDistribution{Statuses: lifecycle, Unstated: unstated}
+	}
+	chrome := layouts.ChromeFromRequest(r, view.Shelf.Title)
+	if err := pages.FolderIndex(view, recentBlock, distribution, chrome).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder index", "error", err)
 	}
 }

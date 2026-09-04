@@ -29,23 +29,8 @@ type HomeView struct {
 	Degraded       string
 	DegradedDetail string
 	// Blocks are the four ways in, in the order a reader meets them.
-	Blocks []DeskBlock
-	// StandIn replaces the blocks where this folder fills none. It states what
-	// the folder has rather than what it lacks.
-	StandIn       HomeStandIn
+	Blocks        []DeskBlock
 	ReadmeMissing bool
-}
-
-// HomeStandIn carries the stand-in line's facts: how much is in this folder and
-// which of it changed last. NewestRelPath is empty for a folder holding no
-// files, the one case with nothing to point at.
-type HomeStandIn struct {
-	Shown         bool
-	Files         int
-	NewestName    string
-	NewestRelPath string
-	NewestDate    string
-	NewestAt      string
 }
 
 // HomeNote is one item in the recently-changed block. Modified is the compact
@@ -78,15 +63,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 					<p>{ wording.HomeDeskLede.In(c.Lang) }</p>
 				</header>
 				<div class="y-homegrid">
-					if v.StandIn.Shown {
-						<p class="y-homestandin" data-home-standin>
-							if v.StandIn.NewestRelPath == "" {
-								{ wording.StandInEmpty.In(c.Lang) }
-							} else {
-								{ plural(v.StandIn.Files, wording.StandInBeforeOne, wording.StandInBeforeMany, c.Lang) }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>{ wording.StandInDateOpen.In(c.Lang) }<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>{ wording.StandInDateClose.In(c.Lang) }
-							}
-						</p>
-					}
 					for _, block := range v.Blocks {
 						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
 					}

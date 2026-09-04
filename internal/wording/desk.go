@@ -92,10 +92,6 @@ var (
 	BranchCountMany = both("%d 枝", "%d branches")
 )
 
-// OpenFolder is the link from a branch of the folder index to that folder's
-// own page, where it is seen whole rather than as a branch.
-var OpenFolder = both("開啟資料夾", "Open the folder")
-
 // A report row says which of the two kinds it is, because the two are read
 // differently: a briefing is drawn by a program and shown here as bytes inside
 // an isolated frame, a written report is a note like any other.

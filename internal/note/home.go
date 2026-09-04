@@ -3,17 +3,14 @@ package note
 import (
 	"fmt"
 	"net/http"
-	"path"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -64,44 +61,11 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Degraded:       degradedNotice(&fresh, lang),
 		DegradedDetail: blockedDetail(fresh.Blocked),
 		Blocks:         blocks,
-		StandIn:        homeStandIn(snap, blocks, fault != ""),
 		ReadmeMissing:  !hasReadme,
 	}
 	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)
 	}
-}
-
-// homeStandIn builds the line that opens the desk when none of its ways in has
-// anything behind it. It answers the two questions someone opening a folder
-// actually has — how much is in here, and what changed last — and links the
-// newest file, which is the shortest path to the thing most likely wanted. It
-// never names what the folder did not declare: a reader who will not write a
-// contract is not missing a feature.
-//
-// A withheld projection counts as content. Its absence already has a reason
-// stated once for the whole page, and a cheerful fact beside that reason would
-// be a second, contradictory account of the same hole.
-func homeStandIn(snap *snapshot.Generation, blocks []pages.DeskBlock, withheld bool) pages.HomeStandIn {
-	if withheld || slices.ContainsFunc(blocks, func(b pages.DeskBlock) bool { return len(b.Shelf.Rows) > 0 }) {
-		return pages.HomeStandIn{}
-	}
-	files := snap.Files()
-	standIn := pages.HomeStandIn{Shown: true, Files: len(files)}
-	var newest vaultfs.Entry
-	for _, entry := range files {
-		if newest.Path() == "" || entry.ModTime().After(newest.ModTime()) {
-			newest = entry
-		}
-	}
-	if newest.Path() == "" {
-		return standIn
-	}
-	standIn.NewestRelPath = newest.Path()
-	standIn.NewestName = path.Base(newest.Path())
-	standIn.NewestDate = newest.ModTime().Format("2006-01-02")
-	standIn.NewestAt = newest.ModTime().Format(time.RFC3339)
-	return standIn
 }
 
 // degradedNotice states, in the reader's language, that the snapshot behind
