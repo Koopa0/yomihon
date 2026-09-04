@@ -7,6 +7,7 @@ package sequence
 
 import (
 	"cmp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -551,6 +552,16 @@ func (p *parser) undeclaredChildList(
 	if target, span, ok := p.anchorOwnTarget(item); ok {
 		rest.AnchorTarget, rest.AnchorSpan = target, span
 	}
+	// Where these rows belong in the enclosing branch: where the first of them
+	// was read. A row of this same list may declare a branch of its own, and
+	// that branch is filed the moment it is met, while these rows are collected
+	// and filed once at the end — so any fixed position is wrong for one of the
+	// two orders. Taking the position of the first stray row is right for both.
+	//
+	// A list that puts stray rows on either side of a declared branch still
+	// cannot be ordered exactly, because all of them share this one branch.
+	// Where they begin is the most a single branch can say.
+	insertAt := 0
 	rows, firstRowLine := 0, 0
 	for sub := child.FirstChild(); sub != nil; sub = sub.NextSibling() {
 		li, ok := sub.(*ast.ListItem)
@@ -560,6 +571,9 @@ func (p *parser) undeclaredChildList(
 		if p.declaresContainer(li) {
 			p.listItem(li, group, localDepth)
 			continue
+		}
+		if rows == 0 && group != nil {
+			insertAt = len(group.Items)
 		}
 		rows++
 		if firstRowLine == 0 {
@@ -579,7 +593,7 @@ func (p *parser) undeclaredChildList(
 			"")
 		return
 	}
-	group.Items = append(group.Items, Item{Branch: rest})
+	group.Items = slices.Insert(group.Items, insertAt, Item{Branch: rest})
 }
 
 // declaresContainer reports whether a row opens a branch of its own: a readable

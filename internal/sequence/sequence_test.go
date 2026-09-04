@@ -1082,3 +1082,60 @@ func TestTheTwoBranchVerdictsOverEveryDeclaration(t *testing.T) {
 		})
 	}
 }
+
+// Items promises source order, and nav and the syllabus page both walk it by
+// position rather than re-deriving it. A nested list that holds both kinds
+// breaks that promise in either direction if the rows nobody declared are filed
+// at a fixed end: they are collected while the list is read and filed once,
+// while a branch the same list declares is filed the moment it is met.
+//
+// Both orders are here because the two are mirror images and a fix for one is
+// the other's regression — which is what happened: filing the rows before the
+// list's branches corrected the first shape and broke the second, which had
+// been right.
+func TestABranchListsWhatItHoldsInSourceOrder(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		body string
+		want []int
+	}{
+		{
+			// The row nobody declared is on line 4; the branch declared under
+			// the same parent opens on line 5.
+			name: "a stray row before the branch its list declares",
+			body: "## P {sequence=primary}\n\n- [[A]]\n\t- 還沒決定怎麼歸\n\t- 旁支 {sequence=local}\n\t\t- [[C]]\n",
+			want: []int{3, 4, 5},
+		},
+		{
+			// The mirror: the declared branch opens on line 4 and the stray
+			// row is on line 6, below the branch's own child.
+			name: "a stray row after the branch its list declares",
+			body: "## P {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[C]]\n\t- 還沒決定怎麼歸\n",
+			want: []int{3, 4, 6},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := Parse(tt.body, 1)
+			if len(doc.Groups) == 0 {
+				t.Fatal("the fixture parsed to no groups, so this test reads nothing")
+			}
+			lines := make([]int, 0, len(doc.Groups[0].Items))
+			for _, item := range doc.Groups[0].Items {
+				switch {
+				case item.Entry != nil:
+					lines = append(lines, item.Entry.Line)
+				case item.Branch != nil:
+					lines = append(lines, item.Branch.Line)
+				default:
+					t.Error("an item holds neither an entry nor a branch")
+				}
+			}
+			if diff := cmp.Diff(tt.want, lines); diff != "" {
+				t.Errorf("the branch lists its items in the wrong order (-want +got):\n%s\nthe order is the source's, and a consumer walks it by position", diff)
+			}
+		})
+	}
+}
