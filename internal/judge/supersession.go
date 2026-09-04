@@ -36,10 +36,11 @@ func predecessorNotArchived(
 	artifacts schema.ArtifactPolicy,
 	vocabulary schema.Supersession,
 ) []Finding {
+	lessonType, _ := authority.lessonType()
 	var findings []Finding
 	for i := range notes {
 		n := &notes[i]
-		if n.noteType != "lesson" ||
+		if n.noteType != lessonType ||
 			!authority.egressAllowed(n.path) ||
 			artifacts.IsNonInstance(n.path) {
 			continue

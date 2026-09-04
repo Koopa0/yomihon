@@ -1889,6 +1889,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"LessonType": func() string {
+			if name, declared := c.LessonType(); declared || name == "" {
+				return fmt.Sprintf("LessonType() = (%q, %t), want the name it looks for and false", name, declared)
+			}
+			return ""
+		},
 		"InboxRequiredFields": func() string {
 			if _, fields, declared := c.InboxRequiredFields(); declared || fields != nil {
 				return fmt.Sprintf("InboxRequiredFields() = (%v, %t), want no fields and false", fields, declared)

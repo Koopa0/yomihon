@@ -105,6 +105,7 @@ type lintRun struct {
 	inboxDeclared       bool
 	conceptType         string
 	conceptDeclared     bool
+	lessonType          string
 }
 
 // newLintRun resolves a contract into the run the rules read from. The only
@@ -123,6 +124,7 @@ func newLintRun(contract *schema.Contract) (*lintRun, error) {
 	run.slug = slug
 	run.inboxType, run.inboxRequired, run.inboxDeclared = contract.InboxRequiredFields()
 	run.conceptType, run.conceptDeclared = contract.ConceptType()
+	run.lessonType, _ = contract.LessonType()
 	return run, nil
 }
 
@@ -147,7 +149,7 @@ func (r *lintRun) note(n *note, seg []string) []Finding {
 		out = append(out, schemaFinding(n, "schema.enum", "type", ty, "is not an allowed type"))
 	}
 
-	isLesson := hasType && ty == "lesson"
+	isLesson := hasType && ty == r.lessonType
 	out = append(out, r.unknownKeys(n, isLesson)...)
 	out = append(out, r.articleLanguage(n)...)
 	if isLesson {

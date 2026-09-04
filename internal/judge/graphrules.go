@@ -32,13 +32,14 @@ func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Fi
 	slugs := slugIndex(notes, authority)
 	planned := plannedNamesSet(notes, authority)
 	aliases := aliasCollisions(notes, authority)
+	lessonType, _ := authority.lessonType()
 	return slices.Concat(
 		linkHealth(notes, idx, titles, planned, authority.roles()),
 		fragmentFindings(notes, idx),
 		collisionAlias(aliases),
 		collisionName(idx, aliases, authority),
 		provenanceUnresolved(notes, idx, slugs, authority.contract),
-		mapDiskMismatch(notes, idx, authority.roles()),
+		mapDiskMismatch(notes, idx, authority.roles(), lessonType),
 		pathFindings(notes, authority.roles()),
 		supersessionFindings(notes, idx, authority),
 	)
@@ -329,7 +330,8 @@ func provenanceUnresolved(
 			{name: "related", values: n.related, sourceRule: sourceYomihon},
 		}
 		if vocabulary, ok := supersessionForNote(contract, n); ok {
-			fields = appendConfiguredReferences(fields, n, vocabulary)
+			lessonType, _ := contract.LessonType()
+			fields = appendConfiguredReferences(fields, n, vocabulary, lessonType)
 		}
 		for _, field := range fields {
 			for _, value := range field.values {
@@ -353,9 +355,10 @@ func appendConfiguredReferences(
 	fields []referenceField,
 	n *note,
 	vocabulary schema.Supersession,
+	lessonType string,
 ) []referenceField {
 	configured := []string{vocabulary.GeneralLinkField}
-	if n.noteType == "lesson" {
+	if n.noteType == lessonType {
 		configured = []string{vocabulary.PredecessorField, vocabulary.SuccessorField}
 	}
 	for _, field := range configured {
@@ -424,8 +427,8 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 // reports a lesson of the syllabus's domain that exists on disk but is not
 // listed. A draft or curriculum-gap lesson is expected work-in-progress and is
 // not reported at all.
-func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRoles) []Finding {
-	byDomain := lessonsByDomain(notes)
+func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRoles, lessonType string) []Finding {
+	byDomain := lessonsByDomain(notes, lessonType)
 	var out []Finding
 	for i := range notes {
 		if syllabus := &notes[i]; roles.IsPathType(syllabus.noteType) {
@@ -437,10 +440,10 @@ func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRole
 
 // lessonsByDomain groups every lesson note by its domain. A supplementary file
 // without a domain is not a lesson node and self-excludes.
-func lessonsByDomain(notes []note) map[string][]*note {
+func lessonsByDomain(notes []note, lessonType string) map[string][]*note {
 	byDomain := make(map[string][]*note)
 	for i := range notes {
-		if n := &notes[i]; n.noteType == "lesson" && n.domain != "" {
+		if n := &notes[i]; n.noteType == lessonType && n.domain != "" {
 			byDomain[n.domain] = append(byDomain[n.domain], n)
 		}
 	}
@@ -475,7 +478,7 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 		return out
 	}
 	for _, lesson := range byDomain[syllabus.domain] {
-		expected := lesson.status == "draft" || lesson.sourceKind == "curriculum-gap"
+		expected := lesson.status == schema.DraftStatus || lesson.sourceKind == "curriculum-gap"
 		if !listed[lesson.path] && !expected {
 			out = append(out, diskUnlisted(syllabus, lesson))
 		}

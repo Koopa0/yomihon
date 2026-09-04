@@ -447,6 +447,16 @@ func (v Authority) KnownStatus(noteType, status string) bool {
 	return v.available() && slices.Contains(v.contract.Statuses(noteType), schema.NormalizeStatus(status))
 }
 
+// IsLessonType reports whether noteType is the type this vault files its
+// course members as. The name comes from the contract layer, which spells it
+// once; whether this folder declares the type is deliberately not asked, since
+// a note that calls itself a lesson gets the reading aids either way and a
+// folder with no contract would otherwise lose them.
+func (v Authority) IsLessonType(noteType string) bool {
+	lesson, _ := v.contract.LessonType()
+	return noteType == lesson
+}
+
 // DeclaresStatuses reports whether the contract gives this note type a status
 // vocabulary at all. KnownStatus cannot carry that distinction — it answers
 // false both for a value outside a list and for a type that has no list — and

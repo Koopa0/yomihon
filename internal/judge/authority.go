@@ -98,6 +98,13 @@ func (a scanAuthority) conceptType() (name string, declared bool) {
 	return a.contract.ConceptType()
 }
 
+// lessonType is the note type this vault files its course members as, asked of
+// the contract layer for the same reason conceptType is: the word belongs to
+// the vault's vocabulary, not to this package.
+func (a scanAuthority) lessonType() (name string, declared bool) {
+	return a.contract.LessonType()
+}
+
 // declaresType reports whether the contract lists noteType at all.
 func (a scanAuthority) declaresType(noteType string) bool {
 	return a.contract.DeclaresType(noteType)
