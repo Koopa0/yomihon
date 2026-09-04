@@ -233,25 +233,47 @@ type Authority struct {
 // Authority captures the write face's current read-only authority. Flip does
 // not use this snapshot: writes revalidate the source under the writer's lock.
 func (w *Writer) Authority() Authority {
+	return w.authority(authorityHooks{})
+}
+
+type authorityHooks struct {
+	// beforeCapture runs where the lock has been released and the contract
+	// source has not yet been re-read, which is the interval a flip must not
+	// be made to wait through.
+	beforeCapture func()
+}
+
+func (w *Writer) authority(hooks authorityHooks) Authority {
 	if w == nil {
 		return Authority{governed: true, claim: schema.Rejected(""), released: true}
 	}
+	// The lock is held for the copy and nothing else. Only root changes after
+	// Open, but all four are taken together so a later field that does change
+	// is already read consistently, and the contract read below — a whole file
+	// and a hash, on every page draw — happens with the lock free, where it
+	// cannot make a flip wait.
 	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.root == nil {
+	released := w.root == nil
+	contract, governance, policy := w.contract, w.governance, w.policy
+	w.mu.Unlock()
+
+	if released {
 		return Authority{governed: true, claim: schema.Rejected(""), released: true}
 	}
-	governed := w.governance.Governed()
-	if w.contract == nil {
+	governed := governance.Governed()
+	if contract == nil {
 		// A folder that never claimed authority says nothing; one whose
 		// contract could not be read carries the sentence at the vault level.
-		return Authority{governed: governed, claim: w.governance.Claim()}
+		return Authority{governed: governed, claim: governance.Claim()}
 	}
-	policy := w.policy.Capture()
-	if !policy.Available() {
-		return Authority{governed: governed, claim: policy.Claim()}
+	if hooks.beforeCapture != nil {
+		hooks.beforeCapture()
 	}
-	return Authority{contract: w.contract, policy: policy, governed: governed, claim: w.governance.Claim()}
+	captured := policy.Capture()
+	if !captured.Available() {
+		return Authority{governed: governed, claim: captured.Claim()}
+	}
+	return Authority{contract: contract, policy: captured, governed: governed, claim: governance.Claim()}
 }
 
 // Governed reports whether anything claimed authority over this vault. A false
