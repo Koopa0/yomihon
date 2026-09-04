@@ -10,6 +10,7 @@ var StatusOutsideEnumChip = both("不在 schema 允許清單中", "Not in the sc
 // The labels on the diagnostic kinds the renderer can report. Each names the
 // fault in the fewest words that still distinguish it from its neighbours.
 var (
+	DiagImageMissing          = both("圖片的檔案不在書庫裡", "Picture whose file the vault does not hold")
 	DiagLinkNoTarget          = both("連結沒有目標", "Link with no target")
 	DiagLinkManyTargets       = both("連結有多個目標", "Link with several targets")
 	DiagUnknownCallout        = both("沒見過的提示框類型", "Unrecognised callout type")
@@ -27,6 +28,9 @@ var (
 // who sees only the fault cannot tell whether the page in front of them is
 // missing something.
 var (
+	DiagImageMissingNote = both(
+		"這篇要顯示的圖片,書庫裡沒有那個檔案。圖片留在原處,旁邊標出來;yomihon 只陳述,不修復。",
+		"This note shows a picture and the vault holds no file at that path. The picture is left where the author put it and marked in place; yomihon reports and never repairs.")
 	DiagUnwrittenNote  = both("這個 wikilink 或嵌入的目標尚未建立。", "This wikilink or embed points at something that has not been written.")
 	DiagAmbiguousNote  = both("wikilink 或嵌入目標有歧義。", "This wikilink or embed has more than one target.")
 	DiagCalloutNote    = both("未知的 callout 類型；已改以一般引用區塊顯示。", "Unrecognised callout type; shown as an ordinary quote block.")

@@ -40,6 +40,19 @@ type Titles interface {
 	TitledBy(name string) []string
 }
 
+// Files answers what the vault has at one vault-relative path. The resolver's
+// index cannot: it keys on names, so a picture of the same name in another
+// folder would read as the one a note asked for.
+//
+// The question is "missing" rather than "present" because absent and unseen are
+// different answers and only the implementor can tell them apart: the scan never
+// walks a path with a hidden segment, so a picture under one is not gone, it is
+// somewhere this reader does not look, and marking it missing would report the
+// reader's own boundary as a fault in somebody's note.
+type Files interface {
+	MissingFile(path string) bool
+}
+
 // DiagnosticKind classifies one rendering-time Diagnostic.
 type DiagnosticKind string
 
@@ -99,6 +112,12 @@ const (
 	// everything after it is hidden from the page. Obsidian hides it too, so the
 	// words are not restored; the reader is told where the silence begins.
 	DiagCommentUnclosed DiagnosticKind = "comment-unclosed"
+	// DiagImageMissing means a note showed a picture from a path inside the
+	// vault and the vault holds no file there. The image is left where the
+	// author put it, marked the way an unwritten citation is: the page says the
+	// same thing about a name with nothing behind it whether the author reached
+	// for it with a link or with a picture.
+	DiagImageMissing DiagnosticKind = "image-missing"
 	// DiagRenderFailed means the markdown renderer returned an error. It is
 	// normally unreachable, and kept so an extension that breaks that assumption
 	// produces a visible diagnostic rather than a blank page.
@@ -166,6 +185,7 @@ type Pipeline struct {
 	idx           *graph.Index
 	transclusions Transclusions
 	titles        Titles
+	files         Files
 	md            goldmark.Markdown
 }
 
@@ -175,7 +195,7 @@ type Pipeline struct {
 // the Japanese lessons use, and the ==highlight== inline extension. Footnotes
 // are enabled so "[^name]" is not read as an ordinary reference link, which
 // resolved the reference against the definition's prose.
-func New(idx *graph.Index, transclusions Transclusions, titles Titles) *Pipeline {
+func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Files) *Pipeline {
 	if idx == nil {
 		panic("render: New requires a non-nil *graph.Index")
 	}
@@ -185,10 +205,14 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles) *Pipeline
 	if titles == nil {
 		panic("render: New requires a non-nil Titles")
 	}
+	if files == nil {
+		panic("render: New requires a non-nil Files")
+	}
 	return &Pipeline{
 		idx:           idx,
 		transclusions: transclusions,
 		titles:        titles,
+		files:         files,
 		md: goldmark.New(
 			goldmark.WithExtensions(
 				extension.GFM,
@@ -226,7 +250,7 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 	// slugged, so a section further down that reduces to the same name is the
 	// one that has to move aside.
 	htmlOut, toc := assignHeadingIDs(res.HTML, titleAnchor)
-	res.HTML = resolveAssetHrefs(htmlOut, relPath)
+	res.HTML = resolveAssetHrefs(htmlOut, relPath, r.files, lang, &res.Diagnostics)
 	res.TOC = toc
 	res.TitleAnchor = titleAnchor
 	res.TranscludedIdentity = transcludedIdentity(page.transcluded)

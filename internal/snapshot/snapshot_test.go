@@ -1765,3 +1765,49 @@ func TestASecondReconciliationLoopIsRefused(t *testing.T) {
 		t.Errorf("panic value = %v, want %q", recovered, want)
 	}
 }
+
+// TestMissingFileTellsAnAbsentPathFromAnUnseenOne holds the distinction the
+// reading page's picture mark rests on. The scan does not walk a path with a
+// hidden segment, so that path is absent from every generation — and answering
+// "missing" there would have a note's own page report this reader's boundary as
+// a file somebody lost. The rule is the one the judging side already applies to
+// a dead path reference, and it lives here because only this side knows where
+// the scan looks.
+func TestMissingFileTellsAnAbsentPathFromAnUnseenOne(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/there.png", "not really a picture\n")
+	// Written composed, the way a vault holds a name.
+	writeNote(t, root, "Concepts/\u00e9.png", "not really a picture\n")
+	contract := testContract(t, root)
+	store, _ := newTestStore(t, root, contract)
+	view := store.Current()
+
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "a file the scan observed", path: "Concepts/there.png"},
+		{name: "a file nothing there answers to", path: "Concepts/gone.png", want: true},
+		{name: "under a hidden directory, which the scan never walks", path: ".attachments/gone.png"},
+		{name: "a hidden segment deeper in", path: "Concepts/.drafts/gone.png"},
+		// A vault holds its names composed and a note's own text can carry
+		// either spelling, so the decomposed form of a file that is there must
+		// answer the same as the composed one — the route that serves the bytes
+		// composes before it looks, and a page calling this missing would be
+		// reporting its own reading of the name as somebody's lost file.
+		{name: "the decomposed spelling of a file the scan observed", path: "Concepts/e\u0301.png"},
+		{name: "the decomposed spelling of a file nothing answers to", path: "Concepts/gone\u0301.png", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := view.MissingFile(tt.path); got != tt.want {
+				t.Errorf("MissingFile(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}

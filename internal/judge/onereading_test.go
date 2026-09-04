@@ -35,6 +35,13 @@ type noTitlesDeclared struct{}
 
 func (noTitlesDeclared) TitledBy(string) []string { return nil }
 
+// everyFileHeld answers that no picture a body shows is missing. This test is
+// about which citations the two sides read out of one body, and a source that
+// reported every image missing would mark them all.
+type everyFileHeld struct{}
+
+func (everyFileHeld) MissingFile(string) bool { return false }
+
 // citationSurface is one body written to disagree: a citation inside a callout,
 // a table cell, a strikethrough run, a footnote definition, a task item, and
 // beside an autolink, each of which only one of the two engines parses; and a
@@ -98,7 +105,7 @@ func TestBothFacesReadOneSetOfCitations(t *testing.T) {
 		t.Fatalf("the body names no citation at all, so this check compares nothing")
 	}
 
-	page := render.New(graph.BuildFromNotes(nil, nil), capturedBodies{}, noTitlesDeclared{})
+	page := render.New(graph.BuildFromNotes(nil, nil), capturedBodies{}, noTitlesDeclared{}, everyFileHeld{})
 	result := page.HTML("Notes/Reading.md", "Reading", citationSurface, wording.En)
 	var read []string
 	for _, d := range result.Diagnostics {
@@ -154,6 +161,7 @@ func TestThePageShowsQuotedSyntaxAsWritten(t *testing.T) {
 				graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Notes/Real Note.md"}}, nil),
 				capturedBodies{},
 				noTitlesDeclared{},
+				everyFileHeld{},
 			)
 			got := page.HTML("Notes/Reading.md", "Reading", tt.body, wording.En).HTML
 			quoted, shown := splitAtCode(got)

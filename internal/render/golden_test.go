@@ -117,7 +117,7 @@ func TestTheRenderedBytesAreTheOnesTheGoldensHold(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read fixture: %v", err)
 			}
-			r := render.New(graph.BuildFromNotes(goldenNotes, nil), goldenBodies, goldenTitles{})
+			r := render.New(graph.BuildFromNotes(goldenNotes, nil), goldenBodies, goldenTitles{}, vaultHolds{})
 			res := r.HTMLIn(tt.region, tt.relPath, tt.title, string(body), wording.ZhHant)
 
 			var refs []string

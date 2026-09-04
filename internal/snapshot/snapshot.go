@@ -316,6 +316,26 @@ func (g *Generation) Entry(canonicalPath string) (vaultfs.Entry, bool) {
 	return g.scan.Entry(canonicalPath)
 }
 
+// MissingFile reports that this generation looked where canonicalPath names and
+// found nothing. A path with a hidden segment answers false: the scan does not
+// walk there, so its absence from this reading is this reader's boundary rather
+// than a file anybody lost.
+func (g *Generation) MissingFile(canonicalPath string) bool {
+	if g == nil {
+		return false
+	}
+	// The address comes from a note's own text, where a composed and a
+	// decomposed spelling of one name are both what somebody typed. The route
+	// that serves these bytes composes before it looks, and a page saying a file
+	// is missing while that route answers 200 for it would be a diagnostic about
+	// this reader's own spelling.
+	canonicalPath = vault.NormalizeNFC(canonicalPath)
+	if vaultfs.OutsideScan(canonicalPath) {
+		return false
+	}
+	return !g.scan.Contains(canonicalPath)
+}
+
 // Contains reports whether canonicalPath was a file or directory in this
 // generation.
 func (g *Generation) Contains(canonicalPath string) bool {
@@ -723,7 +743,7 @@ func buildGeneration(
 		parsed:         g.parsed,
 		sidecars:       g.sidecars,
 	}
-	gen.markdown = render.New(graphIndex, gen, gen)
+	gen.markdown = render.New(graphIndex, gen, gen, gen)
 	return gen, blocked, nil
 }
 

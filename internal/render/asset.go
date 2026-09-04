@@ -1,16 +1,27 @@
 package render
 
 import (
+	"fmt"
+	"html"
 	"net/url"
 	pathpkg "path"
 	"regexp"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// localImageSrc matches the src of an already-rendered local image. The
-// renderer emits exactly this shape, so the pattern reads what this package
+// localImageSrc matches an already-rendered local image, from the opening angle
+// bracket to the closing one. The renderer emits exactly this shape — src first,
+// no ">" inside an attribute value — so the pattern reads what this package
 // wrote rather than trying to parse arbitrary HTML.
-var localImageSrc = regexp.MustCompile(`(<img src=")([^"]*)(")`)
+//
+// It holds the whole tag rather than stopping at the src, because a caller that
+// puts something around the match must be putting it around an element. Stopping
+// at the source's closing quote made the mark below open inside the tag: the
+// browser then read the marker as an attribute of the image, dropped the alt
+// text, and printed the rest of the tag as words on the page.
+var localImageSrc = regexp.MustCompile(`(<img src=")([^"]*)("[^>]*>)`)
 
 // resolveAssetHrefs rewrites the local image sources in htmlOut so a browser asks
 // for the bytes instead of for a reading page. noteRelPath is the note the
@@ -22,19 +33,55 @@ var localImageSrc = regexp.MustCompile(`(<img src=")([^"]*)(")`)
 // the attribute to be resolved and is written back into one afterwards. A source
 // it leaves alone is returned as the tag it arrived in, so an address it has no
 // business rewriting keeps the spelling its author gave it.
-func resolveAssetHrefs(htmlOut, noteRelPath string) string {
+func resolveAssetHrefs(htmlOut, noteRelPath string, files Files, lang wording.Lang, diags *[]Diagnostic) string {
 	noteDir := pathpkg.Dir(noteRelPath)
 	if noteDir == "." {
 		noteDir = ""
 	}
 	return localImageSrc.ReplaceAllStringFunc(htmlOut, func(tag string) string {
 		parts := localImageSrc.FindStringSubmatch(tag)
-		resolved, ok := rawAssetHref(attributeUnescaper.Replace(parts[2]), noteDir)
+		src := attributeUnescaper.Replace(parts[2])
+		resolved, ok := rawAssetHref(src, noteDir)
 		if !ok {
 			return tag
 		}
-		return parts[1] + attributeEscaper.Replace(resolved) + parts[3]
+		rewritten := parts[1] + attributeEscaper.Replace(resolved) + parts[3]
+		// The address resolved, so it names a path inside the vault: the same
+		// resolution the rewrite above just used. What is asked now is whether
+		// anything is there.
+		//
+		// A path the scan does not walk — one with a hidden segment — answers
+		// no, and stays unmarked. Its bytes are not served either, so the
+		// reader sees a broken image with nothing said about it; naming that
+		// would mean reporting where this reader looks as a fault in the note,
+		// and where the picture actually is, is the author's own business.
+		target, _ := splitSuffix(src)
+		joined, _ := vaultPath(target, noteDir)
+		if !files.MissingFile(joined) {
+			return rewritten
+		}
+		*diags = append(*diags, Diagnostic{
+			Kind:    DiagImageMissing,
+			Target:  joined,
+			Message: fmt.Sprintf("the vault holds no file at %q, so this picture cannot be shown", joined),
+		})
+		return missingImage(rewritten, joined, lang)
 	})
+}
+
+// missingImage marks a picture whose file the vault does not hold. The tag is
+// kept exactly as it was resolved — the address is what the author wrote and
+// the browser's own broken-image mark is part of what the reader sees — and the
+// explanation is added around it in the shape every citation the page could not
+// follow already takes: a title for whoever can point at it, the same sentence
+// offscreen for whoever is listening.
+func missingImage(tag, target string, lang wording.Lang) string {
+	reason := fmt.Sprintf(wording.UnwrittenFileFmt.In(lang), target)
+	escaped := html.EscapeString(reason)
+	return `<span class="image-missing" title="` + escaped + `">` + tag +
+		`<span class="` + offscreenNoteClass + `">` +
+		html.EscapeString(wording.ParenOpen.In(lang)) + escaped +
+		html.EscapeString(wording.ParenClose.In(lang)) + `</span></span>`
 }
 
 // servedElsewhere reports that a source already names something the reader can

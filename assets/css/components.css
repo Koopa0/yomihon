@@ -441,6 +441,11 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose a.wikilink:hover { border-bottom-color: var(--accent); }
 .y-prose .wikilink-broken { color: var(--fg-muted); border-bottom: 1px dashed var(--warn); text-underline-offset: 2px; cursor: help; }
 .y-prose .wikilink-ambiguous { color: var(--fg-muted); border-bottom: 1px dotted var(--accent); cursor: help; }
+/* A picture whose file the vault does not hold. The browser draws its own
+   broken-image mark and this says why: the same dashed warn line an unwritten
+   citation carries, drawn around the image rather than under a word, so the
+   two absences read as one kind of thing on a page that has both. */
+.y-prose .image-missing { display: inline-block; border-bottom: 1px dashed var(--warn); cursor: help; }
 /* A link whose note was found and whose place inside it was not. It keeps the
    link's ink and stays followable, because the address still leads somewhere
    real; what changes is the line under it. Dotted says the same thing it says
