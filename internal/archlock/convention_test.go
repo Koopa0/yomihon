@@ -446,6 +446,37 @@ func TestOneOwnerFoldsAFragment(t *testing.T) {
 	}
 }
 
+// escapingVaultPathSegments is the shape of a loop that percent-escapes a vault
+// path one segment at a time, and pathSegmentEscapers is how many places in the
+// tree are allowed to write one.
+const (
+	escapingVaultPathSegments = "segments[i] = url.PathEscape("
+	pathSegmentEscapers       = 2
+)
+
+// TestAVaultPathIsEscapedInTwoPlaces holds the number of copies of the one
+// operation a URL to a note depends on.
+//
+// Escaping a path whole rather than a segment at a time turns a note whose name
+// carries a slash into a path, which is the sort of mistake that gets fixed in
+// the copy someone happens to be reading. There were three copies; there are two,
+// and the second is there because the renderer may not import the pages it is
+// rendered into. The count is written down rather than described, so a fourth
+// fails here instead of drifting quietly.
+func TestAVaultPathIsEscapedInTwoPlaces(t *testing.T) {
+	t.Parallel()
+
+	written := findLines(t, func(line string) bool { return strings.Contains(line, escapingVaultPathSegments) })
+	if len(written) == pathSegmentEscapers {
+		return
+	}
+	for _, s := range written {
+		t.Logf("%s:%d %s", s.path, s.line, s.text)
+	}
+	t.Errorf("%d places escape a vault path a segment at a time, want %d; call the one that already does rather than writing another",
+		len(written), pathSegmentEscapers)
+}
+
 // TestNoTestFileCarriesTheInternalSuffixWithoutNeedingIt keeps one name for one
 // kind of file. The suffix exists for a package that needs an internal and an
 // external test file under the same stem; used anywhere else it distinguishes

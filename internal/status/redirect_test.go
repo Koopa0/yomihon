@@ -2,12 +2,13 @@ package status
 
 import "testing"
 
-// TestNotesHref pins the reading-page location a successful flip redirects to.
+// TestAFlipRedirectsToAnEscapedReadingPage pins the location a successful flip
+// sends the reader to.
 // Each path segment is percent-escaped on its own: "?" and "#" cannot bleed
 // into the URL's query or fragment, CJK and spaces are encoded, and "/" stays
 // the separator between segments. The expected strings are hand-derived from
 // the byte encoding, not read back from the escaper.
-func TestNotesHref(t *testing.T) {
+func TestAFlipRedirectsToAnEscapedReadingPage(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -39,8 +40,8 @@ func TestNotesHref(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := notesHref(tt.path); got != tt.want {
-				t.Errorf("notesHref(%q) = %q, want %q", tt.path, got, tt.want)
+			if got := noteURL(tt.path); got != tt.want {
+				t.Errorf("the flip redirects %q to %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}
