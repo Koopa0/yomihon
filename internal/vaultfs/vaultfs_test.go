@@ -11,65 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 )
-
-func TestProjectionPackagesHaveNoLegacyEntryPoints(t *testing.T) {
-	t.Parallel()
-
-	forbiddenByDir := map[string]map[string]bool{
-		".": {
-			"List":              true,
-			"ListStrict":        true,
-			"ListStrictContext": true,
-			"ReadNote":          true,
-		},
-		"../graph": {
-			"Build": true,
-		},
-		"../lesson": {
-			"BuildConceptIndex": true,
-			"BuildSlotIndex":    true,
-			"LoadConcept":       true,
-			"readSidecar":       true,
-		},
-		"../nav": {
-			"Build": true,
-		},
-		"../search": {
-			"Build": true,
-		},
-	}
-	var found []string
-	for dir, forbidden := range forbiddenByDir {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("ReadDir(%q) error = %v", dir, err)
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
-				continue
-			}
-			path := filepath.Join(dir, entry.Name())
-			file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-			if parseErr != nil {
-				t.Fatalf("ParseFile(%q) error = %v", path, parseErr)
-			}
-			for _, declaration := range file.Decls {
-				function, ok := declaration.(*ast.FuncDecl)
-				if ok && function.Recv == nil && forbidden[function.Name.Name] {
-					found = append(found, filepath.ToSlash(path)+":"+function.Name.Name)
-				}
-			}
-		}
-	}
-	slices.Sort(found)
-	if len(found) != 0 {
-		t.Errorf("legacy root entrypoint declarations = %v, want none", found)
-	}
-}
 
 func TestReaderScanCompleteIndexesObservedFilesAndDirectories(t *testing.T) {
 	t.Parallel()

@@ -966,3 +966,62 @@ func TestACommentNamingATestNamesOneThatExists(t *testing.T) {
 	}
 	report(t, "a comment names a test this module does not declare; rename the sentence with the function, or point it at the test that holds the property", found)
 }
+
+// TestProjectionPackagesHaveNoLegacyEntryPoints keeps the shape the projection
+// packages settled on. Each of them used to expose a package-level entry point
+// that walked the vault itself; they are built behind the generation store now,
+// and a free function with one of those names would be a second way in that
+// nothing else knows about.
+//
+// The check lives here rather than beside any one of the packages it reads,
+// because it is about how the module is arranged: a failure in it is news for
+// whoever is changing the arrangement, and reporting it from a package whose
+// own behaviour is fine sends them to the wrong address.
+func TestProjectionPackagesHaveNoLegacyEntryPoints(t *testing.T) {
+	t.Parallel()
+
+	forbiddenByDir := map[string]map[string]bool{
+		"internal/vaultfs": {
+			"List":              true,
+			"ListStrict":        true,
+			"ListStrictContext": true,
+			"ReadNote":          true,
+		},
+		"internal/graph":  {"Build": true},
+		"internal/lesson": {"BuildConceptIndex": true, "BuildSlotIndex": true, "LoadConcept": true, "readSidecar": true},
+		"internal/nav":    {"Build": true},
+		"internal/search": {"Build": true},
+	}
+	var found []string
+	inspected := 0
+	for dir, forbidden := range forbiddenByDir {
+		entries, err := os.ReadDir(filepath.Join(repoRoot, dir))
+		if err != nil {
+			t.Fatalf("ReadDir(%q) error = %v", dir, err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+				continue
+			}
+			path := filepath.Join(dir, entry.Name())
+			file, parseErr := parser.ParseFile(token.NewFileSet(), filepath.Join(repoRoot, path), nil, 0)
+			if parseErr != nil {
+				t.Fatalf("ParseFile(%q) error = %v", path, parseErr)
+			}
+			inspected++
+			for _, declaration := range file.Decls {
+				function, ok := declaration.(*ast.FuncDecl)
+				if ok && function.Recv == nil && forbidden[function.Name.Name] {
+					found = append(found, filepath.ToSlash(path)+":"+function.Name.Name)
+				}
+			}
+		}
+	}
+	if inspected == 0 {
+		t.Fatal("no projection source was read, so this check passes whatever those packages declare")
+	}
+	slices.Sort(found)
+	if len(found) != 0 {
+		t.Errorf("legacy root entrypoint declarations = %v, want none", found)
+	}
+}
