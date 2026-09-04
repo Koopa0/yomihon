@@ -686,10 +686,10 @@ func buildGeneration(
 		g.recordVerdict(relPath, data, contract, log)
 	}
 
-	graphIndex := graph.New(slices.Concat(g.notes, g.unreadable), g.resources)
-	titles := titlesByName(g.notes)
+	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
+	titles := titlesByName(g.ordered)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy)
-	searchIndex := lexical.NewIndex(indexDocuments(g.notes, g.indexable, g.files), projectionPolicy)
+	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.indexable, g.files), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
@@ -697,14 +697,14 @@ func buildGeneration(
 		log.Warn("slot sidecar unusable in snapshot generation",
 			"path", problem.Source, "problem", problem.Message)
 	}
-	concepts, err := lesson.NewConceptIndex(g.notes)
+	concepts, err := lesson.NewConceptIndex(g.ordered)
 	if err != nil {
 		log.Warn("concept sheets unavailable in snapshot generation", "error", err)
 		concepts = lesson.ConceptIndex{}
 	}
 
-	planned := judge.NewPlanned(noteBodies(g.notes))
-	backlinks := newBacklinks(g.notes, graphIndex)
+	planned := judge.NewPlanned(noteBodies(g.ordered))
+	backlinks := newBacklinks(g.ordered, graphIndex)
 	gen := &Generation{
 		graph:          graphIndex,
 		navigation:     navigation,
@@ -713,11 +713,11 @@ func buildGeneration(
 		concepts:       concepts,
 		planned:        planned,
 		backlinks:      backlinks,
-		health:         newHealth(g.notes, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
+		health:         newHealth(g.ordered, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
 		artifactPolicy: capabilities.Artifacts,
 		privacyPolicy:  contract.PrivacyPolicy(),
 		scan:           scan,
-		notes:          g.published,
+		notes:          g.readings,
 		schemaFindings: g.findings,
 		titles:         titles,
 		parsed:         g.parsed,
@@ -734,12 +734,12 @@ func buildGeneration(
 type generation struct {
 	// parsed is every note this generation holds, by path.
 	parsed map[string]*vault.Note
-	// notes is the same set as a list, in the order the folder was read.
-	notes []*vault.Note
+	// ordered is the same set as a list, in the order the folder was read.
+	ordered []*vault.Note
 	// unreadable are stubs, so a citation to one still lands on a file.
 	unreadable []*vault.Note
-	// published is the reading projection each page renders.
-	published map[string]Reading
+	// readings is the reading projection each page renders.
+	readings map[string]Reading
 	// indexable records the decision each note's own entry was judged by.
 	indexable map[string]bool
 	// sidecars are the practice files the lesson parser reads.
@@ -756,9 +756,9 @@ type generation struct {
 func newGeneration(entries int) *generation {
 	return &generation{
 		parsed:     make(map[string]*vault.Note),
-		notes:      make([]*vault.Note, 0, entries),
+		ordered:    make([]*vault.Note, 0, entries),
 		unreadable: make([]*vault.Note, 0),
-		published:  make(map[string]Reading),
+		readings:   make(map[string]Reading),
 		indexable:  make(map[string]bool),
 		sidecars:   make(map[string][]byte),
 		files:      make([]lexical.Document, 0, entries),
@@ -771,9 +771,9 @@ func newGeneration(entries int) *generation {
 // from a note, down to the index membership its own entry was judged by.
 func (g *generation) captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, indexable bool) {
 	g.parsed[parsed.RelPath] = parsed
-	g.notes = append(g.notes, parsed)
+	g.ordered = append(g.ordered, parsed)
 	g.indexable[parsed.RelPath] = indexable
-	g.published[parsed.RelPath] = newReading(parsed, data, languages, indexable)
+	g.readings[parsed.RelPath] = newReading(parsed, data, languages, indexable)
 }
 
 // recordVerdict reaches the schema's verdict for one note and keeps it when
@@ -838,8 +838,8 @@ func (g *generation) carryNote(from carriedGeneration, relPath string) {
 	}
 	captured.Stale = true
 	g.parsed[relPath] = lastKnown
-	g.notes = append(g.notes, lastKnown)
-	g.published[relPath] = captured
+	g.ordered = append(g.ordered, lastKnown)
+	g.readings[relPath] = captured
 	// The carried copy answers for itself, so the index and the note's own page
 	// describe the same bytes — the last ones read.
 	g.indexable[relPath] = captured.Searchable
