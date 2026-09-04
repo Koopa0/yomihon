@@ -147,7 +147,7 @@ func writeNote(t *testing.T, root, rel, content string) {
 	}
 }
 
-func immutableViewFixture(t *testing.T) (view *Generation, root string) {
+func immutableGenerationFixture(t *testing.T) (gen *Generation, root string) {
 	t.Helper()
 	root = t.TempDir()
 	writeNote(t, root, "A/Foo.md", "first body\n")
@@ -171,38 +171,38 @@ patterns:
 	return store.Current(), root
 }
 
-func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
+func TestAGenerationReturnsImmutableProjections(t *testing.T) {
 	t.Parallel()
-	view, _ := immutableViewFixture(t)
+	gen, _ := immutableGenerationFixture(t)
 
-	files := view.Files()
+	files := gen.Files()
 	if len(files) == 0 {
 		t.Fatal("Files() returned no captured files")
 	}
 	wantFirstPath := files[0].Path()
 	files[0] = vaultfs.Entry{}
-	if got := view.Files()[0].Path(); got != wantFirstPath {
+	if got := gen.Files()[0].Path(); got != wantFirstPath {
 		t.Errorf("Files()[0].Path() after mutation = %q, want %q", got, wantFirstPath)
 	}
 
-	resolution := view.Graph().Resolve("Foo")
+	resolution := gen.Graph().Resolve("Foo")
 	if resolution.Kind != graph.KindAmbiguous || len(resolution.Candidates) != 2 {
 		t.Fatalf("Resolve(Foo) = %+v, want two ambiguous candidates", resolution)
 	}
 	resolution.Candidates[0] = "mutated"
-	if got := view.Graph().Resolve("Foo").Candidates[0]; got != "A/Foo.md" {
+	if got := gen.Graph().Resolve("Foo").Candidates[0]; got != "A/Foo.md" {
 		t.Errorf("Resolve(Foo) after mutation starts with %q, want %q", got, "A/Foo.md")
 	}
 
-	results := snapshotSearch(t, view.Search(), "Foo")
+	results := snapshotSearch(t, gen.Search(), "Foo")
 	if len(results) != 2 {
 		t.Fatalf("Search(Foo) returned %d results, want 2", len(results))
 	}
 	results[0].Title = "mutated"
-	if got := snapshotSearch(t, view.Search(), "Foo")[0].Title; got != "Foo" {
+	if got := snapshotSearch(t, gen.Search(), "Foo")[0].Title; got != "Foo" {
 		t.Errorf("Search(Foo) after mutation starts with title %q, want %q", got, "Foo")
 	}
-	counts, err := view.Search().CountByTypeStatus()
+	counts, err := gen.Search().CountByTypeStatus()
 	if err != nil {
 		t.Fatalf("CountByTypeStatus() error = %v", err)
 	}
@@ -210,7 +210,7 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 	for pair := range counts {
 		counts[pair] = 0
 	}
-	counts, err = view.Search().CountByTypeStatus()
+	counts, err = gen.Search().CountByTypeStatus()
 	if err != nil {
 		t.Fatalf("CountByTypeStatus() after mutation error = %v", err)
 	}
@@ -218,24 +218,24 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 		t.Errorf("CountByTypeStatus() after caller mutation (-before +after):\n%s", diff)
 	}
 
-	slot, ok := view.Slots().Lookup("lesson-l01")
+	slot, ok := gen.Slots().Lookup("lesson-l01")
 	if !ok {
 		t.Fatal("Slots().Lookup(lesson-l01) = false, want true")
 	}
 	position := slot.Patterns[0].Slots["A"]
 	position.Fills[0].JP = "mutated"
 	slot.Patterns[0].Slots["A"] = position
-	secondSlot, ok := view.Slots().Lookup("lesson-l01")
+	secondSlot, ok := gen.Slots().Lookup("lesson-l01")
 	if !ok || secondSlot.Patterns[0].Slots["A"].Fills[0].JP != "私" {
 		t.Errorf("Slots().Lookup() after mutation = %+v, want original fill", secondSlot)
 	}
 
-	concept, ok := view.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
+	concept, ok := gen.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
 	if !ok {
 		t.Fatal("Concepts().Document() = false, want true")
 	}
 	concept.Title = "mutated"
-	secondConcept, ok := view.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
+	secondConcept, ok := gen.Concepts().Document(func(_, body string) string { return body }, "Concepts/go/Concept.md")
 	if !ok || concept.Title != "mutated" || secondConcept.Title != "Concept" {
 		t.Errorf("Concepts().Document() after mutation = %+v, want original title", secondConcept)
 	}
@@ -243,14 +243,14 @@ func TestViewReturnsImmutableGenerationProjections(t *testing.T) {
 
 func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	t.Parallel()
-	view, root := immutableViewFixture(t)
-	requestA := view.Capture()
+	gen, root := immutableGenerationFixture(t)
+	requestA := gen.Capture()
 
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if err := os.WriteFile(contractPath, []byte("changed\n"), 0o600); err != nil {
 		t.Fatalf("changing contract source: %v", err)
 	}
-	requestB := view.Capture()
+	requestB := gen.Capture()
 
 	if !requestA.ArtifactPolicy().Available() {
 		t.Error("request-captured ArtifactPolicy changed while the response was in flight")
@@ -284,13 +284,13 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	// than left to be inferred from the two halves above.
 	for _, tt := range []struct {
 		name string
-		view *Generation
+		gen  *Generation
 	}{
-		{name: "captured before the source changed", view: requestA},
-		{name: "captured after the source changed", view: requestB},
+		{name: "captured before the source changed", gen: requestA},
+		{name: "captured after the source changed", gen: requestB},
 	} {
-		_, countErr := tt.view.Search().CountByTypeStatus()
-		if got, want := tt.view.ArtifactPolicy().Available(), countErr == nil; got != want {
+		_, countErr := tt.gen.Search().CountByTypeStatus()
+		if got, want := tt.gen.ArtifactPolicy().Available(), countErr == nil; got != want {
 			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers counts = %t; "+
 				"one request would combine two disagreeing authorities", tt.name, got, want)
 		}
@@ -501,32 +501,32 @@ func TestNewBuildsSnapshot(t *testing.T) {
 	}
 }
 
-func TestViewBindsResolutionAndTransclusionsToOneGeneration(t *testing.T) {
+func TestResolutionAndTransclusionsBindToOneGeneration(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNote(t, root, "Host.md", "Host embeds ![[Target]].\n")
 	writeNote(t, root, "Target.md", "old generation body\n")
 
 	store, _ := newTestStore(t, root, nil)
-	oldView := store.Current()
-	host, ok := oldView.Note("Host.md")
+	oldGeneration := store.Current()
+	host, ok := oldGeneration.Note("Host.md")
 	if !ok {
 		t.Fatal("Host.md is absent from the initial generation")
 	}
-	if got := oldView.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "old generation body") {
+	if got := oldGeneration.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "old generation body") {
 		t.Fatalf("initial render = %q, want captured target body", got)
 	}
 
 	writeNote(t, root, "Target.md", "replacement generation body with a different size\n")
 	store.rescan(t.Context())
-	newView := store.Current()
-	if newView == oldView {
+	newGeneration := store.Current()
+	if newGeneration == oldGeneration {
 		t.Fatal("changed target did not publish a new generation")
 	}
-	if got := newView.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "replacement generation body") {
+	if got := newGeneration.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "replacement generation body") {
 		t.Errorf("new generation render = %q, want replacement target body", got)
 	}
-	if got := oldView.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "old generation body") || strings.Contains(got, "replacement generation body") {
+	if got := oldGeneration.Render("Host.md", host.Body, wording.ZhHant).HTML; !strings.Contains(got, "old generation body") || strings.Contains(got, "replacement generation body") {
 		t.Errorf("old generation render changed after publication: %q", got)
 	}
 }
@@ -790,7 +790,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				t.Errorf("ScanAvailable: %v", err)
 				return
 			}
-			view, _, err := buildView(
+			gen, _, err := buildGeneration(
 				t.Context(),
 				reader,
 				nil,
@@ -800,10 +800,10 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				contract,
 			)
 			if err != nil {
-				t.Errorf("buildView: %v", err)
+				t.Errorf("buildGeneration: %v", err)
 				return
 			}
-			store.ptr.Store(view)
+			store.ptr.Store(gen)
 		}
 	})
 	swapper.Wait()
@@ -812,13 +812,13 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 	readers.Wait()
 }
 
-// TestBuildViewIndexesTextFilesAndSkipsTheRest pins which vault files reach the
+// TestBuildGenerationIndexesTextFilesAndSkipsTheRest pins which vault files reach the
 // text corpus and, just as much, which do not. The rule is the file page's own:
 // if yomihon shows it to you as characters, you can find it. Each exclusion is
 // decided by a different thing — a picture by its name, a blob by its bytes, an
 // oversized file by its size — so each is listed separately, and a fix that
 // widens one must not quietly widen the others.
-func TestBuildViewIndexesTextFilesAndSkipsTheRest(t *testing.T) {
+func TestBuildGenerationIndexesTextFilesAndSkipsTheRest(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNote(t, root, "Concepts/Note.md", "---\ntitle: Note\ntype: concept\n---\n\nfindable body\n")
@@ -851,10 +851,10 @@ func TestBuildViewIndexesTextFilesAndSkipsTheRest(t *testing.T) {
 	}
 }
 
-// TestBuildViewStillResolvesWikilinksToFiles guards the hole the widening most
+// TestBuildGenerationStillResolvesWikilinksToFiles guards the hole the widening most
 // plausibly opens. Every vault file has to reach the link resolver whether or
 // not its bytes are read, so a note pointing at a picture keeps resolving.
-func TestBuildViewStillResolvesWikilinksToFiles(t *testing.T) {
+func TestBuildGenerationStillResolvesWikilinksToFiles(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNote(t, root, "Concepts/Note.md", "---\ntitle: Note\ntype: concept\n---\n\nsee [[drawing.svg]]\n")
@@ -1697,10 +1697,10 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := store.Current()
+	gen := store.Current()
 
 	// It is captured and readable.
-	note, ok := view.Note("huge.md")
+	note, ok := gen.Note("huge.md")
 	if !ok {
 		t.Fatal("the oversize note is absent from the generation; reading is never withheld")
 	}
@@ -1710,11 +1710,11 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 	if note.Searchable {
 		t.Error("the oversize note reports itself searchable, so its page would say nothing")
 	}
-	if small, _ := view.Note("small.md"); !small.Searchable {
+	if small, _ := gen.Note("small.md"); !small.Searchable {
 		t.Error("a note under the cap reports itself unsearchable")
 	}
 
-	results, _, err := view.Search().SearchN(lexical.Parse(needle), -1)
+	results, _, err := gen.Search().SearchN(lexical.Parse(needle), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}

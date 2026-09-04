@@ -62,15 +62,15 @@ func TestRunScannerTicksAndStops(t *testing.T) {
 	})
 }
 
-func TestViewConcurrentReadersCannotMutateGeneration(t *testing.T) {
+func TestConcurrentReadersCannotMutateAGeneration(t *testing.T) {
 	t.Parallel()
-	view, _ := immutableViewFixture(t)
+	gen, _ := immutableGenerationFixture(t)
 
 	synctest.Test(t, func(t *testing.T) {
 		for range 32 {
 			go func() {
 				for range 100 {
-					request := view.Capture()
+					request := gen.Capture()
 					resolution := request.Graph().Resolve("Foo")
 					resolution.Candidates[0] = "mutated"
 
@@ -108,16 +108,16 @@ func TestViewConcurrentReadersCannotMutateGeneration(t *testing.T) {
 		synctest.Wait()
 	})
 
-	if got := view.Graph().Resolve("Foo").Candidates[0]; got != "A/Foo.md" {
+	if got := gen.Graph().Resolve("Foo").Candidates[0]; got != "A/Foo.md" {
 		t.Errorf("Resolve(Foo) after concurrent mutation starts with %q, want %q", got, "A/Foo.md")
 	}
-	if got := view.Navigation().Folders()[0].Name; got == "mutated" {
+	if got := gen.Navigation().Folders()[0].Name; got == "mutated" {
 		t.Error("Navigation().Folders() retained a concurrent caller mutation")
 	}
-	if got := snapshotSearch(t, view.Search(), "Foo")[0].Title; got != "Foo" {
+	if got := snapshotSearch(t, gen.Search(), "Foo")[0].Title; got != "Foo" {
 		t.Errorf("Search(Foo) after concurrent mutation starts with title %q, want %q", got, "Foo")
 	}
-	slot, ok := view.Slots().Lookup("lesson-l01")
+	slot, ok := gen.Slots().Lookup("lesson-l01")
 	if !ok {
 		t.Fatal("Slots().Lookup(lesson-l01) = false")
 	}

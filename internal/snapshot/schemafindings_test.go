@@ -9,11 +9,11 @@ import (
 	"github.com/koopa0/yomihon/internal/judge"
 )
 
-// TestViewCarriesTheSchemaVerdictForEachNote holds the generation to the same
+// TestAGenerationCarriesTheSchemaVerdictForEachNote holds the generation to the same
 // verdict the check command reaches. The oracle is the judge seam over the
 // same bytes rather than a list written here, so the two cannot drift apart
 // while both stay green.
-func TestViewCarriesTheSchemaVerdictForEachNote(t *testing.T) {
+func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	t.Parallel()
 
 	const faulty = "Concepts/golang/Bad.md"
@@ -26,7 +26,7 @@ func TestViewCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	writeNote(t, root, faulty, faultyBody)
 	writeNote(t, root, clean, cleanBody)
 	store, _ := newTestStore(t, root, contract)
-	view := store.Current()
+	gen := store.Current()
 
 	want, err := judge.LintFrontmatter(faulty, []byte(faultyBody), contract)
 	if err != nil {
@@ -41,14 +41,14 @@ func TestViewCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	}
 	t.Logf("the fixture draws: %s", strings.Join(ruleIDs, ", "))
 
-	if diff := cmp.Diff(want, view.SchemaFindings(faulty)); diff != "" {
-		t.Errorf("View.SchemaFindings(%q) differs from the seam (-seam +view):\n%s", faulty, diff)
+	if diff := cmp.Diff(want, gen.SchemaFindings(faulty)); diff != "" {
+		t.Errorf("Generation.SchemaFindings(%q) differs from the seam (-seam +generation):\n%s", faulty, diff)
 	}
-	if got := view.SchemaFindings(clean); len(got) != 0 {
-		t.Errorf("View.SchemaFindings(%q) = %v, want nothing for a note that satisfies the schema", clean, got)
+	if got := gen.SchemaFindings(clean); len(got) != 0 {
+		t.Errorf("Generation.SchemaFindings(%q) = %v, want nothing for a note that satisfies the schema", clean, got)
 	}
-	if got := view.SchemaFindings("Concepts/golang/Absent.md"); len(got) != 0 {
-		t.Errorf("View.SchemaFindings(absent) = %v, want nothing", got)
+	if got := gen.SchemaFindings("Concepts/golang/Absent.md"); len(got) != 0 {
+		t.Errorf("Generation.SchemaFindings(absent) = %v, want nothing", got)
 	}
 }
 
@@ -65,14 +65,14 @@ func TestSchemaFindingsAreTheCallersOwnSlice(t *testing.T) {
 	contract := testContract(t, root)
 	writeNote(t, root, faulty, body)
 	store, _ := newTestStore(t, root, contract)
-	view := store.Current()
+	gen := store.Current()
 
-	first := view.SchemaFindings(faulty)
+	first := gen.SchemaFindings(faulty)
 	if len(first) == 0 {
 		t.Fatal("the fixture note draws no schema findings, so this test would prove nothing")
 	}
 	first[0] = judge.Finding{RuleID: "scribbled.over"}
-	second := view.SchemaFindings(faulty)
+	second := gen.SchemaFindings(faulty)
 	if second[0].RuleID == "scribbled.over" {
 		t.Error("writing to one caller's slice changed the next caller's; the accessor handed out the generation's own array")
 	}

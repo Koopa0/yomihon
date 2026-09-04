@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Reading is the immutable projection of one markdown file captured in a View,
+// Reading is the immutable projection of one markdown file captured in a Generation,
 // as a reading page shows it. It holds no map, slice, handle or live contract
 // reference, so returning it by value cannot mutate a published generation.
 type Reading struct {

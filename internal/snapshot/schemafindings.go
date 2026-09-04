@@ -11,9 +11,9 @@ import (
 // same bytes. A note the schema is content with, and a path this generation does
 // not hold, both answer with nothing. The slice is the caller's own; the
 // findings in it point into what the generation holds and are read-only.
-func (v *Generation) SchemaFindings(relPath string) []judge.Finding {
-	if v == nil {
+func (g *Generation) SchemaFindings(relPath string) []judge.Finding {
+	if g == nil {
 		return nil
 	}
-	return slices.Clone(v.schemaFindings[relPath])
+	return slices.Clone(g.schemaFindings[relPath])
 }
