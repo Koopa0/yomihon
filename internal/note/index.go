@@ -85,9 +85,11 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 		model.ArtifactClosure().Diagnostic(),
 	)
 	recentBlock := pages.NewRecentBlock(recent, recentOrdered, model.KnowledgeScoped(), lang)
-	// A distribution is drawn only where this page can stand behind every
-	// number in it: an ungoverned folder has no vocabulary to group by, and a
-	// closed one has a vocabulary yomihon could not read.
+	// The recent list is never withheld, only reworded — it is plain reading,
+	// and the block it is built into degrades its own sentence rather than
+	// disappearing. A distribution is drawn only where this page can stand
+	// behind every number in it: an ungoverned folder has no vocabulary to
+	// group by, and a closed one has a vocabulary yomihon could not read.
 	var distribution pages.StatusDistribution
 	if pageShell.Governed && !lifecycleClosed {
 		distribution = pages.StatusDistribution{Statuses: lifecycle, Unstated: unstated}
