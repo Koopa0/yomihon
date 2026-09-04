@@ -3,6 +3,7 @@
 English | [繁體中文](README.zh-TW.md)
 
 [![CI](https://github.com/koopa0/yomihon/actions/workflows/ci.yml/badge.svg)](https://github.com/koopa0/yomihon/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/github/go-mod/go-version/koopa0/yomihon?style=flat)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
 **Turn the Markdown you have already organised into a book worth reading.**

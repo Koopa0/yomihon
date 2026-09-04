@@ -3,6 +3,7 @@
 [English](README.md) | 繁體中文
 
 [![CI](https://github.com/koopa0/yomihon/actions/workflows/ci.yml/badge.svg)](https://github.com/koopa0/yomihon/actions/workflows/ci.yml)
+[![Go 版本](https://img.shields.io/github/go-mod/go-version/koopa0/yomihon?style=flat)](go.mod)
 [![授權條款：MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
 **把你整理好的 Markdown，變成一本好讀的書。**
