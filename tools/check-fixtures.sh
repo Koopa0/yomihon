@@ -7,14 +7,12 @@
 #
 # Neither fixture is expected to come back clean. The e2e vault exercises the
 # reading faces without conforming to every field on purpose — see the comment
-# at the top of its own contract for what that covers, though one pinned line
-# below it does not reach: schema.unmatched_knowledge_dir on Sources looks like
-# a leftover rather than a plan, and is pinned as observed rather than fixed
-# here. The example vault keeps two small faults on display because they are
-# the worked example a reader opens to see what a diagnostic looks like.
-# Either way, this compares the exact rule_id+path set `check` reports against
-# the pinned list below, so a change to it is reviewed rather than silently
-# waved through, whatever prompted it.
+# at the top of its own contract for what that covers. The example vault keeps
+# two small faults on display because they are the worked example a reader
+# opens to see what a diagnostic looks like. Either way, this compares the
+# exact rule_id+path set `check` reports against the pinned list below, so a
+# change to it is reviewed rather than silently waved through, whatever
+# prompted it.
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
