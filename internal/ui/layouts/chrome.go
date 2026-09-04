@@ -21,7 +21,9 @@ type Chrome struct {
 	// already right; no choice leaves the root unstamped and the stylesheet's
 	// system-preference block decides.
 	Theme string
-	Ruby  string // "on" | "off"
+	// RubyEnabled is whether furigana are shown, which the reader chooses and
+	// the root carries so the first paint already matches.
+	RubyEnabled bool
 	// TextSize scales the reading column: "m" (the default measure), "l", or
 	// "xl". It tunes presentation only — the charter's bounded reading
 	// preferences — and the chrome around the article keeps its own size.
@@ -45,7 +47,10 @@ type Chrome struct {
 // because Go written inside a template reaches the compiler only as
 // generated output, which every linter in this repository is told to skip.
 
-func singleKeyShortcutsState(enabled bool) string {
+// onOff spells a two-state reading preference the way the root attribute and the
+// cookie behind it are written, which is the same two words for every one of
+// them.
+func onOff(enabled bool) string {
 	if enabled {
 		return "on"
 	}
@@ -99,9 +104,9 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 	if c, err := r.Cookie("yomihon_theme"); err == nil && (c.Value == "dark" || c.Value == "light") {
 		theme = c.Value
 	}
-	ruby := "on"
+	rubyEnabled := true
 	if c, err := r.Cookie("yomihon_ruby"); err == nil && c.Value == "off" {
-		ruby = "off"
+		rubyEnabled = false
 	}
 	textSize := "m"
 	if c, err := r.Cookie("yomihon_textsize"); err == nil && (c.Value == "l" || c.Value == "xl") {
@@ -116,7 +121,7 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 		Lang:                      origin.Language(r),
 		Nonce:                     origin.Nonce(r.Context()),
 		Theme:                     theme,
-		Ruby:                      ruby,
+		RubyEnabled:               rubyEnabled,
 		TextSize:                  textSize,
 		SingleKeyShortcutsEnabled: singleKeyShortcutsEnabled,
 		// The request's own address, so the language form can bring the reader

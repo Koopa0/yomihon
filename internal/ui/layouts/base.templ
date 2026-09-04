@@ -18,9 +18,9 @@ templ Base(c Chrome) {
 		if c.Theme != "" {
 			data-theme={ c.Theme }
 		}
-		data-ruby={ c.Ruby }
+		data-ruby={ onOff(c.RubyEnabled) }
 		data-textsize={ c.TextSize }
-		data-single-key-shortcuts={ singleKeyShortcutsState(c.SingleKeyShortcutsEnabled) }
+		data-single-key-shortcuts={ onOff(c.SingleKeyShortcutsEnabled) }
 	>
 		<head>
 			<meta charset="utf-8"/>
@@ -75,7 +75,7 @@ templ header(c Chrome) {
 			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
 			<span class="ui-kbd">⌘K</span>
 		</a>
-		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
+		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.RubyEnabled) }>
 			<span class="y-rubybtn__glyph" aria-hidden="true">{ wording.FuriganaMark.In(c.Lang) }</span>
 			<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
 			<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
