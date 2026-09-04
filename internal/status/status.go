@@ -120,11 +120,14 @@ type Writer struct {
 	// log carries the one thing this package says that no caller asked for: a
 	// flip killed mid-write left a file behind and the sweep set it aside.
 	log *slog.Logger
-	// mu serializes View, Flip, ObservedStatus and Close: the pinned root is a
-	// shared resource, two flips must never interleave their
+	// mu serializes Authority, VaultRoot, ObservedStatus, Flip and Close: the
+	// pinned root is a shared resource, two flips must never interleave their
 	// read-check-replace windows, and Close cannot release the root under an
 	// operation. A flip holds it across two synchronizations, so Flip and
 	// ObservedStatus consult the request's context before they queue for it.
+	// Authority and VaultRoot hold it only long enough to copy what they read
+	// and take no context, so a parked flip can still delay them for as long
+	// as those two synchronizations take.
 	mu sync.Mutex
 	// receipts is this face's short-lived memory of flips whose confirmation
 	// no reading page has shown yet, keyed by normalized path. Only the write
