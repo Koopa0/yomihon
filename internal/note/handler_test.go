@@ -2190,11 +2190,12 @@ func TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote(t *testing.T) {
 			t.Errorf("the folders block is missing %q; block = %q", want, folders)
 		}
 	}
-	// The stand-in speaks for a desk with nothing to offer. This one is
-	// offering three files, and two accounts of the same folder on one screen
-	// is what the block was made to replace.
-	if strings.Contains(body, "y-homestandin") {
-		t.Error("the desk stood in for a folder whose files it is already listing")
+	// A row on a shelf is a way in, so the one offered here has to answer.
+	// None of these files is a note, and the page that serves them is not the
+	// reading page — which is exactly why the link is worth following rather
+	// than trusting for being well formed.
+	if code, _ = get(t, srv.Client(), srv.URL+"/notes/todo.txt"); code != http.StatusOK {
+		t.Errorf("GET /notes/todo.txt status = %d, want %d: the desk offers a row that does not answer", code, http.StatusOK)
 	}
 }
 
