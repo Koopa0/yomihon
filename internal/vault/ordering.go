@@ -20,9 +20,17 @@ var chineseUnits = map[rune]int{'十': 10, '百': 100, '千': 1000}
 // ComparePaths orders two vault paths the way their reader would, and is the
 // one order every list of them sorts by. A run of digits compares as the number
 // it spells, because comparing code points puts 第三課 before 第二課 and 第10課
-// between 第1課 and 第2課; everything else compares by code point, so a path
-// carrying no number stays where it was. Equal numbers fall back to a code-point
-// comparison, which keeps the order total.
+// between 第1課 and 第2課. Where one path spells a number at a position and the
+// other does not, the number goes last. Code points cannot answer that question
+// consistently, since they put 2 ahead of a Latin letter and a Latin letter
+// ahead of 一, while 一 read as a number is worth less than 2 — three answers
+// that close a cycle, and a cycle lets the sort return any order it likes. Last
+// rather than first because a numeral opening an ordinary word is read as a
+// number here as well, so ranking numbers first would move 零值設計 and 四技資源
+// to the head of the folders their readers know them from. Anything that is not
+// a number compares by code point, and two paths matching all the way through
+// are settled by comparing their bytes, so distinct paths never compare equal
+// and the order is total.
 func ComparePaths(a, b string) int {
 	ar, br := []rune(a), []rune(b)
 	i, j := 0, 0
@@ -36,6 +44,15 @@ func ComparePaths(a, b string) int {
 			i += aw
 			j += bw
 			continue
+		}
+		// Whether a number opens here is itself the answer, and outranks the
+		// code points: no code-point ranking of the two kinds agrees with the
+		// number reading, and one that disagrees closes a cycle.
+		if (aw > 0) != (bw > 0) {
+			if aw > 0 {
+				return 1
+			}
+			return -1
 		}
 		if c := cmp.Compare(ar[i], br[j]); c != 0 {
 			return c
