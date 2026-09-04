@@ -5,7 +5,7 @@ import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
-const HOME = '/';
+const FOLDERS = '/folders';
 const MAP_NOTE = '/notes/System/templates/Template%20map.md';
 const MAP_RAW = '/raw/System/templates/Template%20map.md';
 const LESSON_NOTE = '/notes/System/templates/Template%20lesson.md';
@@ -19,7 +19,7 @@ const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
   'map-projection-omitted',
-  'home-recent-omitted',
+  'recent-omitted',
   'folder-links-present',
   'map-note-readable',
   'map-raw-readable',
@@ -67,11 +67,11 @@ const MUTATIONS = {
       '地圖</summary><details data-map-tree="System/templates/Template map.md"></details>',
     )),
   },
-  'inject-template-home-recent': {
-    target: 'home-recent-omitted',
-    apply: rewritePath(HOME, (body) => body.replaceAll(
-      'id="home-recent-title">最近變更</h2>',
-      `id="home-recent-title">最近變更</h2><span>${MAP_TITLE}</span>`,
+  'inject-template-recent': {
+    target: 'recent-omitted',
+    apply: rewritePath(FOLDERS, (body) => body.replaceAll(
+      '<div class="y-homerecent">',
+      `<div class="y-homerecent"><span>${MAP_TITLE}</span>`,
     )),
   },
   'drop-template-folder-link': {
@@ -145,11 +145,15 @@ try {
     fail('folder-links-present', 'the template folder does not retain links to both non-instance notes');
   }
 
-  response = await page.goto(BASE + HOME, { waitUntil: 'domcontentloaded' });
-  if (!response) broken('navigation to Home returned no response');
-  const recentText = await page.locator('[data-home-block="recent"]').textContent();
+  // What changed last is the folder mode's answer, not the desk's: it
+  // describes how the files are kept rather than what there is to read.
+  response = await page.goto(BASE + FOLDERS, { waitUntil: 'domcontentloaded' });
+  if (!response) broken('navigation to the folder index returned no response');
+  const recent = page.locator('[data-home-block="recent"]');
+  if (await recent.count() !== 1) broken('the folder index carries no recent block to read');
+  const recentText = await recent.textContent();
   if (recentText.includes(MAP_TITLE) || recentText.includes(LESSON_TITLE)) {
-    fail('home-recent-omitted', 'a non-instance template leaked into Home recent');
+    fail('recent-omitted', 'a non-instance template leaked into the recent list');
   }
 
   response = await page.goto(BASE + MAP_NOTE, { waitUntil: 'domcontentloaded' });
