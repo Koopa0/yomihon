@@ -42,6 +42,23 @@ export function initSearch() {
       status.textContent = '';
     }
 
+    // The rows left on screen answer whichever query last reached the region.
+    // Beside a sentence asking the reader to run the search again they would
+    // read as an answer to what is in the box now, so the set is made to say
+    // which query it does answer. The sentence travels with the rows, written
+    // by the server that answered them, and stays hidden while they are still
+    // the current answer.
+    //
+    // Assigned, never merely revealed: a reader who types their way back to the
+    // query these rows do answer has stopped looking at an earlier answer, and
+    // being told otherwise is the same false claim in the other direction. Both
+    // sides are trimmed, because the field drops the padding an address can
+    // carry and the same search must not read as two.
+    function markStaleNote(query) {
+      const note = results.querySelector('[data-live-search-stale]');
+      if (note) note.hidden = (note.dataset.liveSearchStale ?? '').trim() === query;
+    }
+
     async function refresh(query, requestID) {
       const requestController = new AbortController();
       activeController = requestController;
@@ -78,6 +95,7 @@ export function initSearch() {
       } catch (error) {
         if (error.name === 'AbortError' || requestID !== latestRequest) return;
         status.textContent = status.dataset.liveSearchOffline ?? '';
+        markStaleNote(query);
       } finally {
         if (requestID === latestRequest) {
           results.setAttribute('aria-busy', 'false');

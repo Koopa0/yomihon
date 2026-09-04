@@ -133,3 +133,49 @@ func TestSearchResultMarkedRunsIntroduceNoSpacing(t *testing.T) {
 		}
 	}
 }
+
+// Every answer carries the query it answers, hidden. The live search shows it
+// when a refresh fails and the previous rows are left standing, so they stop
+// reading as an answer to what the reader has since typed. Hidden is the
+// server's whole part: with no script there is no failed refresh and no stale
+// answer, so the page a reader without one sees is the page they saw before.
+func TestSearchResultsCarryTheQueryTheyAnswer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		view     SearchView
+		wantNote bool
+	}{
+		{
+			name:     "an answer names its query",
+			view:     SearchView{Query: "tortoise", Total: 1, Results: []SearchResult{{Title: "Alpha", RelPath: "Notes/alpha.md"}}},
+			wantNote: true,
+		},
+		{
+			// An answer to nothing cannot go stale, and a note naming an empty
+			// query would say nothing a reader could use.
+			name: "nothing asked yet",
+			view: SearchView{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf bytes.Buffer
+			if err := SearchResults(tt.view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render search results: %v", err)
+			}
+			html := buf.String()
+
+			note := `<p class="y-live-search__status" data-live-search-stale="tortoise" hidden>下方結果回答的是先前的查詢「tortoise」。</p>`
+			if got := strings.Contains(html, note); got != tt.wantNote {
+				t.Errorf("the answer carries the query it answers = %v, want %v; html = %s", got, tt.wantNote, html)
+			}
+			if got := strings.Contains(html, "data-live-search-stale"); got != tt.wantNote {
+				t.Errorf("the stale-query marker is present = %v, want %v; html = %s", got, tt.wantNote, html)
+			}
+		})
+	}
+}

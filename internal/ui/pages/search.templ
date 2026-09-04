@@ -145,6 +145,12 @@ templ Search(v SearchView, c layouts.Chrome) {
 // holds at most the handler's bounded opening stretch.
 templ SearchResults(v SearchView, lang wording.Lang) {
 	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(v.Total) } aria-busy="false">
+		if v.Query != "" {
+			// Which query these rows answer, carried with them and hidden. The
+			// live search shows it when a refresh fails and leaves them standing;
+			// with no script there is no such moment, and the page is unchanged.
+			<p class="y-live-search__status" data-live-search-stale={ v.Query } hidden>{ fmt.Sprintf(wording.LiveSearchStaleFmt.In(lang), v.Query) }</p>
+		}
 		if len(v.UnknownFilterKeys) > 0 {
 			// Said whatever the outcome: this is about how the query was read,
 			// not how many notes answered it, so a query that also found
