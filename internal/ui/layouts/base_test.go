@@ -113,7 +113,7 @@ func TestBaseRendersSingleKeyShortcutPreference(t *testing.T) {
 			for _, want := range []string{
 				`data-single-key-shortcuts="` + tt.wantState + `"`,
 				`data-single-key-shortcuts-toggle`,
-				`aria-describedby="kbd-pref-note"`,
+				`aria-describedby="kbd-pref-note kbd-pref-takeover"`,
 				`>單鍵快捷鍵<`,
 				`>目前開啟<`,
 				`>目前關閉<`,
@@ -247,6 +247,38 @@ func TestShortcutPreferenceLivesWithTheKeysItGoverns(t *testing.T) {
 		if strings.Contains(panel, gone) {
 			t.Errorf("panel still documents a retired status key (%q); panel = %q", gone, panel)
 		}
+	}
+}
+
+// TestKeyboardHelpSaysThePageTakesTheKeys checks the panel admits the price of
+// an armed single key: the page holds it, so whatever else the reader's
+// browser would have done with a lone slash does not happen. The switch is
+// what gives that key back, so the sentence is also what the switch is
+// described by, and both are asked for in both languages — a panel honest in
+// one of the two is a reader in the other left with the old silence.
+func TestKeyboardHelpSaysThePageTakesTheKeys(t *testing.T) {
+	t.Parallel()
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		t.Run(string(lang), func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := header(Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render header: %v", err)
+			}
+			panel := elementSubtree(t, buf.String(), `id="kbd-help"`)
+			if want := wording.SingleKeyShortcutsTakeover.In(lang); !strings.Contains(panel, want) {
+				t.Errorf("panel does not say the page takes the keys; want %q; panel = %q", want, panel)
+			}
+			// The sentence has to reach a reader who arrives at the checkbox
+			// by ear as well as by eye, and only a named description does
+			// that. Rendering it beside the control is not the same thing.
+			if !strings.Contains(panel, `aria-describedby="kbd-pref-note kbd-pref-takeover"`) {
+				t.Errorf("the switch is not described by both of its sentences; panel = %q", panel)
+			}
+			if !strings.Contains(panel, `id="kbd-pref-takeover"`) {
+				t.Errorf("the sentence the switch names has no element to point at; panel = %q", panel)
+			}
+		})
 	}
 }
 
