@@ -166,3 +166,40 @@ func TestTwoBranchesOfOneNameAreNumberedLikeAnyRepeat(t *testing.T) {
 		t.Errorf("contents mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// A preview card names the section it shows by the heading its excerpt opens
+// on, which is a fourth place the same name is read — and the one place it is
+// read without an id being stamped from it, so nothing else would catch it.
+func TestAnExcerptNamesTheBranchItOpensOn(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		slice string
+		want  string
+	}{
+		{
+			name:  "a declared branch",
+			slice: "## 基本觀念 {sequence=primary}\n\n文字。\n",
+			want:  "基本觀念",
+		},
+		{
+			name:  "an underlined branch",
+			slice: "基本觀念 {sequence=none}\n---\n\n文字。\n",
+			want:  "基本觀念",
+		},
+		{
+			name:  "a level-one heading opens no branch",
+			slice: "# 基本觀念 {sequence=primary}\n\n文字。\n",
+			want:  "基本觀念 {sequence=primary}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := render.ExcerptHeading(tt.slice); got != tt.want {
+				t.Errorf("ExcerptHeading(%q) = %q, want %q", tt.slice, got, tt.want)
+			}
+		})
+	}
+}
