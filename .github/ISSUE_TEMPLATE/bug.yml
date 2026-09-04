@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in yomihon is broken.
+title: "[bug]: "
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro-steps
+    attributes:
+      label: Steps to reproduce
+      description: From a clean start — the command you ran, then what you clicked or requested.
+      placeholder: |
+        1. yomihon ~/notes
+        2. open http://127.0.0.1:9610/...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: yomihon version
+      description: Output of `yomihon --version` if your build has it, otherwise the commit you built from.
+      placeholder: v0.1.0, or a commit hash
+    validations:
+      required: true
+
+  - type: textarea
+    id: contract
+    attributes:
+      label: Contract snippet
+      description: The section of your `System/schemas/vault-schema.toml` the bug touches, if it touches one.
+      render: toml
+
+  - type: textarea
+    id: minimal-vault
+    attributes:
+      label: Minimal vault
+      description: The smallest folder that reproduces it — a directory tree, or a link to one.
+
+  - type: textarea
+    id: check-output
+    attributes:
+      label: Check output
+      description: Output of `yomihon check --root <vault>` against the vault above.
+      render: text
