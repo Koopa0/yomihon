@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -180,11 +181,48 @@ func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	fullArgs := append([]string{"-C", dir}, args...)
 	cmd := exec.CommandContext(t.Context(), "git", fullArgs...) // #nosec G204 -- fixed test-controlled git invocation; args never shell-interpreted
+	cmd.Env = withoutGitEnvironment(os.Environ())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 	return string(out)
+}
+
+// keptGitEnvironment are the only GIT_ variables these commands inherit. Each
+// one narrows the config files git reads and can name none of its own: they
+// are what a harness sets to isolate git from the host, so dropping them would
+// put the developer's global config back in front of a scratch repository.
+//
+// GIT_CONFIG_COUNT and its KEY/VALUE pairs are deliberately not here. They
+// look like the same family and do the opposite — they inject config settings
+// into every command, which is the effect this whole helper exists to keep out.
+var keptGitEnvironment = []string{"GIT_CONFIG_GLOBAL=", "GIT_CONFIG_SYSTEM=", "GIT_CONFIG_NOSYSTEM="}
+
+// withoutGitEnvironment drops the GIT_ variables that could move where git
+// acts or change what it reads, so the -C above is the only thing deciding
+// which repository these commands touch. It matters because git exports
+// GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE to anything it runs for you — a
+// rebase --exec, a bisect run, a hook — and those name the repository git is
+// working in, not the scratch one here. A test suite run that way once wrote
+// this seeding identity, and a bare flag, into the developer's own checkout.
+//
+// Everything with the prefix goes except the three named above, rather than
+// the three known-harmful names, because the set of variables that redirect
+// git is one the tool keeps adding to. The asymmetry is the safe direction: a
+// variable nobody here has heard of is dropped, which at worst loses isolation
+// this process never asked for.
+func withoutGitEnvironment(env []string) []string {
+	kept := make([]string, 0, len(env))
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "GIT_") && !slices.ContainsFunc(keptGitEnvironment, func(name string) bool {
+			return strings.HasPrefix(entry, name)
+		}) {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return kept
 }
 
 func writeNote(t *testing.T, root, content string) {
