@@ -282,6 +282,46 @@ func TestKeyboardHelpSaysThePageTakesTheKeys(t *testing.T) {
 	}
 }
 
+// TestKeyboardHelpSaysWhereTheSidebarKeyActs checks the sidebar key's row
+// carries the condition that decides whether pressing it does anything. The
+// row named the preference and stopped there, so at a width where the sidebar
+// never folds the panel described a key that cannot work, and the reader who
+// tried it had the preference to blame and no way to learn better.
+func TestKeyboardHelpSaysWhereTheSidebarKeyActs(t *testing.T) {
+	t.Parallel()
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		t.Run(string(lang), func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := header(Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render header: %v", err)
+			}
+			panel := elementSubtree(t, buf.String(), `id="kbd-help"`)
+			row := shortcutRow(t, panel, "[")
+			if want := wording.ShortcutSidebarNarrowOnly.In(lang); !strings.Contains(row, want) {
+				t.Errorf("the sidebar key's row does not say where it acts; want %q; row = %q", want, row)
+			}
+		})
+	}
+}
+
+// shortcutRow returns the description the keyboard help panel gives one key.
+// Asking the panel as a whole would let a sentence about the sidebar key pass
+// from anywhere on the panel, including another key's row.
+func shortcutRow(t *testing.T, panel, key string) string {
+	t.Helper()
+	marker := `<dt><span class="ui-kbd">` + key + `</span></dt><dd>`
+	_, rest, found := strings.Cut(panel, marker)
+	if !found {
+		t.Fatalf("the panel has no row for %q; panel = %q", key, panel)
+	}
+	row, _, closed := strings.Cut(rest, "</dd>")
+	if !closed {
+		t.Fatalf("the row for %q is not closed; panel = %q", key, panel)
+	}
+	return row
+}
+
 func TestHeaderSearchKeepsAccessibleNameWhenLabelIsVisuallyHidden(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
