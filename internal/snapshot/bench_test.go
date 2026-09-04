@@ -31,7 +31,7 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if _, _, err := buildView(
+		if _, _, err := buildGeneration(
 			b.Context(),
 			reader,
 			nil,

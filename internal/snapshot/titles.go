@@ -33,11 +33,11 @@ func titlesByName(notes []*vault.Note) map[string][]nav.NoteRef {
 
 // TitledBy names every note whose declared title is name, in reading order, and
 // nothing when no note declares it. It answers with every holder, never a guess.
-func (v *Generation) TitledBy(name string) []string {
-	if v == nil {
+func (g *Generation) TitledBy(name string) []string {
+	if g == nil {
 		return nil
 	}
-	held := v.titles[graph.NormalizeKey(name)]
+	held := g.titles[graph.NormalizeKey(name)]
 	names := make([]string, len(held))
 	for i, ref := range held {
 		names[i] = ref.Name
