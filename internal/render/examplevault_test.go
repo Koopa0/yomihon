@@ -98,12 +98,14 @@ func dialectFaces() []authorFace {
 		{"a picture from off the machine, kept as a link", inReading, contains(`referrerpolicy="no-referrer"`)},
 		{"a paragraph marked to be read aloud", inReading, contains(`class="y-tts"`)},
 	}
-	// One per bucket rather than one per type. The vocabulary's twenty-two
-	// types render as three things a reader can tell apart, and asking a
-	// twenty-note vault for twenty-two callouts would fill it with callouts
-	// written for this test rather than for a reader. The buckets come from
-	// the vocabulary itself, so a fourth one would be demanded here on the
-	// day it is added.
+	// One per bucket rather than one per type, deliberately. The vocabulary's
+	// twenty-two types render as three things a reader can tell apart, and
+	// asking a twenty-note vault for twenty-two callouts would fill it with
+	// callouts written for this test rather than for a reader. The buckets come
+	// from the vocabulary itself, so a fourth one is demanded here the day it is
+	// added. What this cannot see is a type that moved between groups, since
+	// both spellings still produce a callout: that is held by the vocabulary's
+	// own unit test beside it, which is where a per-type question belongs.
 	seen := map[calloutBucket]bool{}
 	for _, group := range calloutVocabulary {
 		if seen[group.bucket] {
@@ -180,6 +182,49 @@ func noteAnchors(text string) []noteAnchor {
 		out = append(out, noteAnchor{href: href, class: class})
 		rest = tail
 	}
+}
+
+// authorProse is the source with everything the dialect passes leave inert
+// taken out: fenced blocks dropped, inline code spans blanked to spaces so
+// every other offset stays where it was. The source detectors read this rather
+// than raw bytes, because syntax an author quoted to show what it looks like is
+// not syntax the vault uses — and the note that documents this dialect quotes
+// every form it describes, so without this the documentation stands in for the
+// demonstration. Fences and code spans are read with this package's own
+// readers, the ones the wikilink and comment passes consult, so the test and
+// the renderer never disagree about what is quoted.
+func authorProse(source string) string {
+	var kept []string
+	inFence := false
+	var fenceByte byte
+	for line := range strings.SplitSeq(source, "\n") {
+		if inFence {
+			if fenceCloses(line, fenceByte) {
+				inFence = false
+			}
+			continue
+		}
+		if marker, _, ok := fenceOpen(line); ok {
+			inFence, fenceByte = true, marker
+			continue
+		}
+		kept = append(kept, blankCodeSpans(line))
+	}
+	return strings.Join(kept, "\n")
+}
+
+func blankCodeSpans(line string) string {
+	spans := codeSpanRanges(line)
+	if len(spans) == 0 {
+		return line
+	}
+	out := []byte(line)
+	for _, span := range spans {
+		for i := span[0]; i < span[1]; i++ {
+			out[i] = ' '
+		}
+	}
+	return string(out)
 }
 
 // aliasedWikilink and fragmentEmbed read the author's own text: both forms
@@ -272,7 +317,7 @@ func loadExampleVault(t *testing.T) *exampleVault {
 		notes = append(notes, note)
 		loaded.notes[entry.Path()] = note
 		bodies[entry.Path()] = note.Body
-		sources.WriteString(string(data))
+		sources.WriteString(authorProse(string(data)))
 		sources.WriteString("\n")
 	}
 	loaded.source = sources.String()
@@ -353,6 +398,18 @@ func TestTheExampleVaultStillDemonstratesEveryAuthorFace(t *testing.T) {
 					"shipped vault no longer shows it working.\n"+
 					"\tPut it back where an author would really write it, or delete the capability.",
 					face.name)
+			}
+		}
+		// The other half of that question, for the detectors that read what the
+		// author typed: a body where each of those constructs appears only
+		// inside a code span or a fence. One that answers yes here counts a
+		// description of a form as a use of it, and would stay green through
+		// the deletion of the vault's last real one.
+		quoted := authorProse(quotedProbeBody)
+		for _, face := range faces {
+			if face.where == inSource && face.found(quoted) {
+				t.Errorf("the detector for %q matches syntax that is only quoted, so it cannot tell "+
+					"a demonstration from a description of one", face.name)
 			}
 		}
 	})
@@ -549,7 +606,7 @@ func probeCorpus(t *testing.T) *exampleVault {
 	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Notes/Probe Target.md"}}, nil)
 	bodies := transcluded{"Notes/Probe Target.md": "## Probe Section\n\nA paragraph the probe names. ^probe-block\n"}
 	rendered := New(idx, bodies, noDeclaredTitles{}).HTML("Notes/Probe.md", "Probe", body.String(), wording.En)
-	return &exampleVault{source: body.String(), reading: InjectTTS(rendered.HTML, wording.En)}
+	return &exampleVault{source: authorProse(body.String()), reading: InjectTTS(rendered.HTML, wording.En)}
 }
 
 const probeBody = "" +
@@ -587,3 +644,16 @@ const probeBody = "" +
 	"\n" +
 	"<!-- read-aloud: ja -->\n" +
 	"古池や\n"
+
+// quotedProbeBody writes every construct the source detectors look for, and
+// writes each one only as something being shown: once in a code span, once
+// inside a fence. Nothing in it is a use.
+const quotedProbeBody = "" +
+	"Shown rather than used: `[[Probe Target|other words]]`, `![[Probe Target#Probe Section]]`,\n" +
+	"and `%%a comment nobody reads%%`.\n" +
+	"\n" +
+	"```\n" +
+	"[[Probe Target|other words]]\n" +
+	"![[Probe Target#Probe Section]]\n" +
+	"%%a comment nobody reads%%\n" +
+	"```\n"
