@@ -122,9 +122,9 @@ func TestExistsSkipsDiary(t *testing.T) {
 		t.Errorf("exists(%q) answered absent for a note that exists; a write-if-absent gate would create a duplicate of it", "Private Session Note")
 	}
 	// The two answers a caller actually receives, asserted as the bytes they
-	// are: the machine field AGENT_INTERFACE.md documents, and the sentence a
-	// person reads. Checking only the struct would leave both free to be
-	// deleted with the suite green.
+	// are: the machine field a consumer parses, and the sentence a person
+	// reads. Checking only the struct would leave both free to be deleted with
+	// the suite green.
 	wire, err := marshalWire(r)
 	if err != nil {
 		t.Fatalf("marshalWire: %v", err)

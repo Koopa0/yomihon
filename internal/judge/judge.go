@@ -105,11 +105,9 @@ const (
 	sourceContractSupersession = "vault-schema.toml#supersession"
 	// sourceYomihon is the product itself, for the rules that are its own
 	// dialect — link resolution, name and alias collisions, reference and path
-	// liveness. No vault artifact declares them; this repository's goldens do.
+	// liveness, and the study-path grammar. No vault artifact declares them;
+	// this repository's goldens do.
 	sourceYomihon = "yomihon"
-	// sourceAuthoring is this repository's authoring contract, which ships
-	// with the parser that reads it.
-	sourceAuthoring = "AUTHORING.md"
 )
 
 // WriteJSONL writes findings to w, one compact JSON object and a trailing

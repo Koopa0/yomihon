@@ -41,7 +41,8 @@ Then open <http://127.0.0.1:9610>. Any folder works as it is;
   text sizes.
 - **Learn.** A study path becomes a course: chapter counts, previous and next,
   and where you are. Furigana switches on and off; a passage marked for reading
-  aloud is spoken in its own language ([how to write a path](AUTHORING.md)).
+  aloud is spoken in its own language (the example vault carries
+  [a path to copy](examples/vault/Notes/Reading%20yomihon.md)).
 - **Find.** Lexical search with folder filters and a way back from zero
   results; backlinks and the note's own sections stay beside the text.
 - **Keep the collection honest.** A health page lists links with no target,
@@ -64,5 +65,6 @@ security problems to
 
 ## Licence
 
-[MIT](LICENSE). Redistributed fonts and client assets are listed in
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE). Redistributed fonts and client assets carry their own licences:
+[`assets/fonts/LICENSE.txt`](assets/fonts/LICENSE.txt) and
+[`assets/js/mermaid/LICENSE`](assets/js/mermaid/LICENSE).

@@ -8,9 +8,10 @@ dist/
 # Frontend tools install under .github/; ignore dependency trees at any depth.
 # The product build and Go package graph need no Node.
 node_modules/
-# This is a private, single-user tool. Its process, governance, agent, and
-# design docs live on the maintainer's machine, not in history: a clean clone
-# receives only the code, its build inputs, and the redistribution notices.
+# This is a private, single-user tool. Its process, governance, agent,
+# authoring, and design docs live on the maintainer's machine, not in history:
+# a clean clone receives only the code and its build inputs. Each redistributed
+# asset carries its licence text beside it under assets/.
 # tests/ holds local harness self-tests; yomihon's Go tests live in
 # internal/*_test.go.
 .claude/
@@ -19,12 +20,15 @@ node_modules/
 .lsp.json
 tests/
 /AGENTS.md
+/AGENT_INTERFACE.md
+/AUTHORING.md
 /CLAUDE.md
 /CONTRIBUTING.md
 /ENGINEERING_STANDARD.md
 /ENGINEERING_STANDARD.sha256
 /PROJECT_PROFILE.md
 /SECURITY.md
+/THIRD_PARTY_NOTICES.md
 /docs/
 /.github/CODEOWNERS
 /.github/PULL_REQUEST_TEMPLATE.md

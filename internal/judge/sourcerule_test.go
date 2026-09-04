@@ -19,16 +19,16 @@ var goldenSourceRule = regexp.MustCompile(`"source_rule":"([^"]*)"`)
 // them.
 //
 // Every value a golden carries has to be one of the declared set, and every
-// value in that set has to answer for itself by its class. A repository file
-// is checked as a file. The vault contract's anchors are checked against the
-// fixture contracts committed under testdata, because a clean clone has no
-// vault and a test that skipped when the vault was absent would be the check
-// that never runs. The product's own name is not a file at all: its authority
-// is the golden set this test is reading, so what it must never do is grow an
-// anchor and pose as a document. And a value naming the vault's human note
-// schema — a form no current rule earns, since that document states no link
-// or collision convention — must never anchor into a document this repository
-// cannot open, which is exactly how it went wrong the first time.
+// value in that set has to answer for itself by its class. The vault
+// contract's anchors are checked against the fixture contracts committed under
+// testdata, because a clean clone has no vault and a test that skipped when
+// the vault was absent would be the check that never runs. The product's own
+// name is not a file at all: its authority is the golden set this test is
+// reading, so what it must never do is grow an anchor and pose as a document.
+// And a value naming the vault's human note schema — a form no current rule
+// earns, since that document states no link or collision convention — must
+// never anchor into a document this repository cannot open, which is exactly
+// how it went wrong the first time.
 func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 	t.Parallel()
 
@@ -38,10 +38,10 @@ func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 		sourceContractScan:         true,
 		sourceContractSupersession: true,
 		sourceYomihon:              true,
-		sourceAuthoring:            true,
-		// A vault-kept document is an admissible source in principle, but no
-		// rule cites one, so none is declared: reintroducing one means adding
-		// it here deliberately, with a class check of its own below.
+		// A document is an admissible source in principle — one the vault
+		// keeps, or one this repository ships — but no rule cites one, so none
+		// is declared: reintroducing one means adding it here deliberately,
+		// with a class check of its own below that opens it from a clean clone.
 	}
 
 	goldens, err := filepath.Glob(filepath.Join("testdata", "golden", "*.jsonl"))
@@ -91,10 +91,6 @@ func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 	for value := range declared {
 		file, anchor, hasAnchor := strings.Cut(value, "#")
 		switch file {
-		case sourceAuthoring:
-			if _, err := os.Stat(filepath.Join("..", "..", file)); err != nil {
-				t.Errorf("source_rule %q names a repository file that is not there: %v", value, err)
-			}
 		case sourceContract:
 			// Named without a directory the way the vault names it; the
 			// committed fixtures are the copies this test can open, and the
