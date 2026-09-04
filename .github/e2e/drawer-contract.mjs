@@ -263,8 +263,16 @@ const activeInsideDrawer = (page) => page.evaluate(({ railSelector, toggleSelect
 // Focuses the first or last control the open rail offers, which is where every
 // question about the cycle's boundary has to start.
 const focusRailEdge = (page, edge) => page.$eval(RAIL, (rail, which) => {
-  const focusable = [...rail.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-    .filter((el) => !el.hidden && el.getClientRects().length > 0);
+  // A closed disclosure still lays its rows out, so they report a client rect
+  // and pass the measure above while refusing focus entirely. Asking one of
+  // them to take focus is how this helper came to test a step the reader never
+  // makes: the edge of the rail is the last row a reader can actually reach.
+  const focusable = [...rail.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
+    .filter((el) => {
+      if (el.hidden || el.getClientRects().length === 0) return false;
+      const closed = el.closest('details:not([open])');
+      return !closed || el === closed.querySelector(':scope > summary');
+    });
   const target = which === 'last' ? focusable.at(-1) : focusable[0];
   target.focus();
   return focusable.length;

@@ -2,7 +2,6 @@ package pages
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -130,16 +129,6 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 					</div>
 				</details>
 			}
-			<div class="y-railsep" aria-hidden="true"></div>
-			<details open?={ sb.folderTreeOpen() } { disclosureAttrs("folders", sb.folderTreeOpen())... }>
-				<summary class="y-railsummary">
-					@chevron()
-					{ wording.Folders.In(c.Lang) }
-				</summary>
-				<div class="y-railgroup">
-					@folderList(sb, c)
-				</div>
-			</details>
 		}
 	</aside>
 	// The pre-paint settle reveals the filter box and reapplies the reader's
@@ -178,52 +167,6 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 
 templ chevron() {
 	<svg class="y-chevron" aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"></path></svg>
-}
-
-// folderList renders the vault-root notes then the lifecycle-ordered folders.
-templ folderList(sb Sidebar, c layouts.Chrome) {
-	for _, n := range sb.Model.RootNotes() {
-		<a
-			class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
-			href={ templ.URL(notesHref(n.RelPath)) }
-			{ currentAttr(sb.current(n.RelPath))... }
-		>{ n.Name }</a>
-	}
-	for _, f := range sb.Model.Folders() {
-		@folderNode(sb, c, f)
-	}
-}
-
-// folderNode renders one folder as a nested native <details> and recurses, to
-// whatever depth the directory structure has. The branch holding the current
-// note opens by default.
-templ folderNode(sb Sidebar, c layouts.Chrome, f nav.Folder) {
-	if len(f.Subfolders) > 0 || len(f.Notes) > 0 {
-		{{ shown, trimmed := sb.TreeFiles(&f) }}
-		<details open?={ sb.folderOpen(f.RelPath) } { disclosureAttrs("dir:"+f.RelPath, sb.folderOpen(f.RelPath))... }>
-			<summary class="ui-navitem">
-				@chevron()
-				{ f.Name }
-			</summary>
-			<div class="y-tree">
-				for _, sub := range f.Subfolders {
-					@folderNode(sb, c, sub)
-				}
-				for _, n := range shown {
-					<a
-						class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
-						href={ templ.URL(notesHref(n.RelPath)) }
-						{ currentAttr(sb.current(n.RelPath))... }
-					>{ n.Name }</a>
-				}
-				if trimmed > 0 {
-					<a class="y-here__more" href={ templ.URL(folderHref(f.RelPath)) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir={ f.RelPath }>{ fmt.Sprintf(wording.MoreInFolder.In(c.Lang), trimmed) }</a>
-				}
-			</div>
-		</details>
-	} else {
-		<span class="ui-navitem">{ f.Name }</span>
-	}
 }
 
 // mapTree renders one map as a closed disclosure that opens when it holds the
