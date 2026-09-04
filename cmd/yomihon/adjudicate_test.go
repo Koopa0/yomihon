@@ -134,7 +134,7 @@ const absentContractGuidance = "  yomihon reads System/schemas/vault-schema.toml
 	"  lifecycle that check, coverage and exists judge against, and for the directories\n" +
 	"  whose contents must never leave this machine. A folder carrying no such file has\n" +
 	"  declared nothing, and these three commands have no vocabulary to answer in.\n" +
-	"  Reading and search need none of it: yomihon serve --root <dir>\n"
+	"  Reading and search need none of it: yomihon <dir>\n"
 
 // TestARefusalCarriesTheParagraphItsClassEarns is where the engine's classes
 // become sentences a person can act on. The engine answers a folder it cannot
