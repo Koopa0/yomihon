@@ -49,6 +49,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"note-page", Note(recordedNoteView(model, current), recordedChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
+		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
@@ -251,6 +252,25 @@ func recordedHomeView(model *nav.Model) HomeView {
 		Blocks:         NewDeskBlocks(model, recordedChrome().Lang),
 		ReadmeMissing:  true,
 	}
+}
+
+// recordedWithheldHomeView is the desk over a vault whose contract could not be
+// read. The two contract-derived blocks are still drawn, because they are the
+// only route to their pages, and they say neither how much they hold nor that
+// they hold nothing; the reason sits below the seam. Recording it is what makes
+// a block that starts speaking for a declaration nobody could read visible in a
+// diff — that it stays quiet is asserted against the running site elsewhere.
+func recordedWithheldHomeView(model *nav.Model) HomeView {
+	view := recordedHomeView(model)
+	view.Fault = "the contract could not be read"
+	view.Blocks = NewDeskBlocks(model, recordedChrome().Lang)
+	for i := range view.Blocks {
+		if view.Blocks[i].Mode == pathMode || view.Blocks[i].Mode == mapMode {
+			withhold(&view.Blocks[i].Shelf)
+			view.Blocks[i].Shelf.Rows = nil
+		}
+	}
+	return view
 }
 
 // recordedShelfView is the folder index carrying the two shelf blocks, which

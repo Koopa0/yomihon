@@ -10,11 +10,17 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 	<section class="y-homeblock y-modeblock" data-home-block={ id } aria-labelledby={ "home-" + id + "-title" }>
 		<header class="y-homeblock__head">
 			<h2 id={ "home-" + id + "-title" }><a href={ templ.URL(s.Href) }>{ s.Title }</a></h2>
-			<p>{ s.Count }</p>
+			if s.Count != "" {
+				<p>{ s.Count }</p>
+			}
 		</header>
-		<p class="y-homeblock__lede">{ s.Lede }</p>
+		if s.Lede != "" {
+			<p class="y-homeblock__lede">{ s.Lede }</p>
+		}
 		if rows := shelfRows(&s, limit); len(rows) == 0 {
-			<p class="y-homeempty">{ s.Empty }</p>
+			if s.Empty != "" {
+				<p class="y-homeempty">{ s.Empty }</p>
+			}
 		} else {
 			for _, row := range rows {
 				@shelfRowLink(row)
