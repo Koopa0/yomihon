@@ -44,3 +44,52 @@ func TestEveryClientModuleIsServed(t *testing.T) {
 		t.Errorf("the client entry point is served as %q, want a JavaScript type", registry["yomihon.js"].contentType)
 	}
 }
+
+// TestEveryFontIsServedAndNothingBesideThemIs closes the same gap on the other
+// wildcard. Two things reach the served set: a name written in Go source, and a
+// suffix match over a directory. A name in source is visible in review; a
+// suffix match is not, so a face vendored into the directory and left out of
+// the embed directive is a @font-face that 404s and a page that quietly falls
+// back to a system font — legible, and not the typography anybody chose.
+//
+// The other direction is checked in the same pass, because the licence, the
+// readme and the checksum list sit in that directory and none of them is meant
+// to be fetchable.
+func TestEveryFontIsServedAndNothingBesideThemIs(t *testing.T) {
+	t.Parallel()
+
+	const dir = "../../assets/fonts"
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir(%q) error = %v", dir, err)
+	}
+	faces, beside := 0, 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := "fonts/" + entry.Name()
+		if filepath.Ext(entry.Name()) != ".woff2" {
+			beside++
+			if _, served := registry[name]; served {
+				t.Errorf("assets/fonts/%s is served; only the faces themselves are meant to be fetchable", entry.Name())
+			}
+			continue
+		}
+		faces++
+		served, ok := registry[name]
+		if !ok {
+			t.Errorf("assets/fonts/%s is not served: the directive embeds this directory whole, so either the name starts with a dot or an underscore and embed skipped it, or embedFonts no longer walks here", entry.Name())
+			continue
+		}
+		if !strings.Contains(served.contentType, "woff2") {
+			t.Errorf("assets/fonts/%s is served as %q, want a woff2 type", entry.Name(), served.contentType)
+		}
+	}
+	if faces == 0 {
+		t.Fatal("no font was examined, so the half of this test about serving them asserts nothing")
+	}
+	if beside == 0 {
+		t.Fatal("nothing sits beside the fonts, so the half about not serving it asserts nothing")
+	}
+}
