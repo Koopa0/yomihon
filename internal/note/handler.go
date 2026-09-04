@@ -44,15 +44,6 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// typeLesson is the one note type the reading page enriches with lesson-body
-// interactions (the TTS speak buttons today; the slot machine and concept
-// drawer next). It names in one place the single spot the handler treats a
-// type specially, and it duplicates no enum: the type
-// vocabulary lives in the schema contract's enums.type (vault-schema.toml),
-// the single source of schema truth. render.HTML stays generic — the lesson decision is
-// made here, so a non-lesson note never grows lesson affordances.
-const typeLesson = "lesson"
-
 // Sources names the authorities one reading request draws on, and the log the
 // routes report an operational fault to. Snapshot is one closure because a
 // request must read the atomic pointer once and derive its navigation and
@@ -272,7 +263,13 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// after the request's captured authority has classified the note, so every
 	// projection in this response uses one coherent lifecycle view.
 	var concepts []lesson.ConceptDoc
-	if state.instance() && n.Type == typeLesson {
+	// The lesson type is the one type this page enriches with lesson-body
+	// interactions. What the contract layer supplies is the spelling, not yet a
+	// vault's own choice of word: it is still one fixed name, so a folder
+	// calling its course members something else gets a plain page. Asking for it
+	// is what lets that stop being true in one place instead of four.
+	// render.HTML stays generic, so the decision is made here.
+	if state.instance() && authority.IsLessonType(n.Type) {
 		result.HTML = render.InjectTTS(result.HTML, lang)
 		pageChrome := layouts.ChromeFromRequest(r, n.Title)
 		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, lang)

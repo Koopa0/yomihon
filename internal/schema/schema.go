@@ -38,9 +38,20 @@ const (
 	// the write face refuses one; the value enters a note by hand.
 	PublishedStatus = "published"
 
+	// DraftStatus is the status a note carries before anyone has offered it to
+	// a reader. Like SealStatus it is pinned here rather than derived: a
+	// lifecycle table can start a type anywhere, and no field singles the value
+	// out, so the faces that reason about "not offered yet" ask for this
+	// instead of each writing the word down.
+	DraftStatus = "draft"
+
 	// conceptType is the note type a vault-schema.toml reserves for distilled
 	// ideas, spelled once so no face keeps a second copy.
 	conceptType = "concept"
+
+	// lessonType is the note type a vault-schema.toml reserves for the notes a
+	// course is made of, spelled once for the same reason as the two above.
+	lessonType = "lesson"
 
 	// inboxType is the note type a vault-schema.toml reserves for captures
 	// whose shape is not yet decided.
@@ -1279,6 +1290,16 @@ func (c *Contract) ConceptType() (name string, declared bool) {
 		return conceptType, false
 	}
 	return conceptType, slices.Contains(c.definition.Enums.Type, conceptType)
+}
+
+// LessonType returns the note type a vault files its course members as, and
+// whether this contract declares it at all. The name comes back either way, so
+// a caller can say which type it looked for.
+func (c *Contract) LessonType() (name string, declared bool) {
+	if c == nil {
+		return lessonType, false
+	}
+	return lessonType, slices.Contains(c.definition.Enums.Type, lessonType)
 }
 
 // InboxRequiredFields returns the note type a vault reserves for captures whose
