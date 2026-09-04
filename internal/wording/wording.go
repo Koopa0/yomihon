@@ -37,6 +37,34 @@ func FromCookieValue(value string) Lang {
 	return ZhHant
 }
 
+// Known reads a value that must be one of the two, rejecting anything else. It
+// is the other half of FromCookieValue: a stored preference is normalised
+// because a reader who never chose should still get a page, while a request
+// that names a language is answered or refused, because silently substituting
+// one would hand back a receipt for a change nothing made. A value it does not
+// know is refused with the default beside the false, so a caller that ignores
+// the second answer still holds a language this interface speaks.
+func Known(value string) (Lang, bool) {
+	switch Lang(value) {
+	case ZhHant:
+		return ZhHant, true
+	case En:
+		return En, true
+	}
+	return ZhHant, false
+}
+
+// Other is the language this one is not. The interface speaks two, so the
+// complement is a fact about the type rather than something each surface works
+// out for itself — and a surface that worked it out would be a second place to
+// change on the day there is a third.
+func (l Lang) Other() Lang {
+	if l == En {
+		return ZhHant
+	}
+	return En
+}
+
 // What the language endpoint says when a hand-built request asks for
 // something the rendered form never offers. The form itself carries only the
 // two spoken values, so neither sentence appears in ordinary use.
