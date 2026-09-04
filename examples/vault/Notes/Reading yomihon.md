@@ -8,8 +8,7 @@ lang: en
 
 # Reading yomihon
 
-What to read, in order, to understand what this thing does. Four notes and two
-lessons; each assumes the one before it.
+Four notes and two lessons, in order; each assumes the one before it.
 
 ## The idea {sequence=primary}
 
