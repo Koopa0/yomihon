@@ -123,12 +123,13 @@ func TestTheFolderIndexCountsEveryFileUnderEveryFolder(t *testing.T) {
 	// Counted by hand from the fixture's own file list, so this asks whether
 	// the figure is right rather than whether the code agrees with itself: two
 	// maps, two lessons, two concepts, two notes of one repeated name, two
-	// templates, two sources and two journal entries, none at the root, and
-	// every one of them nested at least one folder deep.
-	const files = 14
+	// templates, two sources, two journal entries and one report, all nested at
+	// least one folder deep, plus the one file at the vault root, which belongs
+	// to no folder and is counted all the same.
+	const files = 16
 
 	view := NewFolderIndex(buildModel(t), wording.ZhHant)
-	if view.Kicker != "資料夾 · 14 篇" {
+	if view.Kicker != "資料夾 · 16 篇" {
 		t.Errorf("folder index kicker = %q, want it to name all %d files under every folder", view.Kicker, files)
 	}
 }

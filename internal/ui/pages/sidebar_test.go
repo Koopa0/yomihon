@@ -74,6 +74,13 @@ func buildModel(t *testing.T) *nav.Model {
 		// Journal entries deliberately have no frontmatter.
 		"Diary/2026-07-09.md": "# Earlier\n",
 		"Diary/2026-07-10.md": "# Latest\n",
+		// A file at the vault root, belonging to no folder: the folder shelf
+		// lists these after the folders, and without one here no recording
+		// would ever draw that kind of row.
+		"Reading list.md": "# Reading list\n",
+		// A report, so the reports mode has something to narrow. With none,
+		// every check that holds a block to its page compared nothing for it.
+		"System/reports/2026-07-10 vault audit.md": "---\ntitle: Vault audit\n---\nbody\n",
 	}
 	for rel, content := range files {
 		p := filepath.Join(root, filepath.FromSlash(rel))
