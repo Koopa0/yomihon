@@ -139,8 +139,8 @@ const MUTATIONS = {
     target: 'home-remains-plain-get',
     before: rewriteHome([
       {
-        needle: 'data-home-block="search" aria-labelledby="home-search-title"',
-        replacement: 'data-home-block="search" data-live-search data-live-search-endpoint="/search/results" aria-labelledby="home-search-title"',
+        needle: 'class="y-homesearchrow" data-home-block="search"',
+        replacement: 'class="y-homesearchrow" data-home-block="search" data-live-search data-live-search-endpoint="/search/results"',
         expected: 1,
       },
       {
@@ -154,8 +154,12 @@ const MUTATIONS = {
         expected: 1,
       },
       {
-        needle: '<button type="submit" class="y-xbtn">搜尋</button></form></search></section>',
-        replacement: '<button type="submit" class="y-xbtn">搜尋</button></form></search><p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p><div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div></section>',
+        // The status and the results go inside the search landmark, which is
+        // the element the enhancement scopes itself to. They sat before a
+        // closing section when the desk's search was a block; the row has none,
+        // and appending after the landmark would put them outside the scope.
+        needle: '<button type="submit" class="y-xbtn">搜尋</button></form>',
+        replacement: '<button type="submit" class="y-xbtn">搜尋</button></form><p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p><div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>',
         expected: 1,
       },
     ], 'Home plain search'),
