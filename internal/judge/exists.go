@@ -112,6 +112,20 @@ func filenameStem(path string) string {
 	return strings.TrimSuffix(filename(path), ".md")
 }
 
+// notesAmong counts the notes the matches name, not the matches. One note
+// answers to a name once per way it carries it — a filename and a title, a
+// title and an alias — so counting rows told a reader two notes hold a name and
+// then printed one path twice. The reader of this line is deciding whether to
+// write a note under that name, and the count is the part of the answer they
+// act on.
+func notesAmong(matches []existsMatch) int {
+	seen := make(map[string]struct{}, len(matches))
+	for _, m := range matches {
+		seen[m.Path] = struct{}{}
+	}
+	return len(seen)
+}
+
 // renderExists renders an existence query for a terminal reader. The query is
 // echoed inside literal quotes and never escaped, so its own bytes read back
 // unchanged.
@@ -121,7 +135,7 @@ func renderExists(r existsReport) string {
 	}
 	var s strings.Builder
 	if len(r.Matches) > 0 {
-		fmt.Fprintf(&s, "\"%s\" exists in %d note(s):\n", r.Query, len(r.Matches))
+		fmt.Fprintf(&s, "\"%s\" exists in %d note(s):\n", r.Query, notesAmong(r.Matches))
 		for _, m := range r.Matches {
 			fmt.Fprintf(&s, "  %s (matched %s)\n", m.Path, m.Field)
 		}
