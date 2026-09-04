@@ -17,10 +17,13 @@ import (
 // runs regardless of where the test command itself was invoked from.
 const authoringSkillPath = "../../skills/yomihon-authoring/SKILL.md"
 
-// ruleIDToken matches one inline-code span shaped like a rule id: two
-// lowercase, underscore-only words joined by a dot, and nothing else inside
-// the backticks.
-var ruleIDToken = regexp.MustCompile("`([a-z_]+\\.[a-z_]+)`")
+// ruleIDToken matches one inline-code span shaped like a rule id: two or more
+// lowercase, underscore-only words joined by dots, and nothing else inside the
+// backticks. Two was not enough — link.broken.path is a real emitted id, and
+// while the pattern stopped at two segments the guide could name a
+// three-segment rule that had since been renamed and this check, whose whole
+// job is to catch that, saw nothing to compare.
+var ruleIDToken = regexp.MustCompile("`([a-z_]+(?:\\.[a-z_]+)+)`")
 
 // TestAuthoringSkillNamesOnlyRulesThatExist pins every rule id the authoring
 // guide mentions to the set this package and the study-path grammar actually
