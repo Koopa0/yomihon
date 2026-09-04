@@ -132,13 +132,25 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 	tests := []struct {
 		target string
 		absent []string
+		// silent names the desk blocks that must list nothing. The reports and
+		// the folders are listings no declaration can close, so their blocks
+		// fill in every contract state and the desk as a whole is never
+		// rowless; only the two a declaration gates can be asked for silence.
+		//
+		// This stands for the property rather than for the branch that keeps
+		// it. Every contract state that closes the declaration also empties the
+		// projections behind those two blocks, so the guard that skips building
+		// them cannot be caught by removing it: measured on a contract that
+		// cannot be parsed and on one whose artifact policy alone is rejected,
+		// the model answers with no courses and no maps either way.
+		silent []string
 	}{
 		{target: "/paths", absent: []string{"data-index-row", "data-index-empty"}},
 		{target: "/maps", absent: []string{"data-index-row", "data-index-empty"}},
 		{target: "/", absent: []string{
 			wording.PathIndexEmpty.In(wording.ZhHant),
 			wording.MapIndexEmpty.In(wording.ZhHant),
-		}},
+		}, silent: []string{"paths", "maps"}},
 	}
 	for _, tt := range tests {
 		target := tt.target
@@ -165,6 +177,32 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 					t.Errorf("GET %s carries %q, which speaks for a declaration that could not be read", target, absent)
 				}
 			}
+			for _, mode := range tt.silent {
+				if block := deskBlockMarkup(t, html, mode); strings.Contains(block, "data-desk-item") {
+					t.Errorf("the %s block lists rows built from a declaration that could not be read: %q", mode, block)
+				}
+			}
+			if len(tt.silent) > 0 && !strings.Contains(deskBlockMarkup(t, html, "folders"), "data-desk-item") {
+				// A slice that reached no markup would pass the checks above in
+				// silence, so one block that must carry a row is read the same
+				// way and required to.
+				t.Fatal("the folders block lists nothing either, so the checks above cannot tell silence from a bad slice")
+			}
 		})
 	}
+}
+
+// deskBlockMarkup slices one way in out of the desk, from its own marker to the
+// end of the section it opens.
+func deskBlockMarkup(t *testing.T, page, mode string) string {
+	t.Helper()
+	_, rest, found := strings.Cut(page, `data-home-block="`+mode+`"`)
+	if !found {
+		t.Fatalf("the desk carries no %s block", mode)
+	}
+	block, _, closed := strings.Cut(rest, "</section>")
+	if !closed {
+		t.Fatalf("the %s block is never closed", mode)
+	}
+	return block
 }

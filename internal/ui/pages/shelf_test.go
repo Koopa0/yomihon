@@ -40,13 +40,10 @@ func TestShelfRowsNarrowsToTheRowsThatLeadSomewhere(t *testing.T) {
 			want:  []string{"a", "b"},
 		},
 		{
-			name: "groups are walked in the order a reader meets them",
-			shelf: Shelf{Groups: []Group{
-				{Rows: []Row{{Text: "one", Href: "/1"}}, Groups: []Group{{Rows: []Row{{Text: "deep", Href: "/d"}}}}},
-				{Rows: []Row{{Text: "two", Href: "/2"}}},
-			}},
-			limit: 4,
-			want:  []string{"one", "deep", "two"},
+			name:  "a limit below zero is read as none",
+			shelf: Shelf{Rows: []Row{{Text: "a", Href: "/a"}}},
+			limit: -1,
+			want:  []string{},
 		},
 		{
 			name:  "a shelf holding nothing narrows to nothing",
@@ -106,5 +103,30 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	}
 	if strings.Contains(bare.String(), "y-shelfall") {
 		t.Errorf("an empty shelf offered the rest of itself:\n%s", bare.String())
+	}
+}
+
+// TestAShelfOfRowsThatAreNotStopsIsNotEmpty separates what a block can show
+// from what its shelf holds. A course whose lessons are none of them written
+// yet fills a shelf with rows that lead nowhere; a block that read its own
+// narrowing as the answer would call that shelf empty, print the sentence for a
+// vault that declares none, and withdraw the way to the page that lists them.
+func TestAShelfOfRowsThatAreNotStopsIsNotEmpty(t *testing.T) {
+	t.Parallel()
+
+	shelf := Shelf{
+		Title: "路徑", Count: "1 條", Href: "/paths", Empty: "沒有課程。",
+		Rows: []Row{{Text: "unwritten"}},
+	}
+	var out strings.Builder
+	if err := ShelfBlock(shelf, "paths", 3, wording.ZhHant).Render(t.Context(), &out); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	got := out.String()
+	if strings.Contains(got, shelf.Empty) {
+		t.Errorf("a shelf holding a row nobody can open was called empty:\n%s", got)
+	}
+	if !strings.Contains(got, "y-shelfall") {
+		t.Errorf("a shelf holding something withdrew the way to the rest of it:\n%s", got)
 	}
 }

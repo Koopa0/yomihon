@@ -315,16 +315,31 @@ func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
 		mapBlock,
 		deskBlock(&reportIndex, wording.DeskReportsLede.In(lang),
 			plural(len(reports), wording.ReportCountOne, wording.ReportCountMany, lang)),
-		{
-			Mode: folderMode,
-			Shelf: Shelf{
-				Title: wording.Folders.In(lang),
-				Count: plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
-				Lede:  wording.DeskFoldersLede.In(lang),
-				Href:  indexHref(folderMode),
-				Empty: wording.FolderIndexEmpty.In(lang),
-				Rows:  deskFolderRows(folders, lang),
-			},
+		folderBlock(rootNotes, folders, lang),
+	}
+}
+
+// folderBlock is the way in through the vault's own directories. Its rows are
+// the folders at the top and its measure is every file under them, so the
+// sentence for a folder mode holding nothing belongs to the measure rather than
+// to the rows: a vault whose files all sit at the root has no top-level folder
+// to list and is not empty, and saying it holds no files beside a count of them
+// is the page contradicting itself.
+func folderBlock(rootNotes []nav.NoteRef, folders []nav.Folder, lang wording.Lang) DeskBlock {
+	files := countNotes(rootNotes, folders)
+	empty := ""
+	if files == 0 {
+		empty = wording.FolderIndexEmpty.In(lang)
+	}
+	return DeskBlock{
+		Mode: folderMode,
+		Shelf: Shelf{
+			Title: wording.Folders.In(lang),
+			Count: plural(files, wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
+			Lede:  wording.DeskFoldersLede.In(lang),
+			Href:  indexHref(folderMode),
+			Empty: empty,
+			Rows:  deskFolderRows(folders, lang),
 		},
 	}
 }
