@@ -28,6 +28,8 @@ const SITES = [
   'latest-query-wins',
   'settled-count',
   'live-error-recovery',
+  'stale-label-follows-the-box',
+  'stale-label-reads-a-padded-address',
   'enter-submits-get',
   'button-submits-get',
   'no-js-get',
@@ -275,6 +277,33 @@ const MUTATIONS = {
         replacement: "        status.textContent = '';",
       },
     ], 'live-search recovery message'),
+  },
+  'remove-stale-label': {
+    target: 'live-error-recovery',
+    before: rewriteScript([
+      {
+        needle: '        markStaleNote(query);',
+        replacement: '        void query;',
+      },
+    ], 'live-search stale-results label'),
+  },
+  'stale-label-never-hides': {
+    target: 'stale-label-follows-the-box',
+    before: rewriteScript([
+      {
+        needle: "      if (note) note.hidden = (note.dataset.liveSearchStale ?? '').trim() === query;",
+        replacement: "      if (note && (note.dataset.liveSearchStale ?? '').trim() !== query) note.hidden = false;",
+      },
+    ], 'live-search stale-label assignment'),
+  },
+  'stale-label-ignores-padding': {
+    target: 'stale-label-reads-a-padded-address',
+    before: rewriteScript([
+      {
+        needle: "      if (note) note.hidden = (note.dataset.liveSearchStale ?? '').trim() === query;",
+        replacement: "      if (note) note.hidden = (note.dataset.liveSearchStale ?? '') === query;",
+      },
+    ], 'live-search stale-label trim'),
   },
   'prevent-enter-submit': {
     target: 'enter-submits-get',
@@ -792,6 +821,90 @@ try {
       if (await results.getAttribute('data-result-count') !== '1' || await results.locator('a[href="/notes/Notes/alpha.md"]').count() !== 1) {
         fail(site, 'failed live search discarded the last useful results');
       }
+      // Kept rows are the previous query's answer, and they now sit under a
+      // sentence asking the reader to search again. Unlabelled they read as an
+      // answer to what is in the box, so the set has to name the query it does
+      // answer, in words and in a value a check can compare.
+      const stale = results.locator('[data-live-search-stale]');
+      const staleCount = await stale.count();
+      if (staleCount !== 1) fail(site, `the kept rows carry ${staleCount} query labels, want 1`);
+      if (await stale.isHidden()) fail(site, 'the kept rows carry no visible note saying which query they answer');
+      if (await stale.getAttribute('data-live-search-stale') !== QUERY) {
+        fail(site, `the kept rows are labelled for ${await stale.getAttribute('data-live-search-stale')}, want ${QUERY}`);
+      }
+      const staleText = (await stale.textContent()) || '';
+      if (!staleText.includes(QUERY)) fail(site, `the kept rows' note reads ${JSON.stringify(staleText)}, which does not name ${QUERY}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  // The note has to follow the box in both directions. A reader who types their
+  // way back to the query the kept rows do answer is looking at the current
+  // answer again, and a note still calling it an earlier one is the same false
+  // claim the note exists to end, said the other way round.
+  {
+    const site = 'stale-label-follows-the-box';
+    const scope = '.y-searchpage[data-live-search]';
+    const { context, page } = await start(browser, site, { path: '/search' });
+    const refused = new Set();
+    await page.route('**/search/results?*', async (route) => {
+      if (refused.has(new URL(route.request().url()).searchParams.get('q'))) {
+        await route.fulfill({ status: 503, contentType: 'text/plain', body: 'offline' });
+      } else {
+        await route.continue();
+      }
+    });
+    try {
+      const input = page.locator(`${scope} [data-live-search-input]`);
+      const note = page.locator(`${scope} [data-live-search-results] [data-live-search-stale]`);
+      await input.fill(QUERY);
+      await waitForCount(page, site, scope, 1);
+      if (await note.isVisible()) fail(site, 'the current answer was labelled as an earlier one');
+
+      refused.add('offline');
+      await input.fill('offline');
+      await waitFor(page, site, () => {
+        const el = document.querySelector('.y-searchpage [data-live-search-results] [data-live-search-stale]');
+        return el !== null && !el.hidden;
+      }, undefined, 'the rows kept after a failed refresh were never labelled');
+
+      // Back to the query those rows answer, still with the endpoint down.
+      refused.add(QUERY);
+      await input.fill(QUERY);
+      await waitFor(page, site, () => {
+        const el = document.querySelector('.y-searchpage [data-live-search-results] [data-live-search-stale]');
+        return el !== null && el.hidden;
+      }, undefined, 'the rows kept on answering the query in the box while being called an earlier answer');
+    } finally {
+      await context.close();
+    }
+  }
+
+  // An address may pad the query the field then trims, so the same search
+  // reaches the note under two spellings. One search is one search.
+  {
+    const site = 'stale-label-reads-a-padded-address';
+    const scope = '.y-searchpage[data-live-search]';
+    const { context, page } = await start(browser, site, { path: `/search?q=%20${QUERY}` });
+    await page.route('**/search/results?*', (route) => route.fulfill({ status: 503, contentType: 'text/plain', body: 'offline' }));
+    try {
+      const input = page.locator(`${scope} [data-live-search-input]`);
+      const note = page.locator(`${scope} [data-live-search-results] [data-live-search-stale]`);
+      if (await note.count() !== 1) fail(site, `the padded address rendered ${await note.count()} query labels, want 1`);
+
+      // The control: a different query does leave the served rows behind.
+      await input.fill(`${QUERY}x`);
+      await waitFor(page, site, () => {
+        const el = document.querySelector('.y-searchpage [data-live-search-results] [data-live-search-stale]');
+        return el !== null && !el.hidden;
+      }, undefined, 'a genuinely earlier answer was not labelled');
+
+      await input.fill(` ${QUERY}`);
+      await waitFor(page, site, () => {
+        const el = document.querySelector('.y-searchpage [data-live-search-results] [data-live-search-stale]');
+        return el !== null && el.hidden;
+      }, undefined, 'the padding in the address made one search read as two');
     } finally {
       await context.close();
     }
@@ -860,7 +973,7 @@ try {
     }
   }
 
-  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; page URL sync; debounce; abort/stale guards; count/error status; native and no-JS GET');
+  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; page URL sync; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

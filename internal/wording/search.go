@@ -102,3 +102,14 @@ var (
 		"即時結果目前無法使用；按 Enter 執行完整搜尋。",
 		"Live results are unavailable right now; press Enter for the full search.")
 )
+
+// LiveSearchStaleFmt names the query a set of results answers. It travels
+// hidden with every answer and is shown only when a live refresh could not be
+// made and the previous answer was left standing: rows nobody has replaced read
+// as an answer to whatever has since been typed, and they would be saying so
+// beside a sentence asking for the search to be run again. The query is spliced
+// in by the server that answered it, so the sentence is whole in the language
+// it is written in.
+var LiveSearchStaleFmt = both(
+	"下方結果回答的是先前的查詢「%s」。",
+	"The results below answer the earlier query “%s”.")
