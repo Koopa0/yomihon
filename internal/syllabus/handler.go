@@ -54,9 +54,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
 		// The title names which route refused; the page below it is shared.
 		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusNotFound)
-		if err := pages.NotFound(view, chrome).Render(r.Context(), w); err != nil {
+		if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {
 			h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write study-path not-found page", "path", rel, "error", err)
 		}
 		return

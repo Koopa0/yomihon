@@ -384,3 +384,65 @@ func siteOverAContract(t *testing.T, mutate func(string) string) *readingSite {
 	})
 	return site
 }
+
+// TestEveryFaceRefusesAMissingNameTheSameWay holds the three refusals to one
+// answer. A note, a report and a study path are looked up by different faces
+// and each used to write the refusal out itself — the content type, the status,
+// the page — so one of them could have started answering a missing name with a
+// bare 200, or with no content type, and every page would still have looked
+// right to anyone reading them.
+//
+// The body is checked too, and for the shared page's own shell rather than for
+// a phrase: a reader walked off the end of the vault gets the folder tree and
+// the search field, which is the whole reason the refusal is a page instead of
+// a line of text.
+func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeDeskFixture(t, root)
+	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+
+	tests := []struct {
+		name   string
+		target string
+	}{
+		{"a note nobody wrote", "/notes/Concepts/nothing-here.md"},
+		{"a report never published", "/reports/1999-01-01.html"},
+		{"a study path that is not there", "/syllabus/Maps/nothing-here.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			recorder := httptest.NewRecorder()
+			site.ServeHTTP(recorder, siteRequest(t, http.MethodGet, tt.target, nil))
+			response := recorder.Result()
+			defer func() {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Errorf("close response body: %v", closeErr)
+				}
+			}()
+			if response.StatusCode != http.StatusNotFound {
+				t.Errorf("GET %s = %d, want 404", tt.target, response.StatusCode)
+			}
+			if got := response.Header.Get("Content-Type"); got != "text/html; charset=utf-8" {
+				t.Errorf("GET %s content type = %q, want the reading page's own", tt.target, got)
+			}
+			body := recorder.Body.String()
+			if !strings.Contains(body, `class="y-recovery"`) {
+				t.Errorf("GET %s does not answer with the shared not-found page", tt.target)
+			}
+			if !strings.Contains(body, `id="nav-rail"`) {
+				t.Errorf("GET %s answers without the reading shell, so the reader has nowhere to go", tt.target)
+			}
+		})
+	}
+}
