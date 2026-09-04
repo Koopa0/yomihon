@@ -1,6 +1,7 @@
 package note
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -130,7 +131,7 @@ func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	// one thing this endpoint must never give.
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	answer := h.compareNote(r, rel, &ask)
+	answer := h.compareNote(r.Context(), rel, &ask)
 	if _, err := w.Write([]byte(answer)); err != nil {
 		return
 	}
@@ -160,7 +161,7 @@ type freshnessAsk struct {
 
 // compareNote settles the five answers for one note, against everything the
 // page carries in its ask.
-func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) freshness {
+func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk) freshness {
 	entry, err := h.sources.Source.Lookup(rel)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -169,7 +170,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 		h.noteFreshnessFailure(rel, "lookup", err)
 		return freshUnreadable
 	}
-	data, err := h.sources.Source.ReadFile(r.Context(), entry)
+	data, err := h.sources.Source.ReadFile(ctx, entry)
 	if err != nil {
 		h.noteFreshnessFailure(rel, "read", err)
 		return freshUnreadable
