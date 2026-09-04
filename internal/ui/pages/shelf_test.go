@@ -266,8 +266,11 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 		}
 		shown := shelfRows(&block.Shelf, deskBlockItems)
 		listed := shelfRows(&page.Shelf, len(page.Shelf.Rows))
-		if len(shown) > len(listed) {
-			t.Fatalf("the %s block shows %d rows over a page listing %d", block.Mode, len(shown), len(listed))
+		// A block that showed nothing at all used to satisfy this: comparing
+		// no rows against any number of rows found no disagreement. It owes
+		// the reader as many as it has room for.
+		if want := min(deskBlockItems, len(listed)); len(shown) != want {
+			t.Fatalf("the %s block shows %d rows over a page listing %d, want %d", block.Mode, len(shown), len(listed), want)
 		}
 		for i := range shown {
 			if shown[i] != listed[i] {
