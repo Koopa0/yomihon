@@ -28,6 +28,10 @@ type HealthView struct {
 	// Blocked are vault sources the latest snapshot build could not read, so
 	// the pages either lack them or hold their older captured content.
 	Blocked []HealthBlockedSource
+	// Skipped are paths the scan read without trouble and did not index,
+	// because they are not regular files. They are separate from Blocked:
+	// nothing went wrong reading them, and no later reading will pick them up.
+	Skipped []HealthSkippedSource
 	// StatusOutsideEnum are the notes whose status value is outside their type's
 	// declared list. An empty list renders nothing, the unknowable case
 	// included, and the section's number is this list's own length.
@@ -68,6 +72,13 @@ type HealthStatusNote struct {
 // HealthBlockedSource is one path the snapshot build could not read, with the
 // error it returned.
 type HealthBlockedSource struct {
+	Path   string
+	Reason string
+}
+
+// HealthSkippedSource is one path the scan saw and did not index, with what it
+// is instead of a file.
+type HealthSkippedSource struct {
 	Path   string
 	Reason string
 }
@@ -119,6 +130,18 @@ templ Health(v HealthView, c layouts.Chrome) {
 						@healthSection(wording.BlockedTitle.In(c.Lang), len(v.Blocked), v.blockedLede(c.Lang)) {
 							<ul class="y-healthlist">
 								for _, source := range v.Blocked {
+									<li>
+										<span class="y-healthlist__name">{ source.Path }</span>
+										if source.Reason != "" {
+											<span class="y-healthlist__detail"><code lang="en">{ source.Reason }</code></span>
+										}
+									</li>
+								}
+							</ul>
+						}
+						@healthSection(wording.SkippedTitle.In(c.Lang), len(v.Skipped), wording.SkippedLede.In(c.Lang)) {
+							<ul class="y-healthlist">
+								for _, source := range v.Skipped {
 									<li>
 										<span class="y-healthlist__name">{ source.Path }</span>
 										if source.Reason != "" {

@@ -1,0 +1,57 @@
+schema_version = "1"
+
+[enums]
+type = ["lesson"]
+
+[enums.status]
+note = ["draft", "ready", "archived"]
+lesson = ["draft", "ready", "archived"]
+
+[fields]
+required = ["title", "type", "status"]
+known = ["title", "type", "status", "lineage"]
+lesson_only = ["slug", "predecessor", "successors"]
+
+[fields.status_group]
+lesson = ["lesson"]
+
+[rules]
+slug_pattern = "^[a-z]+$"
+
+[scan]
+knowledge_dirs = ["Writing"]
+skip_basenames = []
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
+[privacy]
+never_egress_dirs = []
+
+[supersession]
+predecessor_field = "predecessor"
+successor_field = "successors"
+general_link_field = "lineage"
+archived_status = "archived"
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["*"]
+from = ["draft"]
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = ["koopa"]

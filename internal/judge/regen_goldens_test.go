@@ -41,6 +41,7 @@ func TestRegenerateGoldens(t *testing.T) {
 		{fixture: "testdata/vault-comment-scope", golden: "testdata/golden/comment-scope.jsonl"},
 		{fixture: "testdata/vault-namecollision-privacy", golden: "testdata/golden/namecollision-privacy.jsonl", private: []string{"Private"}},
 		{fixture: "testdata/vault-diary", golden: "testdata/golden/diary.jsonl", private: []string{"Diary"}},
+		{fixture: "testdata/vault-symlink", golden: "testdata/golden/symlink.jsonl"},
 		{fixture: "testdata/vault-titlecollision", golden: "testdata/golden/titlecollision.jsonl"},
 		{fixture: "testdata/vault-titlecollision", golden: "testdata/golden/titlecollision-privacy.jsonl", private: []string{"Private"}},
 	}

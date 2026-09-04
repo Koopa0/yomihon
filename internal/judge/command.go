@@ -51,6 +51,7 @@ func allRuleIDs() []string {
 		"schema.provenance",
 		"schema.frontmatter",
 		"schema.unmatched_knowledge_dir",
+		"scan.skipped",
 		"collision.name",
 		predecessorNotArchivedRule,
 		archivedNavigationRule,

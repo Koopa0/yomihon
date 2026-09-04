@@ -297,6 +297,17 @@ func (v *Generation) Files() []vaultfs.Entry {
 	return v.scan.Files()
 }
 
+// Skipped returns the paths this generation's scan saw and did not index, such
+// as a symbolic link standing where a note is expected. They are carried
+// beside the files because a folder that organises by link would otherwise
+// lose notes with nothing anywhere saying so.
+func (v *Generation) Skipped() []vaultfs.Skipped {
+	if v == nil {
+		return nil
+	}
+	return v.scan.Skipped()
+}
+
 // Entry returns the captured regular-file identity for canonicalPath.
 func (v *Generation) Entry(canonicalPath string) (vaultfs.Entry, bool) {
 	if v == nil {
@@ -588,6 +599,7 @@ func (s *Store) noteIncomplete(scan vaultfs.Scan, blocked []BlockedSource) {
 	s.fresh.Store(&liveAttempt{blocked: blocked, failedRetries: s.consecutiveIncomplete})
 	s.log.Warn("vault snapshot incomplete; retaining previous generation",
 		"scan_problems", len(scan.Problems()),
+		"scan_skipped", len(scan.Skipped()),
 		"consecutive_incomplete", s.consecutiveIncomplete,
 		"next_retry", s.nextRetry)
 }
@@ -945,6 +957,7 @@ func (s *Store) logBuild(message string, view *Generation, scan vaultfs.Scan) {
 	s.log.Info(message,
 		"files", len(scan.Files()),
 		"scan_problems", len(scan.Problems()),
+		"scan_skipped", len(scan.Skipped()),
 		"indexed", view.search.Len(),
 		"paths", view.navigation.PathCount(),
 		"maps", view.navigation.MapCount(),

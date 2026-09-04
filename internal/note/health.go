@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -35,6 +36,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		IslandCount:           healthIslandCount(health.Islands),
 		Collisions:            healthCollisions(health.Collisions),
 		Blocked:               healthBlocked(fresh.Blocked),
+		Skipped:               healthSkipped(snap.Skipped()),
 		StatusOutsideEnum:     statusesOutsideEnum(authority, snap),
 		FrontmatterUnreadable: unreadableFrontmatter,
 		SchemaFaults:          schemaFaults,
@@ -178,6 +180,18 @@ func healthBlocked(blocked []snapshot.BlockedSource) []pages.HealthBlockedSource
 	out := make([]pages.HealthBlockedSource, 0, len(blocked))
 	for _, source := range blocked {
 		out = append(out, pages.HealthBlockedSource{Path: source.Path, Reason: source.Reason})
+	}
+	return out
+}
+
+// healthSkipped carries the scan's unindexed paths across to the page. They
+// are not a freshness fact like the blocked list: a later reading will skip
+// them again, so the page states them as they are rather than as something
+// that may recover.
+func healthSkipped(skipped []vaultfs.Skipped) []pages.HealthSkippedSource {
+	out := make([]pages.HealthSkippedSource, 0, len(skipped))
+	for _, source := range skipped {
+		out = append(out, pages.HealthSkippedSource{Path: source.Path(), Reason: source.Kind().String()})
 	}
 	return out
 }

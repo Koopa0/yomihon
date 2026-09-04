@@ -55,6 +55,10 @@ func TestCheckGolden(t *testing.T) {
 		{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
 		// This fixture covers the local vault contract's configured fields.
 		{name: "configured supersession", fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
+		// A note reached only through a symbolic link. The scan reads nothing
+		// out of it, so without this finding the vault loses the note and the
+		// command says the folder is clean.
+		{name: "a path that is not a file", fixture: "testdata/vault-symlink", golden: "testdata/golden/symlink.jsonl"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -37,7 +37,12 @@ var (
 // Each section names what it found and explains what the finding means, since
 // the same list can call for different repairs.
 var (
-	BlockedTitle   = both("讀不進來的檔案", "Files that could not be read")
+	BlockedTitle = both("讀不進來的檔案", "Files that could not be read")
+	SkippedTitle = both("掃描略過的路徑", "Paths the scan passed over")
+	SkippedLede  = both(
+		"這些路徑不是一般檔案，多半是符號連結，所以書庫沒有讀它們：它們不出現在導覽、搜尋或判讀裡。要讓其中一個被讀到，把真正的檔案放進書庫。",
+		"These paths are not regular files — most often they are symbolic links — so the library did not read them: they appear in no navigation, no search and no adjudication. To have one read, put the real file in the vault.",
+	)
 	UnwrittenTitle = both("連到不存在的目標", "Links to something that is not there")
 	UnwrittenLede  = both(
 		"這些連結的目標不存在，而且沒有任何缺口帳列出它們。目標是作者寫下的名字：可能是一篇還沒寫的筆記，也可能是一個不在書庫裡的檔案——兩者要修的東西不一樣。",

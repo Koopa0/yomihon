@@ -27,6 +27,7 @@ func TestHealthIsNotCleanWhileAnyListHasSomethingInIt(t *testing.T) {
 		{"an uncited note", HealthView{IslandCount: 1}},
 		{"a shared name", HealthView{Collisions: []HealthCollision{{}}}},
 		{"an unreadable source", HealthView{Blocked: []HealthBlockedSource{{}}}},
+		{"a path that is not a file", HealthView{Skipped: []HealthSkippedSource{{}}}},
 		{"a status outside its list", HealthView{StatusOutsideEnum: []HealthStatusNote{{}}}},
 		{"frontmatter that cannot be read", HealthView{FrontmatterUnreadable: ref}},
 		{"frontmatter the schema rejects", HealthView{SchemaFaults: ref}},
