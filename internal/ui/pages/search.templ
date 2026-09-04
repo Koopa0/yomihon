@@ -186,7 +186,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 			<ol class="y-results" role="list">
 				for _, r := range v.Results {
 					<li>
-						<a class="y-result" href={ templ.URL(notesHref(r.RelPath)) }>
+						<a class="y-result" href={ templ.URL(notesHref(r.RelPath) + hitFragment(r.SnippetRuns)) }>
 							<span class="y-result__title">{ r.Title }</span>
 							<span class="y-result__meta">
 								if len(r.PathRuns) > 0 {

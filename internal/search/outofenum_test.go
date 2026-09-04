@@ -51,6 +51,15 @@ func searchResultsBody(t *testing.T, snapshot func() RequestSnapshot, query stri
 	return rr.Body.String()
 }
 
+// linksToNote reports whether html holds a result link to relPath. The note's
+// address is where such an href starts rather than the whole of it: a row whose
+// excerpt marked something carries the words the query found after it, so the
+// browser opens the note where they are.
+func linksToNote(html, relPath string) bool {
+	address := `href="/notes/` + relPath
+	return strings.Contains(html, address+`"`) || strings.Contains(html, address+`#`)
+}
+
 // resultRow cuts one hit out of a rendered results fragment by the note it
 // links to, so an assertion about one row cannot be answered by another row.
 func resultRow(t *testing.T, body, relPath string) string {
@@ -60,7 +69,7 @@ func resultRow(t *testing.T, body, relPath string) string {
 		if !terminated {
 			t.Fatalf("unterminated result row: %q", chunk)
 		}
-		if strings.Contains(row, `href="/notes/`+relPath+`"`) {
+		if linksToNote(row, relPath) {
 			return row
 		}
 	}

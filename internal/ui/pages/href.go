@@ -33,6 +33,49 @@ func notesHref(p string) string { return vaultHref("/notes/", p) }
 // "raw" would make ambiguous.
 func rawHref(p string) string { return vaultHref("/raw/", p) }
 
+// hitFragment is the text directive that opens a result where the words the
+// query found are, or "" for a row whose excerpt marked nothing — a note
+// reached through its path or one of its other names has no matched sentence to
+// arrive at. The browser scrolls to the text and highlights it; one that cannot
+// find the text leaves the note at the top, which is where a link without a
+// directive lands anyway, so a row can only gain by carrying one.
+//
+// It points at the first marked stretch because that is the one the excerpt was
+// cut around: the excerpt opens at the earliest offset any of the query's words
+// reach, so the first mark in it is the first of them the note holds, and the
+// browser goes to the first it finds.
+func hitFragment(runs []SnippetRun) string {
+	for _, run := range runs {
+		text := strings.TrimSpace(run.Text)
+		if run.Hit && text != "" {
+			return "#:~:text=" + escapeTextDirective(text)
+		}
+	}
+	return ""
+}
+
+// escapeTextDirective percent-encodes one term of a text directive. Everything
+// outside the unreserved set is encoded, and "-" joins it rather than being
+// left alone: the grammar spends that character on the marks that introduce a
+// prefix and a suffix, so a hyphen among the reader's own words would be read
+// as one of those and the rest of the term thrown away.
+func escapeTextDirective(term string) string {
+	const hex = "0123456789ABCDEF"
+	var b strings.Builder
+	b.Grow(len(term))
+	for i := range len(term) {
+		switch c := term[i]; {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '.', c == '_', c == '~':
+			b.WriteByte(c)
+		default:
+			b.WriteByte('%')
+			b.WriteByte(hex[c>>4])
+			b.WriteByte(hex[c&0x0f])
+		}
+	}
+	return b.String()
+}
+
 // ObsidianHref builds the obsidian://open URI for the note at rel inside the
 // vault rooted at root. Every segment is escaped on its own, and "&" besides,
 // so a name carrying "?", "#", "%" or "&" cannot cut the single query parameter
