@@ -45,7 +45,8 @@ skill to read first: [`skills/`](skills/).
   reading aloud is spoken in its own language. The example vault carries
   [a study path to copy](examples/vault/Notes/Reading%20yomihon.md).
 - **Find.** Full-text search with folder filters; backlinks and the note's own
-  sections stay beside the text.
+  sections stay beside the text. A result opens the note at the words it
+  found, not at the top.
 - **Check.** A health page lists links with no target, notes nothing cites, and
   one name two files answer to; each note carries its own diagnostics; on the
   command line it is `yomihon check`. It reports and repairs nothing.
