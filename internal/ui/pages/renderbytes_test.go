@@ -137,7 +137,6 @@ func recordedChrome() layouts.Chrome {
 		Theme:                     "light",
 		Ruby:                      "on",
 		TextSize:                  "m",
-		HasRuby:                   true,
 		SingleKeyShortcutsEnabled: true,
 		Lang:                      wording.ZhHant,
 	}

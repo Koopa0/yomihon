@@ -3274,12 +3274,20 @@ func TestHomeDoesNotSpendItsScreenTalkingAboutItself(t *testing.T) {
 	}
 }
 
-// TestFuriganaControlAppearsOnlyWhereThereIsFurigana covers a control for a
-// capability the page does not have. The button switches readings off; a folder
-// that holds no Japanese has none to switch, and shipping it anyway is where
-// the tool's own history shows through its chrome to a reader who has no idea
-// what 振 means.
-func TestFuriganaControlAppearsOnlyWhereThereIsFurigana(t *testing.T) {
+// TestTheFuriganaControlIsOnEveryPage covers the way a reader could get stuck.
+// The preference the control writes is one cookie for the whole site, so a
+// reader who switches readings off while looking at a Japanese note is switching
+// them off everywhere, for good. Showing the control only on pages that already
+// contain readings then hides the single thing that can undo that: every page
+// the reader lands on next has no readings to show — because they turned them
+// off — and so offers no way to turn them back on. The theme and text-size
+// controls beside it are on every page for the same reason, and a reader has to
+// be able to walk back a preference they set.
+//
+// The three pages below differ in whether they contain readings at all, which is
+// what stops this passing for the wrong reason: it would be satisfied by three
+// pages that all happened to carry Japanese.
+func TestTheFuriganaControlIsOnEveryPage(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
@@ -3296,13 +3304,13 @@ func TestFuriganaControlAppearsOnlyWhereThereIsFurigana(t *testing.T) {
 	srv := newServer(t, root)
 
 	for _, tt := range []struct {
-		name string
-		path string
-		want bool
+		name        string
+		path        string
+		hasReadings bool
 	}{
-		{name: "a note carrying readings", path: "/notes/japanese.md", want: true},
-		{name: "a note carrying none", path: "/notes/plain.md", want: false},
-		{name: "home", path: "/", want: false},
+		{name: "a note carrying readings", path: "/notes/japanese.md", hasReadings: true},
+		{name: "a note carrying none", path: "/notes/plain.md", hasReadings: false},
+		{name: "home", path: "/", hasReadings: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -3310,10 +3318,10 @@ func TestFuriganaControlAppearsOnlyWhereThereIsFurigana(t *testing.T) {
 			if code != http.StatusOK {
 				t.Fatalf("GET %s status = %d, want 200", tt.path, code)
 			}
-			if got := strings.Contains(body, "data-ruby-toggle"); got != tt.want {
-				t.Errorf("GET %s carries the furigana control = %t, want %t", tt.path, got, tt.want)
+			if !strings.Contains(body, "data-ruby-toggle") {
+				t.Errorf("GET %s carries no furigana control; a reader who switched readings off elsewhere has nothing here to switch them back on with", tt.path)
 			}
-			if strings.Contains(body, "<ruby") != tt.want {
+			if strings.Contains(body, "<ruby") != tt.hasReadings {
 				t.Errorf("GET %s: the fixture does not match what the test assumes", tt.path)
 			}
 		})
