@@ -49,6 +49,13 @@ export function initPreferences() {
     );
   }
 
+  // The server stamps this control's pressed state from the stored choice,
+  // which is all it can see: prefers-color-scheme never reaches it. With no
+  // choice stored and a dark system preference the page paints dark and the
+  // attribute says otherwise, so the first thing this does is agree with what
+  // the reader is looking at.
+  themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
+
   textsizeToggle?.addEventListener('click', (event) => {
     const next = { m: 'l', l: 'xl', xl: 'm' }[root.dataset.textsize] || 'l';
     setPreference('textsize', next);
@@ -63,7 +70,7 @@ export function initPreferences() {
     // page may already be dark from the system, and the first press must then
     // choose light rather than restate dark.
     setPreference('theme', effectiveTheme() === 'dark' ? 'light' : 'dark');
-    event.currentTarget.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));
+    event.currentTarget.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
   });
   document.querySelector('[data-ruby-toggle]')?.addEventListener('click', (event) => {
     setPreference('ruby', root.dataset.ruby === 'off' ? 'on' : 'off');
@@ -91,7 +98,7 @@ export function initPreferences() {
     } else {
       delete root.dataset.theme;
     }
-    themeToggle?.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));
+    themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
     const stored = readCookie('yomihon_textsize');
     const size = stored === 'l' || stored === 'xl' ? stored : 'm';
     root.dataset.textsize = size;
