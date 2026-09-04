@@ -102,7 +102,13 @@ templ header(c Chrome) {
 				<dt><span class="ui-kbd">/</span></dt>
 				<dd>{ wording.ShortcutJumpToFilter.In(c.Lang) }</dd>
 				<dt><span class="ui-kbd">[</span></dt>
-				<dd>{ wording.ShortcutToggleSidebar.In(c.Lang) }</dd>
+				// The one key whose row needs a second sentence: it reaches a
+				// drawer, and at most reading widths there is no drawer for it
+				// to reach.
+				<dd>
+					{ wording.ShortcutToggleSidebar.In(c.Lang) }
+					{ wording.ShortcutSidebarNarrowOnly.In(c.Lang) }
+				</dd>
 			</dl>
 			// The preference belongs beside the keys it governs. In the header
 			// it was a permanent two-character control that named neither the

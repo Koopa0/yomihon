@@ -84,6 +84,19 @@ var (
 	ShortcutToggleSidebar       = both("收合或展開側欄（單鍵開啟時）", "Collapse or expand the sidebar (when single keys are on)")
 )
 
+// ShortcutSidebarNarrowOnly is the rest of what the sidebar key does, which is
+// nothing at most reading widths. There is only something to fold away where
+// the window is narrow enough that the sidebar has become a drawer; on a wide
+// one the sidebar is simply present, the key is inert, and the row above
+// promised otherwise — leaving a reader pressing a documented key at a desk and
+// reading the silence as a broken preference. The sentence describes the
+// condition the way the reader can see it rather than by a pixel count, whose
+// one home is the stylesheet.
+var ShortcutSidebarNarrowOnly = both(
+	"寬到側欄一直看得見的視窗上，這個鍵沒有作用。",
+	"On a window wide enough to keep the sidebar in view, this key does nothing.",
+)
+
 // SingleKeyShortcuts names the preference that decides whether a bare key does
 // anything, and the two states it reports beside the checkbox.
 var SingleKeyShortcuts = both("單鍵快捷鍵", "Single-key shortcuts")
