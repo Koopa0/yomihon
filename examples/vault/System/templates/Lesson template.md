@@ -8,8 +8,8 @@ slug: lesson-template
 lang: en
 ---
 
-A shape to copy for a lesson, which carries one field a note does not: a slug,
-checked against the contract's `slug_pattern`.
+A shape to copy for a lesson, which carries two fields a note does not: a slug,
+checked against the contract's `slug_pattern`, and the level it assumes.
 
 ## What this lesson covers
 

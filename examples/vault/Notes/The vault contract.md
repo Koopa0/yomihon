@@ -21,7 +21,7 @@ Before it there was [[An older approach]], where the folder a note sat in decide
 
 ```toml
 [enums]
-type = ["note", "lesson", "study-path", "moc"]
+type = ["note", "lesson", "study-path", "moc", "concept", "inbox"]
 
 [enums.status]
 note = ["draft", "ready", "published", "archived"]
