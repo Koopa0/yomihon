@@ -443,16 +443,16 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			code, body := get(t, srv.Client(), srv.URL+"/")
+			code, body := get(t, srv.Client(), srv.URL+"/folders")
 			if code != http.StatusOK {
-				t.Fatalf("GET / status = %d, want 200", code)
+				t.Fatalf("GET /folders status = %d, want 200", code)
 			}
 			page := html.UnescapeString(body)
 			if strings.Contains(page, `data-home-block="lifecycle"`) {
 				t.Errorf("Home rendered a lifecycle block across torn authority captures; page = %q", page)
 			}
 			const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
-			assertCauseStatedAtMostOncePerRegion(t, page, diagnostic)
+			assertCauseReachesTheReader(t, page, diagnostic)
 		})
 	}
 }
@@ -1300,7 +1300,6 @@ func TestHome(t *testing.T) {
 	pageHTML := string(body)
 	for name, marker := range map[string]string{
 		"search":                            `data-home-block="search"`,
-		"recent block":                      `data-home-block="recent"`,
 		"link to the folder's introduction": `data-home-readme`,
 		"topbar":                            `class="y-header"`,
 		"command palette":                   `data-search`,
@@ -1310,27 +1309,31 @@ func TestHome(t *testing.T) {
 		}
 	}
 	// The reader's own file is on the first screen of a folder that declares
-	// nothing. It used to be filtered out for carrying no type — a field this
-	// folder has never heard of — which left the block empty and the page
-	// standing in for it.
-	if !strings.Contains(pageHTML, `href="/notes/README.md" data-home-recent-note`) {
-		t.Errorf("the recent block does not carry this folder's own file; body = %q", pageHTML)
+	// nothing. This folder holds one file and no folders, so none of the four
+	// ways in has anything behind it and the line that states what the folder
+	// does have takes their place, linking the file itself.
+	if !strings.Contains(pageHTML, `data-home-standin`) || !strings.Contains(pageHTML, `href="/notes/README.md"`) {
+		t.Errorf("the desk does not stand in with this folder's own file; body = %q", pageHTML)
 	}
-	// This folder carries no contract. It has no lifecycle vocabulary, so the
-	// block that would name one is absent rather than empty or apologetic, and
+	// This folder carries no contract. It has no lifecycle vocabulary, so
 	// nothing on the page reports a capability that was never claimed. Before
 	// the grant split this page opened with seven such notices and the reader's
 	// own README started below the fold.
 	for name, marker := range map[string]string{
 		"lifecycle block":   `data-home-block="lifecycle"`,
-		"study-path block":  `data-home-block="study-paths"`,
-		"empty-box notice":  "y-homeempty",
+		"recent block":      `data-home-block="recent"`,
 		"capability faults": `data-home-block="faults"`,
 		"fault row":         "data-home-fault",
-		"sidebar fault":     `data-sidebar-group="navigation-diagnostics"`,
 	} {
 		if strings.Contains(pageHTML, marker) {
-			t.Errorf("ungoverned Home renders the %s marker %q", name, marker)
+			t.Errorf("the ungoverned desk renders the %s marker %q", name, marker)
+		}
+	}
+	// The desk is where a reader chooses what to read, so there is nothing yet
+	// being read for a rail to be. Every other full page mounts one.
+	for _, absent := range []string{`class="y-rail-left"`, `id="nav-rail"`} {
+		if strings.Contains(pageHTML, absent) {
+			t.Errorf("the desk mounts a left rail (%s); the rail is the thing being read", absent)
 		}
 	}
 	// The introduction is a note with a page of its own. Home names it; it
@@ -1361,9 +1364,9 @@ func TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServer(t, root)
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
 
@@ -1377,50 +1380,45 @@ func TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder(t *testing.T) {
 	}
 }
 
-// assertCauseStatedOncePerRegion pins how a capability fault reaches the reader:
-// once in the navigation rail, which every page carries, and once in Home's own
-// content column, which stays visible when the rail is collapsed behind its
-// toggle. Two regions, one sentence each — not the six-deep column of repeats
-// that used to push the reader's own content below the fold.
-func assertCauseStatedOncePerRegion(t *testing.T, page, cause string) {
+// assertCauseStatedOnce pins how a capability fault reaches the reader: once,
+// in the fault block below the seam. It used to be stated twice, in the rail
+// every page carried and again in the content column, because the rail was the
+// only region a reader who never opened the desk would meet. The rail is now
+// the book being read and carries no vault-wide news, so a second copy would be
+// a second account of one hole — which is the six-deep column of repeats this
+// assertion was written against, in a smaller form.
+func assertCauseStatedOnce(t *testing.T, page, cause string) {
 	t.Helper()
-	rail := pageSection(page, `<section class="y-navdiag"`)
 	content := pageSection(page, `data-home-block="faults"`)
-	if rail == "" {
-		t.Errorf("the navigation rail states nothing; a note opened from the palette never renders Home")
-	} else if got := strings.Count(rail, cause); got != 1 {
-		t.Errorf("the rail states the cause %d times, want once: %q", got, rail)
-	}
 	if content == "" {
-		t.Errorf("Home's content column states nothing; at narrow widths the rail is behind a toggle")
+		t.Errorf("no region states the cause; page = %q", page)
 	} else if got := strings.Count(content, cause); got != 1 {
-		t.Errorf("Home's content column states the cause %d times, want once: %q", got, content)
+		t.Errorf("the fault block states the cause %d times, want once: %q", got, content)
 	}
-	if got := strings.Count(page, cause); got != 2 {
-		t.Errorf("the cause appears %d times on the page, want exactly one per region", got)
+	if got := strings.Count(page, cause); got != 1 {
+		t.Errorf("the cause appears %d times on the page, want exactly once", got)
 	}
 	if got := strings.Count(page, "data-home-fault"); got != 1 {
-		t.Errorf("Home fault rows = %d, want exactly 1", got)
+		t.Errorf("fault rows = %d, want exactly 1", got)
 	}
 }
 
-// assertCauseStatedAtMostOncePerRegion is the weaker sibling, for pages where
-// which region knows the cause depends on which authority was sampled first:
+// assertCauseReachesTheReader is the weaker sibling, for pages where whether
+// the fault block knows the cause depends on which authority was sampled first:
 // with the write view captured before a drift and the snapshot after it, the
-// write face still believes it is open and only the rail has anything to say.
-// The cause must still reach the reader, and must not repeat inside a region.
-func assertCauseStatedAtMostOncePerRegion(t *testing.T, page, cause string) {
+// write face still believes it is open. The cause must still reach the reader,
+// and must not repeat.
+func assertCauseReachesTheReader(t *testing.T, page, cause string) {
 	t.Helper()
-	rail := strings.Count(pageSection(page, `<section class="y-navdiag"`), cause)
 	content := strings.Count(pageSection(page, `data-home-block="faults"`), cause)
-	if rail > 1 || content > 1 {
-		t.Errorf("the cause repeats inside a region: rail=%d content=%d", rail, content)
-	}
-	if rail+content == 0 {
+	if content == 0 {
 		t.Errorf("no region states the cause; page = %q", page)
 	}
-	if got := strings.Count(page, cause); got != rail+content {
-		t.Errorf("the cause appears %d times but only %d are accounted for by the two regions", got, rail+content)
+	if content > 1 {
+		t.Errorf("the cause repeats inside the fault block: %d times", content)
+	}
+	if got := strings.Count(page, cause); got != content {
+		t.Errorf("the cause appears %d times but only %d are accounted for by the fault block", got, content)
 	}
 }
 
@@ -1457,33 +1455,40 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 	}
 	page := html.UnescapeString(body)
 
-	assertCauseStatedOncePerRegion(t, page, "toml: line 42")
-	// The blocks whose projections closed say nothing rather than asserting an
-	// emptiness they cannot vouch for.
-	for name, marker := range map[string]string{
-		"lifecycle":   `data-home-block="lifecycle"`,
-		"study paths": `data-home-block="study-paths"`,
-	} {
-		if strings.Contains(page, marker) {
-			t.Errorf("Home still renders the %s block under an unreadable contract", name)
+	assertCauseStatedOnce(t, page, "toml: line 42")
+	// The ways in whose projections closed list nothing rather than asserting
+	// an emptiness they cannot vouch for.
+	for _, mode := range []string{"paths", "maps"} {
+		block := homeSection(t, page, `data-home-block="`+mode+`"`)
+		if strings.Contains(block, "data-desk-item") {
+			t.Errorf("the %s block lists items under an unreadable contract; block = %q", mode, block)
 		}
 	}
-	// Plain reading stays beside the fault: the recent list, the search box
+	// Plain reading stays beside the fault: the folder tree, the search box
 	// and the README link never depended on a contract.
-	for _, want := range []string{`data-home-block="recent"`, `data-home-block="search"`, "data-home-readme"} {
+	for _, want := range []string{`data-home-block="folders"`, `data-home-block="search"`, "data-home-readme"} {
 		if !strings.Contains(page, want) {
-			t.Errorf("Home lost %q to a contract failure; reading never depends on one", want)
+			t.Errorf("the desk lost %q to a contract failure; reading never depends on one", want)
 		}
 	}
 	// Withheld is not the same as empty. The stand-in line states a cheerful
 	// fact about the folder, and beside a sentence explaining that projections
 	// closed it would read as a second, contradictory account of the same hole.
 	if strings.Contains(page, "data-home-standin") {
-		t.Error("Home states what the folder holds beside the reason it cannot say what is in it")
+		t.Error("the desk states what the folder holds beside the reason it cannot say what is in it")
 	}
-	// The subtitle names exactly the one content block on the page.
-	if got := homeSubtitle(t, page); got != "查看最近變更。" {
-		t.Errorf("subtitle = %q, want it to name the recent block and nothing else", got)
+	// The shelf keeps its own reading: a contract that could not be read closes
+	// the distribution and leaves the recent list, which never depended on one.
+	shelfCode, shelfBody := get(t, srv.Client(), srv.URL+"/folders")
+	if shelfCode != http.StatusOK {
+		t.Fatalf("GET /folders status = %d, want 200", shelfCode)
+	}
+	shelf := html.UnescapeString(shelfBody)
+	if strings.Contains(shelf, `data-home-block="lifecycle"`) {
+		t.Error("the shelf still renders the distribution under an unreadable contract")
+	}
+	if !strings.Contains(shelf, `data-home-block="recent"`) {
+		t.Error("the shelf lost the recent list to a contract failure; reading never depends on one")
 	}
 }
 
@@ -1531,10 +1536,10 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 		path string
 		want string
 	}{
-		// Home no longer reprints the introduction, so its needle is the link
-		// the captured generation put in the navigation rather than a wikilink
-		// resolved inside a body.
-		{name: "home", path: "/", want: `href="/notes/Concepts/Target.md"`},
+		// The desk lists ways in rather than notes, so the needle for a
+		// captured generation is a link the shelf's own recent list put there
+		// rather than a wikilink resolved inside a body.
+		{name: "shelf", path: "/folders", want: `href="/notes/Concepts/Target.md"`},
 		{name: "note", path: "/notes/README.md", want: `<a href="/notes/Concepts/Target.md" class="wikilink">Target</a>`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1684,9 +1689,13 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
+	}
+	deskCode, desk := get(t, srv.Client(), srv.URL+"/")
+	if deskCode != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", deskCode)
 	}
 
 	recent := homeSection(t, body, `data-home-block="recent"`)
@@ -1722,7 +1731,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	if got := chipCounts(t, lifecycleBlock); len(got) != 2 {
 		t.Errorf("the block lists %d statuses and the notes carry 2; counts = %v", len(got), got)
 	}
-	paths := homeSection(t, body, `data-home-block="study-paths"`)
+	paths := homeSection(t, desk, `data-home-block="paths"`)
 	// The block says how big a course is, not how much of it is done. The
 	// figure that used to sit here counted lessons awaiting a human's final
 	// review, and publishing one moved it out of that status — so the number
@@ -1735,11 +1744,8 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 			t.Errorf("Study paths block is missing %q", marker)
 		}
 	}
-	if !strings.Contains(body, "data-home-readme") {
-		t.Error("Home is missing the link to the folder's introduction")
-	}
-	if got := homeSubtitle(t, body); got != "查看最近變更、狀態分布，以及接下來的學習路徑。" {
-		t.Errorf("subtitle = %q, want the sentence naming exactly the three blocks below it", got)
+	if !strings.Contains(desk, "data-home-readme") {
+		t.Error("the desk is missing the link to the folder's introduction")
 	}
 }
 
@@ -1781,16 +1787,16 @@ func TestHomeWithholdsTheLifecycleBlockAndNamesTheCause(t *testing.T) {
 				t.Fatalf("write README: %v", err)
 			}
 			srv := newServerWithContract(t, root, tt.contract(t))
-			code, body := get(t, srv.Client(), srv.URL+"/")
+			code, body := get(t, srv.Client(), srv.URL+"/folders")
 			if code != http.StatusOK {
-				t.Fatalf("GET / status = %d, want 200", code)
+				t.Fatalf("GET /folders status = %d, want 200", code)
 			}
 			page := html.UnescapeString(body)
 
 			if strings.Contains(page, `data-home-block="lifecycle"`) {
 				t.Error("Home rendered a lifecycle block it cannot count")
 			}
-			assertCauseStatedOncePerRegion(t, page, tt.want)
+			assertCauseStatedOnce(t, page, tt.want)
 		})
 	}
 }
@@ -1856,9 +1862,9 @@ body
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	// The lifecycle block names only statuses with somewhere to go, and this
 	// fixture's concept has nowhere to go but retirement, so the block is
@@ -1872,13 +1878,13 @@ body
 		t.Fatalf("change contract between requests: %v", writeErr)
 	}
 
-	code, body = get(t, srv.Client(), srv.URL+"/")
+	code, body = get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("second GET / status = %d, want 200", code)
+		t.Fatalf("second GET /folders status = %d, want 200", code)
 	}
 	const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
 	page := html.UnescapeString(body)
-	assertCauseStatedOncePerRegion(t, page, diagnostic)
+	assertCauseStatedOnce(t, page, diagnostic)
 	// The adjudication surfaces close: the lifecycle distribution speaks for
 	// the drifted authority and may not.
 	if strings.Contains(page, `data-home-block="lifecycle"`) {
@@ -1943,21 +1949,24 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
 			body := html.UnescapeString(page)
-			// The instance-derived blocks close on one cause, so the cause is
-			// stated once and each closed block renders nothing at all.
-			for _, marker := range []string{
-				`data-home-block="lifecycle"`,
-				`data-home-block="study-paths"`,
-			} {
-				if strings.Contains(body, marker) {
-					t.Errorf("Home still renders %s without a usable artifact policy", marker)
-				}
+			// The instance-derived way in closes on one cause, so the cause is
+			// stated once and the block lists nothing at all.
+			if block := homeSection(t, body, `data-home-block="paths"`); strings.Contains(block, "data-desk-item") {
+				t.Errorf("the desk still lists courses without a usable artifact policy; block = %q", block)
 			}
-			assertCauseStatedOncePerRegion(t, body, tt.want)
+			assertCauseStatedOnce(t, body, tt.want)
+			shelfCode, shelfPage := get(t, srv.Client(), srv.URL+"/folders")
+			if shelfCode != http.StatusOK {
+				t.Fatalf("GET /folders status = %d, want 200", shelfCode)
+			}
+			shelf := html.UnescapeString(shelfPage)
+			if strings.Contains(shelf, `data-home-block="lifecycle"`) {
+				t.Errorf("the shelf still renders the distribution without a usable artifact policy")
+			}
 			// The recent list is plain reading and stays, without the
 			// knowledge-layer citation: the citation belongs to the same
 			// contract whose artifact declaration was refused.
-			recent := homeSection(t, body, `data-home-block="recent"`)
+			recent := homeSection(t, shelf, `data-home-block="recent"`)
 			if !strings.Contains(recent, "Draft") {
 				t.Errorf("the recent list closed with the artifact policy; section = %q", recent)
 			}
@@ -1991,19 +2000,23 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	recent := homeSection(t, page, `data-home-block="recent"`)
+	shelfCode, shelfPage := get(t, srv.Client(), srv.URL+"/folders")
+	if shelfCode != http.StatusOK {
+		t.Fatalf("GET /folders status = %d, want 200", shelfCode)
+	}
+	recent := homeSection(t, shelfPage, `data-home-block="recent"`)
 	if !strings.Contains(recent, "Aggregate sentinel") || strings.Contains(recent, "data-home-recent-diagnostic") {
 		t.Errorf("Recent degraded with navigation roles; section = %q", recent)
 	}
 	body := html.UnescapeString(page)
-	if strings.Contains(body, `data-home-block="study-paths"`) {
-		t.Error("Study Paths rendered without usable navigation roles")
+	if block := homeSection(t, body, `data-home-block="paths"`); strings.Contains(block, "data-desk-item") {
+		t.Errorf("Study Paths listed without usable navigation roles; block = %q", block)
 	}
 	// A rejected navigation declaration closes only the study paths, and the
-	// write authority knows nothing about it. Stating the cause in the rail
-	// alone would drop that block with no explanation for any reader whose
-	// window is narrow enough to fold the rail behind its toggle.
-	assertCauseStatedOncePerRegion(t, body,
+	// write authority knows nothing about it. The desk is the only surface that
+	// states it, so a cause that never reached the desk would drop a way in
+	// with no explanation anywhere.
+	assertCauseStatedOnce(t, body,
 		`invalid navigation roles: path type "missing-type" is not declared in enums.type`)
 	if strings.Contains(body, "contract declares no artifact policy; instance projections disabled until it does") {
 		t.Errorf("Home falsely reports an artifact failure: %q", body)
@@ -2025,26 +2038,22 @@ func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
 	body := html.UnescapeString(page)
-	// Two declarations were rejected independently. The artifact one closed the
-	// write authority, so it reaches Home's content column; the navigation one
-	// closed only paths and maps, so the rail is its home. Each is stated once
-	// where it belongs, and neither is repeated.
-	rail := pageSection(body, `<section class="y-navdiag"`)
+	// Two declarations were rejected independently, and they close different
+	// things: the artifact one closed the write authority, the navigation one
+	// closed paths and maps. Both have to reach the reader, in the one region
+	// that states a capability fault, and neither may be repeated there.
 	content := pageSection(body, `data-home-block="faults"`)
-	if got := strings.Count(rail, "missing-type"); got != 1 {
-		t.Errorf("the rail states the navigation cause %d times, want once: %q", got, rail)
-	}
 	const artifactCause = `invalid artifact policy: non_instance_dirs contains "."`
-	if got := strings.Count(content, artifactCause); got != 1 {
-		t.Errorf("Home's content column states the artifact cause %d times, want once: %q", got, content)
-	}
 	for _, cause := range []string{"missing-type", artifactCause} {
-		if got := strings.Count(body, cause); got > 2 {
-			t.Errorf("capability cause %q appears %d times, want at most one per region", cause, got)
+		if got := strings.Count(content, cause); got != 1 {
+			t.Errorf("the fault block states %q %d times, want once: %q", cause, got, content)
+		}
+		if got := strings.Count(body, cause); got != 1 {
+			t.Errorf("capability cause %q appears %d times on the page, want once", cause, got)
 		}
 	}
-	if strings.Contains(body, `data-home-block="study-paths"`) {
-		t.Error("Study Paths rendered under two rejected declarations")
+	if block := homeSection(t, body, `data-home-block="paths"`); strings.Contains(block, "data-desk-item") {
+		t.Error("Study Paths listed under two rejected declarations")
 	}
 }
 
@@ -2068,9 +2077,9 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 		}
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, page := get(t, srv.Client(), srv.URL+"/")
+	code, page := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, page, `data-home-block="recent"`)
 	if !strings.Contains(recent, "Governed draft sentinel") {
@@ -2105,16 +2114,12 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	for _, absent := range []string{
 		`data-home-block="recent"`,
 		`data-home-block="lifecycle"`,
-		`data-home-block="study-paths"`,
+		`data-home-block="paths"`,
 		"y-homeempty",
 	} {
 		if strings.Contains(body, absent) {
 			t.Errorf("GET / without README still renders %q over a vault that has nothing to put in it", absent)
 		}
-	}
-
-	if got := homeSubtitle(t, body); got != "" {
-		t.Errorf("subtitle = %q; it must not promise blocks the page does not carry", got)
 	}
 
 	noteCode, _ := get(t, srv.Client(), srv.URL+"/notes/README.md")
@@ -2124,33 +2129,6 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "README.md")); !os.IsNotExist(err) {
 		t.Errorf("README.md after recovery requests: os.Stat error = %v, want not-exist", err)
 	}
-}
-
-// homeSubtitle returns the line under Home's title, or "" when the page carries
-// none. It reads the header rather than the whole document so a sentence
-// elsewhere on the page cannot answer for it.
-func homeSubtitle(t *testing.T, body string) string {
-	t.Helper()
-	const opener = `<header class="y-home__head">`
-	start := strings.Index(body, opener)
-	if start < 0 {
-		t.Fatalf("Home body has no header; body = %q", body)
-	}
-	header := body[start:]
-	end := strings.Index(header, "</header>")
-	if end < 0 {
-		t.Fatalf("Home header is never closed; body = %q", body)
-	}
-	header = header[:end]
-	open := strings.Index(header, "<p>")
-	if open < 0 {
-		return ""
-	}
-	end = strings.Index(header[open:], "</p>")
-	if end < 0 {
-		t.Fatalf("Home subtitle is never closed; header = %q", header)
-	}
-	return header[open+len("<p>") : open+end]
 }
 
 // homeStandInLine returns the stand-in line's markup. It is a paragraph rather
@@ -2233,15 +2211,15 @@ func homeSection(t *testing.T, body, marker string) string {
 	t.Helper()
 	markerAt := strings.Index(body, marker)
 	if markerAt < 0 {
-		t.Fatalf("Home body is missing section marker %q", marker)
+		t.Fatalf("page body is missing section marker %q", marker)
 	}
 	openAt := strings.LastIndex(body[:markerAt], "<section")
 	if openAt < 0 {
-		t.Fatalf("Home marker %q is not inside a section", marker)
+		t.Fatalf("marker %q is not inside a section", marker)
 	}
 	closeAt := strings.Index(body[markerAt:], "</section>")
 	if closeAt < 0 {
-		t.Fatalf("Home section %q has no closing tag", marker)
+		t.Fatalf("section %q has no closing tag", marker)
 	}
 	return body[openAt : markerAt+closeAt+len("</section>")]
 }
@@ -2403,9 +2381,9 @@ func TestHomeLifecycleCountsStatusDistribution(t *testing.T) {
 			}
 			srv := newServerWithContract(t, root, distributionContract(t))
 
-			code, body := get(t, srv.Client(), srv.URL+"/")
+			code, body := get(t, srv.Client(), srv.URL+"/folders")
 			if code != http.StatusOK {
-				t.Fatalf("GET / status = %d, want 200", code)
+				t.Fatalf("GET /folders status = %d, want 200", code)
 			}
 
 			if len(tt.wantRows) == 0 {
@@ -3672,9 +3650,9 @@ func TestHomeLifecycleBlockDropsTheQueueHeading(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	block := homeSection(t, body, `data-home-block="lifecycle"`)
 	if row := homeLifecycleRow(t, block, "draft"); !strings.Contains(row, ">1<") {
@@ -3720,9 +3698,9 @@ func TestHomeLifecycleAccountsForEveryIndexedNote(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, distributionContract(t))
 
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	block := homeSection(t, body, `data-home-block="lifecycle"`)
 
@@ -3911,9 +3889,9 @@ func TestHomeRecentStatesItsKnowledgeScope(t *testing.T) {
 		}
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 
 	recent := homeSection(t, body, `data-home-block="recent"`)
@@ -3954,15 +3932,15 @@ func TestHomeSingleNoteClaimsNoTimestampTie(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServer(t, root)
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
 	if strings.Contains(recent, "時間戳一模一樣") || strings.Contains(recent, "identical timestamps") {
 		t.Errorf("a single-note vault claims a timestamp tie; section = %q", recent)
 	}
-	if !strings.Contains(recent, `<h2 id="home-recent-title">最近變更</h2>`) {
+	if !strings.Contains(recent, `<h2 id="folders-recent-title">最近變更</h2>`) {
 		t.Errorf("a single-note vault does not carry the ordinary recency heading; section = %q", recent)
 	}
 }
@@ -3990,9 +3968,9 @@ func TestHomeTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
 		}
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
 	if !strings.Contains(recent, "知識層資料夾中的筆記。這些檔案的時間戳一模一樣") {
@@ -4019,9 +3997,9 @@ func TestHomeUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
 		}
 	}
 	srv := newServer(t, root)
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
 	if strings.Contains(recent, "知識層") {
@@ -4062,7 +4040,7 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	paths := homeSection(t, body, `data-home-block="study-paths"`)
+	paths := homeSection(t, body, `data-home-block="paths"`)
 	card := func(title string) string {
 		t.Helper()
 		at := strings.Index(paths, title)
@@ -4120,9 +4098,9 @@ func TestHomeUnscopedTieKeepsThePlainNotice(t *testing.T) {
 		}
 	}
 	srv := newServer(t, root)
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
 	if !strings.Contains(recent, "<p>這些檔案的時間戳一模一樣") {
@@ -4177,20 +4155,23 @@ func TestHomeUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
 	page := html.UnescapeString(body)
 
 	// The parse error is still the page's one loud sentence.
-	assertCauseStatedOncePerRegion(t, page, "toml: line 42")
+	assertCauseStatedOnce(t, page, "toml: line 42")
 	// What a contract answers for stays closed.
-	for name, marker := range map[string]string{
-		"lifecycle":   `data-home-block="lifecycle"`,
-		"study paths": `data-home-block="study-paths"`,
-	} {
-		if strings.Contains(page, marker) {
-			t.Errorf("Home still renders the %s block under an unreadable contract", name)
-		}
+	if block := homeSection(t, page, `data-home-block="paths"`); strings.Contains(block, "data-desk-item") {
+		t.Errorf("the desk still lists courses under an unreadable contract; block = %q", block)
+	}
+	shelfCode, shelfBody := get(t, srv.Client(), srv.URL+"/folders")
+	if shelfCode != http.StatusOK {
+		t.Fatalf("GET /folders status = %d, want 200", shelfCode)
+	}
+	shelf := html.UnescapeString(shelfBody)
+	if strings.Contains(shelf, `data-home-block="lifecycle"`) {
+		t.Error("the shelf still renders the distribution under an unreadable contract")
 	}
 	// Plain reading stays: the recent list, over everything readable, because
 	// the exclusions the contract would have declared are unknown rather than
 	// empty — and unknown may not silently hide files either.
-	recent := homeSection(t, page, `data-home-block="recent"`)
+	recent := homeSection(t, shelf, `data-home-block="recent"`)
 	for _, want := range []string{"Legal concept", "Template note"} {
 		if !strings.Contains(recent, want) {
 			t.Errorf("recent block is missing %q; section = %q", want, recent)
@@ -4232,9 +4213,9 @@ func TestHomeRecentFlagsAStatusOutsideTheSchema(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, html.UnescapeString(body), `data-home-block="recent"`)
 	if !strings.Contains(recent, "meditating") {
@@ -4261,9 +4242,9 @@ func TestHomeBadContractWithNoNotesKeepsTheStandInAway(t *testing.T) {
 	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
 		errors.New("toml: line 42: expected a key separator"),
 	))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
+		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	page := html.UnescapeString(body)
 	if !strings.Contains(page, "toml: line 42") {

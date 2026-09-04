@@ -62,6 +62,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"folder-index-page", FolderIndex(NewFolderIndex(model, recordedChrome().Lang), recordedChrome())},
+		{"folder-index-shelf", FolderIndex(recordedShelfView(model), recordedChrome())},
 	}
 	for _, state := range recordedStatusStates() {
 		cases = append(cases,
@@ -237,42 +238,39 @@ func recordedStatusStates() []struct {
 	}
 }
 
-// The eight remaining page entry points, each carrying enough to reach the
-// blocks it draws conditionally. They are recorded for the same reason the
-// reading page is: their own helpers moved out of their templates, and every
-// one of them mounts the shared rail.
+// The remaining page entry points, each carrying enough to reach the blocks it
+// draws conditionally. They are recorded for the same reason the reading page
+// is: their own helpers moved out of their templates.
 
 func recordedHomeView(model *nav.Model) HomeView {
 	return HomeView{
-		Governed:       true,
 		Fault:          "",
 		PrivacyFault:   "the contract declares no privacy scope",
 		Degraded:       "有檔案讀不進來",
 		DegradedDetail: "permission denied",
-		Subtitle:       "一個書庫",
-		StandIn: HomeStandIn{
-			Shown: true, Files: 3,
-			NewestName: "2026-07-10", NewestRelPath: "Diary/2026-07-10.md",
-			NewestDate: "2026-07-10", NewestAt: "2026-07-10",
-		},
-		Recent: []HomeNote{
-			{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Status: "draft", Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
-			{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Status: "seed", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
-		},
-		RecentOrdered: true,
-		RecentScoped:  true,
-		Lifecycle: []LifecycleItem{
-			{Name: "draft", Count: 2, Href: statusHref("draft")},
-			{Name: "ready", Count: 1, Sealed: true, Href: statusHref("ready")},
-		},
-		Unstated:      []LifecycleItem{{Count: 1, Unknown: true, Label: "沒有寫狀態"}},
-		Paths:         []HomePath{{Title: "Go path", RelPath: "Maps/Go path.md", Total: 4}},
-		ShowRecent:    true,
-		ShowLifecycle: true,
-		ShowPaths:     true,
-		ReadmeMissing: true,
-		Sidebar:       NewSidebar(model, ""),
+		Blocks:         NewDeskBlocks(model, recordedChrome().Lang),
+		ReadmeMissing:  true,
 	}
+}
+
+// recordedShelfView is the folder index carrying the two shelf blocks, which
+// only a governed vault with a readable distribution fills.
+func recordedShelfView(model *nav.Model) FolderIndexView {
+	view := NewFolderIndex(model, recordedChrome().Lang)
+	view.Recent = []HomeNote{
+		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Status: "draft", Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
+		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Status: "seed", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
+	}
+	view.RecentOrdered = true
+	view.RecentScoped = true
+	view.Lifecycle = []LifecycleItem{
+		{Name: "draft", Count: 2, Href: statusHref("draft")},
+		{Name: "ready", Count: 1, Sealed: true, Href: statusHref("ready")},
+	}
+	view.Unstated = []LifecycleItem{{Count: 1, Unknown: true, Label: "沒有寫狀態"}}
+	view.ShowRecent = true
+	view.ShowLifecycle = true
+	return view
 }
 
 // recordedReportIndexView carries both kinds of report the vault holds and the

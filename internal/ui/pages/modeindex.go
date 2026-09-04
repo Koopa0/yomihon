@@ -63,6 +63,52 @@ type FolderIndexView struct {
 	// RootNotes are the files at the vault root, which belong to no folder.
 	RootNotes []nav.NoteRef
 	Folders   []nav.Folder
+
+	// Recent, Lifecycle and Unstated are the librarian's view of the shelf:
+	// what changed last, and where every indexed note sits. They belong to this
+	// mode rather than to the desk because they describe how the files are
+	// kept, which is a different question from what there is to read.
+	Recent []HomeNote
+	// RecentOrdered says the recorded times actually put these in order. A
+	// fresh clone stamps every file with one moment, and where the times
+	// separate nothing the block says so rather than promising recency.
+	RecentOrdered bool
+	// RecentScoped says the recent list covers the contract's declared
+	// knowledge layer rather than the whole folder, which the lede then names:
+	// the distribution beside it counts every indexed note.
+	RecentScoped bool
+	Lifecycle    []LifecycleItem
+	// Unstated are the cells for notes carrying no status to be grouped by,
+	// kept apart from Lifecycle so the markup cannot dress them as statuses.
+	Unstated []LifecycleItem
+	// ShowRecent and ShowLifecycle say which of the two this vault fills. A
+	// withheld distribution renders nothing; Fault carries the reason.
+	ShowRecent    bool
+	ShowLifecycle bool
+}
+
+// recentTitle picks the recent block's heading: the recency one where the
+// recorded times order the list, the plain one where they separate nothing.
+func recentTitle(v *FolderIndexView, lang wording.Lang) string {
+	if v.RecentOrdered {
+		return wording.HomeRecentTitle.In(lang)
+	}
+	return wording.HomeTiedTitle.In(lang)
+}
+
+// recentLede picks the sentence under that heading — ordered or tied, and
+// naming the knowledge layer exactly when the list is scoped to one.
+func recentLede(v *FolderIndexView, lang wording.Lang) string {
+	switch {
+	case v.RecentOrdered && v.RecentScoped:
+		return wording.HomeRecentLedeScoped.In(lang)
+	case v.RecentOrdered:
+		return wording.HomeRecentLede.In(lang)
+	case v.RecentScoped:
+		return wording.HomeTiedLedeScoped.In(lang)
+	default:
+		return wording.HomeTiedLede.In(lang)
+	}
 }
 
 // NewPathIndex builds the study-path index. The measure is the course's extent
@@ -222,3 +268,92 @@ func modeKicker(name, count string) string {
 func folderNoteCount(f *nav.Folder, lang wording.Lang) string {
 	return plural(countNotes(f.Notes, f.Subfolders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang)
 }
+
+// DeskBlock is one of the four ways into the library: what the mode is called,
+// how much of it there is, one sentence about it, and its opening items. The
+// heading opens that mode's own page, which lists the rest.
+type DeskBlock struct {
+	Mode  string
+	Title string
+	// Count is the mode's own measure of itself, already in words.
+	Count string
+	Lede  string
+	Href  string
+	Rows  []IndexRow
+	// Empty is what the block says when the vault holds none of this kind.
+	Empty string
+}
+
+// deskBlockItems is how many of a mode's items the desk shows before the mode's
+// own page takes over. The desk is a way in, not a fifth listing.
+const deskBlockItems = 3
+
+// NewDeskBlocks builds the four ways in from the same projections the mode
+// index pages list, so a block and the page its heading opens can never
+// disagree about what the vault holds. A withheld declaration leaves its block
+// empty; the reason is stated once for the whole desk, below the seam.
+func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
+	var paths []nav.Path
+	var declared []nav.Map
+	if !model.DeclaredClosure().Closed() {
+		paths = model.Paths()
+		declared = model.Maps()
+	}
+	folders := model.Folders()
+	rootNotes := model.RootNotes()
+	pathIndex := NewPathIndex(paths, lang)
+	mapIndex := NewMapIndex(declared, lang)
+	reportIndex := NewReportIndex(model.Reports(), lang)
+	return []DeskBlock{
+		deskBlock(&pathIndex, wording.DeskPathsLede.In(lang),
+			plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang)),
+		deskBlock(&mapIndex, wording.DeskMapsLede.In(lang),
+			plural(len(declared), wording.MapCountOne, wording.MapCountMany, lang)),
+		deskBlock(&reportIndex, wording.DeskReportsLede.In(lang),
+			plural(len(model.Reports()), wording.ReportCountOne, wording.ReportCountMany, lang)),
+		{
+			Mode:  folderMode,
+			Title: wording.Folders.In(lang),
+			Count: plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
+			Lede:  wording.DeskFoldersLede.In(lang),
+			Href:  indexHref(folderMode),
+			Rows:  deskFolderRows(folders, lang),
+			Empty: wording.FolderIndexEmpty.In(lang),
+		},
+	}
+}
+
+// deskBlock narrows one mode's whole index to the block that opens it.
+func deskBlock(index *ListIndexView, lede, count string) DeskBlock {
+	return DeskBlock{
+		Mode:  index.Mode,
+		Title: index.Title,
+		Count: count,
+		Lede:  lede,
+		Href:  indexHref(index.Mode),
+		Rows:  firstRows(index.Rows),
+		Empty: index.Empty,
+	}
+}
+
+// deskFolderRows is the top of the tree: each lifecycle folder, how much sits
+// under it, and its own page.
+func deskFolderRows(folders []nav.Folder, lang wording.Lang) []IndexRow {
+	rows := make([]IndexRow, 0, min(len(folders), deskBlockItems))
+	for i := range folders[:min(len(folders), deskBlockItems)] {
+		rows = append(rows, IndexRow{
+			Title:   folders[i].Name,
+			Href:    folderHref(folders[i].RelPath),
+			Measure: folderNoteCount(&folders[i], lang),
+		})
+	}
+	return rows
+}
+
+// firstRows returns the opening of a mode's list.
+func firstRows(rows []IndexRow) []IndexRow {
+	return rows[:min(len(rows), deskBlockItems)]
+}
+
+// indexHref is where a mode block's heading leads.
+func indexHref(mode string) string { return "/" + mode }
