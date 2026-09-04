@@ -226,8 +226,14 @@ func deskBlockMarkup(t *testing.T, page, mode string) string {
 // separate the artifact policy, and that is measured too — a contract whose
 // artifact section is unusable is a contract the write authority rejects as
 // well, in the same words, so the desk keeps saying the right thing with the
-// artifact term gone. Nothing at the contract level tells those two apart; a
-// check that did would have to reach past it.
+// artifact term gone. The write authority's own term is inseparable for the
+// same reason, and measured the same way: dropping it fails none of the three
+// cases. Nothing at the contract level tells those three apart; a check that
+// did would have to reach past it.
+//
+// What is held instead is that some mode page did state a reason in every
+// case, so a run where all three happened to say nothing is a failure rather
+// than a pass.
 func TestTheDeskStatesWhatEveryModePageStates(t *testing.T) {
 	t.Parallel()
 
@@ -266,16 +272,25 @@ func TestTheDeskStatesWhatEveryModePageStates(t *testing.T) {
 			if len(desk) == 0 {
 				t.Fatal("the desk states no reason, so this compares nothing")
 			}
+			// A mode page states nothing where the claim it rests on is not
+			// the one that failed, which is the point of the two narrow
+			// contracts. What it must never mean is that this case compared
+			// the desk's line against nothing at all.
+			compared := 0
 			for _, target := range []string{"/paths", "/maps", "/folders"} {
 				causes := faultCauses(t, site, target)
 				if len(causes) == 0 {
 					continue
 				}
+				compared++
 				for _, cause := range causes {
 					if !slices.Contains(desk, cause) {
 						t.Errorf("GET %s states %q and the desk does not; the desk states %q", target, cause, desk)
 					}
 				}
+			}
+			if compared == 0 {
+				t.Error("no mode page stated a reason, so the desk's line was held against nothing")
 			}
 			// The reports are a listing of one directory. No declaration can
 			// close it, so an empty one is the answer rather than a withheld
@@ -291,12 +306,26 @@ func TestTheDeskStatesWhatEveryModePageStates(t *testing.T) {
 // faultCauses reads the reasons one page states, as the page states them: the
 // detail the browser diagnostic carries, split back into the causes joined into
 // it. A page with no fault yields none.
+//
+// It reads inside the fault's own paragraph rather than taking the first
+// diagnostic on the page. The desk carries others below the seam — a refused
+// egress declaration, a snapshot that could not read every file — and a desk
+// that had stopped stating its reasons would otherwise answer with one of
+// those and be measured as though it had answered.
 func faultCauses(t *testing.T, site http.Handler, target string) []string {
 	t.Helper()
-	const opener = `<code class="y-diagdetail" lang="en">`
-	_, rest, found := strings.Cut(pageBody(t, site, target), opener)
-	if !found {
+	_, fault, stated := strings.Cut(pageBody(t, site, target), "data-home-fault")
+	if !stated {
 		return nil
+	}
+	fault, _, ended := strings.Cut(fault, "</p>")
+	if !ended {
+		t.Fatalf("GET %s opens a fault and never closes it", target)
+	}
+	const opener = `<code class="y-diagdetail" lang="en">`
+	_, rest, found := strings.Cut(fault, opener)
+	if !found {
+		t.Fatalf("GET %s states a fault carrying no reason", target)
 	}
 	detail, _, closed := strings.Cut(rest, "</code>")
 	if !closed {
