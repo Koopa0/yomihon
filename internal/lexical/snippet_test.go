@@ -617,3 +617,49 @@ func TestTheTwoFoldMappingsAgree(t *testing.T) {
 		})
 	}
 }
+
+// The two terminator sets are one set and a subset of it, and the code leans on
+// that: anything not in the smaller one is treated as an ASCII stop needing
+// white space after it. A third constant used to spell that remainder out and
+// nothing ever read it, so a terminator added to one set and not the other
+// would have been caught by nothing.
+//
+// The expectation is written here rather than read back out of the constants.
+// Derived from them it would move whenever they moved, which is the one thing
+// it exists to notice.
+func TestEverySentenceTerminatorEndsASentenceTheWayItsSetSays(t *testing.T) {
+	t.Parallel()
+
+	// The full-width stops and a line break close a sentence wherever they
+	// stand; the ASCII four are the characters inside 3.14159 and a filename,
+	// so they close one only with white space after.
+	endsAlone := map[rune]bool{
+		'。': true, '！': true, '？': true, '；': true, '\n': true,
+		'.': false, '!': false, '?': false, ';': false,
+	}
+	const before = "先頭の文です"
+
+	for terminator, alone := range endsAlone {
+		if !strings.ContainsRune(sentenceTerminators, terminator) {
+			t.Errorf("%s is expected here and is not a terminator any more", strconv.QuoteRune(terminator))
+			continue
+		}
+		t.Run(strconv.QuoteRune(terminator), func(t *testing.T) {
+			t.Parallel()
+			run := before + string(terminator) + "つづきの文"
+			if _, ended := lastSentenceEnd(run, 0, len(run)); ended != alone {
+				t.Errorf("with no space after it, %q ended a sentence = %v, want %v",
+					terminator, ended, alone)
+			}
+			spaced := before + string(terminator) + " つづきの文"
+			if _, ended := lastSentenceEnd(spaced, 0, len(spaced)); !ended {
+				t.Errorf("with white space after it, %q did not end a sentence", terminator)
+			}
+		})
+	}
+	for _, terminator := range sentenceTerminators {
+		if _, expected := endsAlone[terminator]; !expected {
+			t.Errorf("%s is a terminator with no expectation written for it here", strconv.QuoteRune(terminator))
+		}
+	}
+}

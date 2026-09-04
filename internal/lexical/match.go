@@ -456,13 +456,16 @@ func isWordByte(b byte) bool {
 }
 
 // sentenceTerminators end a sentence in the scripts this corpus is written in; a
-// comma of either width is not among them. A full-width stop appears in no token
-// and ends a sentence wherever it stands, while an ASCII stop is the character
-// inside vault-schema.toml and 3.14159, so it needs white space after it.
+// comma of either width is not among them. The unambiguous ones are a subset:
+// a full-width stop appears inside no token and ends a sentence wherever it
+// stands, while an ASCII stop is the character inside vault-schema.toml and
+// 3.14159, so it ends one only with white space or the end of the text after
+// it. The two sets are all that is needed — every terminator outside the
+// unambiguous set is by definition one of the ASCII ones, and lastSentenceEnd
+// asks for the white space there.
 const (
-	sentenceTerminators      = "。！？；.!?;\n"
-	unambiguousTerminators   = "。！？；\n"
-	needsFollowingWhitespace = ".!?;"
+	sentenceTerminators    = "。！？；.!?;\n"
+	unambiguousTerminators = "。！？；\n"
 )
 
 // snippetBeforeMax bounds the whole opening side of the window: the boundary may
