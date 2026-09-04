@@ -96,8 +96,9 @@ func reportRawHref(name string) string {
 	return "/reports/" + url.PathEscape(name) + "/raw"
 }
 
-// LifecycleItem is one row of Home's Lifecycle block: a status the contract
-// declares, its live snapshot count, and whether it is the ready accent's.
+// LifecycleItem is one row of the folder index's status distribution: a status
+// the contract declares, its live snapshot count, and whether it is the ready
+// accent's.
 type LifecycleItem struct {
 	Name   string
 	Count  int

@@ -22,7 +22,7 @@ const unnamedKind = nav.EntryKind(200)
 // eight bits wide: a member added there compiles here without a word, and the
 // three answers a warning row needs used to abort on it — so a single new
 // outcome would have taken down the reading page, the folder pages, search,
-// reports, Home and the course page together, every one of which draws a rail.
+// reports and the course page together, every one of which draws such a row.
 //
 // The row reports the value it does not recognise and keeps drawing. Yomihon's
 // whole job on this surface is saying what it found.

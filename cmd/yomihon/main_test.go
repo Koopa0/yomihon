@@ -476,9 +476,8 @@ func hashTree(t *testing.T, root string) map[string]string {
 // a status below 400. Without that assertion the sweep could pass without ever
 // exercising a route: one regressed to a 404 or a 500 answers before it touches
 // disk, so "nothing was read" reads as "nothing was written" and the guard
-// proves nothing at all. The client follows redirects, so the home
-// page's 302 lands on its final 2xx; a status at or above 400 means the route
-// did not serve.
+// proves nothing at all. A status at or above 400 means the route did not
+// serve.
 func drive(t *testing.T, client *http.Client, url string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)

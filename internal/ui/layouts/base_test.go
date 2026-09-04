@@ -168,8 +168,9 @@ func TestBaseNeverEmitsAnUnnoncedExecutableScript(t *testing.T) {
 
 // TestHeaderCarriesNoBareCount holds the header to what a reader can read.
 // A count with no word beside it told nobody what had been counted — the
-// vault's owner could not name it either — and Home already carries the same
-// figure broken down by status, where each part is named and clickable.
+// vault's owner could not name it either — and the folder index already
+// carries the same figure broken down by status, where each part is named and
+// clickable.
 func TestHeaderCarriesNoBareCount(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer

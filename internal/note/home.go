@@ -139,9 +139,9 @@ func blockedDetail(blocked []snapshot.BlockedSource) string {
 // A single cause usually closes several projections — a contract that cannot be
 // read closes the distribution and the study paths alike — and printing its
 // sentence once per empty block is what buried the reader's own content. A
-// rejected navigation declaration closes only the study paths, and its sentence
-// is a different one, so a page that carries only the write authority's reason
-// empties a block without ever saying why.
+// rejected navigation declaration closes the courses and the maps, and its
+// sentence is a different one, so a page that carries only the write
+// authority's reason empties a block without ever saying why.
 //
 // Which causes a page passes here is settled by one rule: a page states the
 // reasons that could empty or degrade something it actually draws, and no

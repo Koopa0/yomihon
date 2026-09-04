@@ -62,7 +62,7 @@ const hideVia = (path, selector, label) => rewritePath(
 );
 
 // The out-of-enum mark is one component and one class wherever it is worn — a
-// search hit, a landing-page row, a distribution chip. These mutations suppress
+// search hit, a recent-list row, a distribution chip. These mutations suppress
 // the class itself, so they answer for every surface that renders it, and the
 // search page is simply where the assertion is made. Which surfaces render it
 // at all is settled in Go, where a fixture can be built for each.

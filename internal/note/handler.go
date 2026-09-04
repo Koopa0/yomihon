@@ -1,10 +1,11 @@
 // Package note owns the general reading surface — every route a reader
-// reaches that is not one of the dedicated faces. Register mounts nine of
-// them: Home, one rendered note, one folder, the whole-vault health page, a
-// vault file's raw bytes, the freshness poll a page keeps open on the note it
-// is showing, the excerpt a hover card shows of the note under the reader's
-// pointer, the language switch every page's footer posts to, and the
-// catch-all that answers a path the vault has nothing at. The last is
+// reaches that is not one of the dedicated faces. Register mounts eleven of
+// them: Home, one rendered note, one folder, the maps mode page, the folders
+// mode page, the whole-vault health page, a vault file's raw bytes, the
+// freshness poll a page keeps open on the note it is showing, the excerpt a
+// hover card shows of the note under the reader's pointer, the language switch
+// every page's footer posts to, and the catch-all that answers a path the
+// vault has nothing at. The last is
 // deliberately last: it exists so no request reaches the router's own
 // fallback, which answers in English and offers nowhere to go.
 //

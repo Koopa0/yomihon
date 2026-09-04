@@ -504,8 +504,9 @@ try {
     }
   }
 
-  // Home is dashboard-first: avoiding scroll is not enough if a script still
-  // steals focus with preventScroll. The search field must remain unfocused.
+  // Home opens on the ways into the library, not on a text field: avoiding
+  // scroll is not enough if a script still steals focus with preventScroll.
+  // The search field must remain unfocused.
   {
     const site = 'home-does-not-take-focus';
     const scope = '[data-home-block="search"]';

@@ -1,6 +1,6 @@
 package wording
 
-// The home page: the desk a reader arrives at, and the blocks on it.
+// The desk a reader arrives at, and the blocks the folder index fills.
 
 // HomeReadmeTitle names the note the vault may keep to explain itself, which
 // home shows in place of anything yomihon would have had to invent.
@@ -12,7 +12,7 @@ var (
 	HomeTitle  = both("首頁", "Home")
 )
 
-// Each block on the desk states what it is and what it is for. The second line
+// Each of these blocks states what it is and what it is for. The second line
 // is not a subtitle: it says what the reader is looking at, for a block whose
 // contents alone would not say.
 var (
