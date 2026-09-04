@@ -13,6 +13,27 @@ const (
 	valueNone    = "none"
 )
 
+// HeadingName is what a heading is called once the role it declares comes off:
+// the words before the marker when the line declares a role, and the line
+// exactly as it was written when it does not. A branch is a heading from level
+// 2 to 6, so a marker on a level-1 heading declares nothing and stays part of
+// the name — the author is told about that one, and a report quoting words the
+// page does not show cannot be acted on.
+//
+// The line may be a heading's markdown source or the inner markup its rendered
+// form carries, because a role is read only as the last thing on its line: a
+// marker the author quoted in code keeps a closing backtick or a closing tag
+// after it in either form, so it stays the text about the grammar that it is.
+// Reading a name is all this does; whether the heading stands where a course
+// could open a branch is the caller's question.
+func HeadingName(line string, level int) string {
+	if level < 2 {
+		return line
+	}
+	name, _, _ := readMarker(line, markerSpans(line))
+	return name
+}
+
 // lineSpan is a half-open byte range into one source line, counted from that
 // line's own first byte. It is deliberately not [Span], which is measured from
 // the body's first byte: the two frames differ by wherever the line begins.
