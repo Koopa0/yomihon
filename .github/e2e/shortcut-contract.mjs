@@ -25,6 +25,7 @@ const SITES = [
   'plain-filter-opens',
   'plain-drawer-toggles',
   'wide-drawer-key-stays-native',
+  'wide-filter-escape-moves-nothing',
   'escape-dismisses',
   'composing-escape-stays-with-the-input',
   'command-palette-chord',
@@ -124,6 +125,29 @@ const MUTATIONS = {
   'arm-the-drawer-key-at-every-width': {
     target: 'wide-drawer-key-stays-native',
     apply: rewriteScript('      if (drawer.isNarrow()) {', '      if (true) {'),
+  },
+  // The filter answering an Escape that dismisses nothing, which at this width
+  // takes focus off the box for no change the reader asked for.
+  'answer-escape-from-a-filter-with-nothing-to-clear': {
+    target: 'wide-filter-escape-moves-nothing',
+    apply: async (page) => {
+      let requests = 0;
+      let matches = 0;
+      await page.route('**/sidebar.js', async (route) => {
+        requests += 1;
+        const response = await route.fetch();
+        const original = await response.text();
+        const needle = '      if (!input.value.trim()) return;\n';
+        const count = original.split(needle).length - 1;
+        matches += count;
+        await route.fulfill({ response, body: count === 1 ? original.replace(needle, '') : original });
+      });
+      return () => {
+        if (requests !== 1) return `sidebar runtime was requested ${requests} times, want exactly 1`;
+        if (matches !== 1) return `filter-escape needle matched ${matches} times, want exactly 1`;
+        return '';
+      };
+    },
   },
   'disable-global-escape': {
     target: 'escape-dismisses',
@@ -476,6 +500,40 @@ try {
   if (wideBracket.defaultPrevented || after.nav === 'open') {
     fail('wide-drawer-key-stays-native', `wide [ left nav=${after.nav}, prevented=${wideBracket.defaultPrevented}`);
   }
+
+  // At this width the filter's Escape has nothing behind it to fall through
+  // to — the sidebar is simply present and there is no drawer to close — so
+  // declining the key means the press does nothing at all, focus included.
+  // That is the same rule read at a width where its effect is visible: a key
+  // that dismisses nothing should not move the reader. Answering it here
+  // emptied a box that was already empty and put focus somewhere the reader
+  // had not asked for.
+  //
+  // The second half is what keeps the first from passing on a filter that had
+  // stopped reading Escape altogether.
+  //
+  // Where focus sits is the whole question, because moving it is the page's
+  // own act and nothing else's. What the box then contains is not asked: a
+  // browser may revert a field's text on Escape by itself, and an assertion
+  // on the text failed here about one run in three for that reason alone —
+  // it was reading the browser's behaviour and calling it this page's.
+  const filterEscapeKeepsFocus = async (content) => {
+    await page.locator(FILTER).fill(content);
+    await page.locator(FILTER).focus();
+    await page.locator(FILTER).press('Escape');
+    return page.evaluate((selector) => document.activeElement === document.querySelector(selector), FILTER);
+  };
+  if (!(await filterEscapeKeepsFocus('   '))) {
+    fail('wide-filter-escape-moves-nothing', 'Escape on a filter narrowing nothing took focus off the box');
+  }
+  if (await filterEscapeKeepsFocus('alpha')) {
+    fail('wide-filter-escape-moves-nothing', 'Escape on a narrowing filter left focus in the box it had just cleared');
+  }
+  // Escape is also how the browser dismisses an open popover, so those presses
+  // shut the keyboard help. It is reopened here, at a width where its button
+  // still has a face: below 520 the button is deliberately absent, and the
+  // measurement that follows needs the panel already open.
+  await openHelp();
 
   // 360 has to reach the page as 360 pixels of room to lay out in. Where the
   // scrollbar keeps a column of its own, a 360-wide window leaves the page 345,

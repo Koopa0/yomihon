@@ -140,6 +140,19 @@ export function initSidebar() {
       event.preventDefault();
       rail.querySelector('a:not([hidden])')?.click();
     } else if (event.key === 'Escape') {
+      // Escape belongs to whatever it can actually dismiss, innermost first.
+      // A box that narrows nothing can dismiss nothing, so the key passes to
+      // what is behind it — on a narrow window that is the drawer, whose own
+      // exit key this is. Held here unconditionally, the first press changed
+      // nothing a reader could see and the drawer took two.
+      //
+      // What counts as narrowing nothing is the same test the filtering above
+      // makes, trimmed: a box holding only spaces hides no row, so answering
+      // its Escape would cost that second press again for a box the reader
+      // sees as empty. This branch clears nothing on its way out — emptying
+      // the box would be answering a key it has just declined — though the
+      // browser may still revert the field's own text, which is its to do.
+      if (!input.value.trim()) return;
       event.preventDefault();
       event.stopPropagation();
       input.value = '';

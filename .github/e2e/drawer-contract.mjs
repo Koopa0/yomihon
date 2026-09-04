@@ -40,6 +40,7 @@ const SITES = [
   'open-tab-contained',
   'scrim-focus-return',
   'filter-escape-layering',
+  'empty-filter-escape-closes-the-drawer',
   'composing-enter-stays-with-the-input',
   'escape-focus-return',
   'toggle-focus-return',
@@ -164,6 +165,18 @@ const MUTATIONS = {
     target: 'composing-enter-stays-with-the-input',
     apply: rewriteRuntime('sidebar.js', '    if (event.isComposing) return;\n', ''),
   },
+  // The filter answering an Escape it has nothing to answer with, which is
+  // what made the drawer's own exit key need pressing twice.
+  'swallow-escape-from-an-empty-filter': {
+    target: 'empty-filter-escape-closes-the-drawer',
+    apply: rewriteRuntime('sidebar.js', '      if (!input.value.trim()) return;\n', ''),
+  },
+  // The same predicate spelled the other way, which is how a box of spaces
+  // kept costing a second press after the empty one had stopped.
+  'test-emptiness-without-trimming': {
+    target: 'empty-filter-escape-closes-the-drawer',
+    apply: rewriteRuntime('sidebar.js', '      if (!input.value.trim()) return;', '      if (!input.value) return;'),
+  },
   'suppress-escape-focus-return': {
     target: 'escape-focus-return',
     apply: rewriteRuntime(
@@ -228,6 +241,14 @@ const waitForNav = (page, state) => page.waitForFunction(
 const openDrawer = async (page) => {
   await page.locator(TOGGLE).click();
   await waitForNav(page, 'open');
+};
+
+// The toggle toggles, so opening a drawer that is already open closes it. The
+// cases that leave it closed are followed by ones that need it open, and the
+// first of those inherits whatever the case before it left behind.
+const ensureDrawerOpen = async (page) => {
+  if (await page.evaluate(() => document.documentElement.dataset.nav === 'open')) return;
+  await openDrawer(page);
 };
 
 const closeState = async (page, site, path) => {
@@ -423,8 +444,35 @@ try {
     if (enter.whileComposing !== 0 || enter.afterComposing !== 1) {
       fail('composing-enter-stays-with-the-input', `filter Enter opened ${enter.whileComposing} rows while composing and ${enter.afterComposing} after, want 0 then 1`);
     }
-    await filter.fill('');
+    // An empty filter has nothing to clear, so its Escape is the drawer's and
+    // one press is enough. Answering the key anyway cost the reader a second
+    // press for no visible change, and the first was the one they would
+    // describe as having done nothing. Only the count of presses is asked
+    // here: where focus lands afterwards is the next case's contract, and
+    // asking it twice would let this site fire on a focus regression and rob
+    // that case of the self-test aimed at it. The state is read straight
+    // after the press rather than waited for, because the close happens
+    // inside the handler — and because a wait that timed out would end the
+    // run without the named failure a self-test needs to report a catch.
+    //
+    // A box holding only spaces is asked as well, because it is empty to the
+    // reader and to the filtering: it hides no row, so an Escape answered
+    // there is the same press spent on nothing. Two spellings of one
+    // predicate in one file is how that came back.
+    for (const [content, described] of [['', 'an empty filter'], ['   ', 'a filter holding only spaces']]) {
+      await ensureDrawerOpen(page);
+      await filter.fill(content);
+      await filter.press('Escape');
+      const closed = await page.evaluate(() => document.documentElement.dataset.nav);
+      if (closed !== 'closed') {
+        fail('empty-filter-escape-closes-the-drawer', `one Escape on ${described} left nav=${closed}, want closed`);
+      }
+    }
 
+    await openDrawer(page);
+    // The declined Escape leaves the spaces where they were, by design; they
+    // are cleared here so the cases below start from an unnarrowed rail.
+    await filter.fill('');
     await page.$eval(`${RAIL} a[href]`, (link) => link.focus());
     await page.keyboard.press('Escape');
     await closeState(page, 'escape-focus-return', 'Escape');
