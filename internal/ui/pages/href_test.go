@@ -70,3 +70,84 @@ func TestObsidianHref(t *testing.T) {
 		})
 	}
 }
+
+// TestHitFragment pins the text directive a result link carries. Each expected
+// string is hand-derived from the directive grammar rather than read back from
+// the escaper: the grammar spends "-" on the marks introducing a prefix and a
+// suffix and "," on the ones separating its parameters, and it reads "&" as the
+// start of a second directive, so none of the three may reach it unescaped. CJK
+// is UTF-8 percent-escaped, and a space is %20 — a "+" would be matched as a
+// literal plus and find nothing.
+func TestHitFragment(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		runs []SnippetRun
+		want string
+	}{
+		{
+			// The two marks carry different words, so a directive built from the
+			// last one would read differently from a directive built from the
+			// first. With the same word twice the two are the same string, and
+			// this case would hold whichever end it was written from.
+			name: "the first marked stretch is the destination",
+			runs: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " and "}, {Text: "streams", Hit: true}, {Text: " after"}},
+			want: "#:~:text=kafka",
+		},
+		{
+			name: "nothing marked, nowhere to point",
+			runs: []SnippetRun{{Text: "before kafka after"}},
+			want: "",
+		},
+		{
+			name: "no excerpt at all",
+			runs: nil,
+			want: "",
+		},
+		{
+			name: "cjk and spaces are escaped",
+			runs: []SnippetRun{{Text: "位元 運算", Hit: true}},
+			want: "#:~:text=%E4%BD%8D%E5%85%83%20%E9%81%8B%E7%AE%97",
+		},
+		{
+			name: "a hyphen cannot introduce a prefix or a suffix",
+			runs: []SnippetRun{{Text: "read-aloud", Hit: true}},
+			want: "#:~:text=read%2Daloud",
+		},
+		{
+			name: "a comma cannot separate a parameter",
+			runs: []SnippetRun{{Text: "one, two", Hit: true}},
+			want: "#:~:text=one%2C%20two",
+		},
+		{
+			name: "an ampersand cannot start a second directive",
+			runs: []SnippetRun{{Text: "this & that", Hit: true}},
+			want: "#:~:text=this%20%26%20that",
+		},
+		{
+			name: "a percent sign cannot begin an escape of its own",
+			runs: []SnippetRun{{Text: "100% done", Hit: true}},
+			want: "#:~:text=100%25%20done",
+		},
+		{
+			name: "the edges of the term are trimmed, since a term that is not a word matches none",
+			runs: []SnippetRun{{Text: "  kafka  ", Hit: true}},
+			want: "#:~:text=kafka",
+		},
+		{
+			name: "a mark holding only spaces is passed over",
+			runs: []SnippetRun{{Text: "   ", Hit: true}, {Text: "kafka", Hit: true}},
+			want: "#:~:text=kafka",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := hitFragment(tt.runs); got != tt.want {
+				t.Errorf("hitFragment() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -58,7 +58,7 @@ func TestANoteIsFoundByTheNamesItIsAlsoKnownBy(t *testing.T) {
 		if code != http.StatusOK {
 			t.Fatalf("%s: status = %d", c.name, code)
 		}
-		if !strings.Contains(body, `href="/notes/`+c.want+`"`) {
+		if !linksToNote(body, c.want) {
 			t.Errorf("%s: the note is not found by a name it answers to:\n%s", c.name, body)
 		}
 	}

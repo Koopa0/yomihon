@@ -45,10 +45,13 @@ func TestSearchHandler(t *testing.T) {
 		}
 		// y-rail-left is the shared sidebar: the results page renders inside
 		// the same shell as every other page, never a chromeless view.
-		for _, want := range []string{"Kafka Basics", `href="/notes/Writing/Kafka.md"`, "draft", "y-rail-left"} {
+		for _, want := range []string{"Kafka Basics", "draft", "y-rail-left"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("search page missing %q; body = %q", want, body)
 			}
+		}
+		if !linksToNote(body, "Writing/Kafka.md") {
+			t.Errorf("the hit does not link to the note; body = %q", body)
 		}
 		searchPage := searchPageHTML(t, body)
 		for _, want := range []string{

@@ -14,6 +14,12 @@ const MUTATE = process.env.MUTATE || '';
 const RESULT_PATH = '/search/results';
 const QUERY = 'tortoise';
 const DEBOUNCE_MS = 180;
+// A word deep inside a note long enough that arriving at it has to scroll: on a
+// note that fits the viewport "the reader arrived at the hit" is true before
+// anything moves, and a check that cannot fail is worth nothing.
+const HIT_QUERY = 'Ballast';
+const HIT_NOTE = '/notes/Notes/Glass%20Tide.md';
+const HIT_DIRECTIVE = `${HIT_NOTE}#:~:text=${HIT_QUERY}`;
 
 const SITES = [
   'home-starts-at-top',
@@ -30,6 +36,8 @@ const SITES = [
   'live-error-recovery',
   'stale-label-follows-the-box',
   'stale-label-reads-a-padded-address',
+  'hit-opens-at-the-match',
+  'live-hit-opens-at-the-match',
   'enter-submits-get',
   'button-submits-get',
   'no-js-get',
@@ -287,6 +295,19 @@ const MUTATIONS = {
       },
     ], 'live-search stale-results label'),
   },
+  'drop-hit-fragment': {
+    target: 'hit-opens-at-the-match',
+    before: (page) => rewriteResponse(page, '**/search?*', [
+      { needle: `href="${HIT_DIRECTIVE}"`, replacement: `href="${HIT_NOTE}"` },
+    ], 'search-page hit directive'),
+  },
+  'drop-live-hit-fragment': {
+    target: 'live-hit-opens-at-the-match',
+    after: (page) => rewriteResponse(page, '**/search/results?*', [
+      { needle: `href="${HIT_DIRECTIVE}"`, replacement: `href="${HIT_NOTE}"` },
+    ], 'live-result hit directive'),
+    proofPhase: 'action',
+  },
   'stale-label-never-hides': {
     target: 'stale-label-follows-the-box',
     before: rewriteScript([
@@ -500,7 +521,10 @@ const exerciseScope = async (browser, site, { path = PAGE, scope, openDialog = f
       fail(site, `${scope} navigated while producing live results`);
     }
     if (await input.inputValue() !== QUERY) fail(site, `${scope} replaced the active input`);
-    const resultLink = page.locator(`${scope} a[href="/notes/Notes/alpha.md"]`);
+    // Matched by prefix: a result link carries the words the query found as a
+    // text directive, so the note's address is where its href starts rather
+    // than the whole of it.
+    const resultLink = page.locator(`${scope} a[href^="/notes/Notes/alpha.md"]`);
     if (await resultLink.count() !== 1) {
       fail(site, `${scope} did not render the tortoise result link`);
     }
@@ -753,7 +777,7 @@ try {
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const results = page.locator(`${scope} [data-live-search-results]`);
       if (await results.getAttribute('data-result-count') !== '1') fail(site, 'the stale beta count replaced the tortoise count');
-      if (await results.locator('a[href="/notes/Notes/beta.md"]').count() !== 0) fail(site, 'the stale beta response replaced the current results');
+      if (await results.locator('a[href^="/notes/Notes/beta.md"]').count() !== 0) fail(site, 'the stale beta response replaced the current results');
     } finally {
       await page.evaluate(() => window.__releaseStaleResponse?.()).catch(() => {});
       await context.close();
@@ -818,7 +842,7 @@ try {
       }
       const results = page.locator(`${scope} [data-live-search-results]`);
       if (await results.getAttribute('aria-busy') !== 'false') fail(site, 'failed live search left the result region busy');
-      if (await results.getAttribute('data-result-count') !== '1' || await results.locator('a[href="/notes/Notes/alpha.md"]').count() !== 1) {
+      if (await results.getAttribute('data-result-count') !== '1' || await results.locator('a[href^="/notes/Notes/alpha.md"]').count() !== 1) {
         fail(site, 'failed live search discarded the last useful results');
       }
       // Kept rows are the previous query's answer, and they now sit under a
@@ -834,6 +858,67 @@ try {
       }
       const staleText = (await stale.textContent()) || '';
       if (!staleText.includes(QUERY)) fail(site, `the kept rows' note reads ${JSON.stringify(staleText)}, which does not name ${QUERY}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  // A hit is a place inside a note, not just the note. The result link carries
+  // the words the query found as a text directive, and the browser opens the
+  // note at them; the proof is that the document is no longer at its top. Not
+  // :target — a text directive sets none, so reading for one would go red for
+  // the wrong reason and green for no reason.
+  //
+  // Both surfaces a reader can click a result from are exercised, because they
+  // are different documents: the server-rendered page, and the region the live
+  // search imports into the page it is already on.
+  {
+    const site = 'hit-opens-at-the-match';
+    const { context, page } = await start(browser, site, { path: `/search?q=${HIT_QUERY}` });
+    try {
+      const link = page.locator(`.y-searchpage a.y-result[href="${HIT_DIRECTIVE}"]`);
+      if (await link.count() !== 1) {
+        const hrefs = await page.locator('.y-searchpage a.y-result').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+        fail(site, `the server-rendered result does not point at the match; hrefs = ${JSON.stringify(hrefs)}`);
+      }
+      await link.click();
+      await page.waitForURL((url) => new URL(url).pathname === HIT_NOTE, { timeout: 5000 });
+      await page.waitForLoadState('load');
+      await waitFor(
+        page,
+        site,
+        () => document.scrollingElement.scrollTop > 0,
+        undefined,
+        'the note opened at its top rather than at the words the query found',
+      );
+    } finally {
+      await context.close();
+    }
+  }
+
+  {
+    const site = 'live-hit-opens-at-the-match';
+    const scope = '.y-searchpage[data-live-search]';
+    const { context, page, armed } = await start(browser, site, { path: '/search' });
+    try {
+      await page.locator(`${scope} [data-live-search-input]`).fill(HIT_QUERY);
+      await waitForCount(page, site, scope, 1);
+      armed.prove('action');
+      const link = page.locator(`${scope} [data-live-search-results] a.y-result[href="${HIT_DIRECTIVE}"]`);
+      if (await link.count() !== 1) {
+        const hrefs = await page.locator(`${scope} [data-live-search-results] a.y-result`).evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+        fail(site, `the imported result does not point at the match; hrefs = ${JSON.stringify(hrefs)}`);
+      }
+      await link.click();
+      await page.waitForURL((url) => new URL(url).pathname === HIT_NOTE, { timeout: 5000 });
+      await page.waitForLoadState('load');
+      await waitFor(
+        page,
+        site,
+        () => document.scrollingElement.scrollTop > 0,
+        undefined,
+        'a hit clicked out of the live results opened the note at its top',
+      );
     } finally {
       await context.close();
     }
@@ -973,7 +1058,7 @@ try {
     }
   }
 
-  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; page URL sync; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; native and no-JS GET');
+  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; page URL sync; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
