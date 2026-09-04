@@ -1,0 +1,87 @@
+name: Release
+
+# Builds and publishes a GitHub release when a version tag is pushed. The
+# only existing release, v0.1.0, was cut by hand and predates the vault
+# contract this repository now reads, so `go install .../yomihon@latest`
+# currently resolves to a binary that cannot read it. This workflow makes
+# every future release a tagged, gated, reproducible build instead of a
+# manual one.
+#
+# The gate job calls ci.yml as a reusable workflow (see workflow_call there)
+# instead of repeating its jobs here: ci.yml does not trigger on a tag push,
+# so no run of it against the tagged commit exists yet for `needs` or
+# `workflow_run` to depend on, and calling it is the only way to run its
+# full job graph — a caller cannot select a subset of a reusable workflow's
+# jobs — without a second copy of ten jobs drifting out of step with the
+# original.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Gate
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Build and publish
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # assets/css/output.css and the templ-generated Go under internal/ui
+      # are committed source, kept current by the gate job's assets-drift
+      # check, so building the released binary needs no generation step
+      # here — only the four published platforms, cross-compiled without
+      # cgo the same way `make portable-build-check` already does.
+      - name: Cross-build the published platforms
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          targets=(darwin/arm64 darwin/amd64 linux/amd64 windows/amd64)
+          for target in "${targets[@]}"; do
+            goos=${target%/*}
+            goarch=${target#*/}
+            ext=""
+            if [ "$goos" = "windows" ]; then
+              ext=".exe"
+            fi
+            out="dist/yomihon_${TAG}_${goos}_${goarch}${ext}"
+            echo "building $out"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -o "$out" ./cmd/yomihon
+          done
+
+          ( cd dist && sha256sum -- * > SHA256SUMS )
+
+      # A tag such as v1.0.0-rc1 marks a pre-release; a plain v1.0.0 does
+      # not. --verify-tag refuses to publish if the tag changed between the
+      # checkout above and this step.
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          prerelease_flag=()
+          case "$TAG" in
+            *-*) prerelease_flag=(--prerelease) ;;
+          esac
+          gh release create "$TAG" dist/* --generate-notes --verify-tag "${prerelease_flag[@]}"
