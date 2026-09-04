@@ -1,5 +1,12 @@
 // Package origin enforces the browser's same-origin resource boundary for
 // every response served by yomihon's loopback reading site.
+//
+// It answers two more questions asked at the same edge, for the same reason —
+// both are read off the request and neither belongs to any one face. Which
+// language the interface speaks for this request, which the reader chooses and
+// every page and every sentence then follows; and whether a write that failed
+// partway through a response is a fault worth an operator's attention or a
+// reader who closed the tab, which decides how loudly it is logged.
 package origin
 
 import (
