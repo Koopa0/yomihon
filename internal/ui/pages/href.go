@@ -13,11 +13,16 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// vaultHref builds a URL for a vault-relative path under prefix, escaping each
+// VaultHref builds a URL for a vault-relative path under prefix, escaping each
 // segment on its own so a literal "/" inside one is never read as a separator.
 // It is byte-identical to the href a rendered wikilink carries, so a rail link
 // and an in-body link to the same note match.
-func vaultHref(prefix, p string) string {
+//
+// It is exported because a face outside these templates sends a reader to one of
+// these addresses too, and the escaping is the half that is easy to get subtly
+// wrong twice: a segment escaped whole rather than one at a time turns a name
+// carrying a slash into a path.
+func VaultHref(prefix, p string) string {
 	segments := strings.Split(p, "/")
 	for i, segment := range segments {
 		segments[i] = url.PathEscape(segment)
@@ -26,12 +31,12 @@ func vaultHref(prefix, p string) string {
 }
 
 // notesHref builds the reading-page URL for a vault-relative path.
-func notesHref(p string) string { return vaultHref("/notes/", p) }
+func notesHref(p string) string { return VaultHref("/notes/", p) }
 
 // rawHref builds the unchanged-bytes URL for a vault-relative path. It is its
 // own route rather than a suffix on the note URL, which a vault directory named
 // "raw" would make ambiguous.
-func rawHref(p string) string { return vaultHref("/raw/", p) }
+func rawHref(p string) string { return VaultHref("/raw/", p) }
 
 // hitFragment is the text directive that opens a result where the words the
 // query found are, or "" for a row whose excerpt marked nothing — a note
@@ -94,7 +99,7 @@ func ObsidianHref(root, rel string) string {
 }
 
 // syllabusHref builds the study-path page URL for a vault-relative path.
-func syllabusHref(p string) string { return vaultHref("/syllabus/", p) }
+func syllabusHref(p string) string { return VaultHref("/syllabus/", p) }
 
 // statusHref builds the search URL filtered to one status, with url.Values
 // escaping the colon: /search?q=status%3Adraft.
@@ -118,7 +123,7 @@ func statusChipLabel(status string, lang wording.Lang) string {
 }
 
 // folderHref builds the browse URL for a folder.
-func folderHref(dir string) string { return vaultHref("/folders/", dir) }
+func folderHref(dir string) string { return VaultHref("/folders/", dir) }
 
 // searchHref builds the URL for one search query, escaping it as the form
 // submission would, so an offered search and a typed one land on the same page.

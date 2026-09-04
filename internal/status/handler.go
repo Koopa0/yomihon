@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/a-h/templ"
 
@@ -101,7 +100,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		// reloaded or hand-typed address finds nothing left to spend.
 		// #nosec G710 -- Flip succeeded only after its vault-local path check;
 		// the prefix is a fixed same-origin literal and the value is escaped.
-		http.Redirect(w, r, notesHref(path)+"?from="+url.QueryEscape(from), http.StatusSeeOther)
+		http.Redirect(w, r, noteURL(path)+"?from="+url.QueryEscape(from), http.StatusSeeOther)
 		return
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -382,7 +381,7 @@ func (h *Handler) respondRecovery(
 	// A better place to return to than the generic POST fallback: the note
 	// this refusal was about, whenever the refusal still has one.
 	if notePath != "" {
-		chrome.ReturnTo = notesHref(notePath)
+		chrome.ReturnTo = noteURL(notePath)
 	}
 	component := pages.StatusRecovery(view, chrome)
 	if err := writeRecovery(r.Context(), w, failure.code, failure.changed, component, lang); err != nil {
@@ -437,6 +436,12 @@ func writeRecovery(
 	return nil
 }
 
+// noteURL is where this face sends a reader to read a note. The escaping is the
+// reading interface's, since a link it writes and a redirect written here have
+// to agree byte for byte; the route is named once so the two places that leave
+// for it cannot come to spell it differently.
+func noteURL(p string) string { return pages.VaultHref("/notes/", p) }
+
 // decodeContentIdentity reads the form's hex-encoded content identity. The
 // field is required, so an absent, blank or malformed value reports false
 // rather than standing in for a real identity. The page writes the field
@@ -449,14 +454,4 @@ func decodeContentIdentity(field string) ([sha256.Size]byte, bool) {
 	}
 	copy(identity[:], decoded)
 	return identity, true
-}
-
-// notesHref percent-escapes each path segment while preserving slash
-// separators, so the redirect matches the reading face's own note links.
-func notesHref(p string) string {
-	segments := strings.Split(p, "/")
-	for i, s := range segments {
-		segments[i] = url.PathEscape(s)
-	}
-	return "/notes/" + strings.Join(segments, "/")
 }
