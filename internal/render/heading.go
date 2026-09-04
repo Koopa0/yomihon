@@ -122,9 +122,13 @@ func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 		// consumes, as the '#' marks are, so the page calls the section what the
 		// course calls it: the words shown, the contents entry and the id all
 		// come from the heading with the role taken off. Level is the whole test
-		// applied here, where a course also asks that the heading stand on its
-		// own; a role written on one nested inside a quote declares nothing to
-		// the course and still comes off the page's copy of it.
+		// applied here, because this pass walks assembled markup, which no longer
+		// says what contained a heading, while a course also asks that the
+		// heading stand on its own. So a role written on a heading nested inside
+		// a quote or a list item comes off the page's copy although the course
+		// opens no branch there. The course does report that one, quoting the
+		// line as the author wrote it, which leaves a report quoting words the
+		// page has stopped showing.
 		inner = sequence.HeadingName(inner, level)
 		text := headingInnerText(inner)
 
