@@ -289,24 +289,32 @@ const deskBlockItems = 3
 // disagree about what the vault holds. A withheld declaration leaves its block
 // empty; the reason is stated once for the whole desk, below the seam.
 func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
+	withheld := model.DeclaredClosure().Closed()
 	var paths []nav.Path
 	var declared []nav.Map
-	if !model.DeclaredClosure().Closed() {
+	if !withheld {
 		paths = model.Paths()
 		declared = model.Maps()
 	}
 	folders := model.Folders()
 	rootNotes := model.RootNotes()
+	reports := model.Reports()
 	pathIndex := NewPathIndex(paths, lang)
 	mapIndex := NewMapIndex(declared, lang)
-	reportIndex := NewReportIndex(model.Reports(), lang)
+	reportIndex := NewReportIndex(reports, lang)
+	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang),
+		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang))
+	mapBlock := deskBlock(&mapIndex, wording.DeskMapsLede.In(lang),
+		plural(len(declared), wording.MapCountOne, wording.MapCountMany, lang))
+	if withheld {
+		withhold(&pathBlock.Shelf)
+		withhold(&mapBlock.Shelf)
+	}
 	return []DeskBlock{
-		deskBlock(&pathIndex, wording.DeskPathsLede.In(lang),
-			plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang)),
-		deskBlock(&mapIndex, wording.DeskMapsLede.In(lang),
-			plural(len(declared), wording.MapCountOne, wording.MapCountMany, lang)),
+		pathBlock,
+		mapBlock,
 		deskBlock(&reportIndex, wording.DeskReportsLede.In(lang),
-			plural(len(model.Reports()), wording.ReportCountOne, wording.ReportCountMany, lang)),
+			plural(len(reports), wording.ReportCountOne, wording.ReportCountMany, lang)),
 		{
 			Mode: folderMode,
 			Shelf: Shelf{
@@ -319,6 +327,16 @@ func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
 			},
 		},
 	}
+}
+
+// withhold takes back what a shelf would otherwise claim about an organisation
+// the contract could not describe. A declaration that could not be read is not
+// a declaration of nothing: "no courses" and "no courses declared" are both
+// answers this page does not have, and the reason it has neither is stated once
+// for the whole desk, below the seam.
+func withhold(s *Shelf) {
+	s.Count = ""
+	s.Empty = ""
 }
 
 // deskBlock reads one mode's whole index as the shelf the desk shows a corner

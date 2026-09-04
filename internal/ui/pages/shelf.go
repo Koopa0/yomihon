@@ -7,6 +7,12 @@ package pages
 // opening rows, an index page shows it unfolded, and the left rail shows the
 // one shelf the reader is inside. Nothing here knows which of those it is in.
 //
+// A string left empty is not drawn, and that is how a shelf says it does not
+// know rather than saying nothing is there. When the contract describing an
+// organisation cannot be read, "2 courses" and "no courses" are both claims the
+// page cannot make; the reason is stated once elsewhere on the page, so the
+// shelf that would have repeated it stays quiet instead.
+//
 // A shelf carries no status vocabulary, no rule names and no course grammar.
 // Whoever owns the organisation reads those, decides what a row says, and hands
 // over words: the schema contract is read in one place and this is not it.

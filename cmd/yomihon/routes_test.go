@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestEveryReadingAddressAnswers drives the production composition over every
@@ -124,7 +125,23 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 		}
 	})
 
-	for _, target := range []string{"/paths", "/maps"} {
+	// The desk carries the same two projections in its blocks, so it can tell
+	// the same untruth in its own markup. It says nothing there about how much
+	// it holds and nothing about holding none; the fault above the blocks is
+	// the whole answer.
+	tests := []struct {
+		target string
+		absent []string
+	}{
+		{target: "/paths", absent: []string{"data-index-row", "data-index-empty"}},
+		{target: "/maps", absent: []string{"data-index-row", "data-index-empty"}},
+		{target: "/", absent: []string{
+			wording.PathIndexEmpty.In(wording.ZhHant),
+			wording.MapIndexEmpty.In(wording.ZhHant),
+		}},
+	}
+	for _, tt := range tests {
+		target := tt.target
 		t.Run(target, func(t *testing.T) {
 			t.Parallel()
 			recorder := httptest.NewRecorder()
@@ -140,14 +157,13 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 				t.Fatalf("read response body: %v", err)
 			}
 			html := string(body)
-			if strings.Contains(html, "data-index-row") {
-				t.Errorf("GET %s lists rows built from a declaration that could not be read", target)
-			}
 			if !strings.Contains(html, "data-home-fault") {
 				t.Errorf("GET %s says nothing about the declaration it could not read; body = %q", target, html)
 			}
-			if strings.Contains(html, "data-index-empty") {
-				t.Errorf("GET %s tells the reader the vault declares none, which is not what happened", target)
+			for _, absent := range tt.absent {
+				if strings.Contains(html, absent) {
+					t.Errorf("GET %s carries %q, which speaks for a declaration that could not be read", target, absent)
+				}
 			}
 		})
 	}

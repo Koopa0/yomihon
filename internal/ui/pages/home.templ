@@ -86,10 +86,9 @@ templ Home(v HomeView, c layouts.Chrome) {
 								{ plural(v.StandIn.Files, wording.StandInBeforeOne, wording.StandInBeforeMany, c.Lang) }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>{ wording.StandInDateOpen.In(c.Lang) }<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>{ wording.StandInDateClose.In(c.Lang) }
 							}
 						</p>
-					} else {
-						for _, block := range v.Blocks {
-							@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
-						}
+					}
+					for _, block := range v.Blocks {
+						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
 					}
 					<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
 						@homeBlockHead("home-search-title", wording.HomeSearchTitle.In(c.Lang), wording.HomeSearchLede.In(c.Lang))

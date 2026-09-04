@@ -2093,8 +2093,8 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 // TestHomeWithoutReadmeKeepsDashboardReadOnly pins first-use recovery: Home is
 // still the dashboard, only the absent README body is replaced, and neither
 // route creates the missing vault file. This vault declares a lifecycle and
-// holds no notes yet, so nothing waits and no content block renders; the
-// stand-in line and the search block carry the page.
+// holds no notes yet, so every one of the four ways in is empty and says so,
+// with the stand-in line above them.
 func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -2111,14 +2111,26 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	if !strings.Contains(body, `data-home-block="search"`) {
 		t.Error(`GET / without README is missing the search block`)
 	}
+	// The four ways in stay on the page even when every one of them is empty.
+	// They are the only route to the mode pages — no header or rail carries
+	// one — so a vault with nothing in it yet would otherwise strand a reader
+	// on a page they cannot leave except by searching.
+	for _, present := range []string{
+		`data-home-block="paths"`,
+		`data-home-block="maps"`,
+		`data-home-block="reports"`,
+		`data-home-block="folders"`,
+	} {
+		if !strings.Contains(body, present) {
+			t.Errorf("GET / without README dropped %q, leaving no way to that mode's page", present)
+		}
+	}
 	for _, absent := range []string{
 		`data-home-block="recent"`,
 		`data-home-block="lifecycle"`,
-		`data-home-block="paths"`,
-		"y-homeempty",
 	} {
 		if strings.Contains(body, absent) {
-			t.Errorf("GET / without README still renders %q over a vault that has nothing to put in it", absent)
+			t.Errorf("GET / without README still renders %q, which belongs to the folder mode", absent)
 		}
 	}
 
