@@ -26,7 +26,7 @@ go install github.com/koopa0/yomihon/cmd/yomihon@latest
 yomihon ~/notes
 ```
 
-接著開啟 <http://127.0.0.1:9610>。任何資料夾都能直接讀；`yomihon examples/vault` 是一個帶契約的範例知識庫，可以看見契約多給了什麼。
+接著開啟 <http://127.0.0.1:9610>。任何資料夾都能直接讀；`yomihon examples/vault` 是一個帶契約的範例知識庫，可以看見契約多給了什麼。替 yomihon 讀的知識庫寫筆記的 agent，先讀這份 skill：[`skills/`](skills/)。
 
 ## 它做什麼
 

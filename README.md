@@ -31,7 +31,8 @@ yomihon ~/notes
 
 Then open <http://127.0.0.1:9610>. Any folder works as it is;
 `yomihon examples/vault` opens an example vault with a contract, and shows what
-a contract adds.
+a contract adds. An agent that writes notes for a vault yomihon reads has a
+skill to read first: [`skills/`](skills/).
 
 ## What it does
 
