@@ -274,6 +274,6 @@ templ syllabusNoCourse(verdict markerVerdict, lang wording.Lang) {
 		case markerUnknownRule:
 			<p class="y-syl-nocourse">{ wording.NoCourseUnexplained.In(lang) }</p>
 		default:
-			<p class="y-syl-nocourse">{ wording.NoCourseIntro.In(lang) }<code>{ markerForm(sequence.RolePrimary) }</code>{ wording.ValueJoin.In(lang) }<code>{ markerForm(sequence.RoleLocal) }</code>{ wording.ValueJoinLast.In(lang) }<code>{ markerForm(sequence.RoleNone) }</code>{ wording.NoCourseNoMarkerTail.In(lang) }</p>
+			<p class="y-syl-nocourse">{ wording.NoCourseIntro.In(lang) }<code>{ sequence.Marker(sequence.RolePrimary) }</code>{ wording.ValueJoin.In(lang) }<code>{ sequence.Marker(sequence.RoleLocal) }</code>{ wording.ValueJoinLast.In(lang) }<code>{ sequence.Marker(sequence.RoleNone) }</code>{ wording.NoCourseNoMarkerTail.In(lang) }</p>
 	}
 }

@@ -43,6 +43,26 @@ func HeadingName(line string, level int) string {
 	return name
 }
 
+// Marker is the declaration an author writes to give a branch a role, spelled
+// from the same three values a declaration is read with, so a page teaching
+// the grammar cannot drift from the parser that accepts it. Only a role a line
+// can declare has a marker: the two a branch is left with when it declared
+// nothing return the empty string, since no line can say them.
+func Marker(role Role) string {
+	var value string
+	switch role {
+	case RolePrimary:
+		value = valuePrimary
+	case RoleLocal:
+		value = valueLocal
+	case RoleNone:
+		value = valueNone
+	default:
+		return ""
+	}
+	return markerOpen + "=" + value + markerClose
+}
+
 // lineSpan is a half-open byte range into one source line, counted from that
 // line's own first byte. It is deliberately not [Span], which is measured from
 // the body's first byte: the two frames differ by wherever the line begins.

@@ -118,3 +118,31 @@ func TestABranchNameEndsWithItsLastWord(t *testing.T) {
 		})
 	}
 }
+
+// One vocabulary, written and read. The syllabus shows an author the three
+// declarations it will accept, and this package spells them; the parser reads
+// a declaration back off a line. A round trip holds the two halves together,
+// because a page offering a marker the parser rejects would be teaching the
+// author to write a fault.
+func TestAMarkerThisPackageWritesIsOneItReads(t *testing.T) {
+	t.Parallel()
+
+	for _, role := range []Role{RolePrimary, RoleLocal, RoleNone} {
+		marker := Marker(role)
+		got, ok := markerValue(marker)
+		if !ok || got != role {
+			t.Errorf("markerValue(Marker(%v)) = %v, %t, want %v, true", role, got, ok, role)
+		}
+		heading := "標題 " + marker
+		if name := HeadingName(heading, 2); name != "標題" {
+			t.Errorf("HeadingName(%q, 2) = %q, want the branch called 標題", heading, name)
+		}
+	}
+	// A branch that declared nothing carries one of these, and no line can say
+	// either: offering one as a declaration would name a value the parser reports.
+	for _, role := range []Role{RoleStructural, RoleUnclassified} {
+		if got := Marker(role); got != "" {
+			t.Errorf("Marker(%v) = %q, want no marker at all", role, got)
+		}
+	}
+}
