@@ -43,10 +43,10 @@ func TestTheFirstVisibleInlineDecidesCanonicalForm(t *testing.T) {
 	}
 }
 
-// TestASideBranchHangsOnlyFromALessonHoldsItsAnchor. A side branch attaches to
-// the lesson above it, and a row the grammar refused is not a lesson: nesting a
-// branch under one leaves it with nothing to hang from, whatever the refused
-// row happens to name.
+// TestASideBranchHangsOnlyFromALesson. A side branch attaches to the lesson
+// above it, and a row the grammar refused is not a lesson: nesting a branch
+// under one leaves it with nothing to hang from, whatever the refused row
+// happens to name.
 func TestASideBranchHangsOnlyFromALesson(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
