@@ -13,12 +13,13 @@ issues:
 # Evaluated and REJECTED linters — do not re-enable without a concrete
 # observed failure class that outweighs the listed false-positive cost:
 #   testpackage   — white-box same-package unit tests are doctrine
-#                   (handlers are unexported closures; rules/testing.md)
+#                   (handlers here are unexported closures, so a test that
+#                   cannot see them can only reach them through the server)
 #   godot         — comment-period style nagging, no correctness value
 #   dupword       — prose linting, false positives in doc comments
 #   mnd           — magic-number nagging fights table-driven tests
 #   err113        — demands static errors everywhere; fights
-#                   sentinel-only doctrine (rules/error-handling.md)
+#                   the sentinel errors this repository wraps and compares
 #   exhaustruct   — forces zero-value fields to be spelled out; fights
 #                   "make the zero value useful"
 #   funcorder     — declaration-order style nagging
@@ -85,8 +86,9 @@ linters:
     - perfsprint        # fmt.Sprintf → faster stdlib equivalents
     - modernize         # Go 1.26 stdlib and language forms
 
-    # Forbidden imports / calls — mechanizes the rules/go-version.md
-    # blacklist and the rules/testing.md mock ban (was rule prose only)
+    # Forbidden imports and calls. Each entry below carries its own reason,
+    # so a reader meets it where the rule is enforced rather than being sent
+    # to a document that may not travel with this file.
     - depguard          # forbidden packages (deprecated stdlib, mocks, frameworks)
     - forbidigo         # forbidden calls (sort.Slice, errors.As, log.Print*, ...)
 
@@ -108,7 +110,7 @@ linters:
     - spancheck         # OTel span End/RecordError/SetStatus
 
     # Testing
-    - thelper           # t.Helper() in test helpers (rules/testing.md)
+    - thelper           # t.Helper() in test helpers, so a failure cites the caller
     - tparallel         # t.Parallel() misuse
     - usetesting        # t.Context()/t.TempDir()/t.Setenv() over os/context
 
@@ -167,46 +169,51 @@ linters:
       rules:
         main:
           deny:
-            # Deprecated stdlib / pre-1.21 x/exp (rules/go-version.md)
+            # Deprecated stdlib, and the x/exp packages the stdlib absorbed
             - pkg: io/ioutil
-              desc: deprecated since Go 1.16 — use io + os (rules/go-version.md)
+              desc: deprecated since Go 1.16 — use io + os
             - pkg: golang.org/x/exp/slices
-              desc: use stdlib slices (Go 1.21+, rules/go-version.md)
+              desc: use stdlib slices, in the standard library since Go 1.21
             - pkg: golang.org/x/exp/maps
-              desc: use stdlib maps (Go 1.21+, rules/go-version.md)
-            # Test doubles (rules/testing.md — Real First, Fakes Last, Mocks Never)
+              desc: use stdlib maps, in the standard library since Go 1.21
+            # Test doubles. Tests here run against the real thing wherever one
+            # can be built — a temp vault, an httptest server — and a fake only
+            # where the real thing cannot be reached at all.
             - pkg: github.com/stretchr/testify
-              desc: testify forbidden — std testing + go-cmp (rules/testing.md)
+              desc: tests here use the standard library and go-cmp
             - pkg: github.com/golang/mock
-              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+              desc: no mock frameworks — a hand-written fake at the consumer's own interface
             - pkg: go.uber.org/mock
-              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+              desc: no mock frameworks — a hand-written fake at the consumer's own interface
             - pkg: github.com/vektra/mockery
-              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+              desc: no mock frameworks — a hand-written fake at the consumer's own interface
             - pkg: github.com/matryer/moq
-              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+              desc: no mock frameworks — a hand-written fake at the consumer's own interface
             - pkg: github.com/maxbrunsfeld/counterfeiter
-              desc: mock frameworks forbidden — real deps via testcontainers (rules/testing.md)
+              desc: no mock frameworks — a hand-written fake at the consumer's own interface
             - pkg: github.com/DATA-DOG/go-sqlmock
-              desc: NEVER mock the database — testcontainers-go (rules/testing.md)
-            # Database (rules/database.md)
+              desc: there is no database here to mock
+            # Database. There is none, and these entries are what keeps that
+            # true: the vault's files and the git history are the whole store.
             - pkg: database/sql
               desc: no SQL in this repository — nothing here has a database
-            # HTTP frameworks (go-philosophy — std net/http only)
+            # HTTP frameworks. The routing this serves is what net/http's own
+            # mux does since Go 1.22, and a framework would be a dependency
+            # standing between the handlers and that.
             - pkg: github.com/go-chi/chi
               desc: no HTTP frameworks — net/http Go 1.22+ routing
             - pkg: github.com/gin-gonic/gin
               desc: no HTTP frameworks — net/http Go 1.22+ routing
             - pkg: github.com/labstack/echo
               desc: no HTTP frameworks — net/http Go 1.22+ routing
-            # ORMs (go-philosophy — this repository has no database at all)
+            # ORMs. There is no database here to map.
             - pkg: gorm.io
               desc: no ORM — there is no database here to map
             - pkg: entgo.io
               desc: no ORM — there is no database here to map
             - pkg: github.com/uptrace/bun
               desc: no ORM — there is no database here to map
-            # Logging (go-philosophy — log/slog only)
+            # Logging. One logger, the standard library's.
             - pkg: go.uber.org/zap
               desc: log/slog only
             - pkg: github.com/rs/zerolog
@@ -227,15 +234,15 @@ linters:
       analyze-types: true
       forbid:
         - pattern: ^fmt\.Print(f|ln)?$
-          msg: use log/slog (go-philosophy § Observability)
+          msg: use log/slog, which the served faces and the commands share
         - pattern: ^log\.(Print(f|ln)?|Fatal(f|ln)?|Panic(f|ln)?)$
-          msg: use log/slog; exit paths belong in main (rules/go-version.md)
+          msg: use log/slog; the paths that exit belong in main
         - pattern: ^sort\.Slice(Stable)?$
           msg: use slices.SortFunc / slices.SortStableFunc (Go 1.21+)
         - pattern: ^http\.ListenAndServe(TLS)?$
-          msg: use http.Server + graceful shutdown (graceful-shutdown skill)
+          msg: use http.Server so the listener can be shut down in order
         - pattern: ^errors\.As$
-          msg: use errors.AsType[T] (Go 1.26, rules/go-version.md)
+          msg: use errors.AsType[T], in the standard library since Go 1.26
 
     sloglint:
       no-mixed-args: true
@@ -254,8 +261,8 @@ linters:
       enable:
         - identical
         - unused
-        - opaque   # mechanizes "NEVER return an interface" (rules/interfaces.md);
-                   # rare factory exceptions: nolint with reason (nolintlint enforced)
+        - opaque   # a constructor returns its concrete type, so a caller reads
+                   # what it got; the rare factory says why with a nolint reason
 
     spancheck:
       checks:

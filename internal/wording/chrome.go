@@ -42,9 +42,11 @@ var (
 	Off = both("關", "Off")
 )
 
-// HealthLink names the page that reports the vault's own faults — links with no
-// target, notes nothing cites, names two files answer to.
-var HealthLink = both("整體狀況", "Health")
+// The chrome's link to the health page carries no name of its own: it is
+// wording.HealthTitle, the heading that page prints, so the word a reader
+// follows and the word they arrive at cannot drift apart. Only the hover title
+// is written here, because it says what the link does rather than what the page
+// is called.
 
 // HealthLinkTitle says what that page counts, so the label does not have to.
 var HealthLinkTitle = both("整體狀況：連結、孤島、名字衝突", "Health: links, islands, name collisions")
