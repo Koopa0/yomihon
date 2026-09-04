@@ -64,16 +64,23 @@ const (
 	filterPath
 )
 
+// StatusFilterKey is the key a status filter is written with. It is exported
+// because a page builds that query for a reader — the lifecycle squares link to
+// one — and a page spelling it itself would keep working until this table
+// renamed the key, at which point the reader would follow a link into the
+// search's own "I do not recognise that filter" answer.
+const StatusFilterKey = "status"
+
 // filterKeys is the grammar: every key a filter may be written with, and the
 // capability each asks of an entry. It is a table rather than a switch because
 // the page that repairs a mistyped filter has to offer this exact set.
 var filterKeys = map[string]filterKind{
-	"type":   filterMetadata,
-	"status": filterMetadata,
-	"domain": filterMetadata,
-	"topic":  filterMetadata,
-	"slug":   filterMetadata,
-	"folder": filterPath,
+	"type":          filterMetadata,
+	StatusFilterKey: filterMetadata,
+	"domain":        filterMetadata,
+	"topic":         filterMetadata,
+	"slug":          filterMetadata,
+	"folder":        filterPath,
 }
 
 // classifyFilterKey is the shared grammar and capability classification for
