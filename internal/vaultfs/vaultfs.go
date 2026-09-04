@@ -51,6 +51,15 @@ var errUnobservedParent = errors.New("vault parent directory was not observed in
 // vault-relative NFC path. Such a tree cannot be projected without guessing.
 var ErrCanonicalCollision = errors.New("vault contains canonically colliding paths")
 
+// readerToken is the identity one Reader hands to every Entry it produces, so
+// owns can tell its own Entry from another Reader's by comparing the two
+// pointers. The single byte is what makes that comparison mean anything: a
+// zero-size value gives the allocator nothing to distinguish: every one of them
+// escaping to the heap is handed the same address, so two Readers would carry
+// tokens that compare equal every time, and owns would accept any Reader's
+// Entry rather than sometimes. Narrowing this to struct{} compiles and saves
+// nothing; what it costs is Refresh's promise that an Entry from another Reader
+// fails closed, and two tests in this package say so out loud.
 type readerToken [1]byte
 
 // Reader pins one selected vault directory for the lifetime of an action.
