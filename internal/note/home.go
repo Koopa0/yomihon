@@ -41,15 +41,18 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	visibleNav := shell.Project(authority, snap).Nav
 	blocks := pages.NewDeskBlocks(visibleNav, lang)
-	// The reason a way in is empty, stated once at the foot of the page. One
-	// cause reaches several of them — a contract that cannot be read empties
-	// the paths and the maps alike — and repeating its sentence per block is
-	// what buried the reader's own content under a column of apologies.
+	// The reason a way in is empty, stated once at the foot of the page. The
+	// desk draws all four ways in, so what it says here is the union of what
+	// the four pages behind them say: the write authority, which empties the
+	// distribution the folder mode carries; the navigation declaration, which
+	// empties the courses and the maps; and the artifact policy, which does
+	// both and also takes the knowledge layer off the recent list. The reports
+	// are a listing of a directory that no declaration can close, so they add
+	// nothing here. A mode added later without its reason reaching this line
+	// would empty a block on this page and never say why.
 	//
 	// The rail no longer carries this on every page, because the rail is now
-	// the book being read. That makes this the only place it is said, which is
-	// why every cause that emptied a block here has to reach this line, not
-	// only the one the write authority happens to know about.
+	// the book being read, which makes this the only place it is said.
 	fault := statedOnce(
 		authority.Diagnostic(lang),
 		visibleNav.NavigationClosure().Diagnostic(),
@@ -139,6 +142,13 @@ func blockedDetail(blocked []snapshot.BlockedSource) string {
 // rejected navigation declaration closes only the study paths, and its sentence
 // is a different one, so a page that carries only the write authority's reason
 // empties a block without ever saying why.
+//
+// Which causes a page passes here is settled by one rule: a page states the
+// reasons that could empty or degrade something it actually draws, and no
+// others. A reason for a projection the page never shows is a fault the reader
+// is asked to hold against a page that has nothing to do with it. The desk is
+// the one page that states several, because it draws all four ways in at once,
+// and what it states is the union of what those four pages state.
 func statedOnce(causes ...string) string {
 	distinct := make([]string, 0, len(causes))
 	for _, cause := range causes {
