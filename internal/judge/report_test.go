@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"os"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestReportGolden asserts the human and markdown renderings of the report
@@ -19,13 +21,24 @@ func TestReportGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
+	// The roots come from the fixture's own contract, the way the command
+	// takes them, so this golden is produced by the declaration under test
+	// rather than by a list written beside it.
+	contract, err := schema.Load("testdata/vault-report")
+	if err != nil {
+		t.Fatalf("schema.Load: %v", err)
+	}
+	roots := domainRoots(contract.Definition().Rules.DomainEqualsFolderUnder)
+	if len(roots) == 0 {
+		t.Fatal("the report fixture declares no domain roots, so a grouping test over it would prove nothing")
+	}
 	tests := []struct {
 		name   string
 		got    []byte
 		golden string
 	}{
-		{name: "human", got: []byte(humanReport(findings)), golden: "testdata/golden/report-human.golden"},
-		{name: "markdown", got: []byte(markdownReport(findings)), golden: "testdata/golden/report-md.golden"},
+		{name: "human", got: []byte(humanReport(findings, roots)), golden: "testdata/golden/report-human.golden"},
+		{name: "markdown", got: []byte(markdownReport(findings, roots)), golden: "testdata/golden/report-md.golden"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

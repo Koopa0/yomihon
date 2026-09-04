@@ -288,16 +288,6 @@ func (r *lintRun) enumFields(n *note) []Finding {
 	return out
 }
 
-// conceptDomainRoot and lessonDomainRoot are the two folders the human and
-// markdown reports read a finding's knowledge domain out of. The concept root
-// is a second spelling of what the contract declares under
-// domain_equals_folder_under, so a vault that renames it files everything under
-// the no-domain heading; the lesson root no contract key names at all.
-const (
-	conceptDomainRoot = "Concepts/"
-	lessonDomainRoot  = "Writing/lessons/"
-)
-
 // structural reports the structural rules: a domain that does not match its
 // folder, a slash-bearing legacy tag, and a distilled idea missing provenance.
 func (r *lintRun) structural(n *note, seg []string) []Finding {
