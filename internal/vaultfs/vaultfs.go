@@ -221,7 +221,6 @@ type Scan struct {
 }
 
 type scanState struct {
-	valid    bool
 	rootName string
 	rootInfo fs.FileInfo
 	files    []Entry
@@ -294,7 +293,7 @@ func (s Scan) Skipped() []Skipped {
 // It compares every regular file's canonical and raw path, metadata, object
 // identity, and parent-chain identity.
 func (s Scan) SameFiles(other Scan) bool {
-	if s.state == nil || other.state == nil || !s.state.valid || !other.state.valid ||
+	if s.state == nil || other.state == nil ||
 		s.state.rootName != other.state.rootName || !sameObject(s.state.rootInfo, other.state.rootInfo) ||
 		len(s.state.files) != len(other.state.files) {
 		return false
@@ -469,7 +468,6 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 		entries[entry.path] = entry
 	}
 	return Scan{state: &scanState{
-		valid:    true,
 		rootName: r.name,
 		rootInfo: rootInfo,
 		files:    walk.entries,
