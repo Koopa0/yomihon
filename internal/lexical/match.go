@@ -292,7 +292,12 @@ func (e *entry) matchesFilter(f Filter) bool {
 	case "folder":
 		return e.RelPath == f.Value || strings.HasPrefix(e.RelPath, f.Value+"/")
 	default:
-		// Unreachable: Parse only ever emits the six keys above.
+		// A filter reaches this only where Parse recognized its key, and Parse
+		// recognizes exactly the keys the grammar table holds; a Query keeps
+		// its filters unexported, so nothing else can introduce one. What this
+		// arm cannot catch is a key added to that table with no arm here: it
+		// would parse, be offered on the page, and match nothing without
+		// saying so. The two sets are compared in a test instead.
 		return false
 	}
 }
