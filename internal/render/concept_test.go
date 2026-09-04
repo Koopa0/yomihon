@@ -74,3 +74,25 @@ func TestInjectConceptTriggersIgnoresAmbiguousAndBroken(t *testing.T) {
 		t.Errorf("ambiguous/broken wikilinks must not become triggers:\ngot %q refs %v", out, refs)
 	}
 }
+
+// TestInjectConceptTriggersReadsAnEscapedHref keeps the concept pass on the
+// same side of the attribute boundary as the renderer that wrote the link. A
+// concept note named with "&" reaches here spelled "&amp;", and a pass that
+// takes that spelling for the path looks up a note nobody has: the term stays
+// a plain link and its sheet never opens.
+func TestInjectConceptTriggersReadsAnEscapedHref(t *testing.T) {
+	t.Parallel()
+
+	in := `read <a href="/notes/Concepts/Q&amp;A.md" class="wikilink">Q&amp;A</a> here`
+	out, refs := render.InjectConceptTriggers(in, conceptLookup(map[string]string{"Concepts/Q&A.md": "q-and-a"}))
+
+	if !strings.Contains(out, `data-concept="q-and-a"`) {
+		t.Errorf("concept link with an ampersand was not marked; got:\n%s", out)
+	}
+	if !strings.Contains(out, `href="/notes/Concepts/Q&amp;A.md"`) {
+		t.Errorf("concept trigger lost or re-spelled its href; got:\n%s", out)
+	}
+	if len(refs) != 1 || refs[0] != "Concepts/Q&A.md" {
+		t.Errorf("refs = %v, want [Concepts/Q&A.md]", refs)
+	}
+}

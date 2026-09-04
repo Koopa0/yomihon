@@ -92,6 +92,27 @@ func TestResolveAssetHrefs(t *testing.T) {
 			src:  "/static/yomihon-mark.svg",
 			want: "/static/yomihon-mark.svg",
 		},
+		{
+			// The source arrives as attribute text, so the name "a&b.png"
+			// reaches here spelled "a&amp;b.png" and has to be read back as
+			// the one byte it stands for before it can be resolved.
+			name: "an ampersand in the file name resolves to the byte it names",
+			note: "notes/note.md",
+			src:  "a&amp;b.png",
+			want: "/raw/notes/a&amp;b.png",
+		},
+		{
+			name: "a name that reads as a character reference stays a name",
+			note: "notes/note.md",
+			src:  "a&amp;copy.png",
+			want: "/raw/notes/a&amp;copy.png",
+		},
+		{
+			name: "a remote query keeps both of its parameters",
+			note: "note.md",
+			src:  "https://example.com/x.png?a=1&amp;b=2",
+			want: "https://example.com/x.png?a=1&amp;b=2",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -132,6 +153,22 @@ func TestResolveAssetHrefsRewritesEveryImageOnThePage(t *testing.T) {
 	for _, want := range []string{`src="/raw/notes/a.png"`, `src="/raw/notes/sub/b.png"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("resolveAssetHrefs output %q is missing %q", got, want)
+		}
+	}
+}
+
+// TestResolveAssetHrefsDoesNotEscapeTheMarkupItRead names the defect directly:
+// reading the attribute text as if it were the URL sends the ";" of "&amp;"
+// into the path as "%3B", and the browser then asks the raw route for a file
+// nobody has. The check is the bytes' absence, because a rewrite that puts them
+// back would still route somewhere and still fail only in a browser.
+func TestResolveAssetHrefsDoesNotEscapeTheMarkupItRead(t *testing.T) {
+	t.Parallel()
+
+	got := resolveAssetHrefs(`<p><img src="a&amp;b.png" alt="x"></p>`, "notes/note.md")
+	for _, absent := range []string{"%3B", "&amp;amp;"} {
+		if strings.Contains(got, absent) {
+			t.Errorf("resolveAssetHrefs re-encoded the markup it read: %q appears in %q", absent, got)
 		}
 	}
 }

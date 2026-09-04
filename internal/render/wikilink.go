@@ -102,7 +102,7 @@ func degradedLink(href string, link graph.Wikilink, miss fragmentMiss, lang word
 		reason = fmt.Sprintf(wording.SectionNotFoundFmt.In(lang), link.Heading)
 	}
 	escaped := html.EscapeString(reason)
-	return `<a href="` + href + `" class="wikilink wikilink-degraded" title="` + escaped + `">` +
+	return `<a href="` + attributeEscaper.Replace(href) + `" class="wikilink wikilink-degraded" title="` + escaped + `">` +
 		html.EscapeString(link.Display) + `<span class="` + offscreenNoteClass + `">` + html.EscapeString(wording.ParenOpen.In(lang)) + escaped + html.EscapeString(wording.ParenClose.In(lang)) + `</span></a>`
 }
 
@@ -624,6 +624,25 @@ func withinAny(ranges [][2]int, start, end int) bool {
 	return false
 }
 
+// A href this package builds is a URL: percent-escaped, and free to carry the
+// bytes a URL is allowed to carry, "&" among them. Standing that URL inside a
+// quoted attribute is a second encoding, one that belongs to the attribute
+// rather than to the URL, so it is applied once where a URL is written into an
+// attribute and undone once where a value is read back out of one. The two
+// replacers are each other's inverse over the four bytes an attribute value
+// cannot carry literally.
+//
+// "&" is the byte that makes the two layers visible, because it is the one that
+// is safe in a URL and unsafe in an attribute. A picture named "a&copy.png"
+// written into an attribute unencoded is read by the browser as a character
+// reference and fetched as "a©.png"; encoded a second time it reaches the raw
+// route with "&amp;" inside the file name. Neither spelling names a file the
+// vault has.
+var (
+	attributeEscaper   = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
+	attributeUnescaper = strings.NewReplacer("&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", `"`)
+)
+
 // escapedVaultPath percent-escapes each segment of a vault-relative path on its
 // own, leaving "/" as the separator, so a literal slash inside a segment can
 // never be read as one and the route patterns receive the path they expect.
@@ -646,10 +665,11 @@ func rawHref(p string) string {
 	return "/raw/" + escapedVaultPath(p)
 }
 
-// sectionHref is notesHref plus the place inside the destination a link named,
-// safe to write straight into an href attribute. A section's fragment is built by
-// slugify, the same function that stamps the destination's heading ids; a block
-// address takes precedence when the author wrote both, and is percent-escaped.
+// sectionHref is notesHref plus the place inside the destination a link named.
+// What it returns is a URL, which the attribute it goes into escapes on its own.
+// A section's fragment is built by slugify, the same function that stamps the
+// destination's heading ids; a block address takes precedence when the author
+// wrote both, and is percent-escaped.
 // Only the block scan is authoritative, so a block it cannot find is withdrawn,
 // while a section address always survives and a miss is reported only when a
 // second, generous scan agrees the name is nowhere. Nothing is claimed about an
@@ -719,8 +739,8 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 		if miss != fragmentPlaced {
 			return degradedLink(href, link, miss, col.page.lang)
 		}
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; sectionHref returns an attribute-safe string, path and fragment both percent-escaped
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, href, html.EscapeString(link.Display))
+		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
+		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, attributeEscaper.Replace(href), html.EscapeString(link.Display))
 	case graph.KindAmbiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
@@ -782,14 +802,14 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 		return ambiguousTarget(target, source, res.Candidates, col.page.lang)
 	case graph.KindUnique:
 		if IsPicture(res.RelPath) {
-			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; rawHref percent-escapes the path and the name is html.EscapeString'd
+			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
 			return fmt.Sprintf(`<img src="%s" alt="%s">`,
-				rawHref(res.RelPath), html.EscapeString(path.Base(res.RelPath)))
+				attributeEscaper.Replace(rawHref(res.RelPath)), html.EscapeString(path.Base(res.RelPath)))
 		}
 		if !vault.IsMarkdown(res.RelPath) {
-			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; notesHref percent-escapes the path and the name is html.EscapeString'd
+			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
 			return fmt.Sprintf(`<div class="embed-media">[Embedded media: <a href="%s">%s</a> — inline display not yet supported]</div>`,
-				notesHref(res.RelPath), html.EscapeString(path.Base(res.RelPath)))
+				attributeEscaper.Replace(notesHref(res.RelPath)), html.EscapeString(path.Base(res.RelPath)))
 		}
 		body, ok := r.transclusions.Transclusion(res.RelPath)
 		if !ok {
@@ -893,7 +913,7 @@ func embedClass(withheld bool) string {
 // these are. The name is the file's own, the one a citation resolves by.
 func embedSourceLine(relPath string, lang wording.Lang) string {
 	return `<p class="embed__source">` + html.EscapeString(wording.EmbedSourceFrom.In(lang)) +
-		`<a href="` + notesHref(relPath) + `">` + html.EscapeString(noteName(relPath)) + `</a></p>`
+		`<a href="` + attributeEscaper.Replace(notesHref(relPath)) + `">` + html.EscapeString(noteName(relPath)) + `</a></p>`
 }
 
 // withheldNotice states, where the excerpt would have stood, which address the
