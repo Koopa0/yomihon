@@ -104,24 +104,26 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name       string
-		targetPath string
-		citerPath  string
+		name string
+		// The two paths in the order the folder scan hands them over, written
+		// out rather than sorted: this holds an answer that must not depend on
+		// that order, so it cannot take the order from a comparison of its own.
+		targetPath  string
+		citerPath   string
+		targetFirst bool
 	}{
-		{name: "the note writing the name down is read second", targetPath: "a-target.md", citerPath: "z-citer.md"},
-		{name: "the note writing the name down is read first", targetPath: "z-target.md", citerPath: "a-citer.md"},
+		{name: "the note writing the name down is read second", targetPath: "a-target.md", citerPath: "z-citer.md", targetFirst: true},
+		{name: "the note writing the name down is read first", targetPath: "z-target.md", citerPath: "a-citer.md", targetFirst: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			notes := []*vault.Note{
-				parse(t, tt.targetPath, "---\ntitle: Target Note\n---\n\nbody\n"),
-				parse(t, tt.citerPath, "---\ntitle: Citer\n---\n\nsee [[Target Note]]\n"),
+			target := parse(t, tt.targetPath, "---\ntitle: Target Note\n---\n\nbody\n")
+			citer := parse(t, tt.citerPath, "---\ntitle: Citer\n---\n\nsee [[Target Note]]\n")
+			notes := []*vault.Note{citer, target}
+			if tt.targetFirst {
+				notes = []*vault.Note{target, citer}
 			}
-			// Notes reach this in the order the folder scan yields them.
-			slices.SortFunc(notes, func(a, b *vault.Note) int {
-				return vault.ComparePaths(a.RelPath, b.RelPath)
-			})
 			idx := graph.New(notes, nil)
 			h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
