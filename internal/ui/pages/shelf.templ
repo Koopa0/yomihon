@@ -6,6 +6,12 @@ import "github.com/koopa0/yomihon/internal/wording"
 // much of it there is, its one sentence, and the first few rows that lead
 // somewhere. It is a way in rather than a fifth listing, so it ends by handing
 // the reader to the shelf's own page instead of going on.
+//
+// What the block shows and what the shelf holds are different questions. A
+// shelf whose rows are all listed without being stops — a course whose lessons
+// are none of them written yet — shows no rows here and is not empty, so it
+// still says how much it holds and still offers the way on. limit is how many
+// rows there is room for; a negative one is read as none.
 templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 	<section class="y-homeblock y-modeblock" data-home-block={ id } aria-labelledby={ "home-" + id + "-title" }>
 		<header class="y-homeblock__head">
@@ -17,12 +23,12 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 		if s.Lede != "" {
 			<p class="y-homeblock__lede">{ s.Lede }</p>
 		}
-		if rows := shelfRows(&s, limit); len(rows) == 0 {
+		if len(s.Rows) == 0 {
 			if s.Empty != "" {
 				<p class="y-homeempty">{ s.Empty }</p>
 			}
 		} else {
-			for _, row := range rows {
+			for _, row := range shelfRows(&s, limit) {
 				@shelfRowLink(row)
 			}
 			<a class="ui-navitem y-shelfall" href={ templ.URL(s.Href) }>{ wording.ShelfAll.In(lang) }</a>
@@ -33,10 +39,10 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 // shelfRowLink is one row wherever a shelf shows rows as links, so a row cannot
 // come to look different for being on a different width.
 templ shelfRowLink(row Row) {
-	<a class={ "ui-navitem", templ.KV("ui-navitem--current", row.Current) } href={ templ.URL(row.Href) } data-desk-item>
+	<a class="ui-navitem" href={ templ.URL(row.Href) } data-desk-item>
 		{ row.Text }
 		if row.Mark != "" {
-			<span class={ "ui-navitem__count", templ.KV("y-navmark--warn", row.Fault) }>{ row.Mark }</span>
+			<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--warn", row.Fault) }>{ row.Mark }</span>
 		}
 	</a>
 }

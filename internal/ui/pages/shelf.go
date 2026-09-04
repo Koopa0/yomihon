@@ -32,25 +32,7 @@ type Shelf struct {
 	// the shelf's own sentence rather than the page's, because what an empty
 	// listing means differs by organisation and only the owner knows it.
 	Empty string
-	// Groups divide the rows; a shelf with none is flat and uses Rows.
-	Groups []Group
-	Rows   []Row
-}
-
-// Group is one division of a shelf — a part of a course, a folder of notes.
-// It nests one level further and no more: past that the reader is being asked
-// to hold a tree in mind, which is the drawer the desk exists to close.
-type Group struct {
-	Heading string
-	// Anchor is the id its heading carries, so a page's contents can reach it.
-	Anchor string
-	// Ordered asks for a numbered list. The numbers come from the list itself;
-	// no row carries its own position.
-	Ordered bool
-	Count   string
-	Lede    string
-	Rows    []Row
-	Groups  []Group
+	Rows  []Row
 }
 
 // Row is one document on the shelf.
@@ -64,44 +46,27 @@ type Row struct {
 	// words — a course's extent, a report's date. An organisation that needs
 	// two writes them as one.
 	Mark string
-	// Note is the line underneath: a snippet, a reason, a diagnostic sentence.
-	Note string
-	// Current marks the row the reader is on.
-	Current bool
 	// Fault says this row is itself a hole in the shelf — a missing lesson, a
 	// source that could not be read. It does not describe the document the row
 	// points at: a row leading to a note with a fault in it is an ordinary row.
 	Fault bool
 }
 
-// shelfRows flattens a shelf to the rows a narrow width can show, in the order
-// a reader meets them, and stops once it has limit of them. Only rows that lead
-// somewhere are taken: a narrow shelf is a way in, and a row that is not a stop
-// cannot be one.
+// shelfRows takes the rows a narrow width can show, in the order a reader meets
+// them, and stops once it has limit of them. Only rows that lead somewhere are
+// taken: a narrow shelf is a way in, and a row that is not a stop cannot be
+// one. A limit below zero is read as none rather than trusted into a make.
 func shelfRows(s *Shelf, limit int) []Row {
+	limit = max(limit, 0)
 	rows := make([]Row, 0, limit)
-	rows = takeRows(rows, s.Rows, limit)
-	rows = takeGroups(rows, s.Groups, limit)
-	return rows
-}
-
-func takeGroups(into []Row, groups []Group, limit int) []Row {
-	for i := range groups {
-		into = takeRows(into, groups[i].Rows, limit)
-		into = takeGroups(into, groups[i].Groups, limit)
-	}
-	return into
-}
-
-func takeRows(into, rows []Row, limit int) []Row {
-	for _, row := range rows {
-		if len(into) == limit {
-			return into
+	for _, row := range s.Rows {
+		if len(rows) == limit {
+			return rows
 		}
 		if row.Href == "" {
 			continue
 		}
-		into = append(into, row)
+		rows = append(rows, row)
 	}
-	return into
+	return rows
 }

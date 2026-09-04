@@ -90,6 +90,7 @@ html, body { margin: 0; background: var(--bg); }
 .ui-navitem svg { width: 17px; height: 17px; color: var(--fg-subtle); flex: none; }
 .ui-navitem.is-active svg { color: var(--accent); }
 .ui-navitem__count { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.ui-navitem__count--warn { color: var(--warn); }
 
 /* ---- Sidebar section label ---- */
 .ui-side__label {

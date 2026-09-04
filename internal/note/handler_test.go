@@ -4269,3 +4269,47 @@ func TestHomeBadContractWithNoNotesKeepsTheStandInAway(t *testing.T) {
 		t.Error("Home renders a recent block for a folder with no markdown")
 	}
 }
+
+// TestTheFolderBlockDoesNotDenyTheFilesItCounts covers a vault whose files all
+// sit at the root. The folder mode's rows are the folders at the top, and it
+// has none; its measure is every file under them, and it has two. A block that
+// took its own rowlessness for emptiness printed a count of the files and, an
+// inch below it, the sentence for a vault holding none.
+func TestTheFolderBlockDoesNotDenyTheFilesItCounts(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	for _, name := range []string{"one.md", "two.md"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("# "+name+"\n"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	srv := newServerWithContract(t, root, contractWithPrivacySection(t, "[privacy]\nnever_egress_dirs = []\n"))
+
+	code, body := get(t, srv.Client(), srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d", code, http.StatusOK)
+	}
+	block := deskBlockMarkup(t, body, "folders")
+	if !strings.Contains(block, "2") {
+		t.Errorf("the folders block does not count the two files at the root: %q", block)
+	}
+	if strings.Contains(block, "y-homeempty") {
+		t.Errorf("the folders block counts files and calls itself empty in the same breath: %q", block)
+	}
+}
+
+// deskBlockMarkup slices one way in out of the desk, from its own marker to the
+// end of the section it opens.
+func deskBlockMarkup(t *testing.T, page, mode string) string {
+	t.Helper()
+	_, rest, found := strings.Cut(page, `data-home-block="`+mode+`"`)
+	if !found {
+		t.Fatalf("the desk carries no %s block", mode)
+	}
+	block, _, closed := strings.Cut(rest, "</section>")
+	if !closed {
+		t.Fatalf("the %s block is never closed", mode)
+	}
+	return block
+}
