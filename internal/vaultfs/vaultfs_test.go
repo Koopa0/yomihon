@@ -1504,3 +1504,46 @@ func TestLookupNamesThePathTheCallerAsked(t *testing.T) {
 		t.Errorf("Lookup(%q) reported path %q, want the path the caller asked for", want, pathErr.Path)
 	}
 }
+
+// The walk confirms, after opening a directory, that the root it now holds is
+// the directory it looked at a moment ago and that the name still points there.
+// The leaf checks that follow cannot stand in for it: they compare the file,
+// and a directory swapped for one that hardlinks the same file presents an
+// identical leaf. What is different is the containment chain — every parent the
+// entry recorded — and this is where that is answered.
+func TestReaderRejectsAParentSwappedForOneHoldingTheSameFile(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeReaderFixture(t, root, "Notes/one.md", "public")
+
+	decoy := filepath.Join(root, "decoy")
+	if err := os.Mkdir(decoy, 0o750); err != nil {
+		t.Fatalf("make the replacement directory: %v", err)
+	}
+	if err := os.Link(filepath.Join(root, "Notes", "one.md"), filepath.Join(decoy, "one.md")); err != nil {
+		t.Fatalf("hardlink the same file into the replacement: %v", err)
+	}
+
+	reader := openTestReader(t, root)
+	entry, err := reader.Lookup("Notes/one.md")
+	if err != nil {
+		t.Fatalf("Lookup() error = %v", err)
+	}
+	swapped := false
+	got, err := reader.readFile(t.Context(), entry, func(stage readStage, name string) error {
+		if stage != readAfterParentCheck || name != "Notes" || swapped {
+			return nil
+		}
+		swapped = true
+		if renameErr := os.Rename(filepath.Join(root, "Notes"), filepath.Join(root, "old-notes")); renameErr != nil {
+			return renameErr
+		}
+		return os.Rename(decoy, filepath.Join(root, "Notes"))
+	})
+	if !swapped {
+		t.Fatal("the swap hook never ran, so this test proves nothing")
+	}
+	if !errors.Is(err, ErrSourceChanged) || len(got) != 0 {
+		t.Fatalf("readFile() over a replaced parent = (%q, %v), want no bytes and %v", got, err, ErrSourceChanged)
+	}
+}
