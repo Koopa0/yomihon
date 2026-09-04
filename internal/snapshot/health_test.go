@@ -95,6 +95,48 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 	}
 }
 
+// A note reached only by its title is spared the island list, and the order the
+// folder happened to be scanned in is no part of that. The answer used to be
+// read out of a table the same pass was still filling, so a note escaped only
+// when the note writing its name down sorted ahead of it: rename either file
+// and the same vault reported a note as reaching nothing, sending its reader
+// to write a link that is already written.
+func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		targetPath string
+		citerPath  string
+	}{
+		{name: "the note writing the name down is read second", targetPath: "a-target.md", citerPath: "z-citer.md"},
+		{name: "the note writing the name down is read first", targetPath: "z-target.md", citerPath: "a-citer.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			notes := []*vault.Note{
+				parse(t, tt.targetPath, "---\ntitle: Target Note\n---\n\nbody\n"),
+				parse(t, tt.citerPath, "---\ntitle: Citer\n---\n\nsee [[Target Note]]\n"),
+			}
+			// Notes reach this in the order the folder scan yields them.
+			slices.SortFunc(notes, func(a, b *vault.Note) int {
+				return vault.ComparePaths(a.RelPath, b.RelPath)
+			})
+			idx := graph.New(notes, nil)
+			h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+
+			// The citer alone: nothing writes its name down anywhere, while the
+			// target's name is written in the citer either way round.
+			want := []HealthIslandGroup{{Dir: "", Notes: []nav.NoteRef{
+				{Name: nav.Label(tt.citerPath), RelPath: tt.citerPath},
+			}}}
+			if diff := cmp.Diff(want, h.Islands); diff != "" {
+				t.Errorf("Islands mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 // A template's citations name its own slots. Reading every note the same way
 // put a placeholder like [[{{concept_a}}]] on the page as a note somebody owes
 // — a repair nobody can make, since filling that slot is what using the
