@@ -38,6 +38,7 @@ func FuzzHTML(f *testing.F) {
 		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, nil),
 		fuzzTransclusions{targetPath: "## Embedded\nbody with ![[target]]"},
 		internalNoTitles{},
+		holdsEverything{},
 	)
 	f.Fuzz(func(t *testing.T, body string) {
 		const maxInput = 32 << 10

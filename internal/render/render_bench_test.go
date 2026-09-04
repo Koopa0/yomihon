@@ -47,7 +47,7 @@ func benchManyLinksBody(n int) string {
 // run: a linear pipeline roughly doubles per step, and one that rescans the
 // document per link roughly quadruples.
 func BenchmarkHTMLManyWikilinks(b *testing.B) {
-	r := render.New(graph.BuildFromNotes(benchTargetNotes(), nil), transclusions{}, noTitles{})
+	r := render.New(graph.BuildFromNotes(benchTargetNotes(), nil), transclusions{}, noTitles{}, vaultHolds{})
 	for _, n := range []int{8000, 16000, 32000} {
 		body := benchManyLinksBody(n)
 		b.Run(fmt.Sprintf("links-%d", n), func(b *testing.B) {

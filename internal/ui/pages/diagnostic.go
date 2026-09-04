@@ -10,6 +10,8 @@ import (
 // says something rather than going quiet about a fault.
 func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
+	case render.DiagImageMissing:
+		return wording.DiagImageMissingNote.In(lang)
 	case render.DiagWikilinkBroken:
 		return wording.DiagUnwrittenNote.In(lang)
 	case render.DiagWikilinkTitleOnly:

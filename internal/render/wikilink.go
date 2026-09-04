@@ -993,7 +993,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 		// came from, so it is resolved here, where that path is still known.
 		return `<div class="` + embedClass(false) + `">` + embedSourceLine(res.RelPath, col.page.lang) +
 			repeatedNotice(link.Heading, matches, col.page.lang) + notExpandedNotice(heldBack, col.page.lang) +
-			resolveAssetHrefs(inner.HTML, res.RelPath) + `</div>`
+			resolveAssetHrefs(inner.HTML, res.RelPath, r.files, col.page.lang, &col.diags) + `</div>`
 	default:
 		panic("render: unknown graph.Kind: " + res.Kind.String())
 	}

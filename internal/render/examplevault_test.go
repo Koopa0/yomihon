@@ -322,7 +322,7 @@ func loadExampleVault(t *testing.T) *exampleVault {
 	}
 	loaded.source = sources.String()
 
-	pipeline := New(graph.New(notes, resources), transcluded(bodies), noDeclaredTitles{})
+	pipeline := New(graph.New(notes, resources), transcluded(bodies), noDeclaredTitles{}, holdsEverything{})
 	var pages strings.Builder
 	for _, note := range notes {
 		result := pipeline.HTML(note.RelPath, note.Title(), note.Body, wording.En)
@@ -700,7 +700,7 @@ func probeCorpus(t *testing.T) *exampleVault {
 
 	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Notes/Probe Target.md"}}, nil)
 	bodies := transcluded{"Notes/Probe Target.md": "## Probe Section\n\nA paragraph the probe names. ^probe-block\n"}
-	rendered := New(idx, bodies, noDeclaredTitles{}).HTML("Notes/Probe.md", "Probe", body.String(), wording.En)
+	rendered := New(idx, bodies, noDeclaredTitles{}, holdsEverything{}).HTML("Notes/Probe.md", "Probe", body.String(), wording.En)
 	return &exampleVault{source: authorProse(body.String()), reading: InjectTTS(rendered.HTML, wording.En)}
 }
 

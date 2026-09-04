@@ -14,6 +14,8 @@ import (
 // without a name here arrives as its raw slug rather than a dead page.
 func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
+	case render.DiagImageMissing:
+		return wording.DiagImageMissing.In(lang)
 	case render.DiagWikilinkBroken:
 		return wording.DiagLinkNoTarget.In(lang)
 	case render.DiagWikilinkTitleOnly:

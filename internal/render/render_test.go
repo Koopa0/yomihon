@@ -25,7 +25,7 @@ func (b transclusions) Transclusion(path string) (string, bool) {
 // set. Tests never need a filesystem to exercise the rendering projection.
 func newRenderer(t *testing.T, notes []graph.NoteInput, resources []string, bodies transclusions) *render.Pipeline {
 	t.Helper()
-	return render.New(graph.BuildFromNotes(notes, resources), bodies, noTitles{})
+	return render.New(graph.BuildFromNotes(notes, resources), bodies, noTitles{}, vaultHolds{})
 }
 
 func TestHTMLExistingDialectRegressions(t *testing.T) {
@@ -2028,3 +2028,10 @@ func TestUnclosedBacktickRunIsOrdinaryText(t *testing.T) {
 type noTitles struct{}
 
 func (noTitles) TitledBy(string) []string { return nil }
+
+// vaultHolds answers that no picture a fixture note shows is missing. These
+// tests are about the reading dialect, not about which files exist, and a source
+// that reported everything missing would mark every image on every fixture.
+type vaultHolds struct{}
+
+func (vaultHolds) MissingFile(string) bool { return false }
