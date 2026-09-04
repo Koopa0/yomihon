@@ -284,20 +284,17 @@ func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 }
 
 // entryResolutionCode is the stable machine token carried by data-resolution. It
-// stays English; entryResolutionLabel owns the reader's own words.
+// stays English; entryResolutionLabel owns the reader's own words. The token
+// itself belongs to navigation, which classified the entry, so this asks for it
+// rather than keeping a copy: a copy goes on stamping the old spelling after the
+// outcome is renamed, and the rail looks right while it says something the rest
+// of the program no longer says.
 func entryResolutionCode(kind nav.EntryKind) string {
-	switch kind {
-	case nav.EntryUnresolved:
-		return "unresolved"
-	case nav.EntryAmbiguous:
-		return "ambiguous"
-	case nav.EntryNonInstance:
-		return "non-instance"
-	case nav.EntryResolved:
-		return "resolved"
-	default:
+	token, known := kind.Token()
+	if !known {
 		return strconv.Itoa(int(kind))
 	}
+	return token
 }
 
 func entryResolutionTitle(kind nav.EntryKind, lang wording.Lang) string {

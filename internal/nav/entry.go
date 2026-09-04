@@ -23,23 +23,35 @@ const (
 	EntryNonInstance
 )
 
-// String names a resolution outcome for a diagnostic, a log line or a panic,
-// using the words a rail row already carries in its markup. A kind outside the
-// four constants is a programming error and panics; a surface that has to keep
-// drawing over such a value asks for the number instead.
-func (k EntryKind) String() string {
+// Token is the name an outcome carries wherever something other than a reader
+// reads it: a diagnostic, a log line, the data-resolution attribute a rail row
+// is stamped with. The second result reports whether this package classifies
+// the value at all, so a surface that cannot stop halfway through a rail has
+// something to draw for a kind nobody here has named.
+func (k EntryKind) Token() (string, bool) {
 	switch k {
 	case EntryResolved:
-		return "resolved"
+		return "resolved", true
 	case EntryUnresolved:
-		return "unresolved"
+		return "unresolved", true
 	case EntryAmbiguous:
-		return "ambiguous"
+		return "ambiguous", true
 	case EntryNonInstance:
-		return "non-instance"
+		return "non-instance", true
 	default:
+		return "", false
+	}
+}
+
+// String names a resolution outcome for a diagnostic, a log line or a panic. A
+// kind outside the four constants is a programming error and panics; a surface
+// that has to keep drawing over such a value asks Token instead.
+func (k EntryKind) String() string {
+	token, known := k.Token()
+	if !known {
 		panic("nav: unknown EntryKind: " + strconv.Itoa(int(k)))
 	}
+	return token
 }
 
 // entryKindOf classifies one resolved target the way both reader-facing rows
