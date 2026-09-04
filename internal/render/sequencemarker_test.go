@@ -62,6 +62,12 @@ func TestHeadingDropsADeclaredRoleFromWordsContentsAndAnchor(t *testing.T) {
 			toc:     []render.TOCEntry{{Level: 2, Text: "宣告 {sequence=primary}", ID: "宣告-sequence-primary"}},
 		},
 		{
+			name:    "a heading that is only a declaration keeps it, because nothing else would be left",
+			body:    "## {sequence=primary}\n\n文字。\n",
+			heading: `<h2 id="sequence-primary">{sequence=primary}</h2>`,
+			toc:     []render.TOCEntry{{Level: 2, Text: "{sequence=primary}", ID: "sequence-primary"}},
+		},
+		{
 			name:    "a role is read at the end of the line and nowhere else",
 			body:    "## {sequence=primary} 開頭\n\n文字。\n",
 			heading: `<h2 id="sequence-primary-開頭">{sequence=primary} 開頭</h2>`,
