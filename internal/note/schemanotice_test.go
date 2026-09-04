@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -189,5 +191,96 @@ func TestNotePageReadsTogetherForAStatusThatIsNotText(t *testing.T) {
 	}
 	if !strings.Contains(page, "<code>123</code>") {
 		t.Error("the page does not name what was written")
+	}
+}
+
+// TestThePageNamesTheFolderTheJudgeActuallyCompared binds the two sides that
+// decide "which folder" for one note. The rule lives in the judging package —
+// the domain must equal the first folder under a configured root — and the page
+// works the same segment out again so it can name that folder in a sentence.
+// Two implementations of one rule, and nothing joined them: changing the page's
+// arithmetic turned this package red, and changing the rule's turned nothing
+// red at all, which is the direction that ships a page confidently naming the
+// wrong folder.
+//
+// So the folder is not written down here. It is read out of the finding the
+// real judge produced for this very note, and the page is asked for that. A
+// change to either side that moves the segment now moves them apart, and the
+// test says so.
+func TestThePageNamesTheFolderTheJudgeActuallyCompared(t *testing.T) {
+	t.Parallel()
+
+	const rel = "Concepts/japanese/nested/Deep.md"
+	body := "---\ntitle: Deep\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
+
+	root := t.TempDir()
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	contractBytes, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read the contract fixture: %v", err)
+	}
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
+		t.Fatalf("mkdir contract: %v", mkdirErr)
+	}
+	// The judging commands fail closed without an egress declaration, and the
+	// shared fixture declares none, so this one is written with an empty list:
+	// the question here is which folder a rule compared, not what may leave.
+	contractBytes = append(contractBytes, []byte("\n[privacy]\nnever_egress_dirs = []\n")...)
+	if writeErr := os.WriteFile(contractPath, contractBytes, 0o600); writeErr != nil { // #nosec G703 -- the path is this test's own t.TempDir() joined with a fixed name
+		t.Fatalf("write contract: %v", writeErr)
+	}
+
+	// A second note, alike but for its domain matching the folder the rule is
+	// supposed to compare. It binds the comparison as well as the naming: the
+	// finding's message would still say "japanese" if the condition beside it
+	// started comparing some other segment, and this note is what notices —
+	// under the rule as written it draws nothing, and under a rule comparing
+	// the folder the note merely sits in it draws a finding.
+	const agreeing = "Concepts/japanese/nested/Agrees.md"
+	agreeingBody := "---\ntitle: Agrees\ntype: concept\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
+	if writeErr := os.WriteFile(filepath.Join(filepath.Dir(full), "Agrees.md"), []byte(agreeingBody), 0o600); writeErr != nil { // #nosec G703 -- a path under this test's own t.TempDir()
+		t.Fatalf("write the agreeing note: %v", writeErr)
+	}
+
+	findings, err := judge.Check(t.Context(), root)
+	if err != nil {
+		t.Fatalf("judge.Check: %v", err)
+	}
+	for i := range findings {
+		if findings[i].RuleID == "schema.domain_folder" && findings[i].Path == agreeing {
+			t.Errorf("a note whose domain matches the folder the rule compares drew %q", findings[i].Message)
+		}
+	}
+	var compared string
+	seen := 0
+	for i := range findings {
+		if findings[i].RuleID != "schema.domain_folder" || findings[i].Path != rel {
+			continue
+		}
+		seen++
+		_, folder, found := strings.Cut(findings[i].Message, "does not match its folder ")
+		if !found {
+			t.Fatalf("the finding's message no longer names a folder, so this test cannot read one out of it: %q", findings[i].Message)
+		}
+		compared = folder
+	}
+	if seen != 1 {
+		t.Fatalf("the judge reported %d folder findings for this note; the fixture is meant to draw exactly one", seen)
+	}
+
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
+	}
+	if !strings.Contains(page, "<code>"+compared+"</code>") {
+		t.Errorf("the judge compared the folder %q and the page does not name it", compared)
 	}
 }
