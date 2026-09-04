@@ -248,12 +248,12 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 	model := buildModel(t)
 	lang := wording.ZhHant
 	pages := map[string]ListIndexView{
-		pathMode:   NewPathIndex(model.Paths(), nav.Closure{}, lang),
-		mapMode:    NewMapIndex(model.Maps(), nav.Closure{}, lang),
+		pathMode:   NewPathIndex(model.Paths(), nav.Closure{}, true, lang),
+		mapMode:    NewMapIndex(model.Maps(), nav.Closure{}, true, lang),
 		reportMode: NewReportIndex(model.Reports(), lang),
 		folderMode: NewFolderIndex(model, lang),
 	}
-	blocks := NewDeskBlocks(model, lang)
+	blocks := NewDeskBlocks(model, true, lang)
 	seen := 0
 	for _, block := range blocks {
 		page, ok := pages[block.Mode]

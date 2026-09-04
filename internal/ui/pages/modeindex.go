@@ -79,7 +79,7 @@ type StatusDistribution struct {
 // — how many lessons it lays out — and never how far anyone has got: a count
 // that described a status as progress ran backwards as the work was finished,
 // and does not return under another name.
-func NewPathIndex(paths []nav.Path, closure nav.Closure, lang wording.Lang) ListIndexView {
+func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wording.Lang) ListIndexView {
 	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
@@ -100,9 +100,28 @@ func NewPathIndex(paths []nav.Path, closure nav.Closure, lang wording.Lang) List
 	}
 	view := listIndex(pathMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
-		wording.PathIndexLede.In(lang), wording.PathIndexEmpty.In(lang), rows)
+		wording.PathIndexLede.In(lang), emptySentence(governed, wording.PathIndexEmpty, wording.PathIndexUngoverned, lang), rows)
 	view.Fault = closure.Diagnostic()
+	withholdListing(&view, closure)
 	return view
+}
+
+// emptySentence chooses what an empty listing says. A folder no contract
+// governs has declared nothing to be empty of, so telling it that it "declares
+// none" answers a question it was never asked; the ungoverned sentence states
+// what is true of it instead.
+//
+// governed is whether anything claimed authority over this folder at all — true
+// for a contract that loaded, for one that could not be read, and for one that
+// left a section out, because the claim is what governs rather than its
+// completeness. So the two sentences separate a folder with no contract from a
+// folder whose contract declares none of this kind, which is the distinction a
+// reader needs and the one the old single sentence could not make.
+func emptySentence(governed bool, declared, ungoverned wording.Phrase, lang wording.Lang) string {
+	if governed {
+		return declared.In(lang)
+	}
+	return ungoverned.In(lang)
 }
 
 // listIndex assembles a mode's page from the parts every one of them has. The
@@ -131,7 +150,7 @@ func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView
 
 // NewMapIndex builds the map index. A map's measure is how many branches it
 // holds at every depth, which is the shape of the subject it draws.
-func NewMapIndex(maps []nav.Map, closure nav.Closure, lang wording.Lang) ListIndexView {
+func NewMapIndex(maps []nav.Map, closure nav.Closure, governed bool, lang wording.Lang) ListIndexView {
 	rows := make([]Row, 0, len(maps))
 	for i := range maps {
 		rows = append(rows, Row{
@@ -142,8 +161,9 @@ func NewMapIndex(maps []nav.Map, closure nav.Closure, lang wording.Lang) ListInd
 	}
 	view := listIndex(mapMode, wording.Maps.In(lang),
 		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
-		wording.MapIndexLede.In(lang), wording.MapIndexEmpty.In(lang), rows)
+		wording.MapIndexLede.In(lang), emptySentence(governed, wording.MapIndexEmpty, wording.MapIndexUngoverned, lang), rows)
 	view.Fault = closure.Diagnostic()
+	withholdListing(&view, closure)
 	return view
 }
 
@@ -286,15 +306,15 @@ const deskBlockItems = 3
 // index pages list, so a block and the page its heading opens can never
 // disagree about what the vault holds. A withheld declaration leaves its block
 // empty; the reason is stated once for the whole desk, below the seam.
-func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
+func NewDeskBlocks(model *nav.Model, governed bool, lang wording.Lang) []DeskBlock {
 	// The blocks are the mode pages narrowed, so they refuse what those pages
 	// refuse: each constructor is handed the same declaration closure the page
 	// is, and withhold then takes back only what a block would otherwise claim
 	// about how much it holds.
 	closure := model.DeclaredClosure()
 	withheld := closure.Closed()
-	pathIndex := NewPathIndex(model.Paths(), closure, lang)
-	mapIndex := NewMapIndex(model.Maps(), closure, lang)
+	pathIndex := NewPathIndex(model.Paths(), closure, governed, lang)
+	mapIndex := NewMapIndex(model.Maps(), closure, governed, lang)
 	reportIndex := NewReportIndex(model.Reports(), lang)
 	folderIndex := NewFolderIndex(model, lang)
 	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))
@@ -309,6 +329,19 @@ func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
 		deskBlock(&reportIndex, wording.DeskReportsLede.In(lang)),
 		deskBlock(&folderIndex, wording.DeskFoldersLede.In(lang)),
 	}
+}
+
+// withholdListing takes back what a page may not claim about a declaration that
+// was closed: how much it holds, and that it holds none. It is the same
+// withdrawal the desk's blocks make, made here as well so the two cannot
+// disagree — and it does not wait for the closure to have brought a sentence
+// with it, because a closure that came silently withholds exactly as much.
+func withholdListing(v *ListIndexView, closure nav.Closure) {
+	if !closure.Closed() {
+		return
+	}
+	withhold(&v.Shelf)
+	v.Kicker = v.Shelf.Title
 }
 
 // withhold takes back what a shelf would otherwise claim about an organisation

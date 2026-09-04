@@ -29,8 +29,9 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// the sentence would then be answered by a different set of files than the
 	// technical detail beside it lists.
 	fresh := snap.Freshness()
-	visibleNav := shell.Project(authority, snap).Nav
-	blocks := pages.NewDeskBlocks(visibleNav, lang)
+	visible := shell.Project(authority, snap)
+	visibleNav := visible.Nav
+	blocks := pages.NewDeskBlocks(visibleNav, visible.Governed, lang)
 	// The reason a way in is empty, stated once at the foot of the page. The
 	// desk draws all four ways in, so what it says here is the union of what
 	// the four pages behind them say: the write authority, which empties the

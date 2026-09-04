@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -61,10 +62,11 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page-unasked", Search(SearchView{FilterKeys: []string{"status", "type", "path"}}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
-		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, recordedChrome().Lang), recordedChrome())},
-		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, recordedChrome().Lang), recordedChrome())},
+		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, recordedChrome().Lang), recordedChrome())},
+		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, recordedChrome().Lang), recordedChrome())},
 		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
+		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
 		{"folder-index-page", FolderIndex(NewFolderIndex(model, recordedChrome().Lang), RecentBlock{}, StatusDistribution{}, recordedChrome())},
 		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
@@ -253,7 +255,7 @@ func recordedHomeView(model *nav.Model) HomeView {
 		PrivacyFault:   "the contract declares no privacy scope",
 		Degraded:       "有檔案讀不進來",
 		DegradedDetail: "permission denied",
-		Blocks:         NewDeskBlocks(model, recordedChrome().Lang),
+		Blocks:         NewDeskBlocks(model, true, recordedChrome().Lang),
 		ReadmeMissing:  true,
 	}
 }
@@ -271,7 +273,7 @@ func recordedHomeView(model *nav.Model) HomeView {
 func recordedWithheldHomeView(model *nav.Model) HomeView {
 	view := recordedHomeView(model)
 	view.Fault = "the contract could not be read"
-	view.Blocks = NewDeskBlocks(model, recordedChrome().Lang)
+	view.Blocks = NewDeskBlocks(model, true, recordedChrome().Lang)
 	for i := range view.Blocks {
 		if view.Blocks[i].Mode == pathMode || view.Blocks[i].Mode == mapMode {
 			withhold(&view.Blocks[i].Shelf)
@@ -320,11 +322,20 @@ func recordedFaultedIndexView() ListIndexView {
 		Title:       "Unread Course",
 		RelPath:     "Maps/unread.md",
 		Diagnostics: []sequence.Diagnostic{{Rule: "path.nesting_too_deep", Line: 4, Message: "nested past one level"}},
-	}}, nav.Closure{}, recordedChrome().Lang)
+	}}, nav.Closure{}, true, recordedChrome().Lang)
+}
+
+// recordedSilentlyWithheldIndexView is the state a page can reach without a
+// sentence to show for it: the declaration is closed, so nothing may be listed,
+// and the closure carried no words. The page says neither how much it holds nor
+// that it holds none — the same silence the desk keeps — and nothing recorded
+// that until this.
+func recordedSilentlyWithheldIndexView() ListIndexView {
+	return NewMapIndex(nil, nav.Close(schema.Rejected("")), true, recordedChrome().Lang)
 }
 
 func recordedWithheldIndexView() ListIndexView {
-	view := NewMapIndex(nil, nav.Closure{}, recordedChrome().Lang)
+	view := NewMapIndex(nil, nav.Closure{}, true, recordedChrome().Lang)
 	view.Fault = "the contract could not be read"
 	return view
 }
