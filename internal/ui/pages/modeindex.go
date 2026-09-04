@@ -17,40 +17,16 @@ const (
 	folderMode = "folders"
 )
 
-// ListIndexView is one mode's index page, where that mode's contents are a flat
-// list. Fault is why a projection was withheld, stated once for the page the
-// way the desk states it: a withheld projection lists nothing, and Empty is
-// then not the answer — a vault whose declaration could not be read is not a
-// vault that declared nothing.
+// ListIndexView is one mode's index page: the page's own chrome, and the shelf
+// it unfolds. Fault is why a projection was withheld, stated once for the page;
+// a withheld projection lists nothing, and its shelf then says neither how much
+// it holds nor that it holds none, because a vault whose declaration could not
+// be read is not a vault that declared nothing.
 type ListIndexView struct {
 	Mode   string
 	Kicker string
-	Title  string
-	Lede   string
-	// Empty is what the page says when the mode holds nothing at all.
-	Empty string
-	Fault string
-	Rows  []IndexRow
-}
-
-// IndexRow is one line of a mode index. Beyond the title and the address every
-// cell belongs to some modes and not others: only a report carries a date, only
-// a course or a map carries a measure, and only a row with something to flag
-// carries a mark.
-type IndexRow struct {
-	Title string
-	Href  string
-	// Date is the day the item names in its own filename, empty where the name
-	// carries none.
-	Date string
-	// Measure is the one figure the mode counts an item by — a course's
-	// lessons, a map's branches. It is never a position in that count: how far
-	// a reader has got is the browser's business and not a fact about the note.
-	Measure string
-	// Mark is a short chip beside the row; MarkWarn colours it as a fault
-	// rather than as a plain remark.
-	Mark     string
-	MarkWarn bool
+	Fault  string
+	Shelf  Shelf
 }
 
 // FolderIndexView is the folder mode's index: the vault's own directory tree,
@@ -118,51 +94,61 @@ func recentLede(v *FolderIndexView, lang wording.Lang) string {
 // that described a status as progress ran backwards as the work was finished,
 // and does not return under another name.
 func NewPathIndex(paths []nav.Path, lang wording.Lang) ListIndexView {
-	rows := make([]IndexRow, 0, len(paths))
+	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
-		row := IndexRow{
-			Title:   studyPath.Title,
-			Href:    syllabusHref(studyPath.RelPath),
-			Measure: plural(studyPath.Planned, wording.LessonCountOne, wording.LessonCountMany, lang),
-		}
+		extent := plural(studyPath.Planned, wording.LessonCountOne, wording.LessonCountMany, lang)
 		// A zero with grammar diagnostics behind it is a fault to repair; a
 		// zero without them is the author's answer.
-		if studyPath.Planned == 0 && len(studyPath.Diagnostics) > 0 {
-			row.Mark = wording.NoStructureRead.In(lang)
-			row.MarkWarn = true
+		unread := studyPath.Planned == 0 && len(studyPath.Diagnostics) > 0
+		mark := extent
+		if unread {
+			mark = joinMarks(extent, wording.NoStructureRead.In(lang))
 		}
-		rows = append(rows, row)
+		rows = append(rows, Row{
+			Text:  studyPath.Title,
+			Href:  syllabusHref(studyPath.RelPath),
+			Mark:  mark,
+			Fault: unread,
+		})
 	}
+	return listIndex(pathMode, wording.Paths.In(lang),
+		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
+		wording.PathIndexLede.In(lang), wording.PathIndexEmpty.In(lang), rows)
+}
+
+// listIndex assembles a mode's page from the parts every one of them has. The
+// kicker repeats the shelf's own name and measure because it is the page's
+// heading rather than the shelf's, and reading them from the shelf is what
+// keeps the two from disagreeing.
+func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView {
 	return ListIndexView{
-		Mode:   pathMode,
-		Kicker: modeKicker(wording.Paths.In(lang), plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang)),
-		Title:  wording.Paths.In(lang),
-		Lede:   wording.PathIndexLede.In(lang),
-		Empty:  wording.PathIndexEmpty.In(lang),
-		Rows:   rows,
+		Mode:   mode,
+		Kicker: modeKicker(title, count),
+		Shelf: Shelf{
+			Title: title,
+			Lede:  lede,
+			Count: count,
+			Empty: empty,
+			Rows:  rows,
+		},
 	}
 }
 
 // NewMapIndex builds the map index. A map's measure is how many branches it
 // holds at every depth, which is the shape of the subject it draws.
 func NewMapIndex(maps []nav.Map, lang wording.Lang) ListIndexView {
-	rows := make([]IndexRow, 0, len(maps))
+	rows := make([]Row, 0, len(maps))
 	for i := range maps {
-		rows = append(rows, IndexRow{
-			Title:   maps[i].Title,
-			Href:    notesHref(maps[i].RelPath),
-			Measure: plural(countBranches(maps[i].Branches), wording.BranchCountOne, wording.BranchCountMany, lang),
+		rows = append(rows, Row{
+			Text: maps[i].Title,
+			Href: notesHref(maps[i].RelPath),
+			Mark: plural(countBranches(maps[i].Branches), wording.BranchCountOne, wording.BranchCountMany, lang),
 		})
 	}
-	return ListIndexView{
-		Mode:   mapMode,
-		Kicker: modeKicker(wording.Maps.In(lang), plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang)),
-		Title:  wording.Maps.In(lang),
-		Lede:   wording.MapIndexLede.In(lang),
-		Empty:  wording.MapIndexEmpty.In(lang),
-		Rows:   rows,
-	}
+	return listIndex(mapMode, wording.Maps.In(lang),
+		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
+		wording.MapIndexLede.In(lang), wording.MapIndexEmpty.In(lang), rows)
 }
 
 // countBranches totals a map's branches at every depth.
@@ -180,31 +166,25 @@ func countBranches(branches []nav.Branch) int {
 // keeps the filename the author gave it and lifts the day out of the front of
 // that name where there is one; nothing here opens a report to describe it.
 func NewReportIndex(reports []nav.Report, lang wording.Lang) ListIndexView {
-	rows := make([]IndexRow, 0, len(reports))
+	rows := make([]Row, 0, len(reports))
 	for _, report := range reports {
-		row := IndexRow{
-			Title:   report.Name,
-			Href:    notesHref(report.RelPath),
-			Date:    leadingDate(report.Name),
-			Measure: wording.WrittenReport.In(lang),
-		}
+		href, kind := notesHref(report.RelPath), wording.WrittenReport.In(lang)
 		if report.Briefing {
-			row.Href = reportHref(report.Name)
-			row.Measure = wording.DailyBriefing.In(lang)
+			href, kind = reportHref(report.Name), wording.DailyBriefing.In(lang)
 		}
+		newest := ""
 		if report.Latest {
-			row.Mark = wording.Newest.In(lang)
+			newest = wording.Newest.In(lang)
 		}
-		rows = append(rows, row)
+		rows = append(rows, Row{
+			Text: report.Name,
+			Href: href,
+			Mark: joinMarks(leadingDate(report.Name), kind, newest),
+		})
 	}
-	return ListIndexView{
-		Mode:   reportMode,
-		Kicker: modeKicker(wording.Reports.In(lang), plural(len(reports), wording.ReportCountOne, wording.ReportCountMany, lang)),
-		Title:  wording.Reports.In(lang),
-		Lede:   wording.ReportIndexLede.In(lang),
-		Empty:  wording.ReportIndexEmpty.In(lang),
-		Rows:   rows,
-	}
+	return listIndex(reportMode, wording.Reports.In(lang),
+		plural(len(reports), wording.ReportCountOne, wording.ReportCountMany, lang),
+		wording.ReportIndexLede.In(lang), wording.ReportIndexEmpty.In(lang), rows)
 }
 
 // leadingDate reads the day off the front of a filename written as one, and
@@ -354,36 +334,16 @@ func withhold(s *Shelf) {
 	s.Empty = ""
 }
 
-// deskBlock reads one mode's whole index as the shelf the desk shows a corner
-// of. Narrowing it to the rows that fit is the shelf component's own business.
+// deskBlock shows the desk a corner of the shelf a mode's page unfolds. It is
+// the same shelf, with the address of that page and the shorter sentence a
+// block has room for; narrowing it to the rows that fit is the shelf
+// component's own business.
 func deskBlock(index *ListIndexView, lede, count string) DeskBlock {
-	return DeskBlock{
-		Mode: index.Mode,
-		Shelf: Shelf{
-			Title: index.Title,
-			Lede:  lede,
-			Count: count,
-			Href:  indexHref(index.Mode),
-			Empty: index.Empty,
-			Rows:  shelfRowsFromIndex(index.Rows),
-		},
-	}
-}
-
-// shelfRowsFromIndex reads index rows as shelf rows. A shelf row carries one
-// mark, so a mode that measures a row and also has something to flag about it
-// says both in that one place rather than asking for a second.
-func shelfRowsFromIndex(rows []IndexRow) []Row {
-	out := make([]Row, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, Row{
-			Text:  row.Title,
-			Href:  row.Href,
-			Mark:  joinMarks(row.Measure, row.Date, row.Mark),
-			Fault: row.MarkWarn,
-		})
-	}
-	return out
+	shelf := index.Shelf
+	shelf.Lede = lede
+	shelf.Count = count
+	shelf.Href = indexHref(index.Mode)
+	return DeskBlock{Mode: index.Mode, Shelf: shelf}
 }
 
 // joinMarks writes what a row is measured by and what is wrong with it as one

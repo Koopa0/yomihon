@@ -36,7 +36,7 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.NewMapIndex(declared, lang)
 	view.Fault = closure.Diagnostic()
-	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Title)).Render(r.Context(), w); err != nil {
+	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)
 	}
 }

@@ -14,30 +14,13 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
 			<div class="y-home">
-				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
+				@indexHead(v.Kicker, v.Shelf.Title, v.Shelf.Lede, c.Lang)
 				if v.Fault != "" {
 					@indexFault(v.Fault, c)
-				} else if len(v.Rows) == 0 {
-					<p class="y-homeempty" data-index-empty>{ v.Empty }</p>
+				} else if len(v.Shelf.Rows) == 0 && v.Shelf.Empty != "" {
+					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
 				}
-				if len(v.Rows) > 0 {
-					<div class="y-list">
-						for _, row := range v.Rows {
-							<a class="y-row" href={ templ.URL(row.Href) } data-index-row>
-								if row.Date != "" {
-									<span class="y-row__date">{ row.Date }</span>
-								}
-								<span class="y-row__title">{ row.Title }</span>
-								if row.Mark != "" {
-									<span class={ "y-navmark", templ.KV("y-navmark--warn", row.MarkWarn) }>{ row.Mark }</span>
-								}
-								if row.Measure != "" {
-									<span class="y-row__measure">{ row.Measure }</span>
-								}
-							</a>
-						}
-					</div>
-				}
+				@ShelfPage(v.Shelf)
 			</div>
 		</main>
 	}

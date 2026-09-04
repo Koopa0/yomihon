@@ -46,3 +46,40 @@ templ shelfRowLink(row Row) {
 		}
 	</a>
 }
+
+// ShelfPage is a shelf unfolded: everything on it, with a heading over each
+// division so the page's own contents can reach one. It is the same shelf the
+// desk shows a corner of, which is what keeps a block from ever listing
+// something its page does not. The name, the measure and the sentence belong to
+// the page's own header, which states them once above this.
+templ ShelfPage(s Shelf) {
+	if len(s.Rows) > 0 {
+		<div class="y-list">
+			for _, row := range s.Rows {
+				@shelfPageRow(row)
+			}
+		</div>
+	}
+}
+
+// shelfPageRow is one row at full width. A row that leads nowhere is still
+// listed — an unwritten lesson is part of its course — and is written as text
+// rather than as a link that goes to the page it is already on.
+templ shelfPageRow(row Row) {
+	if row.Href == "" {
+		<span class={ "y-row", "y-row--nostop", templ.KV("y-row--fault", row.Fault) } data-index-row>
+			@shelfRowBody(row)
+		</span>
+	} else {
+		<a class={ "y-row", templ.KV("y-row--fault", row.Fault) } href={ templ.URL(row.Href) } data-index-row>
+			@shelfRowBody(row)
+		</a>
+	}
+}
+
+templ shelfRowBody(row Row) {
+	<span class="y-row__title">{ row.Text }</span>
+	if row.Mark != "" {
+		<span class={ "y-row__measure", templ.KV("y-navmark--warn", row.Fault) }>{ row.Mark }</span>
+	}
+}

@@ -27,12 +27,12 @@ func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 		{Title: "Plans nothing", RelPath: "Maps/Empty.md"},
 	}, wording.ZhHant)
 
-	want := []IndexRow{
-		{Title: "Go path", Href: "/syllabus/Maps/Go%20path.md", Measure: "4 課"},
-		{Title: "Unread structure", Href: "/syllabus/Maps/Broken.md", Measure: "0 課", Mark: "未讀到課程結構", MarkWarn: true},
-		{Title: "Plans nothing", Href: "/syllabus/Maps/Empty.md", Measure: "0 課"},
+	want := []Row{
+		{Text: "Go path", Href: "/syllabus/Maps/Go%20path.md", Mark: "4 課"},
+		{Text: "Unread structure", Href: "/syllabus/Maps/Broken.md", Mark: "0 課 · 未讀到課程結構", Fault: true},
+		{Text: "Plans nothing", Href: "/syllabus/Maps/Empty.md", Mark: "0 課"},
 	}
-	if diff := cmp.Diff(want, view.Rows); diff != "" {
+	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("study-path rows mismatch (-want +got):\n%s", diff)
 	}
 	if view.Mode != pathMode {
@@ -51,8 +51,8 @@ func TestAMapRowCountsBranchesAtEveryDepth(t *testing.T) {
 		{Heading: "Two"},
 	}}
 	view := NewMapIndex([]nav.Map{deep}, wording.ZhHant)
-	want := []IndexRow{{Title: "Deep", Href: "/notes/Maps/Deep.md", Measure: "4 枝"}}
-	if diff := cmp.Diff(want, view.Rows); diff != "" {
+	want := []Row{{Text: "Deep", Href: "/notes/Maps/Deep.md", Mark: "4 枝"}}
+	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("map rows mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -71,17 +71,16 @@ func TestAReportRowNamesItsKindAndItsDay(t *testing.T) {
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 	}, wording.ZhHant)
 
-	want := []IndexRow{
+	want := []Row{
 		{
-			Title:   "2026-07-10 vault audit.md",
-			Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
-			Date:    "2026-07-10",
-			Measure: "書庫筆記",
+			Text: "2026-07-10 vault audit.md",
+			Href: "/notes/System/reports/2026-07-10%20vault%20audit.md",
+			Mark: "2026-07-10 · 書庫筆記",
 		},
-		{Title: "notes.md", Href: "/notes/System/reports/notes.md", Measure: "書庫筆記"},
-		{Title: "latest.html", Href: "/reports/latest.html", Measure: "每日簡報", Mark: "最新"},
+		{Text: "notes.md", Href: "/notes/System/reports/notes.md", Mark: "書庫筆記"},
+		{Text: "latest.html", Href: "/reports/latest.html", Mark: "每日簡報 · 最新"},
 	}
-	if diff := cmp.Diff(want, view.Rows); diff != "" {
+	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("report rows mismatch (-want +got):\n%s", diff)
 	}
 }
