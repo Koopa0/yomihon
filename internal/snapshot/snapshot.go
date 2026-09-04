@@ -400,6 +400,11 @@ type Store struct {
 	// sinceRebuild counts scan ticks since the last completed build attempt,
 	// driving the slow cycle that catches metadata-invisible edits.
 	sinceRebuild int
+
+	// running records that the reconciliation loop has been claimed. The
+	// fields above are that loop's alone and carry no synchronization, so a
+	// second Run is refused rather than left to advance them beside the first.
+	running atomic.Bool
 }
 
 // New captures and builds the initial generation synchronously. source and log
@@ -466,8 +471,14 @@ func New(
 // Current returns the published generation. It is non-nil after New succeeds.
 func (s *Store) Current() *Generation { return s.ptr.Load() }
 
-// Run reconciles the vault until ctx is cancelled.
+// Run reconciles the vault until ctx is cancelled. Call it once per Store: it
+// advances the fields the reconciliation loop owns, which are unsynchronized
+// because there is one loop, and a second call is a programming error rather
+// than a runtime condition.
 func (s *Store) Run(ctx context.Context) {
+	if !s.running.CompareAndSwap(false, true) {
+		panic("snapshot: Store.Run called twice")
+	}
 	runScanner(ctx, func() { s.rescan(ctx) })
 }
 

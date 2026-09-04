@@ -186,24 +186,103 @@ func panicsOverTheirOwnReceiver(t *testing.T) map[string]bool {
 	return sites
 }
 
-// TestAConstructorGuardSaysWhichDependencyWasNil keeps the one message a wiring
-// bug produces readable. Every guard in the tree says the same sentence, so the
-// person reading a crash on the first request reads a field name rather than a
-// package name and a guess.
-func TestAConstructorGuardSaysWhichDependencyWasNil(t *testing.T) {
+// panicShapes are the wordings a panic written here may take, in the order the
+// check below reports them. A panic is how this repository says the code is
+// wrong rather than the input, and there are three ways for it to be wrong that
+// reach one: a value arrived from outside a closed set, the wiring did not
+// supply something a constructor needs, and a method that may run once was
+// entered again. The list is closed on purpose — a fourth wording is a fourth
+// thing the person reading a crash has to recognize — so growing it is an
+// edit here, not a choice made at a call site.
+var panicShapes = []struct {
+	name   string
+	says   func(line string) bool
+	advice string
+}{
+	{
+		name:   "unknown value",
+		says:   func(line string) bool { return strings.Contains(line, "unknown") },
+		advice: `panic("<package>: unknown <Type>: " + v.String())`,
+	},
+	{
+		name:   "missing dependency",
+		says:   func(line string) bool { return strings.Contains(line, "requires a non-nil") },
+		advice: `panic("<package>: <Constructor> requires a non-nil <Field>")`,
+	},
+	{
+		name:   "once-only method entered again",
+		says:   func(line string) bool { return strings.HasSuffix(line, ` called twice")`) },
+		advice: `panic("<package>: <Type>.<Method> called twice")`,
+	},
+}
+
+// panicShape names which wording a line carries, and reports whether it carries
+// one at all.
+func panicShape(line string) (string, bool) {
+	for _, shape := range panicShapes {
+		if shape.says(line) {
+			return shape.name, true
+		}
+	}
+	return "", false
+}
+
+// TestALiteralPanicUsesOneOfTheAgreedWordings keeps the messages a programming
+// error produces readable, and keeps them few. Every guard of one kind says the
+// same sentence, so the person reading a crash on the first request reads a
+// field name, a value, or the method they entered twice — rather than a package
+// name and a guess.
+func TestALiteralPanicUsesOneOfTheAgreedWordings(t *testing.T) {
 	t.Parallel()
 
-	found := findLines(t, func(line string) bool {
-		return strings.Contains(line, `panic("`) && !strings.Contains(line, "unknown") &&
-			!strings.Contains(line, "requires a non-nil")
-	})
-	conforming := findLines(t, func(line string) bool {
-		return strings.Contains(line, `panic("`) && strings.Contains(line, "requires a non-nil")
-	})
-	if len(conforming) == 0 {
-		t.Fatal("no constructor guard uses the shape this check asks for, so it is checking a rule nobody follows")
+	seen := make(map[string]int, len(panicShapes))
+	var found []site
+	for _, s := range productionLines(t) {
+		if !strings.Contains(s.text, `panic("`) {
+			continue
+		}
+		if name, ok := panicShape(s.text); ok {
+			seen[name]++
+			continue
+		}
+		found = append(found, s)
 	}
-	report(t, `a constructor guard must read panic("<package>: <Constructor> requires a non-nil <Field>")`, found)
+	var advice []string
+	for _, shape := range panicShapes {
+		if seen[shape.name] == 0 {
+			t.Fatalf("no panic in the tree uses the %s wording, so this check is comparing against nothing", shape.name)
+		}
+		advice = append(advice, shape.advice)
+	}
+	report(t, "a literal panic must use one of the agreed wordings: "+strings.Join(advice, ", "), found)
+}
+
+// TestAWordingOutsideTheListIsNotAShape asks the predicate directly about
+// wordings the check has to reject, because a predicate that accepted
+// everything would leave the check above reporting nothing whatever the tree
+// said, and the tree passing is the answer that looks the same either way.
+func TestAWordingOutsideTheListIsNotAShape(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		line string
+		want bool
+	}{
+		{"a value outside a closed set", `panic("graph: unknown Kind: " + strconv.Itoa(int(k)))`, true},
+		{"a dependency the wiring did not supply", `panic("note: New requires a non-nil Sources")`, true},
+		{"a once-only method entered again", `panic("snapshot: Store.Run called twice")`, true},
+		{"a sentence nobody agreed on", `panic("snapshot: the store is in a state it should not be in")`, false},
+		{"the third idea said another way", `panic("snapshot: Store.Run is already running")`, false},
+		{"the third wording with nothing said before it", `panic("called twice")`, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if _, ok := panicShape(tt.line); ok != tt.want {
+				t.Errorf("panicShape(%q) = %v, want %v", tt.line, ok, tt.want)
+			}
+		})
+	}
 }
 
 // TestNoResponseCarriesASentenceWrittenInTheSource keeps every string a reader

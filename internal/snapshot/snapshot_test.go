@@ -1729,3 +1729,39 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 		t.Errorf("the oversize note reached the index, so its page's sentence is untrue; got %v", paths)
 	}
 }
+
+// One Store drives one reconciliation loop, and eight of its fields — the
+// previous scan, the retry flag, the backoff schedule and the two incomplete
+// counts — are that loop's alone. Run is exported, so nothing but this stops a
+// caller starting a second loop over them; the race detector finds it at
+// sinceRebuild, and the answer a page reads afterwards is whatever the two
+// loops left behind.
+func TestASecondReconciliationLoopIsRefused(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	contract := testContract(t, root)
+	store, _ := newTestStore(t, root, contract)
+
+	// A cancelled context makes Run claim the loop and return at once, so the
+	// second call is reached without either loop having to be timed.
+	stopped, cancel := context.WithCancel(t.Context())
+	cancel()
+	store.Run(stopped)
+
+	recovered := func() (value any) {
+		defer func() { value = recover() }()
+		store.Run(stopped)
+		t.Error("a second Run returned instead of stopping, leaving two loops free to advance the same fields")
+		return nil
+	}()
+
+	if recovered == nil {
+		t.Fatal("Store.Run can be called twice without saying so")
+	}
+	message, isString := recovered.(string)
+	if want := "snapshot: Store.Run called twice"; !isString || message != want {
+		t.Errorf("panic value = %v, want %q", recovered, want)
+	}
+}
