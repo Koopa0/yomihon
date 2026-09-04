@@ -26,6 +26,7 @@ const SITES = [
   'plain-drawer-toggles',
   'wide-drawer-key-stays-native',
   'escape-dismisses',
+  'composing-escape-stays-with-the-input',
   'command-palette-chord',
   'default-on',
   'disabled-printables-stay-native',
@@ -127,6 +128,11 @@ const MUTATIONS = {
   'disable-global-escape': {
     target: 'escape-dismisses',
     apply: rewriteScript("    if (event.key === 'Escape') {", '    if (false) {'),
+  },
+  // The module reading keys again while an input method is still composing.
+  'act-while-the-input-method-composes': {
+    target: 'composing-escape-stays-with-the-input',
+    apply: rewriteScript('    if (event.isComposing) return;\n', ''),
   },
   'disable-command-palette-chord': {
     target: 'command-palette-chord',
@@ -362,6 +368,37 @@ try {
       after = await state(page);
       if (after.dialogOpen) fail('escape-dismisses', 'Escape did not close the command palette');
     }
+  }
+
+  // A composing input method owns Escape: it is how a half-typed word is
+  // abandoned, and the page taking it instead cancels nothing and closes
+  // something the reader was still using. The composition flag is set on the
+  // event here rather than driven by a real input method, which no headless
+  // run has; what it exercises is the guard, not the platform.
+  //
+  // The drawer is what it is asked about, and the search dialog deliberately
+  // is not. That dialog is opened with showModal(), so the browser closes it
+  // on a real Escape through its own close request, whatever the page decides
+  // — and a dispatched event runs no default action at all, so a synthetic
+  // Escape could neither close it nor show that a real one would. An
+  // assertion there would hold however the guard was written. Closing the
+  // drawer has no browser behaviour behind it: the page is the only thing
+  // that can do it, which is what makes a dispatched event able to tell.
+  await page.locator(NAV_TOGGLE).click();
+  await page.waitForFunction(() => document.documentElement.dataset.nav === 'open');
+  await dispatch(page, 'keydown', 'Escape', { isComposing: true });
+  after = await state(page);
+  await dispatch(page, 'keyup', 'Escape', { isComposing: true });
+  if (after.nav !== 'open') {
+    fail('composing-escape-stays-with-the-input', `Escape during composition left nav=${after.nav}, want open`);
+  }
+  // And the same key, no longer composing, still closes it — otherwise the
+  // assertion above would pass just as well on a page that had stopped
+  // answering Escape at all.
+  await press(page, 'Escape');
+  after = await state(page);
+  if (after.nav !== 'closed') {
+    fail('composing-escape-stays-with-the-input', `Escape after a composition left nav=${after.nav}, want closed`);
   }
 
   await openHelp();
