@@ -7,9 +7,9 @@
 
 **把你整理好的 Markdown，變成一本好讀的書。**
 
-[![yomihon 正在讀範例知識庫裡一門課的第一章：左側是課程與你讀到的位置，中間是為長篇閱讀排版的正文，右側是本頁的章節與引用這篇的筆記](.github/media/reading-zh-TW.png)](.github/media/reading-zh-TW.png)
+[![yomihon 的閱讀頁：左欄是課程與目前的一課，中間是正文，右欄是本頁章節與引用它的筆記](.github/media/reading-zh-TW.png)](.github/media/reading-zh-TW.png)
 
-筆記在資料夾裡累積；理解發生在把它們讀回來的時候。yomihon 把一個 Markdown 資料夾當成一本書來端：學習路徑打開是一門課，有章節、有你讀到哪；一篇筆記打開時，章節與引用它的筆記就在正文旁邊；知識庫裡哪裡壞了，就在壞掉的地方說。它在你的機器上執行，筆記在哪裡就在哪裡讀。
+yomihon 把一個 Markdown 資料夾讀成一本書。學習路徑是一門課，有章節，標出你在哪一課；每篇筆記旁邊放著它的章節，還有引用它的筆記；哪裡壞了，就在原處說明。它在你的機器上執行，不改你的任何一個字。
 
 ## 安裝
 
@@ -17,31 +17,30 @@
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
 
-需要 Go 1.27 以上版本。
+需要 Go 1.27 以上。
 
 ## 使用
 
 ```sh
-yomihon serve ~/notes
+yomihon ~/notes
 ```
 
-接著開啟 <http://127.0.0.1:9610>。任何資料夾都能照原樣讀；`yomihon serve examples/vault` 可以看見加上知識庫契約之後多了什麼。
+接著開啟 <http://127.0.0.1:9610>。任何資料夾都能直接讀；`yomihon examples/vault` 是一個帶契約的範例知識庫，可以看見契約多給了什麼。
 
 ## 它做什麼
 
-- **讀。** wikilink、callout、註腳、表格、Mermaid、有語法標示的程式碼與 ruby，都照作者的意思呈現。版面為長篇閱讀而設，中日文優先，有亮與暗兩種桌面、三段字級。
-- **學。** 學習路徑變成課程：課數、上一課與下一課、你在哪裡。振假名可開可關；標了朗讀的段落用它自己的語言唸出來（範例知識庫裡有[一條可以照著寫的學習路徑](examples/vault/Notes/中文/讀懂%20yomihon.md)）。
-- **找。** 關鍵字搜尋，可按資料夾篩選，零筆時給你退一步的建議；反向連結與本頁章節留在正文旁邊。
-- **讓知識庫誠實。** 一頁健康狀況列出連不到目標的連結、沒有人引用的筆記、兩個檔案同時應答的名字；每篇筆記帶著自己的診斷；同一套檢查在命令列是 `yomihon check`。它不替你修任何東西——檔案由你改。
-- **報告。** 放在知識庫 `System/reports/daily-briefing/` 底下的每日簡報，在同一間閱讀室裡打開，隔離執行。
-- **兩種語言。** 介面說英文或繁體中文；每篇筆記保留書寫時使用的語言。
-- **你的。** 只綁 `127.0.0.1`，永遠不發網路請求，也不動你的文字。
+- **讀。** wikilink、callout、註腳、表格、Mermaid、程式碼、ruby，照作者寫的呈現。版面為長篇閱讀而設，中日文優先；亮暗兩種桌面，三段字級。
+- **學。** 學習路徑是一門課：課數、上一課與下一課、你在哪一課。振假名可開可關；標了朗讀的段落，用它自己的語言唸。範例知識庫裡有[一條學習路徑](examples/vault/Notes/中文/讀懂%20yomihon.md)可以照著寫。
+- **找。** 全文搜尋，可按資料夾篩選；反向連結與本頁章節就在正文旁邊。
+- **檢查。** 整體狀況頁列出沒有目標的連結、沒有人引用的筆記、兩個檔案共用的名字；每篇筆記帶著自己的診斷；命令列是 `yomihon check`。它只回報，不替你修。
+- **報告。** 放在 `System/reports/daily-briefing/` 的簡報，在同一個閱讀室裡隔離打開。
+- **兩種語言。** 介面有英文與繁體中文；筆記保留寫下時的語言。
+- **你的。** 只綁 `127.0.0.1`，不發任何網路請求，不動你的文字。
 
 ## 目前狀態
 
-仍在積極開發中；第一個穩定版本推出前，產品與介面仍可能有明顯變動。缺陷請開 [Issues](https://github.com/koopa0/yomihon/issues)，安全性問題請走
-[GitHub 私密漏洞回報](https://github.com/koopa0/yomihon/security/advisories/new)。
+開發中；第一個穩定版之前，介面還會變。缺陷請開 [Issues](https://github.com/koopa0/yomihon/issues)，安全性問題請走 [GitHub 私密漏洞回報](https://github.com/koopa0/yomihon/security/advisories/new)。
 
 ## 授權
 
-採用 [MIT](LICENSE)。重新散布的字型與前端資產各自附有授權：[`assets/fonts/LICENSE.txt`](assets/fonts/LICENSE.txt) 與 [`assets/js/mermaid/LICENSE`](assets/js/mermaid/LICENSE)。
+[MIT](LICENSE)。隨附的字型與前端資產各有授權：[`assets/fonts/LICENSE.txt`](assets/fonts/LICENSE.txt) 與 [`assets/js/mermaid/LICENSE`](assets/js/mermaid/LICENSE)。
