@@ -133,18 +133,18 @@ func newLintRun(contract *schema.Contract) (*lintRun, error) {
 func (r *lintRun) note(n *note, seg []string) []Finding {
 	if n.noFrontmatter {
 		if r.requiresFrontmatter {
-			return []Finding{schemaFinding(n, "schema.frontmatter", "", false, "", "is missing")}
+			return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is missing")}
 		}
 		return nil
 	}
 	if n.badFrontmatter {
-		return []Finding{schemaFinding(n, "schema.frontmatter", "", false, "", "is not valid YAML")}
+		return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is not valid YAML")}
 	}
 
 	var out []Finding
 	ty, hasType := fmScalar(n.frontmatter, "type")
 	if hasType && !slices.Contains(r.definition.Enums.Type, ty) {
-		out = append(out, schemaFinding(n, "schema.enum", "type", true, ty, "is not an allowed type"))
+		out = append(out, schemaFinding(n, "schema.enum", "type", ty, "is not an allowed type"))
 	}
 
 	isLesson := hasType && ty == "lesson"
@@ -173,10 +173,10 @@ func (r *lintRun) articleLanguage(n *note) []Finding {
 		return nil
 	}
 	if value.isList || !value.scalarIsString || value.scalar == "" {
-		return []Finding{schemaFinding(n, "schema.language", "lang", true, value.scalar, "must be a non-empty BCP 47 language tag")}
+		return []Finding{schemaFinding(n, "schema.language", "lang", value.scalar, "must be a non-empty BCP 47 language tag")}
 	}
 	if _, err := schema.ParseLanguageTag(value.scalar); err != nil {
-		return []Finding{schemaFinding(n, "schema.language", "lang", true, value.scalar, "is not a valid BCP 47 language tag")}
+		return []Finding{schemaFinding(n, "schema.language", "lang", value.scalar, "is not a valid BCP 47 language tag")}
 	}
 	return nil
 }
@@ -190,7 +190,7 @@ func (r *lintRun) unknownKeys(n *note, isLesson bool) []Finding {
 		known := slices.Contains(r.definition.Fields.Known, key) ||
 			(isLesson && slices.Contains(r.definition.Fields.LessonOnly, key))
 		if !known {
-			out = append(out, schemaFinding(n, "schema.unknown_key", "", false, key, "is not a known field"))
+			out = append(out, schemaFinding(n, "schema.unknown_key", "", key, "is not a known field"))
 		}
 	}
 	return out
@@ -202,9 +202,9 @@ func (r *lintRun) lessonSlug(n *note) []Finding {
 	var out []Finding
 	switch sl, ok := fmScalar(n.frontmatter, "slug"); {
 	case !ok:
-		out = append(out, schemaFinding(n, "schema.required", "slug", true, "", "is required for a lesson"))
+		out = append(out, schemaFinding(n, "schema.required", "slug", "", "is required for a lesson"))
 	case !r.slug.MatchString(sl):
-		out = append(out, schemaFinding(n, "schema.slug", "slug", true, sl, "is not a valid slug"))
+		out = append(out, schemaFinding(n, "schema.slug", "slug", sl, "is not a valid slug"))
 	}
 	return out
 }
@@ -214,7 +214,7 @@ func (r *lintRun) lessonSlug(n *note) []Finding {
 // checked here is the enum that decided this note is a document.
 func (r *lintRun) documentStatus(n *note, group string) []Finding {
 	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(r.definition.Enums.Status[group], st) {
-		return []Finding{schemaFinding(n, "schema.enum", "status", true, st, "is not a valid system status")}
+		return []Finding{schemaFinding(n, "schema.enum", "status", st, "is not a valid system status")}
 	}
 	return nil
 }
@@ -233,7 +233,7 @@ func (r *lintRun) knowledge(n *note, seg []string) []Finding {
 		if group != "note" {
 			reason = "is not a valid " + group + " status"
 		}
-		out = append(out, schemaFinding(n, "schema.enum", "status", true, st, reason))
+		out = append(out, schemaFinding(n, "schema.enum", "status", st, reason))
 	}
 	out = append(out, r.enumFields(n)...)
 	out = append(out, r.structural(n, seg)...)
@@ -261,7 +261,7 @@ func (r *lintRun) required(n *note) []Finding {
 			continue
 		}
 		if v, ok := n.frontmatter[key]; !ok || !v.present() {
-			out = append(out, schemaFinding(n, "schema.required", key, true, "", "is required"))
+			out = append(out, schemaFinding(n, "schema.required", key, "", "is required"))
 		}
 	}
 	return out
@@ -282,7 +282,7 @@ func (r *lintRun) enumFields(n *note) []Finding {
 		{"map_kind", r.definition.Enums.MapKind},
 	} {
 		if v, ok := fmScalar(n.frontmatter, ef.field); ok && !slices.Contains(ef.allowed, v) {
-			out = append(out, schemaFinding(n, "schema.enum", ef.field, true, v, "is not an allowed value"))
+			out = append(out, schemaFinding(n, "schema.enum", ef.field, v, "is not an allowed value"))
 		}
 	}
 	return out
@@ -306,13 +306,13 @@ func (r *lintRun) structural(n *note, seg []string) []Finding {
 	// Concepts/<domain>/….
 	if d, ok := fmScalar(n.frontmatter, "domain"); ok &&
 		slices.Contains(r.definition.Rules.DomainEqualsFolderUnder, seg[0]) && len(seg) >= 3 && d != seg[1] {
-		out = append(out, schemaFinding(n, "schema.domain_folder", "domain", true, d, "does not match its folder "+seg[1]))
+		out = append(out, schemaFinding(n, "schema.domain_folder", "domain", d, "does not match its folder "+seg[1]))
 	}
 	if r.definition.Rules.ForbidTagWithSlash {
 		if v, ok := n.frontmatter["tags"]; ok && v.isList {
 			for _, tag := range v.list {
 				if strings.Contains(tag, "/") {
-					out = append(out, schemaFinding(n, "schema.legacy_tag", "tags", true, tag, "is a legacy tag (use a property)"))
+					out = append(out, schemaFinding(n, "schema.legacy_tag", "tags", tag, "is a legacy tag (use a property)"))
 				}
 			}
 		}
@@ -322,7 +322,7 @@ func (r *lintRun) structural(n *note, seg []string) []Finding {
 	// nothing for this rule to be about.
 	if ty, ok := fmScalar(n.frontmatter, "type"); ok && r.conceptDeclared && ty == r.conceptType &&
 		!hasProvenance(n.frontmatter, r.definition.Rules.ConceptRequiresProvenance) {
-		out = append(out, schemaFinding(n, "schema.provenance", "", false, "", "concept has neither based_on nor source_locator"))
+		out = append(out, schemaFinding(n, "schema.provenance", "", "", "concept has neither based_on nor source_locator"))
 	}
 	return out
 }
@@ -369,7 +369,10 @@ func schemaRuleSource(ruleID string) string {
 // the field name falling back to "frontmatter". The fingerprint folds the field
 // name and the violating value together, so two blank-valued findings on one
 // note stay distinct.
-func schemaFinding(n *note, ruleID, field string, hasField bool, value, reason string) Finding {
+func schemaFinding(n *note, ruleID, field, value, reason string) Finding {
+	// Every caller names the field it is reporting on, or names none at all;
+	// there is no finding about an unnamed field of a known name.
+	hasField := field != ""
 	what := "frontmatter"
 	if hasField {
 		what = field
