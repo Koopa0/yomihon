@@ -181,6 +181,12 @@ jobs:
       - name: Vet every package
         run: go vet ./...
 
+      # The platform-boundary files hide behind this tag, so plain vet never
+      # reads them and the cross-builds compile no tests. The Make target has
+      # run both since those files existed; this is the runner catching up.
+      - name: Vet every package behind the durability tag
+        run: go vet -tags yomihon_nodurable ./...
+
       - name: Race-test every package
         if: runner.os != 'Windows'
         run: go test -race ./... -count=1

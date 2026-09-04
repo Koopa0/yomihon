@@ -161,6 +161,7 @@ tools:
 workflow-check:
 	@$(call require-go-tool,actionlint,github.com/rhysd/actionlint,$(ACTIONLINT_VERSION))
 	@sh tools/check-ci-tools.sh
+	@sh tools/check-gate-parity.sh
 	@shellcheck --version | awk '$$1 == "version:" && $$2 == "$(SHELLCHECK_VERSION)" { found = 1 } END { exit !found }' || { \
 		echo 'ShellCheck $(SHELLCHECK_VERSION) is required' >&2; \
 		exit 1; \
@@ -216,7 +217,7 @@ mod-check:
 
 frontend-check:
 	npm ci --prefix .github --ignore-scripts --no-audit --fund=false
-	npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs
+	npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs .github/*.mjs
 	@$(MAKE) --no-print-directory stylelint-check
 
 # Regenerates the README's pictures from the example vault. The script sits
