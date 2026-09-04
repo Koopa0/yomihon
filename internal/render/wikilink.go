@@ -940,7 +940,7 @@ func headingAnchorMayExist(body, heading string) bool {
 	for line := range strings.SplitSeq(body, "\n") {
 		candidate := withoutQuoteAndListMarkers(line)
 		if m := atxHeadingLine.FindStringSubmatch(candidate); m != nil {
-			if slugify(headingSourceText(m[2])) == want {
+			if slugify(headingSourceText(m[2], len(m[1]))) == want {
 				return true
 			}
 			paragraph = nil
@@ -949,7 +949,7 @@ func headingAnchorMayExist(body, heading string) bool {
 		// A row of dashes closing a paragraph underlines it rather than drawing a
 		// rule, which is the order the page reads them in too.
 		if len(paragraph) > 0 && setextUnderline.MatchString(candidate) {
-			if slugify(headingSourceText(strings.Join(paragraph, "\n"))) == want {
+			if slugify(headingSourceText(strings.Join(paragraph, "\n"), setextLevel(candidate))) == want {
 				return true
 			}
 			paragraph = nil

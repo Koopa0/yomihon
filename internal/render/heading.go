@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -116,6 +117,15 @@ func assignHeadingSlugs(htmlOut, reserved string) (string, []TOCEntry) {
 			out.WriteString(htmlOut[m[0]:m[1]])
 			continue
 		}
+		// A course branch declares its part in the order at the end of the
+		// heading that opens it. The declaration is grammar the course parser
+		// consumes, as the '#' marks are, so the page calls the section what the
+		// course calls it: the words shown, the contents entry and the id all
+		// come from the heading with the role taken off. Level is the whole test
+		// applied here, where a course also asks that the heading stand on its
+		// own; a role written on one nested inside a quote declares nothing to
+		// the course and still comes off the page's copy of it.
+		inner = sequence.HeadingName(inner, level)
 		text := headingInnerText(inner)
 
 		id := slugify(text)

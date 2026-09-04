@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -106,6 +107,15 @@ func (s *blockScan) skips(line string) bool {
 // level-2 one.
 var setextUnderline = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
 
+// setextLevel is the level an underline makes, for a line the caller has
+// already recognized as one.
+func setextLevel(line string) int {
+	if strings.HasPrefix(strings.TrimSpace(line), "=") {
+		return 1
+	}
+	return 2
+}
+
 // The line shapes that are not running prose, and so cannot be the text an
 // underline turns into a heading: a quote, a list item, a break rule, an indented
 // code line. Anything else that is not blank continues a paragraph.
@@ -146,11 +156,11 @@ func scanHeadings(lines []string) []sectionHeading {
 		}
 		switch {
 		case paragraph >= 0 && setextUnderline.MatchString(line):
-			level := 2
-			if strings.HasPrefix(strings.TrimSpace(line), "=") {
-				level = 1
-			}
-			out = append(out, sectionHeading{line: paragraph, level: level, text: strings.Join(lines[paragraph:i], "\n")})
+			out = append(out, sectionHeading{
+				line:  paragraph,
+				level: setextLevel(line),
+				text:  strings.Join(lines[paragraph:i], "\n"),
+			})
 			paragraph = -1
 		case blankLine(line), quotedLine.MatchString(line), listItemLine.MatchString(line),
 			breakRuleLine.MatchString(line), setextUnderline.MatchString(line),
@@ -174,7 +184,7 @@ func headingSlice(body, heading string) (slice string, matches int) {
 	lines := strings.Split(body, "\n")
 	headings := scanHeadings(lines)
 	for i, h := range headings {
-		if slugify(headingSourceText(h.text)) != want {
+		if slugify(headingSourceText(h.text, h.level)) != want {
 			continue
 		}
 		matches++
@@ -270,21 +280,24 @@ func ExcerptHeading(slice string) string {
 		return ""
 	}
 	if m := atxHeadingLine.FindStringSubmatch(lines[0]); m != nil {
-		return headingSourceText(m[2])
+		return headingSourceText(m[2], len(m[1]))
 	}
 	// A heading written under its own underline opens on the line of text, so
 	// the line below it is what says the text was a heading at all.
 	if len(lines) > 1 && setextUnderline.MatchString(lines[1]) && !blankLine(lines[0]) {
-		return headingSourceText(lines[0])
+		return headingSourceText(lines[0], setextLevel(lines[1]))
 	}
 	return ""
 }
 
 // headingSourceText reduces a heading's markdown source to the text the page
 // stamps its anchor from. A wikilink contributes what it displays, which is what
-// the rendered heading shows and what a reader copies off the page.
-func headingSourceText(raw string) string {
-	displayed := wikilinkToken.ReplaceAllStringFunc(raw, func(token string) string {
+// the rendered heading shows and what a reader copies off the page. A course
+// branch declares its part in the order at the end of the heading that opens
+// it, and that declaration is grammar rather than words, so the level decides
+// what the heading is called for the same reason it does on the page.
+func headingSourceText(raw string, level int) string {
+	displayed := wikilinkToken.ReplaceAllStringFunc(sequence.HeadingName(raw, level), func(token string) string {
 		inner := strings.TrimPrefix(token, "!")
 		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
 		return display
