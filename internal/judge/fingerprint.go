@@ -16,13 +16,13 @@ const fingerprintVersion = "v1:"
 // target each rule feeds is part of the contract too: an alias collision feeds
 // an empty path with the normalized alias, and schema findings feed the field
 // name and the violating value joined by another 0x1f.
-func fingerprint(ruleID, path, target string) string {
+func fingerprint(ruleID RuleID, path, target string) string {
 	const (
 		offset uint64 = 0xcbf29ce484222325
 		prime  uint64 = 0x100000001b3
 	)
 	h := offset
-	for _, part := range [...]string{ruleID, path, target} {
+	for _, part := range [...]string{string(ruleID), path, target} {
 		for _, b := range []byte(part) {
 			h = (h ^ uint64(b)) * prime
 		}

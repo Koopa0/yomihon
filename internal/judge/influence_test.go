@@ -237,7 +237,7 @@ func findBroken(t *testing.T, findings []Finding, path, target string) Finding {
 	return Finding{}
 }
 
-func findingByRule(findings []Finding, ruleID string) (Finding, bool) {
+func findingByRule(findings []Finding, ruleID RuleID) (Finding, bool) {
 	for i := range findings {
 		if findings[i].RuleID == ruleID {
 			return findings[i], true
@@ -246,7 +246,7 @@ func findingByRule(findings []Finding, ruleID string) (Finding, bool) {
 	return Finding{}, false
 }
 
-func findingByRuleAndPath(findings []Finding, ruleID, path string) (Finding, bool) {
+func findingByRuleAndPath(findings []Finding, ruleID RuleID, path string) (Finding, bool) {
 	for i := range findings {
 		if findings[i].RuleID == ruleID && findings[i].Path == path {
 			return findings[i], true

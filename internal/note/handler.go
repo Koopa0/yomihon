@@ -386,7 +386,7 @@ func schemaNotices(findings []judge.Finding, relPath string, lang wording.Lang) 
 	notices := make([][]wording.SchemaPart, 0, len(findings))
 	for i := range findings {
 		f := &findings[i]
-		notices = append(notices, wording.SchemaSentence(lang, f.RuleID, deref(f.Field), deref(f.Target), folder))
+		notices = append(notices, wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), deref(f.Target), folder))
 	}
 	return notices
 }

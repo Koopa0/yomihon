@@ -233,7 +233,7 @@ func domainSections(findings []Finding, roots domainRoots) []domainSection {
 		if f.Target != nil {
 			target = *f.Target
 		}
-		key := d + "\x1f" + f.RuleID + "\x1f" + target
+		key := d + "\x1f" + string(f.RuleID) + "\x1f" + target
 		blast := max(len(f.CollisionMembers), 1)
 		g := groups[key]
 		if g == nil {

@@ -51,12 +51,12 @@ func TestEveryEmittedRuleIsDeniable(t *testing.T) {
 		t.Fatal("no rule ids were read from the goldens; the scan proved nothing")
 	}
 	for id := range seen {
-		if !slices.Contains(ruleIDs, id) {
+		if !slices.Contains(ruleIDs, RuleID(id)) {
 			t.Errorf("rule %q fires but --deny rejects it: the registry is missing it", id)
 		}
 	}
 	for _, id := range ruleIDs {
-		if _, emitted := seen[id]; !emitted {
+		if _, emitted := seen[string(id)]; !emitted {
 			t.Errorf("rule %q is registered for --deny but no golden exercises it: add a fixture that makes it fire, or drop the dead entry", id)
 		}
 	}
@@ -85,7 +85,7 @@ func TestEveryStudyPathRuleHasAnAction(t *testing.T) {
 		if pathRuleAction[rule] == "" {
 			t.Errorf("rule %q has no suggested action", rule)
 		}
-		if !slices.Contains(ruleIDs, string(rule)) {
+		if !slices.Contains(ruleIDs, RuleID(rule)) {
 			t.Errorf("rule %q is not in the --deny registry", rule)
 		}
 	}
@@ -117,7 +117,7 @@ func TestAGrammarRuleTheJudgeHasNoAdviceForStillFlowsThrough(t *testing.T) {
 		Evidence: "the row it read",
 	})
 
-	if got.RuleID != string(invented) {
+	if got.RuleID != RuleID(invented) {
 		t.Errorf("RuleID = %q, want %q", got.RuleID, invented)
 	}
 	if got.Message != "the grammar's own account of what is wrong" {
@@ -162,7 +162,7 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 
 	var rules []string
 	for _, f := range findings {
-		rules = append(rules, f.RuleID)
+		rules = append(rules, string(f.RuleID))
 	}
 	if diff := cmp.Diff([]string{"map.disk_mismatch"}, rules); diff != "" {
 		t.Errorf("rules reported (-want +got):\n%s", diff)

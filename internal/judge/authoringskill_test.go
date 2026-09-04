@@ -41,7 +41,7 @@ func TestAuthoringSkillNamesOnlyRulesThatExist(t *testing.T) {
 
 	known := map[string]bool{}
 	for _, id := range allRuleIDs() {
-		known[id] = true
+		known[string(id)] = true
 	}
 	for _, rule := range sequence.Rules() {
 		known[string(rule)] = true

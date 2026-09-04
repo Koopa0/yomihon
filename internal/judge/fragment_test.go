@@ -36,7 +36,7 @@ func fragmentRun(t *testing.T, files map[string]string) []Finding {
 func ruleTargets(findings []Finding) []string {
 	var out []string
 	for i := range findings {
-		out = append(out, findings[i].RuleID+" "+*findings[i].Target)
+		out = append(out, string(findings[i].RuleID)+" "+*findings[i].Target)
 	}
 	return out
 }

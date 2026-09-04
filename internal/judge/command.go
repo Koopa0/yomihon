@@ -29,8 +29,8 @@ var ruleIDs = allRuleIDs()
 // study-path rules from the grammar that names them. The grammar's half is
 // asked for rather than copied, so a rule it gains later can still be gated on
 // by name instead of being silently undeniable.
-func allRuleIDs() []string {
-	ids := []string{
+func allRuleIDs() []RuleID {
+	ids := []RuleID{
 		"link.title_not_alias",
 		"link.broken",
 		"link.section_missing",
@@ -60,7 +60,7 @@ func allRuleIDs() []string {
 		"schema.language",
 	}
 	for _, rule := range sequence.Rules() {
-		ids = append(ids, string(rule))
+		ids = append(ids, RuleID(rule))
 	}
 	return ids
 }
@@ -176,7 +176,7 @@ func prepareCheck(ctx context.Context, o *CheckOptions) (preparedCommand, error)
 
 func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHooks) (preparedCommand, error) {
 	for _, d := range o.Deny {
-		if !isSeverityKeyword(d) && !slices.Contains(ruleIDs, d) {
+		if !isSeverityKeyword(d) && !slices.Contains(ruleIDs, RuleID(d)) {
 			return preparedCommand{}, fmt.Errorf("unknown --deny %q; use a severity (error|warn|info) or a rule id", d)
 		}
 	}
@@ -326,7 +326,7 @@ func gated(findings []Finding, deny []string) bool {
 		if hasThreshold && f.Severity >= threshold {
 			return true
 		}
-		if f.Severity >= SeverityWarn && slices.Contains(deny, f.RuleID) {
+		if f.Severity >= SeverityWarn && slices.Contains(deny, string(f.RuleID)) {
 			return true
 		}
 	}
