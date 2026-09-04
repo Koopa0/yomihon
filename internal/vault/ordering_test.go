@@ -53,6 +53,20 @@ func TestPathsSortTheWayTheirNumbersRead(t *testing.T) {
 			paths: []string{"一期一會.md", "一年之計.md"},
 			want:  []string{"一年之計.md", "一期一會.md"},
 		},
+		{
+			// 零 opens a number wherever it stands, so a folder of Go notes
+			// would otherwise open with 零值設計 as though it were note zero.
+			// Where one side spells a number and the other does not, the
+			// number goes last, and that answer is what these two hold.
+			name:  "a numeral opening an ordinary word does not jump the notes above it",
+			paths: []string{"Go 零值設計.md", "Go Array.md", "Go CGO.md"},
+			want:  []string{"Go Array.md", "Go CGO.md", "Go 零值設計.md"},
+		},
+		{
+			name:  "a date sorts after the words, for the same reason",
+			paths: []string{"2026-07-30.md", "README.md", "Notes.md"},
+			want:  []string{"Notes.md", "README.md", "2026-07-30.md"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -68,10 +82,22 @@ func TestPathsSortTheWayTheirNumbersRead(t *testing.T) {
 
 // A comparison used for sorting has to be a total order, or the sort is free to
 // produce anything. Two paths that spell the same number differently must still
-// order consistently rather than comparing equal.
+// order consistently rather than comparing equal, and no three of them may close
+// a cycle: slices.SortFunc reads a cycle as licence to return any order at all,
+// so the same folder scanned in a different order would list differently and
+// nothing would report it.
+//
+// The cycle needs three kinds of path present at once — one opening with a Latin
+// letter, one opening with a Chinese numeral worth less than the Arabic one, and
+// one opening with an Arabic digit — because it closes between those three and
+// nowhere else. Drop any of the three and the triple loop below runs over a
+// corpus that cannot make it fail.
 func TestComparisonIsTotal(t *testing.T) {
 	t.Parallel()
-	paths := []string{"第一課.md", "第1課.md", "第01課.md", "第一課.md", "abc", "", "十", "十十", "百"}
+	paths := []string{
+		"第一課.md", "第1課.md", "第01課.md", "第一課.md", "abc", "", "十", "十十", "百",
+		"一期一會.md", "2.md",
+	}
 	for _, a := range paths {
 		for _, b := range paths {
 			ab, ba := ComparePaths(a, b), ComparePaths(b, a)
@@ -80,6 +106,14 @@ func TestComparisonIsTotal(t *testing.T) {
 			}
 			if (a == b) != (ab == 0) {
 				t.Errorf("compare(%q,%q) = %d; equal only when the strings are", a, b, ab)
+			}
+			if ab >= 0 {
+				continue
+			}
+			for _, c := range paths {
+				if ac := ComparePaths(a, c); ComparePaths(b, c) < 0 && ac >= 0 {
+					t.Errorf("compare(%q,%q) < 0 and compare(%q,%q) < 0, but compare(%q,%q) = %d; the three form a cycle", a, b, b, c, a, c, ac)
+				}
 			}
 		}
 	}
