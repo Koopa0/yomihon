@@ -111,7 +111,7 @@ templ header(c Chrome) {
 			// and the control can sit under that sentence in its current state.
 			<div class="y-kbdpref">
 				<label class="y-shortcutpref">
-					<input class="y-shortcutpref__input" type="checkbox" data-single-key-shortcuts-toggle aria-describedby="kbd-pref-note" checked?={ c.SingleKeyShortcutsEnabled }/>
+					<input class="y-shortcutpref__input" type="checkbox" data-single-key-shortcuts-toggle aria-describedby="kbd-pref-note kbd-pref-takeover" checked?={ c.SingleKeyShortcutsEnabled }/>
 					<span class="y-shortcutpref__label">{ wording.SingleKeyShortcuts.In(c.Lang) }</span>
 					<span class="y-shortcutpref__on" aria-hidden="true">{ wording.CurrentlyOn.In(c.Lang) }</span>
 					<span class="y-shortcutpref__off" aria-hidden="true">{ wording.CurrentlyOff.In(c.Lang) }</span>
@@ -120,6 +120,11 @@ templ header(c Chrome) {
 				// because "off" reads as "no keyboard" unless the sentence says
 				// otherwise.
 				<p class="y-kbdpref__note" id="kbd-pref-note">{ wording.SingleKeyShortcutsNote.In(c.Lang) }</p>
+				// And what leaving them on costs, which the panel used to leave
+				// for the reader to discover by pressing a key and watching
+				// their browser do nothing. Both sentences describe the switch,
+				// so both are named by it rather than only sitting near it.
+				<p class="y-kbdpref__note" id="kbd-pref-takeover">{ wording.SingleKeyShortcutsTakeover.In(c.Lang) }</p>
 			</div>
 		</div>
 		// The language switch is a plain form, not a scripted button: the words

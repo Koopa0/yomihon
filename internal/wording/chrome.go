@@ -97,6 +97,20 @@ var SingleKeyShortcutsNote = both(
 	"With these off, / and [ type the way the browser types them; ⌘K and Esc are unaffected.",
 )
 
+// SingleKeyShortcutsTakeover is the other half of that sentence: what leaving
+// them on costs. The panel named the switch and what each key reaches, and
+// said nothing about the page holding the key shut against whatever else the
+// reader's browser does with it — so a lone slash that used to open a quick
+// in-page find stopped doing so, silently, and the one control that would
+// give it back read as being about this page's own keys. Which browsers bind
+// a bare slash is the browser's business and not a fact yomihon can assert,
+// so the sentence offers the common case as an example and claims only what
+// is true everywhere: while the switch is on, these two keys stop here.
+var SingleKeyShortcutsTakeover = both(
+	"開啟時這兩個鍵由本頁接手，瀏覽器收不到；有些瀏覽器用單獨的 / 開啟頁內快速尋找，那時它不會出現。",
+	"While they are on, this page takes both keys and the browser never sees them; some browsers open a quick in-page find on a lone /, and it will not appear.",
+)
+
 // SearchDialogEnter and SearchDialogEsc are the dialog's own footer: the two
 // keys it answers to, shown rather than only announced.
 var SearchDialogEnter = both("搜尋", "Search")
