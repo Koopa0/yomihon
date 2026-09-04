@@ -30,7 +30,7 @@ templ previewCard() {
 // link because a pointer that has travelled into the card has left the link it
 // came from behind, and this is then the only control in reach.
 templ PreviewFragment(v PreviewView) {
-	<div class="y-preview__body" data-preview-body { articleLanguageAttrs(v.Language)... }>
+	<div class="y-preview__body" data-preview-body { authoredLanguageAttrs(v.Language)... }>
 		if v.RelPath != "" {
 			<p class="y-preview__source">
 				<a class="y-preview__sourcelink" href={ templ.SafeURL(notesHref(v.RelPath)) }>

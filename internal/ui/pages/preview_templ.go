@@ -87,7 +87,7 @@ func PreviewFragment(v PreviewView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, articleLanguageAttrs(v.Language))
+		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, authoredLanguageAttrs(v.Language))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
