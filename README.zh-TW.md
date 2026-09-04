@@ -30,7 +30,7 @@ yomihon serve ~/notes
 ## 它做什麼
 
 - **讀。** wikilink、callout、註腳、表格、Mermaid、有語法標示的程式碼與 ruby，都照作者的意思呈現。版面為長篇閱讀而設，中日文優先，有亮與暗兩種桌面、三段字級。
-- **學。** 學習路徑變成課程：課數、上一課與下一課、你在哪裡。振假名可開可關；標了朗讀的段落用它自己的語言唸出來（[怎麼寫一條學習路徑](AUTHORING.md)）。
+- **學。** 學習路徑變成課程：課數、上一課與下一課、你在哪裡。振假名可開可關；標了朗讀的段落用它自己的語言唸出來（範例知識庫裡有[一條可以照著寫的學習路徑](examples/vault/Notes/中文/讀懂%20yomihon.md)）。
 - **找。** 關鍵字搜尋，可按資料夾篩選，零筆時給你退一步的建議；反向連結與本頁章節留在正文旁邊。
 - **讓知識庫誠實。** 一頁健康狀況列出連不到目標的連結、沒有人引用的筆記、兩個檔案同時應答的名字；每篇筆記帶著自己的診斷；同一套檢查在命令列是 `yomihon check`。它不替你修任何東西——檔案由你改。
 - **報告。** 放在知識庫 `System/reports/daily-briefing/` 底下的每日簡報，在同一間閱讀室裡打開，隔離執行。
@@ -44,5 +44,4 @@ yomihon serve ~/notes
 
 ## 授權
 
-採用 [MIT](LICENSE)。重新散布的字型與前端資產列於
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+採用 [MIT](LICENSE)。重新散布的字型與前端資產各自附有授權：[`assets/fonts/LICENSE.txt`](assets/fonts/LICENSE.txt) 與 [`assets/js/mermaid/LICENSE`](assets/js/mermaid/LICENSE)。
