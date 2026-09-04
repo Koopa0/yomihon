@@ -3,7 +3,6 @@ package vault
 import (
 	"cmp"
 	"strings"
-	"unicode"
 )
 
 // chineseDigits maps the numeral characters that can open or continue a number.
@@ -73,17 +72,26 @@ func numberAt(rs []rune, i int) (value, width int) {
 	if i >= len(rs) {
 		return 0, 0
 	}
-	if unicode.IsDigit(rs[i]) {
+	if isASCIIDigit(rs[i]) {
 		return asciiNumberAt(rs, i)
 	}
 	return chineseNumberAt(rs, i)
+}
+
+// isASCIIDigit reports whether r is one of the ten digits a number is spelled
+// with here. A digit belonging to another script is left as ordinary text: the
+// vault numbers its notes with these ten and with the Chinese numerals, and the
+// value read off any other script came out of subtracting '0' from a code point
+// far away from it, which put a path where no number anybody wrote would.
+func isASCIIDigit(r rune) bool {
+	return r >= '0' && r <= '9'
 }
 
 // asciiNumberAt reads a run of decimal digits. Leading zeros carry no value, so
 // 007 and 7 compare equal and the code-point fallback settles them.
 func asciiNumberAt(rs []rune, i int) (value, width int) {
 	n := 0
-	for i+n < len(rs) && unicode.IsDigit(rs[i+n]) {
+	for i+n < len(rs) && isASCIIDigit(rs[i+n]) {
 		// A path long enough to overflow this is not a numbered note.
 		if value < 1<<40 {
 			value = value*10 + int(rs[i+n]-'0')

@@ -67,6 +67,17 @@ func TestPathsSortTheWayTheirNumbersRead(t *testing.T) {
 			paths: []string{"2026-07-30.md", "README.md", "Notes.md"},
 			want:  []string{"Notes.md", "README.md", "2026-07-30.md"},
 		},
+		{
+			// A digit belonging to another script is text here. Reading it as
+			// a number would mean deciding what ２ and ٢ are worth, and the
+			// arithmetic that used to run on them produced 65250 and 1586 —
+			// values nobody wrote, which then decided where the path sorted.
+			// The vault numbers its notes with these ten digits and with the
+			// Chinese numerals; the rest is a character like any other.
+			name:  "a digit from another script sorts as the character it looks like",
+			paths: []string{"２.md", "٢.md", "1.md", "a.md"},
+			want:  []string{"a.md", "٢.md", "２.md", "1.md"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
