@@ -366,7 +366,9 @@ jobs:
   # beside, and only a run by hand revealed it.
   e2e-mutations:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Every probe's self-test modes run in series; the set grew past nine
+    # minutes on ubuntu runners, so ten was a coin toss.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
