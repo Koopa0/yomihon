@@ -74,7 +74,7 @@ func (h *Health) Empty() bool {
 // already built, through the same extractor as every other link answer here.
 func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef) Health {
 	var h Health
-	var islands []nav.NoteRef
+	var uncited []nav.NoteRef
 	titleReferenced := make(map[string]bool)
 	if idx == nil {
 		return h
@@ -117,12 +117,17 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 				h.Unwritten = append(h.Unwritten, HealthLink{From: from, Target: target})
 			}
 		}
-		// A note reached only by its title is uncited as far as the resolver is
-		// concerned, but someone did write its name down.
-		if back.Citing(n.RelPath) == 0 && !titleReferenced[n.RelPath] {
-			islands = append(islands, from)
+		if back.Citing(n.RelPath) == 0 {
+			uncited = append(uncited, from)
 		}
 	}
+	// A note reached only by its title is uncited as far as the resolver is
+	// concerned, but someone did write its name down. Which names were written
+	// is settled only once every note has been read, so this asks after the
+	// pass rather than inside it: asked inside, a note was spared only when the
+	// note naming it sorted ahead of it, and renaming either file changed the
+	// answer for a folder nobody had edited.
+	islands := slices.DeleteFunc(uncited, func(n nav.NoteRef) bool { return titleReferenced[n.RelPath] })
 	h.Collisions = collisions(idx)
 	h.Islands = groupByFolder(islands)
 	sortHealth(&h)
