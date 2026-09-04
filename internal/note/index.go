@@ -74,9 +74,14 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	recent, recentOrdered := recentShelfNotes(model.KnowledgeNotes(), pageShell.Governed, authority)
 
 	view := pages.NewFolderIndex(model, lang)
+	// Two of the three causes the desk states can empty or degrade something
+	// drawn here: the write authority closes the distribution, and the artifact
+	// policy closes it too and takes the knowledge layer off the recent list.
+	// The navigation declaration is not one of them — the roles it carries
+	// decide which notes are courses and maps, and this page draws neither — so
+	// stating it here would hand the reader a fault about another page.
 	view.Fault = statedOnce(
 		authority.Diagnostic(lang),
-		model.NavigationClosure().Diagnostic(),
 		model.ArtifactClosure().Diagnostic(),
 	)
 	view.Recent = recent

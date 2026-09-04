@@ -1,12 +1,14 @@
 package main
 
 import (
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -168,21 +170,21 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read response body: %v", err)
 			}
-			html := string(body)
-			if !strings.Contains(html, "data-home-fault") {
-				t.Errorf("GET %s says nothing about the declaration it could not read; body = %q", target, html)
+			page := string(body)
+			if !strings.Contains(page, "data-home-fault") {
+				t.Errorf("GET %s says nothing about the declaration it could not read; body = %q", target, page)
 			}
 			for _, absent := range tt.absent {
-				if strings.Contains(html, absent) {
+				if strings.Contains(page, absent) {
 					t.Errorf("GET %s carries %q, which speaks for a declaration that could not be read", target, absent)
 				}
 			}
 			for _, mode := range tt.silent {
-				if block := deskBlockMarkup(t, html, mode); strings.Contains(block, "data-desk-item") {
+				if block := deskBlockMarkup(t, page, mode); strings.Contains(block, "data-desk-item") {
 					t.Errorf("the %s block lists rows built from a declaration that could not be read: %q", mode, block)
 				}
 			}
-			if len(tt.silent) > 0 && !strings.Contains(deskBlockMarkup(t, html, "folders"), "data-desk-item") {
+			if len(tt.silent) > 0 && !strings.Contains(deskBlockMarkup(t, page, "folders"), "data-desk-item") {
 				// A slice that reached no markup would pass the checks above in
 				// silence, so one block that must carry a row is read the same
 				// way and required to.
@@ -205,4 +207,107 @@ func deskBlockMarkup(t *testing.T, page, mode string) string {
 		t.Fatalf("the %s block is never closed", mode)
 	}
 	return block
+}
+
+// TestTheDeskStatesWhatEveryModePageStates holds the desk to the rule the fault
+// line is built on: a page states the reasons that could empty something it
+// draws, and the desk, which draws all four ways in at once, states the union
+// of what those four pages state. A mode added later whose reason never reached
+// the desk would empty a block there and never say why, which is the shape of
+// the fault this locks against.
+//
+// What it can catch is bounded by the fixture. An unreadable contract fails
+// every claim at once and every closure reports the same sentence, so the check
+// sees one cause on all four pages and cannot tell which closure supplied it:
+// it would catch a mode whose reason reaches the desk not at all, and would not
+// catch one whose reason is dropped while another still supplies the same
+// words. Separating them needs a contract that parses and then fails one claim
+// alone, which the fixtures do not yet hold.
+func TestTheDeskStatesWhatEveryModePageStates(t *testing.T) {
+	t.Parallel()
+
+	site := siteOverABrokenContract(t)
+	desk := faultCauses(t, site, "/")
+	if len(desk) == 0 {
+		t.Fatal("the desk states no reason over a contract that could not be read, so this compares nothing")
+	}
+	for _, target := range []string{"/paths", "/maps", "/folders"} {
+		causes := faultCauses(t, site, target)
+		if len(causes) == 0 {
+			t.Errorf("GET %s states no reason over a contract that could not be read", target)
+			continue
+		}
+		for _, cause := range causes {
+			if !slices.Contains(desk, cause) {
+				t.Errorf("GET %s states %q and the desk does not; the desk states %q", target, cause, desk)
+			}
+		}
+	}
+	// The reports are a listing of one directory. No declaration can close it,
+	// so an empty one is the answer rather than a withheld projection, and a
+	// reason printed there would be about some other page.
+	if strings.Contains(pageBody(t, site, "/reports"), "data-home-fault") {
+		t.Error("GET /reports states a reason for something no declaration can withhold")
+	}
+}
+
+// faultCauses reads the reasons one page states, as the page states them: the
+// detail the browser diagnostic carries, split back into the causes joined into
+// it. A page with no fault yields none.
+func faultCauses(t *testing.T, site http.Handler, target string) []string {
+	t.Helper()
+	const opener = `<code class="y-diagdetail" lang="en">`
+	_, rest, found := strings.Cut(pageBody(t, site, target), opener)
+	if !found {
+		return nil
+	}
+	detail, _, closed := strings.Cut(rest, "</code>")
+	if !closed {
+		t.Fatalf("GET %s opens a diagnostic detail and never closes it", target)
+	}
+	// The detail reaches the page escaped, and one of the entities it is
+	// written with ends in the same byte the causes are joined on, so the text
+	// has to come back out of its markup before it can be split into them.
+	return strings.Split(html.UnescapeString(detail), "; ")
+}
+
+// pageBody renders one page of the running site.
+func pageBody(t *testing.T, site http.Handler, target string) string {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	site.ServeHTTP(recorder, siteRequest(t, http.MethodGet, target, nil))
+	response := recorder.Result()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read %s: %v", target, err)
+	}
+	return string(body)
+}
+
+// siteOverABrokenContract is the vault of the withheld-declaration checks: a
+// desk fixture whose contract cannot be parsed, so every projection a
+// declaration gates is withheld and says so.
+func siteOverABrokenContract(t *testing.T) *readingSite {
+	t.Helper()
+	root := t.TempDir()
+	writeDeskFixture(t, root)
+	broken := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if err := os.WriteFile(broken, []byte("this is not toml [[[\n"), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
+		t.Fatalf("break the contract: %v", err)
+	}
+	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+	return site
 }
