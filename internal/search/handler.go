@@ -82,34 +82,37 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	}
 	snap := h.snapshot()
 	lang := origin.Language(r)
-	results, total, diagnostic, tokens := h.query(snap.Index, q, lang)
-
-	view := answerView(snap, q, results, total, diagnostic, tokens)
+	view := answerView(snap, q, h.query(snap.Index, q, lang))
 	view.Sidebar = pages.NewSidebar(snap.Shell.Nav, "")
 	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search page", q, err)
 	}
 }
 
+// answer is what one query came to: how it was read, the hits the page shows,
+// the true tally behind them, the sentence to show in their place when the
+// index could not answer, and the terms the hits matched. It belongs to one
+// request — query builds it, answerView reads it, and nothing keeps it. It
+// travels by pointer for its size, not so anyone can change it.
+type answer struct {
+	parsed     *lexical.Query
+	results    []lexical.Result
+	total      int
+	diagnostic string
+	tokens     []string
+}
+
 // answerView is everything both faces say about one query, built once so the
 // full page and the live region cannot drift apart.
-func answerView(
-	snap RequestSnapshot,
-	q string,
-	results []lexical.Result,
-	total int,
-	diagnostic string,
-	tokens []string,
-) pages.SearchView {
-	parsed := lexical.Parse(q)
+func answerView(snap RequestSnapshot, q string, a *answer) pages.SearchView {
 	return pages.SearchView{
 		Query:             q,
-		Results:           viewResults(results, snap.Shell.Governed, snap.Status, tokens),
-		Total:             total,
-		Diagnostic:        diagnostic,
+		Results:           viewResults(a.results, snap.Shell.Governed, snap.Status, a.tokens),
+		Total:             a.total,
+		Diagnostic:        a.diagnostic,
 		Governed:          snap.Shell.Governed,
-		StepBacks:         stepBackViews(snap.Index, q, results, diagnostic),
-		UnknownFilterKeys: parsed.UnknownFilterKeys(),
+		StepBacks:         stepBackViews(snap.Index, q, a.results, a.diagnostic),
+		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
 	}
 }
@@ -122,31 +125,33 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	results, total, diagnostic, tokens := h.query(snap.Index, q, origin.Language(r))
+	answered := h.query(snap.Index, q, origin.Language(r))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	view := answerView(snap, q, results, total, diagnostic, tokens)
+	view := answerView(snap, q, answered)
 	if err := pages.SearchResults(view, origin.Language(r)).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search results", q, err)
 	}
 }
 
-// query hands back the hits, the true match tally, and the terms that produced
-// them. The hits are bounded by maxRenderedResults; total is not, so the page
-// can stay honest about what the bounded list leaves out.
-func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang) (results []lexical.Result, total int, diagnostic string, tokens []string) {
+// query reads one query and answers it. The hits are bounded by
+// maxRenderedResults; the tally is not, so the page can stay honest about what
+// the bounded list leaves out. The parse travels in the answer because the view
+// needs it too, and reading the same text twice per request is the cost this
+// saves.
+func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang) *answer {
 	parsed := lexical.Parse(q)
 	results, total, err := idx.SearchN(parsed, maxRenderedResults)
 	if errors.Is(err, lexical.ErrMetadataUnavailable) {
-		return nil, 0, unavailableSentence(err, lang), nil
+		return &answer{parsed: parsed, diagnostic: unavailableSentence(err, lang)}
 	}
 	if err != nil {
 		h.logQueryError("search query", q, err)
-		return nil, 0, wording.SearchUnavailable.In(lang), nil
+		return &answer{parsed: parsed, diagnostic: wording.SearchUnavailable.In(lang)}
 	}
-	return results, total, "", parsed.Tokens()
+	return &answer{parsed: parsed, results: results, total: total, tokens: parsed.Tokens()}
 }
 
 // unavailableSentence says why a metadata query could not be answered, in this

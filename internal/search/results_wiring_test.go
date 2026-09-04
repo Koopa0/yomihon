@@ -1,9 +1,14 @@
 package search
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -98,5 +103,89 @@ func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
 	}
 	if strings.Contains(body, "退一步找") {
 		t.Errorf("an answer with results still carries step-back advice; body = %q", body)
+	}
+}
+
+// Both search faces answer one query, and reading it is the one expensive thing
+// they do: the parse allocates, and it happened twice per request because the
+// function that ran the query threw its parse away and the function that built
+// the view needed one back. Nothing said so — two correct answers, arrived at
+// twice.
+//
+// What holds it is where the parse is written, so that is what this reads. A
+// benchmark would measure it and a test that called both would not notice; a
+// second parse anywhere but the query itself is the defect returning.
+func TestOneQueryIsReadOnce(t *testing.T) {
+	t.Parallel()
+
+	// The whole package, not one file: a second read moved into a new file
+	// beside this one is the same defect, and reading only the file it lives in
+	// today would be a check that holds until somebody splits a function out.
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read the package directory: %v", err)
+	}
+	parsesIn := map[string]int{}
+	sources := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		sources++
+		file, parseErr := parser.ParseFile(token.NewFileSet(), name, nil, 0)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", name, parseErr)
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				selector, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok || selector.Sel.Name != "Parse" {
+					return true
+				}
+				if pkg, ok := selector.X.(*ast.Ident); ok && pkg.Name == "lexical" {
+					parsesIn[fn.Name.Name]++
+				}
+				return true
+			})
+		}
+	}
+	if sources == 0 {
+		t.Fatal("no source file was read, so this check would pass over any package")
+	}
+
+	// Two places read a query, and the second is not on the path a reader
+	// waits on: a fault being logged parses the text again to say what shape it
+	// was, which costs nothing on a request that already failed.
+	mayRead := map[string]string{
+		"query":      "answering the reader",
+		"queryFacts": "describing a query in a log line, on the failure path",
+	}
+	total := 0
+	for name, count := range parsesIn {
+		total += count
+		if _, allowed := mayRead[name]; !allowed {
+			t.Errorf("%s reads the query itself; answering one takes one read, in query", name)
+			continue
+		}
+		if count > 1 {
+			t.Errorf("%s reads the query %d times, want once", name, count)
+		}
+	}
+	for name, why := range mayRead {
+		if parsesIn[name] == 0 {
+			t.Errorf("%s no longer reads the query, so the allowance for it (%s) is watching a name that moved", name, why)
+		}
+	}
+	if total == 0 {
+		t.Fatal("no call to lexical.Parse was found in this package, so this test is watching code that moved")
 	}
 }
