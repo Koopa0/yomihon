@@ -649,3 +649,48 @@ func TestAMissingReportGetsTheReadingShell(t *testing.T) {
 		}
 	}
 }
+
+// A vault holds its names composed, and a browser can send either spelling of
+// the same letter — the decomposed one is what a Mac hands over when the name
+// is carried out of a file dialog. The reading and syllabus faces already
+// compose a requested name before they look it up; this one compared the
+// request's bytes against the composed name nav enumerated, so the same report
+// answered one spelling and 404ed the other.
+func TestAReportResolvesFromEitherSpellingOfItsName(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	dir := filepath.Join(root, "System", "reports", "daily-briefing")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	const (
+		composed   = "koopá.html"
+		decomposed = "koopá.html"
+		content    = "composed on disk\n"
+	)
+	if err := os.WriteFile(filepath.Join(dir, composed), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := newHandler(t, root)
+
+	for _, spelling := range []struct {
+		name string
+		sent string
+	}{
+		{"composed", composed},
+		{"decomposed", decomposed},
+	} {
+		t.Run(spelling.name, func(t *testing.T) {
+			t.Parallel()
+			rr := get(t, h, "/reports/"+url.PathEscape(spelling.sent)+"/raw")
+			if rr.Code != http.StatusOK {
+				t.Fatalf("GET the %s spelling = %d, want %d; body = %q",
+					spelling.name, rr.Code, http.StatusOK, rr.Body.String())
+			}
+			if got := rr.Body.String(); got != content {
+				t.Errorf("GET the %s spelling body = %q, want %q", spelling.name, got, content)
+			}
+		})
+	}
+}
