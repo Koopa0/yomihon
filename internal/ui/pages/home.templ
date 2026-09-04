@@ -68,20 +68,23 @@ templ Home(v HomeView, c layouts.Chrome) {
 					<h1 class="y-title">{ wording.HomeTitle.In(c.Lang) }</h1>
 					<p>{ wording.HomeDeskLede.In(c.Lang) }</p>
 				</header>
+				// One row rather than a fifth block. The four ways in are what
+				// the desk is for; a field is how a reader who already knows
+				// what they want skips them, and it asked for as much of the
+				// screen as any of them. The form itself stays whole: it is a
+				// plain GET that works with no script at all, and the palette
+				// in the header opens the same search for a reader who has one.
+				<search class="y-homesearchrow" data-home-block="search">
+					<form class="y-homesearch" method="get" action="/search">
+						<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+						<input type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
+						<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
+					</form>
+				</search>
 				<div class="y-homegrid">
 					for _, block := range v.Blocks {
 						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
 					}
-					<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
-						@homeBlockHead("home-search-title", wording.HomeSearchTitle.In(c.Lang), wording.HomeSearchLede.In(c.Lang))
-						<search>
-							<form class="y-homesearch" method="get" action="/search">
-								<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-								<input type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
-								<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
-							</form>
-						</search>
-					</section>
 				</div>
 				// Below this line the page stops being about reading and starts
 				// being about the vault's own health. Saying where that line is

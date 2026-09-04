@@ -61,15 +61,17 @@ func TestHomeSearchIsPlainGETForm(t *testing.T) {
 func homeSearchSection(t *testing.T, html string) string {
 	t.Helper()
 
+	// The desk's search is one row rather than a block, so it is the search
+	// landmark itself that carries the marker.
 	marker := `data-home-block="search"`
 	markerAt := strings.Index(html, marker)
 	if markerAt < 0 {
-		t.Fatalf("Home() has no search block; html = %q", html)
+		t.Fatal("Home() has no search row")
 	}
-	start := strings.LastIndex(html[:markerAt], "<section")
-	end := strings.Index(html[markerAt:], "</section>")
+	start := strings.LastIndex(html[:markerAt], "<search")
+	end := strings.Index(html[markerAt:], "</search>")
 	if start < 0 || end < 0 {
-		t.Fatalf("Home() search block is incomplete; html = %q", html)
+		t.Fatal("Home() search row is incomplete")
 	}
 	return html[start : markerAt+end]
 }

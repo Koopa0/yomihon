@@ -44,8 +44,6 @@ var (
 	)
 	HomeLifecycleTitle = both("依狀態分組", "By status")
 	HomeLifecycleLede  = both("書庫中每篇已索引筆記落在哪裡", "Where each indexed note in the vault sits")
-	HomeSearchTitle    = both("搜尋", "Search")
-	HomeSearchLede     = both("尋找筆記或篩選書庫", "Find a note, or narrow the library down")
 )
 
 // The counts beside a status chip and a study path.
