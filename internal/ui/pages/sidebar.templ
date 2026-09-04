@@ -32,21 +32,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 		<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
 		<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
 		if sb.Model != nil {
-			if len(sb.Here) > 0 {
-				<nav class="y-here" aria-label={ wording.CurrentFolder.In(c.Lang) }>
-					<a class="y-here__label" href={ templ.URL(folderHref(sb.HereDir)) }>{ hereLabel(sb.HereDir, c.Lang) }</a>
-					for _, n := range sb.Here {
-						<a
-							class={ "ui-navitem", templ.KV("is-active", sb.current(n.RelPath)) }
-							href={ templ.URL(notesHref(n.RelPath)) }
-							{ currentAttr(sb.current(n.RelPath))... }
-						>{ n.Name }</a>
-					}
-					if sb.HereTrimmed > 0 {
-						<a class="y-here__more" href={ templ.URL(folderHref(sb.HereDir)) } data-rail-trimmed={ strconv.Itoa(sb.HereTrimmed) } data-rail-dir={ sb.HereDir }>{ fmt.Sprintf(wording.MoreInFolder.In(c.Lang), sb.HereTrimmed) }</a>
-					}
-				</nav>
-			}
+			@ShelfRail(sb.HereShelf(c.Lang), railWindow, sb.HereDir, wording.MoreInFolder.In(c.Lang))
 			// The rail carries a capability fault on every page it appears on,
 			// including a note opened straight from the command palette by a
 			// reader who never passes the desk. It appears only for a

@@ -22,14 +22,11 @@ type Sidebar struct {
 
 	// CurrentPath is the note being read, empty on a page with no note.
 	CurrentPath string
-	// HereDir labels the siblings block with the current note's directory; Here
-	// lists that directory's files (the current one included, to be marked).
+	// HereDir is the current note's directory; Here lists every file in it,
+	// the current one included, to be marked. The rail width decides how much
+	// of that list it has room for, so nothing is trimmed here.
 	HereDir string
 	Here    []nav.NoteRef
-	// HereTrimmed is how many of the folder's files the block leaves out. It
-	// shows the neighbourhood and says what it left, because a list that
-	// quietly stopped being the folder would be worse than a long one.
-	HereTrimmed int
 	// Steps holds, per study path teaching the current note, the readable
 	// lessons on either side of it — the course order the paths drawer walks.
 	Steps        []nav.Neighbors
@@ -61,7 +58,6 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 	}
 
 	sb.HereDir, sb.Here = model.Siblings(currentPath)
-	sb.Here, sb.HereTrimmed = windowAround(sb.Here, currentPath)
 	sb.Steps = model.PathNeighbors(currentPath)
 
 	// Every heading prefix, so a branch's ancestors open with it.
@@ -84,6 +80,21 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 		sb.openFolders[dir] = true
 	}
 	return sb
+}
+
+// HereShelf is the folder the reader is in, as a shelf: every file in it in the
+// folder's own order, the one being read marked, and the folder's page as the
+// way to the rest of it.
+//
+// It is built here at render time because the words in it are the page's. The
+// rail speaks whatever the page around it speaks, and the model that resolved
+// this navigation was read before any of that was known.
+func (s *Sidebar) HereShelf(lang wording.Lang) Shelf {
+	rows := make([]Row, 0, len(s.Here))
+	for _, n := range s.Here {
+		rows = append(rows, Row{Text: n.Name, Href: notesHref(n.RelPath), Current: s.current(n.RelPath)})
+	}
+	return Shelf{Title: hereLabel(s.HereDir, lang), Href: folderHref(s.HereDir), Rows: rows}
 }
 
 // current reports whether relPath is the note being read. The receiver is a

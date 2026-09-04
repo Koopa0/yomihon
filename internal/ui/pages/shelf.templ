@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/yomihon/internal/wording"
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // ShelfBlock is a shelf at its narrowest: what the organisation is called, how
 // much of it there is, its one sentence, and the first few rows that lead
@@ -34,6 +39,42 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 			<a class="ui-navitem y-shelfall" href={ templ.URL(s.Href) }>{ wording.ShelfAll.In(lang) }</a>
 		}
 	</section>
+}
+
+// ShelfRail is a shelf at the width of the left rail: the one organisation the
+// reader is inside, opened at where they are. It shows the neighbourhood rather
+// than the shelf — the row being read, what is either side of it, and a way to
+// the rest — because a rail that listed a folder of seven hundred entries would
+// be the folder rather than an aid to reading one document in it.
+//
+// The tail says how many it left out rather than only offering the rest. The
+// number is the one thing a reader cannot see here: this width draws no measure
+// above the rows, so a list that quietly stopped being the folder would look
+// exactly like a folder that small. The filter box reads the same number to say
+// what it could not search.
+//
+// more is the sentence for that tail, carrying one number, already in the
+// reader's language: how a count reads is the owner's business, and how many
+// there are is this width's. dir is the vault path the rows live under, which
+// the filter turns into a search over the whole of it; a shelf that is not a
+// folder leaves it empty.
+templ ShelfRail(s Shelf, limit int, dir, more string) {
+	if len(s.Rows) > 0 {
+		{{ shown, trimmed := railRows(&s, limit) }}
+		<nav class="y-here" aria-label={ s.Title }>
+			<a class="y-here__label" href={ templ.URL(s.Href) }>{ s.Title }</a>
+			for _, row := range shown {
+				<a
+					class={ "ui-navitem", templ.KV("is-active", row.Current) }
+					href={ templ.URL(row.Href) }
+					{ currentAttr(row.Current)... }
+				>{ row.Text }</a>
+			}
+			if trimmed > 0 {
+				<a class="y-here__more" href={ templ.URL(s.Href) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir={ dir }>{ fmt.Sprintf(more, trimmed) }</a>
+			}
+		</nav>
+	}
 }
 
 // shelfRowLink is one row wherever a shelf shows rows as links, so a row cannot
