@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -34,27 +35,40 @@ const (
 	bucketQuote
 )
 
+// calloutGroup is one share of the callout vocabulary: the types that render
+// alike, the bucket they render as, and the English title they carry when
+// their author writes none.
+type calloutGroup struct {
+	bucket calloutBucket
+	title  string
+	types  []string
+}
+
+// calloutVocabulary is every callout type this renderer answers to, written
+// out as data so one value holds both which types exist and what each of them
+// looks like. The set is closed, as Obsidian's is: a type outside it is not a
+// callout, and the block falls back to a plain blockquote. A quotation is its
+// own group, again as Obsidian reads it — it carries someone's words rather
+// than a remark about the text.
+var calloutVocabulary = []calloutGroup{
+	{bucketNote, "Note", []string{"info", "note", "tip", "hint", "abstract", "summary", "todo"}},
+	{bucketNote, "Question", []string{"question", "help", "faq"}},
+	{bucketNote, "Example", []string{"example"}},
+	{bucketQuote, "Quote", []string{"quote", "cite"}},
+	{bucketWarning, "Warning", []string{"warning", "caution", "attention"}},
+	{bucketWarning, "Danger", []string{"danger", "error", "bug", "fail", "failure", "missing"}},
+}
+
 // calloutBucketOf maps a lowercased callout type to its bucket and default
-// English title. bucketUnknown means the type is unrecognized and the caller
-// falls back to a plain blockquote. A quotation is its own group, as Obsidian
-// reads it: it carries someone's words rather than a remark about the text.
+// title. bucketUnknown means the type is unrecognized and the caller falls
+// back to a plain blockquote.
 func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
-	switch typ {
-	case "info", "note", "tip", "hint", "abstract", "summary", "todo":
-		return bucketNote, "Note"
-	case "question", "help", "faq":
-		return bucketNote, "Question"
-	case "example":
-		return bucketNote, "Example"
-	case "quote", "cite":
-		return bucketQuote, "Quote"
-	case "warning", "caution", "attention":
-		return bucketWarning, "Warning"
-	case "danger", "error", "bug", "fail", "failure", "missing":
-		return bucketWarning, "Danger"
-	default:
-		return bucketUnknown, ""
+	for _, group := range calloutVocabulary {
+		if slices.Contains(group.types, typ) {
+			return group.bucket, group.title
+		}
 	}
+	return bucketUnknown, ""
 }
 
 // calloutIcon is a small, dependency-free (no icon font, no SVG asset)
