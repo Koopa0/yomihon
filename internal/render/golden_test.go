@@ -100,6 +100,10 @@ func TestTheRenderedBytesAreTheOnesTheGoldensHold(t *testing.T) {
 		// Two directories deep, so a source climbing out of the vault has
 		// somewhere to climb from.
 		{name: "assets", relPath: "Notes/Sub/Assets.md"},
+		// Destinations carrying an ampersand, raw and entity-spelled, so the
+		// one HTML escape an attribute receives stays one: a second layer
+		// would send the browser to a different address.
+		{name: "destinations", relPath: "Notes/Destinations.md"},
 		{name: "readaloud", relPath: "Notes/Read Aloud.md", inject: injectReadAloud},
 		{name: "concept", relPath: "Notes/Concept User.md", inject: injectConcepts},
 	}
