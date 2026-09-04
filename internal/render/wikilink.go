@@ -801,9 +801,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 				attributeEscaper.Replace(rawHref(res.RelPath)), html.EscapeString(path.Base(res.RelPath)))
 		}
 		if !vault.IsMarkdown(res.RelPath) {
-			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
-			return fmt.Sprintf(`<div class="embed-media">[Embedded media: <a href="%s">%s</a> — inline display not yet supported]</div>`,
-				attributeEscaper.Replace(notesHref(res.RelPath)), html.EscapeString(path.Base(res.RelPath)))
+			return mediaStub(res.RelPath, col.page.lang)
 		}
 		body, ok := r.transclusions.Transclusion(res.RelPath)
 		if !ok {
@@ -900,6 +898,20 @@ func embedClass(withheld bool) string {
 		return "embed embed--withheld"
 	}
 	return "embed"
+}
+
+// mediaStub stands where an embedded file the page cannot show inline would
+// have been: the sentence saying so, carrying a link to the file's own page
+// where it names it, so the reader is left a way to the thing they asked for.
+// The sentence comes from the dictionary the rest of this article's own
+// sentences come from, in the language the reader chose; it and the element
+// around the file's name are this program's own bytes, while the name inside is
+// the author's and is escaped.
+func mediaStub(relPath string, lang wording.Lang) string {
+	//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
+	named := fmt.Sprintf(`<a href="%s">%s</a>`,
+		attributeEscaper.Replace(notesHref(relPath)), html.EscapeString(path.Base(relPath)))
+	return `<div class="embed-media">` + fmt.Sprintf(wording.EmbedMediaFmt.In(lang), named) + `</div>`
 }
 
 // embedSourceLine opens an excerpt with the name of the note its words came from,
