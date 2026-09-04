@@ -1,5 +1,7 @@
 package pages
 
+import "slices"
+
 // Shelf is one organisation's listing of documents, in the order that
 // organisation puts them: a name, a measure, one sentence, and rows. The vault
 // declares several — the courses, the maps, the reports, the folders — and each
@@ -50,6 +52,35 @@ type Row struct {
 	// source that could not be read. It does not describe the document the row
 	// points at: a row leading to a note with a fault in it is an ordinary row.
 	Fault bool
+	// Current marks the row the reader is on. It says which row that is and
+	// nothing about how it should look: a width that shows the reader where
+	// they are settles that for itself, and the widths that do not show it
+	// ignore the mark.
+	Current bool
+}
+
+// railRows takes the rows a rail can show around the one the reader is on, and
+// reports how many it left out. A shelf that fits is returned whole, so the
+// ordinary case carries no elision at all.
+//
+// The window is centred on the current row rather than taken from the top,
+// which is the whole difference between this width and the others: a folder of
+// seven hundred entries would otherwise show its first two dozen and never the
+// one being read. A shelf the reader is not inside has no centre, so it opens
+// at the beginning.
+func railRows(s *Shelf, limit int) (window []Row, trimmed int) {
+	limit = max(limit, 0)
+	if len(s.Rows) <= limit {
+		return s.Rows, 0
+	}
+	at := slices.IndexFunc(s.Rows, func(r Row) bool { return r.Current })
+	if at < 0 {
+		return s.Rows[:limit], len(s.Rows) - limit
+	}
+	start := max(0, at-limit/2)
+	end := min(len(s.Rows), start+limit)
+	start = max(0, end-limit)
+	return s.Rows[start:end], len(s.Rows) - (end - start)
 }
 
 // shelfRows takes the rows a narrow width can show, in the order a reader meets

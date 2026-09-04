@@ -18,9 +18,6 @@ var (
 	FilterNoMatch         = both("沒有相符項目；按 Esc 清除篩選。", "Nothing matches. Press Esc to clear the filter.")
 )
 
-// CurrentFolder names the block listing the note's own neighbours.
-var CurrentFolder = both("目前資料夾", "Current folder")
-
 // MoreInFolder is the link to the rest of a folder the rail could not show
 // whole. It carries the count, so it is a format rather than a sentence.
 var MoreInFolder = both("另外 %d 篇 →", "%d more →")
