@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 func TestRewriteStatusLinePreservesFrontmatterDialect(t *testing.T) {
@@ -111,12 +113,13 @@ func TestRewriteStatusLineKeepsEverythingOnTheLineButTheValue(t *testing.T) {
 // rewritten into something their author never wrote.
 //
 // The last shapes here are the same disagreement in the reverse direction. The
-// YAML reader ends a line at U+0085, U+2028 and U+2029 as readily as at a
-// newline, and this scan ends it only at a newline, so a value carrying one
-// reaches past what the reader calls the value and into what the reader calls
-// the next line — a key, or a comment line of the author's own. Replacing that
-// run deletes it, and the note still reads back as the target status, so
-// nothing downstream notices.
+// YAML reader ends an unquoted value at U+0085, U+2028 and U+2029 as readily as
+// at a newline, and this scan ends it only at a newline, so such a value reaches
+// past what the reader calls the value and into what the reader calls the next
+// line — a key, or a comment line of the author's own. Replacing that run
+// deletes it, and the note still reads back as the target status, so nothing
+// downstream notices. Quoted values are refused too, but on other grounds; the
+// test below this one holds those.
 func TestRewriteStatusLineRefusesAShapeItCannotPreserve(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -137,7 +140,6 @@ func TestRewriteStatusLineRefusesAShapeItCannotPreserve(t *testing.T) {
 		{name: "U+2028 ends the line and the next key would go with it", in: "---\nstatus: draft\u2028tags:\n---\nbody\n"},
 		{name: "U+2029 ends the line and the next key would go with it", in: "---\nstatus: draft\u2029tags:\n---\nbody\n"},
 		{name: "a break before a comment line would delete the author's words", in: "---\nstatus: draft\u2028# the reason I set it\n---\nbody\n"},
-		{name: "a break inside quotes disagrees the same way", in: "---\nstatus: \"draft\u2028tags:\"\n---\nbody\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -145,6 +147,62 @@ func TestRewriteStatusLineRefusesAShapeItCannotPreserve(t *testing.T) {
 			got, err := rewriteStatusLine([]byte(tt.in), "ready")
 			if err == nil {
 				t.Fatalf("rewriteStatusLine() rewrote a shape it cannot preserve:\n%s", got)
+			}
+		})
+	}
+}
+
+// TestRewriteStatusLineRefusesAnInvisibleBreakInsideQuotes holds a refusal that
+// is deliberately wider than the disagreement above. Inside quotes the reader
+// does not end the line: it reads one key whose value is the whole quoted run,
+// which is exactly the run a replacement would cover, so replacing it would in
+// fact be correct. It is refused anyway. A character that ends a line in one
+// reading and not in another, and that no editor or review shows, is a shape
+// nobody can check by looking, and the write face answers those by leaving the
+// note alone rather than by deciding which reading was meant. The first two
+// assertions here are the premise: they say the reader agrees, so that if that
+// ever stops being true this test says so instead of quietly changing meaning.
+func TestRewriteStatusLineRefusesAnInvisibleBreakInsideQuotes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		in        string
+		wantValue string
+	}{
+		{
+			name:      "double quotes keep U+2028 inside the value",
+			in:        "---\nstatus: \"draft\u2028tags:\"\n---\nbody\n",
+			wantValue: "draft\u2028tags:",
+		},
+		{
+			name:      "single quotes keep U+2029 inside the value",
+			in:        "---\nstatus: 'draft\u2029tags:'\n---\nbody\n",
+			wantValue: "draft\u2029tags:",
+		},
+		{
+			// The reader folds this one to a space, so the value it reports is
+			// not the bytes on the line at all — a third answer, and another
+			// reason not to rewrite the run blind.
+			name:      "double quotes fold U+0085 to a space",
+			in:        "---\nstatus: \"draft\u0085tags:\"\n---\nbody\n",
+			wantValue: "draft tags:",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := vault.Parse("note.md", []byte(tt.in))
+			if n.FMDiagnostic != "" {
+				t.Fatalf("the reader does not parse this at all: %s", n.FMDiagnostic)
+			}
+			if len(n.Frontmatter) != 1 {
+				t.Fatalf("the reader read %d keys, want 1; a second key means the break ended the line after all", len(n.Frontmatter))
+			}
+			if got, _ := n.String("status"); got != tt.wantValue {
+				t.Fatalf("the reader's value = %q, want %q", got, tt.wantValue)
+			}
+			if got, err := rewriteStatusLine([]byte(tt.in), "ready"); err == nil {
+				t.Errorf("rewriteStatusLine() rewrote a value carrying a character nobody can see:\n%s", got)
 			}
 		})
 	}

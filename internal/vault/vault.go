@@ -267,11 +267,15 @@ func scalarValue(value []byte) (offset, width int, ok bool) {
 		return 0, 0, false
 	}
 	// A line break inside the run is one the YAML reader honours and this line
-	// scan does not, so the two would disagree where the value ends and a
-	// replacement would reach into what the reader reads as the next line —
-	// deleting a key, or a comment line of the author's own. The reader ends a
-	// line at more than the control bytes: U+0085, U+2028 and U+2029 end one
-	// too, and all three are invisible to a reviewer reading the note.
+	// scan does not. The reader ends a line at more than the control bytes:
+	// U+0085, U+2028 and U+2029 end one too. In an unquoted value that is a
+	// disagreement about where the value stops, and a replacement would reach
+	// into what the reader reads as the next line, deleting a key or a comment
+	// line of the author's own. Inside quotes the reader ends no line and this
+	// refuses anyway: it folds U+0085 to a space there, so the value it reports
+	// is not the bytes on the line, and none of the three shows in an editor or
+	// a review. A value nobody can check by looking is one to leave alone
+	// rather than to rewrite on a guess about which reading was meant.
 	for _, r := range string(value[offset : offset+width]) {
 		if r < 0x20 || r == '\u0085' || r == '\u2028' || r == '\u2029' {
 			return 0, 0, false
