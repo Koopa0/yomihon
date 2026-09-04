@@ -8,6 +8,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  # A tag push does not match branches: [main] above, so releasing from a tag
+  # cannot depend on this workflow having already run there. workflow_call
+  # lets the tag-triggered release workflow run this exact job graph against
+  # the tagged commit, instead of a second copy of these jobs drifting from
+  # this one.
+  workflow_call:
 
 permissions:
   contents: read
