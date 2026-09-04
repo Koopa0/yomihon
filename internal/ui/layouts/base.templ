@@ -24,12 +24,7 @@ type Chrome struct {
 	// TextSize scales the reading column: "m" (the default measure), "l", or
 	// "xl". It tunes presentation only — the charter's bounded reading
 	// preferences — and the chrome around the article keeps its own size.
-	TextSize string
-	// HasRuby says this page actually carries furigana. The control switches
-	// them off; a folder with no Japanese in it has none to switch, and a
-	// button for a capability the page does not have is the tool's provenance
-	// showing through its chrome.
-	HasRuby                   bool
+	TextSize                  string
 	SingleKeyShortcutsEnabled bool // plain / and [ are enabled
 	// Lang is the language the interface speaks for this request, and the
 	// language the document declares. The article inside it may declare its
@@ -89,6 +84,14 @@ templ Base(c Chrome) {
 // words are the server's, so its control is a plain form the server answers.
 // The search entry is a real link to /search (the no-JS fallback) that
 // search.js upgrades into opening the dialog.
+//
+// Every one of the toggles is drawn on every page, the furigana one included.
+// Each writes a single cookie for the whole site, so a control drawn only where
+// its effect is currently visible would be missing from precisely the pages a
+// reader who switched that effect off goes on to see: readings switched off on
+// a Japanese note leave every later page without readings, and a furigana
+// control conditioned on the page having readings is then on none of them, with
+// nothing anywhere to switch them back on.
 templ header(c Chrome) {
 	<header class="y-header">
 		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label={ wording.ToggleNavigation.In(c.Lang) } aria-expanded="false" aria-controls="nav-rail">
@@ -104,13 +107,11 @@ templ header(c Chrome) {
 			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
 			<span class="ui-kbd">⌘K</span>
 		</a>
-		if c.HasRuby {
-			<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
-				<span class="y-rubybtn__glyph" aria-hidden="true">{ wording.FuriganaMark.In(c.Lang) }</span>
-				<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
-				<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
-			</button>
-		}
+		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
+			<span class="y-rubybtn__glyph" aria-hidden="true">{ wording.FuriganaMark.In(c.Lang) }</span>
+			<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
+			<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
+		</button>
 		<a class="y-healthlinkbtn" href="/health" title={ wording.HealthLinkTitle.In(c.Lang) }>{ wording.HealthLink.In(c.Lang) }</a>
 		// The three size names ride on the control in the page's own language,
 		// so the script that moves the size — on a press, or re-syncing after a
