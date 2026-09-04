@@ -43,4 +43,4 @@ yomihon ~/notes
 
 ## 授權
 
-[MIT](LICENSE)。隨附的字型與前端資產各有授權：[`assets/fonts/LICENSE.txt`](assets/fonts/LICENSE.txt) 與 [`assets/js/mermaid/LICENSE`](assets/js/mermaid/LICENSE)。
+[MIT](LICENSE)。
