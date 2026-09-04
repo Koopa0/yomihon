@@ -47,7 +47,7 @@ func TestHomeSaysWhyTheAdjudicationCommandsAreClosed(t *testing.T) {
 
 	refused := contractWithPrivacySection(t, "[privacy]\nnever_egress_dirs = [\"/\"]\n")
 	srv := newServerWithContract(t, fragmentSplitVault(t), refused)
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -62,7 +62,7 @@ func TestHomeSaysWhyTheAdjudicationCommandsAreClosed(t *testing.T) {
 	// furniture rather than news.
 	usable := contractWithPrivacySection(t, "[privacy]\nnever_egress_dirs = [\"Private\"]\n")
 	fine := newServerWithContract(t, fragmentSplitVault(t), usable)
-	if _, body := get(t, fine.URL+"/"); strings.Contains(body, "data-home-privacy") {
+	if _, body := get(t, fine.Client(), fine.URL+"/"); strings.Contains(body, "data-home-privacy") {
 		t.Errorf("a usable egress declaration was reported as a fault:\n%s", body)
 	}
 }

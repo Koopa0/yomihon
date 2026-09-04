@@ -24,16 +24,17 @@ type langAnswer struct {
 // postLang submits the language form the way a browser with no script would:
 // one POST, redirects not followed, so the answer's own status, Location and
 // cookies stay observable.
-func postLang(t *testing.T, target string, form url.Values) langAnswer {
+func postLang(t *testing.T, base *http.Client, target string, form url.Values) langAnswer {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, target, strings.NewReader(form.Encode()))
 	if err != nil {
 		t.Fatalf("build POST %s: %v", target, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+	client := *base
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
-	}}
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("POST %s: %v", target, err)
@@ -62,12 +63,12 @@ func TestLanguagePostStoresTheChoiceAndReturnsTheReader(t *testing.T) {
 	// The journey starts from the page itself: the form the header offers is
 	// the one submitted, so the action the markup names and the route the
 	// server mounts cannot drift apart behind a hand-typed address.
-	code, page := get(t, srv.URL+"/notes/README.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/README.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET /notes/README.md status = %d, want 200", code)
 	}
 	action, form := languageForm(t, page)
-	answer := postLang(t, srv.URL+action, form)
+	answer := postLang(t, srv.Client(), srv.URL+action, form)
 	if answer.status != http.StatusSeeOther {
 		t.Fatalf("POST %s status = %d, want 303", action, answer.status)
 	}
@@ -113,7 +114,7 @@ func TestLanguagePostStoresTheChoiceAndReturnsTheReader(t *testing.T) {
 		t.Errorf("the page after the switch does not speak English; head = %q", body[:min(len(body), 200)])
 	}
 
-	back := postLang(t, srv.URL+"/lang", url.Values{"lang": {"zh-Hant"}, "next": {"/"}})
+	back := postLang(t, srv.Client(), srv.URL+"/lang", url.Values{"lang": {"zh-Hant"}, "next": {"/"}})
 	if back.status != http.StatusSeeOther {
 		t.Fatalf("POST /lang back status = %d, want 303", back.status)
 	}
@@ -153,7 +154,7 @@ func TestLanguagePostKeepsTheRedirectLocal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			answer := postLang(t, srv.URL+"/lang", url.Values{"lang": {"en"}, "next": {tt.next}})
+			answer := postLang(t, srv.Client(), srv.URL+"/lang", url.Values{"lang": {"en"}, "next": {tt.next}})
 			if answer.status != http.StatusSeeOther {
 				t.Fatalf("status = %d, want 303", answer.status)
 			}
@@ -176,7 +177,7 @@ func TestLanguagePostRefusesALanguageItDoesNotSpeak(t *testing.T) {
 	for _, value := range []string{"", "ja", "EN", "zh"} {
 		t.Run("value "+value, func(t *testing.T) {
 			t.Parallel()
-			answer := postLang(t, srv.URL+"/lang", url.Values{"lang": {value}, "next": {"/"}})
+			answer := postLang(t, srv.Client(), srv.URL+"/lang", url.Values{"lang": {value}, "next": {"/"}})
 			if answer.status != http.StatusUnprocessableEntity {
 				t.Fatalf("status = %d, want 422", answer.status)
 			}

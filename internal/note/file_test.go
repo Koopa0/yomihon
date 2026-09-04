@@ -87,13 +87,13 @@ func symlink(t *testing.T, target, link string) {
 
 // fetch returns a response's status, headers, and body together, because the
 // raw endpoint's contract is as much in its headers as in its bytes.
-func fetch(t *testing.T, url string) (code int, header http.Header, body string) {
+func fetch(t *testing.T, client *http.Client, url string) (code int, header http.Header, body string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
 	if err != nil {
 		t.Fatalf("new request %s: %v", url, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
@@ -176,7 +176,7 @@ func TestFileRouteRendersEachKind(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, _, body := fetch(t, srv.URL+"/notes/"+tt.path)
+			code, _, body := fetch(t, srv.Client(), srv.URL+"/notes/"+tt.path)
 			if code != http.StatusOK {
 				t.Fatalf("GET /notes/%s = %d, want 200", tt.path, code)
 			}
@@ -208,7 +208,7 @@ func TestRawServesBytesUnderASandbox(t *testing.T) {
 	root := fileVault(t)
 	srv := newServer(t, root)
 
-	code, header, body := fetch(t, srv.URL+"/raw/icon.svg")
+	code, header, body := fetch(t, srv.Client(), srv.URL+"/raw/icon.svg")
 	if code != http.StatusOK {
 		t.Fatalf("GET /raw/icon.svg = %d, want 200", code)
 	}
@@ -250,13 +250,13 @@ func TestRawPDFDropsTheSandbox(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, fileVault(t))
 
-	_, pdfHeader, _ := fetch(t, srv.URL+"/raw/doc.pdf")
+	_, pdfHeader, _ := fetch(t, srv.Client(), srv.URL+"/raw/doc.pdf")
 	if got := pdfHeader.Get("Content-Security-Policy"); got != "frame-ancestors 'self'" {
 		t.Errorf("GET /raw/doc.pdf CSP = %q, want the framing confinement without the sandbox", got)
 	}
 	// Every other kind keeps the full sandbox — the PDF exemption is exactly
 	// that, not a general loosening.
-	_, svgHeader, _ := fetch(t, srv.URL+"/raw/icon.svg")
+	_, svgHeader, _ := fetch(t, srv.Client(), srv.URL+"/raw/icon.svg")
 	const rawPolicy = "sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
 		"font-src 'none'; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
 		"img-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; " +
@@ -284,7 +284,7 @@ func TestRawNamesTheContentType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			t.Parallel()
-			code, header, _ := fetch(t, srv.URL+"/raw/"+tt.path)
+			code, header, _ := fetch(t, srv.Client(), srv.URL+"/raw/"+tt.path)
 			if code != http.StatusOK {
 				t.Fatalf("GET /raw/%s = %d, want 200", tt.path, code)
 			}
@@ -311,7 +311,7 @@ func TestRawKeepsThePinnedVaultWhenTheConfiguredNameIsReplaced(t *testing.T) {
 	write(t, filepath.Join(root, "README.md"), []byte("replacement home\n"))
 	write(t, filepath.Join(root, "plain.txt"), []byte("replacement path bytes\n"))
 
-	code, _, body := fetch(t, srv.URL+"/raw/plain.txt")
+	code, _, body := fetch(t, srv.Client(), srv.URL+"/raw/plain.txt")
 	if code != http.StatusOK {
 		t.Fatalf("GET /raw/plain.txt = %d, want 200", code)
 	}
@@ -332,7 +332,7 @@ func TestRawPreservesHTTPRangeSemantics(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Range", "bytes=2-5")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -361,10 +361,10 @@ func TestFileRoutesRefuseWhatTheTreeDoesNotList(t *testing.T) {
 	// Positive controls cover both a root leaf and a leaf below a real
 	// directory, so refusing links cannot collapse ordinary nested reads.
 	for _, rel := range []string{"Makefile", "Notes/real.md"} {
-		if code, _, _ := fetch(t, srv.URL+"/notes/"+rel); code != http.StatusOK {
+		if code, _, _ := fetch(t, srv.Client(), srv.URL+"/notes/"+rel); code != http.StatusOK {
 			t.Fatalf("GET /notes/%s = %d, want 200", rel, code)
 		}
-		if code, _, _ := fetch(t, srv.URL+"/raw/"+rel); code != http.StatusOK {
+		if code, _, _ := fetch(t, srv.Client(), srv.URL+"/raw/"+rel); code != http.StatusOK {
 			t.Fatalf("GET /raw/%s = %d, want 200", rel, code)
 		}
 	}
@@ -389,7 +389,7 @@ func TestFileRoutesRefuseWhatTheTreeDoesNotList(t *testing.T) {
 		for _, tt := range refused {
 			t.Run(route+tt.name, func(t *testing.T) {
 				t.Parallel()
-				code, _, body := fetch(t, srv.URL+route+tt.path)
+				code, _, body := fetch(t, srv.Client(), srv.URL+route+tt.path)
 				// Exactly 404: a refusal that answers 500 tells a caller that
 				// the path it guessed was special, which is itself an answer.
 				if code != http.StatusNotFound {
@@ -409,7 +409,7 @@ func TestMarkdownStillTakesTheNotePage(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, fileVault(t))
 
-	code, _, body := fetch(t, srv.URL+"/notes/Notes/real.md")
+	code, _, body := fetch(t, srv.Client(), srv.URL+"/notes/Notes/real.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET a note = %d, want 200", code)
 	}

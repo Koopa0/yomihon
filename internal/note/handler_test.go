@@ -181,7 +181,7 @@ func TestShowNonInstanceLessonHasNoGovernanceOrLessonEnhancements(t *testing.T) 
 	writeLoudLessonFixture(t, root, templateRel)
 
 	srv := newServerWithContract(t, root, loadContract(t))
-	code, page := get(t, srv.URL+"/notes/System/templates/Loud%20lesson.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/System/templates/Loud%20lesson.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET template lesson status = %d, want 200", code)
 	}
@@ -256,7 +256,7 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET lesson status = %d, want 200", code)
 	}
@@ -269,7 +269,7 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 		t.Fatalf("change contract between requests: %v", writeErr)
 	}
 
-	code, page = get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
+	code, page = get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
 	if code != http.StatusOK {
 		t.Fatalf("second GET lesson status = %d, want 200", code)
 	}
@@ -349,7 +349,7 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
+			code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
 			if code != http.StatusOK {
 				t.Fatalf("GET lesson status = %d, want 200", code)
 			}
@@ -443,7 +443,7 @@ func TestHomeClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *testing.T)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			code, body := get(t, srv.URL+"/")
+			code, body := get(t, srv.Client(), srv.URL+"/")
 			if code != http.StatusOK {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
@@ -476,7 +476,7 @@ func TestShowCarriesTheNavigationFaultOnANotePage(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServerWithContract(t, root, contract)
-	code, body := get(t, srv.URL+"/notes/Note.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Note.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET note status = %d, want 200", code)
 	}
@@ -523,7 +523,7 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, _ := get(t, srv.URL+"/notes/guide.txt")
+	code, _ := get(t, srv.Client(), srv.URL+"/notes/guide.txt")
 	if code != http.StatusOK {
 		t.Fatalf("GET source status = %d, want 200", code)
 	}
@@ -552,7 +552,7 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 
 			contract := loadHomeContractWithArtifactSection(t, tt.section)
 			srv := newServerWithContract(t, root, contract)
-			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
+			code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/Loud%20lesson.md")
 			if code != http.StatusOK {
 				t.Fatalf("GET lesson with unavailable artifact policy status = %d, want 200", code)
 			}
@@ -641,7 +641,7 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 				governance = contract.Governance()
 			}
 			srv := newServerWithGovernance(t, root, contract, governance)
-			code, page := get(t, srv.URL+"/notes/Note.md")
+			code, page := get(t, srv.Client(), srv.URL+"/notes/Note.md")
 			if code != http.StatusOK {
 				t.Fatalf("GET note status = %d, want 200", code)
 			}
@@ -793,13 +793,13 @@ func hiddenValue(t *testing.T, form, name string) string {
 	return html.UnescapeString(form[start : start+end])
 }
 
-func get(t *testing.T, urlStr string) (code int, body string) {
+func get(t *testing.T, client *http.Client, urlStr string) (code int, body string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, urlStr, http.NoBody)
 	if err != nil {
 		t.Fatalf("new request %s: %v", urlStr, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s: %v", urlStr, err)
 	}
@@ -854,7 +854,7 @@ func TestShowUsesContractDeclaredArticleLanguage(t *testing.T) {
 				t.Fatalf("write note: %v", err)
 			}
 			srv := newServerWithContract(t, root, tt.contract(t))
-			code, page := get(t, srv.URL+"/notes/Writing/%E6%97%A5%E6%9C%AC%E8%AA%9E.md")
+			code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/%E6%97%A5%E6%9C%AC%E8%AA%9E.md")
 			if code != http.StatusOK {
 				t.Fatalf("GET note = %d, want 200; body = %q", code, page)
 			}
@@ -918,7 +918,7 @@ func TestReadingPageRejectsPathTraversal(t *testing.T) {
 
 	// Positive control: a genuine note is served, so a blanket 404 is not what
 	// makes the traversal cases pass.
-	if code, body := get(t, srv.URL+"/notes/Notes/real.md"); code != http.StatusOK || !strings.Contains(body, "a real note") {
+	if code, body := get(t, srv.Client(), srv.URL+"/notes/Notes/real.md"); code != http.StatusOK || !strings.Contains(body, "a real note") {
 		t.Fatalf("GET a genuine note = %d, want 200 with the note body", code)
 	}
 
@@ -937,7 +937,7 @@ func TestReadingPageRejectsPathTraversal(t *testing.T) {
 	for _, p := range payloads {
 		t.Run(p.name, func(t *testing.T) {
 			t.Parallel()
-			code, body := get(t, srv.URL+"/notes/"+p.path)
+			code, body := get(t, srv.Client(), srv.URL+"/notes/"+p.path)
 			if code == http.StatusOK {
 				t.Errorf("GET /notes/%s = 200, want the request refused", p.path)
 			}
@@ -961,7 +961,7 @@ func TestShow(t *testing.T) {
 	}
 	srv := newServer(t, root)
 
-	code, body := get(t, srv.URL+"/notes/Writing/lessons/japanese/L00 テスト課.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L00 テスト課.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -1019,12 +1019,12 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	_, lessonBody := get(t, srv.URL+"/notes/Writing/lessons/japanese/L00.md")
+	_, lessonBody := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L00.md")
 	if !strings.Contains(lessonBody, `data-tts="今日は晴れ。"`) {
 		t.Errorf("lesson page missing the TTS button with reading-stripped data-tts; body = %q", lessonBody)
 	}
 
-	_, sourceBody := get(t, srv.URL+"/notes/Sources/S00.md")
+	_, sourceBody := get(t, srv.Client(), srv.URL+"/notes/Sources/S00.md")
 	if strings.Contains(sourceBody, "data-tts") || strings.Contains(sourceBody, "y-tts") {
 		t.Errorf("non-lesson (source-note) page leaked a TTS button — the lesson gate failed; body = %q", sourceBody)
 	}
@@ -1062,14 +1062,14 @@ func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 	write("Diagrams/x.canvas", "{\"nodes\":[]}\n")
 	srv := newServer(t, root)
 
-	if code, _ := get(t, srv.URL+"/notes/Notes/keep.md"); code != http.StatusOK {
+	if code, _ := get(t, srv.Client(), srv.URL+"/notes/Notes/keep.md"); code != http.StatusOK {
 		t.Errorf("a .md note must still be served; GET keep.md = %d, want 200", code)
 	}
 	for _, rel := range []string{
 		"System/reports/daily-briefing/x.html",
 		"Diagrams/x.canvas",
 	} {
-		code, body := get(t, srv.URL+"/notes/"+rel)
+		code, body := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 		if code != http.StatusOK {
 			t.Errorf("GET /notes/%s = %d, want 200 (every listed file opens)", rel, code)
 		}
@@ -1083,7 +1083,7 @@ func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 
 	// The script's own text is shown — escaped, as source — which is the
 	// difference between reading a file and running it.
-	if _, body := get(t, srv.URL+"/notes/System/reports/daily-briefing/x.html"); !strings.Contains(body, "cdn.jsdelivr") {
+	if _, body := get(t, srv.Client(), srv.URL+"/notes/System/reports/daily-briefing/x.html"); !strings.Contains(body, "cdn.jsdelivr") {
 		t.Error("the .html source view does not show the file's own text")
 	}
 }
@@ -1123,7 +1123,7 @@ func TestShowSlotMachine(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadContract(t))
-	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -1158,7 +1158,7 @@ func TestShowLessonWithoutSidecarHasNoMachine(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
-	_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L02.md")
+	_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L02.md")
 	if strings.Contains(page, "y-slotmachine") {
 		t.Errorf("lesson with no matching sidecar still rendered a slot machine; body = %q", page)
 	}
@@ -1192,7 +1192,7 @@ func TestShowConceptSheet(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadContract(t))
-	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -1234,7 +1234,7 @@ func TestShowNonLessonNoConceptTriggers(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadContract(t))
-	_, page := get(t, srv.URL+"/notes/Sources/S.md")
+	_, page := get(t, srv.Client(), srv.URL+"/notes/Sources/S.md")
 	if strings.Contains(page, "data-concept") || strings.Contains(page, "data-concept-sheet") {
 		t.Errorf("non-lesson note grew a concept trigger/sheet — the gate failed; body = %q", page)
 	}
@@ -1244,7 +1244,7 @@ func TestShowNotFound(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, t.TempDir())
 
-	code, _ := get(t, srv.URL+"/notes/nope.md")
+	code, _ := get(t, srv.Client(), srv.URL+"/notes/nope.md")
 	if code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", code)
 	}
@@ -1275,9 +1275,8 @@ func TestHome(t *testing.T) {
 	}
 	// Refuse redirects: a followed README redirect can produce the same body
 	// while violating Home's direct-render contract.
-	client := &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
+	client := *srv.Client()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET /: %v", err)
@@ -1362,7 +1361,7 @@ func TestHomeRecentOmitsTheStatusChipForAnUngovernedFolder(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServer(t, root)
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -1452,7 +1451,7 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
 		errors.New("toml: line 42: expected a key separator"),
 	))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -1685,7 +1684,7 @@ func TestHomeDashboardUsesSnapshotData(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -1782,7 +1781,7 @@ func TestHomeWithholdsTheLifecycleBlockAndNamesTheCause(t *testing.T) {
 				t.Fatalf("write README: %v", err)
 			}
 			srv := newServerWithContract(t, root, tt.contract(t))
-			code, body := get(t, srv.URL+"/")
+			code, body := get(t, srv.Client(), srv.URL+"/")
 			if code != http.StatusOK {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
@@ -1857,7 +1856,7 @@ body
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -1873,7 +1872,7 @@ body
 		t.Fatalf("change contract between requests: %v", writeErr)
 	}
 
-	code, body = get(t, srv.URL+"/")
+	code, body = get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("second GET / status = %d, want 200", code)
 	}
@@ -1939,7 +1938,7 @@ func TestHomeArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 				t.Fatalf("write note: %v", err)
 			}
 			srv := newServerWithContract(t, root, tt.contract)
-			code, page := get(t, srv.URL+"/")
+			code, page := get(t, srv.Client(), srv.URL+"/")
 			if code != http.StatusOK {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
@@ -1988,7 +1987,7 @@ func TestHomeNavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) 
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServerWithContract(t, root, contract)
-	code, page := get(t, srv.URL+"/")
+	code, page := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -2021,7 +2020,7 @@ func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 		t.Fatalf("write README: %v", err)
 	}
 	srv := newServerWithContract(t, root, contract)
-	code, page := get(t, srv.URL+"/")
+	code, page := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -2069,7 +2068,7 @@ func TestHomeValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 		}
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, page := get(t, srv.URL+"/")
+	code, page := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -2096,7 +2095,7 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 	// assertions below for a reason that has nothing to do with them.
 	srv := newServerWithContract(t, root, contractWithPrivacySection(t, "[privacy]\nnever_egress_dirs = []\n"))
 
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / without README status = %d, want %d", code, http.StatusOK)
 	}
@@ -2118,7 +2117,7 @@ func TestHomeWithoutReadmeKeepsDashboardReadOnly(t *testing.T) {
 		t.Errorf("subtitle = %q; it must not promise blocks the page does not carry", got)
 	}
 
-	noteCode, _ := get(t, srv.URL+"/notes/README.md")
+	noteCode, _ := get(t, srv.Client(), srv.URL+"/notes/README.md")
 	if noteCode != http.StatusNotFound {
 		t.Errorf("GET /notes/README.md without README status = %d, want %d", noteCode, http.StatusNotFound)
 	}
@@ -2210,7 +2209,7 @@ func TestHomeStandInNamesTheNewestFileWhenThereAreNoNotes(t *testing.T) {
 	}
 
 	srv := newServer(t, root)
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -2404,7 +2403,7 @@ func TestHomeLifecycleCountsStatusDistribution(t *testing.T) {
 			}
 			srv := newServerWithContract(t, root, distributionContract(t))
 
-			code, body := get(t, srv.URL+"/")
+			code, body := get(t, srv.Client(), srv.URL+"/")
 			if code != http.StatusOK {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
@@ -2509,7 +2508,7 @@ func TestShowNoFrontmatter(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	code, body := get(t, srv.URL+"/notes/Drills/d1.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Drills/d1.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -2540,7 +2539,7 @@ func TestShowTransitions(t *testing.T) {
 	contract := loadContract(t)
 	srv := newServerWithContract(t, root, contract)
 
-	code, body := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -2582,7 +2581,8 @@ func TestShowTransitions(t *testing.T) {
 		"to":               {hiddenValue(t, readyForm, "to")},
 		"content_identity": {hiddenValue(t, readyForm, "content_identity")},
 	}
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := *srv.Client()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(form.Encode()))
 	if err != nil {
 		t.Fatalf("new status request: %v", err)
@@ -2612,7 +2612,7 @@ func TestShowTransitions(t *testing.T) {
 	// Follow the redirect the way a browser does and read what the reader is
 	// actually told. Asserting the receipt on a hand-built NoteView proves the
 	// template can render it; only this proves the page is handed the value.
-	landingCode, landing := get(t, srv.URL+resp.Header.Get("Location"))
+	landingCode, landing := get(t, srv.Client(), srv.URL+resp.Header.Get("Location"))
 	if landingCode != http.StatusOK {
 		t.Fatalf("GET the redirect target = %d, want 200", landingCode)
 	}
@@ -2622,7 +2622,7 @@ func TestShowTransitions(t *testing.T) {
 		}
 	}
 	// A plain reading of the same note states nothing.
-	_, plain := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	_, plain := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if strings.Contains(plain, "狀態已從") {
 		t.Errorf("an ordinary reading carries a transition receipt")
 	}
@@ -2635,7 +2635,7 @@ func TestShowTransitions(t *testing.T) {
 	// never happened — including to published, which this write face refuses
 	// to perform at all.
 	for _, forged := range []string{"?from=nonsense", "?from=" + schema.PublishedStatus, "?from=archived"} {
-		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md"+forged)
+		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md"+forged)
 		if strings.Contains(page, "狀態已從") {
 			t.Errorf("%s made the page announce a transition that never happened", forged)
 		}
@@ -2685,7 +2685,8 @@ func flipViaPage(t *testing.T, srv *httptest.Server, pageBody, target string) st
 		"to":               {hiddenValue(t, form, "to")},
 		"content_identity": {hiddenValue(t, form, "content_identity")},
 	}
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := *srv.Client()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(values.Encode()))
 	if err != nil {
 		t.Fatalf("new status request: %v", err)
@@ -2730,7 +2731,7 @@ func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
 
 		// draft -> ready is a move the contract admits, which used to be the
 		// whole gate.
-		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md?from=draft")
+		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md?from=draft")
 		if strings.Contains(page, receiptMarker) {
 			t.Errorf("a hand typed ?from=draft printed a receipt for a write that never happened")
 		}
@@ -2742,16 +2743,16 @@ func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
 		writeLesson(t, root, lessonWithStatus("draft"))
 		srv := newServerWithContract(t, root, loadContract(t))
 
-		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 		location := flipViaPage(t, srv, page, schema.SealStatus)
-		landingCode, landing := get(t, srv.URL+location)
+		landingCode, landing := get(t, srv.Client(), srv.URL+location)
 		if landingCode != http.StatusOK {
 			t.Fatalf("GET the redirect target = %d, want 200", landingCode)
 		}
 		if !strings.Contains(landing, receiptMarker) {
 			t.Fatalf("the reading a flip redirects to does not state the change")
 		}
-		_, refreshed := get(t, srv.URL+location)
+		_, refreshed := get(t, srv.Client(), srv.URL+location)
 		if strings.Contains(refreshed, receiptMarker) {
 			t.Errorf("reloading the same address printed the receipt again")
 		}
@@ -2763,15 +2764,15 @@ func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
 		writeLesson(t, root, lessonWithStatus("draft"))
 		srv := newServerWithContract(t, root, loadContract(t))
 
-		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 		firstLocation := flipViaPage(t, srv, page, schema.SealStatus)
-		_, firstLanding := get(t, srv.URL+firstLocation)
+		_, firstLanding := get(t, srv.Client(), srv.URL+firstLocation)
 		if !strings.Contains(firstLanding, receiptMarker) {
 			t.Fatalf("the first flip's landing does not state the change")
 		}
 
 		secondLocation := flipViaPage(t, srv, firstLanding, "archived")
-		_, secondLanding := get(t, srv.URL+secondLocation)
+		_, secondLanding := get(t, srv.Client(), srv.URL+secondLocation)
 		if !strings.Contains(secondLanding, receiptMarker) {
 			t.Fatalf("the second flip's landing does not state the change")
 		}
@@ -2779,7 +2780,7 @@ func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
 			"the first flip's address":  firstLocation,
 			"the second flip's address": secondLocation,
 		} {
-			_, page := get(t, srv.URL+address)
+			_, page := get(t, srv.Client(), srv.URL+address)
 			if strings.Contains(page, receiptMarker) {
 				t.Errorf("revisiting %s printed a receipt again", name)
 			}
@@ -2952,7 +2953,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, body := get(t, srv.URL+"/notes/Maps/Go path.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Maps/Go path.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -2984,7 +2985,7 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/notes/Maps/Reading map.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Maps/Reading map.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -3042,7 +3043,7 @@ func TestReadingPrecedesTheRulingInTheRail(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	code, page := get(t, srv.URL+"/notes/"+rel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -3113,7 +3114,7 @@ func TestReadingPageShowsTheStatusTheFileCarriesNow(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	if code, page := get(t, srv.URL+"/notes/"+rel); code != http.StatusOK {
+	if code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel); code != http.StatusOK {
 		t.Fatalf("first read status = %d, want 200", code)
 	} else if !strings.Contains(page, `value="draft"`) {
 		t.Fatalf("the note starts at draft but the page does not say so; body = %q", page)
@@ -3124,7 +3125,7 @@ func TestReadingPageShowsTheStatusTheFileCarriesNow(t *testing.T) {
 	if err := os.WriteFile(notePath, []byte(header+"ready"+footer), 0o600); err != nil {
 		t.Fatalf("rewrite status: %v", err)
 	}
-	code, page := get(t, srv.URL+"/notes/"+rel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 	if code != http.StatusOK {
 		t.Fatalf("second read status = %d, want 200", code)
 	}
@@ -3197,7 +3198,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 	for _, f := range files {
 		t.Run(f.rel, func(t *testing.T) {
 			t.Parallel()
-			code, page := get(t, srv.URL+"/notes/"+f.rel)
+			code, page := get(t, srv.Client(), srv.URL+"/notes/"+f.rel)
 			if code != http.StatusOK {
 				t.Fatalf("GET /notes/%s status = %d, want 200", f.rel, code)
 			}
@@ -3258,7 +3259,7 @@ func TestHomeDoesNotSpendItsScreenTalkingAboutItself(t *testing.T) {
 			}
 			tt.setup(t, root)
 			srv := newServer(t, root)
-			code, body := get(t, srv.URL+"/")
+			code, body := get(t, srv.Client(), srv.URL+"/")
 			if code != http.StatusOK {
 				t.Fatalf("GET / status = %d, want 200", code)
 			}
@@ -3309,7 +3310,7 @@ func TestFuriganaControlAppearsOnlyWhereThereIsFurigana(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, body := get(t, srv.URL+tt.path)
+			code, body := get(t, srv.Client(), srv.URL+tt.path)
 			if code != http.StatusOK {
 				t.Fatalf("GET %s status = %d, want 200", tt.path, code)
 			}
@@ -3350,7 +3351,7 @@ func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
 	srv := newServer(t, root)
 
 	// It renders, and it says why a search will not find it.
-	code, page := get(t, srv.URL+"/notes/huge.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/huge.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET the oversize note = %d, want 200 — reading is never withheld", code)
 	}
@@ -3362,7 +3363,7 @@ func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
 	}
 
 	// The note that is indexed says nothing of the kind.
-	if _, small := get(t, srv.URL+"/notes/small.md"); strings.Contains(small, "data-note-unsearchable") {
+	if _, small := get(t, srv.Client(), srv.URL+"/notes/small.md"); strings.Contains(small, "data-note-unsearchable") {
 		t.Error("a note that is searchable was told it is not")
 	}
 
@@ -3388,7 +3389,7 @@ func TestFolderWithoutARepositoryStillOffersTransitions(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	code, page := get(t, srv.URL+"/notes/"+rel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -3443,7 +3444,7 @@ func TestTransitionsArePlainControls(t *testing.T) {
 				t.Fatalf("write: %v", err)
 			}
 			srv := newServerWithContract(t, root, loadContract(t))
-			code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+			code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 			if code != http.StatusOK {
 				t.Fatalf("status = %d, want 200", code)
 			}
@@ -3488,7 +3489,7 @@ func TestShowFlagsAStatusOutsideTheSchema(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
-	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -3527,7 +3528,7 @@ func TestShowOffersAnObsidianDoor(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
-	code, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -3581,7 +3582,7 @@ func TestShowOffersTransitionsWhateverTheOwnerLists(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, contract)
-	code, body := get(t, srv.URL+"/notes/Writing/Note.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/Note.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET note status = %d, want 200", code)
 	}
@@ -3623,7 +3624,7 @@ func TestShowNamesTheLayerThatWithheldTheControls(t *testing.T) {
 	srv := newServerWithContract(t, root, loadContract(t))
 	layer := wording.OutsideKnowledgeScope.In(wording.ZhHant)
 
-	code, page := get(t, srv.URL+"/notes/"+outside)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+outside)
 	if code != http.StatusOK {
 		t.Fatalf("GET %s status = %d, want 200", outside, code)
 	}
@@ -3638,7 +3639,7 @@ func TestShowNamesTheLayerThatWithheldTheControls(t *testing.T) {
 		t.Error("the page offers a transition form outside the knowledge layer")
 	}
 
-	code, page = get(t, srv.URL+"/notes/"+inside)
+	code, page = get(t, srv.Client(), srv.URL+"/notes/"+inside)
 	if code != http.StatusOK {
 		t.Fatalf("GET %s status = %d, want 200", inside, code)
 	}
@@ -3671,7 +3672,7 @@ func TestHomeLifecycleBlockDropsTheQueueHeading(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -3719,7 +3720,7 @@ func TestHomeLifecycleAccountsForEveryIndexedNote(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, distributionContract(t))
 
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -3812,7 +3813,7 @@ func TestNoteMetarowCarriesADate(t *testing.T) {
 	}
 	srv := newServer(t, root)
 
-	code, body := get(t, srv.URL+"/notes/Writing/Declared.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/Declared.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET declared note status = %d, want 200", code)
 	}
@@ -3823,7 +3824,7 @@ func TestNoteMetarowCarriesADate(t *testing.T) {
 		t.Error("a note declaring its update is dated by the file as well")
 	}
 
-	code, body = get(t, srv.URL+"/notes/Writing/Undeclared.md")
+	code, body = get(t, srv.Client(), srv.URL+"/notes/Writing/Undeclared.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET undeclared note status = %d, want 200", code)
 	}
@@ -3858,7 +3859,7 @@ func TestNoteMetarowDateSpeaksTheInterfaceLanguage(t *testing.T) {
 		t.Fatalf("new request: %v", err)
 	}
 	req.Header.Set("Cookie", wording.CookieName+"="+string(wording.En))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatalf("GET note: %v", err)
 	}
@@ -3910,7 +3911,7 @@ func TestHomeRecentStatesItsKnowledgeScope(t *testing.T) {
 		}
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -3953,7 +3954,7 @@ func TestHomeSingleNoteClaimsNoTimestampTie(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServer(t, root)
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -3989,7 +3990,7 @@ func TestHomeTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
 		}
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -4018,7 +4019,7 @@ func TestHomeUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
 		}
 	}
 	srv := newServer(t, root)
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -4057,7 +4058,7 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 		}
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -4119,7 +4120,7 @@ func TestHomeUnscopedTieKeepsThePlainNotice(t *testing.T) {
 		}
 	}
 	srv := newServer(t, root)
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -4169,7 +4170,7 @@ func TestHomeUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
 	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
 		errors.New("toml: line 42: expected a key separator"),
 	))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -4231,7 +4232,7 @@ func TestHomeRecentFlagsAStatusOutsideTheSchema(t *testing.T) {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
@@ -4260,7 +4261,7 @@ func TestHomeBadContractWithNoNotesKeepsTheStandInAway(t *testing.T) {
 	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
 		errors.New("toml: line 42: expected a key separator"),
 	))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}

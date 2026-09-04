@@ -59,7 +59,7 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			resp, err := http.Get(srv.URL + tt.path) //nolint:noctx // fixed, test-controlled URL; test scope, no context needed
+			resp, err := srv.Client().Get(srv.URL + tt.path) //nolint:noctx // fixed, test-controlled URL; test scope, no context needed
 			if err != nil {
 				t.Fatalf("GET %s: %v", tt.path, err)
 			}
@@ -97,7 +97,7 @@ func TestBrandMarkServesExactEmbeddedBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read embedded brand mark: %v", err)
 	}
-	resp, err := http.Get(srv.URL + "/static/yomihon-mark.svg") //nolint:noctx // fixed, test-controlled URL
+	resp, err := srv.Client().Get(srv.URL + "/static/yomihon-mark.svg") //nolint:noctx // fixed, test-controlled URL
 	if err != nil {
 		t.Fatalf("GET brand mark: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestMermaidEntryModuleChunkResolves(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	resp, err := http.Get(srv.URL + "/static/mermaid.esm.min.mjs") //nolint:noctx // fixed, test-controlled URL
+	resp, err := srv.Client().Get(srv.URL + "/static/mermaid.esm.min.mjs") //nolint:noctx // fixed, test-controlled URL
 	if err != nil {
 		t.Fatalf("GET mermaid entry module: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestMermaidEntryModuleChunkResolves(t *testing.T) {
 		t.Fatal("did not find a `./chunks/mermaid.esm.min/*.mjs` dynamic import in the served entry module")
 	}
 
-	chunkResp, err := http.Get(srv.URL + "/static/" + loc) //nolint:noctx // fixed, test-controlled URL
+	chunkResp, err := srv.Client().Get(srv.URL + "/static/" + loc) //nolint:noctx // fixed, test-controlled URL
 	if err != nil {
 		t.Fatalf("GET chunk %s: %v", loc, err)
 	}
@@ -229,7 +229,7 @@ func TestUnknownAssetsAre404(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			resp, err := http.Get(srv.URL + tt.path) //nolint:noctx // fixed, test-controlled URL
+			resp, err := srv.Client().Get(srv.URL + tt.path) //nolint:noctx // fixed, test-controlled URL
 			if err != nil {
 				t.Fatalf("GET %s: %v", tt.path, err)
 			}
@@ -282,7 +282,7 @@ func TestConditionalRequestAnswers304(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			first := get(t, srv.URL+tt.path, "")
+			first := get(t, srv.Client(), srv.URL+tt.path, "")
 			if first.status != http.StatusOK {
 				t.Fatalf("GET %s status = %d, want %d", tt.path, first.status, http.StatusOK)
 			}
@@ -301,7 +301,7 @@ func TestConditionalRequestAnswers304(t *testing.T) {
 			}
 
 			// The tag a browser would quote back confirms the stored copy.
-			match := get(t, srv.URL+tt.path, tag)
+			match := get(t, srv.Client(), srv.URL+tt.path, tag)
 			if match.status != http.StatusNotModified {
 				t.Errorf("GET %s with If-None-Match %s status = %d, want %d", tt.path, tag, match.status, http.StatusNotModified)
 			}
@@ -310,7 +310,7 @@ func TestConditionalRequestAnswers304(t *testing.T) {
 			}
 
 			// A copy of different bytes is replaced, not confirmed.
-			stale := get(t, srv.URL+tt.path, `"not-the-bytes-you-have"`)
+			stale := get(t, srv.Client(), srv.URL+tt.path, `"not-the-bytes-you-have"`)
 			if stale.status != http.StatusOK {
 				t.Errorf("GET %s with a non-matching If-None-Match status = %d, want %d", tt.path, stale.status, http.StatusOK)
 			}
@@ -321,7 +321,7 @@ func TestConditionalRequestAnswers304(t *testing.T) {
 			// The validator names the bytes, so it does not drift between
 			// requests; a tag that changed every time would revalidate to a
 			// 200 forever and cache nothing.
-			if again := first.header.Get("ETag"); again != get(t, srv.URL+tt.path, "").header.Get("ETag") {
+			if again := first.header.Get("ETag"); again != get(t, srv.Client(), srv.URL+tt.path, "").header.Get("ETag") {
 				t.Errorf("GET %s served two different ETags for the same bytes", tt.path)
 			}
 		})
@@ -337,7 +337,7 @@ type response struct {
 
 // get issues one request, optionally quoting a stored validator back at the
 // server, and reads the answer to completion.
-func get(t *testing.T, url, ifNoneMatch string) response {
+func get(t *testing.T, client *http.Client, url, ifNoneMatch string) response {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
 	if err != nil {
@@ -346,7 +346,7 @@ func get(t *testing.T, url, ifNoneMatch string) response {
 	if ifNoneMatch != "" {
 		req.Header.Set("If-None-Match", ifNoneMatch)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}

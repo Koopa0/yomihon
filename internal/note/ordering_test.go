@@ -36,7 +36,7 @@ func TestSidebarListsNumberedLessonsInLessonOrder(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/notes/教案/第一課 物質.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/教案/第一課 物質.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}

@@ -77,7 +77,7 @@ func TestTheHealthPageNamesTheRootFolderInTheReadersLanguage(t *testing.T) {
 	for _, lang := range bothLanguages {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
-			page := getInLanguage(t, srv.URL+"/health", lang)
+			page := getInLanguage(t, srv.Client(), srv.URL+"/health", lang)
 			sentenceFollowsTheReader(t, page, lang, wording.VaultRoot, "the name of the folder at the top")
 		})
 	}
@@ -149,7 +149,7 @@ func TestAReleasedWriteFaceSpeaksTheReadersLanguage(t *testing.T) {
 	for _, lang := range bothLanguages {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
-			page := getInLanguage(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md", lang)
+			page := getInLanguage(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md", lang)
 			sentenceFollowsTheReader(t, page, lang, wording.ContractUnavailable, "the explanation of a released write face")
 			// The rail states the same closure, and it used to state it only
 			// because the refusal carried a sentence. A refusal whose whole
@@ -172,7 +172,7 @@ func TestANoteWhoseStatusCouldNotBeReadSpeaksTheReadersLanguage(t *testing.T) {
 	for _, lang := range bothLanguages {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
-			page := getInLanguage(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md", lang)
+			page := getInLanguage(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md", lang)
 			sentenceFollowsTheReader(t, page, lang, wording.NoteStatusUnreadable, "the note's unreadable status line")
 		})
 	}

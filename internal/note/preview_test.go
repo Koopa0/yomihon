@@ -55,7 +55,7 @@ type previewResponse struct {
 
 // askPreview performs the request one hover makes. section is the fragment the
 // hovered link's own address carries; empty asks for the note itself.
-func askPreview(t *testing.T, srvURL, rel, section string, lang wording.Lang) previewResponse {
+func askPreview(t *testing.T, client *http.Client, srvURL, rel, section string, lang wording.Lang) previewResponse {
 	t.Helper()
 	full := srvURL + "/preview/" + rel
 	if section != "" {
@@ -66,7 +66,7 @@ func askPreview(t *testing.T, srvURL, rel, section string, lang wording.Lang) pr
 		t.Fatalf("NewRequest error = %v", err)
 	}
 	req.Header.Set("Cookie", wording.CookieName+"="+string(lang))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s error = %v", full, err)
 	}
@@ -88,13 +88,13 @@ func askPreview(t *testing.T, srvURL, rel, section string, lang wording.Lang) pr
 }
 
 // getPage reads a whole page, for the embed the card's cut is compared with.
-func getPage(t *testing.T, full string) (code int, page string) {
+func getPage(t *testing.T, client *http.Client, full string) (code int, page string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, full, http.NoBody)
 	if err != nil {
 		t.Fatalf("NewRequest error = %v", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s error = %v", full, err)
 	}
@@ -125,11 +125,11 @@ func TestTheCardShowsTheExcerptAnEmbedOfTheSameAddressShows(t *testing.T) {
 	writePreviewVault(t, root)
 	srv := newServer(t, root)
 
-	card := askPreview(t, srv.URL, previewTargetRel, "addressed", wording.ZhHant)
+	card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "addressed", wording.ZhHant)
 	if card.code != http.StatusOK {
 		t.Fatalf("card status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
 	}
-	code, host := getPage(t, srv.URL+"/notes/Notes/host.md")
+	code, host := getPage(t, srv.Client(), srv.URL+"/notes/Notes/host.md")
 	if code != http.StatusOK {
 		t.Fatalf("host page status = %d, want %d", code, http.StatusOK)
 	}
@@ -157,7 +157,7 @@ func TestTheCardCutsAtTheSectionTheLinkAddressed(t *testing.T) {
 	writePreviewVault(t, root)
 	srv := newServer(t, root)
 
-	card := askPreview(t, srv.URL, previewTargetRel, "addressed", wording.ZhHant)
+	card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "addressed", wording.ZhHant)
 	if card.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
 	}
@@ -179,7 +179,7 @@ func TestACardWithNoSectionShowsTheNoteFromTheTop(t *testing.T) {
 	writePreviewVault(t, root)
 	srv := newServer(t, root)
 
-	card := askPreview(t, srv.URL, previewTargetRel, "", wording.ZhHant)
+	card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "", wording.ZhHant)
 	if card.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
 	}
@@ -199,7 +199,7 @@ func TestACardOnABlockAddressShowsThatBlock(t *testing.T) {
 	writePreviewVault(t, root)
 	srv := newServer(t, root)
 
-	card := askPreview(t, srv.URL, previewTargetRel, "^marked", wording.ZhHant)
+	card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "^marked", wording.ZhHant)
 	if card.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
 	}
@@ -232,7 +232,7 @@ func TestAnAddressThatNamesNothingAnswersWithASentenceNotAnEmptyCard(t *testing.
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			card := askPreview(t, srv.URL, tt.rel, "", wording.ZhHant)
+			card := askPreview(t, srv.Client(), srv.URL, tt.rel, "", wording.ZhHant)
 			if card.code != http.StatusNotFound {
 				t.Errorf("status = %d, want %d", card.code, http.StatusNotFound)
 			}
@@ -252,7 +252,7 @@ func TestACardAnsweringInTheReadersLanguage(t *testing.T) {
 	srv := newServer(t, root)
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		card := askPreview(t, srv.URL, "Notes/absent.md", "", lang)
+		card := askPreview(t, srv.Client(), srv.URL, "Notes/absent.md", "", lang)
 		if !strings.Contains(card.body, wording.PreviewNoNote.In(lang)) {
 			t.Errorf("a reader who asked for %s is answered in another language:\n%s", lang, card.body)
 		}
@@ -276,7 +276,7 @@ func TestTheExcerptKeepsTheLanguageItsAuthorWroteIt(t *testing.T) {
 		"---\ntitle: Japanese\ntype: writing\ndomain: japanese\nstatus: draft\nlang: ja\n---\n\nHonest body.\n")
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	card := askPreview(t, srv.URL, "Writing/japanese.md", "", wording.ZhHant)
+	card := askPreview(t, srv.Client(), srv.URL, "Writing/japanese.md", "", wording.ZhHant)
 	if card.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
 	}
@@ -292,7 +292,7 @@ func TestACardIsNeverAHeldAnswer(t *testing.T) {
 	writePreviewVault(t, root)
 	srv := newServer(t, root)
 
-	card := askPreview(t, srv.URL, previewTargetRel, "", wording.ZhHant)
+	card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "", wording.ZhHant)
 	if card.cache != "no-store" {
 		t.Errorf("Cache-Control = %q, want %q", card.cache, "no-store")
 	}
@@ -311,7 +311,7 @@ func TestTheCardIsABareFragment(t *testing.T) {
 	writePreviewVault(t, root)
 	srv := newServer(t, root)
 
-	card := askPreview(t, srv.URL, previewTargetRel, "", wording.ZhHant)
+	card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "", wording.ZhHant)
 	if !strings.Contains(card.body, "data-preview-body") {
 		t.Fatalf("the fragment carries no element the client can import:\n%s", card.body)
 	}
@@ -336,7 +336,7 @@ func TestALongNoteIsCutAndSaysSo(t *testing.T) {
 	writeVaultNote(t, root, "Notes/short.md", "---\ntitle: Short\n---\n\nA note that fits.\n")
 	srv := newServer(t, root)
 
-	cut := askPreview(t, srv.URL, "Notes/long.md", "", wording.ZhHant)
+	cut := askPreview(t, srv.Client(), srv.URL, "Notes/long.md", "", wording.ZhHant)
 	if cut.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", cut.code, http.StatusOK)
 	}
@@ -347,7 +347,7 @@ func TestALongNoteIsCutAndSaysSo(t *testing.T) {
 		t.Errorf("the card stops short of the note and says nothing about it:\n%s", cut.body)
 	}
 
-	whole := askPreview(t, srv.URL, "Notes/short.md", "", wording.ZhHant)
+	whole := askPreview(t, srv.Client(), srv.URL, "Notes/short.md", "", wording.ZhHant)
 	if strings.Contains(whole.body, wording.PreviewMore.In(wording.ZhHant)) {
 		t.Errorf("a card holding the whole note claims it was cut:\n%s", whole.body)
 	}
@@ -383,7 +383,7 @@ func TestASectionTheNoteDoesNotHaveIsRefusedNotWidened(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			for lang, notice := range tt.notice {
-				card := askPreview(t, srv.URL, previewTargetRel, tt.section, lang)
+				card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, tt.section, lang)
 				if card.code != http.StatusOK {
 					t.Fatalf("status = %d, want %d; the note is there and only the place inside it is not", card.code, http.StatusOK)
 				}
@@ -414,14 +414,14 @@ func TestTheCardCarriesNoPlaceAnythingCanBeAddressed(t *testing.T) {
 	writePreviewVault(t, root)
 	srv := newServer(t, root)
 
-	card := askPreview(t, srv.URL, previewTargetRel, "", wording.ZhHant)
+	card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "", wording.ZhHant)
 	if card.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", card.code, http.StatusOK)
 	}
 	// The same note as a page of its own, which is where a heading is a place
 	// something can be addressed. Without this the check below would hold over
 	// a fixture whose headings the renderer never named.
-	code, page := getPage(t, srv.URL+"/notes/"+previewTargetRel)
+	code, page := getPage(t, srv.Client(), srv.URL+"/notes/"+previewTargetRel)
 	if code != http.StatusOK {
 		t.Fatalf("the note's own page returned %d, want %d", code, http.StatusOK)
 	}
@@ -453,7 +453,7 @@ func TestTheCardNamesTheNoteItIsShowing(t *testing.T) {
 	writePreviewVault(t, root)
 	srv := newServer(t, root)
 
-	whole := askPreview(t, srv.URL, previewTargetRel, "", wording.ZhHant)
+	whole := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "", wording.ZhHant)
 	if whole.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", whole.code, http.StatusOK)
 	}
@@ -467,7 +467,7 @@ func TestTheCardNamesTheNoteItIsShowing(t *testing.T) {
 		t.Errorf("a card of a whole note claims a section:\n%s", whole.body)
 	}
 
-	section := askPreview(t, srv.URL, previewTargetRel, "addressed", wording.ZhHant)
+	section := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "addressed", wording.ZhHant)
 	if !strings.Contains(section.body, "Addressed") {
 		t.Errorf("a card cut at a section does not name that section:\n%s", section.body)
 	}
@@ -475,7 +475,7 @@ func TestTheCardNamesTheNoteItIsShowing(t *testing.T) {
 		t.Errorf("the section is not marked as one, so it reads as part of the note's own name:\n%s", section.body)
 	}
 
-	block := askPreview(t, srv.URL, previewTargetRel, "^marked", wording.ZhHant)
+	block := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "^marked", wording.ZhHant)
 	if strings.Contains(block.body, "y-preview__section") {
 		t.Errorf("a card cut at a block claims a section it has no heading for:\n%s", block.body)
 	}

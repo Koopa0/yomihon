@@ -26,7 +26,7 @@ func TestNotePageOffersTheFileItIsShowing(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, page := get(t, srv.URL+"/notes/索引筆記.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/索引筆記.md")
 	if code != http.StatusOK {
 		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 	}
@@ -35,7 +35,7 @@ func TestNotePageOffersTheFileItIsShowing(t *testing.T) {
 		t.Fatalf("note page has no way to reach the file's own bytes; want a link %s", want)
 	}
 
-	rawCode, raw := get(t, srv.URL+"/raw/索引筆記.md")
+	rawCode, raw := get(t, srv.Client(), srv.URL+"/raw/索引筆記.md")
 	if rawCode != http.StatusOK {
 		t.Fatalf("raw status = %d, want %d", rawCode, http.StatusOK)
 	}

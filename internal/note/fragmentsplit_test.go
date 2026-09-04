@@ -74,7 +74,7 @@ func diagRow(t *testing.T, conditions, target string) string {
 func TestNoteConditionsStateHowAFragmentLinkWasRead(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, fragmentSplitVault(t), loadHomeContract(t))
-	code, body := get(t, srv.URL+"/notes/Concepts/%E5%85%A5%E5%8F%A3.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Concepts/%E5%85%A5%E5%8F%A3.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}

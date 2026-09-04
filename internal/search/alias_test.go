@@ -54,7 +54,7 @@ func TestANoteIsFoundByTheNamesItIsAlsoKnownBy(t *testing.T) {
 		{"an alias in Han characters", "%E6%8C%87%E6%A8%99", "Concepts/Pointer.md"},
 		{"an alias in kana", "%E3%81%8B%E3%81%AA", "Concepts/Kana.md"},
 	} {
-		code, body := getBody(t, srv.URL+"/search?q="+c.query)
+		code, body := getBody(t, srv.Client(), srv.URL+"/search?q="+c.query)
 		if code != http.StatusOK {
 			t.Fatalf("%s: status = %d", c.name, code)
 		}
@@ -72,7 +72,7 @@ func TestAnAliasHitSaysWhichNameAnsweredTheQuery(t *testing.T) {
 	t.Parallel()
 	srv := aliasServer(t)
 
-	_, body := getBody(t, srv.URL+"/search?q=green+thread")
+	_, body := getBody(t, srv.Client(), srv.URL+"/search?q=green+thread")
 	row := resultRow(t, body, "Concepts/Goroutine.md")
 
 	// The name is shown inside its own element, with the matched stretches
@@ -94,7 +94,7 @@ func TestAnAliasHitSaysWhichNameAnsweredTheQuery(t *testing.T) {
 
 	// A note known by several names says the one that answered, not the one
 	// its author happened to list first.
-	_, several := getBody(t, srv.URL+"/search?q=second+name")
+	_, several := getBody(t, srv.Client(), srv.URL+"/search?q=second+name")
 	answering := elementText(t, resultRow(t, several, "Concepts/Several.md"), "y-result__alias")
 	if !strings.Contains(answering, "second") {
 		t.Errorf("the row does not name the alias that matched: %q", answering)
@@ -105,7 +105,7 @@ func TestAnAliasHitSaysWhichNameAnsweredTheQuery(t *testing.T) {
 
 	// The control: a note found by its title needs no such attribution, and
 	// giving one to every row would make the mark mean nothing.
-	_, plain := getBody(t, srv.URL+"/search?q=Plain")
+	_, plain := getBody(t, srv.Client(), srv.URL+"/search?q=Plain")
 	if strings.Contains(resultRow(t, plain, "Concepts/Plain.md"), "y-result__alias") {
 		t.Errorf("a note found by its own title was given an alias attribution:\n%s", plain)
 	}

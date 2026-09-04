@@ -35,7 +35,7 @@ func TestConceptSheetKeepsPunctuationDistinctConceptsSeparate(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadContract(t))
-	code, page := get(t, srv.URL+"/notes/Writing/lessons/golang/Collision.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/golang/Collision.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET lesson status = %d, want %d", code, http.StatusOK)
 	}

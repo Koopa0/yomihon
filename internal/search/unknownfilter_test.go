@@ -43,7 +43,7 @@ func TestAQueryShapedLikeAFilterIsNotSilentlyReadAsText(t *testing.T) {
 	t.Parallel()
 	srv := unknownFilterServer(t)
 
-	code, body := getBody(t, srv.URL+"/search?q=path%3ANotes")
+	code, body := getBody(t, srv.Client(), srv.URL+"/search?q=path%3ANotes")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -67,16 +67,16 @@ func TestAQueryShapedLikeAFilterIsNotSilentlyReadAsText(t *testing.T) {
 	}
 
 	// A recognised filter is untouched.
-	if _, known := getBody(t, srv.URL+"/search?q=type%3Alesson"); strings.Contains(known, "data-unknown-filter") {
+	if _, known := getBody(t, srv.Client(), srv.URL+"/search?q=type%3Alesson"); strings.Contains(known, "data-unknown-filter") {
 		t.Errorf("a filter this grammar knows was reported as unknown:\n%s", known)
 	}
 	// A genuinely empty result is not dressed up as a syntax problem.
-	if _, none := getBody(t, srv.URL+"/search?q=nothingmatchesthis"); strings.Contains(none, "data-unknown-filter") {
+	if _, none := getBody(t, srv.Client(), srv.URL+"/search?q=nothingmatchesthis"); strings.Contains(none, "data-unknown-filter") {
 		t.Errorf("a search that simply found nothing was blamed on its syntax:\n%s", none)
 	}
 	// Quoting is the grammar's own way of asking for characters, so it is not
 	// second-guessed: the reader already said they meant text.
-	if _, quoted := getBody(t, srv.URL+"/search?q=%22path%3ANotes%22"); strings.Contains(quoted, "data-unknown-filter") {
+	if _, quoted := getBody(t, srv.Client(), srv.URL+"/search?q=%22path%3ANotes%22"); strings.Contains(quoted, "data-unknown-filter") {
 		t.Errorf("a quoted term was treated as a mistyped filter:\n%s", quoted)
 	}
 }
@@ -89,7 +89,7 @@ func TestTheBlankSearchPageSaysWhatItUnderstands(t *testing.T) {
 	t.Parallel()
 	srv := unknownFilterServer(t)
 
-	_, blank := getBody(t, srv.URL+"/search")
+	_, blank := getBody(t, srv.Client(), srv.URL+"/search")
 	if !strings.Contains(blank, "data-search-filters") {
 		t.Errorf("the blank search page offers nothing to go on:\n%s", blank)
 	}
@@ -101,7 +101,7 @@ func TestTheBlankSearchPageSaysWhatItUnderstands(t *testing.T) {
 
 	// The control: once a query has been asked, the answer is what the page is
 	// for, and the list would stand between the reader and it.
-	if _, answered := getBody(t, srv.URL+"/search?q=kafka"); strings.Contains(answered, "data-search-filters") {
+	if _, answered := getBody(t, srv.Client(), srv.URL+"/search?q=kafka"); strings.Contains(answered, "data-search-filters") {
 		t.Errorf("the filter list is still shown over an answered query:\n%s", answered)
 	}
 }

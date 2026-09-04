@@ -61,7 +61,7 @@ func TestUnreadableNoteIsVisibleOnEveryReadingSurface(t *testing.T) {
 	root := writeDegradedFixture(t)
 	srv := newServer(t, root)
 
-	code, home := get(t, srv.URL+"/")
+	code, home := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want %d", code, http.StatusOK)
 	}
@@ -73,7 +73,7 @@ func TestUnreadableNoteIsVisibleOnEveryReadingSurface(t *testing.T) {
 		t.Error("home degraded notice does not name the blocked file")
 	}
 
-	code, health := get(t, srv.URL+"/health")
+	code, health := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("GET /health status = %d, want %d", code, http.StatusOK)
 	}
@@ -89,7 +89,7 @@ func TestUnreadableNoteIsVisibleOnEveryReadingSurface(t *testing.T) {
 		t.Error("health page classifies a citation to an existing but unreadable file as unwritten")
 	}
 
-	code, page := get(t, srv.URL+"/notes/note-locked.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/note-locked.md")
 	if code != http.StatusNotFound {
 		t.Fatalf("GET /notes/note-locked.md status = %d, want %d", code, http.StatusNotFound)
 	}
@@ -119,7 +119,7 @@ func TestFolderNamedLikeANoteGetsThePlainNotFoundPage(t *testing.T) {
 	}
 	srv := newServer(t, root)
 
-	code, page := get(t, srv.URL+"/notes/Folder.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Folder.md")
 	if code != http.StatusNotFound {
 		t.Fatalf("GET /notes/Folder.md status = %d, want %d", code, http.StatusNotFound)
 	}
@@ -157,7 +157,7 @@ func TestDegradedSurfacesNameEveryFileTheFolderCouldNotRead(t *testing.T) {
 	}
 	srv := newServer(t, root)
 
-	code, home := get(t, srv.URL+"/")
+	code, home := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want %d", code, http.StatusOK)
 	}
@@ -173,7 +173,7 @@ func TestDegradedSurfacesNameEveryFileTheFolderCouldNotRead(t *testing.T) {
 		}
 	}
 
-	code, health := get(t, srv.URL+"/health")
+	code, health := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("GET /health status = %d, want %d", code, http.StatusOK)
 	}
@@ -212,7 +212,7 @@ func TestStatusFaceReadsTheFileNotTheGeneration(t *testing.T) {
 		t.Fatalf("rewrite %s: %v", rel, err)
 	}
 
-	code, page := get(t, srv.URL+"/notes/"+rel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 	if code != http.StatusOK {
 		t.Fatalf("GET %s status = %d, want %d", rel, code, http.StatusOK)
 	}

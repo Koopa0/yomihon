@@ -31,7 +31,7 @@ func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, body := getBody(t, srv.URL+"/search?q=kafka")
+	code, body := getBody(t, srv.Client(), srv.URL+"/search?q=kafka")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -51,7 +51,7 @@ func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 
 	// The fragment the live search replaces the list with has to agree with the
 	// page, or turning JavaScript on quietly removes both.
-	fragCode, frag := getBody(t, srv.URL+"/search/results?q=kafka")
+	fragCode, frag := getBody(t, srv.Client(), srv.URL+"/search/results?q=kafka")
 	if fragCode != http.StatusOK {
 		t.Fatalf("fragment status = %d, want 200", fragCode)
 	}
@@ -78,7 +78,7 @@ func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, body := getBody(t, srv.URL+"/search?q=20mg")
+	code, body := getBody(t, srv.Client(), srv.URL+"/search?q=20mg")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -89,7 +89,7 @@ func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
 	// This query has results AND would generate a loosened candidate — the
 	// only shape that can tell "the gate held" apart from "there was nothing
 	// to offer anyway".
-	code, body = getBody(t, srv.URL+"/search?q=20-40mg")
+	code, body = getBody(t, srv.Client(), srv.URL+"/search?q=20-40mg")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
