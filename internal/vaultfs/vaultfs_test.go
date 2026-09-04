@@ -393,13 +393,17 @@ func TestScanReturnsEntriesInCanonicalPathByteOrder(t *testing.T) {
 	}
 }
 
-// TestScanDropsASymlinkWithoutAProblem pins the scan half of the symlink
-// stance: a symlink inside the tree simply does not exist to the scan — no
-// entry, no problem record — while the read path refuses one by name
-// (ErrSymbolicLink). The quiet drop and the named refusal are different
-// answers to the same file, and this test keeps the quiet half from changing
-// shape unnoticed.
-func TestScanDropsASymlinkWithoutAProblem(t *testing.T) {
+// TestScanRecordsASymlinkAsSkippedNotAsAProblem pins the scan half of the
+// symlink stance. A symlink inside the tree is never indexed and never
+// followed — the read path refuses one by name (ErrSymbolicLink) — but the
+// scan does say it saw one, because a vault that organises by link would
+// otherwise lose notes with nothing anywhere reporting it.
+//
+// Which list it lands in is the load-bearing half. A problem is a path that
+// could not be observed, and a complete scan fails on one, so recording a
+// symlink there would turn every vault containing one into a vault the
+// adjudication commands refuse to read at all.
+func TestScanRecordsASymlinkAsSkippedNotAsAProblem(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeReaderFixture(t, root, "Notes/real.md", "real")
@@ -418,7 +422,14 @@ func TestScanDropsASymlinkWithoutAProblem(t *testing.T) {
 			t.Errorf("scan().Files() = %#v, want only the real file", files)
 		}
 		if problems := got.Problems(); len(problems) != 0 {
-			t.Errorf("scan().Problems() = %#v, want none — the drop is silent", problems)
+			t.Errorf("scan().Problems() = %#v, want none — a symlink was observed, not missed", problems)
+		}
+		skipped := got.Skipped()
+		if len(skipped) != 1 || skipped[0].Path() != "Notes/link.md" {
+			t.Fatalf("scan().Skipped() = %#v, want the symlink named", skipped)
+		}
+		if skipped[0].Kind() != SkipSymlink {
+			t.Errorf("scan().Skipped()[0].Kind() = %v, want %v", skipped[0].Kind(), SkipSymlink)
 		}
 		if got.Contains("Notes/link.md") {
 			t.Error("scan().Contains(symlink) = true, want false")

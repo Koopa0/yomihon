@@ -322,6 +322,7 @@ func recordedHealthView(model *nav.Model) HealthView {
 		IslandCount:           1,
 		Collisions:            []HealthCollision{{Name: "Repeat", Candidates: []nav.NoteRef{{Name: "Repeat", RelPath: "A/Repeat.md"}, {Name: "Repeat", RelPath: "B/Repeat.md"}}}},
 		Blocked:               []HealthBlockedSource{{Path: "Sources/articles/Raw.md", Reason: "permission denied"}},
+		Skipped:               []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
 		StatusOutsideEnum:     []HealthStatusNote{{Note: ref, Type: "lesson", Status: "seed"}},
 		FrontmatterUnreadable: []nav.NoteRef{ref},
 		SchemaFaults:          []nav.NoteRef{ref},

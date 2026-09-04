@@ -9,7 +9,8 @@ import (
 // clean reports whether the folder has nothing to answer for.
 func (v *HealthView) clean() bool {
 	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
-		len(v.Collisions) == 0 && len(v.Blocked) == 0 && len(v.StatusOutsideEnum) == 0 &&
+		len(v.Collisions) == 0 && len(v.Blocked) == 0 && len(v.Skipped) == 0 &&
+		len(v.StatusOutsideEnum) == 0 &&
 		len(v.FrontmatterUnreadable) == 0 && len(v.SchemaFaults) == 0 &&
 		v.InstanceScopeUnknown == "" && v.SchemaScopeUnknown == ""
 }

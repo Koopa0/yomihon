@@ -137,6 +137,75 @@ func (p Problem) Path() string { return p.path }
 // Err returns the observation error associated with p.
 func (p Problem) Err() error { return p.err }
 
+// Skipped records one path the scan saw plainly and did not index, with the
+// reason it is not one of the vault's files. It is not a Problem: a problem is
+// a path the scan could not observe at all, and a complete scan fails on one,
+// whereas a skipped path was read without trouble and is simply not something
+// this vault can hold a note in. A vault that organises by symbolic link loses
+// notes here, so the skip is recorded rather than passed over in silence.
+type Skipped struct {
+	path string
+	kind SkipKind
+}
+
+// SkipKind is why a path the scan saw is not one of the vault's files. It is a
+// closed set, and this package owns it: the words below reach an external
+// consumer through the judging commands, where they are part of a finding's
+// frozen bytes, so a second spelling anywhere else would change what that
+// consumer reads.
+//
+// A symbolic link has its own member because it is the one an author makes on
+// purpose and expects to be read. The rest share a member: a socket and a
+// device file are the same news to a reader and take the same repair.
+type SkipKind uint8
+
+const (
+	// SkipSymlink is a symbolic link, whose target this reader never follows.
+	SkipSymlink SkipKind = iota + 1
+	// SkipNotRegular is anything else a note cannot be read out of: a socket,
+	// a device file, a named pipe.
+	SkipNotRegular
+	// skipKindEnd is one past the last member, so a walk over the set has a
+	// bound that does not depend on String() answering. A terminator that
+	// asked String() would stop at exactly the member somebody forgot to give
+	// a phrase to, which is the member a walk exists to catch.
+	skipKindEnd
+)
+
+// SkipKinds returns every member of the set, in declared order. A consumer
+// that must cover all of them asks for the set rather than keeping a list
+// beside it, the way the study-path grammar hands out its rules: a list written
+// by hand agrees with itself and with nothing else.
+func SkipKinds() []SkipKind {
+	kinds := make([]SkipKind, 0, int(skipKindEnd)-int(SkipSymlink))
+	for kind := SkipSymlink; kind < skipKindEnd; kind++ {
+		kinds = append(kinds, kind)
+	}
+	return kinds
+}
+
+// String is the phrase the scan reports this kind by. It is part of what the
+// judging commands emit, so these two strings are frozen.
+func (k SkipKind) String() string {
+	switch k {
+	case SkipSymlink:
+		return "symbolic link"
+	case SkipNotRegular:
+		return "not a regular file"
+	case skipKindEnd:
+		// Not a member of the set: the bound a walk over it stops at, named
+		// here so the compiler's own exhaustiveness answer covers the whole
+		// type rather than the part a reader remembered.
+	}
+	return "unknown"
+}
+
+// Path returns the canonical vault-relative path that was not indexed.
+func (s Skipped) Path() string { return s.path }
+
+// Kind returns why the path is not one of the vault's files.
+func (s Skipped) Kind() SkipKind { return s.kind }
+
 // Scan is an immutable observation of one Reader's file domain.
 type Scan struct {
 	state *scanState
@@ -150,6 +219,7 @@ type scanState struct {
 	entries  map[string]Entry
 	contains map[string]struct{}
 	problems []Problem
+	skipped  []Skipped
 }
 
 // Files returns the observed regular files in canonical path order.
@@ -198,6 +268,17 @@ func (s Scan) Problems() []Problem {
 		return nil
 	}
 	return slices.Clone(s.state.problems)
+}
+
+// Skipped returns the paths the scan observed and did not index, sorted by
+// path and then by kind, so two scans of the same folder report them in the
+// same order. Both scan kinds record these: a skipped path is a fact about the
+// folder, not a failure of the reading.
+func (s Scan) Skipped() []Skipped {
+	if s.state == nil {
+		return nil
+	}
+	return slices.Clone(s.state.skipped)
 }
 
 // SameFiles reports whether s and other observed the same rooted file domain.
@@ -368,6 +449,12 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 		}
 		return strings.Compare(a.err.Error(), b.err.Error())
 	})
+	slices.SortFunc(walk.skipped, func(a, b Skipped) int {
+		if byPath := strings.Compare(a.path, b.path); byPath != 0 {
+			return byPath
+		}
+		return int(a.kind) - int(b.kind)
+	})
 	entries := make(map[string]Entry, len(walk.entries))
 	for _, entry := range walk.entries {
 		entries[entry.path] = entry
@@ -380,6 +467,7 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 		entries:  entries,
 		contains: walk.contains,
 		problems: walk.problems,
+		skipped:  walk.skipped,
 	}}, nil
 }
 
@@ -398,6 +486,7 @@ type sourceWalk struct {
 	contains     map[string]struct{}
 	entries      []Entry
 	problems     []Problem
+	skipped      []Skipped
 }
 
 func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkErr error) error {
@@ -430,6 +519,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		return nil
 	}
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		w.skipped = append(w.skipped, Skipped{path: canonical, kind: skipKind(info.Mode())})
 		return nil
 	}
 	observed, err := observedSource(raw, w.directories, info)
@@ -439,6 +529,14 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 	w.entries = append(w.entries, Entry{token: w.token, rawPath: raw, path: canonical, observed: observed})
 	w.contains[canonical] = struct{}{}
 	return nil
+}
+
+// skipKind says which member of the closed set a directory entry falls in.
+func skipKind(mode fs.FileMode) SkipKind {
+	if mode&os.ModeSymlink != 0 {
+		return SkipSymlink
+	}
+	return SkipNotRegular
 }
 
 func (w *sourceWalk) problem(raw string, d fs.DirEntry, err error) error {
