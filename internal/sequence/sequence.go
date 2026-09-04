@@ -912,14 +912,30 @@ func (p *parser) declaration(raw string, abs, line int) (name string, role Role,
 // ranges in order, skipping any list nested beneath it. The scope continues
 // past a nested list: a loose item's later paragraph is still the row's words.
 func (p *parser) ownSpans(item *ast.ListItem) []Span {
+	return p.spansUnder(item)
+}
+
+// spansUnder collects, in order, the source ranges of everything under a node
+// that counts as the row's own words. A nested list is another row's words
+// wherever it appears, so it is left out here and inside anything below.
+//
+// A block that holds no source lines of its own is descended into rather than
+// passed over. A blockquote is one — so is the callout written as one — and
+// what it holds is still text the author wrote under this row. Passing over it
+// meant a marker written inside was in no scope at all: not read as a
+// declaration, which is right, and not reported either, which left the one
+// shape of this mistake that says nothing.
+func (p *parser) spansUnder(node ast.Node) []Span {
 	var spans []Span
-	for c := item.FirstChild(); c != nil; c = c.NextSibling() {
+	for c := node.FirstChild(); c != nil; c = c.NextSibling() {
 		if _, nested := c.(*ast.List); nested {
 			continue
 		}
 		if r, ok := linesRange(c); ok {
 			spans = append(spans, r)
+			continue
 		}
+		spans = append(spans, p.spansUnder(c)...)
 	}
 	return spans
 }
