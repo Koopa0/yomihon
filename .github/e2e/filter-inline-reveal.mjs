@@ -25,7 +25,7 @@
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/';
+const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const FILTER = 'input[data-nav-filter]';
 const MUTATE = process.env.MUTATE || '';
 
