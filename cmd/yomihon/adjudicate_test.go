@@ -120,21 +120,27 @@ func TestTheVaultTypedAsAScopeNamesTheWordToMove(t *testing.T) {
 	}
 }
 
-// unresolvedContractGuidance and absentContractGuidance are the paragraphs a
-// person gets after a refusal a program only needs the first line of. They are
-// written out here rather than imported from the command so an edit to either
-// side has to be made on both, which is the only way this assertion can fail.
-const unresolvedContractGuidance = "  The contract is at System/schemas/vault-schema.toml and yomihon could not use it.\n" +
-	"  The reason is not printed here: this command's output is written for a program to\n" +
-	"  read, and stating the reason would quote the contract back out under exactly the\n" +
-	"  policy that is missing. Read it where reading is the point: yomihon serve\n" +
-	"  --root <dir> states the cause on the page, and the server logs it at startup.\n"
+// A refusal is two things at once, and they are held to different standards.
+// The first line is what a program reads, so it is compared byte for byte. The
+// paragraph under it is prose for a person, and copying it here would pin every
+// comma: an editor improving a sentence would fail a test that has no opinion
+// about the sentence, and the copy would drift the day somebody skipped it.
+// What the paragraph owes a reader is the fact they act on, so that is what is
+// asserted.
+//
+// unresolvedContractGuidance and absentContractGuidance are those facts, one
+// phrase each, chosen because a paragraph that lost one would leave the reader
+// without the next thing to do.
+var unresolvedContractGuidance = []string{
+	"System/schemas/vault-schema.toml",
+	"yomihon serve",
+}
 
-const absentContractGuidance = "  yomihon reads System/schemas/vault-schema.toml for the note types, fields and\n" +
-	"  lifecycle that check, coverage and exists judge against, and for the directories\n" +
-	"  whose contents must never leave this machine. A folder carrying no such file has\n" +
-	"  declared nothing, and these three commands have no vocabulary to answer in.\n" +
-	"  Reading and search need none of it: yomihon <dir>\n"
+var absentContractGuidance = []string{
+	"System/schemas/vault-schema.toml",
+	"declared nothing",
+	"yomihon <dir>",
+}
 
 // TestARefusalCarriesTheParagraphItsClassEarns is where the engine's classes
 // become sentences a person can act on. The engine answers a folder it cannot
@@ -153,17 +159,19 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 	folders := []struct {
 		name  string
 		build func(*testing.T) string
-		// want takes the folder because one of the three answers names it. A
-		// fixed string could not: the folder is made by the test run.
-		want func(root string) string
+		// wantLine takes the folder because one of the three answers names it.
+		// A fixed string could not: the folder is made by the test run.
+		wantLine func(root string) string
+		// wantSaid are the facts the paragraph under that line owes a reader.
+		wantSaid []string
 	}{
 		{
 			name:  "a folder carrying no contract",
 			build: func(t *testing.T) string { t.Helper(); return t.TempDir() },
-			want: func(string) string {
-				return "yomihon: this folder has no vault contract, so there is nothing to judge notes against\n" +
-					absentContractGuidance
+			wantLine: func(string) string {
+				return "yomihon: this folder has no vault contract, so there is nothing to judge notes against"
 			},
+			wantSaid: absentContractGuidance,
 		},
 		{
 			name: "a contract that cannot be read",
@@ -173,10 +181,10 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 				writeFile(t, root, schema.ContractRelPath, "[malformed\n")
 				return root
 			},
-			want: func(string) string {
-				return "yomihon: privacy authority unavailable; agent-facing output disabled\n" +
-					unresolvedContractGuidance
+			wantLine: func(string) string {
+				return "yomihon: privacy authority unavailable; agent-facing output disabled"
 			},
+			wantSaid: unresolvedContractGuidance,
 		},
 		{
 			name: "a folder that is not there",
@@ -187,12 +195,12 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 			// The machine's own words for what it could not open, asked for
 			// the same way the reader asks, so this pins the folder and the
 			// reason rather than a guess at how they are spelled.
-			want: func(root string) string {
+			wantLine: func(root string) string {
 				_, err := filepath.EvalSymlinks(root)
 				if err == nil {
 					t.Fatalf("EvalSymlinks(%q) succeeded; the folder this row needs absent is there", root)
 				}
-				return "yomihon: vault scan failed: open vault root: " + err.Error() + "\n"
+				return "yomihon: vault scan failed: open vault root: " + err.Error()
 			},
 		},
 	}
@@ -222,9 +230,7 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 					if stdout.Len() != 0 {
 						t.Errorf("stdout = %q, want empty", stdout.String())
 					}
-					if diff := cmp.Diff(folder.want(root), stderr.String()); diff != "" {
-						t.Errorf("stderr mismatch (-want +got):\n%s", diff)
-					}
+					assertRefusal(t, stderr.String(), folder.wantLine(root), folder.wantSaid)
 				})
 			}
 		})
@@ -255,13 +261,11 @@ func TestANoContractRefusalNamesAPositionalThatIsItselfAVault(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Errorf("stdout = %q, want empty", stdout.String())
 	}
-	want := "yomihon: this folder has no vault contract, so there is nothing to judge notes against\n" +
-		absentContractGuidance +
-		"  examples/vault carries a contract of its own, which makes it a vault rather\n" +
-		"  than a path inside one: pass it as --root examples/vault instead.\n"
-	if diff := cmp.Diff(want, stderr.String()); diff != "" {
-		t.Errorf("stderr mismatch (-want +got):\n%s", diff)
-	}
+	assertRefusal(t, stderr.String(),
+		"yomihon: this folder has no vault contract, so there is nothing to judge notes against",
+		append(append([]string{}, absentContractGuidance...),
+			"examples/vault carries a contract of its own",
+			"--root examples/vault"))
 }
 
 // TestANoContractRefusalStaysSilentOnAnOrdinaryPositional is the negative
@@ -284,10 +288,11 @@ func TestANoContractRefusalStaysSilentOnAnOrdinaryPositional(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Errorf("stdout = %q, want empty", stdout.String())
 	}
-	want := "yomihon: this folder has no vault contract, so there is nothing to judge notes against\n" +
-		absentContractGuidance
-	if diff := cmp.Diff(want, stderr.String()); diff != "" {
-		t.Errorf("stderr mismatch (-want +got):\n%s", diff)
+	assertRefusal(t, stderr.String(),
+		"yomihon: this folder has no vault contract, so there is nothing to judge notes against",
+		absentContractGuidance)
+	if strings.Contains(stderr.String(), "carries a contract of its own") {
+		t.Error("an ordinary positional was described as a misplaced vault")
 	}
 }
 
@@ -425,5 +430,36 @@ func writeFile(t *testing.T, root, rel, content string) {
 	}
 	if err := os.WriteFile(full, []byte(content), 0o600); err != nil { // #nosec G703 -- test fixture paths are owned by each caller's temporary root
 		t.Fatalf("WriteFile(%q) error = %v", full, err)
+	}
+}
+
+// assertRefusal holds a refusal to the two standards it answers to: the first
+// line exactly, because a program reads it, and the paragraph under it by what
+// it says, because a person does.
+//
+// No wantSaid means the refusal is the line and nothing else, and that is
+// asserted rather than skipped: one of the three refusals earns no paragraph —
+// the folder could not be opened, so there is no vault to explain anything
+// about — and a helper that only looked for phrases would let a paragraph
+// appear there with nobody noticing.
+func assertRefusal(t *testing.T, stderr, wantLine string, wantSaid []string) {
+	t.Helper()
+	line, rest, found := strings.Cut(stderr, "\n")
+	if !found {
+		t.Fatalf("the refusal is one line with no paragraph under it:\n%s", stderr)
+	}
+	if line != wantLine {
+		t.Errorf("first line = %q, want %q", line, wantLine)
+	}
+	if len(wantSaid) == 0 {
+		if rest != "" {
+			t.Errorf("this refusal carries a paragraph it does not earn:\n%s", rest)
+		}
+		return
+	}
+	for _, said := range wantSaid {
+		if !strings.Contains(rest, said) {
+			t.Errorf("the guidance never says %q:\n%s", said, rest)
+		}
 	}
 }

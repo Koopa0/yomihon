@@ -18,11 +18,11 @@ import (
 // quietly stopped emitting an id, moved a class, or renumbered a footnote would
 // leave every one of them green.
 //
-// There is no flag that rewrites them. A change to what this package emits is a
-// change to what readers see, so the new bytes are written into the golden by
-// hand and the diff is the review: a rewrite command would let the same edit
-// land with nobody reading it, which is the failure the goldens are here to
-// stop.
+// There is no flag that rewrites them, and the reason is the second of the
+// three standards written down beside the regeneration tool the wire goldens
+// have (internal/judge, TestRegenerateGoldens): a change to what this package
+// emits is a change to what readers see, so the new bytes go in by hand and the
+// diff is the review.
 //
 // Each golden holds the rendered HTML followed by a comment carrying the rest of
 // what one render answers — the anchor the page title inherited, the contents in

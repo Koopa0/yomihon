@@ -8,6 +8,32 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
+// How this repository locks recorded output, in one place, because two packages
+// were each explaining a different half and a reader met whichever they opened
+// first.
+//
+// Three kinds of recorded output, three standards:
+//
+//   - Bytes a program outside this repository parses — the JSONL findings and
+//     the coverage and exists payloads. Every byte is the contract, so they are
+//     pinned whole, and this tool exists so a deliberate change rewrites them
+//     the same way the engine produced them rather than by hand. The guard is
+//     what keeps it a tool: an ordinary run cannot rewrite a lock it is
+//     running against, so a rewrite is always something somebody typed.
+//
+//   - Bytes a person reads as a page — the rendered HTML under
+//     internal/render/testdata and internal/ui/pages/testdata. No command
+//     rewrites those: a change to what a reader sees is a change worth reading,
+//     and the diff is the review. A rewrite command there would let the same
+//     edit land with nobody looking at it.
+//
+//   - Prose a person reads as a sentence — the paragraphs the commands print
+//     after a refusal. These are not pinned at all. A test that copied one
+//     would fail on an improved comma and drift the day somebody skipped it, so
+//     the assertions name the facts a paragraph owes its reader and leave the
+//     wording to whoever writes it. cmd/yomihon's refusal tests are the worked
+//     example: the first line, which a program reads, is compared exactly.
+//
 // TestRegenerateGoldens rewrites every JSONL golden from the current engine
 // output, mirroring exactly how each golden's own test produces its bytes. It
 // is an opt-in maintenance tool, not a check: without the environment guard it
