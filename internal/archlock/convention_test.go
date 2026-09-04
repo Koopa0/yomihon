@@ -285,22 +285,235 @@ func TestAWordingOutsideTheListIsNotAShape(t *testing.T) {
 	}
 }
 
+// httpPackageNames reports every name net/http answers to in one file. It is
+// almost always the one name, and the cases worth resolving rather than
+// assuming are the others: a file that imports it under another name writes
+// calls no pattern over the text will recognize, and a file that imports it
+// twice answers to both, so stopping at the first name found would leave the
+// second one unread.
+func httpPackageNames(file *ast.File) (names []string, readable bool) {
+	for _, spec := range file.Imports {
+		if spec.Path == nil || spec.Path.Value != `"net/http"` {
+			continue
+		}
+		switch {
+		case spec.Name == nil:
+			names = append(names, "http")
+		case spec.Name.Name == ".":
+			// The calls lose their qualifier entirely, so this file cannot be
+			// read by the walk below.
+			return nil, false
+		case spec.Name.Name == "_":
+			// Imported for its initialisers; nothing here is callable through it.
+		default:
+			names = append(names, spec.Name.Name)
+		}
+	}
+	return names, true
+}
+
+// carriesWrittenSentence reports whether an argument is words written at the
+// call rather than words fetched from somewhere. A literal is, so is a literal
+// joined to something else, and so is a format string, which is the sentence
+// however much is interpolated into it. An ordinary call is not, even one whose
+// own arguments hold literals — those are keys and names, not the sentence.
+//
+// It reads the expression it is given and nothing before it, so a sentence
+// bound to a name first — a constant, or a local assigned on the line above —
+// reads as words fetched from somewhere. Following those would mean resolving
+// identifiers across the file and the package, which is a different instrument
+// from this one; the table below states that boundary rather than leaving it to
+// be discovered.
+func carriesWrittenSentence(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.BasicLit:
+		return e.Kind == token.STRING
+	case *ast.ParenExpr:
+		return carriesWrittenSentence(e.X)
+	case *ast.BinaryExpr:
+		return e.Op == token.ADD && (carriesWrittenSentence(e.X) || carriesWrittenSentence(e.Y))
+	case *ast.CallExpr:
+		if selector, ok := e.Fun.(*ast.SelectorExpr); ok && selector.Sel.Name == "Sprintf" {
+			return len(e.Args) > 0 && carriesWrittenSentence(e.Args[0])
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+// responseSentenceSites finds, in one file, the calls that put words in front
+// of a reader without going through the dictionary, and counts the calls that
+// take their words from somewhere else, so a caller can tell an empty answer
+// from an unasked question.
+func responseSentenceSites(path string, fset *token.FileSet, file *ast.File) (found []site, fromElsewhere int) {
+	names, readable := httpPackageNames(file)
+	if readable && len(names) == 0 {
+		return nil, 0
+	}
+	if !readable {
+		return []site{{
+			path: path,
+			line: fset.Position(file.Pos()).Line,
+			text: "net/http is imported into this file's own namespace, so its calls cannot be read here",
+		}}, 0
+	}
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		qualifier, ok := selector.X.(*ast.Ident)
+		if !ok || !slices.Contains(names, qualifier.Name) {
+			return true
+		}
+		line := fset.Position(call.Pos()).Line
+		switch {
+		case selector.Sel.Name == "NotFound":
+			found = append(found, site{path: path, line: line, text: "NotFound writes the standard library's own sentence"})
+		case selector.Sel.Name != "Error" || len(call.Args) < 2:
+		case carriesWrittenSentence(call.Args[1]):
+			found = append(found, site{path: path, line: line, text: "the body is written at this call"})
+		default:
+			fromElsewhere++
+		}
+		return true
+	})
+	return found, fromElsewhere
+}
+
 // TestNoResponseCarriesASentenceWrittenInTheSource keeps every string a reader
-// can see inside the dictionary that has both languages of it. A literal in a
-// handler is the one that gets missed, because it looks like code.
+// can see inside the dictionary that has both languages of it. A sentence
+// written in a handler is the one that gets missed, because it looks like code.
+//
+// It reads the call rather than the line. The line is written differently by
+// different hands — the response parameter is named w almost everywhere and
+// nothing makes it so, and net/http can be imported under another name — and a
+// check that matches one spelling is a check a rename walks through in
+// silence, with every gate still green.
 func TestNoResponseCarriesASentenceWrittenInTheSource(t *testing.T) {
 	t.Parallel()
 
-	found := findLines(t, func(line string) bool {
-		return strings.Contains(line, `http.Error(w, "`) || strings.Contains(line, "http.NotFound(")
+	var found []site
+	fromElsewhere := 0
+	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
+		sites, conforming := responseSentenceSites(path, fset, file)
+		found = append(found, sites...)
+		fromElsewhere += conforming
 	})
-	conforming := findLines(t, func(line string) bool {
-		return strings.Contains(line, "http.Error(w, wording.")
-	})
-	if len(conforming) == 0 {
-		t.Fatal("no handler answers from the dictionary, so this check is comparing against nothing")
+	if fromElsewhere == 0 {
+		t.Fatal("no handler takes its words from anywhere but its own source, so this check is comparing against nothing")
 	}
-	report(t, "a response body a reader sees must come from internal/wording, not from a literal here", found)
+	report(t, "a response body a reader sees must come from internal/wording, not from a sentence written here", found)
+}
+
+// TestTheResponseCheckReadsTheCallNotItsSpelling asks the walk directly about
+// the shapes it has to separate, because a tree that passes looks the same
+// whether the check is strict or blind. The two rows that matter are the ones
+// the previous check let through: it matched the text `http.Error(w, "`, so
+// renaming the parameter was enough to hide a hardcoded sentence from it.
+func TestTheResponseCheckReadsTheCallNotItsSpelling(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name          string
+		imports       string
+		body          string
+		wantFound     int
+		wantElsewhere int
+	}{
+		{
+			name:      "a sentence written at the call",
+			imports:   `"net/http"`,
+			body:      `func h(w http.ResponseWriter) { http.Error(w, "boom", 500) }`,
+			wantFound: 1,
+		},
+		{
+			name:      "the same call with the writer named otherwise",
+			imports:   `"net/http"`,
+			body:      `func h(rw http.ResponseWriter) { http.Error(rw, "boom", 500) }`,
+			wantFound: 1,
+		},
+		{
+			name:      "the same call through an aliased import",
+			imports:   `nethttp "net/http"`,
+			body:      `func h(rw nethttp.ResponseWriter) { nethttp.Error(rw, "boom", 500) }`,
+			wantFound: 1,
+		},
+		{
+			name:      "a sentence joined to something computed",
+			imports:   `"net/http"`,
+			body:      `func h(w http.ResponseWriter, err error) { http.Error(w, "boom: "+err.Error(), 500) }`,
+			wantFound: 1,
+		},
+		{
+			name:      "the standard library's own not-found body",
+			imports:   `"net/http"`,
+			body:      `func h(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) }`,
+			wantFound: 1,
+		},
+		{
+			name:          "words fetched from somewhere else",
+			imports:       `"net/http"`,
+			body:          `func h(w http.ResponseWriter, d fmt.Stringer) { http.Error(w, d.String(), 500) }`,
+			wantElsewhere: 1,
+		},
+		{
+			name:          "a helper whose own arguments are keys, not the sentence",
+			imports:       `"net/http"`,
+			body:          `func h(w http.ResponseWriter, l int) { http.Error(w, malformed("identity", l), 500) }`,
+			wantElsewhere: 1,
+		},
+		{
+			name:      "a sentence handed to a format call first",
+			imports:   `"net/http"`,
+			body:      `func h(w http.ResponseWriter, n int) { http.Error(w, fmt.Sprintf("boom %d", n), 500) }`,
+			wantFound: 1,
+		},
+		{
+			name:      "the same package imported under two names",
+			imports:   "\"net/http\"\n\tnethttp \"net/http\"",
+			body:      `func h(rw nethttp.ResponseWriter) { nethttp.Error(rw, "boom", 500) }`,
+			wantFound: 1,
+		},
+		{
+			// Known and not covered: the walk reads the argument, and by then
+			// the sentence is a name. Catching it means resolving identifiers,
+			// which is a different instrument. The row is here so the boundary
+			// is written down rather than found later, and so that closing it
+			// has to come back and change this line.
+			name:          "a sentence bound to a name before the call",
+			imports:       `"net/http"`,
+			body:          `func h(w http.ResponseWriter) { body := "boom"; http.Error(w, body, 500) }`,
+			wantElsewhere: 1,
+		},
+		{
+			name:    "a file that never imports it",
+			imports: `"strings"`,
+			body:    `func h() string { return strings.TrimSpace(" x ") }`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fset := token.NewFileSet()
+			source := "package probe\n\nimport (\n\t" + tt.imports + "\n)\n\n" + tt.body + "\n"
+			file, err := parser.ParseFile(fset, "probe.go", source, 0)
+			if err != nil {
+				t.Fatalf("parse the probe source: %v", err)
+			}
+			found, fromElsewhere := responseSentenceSites("probe.go", fset, file)
+			if len(found) != tt.wantFound {
+				t.Errorf("reported %d sites, want %d: %v", len(found), tt.wantFound, found)
+			}
+			if fromElsewhere != tt.wantElsewhere {
+				t.Errorf("counted %d answers taken from elsewhere, want %d", fromElsewhere, tt.wantElsewhere)
+			}
+		})
+	}
 }
 
 // TestNoScriptCarriesASentenceOfItsOwn keeps the client's words where the
