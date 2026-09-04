@@ -7,7 +7,17 @@
 schema_version = "1"
 
 [enums]
-type = ["note", "lesson", "study-path", "moc"]
+type = ["note", "lesson", "study-path", "moc", "concept", "inbox"]
+# A domain is what a note is about. Keep the list short enough that every value
+# is one you would really file under.
+domain = ["yomihon", "japanese"]
+# Where a note's words came from, when they came from somewhere else.
+source_kind = ["book"]
+source_provider = ["personal"]
+# How much a lesson assumes of its reader.
+level = ["fundamental", "intermediate"]
+# What a map groups by.
+map_kind = ["topic"]
 
 # published is declared for notes. yomihon never sets it — see the lifecycle
 # row below — but a note that carries it is legal and renders like any other.
@@ -16,9 +26,17 @@ note = ["draft", "ready", "published", "archived"]
 lesson = ["draft", "ready", "archived"]
 
 [fields]
-required = ["title", "type", "status"]
-known = ["title", "aliases", "type", "status", "created", "updated", "lang"]
-lesson_only = ["slug"]
+required = ["title", "type", "status", "domain"]
+# A capture has not been filed yet, so it is not asked what it is about.
+required_inbox = ["title", "type", "status"]
+# A course and a map span subjects rather than sitting inside one.
+domain_exempt_types = ["study-path", "moc"]
+known = [
+  "title", "aliases", "type", "domain", "topics", "tags", "status",
+  "created", "updated", "lang", "map_kind",
+  "source_kind", "source_provider", "based_on", "replaces",
+]
+lesson_only = ["slug", "level", "supersedes", "superseded_by"]
 # lang declares one note's own BCP 47 language tag, e.g. "zh-Hant" or "ja". A
 # note that leaves it out has its content inherit the page's language; writing
 # it marks that note's content on its own, whichever language the interface is
@@ -28,10 +46,16 @@ lesson_only = ["slug"]
 lesson = ["lesson"]
 
 [rules]
+# A note filed under Concepts/<domain>/ has to agree with the folder it is in.
+domain_equals_folder_under = ["Concepts"]
+# A distilled idea says where it came from.
+concept_requires_provenance = ["based_on"]
 slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+# A tag carrying a slash is a property written in the wrong place.
+forbid_tag_with_slash = true
 
 [scan]
-knowledge_dirs = ["Notes", "Lessons"]
+knowledge_dirs = ["Concepts", "Inbox", "Lessons", "Maps", "Notes"]
 skip_basenames = ["README.md"]
 no_frontmatter_is_legal = true
 
@@ -43,10 +67,24 @@ map_types = ["moc"]
 non_instance_dirs = ["System/templates"]
 
 [privacy]
-# Empty on purpose: this vault has nothing to withhold. Name a top-level
-# directory here and nothing under it reaches an agent's output or an embedding
-# provider, whatever else the contract allows.
-never_egress_dirs = []
+# Nothing under a directory named here reaches an agent's output or an
+# embedding provider, whatever else the contract allows. A directory left off
+# the list is one they may draw from, so naming it here is the whole
+# protection.
+never_egress_dirs = ["Diary"]
+
+[supersession]
+# The fields a note writes to say which note it replaced, and which replaced
+# it. yomihon reports on the pair and moves nothing: the ledger is how a vault
+# keeps the relationship after the maps have stopped listing the old note.
+#
+# The three names have to differ, and the first two have to be lesson-only, so
+# a lesson keeps both sides of its own history and any other note keeps the
+# single field naming what it replaced.
+predecessor_field = "supersedes"
+successor_field = "superseded_by"
+general_link_field = "replaces"
+archived_status = "archived"
 
 # Every stage says outright whether a note can start there. Writing "initial" on
 # one row means writing it on all of them: a lifecycle where some rows declare
@@ -88,7 +126,7 @@ owner = ["author"]
 status = "published"
 # Every type whose status list carries the value, and no more. A lesson's list
 # does not, so naming it here would be a row for a status that type cannot hold.
-applies_to = ["note", "study-path", "moc"]
+applies_to = ["note", "study-path", "moc", "concept", "inbox"]
 initial = false
 from = ["ready"]
 owner = ["author"]

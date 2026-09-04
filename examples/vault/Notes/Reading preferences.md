@@ -2,7 +2,9 @@
 title: Reading preferences
 type: note
 status: draft
+domain: yomihon
 created: 2026-03-01
+updated: 2026-09-04
 lang: en
 ---
 

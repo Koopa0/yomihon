@@ -2,6 +2,7 @@
 title: yomihon 是什麼
 type: note
 status: ready
+domain: yomihon
 created: 2026-01-04
 updated: 2026-09-04
 lang: zh-Hant

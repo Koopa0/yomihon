@@ -2,7 +2,10 @@
 title: L01 Point yomihon at a folder
 type: lesson
 status: ready
+domain: yomihon
 slug: l01-point-at-a-folder
+level: fundamental
+supersedes: ["Building yomihon from source"]
 created: 2026-01-06
 updated: 2026-09-04
 lang: en

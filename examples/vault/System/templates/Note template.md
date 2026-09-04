@@ -2,6 +2,7 @@
 title: Note template
 type: note
 status: draft
+domain: yomihon
 lang: en
 ---
 

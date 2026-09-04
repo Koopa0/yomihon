@@ -2,6 +2,7 @@
 title: The status lifecycle
 type: note
 status: ready
+domain: yomihon
 created: 2026-01-18
 updated: 2026-09-04
 lang: en
@@ -30,4 +31,4 @@ The contract allows `ready → published` and yomihon still does not make that m
 
 ## What a write is
 
-The button rewrites one frontmatter line. If the file changed on disk while you were reading, the write is refused rather than applied to a version you never read.
+The button rewrites one line of a note's [[Frontmatter]]. If the file changed on disk while you were reading, the write is refused rather than applied to a version you never read.
