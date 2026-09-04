@@ -207,7 +207,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 	// page that carried a stamp, so a page that transcluded nothing costs
 	// this endpoint nothing new.
 	if ask.transcludedCarried &&
-		hex.EncodeToString(ask.transcluded[:]) != h.transcludedNow(snap, rel, published.Body) {
+		hex.EncodeToString(ask.transcluded[:]) != transcludedNow(snap, rel, published.Body) {
 		return freshStale
 	}
 	return freshUnchanged
@@ -218,7 +218,7 @@ func (h *Handler) compareNote(r *http.Request, rel string, ask *freshnessAsk) fr
 // of the body, keeping the digest and discarding the page. The language is
 // pinned because the digest covers source bytes pulled from other notes,
 // which no language of the interface's own sentences can reach.
-func (h *Handler) transcludedNow(snap *snapshot.Generation, rel, body string) string {
+func transcludedNow(snap *snapshot.Generation, rel, body string) string {
 	return snap.Render(rel, body, wording.ZhHant).TranscludedIdentity
 }
 
