@@ -1139,3 +1139,132 @@ func TestABranchListsWhatItHoldsInSourceOrder(t *testing.T) {
 		})
 	}
 }
+
+// A marker written below a row's own line declares nothing — a declaration is
+// read on the row's line — and is reported so it does not fail quietly. That
+// held for a plain continuation paragraph and not for one written as a
+// blockquote, which is how an Obsidian callout is written: the scope a row
+// collects skipped any block that holds no source lines of its own, so a
+// declaration inside one was read by nothing and reported by nothing.
+func TestAMarkerBelowARowIsReportedWhereverItIsWritten(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		body string
+	}{
+		{
+			// The control: this shape has always been reported.
+			name: "in a plain continuation paragraph",
+			body: "## P {sequence=primary}\n\n- [[A]]\n\n  說明 {sequence=local}\n",
+		},
+		{
+			name: "in a continuation written as a blockquote",
+			body: "## P {sequence=primary}\n\n- [[A]]\n\n  > 說明 {sequence=local}\n",
+		},
+		{
+			name: "in a callout, which is a blockquote with a label",
+			body: "## P {sequence=primary}\n\n- [[A]]\n\n  > [!note]\n  > 說明 {sequence=local}\n",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := Parse(tt.body, 1)
+			reported := false
+			for _, d := range doc.Diagnostics {
+				if d.Rule == RuleRoleMisplaced {
+					reported = true
+				}
+			}
+			if !reported {
+				t.Errorf("a marker below the row's own line was neither read nor reported: %+v", doc.Diagnostics)
+			}
+		})
+	}
+}
+
+// Descending into a blockquote must not drag a list inside it along. A list is
+// another row's words wherever it is written, and collecting one here would
+// flatten rows into the row above them — the thing this grammar refuses, and
+// the risk in reaching past a block that holds no lines of its own.
+func TestAListInsideAContinuationIsStillAnotherRowsWords(t *testing.T) {
+	t.Parallel()
+
+	doc := Parse("## P {sequence=primary}\n\n- [[A]]\n\n  > 說明\n  > - [[B]]\n", 1)
+	if len(doc.Groups) == 0 {
+		t.Fatal("the fixture parsed to no groups, so this test reads nothing")
+	}
+	targets := make([]string, 0, 2)
+	for _, item := range doc.Groups[0].Items {
+		if item.Entry != nil {
+			targets = append(targets, item.Entry.Target)
+		}
+	}
+	if len(targets) != 1 || targets[0] != "A" {
+		t.Errorf("the branch lists %v, want only the row's own target; a list inside the continuation was read as this row's words", targets)
+	}
+}
+
+// A continuation written as a blockquote reads as the plain one written the
+// same way. That is the whole of what reading past a line-less block bought:
+// every answer it changed moved the quoted shape onto the answer the plain
+// shape has always given, so the two are pinned against each other rather than
+// against a recorded snapshot of either.
+//
+// Pinned this way because the risk is one-sided: a later hand narrowing the
+// scope for one consumer would leave the plain form alone and quietly take the
+// quoted form back to where it was.
+func TestAQuotedContinuationReadsAsThePlainOneDoes(t *testing.T) {
+	t.Parallel()
+
+	summarise := func(body string) ([]string, []string) {
+		doc := Parse(body, 1)
+		var targets, rules []string
+		for _, g := range doc.Groups {
+			for _, item := range g.Items {
+				if item.Entry != nil {
+					targets = append(targets, item.Entry.Target)
+				}
+			}
+		}
+		for _, d := range doc.Diagnostics {
+			rules = append(rules, string(d.Rule))
+		}
+		slices.Sort(rules)
+		return targets, rules
+	}
+
+	for _, tt := range []struct {
+		name   string
+		plain  string
+		quoted string
+	}{
+		{
+			name:   "a second live link below the row",
+			plain:  "## P {sequence=primary}\n\n- [[A]]\n\n  see [[B]]\n",
+			quoted: "## P {sequence=primary}\n\n- [[A]]\n\n  > see [[B]]\n",
+		},
+		{
+			name:   "a declaration on the row itself",
+			plain:  "## P {sequence=primary}\n\n- 說明 {sequence=local}\n\t- [[A]]\n",
+			quoted: "## P {sequence=primary}\n\n- > 說明 {sequence=local}\n\t- [[A]]\n",
+		},
+		{
+			name:   "a row that is only a link",
+			plain:  "## P {sequence=primary}\n\n- [[A]]\n",
+			quoted: "## P {sequence=primary}\n\n- > [[A]]\n",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			plainTargets, plainRules := summarise(tt.plain)
+			quotedTargets, quotedRules := summarise(tt.quoted)
+			if diff := cmp.Diff(plainTargets, quotedTargets); diff != "" {
+				t.Errorf("the quoted form lists different targets (-plain +quoted):\n%s", diff)
+			}
+			if diff := cmp.Diff(plainRules, quotedRules); diff != "" {
+				t.Errorf("the quoted form reports different rules (-plain +quoted):\n%s", diff)
+			}
+		})
+	}
+}
