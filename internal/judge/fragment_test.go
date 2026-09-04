@@ -95,6 +95,54 @@ func TestFragmentSectionMatchingMirrorsTheReadingPage(t *testing.T) {
 	}
 }
 
+// A study path declares each branch's part in the course order at the end of
+// the heading that opens it, and the reading page takes the declaration off
+// before stamping the section's id. This face answers about that same page, so
+// a citation naming a branch by the name a reader sees reaches it, and one
+// spelling the declaration out reaches no id the page stamps.
+func TestFragmentSectionMatchingReadsABranchByItsName(t *testing.T) {
+	t.Parallel()
+
+	target := "# 課程\n" +
+		"\n" +
+		"## 基本觀念 {sequence=primary}\n" +
+		"\n" +
+		"words\n" +
+		"\n" +
+		"## 宣告 `{sequence=primary}`\n" +
+		"\n" +
+		"words\n" +
+		"\n" +
+		"不分先後 {sequence=none}\n" +
+		"---\n"
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{name: "a branch answers to the name the course lists it under", body: "[[Target#基本觀念]]\n"},
+		{name: "an underlined branch declares the same way", body: "[[Target#不分先後]]\n"},
+		{name: "a role quoted in code is words about the grammar", body: "[[Target#宣告 {sequence=primary}]]\n"},
+		{
+			name: "the declaration is not part of the name",
+			body: "[[Target#基本觀念 {sequence=primary}]]\n",
+			want: []string{"link.section_missing Target#基本觀念 {sequence=primary}"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := ruleTargets(fragmentRun(t, map[string]string{
+				"Notes/Target.md": target,
+				"Notes/Citer.md":  tt.body,
+			}))
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("fragment findings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestFragmentBlockMatchingMirrorsTheReadingPage(t *testing.T) {
 	t.Parallel()
 
