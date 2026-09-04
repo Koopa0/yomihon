@@ -453,7 +453,10 @@ func InReports(relPath string) bool { return strings.HasPrefix(relPath, reportsP
 
 // buildJournal selects markdown files below Diary from the scanner's path and
 // mtime captures. It does not parse frontmatter, so an untyped entry remains
-// eligible. Equal timestamps fall back to path order for stable rebuilds.
+// eligible. Nothing here reads a timestamp: the order is the entries' own
+// names, for the reason the sort itself gives, and the mtime each entry carries
+// is a field no surface draws today — the rail shows a journal entry's title
+// and its address, and nothing else.
 func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 	const limit = 5
 	entries := make([]JournalEntry, 0, limit)
