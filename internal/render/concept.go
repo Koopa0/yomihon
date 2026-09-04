@@ -32,6 +32,9 @@ func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (id strin
 			seen[rel] = true
 			refs = append(refs, rel)
 		}
+		// The href goes back exactly as it was read. It is already attribute
+		// text, so escaping it here would put a second layer on a value that
+		// carries one; only the copy handed to decodeNotesHref crosses out.
 		return `<a href="` + href + `" class="wikilink concept-link" data-concept="` + id + `">`
 	})
 	return out, refs

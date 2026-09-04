@@ -624,25 +624,6 @@ func withinAny(ranges [][2]int, start, end int) bool {
 	return false
 }
 
-// A href this package builds is a URL: percent-escaped, and free to carry the
-// bytes a URL is allowed to carry, "&" among them. Standing that URL inside a
-// quoted attribute is a second encoding, one that belongs to the attribute
-// rather than to the URL, so it is applied once where a URL is written into an
-// attribute and undone once where a value is read back out of one. The two
-// replacers are each other's inverse over the four bytes an attribute value
-// cannot carry literally.
-//
-// "&" is the byte that makes the two layers visible, because it is the one that
-// is safe in a URL and unsafe in an attribute. A picture named "a&copy.png"
-// written into an attribute unencoded is read by the browser as a character
-// reference and fetched as "a©.png"; encoded a second time it reaches the raw
-// route with "&amp;" inside the file name. Neither spelling names a file the
-// vault has.
-var (
-	attributeEscaper   = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
-	attributeUnescaper = strings.NewReplacer("&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", `"`)
-)
-
 // escapedVaultPath percent-escapes each segment of a vault-relative path on its
 // own, leaving "/" as the separator, so a literal slash inside a segment can
 // never be read as one and the route patterns receive the path they expect.
