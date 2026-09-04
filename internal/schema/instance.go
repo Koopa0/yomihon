@@ -139,12 +139,19 @@ func (p ArtifactPolicy) IsNonInstance(rel string) bool {
 
 // ValidateSource returns p only while the contract source it was derived from
 // is unchanged. Copies of one Contract share a one-way stale latch, so once any
-// consumer observes drift every instance projection stays unavailable.
+// consumer observes drift every instance projection stays unavailable. A source
+// that cannot be read at all closes this caller's projection and nothing more:
+// it is no evidence the declaration was withdrawn, and the next caller reads
+// the file again.
 func (p ArtifactPolicy) ValidateSource() ArtifactPolicy {
 	if p.state == nil || !p.state.claim.held() || p.state.frozen || p.state.stale.Load() {
 		return p
 	}
-	if !p.state.source.unchanged() {
+	same, err := p.state.source.reread()
+	if err != nil {
+		return ArtifactPolicy{state: &artifactPolicyState{claim: unreadableClaim(err)}}
+	}
+	if !same {
 		p.state.stale.Store(true)
 	}
 	return p
