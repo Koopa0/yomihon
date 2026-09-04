@@ -7,10 +7,16 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// homeReadmeRelPath names the folder's own introduction. The desk links to it
+// HomeReadmeRelPath names the folder's own introduction. The desk links to it
 // rather than reprinting it: it is a note, it has a page, and a reader who
 // wants it is one click away.
-const homeReadmeRelPath = "README.md"
+//
+// It is exported because the two halves of that sentence are decided on
+// different sides of a package boundary — this one draws the link, and the
+// handler asks whether the note is there — and the name they are deciding about
+// has to be one name. Written twice, the copies agreed until somebody changed
+// one, and nothing anywhere would have failed.
+const HomeReadmeRelPath = "README.md"
 
 // HomeView is the desk: the four ways into the library, and whatever is wrong
 // with the vault or with this reading of it. A folder that fills none of the
@@ -109,7 +115,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 				}
 				if !v.ReadmeMissing {
 					<p class="y-homereadme" data-home-readme>
-						<a href={ templ.URL(notesHref(homeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
+						<a href={ templ.URL(notesHref(HomeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
 					</p>
 				}
 			</div>
