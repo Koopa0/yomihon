@@ -54,9 +54,8 @@ func runCommand(
 	if err = validateCommandArgs(command, &parsed); err != nil {
 		return commandError(stderr, err)
 	}
-	root := parsed.root
-	if root == "" {
-		root, err = os.Getwd()
+	if parsed.root == "" {
+		parsed.root, err = os.Getwd()
 		if err != nil {
 			return commandError(stderr, fmt.Errorf("resolve working directory: %w", err))
 		}
@@ -68,7 +67,7 @@ func runCommand(
 	switch command {
 	case "check":
 		payload, exit, err = judge.RunCheck(ctx, &judge.CheckOptions{
-			Root:     root,
+			Root:     parsed.root,
 			Paths:    parsed.positionals,
 			All:      parsed.all,
 			Deny:     parsed.deny,
@@ -76,15 +75,22 @@ func runCommand(
 			Format:   format,
 		})
 	case "coverage":
-		payload, exit, err = judge.RunCoverage(ctx, &judge.CoverageOptions{Root: root, Format: format})
+		payload, exit, err = judge.RunCoverage(ctx, &judge.CoverageOptions{Root: parsed.root, Format: format})
 	case "exists":
 		payload, exit, err = judge.RunExists(ctx, &judge.ExistsOptions{
-			Root: root, Name: parsed.positionals[0], Format: format,
+			Root: parsed.root, Name: parsed.positionals[0], Format: format,
 		})
 	default:
 		return commandError(stderr, fmt.Errorf("unknown command %q", command))
 	}
 	if err != nil {
+		// check is the only command whose positionals name scope inside the
+		// vault rather than the vault itself, so only its error can earn the
+		// extra sentence checkError adds; coverage and exists get the plain
+		// refusal.
+		if command == "check" {
+			return checkError(stderr, err, parsed.root, parsed.positionals)
+		}
 		return commandError(stderr, err)
 	}
 	if _, err := stdout.Write(payload); err != nil {
@@ -247,10 +253,46 @@ func contractGuidance(err error) string {
 	}
 }
 
+// misplacedVault reports the first positional that is itself a folder
+// carrying a vault contract, so a reader who typed the vault in check's scope
+// position is told which word to move rather than only that the folder they
+// stood in declared nothing. It stats for the contract file's existence and
+// nothing more — never opens or reads it — so a folder already refused for
+// having no contract is asked nothing more than that. Its positionals always
+// arrive already refused for the absolute-path shape scopeIsNotTheVaultItself
+// owns, since checkError, its only caller, runs after that refusal has had
+// its chance.
+func misplacedVault(root string, positionals []string) (string, bool) {
+	for _, p := range positionals {
+		info, err := os.Stat(filepath.Join(root, p, schema.ContractRelPath)) // #nosec G703 -- root and the positional are both the operator's own CLI arguments; checked only for existence to shape a refusal, never opened
+		if err == nil && !info.IsDir() {
+			return p, true
+		}
+	}
+	return "", false
+}
+
 func commandError(stderr io.Writer, err error) int {
 	_, _ = fmt.Fprintf(stderr, "yomihon: %v\n", err) //nolint:errcheck // an already-failing command has no second channel for a stderr failure
 	if guidance := contractGuidance(err); guidance != "" {
 		_, _ = fmt.Fprint(stderr, guidance) //nolint:errcheck // the same already-failing channel
 	}
 	return 2
+}
+
+// checkError is commandError's counterpart for check: the only command whose
+// positionals name scope inside the vault rather than the vault itself, so a
+// judge.ErrNoVaultContract from it may mean one of them was the vault all
+// along. root and positionals are check's own resolved invocation, needed for
+// nothing this function does beyond that one guess.
+func checkError(stderr io.Writer, err error, root string, positionals []string) int {
+	exit := commandError(stderr, err)
+	if errors.Is(err, judge.ErrNoVaultContract) {
+		if p, ok := misplacedVault(root, positionals); ok {
+			hint := "  " + p + " carries a contract of its own, which makes it a vault rather\n" +
+				"  than a path inside one: pass it as --root " + p + " instead.\n"
+			_, _ = fmt.Fprint(stderr, hint) //nolint:errcheck // the same already-failing channel
+		}
+	}
+	return exit
 }

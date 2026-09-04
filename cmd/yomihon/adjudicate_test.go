@@ -231,6 +231,66 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 	}
 }
 
+// TestANoContractRefusalNamesAPositionalThatIsItselfAVault holds the guidance
+// a reader is owed when the folder they stood in carries no contract but the
+// word they typed after check does. Before this, the refusal talked only
+// about the folder check opened and never mentioned the word the reader
+// typed, even from the folder above the reader's own vault, which is the
+// shape a reader most often hits this refusal from.
+//
+// This cannot run in parallel: it changes the process's working directory to
+// reproduce that shape exactly, a bare check with no --root, rather than one
+// told the vault directly.
+func TestANoContractRefusalNamesAPositionalThatIsItselfAVault(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "examples/vault/"+schema.ContractRelPath, "# only checked for presence, never read\n")
+	t.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	exit := runCommand(t.Context(), "check", []string{"--format=json", "examples/vault"}, &stdout, &stderr, false)
+
+	if exit != 2 {
+		t.Fatalf("exit = %d, want 2; stderr:\n%s", exit, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want empty", stdout.String())
+	}
+	want := "yomihon: this folder has no vault contract, so there is nothing to judge notes against\n" +
+		absentContractGuidance +
+		"  examples/vault carries a contract of its own, which makes it a vault rather\n" +
+		"  than a path inside one: pass it as --root examples/vault instead.\n"
+	if diff := cmp.Diff(want, stderr.String()); diff != "" {
+		t.Errorf("stderr mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestANoContractRefusalStaysSilentOnAnOrdinaryPositional is the negative
+// case beside it: a positional that exists as a folder, but carries no
+// contract of its own, is an ordinary scope filter, not a misplaced vault,
+// and earns no more than the paragraph every such refusal earns. Without this
+// case, a check that statted the positional itself rather than the contract
+// file under it would pass the sibling test just as well.
+func TestANoContractRefusalStaysSilentOnAnOrdinaryPositional(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "notes/a.md", "not a contract\n")
+	t.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	exit := runCommand(t.Context(), "check", []string{"--format=json", "notes"}, &stdout, &stderr, false)
+
+	if exit != 2 {
+		t.Fatalf("exit = %d, want 2; stderr:\n%s", exit, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want empty", stdout.String())
+	}
+	want := "yomihon: this folder has no vault contract, so there is nothing to judge notes against\n" +
+		absentContractGuidance
+	if diff := cmp.Diff(want, stderr.String()); diff != "" {
+		t.Errorf("stderr mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestTheTypedWordsReachTheEngine holds the wiring between them: which folder,
 // which output shape, which name, which gate, which prior run to subtract.
 // Each of these is a word the reader typed that has to arrive somewhere
