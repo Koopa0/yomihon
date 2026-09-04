@@ -211,9 +211,12 @@ func recoveryFor(err error) *recovery {
 			code:       http.StatusConflict,
 			summary:    wording.ContentRaced,
 			nextAction: wording.ContentRacedNext,
-			// The error text names which install step refused and what the
-			// volume could guarantee, which nothing else records.
-			logMessage: "status flip refused a raced write",
+			// The error text names which install step met the other write and
+			// what the volume could guarantee, which nothing else records. The
+			// summary stays neutral about what happened to this flip: the rungs
+			// that can restore refused before installing, and the one that
+			// cannot installed and then found other bytes.
+			logMessage: "status flip met a raced write",
 			cause:      err,
 		}
 	case errors.Is(err, ErrDurabilityUnsupported):
