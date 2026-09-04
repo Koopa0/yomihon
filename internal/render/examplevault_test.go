@@ -122,13 +122,22 @@ func dialectFaces() []authorFace {
 // linksIntoASection and linksToABlock read the href the renderer writes rather
 // than the address the author typed, so a form that stopped resolving stops
 // counting. The two are told apart by the escaped caret a block address keeps.
-func linksIntoASection(text string) bool { return hasNoteFragment(text, false) }
+func linksIntoASection(text string) bool { return hasResolvedFragment(text, false) }
 
-func linksToABlock(text string) bool { return hasNoteFragment(text, true) }
+func linksToABlock(text string) bool { return hasResolvedFragment(text, true) }
 
-func hasNoteFragment(text string, block bool) bool {
-	for _, href := range noteHrefs(text) {
-		_, fragment, ok := strings.Cut(href, "#")
+// hasResolvedFragment wants an address that landed, which is why it reads the
+// class and not the href alone: a section the target does not have keeps its
+// fragment in the href too, and is marked degraded instead. Without the class
+// check one broken address answers for both the working form and the failing
+// one, and a vault that had never shown a fragment resolve would look as
+// though it had.
+func hasResolvedFragment(text string, block bool) bool {
+	for _, anchor := range noteAnchors(text) {
+		if anchor.class != "wikilink" {
+			continue
+		}
+		_, fragment, ok := strings.Cut(anchor.href, "#")
 		if !ok || fragment == "" {
 			continue
 		}
@@ -139,20 +148,37 @@ func hasNoteFragment(text string, block bool) bool {
 	return false
 }
 
-// noteHrefs collects every reading-page destination in one body's HTML.
-func noteHrefs(text string) []string {
-	var out []string
+// noteAnchor is one reading-page link as this package emitted it.
+type noteAnchor struct{ href, class string }
+
+// noteAnchors collects every reading-page destination in one body's HTML with
+// the classes it was given. It reads back the exact shape renderWikilink
+// writes — href first, class second — rather than parsing arbitrary HTML.
+func noteAnchors(text string) []noteAnchor {
+	var out []noteAnchor
 	for rest := text; ; {
-		_, after, ok := strings.Cut(rest, `href="/notes/`)
+		_, after, ok := strings.Cut(rest, `<a href="/notes/`)
 		if !ok {
 			return out
 		}
-		href, remainder, ok := strings.Cut(after, `"`)
+		href, afterHref, ok := strings.Cut(after, `"`)
 		if !ok {
 			return out
 		}
-		out = append(out, href)
-		rest = remainder
+		rest = afterHref
+		// An anchor this package wrote with no class is not a wikilink — the
+		// line naming an embed's source note is one — so it carries no class
+		// to read and is passed over.
+		afterAttr, ok := strings.CutPrefix(afterHref, ` class="`)
+		if !ok {
+			continue
+		}
+		class, tail, ok := strings.Cut(afterAttr, `"`)
+		if !ok {
+			return out
+		}
+		out = append(out, noteAnchor{href: href, class: class})
+		rest = tail
 	}
 }
 
