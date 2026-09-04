@@ -18,6 +18,10 @@ var localImageSrc = regexp.MustCompile(`(<img src=")([^"]*)(")`)
 // transcluded body carries its own directory; a destination leaving the vault is
 // left as it was. It reads an emitted <img> rather than an image node because
 // each body is parsed on its own and could not answer which note a source is from.
+// What it reads is attribute text rather than a URL, so a source crosses out of
+// the attribute to be resolved and is written back into one afterwards. A source
+// it leaves alone is returned as the tag it arrived in, so an address it has no
+// business rewriting keeps the spelling its author gave it.
 func resolveAssetHrefs(htmlOut, noteRelPath string) string {
 	noteDir := pathpkg.Dir(noteRelPath)
 	if noteDir == "." {
@@ -25,11 +29,11 @@ func resolveAssetHrefs(htmlOut, noteRelPath string) string {
 	}
 	return localImageSrc.ReplaceAllStringFunc(htmlOut, func(tag string) string {
 		parts := localImageSrc.FindStringSubmatch(tag)
-		resolved, ok := rawAssetHref(parts[2], noteDir)
+		resolved, ok := rawAssetHref(attributeUnescaper.Replace(parts[2]), noteDir)
 		if !ok {
 			return tag
 		}
-		return parts[1] + resolved + parts[3]
+		return parts[1] + attributeEscaper.Replace(resolved) + parts[3]
 	})
 }
 

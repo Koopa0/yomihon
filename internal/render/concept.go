@@ -20,7 +20,7 @@ func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (id strin
 	seen := map[string]bool{}
 	out = conceptLink.ReplaceAllStringFunc(htmlOut, func(tag string) string {
 		href := conceptLink.FindStringSubmatch(tag)[1]
-		rel := decodeNotesHref(href)
+		rel := decodeNotesHref(attributeUnescaper.Replace(href))
 		if rel == "" {
 			return tag
 		}
@@ -37,9 +37,10 @@ func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (id strin
 	return out, refs
 }
 
-// decodeNotesHref reverses notesHref: it strips the /notes/ prefix and
-// path-unescapes each segment back to a vault-relative path. A href that is not
-// a /notes/ link (or fails to decode) yields "" — not a concept, skip it.
+// decodeNotesHref reverses notesHref. It takes the URL, not the attribute text
+// that URL was read out of: it strips the /notes/ prefix and path-unescapes each
+// segment back to a vault-relative path. A href that is not a /notes/ link (or
+// fails to decode) yields "" — not a concept, skip it.
 func decodeNotesHref(href string) string {
 	rest, ok := strings.CutPrefix(href, "/notes/")
 	if !ok {
