@@ -88,7 +88,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 						</p>
 					} else {
 						for _, block := range v.Blocks {
-							@deskBlockSection(block, c)
+							@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
 						}
 					}
 					<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
@@ -140,33 +140,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 			</div>
 		</main>
 	}
-}
-
-// deskBlockSection is one way in: the mode's name opening its own page, how much
-// of it there is, one sentence, and its first few items.
-templ deskBlockSection(b DeskBlock, c layouts.Chrome) {
-	<section class="y-homeblock y-modeblock" data-home-block={ b.Mode } aria-labelledby={ "home-" + b.Mode + "-title" }>
-		<header class="y-homeblock__head">
-			<h2 id={ "home-" + b.Mode + "-title" }><a href={ templ.URL(b.Href) }>{ b.Title }</a></h2>
-			<p>{ b.Count }</p>
-		</header>
-		<p class="y-homeblock__lede">{ b.Lede }</p>
-		if len(b.Rows) == 0 {
-			<p class="y-homeempty">{ b.Empty }</p>
-		} else {
-			for _, row := range b.Rows {
-				<a class="ui-navitem" href={ templ.URL(row.Href) } data-desk-item>
-					{ row.Title }
-					if row.Measure != "" {
-						<span class="ui-navitem__count">{ row.Measure }</span>
-					}
-					if row.Mark != "" {
-						<span class={ "y-navmark", templ.KV("y-navmark--warn", row.MarkWarn) }>{ row.Mark }</span>
-					}
-				</a>
-			}
-		}
-	</section>
 }
 
 templ homeBlockHead(id, title, note string) {

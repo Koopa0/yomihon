@@ -15,6 +15,11 @@ var (
 	)
 )
 
+// ShelfAll ends a narrowed shelf, where the rest of it is one click away. It
+// states no number: the shelf's own count is already in its head, and a second
+// figure describing the same listing is a figure that can disagree with it.
+var ShelfAll = both("全部 →", "All of it →")
+
 // Each mode block on the desk says what it holds, in one line, before its first
 // few items. The heading is the mode's own name, which the rail already had.
 var (

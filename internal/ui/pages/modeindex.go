@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"strings"
+
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -269,19 +271,13 @@ func folderNoteCount(f *nav.Folder, lang wording.Lang) string {
 	return plural(countNotes(f.Notes, f.Subfolders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang)
 }
 
-// DeskBlock is one of the four ways into the library: what the mode is called,
-// how much of it there is, one sentence about it, and its opening items. The
-// heading opens that mode's own page, which lists the rest.
+// DeskBlock is one of the four ways into the library: which organisation it is,
+// and that organisation's shelf. The mode name stays here rather than on the
+// shelf because it is the desk's own hook for the block, not something the
+// listing knows about itself.
 type DeskBlock struct {
 	Mode  string
-	Title string
-	// Count is the mode's own measure of itself, already in words.
-	Count string
-	Lede  string
-	Href  string
-	Rows  []IndexRow
-	// Empty is what the block says when the vault holds none of this kind.
-	Empty string
+	Shelf Shelf
 }
 
 // deskBlockItems is how many of a mode's items the desk shows before the mode's
@@ -312,47 +308,76 @@ func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
 		deskBlock(&reportIndex, wording.DeskReportsLede.In(lang),
 			plural(len(model.Reports()), wording.ReportCountOne, wording.ReportCountMany, lang)),
 		{
-			Mode:  folderMode,
-			Title: wording.Folders.In(lang),
-			Count: plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
-			Lede:  wording.DeskFoldersLede.In(lang),
-			Href:  indexHref(folderMode),
-			Rows:  deskFolderRows(folders, lang),
-			Empty: wording.FolderIndexEmpty.In(lang),
+			Mode: folderMode,
+			Shelf: Shelf{
+				Title: wording.Folders.In(lang),
+				Count: plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
+				Lede:  wording.DeskFoldersLede.In(lang),
+				Href:  indexHref(folderMode),
+				Empty: wording.FolderIndexEmpty.In(lang),
+				Rows:  deskFolderRows(folders, lang),
+			},
 		},
 	}
 }
 
-// deskBlock narrows one mode's whole index to the block that opens it.
+// deskBlock reads one mode's whole index as the shelf the desk shows a corner
+// of. Narrowing it to the rows that fit is the shelf component's own business.
 func deskBlock(index *ListIndexView, lede, count string) DeskBlock {
 	return DeskBlock{
-		Mode:  index.Mode,
-		Title: index.Title,
-		Count: count,
-		Lede:  lede,
-		Href:  indexHref(index.Mode),
-		Rows:  firstRows(index.Rows),
-		Empty: index.Empty,
+		Mode: index.Mode,
+		Shelf: Shelf{
+			Title: index.Title,
+			Lede:  lede,
+			Count: count,
+			Href:  indexHref(index.Mode),
+			Empty: index.Empty,
+			Rows:  shelfRowsFromIndex(index.Rows),
+		},
 	}
+}
+
+// shelfRowsFromIndex reads index rows as shelf rows. A shelf row carries one
+// mark, so a mode that measures a row and also has something to flag about it
+// says both in that one place rather than asking for a second.
+func shelfRowsFromIndex(rows []IndexRow) []Row {
+	out := make([]Row, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, Row{
+			Text:  row.Title,
+			Href:  row.Href,
+			Mark:  joinMarks(row.Measure, row.Date, row.Mark),
+			Fault: row.MarkWarn,
+		})
+	}
+	return out
+}
+
+// joinMarks writes what a row is measured by and what is wrong with it as one
+// line, in the order a reader reads them, skipping whichever the mode does not
+// have.
+func joinMarks(parts ...string) string {
+	kept := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			kept = append(kept, part)
+		}
+	}
+	return strings.Join(kept, " · ")
 }
 
 // deskFolderRows is the top of the tree: each lifecycle folder, how much sits
 // under it, and its own page.
-func deskFolderRows(folders []nav.Folder, lang wording.Lang) []IndexRow {
-	rows := make([]IndexRow, 0, min(len(folders), deskBlockItems))
-	for i := range folders[:min(len(folders), deskBlockItems)] {
-		rows = append(rows, IndexRow{
-			Title:   folders[i].Name,
-			Href:    folderHref(folders[i].RelPath),
-			Measure: folderNoteCount(&folders[i], lang),
+func deskFolderRows(folders []nav.Folder, lang wording.Lang) []Row {
+	rows := make([]Row, 0, len(folders))
+	for i := range folders {
+		rows = append(rows, Row{
+			Text: folders[i].Name,
+			Href: folderHref(folders[i].RelPath),
+			Mark: folderNoteCount(&folders[i], lang),
 		})
 	}
 	return rows
-}
-
-// firstRows returns the opening of a mode's list.
-func firstRows(rows []IndexRow) []IndexRow {
-	return rows[:min(len(rows), deskBlockItems)]
 }
 
 // indexHref is where a mode block's heading leads.

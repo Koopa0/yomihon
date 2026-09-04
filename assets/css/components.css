@@ -302,6 +302,8 @@ html, body { margin: 0; background: var(--bg); }
 /* map tree — nested heading disclosures */
 .y-tree { padding-left: 12px; border-left: 1px solid var(--border); margin-left: 8px; }
 .y-navmark { font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); }
+/* the row that closes a narrowed shelf and hands the reader its own page */
+.y-shelfall { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-navmark--warn { color: var(--warn); }
 .y-navitem--broken { cursor: default; }
 .y-navitem--broken:hover { background: transparent; color: var(--fg-muted); }

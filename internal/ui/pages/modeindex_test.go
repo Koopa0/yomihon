@@ -121,14 +121,16 @@ func TestLeadingDateReadsOnlyAWholeDayAtTheFront(t *testing.T) {
 func TestTheFolderIndexCountsEveryFileUnderEveryFolder(t *testing.T) {
 	t.Parallel()
 
-	model := buildModel(t)
-	view := NewFolderIndex(model, wording.ZhHant)
-	want := countNotes(model.RootNotes(), model.Folders())
-	if want < 5 {
-		t.Fatalf("the fixture vault holds %d files, too few for this to be measuring anything", want)
-	}
-	if view.Kicker != "資料夾 · "+plural(want, wording.FolderNoteCountOne, wording.FolderNoteCountMany, wording.ZhHant) {
-		t.Errorf("folder index kicker = %q, want it to name %d files", view.Kicker, want)
+	// Counted by hand from the fixture's own file list, so this asks whether
+	// the figure is right rather than whether the code agrees with itself: two
+	// maps, two lessons, two concepts, two notes of one repeated name, two
+	// templates, two sources and two journal entries, none at the root, and
+	// every one of them nested at least one folder deep.
+	const files = 14
+
+	view := NewFolderIndex(buildModel(t), wording.ZhHant)
+	if view.Kicker != "資料夾 · 14 篇" {
+		t.Errorf("folder index kicker = %q, want it to name all %d files under every folder", view.Kicker, files)
 	}
 }
 

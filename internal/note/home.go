@@ -80,7 +80,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 // stated once for the whole page, and a cheerful fact beside that reason would
 // be a second, contradictory account of the same hole.
 func homeStandIn(snap *snapshot.Generation, blocks []pages.DeskBlock, withheld bool) pages.HomeStandIn {
-	if withheld || slices.ContainsFunc(blocks, func(b pages.DeskBlock) bool { return len(b.Rows) > 0 }) {
+	if withheld || slices.ContainsFunc(blocks, func(b pages.DeskBlock) bool { return len(b.Shelf.Rows) > 0 }) {
 		return pages.HomeStandIn{}
 	}
 	files := snap.Files()
