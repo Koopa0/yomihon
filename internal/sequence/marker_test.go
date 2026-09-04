@@ -146,3 +146,39 @@ func TestAMarkerThisPackageWritesIsOneItReads(t *testing.T) {
 		}
 	}
 }
+
+// The three values an author may write are the parser's own, and they are shown
+// to a reader twice on the same page: once as the whole declaration to copy,
+// built from those values, and once as the bare value, taken from Role.String()
+// — which wrote them out again by hand. Changing one spelling left the other
+// teaching the reader a value this parser rejects, and nothing in this package
+// noticed: only a handful of display-string assertions in other packages did,
+// which is the wrong place to hear it.
+func TestADeclarableRoleSpellsItselfTheWayTheParserReadsIt(t *testing.T) {
+	t.Parallel()
+
+	declarable := []Role{RolePrimary, RoleLocal, RoleNone}
+	for _, role := range declarable {
+		marker := Marker(role)
+		if marker == "" {
+			t.Errorf("%v is declarable and has no marker to write", role)
+			continue
+		}
+		read, ok := markerValue(marker)
+		if !ok || read != role {
+			t.Errorf("the parser reads %q as (%v, %v), want (%v, true)", marker, read, ok, role)
+		}
+		inner := strings.TrimSuffix(strings.TrimPrefix(marker, markerOpen+"="), markerClose)
+		if name := role.String(); name != inner {
+			t.Errorf("%v is shown as %q and read as %q; a reader shown one and parsed by the other cannot write a marker that works", role, name, inner)
+		}
+	}
+
+	// The two a branch is left with when it declared nothing have no spelling,
+	// so their names answer to nobody and are free to read as they like.
+	for _, role := range []Role{RoleStructural, RoleUnclassified} {
+		if marker := Marker(role); marker != "" {
+			t.Errorf("%v cannot be declared and offers the marker %q", role, marker)
+		}
+	}
+}
