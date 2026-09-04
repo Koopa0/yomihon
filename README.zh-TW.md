@@ -14,7 +14,7 @@ yomihon 把一個 Markdown 資料夾讀成一本書。學習路徑是一門課�
 ## 安裝
 
 ```sh
-go install github.com/koopa0/yomihon/cmd/yomihon@latest
+go install github.com/koopa0/yomihon/cmd/yomihon@main
 ```
 
 需要 Go 1.27 以上。

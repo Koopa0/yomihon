@@ -17,7 +17,7 @@ on your machine and changes none of your words.
 ## Install
 
 ```sh
-go install github.com/koopa0/yomihon/cmd/yomihon@latest
+go install github.com/koopa0/yomihon/cmd/yomihon@main
 ```
 
 Needs Go 1.27 or newer.
