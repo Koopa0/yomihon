@@ -808,15 +808,58 @@ func TestAVaultPathIsEscapedInTwoPlaces(t *testing.T) {
 		len(written), pathSegmentEscapers)
 }
 
+// internalTestSuffix is the name the check below is about, and it is a constant
+// with a test of its own because the check works by looking for files carrying
+// it. Spelt wrong it finds none, reports none, and the walk counter still says
+// the tree was read — the check would pass, loudly enough to be believed.
+const internalTestSuffix = "_internal_test.go"
+
+// carriesInternalSuffix reports whether a file's name claims to be the internal
+// half of a same-stem pair.
+func carriesInternalSuffix(name string) bool {
+	return strings.HasSuffix(name, internalTestSuffix)
+}
+
+// TestTheInternalSuffixIsRecognisedByName asks the predicate directly, because
+// the check that uses it is looking for something the tree is not supposed to
+// contain: finding nothing is its passing answer, and finding nothing because
+// it can no longer recognise the name looks exactly the same from outside.
+func TestTheInternalSuffixIsRecognisedByName(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		file string
+		want bool
+	}{
+		{"the internal half of a pair", "handler_internal_test.go", true},
+		{"an ordinary test file", "handler_test.go", false},
+		{"a file that only contains the words", "internal_testing.go", false},
+		{"production source", "handler.go", false},
+		{"the suffix with nothing before it", "_internal_test.go", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := carriesInternalSuffix(tt.file); got != tt.want {
+				t.Errorf("carriesInternalSuffix(%q) = %v, want %v", tt.file, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestNoTestFileCarriesTheInternalSuffixWithoutNeedingIt keeps one name for one
 // kind of file. The suffix exists for a package that needs an internal and an
 // external test file under the same stem; used anywhere else it distinguishes
 // nothing and leaves two conventions in one tree.
+//
+// A tree carrying none of them is the state the testing convention asks for, so
+// it is where this check finishes rather than a reason to distrust it. What
+// would make it meaningless is a walk that reached no test file at all, and
+// that is what the count below guards.
 func TestNoTestFileCarriesTheInternalSuffixWithoutNeedingIt(t *testing.T) {
 	t.Parallel()
 
-	suffixed := 0
-	paired := 0
+	walked := 0
 	var found []site
 	err := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -828,17 +871,19 @@ func TestNoTestFileCarriesTheInternalSuffixWithoutNeedingIt(t *testing.T) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(d.Name(), "_internal_test.go") {
+		if !strings.HasSuffix(d.Name(), "_test.go") {
 			return nil
 		}
-		suffixed++
+		walked++
+		if !carriesInternalSuffix(d.Name()) {
+			return nil
+		}
 		rel, relErr := filepath.Rel(repoRoot, p)
 		if relErr != nil {
 			return relErr
 		}
-		sibling := strings.TrimSuffix(p, "_internal_test.go") + "_test.go"
+		sibling := strings.TrimSuffix(p, internalTestSuffix) + "_test.go"
 		if _, statErr := os.Stat(sibling); statErr == nil {
-			paired++
 			return nil
 		}
 		found = append(found, site{path: filepath.ToSlash(rel), line: 1, text: d.Name()})
@@ -847,8 +892,8 @@ func TestNoTestFileCarriesTheInternalSuffixWithoutNeedingIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk the repository: %v", err)
 	}
-	if suffixed == 0 || paired == 0 {
-		t.Fatalf("suffixed files = %d, of them paired = %d; with either at zero this check has nothing to tell apart", suffixed, paired)
+	if walked == 0 {
+		t.Fatal("no test file was walked at all, so this check would pass over any tree")
 	}
 	report(t, "this file has no same-stem external sibling, so the suffix distinguishes nothing: name it <feature>_test.go", found)
 }
