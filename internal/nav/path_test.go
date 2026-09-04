@@ -8,11 +8,11 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
-// TestHomeCountsTheMainLineOnly holds the ruling Home's number rests on: the
+// TestAPathCountsTheMainLineOnly holds the ruling Home's number rests on: the
 // course total is the declared main line, side branches excluded and blocks
 // declared out of the course excluded. A branch nobody declared counts nothing
 // at all — the course is declared, never inferred.
-func TestHomeCountsTheMainLineOnly(t *testing.T) {
+func TestAPathCountsTheMainLineOnly(t *testing.T) {
 	t.Parallel()
 
 	idx := resolver(t,

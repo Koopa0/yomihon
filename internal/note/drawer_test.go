@@ -435,7 +435,7 @@ func hereBlock(t *testing.T, body string) string {
 // decides. The heading then promises recency and leads with whatever name
 // sorts first. A doctor met this on his own vault and read it correctly: four
 // notes, one timestamp, no ordering.
-func TestHomeSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
+func TestTheFolderIndexSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 	t.Parallel()
 
 	stamp := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
