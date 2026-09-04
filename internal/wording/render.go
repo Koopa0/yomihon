@@ -24,6 +24,12 @@ var (
 // read this time — a different fault from a name with nothing behind it.
 var EmbedUnreadable = both("這篇筆記存在，但這次讀取時拿不到它的內容", "This note exists, but its contents could not be read this time")
 
+// EmbedMediaFmt stands where an embedded file the page cannot show inline would
+// have been. Its placeholder takes a link to the file's own page, so the
+// sentence names what was asked for and is also the way to it, and it is
+// bracketed because these are the page's words rather than the note's.
+var EmbedMediaFmt = both("［內嵌檔案：%s —— 還沒辦法直接顯示在頁面裡］", "[Embedded media: %s — inline display not yet supported]")
+
 // ExcerptWithheldFmt is said where an excerpt would have stood when the note
 // has no such place in it: the address as the author's own link spells it,
 // then the note. Nothing of the note follows, because the author asked for one

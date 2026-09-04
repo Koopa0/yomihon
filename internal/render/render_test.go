@@ -722,6 +722,49 @@ func TestEmbedNonMarkdownTargetIsPlaceholder(t *testing.T) {
 	}
 }
 
+// TestEmbedNonMarkdownTargetSpeaksTheReadersLanguage holds the one sentence in
+// an article that was written in English whoever was reading it. Everything
+// around it answers to the reader's choice — the notice for an unwritten name,
+// three lines away in the same function, does — so a reader working in Chinese
+// met one English sentence in the middle of their own page, standing where a
+// file they embedded should have been.
+func TestEmbedNonMarkdownTargetSpeaksTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		lang wording.Lang
+		want string
+	}{
+		{name: "the reader chose Chinese", lang: wording.ZhHant, want: "還沒辦法"},
+		{name: "the reader chose English", lang: wording.En, want: "inline display not yet supported"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, nil, []string{"Notes/sample.pdf"}, nil)
+			got := r.HTML("note.md", "", "![[sample.pdf]]\n", tt.lang).HTML
+
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("the stub does not carry %q:\n%s", tt.want, got)
+			}
+			// The sentence names the file, and the name is the way to it.
+			if !strings.Contains(got, `<a href="/notes/Notes/sample.pdf">sample.pdf</a>`) {
+				t.Errorf("the stub lost its link to the file's own page:\n%s", got)
+			}
+		})
+	}
+
+	// Two languages that produced the same bytes would pass both rows above
+	// while the sentence stayed written in one of them.
+	r := newRenderer(t, nil, []string{"Notes/sample.pdf"}, nil)
+	zh := r.HTML("note.md", "", "![[sample.pdf]]\n", wording.ZhHant).HTML
+	en := r.HTML("note.md", "", "![[sample.pdf]]\n", wording.En).HTML
+	if zh == en {
+		t.Errorf("both readers are shown the same sentence:\n%s", zh)
+	}
+}
+
 // TestEmbedPictureTargetPaintsInline is the assertion site for Obsidian's
 // ordinary image syntax. A picture embed and a markdown image are the same
 // request written two ways, so both must land on the raw-bytes route; before
