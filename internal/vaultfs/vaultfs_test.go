@@ -1547,3 +1547,39 @@ func TestBothWalksConfirmTheirDescent(t *testing.T) {
 		}
 	}
 }
+
+// A scan that never observed a root cannot be the same set of files as
+// anything, itself included. The state carried a flag saying so, set at the one
+// place a scan is built and never set anywhere else, so nothing could ever be
+// asked this question with the flag false except a hand-built value. What
+// actually answers it is the root comparison: an unobserved root is nil, and
+// nil is not the same object as anything.
+func TestAScanWithNoObservedRootIsNeverTheSameFiles(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeReaderFixture(t, root, "Notes/one.md", "one")
+	observed := scanCompleteFixture(t, openTestReader(t, root))
+	empty := Scan{state: &scanState{}}
+
+	for _, tt := range []struct {
+		name  string
+		left  Scan
+		right Scan
+	}{
+		{"against an observed scan", empty, observed},
+		{"the other way round", observed, empty},
+		{"against itself", empty, empty},
+		{"against another unobserved one", empty, Scan{state: &scanState{}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.left.SameFiles(tt.right) {
+				t.Error("SameFiles said yes for a scan that never observed a root")
+			}
+		})
+	}
+	if !observed.SameFiles(observed) {
+		t.Error("an observed scan is not the same files as itself, so this test proves nothing about the empty one")
+	}
+}
