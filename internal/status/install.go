@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -44,8 +45,9 @@ func (r installRung) String() string {
 		return "plain rename"
 	case rungUnknown:
 		return "unselected"
+	default:
+		panic("status: unknown installRung: " + strconv.Itoa(int(r)))
 	}
-	return "unselected"
 }
 
 // restoreAttempts bounds how many times the write face will try to put a
@@ -219,8 +221,13 @@ func installRewritten(
 		return installByHardlink(ops, relSlash, tmpName, source)
 	case rungRename, rungUnknown:
 		return installByRename(ops, tmpName, source)
+	default:
+		// Every rung states what it promises about the install window, and a
+		// plain rename promises nothing. Absorbing an unnamed rung into that
+		// one would answer the caller "installed" while another program's edit
+		// was overwritten.
+		panic("status: unknown installRung: " + rung.String())
 	}
-	return installByRename(ops, tmpName, source)
 }
 
 // installByExchange swaps the prepared replacement with the note in one atomic

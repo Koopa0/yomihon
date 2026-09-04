@@ -762,3 +762,56 @@ func TestExchangeInstallAcceptsADisplacedVersionThatIsAlreadyGone(t *testing.T) 
 		t.Errorf("install residue = %v, want none", residue)
 	}
 }
+
+// A rung nobody chose used to fall through to a plain rename, the one install
+// that promises nothing about the window: an edit that landed inside it was
+// overwritten and the caller was told the flip had succeeded. Not losing
+// another program's edit is why this package exists, so a rung with no case is
+// a programming error and stops the process rather than quietly taking the
+// weakest install.
+func TestAnUnknownInstallRungRefusesToInstallAtAll(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	parent := internalRoot(t, dir)
+	const rel = "note.md"
+	path := filepath.Join(dir, rel)
+	const external = "another program's edit"
+	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+		t.Fatalf("write original: %v", err)
+	}
+	source, err := readRegularFile(parent, rel, rel)
+	if err != nil {
+		t.Fatalf("readRegularFile() error = %v", err)
+	}
+
+	const unknown installRung = 99
+	recovered := func() (value any) {
+		defer func() { value = recover() }()
+		installed := replaceRegularFile(parent, rel, rel, &source, []byte("replacement"), nil, installHooks{
+			rung: func() installRung { return unknown },
+			beforeInstall: func() {
+				if writeErr := os.WriteFile(path, []byte(external), 0o600); writeErr != nil {
+					t.Errorf("external write: %v", writeErr)
+				}
+			},
+		}, func() error { return nil })
+		t.Errorf("replaceRegularFile() = %v; an unknown rung returned an answer instead of stopping", installed)
+		return nil
+	}()
+
+	if recovered == nil {
+		t.Fatal("a rung with no case installed without stopping; adding a rung must not be silently absorbed")
+	}
+	message, isString := recovered.(string)
+	if want := "status: unknown installRung: 99"; !isString || message != want {
+		t.Errorf("panic value = %v, want %q", recovered, want)
+	}
+	kept, readErr := os.ReadFile(path) // #nosec G304 -- a fixed name under this test's TempDir
+	if readErr != nil {
+		t.Fatalf("read note: %v", readErr)
+	}
+	if string(kept) != external {
+		t.Errorf("the note holds %q, want the other program's bytes %q", kept, external)
+	}
+}
