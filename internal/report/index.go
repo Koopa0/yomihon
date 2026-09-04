@@ -15,7 +15,7 @@ import (
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	view := pages.NewReportIndex(h.snapshot().Shell.Nav.Reports(), lang)
-	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Title)).Render(r.Context(), w); err != nil {
+	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write report index", "error", err)
 	}
 }

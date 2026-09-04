@@ -130,3 +130,44 @@ func TestAShelfOfRowsThatAreNotStopsIsNotEmpty(t *testing.T) {
 		t.Errorf("a shelf holding something withdrew the way to the rest of it:\n%s", got)
 	}
 }
+
+// TestADeskBlockIsItsPageNarrowed is the claim the desk rests on: a block and
+// the page its heading opens read the same shelf, so a block can never name
+// something its page does not list, or measure it differently. It compares the
+// rows and the title rather than the sentence, which a block states shorter.
+func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
+	t.Parallel()
+
+	model := buildModel(t)
+	lang := wording.ZhHant
+	pages := map[string]ListIndexView{
+		pathMode:   NewPathIndex(model.Paths(), lang),
+		mapMode:    NewMapIndex(model.Maps(), lang),
+		reportMode: NewReportIndex(model.Reports(), lang),
+	}
+	blocks := NewDeskBlocks(model, lang)
+	seen := 0
+	for _, block := range blocks {
+		page, ok := pages[block.Mode]
+		if !ok {
+			continue
+		}
+		seen++
+		if block.Shelf.Title != page.Shelf.Title {
+			t.Errorf("the %s block is titled %q and its page %q", block.Mode, block.Shelf.Title, page.Shelf.Title)
+		}
+		shown := shelfRows(&block.Shelf, deskBlockItems)
+		listed := shelfRows(&page.Shelf, len(page.Shelf.Rows))
+		if len(shown) > len(listed) {
+			t.Fatalf("the %s block shows %d rows over a page listing %d", block.Mode, len(shown), len(listed))
+		}
+		for i := range shown {
+			if shown[i] != listed[i] {
+				t.Errorf("the %s block's row %d is %+v, its page's is %+v", block.Mode, i, shown[i], listed[i])
+			}
+		}
+	}
+	if seen != len(pages) {
+		t.Fatalf("compared %d modes, want %d — a mode with no block compares nothing", seen, len(pages))
+	}
+}

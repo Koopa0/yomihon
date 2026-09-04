@@ -949,7 +949,6 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-row { display: flex; align-items: baseline; gap: 18px; padding: 14px 4px; border-bottom: 1px solid var(--border-faint); }
 .y-row:hover { background: var(--overlay); }
 .y-row:hover .y-row__title { color: var(--link); }
-.y-row__date { flex: none; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
 .y-row__title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); overflow-wrap: anywhere; }
 .y-row__measure { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-foldertree { display: flex; flex-direction: column; border-top: 1px solid var(--border); padding-top: 6px; }

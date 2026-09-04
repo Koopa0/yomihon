@@ -23,7 +23,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.NewPathIndex(paths, lang)
 	view.Fault = closure.Diagnostic()
-	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Title)).Render(r.Context(), w); err != nil {
+	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write study-path index", "error", err)
 	}
 }
