@@ -541,11 +541,8 @@ func (r *Reader) observe(relPath string) (entry Entry, resultErr error) {
 		if err != nil {
 			return Entry{}, revalidated(pathErrorAt(relPath, err))
 		}
-		opened, openErr := child.Stat(".")
-		after, afterErr := current.Lstat(name)
-		if openErr != nil || afterErr != nil || !opened.IsDir() || !sameObject(before, opened) ||
-			!sameObject(before, after) {
-			return Entry{}, closeChangedRoot(child)
+		if descentErr := confirmDescent(current, child, name, before); descentErr != nil {
+			return Entry{}, descentErr
 		}
 		openedRoots = append(openedRoots, child)
 		current = child
@@ -721,11 +718,8 @@ func (r *Reader) openParent(entry Entry, hook readHook) (parent *os.Root, opened
 		if err != nil {
 			return nil, openedRoots, revalidated(err)
 		}
-		opened, openErr := child.Stat(".")
-		after, afterErr := current.Lstat(name)
-		if openErr != nil || afterErr != nil || !opened.IsDir() || !sameObject(before, opened) ||
-			!sameObject(before, after) {
-			return nil, openedRoots, closeChangedRoot(child)
+		if descentErr := confirmDescent(current, child, name, before); descentErr != nil {
+			return nil, openedRoots, descentErr
 		}
 		openedRoots = append(openedRoots, child)
 		current = child
@@ -816,6 +810,26 @@ func sameObservation(want, got fs.FileInfo) bool {
 
 func sameObject(want, got fs.FileInfo) bool {
 	return want != nil && got != nil && os.SameFile(want, got) && want.Mode() == got.Mode()
+}
+
+// confirmDescent completes one step of a walk. child has just been opened from
+// name under current, and this answers whether it is the directory the walk
+// looked at before opening it: the same object, still a directory, and still
+// what that name resolves to now. A rename, a swap or an unlink in between
+// leaves the walk holding somewhere the caller never named, so the child is
+// closed and the step refused.
+//
+// Both walks ask it — the one that builds an entry and the one that reopens an
+// entry's parents to read it — because a chain confirmed on the way in and not
+// on the way back is not a chain.
+func confirmDescent(current, child *os.Root, name string, before fs.FileInfo) error {
+	opened, openErr := child.Stat(".")
+	after, afterErr := current.Lstat(name)
+	if openErr != nil || afterErr != nil || !opened.IsDir() || !sameObject(before, opened) ||
+		!sameObject(before, after) {
+		return closeChangedRoot(child)
+	}
+	return nil
 }
 
 func closeChangedRoot(root *os.Root) error {

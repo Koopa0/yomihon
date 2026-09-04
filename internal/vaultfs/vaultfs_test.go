@@ -1536,3 +1536,59 @@ func TestReaderRejectsAParentSwappedForOneHoldingTheSameFile(t *testing.T) {
 		t.Fatalf("readFile() over a replaced parent = (%q, %v), want no bytes and %v", got, err, ErrSourceChanged)
 	}
 }
+
+// TestBothWalksConfirmTheirDescent watches the call, which is the thing the
+// extraction made deletable. The confirmation's body is watched by the test
+// above, but only through the walk that reopens an entry's parents; the walk
+// that builds the entry takes no hook, so no behaviour test in this package
+// reaches its call and removing that one line leaves every gate green.
+//
+// Losing it is not a smaller version of the same fault. The entry would record
+// an observation of a directory the walk never entered, and the chain the other
+// walk revalidates against would be a description of somewhere else — which is
+// the confinement this package exists to provide.
+func TestBothWalksConfirmTheirDescent(t *testing.T) {
+	t.Parallel()
+
+	const source = "vaultfs.go"
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, source, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", source, err)
+	}
+
+	type walk struct {
+		declared bool
+		calls    int
+	}
+	walks := map[string]*walk{"observe": {}, "openParent": {}}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		seen, watched := walks[fn.Name.Name]
+		if !watched {
+			continue
+		}
+		seen.declared = true
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			if name, ok := call.Fun.(*ast.Ident); ok && name.Name == "confirmDescent" {
+				seen.calls++
+			}
+			return true
+		})
+	}
+	for name, seen := range walks {
+		switch {
+		case !seen.declared:
+			t.Errorf("%s is not declared in %s, so this test is watching a name that no longer exists", name, source)
+		case seen.calls == 0:
+			t.Errorf("%s descends into a directory without confirming it is the one it looked at", name)
+		}
+	}
+}
