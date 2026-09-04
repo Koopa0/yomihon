@@ -56,11 +56,11 @@ func Parse(rel string, data []byte) *Note {
 	return n
 }
 
-// String reads one frontmatter value the vault writes as text, reporting
+// Text reads one frontmatter value the vault writes as text, reporting
 // whether the note wrote that key as text at all — a declared but blank field
 // is a different state from an absent one. Any other shape answers "", false,
 // so a malformed field costs that field and nothing else.
-func (n *Note) String(key string) (string, bool) {
+func (n *Note) Text(key string) (string, bool) {
 	s, ok := n.Frontmatter[key].(string)
 	return s, ok
 }
@@ -84,7 +84,7 @@ func (n *Note) Strings(key string) []string {
 
 // Title is the frontmatter title, falling back to the filename stem.
 func (n *Note) Title() string {
-	if t, _ := n.String("title"); t != "" {
+	if t, _ := n.Text("title"); t != "" {
 		return t
 	}
 	base := filepath.Base(filepath.FromSlash(n.RelPath))
@@ -93,19 +93,19 @@ func (n *Note) Title() string {
 
 // Status is the frontmatter status, empty when absent, which is legal.
 func (n *Note) Status() string {
-	s, _ := n.String("status")
+	s, _ := n.Text("status")
 	return s
 }
 
 // Type is the frontmatter type, empty when absent.
 func (n *Note) Type() string {
-	t, _ := n.String("type")
+	t, _ := n.Text("type")
 	return t
 }
 
 // Domain is the frontmatter domain, empty when absent.
 func (n *Note) Domain() string {
-	d, _ := n.String("domain")
+	d, _ := n.Text("domain")
 	return d
 }
 
@@ -135,7 +135,7 @@ func (n *Note) Updated() time.Time {
 // Slug is the frontmatter slug, empty when absent: a lesson's stable identity
 // and the join key to its slot sidecar, which the filename never is.
 func (n *Note) Slug() string {
-	s, _ := n.String("slug")
+	s, _ := n.Text("slug")
 	return s
 }
 
