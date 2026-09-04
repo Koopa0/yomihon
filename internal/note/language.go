@@ -30,8 +30,8 @@ func (h *Handler) language(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, wording.LanguageFormUnreadable.In(origin.Language(r)), http.StatusBadRequest)
 		return
 	}
-	choice := r.PostFormValue("lang")
-	if choice != string(wording.En) && choice != string(wording.ZhHant) {
+	choice, spoken := wording.Known(r.PostFormValue("lang"))
+	if !spoken {
 		// An unknown value is refused outright rather than silently
 		// normalised: the reader asked for something, and answering with a
 		// redirect would hand back a receipt for a change nothing made. The
@@ -45,7 +45,7 @@ func (h *Handler) language(w http.ResponseWriter, r *http.Request) {
 	// able to read the value to compare it against the revived document.
 	http.SetCookie(w, &http.Cookie{
 		Name:     wording.CookieName,
-		Value:    choice,
+		Value:    string(choice),
 		Path:     "/",
 		MaxAge:   langCookieMaxAgeSeconds,
 		SameSite: http.SameSiteLaxMode,

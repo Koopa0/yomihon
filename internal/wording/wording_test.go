@@ -147,3 +147,56 @@ func literal(e ast.Expr) (string, bool) {
 	}
 	return s, true
 }
+
+// Known is the refusing half of the pair, so what matters is which values it
+// turns away. FromCookieValue beside it answers with the default for the same
+// inputs, and a reader who lands on one when they asked for the other gets
+// either a page in a language they did not choose or a receipt for a change
+// nothing made.
+func TestKnownAcceptsOnlyTheTwoSpokenLanguages(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name  string
+		value string
+		want  Lang
+		known bool
+	}{
+		{"the default", "zh-Hant", ZhHant, true},
+		{"the other one", "en", En, true},
+		{"a language yomihon does not speak", "ja", ZhHant, false},
+		{"a broader tag for one it does", "zh", ZhHant, false},
+		{"a narrower tag for one it does", "en-GB", ZhHant, false},
+		{"different case", "EN", ZhHant, false},
+		{"nothing at all", "", ZhHant, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, known := Known(tt.value)
+			if known != tt.known {
+				t.Errorf("Known(%q) known = %v, want %v", tt.value, known, tt.known)
+			}
+			if got != tt.want {
+				t.Errorf("Known(%q) = %q, want %q", tt.value, got, tt.want)
+			}
+			if normalised := FromCookieValue(tt.value); !tt.known && normalised != ZhHant {
+				t.Errorf("FromCookieValue(%q) = %q; the normalising half must still fall to the default", tt.value, normalised)
+			}
+		})
+	}
+}
+
+// Other is the complement of a two-value set, so it has to be a complement:
+// never the language it was given, and its own inverse.
+func TestOtherIsTheLanguageThisOneIsNot(t *testing.T) {
+	t.Parallel()
+
+	for _, lang := range []Lang{ZhHant, En} {
+		if other := lang.Other(); other == lang {
+			t.Errorf("%q.Other() = %q, which is the language it was asked about", lang, other)
+		}
+		if back := lang.Other().Other(); back != lang {
+			t.Errorf("%q.Other().Other() = %q, want %q", lang, back, lang)
+		}
+	}
+}
