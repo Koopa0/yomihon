@@ -36,9 +36,13 @@ func (s KnowledgeScope) Includes(relPath string) bool {
 	return slices.ContainsFunc(s.dirs, func(dir string) bool { return SameDirName(top, dir) })
 }
 
-// deriveKnowledgeScope reads the declared knowledge layer, leaving the scope
-// unclaimed rather than empty when a contract declares none: an empty scope
-// would hide the whole vault.
+// deriveKnowledgeScope reads the declared knowledge layer. A contract that
+// declares none leaves the scope unresolved rather than empty, because an empty
+// one would match no directory and hide the whole vault; an unresolved scope
+// includes everything until a contract narrows it.
+//
+// Unclaimed is this package's word for the opposite state — nothing was ever
+// asserted — and it is not what happens here.
 func deriveKnowledgeScope(dirs []string) KnowledgeScope {
 	if len(dirs) == 0 {
 		return KnowledgeScope{claim: Rejected("")}
