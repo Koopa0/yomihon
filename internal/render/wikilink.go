@@ -410,8 +410,20 @@ func fenceCloses(line string, marker byte) bool {
 // appearance anywhere on a later line ends it.
 type htmlBlockKind struct {
 	opens *regexp.Regexp
-	ends  string
+	// ends matches the appearance that closes the block. The four raw-text
+	// elements share one: a block opened by any of them is closed by any of
+	// their closing tags, not only the tag that matches what opened it, which
+	// is what the markdown parser this scan predicts does with them.
+	ends *regexp.Regexp
+	// closing is the text a scan stopped mid-block writes to close one itself.
+	// That is this kind's own tag rather than whichever tag would have ended
+	// it, because the scan is repairing its own interruption, not guessing at
+	// a line the author was going to write.
+	closing string
 }
+
+// htmlBlockRawTextEnd closes any of the four raw-text elements.
+var htmlBlockRawTextEnd = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
 
 // htmlBlockKinds is the closed set of block openings that survive an empty
 // line, which is the set a scan stopping mid-block has to be able to close.
@@ -425,14 +437,14 @@ type htmlBlockKind struct {
 // coincidence of how the marker is written, not a property of the block, and it
 // would go away the moment the marker were respelled.
 var htmlBlockKinds = []htmlBlockKind{
-	{regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t/>]|$)`), "</pre>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t/>]|$)`), "</script>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t/>]|$)`), "</style>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<textarea(?:[ \t/>]|$)`), "</textarea>"},
-	{regexp.MustCompile(`^ {0,3}<!--`), "-->"},
-	{regexp.MustCompile(`^ {0,3}<\?`), "?>"},
-	{regexp.MustCompile(`^ {0,3}<!\[CDATA\[`), "]]>"},
-	{regexp.MustCompile(`^ {0,3}<![A-Za-z]`), ">"},
+	{regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t>]|/>|$)`), htmlBlockRawTextEnd, "</pre>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t>]|/>|$)`), htmlBlockRawTextEnd, "</script>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t>]|/>|$)`), htmlBlockRawTextEnd, "</style>"},
+	{regexp.MustCompile(`(?i)^ {0,3}<textarea(?:[ \t>]|/>|$)`), htmlBlockRawTextEnd, "</textarea>"},
+	{regexp.MustCompile(`^ {0,3}<!--`), regexp.MustCompile(`-->`), "-->"},
+	{regexp.MustCompile(`^ {0,3}<\?`), regexp.MustCompile(`\?>`), "?>"},
+	{regexp.MustCompile(`^ {0,3}<!\[CDATA\[`), regexp.MustCompile(`\]\]>`), "]]>"},
+	{regexp.MustCompile(`^ {0,3}<![A-Za-z]`), regexp.MustCompile(`>`), ">"},
 }
 
 // leadingSpace is the indentation a line carries, which a close this scan writes
@@ -487,10 +499,10 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 		// While an HTML block is still running, every line belongs to it: a fence
 		// marker or a callout opener inside one is raw text, not the start of
 		// anything, so neither pass may claim it.
-		case st.htmlEnd == "" && tryOpenFence(st):
+		case st.htmlEnds == nil && tryOpenFence(st):
 			// handled: either entered a fence, or fully consumed a
 			// mermaid block — see tryOpenFence.
-		case st.htmlEnd == "" && r.tryConsumeCallout(st, allowEmbed, col):
+		case st.htmlEnds == nil && r.tryConsumeCallout(st, allowEmbed, col):
 			// handled: a known-type callout block was consumed.
 		default:
 			// An indented code block hands its line to the reader as written, so
@@ -553,9 +565,9 @@ type preprocessState struct {
 
 	inFence   bool
 	fenceByte byte
-	// htmlEnd is the text whose appearance ends the HTML block this scan is
-	// inside, empty when it is inside none.
-	htmlEnd string
+	// htmlEnds matches the appearance that ends the HTML block this scan is
+	// inside, nil when it is inside none.
+	htmlEnds *regexp.Regexp
 	// pendingClose is the whole line, its container's indentation included, that
 	// would end whatever block the scan is currently inside. A fenced code block
 	// and an HTML block both set it, and never both at once, since neither can
@@ -585,9 +597,9 @@ func (st *preprocessState) source() string {
 // the line; what the line renders as is decided elsewhere, so noticing a block
 // here changes nothing about the page unless the scan stops while one is open.
 func (st *preprocessState) trackHTMLBlock(line string) {
-	if st.htmlEnd != "" {
-		if strings.Contains(line, st.htmlEnd) {
-			st.htmlEnd, st.pendingClose = "", ""
+	if st.htmlEnds != nil {
+		if st.htmlEnds.MatchString(line) {
+			st.htmlEnds, st.pendingClose = nil, ""
 		}
 		return
 	}
@@ -599,11 +611,11 @@ func (st *preprocessState) trackHTMLBlock(line string) {
 		}
 		// The end may stand on the opening line, which is where every read-aloud
 		// marker and every marker this renderer plants ends.
-		if strings.Contains(line[opener[1]:], kind.ends) {
+		if kind.ends.MatchString(line[opener[1]:]) {
 			return
 		}
-		st.htmlEnd = kind.ends
-		st.pendingClose = leadingSpace(line) + kind.ends
+		st.htmlEnds = kind.ends
+		st.pendingClose = leadingSpace(line) + kind.closing
 		return
 	}
 }

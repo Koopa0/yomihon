@@ -83,39 +83,25 @@ var atxHeadingLine = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?
 // The omitted condition cannot interrupt a paragraph, and telling those readings
 // apart needs paragraph state this scan does not keep.
 var (
-	htmlBlockRawText = regexp.MustCompile(`(?i)^ {0,3}<(script|pre|style|textarea)([ \t>]|$)`)
-	htmlBlockRawEnd  = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
-	htmlBlockComment = regexp.MustCompile(`^ {0,3}<!--`)
-	htmlBlockInstr   = regexp.MustCompile(`^ {0,3}<\?`)
-	htmlBlockDecl    = regexp.MustCompile(`^ {0,3}<![A-Za-z]`)
-	htmlBlockCDATA   = regexp.MustCompile(`^ {0,3}<!\[CDATA\[`)
 	htmlBlockElement = regexp.MustCompile(`(?i)^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([ \t]|/?>|$)`)
 )
 
 // htmlBlockOpen reports whether line opens an authored HTML block, and returns
-// the test for the line closing it. Raw-text, comment, instruction, declaration
-// and CDATA blocks close on their own end marker, which may sit on the opening
-// line; an element block runs to the next blank line.
+// the test for the line closing it. The blocks a blank line does not end are
+// asked for from the one table that describes them, which the callout scan
+// reads too: both are predicting the same parser, and when each kept its own
+// copy they came to disagree about which line ends a raw-text block. An element
+// block is not in that table — a blank line ends it — so it is answered here.
 func htmlBlockOpen(line string) (closes func(string) bool, ok bool) {
-	switch {
-	case htmlBlockRawText.MatchString(line):
-		return htmlBlockRawEnd.MatchString, true
-	case htmlBlockComment.MatchString(line):
-		return closesOn("-->"), true
-	case htmlBlockInstr.MatchString(line):
-		return closesOn("?>"), true
-	case htmlBlockCDATA.MatchString(line):
-		return closesOn("]]>"), true
-	case htmlBlockDecl.MatchString(line):
-		return closesOn(">"), true
-	case htmlBlockElement.MatchString(line):
+	for i := range htmlBlockKinds {
+		if htmlBlockKinds[i].opens.MatchString(line) {
+			return htmlBlockKinds[i].ends.MatchString, true
+		}
+	}
+	if htmlBlockElement.MatchString(line) {
 		return blankLine, true
 	}
 	return nil, false
-}
-
-func closesOn(marker string) func(string) bool {
-	return func(line string) bool { return strings.Contains(line, marker) }
 }
 
 func blankLine(line string) bool { return strings.TrimSpace(line) == "" }

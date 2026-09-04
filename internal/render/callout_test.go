@@ -1,6 +1,7 @@
 package render
 
 import (
+	"html"
 	"strings"
 	"testing"
 
@@ -42,24 +43,20 @@ func TestACalloutBodyClosesEveryBlockAnEmptyLineDoesNotEnd(t *testing.T) {
 	cases := []struct {
 		name   string
 		opener string
-		// ends names the entry of htmlBlockKinds a case stands for, so the
-		// completeness check below can see which are spoken for. A fence has no
-		// entry there and leaves it empty.
-		ends string
 	}{
-		{"a backtick fence", "```", ""},
-		{"a longer backtick fence", "````", ""},
-		{"a tilde fence", "~~~", ""},
-		{"a longer tilde fence", "~~~~", ""},
-		{"a fence carrying an info string", "```go", ""},
-		{"a pre element", "<pre>", "</pre>"},
-		{"a script element", "<script>", "</script>"},
-		{"a style element", "<style>", "</style>"},
-		{"a textarea element", "<textarea>", "</textarea>"},
-		{"a comment", "<!-- unfinished", "-->"},
-		{"a processing instruction", "<?php", "?>"},
-		{"a character-data section", "<![CDATA[", "]]>"},
-		{"a declaration", "<!DOCTYPE html", ">"},
+		{"a backtick fence", "```"},
+		{"a longer backtick fence", "````"},
+		{"a tilde fence", "~~~"},
+		{"a longer tilde fence", "~~~~"},
+		{"a fence carrying an info string", "```go"},
+		{"a pre element", "<pre>"},
+		{"a script element", "<script>"},
+		{"a style element", "<style>"},
+		{"a textarea element", "<textarea>"},
+		{"a comment", "<!-- unfinished"},
+		{"a processing instruction", "<?php"},
+		{"a character-data section", "<![CDATA["},
+		{"a declaration", "<!DOCTYPE html"},
 	}
 
 	containers := []struct {
@@ -105,15 +102,25 @@ func TestACalloutBodyClosesEveryBlockAnEmptyLineDoesNotEnd(t *testing.T) {
 	// The cases above are only an enumeration if every member of the set has
 	// one. A kind added to htmlBlockKinds with no case here would be closed by
 	// code nothing exercises.
+	//
+	// A kind is matched to a case by the line that opens it, which is what tells
+	// one kind from another. Keying on what closes it does not: the four
+	// raw-text elements are all closed by the same tags, so any one of them
+	// would answer for the other three, and a new kind closing at ">" — the
+	// declaration's own end — would arrive already spoken for.
 	t.Run("every kind of block has a case", func(t *testing.T) {
 		t.Parallel()
-		spokenFor := map[string]bool{}
-		for _, tc := range cases {
-			spokenFor[tc.ends] = true
-		}
 		for i := range htmlBlockKinds {
-			if ends := htmlBlockKinds[i].ends; !spokenFor[ends] {
-				t.Errorf("no case opens a block ending at %q, so nothing here proves a callout closes it", ends)
+			kind := &htmlBlockKinds[i]
+			spoken := false
+			for _, tc := range cases {
+				if kind.opens.MatchString(tc.opener) {
+					spoken = true
+					break
+				}
+			}
+			if !spoken {
+				t.Errorf("no case opens a block matching %v, so nothing here proves a callout closes it", kind.opens)
 			}
 		}
 	})
@@ -378,6 +385,52 @@ func TestABucketNobodyGaveALookToStops(t *testing.T) {
 			}()
 			_ = tc.look(strangeBucket)
 			t.Errorf("%s(%s) returned instead of panicking", tc.name, strangeBucket)
+		})
+	}
+}
+
+// TestARawTextBlockInACalloutEndsAtAnyRawTextCloser holds the rule the markdown
+// parser applies to the four raw-text elements: such a block ends at the first
+// line carrying any of their closing tags, not only the one matching what
+// opened it. A person who opens <script> and types </pre> has ended the block
+// as far as the parser that renders the page is concerned, so the scan that
+// runs ahead of it has to agree.
+//
+// When it did not, the scan went on believing the block was open, planted a
+// close of its own after the callout body, and the closing tag the author never
+// wrote arrived on the page as text.
+func TestARawTextBlockInACalloutEndsAtAnyRawTextCloser(t *testing.T) {
+	t.Parallel()
+	r := New(graph.BuildFromNotes(nil, nil), noBodies{}, anyTitle{}, holdsEverything{})
+
+	for _, tc := range []struct{ opener, closer string }{
+		{"<script>", "</pre>"},
+		{"<pre>", "</script>"},
+		{"<style>", "</textarea>"},
+		{"<textarea>", "</style>"},
+	} {
+		t.Run(tc.opener+" closed by "+tc.closer, func(t *testing.T) {
+			t.Parallel()
+			body := strings.Join([]string{
+				"> [!note] Aside", "> " + tc.opener, "> " + tc.closer, "", "Host paragraph after.",
+			}, "\n")
+			got := r.HTML("Notes/Runaway.md", "", body, wording.ZhHant).HTML
+
+			// Counted rather than matched against a shape: when this last went
+			// wrong the planted tag arrived inside a paragraph for three of the
+			// four openers and as a bare line for the other, so a check written
+			// for either shape reports the other one clean. The author typed one
+			// closing tag, so one may reach the page.
+			planted := 0
+			for _, closer := range []string{"</pre>", "</script>", "</style>", "</textarea>"} {
+				planted += strings.Count(got, html.EscapeString(closer))
+			}
+			if planted != 1 {
+				t.Errorf("the page carries %d raw-text closing tags where the author typed 1, so the scan wrote one of its own:\n%s", planted, got)
+			}
+			if open, shut := strings.Count(got, "<div"), strings.Count(got, "</div>"); open != shut {
+				t.Errorf("the page ships %d opened and %d closed divs:\n%s", open, shut, got)
+			}
 		})
 	}
 }
