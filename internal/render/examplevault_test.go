@@ -356,6 +356,39 @@ func (v *exampleVault) frontmatterKeys() map[string]bool {
 	return keys
 }
 
+// frontmatterValues gathers every value any note writes under one frontmatter
+// key, reading a scalar and a list alike so an enum governing either shape is
+// answered the same way.
+func (v *exampleVault) frontmatterValues(key string) map[string]bool {
+	values := map[string]bool{}
+	for _, note := range v.notes {
+		if value, ok := note.String(key); ok {
+			values[value] = true
+		}
+		for _, value := range note.Strings(key) {
+			values[value] = true
+		}
+	}
+	return values
+}
+
+// declaredEnumValues flattens one enum declaration. A type-conditional enum
+// arrives as a map of groups, and every group's values are equally declared.
+func declaredEnumValues(enum reflect.Value) []string {
+	switch declared := enum.Interface().(type) {
+	case []string:
+		return declared
+	case map[string][]string:
+		var out []string
+		for _, group := range declared {
+			out = append(out, group...)
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 func (v *exampleVault) noteTypes() map[string]bool {
 	types := map[string]bool{}
 	for _, note := range v.notes {
@@ -487,12 +520,39 @@ func assertEveryDeclarationIsUsed(t *testing.T, loaded *exampleVault) {
 		}
 	}
 
-	types := loaded.noteTypes()
-	for _, noteType := range definition.Enums.Type {
-		if !types[noteType] {
-			t.Errorf("the contract declares the note type %q and examples/vault holds no note of that type", noteType)
+	// Every value of every enum, not merely every enum. The ruling this vault
+	// is held to is that a contract may not name vocabulary no note writes, and
+	// a declared value nobody has ever written is exactly that. Which
+	// frontmatter key an enum governs is the enum's own toml name, so the
+	// pairing is read off the decoder's tags rather than kept in a list here.
+	enums := reflect.ValueOf(definition.Enums)
+	for _, enum := range reflect.VisibleFields(enums.Type()) {
+		key := enum.Tag.Get("toml")
+		written := loaded.frontmatterValues(key)
+		for _, value := range declaredEnumValues(enums.FieldByIndex(enum.Index)) {
+			if !written[value] {
+				t.Errorf("the contract lists %q among the values a note's %s may take, "+
+					"and no note in examples/vault takes it", value, key)
+			}
 		}
 	}
+
+	// [privacy] and [artifacts] hand out no list, so each is asked for its
+	// effect on this vault instead of for its contents. A boundary that
+	// withholds nothing and an artifact policy that covers nothing are
+	// contracts pointing at directories the vault does not have.
+	privacy := loaded.contract.PrivacyPolicy()
+	if !slices.ContainsFunc(loaded.entries, func(e vaultfs.Entry) bool { return !privacy.EgressAllowed(e.Path()) }) {
+		t.Error("never_egress_dirs withholds no file in examples/vault, so the privacy boundary " +
+			"names directories this vault does not have and nothing shows it holding anything back")
+	}
+	artifacts := loaded.contract.ArtifactPolicy()
+	if !slices.ContainsFunc(loaded.entries, func(e vaultfs.Entry) bool { return artifacts.IsNonInstance(e.Path()) }) {
+		t.Error("non_instance_dirs covers no file in examples/vault, so nothing shows a note that " +
+			"renders in full and carries no status control")
+	}
+
+	types := loaded.noteTypes()
 	for _, exempt := range definition.Fields.DomainExempt {
 		if !types[exempt] {
 			t.Errorf("the contract exempts type %q from a domain and examples/vault holds no such note", exempt)
