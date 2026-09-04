@@ -415,7 +415,7 @@ func looksRisky(line string) bool {
 // as literal source. At most one risky-fence diagnostic is recorded per call, and
 // a callout body or a transcluded embed is its own call.
 func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, col *collector) (out string, blocks, inline []string) {
-	st := &preprocessState{lines: strings.Split(body, "\n")}
+	st := &preprocessState{lines: strings.Split(body, "\n"), quoted: r.indentedCodeLines(body)}
 	st.kept = make([]string, 0, len(st.lines))
 
 	for st.i < len(st.lines) {
@@ -428,7 +428,15 @@ func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, col *collecto
 		case r.tryConsumeCallout(st, allowEmbed, col):
 			// handled: a known-type callout block was consumed.
 		default:
-			line := r.convertWikilinks(st.lines[st.i], allowEmbed, col, &st.inline)
+			// An indented code block hands its line to the reader as written, so
+			// a bracket pair on it is syntax being shown and stays as typed. The
+			// address a line carries is read there all the same, because a code
+			// block is somewhere in the note a reader can be sent to and the
+			// adjudicator counts one written there.
+			line := st.lines[st.i]
+			if !st.quoted[st.i] {
+				line = r.convertWikilinks(line, allowEmbed, col, &st.inline)
+			}
 			// A transcluded body's blocks belong to the note it came from, so an
 			// excerpt brings no addresses into the page reading it; embeds being
 			// allowed is exactly the state of being the note's own text. Links
@@ -449,6 +457,11 @@ func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, col *collecto
 type preprocessState struct {
 	lines []string
 	i     int
+
+	// quoted holds the lines an indented code block shows as written. It is
+	// read once per body rather than per line, since answering it needs the
+	// whole body's block structure.
+	quoted map[int]bool
 
 	kept   []string
 	blocks []string
