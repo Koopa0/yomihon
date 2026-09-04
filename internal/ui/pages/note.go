@@ -54,11 +54,15 @@ func noteDateLabel(v *NoteView, lang wording.Lang) string {
 	return wording.UpdatedOn.In(lang)
 }
 
-// articleLanguageAttrs states an article's language only where the note declared
-// one and the contract gave that declaration authority. A note that declared
-// nothing contributes no attribute and inherits the page's language, because the
-// undetermined tag would halt that inheritance for everything beneath it.
-func articleLanguageAttrs(tag string) templ.Attributes {
+// authoredLanguageAttrs states the language the note's author wrote in, only
+// where the note declared one and the contract gave that declaration authority.
+// It goes on every element whose text is the author's rather than the
+// interface's, which is not only the article: the contents list repeats the
+// note's own headings from outside it, and the preview card shows the note's
+// body somewhere else again. A note that declared nothing contributes no
+// attribute and inherits the page's language, because the undetermined tag would
+// halt that inheritance for everything beneath it.
+func authoredLanguageAttrs(tag string) templ.Attributes {
 	if tag == "" {
 		return nil
 	}

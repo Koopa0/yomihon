@@ -139,7 +139,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
 				@flipReceipt(v, lang)
-				<article class="y-article" { articleLanguageAttrs(v.Language)... }>
+				<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
 					@articleHead(v, lang)
 					@inlineAids(v, lang)
 					<div class="y-prose">
@@ -247,7 +247,7 @@ templ rightRail(v NoteView, lang wording.Lang) {
 		if len(v.TOC) > 0 {
 			<nav aria-label={ wording.OnThisPage.In(lang) }>
 				<div class="ui-side__label">{ wording.OnThisPage.In(lang) }</div>
-				@tocList(v, lang)
+				@tocList(v)
 			</nav>
 		}
 		@citedBy(v, lang)
@@ -315,8 +315,17 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 
 // tocList is the table-of-contents link list, shared by the right rail and the
 // inline disclosure so the two render one surface.
-templ tocList(v NoteView, lang wording.Lang) {
-	<div class="y-toc__list">
+//
+// Every entry is one of the note's own headings reprinted, so the list carries
+// the note's language and takes no interface language at all. It needs saying
+// on the list because neither copy would otherwise inherit the right answer:
+// the folded one sits inside a block that declares the language the interface
+// speaks, and the rail one sits outside the article entirely, where the
+// document's language is all there is. A note that declared no language stamps
+// nothing here either, and both copies inherit the same page language the
+// article does.
+templ tocList(v NoteView) {
+	<div class="y-toc__list" { authoredLanguageAttrs(v.Language)... }>
 		for _, h := range v.TOC {
 			<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
 		}
@@ -334,7 +343,7 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 						@chevron()
 						{ wording.OnThisPage.In(lang) }
 					</summary>
-					@tocList(v, lang)
+					@tocList(v)
 				</details>
 			}
 			// This block sits between the title and the first sentence, so it

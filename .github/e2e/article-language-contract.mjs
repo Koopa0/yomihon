@@ -27,6 +27,7 @@ const SITES = [
   'declared-shell-language',
   'declared-article-language',
   'inline-aids-chrome-language',
+  'toc-authored-language',
   'slot-machine-chrome-language',
   'slot-output-authored-language',
   'tts-chrome-language',
@@ -54,7 +55,11 @@ const fail = (site, message) => {
 const broken = (message) => { throw new ProbeBroken(`BROKEN article-language-contract: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED article-language-contract: ${message}`); };
 
-const rewritePath = (path, needle, replacement, label) => async (page) => {
+// want is how many copies of the needle the page has to be carrying for the
+// mutation to be the one it claims to be. It is 1 for a shape emitted once; a
+// component the page draws in two places emits its needle twice, and rewriting
+// only the first copy would leave the second one standing and prove nothing.
+const rewritePath = (path, needle, replacement, label, want = 1) => async (page) => {
   let requests = 0;
   let matches = 0;
   await page.route(BASE + path, async (route) => {
@@ -62,14 +67,38 @@ const rewritePath = (path, needle, replacement, label) => async (page) => {
     const response = await route.fetch();
     const original = await response.text();
     matches += original.split(needle).length - 1;
-    await route.fulfill({ response, body: original.replace(needle, replacement) });
+    await route.fulfill({ response, body: original.replaceAll(needle, replacement) });
   });
   return () => {
     if (requests !== 1) return `${label} response was requested ${requests} times, want exactly 1`;
-    if (matches !== 1) return `${label} needle matched ${matches} times, want exactly 1`;
+    if (matches !== want) return `${label} needle matched ${matches} times, want exactly ${want}`;
     return '';
   };
 };
+
+// readLanguages runs inside the page and is the one place the run says which
+// elements it is asking about, so the two passes cannot come to hold different
+// selectors for the same question.
+//
+// A contents entry is one of the note's own headings reprinted, and it is
+// reprinted outside the article: once inside the aids block, which speaks the
+// interface's language, and once in the rail, which is not inside the article
+// at all. So an entry cannot be read by its own attribute — it usually has
+// none. What decides how it is announced is the nearest declaration above it,
+// which is what this collects.
+const readLanguages = () => ({
+  shellLanguage: document.documentElement.getAttribute('lang'),
+  articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
+  inlineAidsLanguages: Array.from(document.querySelectorAll('.y-inlineaids'), (element) => element.getAttribute('lang')),
+  slotMachineLanguages: Array.from(document.querySelectorAll('.y-slotmachine'), (element) => element.getAttribute('lang')),
+  slotOutputLanguages: Array.from(document.querySelectorAll('.y-slotoutput'), (element) => element.getAttribute('lang')),
+  ttsLanguages: Array.from(document.querySelectorAll('.y-tts'), (element) => element.getAttribute('lang')),
+  readingLanguages: Array.from(document.querySelectorAll('.y-reading'), (element) => element.getAttribute('lang')),
+  contentsEntries: Array.from(document.querySelectorAll('.y-toc__list a'), (entry) => ({
+    where: entry.closest('.y-inlineaids') ? 'the folded contents' : entry.closest('.y-rail-right') ? 'the rail contents' : 'a contents list in neither known place',
+    inherits: entry.closest('[lang]')?.getAttribute('lang') ?? null,
+  })),
+});
 
 const MUTATIONS = {
   'drop-fixture-lang': {
@@ -91,6 +120,13 @@ const MUTATIONS = {
   'drop-inline-aids-chrome-lang': {
     target: 'inline-aids-chrome-language',
     apply: rewritePath(DECLARED_PAGE, '<div class="y-inlineaids" lang="zh-Hant">', '<div class="y-inlineaids">', 'inline reading aids language'),
+  },
+  // The contents list is one component drawn twice — folded into the article
+  // and open in the right rail — so both copies carry the needle and both have
+  // to lose it, or the surviving copy would answer for the mutated one.
+  'drop-toc-authored-lang': {
+    target: 'toc-authored-language',
+    apply: rewritePath(DECLARED_PAGE, '<div class="y-toc__list" lang="ja">', '<div class="y-toc__list">', 'contents-list authored language', 2),
   },
   'drop-slot-machine-chrome-lang': {
     target: 'slot-machine-chrome-language',
@@ -133,6 +169,11 @@ const MUTATIONS = {
     on: 'switched',
     apply: rewritePath(DECLARED_PAGE, '<article class="y-article" lang="ja">', '<article class="y-article" lang="en">', 'switched note article language'),
   },
+  'switched-toc-follows-chrome': {
+    target: 'switched-authored-language',
+    on: 'switched',
+    apply: rewritePath(DECLARED_PAGE, '<div class="y-toc__list" lang="ja">', '<div class="y-toc__list" lang="en">', 'switched contents-list language', 2),
+  },
 };
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
@@ -167,15 +208,7 @@ try {
 
   let response = await page.goto(BASE + DECLARED_PAGE, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) broken(`${DECLARED_PAGE} returned ${response?.status() ?? 'no response'}, want 200`);
-  const declaredDOM = await page.evaluate(() => ({
-    shellLanguage: document.documentElement.getAttribute('lang'),
-    articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
-    inlineAidsLanguages: Array.from(document.querySelectorAll('.y-inlineaids'), (element) => element.getAttribute('lang')),
-    slotMachineLanguages: Array.from(document.querySelectorAll('.y-slotmachine'), (element) => element.getAttribute('lang')),
-    slotOutputLanguages: Array.from(document.querySelectorAll('.y-slotoutput'), (element) => element.getAttribute('lang')),
-    ttsLanguages: Array.from(document.querySelectorAll('.y-tts'), (element) => element.getAttribute('lang')),
-    readingLanguages: Array.from(document.querySelectorAll('.y-reading'), (element) => element.getAttribute('lang')),
-  }));
+  const declaredDOM = await page.evaluate(readLanguages);
   const declaredRaw = await page.evaluate(async (path) => {
     const result = await fetch(path, { cache: 'no-store' });
     return { status: result.status, body: await result.text() };
@@ -202,14 +235,7 @@ try {
   if (mutation && mutation.on === 'switched') proof = await mutation.apply(switchedPage);
   response = await switchedPage.goto(BASE + DECLARED_PAGE, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) broken(`${DECLARED_PAGE} in English returned ${response?.status() ?? 'no response'}, want 200`);
-  const switchedDOM = await switchedPage.evaluate(() => ({
-    shellLanguage: document.documentElement.getAttribute('lang'),
-    articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
-    inlineAidsLanguages: Array.from(document.querySelectorAll('.y-inlineaids'), (element) => element.getAttribute('lang')),
-    slotMachineLanguages: Array.from(document.querySelectorAll('.y-slotmachine'), (element) => element.getAttribute('lang')),
-    slotOutputLanguages: Array.from(document.querySelectorAll('.y-slotoutput'), (element) => element.getAttribute('lang')),
-    readingLanguages: Array.from(document.querySelectorAll('.y-reading'), (element) => element.getAttribute('lang')),
-  }));
+  const switchedDOM = await switchedPage.evaluate(readLanguages);
 
   if (proof) {
     const issue = proof();
@@ -240,6 +266,28 @@ try {
   }
   if (declaredDOM.inlineAidsLanguages.length !== 1 || declaredDOM.inlineAidsLanguages[0] !== 'zh-Hant') {
     fail('inline-aids-chrome-language', `inline reading-aids langs are ${JSON.stringify(declaredDOM.inlineAidsLanguages)}, want exactly ["zh-Hant"]`);
+  }
+  // The label above the list is the interface's word for the list; the entries
+  // under it are the author's words for their own sections. The aids block
+  // declares the first, and it must not be left declaring the second — a
+  // Japanese heading announced in the reader's interface language is announced
+  // wrong, and the rail's copy, outside the article entirely, would be read in
+  // the document's language for the same reason.
+  const contentsPlaces = ['the folded contents', 'the rail contents'];
+  for (const [pass, entries] of [['reading it', declaredDOM.contentsEntries], ['reading it in English', switchedDOM.contentsEntries]]) {
+    for (const place of contentsPlaces) {
+      if (!entries.some((entry) => entry.where === place)) {
+        broken(`${pass}, ${place} hold no entries, so the language of a contents entry is not being checked anywhere`);
+      }
+    }
+    const stray = entries.find((entry) => !contentsPlaces.includes(entry.where));
+    if (stray) broken(`${pass}, a contents list appeared outside both known places, so this run cannot say where its entries are announced`);
+  }
+  for (const place of contentsPlaces) {
+    const inherited = Array.from(new Set(declaredDOM.contentsEntries.filter((entry) => entry.where === place).map((entry) => entry.inherits)));
+    if (inherited.length !== 1 || inherited[0] !== 'ja') {
+      fail('toc-authored-language', `${place} are announced in ${JSON.stringify(inherited)} — the nearest language declared above them — want exactly ["ja"]: the entries are the note's own headings, so they inherit the note's language, not the interface's`);
+    }
   }
   if (declaredDOM.slotMachineLanguages.length !== 1 || declaredDOM.slotMachineLanguages[0] !== 'zh-Hant') {
     fail('slot-machine-chrome-language', `slot-machine langs are ${JSON.stringify(declaredDOM.slotMachineLanguages)}, want exactly ["zh-Hant"]`);
@@ -286,8 +334,14 @@ try {
       fail('switched-authored-language', `with the language set to English ${what} declares ${JSON.stringify(langs)}, want exactly ["ja"]: the author's language is not the reader's to change`);
     }
   }
+  for (const place of contentsPlaces) {
+    const inherited = Array.from(new Set(switchedDOM.contentsEntries.filter((entry) => entry.where === place).map((entry) => entry.inherits)));
+    if (inherited.length !== 1 || inherited[0] !== 'ja') {
+      fail('switched-authored-language', `with the language set to English ${place} are announced in ${JSON.stringify(inherited)}, want exactly ["ja"]: the headings they reprint stayed Japanese when the interface around them turned English`);
+    }
+  }
 
-  console.log('PASS article-language-contract: article, chrome islands, read-aloud, and slot output keep their ruled language boundaries, in both languages the chrome speaks');
+  console.log('PASS article-language-contract: article, chrome islands, contents entries, read-aloud, and slot output keep their ruled language boundaries, in both languages the chrome speaks');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
