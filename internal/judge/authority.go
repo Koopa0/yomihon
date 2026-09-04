@@ -35,6 +35,17 @@ type scanAuthority struct {
 	privacy  schema.PrivacyPolicy
 }
 
+// domainRoots are the folders the contract declares a note's own folder names
+// its knowledge domain under. The reports group by them, and the frontmatter
+// rule enforces the same declaration, so both read one key rather than each
+// carrying a copy of this vault's layout.
+func (a scanAuthority) domainRoots() domainRoots {
+	if a.contract == nil {
+		return nil
+	}
+	return a.contract.Definition().Rules.DomainEqualsFolderUnder
+}
+
 func loadScanAuthority(ctx context.Context, reader *vaultfs.Reader) (scanAuthority, error) {
 	contract, err := schema.LoadReader(ctx, reader)
 	if err != nil {

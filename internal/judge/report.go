@@ -14,12 +14,36 @@ import (
 // count of the informational ones. Both renderers share one packing, so they
 // never disagree on the numbers, and both are part of the frozen output.
 
-// domainOf infers a finding's knowledge domain from its vault path, following
-// the folder convention under the two knowledge roots, and reports "(other)"
-// when the path carries no domain.
-func domainOf(path string) string {
-	for _, prefix := range []string{conceptDomainRoot, lessonDomainRoot} {
-		if rest, ok := strings.CutPrefix(path, prefix); ok {
+// domainRoots are the folders under which a note's own folder names its
+// knowledge domain. The contract declares them, under the same key the
+// frontmatter rule reads, so the report groups a vault the way that vault says
+// it is arranged rather than the way this repository's own vault happens to be.
+// A vault that files its lessons flat has no domain in those paths, and they
+// land under the no-domain heading — which is the truth about the path, not a
+// gap in the report.
+type domainRoots []string
+
+// nestedLessonRoot is a second root the report reads, and no contract declares
+// it. The contract's key takes a first path segment — its loader refuses an
+// entry carrying a slash — so a vault filing its lessons under Writing/lessons/
+// has no way to say so, and a report reading only the declaration files every
+// one of them under the no-domain heading. That is a real loss on the vault this
+// product was built for: findings that arrived under two domain headings
+// collapse into one.
+//
+// So it stays, and stays as what it is: a folder layout written down here
+// because the declaration cannot carry it. What removes it is a contract key
+// that can express a nested root, which is a change to the vocabulary and not
+// to this file.
+const nestedLessonRoot = "Writing/lessons"
+
+// of infers a finding's knowledge domain from its vault path, and reports
+// "(other)" when the path carries no domain. The declared entry is the first
+// path segment and the domain is the one under it, matching how the
+// frontmatter rule reads the same declaration.
+func (r domainRoots) of(path string) string {
+	for _, root := range append(slices.Clone(r), nestedLessonRoot) {
+		if rest, ok := strings.CutPrefix(path, root+"/"); ok {
 			seg, _, _ := strings.Cut(rest, "/")
 			return seg
 		}
@@ -76,7 +100,7 @@ type packed struct {
 // total minus the errors and warns, and the external slice is subtracted from
 // it to leave the planned count, so planned plus external always equals hidden
 // and the count line can never under-report a hidden finding.
-func pack(findings []Finding) packed {
+func pack(findings []Finding, roots domainRoots) packed {
 	errors, warns := 0, 0
 	for i := range findings {
 		switch findings[i].Severity {
@@ -97,9 +121,9 @@ func pack(findings []Finding) packed {
 	return packed{
 		errors:     errors,
 		warns:      warns,
-		scoreboard: scoreboard(findings),
-		leverage:   leverage(findings),
-		sections:   domainSections(findings),
+		scoreboard: scoreboard(findings, roots),
+		leverage:   leverage(findings, roots),
+		sections:   domainSections(findings, roots),
 		planned:    hidden - external,
 		external:   external,
 	}
@@ -108,10 +132,10 @@ func pack(findings []Finding) packed {
 // scoreboard tallies error and warn counts per domain, dropping domains with
 // neither, and orders them by total debt: most findings first, then most
 // errors, then domain name.
-func scoreboard(findings []Finding) []scoreRow {
+func scoreboard(findings []Finding, roots domainRoots) []scoreRow {
 	board := make(map[string][2]int)
 	for i := range findings {
-		d := domainOf(findings[i].Path)
+		d := roots.of(findings[i].Path)
 		slot := board[d]
 		switch findings[i].Severity {
 		case SeverityError:
@@ -143,7 +167,7 @@ func scoreboard(findings []Finding) []scoreRow {
 // leverage aggregates every link finding by its normalized target, keeping only
 // targets more than one reference names. A target is planned only when every
 // reference to it is planned. The result is ordered by fan-in, then by target.
-func leverage(findings []Finding) []leverageEntry {
+func leverage(findings []Finding, roots domainRoots) []leverageEntry {
 	type agg struct {
 		target  string
 		count   int
@@ -167,7 +191,7 @@ func leverage(findings []Finding) []leverageEntry {
 		}
 		a.count++
 		a.planned = a.planned && f.Severity == SeverityInfo
-		if d := domainOf(f.Path); !slices.Contains(a.domains, d) {
+		if d := roots.of(f.Path); !slices.Contains(a.domains, d) {
 			a.domains = append(a.domains, d)
 		}
 	}
@@ -193,7 +217,7 @@ func leverage(findings []Finding) []leverageEntry {
 // domain, folding identical findings (same rule and target) and summing their
 // blast radius. Domains are ordered by total blast; within a domain, items are
 // ordered error-first, then by blast, then by message.
-func domainSections(findings []Finding) []domainSection {
+func domainSections(findings []Finding, roots domainRoots) []domainSection {
 	type folded struct {
 		domain string
 		item   packedItem
@@ -204,7 +228,7 @@ func domainSections(findings []Finding) []domainSection {
 		if f.Severity == SeverityInfo {
 			continue
 		}
-		d := domainOf(f.Path)
+		d := roots.of(f.Path)
 		target := f.Path
 		if f.Target != nil {
 			target = *f.Target
@@ -256,8 +280,8 @@ func sumBlast(items []packedItem) int {
 }
 
 // humanReport renders the packed findings for a terminal reader.
-func humanReport(findings []Finding) string {
-	p := pack(findings)
+func humanReport(findings []Finding, roots domainRoots) string {
+	p := pack(findings, roots)
 	var s strings.Builder
 	fmt.Fprintf(&s, "%d findings: %d error, %d warn, %d hidden (%d planned forward-refs, %d external paths)\n",
 		len(findings), p.errors, p.warns, p.planned+p.external, p.planned, p.external)
@@ -288,8 +312,8 @@ func humanReport(findings []Finding) string {
 // markdownReport renders the packed findings as a fileable markdown note body.
 // The frontmatter is deterministic — no timestamp — so the caller stamps and
 // routes it, and the tool identity names whatever produced the note.
-func markdownReport(findings []Finding) string {
-	p := pack(findings)
+func markdownReport(findings []Finding, roots domainRoots) string {
+	p := pack(findings, roots)
 	var s strings.Builder
 	s.WriteString("---\ntype: report\ntool: yomihon\n---\n\n# yomihon check\n\n")
 	fmt.Fprintf(&s, "%d findings — **%d error**, **%d warn**, %d hidden.\n\n", len(findings), p.errors, p.warns, p.planned+p.external)
