@@ -6,38 +6,6 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// Chrome is the per-request shell state rendered server-side: the page title
-// and the persisted theme / furigana / text-size / single-key-shortcut signals
-// stamped onto the root so the correct state paints on the first byte (no
-// FOUC).
-// The client runtime flips these attributes and their cookies; CSS reacts (see
-// assets/css/*). The server-rendered page remains usable without enhancement.
-type Chrome struct {
-	Title string // page title (before " — yomihon")
-	Nonce string // per-response nonce for application-owned scripts
-	// Theme is the reader's stored choice: "light", "dark", or "" when they
-	// never made one. A choice is stamped on the root so the first paint is
-	// already right; no choice leaves the root unstamped and the stylesheet's
-	// system-preference block decides.
-	Theme string
-	Ruby  string // "on" | "off"
-	// TextSize scales the reading column: "m" (the default measure), "l", or
-	// "xl". It tunes presentation only — the charter's bounded reading
-	// preferences — and the chrome around the article keeps its own size.
-	TextSize                  string
-	SingleKeyShortcutsEnabled bool // plain / and [ are enabled
-	// Lang is the language the interface speaks for this request, and the
-	// language the document declares. The article inside it may declare its
-	// own; that answers what the note is written in, which is a different
-	// question from what the interface is saying.
-	Lang wording.Lang
-	// ReturnTo is this request's own address — path and query — carried into
-	// the language form so the redirect after the switch lands the reader back
-	// on the page they were reading. The server validates it as a local path
-	// before following it.
-	ReturnTo string
-}
-
 // Base is the document every page is rendered inside: the themed html element
 // carrying the reader's own presentation choices, the head, the shared header,
 // the search dialog, and the script that enhances all of it. A page supplies
