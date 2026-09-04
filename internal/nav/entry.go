@@ -1,6 +1,11 @@
 package nav
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
+)
 
 // EntryKind distinguishes a linked entry from each warning-row reason. Both row
 // families carry it: what resolving a target found is one question on either.
@@ -34,5 +39,31 @@ func (k EntryKind) String() string {
 		return "non-instance"
 	default:
 		panic("nav: unknown EntryKind: " + strconv.Itoa(int(k)))
+	}
+}
+
+// entryKindOf classifies one resolved target the way both reader-facing rows
+// classify it. The map's rows and a study path's rows ask the same question of
+// the same resolver, and they used to answer it in two places: the same four
+// outcomes written twice, with opposite policies for a value neither of them
+// recognized. One of them stopped; the other filed it as "no such note", which
+// is a sentence about the vault rather than about the code.
+//
+// A kind outside the resolver's closed set is a programming error, so this
+// stops. Reporting it as an unresolved link would blame an author for a note
+// they wrote and yomihon failed to classify.
+func entryKindOf(res graph.Resolution, policy schema.ArtifactPolicy) EntryKind {
+	switch res.Kind {
+	case graph.KindUnique:
+		if policy.IsNonInstance(res.RelPath) {
+			return EntryNonInstance
+		}
+		return EntryResolved
+	case graph.KindAmbiguous:
+		return EntryAmbiguous
+	case graph.KindUnresolved:
+		return EntryUnresolved
+	default:
+		panic("nav: unknown graph.Kind: " + res.Kind.String())
 	}
 }

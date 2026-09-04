@@ -254,20 +254,13 @@ func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, p
 		return MapEntry{}, false
 	}
 	res := idx.Resolve(target)
-	switch res.Kind {
-	case graph.KindUnique:
-		if policy.IsNonInstance(res.RelPath) {
-			return MapEntry{Text: display, Target: target, Kind: EntryNonInstance}, true
-		}
-		return MapEntry{Text: display, Target: target, RelPath: res.RelPath, Status: statusByPath[res.RelPath], Kind: EntryResolved}, true
-	case graph.KindAmbiguous:
-		return MapEntry{Text: display, Target: target, Kind: EntryAmbiguous, Candidates: slices.Clone(res.Candidates)}, true
-	case graph.KindUnresolved:
-		return MapEntry{Text: display, Target: target, Kind: EntryUnresolved}, true
-	default:
-		// The resolver's kind set is closed, so a value outside it is a
-		// programming error rather than a state a vault can produce: dropping
-		// the row would break the promise that a map loses no entry.
-		panic("nav: unknown graph.Kind: " + res.Kind.String())
+	entry := MapEntry{Text: display, Target: target, Kind: entryKindOf(res, policy)}
+	if entry.Kind == EntryResolved {
+		entry.RelPath = res.RelPath
+		entry.Status = statusByPath[res.RelPath]
 	}
+	if entry.Kind == EntryAmbiguous {
+		entry.Candidates = slices.Clone(res.Candidates)
+	}
+	return entry, true
 }
