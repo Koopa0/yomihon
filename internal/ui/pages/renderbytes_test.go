@@ -374,6 +374,15 @@ func recordedSearchView(model *nav.Model) SearchView {
 			SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " after"}},
 			PathRuns:    []SnippetRun{{Text: "Writing/"}, {Text: "lessons", Hit: true}},
 			AliasRuns:   []SnippetRun{{Text: "another name"}},
+		}, {
+			// A match with words on either side of it: the row that shows what
+			// the marked stretches do to the string they were cut from, which a
+			// match at the end of a path cannot show.
+			RelPath:     "Writing/lessons/go/Reading kafka from source.md",
+			Title:       "Reading kafka from source",
+			Status:      "ready",
+			SnippetRuns: []SnippetRun{{Text: "the "}, {Text: "kafka", Hit: true}, {Text: " reader keeps its offsets"}},
+			PathRuns:    []SnippetRun{{Text: "Writing/lessons/go/Reading "}, {Text: "kafka", Hit: true}, {Text: " from source.md"}},
 		}},
 		Total:             3,
 		UnknownFilterKeys: []string{"tag", "kind"},

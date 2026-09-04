@@ -85,8 +85,10 @@ var FilterKeysAvailable = both("可用的篩選器:", "Filters you can use: ")
 
 // ResultAliasLabel introduces the name a result answered to when it was not
 // the title the row shows. Without the word, the name would sit beside the
-// title looking like a second title.
-var ResultAliasLabel = both("別名:", "also called ")
+// title looking like a second title. The gap after the label belongs to the
+// phrase in both languages, so the space a reader sees is one an author chose
+// rather than one a template happened to keep.
+var ResultAliasLabel = both("別名: ", "also called ")
 
 // What the live search says about an answer it fetched, which is counted in
 // the browser and therefore said there. The placeholders are filled in by the
