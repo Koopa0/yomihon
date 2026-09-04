@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
@@ -50,10 +51,16 @@ func New(source *vaultfs.Reader, snapshotProvider func() RequestSnapshot, log *s
 
 // resolveReport matches a requested name against the briefings nav enumerated.
 // The name is compared, never joined, so nothing outside that set can match.
+//
+// A vault holds its names composed and a request can carry either spelling of
+// the same letter, so the name is composed before it is compared. Composition
+// is canonical: it cannot introduce a separator or a dot segment, and the
+// comparison it feeds is still against an enumerated set.
 func resolveReport(model *nav.Model, name string) (nav.Report, bool) {
 	if model == nil {
 		return nav.Report{}, false
 	}
+	name = vault.NormalizeNFC(name)
 	for _, rep := range model.Reports() {
 		if rep.Briefing && rep.Name == name {
 			return rep, true
