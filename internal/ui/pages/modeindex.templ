@@ -16,9 +16,7 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 			<div class="y-home">
 				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
 				if v.Fault != "" {
-					<p class="y-homeempty" data-index-fault>
-						@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
-					</p>
+					@indexFault(v.Fault, c)
 				} else if len(v.Rows) == 0 {
 					<p class="y-homeempty" data-index-empty>{ v.Empty }</p>
 				}
@@ -55,9 +53,7 @@ templ FolderIndex(v FolderIndexView, c layouts.Chrome) {
 			<div class="y-home">
 				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
 				if v.Fault != "" {
-					<p class="y-homeempty" data-index-fault>
-						@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
-					</p>
+					@indexFault(v.Fault, c)
 				}
 				if len(v.RootNotes) == 0 && len(v.Folders) == 0 {
 					if v.Fault == "" {
@@ -73,6 +69,66 @@ templ FolderIndex(v FolderIndexView, c layouts.Chrome) {
 						}
 					</nav>
 				}
+				// What changed last and where every note sits are questions
+				// about how the shelf is kept, so they are answered in the mode
+				// that browses by position rather than on the desk a reader
+				// arrives at to read something.
+				<div class="y-homegrid y-shelfblocks">
+					if v.ShowRecent {
+						<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="folders-recent-title">
+							@homeBlockHead("folders-recent-title", recentTitle(&v, c.Lang), recentLede(&v, c.Lang))
+							<div class="y-homerecent">
+								for _, n := range v.Recent {
+									<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
+										<span class="y-homenote__main">
+											<span class="y-homenote__title">{ n.Title }</span>
+											<span class="y-homenote__path">{ n.RelPath }</span>
+										</span>
+										<span class="y-homenote__meta">
+											if n.Status != "" {
+												<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
+												if n.StatusOutsideEnum {
+													@statusOutsideEnumMark(c.Lang)
+												}
+											}
+											if n.Modified != "" {
+												<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
+											}
+										</span>
+									</a>
+								}
+							</div>
+						</section>
+					}
+					if v.ShowLifecycle {
+						<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="folders-lifecycle-title">
+							@homeBlockHead("folders-lifecycle-title", wording.HomeLifecycleTitle.In(c.Lang), wording.HomeLifecycleLede.In(c.Lang))
+							<div class="y-homechips">
+								for _, it := range v.Lifecycle {
+									<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>
+										@lifecycleChipBody(it, c.Lang)
+									</a>
+								}
+							</div>
+							if len(v.Unstated) > 0 {
+								<div class="y-homeunstated">
+									for _, it := range v.Unstated {
+										if it.Href == "" {
+											<span class="y-homeunstated__cell">
+												@unstatedChipBody(it, c.Lang)
+											</span>
+										} else {
+											<a class="y-homeunstated__cell" href={ templ.URL(it.Href) }>
+												@unstatedChipBody(it, c.Lang)
+											</a>
+										}
+									}
+								</div>
+								<p class="y-homeblock__note">{ wording.LifecycleUnstatedNote.In(c.Lang) }</p>
+							}
+						</section>
+					}
+				</div>
 			</div>
 		</main>
 	}
@@ -110,4 +166,15 @@ templ indexHead(kicker, title, lede string, lang wording.Lang) {
 		<p>{ lede }</p>
 		<a class="y-back" href="/">{ wording.BackHome.In(lang) }</a>
 	</header>
+}
+
+// indexFault states, in the one shape every surface uses for it, why a
+// projection this page would have listed is unavailable.
+templ indexFault(fault string, c layouts.Chrome) {
+	<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="index-faults-title">
+		@homeBlockHead("index-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
+		<p class="y-homeempty" data-home-fault>
+			@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), fault)
+		</p>
+	</section>
 }

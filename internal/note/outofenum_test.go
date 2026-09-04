@@ -57,7 +57,7 @@ func homeChip(t *testing.T, body, name string) string {
 func TestHomeFlagsAStatusOutsideEveryCarriersEnum(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -106,7 +106,7 @@ func TestMixedCarriersSplitTheChipAndTheCount(t *testing.T) {
 	write("Concepts/misfiled.md", "---\ntitle: Misfiled\ntype: concept\ndomain: golang\nstatus: active\n---\n\nbody\n")
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, home := get(t, srv.Client(), srv.URL+"/")
+	code, home := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
 		t.Fatalf("home status = %d, want 200", code)
 	}
@@ -259,7 +259,7 @@ func visibleOnly(markup string) string {
 func TestHomeChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -281,7 +281,7 @@ func TestHomeChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
 func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -314,7 +314,7 @@ func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 func TestHomeRecentRowAccusesNothingWithoutAContract(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, outOfEnumVault(t))
-	code, body := get(t, srv.Client(), srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}

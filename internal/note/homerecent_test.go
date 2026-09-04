@@ -78,9 +78,9 @@ func TestRecentHomeNotesAccuseNothingWhenTheContractCannotBeRead(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			recent, _ := recentHomeNotes(notes, true, tt.view)
+			recent, _ := recentShelfNotes(notes, true, tt.view)
 			if len(recent) != len(notes) {
-				t.Fatalf("recentHomeNotes returned %d rows, want %d", len(recent), len(notes))
+				t.Fatalf("recentShelfNotes returned %d rows, want %d", len(recent), len(notes))
 			}
 			flags := 0
 			for _, n := range recent {
@@ -92,7 +92,7 @@ func TestRecentHomeNotesAccuseNothingWhenTheContractCannotBeRead(t *testing.T) {
 				}
 			}
 			if flags != tt.wantFlags {
-				t.Errorf("recentHomeNotes flagged %d rows, want %d", flags, tt.wantFlags)
+				t.Errorf("recentShelfNotes flagged %d rows, want %d", flags, tt.wantFlags)
 			}
 		})
 	}

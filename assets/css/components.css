@@ -876,8 +876,17 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-home__head > p { max-width: 600px; margin: 10px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg-subtle); }
 .y-homegrid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
 .y-homeblock { min-width: 0; padding: 20px 22px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
-.y-homeblock--recent, .y-homeblock--paths { grid-column: span 7; }
-.y-homeblock--lifecycle, .y-homeblock--search { grid-column: span 5; }
+.y-homeblock--recent { grid-column: span 7; }
+.y-homeblock--lifecycle { grid-column: span 5; }
+/* The four ways in sit two by two; the desk's own search field is not one of
+   them and takes the width under them. */
+.y-modeblock { grid-column: span 6; }
+.y-modeblock h2 a { color: inherit; }
+.y-modeblock h2 a:hover { color: var(--link); }
+.y-homeblock--search { grid-column: 1 / -1; }
+.y-homeblock__lede { margin: -8px 0 12px; font-family: var(--font-serif); font-size: var(--fs-13); font-style: italic; color: var(--fg-faint); }
+.y-homeseamnote { margin: 16px 0 0; font-family: var(--font-serif); font-style: italic; font-size: var(--fs-13); color: var(--fg-faint); }
+.y-shelfblocks { margin-top: 30px; }
 /* A fault the whole page is subject to is full-width news, and it reads as a
    sentence rather than a column of items. Without a track of its own it auto-
    places into a single twelfth and the message renders as an unreadable
@@ -923,7 +932,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-homereadme__head h2 { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); font-weight: var(--fw-regular); color: var(--fg); }
 
 @media (max-width: 1180px) {
-  .y-homeblock--recent, .y-homeblock--paths, .y-homeblock--lifecycle, .y-homeblock--search, .y-homestandin { grid-column: 1 / -1; }
+  .y-homeblock--recent, .y-modeblock, .y-homeblock--lifecycle, .y-homeblock--search, .y-homestandin { grid-column: 1 / -1; }
 }
 
 /* The four mode index pages — one kind of thing, listed whole. They carry no

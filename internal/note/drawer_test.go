@@ -461,7 +461,7 @@ func TestHomeSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 			write(t, root, "Concepts/"+name, stamp)
 		}
 		srv := newServerWithContract(t, root, loadHomeContract(t))
-		code, body := get(t, srv.Client(), srv.URL+"/")
+		code, body := get(t, srv.Client(), srv.URL+"/folders")
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
@@ -480,7 +480,7 @@ func TestHomeSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 			write(t, root, "Concepts/"+name, stamp.AddDate(0, 0, i))
 		}
 		srv := newServerWithContract(t, root, loadHomeContract(t))
-		code, body := get(t, srv.Client(), srv.URL+"/")
+		code, body := get(t, srv.Client(), srv.URL+"/folders")
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}

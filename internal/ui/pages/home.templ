@@ -7,24 +7,20 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// homeReadmeRelPath and homeReadmeTitle name the folder's own introduction.
-// Home links to it rather than reprinting it: it is a note, it has a page, and
-// a reader who wants it is one click away.
-const (
-	homeReadmeRelPath = "README.md"
-)
+// homeReadmeRelPath names the folder's own introduction. The desk links to it
+// rather than reprinting it: it is a note, it has a page, and a reader who
+// wants it is one click away.
+const homeReadmeRelPath = "README.md"
 
-// HomeView is everything the landing page shows about a vault at one moment:
-// whether a contract governs it, what is wrong with the vault or with this
-// reading of it, and the blocks answering what has been happening. A folder
-// that fills none of them gets a sentence instead. A withheld block renders
-// nothing at all, Fault carrying its reason once for the whole page.
+// HomeView is the desk: the four ways into the library, and whatever is wrong
+// with the vault or with this reading of it. A folder that fills none of the
+// blocks gets a sentence instead. The faults sit below the seam, where a reader
+// who came to read is not made to walk past them.
 type HomeView struct {
-	Governed bool
-	Fault    string
+	Fault string
 	// PrivacyFault is why the contract's egress declaration could not be used.
-	// It is not folded into Fault, which explains a missing block: a refused
-	// egress declaration closes no block here, only the judging commands, whose
+	// It is not folded into Fault, which explains an empty block: a refused
+	// egress declaration empties nothing here, only the judging commands, whose
 	// own output is written for a program to read.
 	PrivacyFault string
 	// Degraded states that the snapshot behind this page could not read
@@ -32,35 +28,12 @@ type HomeView struct {
 	// generation; DegradedDetail carries the blocked paths and their errors.
 	Degraded       string
 	DegradedDetail string
-	// Subtitle names the content blocks this page carries, empty where it would
-	// name none: a line promising sections that are not below it is the same
-	// defect as a bordered box with nothing in it.
-	Subtitle string
-	// StandIn replaces the content blocks where this folder fills none. It
-	// states what the folder has rather than what it lacks.
-	StandIn HomeStandIn
-	Recent  []HomeNote
-	// RecentOrdered says the recorded times actually put these in order. A
-	// fresh clone stamps every file with one moment, and where the times
-	// separate nothing the block says so rather than promising recency.
-	RecentOrdered bool
-	// RecentScoped says the recent list covers the contract's declared
-	// knowledge layer rather than the whole folder, which the lede then names:
-	// the distribution beside it counts every indexed note.
-	RecentScoped bool
-	Lifecycle    []LifecycleItem
-	// Unstated are the cells for notes carrying no status to be grouped by,
-	// kept apart from Lifecycle so the markup cannot dress them as statuses.
-	Unstated []LifecycleItem
-	Paths    []HomePath
-	// ShowRecent, ShowLifecycle and ShowPaths say which blocks this page
-	// carries, decided once where the subtitle naming them and the stand-in
-	// replacing them are decided from the same three values.
-	ShowRecent    bool
-	ShowLifecycle bool
-	ShowPaths     bool
+	// Blocks are the four ways in, in the order a reader meets them.
+	Blocks []DeskBlock
+	// StandIn replaces the blocks where this folder fills none. It states what
+	// the folder has rather than what it lacks.
+	StandIn       HomeStandIn
 	ReadmeMissing bool
-	Sidebar       Sidebar
 }
 
 // HomeStandIn carries the stand-in line's facts: how much is in this folder and
@@ -91,163 +64,109 @@ type HomeNote struct {
 	StatusOutsideEnum bool
 }
 
-// HomePath is one study-path card with its total lesson count. Undetermined
-// marks the zero that is a fault rather than an answer: the grammar could not
-// read what the note lists. A path that genuinely plans nothing keeps a zero.
-type HomePath struct {
-	Title        string
-	RelPath      string
-	Total        int
-	Undetermined bool
-}
-
-// Home renders the landing page inside the standard shell. The four
-// data-home-block markers name each block by its invariant, independent of
-// where the layout places it.
+// Home renders the desk. Each block is marked with the mode it opens, so a
+// check names a block by what it is rather than by where the layout put it.
+// The desk carries no left rail: the rail is the thing being read, and there is
+// nothing being read here.
 templ Home(v HomeView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<div class="y-nav-scrim" data-nav-close></div>
-		<div class="y-shell2">
-			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main">
-				<div class="y-home">
-					<header class="y-home__head">
-						<div class="y-home__kicker">{ wording.HomeKicker.In(c.Lang) }</div>
-						<h1 class="y-title">{ wording.HomeTitle.In(c.Lang) }</h1>
-						if v.Subtitle != "" {
-							<p>{ v.Subtitle }</p>
-						}
-					</header>
-					<div class="y-homegrid">
-						if v.Fault != "" {
-							<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
-								@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
-								<p class="y-homeempty" data-home-fault>
-									@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
-								</p>
-							</section>
-						}
-						if v.PrivacyFault != "" {
-							<section class="y-homeblock y-homeblock--faults" data-home-block="privacy" aria-labelledby="home-privacy-title">
-								@homeBlockHead("home-privacy-title", wording.HomePrivacyTitle.In(c.Lang), wording.HomePrivacyLede.In(c.Lang))
-								<p class="y-homeempty" data-home-privacy>
-									@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
-								</p>
-							</section>
-						}
-						if v.Degraded != "" {
-							<section class="y-homeblock y-homeblock--faults" data-home-block="degraded" aria-labelledby="home-degraded-title">
-								@homeBlockHead("home-degraded-title", wording.HomeDegradedTitle.In(c.Lang), wording.HomeDegradedLede.In(c.Lang))
-								<p class="y-homeempty" data-home-degraded>
-									@browserDiagnostic(v.Degraded, v.DegradedDetail)
-								</p>
-							</section>
-						}
-						if v.StandIn.Shown {
-							<p class="y-homestandin" data-home-standin>
-								if v.StandIn.NewestRelPath == "" {
-									{ wording.StandInEmpty.In(c.Lang) }
-								} else {
-									{ plural(v.StandIn.Files, wording.StandInBeforeOne, wording.StandInBeforeMany, c.Lang) }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>{ wording.StandInDateOpen.In(c.Lang) }<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>{ wording.StandInDateClose.In(c.Lang) }
-								}
-							</p>
-						}
-						if v.ShowRecent {
-							<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="home-recent-title">
-								@homeBlockHead("home-recent-title", homeRecentTitle(&v, c.Lang), homeRecentLede(&v, c.Lang))
-								<div class="y-homerecent">
-									for _, n := range v.Recent {
-										<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
-											<span class="y-homenote__main">
-												<span class="y-homenote__title">{ n.Title }</span>
-												<span class="y-homenote__path">{ n.RelPath }</span>
-											</span>
-											<span class="y-homenote__meta">
-												if n.Status != "" {
-													<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
-													if n.StatusOutsideEnum {
-														@statusOutsideEnumMark(c.Lang)
-													}
-												}
-												if n.Modified != "" {
-													<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
-												}
-											</span>
-										</a>
-									}
-								</div>
-							</section>
-						}
-						if v.ShowLifecycle {
-							<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="home-lifecycle-title">
-								@homeBlockHead("home-lifecycle-title", wording.HomeLifecycleTitle.In(c.Lang), wording.HomeLifecycleLede.In(c.Lang))
-								<div class="y-homechips">
-									for _, it := range v.Lifecycle {
-										<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>
-											@lifecycleChipBody(it, c.Lang)
-										</a>
-									}
-								</div>
-								if len(v.Unstated) > 0 {
-									<div class="y-homeunstated">
-										for _, it := range v.Unstated {
-											if it.Href == "" {
-												<span class="y-homeunstated__cell">
-													@unstatedChipBody(it, c.Lang)
-												</span>
-											} else {
-												<a class="y-homeunstated__cell" href={ templ.URL(it.Href) }>
-													@unstatedChipBody(it, c.Lang)
-												</a>
-											}
-										}
-									</div>
-									<p class="y-homeblock__note">{ wording.LifecycleUnstatedNote.In(c.Lang) }</p>
-								}
-							</section>
-						}
-						if v.ShowPaths {
-							<section class="y-homeblock y-homeblock--paths" data-home-block="study-paths" aria-labelledby="home-paths-title">
-								@homeBlockHead("home-paths-title", wording.HomePathsTitle.In(c.Lang), wording.HomePathsLede.In(c.Lang))
-								<div class="y-homepaths">
-									for _, p := range v.Paths {
-										<a class="y-homepath" href={ templ.URL(syllabusHref(p.RelPath)) }>
-											<span class="y-homepath__title">{ p.Title }</span>
-											<span class="y-homepath__progress">{ plural(p.Total, wording.LessonCountOne, wording.LessonCountMany, c.Lang) }</span>
-											if p.Undetermined {
-												<span class="y-navmark y-navmark--warn">{ wording.NoStructureRead.In(c.Lang) }</span>
-											}
-										</a>
-									}
-								</div>
-							</section>
-						}
-						<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
-							@homeBlockHead("home-search-title", wording.HomeSearchTitle.In(c.Lang), wording.HomeSearchLede.In(c.Lang))
-							<search>
-								<form class="y-homesearch" method="get" action="/search">
-									<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-									<input type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
-									<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
-								</form>
-							</search>
-						</section>
-					</div>
-					// The folder's own introduction is a note like any other and
-					// has a page of its own, so this links to it rather than
-					// printing the whole of it into most of the first screen.
-					// A folder without one is not missing anything: a reading
-					// tool whose opening move is an instruction to go author a
-					// file in another program has told the reader to leave.
-					if !v.ReadmeMissing {
-						<p class="y-homereadme" data-home-readme>
-							<a href={ templ.URL(notesHref(homeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
+		<main id="main-content" tabindex="-1" class="y-main y-deskmain">
+			<div class="y-home">
+				<header class="y-home__head">
+					<div class="y-home__kicker">{ wording.HomeKicker.In(c.Lang) }</div>
+					<h1 class="y-title">{ wording.HomeTitle.In(c.Lang) }</h1>
+					<p>{ wording.HomeDeskLede.In(c.Lang) }</p>
+				</header>
+				<div class="y-homegrid">
+					if v.StandIn.Shown {
+						<p class="y-homestandin" data-home-standin>
+							if v.StandIn.NewestRelPath == "" {
+								{ wording.StandInEmpty.In(c.Lang) }
+							} else {
+								{ plural(v.StandIn.Files, wording.StandInBeforeOne, wording.StandInBeforeMany, c.Lang) }<a href={ templ.URL(notesHref(v.StandIn.NewestRelPath)) }>{ v.StandIn.NewestName }</a>{ wording.StandInDateOpen.In(c.Lang) }<time datetime={ v.StandIn.NewestAt }>{ v.StandIn.NewestDate }</time>{ wording.StandInDateClose.In(c.Lang) }
+							}
 						</p>
+					} else {
+						for _, block := range v.Blocks {
+							@deskBlockSection(block, c)
+						}
 					}
+					<section class="y-homeblock y-homeblock--search" data-home-block="search" aria-labelledby="home-search-title">
+						@homeBlockHead("home-search-title", wording.HomeSearchTitle.In(c.Lang), wording.HomeSearchLede.In(c.Lang))
+						<search>
+							<form class="y-homesearch" method="get" action="/search">
+								<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+								<input type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
+								<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
+							</form>
+						</search>
+					</section>
 				</div>
-			</main>
-		</div>
+				// Below this line the page stops being about reading and starts
+				// being about the vault's own health. Saying where that line is
+				// means a reader who arrives to a clean desk still knows where a
+				// fault would have appeared.
+				<div class="y-seam" aria-hidden="true"></div>
+				<p class="y-homeseamnote">{ wording.HomeSeamNote.In(c.Lang) }</p>
+				if v.Fault != "" {
+					<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
+						@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
+						<p class="y-homeempty" data-home-fault>
+							@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
+						</p>
+					</section>
+				}
+				if v.PrivacyFault != "" {
+					<section class="y-homeblock y-homeblock--faults" data-home-block="privacy" aria-labelledby="home-privacy-title">
+						@homeBlockHead("home-privacy-title", wording.HomePrivacyTitle.In(c.Lang), wording.HomePrivacyLede.In(c.Lang))
+						<p class="y-homeempty" data-home-privacy>
+							@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
+						</p>
+					</section>
+				}
+				if v.Degraded != "" {
+					<section class="y-homeblock y-homeblock--faults" data-home-block="degraded" aria-labelledby="home-degraded-title">
+						@homeBlockHead("home-degraded-title", wording.HomeDegradedTitle.In(c.Lang), wording.HomeDegradedLede.In(c.Lang))
+						<p class="y-homeempty" data-home-degraded>
+							@browserDiagnostic(v.Degraded, v.DegradedDetail)
+						</p>
+					</section>
+				}
+				if !v.ReadmeMissing {
+					<p class="y-homereadme" data-home-readme>
+						<a href={ templ.URL(notesHref(homeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
+					</p>
+				}
+			</div>
+		</main>
 	}
+}
+
+// deskBlockSection is one way in: the mode's name opening its own page, how much
+// of it there is, one sentence, and its first few items.
+templ deskBlockSection(b DeskBlock, c layouts.Chrome) {
+	<section class="y-homeblock y-modeblock" data-home-block={ b.Mode } aria-labelledby={ "home-" + b.Mode + "-title" }>
+		<header class="y-homeblock__head">
+			<h2 id={ "home-" + b.Mode + "-title" }><a href={ templ.URL(b.Href) }>{ b.Title }</a></h2>
+			<p>{ b.Count }</p>
+		</header>
+		<p class="y-homeblock__lede">{ b.Lede }</p>
+		if len(b.Rows) == 0 {
+			<p class="y-homeempty">{ b.Empty }</p>
+		} else {
+			for _, row := range b.Rows {
+				<a class="ui-navitem" href={ templ.URL(row.Href) } data-desk-item>
+					{ row.Title }
+					if row.Measure != "" {
+						<span class="ui-navitem__count">{ row.Measure }</span>
+					}
+					if row.Mark != "" {
+						<span class={ "y-navmark", templ.KV("y-navmark--warn", row.MarkWarn) }>{ row.Mark }</span>
+					}
+				</a>
+			}
+		}
+	</section>
 }
 
 templ homeBlockHead(id, title, note string) {

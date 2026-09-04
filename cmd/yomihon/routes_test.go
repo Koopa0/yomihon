@@ -143,7 +143,7 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 			if strings.Contains(html, "data-index-row") {
 				t.Errorf("GET %s lists rows built from a declaration that could not be read", target)
 			}
-			if !strings.Contains(html, "data-index-fault") {
+			if !strings.Contains(html, "data-home-fault") {
 				t.Errorf("GET %s says nothing about the declaration it could not read; body = %q", target, html)
 			}
 			if strings.Contains(html, "data-index-empty") {
