@@ -1399,9 +1399,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var70 string
-			templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(markerForm(sequence.RolePrimary))
+			templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RolePrimary))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 			if templ_7745c5c3_Err != nil {
@@ -1414,7 +1414,7 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 			var templ_7745c5c3_Var71 string
 			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoin.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 140}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 145}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 			if templ_7745c5c3_Err != nil {
@@ -1425,9 +1425,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var72 string
-			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(markerForm(sequence.RoleLocal))
+			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RoleLocal))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 180}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 190}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 			if templ_7745c5c3_Err != nil {
@@ -1440,7 +1440,7 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 			var templ_7745c5c3_Var73 string
 			templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoinLast.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 221}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 231}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 			if templ_7745c5c3_Err != nil {
@@ -1451,9 +1451,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var74 string
-			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(markerForm(sequence.RoleNone))
+			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RoleNone))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 260}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 275}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 			if templ_7745c5c3_Err != nil {
@@ -1466,7 +1466,7 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 			var templ_7745c5c3_Var75 string
 			templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseNoMarkerTail.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 308}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 277, Col: 323}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 			if templ_7745c5c3_Err != nil {

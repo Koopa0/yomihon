@@ -353,12 +353,6 @@ func markerVerdictFor(rule sequence.Rule) markerVerdict {
 	}
 }
 
-// markerForm spells the full marker for one role from the grammar's own
-// vocabulary, so the page cannot drift from what the parser accepts.
-func markerForm(role sequence.Role) string {
-	return "{sequence=" + role.String() + "}"
-}
-
 // buildPaths builds the switcher: every study path in vault order, each with its
 // entry count and whether it is the one shown.
 func buildPaths(currentRel string, all []nav.Path) []PathLink {
