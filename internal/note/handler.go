@@ -273,7 +273,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, lang)
 		var refs []string
 		result.HTML, refs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
-		concepts = h.loadConcepts(snap, refs, lang)
+		concepts = loadConcepts(snap, refs, lang)
 	}
 	if n.LanguageDiagnostic != "" {
 		h.sources.Log.Warn("invalid article language; the article carries no language of its own", "path", rel, "error", n.LanguageDiagnostic)
@@ -708,7 +708,7 @@ func (h *Handler) injectSlotMachine(
 // of its own), so its wikilinks stay ordinary links and the sheet never nests. A
 // concept that fails to load is skipped — its trigger stays a working link to
 // the note, so no dead sheet ships: degrade, never break.
-func (h *Handler) loadConcepts(
+func loadConcepts(
 	snap *snapshot.Generation,
 	refs []string,
 	lang wording.Lang,
