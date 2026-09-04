@@ -35,7 +35,7 @@ func TestAResultFoundByItsPathShowsWhereItMatched(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, body := getBody(t, srv.URL+"/search?q=pharmacology")
+	code, body := getBody(t, srv.Client(), srv.URL+"/search?q=pharmacology")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}

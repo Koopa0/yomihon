@@ -70,13 +70,13 @@ func loadModel(t *testing.T, root string) *nav.Model {
 	return model
 }
 
-func get(t *testing.T, url string) (code int, body string) {
+func get(t *testing.T, client *http.Client, url string) (code int, body string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
 	if err != nil {
 		t.Fatalf("new request %s: %v", url, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
@@ -139,7 +139,7 @@ func TestShow(t *testing.T) {
 	writeVault(t, root)
 	srv := newServer(t, root)
 
-	code, body := get(t, srv.URL+"/syllabus/Maps/Go path.md")
+	code, body := get(t, srv.Client(), srv.URL+"/syllabus/Maps/Go path.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -256,7 +256,7 @@ func TestShowNotFound(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, body := get(t, srv.URL+tt.target)
+			code, body := get(t, srv.Client(), srv.URL+tt.target)
 			if code != http.StatusNotFound {
 				t.Errorf("GET %s status = %d, want 404", tt.target, code)
 			}
@@ -297,7 +297,7 @@ func TestShowReportsSizeNotCompletion(t *testing.T) {
 	writeVault(t, root)
 	srv := newServer(t, root)
 
-	code, body := get(t, srv.URL+"/syllabus/Maps/Go path.md")
+	code, body := get(t, srv.Client(), srv.URL+"/syllabus/Maps/Go path.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -350,7 +350,7 @@ func TestShowResolvesADecomposedPath(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			code, page := get(t, srv.URL+"/syllabus/Maps/"+tc.rel)
+			code, page := get(t, srv.Client(), srv.URL+"/syllabus/Maps/"+tc.rel)
 			if code != http.StatusOK {
 				t.Fatalf("status = %d, want 200", code)
 			}

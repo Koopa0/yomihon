@@ -45,10 +45,9 @@ func newHandlerServer(t *testing.T, writer *status.Writer) *httptest.Server {
 // can be asserted directly.
 func postStatus(t *testing.T, srv *httptest.Server, form url.Values) (statusCode int, location, body string) {
 	t.Helper()
-	client := &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	client := *srv.Client()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/status", strings.NewReader(form.Encode()))
 	if err != nil {

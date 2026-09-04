@@ -74,7 +74,7 @@ func TestNotePageNamesTheFieldAtFault(t *testing.T) {
 			}
 			srv := newServerWithContract(t, root, loadHomeContract(t))
 
-			code, page := get(t, srv.URL+"/notes/"+tc.rel)
+			code, page := get(t, srv.Client(), srv.URL+"/notes/"+tc.rel)
 			if code != http.StatusOK {
 				t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 			}
@@ -112,7 +112,7 @@ func TestNotePageShowsTheFolderTheDomainRuleCompared(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, page := get(t, srv.URL+"/notes/"+rel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 	if code != http.StatusOK {
 		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 	}
@@ -145,7 +145,7 @@ func TestNotePageEscapesTheNotesOwnTextInANotice(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, page := get(t, srv.URL+"/notes/"+rel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 	if code != http.StatusOK {
 		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 	}
@@ -180,7 +180,7 @@ func TestNotePageReadsTogetherForAStatusThatIsNotText(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, page := get(t, srv.URL+"/notes/"+rel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 	if code != http.StatusOK {
 		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 	}

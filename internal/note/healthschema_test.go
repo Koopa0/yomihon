@@ -53,7 +53,7 @@ func TestHealthIsNotCleanWhileTheSchemaHasSomethingToSay(t *testing.T) {
 			t.Parallel()
 			srv := newServerWithContract(t, writeOneNote(t, tc.rel, tc.body), loadHomeContract(t))
 
-			code, body := get(t, srv.URL+"/health")
+			code, body := get(t, srv.Client(), srv.URL+"/health")
 			if code != http.StatusOK {
 				t.Fatalf("health status = %d, want 200", code)
 			}
@@ -76,7 +76,7 @@ func TestHealthStillSaysAllClearForAFolderWithNothingToAnswer(t *testing.T) {
 	const body = "---\ntitle: Fine\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Fine]]\"\n---\n\nbody\n"
 	srv := newServerWithContract(t, writeOneNote(t, "Concepts/golang/Fine.md", body), loadHomeContract(t))
 
-	code, page := get(t, srv.URL+"/health")
+	code, page := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("health status = %d, want 200", code)
 	}

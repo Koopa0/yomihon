@@ -2,6 +2,7 @@ package note_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,31 +44,31 @@ func TestChromeCarriesNoGovernanceVoice(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		serve func(t *testing.T) string
+		serve func(t *testing.T) *httptest.Server
 	}{
 		{
 			name: "governed folder",
-			serve: func(t *testing.T) string {
+			serve: func(t *testing.T) *httptest.Server {
 				t.Helper()
 				root := t.TempDir()
 				if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
 					t.Fatalf("write README: %v", err)
 				}
-				return newServerWithContract(t, root, loadHomeContract(t)).URL
+				return newServerWithContract(t, root, loadHomeContract(t))
 			},
 		},
 		{
 			name: "folder with no vault contract",
-			serve: func(t *testing.T) string {
+			serve: func(t *testing.T) *httptest.Server {
 				t.Helper()
-				return newServerWithGovernance(t, writePlainFolder(t), nil, schema.Ungoverned()).URL
+				return newServerWithGovernance(t, writePlainFolder(t), nil, schema.Ungoverned())
 			},
 		},
 		{
 			name: "contract that could not be read",
-			serve: func(t *testing.T) string {
+			serve: func(t *testing.T) *httptest.Server {
 				t.Helper()
-				return newServerWithGovernance(t, writePlainFolder(t), nil, schema.Unreadable(nil)).URL
+				return newServerWithGovernance(t, writePlainFolder(t), nil, schema.Unreadable(nil))
 			},
 		},
 	}
@@ -75,7 +76,8 @@ func TestChromeCarriesNoGovernanceVoice(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			code, body := get(t, tt.serve(t)+"/")
+			srv := tt.serve(t)
+			code, body := get(t, srv.Client(), srv.URL+"/")
 			if code != http.StatusOK {
 				t.Fatalf("GET / = %d, want %d", code, http.StatusOK)
 			}

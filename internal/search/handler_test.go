@@ -39,7 +39,7 @@ func TestSearchHandler(t *testing.T) {
 
 	t.Run("matching query renders the hit", func(t *testing.T) {
 		t.Parallel()
-		code, body := getBody(t, srv.URL+"/search?q=kafka")
+		code, body := getBody(t, srv.Client(), srv.URL+"/search?q=kafka")
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
@@ -71,7 +71,7 @@ func TestSearchHandler(t *testing.T) {
 
 	t.Run("non-matching query shows no results", func(t *testing.T) {
 		t.Parallel()
-		code, body := getBody(t, srv.URL+"/search?q=zzznotpresent")
+		code, body := getBody(t, srv.Client(), srv.URL+"/search?q=zzznotpresent")
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
@@ -165,7 +165,7 @@ func TestSearchResultsFragment(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, header, body := getBodyWithHeaders(t, srv.URL+"/search/results?q=kafka")
+	code, header, body := getBodyWithHeaders(t, srv.Client(), srv.URL+"/search/results?q=kafka")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -358,7 +358,7 @@ func TestSearchHandlerRejectsInvalidQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			code, _ := getBody(t, srv.URL+tt.path)
+			code, _ := getBody(t, srv.Client(), srv.URL+tt.path)
 			if code != http.StatusBadRequest {
 				t.Errorf("GET %s status = %d, want %d", tt.path, code, http.StatusBadRequest)
 			}
@@ -445,19 +445,19 @@ func (*failingResponseWriter) Write([]byte) (int, error) {
 
 func (*failingResponseWriter) WriteHeader(int) {}
 
-func getBody(t *testing.T, urlStr string) (code int, body string) {
+func getBody(t *testing.T, client *http.Client, urlStr string) (code int, body string) {
 	t.Helper()
-	code, _, body = getBodyWithHeaders(t, urlStr)
+	code, _, body = getBodyWithHeaders(t, client, urlStr)
 	return code, body
 }
 
-func getBodyWithHeaders(t *testing.T, urlStr string) (code int, header http.Header, body string) {
+func getBodyWithHeaders(t *testing.T, client *http.Client, urlStr string) (code int, header http.Header, body string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, urlStr, http.NoBody)
 	if err != nil {
 		t.Fatalf("new request %s: %v", urlStr, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s: %v", urlStr, err)
 	}

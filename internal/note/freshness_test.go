@@ -40,26 +40,26 @@ func identityOf(body string) string {
 // seconds, and returns the status code beside the answer. It carries no
 // status, which is the recovery page's ask: that page binds only the bytes a
 // refused write saw.
-func askFreshness(t *testing.T, srvURL, identity string) (code int, answer string) {
+func askFreshness(t *testing.T, client *http.Client, srvURL, identity string) (code int, answer string) {
 	t.Helper()
-	return askFreshnessURL(t, srvURL+"/freshness/"+freshRel+"?identity="+identity)
+	return askFreshnessURL(t, client, srvURL+"/freshness/"+freshRel+"?identity="+identity)
 }
 
 // askFreshnessWithStatus is the reading page's ask: beside the identity it
 // carries the status it printed, so the answer covers the pair.
-func askFreshnessWithStatus(t *testing.T, srvURL, identity, printed string) (code int, answer string) {
+func askFreshnessWithStatus(t *testing.T, client *http.Client, srvURL, identity, printed string) (code int, answer string) {
 	t.Helper()
-	return askFreshnessURL(t,
+	return askFreshnessURL(t, client,
 		srvURL+"/freshness/"+freshRel+"?identity="+identity+"&status="+url.QueryEscape(printed))
 }
 
-func askFreshnessURL(t *testing.T, full string) (code int, answer string) {
+func askFreshnessURL(t *testing.T, client *http.Client, full string) (code int, answer string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, full, http.NoBody)
 	if err != nil {
 		t.Fatalf("NewRequest error = %v", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET /freshness/%s error = %v", freshRel, err)
 	}
@@ -82,7 +82,7 @@ func TestFreshnessSaysUnchangedWhileTheNoteIsUntouched(t *testing.T) {
 	writeFreshNote(t, root, body)
 	srv := newServer(t, root)
 
-	code, got := askFreshness(t, srv.URL, identityOf(body))
+	code, got := askFreshness(t, srv.Client(), srv.URL, identityOf(body))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -107,7 +107,7 @@ func TestFreshnessOffersReloadOnlyOncePublishedCatchesUp(t *testing.T) {
 
 	// The published generation agrees with the disk and both differ from what
 	// this page rendered: reloading now shows the reader something new.
-	code, got := askFreshness(t, srv.URL, identityOf("# Watched\n\nAn older draft.\n"))
+	code, got := askFreshness(t, srv.Client(), srv.URL, identityOf("# Watched\n\nAn older draft.\n"))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -118,7 +118,7 @@ func TestFreshnessOffersReloadOnlyOncePublishedCatchesUp(t *testing.T) {
 	// Now the disk moves ahead of the generation. Reloading would render the
 	// same bytes again, so the invitation is withheld.
 	writeFreshNote(t, root, "# Watched\n\nJust saved in Obsidian.\n")
-	code, got = askFreshness(t, srv.URL, identityOf(rendered))
+	code, got = askFreshness(t, srv.Client(), srv.URL, identityOf(rendered))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -137,7 +137,7 @@ func TestFreshnessSaysGoneWhenTheFileLeaves(t *testing.T) {
 	if err := os.Remove(filepath.Join(root, filepath.FromSlash(freshRel))); err != nil {
 		t.Fatalf("Remove error = %v", err)
 	}
-	code, got := askFreshness(t, srv.URL, identityOf(body))
+	code, got := askFreshness(t, srv.Client(), srv.URL, identityOf(body))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -157,7 +157,7 @@ func TestFreshnessNeverCallsAnUnreadableFileGone(t *testing.T) {
 	srv := newServer(t, root)
 	lockNote(t, filepath.Join(root, filepath.FromSlash(freshRel)))
 
-	code, got := askFreshness(t, srv.URL, identityOf(body))
+	code, got := askFreshness(t, srv.Client(), srv.URL, identityOf(body))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -183,7 +183,7 @@ func TestFreshnessAnnouncesAStatusOnlyRewrite(t *testing.T) {
 	srv := newServer(t, root)
 	writeFreshNote(t, root, after)
 
-	code, got := askFreshnessWithStatus(t, srv.URL, identityOf(before), "draft")
+	code, got := askFreshnessWithStatus(t, srv.Client(), srv.URL, identityOf(before), "draft")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -206,7 +206,7 @@ func TestFreshnessComparesIdentityAloneWhenNoStatusIsCarried(t *testing.T) {
 	srv := newServer(t, root)
 	writeFreshNote(t, root, after)
 
-	code, got := askFreshness(t, srv.URL, identityOf(before))
+	code, got := askFreshness(t, srv.Client(), srv.URL, identityOf(before))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -228,7 +228,7 @@ func TestFreshnessStaysQuietWhenThePrintedStatusStillHolds(t *testing.T) {
 	srv := newServer(t, root)
 	writeFreshNote(t, root, after)
 
-	code, got := askFreshnessWithStatus(t, srv.URL, identityOf(before), "ready")
+	code, got := askFreshnessWithStatus(t, srv.Client(), srv.URL, identityOf(before), "ready")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -253,7 +253,7 @@ func TestFreshnessHoldsStatusNewsBehindThePublishedGate(t *testing.T) {
 	srv := newServer(t, root)
 	writeFreshNote(t, root, after)
 
-	code, got := askFreshnessWithStatus(t, srv.URL, identityOf(before), "draft")
+	code, got := askFreshnessWithStatus(t, srv.Client(), srv.URL, identityOf(before), "draft")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -276,7 +276,7 @@ func TestFreshnessTreatsABodyEditTheSameWithAStatusCarried(t *testing.T) {
 	// up with them and only the page is behind.
 	srv := newServer(t, root)
 
-	code, got := askFreshnessWithStatus(t, srv.URL, identityOf(rendered), "draft")
+	code, got := askFreshnessWithStatus(t, srv.Client(), srv.URL, identityOf(rendered), "draft")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -301,7 +301,7 @@ func TestFreshnessRefusesAnIdentityItCannotHaveIssued(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, _ := askFreshness(t, srv.URL, tt.identity)
+			code, _ := askFreshness(t, srv.Client(), srv.URL, tt.identity)
 			if code != http.StatusBadRequest {
 				t.Errorf("status for a %s identity = %d, want %d", tt.name, code, http.StatusBadRequest)
 			}
@@ -325,7 +325,7 @@ func TestReadingPageSendsNoBannerOfItsOwn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest error = %v", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatalf("GET the reading page error = %v", err)
 	}
@@ -375,7 +375,7 @@ func TestFreshnessNeverCallsAnUnfindableNoteGone(t *testing.T) {
 		t.Skip("mode 000 does not block a directory here (running as a privileged user)")
 	}
 
-	code, got := askFreshness(t, srv.URL, identityOf(body))
+	code, got := askFreshness(t, srv.Client(), srv.URL, identityOf(body))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -423,9 +423,9 @@ var embedsStampRe = regexp.MustCompile(`data-freshness-embeds="([0-9a-f]{64})"`)
 
 // pageEmbedsStamp reads the transcluded stamp off the watched host's own page,
 // the way the polling client does.
-func pageEmbedsStamp(t *testing.T, srvURL string) string {
+func pageEmbedsStamp(t *testing.T, client *http.Client, srvURL string) string {
 	t.Helper()
-	code, page := get(t, srvURL+"/notes/"+freshRel)
+	code, page := get(t, client, srvURL+"/notes/"+freshRel)
 	if code != http.StatusOK {
 		t.Fatalf("GET the reading page status = %d, want %d", code, http.StatusOK)
 	}
@@ -439,9 +439,9 @@ func pageEmbedsStamp(t *testing.T, srvURL string) string {
 // askFreshnessEmbeds is the ask a page carrying a transcluded stamp makes:
 // identity and stamp together, status left uncarried to keep the comparison
 // under test alone.
-func askFreshnessEmbeds(t *testing.T, srvURL, identity, embeds string) (code int, answer string) {
+func askFreshnessEmbeds(t *testing.T, client *http.Client, srvURL, identity, embeds string) (code int, answer string) {
 	t.Helper()
-	return askFreshnessURL(t,
+	return askFreshnessURL(t, client,
 		srvURL+"/freshness/"+freshRel+"?identity="+identity+"&embeds="+url.QueryEscape(embeds))
 }
 
@@ -453,7 +453,7 @@ func askFreshnessEmbeds(t *testing.T, srvURL, identity, embeds string) (code int
 func TestReadingPageStampsWhatItTranscluded(t *testing.T) {
 	t.Parallel()
 	srv := newEmbedServer(t, embedSourceBody)
-	stamp := pageEmbedsStamp(t, srv.URL)
+	stamp := pageEmbedsStamp(t, srv.Client(), srv.URL)
 	if len(stamp) != 64 {
 		t.Errorf("transcluded stamp = %q, want 64 hex digits", stamp)
 	}
@@ -461,7 +461,7 @@ func TestReadingPageStampsWhatItTranscluded(t *testing.T) {
 	plainRoot := t.TempDir()
 	writeFreshNote(t, plainRoot, "# Watched\n\nNo excerpt here.\n")
 	plainSrv := newServer(t, plainRoot)
-	code, page := get(t, plainSrv.URL+"/notes/"+freshRel)
+	code, page := get(t, plainSrv.Client(), plainSrv.URL+"/notes/"+freshRel)
 	if code != http.StatusOK {
 		t.Fatalf("GET the plain reading page status = %d, want %d", code, http.StatusOK)
 	}
@@ -479,13 +479,13 @@ func TestFreshnessAnnouncesAnEmbeddedSourceEdit(t *testing.T) {
 	t.Parallel()
 	before := newEmbedServer(t, embedSourceBody)
 	after := newEmbedServer(t, strings.Replace(embedSourceBody, "Inside words.", "Inside words, changed.", 1))
-	pageStamp := pageEmbedsStamp(t, before.URL)
-	freshStamp := pageEmbedsStamp(t, after.URL)
+	pageStamp := pageEmbedsStamp(t, before.Client(), before.URL)
+	freshStamp := pageEmbedsStamp(t, after.Client(), after.URL)
 	if pageStamp == freshStamp {
 		t.Fatal("editing the embedded section did not move the stamp, so these servers cannot stand for two generations")
 	}
 
-	code, got := askFreshnessEmbeds(t, after.URL, identityOf(embedHostBody), pageStamp)
+	code, got := askFreshnessEmbeds(t, after.Client(), after.URL, identityOf(embedHostBody), pageStamp)
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -493,7 +493,7 @@ func TestFreshnessAnnouncesAnEmbeddedSourceEdit(t *testing.T) {
 		t.Errorf("freshness of a page whose embedded section moved on = %q, want %q", got, "stale")
 	}
 
-	code, got = askFreshnessEmbeds(t, after.URL, identityOf(embedHostBody), freshStamp)
+	code, got = askFreshnessEmbeds(t, after.Client(), after.URL, identityOf(embedHostBody), freshStamp)
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -511,12 +511,12 @@ func TestFreshnessLeavesTheStampStillWhereTheExcerptDidNotMove(t *testing.T) {
 	t.Parallel()
 	before := newEmbedServer(t, embedSourceBody)
 	outside := newEmbedServer(t, strings.Replace(embedSourceBody, "Outside words.", "Outside words, changed.", 1))
-	pageStamp := pageEmbedsStamp(t, before.URL)
-	if outsideStamp := pageEmbedsStamp(t, outside.URL); outsideStamp != pageStamp {
+	pageStamp := pageEmbedsStamp(t, before.Client(), before.URL)
+	if outsideStamp := pageEmbedsStamp(t, outside.Client(), outside.URL); outsideStamp != pageStamp {
 		t.Fatalf("an edit outside the embedded section moved the stamp (%q then %q)", pageStamp, outsideStamp)
 	}
 
-	code, got := askFreshnessEmbeds(t, outside.URL, identityOf(embedHostBody), pageStamp)
+	code, got := askFreshnessEmbeds(t, outside.Client(), outside.URL, identityOf(embedHostBody), pageStamp)
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -532,13 +532,13 @@ func TestFreshnessLeavesTheStampStillWhereTheExcerptDidNotMove(t *testing.T) {
 func TestFreshnessAnnouncesARemovedEmbeddedSource(t *testing.T) {
 	t.Parallel()
 	before := newEmbedServer(t, embedSourceBody)
-	pageStamp := pageEmbedsStamp(t, before.URL)
+	pageStamp := pageEmbedsStamp(t, before.Client(), before.URL)
 
 	goneRoot := t.TempDir()
 	writeFreshNote(t, goneRoot, embedHostBody)
 	goneSrv := newServer(t, goneRoot)
 
-	code, got := askFreshnessEmbeds(t, goneSrv.URL, identityOf(embedHostBody), pageStamp)
+	code, got := askFreshnessEmbeds(t, goneSrv.Client(), goneSrv.URL, identityOf(embedHostBody), pageStamp)
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -556,7 +556,7 @@ func TestFreshnessComparesTranscludedOnlyWhenCarried(t *testing.T) {
 	t.Parallel()
 	after := newEmbedServer(t, strings.Replace(embedSourceBody, "Inside words.", "Inside words, changed.", 1))
 
-	code, got := askFreshness(t, after.URL, identityOf(embedHostBody))
+	code, got := askFreshness(t, after.Client(), after.URL, identityOf(embedHostBody))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -582,7 +582,7 @@ func TestFreshnessRefusesATranscludedStampItCannotHaveIssued(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, _ := askFreshnessEmbeds(t, srv.URL, identityOf(embedHostBody), tt.embeds)
+			code, _ := askFreshnessEmbeds(t, srv.Client(), srv.URL, identityOf(embedHostBody), tt.embeds)
 			if code != http.StatusBadRequest {
 				t.Errorf("status for a %s stamp = %d, want %d", tt.name, code, http.StatusBadRequest)
 			}
@@ -602,10 +602,10 @@ func TestFreshnessHoldsTranscludedNewsBehindThePublishedGate(t *testing.T) {
 	// The generation is built here and never rebuilt in this test, so the
 	// host rewrite below leaves the disk ahead of it.
 	srv := newServer(t, root)
-	stamp := pageEmbedsStamp(t, srv.URL)
+	stamp := pageEmbedsStamp(t, srv.Client(), srv.URL)
 	writeFreshNote(t, root, embedHostBody+"\nA line the generation has not seen.\n")
 
-	code, got := askFreshnessEmbeds(t, srv.URL, identityOf(embedHostBody), stamp)
+	code, got := askFreshnessEmbeds(t, srv.Client(), srv.URL, identityOf(embedHostBody), stamp)
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -639,7 +639,7 @@ func TestReadingPageStampsTheStatusItPrinted(t *testing.T) {
 	writeFreshNote(t, root, governedFreshBody("draft"))
 	srv := newServerWithContract(t, root, loadContract(t))
 
-	code, page := get(t, srv.URL+"/notes/"+freshRel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+freshRel)
 	if code != http.StatusOK {
 		t.Fatalf("GET the reading page status = %d, want %d", code, http.StatusOK)
 	}
@@ -658,7 +658,7 @@ func TestReadingPageStampsAnEmptyStatusForAStatuslessNote(t *testing.T) {
 	writeFreshNote(t, root, "# Watched\n\nBody.\n")
 	srv := newServer(t, root)
 
-	code, page := get(t, srv.URL+"/notes/"+freshRel)
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+freshRel)
 	if code != http.StatusOK {
 		t.Fatalf("GET the reading page status = %d, want %d", code, http.StatusOK)
 	}
@@ -680,9 +680,8 @@ func TestOwnFlipRefreshesTheStampThroughTheRedirect(t *testing.T) {
 	srv := newServerWithContract(t, root, loadContract(t))
 	identity := identityOf(draft)
 
-	client := &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
+	client := *srv.Client()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	form := url.Values{
 		"path":             {freshRel},
 		"from":             {"draft"},
@@ -710,7 +709,7 @@ func TestOwnFlipRefreshesTheStampThroughTheRedirect(t *testing.T) {
 		t.Fatal("POST /status set no Location; the redirect is the page's way back")
 	}
 
-	code, page := get(t, srv.URL+location)
+	code, page := get(t, srv.Client(), srv.URL+location)
 	if code != http.StatusOK {
 		t.Fatalf("GET %s status = %d, want %d", location, code, http.StatusOK)
 	}
@@ -723,7 +722,7 @@ func TestOwnFlipRefreshesTheStampThroughTheRedirect(t *testing.T) {
 		t.Errorf("the re-rendered page does not carry the identity the flip preserved; want %q", identity)
 	}
 
-	code, got := askFreshnessWithStatus(t, srv.URL, identity, "ready")
+	code, got := askFreshnessWithStatus(t, srv.Client(), srv.URL, identity, "ready")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", code, http.StatusOK)
 	}
@@ -773,7 +772,7 @@ func TestTheFreshnessEndpointRefusesInTheReadersLanguage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, body := askFreshnessInLanguage(t, tt.target, wording.En)
+			code, body := askFreshnessInLanguage(t, srv.Client(), tt.target, wording.En)
 			if code != tt.code {
 				t.Fatalf("status = %d, want %d (body %q)", code, tt.code, body)
 			}
@@ -789,14 +788,14 @@ func TestTheFreshnessEndpointRefusesInTheReadersLanguage(t *testing.T) {
 
 // askFreshnessInLanguage asks as a reader who has chosen one, which is the
 // only way the wiring under test is reached at all.
-func askFreshnessInLanguage(t *testing.T, full string, lang wording.Lang) (code int, answer string) {
+func askFreshnessInLanguage(t *testing.T, client *http.Client, full string, lang wording.Lang) (code int, answer string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, full, http.NoBody)
 	if err != nil {
 		t.Fatalf("NewRequest error = %v", err)
 	}
 	req.Header.Set("Cookie", wording.CookieName+"="+string(lang))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s error = %v", full, err)
 	}

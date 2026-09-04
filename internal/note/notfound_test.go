@@ -41,7 +41,7 @@ func TestMissingPathsAnswerAsPagesAndMissingBytesDoNot(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, body := get(t, srv.URL+tt.path)
+			code, body := get(t, srv.Client(), srv.URL+tt.path)
 			if code != http.StatusNotFound {
 				t.Fatalf("GET %s status = %d, want %d", tt.path, code, http.StatusNotFound)
 			}

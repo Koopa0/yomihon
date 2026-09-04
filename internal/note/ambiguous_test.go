@@ -27,7 +27,7 @@ func TestAnAmbiguousLinkIsAudible(t *testing.T) {
 	t.Parallel()
 
 	srv := newServerWithContract(t, ambiguousVault(t), loadHomeContract(t))
-	code, page := get(t, srv.URL+"/notes/Concepts/golang/Citing.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Concepts/golang/Citing.md")
 	if code != http.StatusOK {
 		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 	}
@@ -58,7 +58,7 @@ func TestAnAmbiguousLinkIsNotToldItIsATitle(t *testing.T) {
 	t.Parallel()
 
 	srv := newServerWithContract(t, ambiguousVault(t), loadHomeContract(t))
-	_, page := get(t, srv.URL+"/notes/Concepts/golang/Citing.md")
+	_, page := get(t, srv.Client(), srv.URL+"/notes/Concepts/golang/Citing.md")
 	if strings.Contains(page, "是〈") || strings.Contains(page, "篇筆記共同的 title") {
 		t.Error("an ambiguous name is described in the words used for a name that matched a title")
 	}
@@ -75,7 +75,7 @@ func TestHealthTellsTwoCollidingFilesApart(t *testing.T) {
 	t.Parallel()
 
 	srv := newServerWithContract(t, ambiguousVault(t), loadHomeContract(t))
-	_, page := get(t, srv.URL+"/health")
+	_, page := get(t, srv.Client(), srv.URL+"/health")
 	section := healthSectionBody(t, page, "兩個檔案共用的名字")
 	shown := linkTexts(t, section)
 	if len(shown) < 2 {

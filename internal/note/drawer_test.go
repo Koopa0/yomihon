@@ -109,7 +109,7 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, body := get(t, srv.URL+tt.url)
+			code, body := get(t, srv.Client(), srv.URL+tt.url)
 			if code != http.StatusOK {
 				t.Fatalf("GET %s status = %d, want 200", tt.url, code)
 			}
@@ -152,7 +152,7 @@ func TestCitedByAnswersOnThePage(t *testing.T) {
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, body := get(t, srv.URL+"/notes/Concepts/cited.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Concepts/cited.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -161,7 +161,7 @@ func TestCitedByAnswersOnThePage(t *testing.T) {
 		t.Errorf("the cited note does not list what cites it; block = %q", cited)
 	}
 
-	code, body = get(t, srv.URL+"/notes/Concepts/island.md")
+	code, body = get(t, srv.Client(), srv.URL+"/notes/Concepts/island.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -218,7 +218,7 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, body := get(t, srv.URL+"/health")
+	code, body := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -284,7 +284,7 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
 	// The folder holding only subfolders lists them, and says how many.
-	code, body := get(t, srv.URL+"/folders/%E6%95%99%E6%A1%88")
+	code, body := get(t, srv.Client(), srv.URL+"/folders/%E6%95%99%E6%A1%88")
 	if code != http.StatusOK {
 		t.Fatalf("GET the parent folder status = %d, want 200", code)
 	}
@@ -296,7 +296,7 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 
 	// The folder holding files lists them in the captured order, which is the
 	// lesson order the naming fix established.
-	code, body = get(t, srv.URL+"/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A")
+	code, body = get(t, srv.Client(), srv.URL+"/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A")
 	if code != http.StatusOK {
 		t.Fatalf("GET the leaf folder status = %d, want 200", code)
 	}
@@ -311,13 +311,13 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 
 	// A folder nothing is under is not a folder, and answers like any other
 	// path the vault has nothing at.
-	code, _ = get(t, srv.URL+"/folders/no-such-folder")
+	code, _ = get(t, srv.Client(), srv.URL+"/folders/no-such-folder")
 	if code != http.StatusNotFound {
 		t.Errorf("GET a folder that does not exist status = %d, want 404", code)
 	}
 
 	// The breadcrumb on a note now leads somewhere.
-	code, body = get(t, srv.URL+"/notes/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A/%E7%AC%AC%E4%BA%8C%E8%AA%B2%20%E7%A9%BA%E6%B0%A3.md")
+	code, body = get(t, srv.Client(), srv.URL+"/notes/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A/%E7%AC%AC%E4%BA%8C%E8%AA%B2%20%E7%A9%BA%E6%B0%A3.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET the note status = %d, want 200", code)
 	}
@@ -356,7 +356,7 @@ func TestASequenceOfEntriesReadsAsALine(t *testing.T) {
 	// Read near the end of the folder on purpose: an entry in the first
 	// twenty-four would sit inside a window that never moved, and the
 	// assertion below could not tell a neighbourhood from a truncated list.
-	code, body := get(t, srv.URL+"/notes/Diary/2025-08-38.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Diary/2025-08-38.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -461,7 +461,7 @@ func TestHomeSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 			write(t, root, "Concepts/"+name, stamp)
 		}
 		srv := newServerWithContract(t, root, loadHomeContract(t))
-		code, body := get(t, srv.URL+"/")
+		code, body := get(t, srv.Client(), srv.URL+"/")
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
@@ -480,7 +480,7 @@ func TestHomeSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 			write(t, root, "Concepts/"+name, stamp.AddDate(0, 0, i))
 		}
 		srv := newServerWithContract(t, root, loadHomeContract(t))
-		code, body := get(t, srv.URL+"/")
+		code, body := get(t, srv.Client(), srv.URL+"/")
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
@@ -515,7 +515,7 @@ func TestCitedBySurvivesWithoutTheRail(t *testing.T) {
 	write("Concepts/source.md", "---\ntitle: Source\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nsee [[target]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/notes/Concepts/target.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Concepts/target.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -578,7 +578,7 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, body := get(t, srv.URL+"/notes/Writing/lessons/golang/Setup.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/golang/Setup.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -620,7 +620,7 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	// structured chrome, never inside a note's own name.
 	write("Diary/2026-08-02課程筆記.md", "tomorrow\n")
 	srv2 := newServerWithContract(t, root, loadHomeContract(t))
-	code, body = get(t, srv2.URL+"/notes/Diary/2026-08-01.md")
+	code, body = get(t, srv2.Client(), srv2.URL+"/notes/Diary/2026-08-01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}

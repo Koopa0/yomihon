@@ -44,7 +44,7 @@ func TestHealthSaysWhenItCouldNotEvaluate(t *testing.T) {
 	t.Run("a contract that reads, and a folder with findings", func(t *testing.T) {
 		t.Parallel()
 		srv := newServerWithContract(t, scopeVault(t), loadHomeContract(t))
-		_, page := get(t, srv.URL+"/health")
+		_, page := get(t, srv.Client(), srv.URL+"/health")
 		if strings.Contains(page, "PLACEHOLDER-SLOT") {
 			t.Error("a template's placeholder is reported as a citation someone owes")
 		}
@@ -56,7 +56,7 @@ func TestHealthSaysWhenItCouldNotEvaluate(t *testing.T) {
 	t.Run("a contract that could not be read", func(t *testing.T) {
 		t.Parallel()
 		srv := newServerWithGovernance(t, scopeVault(t), nil, schema.Unreadable(errors.New("bad toml")))
-		code, page := get(t, srv.URL+"/health")
+		code, page := get(t, srv.Client(), srv.URL+"/health")
 		if code != http.StatusOK {
 			t.Fatalf("health status = %d, want 200", code)
 		}
@@ -78,7 +78,7 @@ func TestHealthSaysWhenItCouldNotEvaluate(t *testing.T) {
 	t.Run("a folder that never declared anything", func(t *testing.T) {
 		t.Parallel()
 		srv := newServer(t, scopeVault(t))
-		_, page := get(t, srv.URL+"/health")
+		_, page := get(t, srv.Client(), srv.URL+"/health")
 		if !strings.Contains(page, "PLACEHOLDER-SLOT") {
 			t.Error("the placeholder is withheld, so an undeclared exclusion was treated as one that failed")
 		}
@@ -99,7 +99,7 @@ func TestHealthNamesTheClaimThatActuallyFailed(t *testing.T) {
 	contract := loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\"../outside\"]\n")
 	srv := newServerWithContract(t, scopeVault(t), contract)
 
-	_, page := get(t, srv.URL+"/health")
+	_, page := get(t, srv.Client(), srv.URL+"/health")
 	if !strings.Contains(page, "non_instance_dirs") {
 		t.Error("the page does not name what actually failed")
 	}

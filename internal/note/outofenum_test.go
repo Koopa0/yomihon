@@ -57,7 +57,7 @@ func homeChip(t *testing.T, body, name string) string {
 func TestHomeFlagsAStatusOutsideEveryCarriersEnum(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -106,7 +106,7 @@ func TestMixedCarriersSplitTheChipAndTheCount(t *testing.T) {
 	write("Concepts/misfiled.md", "---\ntitle: Misfiled\ntype: concept\ndomain: golang\nstatus: active\n---\n\nbody\n")
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, home := get(t, srv.URL+"/")
+	code, home := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("home status = %d, want 200", code)
 	}
@@ -114,7 +114,7 @@ func TestMixedCarriersSplitTheChipAndTheCount(t *testing.T) {
 		t.Errorf("a status one carrier declares is flagged as outside every enum; chip = %q", chip)
 	}
 
-	code, health := get(t, srv.URL+"/health")
+	code, health := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("health status = %d, want 200", code)
 	}
@@ -130,7 +130,7 @@ func TestMixedCarriersSplitTheChipAndTheCount(t *testing.T) {
 func TestHealthCountsStatusesOutsideTheEnum(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
-	code, body := get(t, srv.URL+"/health")
+	code, body := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -155,7 +155,7 @@ func TestHealthStaysSilentWhenEveryStatusIsDeclared(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.URL+"/health")
+	code, body := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -173,7 +173,7 @@ func TestHealthStaysSilentWhenEveryStatusIsDeclared(t *testing.T) {
 func TestHealthReachesEveryOutOfEnumNote(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
-	code, body := get(t, srv.URL+"/health")
+	code, body := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -259,7 +259,7 @@ func visibleOnly(markup string) string {
 func TestHomeChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -281,7 +281,7 @@ func TestHomeChipStatesItsFlagInWordsAReaderCanSee(t *testing.T) {
 func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, outOfEnumVault(t), loadHomeContract(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -314,7 +314,7 @@ func TestHomeRecentRowNamesAStatusOutsideItsTypesEnum(t *testing.T) {
 func TestHomeRecentRowAccusesNothingWithoutAContract(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, outOfEnumVault(t))
-	code, body := get(t, srv.URL+"/")
+	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}

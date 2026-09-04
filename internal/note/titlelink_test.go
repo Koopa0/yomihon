@@ -44,7 +44,7 @@ func TestNotePageDoesNotDenyANoteItCanSee(t *testing.T) {
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, page := get(t, srv.URL+"/notes/Concepts/golang/Citing.md")
+	code, page := get(t, srv.Client(), srv.URL+"/notes/Concepts/golang/Citing.md")
 	if code != http.StatusOK {
 		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 	}
@@ -70,7 +70,7 @@ func TestNotePageNamesEveryHolderOfASharedTitle(t *testing.T) {
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	_, page := get(t, srv.URL+"/notes/Concepts/golang/Citing.md")
+	_, page := get(t, srv.Client(), srv.URL+"/notes/Concepts/golang/Citing.md")
 	if strings.Contains(page, "還沒有") {
 		t.Error("the page denies a note two files answer to")
 	}
@@ -131,7 +131,7 @@ func TestNotePageReportsATitleCutAtAHash(t *testing.T) {
 			})
 			srv := newServerWithContract(t, root, loadHomeContract(t))
 
-			_, page := get(t, srv.URL+"/notes/"+notePath(tc.rel))
+			_, page := get(t, srv.Client(), srv.URL+"/notes/"+notePath(tc.rel))
 			said := strings.Contains(page, "截斷")
 			if said != tc.wantSaid {
 				t.Errorf("the page says the title was cut at a hash = %v, want %v", said, tc.wantSaid)
@@ -154,7 +154,7 @@ func TestTheCutTitleSentenceIsTrueForADeliberatelyShortTitle(t *testing.T) {
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	_, page := get(t, srv.URL+"/notes/"+notePath("Concepts/golang/Plan #2 final.md"))
+	_, page := get(t, srv.Client(), srv.URL+"/notes/"+notePath("Concepts/golang/Plan #2 final.md"))
 	if !strings.Contains(page, "恰好是") {
 		t.Error("the sentence does not read as an observed coincidence, so it accuses an author who wrote what they meant")
 	}
@@ -179,7 +179,7 @@ func TestHealthDoesNotCallATitleReferencedNoteUncited(t *testing.T) {
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	_, page := get(t, srv.URL+"/health")
+	_, page := get(t, srv.Client(), srv.URL+"/health")
 	if !strings.Contains(page, "Citing") {
 		t.Fatal("the citing note is not on the page at all, so this proves nothing about which list it is in")
 	}

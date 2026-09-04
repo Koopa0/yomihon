@@ -26,7 +26,7 @@ func terminalLessonPage(t *testing.T, noteStatus string) string {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
-	code, body := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -86,7 +86,7 @@ func lessonPage(t *testing.T, noteStatus string, contract *schema.Contract) stri
 	root := t.TempDir()
 	writeLesson(t, root, lessonWithStatus(noteStatus))
 	srv := newServerWithContract(t, root, contract)
-	code, body := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -181,9 +181,9 @@ func TestFlipReceiptNamesTheRecoveryForAOneWayDoor(t *testing.T) {
 		writeLesson(t, root, lessonWithStatus("draft"))
 		srv := newServerWithContract(t, root, loadContract(t))
 
-		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 		location := flipViaPage(t, srv, page, schema.SealStatus)
-		_, landing := get(t, srv.URL+location)
+		_, landing := get(t, srv.Client(), srv.URL+location)
 		receipt := receiptParagraph(t, landing)
 		if !strings.Contains(receipt, recoveryDoor) {
 			t.Errorf("the receipt for a flip nothing walks back from does not say how recovery happens:\n%s", receipt)
@@ -199,9 +199,9 @@ func TestFlipReceiptNamesTheRecoveryForAOneWayDoor(t *testing.T) {
 		writeLesson(t, root, lessonWithStatus("draft"))
 		srv := newServerWithContract(t, root, loadContractWithReturnPath(t))
 
-		_, page := get(t, srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 		location := flipViaPage(t, srv, page, schema.SealStatus)
-		_, landing := get(t, srv.URL+location)
+		_, landing := get(t, srv.Client(), srv.URL+location)
 		receipt := receiptParagraph(t, landing)
 		if strings.Contains(receipt, recoveryDoor) {
 			t.Errorf("the receipt for a reversible flip names the hand edit anyway:\n%s", receipt)

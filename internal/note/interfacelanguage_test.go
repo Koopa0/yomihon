@@ -22,7 +22,7 @@ func TestOnePageSpeaksOneLanguage(t *testing.T) {
 	writeLoudLessonFixture(t, root, templateRel)
 
 	srv := newServerWithContract(t, root, loadContract(t))
-	page := getInLanguage(t, srv.URL+"/notes/System/templates/Loud%20lesson.md", wording.En)
+	page := getInLanguage(t, srv.Client(), srv.URL+"/notes/System/templates/Loud%20lesson.md", wording.En)
 
 	if !strings.Contains(page, `<html lang="en"`) {
 		t.Fatalf("the page does not declare English; the cookie never reached the chrome")
@@ -46,7 +46,7 @@ func TestOnePageSpeaksOneLanguage(t *testing.T) {
 
 // getInLanguage fetches a page as a reader who has chosen one, which is the
 // only way the wiring under test is exercised at all.
-func getInLanguage(t *testing.T, urlStr string, lang wording.Lang) string {
+func getInLanguage(t *testing.T, client *http.Client, urlStr string, lang wording.Lang) string {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, urlStr, http.NoBody)
 	if err != nil {
@@ -56,7 +56,7 @@ func getInLanguage(t *testing.T, urlStr string, lang wording.Lang) string {
 	// the value cross the wire on a request, and the attributes a cookie type
 	// carries belong to the server that sets one.
 	req.Header.Set("Cookie", wording.CookieName+"="+string(lang))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s: %v", urlStr, err)
 	}
