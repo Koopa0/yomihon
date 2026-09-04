@@ -163,7 +163,16 @@ func placeholderFor(i int, markup string) string {
 
 // inlinePlaceholderRunes are stripped from authored text before any real marker
 // exists, since a note containing them could otherwise select or relocate
-// renderer-owned markup. They are unassigned, so nothing readable is lost.
+// renderer-owned markup. Unicode does assign them — they sit in the Private Use
+// Area — but it assigns them no meaning: what one stands for is whatever a
+// sender and a receiver agreed between themselves, and no writing system spells
+// anything with them. So a note carrying one carries no word.
+//
+// It may still carry a picture. A private agreement is exactly what an icon
+// font is, and a glyph pasted from one in this range is dropped wherever it
+// stands — inside a fenced block and inside a code span too, where every other
+// character survives as typed. Nothing readable is lost; something somebody
+// could see is.
 const inlinePlaceholderRunes = "\ue000\ue001\ue002\ue003"
 
 // blockMarkupMarker matches one planted block-markup marker in rendered HTML.
