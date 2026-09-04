@@ -9,6 +9,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -79,7 +80,10 @@ func headingWords(raw string) string {
 // cuts a transclusion to, and the folded lines that could carry a "^name"
 // block address. Obsidian comments come off first, the way the page strips
 // them before it looks, because a heading or an address hidden in a comment
-// is not on the page a reader arrives at.
+// is not on the page a reader arrives at. A study path's branch is named the
+// way the page names it too: the role it declares at the end of its heading is
+// grammar the course parser consumes, so the id is stamped from the words
+// without it, and a citation reaches the branch by the name a reader sees.
 func anchorSurface(body string) (sections, excerptSections map[string]bool, blockLines []string) {
 	stripped := withoutCommentZones(body)
 	sections = make(map[string]bool)
@@ -126,7 +130,7 @@ func collectParsedHeadings(body string, into map[string]bool) {
 		if r, ok := linesRange(h); ok {
 			raw = body[r.start:r.stop]
 		}
-		into[sectionSlug(headingWords(raw))] = true
+		into[sectionSlug(headingWords(sequence.HeadingName(raw, h.Level)))] = true
 	})
 }
 
@@ -134,11 +138,22 @@ func collectParsedHeadings(body string, into map[string]bool) {
 // page's own patterns for the same scan, kept literal here so the two faces
 // read one line the same way.
 var (
-	atxHeadingText   = regexp.MustCompile(`^ {0,3}#{1,6}[ \t]+(.*)$`)
+	atxHeadingText   = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*)$`)
 	setextUnderline  = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
 	quotedLinePrefix = regexp.MustCompile(`^ {0,3}>`)
 	listItemPrefix   = regexp.MustCompile(`^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)`)
 )
+
+// setextLevel is the level an underline makes, for a line the caller has
+// already recognized as one: '=' underlines a level-1 heading, '-' a level-2
+// one. A course branch is a heading from level 2 to 6, so the two readings part
+// company over a declaration written on an underlined title.
+func setextLevel(line string) int {
+	if strings.HasPrefix(strings.TrimSpace(line), "=") {
+		return 1
+	}
+	return 2
+}
 
 // collectGenerousHeadings adds what a deliberately generous line reading
 // accepts as a heading: quote markers and one list marker stripped, both
@@ -150,12 +165,13 @@ func collectGenerousHeadings(body string, into map[string]bool) {
 	for line := range strings.SplitSeq(body, "\n") {
 		candidate := withoutQuoteAndListMarks(line)
 		if m := atxHeadingText.FindStringSubmatch(candidate); m != nil {
-			into[sectionSlug(headingWords(m[1]))] = true
+			into[sectionSlug(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
 			paragraph = nil
 			continue
 		}
 		if len(paragraph) > 0 && setextUnderline.MatchString(candidate) {
-			into[sectionSlug(headingWords(strings.Join(paragraph, "\n")))] = true
+			name := sequence.HeadingName(strings.Join(paragraph, "\n"), setextLevel(candidate))
+			into[sectionSlug(headingWords(name))] = true
 			paragraph = nil
 			continue
 		}
@@ -292,13 +308,14 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 			continue
 		}
 		if m := atxHeadingText.FindStringSubmatch(line); m != nil {
-			into[sectionSlug(headingWords(m[1]))] = true
+			into[sectionSlug(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
 			paragraph = -1
 			continue
 		}
 		switch {
 		case paragraph >= 0 && setextUnderline.MatchString(line):
-			into[sectionSlug(headingWords(strings.Join(lines[paragraph:i], "\n")))] = true
+			name := sequence.HeadingName(strings.Join(lines[paragraph:i], "\n"), setextLevel(line))
+			into[sectionSlug(headingWords(name))] = true
 			paragraph = -1
 		case strings.TrimSpace(line) == "", quotedLinePrefix.MatchString(line), listItemPrefix.MatchString(line),
 			breakRuleLine.MatchString(line), setextUnderline.MatchString(line),
