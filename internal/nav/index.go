@@ -119,32 +119,37 @@ func buildPlacementIndex(index map[string][]Placement, maps []Map) map[string][]
 }
 
 // Directory returns what a folder holds directly: its files in the captured
-// order, and the folders immediately inside it. ok is false for a path no
-// folder in this generation answers to, so a caller can tell an empty folder
-// from one that is not there.
-func (m *Model) Directory(dir string) (notes, subfolders []NoteRef, ok bool) {
+// order, and the folders immediately inside it, each carrying its own contents
+// so a listing can say how much is behind a row before anyone opens it. ok is
+// false for a path no folder in this generation answers to, so a caller can
+// tell an empty folder from one that is not there.
+func (m *Model) Directory(dir string) (notes []NoteRef, subfolders []Folder, ok bool) {
 	if m == nil {
 		return nil, nil, false
 	}
 	notes, listed := m.dirNotes[dir]
-	prefix := dir + "/"
-	seen := make(map[string]bool)
-	for path := range m.dirNotes {
-		if path == dir || !strings.HasPrefix(path, prefix) {
-			continue
-		}
-		child := path[len(prefix):]
-		if i := strings.IndexByte(child, '/'); i >= 0 {
-			child = child[:i]
-		}
-		if child == "" || seen[child] {
-			continue
-		}
-		seen[child] = true
-		subfolders = append(subfolders, NoteRef{Name: child, RelPath: prefix + child})
+	if node, found := findFolder(m.folders, dir); found {
+		subfolders = cloneFolders(node.Subfolders)
+		slices.SortFunc(subfolders, func(a, b Folder) int { return vault.ComparePaths(a.Name, b.Name) })
 	}
-	slices.SortFunc(subfolders, func(a, b NoteRef) int { return vault.ComparePaths(a.Name, b.Name) })
 	return slices.Clone(notes), subfolders, listed || len(subfolders) > 0
+}
+
+// findFolder walks one path of the tree a segment at a time. A directory that
+// holds nothing but other directories is a node like any other, so a folder
+// that never received a file of its own is still found here.
+func findFolder(folders []Folder, dir string) (Folder, bool) {
+	var found Folder
+	remaining := folders
+	for seg := range strings.SplitSeq(dir, "/") {
+		at := slices.IndexFunc(remaining, func(f Folder) bool { return f.Name == seg })
+		if at < 0 {
+			return Folder{}, false
+		}
+		found = remaining[at]
+		remaining = found.Subfolders
+	}
+	return found, true
 }
 
 // FolderStep returns the neighbors on either side of relPath inside its own

@@ -2201,6 +2201,37 @@ func TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote(t *testing.T) {
 	}
 }
 
+// TestTheRailHeadingOfARootNoteAnswers covers the one way out the rail offers a
+// reader who is in the vault root. The root is not a folder under the tree —
+// the route for one level refuses an empty path — so a heading that pointed
+// there sent the reader to a page that does not exist, and since the rail
+// stopped carrying the whole vault that heading is the only way out it has.
+func TestTheRailHeadingOfARootNoteAnswers(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Root\n"), 0o600); err != nil {
+		t.Fatalf("write README.md: %v", err)
+	}
+	srv := newServer(t, root)
+	code, body := get(t, srv.Client(), srv.URL+"/notes/README.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET /notes/README.md status = %d, want 200", code)
+	}
+	const opener = `<a class="y-here__label" href="`
+	_, rest, found := strings.Cut(body, opener)
+	if !found {
+		t.Fatal("the rail of a root note carries no heading for the folder it is in")
+	}
+	href, _, closed := strings.Cut(rest, `"`)
+	if !closed {
+		t.Fatal("the rail heading's address is never closed")
+	}
+	if code, _ = get(t, srv.Client(), srv.URL+href); code != http.StatusOK {
+		t.Errorf("the rail heading of a root note leads to %s, which answers %d, want %d", href, code, http.StatusOK)
+	}
+}
+
 // TestTheDeskDrawsItsWaysInForAFolderHoldingNothing covers the first minute of
 // a vault: a folder with nothing in it at all. All four ways in are drawn, each
 // stating its own measure and its own sentence, and none of them offers a row.

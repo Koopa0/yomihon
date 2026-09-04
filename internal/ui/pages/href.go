@@ -128,8 +128,16 @@ func statusChipLabel(status string, lang wording.Lang) string {
 	return cmp.Or(status, wording.NoStatusStated.In(lang))
 }
 
-// folderHref builds the browse URL for a folder.
-func folderHref(dir string) string { return VaultHref("/folders/", dir) }
+// folderHref builds the browse URL for a folder. The vault root is not a folder
+// under the tree — it is the mode's own listing — and the route for one level
+// refuses an empty path, so the root answers at the mode index rather than at a
+// trailing slash that returns nothing.
+func folderHref(dir string) string {
+	if dir == "" {
+		return indexHref(folderMode)
+	}
+	return VaultHref("/folders/", dir)
+}
 
 // searchHref builds the URL for one search query, escaping it as the form
 // submission would, so an offered search and a typed one land on the same page.
