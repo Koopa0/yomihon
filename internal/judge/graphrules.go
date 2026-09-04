@@ -506,8 +506,10 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 }
 
 // diskUnlisted is a non-draft, non-gap lesson on disk that the syllabus for its
-// domain does not list. It is advisory and never gates, since writing a lesson
-// before adding it to the syllabus is normal.
+// domain does not list. Writing a lesson before adding it to the syllabus is
+// normal, so it is reported at warning level and nothing here decides more than
+// that: whether a warning stops a run belongs to whoever starts it. Denying
+// warnings, or naming this rule, makes it gate like any other.
 func diskUnlisted(syllabus, lesson *note) Finding {
 	return Finding{
 		RuleID:          "map.disk_unlisted",
