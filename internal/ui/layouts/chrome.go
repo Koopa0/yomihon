@@ -62,10 +62,10 @@ func onOff(enabled bool) string {
 // a status line, and a reader who cannot read the interface they are looking at
 // needs to recognise the way out of it.
 func languageMark(lang wording.Lang) string {
-	if lang == wording.En {
-		return "中"
+	if lang.Other() == wording.En {
+		return "EN"
 	}
-	return "EN"
+	return "中"
 }
 
 // textSizeLabel is the text-size control's accessible name, which carries the
@@ -141,14 +141,4 @@ func returnableAddress(r *http.Request) string {
 		return r.URL.RequestURI()
 	}
 	return "/"
-}
-
-// otherLanguage is the language the form asks for: the one the interface is
-// not speaking. It is the same answer languageMark draws, held as a value the
-// server can store rather than a glyph a reader can recognise.
-func otherLanguage(lang wording.Lang) wording.Lang {
-	if lang == wording.En {
-		return wording.ZhHant
-	}
-	return wording.En
 }
