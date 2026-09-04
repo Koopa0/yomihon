@@ -1,3 +1,11 @@
+# The versions the gates below pin here. `make tools` installs the seven Go
+# ones; three more are not go-installable and are named so a clean clone knows
+# what to bring: the Tailwind standalone CLI at TAILWIND_VERSION, ShellCheck at
+# SHELLCHECK_VERSION, and Node with the lockfile under .github/ for the frontend
+# lint and the browser probes. templ is pinned elsewhere and deliberately — it
+# is a go.mod tool directive, so `go tool templ` is already the version this
+# module builds with and there is nothing to keep in step here. Nothing in the
+# product needs any of them: they are the gate's tools, not the reader's.
 GOLANGCI_LINT_VERSION := 2.13.2
 GOSEC_VERSION := v2.28.0
 STATICCHECK_VERSION := v0.8.1
@@ -338,21 +346,33 @@ deadcode-check:
 
 verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
 
+# The harness this target drives is a maintainer-local checkout that this
+# repository does not ship, so from a clean clone there is nothing here to run.
+# It says so and stops, rather than failing: an outsider who typed it has met a
+# target for a tool they cannot install, and a red gate would tell them their
+# clone is broken when it is not. The canonical gate is `make verify`.
 verify-spec:
-	@test -f tests/test-hooks.sh \
-		-a -f tests/test-skill-format.sh \
-		-a -f tests/test-consistency.sh || { \
-		echo "ERROR: local go-spec harness is missing; install or refresh the bootstrap before verify-spec." >&2; \
+	@set -e; \
+	present=0; \
+	for script in tests/test-hooks.sh tests/test-skill-format.sh tests/test-consistency.sh; do \
+		[ -f "$$script" ] && present=$$((present + 1)); \
+	done; \
+	if [ "$$present" -eq 0 ]; then \
+		echo "verify-spec: the local harness is not installed; nothing to run. The gate this repository ships is: make verify"; \
+		exit 0; \
+	fi; \
+	if [ "$$present" -ne 3 ]; then \
+		echo "verify-spec: the local harness is half installed ($$present of 3 scripts); refresh it or remove it, because a partial run reports on ground it did not cover" >&2; \
 		exit 1; \
-	}
-	@echo "=== Hook Tests ==="
-	@bash tests/test-hooks.sh
-	@echo ""
-	@echo "=== Skill/Agent Format Tests ==="
-	@bash tests/test-skill-format.sh
-	@echo ""
-	@echo "=== Consistency Tests ==="
-	@bash tests/test-consistency.sh
+	fi; \
+	echo "=== Hook Tests ==="; \
+	bash tests/test-hooks.sh; \
+	echo ""; \
+	echo "=== Skill/Agent Format Tests ==="; \
+	bash tests/test-skill-format.sh; \
+	echo ""; \
+	echo "=== Consistency Tests ==="; \
+	bash tests/test-consistency.sh
 
 clean:
 	rm -rf bin tmp

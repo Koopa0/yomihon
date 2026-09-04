@@ -2,7 +2,8 @@
 
 ## Supported versions
 
-No releases yet. Fixes land on `main`; older snapshots are not maintained.
+`v0.1.0` is a pre-release and is not maintained. Fixes land on `main`, which is
+what `go install …@main` gives you and the only version to report against.
 
 ## Reporting a vulnerability
 
