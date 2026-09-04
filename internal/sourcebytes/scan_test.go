@@ -52,7 +52,9 @@ func scan(root string, allowed map[finding]struct{}) ([]finding, error) {
 func scanTree(tree *os.Root, allowed map[finding]struct{}) ([]finding, error) {
 	var findings []finding
 	err := fs.WalkDir(tree.FS(), ".", func(name string, entry fs.DirEntry, walkErr error) error {
-		return inspect(tree, allowed, &findings, name, entry, walkErr)
+		found, stepErr := inspect(tree, allowed, name, entry, walkErr)
+		findings = append(findings, found...)
+		return stepErr
 	})
 	if err != nil {
 		return nil, fmt.Errorf("scan repository source bytes: %w", err)
@@ -66,30 +68,35 @@ func scanTree(tree *os.Root, allowed map[finding]struct{}) ([]finding, error) {
 	return findings, nil
 }
 
-func inspect(tree *os.Root, allowed map[finding]struct{}, findings *[]finding, name string, entry fs.DirEntry, walkErr error) error {
+// inspect reports what one step of the walk found, and how the walk should
+// continue. It keeps no list of its own: the walk that started it owns the
+// findings, so a step that reaches a directory, a file that is not text, or
+// text that is clean all say the same thing by returning nothing.
+func inspect(tree *os.Root, allowed map[finding]struct{}, name string, entry fs.DirEntry, walkErr error) ([]finding, error) {
 	if walkErr != nil {
-		return walkErr
+		return nil, walkErr
 	}
 	if entry.IsDir() {
 		if name != "." && ignoredDirectory(entry.Name()) {
-			return fs.SkipDir
+			return nil, fs.SkipDir
 		}
-		return nil
+		return nil, nil
 	}
 	if !isTextSource(entry.Name()) {
-		return nil
+		return nil, nil
 	}
 	data, err := tree.ReadFile(name)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var found []finding
 	for _, pattern := range dangerousBytes {
-		found := finding{path: name, kind: pattern.kind}
-		if _, ok := allowed[found]; !ok && bytes.Contains(data, pattern.bytes) {
-			*findings = append(*findings, found)
+		carried := finding{path: name, kind: pattern.kind}
+		if _, ok := allowed[carried]; !ok && bytes.Contains(data, pattern.bytes) {
+			found = append(found, carried)
 		}
 	}
-	return nil
+	return found, nil
 }
 
 func ignoredDirectory(name string) bool {
