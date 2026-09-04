@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -247,8 +248,8 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 	model := buildModel(t)
 	lang := wording.ZhHant
 	pages := map[string]ListIndexView{
-		pathMode:   NewPathIndex(model.Paths(), lang),
-		mapMode:    NewMapIndex(model.Maps(), lang),
+		pathMode:   NewPathIndex(model.Paths(), nav.Closure{}, lang),
+		mapMode:    NewMapIndex(model.Maps(), nav.Closure{}, lang),
 		reportMode: NewReportIndex(model.Reports(), lang),
 		folderMode: NewFolderIndex(model, lang),
 	}

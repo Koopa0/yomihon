@@ -18,6 +18,11 @@ import "slices"
 // A shelf carries no status vocabulary, no rule names and no course grammar.
 // Whoever owns the organisation reads those, decides what a row says, and hands
 // over words: the schema contract is read in one place and this is not it.
+//
+// Its rows are read and never written. A width narrows by taking a run of them,
+// so the same rows are shared by every view of one shelf built for one request,
+// and a width that wrote to a row would change what another had already shown.
+// Anything a width needs to say about a row it says in its own markup.
 type Shelf struct {
 	Title string
 	// Lede is the one sentence. Any figure beyond Count belongs inside it,

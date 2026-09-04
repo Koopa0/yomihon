@@ -79,7 +79,7 @@ type StatusDistribution struct {
 // — how many lessons it lays out — and never how far anyone has got: a count
 // that described a status as progress ran backwards as the work was finished,
 // and does not return under another name.
-func NewPathIndex(paths []nav.Path, lang wording.Lang) ListIndexView {
+func NewPathIndex(paths []nav.Path, closure nav.Closure, lang wording.Lang) ListIndexView {
 	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
@@ -98,15 +98,23 @@ func NewPathIndex(paths []nav.Path, lang wording.Lang) ListIndexView {
 			Fault: unread,
 		})
 	}
-	return listIndex(pathMode, wording.Paths.In(lang),
+	view := listIndex(pathMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
 		wording.PathIndexLede.In(lang), wording.PathIndexEmpty.In(lang), rows)
+	view.Fault = closure.Diagnostic()
+	return view
 }
 
 // listIndex assembles a mode's page from the parts every one of them has. The
 // kicker repeats the shelf's own name and measure because it is the page's
 // heading rather than the shelf's, and reading them from the shelf is what
 // keeps the two from disagreeing.
+//
+// A page that reads a declaration takes that declaration's closure and states
+// its reason. It does not also refuse to list: a closure that is shut leaves
+// the model with nothing of that kind to hand over, so a second refusal here
+// would be a guard over a case that cannot arrive, in a third place. What a
+// page owes the reader is the reason, and that is what it carries.
 func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView {
 	return ListIndexView{
 		Mode:   mode,
@@ -123,7 +131,7 @@ func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView
 
 // NewMapIndex builds the map index. A map's measure is how many branches it
 // holds at every depth, which is the shape of the subject it draws.
-func NewMapIndex(maps []nav.Map, lang wording.Lang) ListIndexView {
+func NewMapIndex(maps []nav.Map, closure nav.Closure, lang wording.Lang) ListIndexView {
 	rows := make([]Row, 0, len(maps))
 	for i := range maps {
 		rows = append(rows, Row{
@@ -132,9 +140,11 @@ func NewMapIndex(maps []nav.Map, lang wording.Lang) ListIndexView {
 			Mark: plural(countBranches(maps[i].Branches), wording.BranchCountOne, wording.BranchCountMany, lang),
 		})
 	}
-	return listIndex(mapMode, wording.Maps.In(lang),
+	view := listIndex(mapMode, wording.Maps.In(lang),
 		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
 		wording.MapIndexLede.In(lang), wording.MapIndexEmpty.In(lang), rows)
+	view.Fault = closure.Diagnostic()
+	return view
 }
 
 // countBranches totals a map's branches at every depth.
@@ -277,13 +287,14 @@ const deskBlockItems = 3
 // disagree about what the vault holds. A withheld declaration leaves its block
 // empty; the reason is stated once for the whole desk, below the seam.
 func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
-	// A declaration nobody could read leaves the model with no courses and no
-	// maps of its own, so there is no second guard here against listing them:
-	// one answer to that question is enough, and withhold takes back only what
-	// a block would otherwise claim about how much it holds.
-	withheld := model.DeclaredClosure().Closed()
-	pathIndex := NewPathIndex(model.Paths(), lang)
-	mapIndex := NewMapIndex(model.Maps(), lang)
+	// The blocks are the mode pages narrowed, so they refuse what those pages
+	// refuse: each constructor is handed the same declaration closure the page
+	// is, and withhold then takes back only what a block would otherwise claim
+	// about how much it holds.
+	closure := model.DeclaredClosure()
+	withheld := closure.Closed()
+	pathIndex := NewPathIndex(model.Paths(), closure, lang)
+	mapIndex := NewMapIndex(model.Maps(), closure, lang)
 	reportIndex := NewReportIndex(model.Reports(), lang)
 	folderIndex := NewFolderIndex(model, lang)
 	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))
@@ -318,6 +329,11 @@ func withhold(s *Shelf) {
 // The measure comes across untouched. A block that recomputed it could count
 // something the page did not, which is the one disagreement this arrangement
 // exists to make impossible.
+//
+// The block and the page share the rows rather than copying them, which is
+// what makes the two the same shelf rather than two shelves that agree today.
+// The rows are read-only by the shelf's own contract, and both views are built
+// for one request from a projection the model already handed over as a copy.
 func deskBlock(index *ListIndexView, lede string) DeskBlock {
 	shelf := index.Shelf
 	shelf.Lede = lede
