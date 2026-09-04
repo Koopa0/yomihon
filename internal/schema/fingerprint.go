@@ -22,9 +22,17 @@ type pinnedPolicySource struct {
 	entry  vaultfs.Entry
 }
 
-func (s policySource) unchanged() bool {
+// reread reports whether the contract file still carries the bytes the policy
+// was derived from. A file that cannot be read at all answers neither way and
+// says so through the error: an absent name is what a save-by-rename leaves for
+// a few microseconds, and counting that instant as drift would close a
+// capability for the life of the process over bytes nobody touched.
+func (s policySource) reread() (bool, error) {
 	if s.path == "" {
-		return false
+		// A contract decoded from bytes alone has no file behind it, so it can
+		// never vouch for itself again. That is a settled answer, not a read
+		// that might succeed next time.
+		return false, nil
 	}
 	var (
 		data []byte
@@ -42,7 +50,10 @@ func (s policySource) unchanged() bool {
 	} else {
 		data, err = os.ReadFile(s.path) // #nosec G304 -- LoadFile recorded the operator-selected contract path
 	}
-	return err == nil && sha256.Sum256(data) == s.digest
+	if err != nil {
+		return false, err
+	}
+	return sha256.Sum256(data) == s.digest, nil
 }
 
 // rereadCurrent selects whatever regular file now carries the contract's name

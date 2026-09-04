@@ -116,12 +116,19 @@ func pathHasFoldedPrefix(rel, dir string) bool {
 
 // ValidateSource returns p only while the contract source it was derived from
 // is unchanged. Copies of one Contract share a one-way stale latch, so once any
-// consumer observes drift all agent-facing output stays unavailable.
+// consumer observes drift all agent-facing output stays unavailable. A source
+// that cannot be read at all withholds this caller's answer and nothing more:
+// it is no evidence the declaration was withdrawn, and the next caller reads
+// the file again.
 func (p PrivacyPolicy) ValidateSource() PrivacyPolicy {
 	if p.state == nil || !p.state.claim.held() || p.state.stale.Load() {
 		return p
 	}
-	if !p.state.source.unchanged() {
+	same, err := p.state.source.reread()
+	if err != nil {
+		return PrivacyPolicy{state: &privacyPolicyState{claim: unreadableClaim(err)}}
+	}
+	if !same {
 		p.state.stale.Store(true)
 	}
 	return p

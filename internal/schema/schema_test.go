@@ -384,6 +384,86 @@ func TestArtifactPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
 	}
 }
 
+// A contract that cannot be read is not a contract that changed. A save-by-
+// rename leaves the name absent for a few microseconds, and reading that
+// instant as drift shuts the capability for the life of the process over bytes
+// nobody touched. The request that meets the gap is refused, the next one asks
+// again, and only bytes that really differ latch the policy shut.
+func TestArtifactPolicyUnreadableSourceRefusesOneRequestWithoutLatching(t *testing.T) {
+	t.Parallel()
+
+	root, contract := loadSemanticRootContract(t)
+	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	policy := contract.ArtifactPolicy()
+	if !policy.ValidateSource().Available() {
+		t.Fatalf("policy unavailable before the source moved: %s", policy.Diagnostic())
+	}
+
+	away := path + ".away"
+	if err := os.Rename(path, away); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", path, away, err)
+	}
+	during := policy.ValidateSource()
+	if during.Available() || during.Trustworthy() {
+		t.Error("an artifact policy classified while its source could not be read")
+	}
+	if during.Diagnostic() == "" {
+		t.Error("a refusal with no sentence; a contract that cannot be read is news")
+	}
+	if reason := during.Claim().Reason(); reason != schema.ReasonContractUnreadable {
+		t.Errorf("refusal reason = %v, want %v", reason, schema.ReasonContractUnreadable)
+	}
+	if during.IsNonInstance("System/templates/Example.md") {
+		t.Error("IsNonInstance answered from a policy that could not re-read its source")
+	}
+
+	if err := os.Rename(away, path); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
+	}
+	after := policy.ValidateSource()
+	if !after.Available() {
+		t.Errorf("the policy stayed shut after the identical file came back: %s", after.Diagnostic())
+	}
+	if !after.IsNonInstance("System/templates/Example.md") {
+		t.Error("the policy stopped classifying after the identical file came back")
+	}
+}
+
+// The served path loads through a pinned reader rather than a bare path, and it
+// carries both capabilities, so the same gap is checked there too.
+func TestPinnedPolicyUnreadableSourceRefusesOneRequestWithoutLatching(t *testing.T) {
+	t.Parallel()
+
+	root, _ := loadSemanticRootContract(t)
+	contract := loadPinnedSemanticContract(t, root)
+	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	artifacts, privacy := contract.ArtifactPolicy(), contract.PrivacyPolicy()
+	if !artifacts.ValidateSource().Available() || !privacy.ValidateSource().Available() {
+		t.Fatal("a pinned policy was unavailable before the source moved")
+	}
+
+	away := path + ".away"
+	if err := os.Rename(path, away); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", path, away, err)
+	}
+	if artifacts.ValidateSource().Available() {
+		t.Error("the artifact policy classified while the pinned source could not be read")
+	}
+	if privacy.ValidateSource().Available() {
+		t.Error("the privacy policy answered while the pinned source could not be read")
+	}
+
+	if err := os.Rename(away, path); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
+	}
+	if !artifacts.ValidateSource().Available() {
+		t.Error("the artifact policy stayed shut after the identical file came back")
+	}
+	if !privacy.ValidateSource().Available() {
+		t.Error("the privacy policy stayed shut after the identical file came back")
+	}
+}
+
 func TestArtifactPolicyCaptureIsAnImmutableRequestSnapshot(t *testing.T) {
 	t.Parallel()
 

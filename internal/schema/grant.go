@@ -124,12 +124,20 @@ func Ungoverned() Governance { return Governance{} }
 // sentence: a contract loads at startup, before any reader has asked for
 // anything, so only the surface knows which language to say it in.
 func Unreadable(err error) Governance {
-	return Governance{claim: Claim{
+	return Governance{claim: unreadableClaim(err)}
+}
+
+// unreadableClaim is the outcome for a contract file that exists and could not
+// be read, wherever that is discovered: at load, or later when a capability
+// re-reads the bytes it was derived from. Both carry the reader's error so a
+// surface can name the fault in its own words.
+func unreadableClaim(err error) Claim {
+	return Claim{
 		outcome:    grantUnresolved,
 		reason:     ReasonContractUnreadable,
 		cause:      err,
 		diagnostic: unreadableDiagnostic(err),
-	}}
+	}
 }
 
 // unreadableDiagnostic is the operator's own line; a surface speaking to a
