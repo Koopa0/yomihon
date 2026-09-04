@@ -289,13 +289,13 @@ const deskBlockItems = 3
 // disagree about what the vault holds. A withheld declaration leaves its block
 // empty; the reason is stated once for the whole desk, below the seam.
 func NewDeskBlocks(model *nav.Model, lang wording.Lang) []DeskBlock {
+	// A declaration nobody could read leaves the model with no courses and no
+	// maps of its own, so there is no second guard here against listing them:
+	// one answer to that question is enough, and withhold takes back only what
+	// a block would otherwise claim about how much it holds.
 	withheld := model.DeclaredClosure().Closed()
-	var paths []nav.Path
-	var declared []nav.Map
-	if !withheld {
-		paths = model.Paths()
-		declared = model.Maps()
-	}
+	paths := model.Paths()
+	declared := model.Maps()
 	folders := model.Folders()
 	rootNotes := model.RootNotes()
 	reports := model.Reports()
