@@ -1,15 +1,20 @@
 // Behavior lock for a course that declares its branches. Every fact below is
 // one the reader can see, checked through the pages they actually open: the
-// number Home shows, where a side branch is drawn, what the step links offer,
-// and what a block declared out of the course does not appear in.
+// number the course index shows, where a side branch is drawn, what the step
+// links offer, and what a block declared out of the course does not appear in.
 //
-// Env: YOMIHON_BASE, PAGE_PATH, and MUTATE.
+// The count is read off the course index rather than the desk. The desk shows
+// a corner of that listing — its first few rows — so a vault with one more
+// course than fits would have hidden this one and failed the check for having
+// too much in it rather than for counting wrongly.
+//
+// Env: YOMIHON_BASE and MUTATE.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';
 
-const HOME = '/';
+const PATH_INDEX = '/paths';
 const COURSE_PAGE = '/syllabus/Maps/branches.md';
 const SECOND_LESSON = '/notes/Course/C02.md';
 const SIDE_LESSON = '/notes/Course/S01.md';
@@ -17,7 +22,7 @@ const MAP_PAGE = '/notes/Notes/alpha.md';
 const ROUTINE_LESSON = '/notes/Course/R01.md';
 
 const SITES = [
-  'home-counts-the-main-line',
+  'the-index-counts-the-main-line',
   'side-branch-under-its-lesson',
   'main-line-steps-over-the-side-branch',
   'side-branch-does-not-rejoin',
@@ -63,9 +68,9 @@ const rewriteDocument = (path, needle, replacement, label) => async (page) => {
 };
 
 const MUTATIONS = {
-  'inflate-the-home-count': {
-    target: 'home-counts-the-main-line',
-    apply: rewriteDocument(HOME, '>4 課<', '>6 課<', 'Home course card'),
+  'inflate-the-course-count': {
+    target: 'the-index-counts-the-main-line',
+    apply: rewriteDocument(PATH_INDEX, '>4 課<', '>6 課<', 'course index row'),
   },
   'detach-the-side-branch': {
     target: 'side-branch-under-its-lesson',
@@ -146,16 +151,17 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 
-  // Home counts the main line: three written lessons plus the one that is
-  // planned and unwritten. The side branch and the routine block are not it.
-  await page.goto(BASE + HOME, { waitUntil: 'domcontentloaded' });
-  const card = page.locator('main a[href="/syllabus/Maps/branches.md"]');
-  if (await card.count() !== 1) broken(`Home shows ${await card.count()} branch-course cards, want 1`);
-  const homeCount = (await card.innerText()).match(/(\d+)\s*課/);
-  if (!homeCount) broken(`the Home card shows no lesson count: ${JSON.stringify(await card.innerText())}`);
-  if (homeCount[1] !== '4') {
-    fail('home-counts-the-main-line',
-      `Home shows ${homeCount[1]} 課, want 4: the main line's three written lessons and the one still to be written, without the side branch or the routine block`);
+  // The course index counts the main line: three written lessons plus the one
+  // that is planned and unwritten. The side branch and the routine block are
+  // not it.
+  await page.goto(BASE + PATH_INDEX, { waitUntil: 'domcontentloaded' });
+  const row = page.locator('main a[href="/syllabus/Maps/branches.md"]');
+  if (await row.count() !== 1) broken(`the course index lists the branch course ${await row.count()} times, want 1`);
+  const listed = (await row.innerText()).match(/(\d+)\s*課/);
+  if (!listed) broken(`the course index row shows no lesson count: ${JSON.stringify(await row.innerText())}`);
+  if (listed[1] !== '4') {
+    fail('the-index-counts-the-main-line',
+      `the course index shows ${listed[1]} 課, want 4: the main line's three written lessons and the one still to be written, without the side branch or the routine block`);
   }
 
   // The side branch is drawn where the author put it — inside the part, after
