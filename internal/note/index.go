@@ -28,8 +28,9 @@ const shelfRecentLimit = 7
 // closed.
 func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	model := shell.Project(h.sources.Status(), h.sources.Snapshot().Capture()).Nav
-	view := pages.NewMapIndex(model.Maps(), model.DeclaredClosure(), lang)
+	pageShell := shell.Project(h.sources.Status(), h.sources.Snapshot().Capture())
+	model := pageShell.Nav
+	view := pages.NewMapIndex(model.Maps(), model.DeclaredClosure(), pageShell.Governed, lang)
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)
 	}

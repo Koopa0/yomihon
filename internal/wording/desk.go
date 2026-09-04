@@ -61,6 +61,19 @@ var (
 		"這個書庫沒有宣告任何地圖。",
 		"This vault declares no maps.",
 	)
+	// What a folder with no contract is told instead. "Declares none" is a
+	// sentence about a declaration, and a folder no contract governs has made
+	// none for it to be about: it is not answering that question badly, it was
+	// never asked it. The sentence names what is missing and what it would have
+	// given, so a reader can tell an empty answer from an absent question.
+	PathIndexUngoverned = both(
+		"這個資料夾還沒有契約；課程是契約宣告出來的。",
+		"This folder has no contract yet; a course is something a contract declares.",
+	)
+	MapIndexUngoverned = both(
+		"這個資料夾還沒有契約；地圖是契約宣告出來的。",
+		"This folder has no contract yet; a map is something a contract declares.",
+	)
 	ReportIndexLede = both(
 		"寫在書庫裡的報告與每日簡報，照原樣顯示。",
 		"The reports and daily briefings written into the vault, shown as they were written.",
