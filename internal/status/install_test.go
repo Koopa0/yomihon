@@ -479,14 +479,20 @@ func TestInstallRungMatrix(t *testing.T) {
 			wantContent: replacement,
 		},
 		{
-			// The weakest rung promises nothing about this window, which is why
-			// it is last and why a volume reaches it only when the two above
-			// were refused. A plain rename replaces the note whole, so the
-			// other edit is lost rather than torn, and no syscall on this path
-			// could have reported it. Locking that here makes the cost visible
-			// and means an improvement has to be a deliberate edit to this
-			// table rather than a silent change of behaviour.
-			name:        "rename overwrites a raced install without noticing",
+			// The weakest rung promises nothing about the window before the
+			// rename, which is why it is last and why a volume reaches it only
+			// when the two above were refused. A plain rename replaces the note
+			// whole, so an edit landing in that window is lost rather than
+			// torn, and no syscall on this path could have reported it. Locking
+			// that here makes the cost visible.
+			//
+			// The window after the rename is a different one, and this rung no
+			// longer passes over it: it reads the note back and reports bytes
+			// that are not the ones it installed. That half is held by
+			// TestTheRenameRungLooksAtWhatItInstalled, where the read-back can
+			// be driven directly; here the raced writer lands before the
+			// install, which is the window this row is about.
+			name:        "rename overwrites an edit made before the install, without noticing",
 			rung:        rungRename,
 			raced:       true,
 			wantContent: replacement,

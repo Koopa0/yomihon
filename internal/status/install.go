@@ -220,7 +220,7 @@ func installRewritten(
 	case rungHardlink:
 		return installByHardlink(ops, relSlash, tmpName, source)
 	case rungRename, rungUnknown:
-		return installByRename(ops, tmpName, source)
+		return installByRename(ops, relSlash, tmpName, source, data)
 	default:
 		// Every rung states what it promises about the install window, and a
 		// plain rename promises nothing. Absorbing an unnamed rung into that
@@ -312,14 +312,44 @@ func installByHardlink(ops installOps, relSlash, tmpName string, source *fileSna
 	return concurrentWriteError(relSlash, rungHardlink)
 }
 
-// installByRename installs through one atomic rename and can say nothing
-// about the window it crosses.
-func installByRename(ops installOps, tmpName string, source *fileSnapshot) error {
+// installByRename installs through one atomic rename. It cannot say what the
+// window it crosses held: the rename replaced the note's name, so a version
+// another program wrote there is gone before anything can look at it, and the
+// two rungs above this one exist because they can see it and this cannot.
+//
+// What it can still do is look at what the name carries afterwards. Bytes other
+// than the ones just installed mean an edit landed after the rename and this
+// flip has no copy of what it replaced — so the write is reported as one that
+// crossed another program, in the wording that rung can stand behind: nothing
+// was put back, because there was nothing left to put back.
+func installByRename(ops installOps, relSlash, tmpName string, source *fileSnapshot, data []byte) error {
 	if err := ops.rename(tmpName, source.name); err != nil {
 		_ = ops.remove(tmpName) //nolint:errcheck // best-effort cleanup after the primary rename error
 		return fmt.Errorf("rename temp file: %w", err)
 	}
+	// A read-back that fails says nothing about whether the install landed —
+	// the rename returned success and this is the step after it — so the error
+	// deliberately carries no sentinel: it is neither a refusal nor a race, and
+	// a caller that treated it as either would tell a reader something the disk
+	// has not said. The sentence names the step so the log can be read that way.
+	back, err := ops.read(source.name)
+	if err != nil {
+		return fmt.Errorf("confirm the installed note, which may already carry the flip: %w", err)
+	}
+	if !bytes.Equal(back, data) {
+		return concurrentWriteLostError(relSlash)
+	}
 	return nil
+}
+
+// concurrentWriteLostError reports a flip that finished and then found other
+// bytes under the note's name. It carries the same sentinel as the rungs that
+// can restore, because what a reader has to do about it is the same — read the
+// file before trusting the page — and says plainly that this one restored
+// nothing, so nobody reads it as a promise the other two make.
+func concurrentWriteLostError(relSlash string) error {
+	return fmt.Errorf("%w: %s changed after the flip was installed, and this install had no copy of the other program's bytes to put back (install: %s)",
+		ErrConcurrentWrite, relSlash, rungRename)
 }
 
 func concurrentWriteError(relSlash string, rung installRung) error {
