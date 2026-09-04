@@ -2,6 +2,7 @@
 title: Diagnostics are reports
 type: note
 status: ready
+domain: yomihon
 created: 2026-02-09
 updated: 2026-09-04
 lang: en

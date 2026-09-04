@@ -2,6 +2,8 @@
 title: Wikilinks in this dialect
 type: note
 status: ready
+domain: yomihon
+topics: [links, resolution]
 created: 2026-02-02
 updated: 2026-09-04
 lang: en

@@ -2,6 +2,8 @@
 title: Lesson template
 type: lesson
 status: draft
+domain: yomihon
+level: fundamental
 slug: lesson-template
 lang: en
 ---

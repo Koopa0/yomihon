@@ -2,6 +2,7 @@
 title: A published note
 type: note
 status: published
+domain: yomihon
 created: 2026-05-05
 updated: 2026-09-04
 lang: en
