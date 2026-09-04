@@ -38,7 +38,11 @@ const (
 	RoleNone
 )
 
-// String names a role for a diagnostic message.
+// String names a role for a diagnostic message, and for the page that shows a
+// reader the value to type. The three a line can declare answer with the
+// parser's own values rather than a second copy of them, so the words shown and
+// the words accepted cannot come apart. The two left over are named only for a
+// message: no line can declare them, so no reader will ever type one.
 func (r Role) String() string {
 	switch r {
 	case RoleStructural:
@@ -46,11 +50,11 @@ func (r Role) String() string {
 	case RoleUnclassified:
 		return "unclassified"
 	case RolePrimary:
-		return "primary"
+		return valuePrimary
 	case RoleLocal:
-		return "local"
+		return valueLocal
 	case RoleNone:
-		return "none"
+		return valueNone
 	default:
 		panic("sequence: unknown Role: " + strconv.Itoa(int(r)))
 	}
