@@ -167,9 +167,7 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 	if unreadable {
 		title = wording.NotReadableKicker.In(lang)
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusNotFound)
-	if err := pages.NotFound(view, layouts.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil {
+	if err := pages.WriteNotFound(r.Context(), w, view, layouts.ChromeFromRequest(r, title)); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write not-found page", "path", asked, "error", err)
 	}
 }

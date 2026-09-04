@@ -95,9 +95,7 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 // a mistyped name still carries the folder tree, the search and a way home.
 func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, lang wording.Lang, shell nav.Shell) {
 	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusNotFound)
-	if err := pages.NotFound(view, layouts.ChromeFromRequest(r, wording.NotFoundKicker.In(lang))).Render(r.Context(), w); err != nil {
+	if err := pages.WriteNotFound(r.Context(), w, view, layouts.ChromeFromRequest(r, wording.NotFoundKicker.In(lang))); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write not-found page", "path", r.URL.Path, "error", err)
 	}
 }
