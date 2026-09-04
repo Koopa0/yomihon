@@ -27,6 +27,11 @@ which is a page this machine can neither read nor preview.
 A sixth names a vault file that is not a note at all, [[plain.txt]], which has a
 page of its own and nothing a preview could cut a section out of.
 
+Quoting a note that has footnotes of its own puts a second set on this page,
+numbered separately because those definitions live in the note they came from.
+
+![[beta]]
+
 > [!note] A callout with a note of its own
 > The callout is read as part of the note it is written in, so its
 > footnote[^aside] joins the note's own numbering and its one endnote list.

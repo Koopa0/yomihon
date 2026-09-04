@@ -123,9 +123,10 @@ const MUTATIONS = {
     target: 'back-returns-to-the-source',
     apply: rewriteDocuments((body) => body.replaceAll('class="wikilink"', 'class="wikilink" target="_blank"')),
   },
-  // Every separately rendered body numbers its footnotes from one, so taking
-  // the region apart puts the same id on the page twice and a citation lands
-  // on whichever came first.
+  // Every separately rendered body numbers its footnotes from one, and on this
+  // page the second such body is the note the source quotes: its footnotes are
+  // named under a region of their own. Taking that region's name off them puts
+  // the same id on the page twice and a citation lands on whichever came first.
   'collapse-footnote-regions': {
     target: 'composed-ids-unique',
     provePath: () => sourcePath,
@@ -191,8 +192,10 @@ try {
   const proof = mutation ? await mutation.apply(context) : null;
 
   // A page assembled out of several bodies has to name every place on it
-  // exactly once. The source note carries its own footnotes and a callout
-  // carrying another, and those are rendered separately and spliced together.
+  // exactly once. The source note carries its own footnotes and quotes a note
+  // carrying another, and those two are rendered separately and spliced
+  // together. A callout is not one of those bodies: it is the note's own text,
+  // read by the note's own parse, and its footnotes join the note's own list.
   {
     const page = await context.newPage();
     const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
