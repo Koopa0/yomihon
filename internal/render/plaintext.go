@@ -28,6 +28,13 @@ var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extensio
 // hand-written ruby, but not the HTML tags or the callout marker syntax. A
 // wikilink contributes both its target and its display text. The body must arrive
 // with its frontmatter removed, and the text keeps its case and Unicode form.
+//
+// A course branch's role declaration stays in the text, although the page takes
+// it off the heading it shows. Keeping it is what lets an author search for the
+// notes that declare one; taking it off would mean assembling each heading's
+// words here and reading a declaration back out of them, which is the page's own
+// job and not this walk's. The cost is one incongruity: a search for the
+// declaration finds a note whose page no longer shows those words.
 func PlainText(body string) string {
 	src := []byte(plainPreprocess(body))
 	doc := plainParser.Parse(text.NewReader(src))
