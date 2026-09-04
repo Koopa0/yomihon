@@ -925,10 +925,6 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-homesearch svg { flex: none; color: var(--fg-subtle); }
 .y-homesearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
 .y-homesearch input:focus-visible { outline: 0; }
-/* the line that stands in for the content blocks on a folder that fills none of
-   them. Borderless on purpose: a bordered one-liner is a smaller empty box,
-   which is the thing it replaces. */
-
 .y-homesearch .y-xbtn { width: auto; height: 30px; padding: 0 13px; flex: none; }
 .y-homereadme { max-width: var(--measure-article); margin: 58px auto 0; padding-top: 34px; border-top: 1px solid var(--border); }
 .y-homereadme__head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
