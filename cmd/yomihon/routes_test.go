@@ -216,38 +216,75 @@ func deskBlockMarkup(t *testing.T, page, mode string) string {
 // the desk would empty a block there and never say why, which is the shape of
 // the fault this locks against.
 //
-// What it can catch is bounded by the fixture. An unreadable contract fails
-// every claim at once and every closure reports the same sentence, so the check
-// sees one cause on all four pages and cannot tell which closure supplied it:
-// it would catch a mode whose reason reaches the desk not at all, and would not
-// catch one whose reason is dropped while another still supplies the same
-// words. Separating them needs a contract that parses and then fails one claim
-// alone, which the fixtures do not yet hold.
+// One broken contract cannot show that. A contract that will not parse fails
+// every claim with one sentence, so all four pages state the same cause and
+// dropping any one of them from the desk leaves the others supplying the same
+// words. The two contracts below each parse and then fail one claim alone.
+//
+// That separates the navigation declaration, and it is measured: dropping it
+// from the desk's line fails the third case here and nothing else. It does not
+// separate the artifact policy, and that is measured too — a contract whose
+// artifact section is unusable is a contract the write authority rejects as
+// well, in the same words, so the desk keeps saying the right thing with the
+// artifact term gone. Nothing at the contract level tells those two apart; a
+// check that did would have to reach past it.
 func TestTheDeskStatesWhatEveryModePageStates(t *testing.T) {
 	t.Parallel()
 
-	site := siteOverABrokenContract(t)
-	desk := faultCauses(t, site, "/")
-	if len(desk) == 0 {
-		t.Fatal("the desk states no reason over a contract that could not be read, so this compares nothing")
+	tests := []struct {
+		name     string
+		contract func(string) string
+	}{
+		{
+			name:     "a contract that will not parse",
+			contract: func(string) string { return "this is not toml [[[\n" },
+		},
+		{
+			// The artifact policy alone: the section is there and the key it
+			// must carry is not.
+			name: "an artifact policy missing its required key",
+			contract: func(contract string) string {
+				return strings.Replace(contract, "non_instance_dirs = [\"System/templates\"]\n", "", 1)
+			},
+		},
+		{
+			// The navigation roles alone: one type declared as both a path and
+			// a map, which the roles reader rejects and nothing else reads.
+			name: "a type declared as both a path and a map",
+			contract: func(contract string) string {
+				return strings.Replace(contract,
+					`map_types = ["moc", "source-map", "topic-map"]`,
+					`map_types = ["moc", "source-map", "topic-map", "study-path"]`, 1)
+			},
+		},
 	}
-	for _, target := range []string{"/paths", "/maps", "/folders"} {
-		causes := faultCauses(t, site, target)
-		if len(causes) == 0 {
-			t.Errorf("GET %s states no reason over a contract that could not be read", target)
-			continue
-		}
-		for _, cause := range causes {
-			if !slices.Contains(desk, cause) {
-				t.Errorf("GET %s states %q and the desk does not; the desk states %q", target, cause, desk)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			site := siteOverAContract(t, tt.contract)
+			desk := faultCauses(t, site, "/")
+			if len(desk) == 0 {
+				t.Fatal("the desk states no reason, so this compares nothing")
 			}
-		}
-	}
-	// The reports are a listing of one directory. No declaration can close it,
-	// so an empty one is the answer rather than a withheld projection, and a
-	// reason printed there would be about some other page.
-	if strings.Contains(pageBody(t, site, "/reports"), "data-home-fault") {
-		t.Error("GET /reports states a reason for something no declaration can withhold")
+			for _, target := range []string{"/paths", "/maps", "/folders"} {
+				causes := faultCauses(t, site, target)
+				if len(causes) == 0 {
+					continue
+				}
+				for _, cause := range causes {
+					if !slices.Contains(desk, cause) {
+						t.Errorf("GET %s states %q and the desk does not; the desk states %q", target, cause, desk)
+					}
+				}
+			}
+			// The reports are a listing of one directory. No declaration can
+			// close it, so an empty one is the answer rather than a withheld
+			// projection, and a reason printed there would be about some other
+			// page.
+			if strings.Contains(pageBody(t, site, "/reports"), "data-home-fault") {
+				t.Error("GET /reports states a reason for something no declaration can withhold")
+			}
+		})
 	}
 }
 
@@ -289,16 +326,23 @@ func pageBody(t *testing.T, site http.Handler, target string) string {
 	return string(body)
 }
 
-// siteOverABrokenContract is the vault of the withheld-declaration checks: a
-// desk fixture whose contract cannot be parsed, so every projection a
-// declaration gates is withheld and says so.
-func siteOverABrokenContract(t *testing.T) *readingSite {
+// siteOverAContract is the desk fixture served over a contract the caller has
+// had its way with, so a check can name the one claim it wants failed.
+func siteOverAContract(t *testing.T, mutate func(string) string) *readingSite {
 	t.Helper()
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	broken := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if err := os.WriteFile(broken, []byte("this is not toml [[[\n"), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
-		t.Fatalf("break the contract: %v", err)
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	original, err := os.ReadFile(contractPath) // #nosec G304 -- a fixture path under t.TempDir
+	if err != nil {
+		t.Fatalf("read the fixture contract: %v", err)
+	}
+	written := mutate(string(original))
+	if written == string(original) {
+		t.Fatal("the contract came back unchanged, so this fixture fails no claim at all")
+	}
+	if err = os.WriteFile(contractPath, []byte(written), 0o600); err != nil { // #nosec G703 -- a fixture path under t.TempDir
+		t.Fatalf("write the contract: %v", err)
 	}
 	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
 	if err != nil {
