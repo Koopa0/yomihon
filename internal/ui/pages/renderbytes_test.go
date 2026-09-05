@@ -5,12 +5,15 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -23,6 +26,31 @@ import (
 // Regenerating is a decision about what the pages emit, so it is an explicit
 // action rather than something a failing run does on its own.
 var updateRenderBytes = flag.Bool("update-render-bytes", false, "rewrite the recorded page bytes")
+
+func TestRecordedFilterKeys(t *testing.T) {
+	t.Parallel()
+	if *updateRenderBytes {
+		t.Skip("recordings are being updated; verify them in a separate read-only run")
+	}
+	for _, name := range []string{"search-page", "search-page-unasked", "search-results-english"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			data, err := os.ReadFile(filepath.Join("testdata", "render", name+".html")) // #nosec G304 -- a recording name from this test's fixed local table
+			if err != nil {
+				t.Fatalf("ReadFile(%q) error = %v", name, err)
+			}
+			var got []string
+			for _, match := range regexp.MustCompile(`<code>([^<]*):</code>`).FindAllSubmatch(data, -1) {
+				got = append(got, string(match[1]))
+			}
+			slices.Sort(got)
+			got = slices.Compact(got)
+			if diff := cmp.Diff(lexical.FilterKeys(), got); diff != "" {
+				t.Errorf("recorded filter keys (-grammar +recording):\n%s", diff)
+			}
+		})
+	}
+}
 
 // TestRenderedBytesAreUnchanged records what each surface writes, so a change
 // that is meant to move code and not output has something that can tell it did.
@@ -59,7 +87,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
 		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
 		{"search-page", Search(recordedSearchView(model), recordedChrome())},
-		{"search-page-unasked", Search(SearchView{FilterKeys: []string{"status", "type", "path"}}, recordedChrome())},
+		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
 		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, recordedChrome().Lang), recordedChrome())},
@@ -419,7 +447,7 @@ func recordedSearchView(model *nav.Model) SearchView {
 		}},
 		Total:             3,
 		UnknownFilterKeys: []string{"tag", "kind"},
-		FilterKeys:        []string{"status", "type", "path"},
+		FilterKeys:        lexical.FilterKeys(),
 		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
 		Governed:          true,
 		Sidebar:           NewSidebar(model, ""),
