@@ -3,6 +3,7 @@ package pages
 import (
 	"bytes"
 	"flag"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,7 +19,9 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -52,6 +55,27 @@ func TestRecordedFilterKeys(t *testing.T) {
 	}
 }
 
+// TestRecordedNoteWikilinks keeps the recording's resolved and degraded links
+// faithful to what a reader sees and hears, even when the bytes are re-recorded.
+func TestRecordedNoteWikilinks(t *testing.T) {
+	t.Parallel()
+	if *updateRenderBytes {
+		t.Skip("recordings are being updated; verify them in a separate read-only run")
+	}
+	recorded, err := os.ReadFile("testdata/render/note-page.html")
+	if err != nil {
+		t.Fatalf("ReadFile(note-page.html): %v", err)
+	}
+	links := regexp.MustCompile(`(?s)<a\b[^>]*\bclass="wikilink(?: [^"]*)?"[^>]*>.*?</a>`)
+	want := []string{
+		`<a href="/notes/Concepts/go/C01.md" class="wikilink">C01</a>`,
+		`<a href="/notes/Concepts/go/C02.md#missing" class="wikilink wikilink-degraded" title="找不到「Missing」這個小節，連結會落在筆記最上方">C02<span class="y-offscreen">（找不到「Missing」這個小節，連結會落在筆記最上方）</span></a>`,
+	}
+	if diff := cmp.Diff(want, links.FindAllString(string(recorded), -1)); diff != "" {
+		t.Errorf("recorded note wikilinks mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestRenderedBytesAreUnchanged records what each surface writes, so a change
 // that is meant to move code and not output has something that can tell it did.
 // Moving a component between files, folding two switches into one, or lifting a
@@ -77,7 +101,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"sidebar-current-note", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce"})},
 		{"sidebar-no-note", sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"})},
 		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
-		{"note-page", Note(recordedNoteView(model, current), recordedChrome())},
+		{"note-page", Note(recordedNoteView(t, model, current), recordedChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
@@ -179,7 +203,36 @@ func recordedChrome() layouts.Chrome {
 // draw — every aid, a diagnostic of each shape, a schema notice, a receipt, and
 // a live write face — so the recording covers branches a narrower fixture would
 // leave unwritten.
-func recordedNoteView(model *nav.Model, current string) NoteView {
+func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
+	t.Helper()
+	root := t.TempDir()
+	const body = "body with [[C01]] and [[C02#Missing|C02]]\n"
+	for rel, content := range map[string]string{
+		current:              body,
+		"Concepts/go/C01.md": "# C01\n",
+		"Concepts/go/C02.md": "# C02\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("WriteFile(%s): %v", rel, err)
+		}
+	}
+	reader, err := vaultfs.Open(root)
+	if err != nil {
+		t.Fatalf("vaultfs.Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("reader.Close: %v", closeErr)
+		}
+	})
+	store, err := snapshot.New(t.Context(), reader, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
 	return NoteView{
 		Title:           "L01",
 		RelPath:         current,
@@ -191,12 +244,9 @@ func recordedNoteView(model *nav.Model, current string) NoteView {
 		Updated:         "2026-07-10",
 		UpdatedAt:       "2026-07-10",
 		UpdatedFromFile: true,
-		// The prose carries both shapes a wikilink can take, because the page
-		// treats them differently: the resolved one is a link a hover card can
-		// be opened on, and the degraded one is not, so a recording holding
-		// only one of them would lock only half the decision.
-		BodyHTML: `<p>body with <a href="/notes/Concepts/go/C01.md" class="wikilink">C01</a>` +
-			` and <a href="/notes/Concepts/go/C02.md" class="wikilink wikilink-degraded" title="no such section">C02</a></p>`,
+		// Render both a resolved link and a missing section, so the recording
+		// follows the renderer's address, tooltip, and offscreen explanation.
+		BodyHTML:    store.Current().Render(current, body, recordedChrome().Lang).HTML,
 		TitleAnchor: "l01",
 		RenderDiagnostics: []render.Diagnostic{
 			{Kind: render.DiagWikilinkBroken, Target: "Ghost", Section: "Part"},
