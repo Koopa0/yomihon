@@ -156,10 +156,15 @@ const MUTATIONS = {
     apply: rewriteRuntime('drawer.js', '    return [toggleButton, ...focusableElements()];', '    return focusableElements();'),
   },
   // Each step taken on trust: the runtime moves to the next name on its list
-  // and never asks the document whether focus arrived. One step still looks
-  // right, which is why the two cases above cannot see this.
+  // and never asks the document whether focus arrived.
+  //
+  // Two claims break together here, and which one is reached first depends on
+  // how many rows the rail holds: a long one walks the whole way round and
+  // never returns, a short one fails to leave its own end. Both are this
+  // mutation being caught, so both are named. Aiming at one of them alone
+  // would make the report an account of the fixture rather than of the runtime.
   'step-without-checking-focus-landed': {
-    target: 'open-tab-walks-the-whole-cycle',
+    target: ['open-tab-walks-the-whole-cycle', 'open-tab-reaches-the-exit'],
     apply: rewriteRuntime(
       'drawer.js',
       '      cycle[index].focus();\n      if (document.activeElement === cycle[index]) return;\n',
@@ -214,14 +219,24 @@ const MUTATIONS = {
   },
 };
 
+// A mutation names the assertion sites it is allowed to be caught by. Almost
+// every one names exactly one, and reads as it always did; a mutation that
+// genuinely breaks two claims at once names both, and which of them fires first
+// is then a fact about the fixture rather than about the runtime — a rail with
+// more rows in it reaches the second claim first, and the same defect would
+// otherwise be reported as an uncaught one.
+const targetsOf = (mutation) => (Array.isArray(mutation.target) ? mutation.target : [mutation.target]);
+
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
-  if (!SITES.includes(mutation.target)) {
-    console.error(`drawer-contract: mutation ${name} aims at the unknown assertion site ${mutation.target}`);
-    process.exit(2);
+  for (const site of targetsOf(mutation)) {
+    if (!SITES.includes(site)) {
+      console.error(`drawer-contract: mutation ${name} aims at the unknown assertion site ${site}`);
+      process.exit(2);
+    }
   }
 }
 for (const site of SITES) {
-  if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
+  if (!Object.values(MUTATIONS).some((mutation) => targetsOf(mutation).includes(site))) {
     console.error(`drawer-contract: the ${site} assertion is aimed at by no mutation, so nothing shows it can fail`);
     process.exit(2);
   }
@@ -239,7 +254,9 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 const arm = async (page, sites) => {
   if (!MUTATE) return null;
   const mutation = MUTATIONS[MUTATE];
-  if (!sites.includes(mutation.target)) return null;
+  // Armed on the case that carries any of the sites it may be caught by, so a
+  // mutation naming two is installed on the case that reaches either of them.
+  if (!targetsOf(mutation).some((site) => sites.includes(site))) return null;
   return mutation.apply(page);
 };
 
@@ -623,9 +640,14 @@ try {
   } else if (err instanceof LockFired) {
     console.error(err.message);
     if (MUTATE) {
-      const { target } = MUTATIONS[MUTATE];
-      if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
-      else console.error(`no catch: ${MUTATE} targets ${target}, but ${err.site} fired first`);
+      const targets = targetsOf(MUTATIONS[MUTATE]);
+      if (targets.includes(err.site)) {
+        // The runner matches this line whole, so which site fired is said
+        // beside it rather than inside it.
+        console.error(`caught at ${err.site}`);
+        console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+      }
+      else console.error(`no catch: ${MUTATE} targets ${targets.join(' or ')}, but ${err.site} fired first`);
     }
     process.exitCode = 1;
   } else if (err instanceof ProbeBroken) {
