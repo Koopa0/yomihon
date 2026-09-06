@@ -23,6 +23,7 @@ probes=(
   "brand-contract.mjs|/"
   "palette.mjs|/"
   "search-behavior.mjs|/"
+  "search-focus-restore.mjs|/notes/Notes/alpha.md"
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"
   "drawer-contract.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"

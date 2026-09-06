@@ -154,8 +154,8 @@ export function initSearch() {
 
   function closeAndRestoreFocus() {
     if (!dialog?.open) return;
+    // The return is the platform's and is not overridden.
     dialog.close();
-    document.querySelector('[data-search-open]')?.focus();
   }
 
   return {
