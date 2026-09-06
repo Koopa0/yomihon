@@ -55,15 +55,23 @@ func TestObsidianCommentsExcludedFromAllProjections(t *testing.T) {
 			present: []string{"before", "%%literal example%%", "after"},
 			absent:  []string{"hidden outside"},
 		},
+		{
+			name:    "fence inside comment",
+			body:    "A\n%%\n```go\nsecretCode()\n```\nstill hidden\n%%\nB",
+			present: []string{"A", "B"},
+			absent:  []string{"secretCode", "still hidden", "%%"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			excerpt, _ := render.Excerpt(tt.body, "")
 			projections := map[string]string{
 				"HTML":      r.HTML("note.md", "", tt.body, wording.ZhHant).HTML,
 				"PlainText": render.PlainText(tt.body),
+				"Excerpt":   excerpt,
 			}
 			for projection, got := range projections {
 				for _, want := range tt.present {

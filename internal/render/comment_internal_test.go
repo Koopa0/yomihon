@@ -72,6 +72,23 @@ func TestStripObsidianCommentsReportsUnclosedLine(t *testing.T) {
 			want: "```text\n%%unclosed\n```\nafter",
 		},
 		{
+			// The other direction: a fence written inside an already-open
+			// comment is comment text, not a region that suspends hiding.
+			name: "fence inside an open comment stays hidden",
+			body: "A\n%%\n```go\nsecretCode()\n```\nstill hidden\n%%\nB",
+			want: "A\n\n\n\n\n\n\nB",
+		},
+		{
+			name: "tilde fence inside an open comment stays hidden",
+			body: "A\n%%\n~~~\nsecretCode()\n~~~\n%%\nB",
+			want: "A\n\n\n\n\n\nB",
+		},
+		{
+			name: "indented fence inside an open comment stays hidden",
+			body: "A\n%%\n   ```go\nsecretCode()\n```\n%%\nB",
+			want: "A\n\n\n\n\n\nB",
+		},
+		{
 			// The positive lock on code spans: a percent sign an author is
 			// displaying stays on the page and shifts no pairing.
 			name: "code span holds the marker as text",
@@ -153,6 +170,8 @@ func FuzzStripObsidianComments(f *testing.F) {
 		"```text\n%%literal%%\n```",
 		"```text %%literal info%%\n%%literal%%\n```",
 		"%%hidden%% ```text\n%%literal%%\n```",
+		"A\n%%\n```go\nsecretCode()\n```\nstill hidden\n%%\nB",
+		"A\n%%\n~~~\nsecretCode()\n~~~\n%%\nB",
 		"MIDDLE `printf(\"%d%%\")` after",
 		"a ``x`y%%z`` b",
 		"`start\n%%end` after",
