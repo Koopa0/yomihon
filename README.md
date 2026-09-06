@@ -21,8 +21,7 @@ on your machine and changes none of your words.
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
 
-Needs Go 1.27 or newer. The path is lowercase even though the repository's
-address is not: `Koopa0` in a browser, `koopa0` in the import path.
+Needs Go 1.27 or newer.
 
 ## Use
 

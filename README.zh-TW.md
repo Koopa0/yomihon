@@ -18,7 +18,7 @@ yomihon 把一個 Markdown 資料夾讀成一本書。學習路徑是一門課�
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
 
-需要 Go 1.27 以上。路徑是小寫的,即使網址不是:瀏覽器上是 `Koopa0`,import 路徑是 `koopa0`。
+需要 Go 1.27 以上。
 
 ## 使用
 
