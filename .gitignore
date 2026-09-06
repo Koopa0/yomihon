@@ -10,8 +10,9 @@ dist/
 node_modules/
 # This is a private, single-user tool. Its process, governance, agent,
 # authoring, and design docs live on the maintainer's machine, not in history:
-# a clean clone receives only the code and its build inputs. Each redistributed
-# asset carries its licence text beside it under assets/.
+# a clean clone receives the code, its build inputs, and the judge rule
+# inventory for contributors. Each redistributed asset carries its licence
+# text beside it under assets/.
 # tests/ holds local harness self-tests; yomihon's Go tests live in
 # internal/*_test.go.
 .claude/
@@ -29,6 +30,7 @@ tests/
 /PROJECT_PROFILE.md
 /SECURITY.md
 /THIRD_PARTY_NOTICES.md
-/docs/
+/docs/*
+!/docs/judge-rules.md
 /.github/CODEOWNERS
 /.github/PULL_REQUEST_TEMPLATE.md
