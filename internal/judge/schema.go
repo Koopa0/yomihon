@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -269,22 +270,22 @@ func (r *lintRun) required(n *note) []Finding {
 	return out
 }
 
-// enumFields reports each of the remaining enum-valued fields whose value is
-// outside its allowed set.
+// enumFields reports each optional enum-valued field whose value is outside
+// its nonempty declared vocabulary.
 func (r *lintRun) enumFields(n *note) []Finding {
 	var out []Finding
-	for _, ef := range []struct {
-		field   string
-		allowed []string
-	}{
-		{"domain", r.definition.Enums.Domain},
-		{"source_kind", r.definition.Enums.SourceKind},
-		{"source_provider", r.definition.Enums.SourceProvider},
-		{"level", r.definition.Enums.Level},
-		{"map_kind", r.definition.Enums.MapKind},
-	} {
-		if v, ok := fmScalar(n.frontmatter, ef.field); ok && !slices.Contains(ef.allowed, v) {
-			out = append(out, schemaFinding(n, "schema.enum", ef.field, v, "is not an allowed value"))
+	enums := reflect.ValueOf(r.definition.Enums)
+	enumType := enums.Type()
+	// Walk declaration order to preserve finding order. Type and grouped
+	// status retain their dedicated rules.
+	for i := range enums.NumField() {
+		field := enumType.Field(i).Tag.Get("toml")
+		allowed, ok := reflect.TypeAssert[[]string](enums.Field(i))
+		if !ok || field == "type" || len(allowed) == 0 {
+			continue
+		}
+		if v, ok := fmScalar(n.frontmatter, field); ok && !slices.Contains(allowed, v) {
+			out = append(out, schemaFinding(n, "schema.enum", field, v, "is not an allowed value"))
 		}
 	}
 	return out

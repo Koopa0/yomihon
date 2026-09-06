@@ -165,7 +165,9 @@ type lifecycleKey struct {
 	status   string
 }
 
-// Enums holds the closed value sets for frontmatter fields.
+// Enums holds the value vocabularies declared for frontmatter fields.
+// Optional flat vocabularies constrain values only when nonempty; type and
+// grouped status retain their dedicated validation rules.
 type Enums struct {
 	Type           []string            `toml:"type"`
 	Domain         []string            `toml:"domain"`
