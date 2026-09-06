@@ -157,7 +157,7 @@ func TestRepeatedBlockAddressBelongsToTheFirstBlock(t *testing.T) {
 	if strings.Count(page.HTML, `id="^dup"`) != 1 {
 		t.Errorf("the address is stamped %d times, want once:\n%s", strings.Count(page.HTML, `id="^dup"`), page.HTML)
 	}
-	if !strings.Contains(page.HTML, "SECOND paragraph. ^dup") {
+	if !strings.Contains(page.HTML, `<p>SECOND paragraph. <span>^dup</span></p>`) {
 		t.Errorf("the second block lost its text:\n%s", page.HTML)
 	}
 }

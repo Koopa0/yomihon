@@ -45,19 +45,30 @@ func unanchorableLine(line string) bool {
 // scroll to, leaving every visible character where it was: the marker keeps the
 // author's capitals and only the id is folded. A page carries one anchor per
 // address, and a repeated name stays with the first block, which is what the
-// excerpt scan and a browser would both do anyway.
-func markBlockAnchor(line string, page *composition, inline *[]string) string {
+// excerpt scan and a browser would both do anyway. claim is whether this line
+// is the note's own text; a transcluded body still wraps a classified address
+// so speech can see it, but never takes the id. The span it plants is the
+// signal the speech pass reads.
+func markBlockAnchor(line string, page *composition, inline *[]string, claim bool) string {
 	trimmed := strings.TrimRight(line, " \t")
 	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
 	if m == nil {
 		return line
 	}
 	address := trimmed[m[2]:m[3]]
-	if !page.claimBlockAnchor(blockAnchorID(address)) {
-		return line
+	id := blockAnchorID(address)
+	var anchor string
+	if claim && page.claimBlockAnchor(id) {
+		anchor = `<span id="` + html.EscapeString(id) + `">` +
+			html.EscapeString(address) + `</span>`
+	} else {
+		// The same classified tail, without an id: a duplicate name, or an
+		// address that belongs to the note it was transcluded from. Speech
+		// reads the span, not a flattened caret word, so an escaped or
+		// entity-spelled caret that goldmark later draws the same way is left
+		// alone.
+		anchor = `<span>` + html.EscapeString(address) + `</span>`
 	}
-	anchor := `<span id="` + html.EscapeString(blockAnchorID(address)) + `">` +
-		html.EscapeString(address) + `</span>`
 	*inline = append(*inline, anchor)
 	return trimmed[:m[2]] + placeholderFor(len(*inline)-1, anchor) + line[len(trimmed):]
 }
