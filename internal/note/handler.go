@@ -284,6 +284,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	flippedFrom := vouchedOrigin(authority, h.sources.ConsumeReceipt, rel, n.Type,
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
+	domainFolder, _ := snap.DomainFolder(rel)
 	view := pages.NoteView{
 		Title:             n.Title,
 		RelPath:           n.RelPath,
@@ -321,7 +322,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		NoFrontmatter:       state.noFrontmatter,
 		StatusUnknown:       state.statusUnknown,
 		StatusNotText:       state.statusNotText,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n.RelPath, lang),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, lang),
 		FlippedFrom:         flippedFrom,
 		// The layer that withheld the transition set, when that is why it is
 		// empty, so the page names it instead of the schema.
@@ -365,17 +366,11 @@ func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (disp
 // language for another program to parse; what a page owes a reader is the same
 // verdict in their own words, with the note's own text kept intact inside it.
 //
-// The folder handed over is the one the domain rule actually compares — the
-// first one under the configured root, not the folder the note sits in. For a
-// note nested deeper the two differ, and naming the wrong one would be a fresh
-// falsehood in a sentence written to end one.
-func schemaNotices(findings []judge.Finding, relPath string, lang wording.Lang) [][]wording.SchemaPart {
+// The folder comes from the same captured generation as the findings, so the
+// explanation names the folder the domain rule compared.
+func schemaNotices(findings []judge.Finding, folder string, lang wording.Lang) [][]wording.SchemaPart {
 	if len(findings) == 0 {
 		return nil
-	}
-	folder := ""
-	if seg := strings.Split(relPath, "/"); len(seg) >= 3 {
-		folder = seg[1]
 	}
 	notices := make([][]wording.SchemaPart, 0, len(findings))
 	for i := range findings {
@@ -551,10 +546,10 @@ func (h *Handler) governance(
 ) governanceState {
 	policy := snap.ArtifactPolicy()
 	state := governanceState{
-		shell:     shell.Project(authority, snap),
-		placement: classifyGovernance(authority, policy, n.RelPath),
+		shell:           shell.Project(authority, snap),
+		placement:       classifyGovernance(authority, policy, n.RelPath),
+		writeDiagnostic: authority.WriteDiagnostic(lang),
 	}
-	state.writeDiagnostic = authority.WriteDiagnostic(lang)
 	if state.writeDiagnostic == "" && !policy.Available() {
 		state.writeDiagnostic = policy.Diagnostic()
 	}

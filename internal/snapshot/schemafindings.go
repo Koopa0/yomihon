@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // SchemaFindings returns what the schema said about relPath's frontmatter when
@@ -16,4 +17,15 @@ func (g *Generation) SchemaFindings(relPath string) []judge.Finding {
 		return nil
 	}
 	return slices.Clone(g.schemaFindings[relPath])
+}
+
+// DomainFolder returns the first folder below a declared domain root for a
+// canonical vault-relative file path, using the declaration that produced this
+// generation's schema findings. A nil generation, an unmatched path, and a file
+// directly below a root return ("", false).
+func (g *Generation) DomainFolder(relPath string) (string, bool) {
+	if g == nil {
+		return "", false
+	}
+	return schema.DomainFolder(g.domainRoots, relPath)
 }

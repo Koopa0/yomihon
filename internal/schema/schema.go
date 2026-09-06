@@ -831,13 +831,8 @@ func validateStatusGroups(enums *Enums, statusGroups map[string][]string) error 
 }
 
 func validateRules(enums *Enums, fields *Fields, rules *Rules) error {
-	if err := validateUniqueStrings("rules.domain_equals_folder_under", rules.DomainEqualsFolderUnder); err != nil {
+	if err := validateDomainRoots(rules.DomainEqualsFolderUnder); err != nil {
 		return err
-	}
-	for _, dir := range rules.DomainEqualsFolderUnder {
-		if !validTopLevelComponent(dir) {
-			return fmt.Errorf("rules.domain_equals_folder_under: unsafe top-level component %q", dir)
-		}
 	}
 
 	if err := validateUniqueStrings("rules.concept_requires_provenance", rules.ConceptRequiresProvenance); err != nil {
@@ -867,6 +862,53 @@ func validateRules(enums *Enums, fields *Fields, rules *Rules) error {
 		}
 	}
 	return nil
+}
+
+func validateDomainRoots(roots []string) error {
+	if err := validateUniqueStrings("rules.domain_equals_folder_under", roots); err != nil {
+		return err
+	}
+	for i, dir := range roots {
+		if !validDomainRoot(dir) {
+			return fmt.Errorf("rules.domain_equals_folder_under: unsafe relative directory path %q", dir)
+		}
+		for _, previous := range roots[:i] {
+			if pathHasFoldedPrefix(dir, previous) || pathHasFoldedPrefix(previous, dir) {
+				return fmt.Errorf("rules.domain_equals_folder_under: overlapping roots %q and %q", previous, dir)
+			}
+		}
+	}
+	return nil
+}
+
+func validDomainRoot(value string) bool {
+	if filepath.IsAbs(value) {
+		return false
+	}
+	for component := range strings.SplitSeq(value, "/") {
+		if !validTopLevelComponent(component) {
+			return false
+		}
+	}
+	return true
+}
+
+// DomainFolder returns the first directory after a matching declared root.
+// Roots must be validated vault-relative directory paths with no overlap under
+// [SameDirName]. relPath must be a canonical vault-relative file path; matching
+// is byte-exact.
+// A file directly under a root, or outside every root, has no domain folder.
+func DomainFolder(roots []string, relPath string) (string, bool) {
+	for _, root := range roots {
+		if rest, ok := strings.CutPrefix(relPath, root+"/"); ok {
+			folder, _, found := strings.Cut(rest, "/")
+			if found {
+				return folder, true
+			}
+			return "", false
+		}
+	}
+	return "", false
 }
 
 func validTopLevelComponent(value string) bool {

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 const semanticallyValidContract = `schema_version = "1"
@@ -390,40 +392,34 @@ func TestCoreSemanticsRules(t *testing.T) {
 			wantErr: `rules.domain_equals_folder_under: duplicate value "Writing"`,
 		},
 		{
-			name:    "domain folder has slash",
-			from:    `domain_equals_folder_under = ["Writing"]`,
-			to:      `domain_equals_folder_under = ["Writing/notes"]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe top-level component "Writing/notes"`,
-		},
-		{
 			name:    "domain folder has backslash",
 			from:    `domain_equals_folder_under = ["Writing"]`,
 			to:      `domain_equals_folder_under = ["Writing\\notes"]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe top-level component "Writing\\notes"`,
+			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path "Writing\\notes"`,
 		},
 		{
 			name:    "domain folder is current directory",
 			from:    `domain_equals_folder_under = ["Writing"]`,
 			to:      `domain_equals_folder_under = ["."]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe top-level component "."`,
+			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path "."`,
 		},
 		{
 			name:    "domain folder is parent directory",
 			from:    `domain_equals_folder_under = ["Writing"]`,
 			to:      `domain_equals_folder_under = [".."]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe top-level component ".."`,
+			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path ".."`,
 		},
 		{
 			name:    "domain folder is absolute",
 			from:    `domain_equals_folder_under = ["Writing"]`,
 			to:      `domain_equals_folder_under = ["/Writing"]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe top-level component "/Writing"`,
+			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path "/Writing"`,
 		},
 		{
 			name:    "domain folder contains NUL",
 			from:    `domain_equals_folder_under = ["Writing"]`,
 			to:      `domain_equals_folder_under = ["\u0000"]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe top-level component "\x00"`,
+			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path "\x00"`,
 		},
 		{
 			name:    "concept provenance empty element",
@@ -878,4 +874,129 @@ func replaceContractText(t *testing.T, contract, from, to string) string {
 		t.Fatalf("fixture mutation needle count = %d, want 1 for %q", got, from)
 	}
 	return strings.Replace(contract, from, to, 1)
+}
+
+// TestLoadDomainRoots catches slash rejection, unsafe path cleaning, and
+// ambiguous folded root selection regardless of declaration order or distance.
+func TestLoadDomainRoots(t *testing.T) {
+	t.Parallel()
+	const (
+		overlap    = "rules.domain_equals_folder_under: overlapping roots"
+		unsafePath = "rules.domain_equals_folder_under: unsafe relative directory path"
+	)
+	tests := []struct {
+		name    string
+		roots   string
+		want    []string
+		wantErr string
+	}{
+		{name: "top level", roots: `["Writing"]`, want: []string{"Writing"}},
+		{name: "nested", roots: `["Writing/lessons"]`, want: []string{"Writing/lessons"}},
+		{name: "renamed nested", roots: `["Archive/studies"]`, want: []string{"Archive/studies"}},
+		{name: "empty roots", roots: `[]`, want: []string{}},
+		{name: "siblings forward", roots: `["Writing/lessons", "Writing/lessonship"]`, want: []string{"Writing/lessons", "Writing/lessonship"}},
+		{name: "siblings reverse", roots: `["Writing/lessonship", "Writing/lessons"]`, want: []string{"Writing/lessonship", "Writing/lessons"}},
+		{name: "folded siblings forward", roots: `["Writing/lessons", "writing/lessonship"]`, want: []string{"Writing/lessons", "writing/lessonship"}},
+		{name: "folded siblings reverse", roots: `["writing/lessonship", "Writing/lessons"]`, want: []string{"writing/lessonship", "Writing/lessons"}},
+		{name: "normalization distinct", roots: `["Caf\u00e9", "Cafe\u0301/studies"]`, want: []string{"Caf\u00e9", "Cafe\u0301/studies"}},
+		{name: "unicode expansion distinct", roots: `["Stra\u00dfe", "STRASSE/lessons"]`, want: []string{"Stra\u00dfe", "STRASSE/lessons"}},
+		{name: "leading whitespace distinct", roots: `[" Writing", "Writing/lessons"]`, want: []string{" Writing", "Writing/lessons"}},
+		{name: "trailing whitespace distinct", roots: `["Writing ", "Writing/lessons"]`, want: []string{"Writing ", "Writing/lessons"}},
+		{name: "component whitespace distinct", roots: `["Writing/ lessons", "Writing/lessons/extra"]`, want: []string{"Writing/ lessons", "Writing/lessons/extra"}},
+		{name: "ancestor forward", roots: `["Writing", "Writing/lessons"]`, wantErr: overlap},
+		{name: "ancestor reverse", roots: `["Writing/lessons", "Writing"]`, wantErr: overlap},
+		{name: "nested ancestor forward", roots: `["Writing/lessons", "Writing/lessons/extra"]`, wantErr: overlap},
+		{name: "nested ancestor reverse", roots: `["Writing/lessons/extra", "Writing/lessons"]`, wantErr: overlap},
+		{name: "folded ancestor forward", roots: `["Writing", "writing/lessons"]`, wantErr: overlap},
+		{name: "folded ancestor reverse", roots: `["writing/lessons", "Writing"]`, wantErr: overlap},
+		{name: "folded equality", roots: `["Writing", "writing"]`, wantErr: overlap},
+		{name: "nested folded ancestor forward", roots: `["Writing/lessons", "writing/LESSONS/extra"]`, wantErr: overlap},
+		{name: "nested folded ancestor reverse", roots: `["writing/LESSONS/extra", "Writing/lessons"]`, wantErr: overlap},
+		{name: "nested folded equality", roots: `["Writing/lessons", "writing/LESSONS"]`, wantErr: overlap},
+		{name: "nonadjacent ancestor forward", roots: `["Writing", "Concepts", "Writing/lessons"]`, wantErr: overlap},
+		{name: "nonadjacent ancestor reverse", roots: `["Writing/lessons", "Concepts", "Writing"]`, wantErr: overlap},
+		{name: "nonadjacent folded ancestor forward", roots: `["Writing", "Concepts", "writing/lessons"]`, wantErr: overlap},
+		{name: "nonadjacent folded ancestor reverse", roots: `["writing/lessons", "Concepts", "Writing"]`, wantErr: overlap},
+		{name: "unicode folded ancestor forward", roots: `["\u03a3", "\u03c2/studies"]`, wantErr: overlap},
+		{name: "unicode folded ancestor reverse", roots: `["\u03c2/studies", "\u03a3"]`, wantErr: overlap},
+		{name: "duplicate", roots: `["Writing", "Writing"]`, wantErr: `rules.domain_equals_folder_under: duplicate value "Writing"`},
+		{name: "nested duplicate", roots: `["Writing/lessons", "Writing/lessons"]`, wantErr: `rules.domain_equals_folder_under: duplicate value "Writing/lessons"`},
+		{name: "empty element", roots: `[""]`, wantErr: "rules.domain_equals_folder_under: empty value"},
+		{name: "dot", roots: `["."]`, wantErr: unsafePath},
+		{name: "parent", roots: `[".."]`, wantErr: unsafePath},
+		{name: "nested dot", roots: `["Writing/./lessons"]`, wantErr: unsafePath},
+		{name: "nested parent", roots: `["Writing/../lessons"]`, wantErr: unsafePath},
+		{name: "trailing dot", roots: `["Writing/."]`, wantErr: unsafePath},
+		{name: "trailing parent", roots: `["Writing/.."]`, wantErr: unsafePath},
+		{name: "absolute", roots: `["/Writing"]`, wantErr: unsafePath},
+		{name: "trailing slash", roots: `["Writing/"]`, wantErr: unsafePath},
+		{name: "doubled slash", roots: `["Writing//lessons"]`, wantErr: unsafePath},
+		{name: "backslash", roots: `["Writing\\lessons"]`, wantErr: unsafePath},
+		{name: "nul", roots: `["Writing/\u0000lessons"]`, wantErr: unsafePath},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			data := replaceContractText(t, semanticallyValidContract,
+				`domain_equals_folder_under = ["Writing"]`, `domain_equals_folder_under = `+tt.roots)
+			got, err := loadContractBytes(t, []byte(data))
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("LoadFile() error = nil, want %q", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("LoadFile() error = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LoadFile() error = %v, want accepted relative roots", err)
+			}
+			if diff := cmp.Diff(tt.want, got.Definition().Rules.DomainEqualsFolderUnder); diff != "" {
+				t.Errorf("loaded roots mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestDomainFolder catches guessed roots, positional or deepest-folder
+// selection, filename selection, and normalization of authored path bytes.
+func TestDomainFolder(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		roots []string
+		path  string
+		want  string
+		found bool
+	}{
+		{name: "top level", roots: []string{"Concepts"}, path: "Concepts/golang/A.md", want: "golang", found: true},
+		{name: "nested", roots: []string{"Writing/lessons"}, path: "Writing/lessons/golang/L1.md", want: "golang", found: true},
+		{name: "deeper note", roots: []string{"Writing/lessons"}, path: "Writing/lessons/japanese/drills/D1.md", want: "japanese", found: true},
+		{name: "renamed nested", roots: []string{"Archive/studies"}, path: "Archive/studies/rust/L1.md", want: "rust", found: true},
+		{name: "later root", roots: []string{"Concepts", "Writing/lessons"}, path: "Writing/lessons/golang/L1.md", want: "golang", found: true},
+		{name: "undeclared nested", roots: []string{"Concepts"}, path: "Writing/lessons/golang/L1.md"},
+		{name: "empty roots", roots: []string{}, path: "Writing/lessons/golang/L1.md"},
+		{name: "nil roots", path: "Concepts/golang/A.md"},
+		{name: "top level direct child", roots: []string{"Concepts"}, path: "Concepts/Overview.md"},
+		{name: "nested direct child", roots: []string{"Writing/lessons"}, path: "Writing/lessons/Overview.md"},
+		{name: "sibling prefix", roots: []string{"Writing/lessons"}, path: "Writing/lessons-extra/golang/L1.md"},
+		{name: "case distinct", roots: []string{"Writing/lessons"}, path: "writing/lessons/golang/L1.md"},
+		{name: "normalization distinct", roots: []string{"Caf\u00e9/studies"}, path: "Cafe\u0301/studies/rust/L1.md"},
+		{name: "normalization distinct reverse", roots: []string{"Cafe\u0301/studies"}, path: "Caf\u00e9/studies/rust/L1.md"},
+		{name: "unicode match", roots: []string{"Caf\u00e9/studies"}, path: "Caf\u00e9/studies/\u65e5\u672c\u8a9e/L1.md", want: "\u65e5\u672c\u8a9e", found: true},
+		{name: "domain bytes retained", roots: []string{"Concepts"}, path: "Concepts/Cafe\u0301/A.md", want: "Cafe\u0301", found: true},
+		{name: "root whitespace retained", roots: []string{" Writing /lessons "}, path: " Writing /lessons /golang/L1.md", want: "golang", found: true},
+		{name: "root whitespace distinct", roots: []string{"Writing/lessons "}, path: "Writing/lessons/golang/L1.md"},
+		{name: "domain whitespace retained", roots: []string{"Concepts"}, path: "Concepts/ golang /A.md", want: " golang ", found: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, found := DomainFolder(tt.roots, tt.path)
+			if got != tt.want || found != tt.found {
+				t.Errorf("DomainFolder(%q, %q) = (%q, %t), want (%q, %t)", tt.roots, tt.path, got, found, tt.want, tt.found)
+			}
+		})
+	}
 }

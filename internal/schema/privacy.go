@@ -102,10 +102,10 @@ func SameDirName(a, b string) bool {
 }
 
 // pathHasFoldedPrefix reports whether rel is dir itself or a path below it,
-// comparing whole components with SameDirName. The fold is unconditional, so on
-// a case-sensitive filesystem two distinct siblings differing only in case are
-// treated as one. Both policies are exclusion sets, so that errs toward
-// excluding more — never toward an unintended egress.
+// comparing whole components with [SameDirName]. The fold is unconditional,
+// including on case-sensitive filesystems. Exclusion policies therefore exclude
+// all case aliases, and domain-root validation rejects declarations that would
+// become ambiguous on a case-insensitive filesystem.
 func pathHasFoldedPrefix(rel, dir string) bool {
 	relComponents := strings.Split(rel, "/")
 	dirComponents := strings.Split(dir, "/")

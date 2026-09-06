@@ -32,7 +32,7 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 		})
 		skipped := slices.Contains(run.definition.Scan.SkipBasenames, seg[len(seg)-1])
 		if inScope && !skipped {
-			out = append(out, run.note(n, seg)...)
+			out = append(out, run.note(n)...)
 		}
 	}
 	return out, nil
@@ -133,7 +133,7 @@ func newLintRun(contract *schema.Contract) (*lintRun, error) {
 // contract's reading order: the type enum, unknown keys, the article language,
 // the lesson-only rules, then either the light document rules or the full
 // knowledge-note rules. That order is the tiebreak the stable sort preserves.
-func (r *lintRun) note(n *note, seg []string) []Finding {
+func (r *lintRun) note(n *note) []Finding {
 	if n.noFrontmatter {
 		if r.requiresFrontmatter {
 			return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is missing")}
@@ -162,7 +162,7 @@ func (r *lintRun) note(n *note, seg []string) []Finding {
 	if hasType && r.contract.StatusGroup(ty) == systemDocumentGroup {
 		return append(out, r.documentStatus(n, systemDocumentGroup)...)
 	}
-	return append(out, r.knowledge(n, seg)...)
+	return append(out, r.knowledge(n)...)
 }
 
 // articleLanguage reports a language tag the reader's browser cannot act on,
@@ -225,7 +225,7 @@ func (r *lintRun) documentStatus(n *note, group string) []Finding {
 // knowledge reports the full knowledge-note rules, in reading order: required
 // fields, the note status enum, the remaining value enums, then the structural
 // rules.
-func (r *lintRun) knowledge(n *note, seg []string) []Finding {
+func (r *lintRun) knowledge(n *note) []Finding {
 	var out []Finding
 	out = append(out, r.required(n)...)
 	// A type outside the contract resolves to no group and reads against the
@@ -239,7 +239,7 @@ func (r *lintRun) knowledge(n *note, seg []string) []Finding {
 		out = append(out, schemaFinding(n, "schema.enum", "status", st, reason))
 	}
 	out = append(out, r.enumFields(n)...)
-	out = append(out, r.structural(n, seg)...)
+	out = append(out, r.structural(n)...)
 	return out
 }
 
@@ -293,13 +293,14 @@ func (r *lintRun) enumFields(n *note) []Finding {
 
 // structural reports the structural rules: a domain that does not match its
 // folder, a slash-bearing legacy tag, and a distilled idea missing provenance.
-func (r *lintRun) structural(n *note, seg []string) []Finding {
+func (r *lintRun) structural(n *note) []Finding {
 	var out []Finding
 	// A domain must equal the first folder under the configured roots, e.g.
 	// Concepts/<domain>/….
-	if d, ok := fmScalar(n.frontmatter, "domain"); ok &&
-		slices.Contains(r.definition.Rules.DomainEqualsFolderUnder, seg[0]) && len(seg) >= 3 && d != seg[1] {
-		out = append(out, schemaFinding(n, "schema.domain_folder", "domain", d, "does not match its folder "+seg[1]))
+	if d, ok := fmScalar(n.frontmatter, "domain"); ok {
+		if folder, found := schema.DomainFolder(r.definition.Rules.DomainEqualsFolderUnder, n.path); found && d != folder {
+			out = append(out, schemaFinding(n, "schema.domain_folder", "domain", d, "does not match its folder "+folder))
+		}
 	}
 	if r.definition.Rules.ForbidTagWithSlash {
 		if v, ok := n.frontmatter["tags"]; ok && v.isList {

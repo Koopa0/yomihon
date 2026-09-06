@@ -16,7 +16,7 @@ type SchemaPart struct {
 
 // SchemaSentence is what a page says about one schema finding, given the rule
 // that fired and whatever that rule named: the frontmatter field at fault, the
-// value it carried, and the folder the note sits in.
+// value it carried, and the domain folder selected by the declared root.
 //
 // The finding carries a sentence of its own, and this is deliberately not it.
 // That one is written once, in one language, for a format other programs read;
@@ -75,7 +75,7 @@ var (
 		"不符合 schema 給 slug 的格式。",
 		", which is not the shape the schema gives a slug.")
 
-	schemaFolderMismatch    = both("與這篇所在的資料夾 ", ", which does not match the folder this note sits in, ")
+	schemaFolderMismatch    = both("與依宣告的根目錄判定的領域資料夾 ", ", which does not match the domain folder selected by the declared root, ")
 	schemaFolderMismatchEnd = both(" 不一致。", ".")
 
 	schemaLegacyTagIn  = both(" 寫在 ", " in ")

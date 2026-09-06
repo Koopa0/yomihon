@@ -127,6 +127,8 @@ type Generation struct {
 	// schemaFindings is what the schema said about each note when this generation
 	// read it, reached once so a page and the check command answer for one read.
 	schemaFindings map[string][]judge.Finding
+	// domainRoots is the detached declaration used by this generation's findings.
+	domainRoots []string
 
 	// titles maps each declared title to every note declaring it, for the question
 	// the resolver is built not to answer.
@@ -739,6 +741,7 @@ func buildGeneration(
 		scan:           scan,
 		notes:          g.readings,
 		schemaFindings: g.findings,
+		domainRoots:    contract.Definition().Rules.DomainEqualsFolderUnder,
 		titles:         titles,
 		parsed:         g.parsed,
 		sidecars:       g.sidecars,

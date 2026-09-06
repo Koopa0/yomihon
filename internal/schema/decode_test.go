@@ -511,6 +511,17 @@ func FuzzDecodeContractDeterministic(f *testing.F) {
 		[]byte(foldedKeyContract("two-pairs")),
 		[]byte(foldedKeyContract("lowercases-together-only")),
 	}
+	// These seeds exercise deterministic decoding, not a regression-red oracle.
+	for _, roots := range []string{
+		`["Writing/lessons"]`, `["Archive/studies"]`,
+		`["Writing", "Writing/lessons"]`, `["Writing/lessons", "Writing"]`,
+		`["Writing/lessons", "Writing/lessonship"]`, `["Writing/../lessons"]`,
+		`["Writing/\u0000lessons"]`,
+	} {
+		seeds = append(seeds, []byte(strings.Replace(semanticallyValidContract,
+			`domain_equals_folder_under = ["Writing"]`, `domain_equals_folder_under = `+roots, 1)))
+	}
+
 	for _, seed := range seeds {
 		f.Add(seed)
 	}

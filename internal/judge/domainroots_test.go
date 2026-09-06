@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
@@ -44,37 +46,50 @@ func TestTheReportGroupsByTheFoldersTheContractDeclares(t *testing.T) {
 	}
 }
 
-// TestTheReportStillGroupsLessonsUnderTheNestedRoot holds the half of the
-// grouping no contract can express. The declaration takes a first path segment,
-// so a vault filing its lessons under Writing/lessons/<domain>/ has no way to
-// say where their domains are; reading only the declaration filed every one of
-// them under the no-domain heading, which on the vault this product was built
-// for merged two domains' worth of findings into one.
-//
-// The root is therefore still written into the report, and this is what says so
-// out loud, so that removing it is a decision somebody makes rather than a
-// tidying that looks safe.
-func TestTheReportStillGroupsLessonsUnderTheNestedRoot(t *testing.T) {
+// TestRunCheckDomainHeadings catches hardcoded roots, guessed undeclared
+// domains, character-prefix matches, and direct-child filenames as domains.
+func TestRunCheckDomainHeadings(t *testing.T) {
 	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
-		[2]string{
-			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`knowledge_dirs = ["Writing"]`,
-		}))
-	write(t, root, "Writing/lessons/golang/L1.md",
-		"---\ntitle: L1\ntype: lesson\nstatus: draft\ndomain: golang\nslug: l1\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nsee [[Nowhere]]\n")
-
-	stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
-	if err != nil {
-		t.Fatalf("RunCheck: %v", err)
-	}
-	report := string(stdout)
-	if !strings.Contains(report, "golang") {
-		t.Errorf("a lesson under the nested root lost its domain heading:\n%s", report)
-	}
-	if strings.Contains(report, "(other)") {
-		t.Errorf("a lesson under the nested root is filed with no domain:\n%s", report)
+	for _, tt := range []struct {
+		name  string
+		roots string
+		scope string
+		path  string
+		want  string
+	}{
+		{"declared nested", `["Writing/lessons"]`, "Writing", "Writing/lessons/golang/L1.md", "golang"},
+		{"renamed nested", `["Archive/studies"]`, "Archive", "Archive/studies/rust/L1.md", "rust"},
+		{"deep directory", `["Writing/lessons"]`, "Writing", "Writing/lessons/japanese/drills/D1.md", "japanese"},
+		{"undeclared nested", `["Sources"]`, "Writing", "Writing/lessons/golang/L1.md", "(other)"},
+		{"empty roots", `[]`, "Writing", "Writing/lessons/golang/L1.md", "(other)"},
+		{"nested direct child", `["Writing/lessons"]`, "Writing", "Writing/lessons/Overview.md", "(other)"},
+		{"top level direct child", `["Writing"]`, "Writing", "Writing/Overview.md", "(other)"},
+		{"sibling prefix", `["Writing/lessons"]`, "Writing", "Writing/lessons-extra/golang/L1.md", "(other)"},
+		{"case distinct", `["Writing/Lessons"]`, "Writing", "Writing/lessons/golang/L1.md", "(other)"},
+		{"normalization distinct", `["Writing/Cafe\u0301"]`, "Writing", "Writing/Caf\u00e9/golang/L1.md", "(other)"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			write(t, root, schema.ContractRelPath, contractFixture(t, nil,
+				[2]string{`domain_equals_folder_under = ["Concepts"]`, `domain_equals_folder_under = ` + tt.roots},
+				[2]string{`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `knowledge_dirs = ["` + tt.scope + `"]`},
+			))
+			// Legal no-frontmatter notes still yield an actionable broken link.
+			write(t, root, tt.path, "see [[Nowhere]]\n")
+			stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
+			if err != nil {
+				t.Fatalf("RunCheck() error = %v", err)
+			}
+			var headings []string
+			for line := range strings.SplitSeq(string(stdout), "\n") {
+				if heading, ok := strings.CutPrefix(line, "\u258c "); ok {
+					headings = append(headings, heading)
+				}
+			}
+			if diff := cmp.Diff([]string{tt.want}, headings); diff != "" {
+				t.Errorf("RunCheck() domain headings mismatch (-want +got):\n%s\nreport:\n%s", diff, stdout)
+			}
+		})
 	}
 }
