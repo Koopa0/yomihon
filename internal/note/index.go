@@ -36,14 +36,14 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// folders lists the vault's own directory tree, and beneath it the two things a
+// folders lists the vault's folder shelf, and beneath it the two things a
 // reader asks about how the shelf is kept: what changed last, and where every
 // indexed note sits.
 //
-// The tree itself is plain reading — file names and where they are — so no
-// declaration gates it: a vault whose contract broke must not show less of its
-// own folders than one that never carried a contract, because mending the
-// contract is done while reading the vault it governs.
+// A declared knowledge layer narrows the shelf's top-level folders. Without a
+// usable declaration the shelf shows the full tree, because mending a broken
+// contract is done while reading the vault it governs. Root files and direct
+// folder reading remain available in every contract state.
 func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	authority := h.sources.Status()
@@ -87,7 +87,7 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	// group by, and a closed one has a vocabulary yomihon could not read.
 	var distribution pages.StatusDistribution
 	if pageShell.Governed && !lifecycleClosed {
-		distribution = pages.StatusDistribution{Statuses: lifecycle, Unstated: unstated}
+		distribution = pages.NewStatusDistribution(lifecycle, unstated, model.KnowledgeScoped(), lang)
 	}
 	chrome := layouts.ChromeFromRequest(r, view.Shelf.Title)
 	if err := pages.FolderIndex(view, recentBlock, distribution, chrome).Render(r.Context(), w); err != nil {

@@ -3970,8 +3970,11 @@ func TestTheRecentListStatesItsKnowledgeScope(t *testing.T) {
 	if !strings.Contains(row, ">2<") {
 		t.Errorf("the distribution does not count both drafts; row = %q", row)
 	}
-	if !strings.Contains(lifecycleBlock, "書庫中每篇已索引筆記落在哪裡") {
-		t.Errorf("the distribution does not state its own scope; section = %q", lifecycleBlock)
+	if !strings.Contains(lifecycleBlock, "書庫中每篇已索引筆記落在哪裡，含書架之外的資料夾") {
+		t.Errorf("the distribution does not say it counts folders off the shelf; section = %q", lifecycleBlock)
+	}
+	if strings.Contains(lifecycleBlock, "書庫中每篇已索引筆記落在哪裡</") {
+		t.Errorf("the distribution keeps the unscoped sentence beside a narrowed shelf; section = %q", lifecycleBlock)
 	}
 }
 

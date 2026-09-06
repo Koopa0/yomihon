@@ -83,12 +83,12 @@ var (
 		"There are no reports in this vault.",
 	)
 	FolderIndexLede = both(
-		"照檔案實際存放的位置瀏覽整個書庫。",
-		"Browse the whole vault by where its files actually sit.",
+		"依檔案的存放位置瀏覽。",
+		"Browse files by where they are stored.",
 	)
 	FolderIndexEmpty = both(
-		"這個書庫裡沒有檔案。",
-		"There are no files in this vault.",
+		"這裡沒有列出檔案。",
+		"No files are listed here.",
 	)
 )
 

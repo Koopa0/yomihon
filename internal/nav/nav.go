@@ -52,6 +52,9 @@ type Model struct {
 	// folders are the top-level folders in lifecycleOrder, each holding its
 	// notes and subfolders recursively.
 	folders []Folder
+	// knowledgeScope narrows the shelf while the full tree remains available
+	// for direct folder reading. The scope belongs to this captured generation.
+	knowledgeScope schema.KnowledgeScope
 	// rootNotes are files at the vault root itself, belonging to no folder.
 	rootNotes []NoteRef
 	// paths are study paths in vault path order.
@@ -119,6 +122,23 @@ func (m *Model) Folders() []Folder {
 		return nil
 	}
 	return cloneFolders(m.folders)
+}
+
+// ShelfFolders returns the knowledge layer's top-level folders in vault order.
+// Without a declared scope it returns every folder. Each selected folder keeps
+// all its descendants, and the returned tree is independent of the model.
+// A nil model returns nil.
+func (m *Model) ShelfFolders() []Folder {
+	if m == nil {
+		return nil
+	}
+	var folders []Folder
+	for _, folder := range m.folders {
+		if m.knowledgeScope.Includes(folder.RelPath) {
+			folders = append(folders, folder)
+		}
+	}
+	return cloneFolders(folders)
 }
 
 // RootNotes returns the files that live at the vault root itself.
@@ -202,7 +222,8 @@ func (m *Model) KnowledgeScoped() bool {
 // browsing surfaces but closes every artifact-policy-dependent projection; the
 // closure travels with it so a later reader can tell withheld from empty. The
 // recent-notes summary stays, being plain reading, but loses its
-// knowledge-layer citation — that layer is the contract's own claim.
+// knowledge-layer citation — that layer is the contract's own claim. The
+// folder shelf returns to the full tree for the same reason.
 func (m *Model) WithoutInstanceProjections(closure Closure) *Model {
 	if m == nil {
 		return &Model{artifact: closure}
@@ -211,6 +232,7 @@ func (m *Model) WithoutInstanceProjections(closure Closure) *Model {
 	degraded.artifact = closure
 	degraded.paths = nil
 	degraded.maps = nil
+	degraded.knowledgeScope = schema.KnowledgeScope{}
 	degraded.knowledgeScoped = false
 	degraded.placementIndex = nil
 	return &degraded
@@ -349,8 +371,9 @@ func newModel(
 		mtimes[file.path] = file.modified
 	}
 	m := &Model{
-		reports: buildReports(paths),
-		journal: buildJournal(paths, mtimes),
+		reports:        buildReports(paths),
+		journal:        buildJournal(paths, mtimes),
+		knowledgeScope: scope,
 	}
 	m.folders, m.rootNotes = buildFolderTree(paths)
 	m.dirNotes = buildDirNotes(paths)

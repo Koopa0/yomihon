@@ -74,7 +74,7 @@ templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Ch
 			}
 			if len(statuses.Statuses) > 0 {
 				<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="folders-lifecycle-title">
-					@homeBlockHead("folders-lifecycle-title", wording.HomeLifecycleTitle.In(c.Lang), wording.HomeLifecycleLede.In(c.Lang))
+					@homeBlockHead("folders-lifecycle-title", wording.HomeLifecycleTitle.In(c.Lang), statuses.Lede)
 					<div class="y-homechips">
 						for _, it := range statuses.Statuses {
 							<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>

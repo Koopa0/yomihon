@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -444,5 +446,328 @@ func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
 				t.Errorf("GET %s answers without the reading shell, so the reader has nowhere to go", tt.target)
 			}
 		})
+	}
+}
+
+func TestFolderShelfScope(t *testing.T) {
+	t.Parallel()
+
+	contract, err := os.ReadFile(filepath.Join("..", "..", "internal", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema fixture: %v", err)
+	}
+	const declaration = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	if strings.Count(string(contract), declaration) != 1 {
+		t.Fatal("schema fixture must carry exactly one knowledge declaration")
+	}
+	withDeclaration := func(line string) string {
+		return strings.Replace(string(contract), declaration, line, 1)
+	}
+
+	tests := []struct {
+		name        string
+		contract    string
+		rootFiles   bool
+		wantCount   string
+		wantShelf   []string
+		wantPreview []string
+	}{
+		{
+			name:        "declared knowledge layer",
+			contract:    withDeclaration(`knowledge_dirs = ["Concepts"]`),
+			rootFiles:   true,
+			wantCount:   "5 篇",
+			wantShelf:   []string{"/folders/Concepts", "/notes/Board.canvas", "/notes/README.md", "/notes/Welcome.md"},
+			wantPreview: []string{"/folders/Concepts", "/notes/Board.canvas", "/notes/README.md"},
+		},
+		{
+			name:        "omitted declaration",
+			contract:    withDeclaration(""),
+			rootFiles:   true,
+			wantCount:   "8 篇",
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/Board.canvas", "/notes/README.md", "/notes/Welcome.md"},
+			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
+		},
+		{
+			name:        "empty declaration",
+			contract:    withDeclaration(`knowledge_dirs = []`),
+			rootFiles:   true,
+			wantCount:   "8 篇",
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/Board.canvas", "/notes/README.md", "/notes/Welcome.md"},
+			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
+		},
+		{
+			name:        "missing contract",
+			rootFiles:   true,
+			wantCount:   "7 篇",
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/Board.canvas", "/notes/README.md", "/notes/Welcome.md"},
+			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
+		},
+		{
+			name:        "malformed contract",
+			contract:    "this is not toml [[[\n",
+			rootFiles:   true,
+			wantCount:   "8 篇",
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/Board.canvas", "/notes/README.md", "/notes/Welcome.md"},
+			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
+		},
+		{
+			name:        "malformed knowledge declaration",
+			contract:    withDeclaration(`knowledge_dirs = "Concepts"`),
+			rootFiles:   true,
+			wantCount:   "8 篇",
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/Board.canvas", "/notes/README.md", "/notes/Welcome.md"},
+			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
+		},
+		{
+			name:        "declared folder has no captured files",
+			contract:    withDeclaration(`knowledge_dirs = ["Missing"]`),
+			rootFiles:   true,
+			wantCount:   "3 篇",
+			wantShelf:   []string{"/notes/Board.canvas", "/notes/README.md", "/notes/Welcome.md"},
+			wantPreview: []string{"/notes/Board.canvas", "/notes/README.md", "/notes/Welcome.md"},
+		},
+		{
+			name:      "declared folder has no captured files and no root files",
+			contract:  withDeclaration(`knowledge_dirs = ["Missing"]`),
+			wantCount: "0 篇",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			site := folderShelfSite(t, tt.contract, tt.rootFiles)
+			t.Run("folder index", func(t *testing.T) {
+				t.Parallel()
+				page := readingPage(t, site, "/folders")
+				if diff := cmp.Diff(tt.wantShelf, shelfRowHrefs(t, page, "data-index-row")); diff != "" {
+					t.Errorf("GET /folders shelf hrefs mismatch (-want +got):\n%s", diff)
+				}
+				if want := `<div class="y-home__kicker">資料夾 · ` + tt.wantCount + `</div>`; !strings.Contains(page, want) {
+					t.Errorf("GET /folders shelf count is missing %q", want)
+				}
+				if tt.wantShelf == nil && !strings.Contains(page, "data-index-empty") {
+					t.Error("GET /folders does not state the empty shelf")
+				}
+			})
+			t.Run("home preview", func(t *testing.T) {
+				t.Parallel()
+				block := deskBlockMarkup(t, readingPage(t, site, "/"), "folders")
+				if diff := cmp.Diff(tt.wantPreview, shelfRowHrefs(t, block, "data-desk-item")); diff != "" {
+					t.Errorf("GET / folder preview hrefs mismatch (-want +got):\n%s", diff)
+				}
+				if want := "<p>" + tt.wantCount + "</p>"; !strings.Contains(block, want) {
+					t.Errorf("GET / folder preview count is missing %q", want)
+				}
+				if tt.wantPreview == nil && !strings.Contains(block, `class="y-homeempty"`) {
+					t.Error("GET / folder preview does not state the empty shelf")
+				}
+			})
+		})
+	}
+}
+
+// TestEmptyFolderShelfDescribesOnlyItsListing keeps an empty selection from
+// claiming that the outside files, still readable through their URLs, are gone.
+func TestEmptyFolderShelfDescribesOnlyItsListing(t *testing.T) {
+	t.Parallel()
+
+	contract, err := os.ReadFile(filepath.Join("..", "..", "internal", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema fixture: %v", err)
+	}
+	const declaration = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	if strings.Count(string(contract), declaration) != 1 {
+		t.Fatal("schema fixture must carry exactly one knowledge declaration")
+	}
+	site := folderShelfSite(t, strings.Replace(string(contract), declaration, `knowledge_dirs = ["Missing"]`, 1), false)
+
+	for _, tt := range []struct {
+		language   string
+		wantEmpty  string
+		falseEmpty string
+		wantLede   string
+		falseLede  string
+	}{
+		{
+			language:   "zh-Hant",
+			wantEmpty:  "這裡沒有列出檔案。",
+			falseEmpty: "這個書庫裡沒有檔案。",
+			wantLede:   "依檔案的存放位置瀏覽。",
+			falseLede:  "照檔案實際存放的位置瀏覽整個書庫。",
+		},
+		{
+			language:   "en",
+			wantEmpty:  "No files are listed here.",
+			falseEmpty: "There are no files in this vault.",
+			wantLede:   "Browse files by where they are stored.",
+			falseLede:  "Browse the whole vault by where its files actually sit.",
+		},
+	} {
+		t.Run(tt.language, func(t *testing.T) {
+			t.Parallel()
+			localizedSite := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				r.Header.Set("Cookie", "yomihon_lang="+tt.language)
+				site.ServeHTTP(w, r)
+			})
+			for _, target := range []string{"/folders", "/"} {
+				t.Run(target, func(t *testing.T) {
+					t.Parallel()
+					page := readingPage(t, localizedSite, target)
+					if target == "/" {
+						page = deskBlockMarkup(t, page, "folders")
+					}
+					if !strings.Contains(page, tt.wantEmpty) {
+						t.Errorf("GET %s empty shelf copy is missing %q", target, tt.wantEmpty)
+					}
+					if strings.Contains(page, tt.falseEmpty) {
+						t.Errorf("GET %s claims the whole vault has no files: %q", target, tt.falseEmpty)
+					}
+					if target == "/folders" {
+						if !strings.Contains(page, tt.wantLede) {
+							t.Errorf("GET /folders folder lede is missing %q", tt.wantLede)
+						}
+						if strings.Contains(page, tt.falseLede) {
+							t.Errorf("GET /folders folder lede claims whole-vault coverage: %q", tt.falseLede)
+						}
+					}
+				})
+			}
+		})
+	}
+	for _, tt := range []struct {
+		target string
+		want   string
+	}{
+		{"/folders/Outside", `href="/notes/Outside/ordinary.md"`},
+		{"/notes/Outside/ordinary.md", "Ordinary reading stays available."},
+	} {
+		t.Run(tt.target, func(t *testing.T) {
+			t.Parallel()
+			if page := readingPage(t, site, tt.target); !strings.Contains(page, tt.want) {
+				t.Errorf("GET %s outside reading is missing %q", tt.target, tt.want)
+			}
+		})
+	}
+}
+
+func TestFolderShelfKeepsDirectReading(t *testing.T) {
+	t.Parallel()
+
+	contract, err := os.ReadFile(filepath.Join("..", "..", "internal", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema fixture: %v", err)
+	}
+	site := folderShelfSite(t, string(contract), true)
+	tests := []struct {
+		target string
+		want   string
+	}{
+		{"/folders/System", `href="/folders/System/nested"`},
+		{"/folders/System/nested", `href="/notes/System/nested/guide.md"`},
+		{"/notes/System/nested/guide.md", "System reading stays available."},
+		{"/folders/Outside", `href="/notes/Outside/ordinary.md"`},
+		{"/notes/Outside/ordinary.md", "Ordinary reading stays available."},
+		{"/folders/Concepts", `href="/folders/Concepts/japanese"`},
+		{"/folders/Concepts/japanese", `href="/notes/Concepts/japanese/chapter.md"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.target, func(t *testing.T) {
+			t.Parallel()
+			if body := readingPage(t, site, tt.target); !strings.Contains(body, tt.want) {
+				t.Errorf("GET %s body is missing %q", tt.target, tt.want)
+			}
+		})
+	}
+}
+
+// folderShelfSite keeps System within the unfixed desk's first three rows.
+// Its top level has no files, so direct reading must retain nested-only folders.
+func folderShelfSite(t *testing.T, contract string, rootFiles bool) *readingSite {
+	t.Helper()
+	root := t.TempDir()
+	files := map[string]string{
+		"Concepts/lesson.md":           "# Shelf lesson\n",
+		"Concepts/japanese/chapter.md": "# Nested shelf chapter\n",
+		"System/nested/guide.md":       "# Outside system guide\n\nSystem reading stays available.\n",
+		"Outside/ordinary.md":          "# Outside ordinary note\n\nOrdinary reading stays available.\n",
+	}
+	if contract != "" {
+		files[schema.ContractRelPath] = contract
+	}
+	if rootFiles {
+		files["README.md"] = "# Shelf README\n"
+		files["Board.canvas"] = `{"nodes":[],"edges":[]}`
+		files["Welcome.md"] = "# Shelf welcome\n"
+	}
+	for rel, body := range files {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir for %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+	return site
+}
+
+// readingPage reads the committed response from one public GET.
+func readingPage(t *testing.T, site http.Handler, target string) string {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	site.ServeHTTP(recorder, siteRequest(t, http.MethodGet, target, nil))
+	response := recorder.Result()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close %s response: %v", target, err)
+		}
+	}()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s = %d, want 200", target, response.StatusCode)
+	}
+	t.Logf("GET %s committed response = %d; Content-Type = %q", target, response.StatusCode, response.Header.Get("Content-Type"))
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read %s response: %v", target, err)
+	}
+	return string(body)
+}
+
+// shelfRowHrefs excludes headings, recent notes and other links around a shelf.
+func shelfRowHrefs(t *testing.T, markup, marker string) []string {
+	t.Helper()
+	var hrefs []string
+	for {
+		_, rest, found := strings.Cut(markup, "<a ")
+		if !found {
+			return hrefs
+		}
+		attrs, rest, closed := strings.Cut(rest, ">")
+		if !closed {
+			t.Fatal("shelf contains an unclosed link")
+		}
+		markup = rest
+		if !strings.Contains(attrs, " "+marker) {
+			continue
+		}
+		_, href, found := strings.Cut(attrs, `href="`)
+		if !found {
+			t.Fatalf("shelf row has no href: %q", attrs)
+		}
+		href, _, closed = strings.Cut(href, `"`)
+		if !closed {
+			t.Fatalf("shelf row has an unclosed href: %q", attrs)
+		}
+		hrefs = append(hrefs, html.UnescapeString(href))
 	}
 }
