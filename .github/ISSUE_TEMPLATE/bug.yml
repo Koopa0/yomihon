@@ -34,7 +34,7 @@ body:
     attributes:
       label: yomihon version
       description: Output of `yomihon --version` if your build has it, otherwise the commit you built from.
-      placeholder: v0.1.0, or a commit hash
+      placeholder: v0.2.0, or a commit hash
     validations:
       required: true
 

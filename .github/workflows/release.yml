@@ -1,11 +1,8 @@
 name: Release
 
 # Builds and publishes a GitHub release when a version tag is pushed. The
-# only existing release, v0.1.0, was cut by hand and predates the vault
-# contract this repository now reads, so `go install .../yomihon@latest`
-# currently resolves to a binary that cannot read it. This workflow makes
-# every future release a tagged, gated, reproducible build instead of a
-# manual one.
+# publish job depends on the complete CI gate, so a failing tagged build
+# cannot publish its platform binaries as a GitHub release.
 #
 # The gate job calls ci.yml as a reusable workflow (see workflow_call there)
 # instead of repeating its jobs here: ci.yml does not trigger on a tag push,
@@ -72,8 +69,8 @@ jobs:
           ( cd dist && sha256sum -- * > SHA256SUMS )
 
       # A tag such as v1.0.0-rc1 marks a pre-release; a plain v1.0.0 does
-      # not. --verify-tag refuses to publish if the tag changed between the
-      # checkout above and this step.
+      # not. --verify-tag requires the tag to exist on the remote before
+      # publication; it does not compare the tag's target with this checkout.
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

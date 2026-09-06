@@ -18,7 +18,7 @@ on your machine and changes none of your words.
 ## Install
 
 ```sh
-go install github.com/koopa0/yomihon/cmd/yomihon@main
+go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
 
 Needs Go 1.27 or newer. The path is lowercase even though the repository's

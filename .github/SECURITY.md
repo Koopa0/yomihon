@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-`v0.1.0` is a pre-release and is not maintained. Fixes land on `main`, which is
-what `go install …@main` gives you and the only version to report against.
+Report against `main` or the latest release — what `go install …@latest` gives
+you. Fixes land on `main`; earlier releases are not maintained.
 
 ## Reporting a vulnerability
 
