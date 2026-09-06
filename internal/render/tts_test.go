@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -169,5 +170,162 @@ func TestAReadAloudMarkerNamingAnotherLanguageLeavesNoTrace(t *testing.T) {
 	// would make a note's own words disappear with nothing said.
 	if !strings.Contains(got, "&lt;!-- an ordinary comment --&gt;") {
 		t.Errorf("an ordinary authored comment stopped being shown as text, so the drop is no longer confined to the marker it names:\n%s", got)
+	}
+}
+
+// TestReadAloudTextDropsATrailingBlockAddress is the lock on #209. A block
+// address names a line so a reader can come back to it. It is not Japanese to
+// be spoken, and the speak button's data-tts is the speech input. Flattening
+// the paragraph to text and then cutting a caret word would also delete a
+// caret the author quoted, escaped, or wrote as an entity; those stay. The
+// visible line, the anchor a link can reach, the ruby handling and the
+// translation isolation are the rest of the acceptance, so a fix cannot
+// quietly regress them.
+func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
+	t.Parallel()
+
+	const spoken = `<ruby>今日<rt>きょう</rt></ruby>は<ruby>雨<rt>あめ</rt></ruby>です。`
+	const spokenPlain = "今日は雨です。"
+
+	tests := []struct {
+		name    string
+		body    string
+		notes   []graph.NoteInput
+		bodies  transclusions
+		relPath string
+		want    string
+		silent  bool
+		keep    []string
+		drop    []string
+	}{
+		{
+			name: "a normal address",
+			body: "<!-- read-aloud: ja -->\n" + spoken + " ^rain-1-1\n",
+			want: spokenPlain,
+			keep: []string{
+				spoken,
+				`<span id="^rain-1-1">^rain-1-1</span>`,
+			},
+			drop: []string{`data-tts="` + spokenPlain + " ^rain-1-1"},
+		},
+		{
+			name: "the same paragraph, the address on a later line",
+			body: "<!-- read-aloud: ja -->\n" + spoken + "\nあしたは晴れです。 ^rain-1-1\n",
+			want: spokenPlain + "\nあしたは晴れです。",
+			keep: []string{spoken, `<span id="^rain-1-1">^rain-1-1</span>`},
+			drop: []string{`data-tts="` + spokenPlain + "\nあしたは晴れです。 ^rain-1-1"},
+		},
+		{
+			name: "a later copy of an already-claimed address",
+			body: "先にこの行が名前を取る。 ^same\n\n<!-- read-aloud: ja -->\n" + spoken + " ^same\n",
+			want: spokenPlain,
+			keep: []string{
+				`<span id="^same">^same</span>`,
+				spoken + " ",
+				"^same",
+			},
+			drop: []string{`data-tts="` + spokenPlain + " ^same"},
+		},
+		{
+			name: "a callout body line",
+			body: "> [!note]\n> <!-- read-aloud: ja -->\n> " + spoken + " ^rain-1-1\n",
+			want: spokenPlain,
+			keep: []string{spoken, `<span id="^rain-1-1">^rain-1-1</span>`},
+			drop: []string{`data-tts="` + spokenPlain + " ^rain-1-1"},
+		},
+		{
+			name:  "an embedded note's address, which this page does not claim",
+			body:  "![[B]]\n",
+			notes: []graph.NoteInput{{RelPath: "B.md"}},
+			bodies: transclusions{
+				"B.md": "<!-- read-aloud: ja -->\n" + spoken + " ^rain-1-1\n",
+			},
+			want: spokenPlain,
+			keep: []string{spoken, "^rain-1-1"},
+			drop: []string{
+				`id="^rain-1-1"`,
+				`data-tts="` + spokenPlain + " ^rain-1-1",
+			},
+		},
+		{
+			name: "a caret shown in a code span is not an address",
+			body: "<!-- read-aloud: ja -->\n" + spoken + " `^rain-1-1`\n",
+			want: spokenPlain + " ^rain-1-1",
+			keep: []string{spoken, "<code>^rain-1-1</code>"},
+		},
+		{
+			name: "an escaped caret is the author showing the syntax",
+			body: "<!-- read-aloud: ja -->\n" + spoken + " \\^rain-1-1\n",
+			want: spokenPlain + " ^rain-1-1",
+			keep: []string{spoken},
+			drop: []string{`id="^rain-1-1"`},
+		},
+		{
+			name: "an entity-spelled caret is still the author's characters",
+			body: "<!-- read-aloud: ja -->\n" + spoken + " &#94;rain-1-1\n",
+			want: spokenPlain + " ^rain-1-1",
+			keep: []string{spoken},
+			drop: []string{`id="^rain-1-1"`},
+		},
+		{
+			name: "a later legal address and an escaped caret after the same occupancy",
+			body: "先にこの行が名前を取る。 ^same\n\n<!-- read-aloud: ja -->\n" + spoken + " ^same\n\n<!-- read-aloud: ja -->\nあしたは晴れです。 \\^same\n",
+			want: spokenPlain,
+			keep: []string{`data-tts="あしたは晴れです。 ^same"`},
+			drop: []string{`data-tts="` + spokenPlain + " ^same"},
+		},
+		{
+			name: "punctuation the existing marker grammar already allows",
+			body: "<!-- read-aloud: ja -->\n" + spoken + " ^rain-1-1。\n",
+			want: spokenPlain,
+			keep: []string{spoken, `<span id="^rain-1-1。">^rain-1-1。</span>`},
+			drop: []string{`data-tts="` + spokenPlain + " ^rain-1-1。"},
+		},
+		{
+			name: "a Chinese translation in the next paragraph is not spoken",
+			body: "<!-- read-aloud: ja -->\n" + spoken + " ^rain-1-1\n\n今天下雨。\n",
+			want: spokenPlain,
+			keep: []string{"<p>今天下雨。</p>", spoken},
+			drop: []string{"今天下雨。\""},
+		},
+		{
+			name:   "a paragraph that is only an address",
+			body:   "<!-- read-aloud: ja -->\n^only\n",
+			silent: true,
+			keep:   []string{`<span id="^only">^only</span>`},
+			drop:   []string{"data-tts"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rel := tt.relPath
+			if rel == "" {
+				rel = "Writing/lessons/japanese/L01.md"
+			}
+			r := newRenderer(t, tt.notes, nil, tt.bodies)
+			page := r.HTML(rel, "", tt.body, wording.ZhHant)
+			got := render.InjectTTS(page.HTML, wording.ZhHant)
+			if !tt.silent {
+				attr := `data-tts="` + tt.want + `"`
+				if !strings.Contains(got, attr) {
+					t.Errorf("read-aloud text is not %q:\n%s", tt.want, got)
+				}
+				if n := strings.Count(got, `data-tts="`); n < 1 {
+					t.Errorf("the marked paragraph grew no speak button:\n%s", got)
+				}
+			}
+			for _, keep := range tt.keep {
+				if !strings.Contains(got, keep) {
+					t.Errorf("the page lost %q:\n%s", keep, got)
+				}
+			}
+			for _, drop := range tt.drop {
+				if strings.Contains(got, drop) {
+					t.Errorf("the page kept %q, which the speech input must not carry:\n%s", drop, got)
+				}
+			}
+		})
 	}
 }
