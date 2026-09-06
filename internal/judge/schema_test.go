@@ -57,6 +57,290 @@ func TestCheckSchemaGolden(t *testing.T) {
 	}
 }
 
+// TestDeclaredOptionalEnums holds the distinction between an undeclared
+// vocabulary and a declared vocabulary that rejects the note's value. Type
+// and status retain their own rules when every optional vocabulary is open.
+func TestDeclaredOptionalEnums(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		declaration  string
+		frontmatter  string
+		wantOutput   string
+		wantExit     int
+		wantFindings []Finding
+	}{
+		{
+			name:        "domain/omitted",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\ndomain: book\n",
+		},
+		{
+			name:        "domain/empty",
+			declaration: "domain = []\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\ndomain: book\n",
+		},
+		{
+			name:        "domain/matching",
+			declaration: "domain = [\"book\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\ndomain: book\n",
+		},
+		{
+			name:        "domain/mismatching",
+			declaration: "domain = [\"course\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\ndomain: book\n",
+			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"domain","message":"domain \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:8dc91cb04dc11f0b"}` + "\n",
+			wantExit:    1,
+			wantFindings: []Finding{{
+				RuleID:          "schema.enum",
+				Severity:        SeverityError,
+				Path:            "Notes/Probe.md",
+				Field:           new("domain"),
+				Message:         `domain "book" is not an allowed value`,
+				Evidence:        "frontmatter validated against vault-schema.toml",
+				SuggestedAction: "fix the frontmatter to match the schema",
+				SourceRule:      "vault-schema.toml",
+				Target:          new("book"),
+				Fingerprint:     "v1:8dc91cb04dc11f0b",
+			}},
+		},
+		{
+			name:        "source_kind/omitted",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_kind: book\n",
+		},
+		{
+			name:        "source_kind/empty",
+			declaration: "source_kind = []\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_kind: book\n",
+		},
+		{
+			name:        "source_kind/matching",
+			declaration: "source_kind = [\"book\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_kind: book\n",
+		},
+		{
+			name:        "source_kind/mismatching",
+			declaration: "source_kind = [\"course\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_kind: book\n",
+			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"source_kind","message":"source_kind \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:896e1c4b426bc247"}` + "\n",
+			wantExit:    1,
+			wantFindings: []Finding{{
+				RuleID:          "schema.enum",
+				Severity:        SeverityError,
+				Path:            "Notes/Probe.md",
+				Field:           new("source_kind"),
+				Message:         `source_kind "book" is not an allowed value`,
+				Evidence:        "frontmatter validated against vault-schema.toml",
+				SuggestedAction: "fix the frontmatter to match the schema",
+				SourceRule:      "vault-schema.toml",
+				Target:          new("book"),
+				Fingerprint:     "v1:896e1c4b426bc247",
+			}},
+		},
+		{
+			name:        "source_provider/omitted",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_provider: book\n",
+		},
+		{
+			name:        "source_provider/empty",
+			declaration: "source_provider = []\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_provider: book\n",
+		},
+		{
+			name:        "source_provider/matching",
+			declaration: "source_provider = [\"book\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_provider: book\n",
+		},
+		{
+			name:        "source_provider/mismatching",
+			declaration: "source_provider = [\"course\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_provider: book\n",
+			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"source_provider","message":"source_provider \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:67ef750ff979fe0c"}` + "\n",
+			wantExit:    1,
+			wantFindings: []Finding{{
+				RuleID:          "schema.enum",
+				Severity:        SeverityError,
+				Path:            "Notes/Probe.md",
+				Field:           new("source_provider"),
+				Message:         `source_provider "book" is not an allowed value`,
+				Evidence:        "frontmatter validated against vault-schema.toml",
+				SuggestedAction: "fix the frontmatter to match the schema",
+				SourceRule:      "vault-schema.toml",
+				Target:          new("book"),
+				Fingerprint:     "v1:67ef750ff979fe0c",
+			}},
+		},
+		{
+			name:        "level/omitted",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nlevel: book\n",
+		},
+		{
+			name:        "level/empty",
+			declaration: "level = []\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nlevel: book\n",
+		},
+		{
+			name:        "level/matching",
+			declaration: "level = [\"book\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nlevel: book\n",
+		},
+		{
+			name:        "level/mismatching",
+			declaration: "level = [\"course\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nlevel: book\n",
+			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"level","message":"level \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:c323b71b99e2043d"}` + "\n",
+			wantExit:    1,
+			wantFindings: []Finding{{
+				RuleID:          "schema.enum",
+				Severity:        SeverityError,
+				Path:            "Notes/Probe.md",
+				Field:           new("level"),
+				Message:         `level "book" is not an allowed value`,
+				Evidence:        "frontmatter validated against vault-schema.toml",
+				SuggestedAction: "fix the frontmatter to match the schema",
+				SourceRule:      "vault-schema.toml",
+				Target:          new("book"),
+				Fingerprint:     "v1:c323b71b99e2043d",
+			}},
+		},
+		{
+			name:        "map_kind/omitted",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nmap_kind: book\n",
+		},
+		{
+			name:        "map_kind/empty",
+			declaration: "map_kind = []\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nmap_kind: book\n",
+		},
+		{
+			name:        "map_kind/matching",
+			declaration: "map_kind = [\"book\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nmap_kind: book\n",
+		},
+		{
+			name:        "map_kind/mismatching",
+			declaration: "map_kind = [\"course\"]\n",
+			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nmap_kind: book\n",
+			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"map_kind","message":"map_kind \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:6f011d7f93384586"}` + "\n",
+			wantExit:    1,
+			wantFindings: []Finding{{
+				RuleID:          "schema.enum",
+				Severity:        SeverityError,
+				Path:            "Notes/Probe.md",
+				Field:           new("map_kind"),
+				Message:         `map_kind "book" is not an allowed value`,
+				Evidence:        "frontmatter validated against vault-schema.toml",
+				SuggestedAction: "fix the frontmatter to match the schema",
+				SourceRule:      "vault-schema.toml",
+				Target:          new("book"),
+				Fingerprint:     "v1:6f011d7f93384586",
+			}},
+		},
+		{
+			name:        "type remains dedicated",
+			frontmatter: "title: Probe\ntype: unknown\nstatus: draft\n",
+			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"type","message":"type \"unknown\" is not an allowed type","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"unknown","fingerprint":"v1:3bed4c2ace05b5f0"}` + "\n",
+			wantExit:    1,
+			wantFindings: []Finding{{
+				RuleID:          "schema.enum",
+				Severity:        SeverityError,
+				Path:            "Notes/Probe.md",
+				Field:           new("type"),
+				Message:         `type "unknown" is not an allowed type`,
+				Evidence:        "frontmatter validated against vault-schema.toml",
+				SuggestedAction: "fix the frontmatter to match the schema",
+				SourceRule:      "vault-schema.toml",
+				Target:          new("unknown"),
+				Fingerprint:     "v1:3bed4c2ace05b5f0",
+			}},
+		},
+		{
+			name:        "status remains dedicated",
+			frontmatter: "title: Probe\ntype: memo\nstatus: bogus\n",
+			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"status","message":"status \"bogus\" is not a valid status","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"bogus","fingerprint":"v1:a06a5cad90f6b8d0"}` + "\n",
+			wantExit:    1,
+			wantFindings: []Finding{{
+				RuleID:          "schema.enum",
+				Severity:        SeverityError,
+				Path:            "Notes/Probe.md",
+				Field:           new("status"),
+				Message:         `status "bogus" is not a valid status`,
+				Evidence:        "frontmatter validated against vault-schema.toml",
+				SuggestedAction: "fix the frontmatter to match the schema",
+				SourceRule:      "vault-schema.toml",
+				Target:          new("bogus"),
+				Fingerprint:     "v1:a06a5cad90f6b8d0",
+			}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			write(t, root, schema.ContractRelPath, `schema_version = "1"
+[enums]
+type = ["memo"]
+`+tt.declaration+`[enums.status]
+note = ["draft"]
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "status", "domain", "source_kind", "source_provider", "level", "map_kind"]
+[scan]
+knowledge_dirs = ["Notes"]
+[navigation]
+path_types = []
+map_types = []
+[artifacts]
+non_instance_dirs = []
+[privacy]
+never_egress_dirs = []
+[[lifecycle]]
+status = "draft"
+applies_to = ["memo"]
+from = []
+owner = []
+`)
+			data := []byte("---\n" + tt.frontmatter + "---\nBody.\n")
+			write(t, root, "Notes/Probe.md", string(data))
+			contract, err := schema.Load(root)
+			if err != nil {
+				t.Fatalf("schema.Load() error = %v", err)
+			}
+
+			t.Run("check", func(t *testing.T) {
+				t.Parallel()
+
+				got, exit, err := RunCheck(t.Context(), &CheckOptions{
+					Root:   root,
+					Deny:   []string{"error"},
+					Format: FormatJSON,
+				})
+				if err != nil {
+					t.Fatalf("RunCheck() error = %v", err)
+				}
+				if diff := cmp.Diff(tt.wantOutput, string(got)); diff != "" {
+					t.Errorf("RunCheck() output mismatch (-want +got):\n%s", diff)
+				}
+				if exit != tt.wantExit {
+					t.Errorf("RunCheck() exit = %d, want %d", exit, tt.wantExit)
+				}
+			})
+			t.Run("lint", func(t *testing.T) {
+				t.Parallel()
+
+				got, err := LintFrontmatter("Notes/Probe.md", data, contract)
+				if err != nil {
+					t.Fatalf("LintFrontmatter() error = %v", err)
+				}
+				if diff := cmp.Diff(tt.wantFindings, got); diff != "" {
+					t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
+				}
+			})
+		})
+	}
+}
+
 // TestKnowledgeScopeFoldsTheDeclaredSpelling pins the repair for the quietest
 // failure this face had: a contract naming "notes" where the folder is "Notes"
 // turned every frontmatter rule off for that folder, and the run stayed exit 0
