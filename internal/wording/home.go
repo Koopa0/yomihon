@@ -44,6 +44,14 @@ var (
 	)
 	HomeLifecycleTitle = both("依狀態分組", "By status")
 	HomeLifecycleLede  = both("書庫中每篇已索引筆記落在哪裡", "Where each indexed note in the vault sits")
+	// Beside a shelf narrowed to the declared layer the distribution still
+	// counts every indexed note, so its sentence says that the count reaches
+	// past the shelf; otherwise the file total above it and the total below it
+	// disagree with no set named for either.
+	HomeLifecycleLedeScoped = both(
+		"書庫中每篇已索引筆記落在哪裡，含書架之外的資料夾",
+		"Where each indexed note in the vault sits, including folders off the shelf",
+	)
 )
 
 // The counts beside a status chip and a study path.

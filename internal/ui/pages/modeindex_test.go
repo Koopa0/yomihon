@@ -114,23 +114,21 @@ func TestLeadingDateReadsOnlyAWholeDayAtTheFront(t *testing.T) {
 	}
 }
 
-// TestTheFolderIndexCountsEveryFileUnderEveryFolder keeps the kicker's figure
-// answering the question a reader asks of a library — how much is in here —
-// rather than how many things sit at the top of it.
-func TestTheFolderIndexCountsEveryFileUnderEveryFolder(t *testing.T) {
+// TestTheFolderIndexCountsEveryFileOnTheShelf keeps the kicker's figure
+// counting every descendant of a shelf folder and every root file.
+func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 	t.Parallel()
 
 	// Counted by hand from the fixture's own file list, so this asks whether
 	// the figure is right rather than whether the code agrees with itself: two
-	// maps, two lessons, two concepts, two notes of one repeated name, two
-	// templates, two sources, two journal entries and one report, all nested at
-	// least one folder deep, plus the one file at the vault root, which belongs
-	// to no folder and is counted all the same.
-	const files = 16
+	// maps, two lessons, two concepts and two sources in the declared knowledge
+	// folders, plus the one file at the vault root. Notes in A, B, System and
+	// Diary stay outside this shelf's measure.
+	const files = 9
 
 	view := NewFolderIndex(buildModel(t), wording.ZhHant)
-	if view.Kicker != "資料夾 · 16 篇" {
-		t.Errorf("folder index kicker = %q, want it to name all %d files under every folder", view.Kicker, files)
+	if view.Kicker != "資料夾 · 9 篇" {
+		t.Errorf("folder index kicker = %q, want it to name all %d files on the shelf", view.Kicker, files)
 	}
 }
 
@@ -160,6 +158,37 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 			}
 			if want := `data-index="` + tt.mode + `"`; !strings.Contains(buf.String(), want) {
 				t.Errorf("the %s index does not carry %s", tt.mode, want)
+			}
+		})
+	}
+}
+
+// TestStatusDistributionNamesItsReachBesideANarrowedShelf holds the sentence
+// under the distribution to the shelf beside it: a shelf narrowed to the
+// declared layer sits above a count that still reaches every indexed note, so
+// the sentence says so, and an unscoped shelf keeps the plain sentence.
+func TestStatusDistributionNamesItsReachBesideANarrowedShelf(t *testing.T) {
+	t.Parallel()
+	items := []LifecycleItem{{Name: "draft", Count: 2}}
+	for _, tt := range []struct {
+		name   string
+		scoped bool
+		lang   wording.Lang
+		want   string
+	}{
+		{name: "scoped zh", scoped: true, lang: wording.ZhHant, want: "書庫中每篇已索引筆記落在哪裡，含書架之外的資料夾"},
+		{name: "scoped en", scoped: true, lang: wording.En, want: "Where each indexed note in the vault sits, including folders off the shelf"},
+		{name: "unscoped zh", scoped: false, lang: wording.ZhHant, want: "書庫中每篇已索引筆記落在哪裡"},
+		{name: "unscoped en", scoped: false, lang: wording.En, want: "Where each indexed note in the vault sits"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := NewStatusDistribution(items, nil, tt.scoped, tt.lang)
+			if got.Lede != tt.want {
+				t.Errorf("lede = %q, want %q", got.Lede, tt.want)
+			}
+			if len(got.Statuses) != 1 {
+				t.Errorf("statuses were not carried through: %v", got.Statuses)
 			}
 		})
 	}

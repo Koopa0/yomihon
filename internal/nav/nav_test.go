@@ -1237,12 +1237,108 @@ func TestSiblings(t *testing.T) {
 	}
 }
 
+func TestShelfFolders(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	for _, rel := range []string{
+		"cOnCePtS/9-start.md",
+		"cOnCePtS/10-end.md",
+		"cOnCePtS/lessons/guide.md",
+		"ConceptsExtra/other.md",
+		"Maps/overview.md",
+		"Outside/cOnCePtS/other.md",
+		"System/nested/repair.md",
+	} {
+		writeNavFixture(t, root, rel, "# Reading\n")
+	}
+	allFolders := []Folder{
+		{Name: "Maps", RelPath: "Maps", Notes: []NoteRef{{Name: "overview", RelPath: "Maps/overview.md"}}},
+		{Name: "System", RelPath: "System", Subfolders: []Folder{
+			{Name: "nested", RelPath: "System/nested", Notes: []NoteRef{{Name: "repair", RelPath: "System/nested/repair.md"}}},
+		}},
+		{Name: "ConceptsExtra", RelPath: "ConceptsExtra", Notes: []NoteRef{{Name: "other", RelPath: "ConceptsExtra/other.md"}}},
+		{Name: "Outside", RelPath: "Outside", Subfolders: []Folder{
+			{Name: "cOnCePtS", RelPath: "Outside/cOnCePtS", Notes: []NoteRef{{Name: "other", RelPath: "Outside/cOnCePtS/other.md"}}},
+		}},
+		{Name: "cOnCePtS", RelPath: "cOnCePtS", Notes: []NoteRef{
+			{Name: "9-start", RelPath: "cOnCePtS/9-start.md"},
+			{Name: "10-end", RelPath: "cOnCePtS/10-end.md"},
+		}, Subfolders: []Folder{
+			{Name: "lessons", RelPath: "cOnCePtS/lessons", Notes: []NoteRef{{Name: "guide", RelPath: "cOnCePtS/lessons/guide.md"}}},
+		}},
+	}
+	tests := []struct {
+		name  string
+		scope schema.KnowledgeScope
+		want  []Folder
+	}{
+		{
+			name:  "declared first segment folds case without matching prefixes or descendants",
+			scope: loadCapabilityContract(t, "", "").KnowledgeScope(),
+			want:  []Folder{allFolders[0], allFolders[4]},
+		},
+		{name: "unavailable scope retains all folders", want: allFolders},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			model := capturedModel(t, root, schema.NavigationRoles{}, tt.scope, schema.ArtifactPolicy{}, nil)
+			if diff := cmp.Diff(tt.want, model.ShelfFolders()); diff != "" {
+				t.Errorf("ShelfFolders() mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(allFolders, model.Folders()); diff != "" {
+				t.Errorf("Folders() lost the complete reading tree (-want +got):\n%s", diff)
+			}
+			// System has no direct files. It remains a readable directory
+			// because its nested child is retained outside the shelf scope.
+			notes, subfolders, ok := model.Directory("System")
+			if !ok || len(notes) != 0 {
+				t.Errorf("Directory(System) = (%v, %v, %t), want no direct files and an existing directory", notes, subfolders, ok)
+			}
+			if diff := cmp.Diff(allFolders[1].Subfolders, subfolders); diff != "" {
+				t.Errorf("Directory(System) subfolders mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestShelfFoldersReturnsIndependentTrees(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		scope schema.KnowledgeScope
+	}{
+		{name: "declared scope", scope: knowledgeScopeFor(t)},
+		{name: "unavailable scope"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			model := immutableModelFixture()
+			model.knowledgeScope = tt.scope
+			folders := model.ShelfFolders()
+			folders[0].Name = "mutated"
+			folders[0].Notes[0].Name = "mutated"
+			folders[0].Subfolders[0].Name = "mutated"
+			folders[0].Subfolders[0].Notes[0].Name = "mutated"
+			if diff := cmp.Diff(immutableModelFixture().Folders(), model.ShelfFolders()); diff != "" {
+				t.Errorf("ShelfFolders() changed after mutating a returned tree (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 	t.Parallel()
 
 	original := &Model{
-		navigation:      Close(schema.Rejected("navigation diagnostic")),
-		folders:         []Folder{{Name: "Concepts", RelPath: "Concepts"}},
+		navigation: Close(schema.Rejected("navigation diagnostic")),
+		folders: []Folder{
+			{Name: "Concepts", RelPath: "Concepts"},
+			{Name: "System", RelPath: "System"},
+		},
+		knowledgeScope:  knowledgeScopeFor(t),
 		rootNotes:       []NoteRef{{Name: "README", RelPath: "README.md"}},
 		paths:           []Path{{Title: "Path"}},
 		maps:            []Map{{Title: "Map"}},
@@ -1281,6 +1377,15 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 	}
 	if diff := cmp.Diff(original.Folders(), degraded.Folders()); diff != "" {
 		t.Errorf("Folders changed (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]Folder{
+		{Name: "Concepts", RelPath: "Concepts"},
+		{Name: "System", RelPath: "System"},
+	}, degraded.ShelfFolders()); diff != "" {
+		t.Errorf("degraded ShelfFolders() did not restore the full tree (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]Folder{{Name: "Concepts", RelPath: "Concepts"}}, original.ShelfFolders()); diff != "" {
+		t.Errorf("original ShelfFolders() lost its captured scope (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(original.RootNotes(), degraded.RootNotes()); diff != "" {
 		t.Errorf("RootNotes changed (-want +got):\n%s", diff)

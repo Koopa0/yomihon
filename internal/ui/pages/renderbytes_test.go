@@ -349,15 +349,9 @@ func recordedHomeView(model *nav.Model) HomeView {
 // a block that starts speaking for a declaration nobody could read visible in a
 // diff — that it stays quiet is asserted against the running site elsewhere.
 func recordedWithheldHomeView(model *nav.Model) HomeView {
+	model = model.WithoutInstanceProjections(nav.Close(schema.Rejected("the contract could not be read")))
 	view := recordedHomeView(model)
 	view.Fault = "the contract could not be read"
-	view.Blocks = NewDeskBlocks(model, true, recordedChrome().Lang)
-	for i := range view.Blocks {
-		if view.Blocks[i].Mode == pathMode || view.Blocks[i].Mode == mapMode {
-			withhold(&view.Blocks[i].Shelf)
-			view.Blocks[i].Shelf.Rows = nil
-		}
-	}
 	return view
 }
 
@@ -368,13 +362,14 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Status: "draft", Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
 		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Status: "seed", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
 	}, true, true, recordedChrome().Lang)
-	return NewFolderIndex(model, recordedChrome().Lang), recent, StatusDistribution{
-		Statuses: []LifecycleItem{
+	return NewFolderIndex(model, recordedChrome().Lang), recent, NewStatusDistribution(
+		[]LifecycleItem{
 			{Name: "draft", Count: 2, Href: statusHref("draft")},
 			{Name: "ready", Count: 1, Sealed: true, Href: statusHref("ready")},
 		},
-		Unstated: []LifecycleItem{{Count: 1, Unknown: true, Label: "沒有寫狀態"}},
-	}
+		[]LifecycleItem{{Count: 1, Unknown: true, Label: "沒有寫狀態"}},
+		model.KnowledgeScoped(), recordedChrome().Lang,
+	)
 }
 
 // recordedReportIndexView carries both kinds of report the vault holds and the

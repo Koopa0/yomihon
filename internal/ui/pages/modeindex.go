@@ -71,8 +71,21 @@ func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) R
 // and the reason is stated once for the page rather than inside the block that
 // would have shown it.
 type StatusDistribution struct {
+	Lede     string
 	Statuses []LifecycleItem
 	Unstated []LifecycleItem
+}
+
+// NewStatusDistribution builds the block with the sentence it can stand
+// behind. The distribution counts every indexed note whatever the shelf shows,
+// so beside a shelf narrowed to the declared knowledge layer the sentence says
+// the count reaches past the shelf; an unscoped shelf keeps the plain sentence.
+func NewStatusDistribution(statuses, unstated []LifecycleItem, scoped bool, lang wording.Lang) StatusDistribution {
+	lede := wording.HomeLifecycleLede.In(lang)
+	if scoped {
+		lede = wording.HomeLifecycleLedeScoped.In(lang)
+	}
+	return StatusDistribution{Lede: lede, Statuses: statuses, Unstated: unstated}
 }
 
 // NewPathIndex builds the study-path index. The measure is the course's extent
@@ -229,13 +242,13 @@ func leadingDate(name string) string {
 	return head
 }
 
-// NewFolderIndex builds the folder index: the top of the vault's own directory
-// tree, listed the way every other mode is listed. Its measure is every file
-// under it at any depth, which is why a vault whose files all sit at the root
-// counts them and lists them without ever calling itself empty.
+// NewFolderIndex builds the folder shelf from the declared knowledge layer,
+// or the full directory tree when no scope is available. Its measure includes
+// every file below those folders and every root file, so a vault whose files
+// all sit at the root counts and lists them without calling itself empty.
 func NewFolderIndex(model *nav.Model, lang wording.Lang) ListIndexView {
 	rootNotes := model.RootNotes()
-	folders := model.Folders()
+	folders := model.ShelfFolders()
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
 		wording.FolderIndexLede.In(lang), wording.FolderIndexEmpty.In(lang),
