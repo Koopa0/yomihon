@@ -38,3 +38,14 @@ A footnote reference[^n].
 ![[Embedded Note#Nowhere]]
 
 ![[Missing Note]]
+
+Shown before
+
+%%
+```go
+secretCode()
+```
+still hidden
+%%
+
+Shown after

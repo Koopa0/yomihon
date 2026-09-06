@@ -24,10 +24,16 @@ func stripObsidianComments(body string) (stripped string, unclosedLine int) {
 			}
 			continue
 		}
-		if marker, _, ok := fenceOpen(line); ok {
-			inFence = true
-			fenceByte = marker
-			continue
+		// An open comment swallows fence markers the way it swallows
+		// everything else. Consulting the fence first would turn tracking
+		// on, skip the strip, and leak the fenced block onto the page
+		// and into the search corpus.
+		if !inComment {
+			if marker, _, ok := fenceOpen(line); ok {
+				inFence = true
+				fenceByte = marker
+				continue
+			}
 		}
 
 		var openedHere bool
