@@ -6,6 +6,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // The human and markdown reports pack the same findings into a scannable
@@ -21,32 +23,15 @@ import (
 // A vault that files its lessons flat has no domain in those paths, and they
 // land under the no-domain heading — which is the truth about the path, not a
 // gap in the report.
+// Grouping applies to the findings supplied to the report; the frontmatter
+// checker separately selects which notes require validation.
 type domainRoots []string
 
-// nestedLessonRoot is a second root the report reads, and no contract declares
-// it. The contract's key takes a first path segment — its loader refuses an
-// entry carrying a slash — so a vault filing its lessons under Writing/lessons/
-// has no way to say so, and a report reading only the declaration files every
-// one of them under the no-domain heading. That is a real loss on the vault this
-// product was built for: findings that arrived under two domain headings
-// collapse into one.
-//
-// So it stays, and stays as what it is: a folder layout written down here
-// because the declaration cannot carry it. What removes it is a contract key
-// that can express a nested root, which is a change to the vocabulary and not
-// to this file.
-const nestedLessonRoot = "Writing/lessons"
-
 // of infers a finding's knowledge domain from its vault path, and reports
-// "(other)" when the path carries no domain. The declared entry is the first
-// path segment and the domain is the one under it, matching how the
-// frontmatter rule reads the same declaration.
+// "(other)" when the path carries no domain folder under a declared root.
 func (r domainRoots) of(path string) string {
-	for _, root := range append(slices.Clone(r), nestedLessonRoot) {
-		if rest, ok := strings.CutPrefix(path, root+"/"); ok {
-			seg, _, _ := strings.Cut(rest, "/")
-			return seg
-		}
+	if folder, ok := schema.DomainFolder(r, path); ok {
+		return folder
 	}
 	return "(other)"
 }

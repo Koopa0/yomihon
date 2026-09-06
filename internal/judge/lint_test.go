@@ -95,3 +95,99 @@ func TestLintFrontmatterWithoutAContractSaysNothing(t *testing.T) {
 		t.Errorf("LintFrontmatter(nil contract) = %v, want nothing said", got)
 	}
 }
+
+// TestLintFrontmatterDomainRoots catches wrong folder depth, missing nested
+// validation, invented domains outside roots, and bypassed frontmatter exits.
+func TestLintFrontmatterDomainRoots(t *testing.T) {
+	t.Parallel()
+	type diagnostic struct {
+		Rule    RuleID
+		Field   string
+		Target  string
+		Message string
+	}
+	const valid = "---\ntitle: L1\ntype: lesson\nstatus: draft\ndomain: golang\nslug: l1\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n"
+	for _, tt := range []struct {
+		name               string
+		roots              string
+		path               string
+		body               string
+		requireFrontmatter bool
+		want               []diagnostic
+	}{
+		{name: "nested match", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: valid},
+		{name: "nested mismatch", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: strings.Replace(valid, "domain: golang", "domain: japanese", 1), want: []diagnostic{{"schema.domain_folder", "domain", "japanese", `domain "japanese" does not match its folder golang`}}},
+		{name: "renamed mismatch", roots: `["Archive/studies"]`, path: "Archive/studies/rust/L1.md", body: valid, want: []diagnostic{{"schema.domain_folder", "domain", "golang", `domain "golang" does not match its folder rust`}}},
+		{name: "first directory", roots: `["Writing/lessons"]`, path: "Writing/lessons/japanese/drills/D1.md", body: valid, want: []diagnostic{{"schema.domain_folder", "domain", "golang", `domain "golang" does not match its folder japanese`}}},
+		{name: "undeclared nested", roots: `["Sources"]`, path: "Writing/lessons/golang/L1.md", body: strings.Replace(valid, "domain: golang", "domain: japanese", 1)},
+		{name: "empty roots", roots: `[]`, path: "Writing/lessons/golang/L1.md", body: strings.Replace(valid, "domain: golang", "domain: japanese", 1)},
+		{name: "nested direct child", roots: `["Writing/lessons"]`, path: "Writing/lessons/Overview.md", body: valid},
+		{name: "top level direct child", roots: `["Writing"]`, path: "Writing/Overview.md", body: valid},
+		{name: "sibling prefix", roots: `["Writing/lessons"]`, path: "Writing/lessons-extra/japanese/L1.md", body: valid},
+		{name: "case distinct", roots: `["Writing/Lessons"]`, path: "Writing/lessons/japanese/L1.md", body: valid},
+		{name: "normalization distinct", roots: `["Writing/Cafe\u0301"]`, path: "Writing/Caf\u00e9/japanese/L1.md", body: valid},
+		{name: "no frontmatter legal", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "body\n"},
+		{name: "no frontmatter required", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "body\n", requireFrontmatter: true, want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is missing"}}},
+		{name: "top level no frontmatter legal", roots: `["Writing"]`, path: "Writing/japanese/L1.md", body: "body\n"},
+		{name: "top level no frontmatter required", roots: `["Writing"]`, path: "Writing/japanese/L1.md", body: "body\n", requireFrontmatter: true, want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is missing"}}},
+		{name: "empty frontmatter", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\n---\nbody\n", want: []diagnostic{{"schema.required", "title", "", "title is required"}, {"schema.required", "type", "", "type is required"}, {"schema.required", "domain", "", "domain is required"}}},
+		{name: "top level empty frontmatter", roots: `["Writing"]`, path: "Writing/golang/L1.md", body: "---\n---\nbody\n", want: []diagnostic{{"schema.required", "title", "", "title is required"}, {"schema.required", "type", "", "type is required"}, {"schema.required", "domain", "", "domain is required"}}},
+		{name: "missing domain", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: strings.Replace(valid, "domain: golang\n", "", 1), want: []diagnostic{{"schema.required", "domain", "", "domain is required"}}},
+		{name: "malformed frontmatter", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\ntitle: [\n---\n", want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is not valid YAML"}}},
+		{name: "non scalar domain", roots: `["Writing/lessons"]`, path: "Writing/lessons/japanese/L1.md", body: strings.Replace(valid, "domain: golang", "domain: [golang]", 1)},
+		{name: "skipped basename", roots: `["Writing/lessons"]`, path: "Writing/lessons/japanese/README.md", body: valid},
+		{name: "outside knowledge", roots: `["Elsewhere/studies"]`, path: "Elsewhere/studies/japanese/L1.md", body: valid},
+		{name: "document group", roots: `["Writing/lessons"]`, path: "Writing/lessons/japanese/L1.md", body: "---\ntype: system\ndomain: golang\nstatus: active\n---\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			text := contractFixture(t, nil,
+				[2]string{`domain_equals_folder_under = ["Concepts"]`, `domain_equals_folder_under = ` + tt.roots},
+				[2]string{`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `knowledge_dirs = ["Writing", "Archive"]`},
+				[2]string{`required = ["title", "type", "domain", "status", "created", "updated"]`, `required = ["title", "type", "domain"]`},
+			)
+			if tt.requireFrontmatter {
+				text = strings.Replace(text, "no_frontmatter_is_legal = true", "no_frontmatter_is_legal = false", 1)
+			}
+			write(t, root, schema.ContractRelPath, text)
+			contract, err := schema.Load(root)
+			if err != nil {
+				t.Fatalf("schema.Load() error = %v", err)
+			}
+			findings, err := LintFrontmatter(tt.path, []byte(tt.body), contract)
+			if err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+			var got []diagnostic
+			for _, f := range findings {
+				d := diagnostic{Rule: f.RuleID, Message: f.Message}
+				if f.Field != nil {
+					d.Field = *f.Field
+				}
+				if f.Target != nil {
+					d.Target = *f.Target
+				}
+				got = append(got, d)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("LintFrontmatter() diagnostics mismatch (-want +got):\n%s", diff)
+			}
+			// Agreement supplements the literal oracle above; it cannot replace it.
+			write(t, root, tt.path, tt.body)
+			commanded, err := Check(t.Context(), root)
+			if err != nil {
+				t.Fatalf("Check() error = %v", err)
+			}
+			var fromCommand []Finding
+			for _, f := range commanded {
+				if f.Path == tt.path && strings.HasPrefix(string(f.RuleID), "schema.") {
+					fromCommand = append(fromCommand, f)
+				}
+			}
+			if diff := cmp.Diff(findings, fromCommand); diff != "" {
+				t.Errorf("Check() disagrees with LintFrontmatter (-seam +command):\n%s", diff)
+			}
+		})
+	}
+}

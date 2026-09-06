@@ -18,7 +18,7 @@ lesson_only = ["slug"]
 [fields.status_group]
 system = ["system", "guide"]
 [rules]
-domain_equals_folder_under = ["Concepts"]
+domain_equals_folder_under = ["Concepts", "Writing/lessons"]
 concept_requires_provenance = ["based_on", "source_locator"]
 slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
 forbid_tag_with_slash = true

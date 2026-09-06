@@ -1,14 +1,18 @@
 package note_test
 
 import (
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -94,35 +98,158 @@ func TestNotePageNamesTheFieldAtFault(t *testing.T) {
 	}
 }
 
-// TestNotePageShowsTheFolderTheDomainRuleCompared holds the one value the page
-// has to work out for itself. The rule compares the first folder under the
-// configured root, so a note nested deeper must be told about that folder and
-// not about the one it happens to sit in.
+// TestNotePageShowsTheFolderTheDomainRuleCompared holds the explanation to the
+// first folder under the declared root, including notes nested further below it.
 func TestNotePageShowsTheFolderTheDomainRuleCompared(t *testing.T) {
 	t.Parallel()
 
-	const rel = "Concepts/japanese/nested/Deep.md"
-	body := "---\ntitle: Deep\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
+	for _, tt := range []struct {
+		name string
+		root string
+		rel  string
+	}{
+		{name: "top level", root: "Concepts", rel: "Concepts/japanese/nested/Deep.md"},
+		{name: "nested", root: "Writing/lessons", rel: "Writing/lessons/japanese/nested/Deep.md"},
+		{name: "renamed", root: "Writing/courses", rel: "Writing/courses/japanese/nested/Deep.md"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			contract := domainNoticeContract(t, root, tt.root)
+			writeDomainNoticeNote(t, root, tt.rel)
+			log := slog.New(slog.DiscardHandler)
+			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
+			writer := openStatusWriter(t, source, contract, contract.Governance())
+			mux := http.NewServeMux()
+			note.New(&note.Sources{
+				Source: source, Status: writer.Authority, Snapshot: store.Current,
+				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Log: log,
+			}).Register(mux)
 
-	root := t.TempDir()
+			for _, language := range []struct {
+				lang wording.Lang
+				want string
+			}{
+				{lang: wording.ZhHant, want: "<code>domain</code> 寫的 <code>golang</code>與依宣告的根目錄判定的領域資料夾 <code>japanese</code> 不一致。"},
+				{lang: wording.En, want: "<code>domain</code> is written as <code>golang</code>, which does not match the domain folder selected by the declared root, <code>japanese</code>."},
+			} {
+				t.Run(string(language.lang), func(t *testing.T) {
+					t.Parallel()
+					rr := httptest.NewRecorder()
+					req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/notes/"+tt.rel, http.NoBody)
+					req.Header.Set("Cookie", wording.CookieName+"="+string(language.lang))
+					mux.ServeHTTP(rr, req)
+					if rr.Code != http.StatusOK {
+						t.Fatalf("GET note status = %d, want %d", rr.Code, http.StatusOK)
+					}
+					if !strings.Contains(rr.Body.String(), language.want) {
+						t.Errorf("GET note omitted the declared domain-folder explanation %q", language.want)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestNotePageKeepsCapturedDomainRoots(t *testing.T) {
+	t.Parallel()
+	const rel = "Writing/lessons/japanese/nested/Deep.md"
+	log := slog.New(slog.DiscardHandler)
+	firstRoot := t.TempDir()
+	firstContract := domainNoticeContract(t, firstRoot, "Writing/lessons")
+	writeDomainNoticeNote(t, firstRoot, rel)
+	firstStore, source := newSnapshotStore(t, firstRoot, log, firstContract, firstContract.Governance())
+	writer := openStatusWriter(t, source, firstContract, firstContract.Governance())
+	secondRoot := t.TempDir()
+	secondContract := domainNoticeContract(t, secondRoot, "Writing")
+	writeDomainNoticeNote(t, secondRoot, rel)
+	secondStore, _ := newSnapshotStore(t, secondRoot, log, secondContract, secondContract.Governance())
+
+	for _, tt := range []struct {
+		lang wording.Lang
+		want [2]string
+	}{
+		{lang: wording.ZhHant, want: [2]string{
+			"<code>domain</code> 寫的 <code>golang</code>與依宣告的根目錄判定的領域資料夾 <code>japanese</code> 不一致。",
+			"<code>domain</code> 寫的 <code>golang</code>與依宣告的根目錄判定的領域資料夾 <code>lessons</code> 不一致。",
+		}},
+		{lang: wording.En, want: [2]string{
+			"<code>domain</code> is written as <code>golang</code>, which does not match the domain folder selected by the declared root, <code>japanese</code>.",
+			"<code>domain</code> is written as <code>golang</code>, which does not match the domain folder selected by the declared root, <code>lessons</code>.",
+		}},
+	} {
+		t.Run(string(tt.lang), func(t *testing.T) {
+			t.Parallel()
+			current := firstStore.Current()
+			mux := http.NewServeMux()
+			note.New(&note.Sources{
+				Source: source, Status: writer.Authority,
+				Snapshot: func() *snapshot.Generation {
+					captured := current
+					current = secondStore.Current()
+					return captured
+				},
+				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Log: log,
+			}).Register(mux)
+			for i, want := range tt.want {
+				rr := httptest.NewRecorder()
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/notes/"+rel, http.NoBody)
+				req.Header.Set("Cookie", wording.CookieName+"="+string(tt.lang))
+				mux.ServeHTTP(rr, req)
+				if rr.Code != http.StatusOK {
+					t.Fatalf("GET note %d status = %d, want %d", i, rr.Code, http.StatusOK)
+				}
+				if !strings.Contains(rr.Body.String(), want) {
+					t.Errorf("GET note %d omitted its captured domain-folder explanation %q", i, want)
+				}
+			}
+		})
+	}
+}
+
+func domainNoticeContract(t *testing.T, root, domainRoot string) *schema.Contract {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read contract fixture: %v", err)
+	}
+	const declaration = `domain_equals_folder_under = ["Concepts"]`
+	if strings.Count(string(data), declaration) != 1 {
+		t.Fatal("fixture must have exactly one domain-root declaration")
+	}
+	data = []byte(strings.Replace(string(data), declaration, `domain_equals_folder_under = ["`+domainRoot+`"]`, 1))
+	tree, openErr := os.OpenRoot(root)
+	if openErr != nil {
+		t.Fatalf("open fixture root: %v", openErr)
+	}
+	t.Cleanup(func() {
+		if closeErr := tree.Close(); closeErr != nil {
+			t.Errorf("close fixture root: %v", closeErr)
+		}
+	})
+	contractPath := filepath.FromSlash(schema.ContractRelPath)
+	if mkdirErr := tree.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
+		t.Fatalf("mkdir contract: %v", mkdirErr)
+	}
+	if writeErr := tree.WriteFile(contractPath, data, 0o600); writeErr != nil {
+		t.Fatalf("write contract: %v", writeErr)
+	}
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Fatalf("load contract: %v", err)
+	}
+	return contract
+}
+
+func writeDomainNoticeNote(t *testing.T, root, rel string) {
+	t.Helper()
 	full := filepath.Join(root, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
+		t.Fatalf("mkdir note: %v", err)
 	}
+	const body = "---\ntitle: Deep\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
 	if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	srv := newServerWithContract(t, root, loadHomeContract(t))
-
-	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
-	if code != http.StatusOK {
-		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
-	}
-	if !strings.Contains(page, "<code>japanese</code>") {
-		t.Error("the page does not name japanese, the folder the rule actually compared")
-	}
-	if strings.Contains(page, "<code>nested</code>") {
-		t.Error("the page names nested, which is the folder the note sits in and not the one the rule compared")
+		t.Fatalf("write note: %v", err)
 	}
 }
 
@@ -194,19 +321,8 @@ func TestNotePageReadsTogetherForAStatusThatIsNotText(t *testing.T) {
 	}
 }
 
-// TestThePageNamesTheFolderTheJudgeActuallyCompared binds the two sides that
-// decide "which folder" for one note. The rule lives in the judging package —
-// the domain must equal the first folder under a configured root — and the page
-// works the same segment out again so it can name that folder in a sentence.
-// Two implementations of one rule, and nothing joined them: changing the page's
-// arithmetic turned this package red, and changing the rule's turned nothing
-// red at all, which is the direction that ships a page confidently naming the
-// wrong folder.
-//
-// So the folder is not written down here. It is read out of the finding the
-// real judge produced for this very note, and the page is asked for that. A
-// change to either side that moves the segment now moves them apart, and the
-// test says so.
+// TestThePageNamesTheFolderTheJudgeActuallyCompared checks the command and page
+// against the declared folder, with an agreeing note to also pin the comparison.
 func TestThePageNamesTheFolderTheJudgeActuallyCompared(t *testing.T) {
 	t.Parallel()
 
@@ -258,18 +374,15 @@ func TestThePageNamesTheFolderTheJudgeActuallyCompared(t *testing.T) {
 			t.Errorf("a note whose domain matches the folder the rule compares drew %q", findings[i].Message)
 		}
 	}
-	var compared string
 	seen := 0
 	for i := range findings {
 		if findings[i].RuleID != "schema.domain_folder" || findings[i].Path != rel {
 			continue
 		}
 		seen++
-		_, folder, found := strings.Cut(findings[i].Message, "does not match its folder ")
-		if !found {
-			t.Fatalf("the finding's message no longer names a folder, so this test cannot read one out of it: %q", findings[i].Message)
+		if want := `domain "golang" does not match its folder japanese`; findings[i].Message != want {
+			t.Errorf("domain finding message = %q, want %q", findings[i].Message, want)
 		}
-		compared = folder
 	}
 	if seen != 1 {
 		t.Fatalf("the judge reported %d folder findings for this note; the fixture is meant to draw exactly one", seen)
@@ -280,7 +393,7 @@ func TestThePageNamesTheFolderTheJudgeActuallyCompared(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 	}
-	if !strings.Contains(page, "<code>"+compared+"</code>") {
-		t.Errorf("the judge compared the folder %q and the page does not name it", compared)
+	if !strings.Contains(page, "<code>japanese</code>") {
+		t.Error("the page does not name japanese, the declared domain folder")
 	}
 }
