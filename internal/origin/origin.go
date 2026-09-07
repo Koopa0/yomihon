@@ -31,6 +31,10 @@ const (
 	referrerPolicyValue = "no-referrer"
 	contentTypeNoSniff  = "nosniff"
 	dnsPrefetchOff      = "off"
+	cacheControl        = "Cache-Control"
+	cacheControlPrivate = "private, no-cache"
+	varyHeader          = "Vary"
+	varyCookie          = "Cookie"
 )
 
 // Language reads which language this request asked the interface to speak,
@@ -93,11 +97,12 @@ func finalResponseStatus(statusCode int) bool {
 }
 
 // Protect stamps every final response with the refusal to be embedded by any
-// origin but yomihon's own, the reading shell's content policy, and the
-// referrer and sniffing headers. Every path that commits a response reasserts
-// them first — a named status, a body written without one, a ReadFrom copy, a
-// flush, and the implicit 200 after a handler writes nothing — and a new
-// commit path has to do the same.
+// origin but yomihon's own, the reading shell's content policy, the referrer
+// and sniffing headers, and the cache headers that tell a store the cookie
+// mattered. Every path that commits a response reasserts them first — a named
+// status, a body written without one, a ReadFrom copy, a flush, and the
+// implicit 200 after a handler writes nothing — and a new commit path has to
+// do the same.
 func Protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nonce := rand.Text()
@@ -164,6 +169,14 @@ func (w *writer) applyHeaders() {
 	w.Header().Set(referrerPolicy, referrerPolicyValue)
 	w.Header().Set(contentTypeOptions, contentTypeNoSniff)
 	w.Header().Set(dnsPrefetchControl, dnsPrefetchOff)
+	// private, no-cache revalidates; no-store would also disable Chrome's
+	// back/forward cache and cost the reading page its scroll restoration.
+	// A route that already named no-store keeps it — applyHeaders fills the
+	// default only when the handler left the field empty.
+	if w.Header().Get(cacheControl) == "" {
+		w.Header().Set(cacheControl, cacheControlPrivate)
+	}
+	w.Header().Set(varyHeader, varyCookie)
 }
 
 func (w *writer) WriteHeader(statusCode int) {

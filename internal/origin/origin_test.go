@@ -1,8 +1,10 @@
 package origin
 
 import (
+	"bufio"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -399,6 +401,143 @@ func TestWriterKeepsTheWriterUnderneathReachable(t *testing.T) {
 			t.Errorf("Hijack through wrapper: %v", err)
 		}
 	})
+}
+
+// The wrapper's exits, enumerated before the assertions so a new commit path
+// has to join this set: WriteHeader, Write, ReadFrom, Flush, Hijack, and the
+// handler that writes nothing. Every reading response varies by the language
+// cookie; a stored copy that ignores it is a wrong page, not a stale byte.
+func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		header func(*testing.T) http.Header
+	}{
+		{
+			name: "WriteHeader",
+			header: func(t *testing.T) http.Header {
+				rec := httptest.NewRecorder()
+				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+				return rec.Result().Header
+			},
+		},
+		{
+			name: "Write",
+			header: func(t *testing.T) http.Header {
+				rec := httptest.NewRecorder()
+				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte("body")) //nolint:errcheck // httptest recorder writes cannot fail
+				})).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+				return rec.Result().Header
+			},
+		},
+		{
+			name: "ReadFrom",
+			header: func(t *testing.T) http.Header {
+				rec := httptest.NewRecorder()
+				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					rf, ok := w.(io.ReaderFrom)
+					if !ok {
+						t.Fatal("Protect hid ReadFrom")
+					}
+					if _, err := rf.ReadFrom(strings.NewReader("bytes")); err != nil {
+						t.Fatalf("ReadFrom = %v", err)
+					}
+				})).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+				return rec.Result().Header
+			},
+		},
+		{
+			name: "Flush",
+			header: func(t *testing.T) http.Header {
+				rec := httptest.NewRecorder()
+				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if err := http.NewResponseController(w).Flush(); err != nil {
+						t.Fatalf("Flush = %v", err)
+					}
+				})).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+				return rec.Result().Header
+			},
+		},
+		{
+			name: "Hijack",
+			header: func(t *testing.T) http.Header {
+				rec := httptest.NewRecorder()
+				hij := &capturingHijacker{ResponseWriter: rec}
+				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					_, _, err := http.NewResponseController(w).Hijack()
+					if !errors.Is(err, errHijackCaptured) {
+						t.Fatalf("Hijack = %v, want the capturing hijacker", err)
+					}
+				})).ServeHTTP(hij, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+				if hij.hijacked == nil {
+					t.Fatal("Hijack never saw the header map")
+				}
+				return hij.hijacked
+			},
+		},
+		{
+			name: "a handler that writes nothing",
+			header: func(t *testing.T) http.Header {
+				rec := httptest.NewRecorder()
+				Protect(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(
+					rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+				return rec.Result().Header
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			header := tt.header(t)
+			if got := header.Get("Cache-Control"); got != "private, no-cache" {
+				t.Errorf("committed Cache-Control = %q, want %q", got, "private, no-cache")
+			}
+			if got := header.Get("Vary"); got != "Cookie" {
+				t.Errorf("committed Vary = %q, want %q", got, "Cookie")
+			}
+		})
+	}
+}
+
+// TestProtectLeavesAHandlersNoStore pins the other half of the same seam: a
+// route that already forbade storing keeps that answer. Vary still names the
+// cookie, because those bytes vary too.
+func TestProtectLeavesAHandlersNoStore(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results", http.NoBody)
+	rec := httptest.NewRecorder()
+	Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rec, req)
+
+	if got := rec.Result().Header.Get("Cache-Control"); got != "no-store" {
+		t.Errorf("committed Cache-Control = %q, want %q", got, "no-store")
+	}
+	if got := rec.Result().Header.Get("Vary"); got != "Cookie" {
+		t.Errorf("committed Vary = %q, want %q", got, "Cookie")
+	}
+}
+
+// capturingHijacker records the header map at the moment Hijack is called.
+// The hijacker writes its own status line, so the wrapper never commits that
+// map to the wire; the map is the only place the cookie-cache headers can
+// still be seen.
+type capturingHijacker struct {
+	http.ResponseWriter
+	hijacked http.Header
+}
+
+var errHijackCaptured = errors.New("hijack captured")
+
+func (h *capturingHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h.hijacked = h.Header().Clone()
+	return nil, nil, errHijackCaptured
 }
 
 // A loopback listener keeps other machines out; it does not keep other names
