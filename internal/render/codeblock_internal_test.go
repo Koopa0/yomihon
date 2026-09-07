@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/alecthomas/chroma/v3"
+
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestASecondUnknownLanguageLookupDoesNotReachChroma is the lock on the
@@ -67,4 +70,41 @@ func TestALexerCacheDoesNotGrowPastItsBound(t *testing.T) {
 	if calls != beforeKept {
 		t.Errorf("a key that fit was evicted by a later typo: chroma was reached again for %q", "a")
 	}
+}
+
+// TestProductionLexerLookupsReachTheMemo is the wiring lock the type-level
+// tests cannot be. Those drive a fresh cache directly, so they stay green if
+// renderCodeBlock and lexerFor go back to asking chroma themselves. This one
+// calls the production entry points with names nothing else uses, and the
+// process-wide memo holding that name is the proof the call site went through
+// it. Unwiring any of the three lookups makes the matching assertion fail.
+func TestProductionLexerLookupsReachTheMemo(t *testing.T) {
+	const (
+		file = "koo76-wiring-lock.zzq"
+		lang = "koo76-wiring-lock-fence"
+	)
+
+	_ = SourceHTML(file, "x")
+	if !lexerMemoHas(lexerFiles, file) {
+		t.Fatal("SourceHTML never reached the memo")
+	}
+
+	New(graph.BuildFromNotes(nil, nil), noBodies{}, anyTitle{}, holdsEverything{}).HTML(
+		"note.md", "", "```"+lang+"\nx\n```\n", wording.ZhHant,
+	)
+	if !lexerMemoHas(lexerNames, lang) {
+		t.Fatal("renderCodeBlock never reached the memo")
+	}
+
+	_ = SourceHTML("koo76-wiring-lock.canvas", "{}")
+	if !lexerMemoHas(lexerNames, "JSON") {
+		t.Fatal("SourceHTML alias lookup never reached the memo")
+	}
+}
+
+func lexerMemoHas(c *lexerCache, key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.m[key]
+	return ok
 }
