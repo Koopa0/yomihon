@@ -1501,7 +1501,7 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 // it — deliberately, and the companion scanner test states that boundary. What
 // keeps that from meaning "stale forever in a quiescent folder" is the slow
 // reconciliation cycle: every reconcileEvery-th tick rebuilds without the
-// short-circuit, so the changed bytes are republished within minutes.
+// short-circuit, so the changed bytes are republished within the period.
 func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 	t.Parallel()
 
@@ -1538,6 +1538,11 @@ func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 		t.Fatalf("Chtimes(%s): %v", relPath, err)
 	}
 
+	// The store's clock starts where New left lastRebuild, so each tick can
+	// advance wall-clock time the same way the scanner does.
+	clock := store.now()
+	store.now = func() time.Time { return clock }
+
 	// One ordinary rescan keeps the fast path honest: metadata is unchanged,
 	// so nothing is re-read and the generation stands.
 	store.rescan(t.Context())
@@ -1548,6 +1553,7 @@ func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 	// Driving the loop through one reconciliation period republishes the
 	// changed bytes even though no metadata ever moved.
 	for range reconcileEvery {
+		clock = clock.Add(scanInterval)
 		store.rescan(t.Context())
 	}
 	note, ok := store.Current().Note(relPath)
@@ -1559,11 +1565,23 @@ func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 	}
 }
 
+// TestUnconditionalRebuildPeriodIsAnHour pins the slow cycle's cadence. The
+// freshness guarantee follows reconcileEvery and cannot see a silent drop back
+// to a few minutes; this one fails unless the period is a wall-clock hour.
+func TestUnconditionalRebuildPeriodIsAnHour(t *testing.T) {
+	t.Parallel()
+
+	period := time.Duration(reconcileEvery) * scanInterval
+	if period != time.Hour {
+		t.Fatalf("unconditional rebuild period = %s, want 1h so a quiescent vault is not rebuilt every few minutes", period)
+	}
+}
+
 // TestReconciliationDefersToFailureBackoff pins how the two cadences meet:
-// while rebuilds are failing, the reconciliation counter keeps counting but
-// never forces the expensive path. The backoff owns the rebuild cadence
-// there, and every retry attempt is already a full re-read, so a forced
-// rebuild would only bypass the bound the backoff exists to hold.
+// while rebuilds are failing, the reconciliation clock is ignored and never
+// forces the expensive path. The backoff owns the rebuild cadence there, and
+// every retry attempt is already a full re-read, so a forced rebuild would
+// only bypass the bound the backoff exists to hold.
 func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	t.Parallel()
 
@@ -1734,7 +1752,7 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 // previous scan, the retry flag, the backoff schedule and the two incomplete
 // counts — are that loop's alone. Run is exported, so nothing but this stops a
 // caller starting a second loop over them; the race detector finds it at
-// sinceRebuild, and the answer a page reads afterwards is whatever the two
+// lastRebuild, and the answer a page reads afterwards is whatever the two
 // loops left behind.
 func TestASecondReconciliationLoopIsRefused(t *testing.T) {
 	t.Parallel()
