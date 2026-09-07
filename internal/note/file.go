@@ -93,7 +93,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 	lang := origin.Language(r)
 	entry, ok := snap.Entry(rel)
 	if !ok {
-		h.showNotFound(w, r, r.URL.Path)
+		h.showNotFound(w, r, r.URL.Path, authority, snap)
 		return
 	}
 	entry, err := h.sources.Source.Refresh(entry)
@@ -102,7 +102,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 		// between the scan and this request, a directory, and a symlink the
 		// vault root turned away are all simply not here.
 		h.sources.Log.Warn("refresh vault file", "path", rel, "error", err)
-		h.showNotFound(w, r, r.URL.Path)
+		h.showNotFound(w, r, r.URL.Path, authority, snap)
 		return
 	}
 
