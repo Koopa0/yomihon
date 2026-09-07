@@ -42,7 +42,7 @@ func copyXattrsFrom(parent *os.Root, srcName string, dst *os.File) error {
 func copyXattrs(srcFd, dstFd int) error {
 	names, err := listXattrNames(srcFd)
 	if err != nil {
-		if xattrUnsupported(err) {
+		if xattrIgnorable(err) {
 			return nil
 		}
 		return err
@@ -131,7 +131,7 @@ func skipCopyXattr(name string) bool {
 }
 
 func xattrUnsupported(err error) bool {
-	return errors.Is(err, unix.ENOTSUP) || errors.Is(err, unix.EOPNOTSUPP)
+	return errors.Is(err, unix.ENOTSUP) || errors.Is(err, unix.EOPNOTSUPP) || errors.Is(err, unix.ENOSYS)
 }
 
 func xattrIgnorable(err error) bool {
