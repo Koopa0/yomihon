@@ -328,7 +328,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	var crossing bool
 	if bodyEvidence {
 		foldStart, foldEnd := earliestPhrase(e.PlainFold, tokens)
-		bodySnippet = snippetAt(e.PlainText, foldStart)
+		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd)
 		landing, landingEnd, crossing = e.landingAt(foldStart, foldEnd)
 	}
 	return Result{
@@ -431,22 +431,28 @@ func runesAfter(s string, off, n int) int {
 	return off
 }
 
-// snippetAt returns a one-line window of plain around a folded match start.
-// Lowercasing does not preserve length, so the offset comes back through the
-// fold's own mapping: used directly it drifts until the window slides clear
+// snippetAt returns a one-line window of plain around a folded match.
+// Lowercasing does not preserve length, so the offsets come back through the
+// fold's own mapping: used directly they drift until the window slides clear
 // of the term it was placed around.
-func snippetAt(plain string, foldStart int) string {
+func snippetAt(plain string, foldStart, foldEnd int) string {
 	if foldStart < 0 {
-		foldStart = 0
+		foldStart, foldEnd = 0, 0
 	}
 	off := sourceOffsetOfFold(plain, foldStart)
+	matchEnd := sourceEndOfFold(plain, foldEnd)
+	if matchEnd < off {
+		matchEnd = off
+	}
 	// Neither boundary may move past the match it was placed around: a match buried
 	// deep in one unbroken run can be stepped over by both at once, reversing the
-	// slice. The sentence-start reach runs first and the whole-word adjustment
-	// last, because the second has to hold whatever the first leaves.
+	// slice. The close is held at the match's exclusive end, not its first byte —
+	// clamping to off made the half-open window exclude the hit (plain "0Z"+184×"0",
+	// token "Z" → "0…"). The sentence-start reach runs first and the whole-word
+	// adjustment last, because the second has to hold whatever the first leaves.
 	opening := sentenceStart(plain, runesBefore(plain, off, snippetBefore), off)
 	start := min(wholeWordStart(plain, opening), off)
-	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), off)
+	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
 
 	s := collapseFields(plain[start:end])
 	if start > 0 {
@@ -459,8 +465,8 @@ func snippetAt(plain string, foldStart int) string {
 }
 
 func snippet(plain, plainFold string, tokens []string) string {
-	foldStart, _ := earliestPhrase(plainFold, tokens)
-	return snippetAt(plain, foldStart)
+	foldStart, foldEnd := earliestPhrase(plainFold, tokens)
+	return snippetAt(plain, foldStart, foldEnd)
 }
 
 // earliestPhrase returns the byte range of the earliest token in hay, or

@@ -75,13 +75,13 @@ func TestSnippetHoldsItsWindowAtTheMatch(t *testing.T) {
 	}{
 		{
 			// Neither boundary can reach a word edge on its own side, so both
-			// come to rest on the match and the window closes to nothing. The
-			// run is what the note contains; there is no readable line inside
-			// it to show, and saying so beats crashing.
+			// come to rest on the match. The close is held past the hit's last
+			// byte, so the window keeps the match rather than collapsing to
+			// empty around its first byte.
 			name:  "letters on both sides of the match",
 			plain: strings.Repeat("a", 300) + "z" + strings.Repeat("a", 300),
 			token: "z",
-			want:  "……",
+			want:  "…z…",
 		},
 		{
 			// The opening gives up the unreadable run and comes to rest on the
@@ -93,14 +93,22 @@ func TestSnippetHoldsItsWindowAtTheMatch(t *testing.T) {
 			want:  "…z is the match, and readable words follow it",
 		},
 		{
-			// The mirror image, and the case that holds the closing boundary to
-			// giving the run up rather than dragging it in: it comes back to
-			// where the run began, which here is the match itself, and the
-			// window keeps the readable words in front of it.
+			// The closing boundary gives the unreadably long run up and would
+			// come back to the match's first byte; holding it at the exclusive
+			// end keeps the hit with the readable words in front of it.
 			name:  "readable words before the run",
 			plain: "readable words come first and then z" + strings.Repeat("a", 300),
 			token: "z",
-			want:  "readable words come first and then…",
+			want:  "readable words come first and then z…",
+		},
+		{
+			// The FuzzSnippet seed that went red when the close was clamped to
+			// off: 184 digits after Z is enough that wholeWordEnd retreats to
+			// the start of the run, and [start:off) left the window as "0…".
+			name:  "a digit run after the match does not exclude it",
+			plain: "0Z" + strings.Repeat("0", 184),
+			token: "Z",
+			want:  "0Z…",
 		},
 	}
 	for _, tt := range tests {

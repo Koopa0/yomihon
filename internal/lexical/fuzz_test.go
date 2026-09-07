@@ -105,6 +105,10 @@ func FuzzSnippet(f *testing.F) {
 	// A match walled in by letters on both sides, far enough from either end of
 	// the run that both boundaries have to give up on keeping the word whole.
 	f.Add(strings.Repeat("a", 300)+"z"+strings.Repeat("a", 300), "z")
+	// wholeWordEnd retreats through a long digit run to the match's first byte;
+	// the close must still reach past that byte or the window is "0…" and the
+	// token-contains assertion fails.
+	f.Add("0Z"+strings.Repeat("0", 184), "Z")
 	// The same length in ordinary spaced words, where nothing shortens the
 	// window and it fills to its limit.
 	f.Add(strings.Repeat("ab ", 300)+"needle"+strings.Repeat(" cd", 300), "needle")
@@ -153,10 +157,11 @@ func FuzzSnippet(f *testing.F) {
 		}
 		// A window that drifted off the match can still be one valid, short
 		// line. The folded snippet has to keep the token that placed it, or
-		// the highlight and the text directive land on the neighbour. An
-		// empty window (a match buried in one unbroken run) is the documented
-		// collapse, not a drift; Fields-joining covers a CJK wrap the fold
-		// dropped and the snippet respelled as a space.
+		// the highlight and the text directive land on the neighbour. A
+		// match buried in one unbroken run still occupies the window: the
+		// close is held at the match's exclusive end, not its first byte.
+		// Fields-joining covers a CJK wrap the fold dropped and the snippet
+		// respelled as a space.
 		if foldedTok := tokens[0]; foldedTok != "" && strings.Trim(got, "…") != "" && strings.Contains(plainFold, foldedTok) {
 			foldedGot := fold(got)
 			if !strings.Contains(foldedGot, foldedTok) && !strings.Contains(strings.Join(strings.Fields(foldedGot), ""), strings.Join(strings.Fields(foldedTok), "")) {
