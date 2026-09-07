@@ -150,10 +150,10 @@ type entry struct {
 	StatusFold   string
 	Slug         string
 	SlugFold     string
-	// Topics are the note's declared subjects, held as written and folded for
-	// matching. A hit on one ranks below a body mention so today's answers
-	// stay first and the missing holders arrive underneath.
-	Topics          []string
+	// TopicFolds are the note's declared subjects, folded for matching. A hit
+	// on one ranks below a body mention so today's answers stay first and the
+	// missing holders arrive underneath. The as-written copy is not kept:
+	// matching and the result label both read this fold.
 	TopicFolds      []string
 	PlainText       string
 	PlainFold       string
@@ -253,11 +253,9 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	domain := vault.NormalizeNFC(d.Domain)
 	status := vault.NormalizeNFC(d.Status)
 	slug := vault.NormalizeNFC(d.Slug)
-	topics := make([]string, len(d.Topics))
 	topicFolds := make([]string, len(d.Topics))
 	for i, t := range d.Topics {
-		topics[i] = vault.NormalizeNFC(t)
-		topicFolds[i] = fold(topics[i])
+		topicFolds[i] = fold(vault.NormalizeNFC(t))
 	}
 	aliases := make([]string, len(d.Aliases))
 	aliasFolds := make([]string, len(d.Aliases))
@@ -280,7 +278,6 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		StatusFold:   fold(status),
 		Slug:         slug,
 		SlugFold:     fold(slug),
-		Topics:       topics,
 		TopicFolds:   topicFolds,
 		PlainText:    plain,
 		PlainFold:    fold(plain),

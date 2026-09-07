@@ -240,6 +240,7 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 			SnippetRuns:   snippetRuns(r.Snippet, tokens),
 			PathRuns:      snippetRuns(r.RelPath, tokens),
 			AliasRuns:     snippetRuns(r.Alias, tokens),
+			TopicRuns:     snippetRuns(r.Topic, tokens),
 			File:          r.File,
 			Landing:       r.Landing,
 			LandingEnd:    r.LandingEnd,

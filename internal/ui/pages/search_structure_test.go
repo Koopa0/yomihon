@@ -110,6 +110,10 @@ func TestSearchResultMarkedRunsIntroduceNoSpacing(t *testing.T) {
 				{Text: "yomihon", Hit: true},
 				{Text: " from source"},
 			},
+			TopicRuns: []SnippetRun{
+				{Text: "building "},
+				{Text: "yomihon", Hit: true},
+			},
 			SnippetRuns: []SnippetRun{
 				{Text: "how to build "},
 				{Text: "yomihon", Hit: true},
@@ -125,6 +129,7 @@ func TestSearchResultMarkedRunsIntroduceNoSpacing(t *testing.T) {
 
 	for _, want := range []string{
 		`<span class="y-result__meta">Lessons/Building <mark>yomihon</mark> from source.md`,
+		`<span class="y-result__topic">主題: building <mark>yomihon</mark></span>`,
 		`<span class="y-result__alias">別名: building <mark>yomihon</mark> from source</span>`,
 		`<span class="y-result__snippet">how to build <mark>yomihon</mark> from source</span>`,
 	} {

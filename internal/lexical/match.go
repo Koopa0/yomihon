@@ -22,6 +22,12 @@ type Result struct {
 	// without it a reader who typed another name sees no reason for the hit.
 	Alias string
 
+	// Topic is the declared subject that answered the query when title, alias
+	// and body did not, in the folded form matching uses, and empty otherwise.
+	// The row shows a title, so without it a topic-only hit names nothing the
+	// reader typed.
+	Topic string
+
 	// NoteType is the note's own declared type, carried beside Status because a
 	// status value is declared per type. It is blanked with Status when the entry
 	// may not answer metadata projections.
@@ -95,7 +101,7 @@ func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err
 	}
 	results = make([]Result, len(hits))
 	for i, h := range hits {
-		results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias)
+		results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias, h.topic)
 	}
 	return results, total, nil
 }
@@ -109,6 +115,9 @@ type hit struct {
 	// alias is the name that answered the query when it was not the title, in
 	// the note's own spelling, since the row itself shows a title.
 	alias string
+	// topic is the declared subject that answered the query when title, alias
+	// and body did not.
+	topic string
 }
 
 // bucket names one answer group. This declaration order is the result order and
@@ -148,11 +157,11 @@ func (b *resultBuckets) place(e *entry, tokens []string) {
 		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
 	case allContain(e.PlainFold, tokens):
 		b.add(bodyNote, bodyFile, hit{entry: e, bodyEvidence: true})
-	case topicHolds(e, tokens):
+	case topicAnswering(e, tokens) != "":
 		// A topic is a name the note declared for retrieval. It ranks below
 		// body so a mention in prose stays above the many notes that share a
 		// subject.
-		b.add(topicNote, topicFile, hit{entry: e})
+		b.add(topicNote, topicFile, hit{entry: e, topic: topicAnswering(e, tokens)})
 	case allContain(e.PathFold, tokens):
 		b.add(pathNote, pathFile, hit{entry: e})
 	}
@@ -196,20 +205,20 @@ func (b *resultBuckets) ordered() []hit {
 	return slices.Concat(b.groups[:]...)
 }
 
-// topicHolds reports whether any declared topic holds every token. A topic is a
-// name the note follows, the way an alias is, so a reader who types one reaches
-// the notes that declared it. Empty tokens are a pure-filter query and already
-// land in the title group.
-func topicHolds(e *entry, tokens []string) bool {
+// topicAnswering returns the first declared topic that holds every token, or
+// empty when none does. TopicFolds is the only copy the index keeps, so the
+// string is the folded form matching already used. Empty tokens are a
+// pure-filter query and already land in the title group.
+func topicAnswering(e *entry, tokens []string) string {
 	if len(tokens) == 0 {
-		return false
+		return ""
 	}
 	for _, folded := range e.TopicFolds {
 		if allContain(folded, tokens) {
-			return true
+			return folded
 		}
 	}
-	return false
+	return ""
 }
 
 // aliasAnswering returns the note's own spelling of the first alias that holds
@@ -336,7 +345,7 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 }
 
 // matchesFilter reports whether e satisfies one filter. type/status/domain/slug
-// compare the folded copies; topic is folded membership of Topics; folder is a
+// compare the folded copies; topic is folded membership of TopicFolds; folder is a
 // folded rel_path prefix at a "/" boundary, so "folder:Writing" matches
 // "Writing" and "Writing/x.md" and "writing/x.md", but never "Writing-old/x.md".
 func (e *entry) matchesFilter(f Filter) bool {
@@ -366,7 +375,7 @@ func (e *entry) matchesFilter(f Filter) bool {
 
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
-func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias string) Result {
+func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, topic string) Result {
 	status, noteType := e.Status, e.NoteType
 	if !metadataAvailable || !e.metadataCapable {
 		status, noteType = "", ""
@@ -384,6 +393,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		Status:        status,
 		Snippet:       bodySnippet,
 		Alias:         alias,
+		Topic:         topic,
 		NoteType:      noteType,
 		File:          e.isFile,
 		Landing:       landing,

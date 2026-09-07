@@ -509,12 +509,12 @@ func TestAPureFilterKeepsReadingOrder(t *testing.T) {
 	}
 }
 
-// TestTheSixAnswerGroupsComeBackInRankedOrder pins the whole of the result
+// TestTheEightAnswerGroupsComeBackInRankedOrder pins the whole of the result
 // order in one query. Title, body and topic — notes then files — then the
 // notes and files matched only by where they live. The fixtures are laid out
 // so their path order is the exact reverse of their group order, which is
 // what makes the assertion discriminate between the two.
-func TestTheSixAnswerGroupsComeBackInRankedOrder(t *testing.T) {
+func TestTheEightAnswerGroupsComeBackInRankedOrder(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
 		{RelPath: "a-kafka/data.txt", Title: "data.txt", PlainText: "opaque", File: true},
@@ -569,9 +569,15 @@ func TestABareTokenReachesADeclaredTopicTheWayItReachesAnAlias(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			t.Parallel()
-			got := paths(searchResults(t, idx, Parse(tt.query)))
+			results := searchResults(t, idx, Parse(tt.query))
+			got := paths(results)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Search(%q) mismatch (-want +got):\n%s", tt.query, diff)
+			}
+			if tt.query == "kindness" || tt.query == "善良" {
+				if len(results) != 1 || results[0].Topic == "" {
+					t.Errorf("Search(%q) topic-only hit carries no topic evidence: %+v", tt.query, results)
+				}
 			}
 		})
 	}
@@ -600,6 +606,40 @@ func TestATopicOnlyHitSortsAfterEveryBodyHit(t *testing.T) {
 	want := []string{titleHit, bodyHit, topicOnly}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Search(kindness) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestANoteThatDeclaresATopicAndSaysItInProseRanksAsABodyHit pins the arm
+// order for a note that could sit in either group. Body wins, so the note
+// stays with today's answers; a topic-only note whose path sorts first still
+// follows it. Without the body document the order test cannot tell a missing
+// distinction from path order.
+func TestANoteThatDeclaresATopicAndSaysItInProseRanksAsABodyHit(t *testing.T) {
+	t.Parallel()
+	topicOnly := "a.md"
+	both := "z.md"
+	if vault.ComparePaths(topicOnly, both) >= 0 {
+		t.Fatal("the topic-only path must sort first, or this fixture cannot catch a body hit that fell into the topic group")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: topicOnly, Title: "Unrelated", Topics: []string{"kindness"}, PlainText: "nothing relevant"},
+		{RelPath: both, Title: "Also unrelated", Topics: []string{"kindness"}, PlainText: "a kindness mentioned in passing"},
+	}, validArtifactPolicy(t))
+
+	got := searchResults(t, idx, Parse("kindness"))
+	want := []string{both, topicOnly}
+	if diff := cmp.Diff(want, paths(got)); diff != "" {
+		t.Errorf("Search(kindness) order mismatch (-want +got):\n%s", diff)
+	}
+	if len(got) != 2 {
+		t.Fatalf("Search(kindness) = %+v, want two hits", got)
+	}
+	if got[0].Topic != "" || got[0].Snippet == "" {
+		t.Errorf("the note that says the word in prose was not kept as a body hit: %+v", got[0])
+	}
+	if got[1].Topic == "" || got[1].Snippet != "" {
+		t.Errorf("the topic-only note was not kept as a topic hit: %+v", got[1])
 	}
 }
 
