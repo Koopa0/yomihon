@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
@@ -90,6 +92,65 @@ func TestHandlerSuccess(t *testing.T) {
 	if want := "/notes/" + testRel + "?from=draft"; location != want {
 		t.Errorf("Location = %q, want %q", location, want)
 	}
+}
+
+// TestHandlerRedirectsToTheNFCPath locks the 303 to the spelling the note
+// route already folds to. A form that carries NFD — or an NFD name sitting
+// on disk while the page writes NFC — must not land on an address the
+// reader then answers 404 for.
+func TestHandlerRedirectsToTheNFCPath(t *testing.T) {
+	t.Parallel()
+
+	const nfcLeaf = "käln.md"
+	nfdLeaf := norm.NFD.String(nfcLeaf)
+	if nfdLeaf == nfcLeaf {
+		t.Fatal("NFC and NFD collapsed; this lock would not bind")
+	}
+	body := lessonContent("draft")
+	nfcRel := "Writing/" + nfcLeaf
+	nfdRel := "Writing/" + nfdLeaf
+
+	t.Run("an NFD form names the NFC note", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writer := newWriter(t, root, loadContract(t))
+		writeVaultFile(t, root, nfdRel, body)
+		srv := newHandlerServer(t, writer)
+
+		code, location, _ := postStatus(t, srv, url.Values{
+			"path":             {nfdRel},
+			"from":             {"draft"},
+			"to":               {schema.SealStatus},
+			"content_identity": {formIdentity(body)},
+		})
+		if code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want %d", code, http.StatusSeeOther)
+		}
+		if want := "/notes/Writing/" + url.PathEscape(nfcLeaf) + "?from=draft"; location != want {
+			t.Errorf("Location = %q, want %q", location, want)
+		}
+	})
+
+	t.Run("an NFC form flips the NFD file", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writer := newWriter(t, root, loadContract(t))
+		writeVaultFile(t, root, nfdRel, body)
+		srv := newHandlerServer(t, writer)
+
+		code, location, _ := postStatus(t, srv, url.Values{
+			"path":             {nfcRel},
+			"from":             {"draft"},
+			"to":               {schema.SealStatus},
+			"content_identity": {formIdentity(body)},
+		})
+		if code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want %d", code, http.StatusSeeOther)
+		}
+		if want := "/notes/Writing/" + url.PathEscape(nfcLeaf) + "?from=draft"; location != want {
+			t.Errorf("Location = %q, want %q", location, want)
+		}
+	})
 }
 
 func TestHandlerMissingFields(t *testing.T) {

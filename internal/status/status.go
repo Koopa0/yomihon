@@ -569,12 +569,15 @@ func (w *Writer) flip(
 		return ErrClosed
 	}
 
-	err = w.validateWriteTarget(rel, relSlash)
+	storedRel, storedSlash, err := w.validateWriteTarget(relSlash)
 	if err != nil {
 		return err
 	}
+	if storedSlash == "" {
+		storedRel, storedSlash = rel, relSlash
+	}
 
-	source, err := readRegularFile(w.root, rel, relSlash)
+	source, err := readRegularFile(w.root, storedRel, storedSlash)
 	if err != nil {
 		return err
 	}
@@ -598,12 +601,14 @@ func (w *Writer) flip(
 	if err != nil {
 		return err
 	}
-	if err := w.install(rel, relSlash, &source, rewritten, hooks); err != nil {
+	if err := w.install(storedRel, storedSlash, &source, rewritten, hooks); err != nil {
 		return err
 	}
 	// Minted only after the durable install and still under the lock, so a
-	// racing second flip cannot interleave and the later mint wins.
-	w.vouchReceipt(relSlash, from)
+	// racing second flip cannot interleave and the later mint wins. The key
+	// is the NFC path the reading page will ask for, not the stored spelling
+	// the walk opened.
+	w.vouchReceipt(vault.NormalizeNFC(relSlash), from)
 	return nil
 }
 
@@ -636,6 +641,7 @@ func (w *Writer) ConsumeReceipt(rel, from string) bool {
 	if err != nil {
 		return false
 	}
+	relSlash = vault.NormalizeNFC(relSlash)
 	w.receiptMu.Lock()
 	defer w.receiptMu.Unlock()
 	entry, ok := w.receipts[relSlash]
@@ -687,16 +693,16 @@ func (w *Writer) install(
 	return nil
 }
 
-func (w *Writer) validateWriteTarget(rel, relSlash string) error {
+func (w *Writer) validateWriteTarget(relSlash string) (storedRel, storedSlash string, err error) {
 	if !durableInstallSupported {
-		return ErrDurabilityUnsupported
+		return "", "", ErrDurabilityUnsupported
 	}
 	if w.contract == nil {
-		return ErrClosed
+		return "", "", ErrClosed
 	}
 	policy, err := w.validatedArtifactPolicy()
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	// The reading scan defines a note as a Markdown file with no dot-prefixed
 	// component. The write face applies the whole of that definition, so a
@@ -704,42 +710,118 @@ func (w *Writer) validateWriteTarget(rel, relSlash string) error {
 	// asked before the lifecycle's reach is, because whether a file is a note
 	// at all comes before which folder the note sits in.
 	if !vault.IsMarkdown(relSlash) || vaultfs.OutsideScan(relSlash) {
-		return ErrNonInstance
+		return "", "", ErrNonInstance
 	}
 	if err := ungoverned(policy, w.contract.KnowledgeScope(), relSlash); err != nil {
-		return err
+		return "", "", err
 	}
-	return w.targetSpelledAsRequested(rel, relSlash)
+	return w.targetSpelledAsRequested(relSlash)
 }
 
 // targetSpelledAsRequested answers a request whose spelling the directory does
-// not hold as a missing note, whatever the filesystem would open. A
-// case-insensitive volume opens "L06.MD" for "L06.md"; the vault holds no such
-// note, and the answer is the one a case-sensitive volume gives.
-func (w *Writer) targetSpelledAsRequested(rel, relSlash string) error {
-	parent, _, name, err := openRegularParent(w.root, rel, relSlash)
+// not hold as a missing note, whatever the filesystem would open. It descends
+// from the write root component by component, reads the names each directory
+// actually holds, and requires a unique match on the NFC fold, then opens that
+// stored spelling. A case-insensitive volume opens "L06.MD" for "L06.md"; the
+// vault holds no such note, and the answer is the one a case-sensitive volume
+// gives. An NFD name that folds to the request is the note the reader already
+// found, so the walk hands that stored path back for the write to open.
+func (w *Writer) targetSpelledAsRequested(relSlash string) (storedRel, storedSlash string, err error) {
+	components := strings.Split(relSlash, "/")
+	current, err := w.root.OpenRoot(".")
 	if err != nil {
 		// Reading the note reports this failure in the operator's own terms.
-		return nil
+		return "", "", nil //nolint:nilerr // Flip names a root it cannot reopen.
 	}
-	defer closeRoot(parent)
-	if _, statErr := parent.Lstat(name); statErr != nil {
-		// Nothing resolves here, which the read reports as a missing note.
-		return nil
+	stored := make([]string, 0, len(components))
+	for i, want := range components {
+		match, matchErr := uniqueNFCName(current, want, relSlash)
+		if matchErr != nil {
+			closeRoot(current)
+			return "", "", matchErr
+		}
+		stored = append(stored, match)
+		if i == len(components)-1 {
+			closeRoot(current)
+			storedSlash = strings.Join(stored, "/")
+			return filepath.FromSlash(storedSlash), storedSlash, nil
+		}
+		next, openErr := openStoredDir(current, match, relSlash)
+		if openErr != nil {
+			closeRoot(current)
+			// A vanished or irregular component is Flip's to name; the
+			// spelling question only answers names the directory holds.
+			return "", "", nil //nolint:nilerr // Flip names the vanished or irregular entry.
+		}
+		if closeErr := current.Close(); closeErr != nil {
+			closeRoot(next)
+			return "", "", fmt.Errorf("close directory of %s: %w", relSlash, closeErr)
+		}
+		current = next
 	}
-	dir, err := parent.Open(".")
+	closeRoot(current)
+	return "", "", nil
+}
+
+// uniqueNFCName returns the one directory entry whose NFC form equals want's,
+// or a missing-note error when the folder holds none or more than one.
+func uniqueNFCName(dir *os.Root, want, relSlash string) (string, error) {
+	opened, err := dir.Open(".")
 	if err != nil {
-		return fmt.Errorf("confirm the name of %s: %w", relSlash, err)
+		return "", fmt.Errorf("confirm the name of %s: %w", relSlash, err)
 	}
-	names, err := dir.Readdirnames(-1)
-	_ = dir.Close() //nolint:errcheck // directory-descriptor cleanup is best-effort
+	names, err := opened.Readdirnames(-1)
+	_ = opened.Close() //nolint:errcheck // directory-descriptor cleanup is best-effort
 	if err != nil {
-		return fmt.Errorf("confirm the name of %s: %w", relSlash, err)
+		return "", fmt.Errorf("confirm the name of %s: %w", relSlash, err)
 	}
-	if !slices.Contains(names, name) {
-		return fmt.Errorf("%s: %w", relSlash, fs.ErrNotExist)
+	folded := vault.NormalizeNFC(want)
+	var match string
+	for _, name := range names {
+		if vault.NormalizeNFC(name) != folded {
+			continue
+		}
+		if match != "" {
+			return "", fmt.Errorf("%s: %w", relSlash, fs.ErrNotExist)
+		}
+		match = name
 	}
-	return nil
+	if match == "" {
+		return "", fmt.Errorf("%s: %w", relSlash, fs.ErrNotExist)
+	}
+	return match, nil
+}
+
+// openStoredDir opens name under current after confirming it is still the
+// same regular directory the walk just listed, matching the parent-chain
+// checks the write uses once the stored spelling is known.
+func openStoredDir(current *os.Root, name, relSlash string) (*os.Root, error) {
+	before, statErr := current.Lstat(name)
+	if statErr != nil {
+		return nil, fmt.Errorf("stat directory of %s: %w", relSlash, statErr)
+	}
+	if !before.IsDir() || before.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("%w: %s", errPathNotRegular, relSlash)
+	}
+	next, openErr := current.OpenRoot(name)
+	if openErr != nil {
+		return nil, fmt.Errorf("open directory of %s: %w", relSlash, openErr)
+	}
+	opened, openStatErr := next.Stat(".")
+	after, afterErr := current.Lstat(name)
+	if openStatErr != nil {
+		closeRoot(next)
+		return nil, fmt.Errorf("stat open directory of %s: %w", relSlash, openStatErr)
+	}
+	if afterErr != nil {
+		closeRoot(next)
+		return nil, fmt.Errorf("restat directory of %s: %w", relSlash, afterErr)
+	}
+	if !after.IsDir() || after.Mode()&os.ModeSymlink != 0 || !os.SameFile(before, opened) || !os.SameFile(opened, after) {
+		closeRoot(next)
+		return nil, fmt.Errorf("%w: directory of %s changed while opening", ErrConcurrentWrite, relSlash)
+	}
+	return next, nil
 }
 
 func (w *Writer) validatedArtifactPolicy() (schema.ArtifactPolicy, error) {
