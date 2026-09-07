@@ -511,8 +511,9 @@ func assertContractDeclaresEverythingItCanRead(t *testing.T, contract *schema.Co
 			continue
 		}
 		// Scan is the decode target. Definition() does not copy it:
-		// knowledge-layer membership is KnowledgeScope, and skip_basenames
-		// is SkipBasenames, demanded below.
+		// knowledge-layer membership is KnowledgeScope, skip_basenames is
+		// SkipBasenames, and no_frontmatter_is_legal is RequiresFrontmatter,
+		// demanded below.
 		if section.Name == "Scan" {
 			continue
 		}
@@ -529,6 +530,9 @@ func assertContractDeclaresEverythingItCanRead(t *testing.T, contract *schema.Co
 	}
 	if skips := contract.SkipBasenames(); len(skips) == 0 {
 		t.Error("the example contract declares no skip_basenames, so no filename is exercised as skipped")
+	}
+	if contract.RequiresFrontmatter() {
+		t.Error("the example contract faults a note that carries no frontmatter, so no_frontmatter_is_legal is not exercised as legal")
 	}
 
 	if _, declared := contract.Supersession(); !declared {

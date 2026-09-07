@@ -93,7 +93,7 @@ func TestSkipBasenamesIsDetached(t *testing.T) {
 	t.Parallel()
 
 	contract := loadFixture(t)
-	want := contract.SkipBasenames()
+	want := slices.Clone(contract.SkipBasenames())
 	mutated := contract.SkipBasenames()
 	if len(mutated) == 0 {
 		t.Fatal("fixture declares no skip_basenames; the detachment claim would be vacuous")

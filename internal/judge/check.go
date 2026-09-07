@@ -61,7 +61,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 
 	findings = dropEgressDenied(findings, a.authority)
 	if !all {
-		findings = dropSystemScoped(findings, a.authority.contract.KnowledgeScope())
+		findings = dropOutsideKnowledgeScope(findings, a.authority.contract.KnowledgeScope())
 	}
 	if len(paths) > 0 {
 		filtered, ferr := filterByPaths(findings, paths, a.scan, a.authority)
@@ -84,12 +84,12 @@ func buildIndex(notes []note, resources []string) *graph.Index {
 	return graph.BuildFromNotes(inputs, resources)
 }
 
-// dropSystemScoped removes findings every path of which — the citing path and
-// any collision member — lies outside the declared knowledge layer. A finding
-// is kept when at least one path it touches is inside that layer. An
-// undeclared layer excludes nothing, so the default check then reports every
-// finding the privacy cut left standing.
-func dropSystemScoped(findings []Finding, scope schema.KnowledgeScope) []Finding {
+// dropOutsideKnowledgeScope removes findings every path of which — the citing
+// path and any collision member — lies outside the declared knowledge layer.
+// A finding is kept when at least one path it touches is inside that layer.
+// An undeclared layer excludes nothing, so the default check then reports
+// every finding the privacy cut left standing.
+func dropOutsideKnowledgeScope(findings []Finding, scope schema.KnowledgeScope) []Finding {
 	return slices.DeleteFunc(findings, func(f Finding) bool {
 		return !touchesInsideKnowledgeScope(&f, scope)
 	})

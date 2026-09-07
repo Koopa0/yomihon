@@ -202,3 +202,64 @@ owner = ["koopa"]
 		t.Errorf("RunCoverage() = %s, want Idea counted as an orphan", got)
 	}
 }
+
+// TestCoverageUnroutedNotesFollowDeclaredKnowledgeScope is the unroutedNotes
+// half of the Lock: coverageRoutes only fires when research-brief is declared,
+// so a vault without that type never reaches the knowledge cut at all. With
+// System declared, the System brief is unrouted; an Away brief is not. A
+// HasPrefix(path, "System/") skip would hide the System brief and keep the Away
+// one, and this test would go red.
+func TestCoverageUnroutedNotesFollowDeclaredKnowledgeScope(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, `schema_version = "1"
+
+[enums]
+type = ["concept", "research-brief"]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "status"]
+
+[scan]
+knowledge_dirs = ["Notes", "System"]
+skip_basenames = []
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+`)
+	write(t, root, "Notes/Kept.md", "---\ntitle: Kept\ntype: concept\n---\nBody.\n")
+	write(t, root, "System/notes/Brief.md", "---\ntitle: Brief\ntype: research-brief\n---\nBody.\n")
+	write(t, root, "Away/Loose.md", "---\ntitle: Loose\ntype: research-brief\n---\nBody.\n")
+
+	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	if err != nil {
+		t.Fatalf("RunCoverage() error = %v", err)
+	}
+	if exit != 0 {
+		t.Errorf("RunCoverage() exit = %d, want 0", exit)
+	}
+	if !bytes.Contains(got, []byte(`"path":"System/notes/Brief.md"`)) {
+		t.Errorf("RunCoverage() = %s, want the System brief unrouted when System is declared", got)
+	}
+	if bytes.Contains(got, []byte("Away/Loose.md")) {
+		t.Errorf("RunCoverage() = %s, want the Away brief omitted; Away is outside the declared layer", got)
+	}
+}
