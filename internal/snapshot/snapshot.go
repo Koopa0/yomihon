@@ -690,13 +690,7 @@ func buildGeneration(
 			g.resources = append(g.resources, relPath)
 		}
 		if !want.read {
-			if note {
-				// A published skip: the name stays so a citation still lands
-				// and the page can say the file is there. The body does not.
-				log.Warn("vault note skipped: larger than the source size bound",
-					"path", relPath, "bytes", entry.Size())
-				g.unreadable = append(g.unreadable, vault.Parse(relPath, nil))
-			}
+			g.skipUnread(relPath, note, entry.Size(), log)
 			continue
 		}
 		data, err := source.ReadFile(ctx, entry)
@@ -799,6 +793,19 @@ func newGeneration(entries int) *generation {
 		resources:  make([]string, 0, entries),
 		findings:   make(map[string][]judge.Finding),
 	}
+}
+
+// skipUnread records a note this generation chose not to read. The stub is a
+// name so a citation still lands and the page can say the file is there;
+// nothing of the file is retained. A non-note that was not wanted is simply
+// absent, as before.
+func (g *generation) skipUnread(relPath string, note bool, size int64, log *slog.Logger) {
+	if !note {
+		return
+	}
+	log.Warn("vault note skipped: larger than the source size bound",
+		"path", relPath, "bytes", size)
+	g.unreadable = append(g.unreadable, vault.Parse(relPath, nil))
 }
 
 // captureNote files one note this reading opened into every projection built
