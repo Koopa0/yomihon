@@ -151,5 +151,17 @@ func FuzzSnippet(f *testing.F) {
 		if n := utf8.RuneCountInString(got); n > maxSnippetRunes {
 			t.Errorf("snippet(%q, %q) length = %d characters, want at most %d", plain, token, n, maxSnippetRunes)
 		}
+		// A window that drifted off the match can still be one valid, short
+		// line. The folded snippet has to keep the token that placed it, or
+		// the highlight and the text directive land on the neighbour. An
+		// empty window (a match buried in one unbroken run) is the documented
+		// collapse, not a drift; Fields-joining covers a CJK wrap the fold
+		// dropped and the snippet respelled as a space.
+		if foldedTok := tokens[0]; foldedTok != "" && strings.Trim(got, "…") != "" && strings.Contains(plainFold, foldedTok) {
+			foldedGot := fold(got)
+			if !strings.Contains(foldedGot, foldedTok) && !strings.Contains(strings.Join(strings.Fields(foldedGot), ""), strings.Join(strings.Fields(foldedTok), "")) {
+				t.Errorf("folded snippet %q does not contain %q; the window drifted off the match", got, foldedTok)
+			}
+		}
 	})
 }

@@ -41,7 +41,7 @@ func TestParse(t *testing.T) {
 			input: "type:a type:b",
 			want:  &Query{filters: []Filter{{Key: "type", Value: "a"}, {Key: "type", Value: "b"}}},
 		},
-		{name: "11 folder drops trailing slash", input: "folder:Writing/", want: &Query{filters: []Filter{{Key: "folder", Value: "Writing"}}}},
+		{name: "11 folder drops trailing slash", input: "folder:Writing/", want: &Query{filters: []Filter{{Key: "folder", Value: "writing"}}}},
 		{name: "12 slug splits on first colon", input: "slug:a:b", want: &Query{filters: []Filter{{Key: "slug", Value: "a:b"}}}},
 		{name: "13 unknown key is bare token and is remembered as one", input: "foo:bar", want: &Query{tokens: []string{"foo:bar"}, unknownKeys: []string{"foo"}}},
 		{name: "14 classify before fold", input: "Type:lesson", want: &Query{tokens: []string{"type:lesson"}, unknownKeys: []string{"Type"}}},
@@ -49,7 +49,7 @@ func TestParse(t *testing.T) {
 		{name: "16 literal percent", input: "%", want: &Query{tokens: []string{"%"}}},
 		{name: "17 percent inside token", input: "100%", want: &Query{tokens: []string{"100%"}}},
 		{name: "18 domain nfc value", input: "domain:日本語", want: &Query{filters: []Filter{{Key: "domain", Value: "日本語"}}}},
-		{name: "19 slug value not case folded", input: "slug:ABC", want: &Query{filters: []Filter{{Key: "slug", Value: "ABC"}}}},
+		{name: "19 slug value is folded", input: "slug:ABC", want: &Query{filters: []Filter{{Key: "slug", Value: "abc"}}}},
 		{name: "20 folder empty value", input: "folder:", want: &Query{filters: []Filter{{Key: "folder", Value: ""}}}},
 	}
 
@@ -140,7 +140,7 @@ func TestParseQuotedPhrase(t *testing.T) {
 		{
 			name:  "a quoted folder value drops its trailing slash",
 			input: `folder:"My Notes/"`,
-			want:  &Query{filters: []Filter{{Key: "folder", Value: "My Notes"}}},
+			want:  &Query{filters: []Filter{{Key: "folder", Value: "my notes"}}},
 		},
 		{
 			name:  "quoting the key makes the whole field text",
@@ -167,10 +167,10 @@ func TestParseQuotedPhrase(t *testing.T) {
 	}
 }
 
-// TestParseFilterValueNFD proves a filter value is NFC-normalized (but not
-// case-folded) using a genuine NFD form
-// (row 18's 日本語 has no canonical decomposition, so it cannot). "domain:" +
-// NFD が ("が") must store the NFC form "が", un-case-folded.
+// TestParseFilterValueNFD proves a filter value is folded (NFC, then the
+// walk) using a genuine NFD form (row 18's 日本語 has no canonical
+// decomposition, so it cannot). "domain:" + NFD が ("が") must store the
+// folded NFC form "が".
 func TestParseFilterValueNFD(t *testing.T) {
 	t.Parallel()
 

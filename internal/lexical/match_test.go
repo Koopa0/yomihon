@@ -666,6 +666,21 @@ func TestFoldIsSimpleLowercaseNotFullCaseFold(t *testing.T) {
 	}
 }
 
+// The halfwidth katakana + voiced-mark pair is two source runes. Folding them
+// onto バ would be two-to-one and would drift sourceOffsetOfFold. This fold
+// leaves them as they were.
+func TestFoldLeavesHalfwidthKatakanaVoicedPair(t *testing.T) {
+	t.Parallel()
+	const halfwidth = "ﾊﾞ" // U+FF8A U+FF9E
+	const composed = "バ"
+	if fold(halfwidth) != halfwidth {
+		t.Errorf("fold(%q) = %q, want the two runes left standing", halfwidth, fold(halfwidth))
+	}
+	if fold(halfwidth) == fold(composed) {
+		t.Errorf("fold(%q) collapsed onto fold(%q); that pairing is out of this fold", halfwidth, composed)
+	}
+}
+
 // TestCJKQueryMatchesInsideALongerWord pins substring semantics for CJK text:
 // a match is a literal substring with no word segmentation, so 京都 is found
 // inside 東京都 even though a reader parsing the words would cut 東京 | 都.

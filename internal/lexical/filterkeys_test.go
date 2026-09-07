@@ -74,10 +74,10 @@ func TestEveryFilterKeyTheGrammarAcceptsIsAnswered(t *testing.T) {
 			t.Errorf("the grammar accepts %q and nothing here satisfies it; a key needs a case in matchesFilter and a row here", key)
 			continue
 		}
-		if !e.matchesFilter(Filter{Key: key, Value: value}) {
+		if !e.matchesFilter(Filter{Key: key, Value: fold(value)}) {
 			t.Errorf("matchesFilter(%q:%q) = false on an entry that carries it; the key parses and nothing answers it", key, value)
 		}
-		if e.matchesFilter(Filter{Key: key, Value: value + "-not-this"}) {
+		if e.matchesFilter(Filter{Key: key, Value: fold(value + "-not-this")}) {
 			t.Errorf("matchesFilter(%q) answered true for a value this entry does not carry", key)
 		}
 	}

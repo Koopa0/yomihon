@@ -293,20 +293,19 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 // folded rel_path prefix at a "/" boundary, so "folder:Writing" matches
 // "Writing" and "Writing/x.md" and "writing/x.md", but never "Writing-old/x.md".
 func (e *entry) matchesFilter(f Filter) bool {
-	want := fold(f.Value)
 	switch f.Key {
 	case "type":
-		return e.NoteTypeFold == want
+		return e.NoteTypeFold == f.Value
 	case "status":
-		return e.StatusFold == want
+		return e.StatusFold == f.Value
 	case "domain":
-		return e.DomainFold == want
+		return e.DomainFold == f.Value
 	case "slug":
-		return e.SlugFold == want
+		return e.SlugFold == f.Value
 	case "topic":
-		return slices.Contains(e.TopicFolds, want)
+		return slices.Contains(e.TopicFolds, f.Value)
 	case "folder":
-		return e.PathFold == want || strings.HasPrefix(e.PathFold, want+"/")
+		return e.PathFold == f.Value || strings.HasPrefix(e.PathFold, f.Value+"/")
 	default:
 		// A filter reaches this only where Parse recognized its key, and Parse
 		// recognizes exactly the keys the grammar table holds; a Query keeps

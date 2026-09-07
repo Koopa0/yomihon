@@ -17,8 +17,8 @@ type StepBack struct {
 // StepBacks proposes ways to loosen a query that found nothing: a quoted phrase
 // without its adjacency, a term split where letters meet digits so 20mg reaches
 // 20-40mg, and each term alone. Every candidate is run before it is offered, and
-// filter fields ride along folded, since loosening words does not widen scope
-// and a filter typed in the case a word taught the reader still has to apply.
+// filter fields ride along as written: loosening words does not widen scope,
+// and Parse folds the value, so a wrong-case filter still applies.
 func (idx *Index) StepBacks(raw string) []StepBack {
 	var bare, filters []string
 	quoted := false
@@ -27,7 +27,7 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		// words being loosened, not a scope to carry along: it never narrowed
 		// anything, so keeping it would hold back the very search being widened.
 		if _, _, reading := splitFilter(field.text, field.quotedFrom); reading == readAsFilter {
-			filters = append(filters, respellFilter(foldFilterValue(field.text)))
+			filters = append(filters, respellFilter(field.text))
 			continue
 		}
 		if field.quotedFrom >= 0 {
@@ -80,14 +80,6 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		}
 	}
 	return out
-}
-
-// foldFilterValue folds a filter field's value the way text folds, leaving the
-// key as written. Carrying the raw value would let one wrong-case filter
-// silence every candidate that still used it.
-func foldFilterValue(field string) string {
-	key, value, _ := strings.Cut(field, ":")
-	return key + ":" + fold(value)
 }
 
 // respellFilter writes a filter back the way a reader would have to type it. The

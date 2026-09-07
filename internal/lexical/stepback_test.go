@@ -116,8 +116,9 @@ func TestStepBacksKeepAQuotedFilterValueSpelled(t *testing.T) {
 
 // A wrong-case filter used to silence the whole ladder: the key was recognised
 // so the unknown-filter notice said nothing, and every candidate carried the
-// same raw value, so each found nothing. Folding the value the way text folds
-// lets the surviving term still be offered.
+// same raw value into a case-exact match, so each found nothing. Parse now
+// folds the value, so the candidate still answers; the suggestion keeps the
+// spelling the reader wrote.
 func TestStepBacksRecoverAWrongCaseFilter(t *testing.T) {
 	t.Parallel()
 
@@ -125,16 +126,25 @@ func TestStepBacksRecoverAWrongCaseFilter(t *testing.T) {
 		{RelPath: "Notes/a.md", Title: "A", Domain: "yomihon", PlainText: "yomihon sits here"},
 	}, schema.ArtifactPolicy{})
 
-	want := []StepBack{{Query: "domain:yomihon yomihon", Count: 1}}
-	for _, raw := range []string{
-		"domain:yomihon yomihon zzzznotaword",
-		"domain:Yomihon yomihon zzzznotaword",
-	} {
-		t.Run(raw, func(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want []StepBack
+	}{
+		{
+			raw:  "domain:yomihon yomihon zzzznotaword",
+			want: []StepBack{{Query: "domain:yomihon yomihon", Count: 1}},
+		},
+		{
+			raw:  "domain:Yomihon yomihon zzzznotaword",
+			want: []StepBack{{Query: "domain:Yomihon yomihon", Count: 1}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
 			t.Parallel()
-			got := idx.StepBacks(raw)
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Errorf("StepBacks(%q) mismatch (-want +got):\n%s", raw, diff)
+			got := idx.StepBacks(tt.raw)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("StepBacks(%q) mismatch (-want +got):\n%s", tt.raw, diff)
 			}
 		})
 	}
