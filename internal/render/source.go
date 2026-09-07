@@ -112,11 +112,11 @@ func SourceHTML(filename, source string) string {
 // substring, then chroma's own match on the name, then plain text.
 func lexerFor(filename string) chroma.Lexer {
 	if name, ok := lexerAliases[strings.ToLower(path.Ext(filename))]; ok {
-		if l := lexers.Get(name); l != nil {
+		if l := namedLexer(name); l != nil {
 			return l
 		}
 	}
-	if l := lexers.Match(filename); l != nil {
+	if l := matchedLexer(filename); l != nil {
 		return l
 	}
 	return lexers.Fallback
