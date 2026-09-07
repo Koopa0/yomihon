@@ -6,6 +6,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // FuzzParse keeps the lexical grammar deterministic and ownership-safe across
@@ -122,6 +124,10 @@ func FuzzSnippet(f *testing.F) {
 		if len(plain) > 256<<10 || len(token) > 16<<10 {
 			t.Skip()
 		}
+		// The index stores NFC and the offset walk assumes it. Raw fuzz
+		// bytes can leave foldEnd off that walk; the close would then sit
+		// at the end of the body and the length oracle would fire.
+		plain = vault.NormalizeNFC(plain)
 		plainFold := fold(plain)
 		tokens := []string{fold(token)}
 		got := snippet(plain, plainFold, tokens)
@@ -152,8 +158,14 @@ func FuzzSnippet(f *testing.F) {
 		// would widen along with them, and could never report a window that
 		// grew.
 		const maxSnippetRunes = 40 + 160 + 2*24 + 2
-		if n := utf8.RuneCountInString(got); n > maxSnippetRunes {
-			t.Errorf("snippet(%q, %q) length = %d characters, want at most %d", plain, token, n, maxSnippetRunes)
+		maxRunes := maxSnippetRunes
+		// The close is held at the match's exclusive end, so a token longer
+		// than the after-window still occupies the snippet.
+		if extra := utf8.RuneCountInString(tokens[0]) - 160; extra > 0 {
+			maxRunes += extra
+		}
+		if n := utf8.RuneCountInString(got); n > maxRunes {
+			t.Errorf("snippet(%q, %q) length = %d characters, want at most %d", plain, token, n, maxRunes)
 		}
 		// A window that drifted off the match can still be one valid, short
 		// line. The folded snippet has to keep the token that placed it, or
