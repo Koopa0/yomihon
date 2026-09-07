@@ -547,6 +547,9 @@ type flipHooks struct {
 	// test can force the failure that must not fall through to the requested
 	// spelling.
 	descend func(current *os.Root, name, relSlash string) (*os.Root, error)
+	// listXattrs, when set, replaces Flistxattr during the attribute copy so
+	// a test can stand on a list failure no temporary directory offers.
+	listXattrs func(int) ([]string, error)
 }
 
 func (w *Writer) flip(
@@ -683,7 +686,7 @@ func (w *Writer) install(
 		source,
 		rewritten,
 		w.log,
-		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall},
+		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall, listXattrs: hooks.listXattrs},
 		func() error {
 			_, authorityErr := w.validatedArtifactPolicy()
 			return authorityErr
@@ -1033,6 +1036,9 @@ type installHooks struct {
 	beforeInstall func()
 	syncTemp      func(*os.File) error
 	syncParent    func(*os.Root) error
+	// listXattrs, when set, replaces Flistxattr during the attribute copy so
+	// a test can stand on a list failure no temporary directory offers.
+	listXattrs func(int) ([]string, error)
 	// rung, when set, replaces the per-filesystem probe for this install,
 	// whose answer is otherwise cached for the whole process.
 	rung func() installRung
@@ -1064,7 +1070,7 @@ func replaceRegularFile(
 		return linkErr
 	}
 	rung := selectRung(preparedParent, hooks)
-	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp, source.name)
+	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp, source.name, hooks.listXattrs)
 	if err != nil {
 		closeRoot(preparedParent)
 		return err
@@ -1296,7 +1302,7 @@ func tempName() string {
 // Birth time cannot survive an atomic replace and is not copied. attrSrc is
 // the source's directory entry inside parent; empty skips the attribute copy
 // (the install probe's throwaways have none to keep).
-func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os.File) error, attrSrc string) (string, error) {
+func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os.File) error, attrSrc string, listXattrs func(int) ([]string, error)) (string, error) {
 	name := tempName()
 	tmp, err := parent.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
@@ -1309,7 +1315,7 @@ func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os
 		return abandonTemp(parent, tmp, name, fmt.Errorf("chmod temp file: %w", err))
 	}
 	if attrSrc != "" {
-		if err = copyXattrsFrom(parent, attrSrc, tmp); err != nil {
+		if err = copyXattrsFrom(parent, attrSrc, tmp, listXattrs); err != nil {
 			return abandonTemp(parent, tmp, name, err)
 		}
 	}

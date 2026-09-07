@@ -8,4 +8,4 @@ import "os"
 // already refuses before opening the note (durable install is unsupported).
 func refuseHardLinked(os.FileInfo, string) error { return nil }
 
-func copyXattrsFrom(*os.Root, string, *os.File) error { return nil }
+func copyXattrsFrom(*os.Root, string, *os.File, func(int) ([]string, error)) error { return nil }

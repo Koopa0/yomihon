@@ -174,12 +174,12 @@ func probeRung(parent *os.Root, ops installOps) installRung {
 	)
 	// The probe's files are thrown away, so they skip the durability barrier.
 	noSync := func(*os.File) error { return nil }
-	first, err := writeTemp(parent, []byte(firstBytes), 0o600, noSync, "")
+	first, err := writeTemp(parent, []byte(firstBytes), 0o600, noSync, "", nil)
 	if err != nil {
 		return rungRename
 	}
 	defer func() { _ = ops.remove(first) }() //nolint:errcheck // probe cleanup is best-effort
-	second, err := writeTemp(parent, []byte(secondBytes), 0o600, noSync, "")
+	second, err := writeTemp(parent, []byte(secondBytes), 0o600, noSync, "", nil)
 	if err != nil {
 		return rungRename
 	}

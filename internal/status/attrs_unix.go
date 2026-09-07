@@ -24,12 +24,12 @@ func refuseHardLinked(info os.FileInfo, relSlash string) error {
 	return fmt.Errorf("%w: %s has %d names; a flip would leave the others on the pre-flip bytes", ErrHardLinked, relSlash, stat.Nlink)
 }
 
-func copyXattrsFrom(parent *os.Root, srcName string, dst *os.File) error {
+func copyXattrsFrom(parent *os.Root, srcName string, dst *os.File, list func(int) ([]string, error)) error {
 	src, err := parent.Open(srcName)
 	if err != nil {
 		return fmt.Errorf("open source to copy attributes: %w", err)
 	}
-	err = copyXattrs(int(src.Fd()), int(dst.Fd()))
+	err = copyXattrs(int(src.Fd()), int(dst.Fd()), list)
 	if closeErr := src.Close(); err == nil {
 		err = closeErr
 	}
@@ -39,8 +39,11 @@ func copyXattrsFrom(parent *os.Root, srcName string, dst *os.File) error {
 	return nil
 }
 
-func copyXattrs(srcFd, dstFd int) error {
-	names, err := listXattrNames(srcFd)
+func copyXattrs(srcFd, dstFd int, list func(int) ([]string, error)) error {
+	if list == nil {
+		list = listXattrNames
+	}
+	names, err := list(srcFd)
 	if err != nil {
 		if xattrIgnorable(err) {
 			return nil
