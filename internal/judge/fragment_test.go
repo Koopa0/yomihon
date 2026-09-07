@@ -657,7 +657,7 @@ func TestTheGenerousScanReadsAHeadingTheWayThePageDoes(t *testing.T) {
 	t.Parallel()
 
 	for _, path := range []string{"fragment.go", "../render/section.go", "../render/wikilink.go"} {
-		source, err := os.ReadFile(path)
+		source, err := os.ReadFile(path) // #nosec G304 -- a fixed source path from this table
 		if err != nil {
 			t.Fatalf("ReadFile(%q) error = %v", path, err)
 		}
