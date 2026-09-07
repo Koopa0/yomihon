@@ -57,11 +57,11 @@ const (
 )
 
 // SearchN runs a parsed query against the index and returns results in the final
-// deterministic order, six groups concatenated: a note's title hits, a note's
-// body hits, the same two over vault files that are not notes, then the
-// path-only hits, notes again before files. Each group keeps the vault's
-// reading order, except that a fold-equal exact title leads the title-note
-// group, and every text hit outranks every path-only hit.
+// deterministic order, eight groups concatenated: a note's title hits, a note's
+// body hits, a note's topic hits, the same three over vault files that are not
+// notes, then the path-only hits, notes again before files. Each group keeps
+// the vault's reading order, except that a fold-equal exact title leads the
+// title-note group, and every text hit outranks every path-only hit.
 //
 // An empty query returns nothing and a pure-filter query lands every match in
 // the title bucket. A metadata filter excludes non-instance artifacts, and
@@ -113,14 +113,16 @@ type hit struct {
 
 // bucket names one answer group. This declaration order is the result order and
 // the only statement of it, so a group moves by moving its constant: notes before
-// files under each kind of evidence, and both kinds of text before an address.
+// files under each kind of evidence, and title, body and topic before an address.
 type bucket uint8
 
 const (
 	titleNote bucket = iota
 	bodyNote
+	topicNote
 	titleFile
 	bodyFile
+	topicFile
 	pathNote
 	pathFile
 	bucketCount
@@ -133,7 +135,7 @@ type resultBuckets struct {
 }
 
 // place files one filter-matching entry into its answer group by what the
-// tokens matched: the title, the body, or only the path.
+// tokens matched: the title, the body, a declared topic, or only the path.
 func (b *resultBuckets) place(e *entry, tokens []string) {
 	switch {
 	case allContain(e.TitleFold, tokens):
@@ -146,6 +148,11 @@ func (b *resultBuckets) place(e *entry, tokens []string) {
 		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
 	case allContain(e.PlainFold, tokens):
 		b.add(bodyNote, bodyFile, hit{entry: e, bodyEvidence: true})
+	case topicHolds(e, tokens):
+		// A topic is a name the note declared for retrieval. It ranks below
+		// body so a mention in prose stays above the many notes that share a
+		// subject.
+		b.add(topicNote, topicFile, hit{entry: e})
 	case allContain(e.PathFold, tokens):
 		b.add(pathNote, pathFile, hit{entry: e})
 	}
@@ -164,7 +171,7 @@ func (b *resultBuckets) add(note, file bucket, h hit) {
 // raiseExactTitles is the one tie-break inside the title-note group: a title
 // that is the query, under the same fold matching uses, leads every title that
 // merely contains it. Hits that share that answer keep the vault's reading
-// order. The other five groups are not touched, and an empty token list is a
+// order. The other seven groups are not touched, and an empty token list is a
 // pure-filter query whose every match already sits here.
 func (b *resultBuckets) raiseExactTitles(tokens []string) {
 	if len(tokens) == 0 {
@@ -187,6 +194,22 @@ func exactTitleRank(titleFold, needle string) int {
 // declared in.
 func (b *resultBuckets) ordered() []hit {
 	return slices.Concat(b.groups[:]...)
+}
+
+// topicHolds reports whether any declared topic holds every token. A topic is a
+// name the note follows, the way an alias is, so a reader who types one reaches
+// the notes that declared it. Empty tokens are a pure-filter query and already
+// land in the title group.
+func topicHolds(e *entry, tokens []string) bool {
+	if len(tokens) == 0 {
+		return false
+	}
+	for _, folded := range e.TopicFolds {
+		if allContain(folded, tokens) {
+			return true
+		}
+	}
+	return false
 }
 
 // aliasAnswering returns the note's own spelling of the first alias that holds

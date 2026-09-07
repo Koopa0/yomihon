@@ -99,7 +99,10 @@ type Document struct {
 	Domain   string
 	Status   string
 	Slug     string
-	Topics   []string
+	// Topics are the subjects the note declared. A bare token reaches them
+	// the way it reaches an alias: leaving them out made a note findable by
+	// fewer names than it follows.
+	Topics []string
 	// Aliases are the other names the note declared. They are the names a
 	// wikilink resolves by, so leaving them out made this program findable by
 	// fewer names than it follows.
@@ -137,16 +140,19 @@ type entry struct {
 	// Aliases are the note's other declared names, held as written and folded for
 	// matching. A link resolves by these and not by the title, so a hit on one
 	// ranks with a title hit rather than below a mention in prose.
-	Aliases         []string
-	AliasFolds      []string
-	NoteType        string
-	NoteTypeFold    string
-	Domain          string
-	DomainFold      string
-	Status          string
-	StatusFold      string
-	Slug            string
-	SlugFold        string
+	Aliases      []string
+	AliasFolds   []string
+	NoteType     string
+	NoteTypeFold string
+	Domain       string
+	DomainFold   string
+	Status       string
+	StatusFold   string
+	Slug         string
+	SlugFold     string
+	// Topics are the note's declared subjects, held as written and folded for
+	// matching. A hit on one ranks below a body mention so today's answers
+	// stay first and the missing holders arrive underneath.
 	Topics          []string
 	TopicFolds      []string
 	PlainText       string
