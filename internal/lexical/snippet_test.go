@@ -605,6 +605,9 @@ func TestTheTwoFoldMappingsAgree(t *testing.T) {
 		"用於\nchildren and 兒童\n使用",
 		// Consecutive breaks, and one at each end.
 		"\n甲\n\n乙\n",
+		// Fullwidth ASCII folding to a shorter encoding, the mapping the
+		// width fold added: three source bytes become one folded byte.
+		"３つ（たまご）Ｇｏ",
 	} {
 		t.Run(strconv.Quote(s), func(t *testing.T) {
 			t.Parallel()

@@ -108,6 +108,11 @@ func FuzzSnippet(f *testing.F) {
 	// The same length in ordinary spaced words, where nothing shortens the
 	// window and it fills to its limit.
 	f.Add(strings.Repeat("ab ", 300)+"needle"+strings.Repeat(" cd", 300), "needle")
+	// Fullwidth ASCII folding to a shorter encoding: the source-offset walk
+	// must still land the snippet on the match, not drift into its neighbour.
+	f.Add("３羽の鳥と３つ。２週間後に Ｇｏ の並行。", "3羽")
+	f.Add("心（こころ）", "心(こころ)")
+	f.Add("Ｇｏ の並行処理", "Go")
 
 	f.Fuzz(func(t *testing.T, plain, token string) {
 		if len(plain) > 256<<10 || len(token) > 16<<10 {

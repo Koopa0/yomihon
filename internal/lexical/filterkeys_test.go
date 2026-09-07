@@ -44,12 +44,18 @@ func TestEveryFilterKeyTheGrammarAcceptsIsAnswered(t *testing.T) {
 	t.Parallel()
 
 	e := &entry{
-		RelPath:  "Writing/lessons/one.md",
-		NoteType: "lesson",
-		Status:   "ready",
-		Domain:   "japanese",
-		Slug:     "one",
-		Topics:   []string{"grammar", "kanji"},
+		RelPath:      "Writing/lessons/one.md",
+		PathFold:     fold("Writing/lessons/one.md"),
+		NoteType:     "lesson",
+		NoteTypeFold: fold("lesson"),
+		Status:       "ready",
+		StatusFold:   fold("ready"),
+		Domain:       "japanese",
+		DomainFold:   fold("japanese"),
+		Slug:         "one",
+		SlugFold:     fold("one"),
+		Topics:       []string{"grammar", "kanji"},
+		TopicFolds:   []string{fold("grammar"), fold("kanji")},
 	}
 	satisfied := map[string]string{
 		"type":   "lesson",

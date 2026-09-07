@@ -500,13 +500,131 @@ func TestSearchNFDContent(t *testing.T) {
 	}
 }
 
-// TestFoldIsSimpleLowercaseNotFullCaseFold pins what fold is: NFC then simple
-// lowercase, nothing wider. NFC leaves character width alone, so fullwidth \uff21
-// folds to fullwidth \uff41 and never meets an ASCII a, and halfwidth \uff76 never
-// meets \u30ab \u2014 a compatibility normalization would merge both. The lowercase is
-// the simple per-character mapping, so \u00df stays \u00df rather than expanding to ss
-// (\u1e9e still lowers to \u00df; that much is the simple mapping). What a reader
-// feels: an ASCII query does not find fullwidth text, and ss does not find \u00df.
+// TestFoldCollapsesWidthPairs pins the width half of fold: the fullwidth ASCII
+// block meets its halfwidth counterpart, so a reader typing 3 on a Latin
+// keyboard reaches ３ in a note. Halfwidth katakana is not in this table; a
+// voiced mark beside one is two runes folding to one and is a separate
+// decision.
+func TestFoldCollapsesWidthPairs(t *testing.T) {
+	t.Parallel()
+
+	pairs := []struct {
+		name string
+		a, b string
+	}{
+		{"digit", "3", "３"},
+		{"paren", "(", "（"},
+		{"latin capital", "G", "Ｇ"},
+		{"latin small", "o", "ｏ"},
+		{"the issue's count words", "3つ", "３つ"},
+		{"a week later", "2週間後", "２週間後"},
+		{"birds", "3羽", "３羽"},
+		{"reading paren", "心(こころ)", "心（こころ）"},
+		{"Go", "Go", "Ｇｏ"},
+	}
+	for _, tt := range pairs {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got, want := fold(tt.a), fold(tt.b); got != want {
+				t.Errorf("fold(%q) = %q, fold(%q) = %q, want one spelling", tt.a, got, tt.b, want)
+			}
+		})
+	}
+}
+
+// TestSearchReachesBothWidthsFromEitherSpelling is the end-to-end lock: two
+// notes hold the same sentence in either width, and either spelling of a word
+// in it returns both. On a fold that leaves width alone the sets are disjoint.
+func TestSearchReachesBothWidthsFromEitherSpelling(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "half.md", Title: "half", PlainText: "3羽と3つ。2週間後に Go の並行。心(こころ)"},
+		{RelPath: "full.md", Title: "full", PlainText: "３羽と３つ。２週間後に Ｇｏ の並行。心（こころ）"},
+	}, validArtifactPolicy(t))
+	want := []string{"full.md", "half.md"}
+	for _, query := range []string{
+		"3羽", "３羽",
+		"3つ", "３つ",
+		"2週間後", "２週間後",
+		"Go の並行", "Ｇｏ の並行",
+		"心(こころ)", "心（こころ）",
+	} {
+		t.Run(query, func(t *testing.T) {
+			t.Parallel()
+			got := paths(searchResults(t, idx, Parse(query)))
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("Search(%q) mismatch (-want +got):\n%s", query, diff)
+			}
+		})
+	}
+}
+
+// TestSearchFiltersAnswerEitherCase pins that each of the six filter keys
+// answers the same set for either case of its value. Free text already folded;
+// a filter that compared raw made the habit that works on words fail on
+// constraints.
+func TestSearchFiltersAnswerEitherCase(t *testing.T) {
+	t.Parallel()
+	idx := filterFixture(t)
+
+	tests := []struct {
+		key   string
+		lower string
+		upper string
+		want  []string
+	}{
+		{"type", "type:lesson", "type:Lesson", []string{"Writing/Kafka.md"}},
+		{"status", "status:archived", "status:Archived", []string{"Writing-old/Legacy.md"}},
+		{"domain", "domain:golang", "domain:Golang", []string{"Writing-old/Legacy.md", "Writing/Kafka.md"}},
+		{"slug", "slug:kafka-basics", "slug:Kafka-Basics", []string{"Writing/Kafka.md"}},
+		{"topic", "topic:focus", "topic:Focus", []string{"Concepts/Focus.md"}},
+		{"folder", "folder:Writing", "folder:writing", []string{"Writing/Kafka.md"}},
+	}
+	if len(tests) != len(filterKeys) {
+		t.Fatalf("this table has %d keys, the grammar accepts %d; a key was added and not pinned", len(tests), len(filterKeys))
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			t.Parallel()
+			lower := paths(searchResults(t, idx, Parse(tt.lower)))
+			upper := paths(searchResults(t, idx, Parse(tt.upper)))
+			if diff := cmp.Diff(tt.want, lower); diff != "" {
+				t.Errorf("Search(%q) mismatch (-want +got):\n%s", tt.lower, diff)
+			}
+			if diff := cmp.Diff(lower, upper); diff != "" {
+				t.Errorf("Search(%q) and Search(%q) answered different sets (-lower +upper):\n%s", tt.lower, tt.upper, diff)
+			}
+		})
+	}
+}
+
+// TestFolderFilterPinsCaseSiblingOrder locks what folding a path prefix does
+// when two sibling directories differ only in case: both answer, and the vault
+// reading order decides which leads. "At least one comes back" would pass on
+// either behaviour and lock nothing.
+func TestFolderFilterPinsCaseSiblingOrder(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "Writing/Kafka.md", Title: "Kafka", PlainText: "one"},
+		{RelPath: "writing/notes.md", Title: "Notes", PlainText: "two"},
+	}, validArtifactPolicy(t))
+
+	want := []string{"Writing/Kafka.md", "writing/notes.md"}
+	for _, query := range []string{"folder:Writing", "folder:writing"} {
+		got := paths(searchResults(t, idx, Parse(query)))
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("Search(%q) mismatch (-want +got):\n%s", query, diff)
+		}
+	}
+}
+
+// TestFoldIsSimpleLowercaseNotFullCaseFold pins what fold is not: a
+// compatibility fold and a full case fold. The fullwidth ASCII block now
+// meets its halfwidth counterpart, but halfwidth \uff76 never meets \u30ab,
+// and \u00df stays \u00df rather than expanding to ss (\u1e9e still lowers
+// to \u00df; that much is the simple mapping). What a reader feels: an ASCII
+// query finds fullwidth text, and ss does not find \u00df.
 func TestFoldIsSimpleLowercaseNotFullCaseFold(t *testing.T) {
 	t.Parallel()
 	folds := []struct {
@@ -514,7 +632,7 @@ func TestFoldIsSimpleLowercaseNotFullCaseFold(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"fullwidth capital lowers within its width", "\uff21", "\uff41"},
+		{"fullwidth capital meets ASCII", "\uff21", "a"},
 		{"halfwidth katakana stays halfwidth", "\uff76", "\uff76"},
 		{"sharp s does not expand", "\u00df", "\u00df"},
 		{"capital sharp s lowers to sharp s", "\u1e9e", "\u00df"},
@@ -532,13 +650,14 @@ func TestFoldIsSimpleLowercaseNotFullCaseFold(t *testing.T) {
 		{RelPath: "wide.md", Title: "wide", PlainText: "\uff21\uff22\uff23 \u5927\u5beb"},
 		{RelPath: "river.md", Title: "river", PlainText: "der Flu\u00df heute"},
 	}, validArtifactPolicy(t))
-	for _, query := range []string{"abc", "ss"} {
-		if got := paths(searchResults(t, idx, Parse(query))); len(got) != 0 {
-			t.Errorf("Search(%q) = %v, want no hits under a simple fold", query, got)
-		}
+	if got := paths(searchResults(t, idx, Parse("abc"))); !slices.Equal(got, []string{"wide.md"}) {
+		t.Errorf("Search(abc) = %v, want the fullwidth text found by an ASCII query", got)
 	}
-	// The zeroes above prove nothing if the fixture text is unreachable, so
-	// reach each note by the form the fold does preserve.
+	if got := paths(searchResults(t, idx, Parse("ss"))); len(got) != 0 {
+		t.Errorf("Search(ss) = %v, want no hits under a simple case fold", got)
+	}
+	// The ASCII hit above proves nothing if a fullwidth query cannot find it
+	// too, so reach the same note by the form the vault actually wrote.
 	if got := paths(searchResults(t, idx, Parse("\uff42\uff43"))); !slices.Equal(got, []string{"wide.md"}) {
 		t.Errorf("Search(\uff42\uff43) = %v, want the fullwidth text found by a fullwidth query", got)
 	}

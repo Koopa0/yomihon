@@ -1,5 +1,5 @@
 // Package lexical is the vault's in-memory search index and query engine. It
-// holds one entry per note and answers a deterministic, NFC-folded substring
+// holds one entry per note and answers a deterministic, folded substring
 // query plus six structured filters. There is no database: the truth is the
 // vault files and the index only accelerates. It stays reachable without the
 // reading interface, so the search page depends on it and never the reverse.
@@ -12,14 +12,16 @@ import (
 	"strings"
 	"unicode"
 
+	"golang.org/x/text/width"
+
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // fold is the single definer of "what counts as a match": NFC, then the walk
-// below, applied identically to stored text and to a query token. Case folding
-// lives only here; vault.NormalizeNFC supplies the shared NFC step.
+// below, applied identically to stored text and to a query token. Case and
+// width folding live only here; vault.NormalizeNFC supplies the shared NFC step.
 func fold(s string) string {
 	var out strings.Builder
 	out.Grow(len(s))
@@ -40,9 +42,31 @@ func foldRunes(s string, emit func(r rune, at int)) {
 		if r == '\n' && writesWithoutSpaces(prev) && writesWithoutSpaces(nextRune(s, i+1)) {
 			continue
 		}
-		emit(unicode.ToLower(r), i)
+		emit(foldRune(r), i)
 		prev = r
 	}
+}
+
+// fullwidthASCIIMin and fullwidthASCIIMax bound the block foldRune narrows.
+// Each of those runes has a one-rune halfwidth counterpart, so the fold's
+// source-offset walk stays a walk of one emitted rune per source rune.
+// Halfwidth katakana is outside it: a voiced mark beside one folds two runes
+// to one and is a separate decision.
+const (
+	fullwidthASCIIMin = 0xFF01
+	fullwidthASCIIMax = 0xFF5E
+)
+
+// foldRune is the per-character half of fold: the fullwidth ASCII block
+// narrows to its halfwidth counterpart, then simple lowercase. Width first so
+// a fullwidth letter and its ASCII counterpart meet before either is lowered.
+func foldRune(r rune) rune {
+	if r >= fullwidthASCIIMin && r <= fullwidthASCIIMax {
+		if n := width.LookupRune(r).Narrow(); n != 0 {
+			r = n
+		}
+	}
+	return unicode.ToLower(r)
 }
 
 // nextRune returns the first rune at or after i, or zero at the end of s.
@@ -100,7 +124,9 @@ type Document struct {
 
 // entry is one indexed note. Title and PlainText keep their display form and the
 // *Fold copies are folded for matching, a few extra MB for an allocation-free
-// match; the structured values are NFC but case-preserving, so a filter is exact.
+// match. The structured values stay NFC and case-preserving for display; their
+// *Fold copies are what a filter compares, so a reader who types a value the
+// way they type a word still reaches it.
 type entry struct {
 	RelPath string
 	// PathFold is the note's own location, folded the way the text is: a reader
@@ -114,10 +140,15 @@ type entry struct {
 	Aliases         []string
 	AliasFolds      []string
 	NoteType        string
+	NoteTypeFold    string
 	Domain          string
+	DomainFold      string
 	Status          string
+	StatusFold      string
 	Slug            string
+	SlugFold        string
 	Topics          []string
+	TopicFolds      []string
 	PlainText       string
 	PlainFold       string
 	blockEnds       []int
@@ -202,7 +233,8 @@ func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 
 // entryFromDocument derives one entry from a Document, applying the storage rules:
 // Title/PlainText stored NFC (display), the *Fold copies fold()ed, the
-// structured field values stored NFC (case-preserving).
+// structured field values stored NFC (case-preserving) with a folded copy
+// beside each so a filter compares the way text does.
 func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	title := vault.NormalizeNFC(d.Title)
 	plain := vault.NormalizeNFC(d.PlainText)
@@ -211,9 +243,15 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	// newline is an NFC starter, so joining the normalised slices is the
 	// same string as normalising the body in one pass.
 	blockEnds := blockEndsOnNormalized(d.PlainText, d.BlockEnds)
+	noteType := vault.NormalizeNFC(d.NoteType)
+	domain := vault.NormalizeNFC(d.Domain)
+	status := vault.NormalizeNFC(d.Status)
+	slug := vault.NormalizeNFC(d.Slug)
 	topics := make([]string, len(d.Topics))
+	topicFolds := make([]string, len(d.Topics))
 	for i, t := range d.Topics {
 		topics[i] = vault.NormalizeNFC(t)
+		topicFolds[i] = fold(topics[i])
 	}
 	aliases := make([]string, len(d.Aliases))
 	aliasFolds := make([]string, len(d.Aliases))
@@ -222,21 +260,26 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		aliasFolds[i] = fold(aliases[i])
 	}
 	return entry{
-		RelPath:    d.RelPath,
-		PathFold:   fold(vault.NormalizeNFC(d.RelPath)),
-		Title:      title,
-		TitleFold:  fold(title),
-		Aliases:    aliases,
-		AliasFolds: aliasFolds,
-		NoteType:   vault.NormalizeNFC(d.NoteType),
-		Domain:     vault.NormalizeNFC(d.Domain),
-		Status:     vault.NormalizeNFC(d.Status),
-		Slug:       vault.NormalizeNFC(d.Slug),
-		Topics:     topics,
-		PlainText:  plain,
-		PlainFold:  fold(plain),
-		blockEnds:  blockEnds,
-		isFile:     d.File,
+		RelPath:      d.RelPath,
+		PathFold:     fold(vault.NormalizeNFC(d.RelPath)),
+		Title:        title,
+		TitleFold:    fold(title),
+		Aliases:      aliases,
+		AliasFolds:   aliasFolds,
+		NoteType:     noteType,
+		NoteTypeFold: fold(noteType),
+		Domain:       domain,
+		DomainFold:   fold(domain),
+		Status:       status,
+		StatusFold:   fold(status),
+		Slug:         slug,
+		SlugFold:     fold(slug),
+		Topics:       topics,
+		TopicFolds:   topicFolds,
+		PlainText:    plain,
+		PlainFold:    fold(plain),
+		blockEnds:    blockEnds,
+		isFile:       d.File,
 		// An unclaimed policy excludes nothing, so every readable note answers over
 		// its own raw frontmatter. A file has no frontmatter, so it answers no
 		// metadata projection under any policy.

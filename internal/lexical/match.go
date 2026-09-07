@@ -289,23 +289,24 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 }
 
 // matchesFilter reports whether e satisfies one filter. type/status/domain/slug
-// are exact equality on the NFC field; topic is exact membership of Topics;
-// folder is a rel_path prefix at a "/" boundary, so "folder:Writing" matches
-// "Writing" and "Writing/x.md" but never "Writing-old/x.md".
+// compare the folded copies; topic is folded membership of Topics; folder is a
+// folded rel_path prefix at a "/" boundary, so "folder:Writing" matches
+// "Writing" and "Writing/x.md" and "writing/x.md", but never "Writing-old/x.md".
 func (e *entry) matchesFilter(f Filter) bool {
+	want := fold(f.Value)
 	switch f.Key {
 	case "type":
-		return e.NoteType == f.Value
+		return e.NoteTypeFold == want
 	case "status":
-		return e.Status == f.Value
+		return e.StatusFold == want
 	case "domain":
-		return e.Domain == f.Value
+		return e.DomainFold == want
 	case "slug":
-		return e.Slug == f.Value
+		return e.SlugFold == want
 	case "topic":
-		return slices.Contains(e.Topics, f.Value)
+		return slices.Contains(e.TopicFolds, want)
 	case "folder":
-		return e.RelPath == f.Value || strings.HasPrefix(e.RelPath, f.Value+"/")
+		return e.PathFold == want || strings.HasPrefix(e.PathFold, want+"/")
 	default:
 		// A filter reaches this only where Parse recognized its key, and Parse
 		// recognizes exactly the keys the grammar table holds; a Query keeps
@@ -607,9 +608,9 @@ func lastSentenceEnd(plain string, limit, start int) (int, bool) {
 	return 0, false
 }
 
-// foldWithSourceOffsets lowercases s and maps every byte position of the folded
+// foldWithSourceOffsets folds s and maps every byte position of the folded
 // copy, one past its end included, back to the byte offset in s of the character
-// it came from. It applies the lowercase half of the index's fold alone, which
+// it came from. It applies the walk half of the index's fold alone, which
 // reproduces that fold provided s is already NFC, as every snippet is.
 func foldWithSourceOffsets(s string) (fold string, src []int) {
 	var folded strings.Builder
@@ -625,7 +626,7 @@ func foldWithSourceOffsets(s string) (fold string, src []int) {
 	return folded.String(), append(src, len(s))
 }
 
-// sourceOffsetOfFold maps one byte offset in the lowercased copy of s back to the
+// sourceOffsetOfFold maps one byte offset in the folded copy of s back to the
 // byte offset in s of the character that produced it. It answers exactly what
 // foldWithSourceOffsets tabulates, walked to one position rather than materialized
 // because its caller measures a whole note. A test holds the two to one answer.
