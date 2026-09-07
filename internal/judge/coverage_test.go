@@ -119,6 +119,32 @@ func TestCoverageMountsOnContractMapTypes(t *testing.T) {
 	}
 }
 
+// TestCoveragePendingMountIsANonMapReference pins the advisory state the
+// report fixture no longer exercises: a concept reached only by another
+// concept, never by a map. coverage.golden's pending_mount is empty because
+// the atlas that used to mount Map.md and Slice.md sits outside that vault's
+// declared layer.
+func TestCoveragePendingMountIsANonMapReference(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, atlasContract)
+	write(t, root, "Concepts/Idea.md", "---\ntitle: Idea\ntype: concept\nbased_on:\n  - \"[[Nowhere]]\"\n---\n\nBody.\n")
+	write(t, root, "Concepts/Seed.md", "---\ntitle: Seed\ntype: concept\nbased_on:\n  - \"[[Idea]]\"\n---\n\nBody.\n")
+
+	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	if err != nil {
+		t.Fatalf("RunCoverage() error = %v", err)
+	}
+	if exit != 0 {
+		t.Errorf("RunCoverage() exit = %d, want 0", exit)
+	}
+	want := `{"total_concepts":2,"domains":[{"domain":"(none)","concepts":2,"mounted":0,"pending_mount":1,"orphan":1}],"pending_mount":["Concepts/Idea.md"],"orphans":["Concepts/Seed.md"],"unrouted":[]}` + "\n"
+	if string(got) != want {
+		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
+	}
+}
+
 // TestCoverageWithholdsTheRouteFromAnUndeclaredType asserts a vault whose
 // contract never names the research brief is not told to file one under the
 // index note of the vault this route was written for. The route cannot be

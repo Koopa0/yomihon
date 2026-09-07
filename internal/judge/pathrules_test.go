@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
@@ -150,7 +152,7 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
 	write(t, root, "Maps/Course.md",
-		"---\ntitle: Course\ntype: study-path\nstatus: ready\n---\n\n"+
+		"---\ntitle: Course\ntype: study-path\ndomain: golang\nstatus: ready\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\n"+
 			"## Part\n\n### Module {sequence=primary}\n\n- [[L01]]\n")
 
 	findings, err := Check(t.Context(), root)
@@ -162,8 +164,8 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 	for _, f := range findings {
 		rules = append(rules, string(f.RuleID))
 	}
-	if !slices.Contains(rules, "map.disk_mismatch") {
-		t.Errorf("rules reported %v, want map.disk_mismatch for the unlisted lesson", rules)
+	if diff := cmp.Diff([]string{"map.disk_mismatch"}, rules); diff != "" {
+		t.Errorf("rules reported (-want +got):\n%s", diff)
 	}
 	if slices.Contains(rules, "link.broken") {
 		t.Error("the lesson row was read as loose prose, so the part that only groups modules was never descended into")

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
@@ -110,6 +112,29 @@ func fixtureKnowledgeDirs(tb testing.TB, root string) []string {
 	}
 	slices.Sort(dirs)
 	return dirs
+}
+
+// TestFixtureKnowledgeDirsNamesTheDirectoriesOnDisk is the lock on
+// writeTestContract's knowledge layer: the helper names every top-level
+// directory already on disk, sorted, and nothing else. Returning nil for a
+// vault that holds folders would write knowledge_dirs = [] and this comparison
+// would go red.
+func TestFixtureKnowledgeDirsNamesTheDirectoriesOnDisk(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, "Concepts/A.md", "body\n")
+	write(t, root, "Maps/M.md", "body\n")
+	write(t, root, "README.md", "body\n")
+
+	got := fixtureKnowledgeDirs(t, root)
+	if diff := cmp.Diff([]string{"Concepts", "Maps"}, got); diff != "" {
+		t.Errorf("fixtureKnowledgeDirs() mismatch (-want +got):\n%s", diff)
+	}
+
+	if got := fixtureKnowledgeDirs(t, filepath.Join(root, "absent")); got != nil {
+		t.Errorf("fixtureKnowledgeDirs(missing root) = %v, want nil", got)
+	}
 }
 
 // contractFixture is the loader's own contract with each old-to-new

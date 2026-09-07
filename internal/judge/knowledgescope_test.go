@@ -1,17 +1,18 @@
 package judge
 
 import (
-	"bytes"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// scopeLockContract is the Lock vault for KOO-50 / #235: one concept under
-// Notes, one under System/notes, and a System note whose type the contract
-// refuses. The knowledge_dirs line is the only thing each case changes.
+// scopeLockContract is the Lock vault: one concept under Notes, one under
+// System/notes, and a System note whose type the contract refuses. The
+// knowledge_dirs line is the only thing each case changes.
 const scopeLockContract = `schema_version = "1"
 
 [enums]
@@ -79,6 +80,7 @@ func findingPaths(findings []Finding, rule RuleID) []string {
 			paths = append(paths, findings[i].Path)
 		}
 	}
+	slices.Sort(paths)
 	return paths
 }
 
@@ -96,11 +98,8 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 			t.Fatalf("check(default): %v", err)
 		}
 		got := findingPaths(defaultFindings, "schema.enum")
-		if !slices.Contains(got, scopeLockSystemNote) {
-			t.Errorf("default check paths = %v, want %s reported when System is declared", got, scopeLockSystemNote)
-		}
-		if slices.Contains(got, scopeLockAwayNote) {
-			t.Errorf("default check reported %s; Away is outside the declared layer", scopeLockAwayNote)
+		if diff := cmp.Diff([]string{scopeLockSystemNote}, got); diff != "" {
+			t.Errorf("default check schema.enum paths mismatch (-want +got):\n%s", diff)
 		}
 	})
 
@@ -120,10 +119,8 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 				t.Fatalf("check(default): %v", err)
 			}
 			got := findingPaths(defaultFindings, "schema.enum")
-			for _, want := range []string{scopeLockSystemNote, scopeLockAwayNote} {
-				if !slices.Contains(got, want) {
-					t.Errorf("default check paths = %v, want %s linted when no layer is declared", got, want)
-				}
+			if diff := cmp.Diff([]string{scopeLockAwayNote, scopeLockSystemNote}, got); diff != "" {
+				t.Errorf("default check schema.enum paths mismatch (-want +got):\n%s", diff)
 			}
 			if slices.Contains(got, "Notes/README.md") {
 				t.Errorf("default check linted Notes/README.md; skip_basenames still applies when no layer is declared")
@@ -145,11 +142,9 @@ func TestCoverageFollowsDeclaredKnowledgeScope(t *testing.T) {
 	if exit != 0 {
 		t.Errorf("RunCoverage() exit = %d, want 0", exit)
 	}
-	if !bytes.Contains(got, []byte(`"total_concepts":2`)) {
-		t.Errorf("RunCoverage() = %s, want total_concepts 2 (Notes and System)", got)
-	}
-	if !bytes.Contains(got, []byte(scopeLockSystemConcept)) {
-		t.Errorf("RunCoverage() = %s, want the System concept counted when System is declared", got)
+	want := `{"total_concepts":2,"domains":[{"domain":"(none)","concepts":2,"mounted":0,"pending_mount":2,"orphan":0}],"pending_mount":["Notes/Kept.md","System/notes/Idea.md"],"orphans":[],"unrouted":[]}` + "\n"
+	if string(got) != want {
+		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -203,11 +198,9 @@ owner = ["koopa"]
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
-	if bytes.Contains(got, []byte(`"pending_mount":["Notes/Idea.md"]`)) {
-		t.Errorf("RunCoverage() = %s, want Idea orphan; the atlas sits outside the declared layer", got)
-	}
-	if !bytes.Contains(got, []byte(`"orphans":["Notes/Idea.md"]`)) {
-		t.Errorf("RunCoverage() = %s, want Idea counted as an orphan", got)
+	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":0,"pending_mount":0,"orphan":1}],"pending_mount":[],"orphans":["Notes/Idea.md"],"unrouted":[]}` + "\n"
+	if string(got) != want {
+		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -267,10 +260,8 @@ owner = ["koopa"]
 	if exit != 0 {
 		t.Errorf("RunCoverage() exit = %d, want 0", exit)
 	}
-	if !bytes.Contains(got, []byte(`"path":"System/notes/Brief.md"`)) {
-		t.Errorf("RunCoverage() = %s, want the System brief unrouted when System is declared", got)
-	}
-	if bytes.Contains(got, []byte("Away/Loose.md")) {
-		t.Errorf("RunCoverage() = %s, want the Away brief omitted; Away is outside the declared layer", got)
+	want := `{"total_concepts":1,"domains":[{"domain":"(none)","concepts":1,"mounted":0,"pending_mount":0,"orphan":1}],"pending_mount":[],"orphans":["Notes/Kept.md"],"unrouted":[{"path":"System/notes/Brief.md","note_type":"research-brief","expected_route":"Maps/研究 Brief 索引"}]}` + "\n"
+	if string(got) != want {
+		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}
 }
