@@ -110,15 +110,11 @@ func TestSearchSnippetRequiresBodyEvidence(t *testing.T) {
 	if len(text) != 2 {
 		t.Fatalf("text results = %+v", text)
 	}
-	byPath := make(map[string]Result, len(text))
-	for _, r := range text {
-		byPath[r.RelPath] = r
+	if text[0].RelPath != "title-only.md" || text[0].Snippet != "" {
+		t.Errorf("title-only result = %+v, want the exact title first with no snippet", text[0])
 	}
-	if got, ok := byPath["title-and-body.md"]; !ok || got.Snippet == "" {
-		t.Errorf("title+body result = %+v, want body evidence", got)
-	}
-	if got, ok := byPath["title-only.md"]; !ok || got.Snippet != "" {
-		t.Errorf("title-only result = %+v, want no snippet", got)
+	if text[1].RelPath != "title-and-body.md" || text[1].Snippet == "" {
+		t.Errorf("title+body result = %+v, want body evidence after the exact title", text[1])
 	}
 
 	filtered := searchResults(t, idx, Parse("type:concept"))
@@ -465,6 +461,51 @@ func TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery(t *testing.T) {
 	want := []string{exact, containing}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Search(Go Slice) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestTwoExactTitlesKeepReadingOrder pins the tie inside the exact-title
+// answer: two notes whose titles are the query stay in the vault's reading
+// order relative to each other. A containing title that sorts earlier by path
+// still follows both, so the fixture cannot pass on path order alone.
+func TestTwoExactTitlesKeepReadingOrder(t *testing.T) {
+	t.Parallel()
+
+	containing := "a-containing.md"
+	first := "m-exact.md"
+	second := "z-exact.md"
+	if vault.ComparePaths(containing, first) >= 0 || vault.ComparePaths(first, second) >= 0 {
+		t.Fatal("the containing title must sort first by path, then the two exact titles, or this fixture cannot catch a reversed tie")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: containing, Title: "Needle Too", PlainText: "unrelated"},
+		{RelPath: first, Title: "Needle", PlainText: "unrelated"},
+		{RelPath: second, Title: "Needle", PlainText: "unrelated"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("needle")))
+	want := []string{first, second, containing}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAPureFilterKeepsReadingOrder pins the empty-token arm of raiseExactTitles.
+// A pure-filter query lands every match in the title group with no tokens, so
+// joining them would make every empty title look exact and float it above notes
+// that merely sort earlier by path. The group keeps the vault's reading order.
+func TestAPureFilterKeepsReadingOrder(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "a.md", Title: "Named", NoteType: "concept"},
+		{RelPath: "z.md", Title: "", NoteType: "concept"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("type:concept")))
+	want := []string{"a.md", "z.md"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(type:concept) order mismatch (-want +got):\n%s", diff)
 	}
 }
 
