@@ -96,3 +96,45 @@ func TestInjectConceptTriggersReadsAnEscapedHref(t *testing.T) {
 		t.Errorf("refs = %v, want [Concepts/Q&A.md]", refs)
 	}
 }
+
+// TestInjectConceptTriggersFollowsTheNoteNotTheFragment is the lock for a
+// wikilink that names a section of a concept note. The trigger follows the
+// note: a fragment is an address inside it, not a different destination, and
+// the alias form is the same citation with a different face. The four rows
+// are the ones the page actually writes — plain, aliased, section, and
+// aliased section — because a pass that only looked at the path without a
+// '#' would pass the first two and still drop the sheet on the last two.
+func TestInjectConceptTriggersFollowsTheNoteNotTheFragment(t *testing.T) {
+	t.Parallel()
+
+	const rel = "Concepts/golang/Section probe.md"
+	lookup := conceptLookup(map[string]string{rel: "section-probe"})
+	href := `/notes/Concepts/golang/Section%20probe.md`
+	sectionHref := href + "#one-section"
+
+	rows := []struct {
+		name, href, tag string
+	}{
+		{"plain", href, `<a href="` + href + `" class="wikilink">Section probe</a>`},
+		{"alias", href, `<a href="` + href + `" class="wikilink">概念</a>`},
+		{"section", sectionHref, `<a href="` + sectionHref + `" class="wikilink">Section probe</a>`},
+		{"alias with section", sectionHref, `<a href="` + sectionHref + `" class="wikilink">概念</a>`},
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, refs := render.InjectConceptTriggers("see "+row.tag+" here", lookup)
+			if !strings.Contains(out, `class="wikilink concept-link" data-concept="section-probe"`) {
+				t.Errorf("concept trigger missing; got:\n%s", out)
+			}
+			if !strings.Contains(out, `href="`+row.href+`"`) {
+				t.Errorf("the href did not survive with its fragment; got:\n%s", out)
+			}
+			if len(refs) != 1 || refs[0] != rel {
+				t.Errorf("refs = %v, want [%s]", refs, rel)
+			}
+		})
+	}
+}
