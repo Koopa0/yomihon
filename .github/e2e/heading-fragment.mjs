@@ -22,6 +22,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const DESTINATION = '/notes/Notes/Glass%20Tide.md';
+const OPENING = '/notes/Notes/seedling-inbox.md';
 
 const MUTATE = process.env.MUTATE || '';
 
@@ -36,6 +37,7 @@ const MUTATE = process.env.MUTATE || '';
 const LINKS = [
   { label: 'Glass Tide#第三節：失約的燈', heading: '第三節：失約的燈' },
   { label: 'back to the material', heading: 'Sensory material' },
+  { label: 'Glass Tide#Fourth-level landing', heading: 'Fourth-level landing' },
   { label: 'Glass Tide#Glass Tide', heading: 'Glass Tide' },
 ];
 
@@ -45,6 +47,7 @@ const SITES = [
   'fragment-names-the-anchor',
   'fragment-reaches-the-heading',
   'back-returns-to-the-source',
+  'opening-heading-sits-flush',
 ];
 
 class LockFired extends Error {
@@ -113,15 +116,25 @@ const MUTATIONS = {
   },
   // The address is right and the reader still cannot see the section: a
   // scroll offset large enough to leave the jump with nowhere to go.
+  // Scroll-margin follows the authored data-level, including a #### that the
+  // shell writes as h5. Burying only h2/h3 walks past that heading.
   'bury-the-target': {
     target: 'fragment-reaches-the-heading',
-    apply: weakenStylesheet('.y-prose h2{scroll-margin-top:4000px}'),
+    apply: weakenStylesheet('.y-prose [data-level]{scroll-margin-top:4000px}'),
   },
   // Following the link stops being a step this tab took, so there is nothing
   // for the browser's own back button to undo.
   'open-the-link-elsewhere': {
     target: 'back-returns-to-the-source',
     apply: rewriteDocuments((body) => body.replaceAll('class="wikilink"', 'class="wikilink" target="_blank"')),
+  },
+  // The size rows share specificity with `.y-prose > :first-child` and sit
+  // later, so an opening heading used to keep its top margin. Restoring that
+  // margin is the defect; the reset has to win or 179 vault notes drop.
+  'give-the-opening-heading-its-margin-back': {
+    target: 'opening-heading-sits-flush',
+    provePath: () => openingPath,
+    apply: weakenStylesheet('.y-prose > [data-level]:first-child{margin-top:48px}'),
   },
   // Every separately rendered body numbers its footnotes from one, and on this
   // page the second such body is the note the source quotes: its footnotes are
@@ -166,6 +179,7 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
 const sourcePath = new URL(BASE + PAGE).pathname;
 const destinationPath = new URL(BASE + DESTINATION).pathname;
+const openingPath = new URL(BASE + OPENING).pathname;
 
 // Only the flow whose assertion a mode aims at proves it applied. Asking on
 // any other page would report not-applied for a mutation working perfectly on
@@ -230,8 +244,28 @@ try {
   proveApplied('title-carries-its-anchor', proof);
 
   const anchors = await reader.evaluate(() => Object.fromEntries(
-    [...document.querySelectorAll('h1.y-title, .y-prose h2, .y-prose h3')].map((h) => [h.textContent.trim(), h.id]),
+    [...document.querySelectorAll('h1.y-title, .y-prose :is(h2,h3,h4,h5,h6)')].map((h) => [h.textContent.trim(), h.id]),
   ));
+  const fourth = await reader.evaluate(() => {
+    const heading = [...document.querySelectorAll('.y-prose :is(h2,h3,h4,h5,h6)')]
+      .find((h) => h.textContent.trim() === 'Fourth-level landing');
+    if (!heading) return null;
+    const style = getComputedStyle(heading);
+    return {
+      tag: heading.tagName,
+      level: heading.getAttribute('data-level'),
+      scrollMarginTop: style.scrollMarginTop,
+    };
+  });
+  if (!fourth) {
+    broken('the destination page has no heading named "Fourth-level landing"');
+  }
+  if (fourth.tag !== 'H5' || fourth.level !== '4') {
+    fail('fragment-reaches-the-heading', `the #### heading rendered as ${fourth.tag} data-level=${JSON.stringify(fourth.level)}, want H5 data-level="4"`);
+  }
+  if (fourth.scrollMarginTop !== '72px') {
+    fail('fragment-reaches-the-heading', `the demoted h5 scroll-margin-top is ${JSON.stringify(fourth.scrollMarginTop)}, want "72px" so the jump clears the sticky header`);
+  }
   const titleText = await reader.evaluate(() => document.querySelector('h1.y-title').textContent.trim());
   if (!anchors[titleText]) {
     fail('title-carries-its-anchor', `the destination's visible title ${JSON.stringify(titleText)} carries no id, so the section it absorbed can be named by a link and reached by nobody`);
@@ -240,6 +274,36 @@ try {
     if (!anchors[link.heading]) broken(`the destination page has nothing named ${JSON.stringify(link.heading)}; it offers ${JSON.stringify(Object.keys(anchors))}`);
   }
   await reader.close();
+
+  // A note whose body opens with a heading used to pick up that heading's top
+  // margin once look keyed on data-level: the generic first-child reset tied
+  // the size rows and lost. The heading-only reset has to win, including in
+  // print, which inherits the same margin.
+  {
+    const page = await context.newPage();
+    const response = await page.goto(BASE + OPENING, { waitUntil: 'networkidle' });
+    if (!response || response.status() !== 200) broken(`the opening-heading note returned ${response?.status() ?? 'no response'}, want 200`);
+    proveApplied('opening-heading-sits-flush', proof);
+
+    const opening = await page.evaluate(() => {
+      const first = document.querySelector('.y-prose > :first-child');
+      if (!first) return null;
+      const style = getComputedStyle(first);
+      return {
+        tag: first.tagName,
+        level: first.getAttribute('data-level'),
+        isHeading: /^H[1-6]$/.test(first.tagName),
+        marginTop: style.marginTop,
+      };
+    });
+    if (!opening || !opening.isHeading) {
+      broken('the opening-heading fixture does not start .y-prose with a heading');
+    }
+    if (opening.marginTop !== '0px') {
+      fail('opening-heading-sits-flush', `the opening ${opening.tag} data-level=${JSON.stringify(opening.level)} has margin-top ${JSON.stringify(opening.marginTop)}, want "0px"`);
+    }
+    await page.close();
+  }
 
   for (const link of LINKS) {
     const wanted = anchors[link.heading];

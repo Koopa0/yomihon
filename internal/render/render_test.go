@@ -199,7 +199,7 @@ func TestHeadingSlugsTreatInertRawHeadingAsText(t *testing.T) {
 
 	got := r.HTML("note.md", "", "## foo <h3>bar</h3> baz\n", wording.ZhHant)
 
-	const wantHTML = "<h2 id=\"foo-h3-bar-h3-baz\">foo &lt;h3&gt;bar&lt;/h3&gt; baz</h2>\n"
+	const wantHTML = "<h3 id=\"foo-h3-bar-h3-baz\" data-level=\"2\">foo &lt;h3&gt;bar&lt;/h3&gt; baz</h3>\n"
 	if got.HTML != wantHTML {
 		t.Errorf("HTML() = %q, want the authored tag inert inside one navigable heading %q", got.HTML, wantHTML)
 	}

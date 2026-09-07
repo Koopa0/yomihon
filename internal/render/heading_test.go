@@ -60,3 +60,42 @@ func TestHeadingWordsDropsAnUnspokenReadAloudMarker(t *testing.T) {
 		t.Errorf("an unspoken read-aloud marker stayed in the heading name: got %q", got)
 	}
 }
+
+func TestShellHeadingLevelStepsDownAndClamps(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		authored int
+		want     int
+	}{
+		{1, 2},
+		{2, 3},
+		{5, 6},
+		{6, 6},
+	}
+	for _, tt := range tests {
+		if got := shellHeadingLevel(tt.authored); got != tt.want {
+			t.Errorf("shellHeadingLevel(%d) = %d, want %d", tt.authored, got, tt.want)
+		}
+	}
+}
+
+func TestAssignHeadingIDsDemotesBodyHeadingsUnderTheTitle(t *testing.T) {
+	t.Parallel()
+	got, toc := assignHeadingIDs("<h1>Alpha</h1><h6>Zeta</h6>", "")
+	if !strings.Contains(got, `<h2 id="alpha" data-level="1">Alpha</h2>`) {
+		t.Errorf("authored h1 was not written as h2 carrying its authored level:\n%s", got)
+	}
+	if !strings.Contains(got, `<h6 id="zeta" data-level="6">Zeta</h6>`) {
+		t.Errorf("authored h6 must stay h6:\n%s", got)
+	}
+	if strings.Contains(got, "<h1") {
+		t.Errorf("a body heading survived as h1:\n%s", got)
+	}
+	want := []TOCEntry{
+		{Level: 1, Text: "Alpha", ID: "alpha"},
+		{Level: 6, Text: "Zeta", ID: "zeta"},
+	}
+	if diff := cmp.Diff(want, toc); diff != "" {
+		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
+	}
+}

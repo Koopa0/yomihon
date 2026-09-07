@@ -94,7 +94,7 @@ func dialectFaces() []authorFace {
 		{"~~struck-out~~ words", inReading, contains(`<del>`)},
 		{"a task list", inReading, contains(`type="checkbox"`)},
 		{"a footnote", inReading, contains(`class="footnotes"`)},
-		{"a heading, which a link can then address", inReading, contains(`<h2 id="`)},
+		{"a heading, which a link can then address", inReading, contains(`<h3 id="`)},
 		{"a picture from off the machine, kept as a link", inReading, contains(`referrerpolicy="no-referrer"`)},
 		{"a paragraph marked to be read aloud", inReading, contains(`class="y-tts"`)},
 	}

@@ -238,9 +238,11 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 
 // HTML renders one note's body: the markdown pipeline, plus the three passes that
 // only make sense once at the top level — removing a leading H1 that duplicates
-// the page's title, assigning heading slugs and collecting the table of contents
-// over the assembled HTML so ids stay unique, and resolving assets. relPath is
-// required because markdown writes an image path relative to its own note.
+// the page's title, assigning heading slugs one tag down so they sit under the
+// chrome title while data-level keeps the authored outline for look and contents,
+// collecting the table of contents over the assembled HTML so ids stay unique,
+// and resolving assets. relPath is required because markdown writes an image
+// path relative to its own note.
 func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
 	return r.HTMLIn(hostRegion, relPath, title, body, lang)
 }

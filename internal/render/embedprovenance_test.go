@@ -84,7 +84,7 @@ func TestTheContentsListOnlyTheHostsOwnHeadings(t *testing.T) {
 		if len(got.TOC) != 0 {
 			t.Errorf("TOC = %+v, want empty — every heading on this page is the excerpt's", got.TOC)
 		}
-		if !strings.Contains(got.HTML, `<h2 id="inner-section">`) {
+		if !strings.Contains(got.HTML, `<h3 id="inner-section" data-level="2">`) {
 			t.Errorf("the excerpt's heading lost its id, so links naming it now miss:\n%s", got.HTML)
 		}
 	})
@@ -130,7 +130,7 @@ func TestAnExcerptInsideACalloutKeepsItsHeadingsOutOfTheContents(t *testing.T) {
 	if len(got.TOC) != 0 {
 		t.Errorf("TOC = %+v, want empty — the only heading on this page is the excerpt's", got.TOC)
 	}
-	if !strings.Contains(got.HTML, `<h2 id="inner-section">`) {
+	if !strings.Contains(got.HTML, `<h3 id="inner-section" data-level="2">`) {
 		t.Errorf("the excerpt's heading lost its id inside the callout:\n%s", got.HTML)
 	}
 }

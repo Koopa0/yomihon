@@ -80,6 +80,16 @@ func StripAnchors(htmlOut string) string {
 	return anchorAddress.ReplaceAllString(anchorAttribute.ReplaceAllString(htmlOut, ""), "")
 }
 
+// shellHeadingLevel is the HTML heading level a body heading occupies inside
+// the note shell. The page title is already <h1 class="y-title">, so every
+// authored heading steps down one; h6 stays h6 because HTML has no h7.
+func shellHeadingLevel(level int) int {
+	if level >= 6 {
+		return 6
+	}
+	return level + 1
+}
+
 // assignHeadingIDs walks the final rendered HTML, gives each h1-h6 the id its
 // name folds to, and collects the table of contents in document order. A name
 // that folds to an id already taken bumps a numeric suffix until it lands on one
@@ -87,7 +97,9 @@ func StripAnchors(htmlOut string) string {
 // included, while the contents list takes fewer; reserved is an id already
 // spoken for elsewhere on the page. It reads the HTML this package just wrote
 // rather than a parsed tree, because no single tree ever holds the page's
-// headings together.
+// headings together. The tags step down one so they sit under the chrome title;
+// data-level and the contents list keep the authored level, so size, indent and
+// scroll-margin stay where the author wrote them.
 func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
@@ -137,10 +149,11 @@ func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 		}
 		seen[id] = true
 
+		rendered := shellHeadingLevel(level)
 		if !withinAny(transcluded, m[0], m[1]) {
 			toc = append(toc, TOCEntry{Level: level, Text: text, ID: id})
 		}
-		fmt.Fprintf(&out, `<h%d id="%s">%s</h%d>`, level, id, inner, level)
+		fmt.Fprintf(&out, `<h%d id="%s" data-level="%d">%s</h%d>`, rendered, id, level, inner, rendered)
 	}
 	out.WriteString(htmlOut[rest:])
 	return out.String(), toc

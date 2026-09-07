@@ -137,7 +137,7 @@ func TestUnwrittenLinkInAHeadingStaysOutOfItsAnchor(t *testing.T) {
 	if page.TOC[0].ID != anchor {
 		t.Errorf("the anchor is %q, want %q", page.TOC[0].ID, anchor)
 	}
-	if !strings.Contains(page.HTML, `<h2 id="`+anchor+`">`) {
+	if !strings.Contains(page.HTML, `<h3 id="`+anchor+`" data-level="2">`) {
 		t.Errorf("the heading element does not carry the anchor %q:\n%s", anchor, page.HTML)
 	}
 
