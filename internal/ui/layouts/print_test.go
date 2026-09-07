@@ -63,7 +63,7 @@ func TestPrintGivesThePaperItsMarginsAndKeepsBlocksWhole(t *testing.T) {
 		{".y-prose h2", "break-after", "avoid", "a heading alone at the foot of a sheet announces a section that is not there"},
 		{".y-prose h3", "break-after", "avoid", "a heading alone at the foot of a sheet announces a section that is not there"},
 		{".y-prose h4", "break-after", "avoid", "a heading alone at the foot of a sheet announces a section that is not there"},
-		{".y-prose h1:not(:first-child)", "break-before", "page", "a note's own top-level heading is where one part of it ends and the next begins, and the reader can see that on paper only if the sheet ends there too"},
+		{".y-prose h2:not(:first-child)", "break-before", "page", "a note's own top-level heading is where one part of it ends and the next begins, and the reader can see that on paper only if the sheet ends there too"},
 		{".y-prose p", "orphans", "2", "one line of a paragraph left at the foot of a sheet reads as a caption for whatever sits above it"},
 		{".y-prose p", "widows", "2", "one line of a paragraph carried over reads as the opening of a new one"},
 		{".y-prose li", "orphans", "2", "a list item broken after one line reads as two items"},
@@ -81,6 +81,10 @@ func TestPrintGivesThePaperItsMarginsAndKeepsBlocksWhole(t *testing.T) {
 		case want.value != "" && got != want.value:
 			t.Errorf("%s declares %s: %q for print, want %q, because %s", want.selector, want.property, got, want.value, want.why)
 		}
+	}
+
+	if _, written := rules[".y-prose h1:not(:first-child)"]; written {
+		t.Errorf("the print block still page-breaks on a body h1, which the note shell no longer emits")
 	}
 }
 

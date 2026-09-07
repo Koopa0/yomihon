@@ -271,10 +271,11 @@ const MUTATIONS = {
 	},
 	// The excerpt keeps the names the renderer stamped on it, so while the card
 	// is open the page holds two elements answering to one name and a fragment
-	// naming it reaches whichever came first.
+	// naming it reaches whichever came first. Authored ## is h3 inside the note
+	// shell, so the needle follows that tag.
 	're-anchor-the-excerpt': {
 		target: 'an-open-card-adds-no-second-place-with-one-name',
-		apply: rewriteFragment('<h2', '<h2 id="main-content"'),
+		apply: rewriteFragment('<h3', '<h3 id="main-content"'),
 	},
 	// The card fills itself instead of asking the route that holds the
 	// excerpts. It looks like a working card and is showing something nothing

@@ -113,9 +113,11 @@ const MUTATIONS = {
   },
   // The address is right and the reader still cannot see the section: a
   // scroll offset large enough to leave the jump with nowhere to go.
+  // Authored ## is h3 inside the note shell; authored # that survived the
+  // title fold is h2. Burying only h2 used to be enough, and now walks past.
   'bury-the-target': {
     target: 'fragment-reaches-the-heading',
-    apply: weakenStylesheet('.y-prose h2{scroll-margin-top:4000px}'),
+    apply: weakenStylesheet('.y-prose h2,.y-prose h3{scroll-margin-top:4000px}'),
   },
   // Following the link stops being a step this tab took, so there is nothing
   // for the browser's own back button to undo.

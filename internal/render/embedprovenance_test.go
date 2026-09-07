@@ -84,7 +84,7 @@ func TestTheContentsListOnlyTheHostsOwnHeadings(t *testing.T) {
 		if len(got.TOC) != 0 {
 			t.Errorf("TOC = %+v, want empty — every heading on this page is the excerpt's", got.TOC)
 		}
-		if !strings.Contains(got.HTML, `<h2 id="inner-section">`) {
+		if !strings.Contains(got.HTML, `<h3 id="inner-section">`) {
 			t.Errorf("the excerpt's heading lost its id, so links naming it now miss:\n%s", got.HTML)
 		}
 	})
@@ -93,8 +93,8 @@ func TestTheContentsListOnlyTheHostsOwnHeadings(t *testing.T) {
 		t.Parallel()
 		got := r.HTML("note.md", "", "## Host Heading\n\n![[B]]\n\n## Tail\n", wording.ZhHant)
 		want := []render.TOCEntry{
-			{Level: 2, Text: "Host Heading", ID: "host-heading"},
-			{Level: 2, Text: "Tail", ID: "tail"},
+			{Level: 3, Text: "Host Heading", ID: "host-heading"},
+			{Level: 3, Text: "Tail", ID: "tail"},
 		}
 		if diff := cmp.Diff(want, got.TOC); diff != "" {
 			t.Errorf("TOC (-want +got):\n%s", diff)
@@ -111,7 +111,7 @@ func TestAHeadingInsideAHostCalloutStaysInTheContents(t *testing.T) {
 	r := newRenderer(t, nil, nil, nil)
 
 	got := r.HTML("note.md", "", "> [!note]\n> ## Inside The Callout\n> body\n", wording.ZhHant)
-	want := []render.TOCEntry{{Level: 2, Text: "Inside The Callout", ID: "inside-the-callout"}}
+	want := []render.TOCEntry{{Level: 3, Text: "Inside The Callout", ID: "inside-the-callout"}}
 	if diff := cmp.Diff(want, got.TOC); diff != "" {
 		t.Errorf("TOC (-want +got):\n%s", diff)
 	}
@@ -130,7 +130,7 @@ func TestAnExcerptInsideACalloutKeepsItsHeadingsOutOfTheContents(t *testing.T) {
 	if len(got.TOC) != 0 {
 		t.Errorf("TOC = %+v, want empty — the only heading on this page is the excerpt's", got.TOC)
 	}
-	if !strings.Contains(got.HTML, `<h2 id="inner-section">`) {
+	if !strings.Contains(got.HTML, `<h3 id="inner-section">`) {
 		t.Errorf("the excerpt's heading lost its id inside the callout:\n%s", got.HTML)
 	}
 }

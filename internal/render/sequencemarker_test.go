@@ -34,57 +34,57 @@ func TestHeadingDropsADeclaredRoleFromWordsContentsAndAnchor(t *testing.T) {
 		{
 			name:    "a declared branch is called by its own name",
 			body:    "## 基本觀念 {sequence=primary}\n\n文字。\n",
-			heading: `<h2 id="基本觀念">基本觀念</h2>`,
-			toc:     []render.TOCEntry{{Level: 2, Text: "基本觀念", ID: "基本觀念"}},
+			heading: `<h3 id="基本觀念">基本觀念</h3>`,
+			toc:     []render.TOCEntry{{Level: 3, Text: "基本觀念", ID: "基本觀念"}},
 		},
 		{
 			name:    "the words the author emphasised survive the declaration coming off",
 			body:    "## **粗體** {sequence=local}\n\n文字。\n",
-			heading: `<h2 id="粗體"><strong>粗體</strong></h2>`,
-			toc:     []render.TOCEntry{{Level: 2, Text: "粗體", ID: "粗體"}},
+			heading: `<h3 id="粗體"><strong>粗體</strong></h3>`,
+			toc:     []render.TOCEntry{{Level: 3, Text: "粗體", ID: "粗體"}},
 		},
 		{
 			name:    "an underlined branch declares the same way",
 			body:    "基本觀念 {sequence=none}\n---\n\n文字。\n",
-			heading: `<h2 id="基本觀念">基本觀念</h2>`,
-			toc:     []render.TOCEntry{{Level: 2, Text: "基本觀念", ID: "基本觀念"}},
+			heading: `<h3 id="基本觀念">基本觀念</h3>`,
+			toc:     []render.TOCEntry{{Level: 3, Text: "基本觀念", ID: "基本觀念"}},
 		},
 		{
 			name:    "a level-one heading opens no branch, so nothing is taken off it",
 			body:    "# 基本觀念 {sequence=primary}\n\n文字。\n",
-			heading: `<h1 id="基本觀念-sequence-primary">基本觀念 {sequence=primary}</h1>`,
-			toc:     []render.TOCEntry{{Level: 1, Text: "基本觀念 {sequence=primary}", ID: "基本觀念-sequence-primary"}},
+			heading: `<h2 id="基本觀念-sequence-primary">基本觀念 {sequence=primary}</h2>`,
+			toc:     []render.TOCEntry{{Level: 2, Text: "基本觀念 {sequence=primary}", ID: "基本觀念-sequence-primary"}},
 		},
 		{
 			name:    "a role quoted in code is text about the grammar, not a declaration",
 			body:    "## 宣告 `{sequence=primary}`\n\n文字。\n",
-			heading: `<h2 id="宣告-sequence-primary">宣告 <code>{sequence=primary}</code></h2>`,
-			toc:     []render.TOCEntry{{Level: 2, Text: "宣告 {sequence=primary}", ID: "宣告-sequence-primary"}},
+			heading: `<h3 id="宣告-sequence-primary">宣告 <code>{sequence=primary}</code></h3>`,
+			toc:     []render.TOCEntry{{Level: 3, Text: "宣告 {sequence=primary}", ID: "宣告-sequence-primary"}},
 		},
 		{
 			name:    "a heading that is only a declaration keeps it, because nothing else would be left",
 			body:    "## {sequence=primary}\n\n文字。\n",
-			heading: `<h2 id="sequence-primary">{sequence=primary}</h2>`,
-			toc:     []render.TOCEntry{{Level: 2, Text: "{sequence=primary}", ID: "sequence-primary"}},
+			heading: `<h3 id="sequence-primary">{sequence=primary}</h3>`,
+			toc:     []render.TOCEntry{{Level: 3, Text: "{sequence=primary}", ID: "sequence-primary"}},
 		},
 		{
 			name:    "a role is read at the end of the line and nowhere else",
 			body:    "## {sequence=primary} 開頭\n\n文字。\n",
-			heading: `<h2 id="sequence-primary-開頭">{sequence=primary} 開頭</h2>`,
-			toc:     []render.TOCEntry{{Level: 2, Text: "{sequence=primary} 開頭", ID: "sequence-primary-開頭"}},
+			heading: `<h3 id="sequence-primary-開頭">{sequence=primary} 開頭</h3>`,
+			toc:     []render.TOCEntry{{Level: 3, Text: "{sequence=primary} 開頭", ID: "sequence-primary-開頭"}},
 		},
 		{
 			name:    "a value outside the three declares nothing and stays where the author can see it",
 			body:    "## 基本觀念 {sequence=whatever}\n\n文字。\n",
-			heading: `<h2 id="基本觀念-sequence-whatever">基本觀念 {sequence=whatever}</h2>`,
-			toc:     []render.TOCEntry{{Level: 2, Text: "基本觀念 {sequence=whatever}", ID: "基本觀念-sequence-whatever"}},
+			heading: `<h3 id="基本觀念-sequence-whatever">基本觀念 {sequence=whatever}</h3>`,
+			toc:     []render.TOCEntry{{Level: 3, Text: "基本觀念 {sequence=whatever}", ID: "基本觀念-sequence-whatever"}},
 		},
 		{
 			name:    "a branch declaring two roles declares neither",
 			body:    "## 基本觀念 {sequence=primary} {sequence=local}\n\n文字。\n",
-			heading: `<h2 id="基本觀念-sequence-primary-sequence-local">基本觀念 {sequence=primary} {sequence=local}</h2>`,
+			heading: `<h3 id="基本觀念-sequence-primary-sequence-local">基本觀念 {sequence=primary} {sequence=local}</h3>`,
 			toc: []render.TOCEntry{{
-				Level: 2,
+				Level: 3,
 				Text:  "基本觀念 {sequence=primary} {sequence=local}",
 				ID:    "基本觀念-sequence-primary-sequence-local",
 			}},
@@ -165,8 +165,8 @@ func TestTwoBranchesOfOneNameAreNumberedLikeAnyRepeat(t *testing.T) {
 	r := newRenderer(t, nil, nil, nil)
 	body := "## 基本觀念 {sequence=primary}\n\n一。\n\n## 基本觀念 {sequence=none}\n\n二。\n"
 	want := []render.TOCEntry{
-		{Level: 2, Text: "基本觀念", ID: "基本觀念"},
-		{Level: 2, Text: "基本觀念", ID: "基本觀念-2"},
+		{Level: 3, Text: "基本觀念", ID: "基本觀念"},
+		{Level: 3, Text: "基本觀念", ID: "基本觀念-2"},
 	}
 	if diff := cmp.Diff(want, r.HTML("Maps/Course.md", "", body, wording.ZhHant).TOC); diff != "" {
 		t.Errorf("contents mismatch (-want +got):\n%s", diff)
@@ -256,7 +256,7 @@ func TestAClosingRunOfMarksIsNotPartOfTheName(t *testing.T) {
 			r := newRenderer(t, []graph.NoteInput{{RelPath: "Course.md"}}, nil, transclusions{"Course.md": dest})
 
 			page := r.HTML("Course.md", "", dest, wording.ZhHant)
-			if want := `<h2 id="` + tt.id + `">`; !strings.Contains(page.HTML, want) {
+			if want := `<h3 id="` + tt.id + `">`; !strings.Contains(page.HTML, want) {
 				t.Errorf("the page does not stamp %s\n%s", want, page.HTML)
 			}
 

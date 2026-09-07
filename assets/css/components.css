@@ -1317,13 +1317,14 @@ html {
      a paragraph neither leaves one line behind nor carries one over. A note's
      own top-level heading starts a fresh sheet, because that is where one
      part of it ends and the next begins — except a first one, which would
-     otherwise put a blank sheet in front of the opening line. */
+     otherwise put a blank sheet in front of the opening line. Authored # is
+     h2 inside the note shell, so the break follows that tag. */
   @page { margin: 18mm 16mm; }
   .y-prose pre, .y-prose blockquote, .y-prose .callout, .y-prose .embed,
   .y-prose .mermaid-diagram, .y-prose table, .y-prose tr,
   .y-slotcard, .y-healthlist li { break-inside: avoid; }
   .y-title, .y-prose h1, .y-prose h2, .y-prose h3, .y-prose h4 { break-after: avoid; }
-  .y-prose h1:not(:first-child) { break-before: page; }
+  .y-prose h2:not(:first-child) { break-before: page; }
   .y-prose p, .y-prose li { orphans: 2; widows: 2; }
 }
 
