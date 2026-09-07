@@ -1578,6 +1578,89 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 	}
 }
 
+// TestMissingPageKeepsCapturedGenerationWhenCurrentSwaps is the 404-path
+// coherence lock. show (or showFile, or folder) captures generation A, decides
+// the path is missing against A, and used to load the pointer again to build
+// the not-found sidebar. A rebuild that lands between those two reads can put
+// the asked note — or a different journal — into the rail of a page that says
+// it is not here. The provider swaps current on the first read; every
+// projection on the 404 must still come from the value that decided it.
+func TestMissingPageKeepsCapturedGenerationWhenCurrentSwaps(t *testing.T) {
+	t.Parallel()
+	firstRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(firstRoot, "Diary"), 0o750); err != nil {
+		t.Fatalf("mkdir first Diary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(firstRoot, "Diary", "Alpha.md"), []byte("# Alpha\n"), 0o600); err != nil {
+		t.Fatalf("write first journal: %v", err)
+	}
+
+	secondRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(secondRoot, "Diary"), 0o750); err != nil {
+		t.Fatalf("mkdir second Diary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(secondRoot, "Diary", "Beta.md"), []byte("# Beta\n"), 0o600); err != nil {
+		t.Fatalf("write second journal: %v", err)
+	}
+
+	log := slog.New(slog.DiscardHandler)
+	firstStore, firstSource := newSnapshotStore(t, firstRoot, log, nil, schema.Ungoverned())
+	secondStore, _ := newSnapshotStore(t, secondRoot, log, nil, schema.Ungoverned())
+	writer := openStatusWriter(t, firstSource, nil, schema.Ungoverned())
+
+	const (
+		fromFirst  = `href="/notes/Diary/Alpha.md"`
+		fromSecond = `href="/notes/Diary/Beta.md"`
+	)
+	for _, tt := range []struct {
+		name string
+		path string
+	}{
+		{name: "missing note", path: "/notes/Diary/Beta.md"},
+		{name: "missing file", path: "/notes/ghost.txt"},
+		{name: "missing folder", path: "/folders/Ghost"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var current atomic.Pointer[snapshot.Generation]
+			current.Store(firstStore.Current())
+			calls := 0
+			mux := http.NewServeMux()
+			note.New(&note.Sources{
+				ObservedStatus: writer.ObservedStatus,
+				ConsumeReceipt: writer.ConsumeReceipt,
+				Source:         firstSource,
+				Status:         writer.Authority,
+				Snapshot: func() *snapshot.Generation {
+					calls++
+					return current.Swap(secondStore.Current())
+				},
+				Log: log,
+			}).Register(mux)
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
+			mux.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusNotFound {
+				t.Fatalf("GET %s status = %d, want %d", tt.path, rr.Code, http.StatusNotFound)
+			}
+			body := rr.Body.String()
+			if !strings.Contains(body, fromFirst) {
+				t.Errorf("GET %s sidebar left the captured generation; want %q in body", tt.path, fromFirst)
+			}
+			if strings.Contains(body, fromSecond) {
+				t.Errorf("GET %s mixed the newly current generation into the 404 sidebar", tt.path)
+			}
+			if calls != 1 {
+				t.Errorf("GET %s snapshot provider calls = %d, want 1", tt.path, calls)
+			}
+			if current.Load() != secondStore.Current() {
+				t.Errorf("GET %s did not install the second generation during the request", tt.path)
+			}
+		})
+	}
+}
+
 func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

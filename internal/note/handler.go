@@ -137,26 +137,48 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // line of text because the reader is mid-navigation and needs the way onward
 // they were already using: the folder tree, the search, and home.
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	h.showNotFound(w, r, r.URL.Path)
+	authority := h.sources.Status()
+	snap := h.sources.Snapshot().Capture()
+	h.showNotFound(w, r, r.URL.Path, authority, snap)
 }
 
 // showNotFound renders the not-found page with the status code that belongs to
 // it. The path is echoed so the reader can see their own typo; it reaches the
-// page as text and is escaped there like any other note content.
-func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, asked string) {
-	h.showMissing(w, r, asked, false)
+// page as text and is escaped there like any other note content. The captured
+// pair is the same generation that decided the path is missing, so the sidebar
+// cannot describe a vault that already holds it.
+func (h *Handler) showNotFound(
+	w http.ResponseWriter,
+	r *http.Request,
+	asked string,
+	authority status.Authority,
+	snap *snapshot.Generation,
+) {
+	h.showMissing(w, r, asked, false, authority, snap)
 }
 
 // showUnreadable answers a note the generation captured but could not read:
 // the file exists on disk, so the plain not-found page — whose repair is a
 // typo or an unwritten note — would send the reader the wrong way.
-func (h *Handler) showUnreadable(w http.ResponseWriter, r *http.Request, asked string) {
-	h.showMissing(w, r, asked, true)
+func (h *Handler) showUnreadable(
+	w http.ResponseWriter,
+	r *http.Request,
+	asked string,
+	authority status.Authority,
+	snap *snapshot.Generation,
+) {
+	h.showMissing(w, r, asked, true, authority, snap)
 }
 
-func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked string, unreadable bool) {
-	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(h.sources.Status(), snap)
+func (h *Handler) showMissing(
+	w http.ResponseWriter,
+	r *http.Request,
+	asked string,
+	unreadable bool,
+	authority status.Authority,
+	snap *snapshot.Generation,
+) {
+	pageShell := shell.Project(authority, snap)
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
@@ -178,16 +200,17 @@ func (h *Handler) showMissing(w http.ResponseWriter, r *http.Request, asked stri
 // are, had nowhere to lead until now.
 func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 	dir := path.Clean(strings.Trim(r.PathValue("path"), "/"))
+	authority := h.sources.Status()
+	snap := h.sources.Snapshot().Capture()
 	if dir == "." || dir == ".." || strings.HasPrefix(dir, "../") {
-		h.showNotFound(w, r, r.URL.Path)
+		h.showNotFound(w, r, r.URL.Path, authority, snap)
 		return
 	}
 	dir = vault.NormalizeNFC(dir)
-	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(h.sources.Status(), snap)
+	pageShell := shell.Project(authority, snap)
 	notes, subfolders, ok := pageShell.Nav.Directory(dir)
 	if !ok {
-		h.showNotFound(w, r, r.URL.Path)
+		h.showNotFound(w, r, r.URL.Path, authority, snap)
 		return
 	}
 	name := nav.Label(dir)
@@ -211,12 +234,12 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
-	if !servable(rel) {
-		h.showNotFound(w, r, r.URL.Path)
-		return
-	}
 	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
+	if !servable(rel) {
+		h.showNotFound(w, r, r.URL.Path, authority, snap)
+		return
+	}
 	if !vault.IsMarkdown(rel) {
 		h.showFile(w, r, rel, authority, snap)
 		return
@@ -233,11 +256,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		// the reader would be sent to clear.
 		if _, isFile := snap.Entry(rel); isFile {
 			h.sources.Log.Warn("note captured in scan but unreadable in this generation", "path", rel)
-			h.showUnreadable(w, r, r.URL.Path)
+			h.showUnreadable(w, r, r.URL.Path, authority, snap)
 			return
 		}
 		h.sources.Log.Warn("note is absent from the request snapshot", "path", rel)
-		h.showNotFound(w, r, r.URL.Path)
+		h.showNotFound(w, r, r.URL.Path, authority, snap)
 		return
 	}
 
