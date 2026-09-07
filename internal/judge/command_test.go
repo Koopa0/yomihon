@@ -663,7 +663,6 @@ func TestCheckPathFilter(t *testing.T) {
 		"Concepts/golang/Map.md",
 		"Concepts/golang/Slice.md",
 		"Concepts/japanese/Kana.md",
-		"Writing/lessons/golang/L1.md",
 	}
 	tests := []struct {
 		name  string

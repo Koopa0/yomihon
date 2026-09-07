@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // Coverage reports how well the concept corpus is filed: per-domain concept
@@ -62,10 +63,10 @@ type Unrouted struct {
 
 // computeCoverage classifies every concept in the corpus. It first walks the
 // reverse edges to learn which concepts are reached and whether by a map, then
-// tallies each concept, then runs the all-type routing watchdog. The System/
-// tree holds templates and reference notes, not knowledge content, so it is out
-// of scope throughout; contract-private paths are excluded from every report,
-// so a private note never appears here even when mistyped as a concept.
+// tallies each concept, then runs the all-type routing watchdog. Notes outside
+// the declared knowledge layer are out of scope throughout; contract-private
+// paths are excluded from every report, so a private note never appears here
+// even when mistyped as a concept.
 func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Coverage {
 	mapped, referenced := mountEdges(notes, idx, authority)
 	unrouted := unroutedNotes(notes, mapped, authority)
@@ -82,6 +83,7 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 		}
 	}
 
+	scope := coverageScope(authority)
 	rows := make(map[string]*DomainCoverage)
 	pending := []string{}
 	orphans := []string{}
@@ -89,7 +91,7 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 	for i := range notes {
 		n := &notes[i]
 		if n.noteType != conceptType ||
-			strings.HasPrefix(n.path, "System/") ||
+			!scope.Includes(n.path) ||
 			!authority.egressAllowed(n.path) {
 			continue
 		}
@@ -138,12 +140,14 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 func mountEdges(notes []note, idx *graph.Index, authority scanAuthority) (mapped, referenced map[string]bool) {
 	mapped = make(map[string]bool)
 	referenced = make(map[string]bool)
+	scope := coverageScope(authority)
 	for i := range notes {
 		n := &notes[i]
-		if strings.HasPrefix(n.path, "System/") || !authority.egressAllowed(n.path) {
+		if !scope.Includes(n.path) || !authority.egressAllowed(n.path) {
 			// A private note is not counted as a source: its links must not
 			// decide a public concept's mount state, or a reader of coverage
-			// could infer that the private note references it.
+			// could infer that the private note references it. A note outside
+			// the declared knowledge layer is the same kind of silence.
 			continue
 		}
 		fromMap := authority.roles().IsMapType(n.noteType)
@@ -164,9 +168,10 @@ func mountEdges(notes []note, idx *graph.Index, authority scanAuthority) (mapped
 func unroutedNotes(notes []note, mapped map[string]bool, authority scanAuthority) []Unrouted {
 	unrouted := []Unrouted{}
 	routes := coverageRoutes(authority)
+	scope := coverageScope(authority)
 	for i := range notes {
 		n := &notes[i]
-		if strings.HasPrefix(n.path, "System/") || !authority.egressAllowed(n.path) {
+		if !scope.Includes(n.path) || !authority.egressAllowed(n.path) {
 			continue
 		}
 		if route, ok := routes[n.noteType]; ok && !mapped[n.path] {
@@ -228,6 +233,13 @@ func resolveTargets(idx *graph.Index, value string) []string {
 // vault-schema.toml has no vocabulary for routes — it names types and their
 // roles, never the note a type is filed under — so this one cannot be derived,
 // and it is offered only to a vault whose contract declares the type.
+func coverageScope(authority scanAuthority) schema.KnowledgeScope {
+	if authority.contract == nil {
+		return schema.KnowledgeScope{}
+	}
+	return authority.contract.KnowledgeScope()
+}
+
 func coverageRoutes(authority scanAuthority) map[string]string {
 	if !authority.declaresType(researchBriefType) {
 		return nil

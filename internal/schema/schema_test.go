@@ -59,11 +59,12 @@ func TestDefinitionIsDetached(t *testing.T) {
 
 	mutated.Rules.DomainEqualsFolderUnder[0] = "changed"
 	mutated.Rules.ConceptRequiresProvenance[0] = "changed"
-	mutated.Scan.KnowledgeDirs[0] = "changed"
-	mutated.Scan.SkipBasenames[0] = "changed"
 
 	if diff := cmp.Diff(want, contract.Definition()); diff != "" {
 		t.Errorf("Definition() changed after caller mutation (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(schema.ScanPolicy{}, contract.Definition().Scan); diff != "" {
+		t.Errorf("Definition().Scan handed out the raw scan declaration (-want +got):\n%s", diff)
 	}
 }
 
@@ -83,6 +84,24 @@ func TestInboxRequiredFieldsIsDetached(t *testing.T) {
 	_, got, _ := contract.InboxRequiredFields()
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("InboxRequiredFields() changed after caller mutation (-want +got):\n%s", diff)
+	}
+}
+
+// TestSkipBasenamesIsDetached asserts a caller that edits the returned list
+// edits its own copy, the same guarantee Definition() gives.
+func TestSkipBasenamesIsDetached(t *testing.T) {
+	t.Parallel()
+
+	contract := loadFixture(t)
+	want := contract.SkipBasenames()
+	mutated := contract.SkipBasenames()
+	if len(mutated) == 0 {
+		t.Fatal("fixture declares no skip_basenames; the detachment claim would be vacuous")
+	}
+	mutated[0] = "changed"
+
+	if diff := cmp.Diff(want, contract.SkipBasenames()); diff != "" {
+		t.Errorf("SkipBasenames() changed after caller mutation (-want +got):\n%s", diff)
 	}
 }
 
@@ -1366,6 +1385,14 @@ func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 	if !scope.Available() {
 		t.Fatal("KnowledgeScope().Available() = false, want a declared scope")
 	}
+	dirs := scope.Declared()
+	if diff := cmp.Diff([]string{"Writing", "だ体"}, dirs); diff != "" {
+		t.Errorf("KnowledgeScope().Declared() mismatch (-want +got):\n%s", diff)
+	}
+	dirs[0] = "changed"
+	if got := scope.Declared(); got[0] == "changed" {
+		t.Error("KnowledgeScope().Declared() aliases the loaded directories")
+	}
 
 	tests := []struct {
 		path string
@@ -1391,6 +1418,52 @@ func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 			t.Parallel()
 			if got := scope.Includes(tt.path); got != tt.want {
 				t.Errorf("KnowledgeScope().Includes(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestKnowledgeScopeIncludesEverythingWhenUndeclared pins the empty-set
+// polarity: omitting scan.knowledge_dirs and writing [] are the same
+// declaration — no layer — and no layer excludes nothing.
+func TestKnowledgeScopeIncludesEverythingWhenUndeclared(t *testing.T) {
+	t.Parallel()
+
+	const declared = `knowledge_dirs = ["Writing"]`
+	tests := []struct {
+		name string
+		from string
+		to   string
+	}{
+		{name: "omitted", from: declared + "\n", to: ""},
+		{name: "empty list", from: declared, to: `knowledge_dirs = []`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			text := strings.Replace(contractText("", "", ""), tt.from, tt.to, 1)
+			if text == contractText("", "", "") && tt.to != declared {
+				t.Fatalf("fixture drift: the base contract no longer declares %s", declared)
+			}
+			path := filepath.Join(t.TempDir(), "vault-schema.toml")
+			if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+				t.Fatalf("WriteFile(%q) = %v", path, err)
+			}
+			s, err := schema.LoadFile(path)
+			if err != nil {
+				t.Fatalf("LoadFile(%q) = %v", path, err)
+			}
+			scope := s.KnowledgeScope()
+			if scope.Available() {
+				t.Fatal("KnowledgeScope().Available() = true, want no declared layer")
+			}
+			if got := scope.Declared(); len(got) != 0 {
+				t.Errorf("KnowledgeScope().Declared() = %v, want empty", got)
+			}
+			for _, p := range []string{"Writing/lessons/L05.md", "System/notes/Idea.md", "Away/Loose.md"} {
+				if !scope.Includes(p) {
+					t.Errorf("KnowledgeScope().Includes(%q) = false, want true when no layer is declared", p)
+				}
 			}
 		})
 	}
@@ -1904,6 +1977,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"RequiresFrontmatter": func() string {
 			if c.RequiresFrontmatter() {
 				return "RequiresFrontmatter() faults a note that carries none"
+			}
+			return ""
+		},
+		"SkipBasenames": func() string {
+			if got := c.SkipBasenames(); got != nil {
+				return fmt.Sprintf("SkipBasenames() = %v, want nil", got)
 			}
 			return ""
 		},

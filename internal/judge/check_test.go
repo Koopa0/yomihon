@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestCheckGolden drives the whole check engine — extraction, resolution, the
@@ -124,13 +126,19 @@ func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
 	}
 	byRule := make(map[string][]string)
 	for i := range findings {
-		byRule[string(findings[i].RuleID)] = append(byRule[string(findings[i].RuleID)], *findings[i].Target)
+		switch findings[i].RuleID {
+		case "collision.name", "collision.alias":
+			if findings[i].Target == nil {
+				t.Fatalf("%s finding has no target: %+v", findings[i].RuleID, findings[i])
+			}
+			byRule[string(findings[i].RuleID)] = append(byRule[string(findings[i].RuleID)], *findings[i].Target)
+		}
 	}
 	if diff := cmp.Diff(map[string][]string{
 		"collision.name":  {"dup"},
 		"collision.alias": {"shared"},
 	}, byRule); diff != "" {
-		t.Errorf("Check() findings by rule mismatch (-want +got):\n%s", diff)
+		t.Errorf("Check() collision findings by rule mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -228,15 +236,22 @@ func TestCheckAllRestoresSystemOnlyFindings(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeTestContract(t, root, nil)
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
+		[2]string{
+			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`knowledge_dirs = ["Notes"]`,
+		}))
+	write(t, root, "Notes/keep.md", "---\ntitle: Keep\ntype: note\nstatus: draft\n---\n")
 	write(t, root, "System/reference.md", "# Reference\n\n[[Missing System Target]]\n")
 
 	defaultFindings, err := runCheckAction(t.Context(), root, nil, false)
 	if err != nil {
 		t.Fatalf("check(default): %v", err)
 	}
-	if len(defaultFindings) != 0 {
-		t.Fatalf("check(default) = %+v, want System-only finding hidden", defaultFindings)
+	for i := range defaultFindings {
+		if strings.HasPrefix(defaultFindings[i].Path, "System/") {
+			t.Fatalf("check(default) reported %s (%s); System is outside the declared layer", defaultFindings[i].Path, defaultFindings[i].RuleID)
+		}
 	}
 
 	allFindings, err := runCheckAction(t.Context(), root, nil, true)

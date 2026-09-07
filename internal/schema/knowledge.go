@@ -36,6 +36,14 @@ func (s KnowledgeScope) Includes(relPath string) bool {
 	return slices.ContainsFunc(s.dirs, func(dir string) bool { return SameDirName(top, dir) })
 }
 
+// Declared returns the top-level directories the contract named as its
+// knowledge layer, cloned so a caller cannot change the loaded contract. An
+// undeclared layer returns nothing: Includes then reports every path in
+// scope, and there are no directory names to match against the disk.
+func (s KnowledgeScope) Declared() []string {
+	return slices.Clone(s.dirs)
+}
+
 // deriveKnowledgeScope reads the declared knowledge layer. A contract that
 // declares none leaves the scope unresolved rather than empty, because an empty
 // one would match no directory and hide the whole vault; an unresolved scope

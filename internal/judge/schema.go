@@ -14,24 +14,23 @@ import (
 )
 
 // checkSchema validates every knowledge note's frontmatter against the
-// contract, all findings at error severity. Scope follows the contract's own
-// scan policy, and a contract declaring no knowledge directory lints nothing:
-// linting every file would hold notes to rules their author never claimed. The
-// only failure is a slug pattern that is not a valid regular expression.
+// contract, all findings at error severity. Scope is the contract's own
+// knowledge layer: an undeclared layer excludes nothing, so every note is
+// linted. The only failure is a slug pattern that is not a valid regular
+// expression.
 func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 	run, err := newLintRun(contract)
 	if err != nil {
 		return nil, err
 	}
+	scope := contract.KnowledgeScope()
+	skip := contract.SkipBasenames()
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
 		seg := strings.Split(n.path, "/")
-		inScope := slices.ContainsFunc(run.definition.Scan.KnowledgeDirs, func(dir string) bool {
-			return schema.SameDirName(seg[0], dir)
-		})
-		skipped := slices.Contains(run.definition.Scan.SkipBasenames, seg[len(seg)-1])
-		if inScope && !skipped {
+		skipped := slices.Contains(skip, seg[len(seg)-1])
+		if scope.Includes(n.path) && !skipped {
 			out = append(out, run.note(n)...)
 		}
 	}
@@ -44,7 +43,7 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 // green. A declaration is answered by the directory itself or by any file
 // below it, so an emptied inbox is still the folder the contract named.
 func checkKnowledgeScope(scan vaultfs.Scan, contract *schema.Contract) []Finding {
-	declared := contract.Definition().Scan.KnowledgeDirs
+	declared := contract.KnowledgeScope().Declared()
 	if len(declared) == 0 {
 		return nil
 	}

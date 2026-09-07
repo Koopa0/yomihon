@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
@@ -164,8 +162,8 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 	for _, f := range findings {
 		rules = append(rules, string(f.RuleID))
 	}
-	if diff := cmp.Diff([]string{"map.disk_mismatch"}, rules); diff != "" {
-		t.Errorf("rules reported (-want +got):\n%s", diff)
+	if !slices.Contains(rules, "map.disk_mismatch") {
+		t.Errorf("rules reported %v, want map.disk_mismatch for the unlisted lesson", rules)
 	}
 	if slices.Contains(rules, "link.broken") {
 		t.Error("the lesson row was read as loose prose, so the part that only groups modules was never descended into")

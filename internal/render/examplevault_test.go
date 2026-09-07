@@ -485,10 +485,11 @@ func TestTheExampleVaultStillDemonstratesEveryAuthorFace(t *testing.T) {
 }
 
 // assertContractDeclaresEverythingItCanRead walks the decoded contract's
-// struct fields, so a key added to [enums], [fields], [rules] or [scan] is
-// demanded here without this test being edited. Anything the example contract
-// leaves at its zero value is a capability the vault cannot exercise whatever
-// its notes contain.
+// struct fields, so a key added to [enums], [fields] or [rules] is demanded
+// here without this test being edited. [scan] is not copied onto
+// Definition(); knowledge_dirs and skip_basenames are demanded through their
+// accessors. Anything the example contract leaves at its zero value is a
+// capability the vault cannot exercise whatever its notes contain.
 //
 // The reach stops at that struct, which is less than it looks. [navigation],
 // [artifacts], [privacy], [supersession] and the lifecycle rows are decoded
@@ -509,6 +510,12 @@ func assertContractDeclaresEverythingItCanRead(t *testing.T, contract *schema.Co
 		if len(section.Index) != 1 {
 			continue
 		}
+		// Scan is the decode target. Definition() does not copy it:
+		// knowledge-layer membership is KnowledgeScope, and skip_basenames
+		// is SkipBasenames, demanded below.
+		if section.Name == "Scan" {
+			continue
+		}
 		sectionValue := definition.FieldByIndex(section.Index)
 		for _, key := range reflect.VisibleFields(sectionValue.Type()) {
 			if sectionValue.FieldByIndex(key.Index).IsZero() {
@@ -516,6 +523,12 @@ func assertContractDeclaresEverythingItCanRead(t *testing.T, contract *schema.Co
 					strings.ToLower(section.Name), key.Tag.Get("toml"))
 			}
 		}
+	}
+	if dirs := contract.KnowledgeScope().Declared(); len(dirs) == 0 {
+		t.Error("the example contract declares no knowledge_dirs, so the knowledge layer is not a declared set")
+	}
+	if skips := contract.SkipBasenames(); len(skips) == 0 {
+		t.Error("the example contract declares no skip_basenames, so no filename is exercised as skipped")
 	}
 
 	if _, declared := contract.Supersession(); !declared {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
@@ -15,20 +16,21 @@ import (
 // Check scans the vault rooted at root for corpus-level findings and returns
 // them in the deterministic wire order. The graph is always built from the
 // whole vault; findings touching a contract-declared private path are dropped
-// in every scope, and the default scope also drops findings touching only
-// System/ files. A missing or privacy-incomplete contract is an error, because
-// agent-facing output has no authority without one. A cancelled ctx stops the
-// scan at the contract load, the walk, or any note read.
+// in every scope, and the default scope also drops findings that touch
+// nothing inside the declared knowledge layer. A missing or privacy-incomplete
+// contract is an error, because agent-facing output has no authority without
+// one. A cancelled ctx stops the scan at the contract load, the walk, or any
+// note read.
 func Check(ctx context.Context, root string) ([]Finding, error) {
 	return runCheckAction(ctx, root, nil, false)
 }
 
 // runCheckAction is the whole-engine scan, with the two knobs a command line
 // can turn on top of what Check describes: a scope filter keeping only findings
-// that touch one of the given paths, and all, which keeps the findings touching
-// nothing outside System/. Neither widens what is read — the graph is built
-// from the whole vault either way — and neither reaches a path the contract
-// withholds, which is dropped ahead of both.
+// that touch one of the given paths, and all, which keeps the findings
+// touching nothing inside the declared knowledge layer. Neither widens what
+// is read — the graph is built from the whole vault either way — and neither
+// reaches a path the contract withholds, which is dropped ahead of both.
 func runCheckAction(ctx context.Context, root string, paths []string, all bool) ([]Finding, error) {
 	a, err := openAction(ctx, root, actionHooks{})
 	if err != nil {
@@ -59,7 +61,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 
 	findings = dropEgressDenied(findings, a.authority)
 	if !all {
-		findings = dropSystemScoped(findings)
+		findings = dropSystemScoped(findings, a.authority.contract.KnowledgeScope())
 	}
 	if len(paths) > 0 {
 		filtered, ferr := filterByPaths(findings, paths, a.scan, a.authority)
@@ -83,20 +85,21 @@ func buildIndex(notes []note, resources []string) *graph.Index {
 }
 
 // dropSystemScoped removes findings every path of which — the citing path and
-// any collision member — lies under System/. A finding is kept when at least
-// one path it touches is outside System/.
-func dropSystemScoped(findings []Finding) []Finding {
+// any collision member — lies outside the declared knowledge layer. A finding
+// is kept when at least one path it touches is inside that layer. An
+// undeclared layer excludes nothing, so the default check then reports every
+// finding the privacy cut left standing.
+func dropSystemScoped(findings []Finding, scope schema.KnowledgeScope) []Finding {
 	return slices.DeleteFunc(findings, func(f Finding) bool {
-		return !touchesOutsideSystem(&f)
+		return !touchesInsideKnowledgeScope(&f, scope)
 	})
 }
 
-// touchesOutsideSystem reports whether a finding touches any path outside
-// System/, counting its citing path and every collision member.
-func touchesOutsideSystem(f *Finding) bool {
-	return anyTouchedPath(f, func(p string) bool {
-		return !strings.HasPrefix(p, "System/")
-	})
+// touchesInsideKnowledgeScope reports whether a finding touches any path
+// inside the declared knowledge layer, counting its citing path and every
+// collision member.
+func touchesInsideKnowledgeScope(f *Finding, scope schema.KnowledgeScope) bool {
+	return anyTouchedPath(f, scope.Includes)
 }
 
 // dropEgressDenied removes every finding whose resolution touches a path the
