@@ -81,11 +81,12 @@ func servable(rel string) bool {
 	return true
 }
 
-// showFile serves a vault file that is not a note. The extension chooses a
-// viewer for the kinds a browser renders natively; everything else is decided
-// by the bytes. Text within the comfort cap becomes a highlighted source page,
-// and anything left — opaque bytes, or text too large to render comfortably —
-// becomes an honest information page pointing at the raw endpoint.
+// showFile serves a vault file that is not a captured note. The extension
+// chooses a viewer for the kinds a browser renders natively; everything else
+// is decided by the bytes. Text within the comfort cap becomes a highlighted
+// source page, and anything left — opaque bytes, or text too large to render
+// comfortably, including a markdown file over that bound — becomes an honest
+// information page pointing at the raw endpoint.
 //
 // No status face, no ready accent, no diagnostics: a source file is not a
 // note, and the write face has no opinion about it.

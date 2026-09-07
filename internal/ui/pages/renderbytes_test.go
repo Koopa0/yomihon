@@ -240,7 +240,6 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		Type:            "lesson",
 		Status:          "draft",
 		ObsidianHref:    ObsidianHref("/vault", current),
-		Unsearchable:    true,
 		Updated:         "2026-07-10",
 		UpdatedAt:       "2026-07-10",
 		UpdatedFromFile: true,

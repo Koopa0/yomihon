@@ -25,13 +25,6 @@ var (
 	FileChangedOn = both("檔案變更於", "File changed")
 )
 
-// NoteTooLargeToIndex says a note is readable and unsearchable, which is a
-// promise the folder would otherwise appear to break.
-var NoteTooLargeToIndex = both(
-	"這個筆記太大,內容不會被搜尋讀取;閱讀不受影響。",
-	"This note is too large to index, so search will not find words in it. Reading is unaffected.",
-)
-
 // NoteStale says the words below are the last ones that could be read, which a
 // reader comparing them against what they just wrote would otherwise read as a
 // lost edit.

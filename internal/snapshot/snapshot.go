@@ -709,14 +709,14 @@ func buildGeneration(
 			g.captureFile(relPath, data, want.indexable)
 			continue
 		}
-		g.captureNote(vault.Parse(relPath, data), data, capabilities.Language, want.indexable)
+		g.captureNote(vault.Parse(relPath, data), data, capabilities.Language)
 		g.recordVerdict(relPath, data, contract, log)
 	}
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy)
-	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.indexable, g.files), projectionPolicy)
+	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.files), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
@@ -768,8 +768,6 @@ type generation struct {
 	unreadable []*vault.Note
 	// readings is the reading projection each page renders.
 	readings map[string]Reading
-	// indexable records the decision each note's own entry was judged by.
-	indexable map[string]bool
 	// sidecars are the practice files the lesson parser reads.
 	sidecars map[string][]byte
 	// files are the index documents for vault files that are not notes.
@@ -787,7 +785,6 @@ func newGeneration(entries int) *generation {
 		ordered:    make([]*vault.Note, 0, entries),
 		unreadable: make([]*vault.Note, 0),
 		readings:   make(map[string]Reading),
-		indexable:  make(map[string]bool),
 		sidecars:   make(map[string][]byte),
 		files:      make([]lexical.Document, 0, entries),
 		resources:  make([]string, 0, entries),
@@ -809,12 +806,11 @@ func (g *generation) skipUnread(relPath string, note bool, size int64, log *slog
 }
 
 // captureNote files one note this reading opened into every projection built
-// from a note, down to the index membership its own entry was judged by.
-func (g *generation) captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, indexable bool) {
+// from a note.
+func (g *generation) captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage) {
 	g.parsed[parsed.RelPath] = parsed
 	g.ordered = append(g.ordered, parsed)
-	g.indexable[parsed.RelPath] = indexable
-	g.readings[parsed.RelPath] = newReading(parsed, data, languages, indexable)
+	g.readings[parsed.RelPath] = newReading(parsed, data, languages)
 }
 
 // recordVerdict reaches the schema's verdict for one note and keeps it when
@@ -881,9 +877,6 @@ func (g *generation) carryNote(from carriedGeneration, relPath string) {
 	g.parsed[relPath] = lastKnown
 	g.ordered = append(g.ordered, lastKnown)
 	g.readings[relPath] = captured
-	// The carried copy answers for itself, so the index and the note's own page
-	// describe the same bytes — the last ones read.
-	g.indexable[relPath] = captured.Searchable
 }
 
 // carryFile gives the generation being built the practice file the fallback read,
@@ -977,18 +970,17 @@ func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
 	}
 }
 
-// indexDocuments gathers what this generation will answer searches from. A note
-// too large for the index is skipped here, so one place decides searchability.
+// indexDocuments gathers what this generation will answer searches from. Every
+// captured note is here: a note over the source bound never reached the
+// generation, so this loop does not decide size. Files join only when their
+// own page shows their characters.
 func indexDocuments(
 	notes []*vault.Note,
-	indexable map[string]bool,
 	files []lexical.Document,
 ) []lexical.Document {
 	documents := make([]lexical.Document, 0, len(notes)+len(files))
 	for _, note := range notes {
-		if indexable[note.RelPath] {
-			documents = append(documents, lexical.DocumentFromNote(note))
-		}
+		documents = append(documents, lexical.DocumentFromNote(note))
 	}
 	return append(documents, files...)
 }

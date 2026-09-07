@@ -221,17 +221,24 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		h.showFile(w, r, rel, authority, snap)
 		return
 	}
+	// A note over the source bound is skipped at scan, the same ceiling a
+	// non-note already had. The file page names the size and offers the
+	// bytes; the unreadable page would tell the reader to clear a permission
+	// and wait for a reload that never shows it.
+	if entry, isFile := snap.Entry(rel); isFile && entry.Size() > render.MaxSourceBytes {
+		h.showFile(w, r, rel, authority, snap)
+		return
+	}
 
 	n, ok := snap.Note(rel)
 	if !ok {
 		// The scan observed a regular file here and this generation has no
-		// body for it: the file exists and could not be read, or it is over
-		// the source size bound and was skipped. That is a different fact —
-		// and a different repair — from a path that names nothing. Asking
-		// for the file rather than for anything at the path is what keeps
-		// that repair honest: a folder whose name ends in .md is observed
-		// by the scan too, and no permission on it can be the one the
-		// reader would be sent to clear.
+		// body for it: the file exists and could not be read, which is a
+		// different fact — and a different repair — from a path that names
+		// nothing. Asking for the file rather than for anything at the path
+		// is what keeps that repair honest: a folder whose name ends in .md
+		// is observed by the scan too, and no permission on it can be the one
+		// the reader would be sent to clear.
 		if _, isFile := snap.Entry(rel); isFile {
 			h.sources.Log.Warn("note captured in scan but unreadable in this generation", "path", rel)
 			h.showUnreadable(w, r, r.URL.Path)
@@ -297,7 +304,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		UpdatedFromFile:   updatedFromFile,
 		ObsidianHref:      pages.ObsidianHref(h.sources.Source.Name(), n.RelPath),
 		Diagnostic:        n.FMDiagnostic,
-		Unsearchable:      !n.Searchable,
 		Stale:             n.Stale,
 		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
 		CitedBy:           snap.CitedBy(rel),

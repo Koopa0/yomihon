@@ -1276,13 +1276,9 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	if !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
 		t.Errorf("carried note = %+v, want the last copy read, marked as one that could not be re-read", kept)
 	}
-	// The carried copy has to answer everywhere the note it replaces did. Its
-	// own page says the words are searchable, and a generation that said so
-	// while leaving them out of the index would answer "nothing found" about
-	// text it is showing on screen at the same moment.
-	if !kept.Searchable {
-		t.Fatalf("the carried copy says its words are not searchable: %+v", kept)
-	}
+	// The carried copy has to answer everywhere the note it replaces did. A
+	// generation that left those words out of the index would answer "nothing
+	// found" about text it is showing on screen at the same moment.
 	found := snapshotSearch(t, degraded.Search(), "the words read before the file shut")
 	if len(found) != 1 || found[0].RelPath != carried {
 		t.Errorf("searching the carried copy's own words = %+v, want the note whose page is showing them", found)
@@ -1718,8 +1714,8 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 	if note, ok := gen.Note("huge.md"); ok {
 		t.Fatalf("the oversize note was retained in the generation; body length = %d", len(note.Body))
 	}
-	if small, ok := gen.Note("small.md"); !ok || !small.Searchable {
-		t.Error("a note under the cap is missing or reports itself unsearchable")
+	if _, ok := gen.Note("small.md"); !ok {
+		t.Error("a note under the cap is missing from the generation")
 	}
 
 	results, _, err := gen.Search().SearchN(lexical.Parse(needle), -1)
@@ -1789,9 +1785,6 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	if !ok || !strings.Contains(small.Body, needle) {
 		t.Fatal("the under-cap note is absent from the generation")
 	}
-	if !small.Searchable {
-		t.Error("a note under the cap reports itself unsearchable")
-	}
 
 	results, _, err := gen.Search().SearchN(lexical.Parse(needle), -1)
 	if err != nil {
@@ -1812,6 +1805,47 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note("later.md"); !ok {
 		t.Error("a note written after the over-cap skip never reached a published generation")
+	}
+}
+
+// TestAnOverCapNoteKeepsANameForCitations locks skipUnread's body. A note past
+// the bound is not retained, but a citation still lands on it. A bare return
+// in skipUnread drops the stub, and this wikilink goes unresolved.
+func TestAnOverCapNoteKeepsANameForCitations(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\nsee [[huge]]\n")
+	huge := "---\ntitle: Huge\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
+	if len(huge) <= render.MaxSourceBytes {
+		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
+	}
+	writeNote(t, root, "huge.md", huge)
+	contract := testContract(t, root)
+	reader, err := vaultfs.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gen := store.Current()
+	if _, ok := gen.Note("huge.md"); ok {
+		t.Fatal("the over-cap note was retained; this would not lock skipUnread")
+	}
+	resolved := gen.Graph().Resolve("huge")
+	if resolved.Kind != graph.KindUnique || resolved.RelPath != "huge.md" {
+		t.Fatalf("Resolve(huge) = %+v, want unique huge.md; skipUnread left no stub", resolved)
+	}
+	note, ok := gen.Note("small.md")
+	if !ok {
+		t.Fatal("the citing note is absent from the generation")
+	}
+	result := gen.Render("small.md", note.Body, wording.ZhHant)
+	if !strings.Contains(result.HTML, "/notes/huge.md") {
+		t.Errorf("a wikilink to the over-cap note no longer resolves; html = %q", result.HTML)
 	}
 }
 
