@@ -110,11 +110,11 @@ func TestSearchSnippetRequiresBodyEvidence(t *testing.T) {
 	if len(text) != 2 {
 		t.Fatalf("text results = %+v", text)
 	}
-	if text[0].RelPath != "title-and-body.md" || text[0].Snippet == "" {
-		t.Errorf("title+body result = %+v, want body evidence", text[0])
+	if text[0].RelPath != "title-only.md" || text[0].Snippet != "" {
+		t.Errorf("title-only result = %+v, want the exact title first with no snippet", text[0])
 	}
-	if text[1].RelPath != "title-only.md" || text[1].Snippet != "" {
-		t.Errorf("title-only result = %+v, want no snippet", text[1])
+	if text[1].RelPath != "title-and-body.md" || text[1].Snippet == "" {
+		t.Errorf("title+body result = %+v, want body evidence after the exact title", text[1])
 	}
 
 	filtered := searchResults(t, idx, Parse("type:concept"))
@@ -434,6 +434,78 @@ func TestSearchOrdering(t *testing.T) {
 	want := []string{"a.md", "c.md", "b.md"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Search(kafka) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery is the one tie-break
+// inside the title group. A note whose title is the query used to lose to any
+// longer title whose path sorts earlier — a space before a full stop — so
+// searching a note by its own name put it third of 103. Fold-equal exact
+// titles come first; everything else in the group keeps the vault's reading
+// order. The six groups do not move.
+func TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery(t *testing.T) {
+	t.Parallel()
+
+	containing := "Go Slice 共享底層陣列.md"
+	exact := "Go Slice.md"
+	if vault.ComparePaths(containing, exact) >= 0 {
+		t.Fatal("the containing-title path must sort first, or this fixture cannot catch a missing tie-break")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: containing, Title: "Go Slice 共享底層陣列", PlainText: "a longer title that contains the query"},
+		{RelPath: exact, Title: "Go Slice", PlainText: "the note whose title is the query"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("Go Slice")))
+	want := []string{exact, containing}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(Go Slice) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestTwoExactTitlesKeepReadingOrder pins the tie inside the exact-title
+// answer: two notes whose titles are the query stay in the vault's reading
+// order relative to each other. A containing title that sorts earlier by path
+// still follows both, so the fixture cannot pass on path order alone.
+func TestTwoExactTitlesKeepReadingOrder(t *testing.T) {
+	t.Parallel()
+
+	containing := "a-containing.md"
+	first := "m-exact.md"
+	second := "z-exact.md"
+	if vault.ComparePaths(containing, first) >= 0 || vault.ComparePaths(first, second) >= 0 {
+		t.Fatal("the containing title must sort first by path, then the two exact titles, or this fixture cannot catch a reversed tie")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: containing, Title: "Needle Too", PlainText: "unrelated"},
+		{RelPath: first, Title: "Needle", PlainText: "unrelated"},
+		{RelPath: second, Title: "Needle", PlainText: "unrelated"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("needle")))
+	want := []string{first, second, containing}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAPureFilterKeepsReadingOrder pins the empty-token arm of raiseExactTitles.
+// A pure-filter query lands every match in the title group with no tokens, so
+// joining them would make every empty title look exact and float it above notes
+// that merely sort earlier by path. The group keeps the vault's reading order.
+func TestAPureFilterKeepsReadingOrder(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "a.md", Title: "Named", NoteType: "concept"},
+		{RelPath: "z.md", Title: "", NoteType: "concept"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("type:concept")))
+	want := []string{"a.md", "z.md"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(type:concept) order mismatch (-want +got):\n%s", diff)
 	}
 }
 
