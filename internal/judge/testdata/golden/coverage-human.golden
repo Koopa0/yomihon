@@ -1,7 +1,9 @@
 5 concepts across 2 domains
-  golang           4 concepts: 0 mounted, 2 pending-mount, 2 orphan
+  golang           4 concepts: 0 mounted, 0 pending-mount, 4 orphan
   japanese         1 concepts: 0 mounted, 0 pending-mount, 1 orphan
-orphans (3):
+orphans (5):
   Concepts/golang/Bad.md
+  Concepts/golang/Map.md
   Concepts/golang/Orphan.md
+  Concepts/golang/Slice.md
   Concepts/japanese/Kana.md

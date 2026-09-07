@@ -160,9 +160,9 @@ func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
 // writeWithheldScopeContract writes a contract whose knowledge directories
 // include both a public and a never-egress directory, so the same fault
 // authored in each produces a finding in one and a withheld finding in the
-// other. writeTestContract cannot serve here: it empties knowledge_dirs, and a
-// schema rule that never fires would leave the gate subtest passing on a scope
-// that held nothing to withhold.
+// other. writeTestContract cannot serve here: it names the directories already
+// on disk, and this test needs a public directory and a withheld one in the
+// declared layer whether or not both already hold notes.
 func writeWithheldScopeContract(t *testing.T, root string) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))

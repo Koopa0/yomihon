@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestCheckGolden drives the whole check engine — extraction, resolution, the
@@ -118,12 +120,24 @@ func TestCheckSkipsFileReferencesInComments(t *testing.T) {
 func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
 	t.Parallel()
 
-	findings, err := Check(t.Context(), judgeFixtureRoot(t, "testdata/vault-namecollision"))
+	root := t.TempDir()
+	const complete = "created: 2026-01-01\nupdated: 2026-01-01\n---\n"
+	write(t, root, "Lessons/dup.md", "---\ntitle: Lessons 的 dup\ntype: lesson\ndomain: golang\nstatus: draft\nslug: lessons-dup\n"+complete+"The other one.\n")
+	write(t, root, "Notes/dup.md", "---\ntitle: Notes 的 dup\ntype: writing\ndomain: golang\nstatus: draft\n"+complete+"One of two files answering to the same name.\n")
+	write(t, root, "Notes/alias-a.md", "---\ntitle: Alias A\naliases: [shared]\ntype: writing\ndomain: golang\nstatus: draft\n"+complete+"One alias owner.\n")
+	write(t, root, "Notes/alias-b.md", "---\ntitle: Alias B\naliases: [shared]\ntype: writing\ndomain: golang\nstatus: draft\n"+complete+"The other alias owner.\n")
+	write(t, root, "Notes/cite.md", "---\ntitle: 引用者\ntype: writing\ndomain: golang\nstatus: draft\n"+complete+"The link nobody can resolve: [[dup]].\n")
+	writeTestContract(t, root, nil)
+
+	findings, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatalf("Check(): %v", err)
 	}
 	byRule := make(map[string][]string)
 	for i := range findings {
+		if findings[i].Target == nil {
+			t.Fatalf("%s finding has no target: %+v", findings[i].RuleID, findings[i])
+		}
 		byRule[string(findings[i].RuleID)] = append(byRule[string(findings[i].RuleID)], *findings[i].Target)
 	}
 	if diff := cmp.Diff(map[string][]string{
@@ -228,7 +242,12 @@ func TestCheckAllRestoresSystemOnlyFindings(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeTestContract(t, root, nil)
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
+		[2]string{
+			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`knowledge_dirs = ["Notes"]`,
+		}))
+	write(t, root, "Notes/keep.md", "---\ntitle: Keep\ntype: writing\ndomain: golang\nstatus: draft\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n")
 	write(t, root, "System/reference.md", "# Reference\n\n[[Missing System Target]]\n")
 
 	defaultFindings, err := runCheckAction(t.Context(), root, nil, false)

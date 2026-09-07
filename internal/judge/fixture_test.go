@@ -4,9 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vaultfs"
@@ -76,11 +79,62 @@ func collectNotes(ctx context.Context, root string) ([]note, error) {
 
 func writeTestContract(tb testing.TB, root string, privateDirs []string) {
 	tb.Helper()
+	dirs := fixtureKnowledgeDirs(tb, root)
+	quoted := make([]string, len(dirs))
+	for i, dir := range dirs {
+		quoted[i] = strconv.Quote(dir)
+	}
 	write(tb, root, schema.ContractRelPath, contractFixture(tb, privateDirs,
 		[2]string{
 			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			"knowledge_dirs = []",
+			"knowledge_dirs = [" + strings.Join(quoted, ", ") + "]",
 		}))
+}
+
+// fixtureKnowledgeDirs lists the top-level directories the fixture already
+// holds. That set is the knowledge layer the contract should declare: naming
+// something else is a lint-off trick, and naming nothing when the fixture has
+// folders is the empty-list polarity, not a description of the vault.
+func fixtureKnowledgeDirs(tb testing.TB, root string) []string {
+	tb.Helper()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		tb.Fatalf("ReadDir(%q) error = %v", root, err)
+	}
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+		}
+	}
+	slices.Sort(dirs)
+	return dirs
+}
+
+// TestFixtureKnowledgeDirsNamesTheDirectoriesOnDisk is the lock on
+// writeTestContract's knowledge layer: the helper names every top-level
+// directory already on disk, sorted, and nothing else. Returning nil for a
+// vault that holds folders would write knowledge_dirs = [] and this comparison
+// would go red.
+func TestFixtureKnowledgeDirsNamesTheDirectoriesOnDisk(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, "Concepts/A.md", "body\n")
+	write(t, root, "Maps/M.md", "body\n")
+	write(t, root, "README.md", "body\n")
+
+	got := fixtureKnowledgeDirs(t, root)
+	if diff := cmp.Diff([]string{"Concepts", "Maps"}, got); diff != "" {
+		t.Errorf("fixtureKnowledgeDirs() mismatch (-want +got):\n%s", diff)
+	}
+
+	if got := fixtureKnowledgeDirs(t, filepath.Join(root, "absent")); got != nil {
+		t.Errorf("fixtureKnowledgeDirs(missing root) = %v, want nil", got)
+	}
 }
 
 // contractFixture is the loader's own contract with each old-to-new

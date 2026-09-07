@@ -83,9 +83,14 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"is refused rather than judged: that ground is scanned, but nothing from it\n" +
 			"can be reported, and an empty answer would read as a clean verdict.\n" +
 			"\n" +
-			"The frontmatter schema rules judge only files inside the directories the\n" +
-			"contract's scan.knowledge_dirs declares; a file outside them is still\n" +
-			"scanned for links, but is not held to the schema.\n" +
+			"When scan.knowledge_dirs names directories, the frontmatter schema rules\n" +
+			"judge those files; a file outside them is still scanned for links, but is\n" +
+			"not held to the schema. When the list is omitted or empty, every note is\n" +
+			"held to the schema.\n" +
+			"\n" +
+			"The default check keeps findings that touch that same layer; --all restores\n" +
+			"findings that only touch paths outside it. Privacy is a different cut: a\n" +
+			"withheld path is never reported, even with --all.\n" +
 			"\n" +
 			"Writes one JSON object per line when the output is not a terminal, and a\n" +
 			"human summary when it is. --format decides instead of the terminal.\n" +

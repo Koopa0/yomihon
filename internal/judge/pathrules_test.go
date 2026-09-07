@@ -152,7 +152,7 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
 	write(t, root, "Maps/Course.md",
-		"---\ntitle: Course\ntype: study-path\nstatus: ready\n---\n\n"+
+		"---\ntitle: Course\ntype: study-path\ndomain: golang\nstatus: ready\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\n"+
 			"## Part\n\n### Module {sequence=primary}\n\n- [[L01]]\n")
 
 	findings, err := Check(t.Context(), root)

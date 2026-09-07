@@ -1247,8 +1247,10 @@ func (c *Contract) Version() string {
 }
 
 // Definition returns a detached copy of the contract's declarative
-// vocabulary and validation policy. A vault no contract governs declares an
-// empty vocabulary.
+// vocabulary and validation policy. The scan declaration is not copied:
+// knowledge-layer membership is [KnowledgeScope], and skip_basenames is
+// [Contract.SkipBasenames]. A vault no contract governs declares an empty
+// vocabulary.
 func (c *Contract) Definition() Definition {
 	if c == nil {
 		return Definition{}
@@ -1288,11 +1290,6 @@ func cloneDefinition(source *Definition) Definition {
 			ConceptRequiresProvenance: slices.Clone(source.Rules.ConceptRequiresProvenance),
 			SlugPattern:               source.Rules.SlugPattern,
 			ForbidTagWithSlash:        source.Rules.ForbidTagWithSlash,
-		},
-		Scan: ScanPolicy{
-			KnowledgeDirs:        slices.Clone(source.Scan.KnowledgeDirs),
-			SkipBasenames:        slices.Clone(source.Scan.SkipBasenames),
-			NoFrontmatterIsLegal: source.Scan.NoFrontmatterIsLegal,
 		},
 	}
 }
@@ -1391,6 +1388,15 @@ func (c *Contract) KnowledgeScope() KnowledgeScope {
 		return KnowledgeScope{}
 	}
 	return c.knowledgeScope
+}
+
+// SkipBasenames returns the note filenames this vault's scan skips, cloned so
+// a caller cannot change the loaded contract. An ungoverned vault skips none.
+func (c *Contract) SkipBasenames() []string {
+	if c == nil {
+		return nil
+	}
+	return slices.Clone(c.definition.Scan.SkipBasenames)
 }
 
 // ArtifactPolicy returns the contract-derived artifact policy capability.

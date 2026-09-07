@@ -118,4 +118,44 @@ func TestRegenerateGoldens(t *testing.T) {
 		}
 		t.Logf("rewrote %s (%d bytes)", tt.golden, buf.Len())
 	}
+
+	reportRoot := "testdata/vault-report"
+	reportFindings, err := Check(t.Context(), reportRoot)
+	if err != nil {
+		t.Fatalf("Check(%q): %v", reportRoot, err)
+	}
+	contract, err := schema.Load(reportRoot)
+	if err != nil {
+		t.Fatalf("schema.Load(%q): %v", reportRoot, err)
+	}
+	roots := domainRoots(contract.Definition().Rules.DomainEqualsFolderUnder)
+	reportFaces := []struct {
+		golden string
+		body   []byte
+	}{
+		{golden: "testdata/golden/report-human.golden", body: []byte(humanReport(reportFindings, roots))},
+		{golden: "testdata/golden/report-md.golden", body: []byte(markdownReport(reportFindings, roots))},
+	}
+	for _, tt := range reportFaces {
+		if err := os.WriteFile(tt.golden, tt.body, 0o600); err != nil {
+			t.Fatalf("write %s: %v", tt.golden, err)
+		}
+		t.Logf("rewrote %s (%d bytes)", tt.golden, len(tt.body))
+	}
+	for _, tt := range []struct {
+		format Format
+		golden string
+	}{
+		{format: FormatJSON, golden: "testdata/golden/coverage.golden"},
+		{format: FormatHuman, golden: "testdata/golden/coverage-human.golden"},
+	} {
+		got, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: reportRoot, Format: tt.format})
+		if err != nil {
+			t.Fatalf("RunCoverage(%s): %v", tt.golden, err)
+		}
+		if err := os.WriteFile(tt.golden, got, 0o600); err != nil {
+			t.Fatalf("write %s: %v", tt.golden, err)
+		}
+		t.Logf("rewrote %s (%d bytes)", tt.golden, len(got))
+	}
 }

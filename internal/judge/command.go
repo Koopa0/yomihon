@@ -124,10 +124,11 @@ func ResolveFormat(explicit *Format, isTTY bool) Format {
 }
 
 // CheckOptions is the parsed check command. Paths only filter the output; the
-// graph is always built from the whole root. All includes System/. Deny lists
-// the severities or rule ids that gate the run. Baseline, when set, is a prior
-// run's JSONL whose findings are subtracted so only what this run newly
-// introduced is reported and gated.
+// graph is always built from the whole root. All restores findings that touch
+// nothing inside the declared knowledge layer. Deny lists the severities or
+// rule ids that gate the run. Baseline, when set, is a prior run's JSONL
+// whose findings are subtracted so only what this run newly introduced is
+// reported and gated.
 type CheckOptions struct {
 	Root     string
 	Paths    []string
