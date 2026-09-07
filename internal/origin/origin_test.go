@@ -417,6 +417,7 @@ func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
 		{
 			name: "WriteHeader",
 			header: func(t *testing.T) http.Header {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
@@ -427,6 +428,7 @@ func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
 		{
 			name: "Write",
 			header: func(t *testing.T) http.Header {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					_, _ = w.Write([]byte("body")) //nolint:errcheck // httptest recorder writes cannot fail
@@ -437,6 +439,7 @@ func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
 		{
 			name: "ReadFrom",
 			header: func(t *testing.T) http.Header {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					rf, ok := w.(io.ReaderFrom)
@@ -453,6 +456,7 @@ func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
 		{
 			name: "Flush",
 			header: func(t *testing.T) http.Header {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					if err := http.NewResponseController(w).Flush(); err != nil {
@@ -465,6 +469,7 @@ func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
 		{
 			name: "Hijack",
 			header: func(t *testing.T) http.Header {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				hij := &capturingHijacker{ResponseWriter: rec}
 				Protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -482,6 +487,7 @@ func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
 		{
 			name: "a handler that writes nothing",
 			header: func(t *testing.T) http.Header {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				Protect(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(
 					rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
@@ -530,6 +536,7 @@ func TestProtectLeavesAHandlersNoStore(t *testing.T) {
 // still be seen.
 type capturingHijacker struct {
 	http.ResponseWriter
+
 	hijacked http.Header
 }
 
