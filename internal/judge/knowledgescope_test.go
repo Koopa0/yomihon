@@ -223,7 +223,10 @@ note = ["draft"]
 
 [fields]
 required = ["title", "type"]
-known = ["title", "type", "status"]
+known = ["title", "type", "status", "based_on"]
+
+[rules]
+concept_requires_provenance = ["based_on"]
 
 [scan]
 knowledge_dirs = ["Notes", "System"]
@@ -245,7 +248,7 @@ applies_to = ["*"]
 from = []
 owner = ["koopa"]
 `)
-	write(t, root, "Notes/Kept.md", "---\ntitle: Kept\ntype: concept\n---\nBody.\n")
+	write(t, root, "Notes/Kept.md", "---\ntitle: Kept\ntype: concept\nbased_on:\n  - \"[[Brief]]\"\n---\nBody.\n")
 	write(t, root, "System/notes/Brief.md", "---\ntitle: Brief\ntype: research-brief\n---\nBody.\n")
 	write(t, root, "Away/Loose.md", "---\ntitle: Loose\ntype: research-brief\n---\nBody.\n")
 
