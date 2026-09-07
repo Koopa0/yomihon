@@ -438,9 +438,9 @@ func TestInvalidBranchesSaySoInTheType(t *testing.T) {
 		if !inner.Invalid || inner.Projectable() {
 			t.Errorf("nested primary = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
 		}
-		found := findRule(doc, RuleRoleConflict)
+		found := findRule(doc, RuleRoleNestedPrimary)
 		if found == nil {
-			t.Fatal("the nested primary was not reported as a role conflict")
+			t.Fatal("the nested primary was not reported")
 		}
 		if !strings.Contains(found.Message, "side branch") {
 			t.Errorf("nested-primary conflict did not name the side branch it sits in: %q", found.Message)
@@ -563,7 +563,7 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 		{
 			name:     "a main-line branch inside a side branch",
 			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n",
-			wantRule: RuleRoleConflict,
+			wantRule: RuleRoleNestedPrimary,
 			wantLine: 6,
 		},
 		{

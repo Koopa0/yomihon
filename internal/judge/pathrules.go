@@ -23,6 +23,7 @@ var pathRuleAction = map[sequence.Rule]string{
 		", " + sequence.Marker(sequence.RoleLocal) + " or " + sequence.Marker(sequence.RoleNone),
 	sequence.RuleRoleDuplicate:      "keep one sequence declaration on the branch",
 	sequence.RuleRoleConflict:       "move the branch out from under the one declared none, or declare it none too",
+	sequence.RuleRoleNestedPrimary:  "move the main-line branch out of the side branch, or declare it " + sequence.Marker(sequence.RoleLocal),
 	sequence.RuleLocalOrphan:        "nest the side branch under the lesson it belongs to",
 	sequence.RuleNestingTooDeep:     "keep a side branch one level below what it hangs from",
 	sequence.RuleRoleOnEntry:        "give the branch its own row above the list it opens",

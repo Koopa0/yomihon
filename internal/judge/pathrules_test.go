@@ -201,7 +201,7 @@ func TestANestedPrimaryInsideASideBranchIsReported(t *testing.T) {
 
 	var got *Finding
 	for i := range findings {
-		if findings[i].RuleID == RuleID(sequence.RuleRoleConflict) && findings[i].Path == "Maps/Course.md" {
+		if findings[i].RuleID == RuleID(sequence.RuleRoleNestedPrimary) && findings[i].Path == "Maps/Course.md" {
 			got = &findings[i]
 			break
 		}
@@ -211,12 +211,9 @@ func TestANestedPrimaryInsideASideBranchIsReported(t *testing.T) {
 		for _, f := range findings {
 			rules = append(rules, string(f.RuleID))
 		}
-		t.Fatalf("Check() did not report %s; got %v", sequence.RuleRoleConflict, rules)
+		t.Fatalf("Check() did not report %s; got %v", sequence.RuleRoleNestedPrimary, rules)
 	}
 	if got.Message == "" {
 		t.Error("the nested-primary finding carries no message")
-	}
-	if got.SuggestedAction != pathRuleAction[sequence.RuleRoleConflict] {
-		t.Errorf("SuggestedAction = %q, want the existing role-conflict action; generalizing it would move goldens", got.SuggestedAction)
 	}
 }

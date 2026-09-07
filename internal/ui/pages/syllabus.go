@@ -336,6 +336,7 @@ func markerVerdictFor(rule sequence.Rule) markerVerdict {
 		sequence.RuleRoleDuplicate,
 		sequence.RuleRoleMisplaced,
 		sequence.RuleRoleConflict,
+		sequence.RuleRoleNestedPrimary,
 		sequence.RuleRoleOnEntry,
 		sequence.RuleLocalOrphan,
 		sequence.RuleNestingTooDeep:

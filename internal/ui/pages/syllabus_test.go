@@ -237,7 +237,7 @@ func TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule(t *testing.T) {
 		"\t\t- [[Arrays]]\n"
 	path := buildTestPath(t, body)
 	if !slices.ContainsFunc(path.Diagnostics, func(d sequence.Diagnostic) bool {
-		return d.Rule == sequence.RuleRoleConflict
+		return d.Rule == sequence.RuleRoleNestedPrimary
 	}) {
 		t.Fatalf("the nested primary was not reported: %+v", path.Diagnostics)
 	}
@@ -582,6 +582,7 @@ func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 		sequence.RuleRoleDuplicate:      markerWritten,
 		sequence.RuleRoleMisplaced:      markerWritten,
 		sequence.RuleRoleConflict:       markerWritten,
+		sequence.RuleRoleNestedPrimary:  markerWritten,
 		sequence.RuleRoleOnEntry:        markerWritten,
 		sequence.RuleLocalOrphan:        markerWritten,
 		sequence.RuleNestingTooDeep:     markerWritten,

@@ -30,6 +30,7 @@ rules and does not define new behavior.
 | `path.role_invalid` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |
 | `path.role_misplaced` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |
 | `path.role_missing` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |
+| `path.role_nested_primary` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |
 | `path.role_on_entry` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |
 | `provenance.unresolved` | `vault-schema.toml#supersession` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `provenance.unresolved` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |

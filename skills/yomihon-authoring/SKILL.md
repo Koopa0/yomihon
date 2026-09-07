@@ -210,8 +210,8 @@ projects nothing and is reported; nothing is flattened.
 
 Declaring `none` is a legitimate authored answer and draws nothing; forgetting
 to declare is not. A `local` branch may not contain another `local` branch —
-that is `path.nesting_too_deep`; a `primary` branch may nest as deep as it
-likes.
+that is `path.nesting_too_deep`. A `primary` branch may nest under another
+`primary`; a `primary` inside a `local` is `path.role_nested_primary`.
 
 ### What the states produce
 
