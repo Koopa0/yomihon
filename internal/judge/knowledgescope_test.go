@@ -84,7 +84,7 @@ func findingPaths(findings []Finding, rule RuleID) []string {
 
 // TestDefaultCheckFollowsDeclaredKnowledgeScope is the check half of the
 // Lock: with System declared, the default check reports the System finding;
-// with knowledge_dirs = [], every note is linted.
+// with knowledge_dirs omitted or set to [], every note is linted.
 func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 	t.Parallel()
 
@@ -104,24 +104,32 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 		}
 	})
 
-	t.Run("empty knowledge_dirs lints every note", func(t *testing.T) {
-		t.Parallel()
-		root := writeScopeLockVault(t, `knowledge_dirs = []`)
+	for _, tt := range []struct {
+		name string
+		line string
+	}{
+		{name: "omitted knowledge_dirs lints every note", line: ""},
+		{name: "empty knowledge_dirs lints every note", line: `knowledge_dirs = []`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := writeScopeLockVault(t, tt.line)
 
-		defaultFindings, err := runCheckAction(t.Context(), root, nil, false)
-		if err != nil {
-			t.Fatalf("check(default): %v", err)
-		}
-		got := findingPaths(defaultFindings, "schema.enum")
-		for _, want := range []string{scopeLockSystemNote, scopeLockAwayNote} {
-			if !slices.Contains(got, want) {
-				t.Errorf("default check paths = %v, want %s linted when no layer is declared", got, want)
+			defaultFindings, err := runCheckAction(t.Context(), root, nil, false)
+			if err != nil {
+				t.Fatalf("check(default): %v", err)
 			}
-		}
-		if slices.Contains(got, "Notes/README.md") {
-			t.Errorf("default check linted Notes/README.md; skip_basenames still applies when no layer is declared")
-		}
-	})
+			got := findingPaths(defaultFindings, "schema.enum")
+			for _, want := range []string{scopeLockSystemNote, scopeLockAwayNote} {
+				if !slices.Contains(got, want) {
+					t.Errorf("default check paths = %v, want %s linted when no layer is declared", got, want)
+				}
+			}
+			if slices.Contains(got, "Notes/README.md") {
+				t.Errorf("default check linted Notes/README.md; skip_basenames still applies when no layer is declared")
+			}
+		})
+	}
 }
 
 // TestCoverageFollowsDeclaredKnowledgeScope is the coverage half of the Lock:

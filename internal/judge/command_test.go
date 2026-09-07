@@ -304,7 +304,7 @@ func TestCronPayloads(t *testing.T) {
 			t.Fatalf("RunCheck: %v", err)
 		}
 		first, _, _ := bytes.Cut(out, []byte("\n"))
-		want := "11 findings: 3 error, 6 warn, 2 hidden (1 planned forward-refs, 1 external paths)"
+		want := "9 findings: 3 error, 6 warn, 0 hidden (0 planned forward-refs, 0 external paths)"
 		if string(first) != want {
 			t.Errorf("human first line = %q, want %q", first, want)
 		}

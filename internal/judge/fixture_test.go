@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -76,11 +77,39 @@ func collectNotes(ctx context.Context, root string) ([]note, error) {
 
 func writeTestContract(tb testing.TB, root string, privateDirs []string) {
 	tb.Helper()
+	dirs := fixtureKnowledgeDirs(tb, root)
+	quoted := make([]string, len(dirs))
+	for i, dir := range dirs {
+		quoted[i] = strconv.Quote(dir)
+	}
 	write(tb, root, schema.ContractRelPath, contractFixture(tb, privateDirs,
 		[2]string{
 			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			"knowledge_dirs = []",
+			"knowledge_dirs = [" + strings.Join(quoted, ", ") + "]",
 		}))
+}
+
+// fixtureKnowledgeDirs lists the top-level directories the fixture already
+// holds. That set is the knowledge layer the contract should declare: naming
+// something else is a lint-off trick, and naming nothing when the fixture has
+// folders is the empty-list polarity, not a description of the vault.
+func fixtureKnowledgeDirs(tb testing.TB, root string) []string {
+	tb.Helper()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		tb.Fatalf("ReadDir(%q) error = %v", root, err)
+	}
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+		}
+	}
+	slices.Sort(dirs)
+	return dirs
 }
 
 // contractFixture is the loader's own contract with each old-to-new
