@@ -1431,6 +1431,54 @@ func TestFlipRefusesHardLinkedNote(t *testing.T) {
 	}
 }
 
+// TestFlipRefusesHardLinkedNoteBeforeUnsupportedRewrite locks the snapshot
+// hard-link check that runs before the rewriter: a second name plus a status
+// line the rewriter cannot honour must still be ErrHardLinked. Without that
+// check the rewriter answers first, and the extra name is never named.
+func TestFlipRefusesHardLinkedNoteBeforeUnsupportedRewrite(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writer := newWriter(t, root, loadContract(t))
+	original := "---\n" +
+		"title: L05\n" +
+		"type: lesson\n" +
+		"domain: japanese\n" +
+		"status : draft\n" +
+		"created: 2026-06-01\n" +
+		"updated: 2026-06-01\n" +
+		"---\n" +
+		"\nbody\n"
+	writeNote(t, root, original)
+	notePath := filepath.Join(root, filepath.FromSlash(testRel))
+	otherPath := filepath.Join(filepath.Dir(notePath), "second-name.md")
+	if err := os.Link(notePath, otherPath); err != nil {
+		t.Fatalf("hard-link the note: %v", err)
+	}
+
+	observed, err := writer.ObservedStatus(t.Context(), testRel)
+	if err != nil || observed != "draft" {
+		t.Fatalf("ObservedStatus() = (%q, %v), want the reader to see draft", observed, err)
+	}
+
+	err = writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original))
+	if !errors.Is(err, status.ErrHardLinked) {
+		t.Fatalf("Flip(hard-linked note with unsupported status syntax) = %v, want %v (not %v)", err, status.ErrHardLinked, status.ErrStatusSyntaxUnsupported)
+	}
+	if errors.Is(err, status.ErrStatusSyntaxUnsupported) {
+		t.Fatalf("Flip() wrapped %v; the hard-link refusal must win", status.ErrStatusSyntaxUnsupported)
+	}
+	if got := readNote(t, root); got != original {
+		t.Errorf("note after refusal = %q, want untouched %q", got, original)
+	}
+	other, readErr := os.ReadFile(otherPath) // #nosec G304 -- otherPath is a test-owned path under t.TempDir
+	if readErr != nil {
+		t.Fatalf("read the other name: %v", readErr)
+	}
+	if string(other) != original {
+		t.Errorf("other name after refusal = %q, want the pre-flip bytes %q", other, original)
+	}
+}
+
 // TestFlipWritesTheSelectedRootAfterPathReplacement locks the write to the
 // pinned root capability rather than the pathname: after the vault directory
 // is renamed away and another directory takes its path, the flip still lands
