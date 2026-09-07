@@ -3,6 +3,7 @@
 package status
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,24 +40,33 @@ func TestXattrIgnorableCoversListFailures(t *testing.T) {
 
 // TestCopyXattrsIgnoresAForbiddenList locks the list-stage call site: a
 // filesystem that answers EPERM (or ENOTSUP) to Flistxattr must copy nothing
-// and return nil, so a volume without xattrs never refuses a flip. Reverting
-// that branch to xattrUnsupported fails this for EPERM.
+// and return nil, so a volume without xattrs never refuses a flip. EIO is
+// the other side of that branch: swallowing every list error would pass the
+// tolerated rows and fail this one.
 func TestCopyXattrsIgnoresAForbiddenList(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name string
-		err  error
+		name    string
+		err     error
+		wantNil bool
 	}{
-		{name: "EPERM", err: unix.EPERM},
-		{name: "ENOTSUP", err: unix.ENOTSUP},
+		{name: "EPERM", err: unix.EPERM, wantNil: true},
+		{name: "ENOTSUP", err: unix.ENOTSUP, wantNil: true},
+		{name: "EIO", err: unix.EIO, wantNil: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			err := copyXattrs(-1, -1, func(int) ([]string, error) {
 				return nil, tt.err
 			})
-			if err != nil {
-				t.Fatalf("copyXattrs() with Flistxattr %v = %v, want nil", tt.err, err)
+			if tt.wantNil {
+				if err != nil {
+					t.Fatalf("copyXattrs() with Flistxattr %v = %v, want nil", tt.err, err)
+				}
+				return
+			}
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("copyXattrs() with Flistxattr %v = %v, want that error", tt.err, err)
 			}
 		})
 	}
@@ -98,4 +108,43 @@ func TestFlipProceedsWhenListingXattrsIsForbidden(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("note after flip = %q, want %q", got, want)
 	}
+}
+
+// TestFlipRefusesWhenListingXattrsFailsUnexpectedly is the other side of the
+// list-stage lock: an unexpected errno must refuse the flip and leave the
+// note untouched. Swallowing every list error would pass the EPERM row and
+// fail this.
+func TestFlipRefusesWhenListingXattrsFailsUnexpectedly(t *testing.T) {
+	t.Parallel()
+	root, writer := internalVault(t)
+	const rel = "Writing/lessons/japanese/L05.md"
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	original := internalLesson()
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	listed := false
+	err := writer.flip(t.Context(), rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
+		listXattrs: func(int) ([]string, error) {
+			listed = true
+			return nil, unix.EIO
+		},
+	})
+	if !listed {
+		t.Fatal("Flistxattr was not consulted")
+	}
+	if !errors.Is(err, unix.EIO) {
+		t.Fatalf("Flip() when Flistxattr returns EIO = %v, want %v", err, unix.EIO)
+	}
+	got, readErr := os.ReadFile(path) // #nosec G304 -- path is a fixed name under t.TempDir
+	if readErr != nil {
+		t.Fatalf("read note: %v", readErr)
+	}
+	if string(got) != original {
+		t.Errorf("note after refusal = %q, want untouched %q", got, original)
+	}
+	assertNoStatusTemps(t, filepath.Dir(path))
 }
