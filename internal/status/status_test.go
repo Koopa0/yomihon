@@ -1413,8 +1413,11 @@ func TestFlipRefusesHardLinkedNote(t *testing.T) {
 	if !errors.Is(err, status.ErrHardLinked) {
 		t.Fatalf("Flip(hard-linked note) = %v, want %v", err, status.ErrHardLinked)
 	}
-	if !strings.Contains(err.Error(), "name") {
-		t.Errorf("Flip() error = %q, want a diagnostic naming the extra name", err)
+	if !strings.Contains(err.Error(), "2 names") {
+		t.Errorf("Flip() error = %q, want a diagnostic naming how many names the note has", err)
+	}
+	if !strings.Contains(err.Error(), testRel) {
+		t.Errorf("Flip() error = %q, want it to name %s", err, testRel)
 	}
 	if got := readNote(t, root); got != original {
 		t.Errorf("note after refusal = %q, want untouched %q", got, original)

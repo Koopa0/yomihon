@@ -254,8 +254,10 @@ func recoveryFor(err error) *recovery {
 }
 
 // recoveryForIrregularEntry maps the refusals for a path whose shape the
-// write face declines to follow, or nil when err is none of them. All are
-// produced before any byte is written, so the unchanged page is truthful.
+// write face declines to follow, or nil when err is none of them. The named
+// note is left unchanged — a hard link found inside the install window is
+// refused after a temp has been prepared beside it, and that temp is
+// discarded — so the unchanged page is truthful.
 func recoveryForIrregularEntry(err error) *recovery {
 	var summary, next wording.Phrase
 	switch {
