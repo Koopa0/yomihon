@@ -8,7 +8,6 @@ package render
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"html"
 	"iter"
@@ -199,7 +198,7 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 	}
 	highlighted, reason := highlightCode(iterator)
 	if reason != "" {
-		reportHighlightFailure(n, Diagnostic{
+		reportHighlightFailure(n, &Diagnostic{
 			Kind:    DiagHighlightFailed,
 			Target:  string(node.Language(source)),
 			Message: reason,
@@ -251,14 +250,14 @@ func highlightCode(iterator iter.Seq[chroma.Token]) (out []byte, reason string) 
 // panic, or empty if the panic is not a highlighter failure and must still
 // escape. Chroma's timeout wraps an error whose text includes the input.
 func recoveredHighlighterFailure(rec any) string {
-	err, ok := rec.(error)
-	if !ok {
+	switch err := rec.(type) {
+	case runtime.Error:
+		return ""
+	case error:
+		return reshapeHighlighterFailure(err)
+	default:
 		return ""
 	}
-	if _, isRuntime := errors.AsType[runtime.Error](err); isRuntime {
-		return ""
-	}
-	return reshapeHighlighterFailure(err)
 }
 
 // reshapeHighlighterFailure names the failure without chroma's input-bearing
@@ -282,8 +281,8 @@ func attachHighlightReporter(doc ast.Node, col *collector) {
 	doc.SetAttributeString(highlightDiagAttr, col)
 }
 
-func reportHighlightFailure(n ast.Node, d Diagnostic) {
-	if n == nil {
+func reportHighlightFailure(n ast.Node, d *Diagnostic) {
+	if n == nil || d == nil {
 		return
 	}
 	doc := n.OwnerDocument()
@@ -298,7 +297,7 @@ func reportHighlightFailure(n ast.Node, d Diagnostic) {
 	if !ok || col == nil {
 		return
 	}
-	col.report(&d)
+	col.report(d)
 }
 
 // codeBlockExtension registers codeBlockRenderer into a goldmark.Markdown built

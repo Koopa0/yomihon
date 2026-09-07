@@ -41,9 +41,9 @@ func TestRecoveredHighlighterFailureLetsRuntimePanicsThrough(t *testing.T) {
 func recoverRuntimeError(t *testing.T) (rec any) {
 	t.Helper()
 	defer func() { rec = recover() }()
-	var p *int
-	_ = *p
-	t.Fatal("nil pointer did not panic")
+	var z int
+	_ = 1 / z
+	t.Fatal("integer divide by zero did not panic")
 	return nil
 }
 
@@ -62,7 +62,7 @@ func TestHighlightCodeReraisesRuntimePanics(t *testing.T) {
 		}
 	}()
 	_, _ = highlightCode(func(func(chroma.Token) bool) {
-		var p *int
-		_ = *p
+		var z int
+		_ = 1 / z
 	})
 }

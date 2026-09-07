@@ -25,8 +25,8 @@ func init() {
 		func() chroma.Rules {
 			return chroma.Rules{
 				"root": {
-					{`(a+)+b`, chroma.Text, nil},
-					{`.|\n`, chroma.Text, nil},
+					{Pattern: `(a+)+b`, Type: chroma.Text},
+					{Pattern: `.|\n`, Type: chroma.Text},
 				},
 			}
 		},

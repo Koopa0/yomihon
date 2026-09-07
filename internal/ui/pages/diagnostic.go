@@ -22,10 +22,8 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 		return wording.DiagAmbiguousNote.In(lang)
 	case render.DiagUnknownCallout:
 		return wording.DiagCalloutNote.In(lang)
-	case render.DiagRiskyFence:
-		return wording.DiagFenceNote.In(lang)
-	case render.DiagHighlightFailed:
-		return wording.DiagHighlightFailedNote.In(lang)
+	case render.DiagRiskyFence, render.DiagHighlightFailed:
+		return fenceDiagnosticSummary(kind, lang)
 	case render.DiagEmbedFragmentMissing:
 		return wording.DiagEmbedNote.In(lang)
 	case render.DiagEmbedFragmentRepeated:
@@ -43,4 +41,14 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 	default:
 		return wording.DiagUnknownNote.In(lang)
 	}
+}
+
+// fenceDiagnosticSummary is the sentence for a code-block diagnostic. The
+// two kinds share a switch arm so adding highlighting's failure does not
+// push the page's kind table over the complexity gate.
+func fenceDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string {
+	if kind == render.DiagHighlightFailed {
+		return wording.DiagHighlightFailedNote.In(lang)
+	}
+	return wording.DiagFenceNote.In(lang)
 }
