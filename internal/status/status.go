@@ -539,6 +539,10 @@ type flipHooks struct {
 	beforeInstall func()
 	// afterInstall runs once the replacement is durably visible.
 	afterInstall func()
+	// descend, when set, replaces the spelling walk's directory open so a
+	// test can force the failure that must not fall through to the requested
+	// spelling.
+	descend func(current *os.Root, name, relSlash string) (*os.Root, error)
 }
 
 func (w *Writer) flip(
@@ -547,7 +551,7 @@ func (w *Writer) flip(
 	contentIdentity [sha256.Size]byte,
 	hooks flipHooks,
 ) error {
-	relSlash, rel, err := normalizeRelPath(rel)
+	relSlash, _, err := normalizeRelPath(rel)
 	if err != nil {
 		return err
 	}
@@ -569,12 +573,9 @@ func (w *Writer) flip(
 		return ErrClosed
 	}
 
-	storedRel, storedSlash, err := w.validateWriteTarget(relSlash)
+	storedRel, storedSlash, err := w.validateWriteTarget(relSlash, hooks.descend)
 	if err != nil {
 		return err
-	}
-	if storedSlash == "" {
-		storedRel, storedSlash = rel, relSlash
 	}
 
 	source, err := readRegularFile(w.root, storedRel, storedSlash)
@@ -693,7 +694,7 @@ func (w *Writer) install(
 	return nil
 }
 
-func (w *Writer) validateWriteTarget(relSlash string) (storedRel, storedSlash string, err error) {
+func (w *Writer) validateWriteTarget(relSlash string, descend func(*os.Root, string, string) (*os.Root, error)) (storedRel, storedSlash string, err error) {
 	if !durableInstallSupported {
 		return "", "", ErrDurabilityUnsupported
 	}
@@ -715,7 +716,7 @@ func (w *Writer) validateWriteTarget(relSlash string) (storedRel, storedSlash st
 	if err := ungoverned(policy, w.contract.KnowledgeScope(), relSlash); err != nil {
 		return "", "", err
 	}
-	return w.targetSpelledAsRequested(relSlash)
+	return w.targetSpelledAsRequested(relSlash, descend)
 }
 
 // targetSpelledAsRequested answers a request whose spelling the directory does
@@ -726,12 +727,14 @@ func (w *Writer) validateWriteTarget(relSlash string) (storedRel, storedSlash st
 // vault holds no such note, and the answer is the one a case-sensitive volume
 // gives. An NFD name that folds to the request is the note the reader already
 // found, so the walk hands that stored path back for the write to open.
-func (w *Writer) targetSpelledAsRequested(relSlash string) (storedRel, storedSlash string, err error) {
+func (w *Writer) targetSpelledAsRequested(relSlash string, descend func(*os.Root, string, string) (*os.Root, error)) (storedRel, storedSlash string, err error) {
+	if descend == nil {
+		descend = openStoredDir
+	}
 	components := strings.Split(relSlash, "/")
 	current, err := w.root.OpenRoot(".")
 	if err != nil {
-		// Reading the note reports this failure in the operator's own terms.
-		return "", "", nil //nolint:nilerr // Flip names a root it cannot reopen.
+		return "", "", fmt.Errorf("duplicate vault root for %s: %w", relSlash, err)
 	}
 	stored := make([]string, 0, len(components))
 	for i, want := range components {
@@ -746,12 +749,10 @@ func (w *Writer) targetSpelledAsRequested(relSlash string) (storedRel, storedSla
 			storedSlash = strings.Join(stored, "/")
 			return filepath.FromSlash(storedSlash), storedSlash, nil
 		}
-		next, openErr := openStoredDir(current, match, relSlash)
+		next, openErr := descend(current, match, relSlash)
 		if openErr != nil {
 			closeRoot(current)
-			// A vanished or irregular component is Flip's to name; the
-			// spelling question only answers names the directory holds.
-			return "", "", nil //nolint:nilerr // Flip names the vanished or irregular entry.
+			return "", "", openErr
 		}
 		if closeErr := current.Close(); closeErr != nil {
 			closeRoot(next)
@@ -760,7 +761,7 @@ func (w *Writer) targetSpelledAsRequested(relSlash string) (storedRel, storedSla
 		current = next
 	}
 	closeRoot(current)
-	return "", "", nil
+	return "", "", fmt.Errorf("%s: %w", relSlash, fs.ErrNotExist)
 }
 
 // uniqueNFCName returns the one directory entry whose NFC form equals want's,

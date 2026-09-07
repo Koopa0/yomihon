@@ -129,6 +129,9 @@ func TestHandlerRedirectsToTheNFCPath(t *testing.T) {
 		if want := "/notes/Writing/" + url.PathEscape(nfcLeaf) + "?from=draft"; location != want {
 			t.Errorf("Location = %q, want %q", location, want)
 		}
+		if !writer.ConsumeReceipt(nfcRel, "draft") {
+			t.Error("ConsumeReceipt(nfcRel, \"draft\") = false after the 303, want the receipt keyed to the NFC path the page will spend")
+		}
 	})
 
 	t.Run("an NFC form flips the NFD file", func(t *testing.T) {
@@ -149,6 +152,9 @@ func TestHandlerRedirectsToTheNFCPath(t *testing.T) {
 		}
 		if want := "/notes/Writing/" + url.PathEscape(nfcLeaf) + "?from=draft"; location != want {
 			t.Errorf("Location = %q, want %q", location, want)
+		}
+		if !writer.ConsumeReceipt(nfcRel, "draft") {
+			t.Error("ConsumeReceipt(nfcRel, \"draft\") = false after the 303, want the receipt keyed to the NFC path the page will spend")
 		}
 	})
 }
