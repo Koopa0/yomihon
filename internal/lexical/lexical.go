@@ -82,6 +82,11 @@ type Document struct {
 	Aliases   []string
 	PlainText string
 
+	// BlockEnds are the exclusive end offsets of each block-level contribution
+	// in PlainText, as render.PlainBlocks reports them. Empty when the caller
+	// built the document from already-extracted text and did not know.
+	BlockEnds []int
+
 	// File marks an entry that is not a note: a vault file shown as characters.
 	// It carries no frontmatter, so it answers no metadata projection, and it
 	// sorts after every note in a result list.
@@ -115,6 +120,7 @@ type entry struct {
 	Topics          []string
 	PlainText       string
 	PlainFold       string
+	blockEnds       []int
 	isFile          bool
 	metadataCapable bool
 	// frontmatterUnreadable records that this note had a frontmatter block that
@@ -200,6 +206,11 @@ func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	title := vault.NormalizeNFC(d.Title)
 	plain := vault.NormalizeNFC(d.PlainText)
+	// Block ends are taken on the raw walk; NFC each slice and accumulate so
+	// a single combining mark cannot drop the map for the whole note. A
+	// newline is an NFC starter, so joining the normalised slices is the
+	// same string as normalising the body in one pass.
+	blockEnds := blockEndsOnNormalized(d.PlainText, d.BlockEnds)
 	topics := make([]string, len(d.Topics))
 	for i, t := range d.Topics {
 		topics[i] = vault.NormalizeNFC(t)
@@ -224,6 +235,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		Topics:     topics,
 		PlainText:  plain,
 		PlainFold:  fold(plain),
+		blockEnds:  blockEnds,
 		isFile:     d.File,
 		// An unclaimed policy excludes nothing, so every readable note answers over
 		// its own raw frontmatter. A file has no frontmatter, so it answers no
@@ -233,10 +245,42 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	}
 }
 
+// blockEndsOnNormalized maps exclusive block ends from raw onto NFC(raw).
+// Each slice is normalised on its own and the lengths are accumulated; the
+// caller stores the NFC body, so these offsets name characters there.
+func blockEndsOnNormalized(raw string, ends []int) []int {
+	if len(ends) == 0 {
+		return nil
+	}
+	out := make([]int, 0, len(ends))
+	prev, n := 0, 0
+	for _, end := range ends {
+		if end < prev {
+			continue
+		}
+		if end > len(raw) {
+			end = len(raw)
+		}
+		n += len(vault.NormalizeNFC(raw[prev:end]))
+		if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
+			out = append(out, n)
+		}
+		prev = end
+	}
+	if prev < len(raw) {
+		n += len(vault.NormalizeNFC(raw[prev:]))
+		if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 // DocumentFromNote extracts a Document from a parsed note: the structured fields
 // from frontmatter and PlainText from the render AST. A note with malformed
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
+	text, ends := render.PlainBlocks(n.Body)
 	return Document{
 		RelPath:   n.RelPath,
 		Title:     n.Title(),
@@ -246,7 +290,8 @@ func DocumentFromNote(n *vault.Note) Document {
 		Slug:      n.Slug(),
 		Topics:    n.Strings("topics"),
 		Aliases:   n.Aliases(),
-		PlainText: render.PlainText(n.Body),
+		PlainText: text,
+		BlockEnds: ends,
 		// A diagnostic here means the block was present and did not parse. A
 		// note that simply carries no frontmatter has none, and is not this.
 		FrontmatterUnreadable: n.FMDiagnostic != "",

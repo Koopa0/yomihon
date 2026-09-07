@@ -7,6 +7,7 @@ package render
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -36,19 +37,84 @@ var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extensio
 // job and not this walk's. The cost is one incongruity: a search for the
 // declaration finds a note whose page no longer shows those words.
 func PlainText(body string) string {
+	plain, _ := PlainBlocks(body)
+	return plain
+}
+
+// PlainBlocks returns the searchable text of a note body and the exclusive
+// end offset of each block-level contribution in that text. The text is
+// byte-identical to PlainText. A phrase whose match starts in one block and
+// ends in another is one the browser's text directive cannot find, because
+// those words render in different elements; a wrap inside one paragraph is
+// not that case.
+func PlainBlocks(body string) (plain string, blockEnds []int) {
 	src := []byte(plainPreprocess(body))
 	doc := plainParser.Parse(text.NewReader(src))
 
-	var b strings.Builder
+	var w plainWalk
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		return walkPlain(&b, n, entering, src)
+		return walkPlain(&w, n, entering, src)
 	}); err != nil {
 		// Unreachable: walkPlain never returns a non-nil error. If a future
 		// goldmark change ever makes Walk itself fail, fall back to the raw
 		// body (whitespace-collapsed) so a note is never left unsearchable.
-		return strings.Join(strings.Fields(body), " ")
+		collapsed := strings.Join(strings.Fields(body), " ")
+		if collapsed == "" {
+			return "", nil
+		}
+		return collapsed, []int{len(collapsed)}
 	}
-	return strings.TrimSpace(b.String())
+	w.closeBlock()
+	return w.result()
+}
+
+// plainWalk is the accumulator walkPlain writes. The text is what PlainText
+// always returned; blockEnds are the exclusive ends of each block before the
+// leading and trailing space are trimmed off.
+type plainWalk struct {
+	b         strings.Builder
+	blockEnds []int
+}
+
+func (w *plainWalk) result() (plain string, blockEnds []int) {
+	raw := w.b.String()
+	plain = strings.TrimSpace(raw)
+	if plain == "" {
+		return "", nil
+	}
+	lead := len(raw) - len(strings.TrimLeftFunc(raw, unicode.IsSpace))
+	for _, end := range w.blockEnds {
+		adj := end - lead
+		if adj <= 0 {
+			continue
+		}
+		if adj > len(plain) {
+			adj = len(plain)
+		}
+		if n := len(blockEnds); n > 0 && blockEnds[n-1] >= adj {
+			continue
+		}
+		blockEnds = append(blockEnds, adj)
+	}
+	if n := len(blockEnds); n == 0 || blockEnds[n-1] != len(plain) {
+		blockEnds = append(blockEnds, len(plain))
+	}
+	return plain, blockEnds
+}
+
+func (w *plainWalk) closeBlock() {
+	s := w.b.String()
+	end := len(s)
+	for end > 0 && s[end-1] == '\n' {
+		end--
+	}
+	if end == 0 {
+		return
+	}
+	if n := len(w.blockEnds); n > 0 && w.blockEnds[n-1] >= end {
+		return
+	}
+	w.blockEnds = append(w.blockEnds, end)
 }
 
 // plainPreprocess rewrites the two Obsidian-dialect constructs goldmark has no
@@ -110,9 +176,9 @@ func replaceWikilinksPlain(line string) string {
 	})
 }
 
-// walkPlain appends one AST node's contribution to b. It never returns an
-// error (the ast.Walk error path in PlainText is therefore unreachable).
-func walkPlain(b *strings.Builder, n ast.Node, entering bool, source []byte) (ast.WalkStatus, error) {
+// walkPlain appends one AST node's contribution to w. It never returns an
+// error (the ast.Walk error path in PlainBlocks is therefore unreachable).
+func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.WalkStatus, error) {
 	if !entering {
 		return ast.WalkContinue, nil
 	}
@@ -125,42 +191,46 @@ func walkPlain(b *strings.Builder, n ast.Node, entering bool, source []byte) (as
 		// Code content lives in the node's line segments, not in child Text
 		// nodes; write it directly and do not descend — code contents are
 		// searchable (people search for code snippets).
-		writeSeparator(b)
-		writeBlockLines(b, n, source)
+		writeSeparator(w)
+		writeBlockLines(&w.b, n, source)
 		return ast.WalkSkipChildren, nil
 	case ast.KindText:
 		if t, ok := n.(*ast.Text); ok {
-			b.Write(t.Value(source))
+			w.b.Write(t.Value(source))
 			if t.SoftLineBreak() || t.HardLineBreak() {
-				b.WriteByte('\n')
+				w.b.WriteByte('\n')
 			}
 		}
 	case ast.KindString:
 		if s, ok := n.(*ast.String); ok {
-			b.Write(s.Value)
+			w.b.Write(s.Value)
 		}
 	case ast.KindAutoLink:
 		if a, ok := n.(*ast.AutoLink); ok {
-			b.Write(a.URL(source))
+			w.b.Write(a.URL(source))
 		}
 	default:
 		if n.Type() == ast.TypeBlock {
 			// Separate block-level text so tokens from adjacent blocks (a
 			// heading then its paragraph) do not run together.
-			writeSeparator(b)
+			writeSeparator(w)
 		}
 	}
 	return ast.WalkContinue, nil
 }
 
-// writeSeparator appends a newline unless b is empty or already ends in one.
-func writeSeparator(b *strings.Builder) {
-	if b.Len() == 0 {
+// writeSeparator closes the block just written and appends a newline unless
+// the walk is empty or already ends in one. The newline is the same separator
+// PlainText has always used; closing first is what lets a later match know
+// which side of it each word sat on.
+func writeSeparator(w *plainWalk) {
+	w.closeBlock()
+	if w.b.Len() == 0 {
 		return
 	}
-	s := b.String()
+	s := w.b.String()
 	if s[len(s)-1] != '\n' {
-		b.WriteByte('\n')
+		w.b.WriteByte('\n')
 	}
 }
 

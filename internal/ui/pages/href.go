@@ -42,16 +42,34 @@ func rawHref(p string) string { return VaultHref("/raw/", p) }
 // hitFragment is the text directive that opens a result where the words the
 // query found are, or "" for a row whose excerpt marked nothing — a note
 // reached through its path or one of its other names has no matched sentence to
-// arrive at. The browser scrolls to the text and highlights it; one that cannot
-// find the text leaves the note at the top, which is where a link without a
-// directive lands anyway, so a row can only gain by carrying one.
+// arrive at.
 //
-// It points at the first marked stretch because that is the one the excerpt was
-// cut around: the excerpt opens at the earliest offset any of the query's words
-// reach, so the first mark in it is the first of them the note holds, and the
-// browser goes to the first it finds.
-func hitFragment(runs []SnippetRun) string {
-	for _, run := range runs {
+// A phrase the index accepts across two blocks is not something the browser
+// can find as one term: those words render in different elements, and a
+// directive built from the whole phrase fails silently and leaves the note at
+// the top. Each end of that match still sits inside one block, so the
+// directive names both — the range between them may span blocks, and a bare
+// first-block term would land on an earlier copy of the same word. When even
+// the first stretch is empty the row carries no directive, and the page says
+// the match could not be located.
+//
+// Every other body hit still points at the first marked stretch because that
+// is the one the excerpt was cut around: the excerpt opens at the earliest
+// offset any of the query's words reach, so the first mark in it is the first
+// of them the note holds, and the browser goes to the first it finds.
+func hitFragment(r *SearchResult) string {
+	if r.BlockCrossing {
+		start := strings.TrimSpace(r.Landing)
+		if start == "" {
+			return ""
+		}
+		end := strings.TrimSpace(r.LandingEnd)
+		if end == "" {
+			return "#:~:text=" + escapeTextDirective(start)
+		}
+		return "#:~:text=" + escapeTextDirective(start) + "," + escapeTextDirective(end)
+	}
+	for _, run := range r.SnippetRuns {
 		text := strings.TrimSpace(run.Text)
 		if run.Hit && text != "" {
 			return "#:~:text=" + escapeTextDirective(text)

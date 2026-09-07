@@ -613,6 +613,14 @@ func TestTheTwoFoldMappingsAgree(t *testing.T) {
 				if got, want := sourceOffsetOfFold(s, k), src[k]; got != want {
 					t.Fatalf("sourceOffsetOfFold(%q, %d) = %d, want %d (the tabulated answer)", s, k, got, want)
 				}
+				if k == 0 {
+					continue
+				}
+				last := src[k-1]
+				_, size := utf8.DecodeRuneInString(s[last:])
+				if got, want := sourceEndOfFold(s, k), last+size; got != want {
+					t.Fatalf("sourceEndOfFold(%q, %d) = %d, want %d", s, k, got, want)
+				}
 			}
 		})
 	}

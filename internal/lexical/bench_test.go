@@ -1,6 +1,12 @@
 package lexical
 
-import "testing"
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/render"
+)
 
 // BenchmarkSearch measures query matching against a built index. The index is
 // built once from a fixed in-memory corpus — the pure, disk-free input the
@@ -13,6 +19,35 @@ func BenchmarkSearch(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		_, _, _ = idx.SearchN(q, -1) //nolint:errcheck // benchmark fixture is validated before timing; only ranking cost is measured
+	}
+}
+
+// BenchmarkSearchResultMaterialization times building the 200-row page the
+// handler ships. Landing used to retabulate every character of every note;
+// the number is here so a fold-map coming back is visible as allocation,
+// not as a later review.
+func BenchmarkSearchResultMaterialization(b *testing.B) {
+	const notes = 200
+	body := strings.Repeat("The filler paragraph stays out of the way.\n\n", 40) +
+		"needle sits here\n\nand more " + strings.Repeat("filler word ", 200)
+	text, ends := render.PlainBlocks(body)
+	docs := make([]Document, notes)
+	for i := range docs {
+		docs[i] = Document{
+			RelPath:   fmt.Sprintf("Notes/n%03d.md", i),
+			Title:     fmt.Sprintf("Note %03d", i),
+			PlainText: text,
+			BlockEnds: ends,
+		}
+	}
+	idx := NewIndex(docs, validArtifactPolicy(b))
+	q := Parse("needle")
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _, err := idx.SearchN(q, notes)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
