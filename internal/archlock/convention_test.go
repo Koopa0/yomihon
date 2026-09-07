@@ -931,23 +931,33 @@ func TestOneOwnerFoldsAFragment(t *testing.T) {
 	}
 }
 
-// TestOneOwnerScansALine keeps the line scan that decides what a heading is,
-// where a fenced block ends, and which HTML block a line opened, written once
-// under internal/graph/.
+// TestOneOwnerScansALine keeps each line-scan spelling written once, under the
+// package that owns it.
 //
 // The page and the check each kept a copy. The copies were byte-identical on
 // eight patterns and then they were not: a callout title and a self-closing
 // <pre/> were an address on one face and missing on the other, so a reader
 // was told a link was fine to a place the page had already marked broken.
 // The scan is found by the bytes that make it a scan rather than by its type
-// name, since the two copies already disagreed about what to call it.
+// name, since the two copies already disagreed about what to call it. Each
+// row names its owner: the heading, fence, quote-prefix, and HTML-block
+// patterns live in internal/graph/; the callout opening, the closed type
+// list, and the line no address can survive on live in internal/render/,
+// because only that package holds the vocabulary the page answers to.
 func TestOneOwnerScansALine(t *testing.T) {
 	t.Parallel()
 
-	for _, spelling := range []struct{ what, bytes string }{
-		{"an ATX heading the scan recognises", `^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`},
-		{"the HTML block tags a line scan can open without paragraph state", `address|article|aside|base|basefont|blockquote`},
-		{"the scan's running HTML-block close test", "htmlCloses func(string) bool"},
+	for _, spelling := range []struct{ what, bytes, owner string }{
+		{"an ATX heading the scan recognises", `^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`, "internal/graph/"},
+		{"the HTML block tags a line scan can open without paragraph state", `address|article|aside|base|basefont|blockquote`, "internal/graph/"},
+		{"the scan's running HTML-block close test", "htmlCloses func(string) bool", "internal/graph/"},
+		{"an Obsidian callout's opening line", `^\s*>\s*\[!([A-Za-z]+)\]([+-]?)\s?(.*)$`, "internal/render/"},
+		{"the single leading quote marker a line scan peels", `^\s*>\s?`, "internal/graph/"},
+		{"a backtick fence the scan opens", "strings.HasPrefix(t, \"```\")", "internal/graph/"},
+		{"a tilde fence the scan opens", `strings.HasPrefix(t, "~~~")`, "internal/graph/"},
+		{"a fence-close line the scan recognises", `strings.Count(t, string(marker)) == len(t)`, "internal/graph/"},
+		{"the function that refuses a line no block address can survive on", "func UnanchorableLine(line string) bool", "internal/render/"},
+		{"the first group of callout types the page answers to", `"info", "note", "tip", "hint", "abstract", "summary", "todo"`, "internal/render/"},
 	} {
 		t.Run(spelling.what, func(t *testing.T) {
 			t.Parallel()
@@ -957,11 +967,11 @@ func TestOneOwnerScansALine(t *testing.T) {
 			}
 			var elsewhere []site
 			for _, s := range written {
-				if !strings.HasPrefix(s.path, fragmentAddressing) {
+				if !strings.HasPrefix(s.path, spelling.owner) {
 					elsewhere = append(elsewhere, s)
 				}
 			}
-			report(t, "the line scan is "+fragmentAddressing+"'s; call it rather than writing a second copy", elsewhere)
+			report(t, spelling.what+" is "+spelling.owner+"'s; call it rather than writing a second copy", elsewhere)
 		})
 	}
 }

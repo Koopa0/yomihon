@@ -7,11 +7,13 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 var (
 	calloutStartPattern = regexp.MustCompile(`^\s*>\s*\[!([A-Za-z]+)\]([+-]?)\s?(.*)$`)
-	quotePrefix         = regexp.MustCompile(`^\s*>\s?`)
+	quotePrefix         = graph.QuotePrefix
 )
 
 // calloutStart reports whether line opens an Obsidian callout block, optionally

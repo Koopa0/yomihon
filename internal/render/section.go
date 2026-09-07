@@ -285,7 +285,7 @@ func blockMarkerLine(lines []string, block string) int {
 			inFence, fenceByte = true, open
 			continue
 		}
-		if unanchorableLine(line) {
+		if UnanchorableLine(line) {
 			continue
 		}
 		trimmed := graph.FoldFragment(strings.TrimRight(line, " \t"))

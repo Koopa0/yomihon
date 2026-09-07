@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
@@ -172,11 +171,6 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 	}
 }
 
-// oneQuoteMark matches the single leading quote marker the block scan peels
-// before asking whether a line opens or closes a fence, because a fence
-// written inside a callout is read as a fence when that body renders.
-var oneQuoteMark = regexp.MustCompile(`^\s*>\s?`)
-
 // collectBlockLines keeps the folded text of every line that could answer a
 // block address, so a link's "^name" matches the reading the destination page
 // uses. A line inside a fence is code, a recognised callout's opening line is
@@ -186,7 +180,7 @@ func collectBlockLines(body string) []string {
 	var out []string
 	inFence, fenceByte := false, byte(0)
 	for line := range strings.SplitSeq(body, "\n") {
-		unquoted := oneQuoteMark.ReplaceAllString(line, "")
+		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
 		if inFence {
 			if graph.FenceCloses(unquoted, fenceByte) {
 				inFence = false
@@ -197,7 +191,7 @@ func collectBlockLines(body string) []string {
 			inFence, fenceByte = true, marker
 			continue
 		}
-		if graph.UnanchorableLine(line) {
+		if render.UnanchorableLine(line) {
 			continue
 		}
 		trimmed := strings.TrimRight(line, " \t")

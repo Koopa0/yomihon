@@ -68,32 +68,12 @@ var (
 	HTMLBlockCDATA   = regexp.MustCompile(`^ {0,3}<!\[CDATA\[`)
 	HTMLBlockDecl    = regexp.MustCompile(`^ {0,3}<![A-Za-z]`)
 
-	// quoteMarker is the single leading quote the unanchorable-line test
-	// peels before asking whether a row opens with a pipe. It is the same
-	// shape the page peels; QuotedLine is the CommonMark indent and does
-	// not consume the optional space after `>`.
-	quoteMarker = regexp.MustCompile(`^\s*>\s?`)
-
-	// calloutOpening matches an Obsidian callout's first line. The type
-	// list below is the closed set the page recognises; a type outside it
-	// is a blockquote, and a blockquote can carry an address.
-	calloutOpening = regexp.MustCompile(`^\s*>\s*\[!([A-Za-z]+)\]([+-]?)\s?(.*)$`)
+	// QuotePrefix matches the single leading quote marker a line scan peels
+	// before asking whether a fence opened or a row begins with a pipe.
+	// QuotedLine is the CommonMark indent and does not consume the optional
+	// space after `>`.
+	QuotePrefix = regexp.MustCompile(`^\s*>\s?`)
 )
-
-// recognisedCalloutTypes is every callout type the page answers to, written
-// here because the page's own list lives in render/callout.go, which this
-// package must not import. A type added there and not here would let a title
-// carry an address the page would not stamp; a type added here and not there
-// would refuse an address the page stamps. Unknown types stay off this set
-// on purpose: they are not callouts.
-var recognisedCalloutTypes = map[string]bool{
-	"info": true, "note": true, "tip": true, "hint": true, "abstract": true, "summary": true, "todo": true,
-	"question": true, "help": true, "faq": true,
-	"example": true,
-	"quote":   true, "cite": true,
-	"warning": true, "caution": true, "attention": true,
-	"danger": true, "error": true, "bug": true, "fail": true, "failure": true, "missing": true,
-}
 
 // SetextLevel is the level an underline makes, for a line the caller has
 // already recognized as one: '=' underlines a level-1 heading, '-' a level-2
@@ -197,19 +177,4 @@ func HTMLBlockOpens(line string) (closes func(string) bool, ok bool) {
 
 func lineContains(marker string) func(string) bool {
 	return func(line string) bool { return strings.Contains(line, marker) }
-}
-
-// UnanchorableLine reports whether a line is one no block address can survive
-// on. Both entries are lines something downstream takes apart: a recognised
-// callout's opening line, which is consumed as the block's title, and a table
-// row, which is cut into cells against its header's column count and drops
-// whatever follows the last. An unknown callout type is a blockquote, not a
-// callout, and can carry an address.
-func UnanchorableLine(line string) bool {
-	if m := calloutOpening.FindStringSubmatch(line); m != nil {
-		if recognisedCalloutTypes[strings.ToLower(m[1])] {
-			return true
-		}
-	}
-	return strings.HasPrefix(strings.TrimLeft(quoteMarker.ReplaceAllString(line, ""), " \t"), "|")
 }

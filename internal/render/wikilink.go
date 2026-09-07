@@ -379,30 +379,23 @@ var (
 	wikilinkToken = regexp.MustCompile(`!?\[\[[^\[\]]+\]\]`)
 )
 
-// fenceOpen reports whether line opens a fenced code block, with its marker byte
-// ('`' or '~') and the trimmed info string, when line's first non-whitespace
-// characters are three or more of the same fence character.
+// fenceOpen reports whether line opens a fenced code block, with its marker
+// byte ('`' or '~') and the trimmed info string. The open itself is the line
+// scan's; the info string is this face's, because a mermaid fence is identified
+// by what follows the marks.
 func fenceOpen(line string) (marker byte, info string, ok bool) {
-	t := strings.TrimLeft(line, " \t")
-	switch {
-	case strings.HasPrefix(t, "```"):
-		marker = '`'
-	case strings.HasPrefix(t, "~~~"):
-		marker = '~'
-	default:
+	marker, ok = graph.FenceOpens(line)
+	if !ok {
 		return 0, "", false
 	}
+	t := strings.TrimLeft(line, " \t")
 	return marker, strings.TrimSpace(strings.TrimLeft(t, string(marker))), true
 }
 
 // fenceCloses reports whether line is a bare fence-close line for marker:
 // once trimmed, every character is marker and there are at least 3.
 func fenceCloses(line string, marker byte) bool {
-	t := strings.TrimSpace(line)
-	if len(t) < 3 {
-		return false
-	}
-	return strings.Count(t, string(marker)) == len(t)
+	return graph.FenceCloses(line, marker)
 }
 
 // htmlBlockKind is one of the HTML blocks CommonMark ends at a particular

@@ -1,12 +1,14 @@
 package judge
 
 import (
-	"bytes"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // The fragment rules must judge a link's "#section" and "#^block" half the
@@ -647,22 +649,25 @@ func TestExtractKeepsTheFragmentBesideTheTarget(t *testing.T) {
 	}
 }
 
-// The generous line scan reads a heading through graph.ATXHeading, the same
-// declaration the page reads. The copies used to live here and in
-// internal/render/section.go and agreed only because they were typed together.
-// TestOneOwnerScansALine keeps the pattern written once; this pins that both
-// faces still call it, so a local copy re-introduced under a new name fails
-// here as well as there.
+// The generous line scan reads a heading through graph.ATXHeading. This
+// compares that compiled pattern to the one MustCompile literal in the owner
+// file, so a declaration that is no longer one literal, or a compiled value
+// that no longer matches it, fails here. A second copy under a new name is
+// TestOneOwnerScansALine's to catch.
 func TestTheGenerousScanReadsAHeadingTheWayThePageDoes(t *testing.T) {
 	t.Parallel()
 
-	for _, path := range []string{"fragment.go", "../render/section.go", "../render/wikilink.go"} {
-		source, err := os.ReadFile(path) // #nosec G304 -- a fixed source path from this table
-		if err != nil {
-			t.Fatalf("ReadFile(%q) error = %v", path, err)
-		}
-		if !bytes.Contains(source, []byte("graph.ATXHeading")) {
-			t.Errorf("%s no longer reads a heading through graph.ATXHeading", path)
-		}
+	const path = "../graph/linescan.go"
+	source, err := os.ReadFile(path) // #nosec G304 -- the owner file this lock reads, not operator input
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	declaration := regexp.MustCompile("(?m)^\tATXHeading = regexp\\.MustCompile\\(`([^`]*)`\\)$")
+	m := declaration.FindSubmatch(source)
+	if m == nil {
+		t.Fatalf("%s no longer declares ATXHeading as one literal, so this test compares nothing", path)
+	}
+	if got, want := graph.ATXHeading.String(), string(m[1]); got != want {
+		t.Errorf("this face reads a heading with %q; %s reads one with %q", got, path, want)
 	}
 }

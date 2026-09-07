@@ -26,14 +26,22 @@ func blockAnchorID(address string) string {
 	return graph.FoldFragment(address)
 }
 
-// unanchorableLine reports whether a line is one no anchor can survive on, and so
-// carries no block address at all. The excerpt scan asks the same question, so a
-// link never writes a fragment for a place the page left unmarked. Both entries
-// are lines something downstream takes apart: a callout's opening line, which is
-// consumed as the block's title, and a table row, which is cut into cells against
-// its header's column count and drops whatever follows the last.
-func unanchorableLine(line string) bool {
-	return graph.UnanchorableLine(line)
+// UnanchorableLine reports whether a line is one no block address can survive
+// on. The check face asks the same question, so a link never writes a fragment
+// for a place the page left unmarked. Both entries are lines something
+// downstream takes apart: a recognised callout's opening line, which is
+// consumed as the block's title, and a table row, which is cut into cells
+// against its header's column count and drops whatever follows the last. An
+// unknown callout type is a blockquote, not a callout, and can carry an
+// address. The type set is calloutVocabulary; a second copy is how a title
+// became an address on one face and missing on the other.
+func UnanchorableLine(line string) bool {
+	if typ, _, _, ok := calloutStart(line); ok {
+		if bucket, _ := calloutBucketOf(typ); bucket != bucketUnknown {
+			return true
+		}
+	}
+	return strings.HasPrefix(strings.TrimLeft(quotePrefix.ReplaceAllString(line, ""), " \t"), "|")
 }
 
 // markBlockAnchor gives the address at the end of line an anchor a browser can
