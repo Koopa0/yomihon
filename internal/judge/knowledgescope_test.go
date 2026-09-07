@@ -2,6 +2,7 @@ package judge
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 
@@ -81,15 +82,6 @@ func findingPaths(findings []Finding, rule RuleID) []string {
 	return paths
 }
 
-func containsPath(paths []string, want string) bool {
-	for _, p := range paths {
-		if p == want {
-			return true
-		}
-	}
-	return false
-}
-
 // TestDefaultCheckFollowsDeclaredKnowledgeScope is the check half of the
 // Lock: with System declared, the default check reports the System finding;
 // with knowledge_dirs = [], every note is linted.
@@ -104,10 +96,10 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 			t.Fatalf("check(default): %v", err)
 		}
 		got := findingPaths(defaultFindings, "schema.enum")
-		if !containsPath(got, scopeLockSystemNote) {
+		if !slices.Contains(got, scopeLockSystemNote) {
 			t.Errorf("default check paths = %v, want %s reported when System is declared", got, scopeLockSystemNote)
 		}
-		if containsPath(got, scopeLockAwayNote) {
+		if slices.Contains(got, scopeLockAwayNote) {
 			t.Errorf("default check reported %s; Away is outside the declared layer", scopeLockAwayNote)
 		}
 	})
@@ -122,11 +114,11 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 		}
 		got := findingPaths(defaultFindings, "schema.enum")
 		for _, want := range []string{scopeLockSystemNote, scopeLockAwayNote} {
-			if !containsPath(got, want) {
+			if !slices.Contains(got, want) {
 				t.Errorf("default check paths = %v, want %s linted when no layer is declared", got, want)
 			}
 		}
-		if containsPath(got, "Notes/README.md") {
+		if slices.Contains(got, "Notes/README.md") {
 			t.Errorf("default check linted Notes/README.md; skip_basenames still applies when no layer is declared")
 		}
 	})
