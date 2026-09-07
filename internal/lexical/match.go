@@ -23,8 +23,8 @@ type Result struct {
 	Alias string
 
 	// Topic is the declared subject that answered the query when title, alias
-	// and body did not, in the folded form matching uses, and empty otherwise.
-	// The row shows a title, so without it a topic-only hit names nothing the
+	// and body did not, in the note's own spelling, and empty otherwise. The
+	// row shows a title, so without it a topic-only hit names nothing the
 	// reader typed.
 	Topic string
 
@@ -205,17 +205,17 @@ func (b *resultBuckets) ordered() []hit {
 	return slices.Concat(b.groups[:]...)
 }
 
-// topicAnswering returns the first declared topic that holds every token, or
-// empty when none does. TopicFolds is the only copy the index keeps, so the
-// string is the folded form matching already used. Empty tokens are a
+// topicAnswering returns the note's own spelling of the first declared topic
+// that holds every token, or empty when none does. Matching reads TopicFolds;
+// the as-written Topics value is what the row shows. Empty tokens are a
 // pure-filter query and already land in the title group.
 func topicAnswering(e *entry, tokens []string) string {
 	if len(tokens) == 0 {
 		return ""
 	}
-	for _, folded := range e.TopicFolds {
+	for i, folded := range e.TopicFolds {
 		if allContain(folded, tokens) {
-			return folded
+			return e.Topics[i]
 		}
 	}
 	return ""

@@ -117,3 +117,30 @@ func TestATopicHitSaysWhichSubjectAnsweredTheQuery(t *testing.T) {
 		t.Errorf("a note found by its own title was given a topic attribution:\n%s", plain)
 	}
 }
+
+// TestATopicLabelKeepsTheAuthorsSpelling is the display half of the fold.
+// Matching reads TopicFolds, so a lowercase query finds the note; the row
+// must still print Colour Theory, or the label would disagree with the
+// alias sitting beside it.
+func TestATopicLabelKeepsTheAuthorsSpelling(t *testing.T) {
+	t.Parallel()
+	idx := lexical.NewIndex([]lexical.Document{
+		{RelPath: "Notes/Palette.md", Title: "Palette", NoteType: "concept", Status: "draft",
+			Topics: []string{"Colour Theory"}, PlainText: "unrelated prose"},
+	}, validArtifactPolicy(t))
+	mux := http.NewServeMux()
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	_, body := getBody(t, srv.Client(), srv.URL+"/search?q=colour+theory")
+	named := elementText(t, resultRow(t, body, "Notes/Palette.md"), "y-result__topic")
+	if !strings.Contains(named, "Colour") || !strings.Contains(named, "Theory") {
+		t.Errorf("the row does not show Colour Theory as written: %q", named)
+	}
+	if strings.Contains(named, "colour theory") {
+		t.Errorf("the label printed the fold, not the author's spelling: %q", named)
+	}
+}

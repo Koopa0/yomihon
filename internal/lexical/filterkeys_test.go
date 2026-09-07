@@ -54,6 +54,7 @@ func TestEveryFilterKeyTheGrammarAcceptsIsAnswered(t *testing.T) {
 		DomainFold:   fold("japanese"),
 		Slug:         "one",
 		SlugFold:     fold("one"),
+		Topics:       []string{"grammar", "kanji"},
 		TopicFolds:   []string{fold("grammar"), fold("kanji")},
 	}
 	satisfied := map[string]string{

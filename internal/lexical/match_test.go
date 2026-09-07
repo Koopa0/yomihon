@@ -583,6 +583,24 @@ func TestABareTokenReachesADeclaredTopicTheWayItReachesAnAlias(t *testing.T) {
 	}
 }
 
+// TestATopicLabelKeepsTheAuthorsSpelling pins the display source. Matching
+// reads the fold, so colour theory finds the note; the row must still show
+// Colour Theory, the way an alias keeps the author's spelling.
+func TestATopicLabelKeepsTheAuthorsSpelling(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "colour.md", Title: "Palette", Topics: []string{"Colour Theory"}, PlainText: "unrelated prose"},
+	}, validArtifactPolicy(t))
+
+	got := searchResults(t, idx, Parse("colour theory"))
+	if len(got) != 1 {
+		t.Fatalf("Search(colour theory) = %+v, want one topic-only hit", got)
+	}
+	if got[0].Topic != "Colour Theory" {
+		t.Errorf("Topic = %q, want the author's spelling Colour Theory, not the fold", got[0].Topic)
+	}
+}
+
 // TestATopicOnlyHitSortsAfterEveryBodyHit pins why topic is its own group
 // below body. A subject holds far more notes than a title, so ranking a
 // topic hit beside the title would bury the body answers; the topic-only
