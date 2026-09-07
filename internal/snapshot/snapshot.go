@@ -42,11 +42,13 @@ const maxRetryDelay = time.Minute
 // longer answers every note written since with a 404 in a folder otherwise fine.
 const degradeAfter = 3
 
-// reconcileEvery is the number of scan ticks between unconditional rebuilds. The
-// fast path compares only file identity and metadata, so an in-place edit that
-// preserves inode, mode, size and mtime is invisible to it and can stay stale for
-// about five minutes; a quiescent folder pays one full re-read per period.
-const reconcileEvery = 150
+// reconcileEvery is the number of scan ticks between unconditional rebuilds,
+// counted from a wall-clock hour so the period cannot shrink if scanInterval
+// moves. The fast path compares only file identity and metadata, so an in-place
+// edit that preserves inode, mode, size and mtime is invisible to it and can
+// stay stale for about an hour; a quiescent folder pays one full re-read per
+// period.
+const reconcileEvery = int(time.Hour / scanInterval)
 
 // Source is the rooted read capability required to construct a generation. It is
 // defined by its only consumer so a test can count scans and reads.
@@ -419,9 +421,10 @@ type Store struct {
 	// was built; a degraded one carries it so a page can say how old that is.
 	lastComplete time.Time
 
-	// sinceRebuild counts scan ticks since the last completed build attempt,
-	// driving the slow cycle that catches metadata-invisible edits.
-	sinceRebuild int
+	// lastRebuild is when the last completed build attempt finished, driving
+	// the slow cycle that catches metadata-invisible edits from elapsed time
+	// rather than a tick count.
+	lastRebuild time.Time
 
 	// running records that the reconciliation loop has been claimed. The
 	// fields above are that loop's alone and carry no synchronization, so a
@@ -470,6 +473,7 @@ func New(
 		retry:        len(blocked) != 0,
 	}
 	builtAt := store.now()
+	store.lastRebuild = builtAt
 	gen.built = buildFacts{
 		builtAt:  builtAt,
 		complete: len(blocked) == 0,
@@ -536,11 +540,11 @@ func (s *Store) rescan(ctx context.Context) {
 		return
 	}
 	// The metadata comparison cannot see an in-place edit that preserves inode,
-	// mode, size and mtime, so every reconcileEvery-th tick rebuilds without the
-	// short-circuit. It never fires while rebuilds are failing: the backoff owns
-	// the cadence there, and every retry is already a full re-read.
-	s.sinceRebuild++
-	reconcile := !s.retry && s.sinceRebuild >= reconcileEvery
+	// mode, size and mtime, so once a wall-clock reconcileEvery period has
+	// elapsed the next tick rebuilds without the short-circuit. It never fires
+	// while rebuilds are failing: the backoff owns the cadence there, and every
+	// retry is already a full re-read.
+	reconcile := !s.retry && s.now().Sub(s.lastRebuild) >= time.Duration(reconcileEvery)*scanInterval
 	if !s.retry && !reconcile && s.prev.SameFiles(scan) {
 		return
 	}
@@ -569,7 +573,7 @@ func (s *Store) rescan(ctx context.Context) {
 		return
 	}
 	// A completed attempt re-read every file, so the reconciliation clock restarts.
-	s.sinceRebuild = 0
+	s.lastRebuild = s.now()
 	if len(blocked) != 0 {
 		// The attempt is recorded first, so the retry schedule is the same
 		// whether or not this attempt goes on to publish.
