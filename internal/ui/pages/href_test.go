@@ -150,6 +150,15 @@ func TestHitFragment(t *testing.T) {
 			want: "#:~:text=cobalt,egret",
 		},
 		{
+			name: "a crossing match with only a last-block stretch names that stretch",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "ghi", Hit: true}},
+				LandingEnd:    "ghi",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=ghi",
+		},
+		{
 			name: "a crossing match with nothing locatable carries no directive",
 			hit: SearchResult{
 				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},

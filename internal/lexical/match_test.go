@@ -1083,6 +1083,35 @@ func TestBodyMatchReportsABlockCrossingLanding(t *testing.T) {
 	}
 }
 
+// A phrase that occupies three blocks must name only the last of them as
+// the end term. Returning the start of the note for every block would fold
+// the middle into that term, and the browser would again be asked for a
+// stretch no single element holds.
+func TestAThreeBlockPhraseLandsOnTheLastBlockOnly(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Three blocks.md", []byte(""+
+			"# Three blocks\n\n"+
+			"alpha\n\n"+
+			"beta\n\n"+
+			"gamma\n"))),
+	}, validArtifactPolicy(t))
+	got := searchResults(t, idx, Parse(`"alpha beta gamma"`))
+	if len(got) != 1 {
+		t.Fatalf("Search(`\"alpha beta gamma\"`) = %+v, want one hit", got)
+	}
+	if got[0].Landing != "alpha" {
+		t.Errorf("Landing = %q, want alpha", got[0].Landing)
+	}
+	if got[0].LandingEnd != "gamma" {
+		t.Errorf("LandingEnd = %q, want gamma (only the last block); a start-of-note answer would be %q", got[0].LandingEnd, "beta gamma")
+	}
+	if !got[0].BlockCrossing {
+		t.Errorf("BlockCrossing = false, want a three-block crossing")
+	}
+}
+
 // A one-character CJK query at the end of a block used to report a crossing
 // because the fold drops the break and the next kept rune sits in the next
 // block. The match itself does not cross.

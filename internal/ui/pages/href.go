@@ -50,8 +50,9 @@ func rawHref(p string) string { return VaultHref("/raw/", p) }
 // the top. Each end of that match still sits inside one block, so the
 // directive names both — the range between them may span blocks, and a bare
 // first-block term would land on an earlier copy of the same word. When even
-// the first stretch is empty the row carries no directive, and the page says
-// the match could not be located.
+// the first stretch is empty the last block is still a term the page has, so
+// that is what the directive names. When both stretches are empty the row
+// carries no directive, and the page says the match could not be located.
 //
 // Every other body hit still points at the first marked stretch because that
 // is the one the excerpt was cut around: the excerpt opens at the earliest
@@ -60,14 +61,17 @@ func rawHref(p string) string { return VaultHref("/raw/", p) }
 func hitFragment(r *SearchResult) string {
 	if r.BlockCrossing {
 		start := strings.TrimSpace(r.Landing)
-		if start == "" {
+		end := strings.TrimSpace(r.LandingEnd)
+		switch {
+		case start != "" && end != "":
+			return "#:~:text=" + escapeTextDirective(start) + "," + escapeTextDirective(end)
+		case start != "":
+			return "#:~:text=" + escapeTextDirective(start)
+		case end != "":
+			return "#:~:text=" + escapeTextDirective(end)
+		default:
 			return ""
 		}
-		end := strings.TrimSpace(r.LandingEnd)
-		if end == "" {
-			return "#:~:text=" + escapeTextDirective(start)
-		}
-		return "#:~:text=" + escapeTextDirective(start) + "," + escapeTextDirective(end)
 	}
 	for _, run := range r.SnippetRuns {
 		text := strings.TrimSpace(run.Text)

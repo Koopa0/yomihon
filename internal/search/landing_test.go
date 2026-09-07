@@ -36,10 +36,20 @@ const landingBody = "" +
 
 const landingRel = "Notes/Cross paragraph.md"
 
+const threeBlockRel = "Notes/Three blocks.md"
+
+const threeBlockBody = "" +
+	"# Three blocks\n\n" +
+	"alpha\n\n" +
+	"beta\n\n" +
+	"gamma\n"
+
 func landingDocs() []lexical.Document {
 	return []lexical.Document{
 		lexical.DocumentFromNote(vault.Parse(landingRel, []byte(landingBody))),
+		lexical.DocumentFromNote(vault.Parse(threeBlockRel, []byte(threeBlockBody))),
 		unlocatedCrossingDoc(),
+		emptyLandingDoc(),
 		lexical.DocumentFromNote(vault.Parse("Notes/nfd.md", []byte(""+
 			"# NFD\n\n"+
 			"caf\u0065\u0301 sits in the opening.\n\n"+
@@ -49,7 +59,7 @@ func landingDocs() []lexical.Document {
 }
 
 // unlocatedCrossingDoc is a phrase whose first-block stretch is only
-// whitespace. The index still finds it; the opened page cannot name it.
+// whitespace. The last block still holds the word, so the href can name it.
 func unlocatedCrossingDoc() lexical.Document {
 	plain := "abc def    \nghi"
 	return lexical.Document{
@@ -57,6 +67,18 @@ func unlocatedCrossingDoc() lexical.Document {
 		Title:     "Unlocated",
 		PlainText: plain,
 		BlockEnds: []int{strings.Index(plain, "\n"), len(plain)},
+	}
+}
+
+// emptyLandingDoc is a crossing whose first and last stretches collapse to
+// nothing, so the row has no term a text directive can name.
+func emptyLandingDoc() lexical.Document {
+	plain := "   \nxxx\n   "
+	return lexical.Document{
+		RelPath:   "Notes/Empty landing.md",
+		Title:     "Empty landing",
+		PlainText: plain,
+		BlockEnds: []int{3, 7, len(plain)},
 	}
 }
 
@@ -145,6 +167,40 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 	}
 }
 
+// A phrase that occupies three blocks must hand the browser an end term
+// that lives inside the last block. If blockStartContaining always answers
+// the start of the note, the end term swallows the middle block and the
+// directive fails the same way a whole-phrase one did.
+func TestAThreeBlockPhraseServesAnEndTermInsideTheLastBlock(t *testing.T) {
+	t.Parallel()
+
+	srv := landingServer(t)
+	code, body := getBody(t, srv.Client(), srv.URL+"/search/results?"+url.Values{"q": {`"alpha beta gamma"`}}.Encode())
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	got := resultHref(t, body)
+	want := "/notes/Notes/Three%20blocks.md#:~:text=alpha,gamma"
+	if got != want {
+		t.Errorf("href = %q, want %q; body = %q", got, want, body)
+	}
+	_, dir, ok := strings.Cut(got, "#:~:text=")
+	if !ok {
+		t.Fatalf("href carries no text directive; href = %q", got)
+	}
+	_, endTerm, ok := strings.Cut(dir, ",")
+	if !ok {
+		t.Fatalf("directive is not a range; href = %q", got)
+	}
+	if endTerm != "gamma" {
+		t.Errorf("end term = %q, want gamma inside the last block only", endTerm)
+	}
+	html := threeBlockHTML(t)
+	if sameBlock(html, "alpha", "gamma") || sameBlock(html, "beta", "gamma") {
+		t.Errorf("gamma shares a block with an earlier term, so this is not a three-block phrase; html = %q", html)
+	}
+}
+
 // A crossing match with nothing the page can name used to open the note at
 // the top and say nothing. The sentence has to be reachable through the
 // production mapping: BlockCrossing always arrives with a snippet, and the
@@ -152,8 +208,8 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 func TestSearchResultSaysWhenACrossingMatchCannotBeLocated(t *testing.T) {
 	t.Parallel()
 
-	idx := lexical.NewIndex([]lexical.Document{unlocatedCrossingDoc()}, validArtifactPolicy(t))
-	q := lexical.Parse(`"  ghi"`)
+	idx := lexical.NewIndex([]lexical.Document{emptyLandingDoc()}, validArtifactPolicy(t))
+	q := lexical.Parse(`"  xxx  "`)
 	results, _, err := idx.SearchN(q, -1)
 	if err != nil {
 		t.Fatalf("SearchN: %v", err)
@@ -162,7 +218,7 @@ func TestSearchResultSaysWhenACrossingMatchCannotBeLocated(t *testing.T) {
 	if len(view) != 1 {
 		t.Fatalf("viewResults = %+v, want one row", view)
 	}
-	if view[0].Landing != "" || !view[0].BlockCrossing {
+	if view[0].Landing != "" || view[0].LandingEnd != "" || !view[0].BlockCrossing {
 		t.Fatalf("viewResults did not produce an empty-landing crossing: %+v", view[0])
 	}
 	if view[0].Snippet == "" {
@@ -171,7 +227,7 @@ func TestSearchResultSaysWhenACrossingMatchCannotBeLocated(t *testing.T) {
 
 	var buf bytes.Buffer
 	if err := pages.SearchResults(pages.SearchView{
-		Query:   `"  ghi"`,
+		Query:   `"  xxx  "`,
 		Total:   1,
 		Results: view,
 	}, wording.ZhHant).Render(t.Context(), &buf); err != nil {
@@ -202,7 +258,9 @@ func TestEverySearchResultRowLocatesOrSaysSo(t *testing.T) {
 		note bool
 	}{
 		{name: "ordinary same-block phrase", q: `" second"`, href: notePath + "#:~:text=second"},
-		{name: "empty first-block stretch", q: `"  ghi"`, note: true},
+		{name: "empty first-block stretch still names the last", q: `"  ghi"`, href: "/notes/Notes/Unlocated.md#:~:text=ghi"},
+		{name: "both stretches empty", q: `"  xxx  "`, note: true},
+		{name: "three-block phrase", q: `"alpha beta gamma"`, href: "/notes/Notes/Three%20blocks.md#:~:text=alpha,gamma"},
 		{name: "cross-paragraph with a decoy", q: `"cobalt egret"`, href: notePath + "#:~:text=cobalt,egret"},
 		{name: "NFD note still lands on both blocks", q: `"bright crimson"`},
 	}
@@ -278,10 +336,20 @@ func resultHref(t *testing.T, body string) string {
 
 func landingHTML(t *testing.T) string {
 	t.Helper()
+	return renderNoteHTML(t, landingRel, "Cross paragraph", landingBody)
+}
+
+func threeBlockHTML(t *testing.T) string {
+	t.Helper()
+	return renderNoteHTML(t, threeBlockRel, "Three blocks", threeBlockBody)
+}
+
+func renderNoteHTML(t *testing.T, rel, title, body string) string {
+	t.Helper()
 	page := render.New(graph.BuildFromNotes(nil, nil), landingBodies{}, landingTitles{}, landingFiles{}).
-		HTML(landingRel, "Cross paragraph", landingBody, wording.ZhHant)
+		HTML(rel, title, body, wording.ZhHant)
 	if page.HTML == "" {
-		t.Fatal("the landing note rendered no body, so the block check would pass over nothing")
+		t.Fatal("the note rendered no body, so the block check would pass over nothing")
 	}
 	return page.HTML
 }
