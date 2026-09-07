@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -100,7 +101,7 @@ func (h *Handler) flip(w http.ResponseWriter, r *http.Request) {
 		// reloaded or hand-typed address finds nothing left to spend.
 		// #nosec G710 -- Flip succeeded only after its vault-local path check;
 		// the prefix is a fixed same-origin literal and the value is escaped.
-		http.Redirect(w, r, noteURL(path)+"?from="+url.QueryEscape(from), http.StatusSeeOther)
+		http.Redirect(w, r, noteURL(recoveryNotePath(path))+"?from="+url.QueryEscape(from), http.StatusSeeOther)
 		return
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -397,7 +398,7 @@ func recoveryNotePath(path string) string {
 	if err != nil {
 		return ""
 	}
-	return normalized
+	return vault.NormalizeNFC(normalized)
 }
 
 func writeRecovery(

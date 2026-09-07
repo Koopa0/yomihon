@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -505,6 +506,76 @@ func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
 	if diff := cmp.Diff(original, string(got)); diff != "" {
 		t.Errorf("bytes rewritten before the refusal (-want +got):\n%s", diff)
 	}
+}
+
+// TestFlipAgreesWithTheReaderAboutWhichNamesExist locks the two halves the
+// leaf-only byte compare missed. Writing the entry under one spelling and
+// requesting the other reaches the guard on a case-sensitive volume, where
+// the older leaf Lstat never saw the file and left through a skip. The NFD
+// name is the note the reader already serves under its NFC path.
+func TestFlipAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a differently-cased directory is missing", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writer := newWriter(t, root, loadContract(t))
+
+		const onDiskRel = "Writing/lessons/japanese/L05.md"
+		const requestedRel = "Writing/lessons/JAPANESE/L05.md"
+		original := lessonContent("draft")
+		writeVaultFile(t, root, onDiskRel, original)
+
+		err := writer.Flip(t.Context(), requestedRel, "draft", schema.SealStatus, diskIdentity(original))
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("Flip(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, fs.ErrNotExist)
+		}
+		got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(onDiskRel))) // #nosec G304 -- a fixed in-test path under this test's TempDir
+		if readErr != nil {
+			t.Fatalf("read the on-disk file: %v", readErr)
+		}
+		if diff := cmp.Diff(original, string(got)); diff != "" {
+			t.Errorf("bytes rewritten before the refusal (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("an NFD name is the NFC request", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writer := newWriter(t, root, loadContract(t))
+
+		const nfcLeaf = "käln.md"
+		nfdLeaf := norm.NFD.String(nfcLeaf)
+		if nfdLeaf == nfcLeaf {
+			t.Fatal("NFC and NFD collapsed; this lock would not bind")
+		}
+		onDiskRel := "Writing/" + nfdLeaf
+		requestedRel := "Writing/" + nfcLeaf
+		original := lessonContent("draft")
+		writeVaultFile(t, root, onDiskRel, original)
+
+		err := writer.Flip(t.Context(), requestedRel, "draft", schema.SealStatus, diskIdentity(original))
+		if err != nil {
+			t.Fatalf("Flip(%q) against on-disk %q = %v, want success", requestedRel, onDiskRel, err)
+		}
+		got, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(onDiskRel))) // #nosec G304 -- a fixed in-test path under this test's TempDir
+		if readErr != nil {
+			t.Fatalf("read the on-disk file: %v", readErr)
+		}
+		if !strings.Contains(string(got), "status: "+schema.SealStatus) {
+			t.Errorf("the NFD note was not flipped:\n%s", got)
+		}
+		nfdPath := filepath.Join(root, filepath.FromSlash(onDiskRel))
+		nfcPath := filepath.Join(root, filepath.FromSlash(requestedRel))
+		nfdInfo, nfdErr := os.Lstat(nfdPath)
+		if nfdErr != nil {
+			t.Fatalf("the stored NFD file is gone: %v", nfdErr)
+		}
+		nfcInfo, nfcErr := os.Lstat(nfcPath)
+		if nfcErr == nil && !os.SameFile(nfcInfo, nfdInfo) {
+			t.Errorf("the NFC request created a second file; the write must open the stored spelling")
+		}
+	})
 }
 
 // TestFlipReportsAMissingNoteAsMissing guards the boundary the on-disk name

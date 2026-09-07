@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/a-h/templ"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -208,6 +209,7 @@ func TestRecoveryNotePathAcceptsOnlyNormalizedVaultLocalPaths(t *testing.T) {
 		{input: "Writing/a?.md", want: "Writing/a?.md"},
 		{input: "Writing/a#.md", want: "Writing/a#.md"},
 		{input: "a/../Writing/n.md", want: "Writing/n.md"},
+		{input: "Writing/" + norm.NFD.String("käln.md"), want: "Writing/käln.md"},
 	}
 	for _, tt := range tests {
 		if got := recoveryNotePath(tt.input); got != tt.want {
