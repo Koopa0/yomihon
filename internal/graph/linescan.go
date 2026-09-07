@@ -1,0 +1,132 @@
+package graph
+
+import (
+	"regexp"
+	"strings"
+)
+
+// The line shapes the page and the check both read when they walk a note:
+// which lines are headings, which cannot be the prose an underline turns into
+// one, and which open an authored HTML block whose contents reach the reader
+// as written. They lived twice, once on each face, and then they were not
+// the same scan; every face that asks these questions reads them from here.
+
+var (
+	// ATXHeading matches an ATX heading the way goldmark reads it: up to three
+	// spaces of indent, one to six '#' characters, then whitespace. A '#' run
+	// glued to text is not a heading in CommonMark and is not one here. The
+	// second group is the heading's words, which stop before a closing run of
+	// '#': CommonMark reads a trailing run preceded by whitespace as part of
+	// the marks, and the rendered heading shows neither the run nor the space
+	// before it. A run with no whitespace before it is text, and stays in the
+	// words.
+	ATXHeading = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`)
+
+	// SetextUnderline matches the line that underlines a heading written
+	// without '#' marks.
+	SetextUnderline = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
+
+	// QuotedLine matches a line that opens or continues a block quote at the
+	// indent CommonMark allows.
+	QuotedLine = regexp.MustCompile(`^ {0,3}>`)
+
+	// ListItemLine matches a bullet or ordered list marker at the indent
+	// CommonMark allows.
+	ListItemLine = regexp.MustCompile(`^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)`)
+
+	// BreakRuleLine matches a thematic break: three or more '*', '_', or '-'
+	// markers, spaces and tabs between them allowed.
+	BreakRuleLine = regexp.MustCompile(`^ {0,3}((\*[ \t]*){3,}|(_[ \t]*){3,}|(-[ \t]*){3,})$`)
+
+	// IndentedCodeLine matches a line that opens an indented code block when
+	// it is not continuing a paragraph.
+	IndentedCodeLine = regexp.MustCompile(`^ {4,}\S`)
+
+	// HTMLBlockElement matches a CommonMark type-6 HTML block opening: a
+	// known tag at up to three spaces of indent. A block opened by one of
+	// these hands its lines over as written, so a '#' line inside one is
+	// text and not a heading. The type-7 complete-tag condition is omitted
+	// because it cannot interrupt a paragraph, and telling those readings
+	// apart needs paragraph state a line scan does not keep.
+	HTMLBlockElement = regexp.MustCompile(`(?i)^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([ \t]|/?>|$)`)
+
+	// HTMLBlockRawEnd closes any of the four raw-text HTML elements.
+	HTMLBlockRawEnd = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
+)
+
+// SetextLevel is the level an underline makes, for a line the caller has
+// already recognized as one: '=' underlines a level-1 heading, '-' a level-2
+// one. A course branch is a heading from level 2 to 6, so a declaration
+// written on an underlined title is not a branch the course parser opens.
+func SetextLevel(line string) int {
+	if strings.HasPrefix(strings.TrimSpace(line), "=") {
+		return 1
+	}
+	return 2
+}
+
+// BlankLine reports whether line is empty or only whitespace.
+func BlankLine(line string) bool { return strings.TrimSpace(line) == "" }
+
+// FenceOpens reports whether a line opens a fenced code block, and with which
+// marker byte.
+func FenceOpens(line string) (byte, bool) {
+	t := strings.TrimLeft(line, " \t")
+	switch {
+	case strings.HasPrefix(t, "```"):
+		return '`', true
+	case strings.HasPrefix(t, "~~~"):
+		return '~', true
+	default:
+		return 0, false
+	}
+}
+
+// FenceCloses reports whether a line closes the open fence: trimmed, at least
+// three characters, all of them the fence marker.
+func FenceCloses(line string, marker byte) bool {
+	t := strings.TrimSpace(line)
+	return len(t) >= 3 && strings.Count(t, string(marker)) == len(t)
+}
+
+// LineScan carries the running state a line-by-line walk needs to tell a
+// heading from a heading-shaped line inside fenced code or an authored HTML
+// block, whose contents reach the reader as written. The zero value starts a
+// scan.
+type LineScan struct {
+	inFence    bool
+	fenceByte  byte
+	htmlCloses func(string) bool
+}
+
+// Skip advances the scan by one line and reports whether that line belongs to
+// a fenced code block or an authored HTML block, the lines that open and close
+// one included. htmlOpen is the caller's test for an HTML-block opening: the
+// two faces still disagree about a self-closing <pre/>, and each supplies the
+// opener it already uses so a lift of the shared patterns does not change
+// which openings either face recognises.
+func (s *LineScan) Skip(line string, htmlOpen func(string) (func(string) bool, bool)) bool {
+	switch {
+	case s.inFence:
+		if FenceCloses(line, s.fenceByte) {
+			s.inFence = false
+		}
+		return true
+	case s.htmlCloses != nil:
+		if s.htmlCloses(line) {
+			s.htmlCloses = nil
+		}
+		return true
+	}
+	if marker, ok := FenceOpens(line); ok {
+		s.inFence, s.fenceByte = true, marker
+		return true
+	}
+	if closes, ok := htmlOpen(line); ok {
+		if !closes(line) {
+			s.htmlCloses = closes
+		}
+		return true
+	}
+	return false
+}

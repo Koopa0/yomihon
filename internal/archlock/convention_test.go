@@ -897,6 +897,41 @@ func TestOneOwnerFoldsAFragment(t *testing.T) {
 	}
 }
 
+// TestOneOwnerScansALine keeps the line scan that decides what a heading is,
+// where a fenced block ends, and which HTML block a line opened, written once
+// under internal/graph/.
+//
+// The page and the check each kept a copy. The copies were byte-identical on
+// eight patterns and then they were not: a callout title and a self-closing
+// <pre/> were an address on one face and missing on the other, so a reader
+// was told a link was fine to a place the page had already marked broken.
+// The scan is found by the bytes that make it a scan rather than by its type
+// name, since the two copies already disagreed about what to call it.
+func TestOneOwnerScansALine(t *testing.T) {
+	t.Parallel()
+
+	for _, spelling := range []struct{ what, bytes string }{
+		{"an ATX heading the scan recognises", `^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`},
+		{"the HTML block tags a line scan can open without paragraph state", `address|article|aside|base|basefont|blockquote`},
+		{"the scan's running HTML-block close test", "htmlCloses func(string) bool"},
+	} {
+		t.Run(spelling.what, func(t *testing.T) {
+			t.Parallel()
+			written := findLines(t, func(line string) bool { return strings.Contains(line, spelling.bytes) })
+			if len(written) == 0 {
+				t.Fatalf("nothing in the tree writes %q any more, so this check passes for the wrong reason", spelling.bytes)
+			}
+			var elsewhere []site
+			for _, s := range written {
+				if !strings.HasPrefix(s.path, fragmentAddressing) {
+					elsewhere = append(elsewhere, s)
+				}
+			}
+			report(t, "the line scan is "+fragmentAddressing+"'s; call it rather than writing a second copy", elsewhere)
+		})
+	}
+}
+
 // escapingVaultPathSegments is the shape of a loop that percent-escapes a vault
 // path one segment at a time, and pathSegmentEscapers is how many places in the
 // tree are allowed to write one.

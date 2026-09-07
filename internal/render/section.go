@@ -3,7 +3,6 @@ package render
 import (
 	"fmt"
 	"path"
-	"regexp"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
@@ -68,24 +67,6 @@ func (r *Pipeline) indentedCodeLines(body string) map[int]bool {
 	return quoted
 }
 
-// atxHeadingLine matches an ATX heading the way goldmark reads it: up to three
-// spaces of indent, one to six '#' characters, then whitespace. A '#' run glued
-// to text is not a heading in CommonMark and is not one here. The second group
-// is the heading's words, which stop before a closing run of '#': CommonMark
-// reads a trailing run preceded by whitespace as part of the marks, and the
-// rendered heading shows neither the run nor the space before it. A run with no
-// whitespace before it is text, and stays in the words.
-var atxHeadingLine = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`)
-
-// The HTML block start conditions of the CommonMark spec, minus the one for a
-// bare complete tag alone on its line. A block opened by any of these hands its
-// lines over as written, so a '#' line inside one is text and not a boundary.
-// The omitted condition cannot interrupt a paragraph, and telling those readings
-// apart needs paragraph state this scan does not keep.
-var (
-	htmlBlockElement = regexp.MustCompile(`(?i)^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([ \t]|/?>|$)`)
-)
-
 // htmlBlockOpen reports whether line opens an authored HTML block, and returns
 // the test for the line closing it. The blocks a blank line does not end are
 // asked for from the one table that describes them, which the callout scan
@@ -98,75 +79,11 @@ func htmlBlockOpen(line string) (closes func(string) bool, ok bool) {
 			return htmlBlockKinds[i].ends.MatchString, true
 		}
 	}
-	if htmlBlockElement.MatchString(line) {
-		return blankLine, true
+	if graph.HTMLBlockElement.MatchString(line) {
+		return graph.BlankLine, true
 	}
 	return nil, false
 }
-
-func blankLine(line string) bool { return strings.TrimSpace(line) == "" }
-
-// blockScan carries the running state a line-by-line section scan needs to tell a
-// real heading from a heading-looking line: a line inside fenced code or an
-// authored HTML block is content, never a boundary. The zero value starts a scan.
-type blockScan struct {
-	inFence    bool
-	fenceByte  byte
-	htmlCloses func(string) bool
-}
-
-// skips advances the scan by one line and reports whether that line is inside a
-// fenced code block or an authored HTML block, the lines opening and closing one
-// included.
-func (s *blockScan) skips(line string) bool {
-	switch {
-	case s.inFence:
-		if fenceCloses(line, s.fenceByte) {
-			s.inFence = false
-		}
-		return true
-	case s.htmlCloses != nil:
-		if s.htmlCloses(line) {
-			s.htmlCloses = nil
-		}
-		return true
-	}
-	if marker, _, ok := fenceOpen(line); ok {
-		s.inFence, s.fenceByte = true, marker
-		return true
-	}
-	if closes, ok := htmlBlockOpen(line); ok {
-		if !closes(line) {
-			s.htmlCloses = closes
-		}
-		return true
-	}
-	return false
-}
-
-// setextUnderline matches the line that underlines a heading written without
-// '#' marks, and reports the level it makes: '=' is a level-1 heading, '-' a
-// level-2 one.
-var setextUnderline = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
-
-// setextLevel is the level an underline makes, for a line the caller has
-// already recognized as one.
-func setextLevel(line string) int {
-	if strings.HasPrefix(strings.TrimSpace(line), "=") {
-		return 1
-	}
-	return 2
-}
-
-// The line shapes that are not running prose, and so cannot be the text an
-// underline turns into a heading: a quote, a list item, a break rule, an indented
-// code line. Anything else that is not blank continues a paragraph.
-var (
-	quotedLine       = regexp.MustCompile(`^ {0,3}>`)
-	listItemLine     = regexp.MustCompile(`^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)`)
-	breakRuleLine    = regexp.MustCompile(`^ {0,3}((\*[ \t]*){3,}|(_[ \t]*){3,}|(-[ \t]*){3,})$`)
-	indentedCodeLine = regexp.MustCompile(`^ {4,}\S`)
-)
 
 // sectionHeading is one heading a scan found: the line its section opens on,
 // its level, and the source text its anchor is folded from. An underlined
@@ -184,29 +101,29 @@ type sectionHeading struct {
 // reading is ambiguous the scan keeps the plainer one, which never invents a heading.
 func scanHeadings(lines []string) []sectionHeading {
 	var out []sectionHeading
-	var scan blockScan
+	var scan graph.LineScan
 	paragraph := -1
 	for i, line := range lines {
-		if scan.skips(line) {
+		if scan.Skip(line, htmlBlockOpen) {
 			paragraph = -1
 			continue
 		}
-		if m := atxHeadingLine.FindStringSubmatch(line); m != nil {
+		if m := graph.ATXHeading.FindStringSubmatch(line); m != nil {
 			out = append(out, sectionHeading{line: i, level: len(m[1]), text: m[2]})
 			paragraph = -1
 			continue
 		}
 		switch {
-		case paragraph >= 0 && setextUnderline.MatchString(line):
+		case paragraph >= 0 && graph.SetextUnderline.MatchString(line):
 			out = append(out, sectionHeading{
 				line:  paragraph,
-				level: setextLevel(line),
+				level: graph.SetextLevel(line),
 				text:  strings.Join(lines[paragraph:i], "\n"),
 			})
 			paragraph = -1
-		case blankLine(line), quotedLine.MatchString(line), listItemLine.MatchString(line),
-			breakRuleLine.MatchString(line), setextUnderline.MatchString(line),
-			paragraph < 0 && indentedCodeLine.MatchString(line):
+		case graph.BlankLine(line), graph.QuotedLine.MatchString(line), graph.ListItemLine.MatchString(line),
+			graph.BreakRuleLine.MatchString(line), graph.SetextUnderline.MatchString(line),
+			paragraph < 0 && graph.IndentedCodeLine.MatchString(line):
 			paragraph = -1
 		case paragraph < 0:
 			paragraph = i
@@ -321,13 +238,13 @@ func ExcerptHeading(slice string) string {
 	if len(lines) == 0 {
 		return ""
 	}
-	if m := atxHeadingLine.FindStringSubmatch(lines[0]); m != nil {
+	if m := graph.ATXHeading.FindStringSubmatch(lines[0]); m != nil {
 		return headingSourceText(m[2], len(m[1]))
 	}
 	// A heading written under its own underline opens on the line of text, so
 	// the line below it is what says the text was a heading at all.
-	if len(lines) > 1 && setextUnderline.MatchString(lines[1]) && !blankLine(lines[0]) {
-		return headingSourceText(lines[0], setextLevel(lines[1]))
+	if len(lines) > 1 && graph.SetextUnderline.MatchString(lines[1]) && !graph.BlankLine(lines[0]) {
+		return headingSourceText(lines[0], graph.SetextLevel(lines[1]))
 	}
 	return ""
 }
@@ -355,11 +272,11 @@ func blockSlice(body, block string) (string, bool) {
 		return "", false
 	}
 	start := at
-	for start > 0 && !listItemLine.MatchString(lines[start]) && strings.TrimSpace(lines[start-1]) != "" {
+	for start > 0 && !graph.ListItemLine.MatchString(lines[start]) && strings.TrimSpace(lines[start-1]) != "" {
 		start--
 	}
 	end := at + 1
-	for end < len(lines) && strings.TrimSpace(lines[end]) != "" && !listItemLine.MatchString(lines[end]) {
+	for end < len(lines) && strings.TrimSpace(lines[end]) != "" && !graph.ListItemLine.MatchString(lines[end]) {
 		end++
 	}
 	return strings.Join(lines[start:end], "\n"), true
