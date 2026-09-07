@@ -49,4 +49,28 @@ func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
 	if strings.Contains(css, ".y-prose h4 {") {
 		t.Errorf("heading look is still keyed on the tag .y-prose h4, so a demoted #### loses its size")
 	}
+
+	// The size rows and `.y-prose > :first-child` are both (0,2,0). The generic
+	// reset used to beat the tag keys; it now ties the data-level keys and
+	// loses by source order, so a note that opens with a heading gains that
+	// heading's top margin. The heading-only reset is (0,3,0) and must sit
+	// after the size rows so the tie cannot flip back silently.
+	const openingReset = `.y-prose > [data-level]:first-child {`
+	opening := cssDeclarations(t, ruleBody(t, css, openingReset))
+	if opening["margin-top"] != "0" {
+		t.Errorf("%s declares margin-top %q, want 0, so a note that opens with a heading stays flush with the chrome title", openingReset, opening["margin-top"])
+	}
+	if strings.Index(css, openingReset) < strings.Index(css, `.y-prose [data-level="1"] {`) {
+		t.Error("the opening-heading margin reset is written before the size rows it has to beat, so a first-child heading keeps its 48px")
+	}
+
+	const built = "../../../assets/css/output.css"
+	stylesheet, err := os.ReadFile(built)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", built, err)
+	}
+	if !strings.Contains(string(stylesheet), ".y-prose>[data-level]:first-child") &&
+		!strings.Contains(string(stylesheet), `.y-prose > [data-level]:first-child`) {
+		t.Error("the built stylesheet carries no opening-heading margin reset, so whatever the authored one says a note that opens with a heading keeps its top margin")
+	}
 }

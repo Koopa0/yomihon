@@ -22,6 +22,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const DESTINATION = '/notes/Notes/Glass%20Tide.md';
+const OPENING = '/notes/Notes/seedling-inbox.md';
 
 const MUTATE = process.env.MUTATE || '';
 
@@ -46,6 +47,7 @@ const SITES = [
   'fragment-names-the-anchor',
   'fragment-reaches-the-heading',
   'back-returns-to-the-source',
+  'opening-heading-sits-flush',
 ];
 
 class LockFired extends Error {
@@ -126,6 +128,14 @@ const MUTATIONS = {
     target: 'back-returns-to-the-source',
     apply: rewriteDocuments((body) => body.replaceAll('class="wikilink"', 'class="wikilink" target="_blank"')),
   },
+  // The size rows share specificity with `.y-prose > :first-child` and sit
+  // later, so an opening heading used to keep its top margin. Restoring that
+  // margin is the defect; the reset has to win or 179 vault notes drop.
+  'give-the-opening-heading-its-margin-back': {
+    target: 'opening-heading-sits-flush',
+    provePath: () => openingPath,
+    apply: weakenStylesheet('.y-prose > [data-level]:first-child{margin-top:48px}'),
+  },
   // Every separately rendered body numbers its footnotes from one, and on this
   // page the second such body is the note the source quotes: its footnotes are
   // named under a region of their own. Taking that region's name off them puts
@@ -169,6 +179,7 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
 const sourcePath = new URL(BASE + PAGE).pathname;
 const destinationPath = new URL(BASE + DESTINATION).pathname;
+const openingPath = new URL(BASE + OPENING).pathname;
 
 // Only the flow whose assertion a mode aims at proves it applied. Asking on
 // any other page would report not-applied for a mutation working perfectly on
@@ -263,6 +274,36 @@ try {
     if (!anchors[link.heading]) broken(`the destination page has nothing named ${JSON.stringify(link.heading)}; it offers ${JSON.stringify(Object.keys(anchors))}`);
   }
   await reader.close();
+
+  // A note whose body opens with a heading used to pick up that heading's top
+  // margin once look keyed on data-level: the generic first-child reset tied
+  // the size rows and lost. The heading-only reset has to win, including in
+  // print, which inherits the same margin.
+  {
+    const page = await context.newPage();
+    const response = await page.goto(BASE + OPENING, { waitUntil: 'networkidle' });
+    if (!response || response.status() !== 200) broken(`the opening-heading note returned ${response?.status() ?? 'no response'}, want 200`);
+    proveApplied('opening-heading-sits-flush', proof);
+
+    const opening = await page.evaluate(() => {
+      const first = document.querySelector('.y-prose > :first-child');
+      if (!first) return null;
+      const style = getComputedStyle(first);
+      return {
+        tag: first.tagName,
+        level: first.getAttribute('data-level'),
+        isHeading: /^H[1-6]$/.test(first.tagName),
+        marginTop: style.marginTop,
+      };
+    });
+    if (!opening || !opening.isHeading) {
+      broken('the opening-heading fixture does not start .y-prose with a heading');
+    }
+    if (opening.marginTop !== '0px') {
+      fail('opening-heading-sits-flush', `the opening ${opening.tag} data-level=${JSON.stringify(opening.level)} has margin-top ${JSON.stringify(opening.marginTop)}, want "0px"`);
+    }
+    await page.close();
+  }
 
   for (const link of LINKS) {
     const wanted = anchors[link.heading];

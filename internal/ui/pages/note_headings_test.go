@@ -62,10 +62,10 @@ func TestNotePageCarriesExactlyOneH1(t *testing.T) {
 }
 
 // TestNotePageDemotesTheWholeAuthoredOutline is the lock above internal/render
-// for the ##→h5 half. Demoting only # leaves ## as h2 and #### as h4, and
-// every pages test that only watched a surviving # stayed green. The look is
-// keyed on data-level, so the tags still have to move or a screen-reader
-// outline of chapters sits one step too high.
+// for the ##→h3 / ####→h5 half. Demoting only # leaves ## as h2 and #### as
+// h4, and every pages test that only watched a surviving # stayed green. The
+// look is keyed on data-level, so the tags still have to move or a
+// screen-reader outline of chapters sits one step too high.
 func TestNotePageDemotesTheWholeAuthoredOutline(t *testing.T) {
 	t.Parallel()
 

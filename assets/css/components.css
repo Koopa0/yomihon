@@ -389,6 +389,12 @@ html, body { margin: 0; background: var(--bg); }
   font-family: var(--font-display); font-weight: var(--fw-semibold); color: var(--fg);
   letter-spacing: var(--track-snug); line-height: 1.4; scroll-margin-top: 72px; text-wrap: balance;
 }
+/* The size rows share specificity with `.y-prose > :first-child` (0,2,0) and
+   sit later, so an opening heading used to keep its top margin and drop the
+   whole prose block. This reset is (0,3,0) and only names headings; a
+   first-child paragraph still loses to the generic reset above. Print
+   inherits the same margin. */
+.y-prose > [data-level]:first-child { margin-top: 0; }
 .y-prose ul, .y-prose ol { margin: 14px 0 0; padding-left: 1.5em; }
 .y-prose ul { list-style: disc; }
 .y-prose ol { list-style: decimal; }
