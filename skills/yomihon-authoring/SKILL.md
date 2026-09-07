@@ -48,10 +48,10 @@ is quiet.
 |---|---|
 | `[path...]` | narrows the run; written the way the vault spells it, relative to the root. An absolute path exits 2 with empty stdout |
 | exit codes | `0` nothing named by `--deny` was found · `1` a `--deny` gate hit · `2` the command could not run. Findings alone never fail it: without `--deny` it reports and exits 0 |
-| `--all` | keeps findings under `System/`, which the default output drops although the directory is fully scanned. Pass it when the note you touched lives there, or its silence means nothing |
+| `--all` | keeps findings that touch nothing inside the declared knowledge layer (`[scan] knowledge_dirs`). The default output drops those, though the whole vault is still scanned. When the list is omitted or empty, nothing is outside the layer and `--all` changes nothing. Privacy is a different cut: a withheld path is never reported, even with `--all`. Pass it when the note you touched sits outside the layer, or its silence means nothing |
 | `--baseline <file>` | a prior run's output, subtracted by `fingerprint` so only new findings are reported and gated. A `fingerprint` carries its algorithm version as a `v1:` prefix, and a baseline written by another version stops the run at exit 2 rather than under-subtracting |
 | `source_rule` | where a rule's authority lives: `vault-schema.toml`, that name with a section anchor (`#rules`, `#scan`, `#supersession`), or `yomihon` for the product's own dialect |
-| `yomihon coverage` | reports concept coverage; never gates |
+| `yomihon coverage` | reports concept coverage inside that same knowledge layer; a map outside it cannot change a public concept's mount state. Never gates |
 | `yomihon exists <name>` | exit 0 when a note for the name exists, 1 when none does, so a write-if-absent can gate on the exit code alone |
 | no contract | a folder with no `System/schemas/vault-schema.toml` gets a tool error and exit 2 from all three commands. Reading and browser search are not gated; only this surface is |
 
@@ -150,12 +150,12 @@ Six filter keys:
 |---|---|
 | Case | **lowercase only.** `Type:lesson` is not a filter — it degrades to a literal token searched as text |
 | Repeated key | **AND.** Two `type:` filters both have to hold, so they are jointly unsatisfiable rather than last-wins |
-| Values | not validated: exact string equality against whatever the note carries. `folder:` matches at a `/` boundary, `topic:` is membership |
+| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, lowercase). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `topic:` is membership of the folded topics |
 | Unknown prefix | named back to the reader with all six offered, never silently searched as text |
 | Quoting | `"…"`, `「…」`, `『…』` — at the start of a field, or straight after a recognised key and its colon |
-| Indexed | title, aliases, body plain text and the vault-relative path are free-text searchable; the other five frontmatter values are **not**, and are reachable only through their own filter |
+| Indexed | title, aliases, declared topics, body plain text and the vault-relative path are free-text searchable; type, status, domain and slug are reachable only through their own filter |
 | CJK | no segmenter: a folded literal substring, and a newline between two Han or Kana runes is dropped |
-| Ranking | none. Six fixed answer groups, then vault reading order |
+| Ranking | eight fixed groups, then vault reading order inside each: title, body, topic for notes; the same three for files; then path-only notes, then path-only files. A title that is the query under that fold leads the title-note group. There is no score |
 
 ## Study paths: sequence is declared, never inferred
 
