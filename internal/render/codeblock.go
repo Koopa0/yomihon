@@ -87,6 +87,70 @@ var ChromaCSS = sync.OnceValue(func() string {
 	return b.String()
 })
 
+// lexerCacheBound is how many distinct names or filenames one lookup will
+// remember. Past it, a new key is answered and forgotten, so a note full of
+// invented info-strings cannot grow the maps without limit. The vault's own
+// languages and file kinds sit well under this; the bound is for the ones
+// that are not.
+const lexerCacheBound = 1024
+
+// lexerNames remembers lexers.Get; lexerFiles remembers lexers.Match. They
+// are separate because the keys are different questions — an info string
+// and a filename — and a miss on either is the expensive answer, including
+// when the answer is nil.
+var (
+	lexerNames = newLexerCache(lexerCacheBound)
+	lexerFiles = newLexerCache(lexerCacheBound)
+)
+
+// lexerCache is one bounded map in front of one chroma registry lookup.
+// nil is stored as a real answer: the miss is what costs milliseconds.
+type lexerCache struct {
+	mu    sync.Mutex
+	bound int
+	m     map[string]chroma.Lexer
+}
+
+func newLexerCache(bound int) *lexerCache {
+	return &lexerCache{
+		bound: bound,
+		m:     make(map[string]chroma.Lexer, bound),
+	}
+}
+
+// lookup is the seam: get stands in for chroma, so a test can count how
+// often a name actually reaches the registry. A hit, including a cached
+// nil, never calls get. A key that arrives after the map is full is
+// answered and forgotten, so the names that already fit stay.
+func (c *lexerCache) lookup(key string, get func(string) chroma.Lexer) chroma.Lexer {
+	c.mu.Lock()
+	if l, ok := c.m[key]; ok {
+		c.mu.Unlock()
+		return l
+	}
+	c.mu.Unlock()
+
+	l := get(key)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if existing, ok := c.m[key]; ok {
+		return existing
+	}
+	if len(c.m) < c.bound {
+		c.m[key] = l
+	}
+	return l
+}
+
+func namedLexer(name string) chroma.Lexer {
+	return lexerNames.lookup(name, lexers.Get)
+}
+
+func matchedLexer(filename string) chroma.Lexer {
+	return lexerFiles.lookup(filename, lexers.Match)
+}
+
 // codeBlockRenderer renders a fenced code block via chroma in place of
 // goldmark's own default plain <pre><code> output.
 type codeBlockRenderer struct{}
@@ -118,7 +182,7 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 
 	lexer := lexers.Fallback
 	if lang := node.Language(source); len(lang) > 0 {
-		if l := lexers.Get(string(lang)); l != nil {
+		if l := namedLexer(string(lang)); l != nil {
 			lexer = l
 		}
 	}
