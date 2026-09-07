@@ -110,11 +110,15 @@ func TestSearchSnippetRequiresBodyEvidence(t *testing.T) {
 	if len(text) != 2 {
 		t.Fatalf("text results = %+v", text)
 	}
-	if text[0].RelPath != "title-and-body.md" || text[0].Snippet == "" {
-		t.Errorf("title+body result = %+v, want body evidence", text[0])
+	byPath := make(map[string]Result, len(text))
+	for _, r := range text {
+		byPath[r.RelPath] = r
 	}
-	if text[1].RelPath != "title-only.md" || text[1].Snippet != "" {
-		t.Errorf("title-only result = %+v, want no snippet", text[1])
+	if got, ok := byPath["title-and-body.md"]; !ok || got.Snippet == "" {
+		t.Errorf("title+body result = %+v, want body evidence", got)
+	}
+	if got, ok := byPath["title-only.md"]; !ok || got.Snippet != "" {
+		t.Errorf("title-only result = %+v, want no snippet", got)
 	}
 
 	filtered := searchResults(t, idx, Parse("type:concept"))
@@ -434,6 +438,33 @@ func TestSearchOrdering(t *testing.T) {
 	want := []string{"a.md", "c.md", "b.md"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Search(kafka) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery is the one tie-break
+// inside the title group. A note whose title is the query used to lose to any
+// longer title whose path sorts earlier — a space before a full stop — so
+// searching a note by its own name put it third of 103. Fold-equal exact
+// titles come first; everything else in the group keeps the vault's reading
+// order. The six groups do not move.
+func TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery(t *testing.T) {
+	t.Parallel()
+
+	containing := "Go Slice 共享底層陣列.md"
+	exact := "Go Slice.md"
+	if vault.ComparePaths(containing, exact) >= 0 {
+		t.Fatal("the containing-title path must sort first, or this fixture cannot catch a missing tie-break")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: containing, Title: "Go Slice 共享底層陣列", PlainText: "a longer title that contains the query"},
+		{RelPath: exact, Title: "Go Slice", PlainText: "the note whose title is the query"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("Go Slice")))
+	want := []string{exact, containing}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(Go Slice) order mismatch (-want +got):\n%s", diff)
 	}
 }
 

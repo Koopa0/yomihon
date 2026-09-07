@@ -1,6 +1,7 @@
 package lexical
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 	"unicode"
@@ -58,9 +59,9 @@ const (
 // SearchN runs a parsed query against the index and returns results in the final
 // deterministic order, six groups concatenated: a note's title hits, a note's
 // body hits, the same two over vault files that are not notes, then the
-// path-only hits, notes again before files. Entries are kept in the vault's
-// reading order, so each group carries it and no sort is needed, and every text
-// hit outranks every path-only hit.
+// path-only hits, notes again before files. Each group keeps the vault's
+// reading order, except that a fold-equal exact title leads the title-note
+// group, and every text hit outranks every path-only hit.
 //
 // An empty query returns nothing and a pure-filter query lands every match in
 // the title bucket. A metadata filter excludes non-instance artifacts, and
@@ -86,6 +87,7 @@ func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err
 		}
 		answers.place(e, q.tokens)
 	}
+	answers.raiseExactTitles(q.tokens)
 	hits := answers.ordered()
 	total = len(hits)
 	if limit >= 0 && len(hits) > limit {
@@ -125,7 +127,7 @@ const (
 )
 
 // resultBuckets keeps the answer groups apart while one pass fills them, so the
-// final order is a concatenation rather than a sort.
+// final order is a concatenation rather than a sort of the whole answer.
 type resultBuckets struct {
 	groups [bucketCount][]hit
 }
@@ -157,6 +159,28 @@ func (b *resultBuckets) add(note, file bucket, h hit) {
 		g = file
 	}
 	b.groups[g] = append(b.groups[g], h)
+}
+
+// raiseExactTitles is the one tie-break inside the title-note group: a title
+// that is the query, under the same fold matching uses, leads every title that
+// merely contains it. Hits that share that answer keep the vault's reading
+// order. The other five groups are not touched, and an empty token list is a
+// pure-filter query whose every match already sits here.
+func (b *resultBuckets) raiseExactTitles(tokens []string) {
+	if len(tokens) == 0 {
+		return
+	}
+	needle := strings.Join(tokens, " ")
+	slices.SortStableFunc(b.groups[titleNote], func(left, right hit) int {
+		return cmp.Compare(exactTitleRank(right.entry.TitleFold, needle), exactTitleRank(left.entry.TitleFold, needle))
+	})
+}
+
+func exactTitleRank(titleFold, needle string) int {
+	if titleFold == needle {
+		return 1
+	}
+	return 0
 }
 
 // ordered flattens the groups into the answer, in the order the constants are
