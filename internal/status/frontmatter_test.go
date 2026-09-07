@@ -1,6 +1,7 @@
 package status
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -246,6 +247,81 @@ func TestRewriteStatusLineAcceptsTheSeparatorsYAMLAccepts(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.want, string(got)); diff != "" {
 				t.Errorf("rewrite mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestRewriteStatusCheckedRefusesOnlyByReparse is #270's second lock, the four
+// rows TestFlipRefusesUnsupportedStatusSyntax cannot hold. Each input has a
+// locatable status: line, so rewriteStatusLine succeeds; the reader cannot
+// honour the frontmatter, so the reparse is the only refusal. Flip asks the
+// lifecycle first and would report an unknown type for these, which is why
+// they sit here rather than on the write face.
+func TestRewriteStatusCheckedRefusesOnlyByReparse(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   string
+	}{
+		{
+			name: "status: draft beside an unterminated quote",
+			in: "---\n" +
+				"title: L05\n" +
+				"type: lesson\n" +
+				"domain: japanese\n" +
+				"status: draft\n" +
+				"note: \"hello\n" +
+				"created: 2026-06-01\n" +
+				"updated: 2026-06-01\n" +
+				"---\n" +
+				"\nbody\n",
+		},
+		{
+			name: "a tab-indented list",
+			in: "---\n" +
+				"title: L05\n" +
+				"type: lesson\n" +
+				"domain: japanese\n" +
+				"status: draft\n" +
+				"topics:\n" +
+				"\t- one\n" +
+				"created: 2026-06-01\n" +
+				"updated: 2026-06-01\n" +
+				"---\n" +
+				"\nbody\n",
+		},
+		{
+			name: "a duplicate non-status key",
+			in: "---\n" +
+				"title: L05\n" +
+				"title: Other\n" +
+				"type: lesson\n" +
+				"domain: japanese\n" +
+				"status: draft\n" +
+				"created: 2026-06-01\n" +
+				"updated: 2026-06-01\n" +
+				"---\n" +
+				"\nbody\n",
+		},
+		{
+			name: "a non-mapping frontmatter",
+			in: "---\n" +
+				"\"not a mapping\"\n" +
+				"status: draft\n" +
+				"---\n" +
+				"\nbody\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := rewriteStatusLine([]byte(tt.in), "ready"); err != nil {
+				t.Fatalf("rewriteStatusLine() = %v, want success so only the reparse refuses", err)
+			}
+			got, err := rewriteStatusChecked("note.md", []byte(tt.in), false, "ready")
+			if !errors.Is(err, ErrStatusSyntaxUnsupported) {
+				t.Fatalf("rewriteStatusChecked() = (%q, %v), want %v", got, err, ErrStatusSyntaxUnsupported)
 			}
 		})
 	}

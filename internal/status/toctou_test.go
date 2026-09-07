@@ -503,6 +503,85 @@ func TestReplaceRegularFileChecksTargetAfterAuthority(t *testing.T) {
 	assertNoStatusTemps(t, root)
 }
 
+// TestReplaceRefusesALinkGainedBeforeTheTempIsWritten locks the refusal that
+// runs before the replacement is prepared: a second name that appears after
+// the snapshot is refused, and no temp is ever written beside the note.
+func TestReplaceRefusesALinkGainedBeforeTheTempIsWritten(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	openedRoot := internalRoot(t, root)
+	const rel = "note.md"
+	path := filepath.Join(root, rel)
+	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+		t.Fatalf("write original: %v", err)
+	}
+	source, err := readRegularFile(openedRoot, rel, rel)
+	if err != nil {
+		t.Fatalf("readRegularFile() = %v", err)
+	}
+	other := filepath.Join(root, "second.md")
+	if err = os.Link(path, other); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	prepared := false
+	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), nil, installHooks{
+		syncTemp: func(file *os.File) error {
+			prepared = true
+			return file.Sync()
+		},
+	}, func() error { return nil })
+	if !errors.Is(err, ErrHardLinked) {
+		t.Fatalf("replaceRegularFile() = %v, want %v", err, ErrHardLinked)
+	}
+	if prepared {
+		t.Errorf("a replacement was written beside the note before the refusal")
+	}
+	if got := readNoteFixture(t, root); string(got) != "original" {
+		t.Errorf("note = %q, want original", got)
+	}
+	assertNoStatusTemps(t, root)
+}
+
+// TestReplaceRefusesALinkGainedInsideTheInstallWindow locks the refusal inside
+// the install window: a link gained after the authority check changes neither
+// bytes nor mtime nor mode, so only the link count answers.
+func TestReplaceRefusesALinkGainedInsideTheInstallWindow(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	openedRoot := internalRoot(t, root)
+	const rel = "note.md"
+	path := filepath.Join(root, rel)
+	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+		t.Fatalf("write original: %v", err)
+	}
+	source, err := readRegularFile(openedRoot, rel, rel)
+	if err != nil {
+		t.Fatalf("readRegularFile() = %v", err)
+	}
+	other := filepath.Join(root, "second.md")
+	err = replaceRegularFile(openedRoot, rel, rel, &source, []byte("replacement"), nil, installHooks{
+		afterAuthority: func() {
+			if linkErr := os.Link(path, other); linkErr != nil {
+				t.Fatalf("link inside the install window: %v", linkErr)
+			}
+		},
+	}, func() error { return nil })
+	if !errors.Is(err, ErrHardLinked) {
+		t.Fatalf("replaceRegularFile() = %v, want %v", err, ErrHardLinked)
+	}
+	if got := readNoteFixture(t, root); string(got) != "original" {
+		t.Errorf("note = %q, want original", got)
+	}
+	second, readErr := os.ReadFile(other) // #nosec G304 -- a fixed name under t.TempDir
+	if readErr != nil {
+		t.Fatalf("read the other name: %v", readErr)
+	}
+	if string(second) != "original" {
+		t.Errorf("other name = %q, want original", second)
+	}
+	assertNoStatusTemps(t, root)
+}
+
 func TestReplaceRegularFileSyncOrder(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -651,6 +730,41 @@ func TestSourceUnmodifiedNoChange(t *testing.T) {
 		t.Errorf("sourceUnmodified() = %v, want nil when nothing touched the file", err)
 	}
 	closeRoot(parent)
+}
+
+func TestSourceUnmodifiedDetectsSameMtimeContentChange(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	openedRoot := internalRoot(t, root)
+	path := filepath.Join(root, "note.md")
+	original := []byte("v1")
+	if err := os.WriteFile(path, original, 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	source, err := readRegularFile(openedRoot, "note.md", "note.md")
+	if err != nil {
+		t.Fatalf("readRegularFile() = %v", err)
+	}
+	replacement := []byte("v2")
+	if len(replacement) != len(original) {
+		t.Fatalf("replacement length = %d, want same as original %d", len(replacement), len(original))
+	}
+	if err = os.WriteFile(path, replacement, 0o600); err != nil {
+		t.Fatalf("overwrite bytes: %v", err)
+	}
+	if err = os.Chtimes(path, source.file.ModTime(), source.file.ModTime()); err != nil {
+		t.Fatalf("restore mtime: %v", err)
+	}
+
+	parent, err := openSameParent(openedRoot, "note.md", "note.md", &source)
+	if err != nil {
+		t.Fatalf("openSameParent() = %v", err)
+	}
+	err = sourceUnmodified(parent, "note.md", &source)
+	closeRoot(parent)
+	if !errors.Is(err, ErrConcurrentWrite) {
+		t.Fatalf("sourceUnmodified() after equal-length byte change = %v, want %v", err, ErrConcurrentWrite)
+	}
 }
 
 func TestSourceUnmodifiedDetectsModeChange(t *testing.T) {

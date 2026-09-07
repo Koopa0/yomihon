@@ -84,6 +84,10 @@ var (
 	// containing directory could not be synchronized, so the new bytes are
 	// visible without their survival across an immediate crash being confirmed.
 	ErrInstallUncertain = errors.New("note rewritten but durability was not confirmed")
+	// ErrHardLinked means the note has more than one directory entry. An
+	// atomic replace would leave every other name on the pre-flip bytes, so
+	// the write face refuses rather than split the two.
+	ErrHardLinked = errors.New("note has more than one name")
 )
 
 // The write face rewrites exactly the regular file a path names, so a symbolic
@@ -543,6 +547,9 @@ type flipHooks struct {
 	// test can force the failure that must not fall through to the requested
 	// spelling.
 	descend func(current *os.Root, name, relSlash string) (*os.Root, error)
+	// listXattrs, when set, replaces Flistxattr during the attribute copy so
+	// a test can stand on a list failure no temporary directory offers.
+	listXattrs func(int) ([]string, error)
 }
 
 func (w *Writer) flip(
@@ -592,6 +599,9 @@ func (w *Writer) flip(
 	// other byte. Order matters: a moved status line names the actual repair.
 	if vault.ContentIdentity(data) != contentIdentity {
 		return fmt.Errorf("%w: %s", ErrContentChanged, relSlash)
+	}
+	if linkErr := refuseHardLinked(source.file, relSlash); linkErr != nil {
+		return linkErr
 	}
 
 	if err = w.contract.Transition(n.Type(), from, to); err != nil {
@@ -676,7 +686,7 @@ func (w *Writer) install(
 		source,
 		rewritten,
 		w.log,
-		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall},
+		installHooks{beforeAuthority: hooks.beforeAuthority, beforeInstall: hooks.beforeInstall, listXattrs: hooks.listXattrs},
 		func() error {
 			_, authorityErr := w.validatedArtifactPolicy()
 			return authorityErr
@@ -1026,6 +1036,9 @@ type installHooks struct {
 	beforeInstall func()
 	syncTemp      func(*os.File) error
 	syncParent    func(*os.Root) error
+	// listXattrs, when set, replaces Flistxattr during the attribute copy so
+	// a test can stand on a list failure no temporary directory offers.
+	listXattrs func(int) ([]string, error)
 	// rung, when set, replaces the per-filesystem probe for this install,
 	// whose answer is otherwise cached for the whole process.
 	rung func() installRung
@@ -1052,8 +1065,12 @@ func replaceRegularFile(
 		return err
 	}
 	quarantineStaleTemps(preparedParent, relSlash, log)
+	if linkErr := refuseIfHardLinked(preparedParent, source, relSlash); linkErr != nil {
+		closeRoot(preparedParent)
+		return linkErr
+	}
 	rung := selectRung(preparedParent, hooks)
-	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp)
+	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp, source.name, hooks.listXattrs)
 	if err != nil {
 		closeRoot(preparedParent)
 		return err
@@ -1127,6 +1144,17 @@ func openSameParent(root *os.Root, rel, relSlash string, source *fileSnapshot) (
 	return parent, nil
 }
 
+func refuseIfHardLinked(parent *os.Root, source *fileSnapshot, relSlash string) error {
+	if err := refuseHardLinked(source.file, relSlash); err != nil {
+		return err
+	}
+	current, err := parent.Lstat(source.name)
+	if err != nil {
+		return fmt.Errorf("stat %s before write: %w", relSlash, err)
+	}
+	return refuseHardLinked(current, relSlash)
+}
+
 func sourceUnmodified(parent *os.Root, relSlash string, source *fileSnapshot) error {
 	current, opened, err := readCurrentSource(parent, relSlash, source)
 	if err != nil {
@@ -1136,7 +1164,13 @@ func sourceUnmodified(parent *os.Root, relSlash string, source *fileSnapshot) er
 	if err != nil {
 		return fmt.Errorf("%w: %s changed after reread: %w", ErrConcurrentWrite, relSlash, err)
 	}
-	if !after.Mode().IsRegular() || !os.SameFile(after, opened) || !after.ModTime().Equal(source.file.ModTime()) || after.Mode() != source.file.Mode() || !bytes.Equal(current, source.data) {
+	if !after.Mode().IsRegular() || !os.SameFile(after, opened) {
+		return fmt.Errorf("%w: %s changed while flipping", ErrConcurrentWrite, relSlash)
+	}
+	if linkErr := refuseHardLinked(after, relSlash); linkErr != nil {
+		return linkErr
+	}
+	if !after.ModTime().Equal(source.file.ModTime()) || after.Mode() != source.file.Mode() || !bytes.Equal(current, source.data) {
 		return fmt.Errorf("%w: %s changed while flipping", ErrConcurrentWrite, relSlash)
 	}
 	return nil
@@ -1263,33 +1297,43 @@ func tempName() string {
 	return statusTempPrefix + rand.Text() + statusTempSuffix
 }
 
-func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os.File) error) (string, error) {
+// writeTemp creates the replacement inode beside the note: the rewritten
+// bytes, the source's permission bits, and the source's extended attributes.
+// Birth time cannot survive an atomic replace and is not copied. attrSrc is
+// the source's directory entry inside parent; empty skips the attribute copy
+// (the install probe's throwaways have none to keep).
+func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os.File) error, attrSrc string, listXattrs func(int) ([]string, error)) (string, error) {
 	name := tempName()
 	tmp, err := parent.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)
 	}
 	if _, err = tmp.Write(data); err != nil {
-		_ = tmp.Close()         //nolint:errcheck // the write error is the actionable failure
-		_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup after the primary write error
-		return "", fmt.Errorf("write temp file: %w", err)
+		return abandonTemp(parent, tmp, name, fmt.Errorf("write temp file: %w", err))
 	}
 	if err = tmp.Chmod(mode); err != nil {
-		_ = tmp.Close()         //nolint:errcheck // the chmod error is the actionable failure
-		_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup after the primary chmod error
-		return "", fmt.Errorf("chmod temp file: %w", err)
+		return abandonTemp(parent, tmp, name, fmt.Errorf("chmod temp file: %w", err))
+	}
+	if attrSrc != "" {
+		if err = copyXattrsFrom(parent, attrSrc, tmp, listXattrs); err != nil {
+			return abandonTemp(parent, tmp, name, err)
+		}
 	}
 	if syncFile == nil {
 		syncFile = (*os.File).Sync
 	}
 	if err = syncFile(tmp); err != nil {
-		_ = tmp.Close()         //nolint:errcheck // the sync error is the actionable failure
-		_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup after the primary sync error
-		return "", fmt.Errorf("sync temp file: %w", err)
+		return abandonTemp(parent, tmp, name, fmt.Errorf("sync temp file: %w", err))
 	}
 	if err = tmp.Close(); err != nil {
 		_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup after the primary close error
 		return "", fmt.Errorf("close temp file: %w", err)
 	}
 	return name, nil
+}
+
+func abandonTemp(parent *os.Root, tmp *os.File, name string, cause error) (string, error) {
+	_ = tmp.Close()         //nolint:errcheck // the cause is the actionable failure
+	_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup after the primary error
+	return "", cause
 }

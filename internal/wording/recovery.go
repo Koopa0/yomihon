@@ -141,7 +141,9 @@ var (
 // hand edit and the operator's first question is which entry to look at.
 // A symbolic link is deliberately never followed: the write face rewrites
 // exactly the entry the path names, and a link's target can sit outside
-// the vault entirely.
+// the vault entirely. A hard-linked note is a regular file the rewrite
+// still cannot preserve: replacing the named inode would leave every
+// other name on the pre-flip bytes.
 var (
 	TargetNotRegular = both(
 		"這個路徑的目標不是一般檔案：筆記本身是 symlink 或其他特殊項目，狀態寫入不跟隨 symlink。",
@@ -154,6 +156,14 @@ var (
 	TargetNotRegularNext = both(
 		"請直接用編輯器修改 symlink 指向的實際檔案；yomihon 只改寫 vault 內的一般檔案。",
 		"Edit the actual file the link points at in your editor; yomihon only rewrites regular files inside the vault.",
+	)
+	NoteHardLinked = both(
+		"這篇筆記有一個以上的硬連結；狀態寫入會換成新的 inode，其他名字會留在改寫前的內容上。",
+		"This note has more than one hard link; a status write would replace the inode and leave the other names on the pre-flip bytes.",
+	)
+	NoteHardLinkedNext = both(
+		"先在檔案系統上解開多餘的硬連結，只留一個名字，再重新載入後操作。這次沒有寫入任何內容。",
+		"Remove the extra hard links so the note has one name, then reload and try again. Nothing was written.",
 	)
 )
 
