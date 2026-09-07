@@ -7,8 +7,10 @@ package render
 // fenced-code handler.
 
 import (
+	"bytes"
 	"fmt"
-	"html"
+	"iter"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -191,10 +193,114 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 	if err != nil {
 		// Never fail the whole render over one bad fence — fall
 		// back to plain, unhighlighted, still-escaped output.
-		_, werr := fmt.Fprintf(w, "<pre><code>%s</code></pre>\n", html.EscapeString(src.String()))
-		return ast.WalkContinue, werr
+		return writePlainCodeBlock(w, src.String())
 	}
-	return ast.WalkContinue, chromaFormatter.Format(w, markupStyle(), iterator)
+	highlighted, reason := highlightCode(iterator)
+	if reason != "" {
+		reportHighlightFailure(n, &Diagnostic{
+			Kind:    DiagHighlightFailed,
+			Target:  string(node.Language(source)),
+			Message: reason,
+		})
+		return writePlainCodeBlock(w, src.String())
+	}
+	_, werr := w.Write(highlighted)
+	return ast.WalkContinue, werr
+}
+
+// writePlainCodeBlock is the degraded fence: escaped, readable, uncoloured,
+// in the same chroma container every other block uses, so a timeout does not
+// drop the text into muted foreground.
+func writePlainCodeBlock(w util.BufWriter, src string) (ast.WalkStatus, error) {
+	_, err := fmt.Fprintf(w, "%s\n", plainSource(src))
+	return ast.WalkContinue, err
+}
+
+const (
+	highlightTimeoutReason = "highlighter timed out; code shown unhighlighted"
+	highlightFailedReason  = "highlighter failed; code shown unhighlighted"
+)
+
+// highlightCode buffers one highlighting attempt. Chroma's HTML formatter
+// collects iterator tokens without the recover its own Formatter contract
+// promises, and a match timeout panics with the code input in the text. A
+// handled failure returns a bounded reason and no HTML, so the caller can
+// write the plain fence; a destination writer is not involved here. Runtime
+// panics are re-raised.
+func highlightCode(iterator iter.Seq[chroma.Token]) (out []byte, reason string) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			handled := recoveredHighlighterFailure(rec)
+			if handled == "" {
+				panic(rec)
+			}
+			out = nil
+			reason = handled
+		}
+	}()
+	var buf bytes.Buffer
+	if err := chromaFormatter.Format(&buf, markupStyle(), iterator); err != nil {
+		return nil, reshapeHighlighterFailure(err)
+	}
+	return buf.Bytes(), ""
+}
+
+// recoveredHighlighterFailure returns a page-safe reason for a chroma iterator
+// panic, or empty if the panic is not a highlighter failure and must still
+// escape. Chroma's timeout wraps an error whose text includes the input.
+func recoveredHighlighterFailure(rec any) string {
+	switch err := rec.(type) {
+	case runtime.Error:
+		return ""
+	case error:
+		return reshapeHighlighterFailure(err)
+	default:
+		// chroma regexp.go:210 panics with the string "unknown state "+name
+		// when a lexer rule names a state the lexer does not have. That is a
+		// broken lexer, not a match timeout, so this guard does not cover it:
+		// recovering it would dress a programming error as a plain code block.
+		return ""
+	}
+}
+
+// reshapeHighlighterFailure names the failure without chroma's input-bearing
+// text. That raw string must not become a diagnostic or a log line.
+func reshapeHighlighterFailure(err error) string {
+	if err != nil && strings.Contains(err.Error(), "match timeout") {
+		return highlightTimeoutReason
+	}
+	return highlightFailedReason
+}
+
+// highlightDiagAttr is a document attribute carrying the render's collector, so
+// a fenced-code renderer can report a highlighter failure without another
+// parameter on goldmark's node-renderer signature.
+const highlightDiagAttr = "yomihonHighlightDiags"
+
+func attachHighlightReporter(doc ast.Node, col *collector) {
+	if doc == nil || col == nil {
+		return
+	}
+	doc.SetAttributeString(highlightDiagAttr, col)
+}
+
+func reportHighlightFailure(n ast.Node, d *Diagnostic) {
+	if n == nil || d == nil {
+		return
+	}
+	doc := n.OwnerDocument()
+	if doc == nil {
+		return
+	}
+	v, ok := doc.AttributeString(highlightDiagAttr)
+	if !ok {
+		return
+	}
+	col, ok := v.(*collector)
+	if !ok || col == nil {
+		return
+	}
+	col.report(d)
 }
 
 // codeBlockExtension registers codeBlockRenderer into a goldmark.Markdown built

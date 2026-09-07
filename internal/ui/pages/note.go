@@ -26,8 +26,8 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return wording.DiagLinkManyTargets.In(lang)
 	case render.DiagUnknownCallout:
 		return wording.DiagUnknownCallout.In(lang)
-	case render.DiagRiskyFence:
-		return wording.DiagRiskyFence.In(lang)
+	case render.DiagRiskyFence, render.DiagHighlightFailed:
+		return fenceDiagLabel(kind, lang)
 	case render.DiagEmbedFragmentMissing:
 		return wording.DiagEmbedFragmentGone.In(lang)
 	case render.DiagEmbedFragmentRepeated:
@@ -45,6 +45,16 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	default:
 		return string(kind)
 	}
+}
+
+// fenceDiagLabel names a code-block diagnostic. The two kinds share a switch
+// arm so adding highlighting's failure does not push the page's kind table
+// over the complexity gate.
+func fenceDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
+	if kind == render.DiagHighlightFailed {
+		return wording.DiagHighlightFailed.In(lang)
+	}
+	return wording.DiagRiskyFence.In(lang)
 }
 
 // noteDateLabel names the claim the metarow's date makes: the author's declared
