@@ -313,6 +313,44 @@ func TestTheCalloutVocabularyNamesEachTypeOnce(t *testing.T) {
 	}
 }
 
+// TestUnanchorableLineFollowsTheCalloutVocabulary keeps the refusal the check
+// face asks in lockstep with the vocabulary the page answers to. A type the
+// vocabulary names and the refusal misses is a link the binary passes to a
+// title the page already degraded; a type the refusal names and the vocabulary
+// misses is a warning the page would not raise. Both directions fail here.
+func TestUnanchorableLineFollowsTheCalloutVocabulary(t *testing.T) {
+	t.Parallel()
+
+	known := map[string]bool{}
+	for _, group := range calloutVocabulary {
+		for _, typ := range group.types {
+			known[typ] = true
+			line := "> [!" + typ + "] Title ^addr"
+			if !UnanchorableLine(line) {
+				t.Errorf("a [!%s] title is still an address; the page consumes it as a callout title and stamps no id", typ)
+			}
+		}
+	}
+	if len(known) == 0 {
+		t.Fatal("the vocabulary names no types, so this check compares nothing")
+	}
+
+	probed := 0
+	for _, typ := range []string{"zzz", "success", "important", "tips", "notes"} {
+		if known[typ] {
+			continue
+		}
+		probed++
+		line := "> [!" + typ + "] Title ^addr"
+		if UnanchorableLine(line) {
+			t.Errorf("a [!%s] title was refused; the page treats an unknown type as a blockquote and stamps the address", typ)
+		}
+	}
+	if probed == 0 {
+		t.Fatal("every unknown-type probe collided with the vocabulary, so the false-refusal direction compares nothing")
+	}
+}
+
 // strangeBucket is one past the last declared bucket: the value somebody
 // creates by adding a member to the block and stopping there.
 const strangeBucket calloutBucket = 4

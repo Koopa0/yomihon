@@ -379,30 +379,23 @@ var (
 	wikilinkToken = regexp.MustCompile(`!?\[\[[^\[\]]+\]\]`)
 )
 
-// fenceOpen reports whether line opens a fenced code block, with its marker byte
-// ('`' or '~') and the trimmed info string, when line's first non-whitespace
-// characters are three or more of the same fence character.
+// fenceOpen reports whether line opens a fenced code block, with its marker
+// byte ('`' or '~') and the trimmed info string. The open itself is the line
+// scan's; the info string is this face's, because a mermaid fence is identified
+// by what follows the marks.
 func fenceOpen(line string) (marker byte, info string, ok bool) {
-	t := strings.TrimLeft(line, " \t")
-	switch {
-	case strings.HasPrefix(t, "```"):
-		marker = '`'
-	case strings.HasPrefix(t, "~~~"):
-		marker = '~'
-	default:
+	marker, ok = graph.FenceOpens(line)
+	if !ok {
 		return 0, "", false
 	}
+	t := strings.TrimLeft(line, " \t")
 	return marker, strings.TrimSpace(strings.TrimLeft(t, string(marker))), true
 }
 
 // fenceCloses reports whether line is a bare fence-close line for marker:
 // once trimmed, every character is marker and there are at least 3.
 func fenceCloses(line string, marker byte) bool {
-	t := strings.TrimSpace(line)
-	if len(t) < 3 {
-		return false
-	}
-	return strings.Count(t, string(marker)) == len(t)
+	return graph.FenceCloses(line, marker)
 }
 
 // htmlBlockKind is one of the HTML blocks CommonMark ends at a particular
@@ -422,9 +415,6 @@ type htmlBlockKind struct {
 	closing string
 }
 
-// htmlBlockRawTextEnd closes any of the four raw-text elements.
-var htmlBlockRawTextEnd = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
-
 // htmlBlockKinds is the closed set of block openings that survive an empty
 // line, which is the set a scan stopping mid-block has to be able to close.
 // CommonMark's other two HTML blocks — the known-tag one and the bare-tag one —
@@ -437,14 +427,14 @@ var htmlBlockRawTextEnd = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>
 // coincidence of how the marker is written, not a property of the block, and it
 // would go away the moment the marker were respelled.
 var htmlBlockKinds = []htmlBlockKind{
-	{regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t>]|/>|$)`), htmlBlockRawTextEnd, "</pre>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t>]|/>|$)`), htmlBlockRawTextEnd, "</script>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t>]|/>|$)`), htmlBlockRawTextEnd, "</style>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<textarea(?:[ \t>]|/>|$)`), htmlBlockRawTextEnd, "</textarea>"},
-	{regexp.MustCompile(`^ {0,3}<!--`), regexp.MustCompile(`-->`), "-->"},
-	{regexp.MustCompile(`^ {0,3}<\?`), regexp.MustCompile(`\?>`), "?>"},
-	{regexp.MustCompile(`^ {0,3}<!\[CDATA\[`), regexp.MustCompile(`\]\]>`), "]]>"},
-	{regexp.MustCompile(`^ {0,3}<![A-Za-z]`), regexp.MustCompile(`>`), ">"},
+	{graph.HTMLBlockRawPre, graph.HTMLBlockRawEnd, "</pre>"},
+	{graph.HTMLBlockRawScript, graph.HTMLBlockRawEnd, "</script>"},
+	{graph.HTMLBlockRawStyle, graph.HTMLBlockRawEnd, "</style>"},
+	{graph.HTMLBlockRawTextarea, graph.HTMLBlockRawEnd, "</textarea>"},
+	{graph.HTMLBlockComment, regexp.MustCompile(`-->`), "-->"},
+	{graph.HTMLBlockInstr, regexp.MustCompile(`\?>`), "?>"},
+	{graph.HTMLBlockCDATA, regexp.MustCompile(`\]\]>`), "]]>"},
+	{graph.HTMLBlockDecl, regexp.MustCompile(`>`), ">"},
 }
 
 // leadingSpace is the indentation a line carries, which a close this scan writes
@@ -1135,7 +1125,7 @@ func headingAnchorMayExist(body, heading string) bool {
 	var paragraph []string
 	for line := range strings.SplitSeq(body, "\n") {
 		candidate := withoutQuoteAndListMarkers(line)
-		if m := atxHeadingLine.FindStringSubmatch(candidate); m != nil {
+		if m := graph.ATXHeading.FindStringSubmatch(candidate); m != nil {
 			if graph.SectionID(headingSourceText(m[2], len(m[1]))) == want {
 				return true
 			}
@@ -1144,8 +1134,8 @@ func headingAnchorMayExist(body, heading string) bool {
 		}
 		// A row of dashes closing a paragraph underlines it rather than drawing a
 		// rule, which is the order the page reads them in too.
-		if len(paragraph) > 0 && setextUnderline.MatchString(candidate) {
-			if graph.SectionID(headingSourceText(strings.Join(paragraph, "\n"), setextLevel(candidate))) == want {
+		if len(paragraph) > 0 && graph.SetextUnderline.MatchString(candidate) {
+			if graph.SectionID(headingSourceText(strings.Join(paragraph, "\n"), graph.SetextLevel(candidate))) == want {
 				return true
 			}
 			paragraph = nil
@@ -1165,10 +1155,10 @@ func headingAnchorMayExist(body, heading string) bool {
 // heading inside both, so a scan stopping at either would miss ids it stamps.
 func withoutQuoteAndListMarkers(line string) string {
 	candidate := strings.TrimSpace(line)
-	for quotedLine.MatchString(candidate) {
+	for graph.QuotedLine.MatchString(candidate) {
 		candidate = strings.TrimSpace(strings.TrimPrefix(candidate, ">"))
 	}
-	if loc := listItemLine.FindString(candidate); loc != "" {
+	if loc := graph.ListItemLine.FindString(candidate); loc != "" {
 		candidate = strings.TrimSpace(candidate[len(loc):])
 	}
 	return candidate

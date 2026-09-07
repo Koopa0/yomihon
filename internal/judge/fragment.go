@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
@@ -93,27 +92,6 @@ func collectParsedHeadings(body string, into map[string]bool) {
 	})
 }
 
-// The line shapes the generous scan strips or reads. They are the reading
-// page's own patterns for the same scan, kept literal here so the two faces
-// read one line the same way.
-var (
-	atxHeadingText   = regexp.MustCompile(`^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`)
-	setextUnderline  = regexp.MustCompile(`^ {0,3}(=+|-+)[ \t]*$`)
-	quotedLinePrefix = regexp.MustCompile(`^ {0,3}>`)
-	listItemPrefix   = regexp.MustCompile(`^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)`)
-)
-
-// setextLevel is the level an underline makes, for a line the caller has
-// already recognized as one: '=' underlines a level-1 heading, '-' a level-2
-// one. A course branch is a heading from level 2 to 6, so the two readings part
-// company over a declaration written on an underlined title.
-func setextLevel(line string) int {
-	if strings.HasPrefix(strings.TrimSpace(line), "=") {
-		return 1
-	}
-	return 2
-}
-
 // collectGenerousHeadings adds what a deliberately generous line reading
 // accepts as a heading: quote markers and one list marker stripped, both
 // heading forms read, no fence or HTML-block tracking. The reading page runs
@@ -123,13 +101,13 @@ func collectGenerousHeadings(body string, into map[string]bool) {
 	var paragraph []string
 	for line := range strings.SplitSeq(body, "\n") {
 		candidate := withoutQuoteAndListMarks(line)
-		if m := atxHeadingText.FindStringSubmatch(candidate); m != nil {
+		if m := graph.ATXHeading.FindStringSubmatch(candidate); m != nil {
 			into[graph.SectionID(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
 			paragraph = nil
 			continue
 		}
-		if len(paragraph) > 0 && setextUnderline.MatchString(candidate) {
-			name := sequence.HeadingName(strings.Join(paragraph, "\n"), setextLevel(candidate))
+		if len(paragraph) > 0 && graph.SetextUnderline.MatchString(candidate) {
+			name := sequence.HeadingName(strings.Join(paragraph, "\n"), graph.SetextLevel(candidate))
 			into[graph.SectionID(headingWords(name))] = true
 			paragraph = nil
 			continue
@@ -147,106 +125,13 @@ func collectGenerousHeadings(body string, into map[string]bool) {
 // and one list marker.
 func withoutQuoteAndListMarks(line string) string {
 	candidate := strings.TrimSpace(line)
-	for quotedLinePrefix.MatchString(candidate) {
+	for graph.QuotedLine.MatchString(candidate) {
 		candidate = strings.TrimSpace(strings.TrimPrefix(candidate, ">"))
 	}
-	if mark := listItemPrefix.FindString(candidate); mark != "" {
+	if mark := graph.ListItemLine.FindString(candidate); mark != "" {
 		candidate = strings.TrimSpace(candidate[len(mark):])
 	}
 	return candidate
-}
-
-// The line shapes that are not running prose, and therefore cannot be the
-// text an underline turns into a heading, beyond the quote and list shapes
-// above: a break rule, and an indented code line. They are the reading page's
-// own patterns for its excerpt scan, kept literal here for the same reason
-// the generous scan's are.
-var (
-	breakRuleLine    = regexp.MustCompile(`^ {0,3}((\*[ \t]*){3,}|(_[ \t]*){3,}|(-[ \t]*){3,})$`)
-	indentedCodeLine = regexp.MustCompile(`^ {4,}\S`)
-)
-
-// The HTML block start conditions of the CommonMark spec that a line scan can
-// recognise without paragraph state: every one but the bare complete tag alone
-// on its line, which cannot interrupt a paragraph and so needs state this scan
-// does not keep. A block opened by any of these hands its lines to the reader
-// as written, so a heading-shaped line inside one is text rather than a
-// section boundary; the excerpt scan on the reading page skips the same lines.
-var (
-	htmlBlockRawText = regexp.MustCompile(`(?i)^ {0,3}<(script|pre|style|textarea)([ \t>]|$)`)
-	htmlBlockRawEnd  = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
-	htmlBlockComment = regexp.MustCompile(`^ {0,3}<!--`)
-	htmlBlockInstr   = regexp.MustCompile(`^ {0,3}<\?`)
-	htmlBlockDecl    = regexp.MustCompile(`^ {0,3}<![A-Za-z]`)
-	htmlBlockCDATA   = regexp.MustCompile(`^ {0,3}<!\[CDATA\[`)
-	htmlBlockElement = regexp.MustCompile(`(?i)^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([ \t]|/?>|$)`)
-)
-
-// htmlBlockOpens reports whether a line opens an authored HTML block, and
-// returns the test for the line that closes it. The raw-text, comment,
-// instruction, declaration, and CDATA blocks close on their own end marker,
-// which may sit on the opening line itself; an element block runs to the next
-// blank line.
-func htmlBlockOpens(line string) (closes func(string) bool, ok bool) {
-	switch {
-	case htmlBlockRawText.MatchString(line):
-		return htmlBlockRawEnd.MatchString, true
-	case htmlBlockComment.MatchString(line):
-		return lineContaining("-->"), true
-	case htmlBlockInstr.MatchString(line):
-		return lineContaining("?>"), true
-	case htmlBlockCDATA.MatchString(line):
-		return lineContaining("]]>"), true
-	case htmlBlockDecl.MatchString(line):
-		return lineContaining(">"), true
-	case htmlBlockElement.MatchString(line):
-		return func(line string) bool { return strings.TrimSpace(line) == "" }, true
-	}
-	return nil, false
-}
-
-// lineContaining is the closing test of a block that ends on a marker.
-func lineContaining(marker string) func(string) bool {
-	return func(line string) bool { return strings.Contains(line, marker) }
-}
-
-// excerptScan carries the running state the excerpt scan needs to tell a
-// heading from a heading-shaped line inside fenced code or an authored HTML
-// block, whose contents reach the reader as written. The zero value starts a
-// scan.
-type excerptScan struct {
-	inFence    bool
-	fenceByte  byte
-	htmlCloses func(string) bool
-}
-
-// skips advances the scan by one line and reports whether that line belongs
-// to a fenced code block or an authored HTML block, the lines that open and
-// close one included.
-func (s *excerptScan) skips(line string) bool {
-	switch {
-	case s.inFence:
-		if blockFenceCloses(line, s.fenceByte) {
-			s.inFence = false
-		}
-		return true
-	case s.htmlCloses != nil:
-		if s.htmlCloses(line) {
-			s.htmlCloses = nil
-		}
-		return true
-	}
-	if marker, ok := blockFenceOpens(line); ok {
-		s.inFence, s.fenceByte = true, marker
-		return true
-	}
-	if closes, ok := htmlBlockOpens(line); ok {
-		if !closes(line) {
-			s.htmlCloses = closes
-		}
-		return true
-	}
-	return false
 }
 
 // collectExcerptHeadings adds the id of every heading the reading page's
@@ -258,27 +143,27 @@ func (s *excerptScan) skips(line string) bool {
 // a blank line, a quote, a list item, a break rule, another underline, or an
 // indented code line opening the run ends what it could claim.
 func collectExcerptHeadings(body string, into map[string]bool) {
-	var scan excerptScan
+	var scan graph.LineScan
 	paragraph := -1
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
-		if scan.skips(line) {
+		if scan.Skip(line) {
 			paragraph = -1
 			continue
 		}
-		if m := atxHeadingText.FindStringSubmatch(line); m != nil {
+		if m := graph.ATXHeading.FindStringSubmatch(line); m != nil {
 			into[graph.SectionID(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
 			paragraph = -1
 			continue
 		}
 		switch {
-		case paragraph >= 0 && setextUnderline.MatchString(line):
-			name := sequence.HeadingName(strings.Join(lines[paragraph:i], "\n"), setextLevel(line))
+		case paragraph >= 0 && graph.SetextUnderline.MatchString(line):
+			name := sequence.HeadingName(strings.Join(lines[paragraph:i], "\n"), graph.SetextLevel(line))
 			into[graph.SectionID(headingWords(name))] = true
 			paragraph = -1
-		case strings.TrimSpace(line) == "", quotedLinePrefix.MatchString(line), listItemPrefix.MatchString(line),
-			breakRuleLine.MatchString(line), setextUnderline.MatchString(line),
-			paragraph < 0 && indentedCodeLine.MatchString(line):
+		case graph.BlankLine(line), graph.QuotedLine.MatchString(line), graph.ListItemLine.MatchString(line),
+			graph.BreakRuleLine.MatchString(line), graph.SetextUnderline.MatchString(line),
+			paragraph < 0 && graph.IndentedCodeLine.MatchString(line):
 			paragraph = -1
 		case paragraph < 0:
 			paragraph = i
@@ -286,31 +171,27 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 	}
 }
 
-// oneQuoteMark matches the single leading quote marker the block scan peels
-// before asking whether a line opens or closes a fence, because a fence
-// written inside a callout is read as a fence when that body renders.
-var oneQuoteMark = regexp.MustCompile(`^\s*>\s?`)
-
 // collectBlockLines keeps the folded text of every line that could answer a
 // block address, so a link's "^name" matches the reading the destination page
-// uses. A line inside a fence is code, and a row opening with a pipe is table
-// syntax whose tail the renderer drops. Only lines carrying a caret are kept.
+// uses. A line inside a fence is code, a recognised callout's opening line is
+// consumed as the title, and a row opening with a pipe is table syntax whose
+// tail the renderer drops. Only lines carrying a caret are kept.
 func collectBlockLines(body string) []string {
 	var out []string
 	inFence, fenceByte := false, byte(0)
 	for line := range strings.SplitSeq(body, "\n") {
-		unquoted := oneQuoteMark.ReplaceAllString(line, "")
+		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
 		if inFence {
-			if blockFenceCloses(unquoted, fenceByte) {
+			if graph.FenceCloses(unquoted, fenceByte) {
 				inFence = false
 			}
 			continue
 		}
-		if marker, ok := blockFenceOpens(unquoted); ok {
+		if marker, ok := graph.FenceOpens(unquoted); ok {
 			inFence, fenceByte = true, marker
 			continue
 		}
-		if strings.HasPrefix(strings.TrimLeft(unquoted, " \t"), "|") {
+		if render.UnanchorableLine(line) {
 			continue
 		}
 		trimmed := strings.TrimRight(line, " \t")
@@ -320,27 +201,6 @@ func collectBlockLines(body string) []string {
 		out = append(out, graph.FoldFragment(trimmed))
 	}
 	return out
-}
-
-// blockFenceOpens reports whether a line opens a fenced code block, and with
-// which marker byte.
-func blockFenceOpens(line string) (byte, bool) {
-	t := strings.TrimLeft(line, " \t")
-	switch {
-	case strings.HasPrefix(t, "```"):
-		return '`', true
-	case strings.HasPrefix(t, "~~~"):
-		return '~', true
-	default:
-		return 0, false
-	}
-}
-
-// blockFenceCloses reports whether a line closes the open fence: trimmed, at
-// least three characters, all of them the fence marker.
-func blockFenceCloses(line string, marker byte) bool {
-	t := strings.TrimSpace(line)
-	return len(t) >= 3 && strings.Count(t, string(marker)) == len(t)
 }
 
 // blockAddressed reports whether any collected line answers the folded

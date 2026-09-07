@@ -1,12 +1,15 @@
 package judge
 
 import (
+	"bytes"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // The fragment rules must judge a link's "#section" and "#^block" half the
@@ -647,28 +650,44 @@ func TestExtractKeepsTheFragmentBesideTheTarget(t *testing.T) {
 	}
 }
 
-// The generous line scan reads a heading with the reading page's own pattern,
-// kept literal in this package so the two faces read one line the same way.
-// Until now nothing compared the two copies: they agreed because they were
-// typed together, which is not a mechanism. The group numbering is what each
-// side leans on — the marks give the level, the second group is the words a
-// branch is named from — so a change made on one side alone would send this
-// face looking at a different half of the line than the page it answers about,
-// and the symptom is a fragment reported missing from a page that serves it.
+// atxHeadingLiteral is the heading pattern the shared scanner compiles. It is
+// written here so this test pins the owner file against a copy that is not
+// that file: comparing the compiled value to the MustCompile it came from
+// cannot fail, because both sides are one declaration.
+const atxHeadingLiteral = `^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`
+
+// The generous line scan reads a heading through graph.ATXHeading. This
+// watches the three call sites still name that identifier, keeps the owner
+// file's declaration as one MustCompile literal, and pins that pattern to
+// atxHeadingLiteral, so an in-place edit of the owner file fails here and a
+// face that stops calling the shared scanner fails here too.
 func TestTheGenerousScanReadsAHeadingTheWayThePageDoes(t *testing.T) {
 	t.Parallel()
 
-	const path = "../render/section.go"
-	source, err := os.ReadFile(path)
+	for _, path := range []string{"fragment.go", "../render/section.go", "../render/wikilink.go"} {
+		source, err := os.ReadFile(path) // #nosec G304 -- a fixed source path from this table
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", path, err)
+		}
+		if !bytes.Contains(source, []byte("graph.ATXHeading")) {
+			t.Errorf("%s no longer reads a heading through graph.ATXHeading", path)
+		}
+	}
+
+	const path = "../graph/linescan.go"
+	source, err := os.ReadFile(path) // #nosec G304 -- the owner file this lock reads, not operator input
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
-	declaration := regexp.MustCompile("(?m)^var atxHeadingLine = regexp\\.MustCompile\\(`([^`]*)`\\)$")
+	declaration := regexp.MustCompile("(?m)^\tATXHeading = regexp\\.MustCompile\\(`([^`]*)`\\)$")
 	m := declaration.FindSubmatch(source)
 	if m == nil {
-		t.Fatalf("%s no longer declares atxHeadingLine as one literal, so this test compares nothing", path)
+		t.Fatalf("%s no longer declares ATXHeading as one literal, so this test compares nothing", path)
 	}
-	if got, want := atxHeadingText.String(), string(m[1]); got != want {
-		t.Errorf("this face reads a heading with %q; %s reads one with %q", got, path, want)
+	if got, want := string(m[1]), atxHeadingLiteral; got != want {
+		t.Errorf("%s reads a heading with %q; this lock holds %q", path, got, want)
+	}
+	if got, want := graph.ATXHeading.String(), atxHeadingLiteral; got != want {
+		t.Errorf("this face reads a heading with %q; this lock holds %q", got, want)
 	}
 }
