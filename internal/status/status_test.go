@@ -1360,6 +1360,74 @@ func TestFlipHappyPath(t *testing.T) {
 	}
 }
 
+// TestFlipPreservesPermissionBits is the lock on writeTemp's chmod of the
+// source mode onto the replacement. Every other fixture in this package is
+// 0o600, which is also the mode the temp is created with, so a constant
+// chmod(0o600) would still leave those notes looking preserved.
+func TestFlipPreservesPermissionBits(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writer := newWriter(t, root, loadContract(t))
+	original := lessonContent("draft")
+	path := filepath.Join(root, filepath.FromSlash(testRel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil { // #nosec G306 -- 0o644 is the mode under test: writeTemp must copy it, not keep the temp's 0o600
+		t.Fatalf("write: %v", err)
+	}
+
+	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+		t.Fatalf("Flip() = %v, want nil", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat after flip: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Errorf("Perm() after flip = %04o, want 0644", got)
+	}
+	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	if got := readNote(t, root); got != want {
+		t.Errorf("note after flip = %q, want %q", got, want)
+	}
+}
+
+// TestFlipRefusesHardLinkedNote is the lock that a second name is not left on
+// the pre-flip bytes: the write face cannot preserve both names across an
+// atomic replace, so it refuses and the note (and the other name) stay as they
+// were.
+func TestFlipRefusesHardLinkedNote(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writer := newWriter(t, root, loadContract(t))
+	original := lessonContent("draft")
+	writeNote(t, root, original)
+	notePath := filepath.Join(root, filepath.FromSlash(testRel))
+	otherPath := filepath.Join(filepath.Dir(notePath), "second-name.md")
+	if err := os.Link(notePath, otherPath); err != nil {
+		t.Fatalf("hard-link the note: %v", err)
+	}
+
+	err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original))
+	if !errors.Is(err, status.ErrHardLinked) {
+		t.Fatalf("Flip(hard-linked note) = %v, want %v", err, status.ErrHardLinked)
+	}
+	if !strings.Contains(err.Error(), "name") {
+		t.Errorf("Flip() error = %q, want a diagnostic naming the extra name", err)
+	}
+	if got := readNote(t, root); got != original {
+		t.Errorf("note after refusal = %q, want untouched %q", got, original)
+	}
+	other, readErr := os.ReadFile(otherPath) // #nosec G304 -- otherPath is a test-owned path under t.TempDir
+	if readErr != nil {
+		t.Fatalf("read the other name: %v", readErr)
+	}
+	if string(other) != original {
+		t.Errorf("other name after refusal = %q, want the pre-flip bytes %q", other, original)
+	}
+}
+
 // TestFlipWritesTheSelectedRootAfterPathReplacement locks the write to the
 // pinned root capability rather than the pathname: after the vault directory
 // is renamed away and another directory takes its path, the flip still lands

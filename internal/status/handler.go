@@ -253,24 +253,25 @@ func recoveryFor(err error) *recovery {
 	}
 }
 
-// recoveryForIrregularEntry maps the two refusals for a path whose shape the
-// write face declines to follow, or nil when err is neither. Both are produced
-// before any byte is written, so the unchanged page is truthful; they part
-// over which entry broke the shape, which is the operator's first question.
+// recoveryForIrregularEntry maps the refusals for a path whose shape the
+// write face declines to follow, or nil when err is none of them. All are
+// produced before any byte is written, so the unchanged page is truthful.
 func recoveryForIrregularEntry(err error) *recovery {
-	var summary wording.Phrase
+	var summary, next wording.Phrase
 	switch {
 	case errors.Is(err, errNotRegular):
-		summary = wording.TargetNotRegular
+		summary, next = wording.TargetNotRegular, wording.TargetNotRegularNext
 	case errors.Is(err, errPathNotRegular):
-		summary = wording.PathNotRegular
+		summary, next = wording.PathNotRegular, wording.TargetNotRegularNext
+	case errors.Is(err, ErrHardLinked):
+		summary, next = wording.NoteHardLinked, wording.NoteHardLinkedNext
 	default:
 		return nil
 	}
 	return &recovery{
 		code:            http.StatusUnprocessableEntity,
 		summary:         summary,
-		nextAction:      wording.TargetNotRegularNext,
+		nextAction:      next,
 		technicalDetail: err.Error(),
 	}
 }

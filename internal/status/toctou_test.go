@@ -653,6 +653,41 @@ func TestSourceUnmodifiedNoChange(t *testing.T) {
 	closeRoot(parent)
 }
 
+func TestSourceUnmodifiedDetectsSameMtimeContentChange(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	openedRoot := internalRoot(t, root)
+	path := filepath.Join(root, "note.md")
+	original := []byte("v1")
+	if err := os.WriteFile(path, original, 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	source, err := readRegularFile(openedRoot, "note.md", "note.md")
+	if err != nil {
+		t.Fatalf("readRegularFile() = %v", err)
+	}
+	replacement := []byte("v2")
+	if len(replacement) != len(original) {
+		t.Fatalf("replacement length = %d, want same as original %d", len(replacement), len(original))
+	}
+	if err = os.WriteFile(path, replacement, 0o600); err != nil {
+		t.Fatalf("overwrite bytes: %v", err)
+	}
+	if err = os.Chtimes(path, source.file.ModTime(), source.file.ModTime()); err != nil {
+		t.Fatalf("restore mtime: %v", err)
+	}
+
+	parent, err := openSameParent(openedRoot, "note.md", "note.md", &source)
+	if err != nil {
+		t.Fatalf("openSameParent() = %v", err)
+	}
+	err = sourceUnmodified(parent, "note.md", &source)
+	closeRoot(parent)
+	if !errors.Is(err, ErrConcurrentWrite) {
+		t.Fatalf("sourceUnmodified() after equal-length byte change = %v, want %v", err, ErrConcurrentWrite)
+	}
+}
+
 func TestSourceUnmodifiedDetectsModeChange(t *testing.T) {
 	t.Parallel()
 
