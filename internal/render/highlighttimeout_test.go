@@ -19,8 +19,9 @@ const timeoutLockLang = "yomihon-timeout-lock"
 func init() {
 	lexers.Register(chroma.MustNewLexer(
 		&chroma.Config{
-			Name:    "YomihonTimeoutLock",
-			Aliases: []string{timeoutLockLang},
+			Name:      "YomihonTimeoutLock",
+			Aliases:   []string{timeoutLockLang},
+			Filenames: []string{"*." + timeoutLockLang},
 		},
 		func() chroma.Rules {
 			return chroma.Rules{
@@ -61,8 +62,8 @@ func TestAHighlighterTimeoutLeavesTheRestOfTheNote(t *testing.T) {
 	if !strings.Contains(got.HTML, `class="kn"`) {
 		t.Errorf("the neighbouring Go fence lost its highlighting:\n%s", got.HTML)
 	}
-	if !strings.Contains(got.HTML, "<pre><code>"+payload) || !strings.Contains(got.HTML, "</code></pre>") {
-		t.Errorf("timed-out fence was not shown as plain escaped code:\n%s", got.HTML)
+	if !strings.Contains(got.HTML, `<pre class="chroma"><code>`+payload) || !strings.Contains(got.HTML, "</code></pre>") {
+		t.Errorf("timed-out fence was not shown as plain escaped code in the highlighter container:\n%s", got.HTML)
 	}
 
 	var found *render.Diagnostic
@@ -83,5 +84,19 @@ func TestAHighlighterTimeoutLeavesTheRestOfTheNote(t *testing.T) {
 	}
 	if found.Target != timeoutLockLang {
 		t.Errorf("diagnostic Target = %q, want the fence language %q", found.Target, timeoutLockLang)
+	}
+}
+
+// TestAHighlighterTimeoutLeavesTheFileView is the sibling lock for SourceHTML:
+// the file view calls the same formatter, and a timeout there must degrade
+// to plain escaped source inside the highlighter container rather than
+// panicking the page. Without the highlightCode guard around Format, this
+// test panics the way the note lock did.
+func TestAHighlighterTimeoutLeavesTheFileView(t *testing.T) {
+	t.Parallel()
+	payload := strings.Repeat("a", 32)
+	got := render.SourceHTML("lock."+timeoutLockLang, payload)
+	if !strings.Contains(got, `<pre class="chroma"><code>`+payload) {
+		t.Errorf("timed-out file view was not shown as plain escaped source in the highlighter container:\n%s", got)
 	}
 }

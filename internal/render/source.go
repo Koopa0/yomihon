@@ -100,11 +100,11 @@ func SourceHTML(filename, source string) string {
 	if err != nil {
 		return plainSource(source)
 	}
-	var buf strings.Builder
-	if err := chromaFormatter.Format(&buf, markupStyle(), iterator); err != nil {
+	highlighted, reason := highlightCode(iterator)
+	if reason != "" {
 		return plainSource(source)
 	}
-	return buf.String()
+	return string(highlighted)
 }
 
 // lexerFor picks a highlighter: a taught alias first, so a bespoke extension

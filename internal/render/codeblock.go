@@ -9,7 +9,6 @@ package render
 import (
 	"bytes"
 	"fmt"
-	"html"
 	"iter"
 	"runtime"
 	"strings"
@@ -209,11 +208,11 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 	return ast.WalkContinue, werr
 }
 
-// writePlainCodeBlock is the degraded fence: escaped, readable, uncoloured.
-// Destination-writer errors still return, so goldmark can fail that write the
-// way it always has.
+// writePlainCodeBlock is the degraded fence: escaped, readable, uncoloured,
+// in the same chroma container every other block uses, so a timeout does not
+// drop the text into muted foreground.
 func writePlainCodeBlock(w util.BufWriter, src string) (ast.WalkStatus, error) {
-	_, err := fmt.Fprintf(w, "<pre><code>%s</code></pre>\n", html.EscapeString(src))
+	_, err := fmt.Fprintf(w, "%s\n", plainSource(src))
 	return ast.WalkContinue, err
 }
 
@@ -256,6 +255,10 @@ func recoveredHighlighterFailure(rec any) string {
 	case error:
 		return reshapeHighlighterFailure(err)
 	default:
+		// chroma regexp.go:210 panics with the string "unknown state "+name
+		// when a lexer rule names a state the lexer does not have. That is a
+		// broken lexer, not a match timeout, so this guard does not cover it:
+		// recovering it would dress a programming error as a plain code block.
 		return ""
 	}
 }
