@@ -79,6 +79,51 @@ func renderSafeRawHTML(w util.BufWriter, source []byte, node ast.Node, entering 
 	return ast.WalkSkipChildren, nil
 }
 
+func isAllowlistedMarkup(tag []byte) bool {
+	return safeMarkupBareTag.Match(tag) || safeMarkupEndTag.Match(tag) || safeMarkupLangTag.Match(tag) ||
+		safeReadAloudTag.Match(tag) || trustedBlockTag.Match(tag)
+}
+
+// applySafeMarkup runs authored heading source through the same tag allowlist
+// the body renderer uses, so a later headingInnerText sees escaped tags where
+// the page already did and live ruby where the page already did. Text between
+// tags is left as written: goldmark has already resolved character references
+// by the time the page stamps an id, and escaping them here would fold a
+// second pass of `&amp;` into a different slug. A blanket escape of the whole
+// source would also turn the ruby the reduction is meant to strip into words.
+func applySafeMarkup(raw string) string {
+	in := []byte(raw)
+	var b strings.Builder
+	for len(in) > 0 {
+		start := bytes.IndexByte(in, '<')
+		if start < 0 {
+			b.Write(in)
+			break
+		}
+		if start > 0 {
+			b.Write(in[:start])
+			in = in[start:]
+		}
+		end := bytes.IndexByte(in, '>')
+		if end < 0 {
+			b.Write(in)
+			break
+		}
+		tag := in[:end+1]
+		switch {
+		case isAllowlistedMarkup(tag):
+			b.Write(tag)
+		case readAloudMarker.Match(tag):
+			// The body renderer drops an instruction it cannot carry out.
+			// A heading never shows it either, so it is not part of the name.
+		default:
+			b.Write(util.EscapeHTML(tag))
+		}
+		in = in[end+1:]
+	}
+	return b.String()
+}
+
 func writeSafeMarkup(w util.BufWriter, raw []byte) error {
 	for len(raw) > 0 {
 		start := bytes.IndexByte(raw, '<')
@@ -99,8 +144,7 @@ func writeSafeMarkup(w util.BufWriter, raw []byte) error {
 		}
 		tag := raw[:end+1]
 		switch {
-		case safeMarkupBareTag.Match(tag) || safeMarkupEndTag.Match(tag) || safeMarkupLangTag.Match(tag) ||
-			safeReadAloudTag.Match(tag) || trustedBlockTag.Match(tag):
+		case isAllowlistedMarkup(tag):
 			if _, err := w.Write(tag); err != nil {
 				return err
 			}

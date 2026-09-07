@@ -338,13 +338,19 @@ func ExcerptHeading(slice string) string {
 // branch declares its part in the order at the end of the heading that opens
 // it, and that declaration is grammar rather than words, so the level decides
 // what the heading is called for the same reason it does on the page.
+//
+// Authored markup then takes the same allowlist the body renderer uses: ruby
+// stays a tag so the reading can be dropped, and every other tag is escaped
+// the way the page already received it. Handing a live `<K,V>` to the tag
+// strip would fold a different id than the contents list shows, and a
+// blanket escape would keep the ruby tags as words.
 func headingSourceText(raw string, level int) string {
 	displayed := wikilinkToken.ReplaceAllStringFunc(sequence.HeadingName(raw, level), func(token string) string {
 		inner := strings.TrimPrefix(token, "!")
 		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
 		return display
 	})
-	return headingInnerText(displayed)
+	return headingInnerText(applySafeMarkup(displayed))
 }
 
 // blockSlice returns the block carrying the "^name" marker: the run of non-blank
