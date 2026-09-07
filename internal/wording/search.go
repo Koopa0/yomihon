@@ -101,6 +101,16 @@ var (
 // rather than one a template happened to keep.
 var ResultAliasLabel = both("別名: ", "also called ")
 
+// SearchHitUnlocated is the line a result carries when the index found a
+// match the opened page cannot locate — a phrase that spans two blocks, and
+// nothing in the first of them a text directive can name. Finding something
+// and then silently failing to show it is the one outcome this sentence
+// exists to remove.
+var SearchHitUnlocated = both(
+	"這頁找不到這段相符的文字。",
+	"The match could not be located on this page.",
+)
+
 // What the live search says about an answer it fetched, which is counted in
 // the browser and therefore said there. The placeholders are filled in by the
 // page's own script: one form for a single result and one for any other

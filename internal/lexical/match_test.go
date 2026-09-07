@@ -82,8 +82,8 @@ owner = ["koopa"]
 // paths pulls the RelPaths out of results, in result order, for assertions.
 func paths(results []Result) []string {
 	out := make([]string, len(results))
-	for i, r := range results {
-		out[i] = r.RelPath
+	for i := range results {
+		out[i] = results[i].RelPath
 	}
 	return out
 }
@@ -1035,6 +1035,127 @@ func TestQuotedPhraseCrossesABlockBoundary(t *testing.T) {
 	got := paths(searchResults(t, idx, Parse(`"semantic retrieval"`)))
 	if diff := cmp.Diff([]string{"blocks.md"}, got); diff != "" {
 		t.Errorf("Search(%q) mismatch (-want +got):\n%s", `"semantic retrieval"`, diff)
+	}
+}
+
+// The phrase rule still admits a match that spans two blocks. What changes is
+// the landing: the first block is a text directive the page can honour, and
+// the row says the rest crossed. A wrap inside one paragraph is the control
+// — same words, one block, the whole phrase is still the destination.
+func TestBodyMatchReportsABlockCrossingLanding(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Cross paragraph.md", []byte(""+
+			"# Cross paragraph\n\n"+
+			"The evidence records a bright\ncrimson heron near the tower.\n\n"+
+			"The field notebook calls this bird cobalt\n\n"+
+			"egret beside the old lighthouse.\n"))),
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		name       string
+		query      string
+		landing    string
+		landingEnd string
+		crossing   bool
+	}{
+		{name: "same-paragraph wrap", query: `"bright crimson"`, landing: "bright crimson"},
+		{name: "cross-paragraph phrase", query: `"cobalt egret"`, landing: "cobalt", landingEnd: "egret", crossing: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := searchResults(t, idx, Parse(tt.query))
+			if len(got) != 1 {
+				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			}
+			if got[0].Landing != tt.landing {
+				t.Errorf("Landing = %q, want %q", got[0].Landing, tt.landing)
+			}
+			if got[0].LandingEnd != tt.landingEnd {
+				t.Errorf("LandingEnd = %q, want %q", got[0].LandingEnd, tt.landingEnd)
+			}
+			if got[0].BlockCrossing != tt.crossing {
+				t.Errorf("BlockCrossing = %v, want %v", got[0].BlockCrossing, tt.crossing)
+			}
+		})
+	}
+}
+
+// A phrase that occupies three blocks must name only the last of them as
+// the end term. Returning the start of the note for every block would fold
+// the middle into that term, and the browser would again be asked for a
+// stretch no single element holds.
+func TestAThreeBlockPhraseLandsOnTheLastBlockOnly(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Three blocks.md", []byte(""+
+			"# Three blocks\n\n"+
+			"alpha\n\n"+
+			"beta\n\n"+
+			"gamma\n"))),
+	}, validArtifactPolicy(t))
+	got := searchResults(t, idx, Parse(`"alpha beta gamma"`))
+	if len(got) != 1 {
+		t.Fatalf("Search(`\"alpha beta gamma\"`) = %+v, want one hit", got)
+	}
+	if got[0].Landing != "alpha" {
+		t.Errorf("Landing = %q, want alpha", got[0].Landing)
+	}
+	if got[0].LandingEnd != "gamma" {
+		t.Errorf("LandingEnd = %q, want gamma (only the last block); a start-of-note answer would be %q", got[0].LandingEnd, "beta gamma")
+	}
+	if !got[0].BlockCrossing {
+		t.Errorf("BlockCrossing = false, want a three-block crossing")
+	}
+}
+
+// A one-character CJK query at the end of a block used to report a crossing
+// because the fold drops the break and the next kept rune sits in the next
+// block. The match itself does not cross.
+func TestACharacterAtABlockEndIsNotACrossing(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/cjk-end.md", []byte(""+
+			"# CJK end\n\n"+
+			"第一段落結尾鈷\n\n"+
+			"鷺在第二段。\n"))),
+	}, validArtifactPolicy(t))
+	got := searchResults(t, idx, Parse("鈷"))
+	if len(got) != 1 {
+		t.Fatalf("Search(鈷) = %+v, want one hit", got)
+	}
+	if got[0].BlockCrossing {
+		t.Errorf("BlockCrossing = true for a one-character match at a block end; landing = %q", got[0].Landing)
+	}
+	if got[0].Landing != "鈷" {
+		t.Errorf("Landing = %q, want 鈷", got[0].Landing)
+	}
+}
+
+// NFC used to drop every block end on a note the moment one character
+// recomposed, so a later crossing phrase fell back to the whole-phrase
+// directive. The ends are rewritten on the normalised text instead.
+func TestCrossingLandingSurvivesAnNFDCharacter(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/nfd.md", []byte(""+
+			"# NFD\n\n"+
+			"caf\u0065\u0301 sits in the opening.\n\n"+
+			"The evidence records a bright\n\n"+
+			"crimson heron.\n"))),
+	}, validArtifactPolicy(t))
+	got := searchResults(t, idx, Parse(`"bright crimson"`))
+	if len(got) != 1 {
+		t.Fatalf("Search(`\"bright crimson\"`) = %+v, want one hit", got)
+	}
+	if got[0].Landing != "bright" || got[0].LandingEnd != "crimson" || !got[0].BlockCrossing {
+		t.Errorf("Landing = %q / %q crossing = %v, want bright / crimson / true",
+			got[0].Landing, got[0].LandingEnd, got[0].BlockCrossing)
 	}
 }
 

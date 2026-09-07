@@ -30,6 +30,21 @@ type Result struct {
 	// It carries no lifecycle state and never will, so a surface that dresses a
 	// hit in note furniture can tell the two apart.
 	File bool
+
+	// Landing is the first-block stretch a browser text directive can find
+	// for a body hit, whitespace-collapsed the way a snippet is. Empty when
+	// the row has no body match to point at, or when a crossing match has
+	// nothing locatable in its first block.
+	Landing string
+
+	// LandingEnd is the last-block stretch of a crossing match. A directive
+	// that names both ends can span blocks; a bare first-block term would
+	// land on an earlier copy of the same word.
+	LandingEnd string
+
+	// BlockCrossing reports that the match continues past that first block,
+	// so a directive built from the whole phrase would find nothing.
+	BlockCrossing bool
 }
 
 const (
@@ -309,19 +324,78 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	if !metadataAvailable || !e.metadataCapable {
 		status, noteType = "", ""
 	}
-	var bodySnippet string
+	var bodySnippet, landing, landingEnd string
+	var crossing bool
 	if bodyEvidence {
-		bodySnippet = snippet(e.PlainText, e.PlainFold, tokens)
+		foldStart, foldEnd := earliestPhrase(e.PlainFold, tokens)
+		bodySnippet = snippetAt(e.PlainText, foldStart)
+		landing, landingEnd, crossing = e.landingAt(foldStart, foldEnd)
 	}
 	return Result{
-		RelPath:  e.RelPath,
-		Title:    e.Title,
-		Status:   status,
-		Snippet:  bodySnippet,
-		Alias:    alias,
-		NoteType: noteType,
-		File:     e.isFile,
+		RelPath:       e.RelPath,
+		Title:         e.Title,
+		Status:        status,
+		Snippet:       bodySnippet,
+		Alias:         alias,
+		NoteType:      noteType,
+		File:          e.isFile,
+		Landing:       landing,
+		LandingEnd:    landingEnd,
+		BlockCrossing: crossing,
 	}
+}
+
+// landingAt is the first and last block of one folded body match, and whether
+// that match continues into a later block. The exclusive end is the last
+// matched rune plus its length: the next kept rune can sit in a later block
+// after a fold-dropped break, which is not itself a crossing. Without recorded
+// block ends there is nothing to tell a wrap from a paragraph, so the row
+// keeps the snippet's own words and does not claim a crossing.
+func (e *entry) landingAt(foldStart, foldEnd int) (first, last string, crossing bool) {
+	if foldStart < 0 || foldEnd <= foldStart || len(e.blockEnds) == 0 {
+		return "", "", false
+	}
+	start := sourceOffsetOfFold(e.PlainText, foldStart)
+	end := sourceEndOfFold(e.PlainText, foldEnd)
+	if start >= end || end > len(e.PlainText) {
+		return "", "", false
+	}
+	firstEnd := e.blockEndAfter(start)
+	crossing = end > firstEnd
+	firstStop := end
+	if crossing {
+		firstStop = firstEnd
+	}
+	first = collapseFields(e.PlainText[start:firstStop])
+	if !crossing {
+		return first, "", false
+	}
+	from := max(e.blockStartContaining(end-1), firstEnd)
+	return first, collapseFields(e.PlainText[from:end]), true
+}
+
+func collapseFields(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func (e *entry) blockEndAfter(off int) int {
+	for _, end := range e.blockEnds {
+		if end > off {
+			return end
+		}
+	}
+	return len(e.PlainText)
+}
+
+func (e *entry) blockStartContaining(off int) int {
+	prev := 0
+	for _, end := range e.blockEnds {
+		if end > off {
+			return prev
+		}
+		prev = end
+	}
+	return prev
 }
 
 // runesBefore returns the byte offset n characters back from off, and the start
@@ -357,12 +431,15 @@ func runesAfter(s string, off, n int) int {
 	return off
 }
 
-// snippet returns a one-line window of plain around the earliest matched-token
-// offset. That offset is found on the folded copy, and lowercasing does not
-// preserve length, so it comes back through the fold's own mapping: used directly
-// it drifts until the window slides clear of the term it was placed around.
-func snippet(plain, plainFold string, tokens []string) string {
-	off := sourceOffsetOfFold(plain, earliestOffset(plainFold, tokens))
+// snippetAt returns a one-line window of plain around a folded match start.
+// Lowercasing does not preserve length, so the offset comes back through the
+// fold's own mapping: used directly it drifts until the window slides clear
+// of the term it was placed around.
+func snippetAt(plain string, foldStart int) string {
+	if foldStart < 0 {
+		foldStart = 0
+	}
+	off := sourceOffsetOfFold(plain, foldStart)
 	// Neither boundary may move past the match it was placed around: a match buried
 	// deep in one unbroken run can be stepped over by both at once, reversing the
 	// slice. The sentence-start reach runs first and the whole-word adjustment
@@ -371,7 +448,7 @@ func snippet(plain, plainFold string, tokens []string) string {
 	start := min(wholeWordStart(plain, opening), off)
 	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), off)
 
-	s := strings.Join(strings.Fields(plain[start:end]), " ")
+	s := collapseFields(plain[start:end])
 	if start > 0 {
 		s = "…" + s
 	}
@@ -381,19 +458,23 @@ func snippet(plain, plainFold string, tokens []string) string {
 	return s
 }
 
-// earliestOffset returns the smallest index at which any token occurs in hay,
-// or 0 when no token occurs (a title-only or pure-filter hit shows the start).
-func earliestOffset(hay string, tokens []string) int {
-	off := -1
+func snippet(plain, plainFold string, tokens []string) string {
+	foldStart, _ := earliestPhrase(plainFold, tokens)
+	return snippetAt(plain, foldStart)
+}
+
+// earliestPhrase returns the byte range of the earliest token in hay, or
+// start < 0 when no token occurs. Landing and the snippet share this scan so
+// a result row does not walk the query twice.
+func earliestPhrase(hay string, tokens []string) (start, end int) {
+	start = -1
 	for _, t := range tokens {
-		if i, _ := phraseIndex(hay, t, 0); i >= 0 && (off < 0 || i < off) {
-			off = i
+		i, stop := phraseIndex(hay, t, 0)
+		if i >= 0 && (start < 0 || i < start) {
+			start, end = i, stop
 		}
 	}
-	if off < 0 {
-		return 0
-	}
-	return off
+	return start, end
 }
 
 // wordEdgeBudget bounds how far a boundary may move to keep a word whole. A
@@ -563,6 +644,31 @@ func sourceOffsetOfFold(s string, foldOff int) int {
 		folded = next
 	})
 	return at
+}
+
+// sourceEndOfFold maps the exclusive end of a folded match back to the exclusive
+// source offset of its last rune. sourceOffsetOfFold at that same fold end would
+// name the next kept rune, which can sit past a dropped break and is not the
+// match.
+func sourceEndOfFold(s string, foldEnd int) int {
+	if foldEnd <= 0 {
+		return 0
+	}
+	folded, end := 0, len(s)
+	found := false
+	foldRunes(s, func(r rune, i int) {
+		if found {
+			return
+		}
+		next := folded + utf8.RuneLen(r)
+		if next >= foldEnd {
+			_, size := utf8.DecodeRuneInString(s[i:])
+			end, found = i+size, true
+			return
+		}
+		folded = next
+	})
+	return end
 }
 
 // HitRun is one stretch of a piece of text and whether the query matched it.

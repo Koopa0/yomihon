@@ -83,7 +83,7 @@ func TestHitFragment(t *testing.T) {
 
 	tests := []struct {
 		name string
-		runs []SnippetRun
+		hit  SearchResult
 		want string
 	}{
 		{
@@ -92,60 +92,86 @@ func TestHitFragment(t *testing.T) {
 			// first. With the same word twice the two are the same string, and
 			// this case would hold whichever end it was written from.
 			name: "the first marked stretch is the destination",
-			runs: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " and "}, {Text: "streams", Hit: true}, {Text: " after"}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " and "}, {Text: "streams", Hit: true}, {Text: " after"}}},
 			want: "#:~:text=kafka",
 		},
 		{
 			name: "nothing marked, nowhere to point",
-			runs: []SnippetRun{{Text: "before kafka after"}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "before kafka after"}}},
 			want: "",
 		},
 		{
 			name: "no excerpt at all",
-			runs: nil,
 			want: "",
 		},
 		{
 			name: "cjk and spaces are escaped",
-			runs: []SnippetRun{{Text: "位元 運算", Hit: true}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "位元 運算", Hit: true}}},
 			want: "#:~:text=%E4%BD%8D%E5%85%83%20%E9%81%8B%E7%AE%97",
 		},
 		{
 			name: "a hyphen cannot introduce a prefix or a suffix",
-			runs: []SnippetRun{{Text: "read-aloud", Hit: true}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "read-aloud", Hit: true}}},
 			want: "#:~:text=read%2Daloud",
 		},
 		{
 			name: "a comma cannot separate a parameter",
-			runs: []SnippetRun{{Text: "one, two", Hit: true}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "one, two", Hit: true}}},
 			want: "#:~:text=one%2C%20two",
 		},
 		{
 			name: "an ampersand cannot start a second directive",
-			runs: []SnippetRun{{Text: "this & that", Hit: true}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "this & that", Hit: true}}},
 			want: "#:~:text=this%20%26%20that",
 		},
 		{
 			name: "a percent sign cannot begin an escape of its own",
-			runs: []SnippetRun{{Text: "100% done", Hit: true}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "100% done", Hit: true}}},
 			want: "#:~:text=100%25%20done",
 		},
 		{
 			name: "the edges of the term are trimmed, since a term that is not a word matches none",
-			runs: []SnippetRun{{Text: "  kafka  ", Hit: true}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "  kafka  ", Hit: true}}},
 			want: "#:~:text=kafka",
 		},
 		{
 			name: "a mark holding only spaces is passed over",
-			runs: []SnippetRun{{Text: "   ", Hit: true}, {Text: "kafka", Hit: true}},
+			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "   ", Hit: true}, {Text: "kafka", Hit: true}}},
 			want: "#:~:text=kafka",
+		},
+		{
+			name: "a phrase that spans two blocks names both ends",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
+				Landing:       "cobalt",
+				LandingEnd:    "egret",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=cobalt,egret",
+		},
+		{
+			name: "a crossing match with only a last-block stretch names that stretch",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "ghi", Hit: true}},
+				LandingEnd:    "ghi",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=ghi",
+		},
+		{
+			name: "a crossing match with nothing locatable carries no directive",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
+				BlockCrossing: true,
+			},
+			want: "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := hitFragment(tt.runs); got != tt.want {
+			if got := hitFragment(&tt.hit); got != tt.want {
 				t.Errorf("hitFragment() = %q, want %q", got, tt.want)
 			}
 		})

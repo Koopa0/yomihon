@@ -231,15 +231,19 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 	// view that knows none would otherwise mark every governed row a fault.
 	rules := vocabulary != nil && !vocabulary.Closed()
 	out := make([]pages.SearchResult, len(results))
-	for i, r := range results {
+	for i := range results {
+		r := &results[i]
 		out[i] = pages.SearchResult{
-			RelPath:     r.RelPath,
-			Title:       r.Title,
-			Snippet:     r.Snippet,
-			SnippetRuns: snippetRuns(r.Snippet, tokens),
-			PathRuns:    snippetRuns(r.RelPath, tokens),
-			AliasRuns:   snippetRuns(r.Alias, tokens),
-			File:        r.File,
+			RelPath:       r.RelPath,
+			Title:         r.Title,
+			Snippet:       r.Snippet,
+			SnippetRuns:   snippetRuns(r.Snippet, tokens),
+			PathRuns:      snippetRuns(r.RelPath, tokens),
+			AliasRuns:     snippetRuns(r.Alias, tokens),
+			File:          r.File,
+			Landing:       r.Landing,
+			LandingEnd:    r.LandingEnd,
+			BlockCrossing: r.BlockCrossing,
 		}
 		// A row that names no status can carry no verdict about one.
 		if governed {

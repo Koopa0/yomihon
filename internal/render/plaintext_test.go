@@ -138,6 +138,50 @@ func TestAdjacentBlocksAreSeparatedByOneNewline(t *testing.T) {
 	}
 }
 
+// A wrap inside one paragraph and a paragraph boundary look the same in the
+// stored text — one newline — so the only way to tell them apart is the
+// offsets taken while walking. The first pair of words sits in one block; the
+// second pair starts in one and finishes in the next.
+func TestPlainBlocksTellAWrapFromAParagraphBoundary(t *testing.T) {
+	t.Parallel()
+
+	body := "" +
+		"The evidence records a bright\ncrimson heron near the tower.\n\n" +
+		"The field notebook calls this bird cobalt\n\n" +
+		"egret beside the old lighthouse.\n"
+	text, ends := render.PlainBlocks(body)
+	if text != render.PlainText(body) {
+		t.Fatalf("PlainBlocks text = %q, want the same bytes PlainText returns", text)
+	}
+	if len(ends) != 3 {
+		t.Fatalf("block ends = %v, want three blocks", ends)
+	}
+	if !inOneBlock(text, ends, "bright", "crimson") {
+		t.Errorf("bright and crimson are not in one block; text = %q ends = %v", text, ends)
+	}
+	if inOneBlock(text, ends, "cobalt", "egret") {
+		t.Errorf("cobalt and egret share a block, so the walk did not part the paragraphs; text = %q ends = %v", text, ends)
+	}
+}
+
+func inOneBlock(text string, ends []int, a, b string) bool {
+	start := 0
+	for _, end := range ends {
+		if end < start || end > len(text) {
+			return false
+		}
+		block := text[start:end]
+		if strings.Contains(block, a) && strings.Contains(block, b) {
+			return true
+		}
+		start = end
+		if start < len(text) && text[start] == '\n' {
+			start++
+		}
+	}
+	return false
+}
+
 // TestBareURLsAreIndexedVerbatim pins the deliberate absence of
 // linkification in the plain-text parser: a bare URL contributes exactly the
 // bytes in the file (what a grep of the vault would see), and is never
