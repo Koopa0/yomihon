@@ -3359,46 +3359,11 @@ func TestTheFuriganaControlIsOnEveryPage(t *testing.T) {
 	}
 }
 
-// TestAFileTooLargeToSearchSaysSoOnItsOwnPage is the page-side of the bound.
-// A note past the cap is the same file-information page an over-cap non-note
-// already got: size named, raw-bytes link, body not carried. The under-cap
-// note still reads. The generation-side lock is TestAnOverCapNoteIsNotRetained
-// in internal/snapshot.
-func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
-		t.Fatalf("write README: %v", err)
-	}
-	const needle = "rarespelunker"
-	small := "# Small\n\n" + needle + " sits here.\n"
-	if err := os.WriteFile(filepath.Join(root, "small.md"), []byte(small), 0o600); err != nil {
-		t.Fatalf("write small note: %v", err)
-	}
-	huge := "# Huge\n\n" + needle + " sits here too.\n" + strings.Repeat("padding padding padding\n", 60000)
-	if len(huge) <= render.MaxSourceBytes {
-		t.Fatalf("the oversize fixture is %d bytes, which is under the cap; this would prove nothing", len(huge))
-	}
-	if err := os.WriteFile(filepath.Join(root, "huge.md"), []byte(huge), 0o600); err != nil {
-		t.Fatalf("write huge note: %v", err)
-	}
-	srv := newServer(t, root)
-
-	code, page := get(t, srv.Client(), srv.URL+"/notes/huge.md")
-	assertOverCapNoteFilePage(t, code, page, "huge.md", huge)
-
-	code, smallPage := get(t, srv.Client(), srv.URL+"/notes/small.md")
-	if code != http.StatusOK {
-		t.Fatalf("GET the under-cap note = %d, want 200", code)
-	}
-	if !strings.Contains(smallPage, "sits here") {
-		t.Error("the under-cap note did not render its own body")
-	}
-}
-
-// TestAnOverCapNotePageIsTheFilePage is the lock that a note past MaxSourceBytes
-// is answered with the file-information page, not a 404 that promises the body
-// after a reload, and not with a rendered body the server would have to carry.
+// TestAnOverCapNotePageIsTheFilePage is the page-side of the bound. A note
+// past MaxSourceBytes is the same file-information page an over-cap non-note
+// already got: size named, raw-bytes link, body not carried. It is not a 404
+// that promises the body after a reload. The under-cap note still reads. The
+// generation-side lock is TestAnOverCapNoteIsNotRetained in internal/snapshot.
 func TestAnOverCapNotePageIsTheFilePage(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

@@ -13,7 +13,7 @@ import (
 
 // MaxSourceBytes is the comfort cap on a file read as characters. Past it the
 // file gets an information page pointing at its bytes and search leaves it out,
-// so both faces say the same thing. A note is not subject to this.
+// so both faces say the same thing. A note shares this ceiling.
 const MaxSourceBytes = 1 << 20 // 1 MiB
 
 // pictureExts are the kinds an <img> element displays. The extension, not the

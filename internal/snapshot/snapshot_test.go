@@ -1683,57 +1683,6 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	}
 }
 
-// TestAnOversizeNoteRendersAndStaysOutOfTheIndex keeps the generation-shape
-// half of the bound: a note past MaxSourceBytes is not retained, and a note
-// under it still is. The published-skip half — never read, never held back —
-// is TestAnOverCapNoteIsNotRetained.
-func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	const needle = "rarespelunker"
-	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\n"+needle+" sits here.\n")
-	huge := "---\ntitle: Huge\ntype: concept\n---\n" + needle + " sits here too.\n" +
-		strings.Repeat("padding padding padding\n", 60000)
-	if len(huge) <= render.MaxSourceBytes {
-		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
-	}
-	writeNote(t, root, "huge.md", huge)
-	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatal(err)
-	}
-	gen := store.Current()
-
-	if note, ok := gen.Note("huge.md"); ok {
-		t.Fatalf("the oversize note was retained in the generation; body length = %d", len(note.Body))
-	}
-	if _, ok := gen.Note("small.md"); !ok {
-		t.Error("a note under the cap is missing from the generation")
-	}
-
-	results, _, err := gen.Search().SearchN(lexical.Parse(needle), -1)
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	var paths []string
-	for _, r := range results {
-		paths = append(paths, r.RelPath)
-	}
-	if !slices.Contains(paths, "small.md") {
-		t.Errorf("search lost the note under the cap; got %v", paths)
-	}
-	if slices.Contains(paths, "huge.md") {
-		t.Errorf("the oversize note reached the index; got %v", paths)
-	}
-}
-
 // TestAnOverCapNoteIsNotRetained is the lock that a note past MaxSourceBytes
 // is a published skip. The same ceiling every other file has applies: the
 // generation does not read it, does not hold its body, and does not hold the
