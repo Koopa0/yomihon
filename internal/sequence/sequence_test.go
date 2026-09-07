@@ -423,6 +423,29 @@ func TestInvalidBranchesSaySoInTheType(t *testing.T) {
 			t.Errorf("inner side branch = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
 		}
 	})
+
+	t.Run("a main-line branch inside a side branch does not project, and the side branch still does", func(t *testing.T) {
+		t.Parallel()
+		doc := Parse("## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n", 1)
+		outer := doc.Groups[0].subgroups()[0]
+		if outer.Invalid || !outer.Projectable() {
+			t.Errorf("side branch = (invalid %t, projectable %t), want (false, true); the error is the nested primary's", outer.Invalid, outer.Projectable())
+		}
+		inner := outer.subgroups()[0]
+		if inner.Role != RolePrimary {
+			t.Errorf("nested branch role = %v, want primary", inner.Role)
+		}
+		if !inner.Invalid || inner.Projectable() {
+			t.Errorf("nested primary = (invalid %t, projectable %t), want (true, false)", inner.Invalid, inner.Projectable())
+		}
+		found := findRule(doc, RuleRoleNestedPrimary)
+		if found == nil {
+			t.Fatal("the nested primary was not reported")
+		}
+		if !strings.Contains(found.Message, "side branch") {
+			t.Errorf("nested-primary conflict did not name the side branch it sits in: %q", found.Message)
+		}
+	})
 }
 
 // TestCandidateIdentityDisambiguatesRepeatedTargets holds the reason a span
@@ -535,6 +558,12 @@ func TestDiagnosticsNameWhatTheAuthorHasToDecide(t *testing.T) {
 			name:     "a side branch inside a side branch",
 			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- 更深 {sequence=local}\n\t\t\t\t- [[C]]\n",
 			wantRule: RuleNestingTooDeep,
+			wantLine: 6,
+		},
+		{
+			name:     "a main-line branch inside a side branch",
+			body:     "## Part {sequence=primary}\n\n- [[A]]\n\t- 旁支 {sequence=local}\n\t\t- [[B]]\n\t\t\t- Nested main line {sequence=primary}\n\t\t\t\t- [[C]]\n",
+			wantRule: RuleRoleNestedPrimary,
 			wantLine: 6,
 		},
 		{

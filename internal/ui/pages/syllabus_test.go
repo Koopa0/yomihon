@@ -219,14 +219,13 @@ func TestLessonsAreAnOrderedList(t *testing.T) {
 	}
 }
 
-// TestASideBranchHandsOutNoMainLineNumbers pins the one shape where the drawn
-// tree and navigation's walk disagree: a branch nested inside a side branch is
-// drawn, but the walk never descends into a side branch, so no order ever
-// reaches its rows. Numbering them would print ordinals no arrow can follow —
-// they render as plain rows outside any list, without a number and without a
-// component name. The side branch's own row after the interruption resumes
-// the side branch's order and says so.
-func TestASideBranchHandsOutNoMainLineNumbers(t *testing.T) {
+// TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule holds the cell the
+// grammar now reports: a branch declared as the main line sitting inside a
+// side branch. The page used to draw it as 模組 N with its lesson listed and
+// uncounted. The grammar refuses the branch, so the page does not invent a
+// counted module the walk never reaches. The side branch still draws, and its
+// own two lessons share one list now that nothing interrupts them.
+func TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule(t *testing.T) {
 	t.Parallel()
 
 	body := "## Main {sequence=primary}\n\n" +
@@ -237,16 +236,31 @@ func TestASideBranchHandsOutNoMainLineNumbers(t *testing.T) {
 		"\t\t\t\t- [[GC]]\n" +
 		"\t\t- [[Arrays]]\n"
 	path := buildTestPath(t, body)
+	if !slices.ContainsFunc(path.Diagnostics, func(d sequence.Diagnostic) bool {
+		return d.Rule == sequence.RuleRoleNestedPrimary
+	}) {
+		t.Fatalf("the nested primary was not reported: %+v", path.Diagnostics)
+	}
 	view := BuildPathView(&path, []nav.Path{path})
+	if view.Modules != 1 {
+		t.Errorf("Modules = %d, want 1: only the side branch, not the nested primary", view.Modules)
+	}
+	if view.Entries != 1 {
+		t.Errorf("Entries = %d, want 1: the main line still lists Slices alone", view.Entries)
+	}
 
-	var walkless *PathEntryView
+	var nested *PathBranchView
+	var gc *PathEntryView
 	var find func(items []PathItemView)
 	find = func(items []PathItemView) {
 		for _, item := range items {
 			switch {
 			case item.Entry != nil && item.Entry.Text == "GC":
-				walkless = item.Entry
+				gc = item.Entry
 			case item.Branch != nil:
+				if item.Branch.Heading == "深入" {
+					nested = item.Branch
+				}
 				find(item.Branch.Items)
 			}
 		}
@@ -254,11 +268,11 @@ func TestASideBranchHandsOutNoMainLineNumbers(t *testing.T) {
 	for _, b := range view.Branches {
 		find(b.Items)
 	}
-	if walkless == nil {
-		t.Fatal("the nested primary branch's row is not drawn at all")
+	if nested != nil {
+		t.Errorf("the nested primary still draws as a module: %+v", nested)
 	}
-	if walkless.Number != 0 {
-		t.Errorf("a row navigation never walks carries number %d, want 0", walkless.Number)
+	if gc != nil {
+		t.Errorf("the nested primary's lesson still draws: %+v", gc)
 	}
 
 	var out bytes.Buffer
@@ -269,26 +283,28 @@ func TestASideBranchHandsOutNoMainLineNumbers(t *testing.T) {
 	if got := strings.Count(html, "<li value="); got != 3 {
 		t.Errorf("the page numbers %d rows, want 3: the main line's one and the side branch's two", got)
 	}
-	if got := strings.Count(html, `<ol class="y-lessons"`); got != 3 {
-		t.Errorf("the page renders %d ordered lists, want 3: the walkless branch must not open one", got)
+	if got := strings.Count(html, `<ol class="y-lessons"`); got != 2 {
+		t.Errorf("the page renders %d ordered lists, want 2: the refused branch must not split the side branch", got)
 	}
 	for _, want := range []string{
 		`<ol class="y-lessons" aria-label="主線">`,
 		`<ol class="y-lessons" aria-label="支線：選修">`,
-		// The side branch's row after the interruption resumes the branch's
-		// own count and name.
-		`<ol class="y-lessons" aria-label="支線：選修（接續）">`,
 		`<li value="2"><a class="y-lesson" href="/notes/Writing/Arrays.md"`,
+		"1 模組",
 	} {
 		if !strings.Contains(html, want) {
-			t.Errorf("side-branch fragments are missing %q; html = %q", want, html)
+			t.Errorf("the course is missing %q; html = %q", want, html)
 		}
 	}
-	if !strings.Contains(html, `<a class="y-lesson" href="/notes/Writing/GC.md"`) {
-		t.Errorf("the walkless row disappeared instead of rendering unnumbered; html = %q", html)
-	}
-	if strings.Contains(html, `<li value="0">`) {
-		t.Errorf("a walkless row was numbered onto an order that never reaches it; html = %q", html)
+	for _, ban := range []string{
+		"模組 1",
+		"深入",
+		`<a class="y-lesson" href="/notes/Writing/GC.md"`,
+		`<ol class="y-lessons" aria-label="支線：選修（接續）">`,
+	} {
+		if strings.Contains(html, ban) {
+			t.Errorf("the refused nested primary still reached the page as %q; html = %q", ban, html)
+		}
 	}
 }
 
@@ -566,6 +582,7 @@ func TestMarkerWrittenDividesEveryGrammarRule(t *testing.T) {
 		sequence.RuleRoleDuplicate:      markerWritten,
 		sequence.RuleRoleMisplaced:      markerWritten,
 		sequence.RuleRoleConflict:       markerWritten,
+		sequence.RuleRoleNestedPrimary:  markerWritten,
 		sequence.RuleRoleOnEntry:        markerWritten,
 		sequence.RuleLocalOrphan:        markerWritten,
 		sequence.RuleNestingTooDeep:     markerWritten,

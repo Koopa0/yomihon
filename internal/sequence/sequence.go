@@ -231,6 +231,7 @@ const (
 	RuleRoleMissing        Rule = "path.role_missing"
 	RuleRoleDuplicate      Rule = "path.role_duplicate"
 	RuleRoleConflict       Rule = "path.role_conflict"
+	RuleRoleNestedPrimary  Rule = "path.role_nested_primary"
 	RuleLocalOrphan        Rule = "path.local_orphan"
 	RuleNestingTooDeep     Rule = "path.nesting_too_deep"
 	RuleRoleOnEntry        Rule = "path.role_on_entry"
@@ -249,6 +250,7 @@ func Rules() []Rule {
 		RuleRoleMissing,
 		RuleRoleDuplicate,
 		RuleRoleConflict,
+		RuleRoleNestedPrimary,
 		RuleLocalOrphan,
 		RuleNestingTooDeep,
 		RuleRoleOnEntry,
@@ -498,6 +500,17 @@ func (p *parser) container(
 	if role == RoleLocal && localDepth > 0 {
 		p.report(RuleNestingTooDeep, line,
 			"a side branch inside a side branch has no place in the course order; keep it to one level below what it hangs from",
+			strings.TrimSpace(own))
+		invalid = true
+	}
+	if role == RolePrimary && localDepth > 0 {
+		// A main-line declaration inside a side branch is its own cell of the
+		// same matrix: local-in-local is too-deep, and a role under none is
+		// the other conflict. Reporting it here keeps the branch where the
+		// author wrote it; marking it invalid is what stops the page drawing
+		// it as a counted module the walk never reaches.
+		p.report(RuleRoleNestedPrimary, line,
+			"a branch cannot take part in the course as the main line while it sits inside a side branch",
 			strings.TrimSpace(own))
 		invalid = true
 	}
