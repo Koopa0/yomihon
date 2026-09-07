@@ -244,6 +244,14 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		h.showFile(w, r, rel, authority, snap)
 		return
 	}
+	// A note over the source bound is skipped at scan, the same ceiling a
+	// non-note already had. The file page names the size and offers the
+	// bytes; the unreadable page would tell the reader to clear a permission
+	// and wait for a reload that never shows it.
+	if entry, isFile := snap.Entry(rel); isFile && entry.Size() > render.MaxSourceBytes {
+		h.showFile(w, r, rel, authority, snap)
+		return
+	}
 
 	n, ok := snap.Note(rel)
 	if !ok {
@@ -319,7 +327,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		UpdatedFromFile:   updatedFromFile,
 		ObsidianHref:      pages.ObsidianHref(h.sources.Source.Name(), n.RelPath),
 		Diagnostic:        n.FMDiagnostic,
-		Unsearchable:      !n.Searchable,
 		Stale:             n.Stale,
 		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
 		CitedBy:           snap.CitedBy(rel),

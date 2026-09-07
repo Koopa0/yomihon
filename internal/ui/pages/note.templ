@@ -28,9 +28,6 @@ type NoteView struct {
 	// and escaped by ObsidianHref. Empty renders no editor link.
 	ObsidianHref string
 	Diagnostic   string
-	// Unsearchable is set for a note too large to hold in the index, whose
-	// phrases a later search would report as no results at all.
-	Unsearchable bool
 	// Stale is set where the file could not be read while this page was built,
 	// so the words below are the last ones read rather than the current ones.
 	Stale bool
@@ -229,9 +226,6 @@ templ articleHead(v NoteView, lang wording.Lang) {
 				<a class="y-metarow__raw" href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
 			}
 		</div>
-	}
-	if v.Unsearchable {
-		<p class="y-fileinfo__note" data-note-unsearchable>{ wording.NoteTooLargeToIndex.In(lang) }</p>
 	}
 	if v.Stale {
 		<p class="y-fileinfo__note" data-note-stale>{ wording.NoteStale.In(lang) }</p>

@@ -3442,13 +3442,12 @@ func TestTheFuriganaControlIsOnEveryPage(t *testing.T) {
 	}
 }
 
-// TestAFileTooLargeToSearchSaysSoOnItsOwnPage covers the only thing that makes
-// a bound honest. A note past the cap still renders — every file in the folder
-// stays readable — but nothing reaches it by search, and a search that answers
-// "no results" for a phrase sitting in a note the reader is looking at is a
-// false statement about the folder. The cap already existed for every file kind
-// except the one held three times over.
-func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
+// TestAnOverCapNotePageIsTheFilePage is the page-side of the bound. A note
+// past MaxSourceBytes is the same file-information page an over-cap non-note
+// already got: size named, raw-bytes link, body not carried. It is not a 404
+// that promises the body after a reload. The under-cap note still reads. The
+// generation-side lock is TestAnOverCapNoteIsNotRetained in internal/snapshot.
+func TestAnOverCapNotePageIsTheFilePage(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
@@ -3468,25 +3467,57 @@ func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
 	}
 	srv := newServer(t, root)
 
-	// It renders, and it says why a search will not find it.
 	code, page := get(t, srv.Client(), srv.URL+"/notes/huge.md")
+	assertOverCapNoteFilePage(t, code, page, "huge.md", huge)
+
+	code, smallPage := get(t, srv.Client(), srv.URL+"/notes/small.md")
 	if code != http.StatusOK {
-		t.Fatalf("GET the oversize note = %d, want 200 — reading is never withheld", code)
+		t.Fatalf("GET the under-cap note = %d, want 200", code)
 	}
-	if !strings.Contains(page, "sits here too") {
-		t.Error("the oversize note did not render its own body")
+	if !strings.Contains(smallPage, "sits here") {
+		t.Error("the under-cap note did not render its own body")
 	}
-	if !strings.Contains(page, "data-note-unsearchable") {
-		t.Error("the oversize note is absent from the index and its page does not say so")
-	}
+}
 
-	// The note that is indexed says nothing of the kind.
-	if _, small := get(t, srv.Client(), srv.URL+"/notes/small.md"); strings.Contains(small, "data-note-unsearchable") {
-		t.Error("a note that is searchable was told it is not")
+// assertOverCapNoteFilePage is what an over-cap note and an over-cap non-note
+// share: 200, the information page, the size, the raw-bytes link, and no body.
+func assertOverCapNoteFilePage(t *testing.T, code int, page, rel, body string) {
+	t.Helper()
+	if code != http.StatusOK {
+		t.Fatalf("GET /notes/%s = %d, want 200 — the file page, not a withheld read", rel, code)
 	}
-
-	// That the index really leaves it out is asserted where the index lives:
-	// TestAnOversizeNoteRendersAndStaysOutOfTheIndex in internal/snapshot.
+	if !strings.Contains(page, wording.FileInfoLabel.In(wording.ZhHant)) {
+		t.Error("the over-cap note's page is not the file-information page")
+	}
+	if !strings.Contains(page, wording.FileSize.In(wording.ZhHant)) {
+		t.Error("the over-cap note's page does not name the size")
+	}
+	digits := strconv.Itoa(len(body))
+	var grouped strings.Builder
+	for i, r := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			grouped.WriteByte(',')
+		}
+		grouped.WriteRune(r)
+	}
+	if !strings.Contains(page, grouped.String()) {
+		t.Errorf("the over-cap note's page does not name the byte size %s", grouped.String())
+	}
+	if !strings.Contains(page, wording.OpenRawBytes.In(wording.ZhHant)) {
+		t.Error("the over-cap note's page offers no raw-bytes link")
+	}
+	if !strings.Contains(page, "/raw/"+rel) {
+		t.Errorf("the over-cap note's page has no raw-bytes href for %s", rel)
+	}
+	if strings.Contains(page, "sits here too") {
+		t.Error("the over-cap note's page retained its body")
+	}
+	if strings.Contains(page, wording.NotReadableLede.In(wording.ZhHant)) {
+		t.Error("the over-cap note's page is the unreadable page, which tells the reader to wait for a reload that never shows it")
+	}
+	if strings.Contains(page, wording.NothingHere.In(wording.ZhHant)) {
+		t.Error("the over-cap note's page is the plain not-found page")
+	}
 }
 
 // TestFolderWithoutARepositoryStillOffersTransitions locks the reading page to

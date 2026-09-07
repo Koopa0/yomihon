@@ -33,15 +33,12 @@ type Reading struct {
 	// so the write face can refuse a ruling read against content the disk no
 	// longer carries.
 	ContentIdentity [sha256.Size]byte
-	// Searchable is false for a note too large to hold in the index. It still
-	// renders, but a search that cannot reach it has to say so.
-	Searchable bool
 	// Stale is true for a copy this generation could not re-read and took from
 	// the generation before it, so a page can say the file was not readable.
 	Stale bool
 }
 
-func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguage, searchable bool) Reading {
+func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguage) Reading {
 	if parsed == nil {
 		return Reading{}
 	}
@@ -64,6 +61,5 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		StatusNotText:      parsed.StatusNotText(),
 		Updated:            parsed.Updated(),
 		ContentIdentity:    vault.ContentIdentity(data),
-		Searchable:         searchable,
 	}
 }

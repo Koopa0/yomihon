@@ -1276,13 +1276,9 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	if !kept.Stale || !strings.Contains(kept.Body, "the words read before the file shut") {
 		t.Errorf("carried note = %+v, want the last copy read, marked as one that could not be re-read", kept)
 	}
-	// The carried copy has to answer everywhere the note it replaces did. Its
-	// own page says the words are searchable, and a generation that said so
-	// while leaving them out of the index would answer "nothing found" about
-	// text it is showing on screen at the same moment.
-	if !kept.Searchable {
-		t.Fatalf("the carried copy says its words are not searchable: %+v", kept)
-	}
+	// The carried copy has to answer everywhere the note it replaces did. A
+	// generation that left those words out of the index would answer "nothing
+	// found" about text it is showing on screen at the same moment.
 	found := snapshotSearch(t, degraded.Search(), "the words read before the file shut")
 	if len(found) != 1 || found[0].RelPath != carried {
 		t.Errorf("searching the carried copy's own words = %+v, want the note whose page is showing them", found)
@@ -1687,13 +1683,12 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	}
 }
 
-// TestAnOversizeNoteRendersAndStaysOutOfTheIndex is the half of the bound that
-// makes it honest. Every file in the folder stays readable whatever its size —
-// so the note is captured and its body is there — but the index is where a note
-// costs three copies of itself, and that is where the ceiling belongs. The
-// reader is told on the note's own page; this is the fact that sentence is
-// about.
-func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
+// TestAnOverCapNoteIsNotRetained is the lock that a note past MaxSourceBytes
+// is a published skip. The same ceiling every other file has applies: the
+// generation does not read it, does not hold its body, and does not hold the
+// folder back for it. A name can stay so the page can say the file is there;
+// nothing of the file is retained.
+func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -1711,25 +1706,33 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
-	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   make(map[string]int),
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
 		t.Fatal(err)
 	}
-	gen := store.Current()
+	if store.retry {
+		t.Fatal("an over-cap note held the generation back; one oversized file would wedge the folder")
+	}
+	if source.reads["huge.md"] != 0 {
+		t.Fatalf("the over-cap note was read %d times; nothing of it should be retained", source.reads["huge.md"])
+	}
 
-	// It is captured and readable.
-	note, ok := gen.Note("huge.md")
-	if !ok {
-		t.Fatal("the oversize note is absent from the generation; reading is never withheld")
+	gen := store.Current()
+	if note, ok := gen.Note("huge.md"); ok {
+		t.Fatalf("the over-cap note was retained in the generation; body length = %d", len(note.Body))
 	}
-	if !strings.Contains(note.Body, "sits here too") {
-		t.Error("the oversize note lost its body")
+	if _, isFile := gen.Entry("huge.md"); !isFile {
+		t.Fatal("the over-cap note vanished from the scan; the page would look like a missing file")
 	}
-	if note.Searchable {
-		t.Error("the oversize note reports itself searchable, so its page would say nothing")
-	}
-	if small, _ := gen.Note("small.md"); !small.Searchable {
-		t.Error("a note under the cap reports itself unsearchable")
+
+	small, ok := gen.Note("small.md")
+	if !ok || !strings.Contains(small.Body, needle) {
+		t.Fatal("the under-cap note is absent from the generation")
 	}
 
 	results, _, err := gen.Search().SearchN(lexical.Parse(needle), -1)
@@ -1744,7 +1747,54 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 		t.Errorf("search lost the note under the cap; got %v", paths)
 	}
 	if slices.Contains(paths, "huge.md") {
-		t.Errorf("the oversize note reached the index, so its page's sentence is untrue; got %v", paths)
+		t.Errorf("the over-cap note reached the index; got %v", paths)
+	}
+
+	writeNote(t, root, "later.md", "---\ntitle: Later\ntype: concept\n---\nlater\n")
+	store.rescan(t.Context())
+	if _, ok := store.Current().Note("later.md"); !ok {
+		t.Error("a note written after the over-cap skip never reached a published generation")
+	}
+}
+
+// TestAnOverCapNoteKeepsANameForCitations locks skipUnread's body. A note past
+// the bound is not retained, but a citation still lands on it. A bare return
+// in skipUnread drops the stub, and this wikilink goes unresolved.
+func TestAnOverCapNoteKeepsANameForCitations(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\nsee [[huge]]\n")
+	huge := "---\ntitle: Huge\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
+	if len(huge) <= render.MaxSourceBytes {
+		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
+	}
+	writeNote(t, root, "huge.md", huge)
+	contract := testContract(t, root)
+	reader, err := vaultfs.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gen := store.Current()
+	if _, ok := gen.Note("huge.md"); ok {
+		t.Fatal("the over-cap note was retained; this would not lock skipUnread")
+	}
+	resolved := gen.Graph().Resolve("huge")
+	if resolved.Kind != graph.KindUnique || resolved.RelPath != "huge.md" {
+		t.Fatalf("Resolve(huge) = %+v, want unique huge.md; skipUnread left no stub", resolved)
+	}
+	note, ok := gen.Note("small.md")
+	if !ok {
+		t.Fatal("the citing note is absent from the generation")
+	}
+	result := gen.Render("small.md", note.Body, wording.ZhHant)
+	if !strings.Contains(result.HTML, "/notes/huge.md") {
+		t.Errorf("a wikilink to the over-cap note no longer resolves; html = %q", result.HTML)
 	}
 }
 
