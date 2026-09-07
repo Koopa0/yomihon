@@ -101,6 +101,11 @@ var (
 // rather than one a template happened to keep.
 var ResultAliasLabel = both("別名: ", "also called ")
 
+// ResultTopicLabel introduces the subject a result answered to when it was
+// not in the title or the body. Without the word, a topic-only hit would sit
+// on the row with nothing the reader typed.
+var ResultTopicLabel = both("主題: ", "topic: ")
+
 // SearchHitUnlocated is the line a result carries when the index found a
 // match the opened page cannot locate — a phrase that spans two blocks, and
 // nothing in the first of them a text directive can name. Finding something

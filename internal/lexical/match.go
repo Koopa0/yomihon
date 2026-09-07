@@ -22,6 +22,12 @@ type Result struct {
 	// without it a reader who typed another name sees no reason for the hit.
 	Alias string
 
+	// Topic is the declared subject that answered the query when title, alias
+	// and body did not, in the note's own spelling, and empty otherwise. The
+	// row shows a title, so without it a topic-only hit names nothing the
+	// reader typed.
+	Topic string
+
 	// NoteType is the note's own declared type, carried beside Status because a
 	// status value is declared per type. It is blanked with Status when the entry
 	// may not answer metadata projections.
@@ -57,11 +63,11 @@ const (
 )
 
 // SearchN runs a parsed query against the index and returns results in the final
-// deterministic order, six groups concatenated: a note's title hits, a note's
-// body hits, the same two over vault files that are not notes, then the
-// path-only hits, notes again before files. Each group keeps the vault's
-// reading order, except that a fold-equal exact title leads the title-note
-// group, and every text hit outranks every path-only hit.
+// deterministic order, eight groups concatenated: a note's title hits, a note's
+// body hits, a note's topic hits, the same three over vault files that are not
+// notes, then the path-only hits, notes again before files. Each group keeps
+// the vault's reading order, except that a fold-equal exact title leads the
+// title-note group, and every text hit outranks every path-only hit.
 //
 // An empty query returns nothing and a pure-filter query lands every match in
 // the title bucket. A metadata filter excludes non-instance artifacts, and
@@ -95,7 +101,7 @@ func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err
 	}
 	results = make([]Result, len(hits))
 	for i, h := range hits {
-		results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias)
+		results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias, h.topic)
 	}
 	return results, total, nil
 }
@@ -109,18 +115,23 @@ type hit struct {
 	// alias is the name that answered the query when it was not the title, in
 	// the note's own spelling, since the row itself shows a title.
 	alias string
+	// topic is the declared subject that answered the query when title, alias
+	// and body did not.
+	topic string
 }
 
 // bucket names one answer group. This declaration order is the result order and
 // the only statement of it, so a group moves by moving its constant: notes before
-// files under each kind of evidence, and both kinds of text before an address.
+// files under each kind of evidence, and title, body and topic before an address.
 type bucket uint8
 
 const (
 	titleNote bucket = iota
 	bodyNote
+	topicNote
 	titleFile
 	bodyFile
+	topicFile
 	pathNote
 	pathFile
 	bucketCount
@@ -133,7 +144,7 @@ type resultBuckets struct {
 }
 
 // place files one filter-matching entry into its answer group by what the
-// tokens matched: the title, the body, or only the path.
+// tokens matched: the title, the body, a declared topic, or only the path.
 func (b *resultBuckets) place(e *entry, tokens []string) {
 	switch {
 	case allContain(e.TitleFold, tokens):
@@ -146,6 +157,11 @@ func (b *resultBuckets) place(e *entry, tokens []string) {
 		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
 	case allContain(e.PlainFold, tokens):
 		b.add(bodyNote, bodyFile, hit{entry: e, bodyEvidence: true})
+	case topicAnswering(e, tokens) != "":
+		// A topic is a name the note declared for retrieval. It ranks below
+		// body so a mention in prose stays above the many notes that share a
+		// subject.
+		b.add(topicNote, topicFile, hit{entry: e, topic: topicAnswering(e, tokens)})
 	case allContain(e.PathFold, tokens):
 		b.add(pathNote, pathFile, hit{entry: e})
 	}
@@ -164,7 +180,7 @@ func (b *resultBuckets) add(note, file bucket, h hit) {
 // raiseExactTitles is the one tie-break inside the title-note group: a title
 // that is the query, under the same fold matching uses, leads every title that
 // merely contains it. Hits that share that answer keep the vault's reading
-// order. The other five groups are not touched, and an empty token list is a
+// order. The other seven groups are not touched, and an empty token list is a
 // pure-filter query whose every match already sits here.
 func (b *resultBuckets) raiseExactTitles(tokens []string) {
 	if len(tokens) == 0 {
@@ -187,6 +203,22 @@ func exactTitleRank(titleFold, needle string) int {
 // declared in.
 func (b *resultBuckets) ordered() []hit {
 	return slices.Concat(b.groups[:]...)
+}
+
+// topicAnswering returns the note's own spelling of the first declared topic
+// that holds every token, or empty when none does. Matching reads TopicFolds;
+// the as-written Topics value is what the row shows. Empty tokens are a
+// pure-filter query and already land in the title group.
+func topicAnswering(e *entry, tokens []string) string {
+	if len(tokens) == 0 {
+		return ""
+	}
+	for i, folded := range e.TopicFolds {
+		if allContain(folded, tokens) {
+			return e.Topics[i]
+		}
+	}
+	return ""
 }
 
 // aliasAnswering returns the note's own spelling of the first alias that holds
@@ -313,7 +345,7 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 }
 
 // matchesFilter reports whether e satisfies one filter. type/status/domain/slug
-// compare the folded copies; topic is folded membership of Topics; folder is a
+// compare the folded copies; topic is folded membership of TopicFolds; folder is a
 // folded rel_path prefix at a "/" boundary, so "folder:Writing" matches
 // "Writing" and "Writing/x.md" and "writing/x.md", but never "Writing-old/x.md".
 func (e *entry) matchesFilter(f Filter) bool {
@@ -343,7 +375,7 @@ func (e *entry) matchesFilter(f Filter) bool {
 
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
-func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias string) Result {
+func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, topic string) Result {
 	status, noteType := e.Status, e.NoteType
 	if !metadataAvailable || !e.metadataCapable {
 		status, noteType = "", ""
@@ -361,6 +393,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		Status:        status,
 		Snippet:       bodySnippet,
 		Alias:         alias,
+		Topic:         topic,
 		NoteType:      noteType,
 		File:          e.isFile,
 		Landing:       landing,

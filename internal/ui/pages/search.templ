@@ -73,6 +73,11 @@ type SearchResult struct {
 	// note's other names would otherwise see nothing of what they typed.
 	AliasRuns []SnippetRun
 
+	// TopicRuns is the declared subject that answered the query where title,
+	// alias and body did not. A topic-only hit has no snippet, so without this
+	// the query word appears nowhere on the row.
+	TopicRuns []SnippetRun
+
 	// File marks a hit that is a vault file rather than a note, named on the row
 	// so a missing status does not read as a note's status gone missing.
 	File bool
@@ -217,6 +222,13 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 								if r.File {
 									<span class="y-result__sep" aria-hidden="true">·</span>
 									<span class="y-result__kind">{ wording.ResultKindFile.In(lang) }</span>
+								}
+								if len(r.TopicRuns) > 0 {
+									<span class="y-result__sep" aria-hidden="true">·</span>
+									<span class="y-result__topic">
+										{ wording.ResultTopicLabel.In(lang) }
+										@hitRuns(r.TopicRuns)
+									</span>
 								}
 								if len(r.AliasRuns) > 0 {
 									<span class="y-result__sep" aria-hidden="true">·</span>

@@ -420,7 +420,7 @@ func TestSearchTokens(t *testing.T) {
 	}
 }
 
-// TestSearchOrdering pins the opening of the six-group order: a note's title
+// TestSearchOrdering pins the opening of the group order: a note's title
 // hits (rel_path-ordered) before a note's body hits (rel_path-ordered). a.md
 // and c.md match in the title; b.md only in the body.
 func TestSearchOrdering(t *testing.T) {
@@ -442,7 +442,7 @@ func TestSearchOrdering(t *testing.T) {
 // longer title whose path sorts earlier — a space before a full stop — so
 // searching a note by its own name put it third of 103. Fold-equal exact
 // titles come first; everything else in the group keeps the vault's reading
-// order. The six groups do not move.
+// order. The other groups do not move.
 func TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery(t *testing.T) {
 	t.Parallel()
 
@@ -509,33 +509,155 @@ func TestAPureFilterKeepsReadingOrder(t *testing.T) {
 	}
 }
 
-// TestTheSixAnswerGroupsComeBackInRankedOrder pins the whole of the result
-// order in one query. The six groups are the contract — a note's title, a
-// note's body, the same two over vault files, then the notes and files matched
-// only by where they live — and the six fixtures are laid out so their path
-// order is the exact reverse of their group order, which is what makes the
-// assertion discriminate between the two.
-func TestTheSixAnswerGroupsComeBackInRankedOrder(t *testing.T) {
+// TestTheEightAnswerGroupsComeBackInRankedOrder pins the whole of the result
+// order in one query. Title, body and topic — notes then files — then the
+// notes and files matched only by where they live. The fixtures are laid out
+// so their path order is the exact reverse of their group order, which is
+// what makes the assertion discriminate between the two.
+func TestTheEightAnswerGroupsComeBackInRankedOrder(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
 		{RelPath: "a-kafka/data.txt", Title: "data.txt", PlainText: "opaque", File: true},
 		{RelPath: "b-kafka/inside.md", Title: "Inside", PlainText: "unrelated"},
-		{RelPath: "c/notes.txt", Title: "notes.txt", PlainText: "mentions kafka once", File: true},
-		{RelPath: "d/kafka.txt", Title: "kafka.txt", PlainText: "plain", File: true},
-		{RelPath: "e/note.md", Title: "Streaming", PlainText: "a kafka pipeline"},
-		{RelPath: "f/note.md", Title: "Kafka guide", PlainText: "nothing else"},
+		{RelPath: "c-topic.txt", Title: "plain.txt", Topics: []string{"kafka"}, PlainText: "opaque", File: true},
+		{RelPath: "d-topic.md", Title: "Subject", Topics: []string{"kafka"}, PlainText: "unrelated"},
+		{RelPath: "e/notes.txt", Title: "notes.txt", PlainText: "mentions kafka once", File: true},
+		{RelPath: "f/kafka.txt", Title: "kafka.txt", PlainText: "plain", File: true},
+		{RelPath: "g/note.md", Title: "Streaming", PlainText: "a kafka pipeline"},
+		{RelPath: "h/note.md", Title: "Kafka guide", PlainText: "nothing else"},
 	}, validArtifactPolicy(t))
 
 	want := []string{
-		"f/note.md",         // a note named by the query
-		"e/note.md",         // a note whose prose says it
-		"d/kafka.txt",       // a file named by the query
-		"c/notes.txt",       // a file whose characters say it
+		"h/note.md",         // a note named by the query
+		"g/note.md",         // a note whose prose says it
+		"d-topic.md",        // a note only its declared topic matches
+		"f/kafka.txt",       // a file named by the query
+		"e/notes.txt",       // a file whose characters say it
+		"c-topic.txt",       // a file only a declared topic matches
 		"b-kafka/inside.md", // a note only its address matches
 		"a-kafka/data.txt",  // a file only its address matches
 	}
 	if diff := cmp.Diff(want, paths(searchResults(t, idx, Parse("kafka")))); diff != "" {
 		t.Errorf("Search(kafka) group order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestABareTokenReachesADeclaredTopicTheWayItReachesAnAlias is the symmetry
+// the alias comment already named: leaving a declared name out made this
+// program findable by fewer names than it follows. gentleness is the control —
+// an alias-only note, already reachable. kindness and 善良 live only on the
+// topic line, so a bare token that ignores topics answers 0 while topic: still
+// finds them.
+func TestABareTokenReachesADeclaredTopicTheWayItReachesAnAlias(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "alias.md", Title: "Named otherwise", Aliases: []string{"gentleness"}, PlainText: "unrelated prose"},
+		{RelPath: "kind.md", Title: "Stoner", Topics: []string{"kindness"}, PlainText: "unrelated prose"},
+		{RelPath: "han.md", Title: "史托納", Topics: []string{"善良"}, PlainText: "unrelated prose"},
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		query string
+		want  []string
+	}{
+		{"gentleness", []string{"alias.md"}},
+		{"kindness", []string{"kind.md"}},
+		{"topic:kindness", []string{"kind.md"}},
+		{"善良", []string{"han.md"}},
+		{"topic:善良", []string{"han.md"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			t.Parallel()
+			results := searchResults(t, idx, Parse(tt.query))
+			got := paths(results)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("Search(%q) mismatch (-want +got):\n%s", tt.query, diff)
+			}
+			if tt.query == "kindness" || tt.query == "善良" {
+				if len(results) != 1 || results[0].Topic == "" {
+					t.Errorf("Search(%q) topic-only hit carries no topic evidence: %+v", tt.query, results)
+				}
+			}
+		})
+	}
+}
+
+// TestATopicLabelKeepsTheAuthorsSpelling pins the display source. Matching
+// reads the fold, so colour theory finds the note; the row must still show
+// Colour Theory, the way an alias keeps the author's spelling.
+func TestATopicLabelKeepsTheAuthorsSpelling(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "colour.md", Title: "Palette", Topics: []string{"Colour Theory"}, PlainText: "unrelated prose"},
+	}, validArtifactPolicy(t))
+
+	got := searchResults(t, idx, Parse("colour theory"))
+	if len(got) != 1 {
+		t.Fatalf("Search(colour theory) = %+v, want one topic-only hit", got)
+	}
+	if got[0].Topic != "Colour Theory" {
+		t.Errorf("Topic = %q, want the author's spelling Colour Theory, not the fold", got[0].Topic)
+	}
+}
+
+// TestATopicOnlyHitSortsAfterEveryBodyHit pins why topic is its own group
+// below body. A subject holds far more notes than a title, so ranking a
+// topic hit beside the title would bury the body answers; the topic-only
+// note's path sorts first so path order cannot pass this.
+func TestATopicOnlyHitSortsAfterEveryBodyHit(t *testing.T) {
+	t.Parallel()
+	topicOnly := "a.md"
+	bodyHit := "b.md"
+	titleHit := "c.md"
+	if vault.ComparePaths(topicOnly, bodyHit) >= 0 || vault.ComparePaths(bodyHit, titleHit) >= 0 {
+		t.Fatal("the topic-only path must sort first, then the body hit, then the title, or this fixture cannot catch a missing group")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: topicOnly, Title: "Unrelated", Topics: []string{"kindness"}, PlainText: "nothing relevant"},
+		{RelPath: bodyHit, Title: "Also unrelated", PlainText: "a kindness mentioned in passing"},
+		{RelPath: titleHit, Title: "kindness", PlainText: "the named one"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("kindness")))
+	want := []string{titleHit, bodyHit, topicOnly}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(kindness) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestANoteThatDeclaresATopicAndSaysItInProseRanksAsABodyHit pins the arm
+// order for a note that could sit in either group. Body wins, so the note
+// stays with today's answers; a topic-only note whose path sorts first still
+// follows it. Without the body document the order test cannot tell a missing
+// distinction from path order.
+func TestANoteThatDeclaresATopicAndSaysItInProseRanksAsABodyHit(t *testing.T) {
+	t.Parallel()
+	topicOnly := "a.md"
+	both := "z.md"
+	if vault.ComparePaths(topicOnly, both) >= 0 {
+		t.Fatal("the topic-only path must sort first, or this fixture cannot catch a body hit that fell into the topic group")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: topicOnly, Title: "Unrelated", Topics: []string{"kindness"}, PlainText: "nothing relevant"},
+		{RelPath: both, Title: "Also unrelated", Topics: []string{"kindness"}, PlainText: "a kindness mentioned in passing"},
+	}, validArtifactPolicy(t))
+
+	got := searchResults(t, idx, Parse("kindness"))
+	want := []string{both, topicOnly}
+	if diff := cmp.Diff(want, paths(got)); diff != "" {
+		t.Errorf("Search(kindness) order mismatch (-want +got):\n%s", diff)
+	}
+	if len(got) != 2 {
+		t.Fatalf("Search(kindness) = %+v, want two hits", got)
+	}
+	if got[0].Topic != "" || got[0].Snippet == "" {
+		t.Errorf("the note that says the word in prose was not kept as a body hit: %+v", got[0])
+	}
+	if got[1].Topic == "" || got[1].Snippet != "" {
+		t.Errorf("the topic-only note was not kept as a topic hit: %+v", got[1])
 	}
 }
 
