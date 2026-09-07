@@ -1,0 +1,52 @@
+package layouts
+
+import (
+	"os"
+	"strings"
+	"testing"
+)
+
+// TestProseHeadingLookFollowsAuthoredLevel holds the half of the heading
+// stylesheet that is about look rather than outline. The shell writes each
+// body heading one tag down so the chrome title is the only h1; size, the
+// section bar and the fragment landing pad have to follow the authored
+// level stamped on the element, or a #### that the shell emits as h5 draws
+// as body prose and a link to it lands under the sticky header.
+func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
+	t.Parallel()
+	const path = "../../../assets/css/components.css"
+	source, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	css := cssComments.ReplaceAllString(string(source), "")
+
+	shared := cssDeclarations(t, ruleBody(t, css, `.y-prose [data-level="1"], .y-prose [data-level="2"], .y-prose [data-level="3"], .y-prose [data-level="4"] {`))
+	if shared["scroll-margin-top"] != "72px" {
+		t.Errorf("authored levels 1–4 declare scroll-margin-top %q, want 72px so a demoted h5 still clears the sticky header", shared["scroll-margin-top"])
+	}
+
+	for _, want := range []struct {
+		opener   string
+		property string
+		value    string
+		why      string
+	}{
+		{`.y-prose [data-level="1"] {`, "font-size", "var(--fs-ed-30)", "an authored # is the size it was when the tag was h1"},
+		{`.y-prose [data-level="2"] {`, "font-size", "var(--fs-ed-24)", "an authored ## is the size it was when the tag was h2"},
+		{`.y-prose [data-level="2"]::before {`, "content", `""`, "the section bar belongs to authored ##, not to whichever tag the shell emits"},
+		{`.y-prose [data-level="3"] {`, "font-size", "var(--fs-ed-20)", "an authored ### is the size it was when the tag was h3"},
+		{`.y-prose [data-level="4"] {`, "font-size", "var(--fs-18)", "an authored #### is the size it was when the tag was h4"},
+		{`.y-toc__list a[data-level="3"] {`, "padding-left", "22px", "contents indent follows the authored level, so ### stays one step in"},
+		{`.y-toc__list a[data-level="4"] {`, "padding-left", "32px", "contents indent follows the authored level, so #### stays the deepest step"},
+	} {
+		got := cssDeclarations(t, ruleBody(t, css, want.opener))
+		if got[want.property] != want.value {
+			t.Errorf("%s declares %s %q, want %q, because %s", want.opener, want.property, got[want.property], want.value, want.why)
+		}
+	}
+
+	if strings.Contains(css, ".y-prose h4 {") {
+		t.Errorf("heading look is still keyed on the tag .y-prose h4, so a demoted #### loses its size")
+	}
+}

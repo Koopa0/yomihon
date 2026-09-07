@@ -13,7 +13,8 @@ time[^scope] further along the sentence.
 A footnote nobody defined[^undefined] stays exactly as it was written.
 
 See [[Glass Tide#第三節：失約的燈]] for the lamp,
-[[Glass Tide#Sensory material|back to the material]] for the rest, and
+[[Glass Tide#Sensory material|back to the material]] for the rest,
+[[Glass Tide#Fourth-level landing]] for a heading written at ####, and
 [[Glass Tide#Glass Tide]] for the note as a whole — that last one names the
 heading the destination removed as a duplicate of its own title.
 

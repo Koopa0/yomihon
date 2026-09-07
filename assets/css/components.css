@@ -371,19 +371,24 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose { font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-cjk); color: var(--fg-muted); }
 .y-prose > :first-child { margin-top: 0; }
 .y-prose p { margin: 18px 0 0; }
-.y-prose h1, .y-prose h2, .y-prose h3, .y-prose h4 {
+/* Size, the section bar and the fragment landing pad follow the authored
+   level the renderer stamps, not the HTML tag. The tag is one step down so
+   the chrome title stays the only h1; the look has to stay where the author
+   wrote it, or a #### that the shell emits as h5 reads as body prose and a
+   link to it lands under the sticky header. An authored # that is not the
+   note's title stays on the page. Preflight resets headings to inherited
+   size, so a level given no size of its own here read at body size —
+   smaller than its own subsections. The # step sits between the page title
+   (--fs-ed-38) and authored ##. */
+.y-prose [data-level="1"] { font-size: var(--fs-ed-30); margin: 48px 0 0; }
+.y-prose [data-level="2"] { font-size: var(--fs-ed-24); margin: 44px 0 0; display: flex; align-items: center; gap: 10px; }
+.y-prose [data-level="2"]::before { content: ""; width: 4px; height: 20px; background: var(--fg-muted); border-radius: 1px; flex: none; }
+.y-prose [data-level="3"] { font-size: var(--fs-ed-20); margin: 32px 0 0; }
+.y-prose [data-level="4"] { font-size: var(--fs-18); margin: 26px 0 0; }
+.y-prose [data-level="1"], .y-prose [data-level="2"], .y-prose [data-level="3"], .y-prose [data-level="4"] {
   font-family: var(--font-display); font-weight: var(--fw-semibold); color: var(--fg);
   letter-spacing: var(--track-snug); line-height: 1.4; scroll-margin-top: 72px; text-wrap: balance;
 }
-/* A body h1 that is not the note's title stays on the page. Preflight resets
-   headings to inherited size, so a level given no size of its own here read at
-   body size — smaller than its own subsections. This step sits between the
-   page title (--fs-ed-38) and h2. */
-.y-prose h1 { font-size: var(--fs-ed-30); margin: 48px 0 0; }
-.y-prose h2 { font-size: var(--fs-ed-24); margin: 44px 0 0; display: flex; align-items: center; gap: 10px; }
-.y-prose h2::before { content: ""; width: 4px; height: 20px; background: var(--fg-muted); border-radius: 1px; flex: none; }
-.y-prose h3 { font-size: var(--fs-ed-20); margin: 32px 0 0; }
-.y-prose h4 { font-size: var(--fs-18); margin: 26px 0 0; }
 .y-prose ul, .y-prose ol { margin: 14px 0 0; padding-left: 1.5em; }
 .y-prose ul { list-style: disc; }
 .y-prose ol { list-style: decimal; }
@@ -593,6 +598,8 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-toc__list a:hover { color: var(--fg); }
 /* the scroll-spy's active entry (set by the enhancement script) */
 .y-toc__list a.is-active { color: var(--fg); border-left-color: var(--accent); }
+/* Indent follows the authored level the renderer stamps on each row, so a
+   #### stays the deepest indent even though the shell writes it as h5. */
 .y-toc__list a[data-level="3"] { padding-left: 22px; }
 .y-toc__list a[data-level="4"] { padding-left: 32px; }
 
@@ -1317,14 +1324,14 @@ html {
      a paragraph neither leaves one line behind nor carries one over. A note's
      own top-level heading starts a fresh sheet, because that is where one
      part of it ends and the next begins — except a first one, which would
-     otherwise put a blank sheet in front of the opening line. Authored # is
-     h2 inside the note shell, so the break follows that tag. */
+     otherwise put a blank sheet in front of the opening line. The break
+     follows the authored level, not the demoted tag. */
   @page { margin: 18mm 16mm; }
   .y-prose pre, .y-prose blockquote, .y-prose .callout, .y-prose .embed,
   .y-prose .mermaid-diagram, .y-prose table, .y-prose tr,
   .y-slotcard, .y-healthlist li { break-inside: avoid; }
-  .y-title, .y-prose h1, .y-prose h2, .y-prose h3, .y-prose h4 { break-after: avoid; }
-  .y-prose h2:not(:first-child) { break-before: page; }
+  .y-title, .y-prose [data-level="1"], .y-prose [data-level="2"], .y-prose [data-level="3"], .y-prose [data-level="4"] { break-after: avoid; }
+  .y-prose [data-level="1"]:not(:first-child) { break-before: page; }
   .y-prose p, .y-prose li { orphans: 2; widows: 2; }
 }
 

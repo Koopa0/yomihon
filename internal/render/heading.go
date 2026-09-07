@@ -97,8 +97,9 @@ func shellHeadingLevel(level int) int {
 // included, while the contents list takes fewer; reserved is an id already
 // spoken for elsewhere on the page. It reads the HTML this package just wrote
 // rather than a parsed tree, because no single tree ever holds the page's
-// headings together. The tags and contents levels it writes are one step down
-// from the authored ones, so they sit under the chrome title.
+// headings together. The tags step down one so they sit under the chrome title;
+// data-level and the contents list keep the authored level, so size, indent and
+// scroll-margin stay where the author wrote them.
 func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
@@ -150,9 +151,9 @@ func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 
 		rendered := shellHeadingLevel(level)
 		if !withinAny(transcluded, m[0], m[1]) {
-			toc = append(toc, TOCEntry{Level: rendered, Text: text, ID: id})
+			toc = append(toc, TOCEntry{Level: level, Text: text, ID: id})
 		}
-		fmt.Fprintf(&out, `<h%d id="%s">%s</h%d>`, rendered, id, inner, rendered)
+		fmt.Fprintf(&out, `<h%d id="%s" data-level="%d">%s</h%d>`, rendered, id, level, inner, rendered)
 	}
 	out.WriteString(htmlOut[rest:])
 	return out.String(), toc

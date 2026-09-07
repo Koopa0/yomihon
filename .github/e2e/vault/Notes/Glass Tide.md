@@ -64,3 +64,31 @@ Ballast paragraph B11: this passage exists to put distance between the headings 
 ## Sensory material
 
 A plain section, named by a link that shows the reader different words.
+
+Ballast paragraph C1: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C2: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C3: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C4: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C5: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C6: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C7: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C8: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C9: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C10: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+Ballast paragraph C11: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+#### Fourth-level landing
+
+A #### heading. The shell writes it as h5; the authored level keeps the
+scroll margin that used to live on h4, so a jump here still clears the
+sticky header.

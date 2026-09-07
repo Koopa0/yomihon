@@ -36,6 +36,7 @@ const MUTATE = process.env.MUTATE || '';
 const LINKS = [
   { label: 'Glass Tide#第三節：失約的燈', heading: '第三節：失約的燈' },
   { label: 'back to the material', heading: 'Sensory material' },
+  { label: 'Glass Tide#Fourth-level landing', heading: 'Fourth-level landing' },
   { label: 'Glass Tide#Glass Tide', heading: 'Glass Tide' },
 ];
 
@@ -113,11 +114,11 @@ const MUTATIONS = {
   },
   // The address is right and the reader still cannot see the section: a
   // scroll offset large enough to leave the jump with nowhere to go.
-  // Authored ## is h3 inside the note shell; authored # that survived the
-  // title fold is h2. Burying only h2 used to be enough, and now walks past.
+  // Scroll-margin follows the authored data-level, including a #### that the
+  // shell writes as h5. Burying only h2/h3 walks past that heading.
   'bury-the-target': {
     target: 'fragment-reaches-the-heading',
-    apply: weakenStylesheet('.y-prose h2,.y-prose h3{scroll-margin-top:4000px}'),
+    apply: weakenStylesheet('.y-prose [data-level]{scroll-margin-top:4000px}'),
   },
   // Following the link stops being a step this tab took, so there is nothing
   // for the browser's own back button to undo.
@@ -232,8 +233,28 @@ try {
   proveApplied('title-carries-its-anchor', proof);
 
   const anchors = await reader.evaluate(() => Object.fromEntries(
-    [...document.querySelectorAll('h1.y-title, .y-prose h2, .y-prose h3')].map((h) => [h.textContent.trim(), h.id]),
+    [...document.querySelectorAll('h1.y-title, .y-prose :is(h2,h3,h4,h5,h6)')].map((h) => [h.textContent.trim(), h.id]),
   ));
+  const fourth = await reader.evaluate(() => {
+    const heading = [...document.querySelectorAll('.y-prose :is(h2,h3,h4,h5,h6)')]
+      .find((h) => h.textContent.trim() === 'Fourth-level landing');
+    if (!heading) return null;
+    const style = getComputedStyle(heading);
+    return {
+      tag: heading.tagName,
+      level: heading.getAttribute('data-level'),
+      scrollMarginTop: style.scrollMarginTop,
+    };
+  });
+  if (!fourth) {
+    broken('the destination page has no heading named "Fourth-level landing"');
+  }
+  if (fourth.tag !== 'H5' || fourth.level !== '4') {
+    fail('fragment-reaches-the-heading', `the #### heading rendered as ${fourth.tag} data-level=${JSON.stringify(fourth.level)}, want H5 data-level="4"`);
+  }
+  if (fourth.scrollMarginTop !== '72px') {
+    fail('fragment-reaches-the-heading', `the demoted h5 scroll-margin-top is ${JSON.stringify(fourth.scrollMarginTop)}, want "72px" so the jump clears the sticky header`);
+  }
   const titleText = await reader.evaluate(() => document.querySelector('h1.y-title').textContent.trim());
   if (!anchors[titleText]) {
     fail('title-carries-its-anchor', `the destination's visible title ${JSON.stringify(titleText)} carries no id, so the section it absorbed can be named by a link and reached by nobody`);

@@ -82,17 +82,17 @@ func TestShellHeadingLevelStepsDownAndClamps(t *testing.T) {
 func TestAssignHeadingIDsDemotesBodyHeadingsUnderTheTitle(t *testing.T) {
 	t.Parallel()
 	got, toc := assignHeadingIDs("<h1>Alpha</h1><h6>Zeta</h6>", "")
-	if !strings.Contains(got, `<h2 id="alpha">Alpha</h2>`) {
-		t.Errorf("authored h1 was not written as h2:\n%s", got)
+	if !strings.Contains(got, `<h2 id="alpha" data-level="1">Alpha</h2>`) {
+		t.Errorf("authored h1 was not written as h2 carrying its authored level:\n%s", got)
 	}
-	if !strings.Contains(got, `<h6 id="zeta">Zeta</h6>`) {
+	if !strings.Contains(got, `<h6 id="zeta" data-level="6">Zeta</h6>`) {
 		t.Errorf("authored h6 must stay h6:\n%s", got)
 	}
 	if strings.Contains(got, "<h1") {
 		t.Errorf("a body heading survived as h1:\n%s", got)
 	}
 	want := []TOCEntry{
-		{Level: 2, Text: "Alpha", ID: "alpha"},
+		{Level: 1, Text: "Alpha", ID: "alpha"},
 		{Level: 6, Text: "Zeta", ID: "zeta"},
 	}
 	if diff := cmp.Diff(want, toc); diff != "" {

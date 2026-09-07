@@ -199,11 +199,11 @@ func TestHeadingSlugsTreatInertRawHeadingAsText(t *testing.T) {
 
 	got := r.HTML("note.md", "", "## foo <h3>bar</h3> baz\n", wording.ZhHant)
 
-	const wantHTML = "<h3 id=\"foo-h3-bar-h3-baz\">foo &lt;h3&gt;bar&lt;/h3&gt; baz</h3>\n"
+	const wantHTML = "<h3 id=\"foo-h3-bar-h3-baz\" data-level=\"2\">foo &lt;h3&gt;bar&lt;/h3&gt; baz</h3>\n"
 	if got.HTML != wantHTML {
 		t.Errorf("HTML() = %q, want the authored tag inert inside one navigable heading %q", got.HTML, wantHTML)
 	}
-	wantTOC := []render.TOCEntry{{Level: 3, Text: "foo <h3>bar</h3> baz", ID: "foo-h3-bar-h3-baz"}}
+	wantTOC := []render.TOCEntry{{Level: 2, Text: "foo <h3>bar</h3> baz", ID: "foo-h3-bar-h3-baz"}}
 	if diff := cmp.Diff(wantTOC, got.TOC); diff != "" {
 		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
 	}
@@ -1616,8 +1616,8 @@ func TestHeadingSlugsCJKAndCollision(t *testing.T) {
 	got := r.HTML("note.md", "", body, wording.ZhHant)
 
 	want := []render.TOCEntry{
-		{Level: 3, Text: "日本語 Go！", ID: "日本語-go"},
-		{Level: 3, Text: "日本語 Go！", ID: "日本語-go-2"},
+		{Level: 2, Text: "日本語 Go！", ID: "日本語-go"},
+		{Level: 2, Text: "日本語 Go！", ID: "日本語-go-2"},
 	}
 	if diff := cmp.Diff(want, got.TOC); diff != "" {
 		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
@@ -1636,7 +1636,7 @@ func TestHeadingSlugFallsBackToSection(t *testing.T) {
 	// run of "#" would be parsed as ATX's optional closing sequence and
 	// stripped from the text by goldmark itself, so this uses "!" only.)
 	got := r.HTML("note.md", "", "## !!! !!!\n", wording.ZhHant)
-	want := []render.TOCEntry{{Level: 3, Text: "!!! !!!", ID: "section"}}
+	want := []render.TOCEntry{{Level: 2, Text: "!!! !!!", ID: "section"}}
 	if diff := cmp.Diff(want, got.TOC); diff != "" {
 		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
 	}
@@ -1653,9 +1653,9 @@ func TestHeadingSlugStripsRubyReading(t *testing.T) {
 	got := r.HTML("note.md", "", "## <ruby>漢字<rt>かんじ</rt></ruby>\n\n## <ruby>音<rt lang=\"ja\">おと</rt></ruby>\n\n## <ruby>加藤<rt>かとう</rt></ruby>\n", wording.ZhHant)
 
 	want := []render.TOCEntry{
-		{Level: 3, Text: "漢字", ID: "漢字"},
-		{Level: 3, Text: "音", ID: "音"},
-		{Level: 3, Text: "加藤", ID: "加藤"},
+		{Level: 2, Text: "漢字", ID: "漢字"},
+		{Level: 2, Text: "音", ID: "音"},
+		{Level: 2, Text: "加藤", ID: "加藤"},
 	}
 	if diff := cmp.Diff(want, got.TOC); diff != "" {
 		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
