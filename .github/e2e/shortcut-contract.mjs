@@ -13,6 +13,8 @@ const MUTATE = process.env.MUTATE || '';
 const FILTER = '[data-nav-filter]';
 const NAV_TOGGLE = '[data-nav-toggle]';
 const DIALOG = '[data-search]';
+const CONCEPT_SHEET = '[data-concept-sheet]';
+const CONCEPT_TRIGGER = '[data-concept]';
 const SHORTCUT_CONTROL = '[data-single-key-shortcuts-toggle]';
 const SHORTCUT_LABEL = '.y-shortcutpref';
 const SHORTCUT_ON = '.y-shortcutpref__on';
@@ -24,6 +26,7 @@ const SITES = [
   'modified-printables-stay-native',
   'plain-filter-opens',
   'plain-drawer-toggles',
+  'open-sheet-holds-printables',
   'wide-drawer-key-stays-native',
   'wide-filter-escape-moves-nothing',
   'escape-dismisses',
@@ -118,6 +121,15 @@ const MUTATIONS = {
   'disable-plain-drawer': {
     target: 'plain-drawer-toggles',
     apply: rewriteScript("    if (event.key === '[') {", '    if (false) {'),
+  },
+  // Naming the search dialog by identity, which is how `[` and `/` used to
+  // reach the drawer behind the concept sheet — the other showModal().
+  'name-only-the-search-dialog': {
+    target: 'open-sheet-holds-printables',
+    apply: rewriteScript(
+      "    if (typing || document.querySelector('dialog[open]')) return;\n",
+      "    if (typing || search.isOpen()) return;\n",
+    ),
   },
   // The key claimed at a width where it has nothing to fold. The keyboard help
   // says it does nothing there, so a page that swallows it anyway leaves the
@@ -378,6 +390,59 @@ try {
   }
   await press(page, '[');
   if ((await state(page)).nav !== 'closed') fail('plain-drawer-toggles', 'the second plain [ did not close the drawer');
+
+  // The single-key block used to name the search dialog by identity, so the
+  // other showModal() — the concept sheet — left `/` and `[` reaching the
+  // drawer behind it. `[` opened the rail under the modal; `/` swallowed
+  // the key and asked an inert filter to take focus. Any open dialog holds
+  // those keys. The hover card is a popover and is not in this test.
+  //
+  // Each key is asked on its own opening of the sheet, from a closed
+  // drawer: `/` also opens the rail, and asking `[` after that would be
+  // asking a toggle to close what `/` had just opened.
+  if (await page.locator(CONCEPT_SHEET).count() !== 1) broken('the fixture has no single concept sheet');
+  if (await page.locator(CONCEPT_TRIGGER).count() < 1) broken('the fixture has no concept trigger');
+  const hideHelp = () => page.locator(HELP_PANEL).evaluate((el) => {
+    if (el.matches(':popover-open')) el.hidePopover();
+  });
+  const openConceptSheet = async () => {
+    await hideHelp();
+    await page.locator(CONCEPT_TRIGGER).first().click();
+    await page.waitForFunction((sel) => Boolean(document.querySelector(sel)?.open), CONCEPT_SHEET);
+  };
+  const closeConceptSheet = async () => {
+    await page.evaluate((sel) => {
+      const sheet = document.querySelector(sel);
+      if (sheet?.open) sheet.close();
+    }, CONCEPT_SHEET);
+    if ((await state(page)).nav === 'open') {
+      await page.locator(NAV_TOGGLE).click();
+      await page.waitForFunction(() => document.documentElement.dataset.nav === 'closed');
+    }
+  };
+
+  await openConceptSheet();
+  await dispatch(page, 'keydown', '[');
+  after = await state(page);
+  await dispatch(page, 'keyup', '[');
+  if (after.nav !== 'closed') {
+    fail('open-sheet-holds-printables', `plain [ through an open concept sheet left nav=${after.nav}`);
+  }
+  await closeConceptSheet();
+
+  await openConceptSheet();
+  const focusBeforeSlash = await page.evaluateHandle(() => document.activeElement);
+  await dispatch(page, 'keydown', '/');
+  after = await state(page);
+  const slashMovedFocus = await page.evaluate((el) => document.activeElement !== el, focusBeforeSlash);
+  await dispatch(page, 'keyup', '/');
+  // The lock asks that `/` leave focus where it was. On the named-dialog
+  // regression the filter is inert, so focus already stays; the drawer
+  // opening is the half that actually fires.
+  if (slashMovedFocus || after.nav !== 'closed') {
+    fail('open-sheet-holds-printables', `plain / through an open concept sheet left nav=${after.nav}, focusMoved=${slashMovedFocus}`);
+  }
+  await closeConceptSheet();
 
   for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
     for (const key of ['k', 'K']) {

@@ -35,7 +35,7 @@ export function initShortcuts({ drawer, sidebar, search }) {
     }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (root.dataset.singleKeyShortcuts === 'off') return;
-    if (typing || search.isOpen()) return;
+    if (typing || document.querySelector('dialog[open]')) return;
     if (event.key === '/') {
       if (sidebar.canFocusFilter()) {
         event.preventDefault();
