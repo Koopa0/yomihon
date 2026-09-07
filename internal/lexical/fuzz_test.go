@@ -6,6 +6,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // FuzzParse keeps the lexical grammar deterministic and ownership-safe across
@@ -105,14 +107,27 @@ func FuzzSnippet(f *testing.F) {
 	// A match walled in by letters on both sides, far enough from either end of
 	// the run that both boundaries have to give up on keeping the word whole.
 	f.Add(strings.Repeat("a", 300)+"z"+strings.Repeat("a", 300), "z")
+	// wholeWordEnd retreats through a long digit run to the match's first byte;
+	// the close must still reach past that byte or the window is "0…" and the
+	// token-contains assertion fails.
+	f.Add("0Z"+strings.Repeat("0", 184), "Z")
 	// The same length in ordinary spaced words, where nothing shortens the
 	// window and it fills to its limit.
 	f.Add(strings.Repeat("ab ", 300)+"needle"+strings.Repeat(" cd", 300), "needle")
+	// Fullwidth ASCII folding to a shorter encoding: the source-offset walk
+	// must still land the snippet on the match, not drift into its neighbour.
+	f.Add("３羽の鳥と３つ。２週間後に Ｇｏ の並行。", "3羽")
+	f.Add("心（こころ）", "心(こころ)")
+	f.Add("Ｇｏ の並行処理", "Go")
 
 	f.Fuzz(func(t *testing.T, plain, token string) {
 		if len(plain) > 256<<10 || len(token) > 16<<10 {
 			t.Skip()
 		}
+		// The index stores NFC and the offset walk assumes it. Raw fuzz
+		// bytes can leave foldEnd off that walk; the close would then sit
+		// at the end of the body and the length oracle would fire.
+		plain = vault.NormalizeNFC(plain)
 		plainFold := fold(plain)
 		tokens := []string{fold(token)}
 		got := snippet(plain, plainFold, tokens)
@@ -143,8 +158,27 @@ func FuzzSnippet(f *testing.F) {
 		// would widen along with them, and could never report a window that
 		// grew.
 		const maxSnippetRunes = 40 + 160 + 2*24 + 2
-		if n := utf8.RuneCountInString(got); n > maxSnippetRunes {
-			t.Errorf("snippet(%q, %q) length = %d characters, want at most %d", plain, token, n, maxSnippetRunes)
+		maxRunes := maxSnippetRunes
+		// The close is held at the match's exclusive end, so a token longer
+		// than the after-window still occupies the snippet.
+		if extra := utf8.RuneCountInString(tokens[0]) - 160; extra > 0 {
+			maxRunes += extra
+		}
+		if n := utf8.RuneCountInString(got); n > maxRunes {
+			t.Errorf("snippet(%q, %q) length = %d characters, want at most %d", plain, token, n, maxRunes)
+		}
+		// A window that drifted off the match can still be one valid, short
+		// line. The folded snippet has to keep the token that placed it, or
+		// the highlight and the text directive land on the neighbour. A
+		// match buried in one unbroken run still occupies the window: the
+		// close is held at the match's exclusive end, not its first byte.
+		// Fields-joining covers a CJK wrap the fold dropped and the snippet
+		// respelled as a space.
+		if foldedTok := tokens[0]; foldedTok != "" && strings.Trim(got, "…") != "" && strings.Contains(plainFold, foldedTok) {
+			foldedGot := fold(got)
+			if !strings.Contains(foldedGot, foldedTok) && !strings.Contains(strings.Join(strings.Fields(foldedGot), ""), strings.Join(strings.Fields(foldedTok), "")) {
+				t.Errorf("folded snippet %q does not contain %q; the window drifted off the match", got, foldedTok)
+			}
 		}
 	})
 }

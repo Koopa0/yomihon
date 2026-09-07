@@ -289,23 +289,23 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 }
 
 // matchesFilter reports whether e satisfies one filter. type/status/domain/slug
-// are exact equality on the NFC field; topic is exact membership of Topics;
-// folder is a rel_path prefix at a "/" boundary, so "folder:Writing" matches
-// "Writing" and "Writing/x.md" but never "Writing-old/x.md".
+// compare the folded copies; topic is folded membership of Topics; folder is a
+// folded rel_path prefix at a "/" boundary, so "folder:Writing" matches
+// "Writing" and "Writing/x.md" and "writing/x.md", but never "Writing-old/x.md".
 func (e *entry) matchesFilter(f Filter) bool {
 	switch f.Key {
 	case "type":
-		return e.NoteType == f.Value
+		return e.NoteTypeFold == f.Value
 	case "status":
-		return e.Status == f.Value
+		return e.StatusFold == f.Value
 	case "domain":
-		return e.Domain == f.Value
+		return e.DomainFold == f.Value
 	case "slug":
-		return e.Slug == f.Value
+		return e.SlugFold == f.Value
 	case "topic":
-		return slices.Contains(e.Topics, f.Value)
+		return slices.Contains(e.TopicFolds, f.Value)
 	case "folder":
-		return e.RelPath == f.Value || strings.HasPrefix(e.RelPath, f.Value+"/")
+		return e.PathFold == f.Value || strings.HasPrefix(e.PathFold, f.Value+"/")
 	default:
 		// A filter reaches this only where Parse recognized its key, and Parse
 		// recognizes exactly the keys the grammar table holds; a Query keeps
@@ -328,7 +328,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	var crossing bool
 	if bodyEvidence {
 		foldStart, foldEnd := earliestPhrase(e.PlainFold, tokens)
-		bodySnippet = snippetAt(e.PlainText, foldStart)
+		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd)
 		landing, landingEnd, crossing = e.landingAt(foldStart, foldEnd)
 	}
 	return Result{
@@ -431,22 +431,27 @@ func runesAfter(s string, off, n int) int {
 	return off
 }
 
-// snippetAt returns a one-line window of plain around a folded match start.
-// Lowercasing does not preserve length, so the offset comes back through the
-// fold's own mapping: used directly it drifts until the window slides clear
+// snippetAt returns a one-line window of plain around a folded match.
+// Lowercasing does not preserve length, so the offsets come back through the
+// fold's own mapping: used directly they drift until the window slides clear
 // of the term it was placed around.
-func snippetAt(plain string, foldStart int) string {
+func snippetAt(plain string, foldStart, foldEnd int) string {
 	if foldStart < 0 {
-		foldStart = 0
+		foldStart, foldEnd = 0, 0
 	}
 	off := sourceOffsetOfFold(plain, foldStart)
+	matchEnd := sourceEndOfFold(plain, foldEnd)
+	matchEnd = max(matchEnd, off)
+	matchEnd = min(matchEnd, len(plain))
 	// Neither boundary may move past the match it was placed around: a match buried
 	// deep in one unbroken run can be stepped over by both at once, reversing the
-	// slice. The sentence-start reach runs first and the whole-word adjustment
-	// last, because the second has to hold whatever the first leaves.
+	// slice. The close is held at the match's exclusive end, not its first byte —
+	// clamping to off made the half-open window exclude the hit (plain "0Z"+184×"0",
+	// token "Z" → "0…"). The sentence-start reach runs first and the whole-word
+	// adjustment last, because the second has to hold whatever the first leaves.
 	opening := sentenceStart(plain, runesBefore(plain, off, snippetBefore), off)
 	start := min(wholeWordStart(plain, opening), off)
-	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), off)
+	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
 
 	s := collapseFields(plain[start:end])
 	if start > 0 {
@@ -459,8 +464,8 @@ func snippetAt(plain string, foldStart int) string {
 }
 
 func snippet(plain, plainFold string, tokens []string) string {
-	foldStart, _ := earliestPhrase(plainFold, tokens)
-	return snippetAt(plain, foldStart)
+	foldStart, foldEnd := earliestPhrase(plainFold, tokens)
+	return snippetAt(plain, foldStart, foldEnd)
 }
 
 // earliestPhrase returns the byte range of the earliest token in hay, or
@@ -607,9 +612,9 @@ func lastSentenceEnd(plain string, limit, start int) (int, bool) {
 	return 0, false
 }
 
-// foldWithSourceOffsets lowercases s and maps every byte position of the folded
+// foldWithSourceOffsets folds s and maps every byte position of the folded
 // copy, one past its end included, back to the byte offset in s of the character
-// it came from. It applies the lowercase half of the index's fold alone, which
+// it came from. It applies the walk half of the index's fold alone, which
 // reproduces that fold provided s is already NFC, as every snippet is.
 func foldWithSourceOffsets(s string) (fold string, src []int) {
 	var folded strings.Builder
@@ -625,7 +630,7 @@ func foldWithSourceOffsets(s string) (fold string, src []int) {
 	return folded.String(), append(src, len(s))
 }
 
-// sourceOffsetOfFold maps one byte offset in the lowercased copy of s back to the
+// sourceOffsetOfFold maps one byte offset in the folded copy of s back to the
 // byte offset in s of the character that produced it. It answers exactly what
 // foldWithSourceOffsets tabulates, walked to one position rather than materialized
 // because its caller measures a whole note. A test holds the two to one answer.

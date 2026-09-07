@@ -17,7 +17,8 @@ type StepBack struct {
 // StepBacks proposes ways to loosen a query that found nothing: a quoted phrase
 // without its adjacency, a term split where letters meet digits so 20mg reaches
 // 20-40mg, and each term alone. Every candidate is run before it is offered, and
-// filter fields ride along unchanged, since loosening words does not widen scope.
+// filter fields ride along as written: loosening words does not widen scope,
+// and Parse folds the value, so a wrong-case filter still applies.
 func (idx *Index) StepBacks(raw string) []StepBack {
 	var bare, filters []string
 	quoted := false

@@ -113,3 +113,39 @@ func TestStepBacksKeepAQuotedFilterValueSpelled(t *testing.T) {
 		t.Errorf("StepBacks() mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// A wrong-case filter used to silence the whole ladder: the key was recognised
+// so the unknown-filter notice said nothing, and every candidate carried the
+// same raw value into a case-exact match, so each found nothing. Parse now
+// folds the value, so the candidate still answers; the suggestion keeps the
+// spelling the reader wrote.
+func TestStepBacksRecoverAWrongCaseFilter(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		{RelPath: "Notes/a.md", Title: "A", Domain: "yomihon", PlainText: "yomihon sits here"},
+	}, schema.ArtifactPolicy{})
+
+	tests := []struct {
+		raw  string
+		want []StepBack
+	}{
+		{
+			raw:  "domain:yomihon yomihon zzzznotaword",
+			want: []StepBack{{Query: "domain:yomihon yomihon", Count: 1}},
+		},
+		{
+			raw:  "domain:Yomihon yomihon zzzznotaword",
+			want: []StepBack{{Query: "domain:Yomihon yomihon", Count: 1}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			t.Parallel()
+			got := idx.StepBacks(tt.raw)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("StepBacks(%q) mismatch (-want +got):\n%s", tt.raw, diff)
+			}
+		})
+	}
+}
