@@ -425,8 +425,8 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 // mapDiskMismatch reconciles each study-path against the lessons on disk. Its
 // first direction reports a syllabus link that resolves to nothing; its second
 // reports a lesson of the syllabus's domain that exists on disk but is not
-// listed. A draft or curriculum-gap lesson is expected work-in-progress and is
-// not reported at all.
+// listed. A draft lesson is expected work-in-progress and is not reported at
+// all.
 func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRoles, lessonType string) []Finding {
 	byDomain := lessonsByDomain(notes, lessonType)
 	var out []Finding
@@ -452,7 +452,7 @@ func lessonsByDomain(notes []note, lessonType string) map[string][]*note {
 
 // reconcileSyllabus reports one study-path's disagreements with disk: each of
 // its links that resolves to nothing, then each lesson of its domain that
-// exists but is not listed, skipping draft and curriculum-gap lessons.
+// exists but is not listed, skipping draft lessons.
 func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*note) []Finding {
 	var out []Finding
 	listed := make(map[string]bool)
@@ -478,7 +478,7 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 		return out
 	}
 	for _, lesson := range byDomain[syllabus.domain] {
-		expected := lesson.status == schema.DraftStatus || lesson.sourceKind == "curriculum-gap"
+		expected := lesson.status == schema.DraftStatus
 		if !listed[lesson.path] && !expected {
 			out = append(out, diskUnlisted(syllabus, lesson))
 		}
@@ -508,7 +508,7 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 	}
 }
 
-// diskUnlisted is a non-draft, non-gap lesson on disk that the syllabus for its
+// diskUnlisted is a non-draft lesson on disk that the syllabus for its
 // domain does not list. Writing a lesson before adding it to the syllabus is
 // normal, so it is reported at warning level and nothing here decides more than
 // that: whether a warning stops a run belongs to whoever starts it. Denying
