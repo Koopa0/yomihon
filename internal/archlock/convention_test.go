@@ -117,12 +117,13 @@ func findLines(t *testing.T, accept func(string) bool) []site {
 // right, a check that reads the markup is right, and the colour on the screen
 // is the other one.
 //
-// What it covers is bounded and worth stating: of the eleven conditional
-// classes the templates write, two pairs have both halves setting a colour, and
-// those two are what this compares. The rest are conditions on layout or
-// spacing, where order settles nothing a reader would notice. A modifier that
-// starts setting a colour joins the comparison by doing so; the guard below
-// fails rather than passing quietly if that set ever empties.
+// What it covers is bounded and worth stating: of the conditional classes
+// the templates write, the pairs that both set a colour are what this
+// compares — both the templ.KV form and a plain class="…" literal that puts
+// a base and a modifier on the same element. The rest are conditions on
+// layout or spacing, where order settles nothing a reader would notice. A
+// modifier that starts setting a colour joins the comparison by doing so;
+// the guard below fails rather than passing quietly if that set ever empties.
 func TestAConditionalClassOutranksTheClassItModifies(t *testing.T) {
 	t.Parallel()
 
@@ -158,14 +159,19 @@ type classPair struct {
 	modifier string
 }
 
-// conditionalClassPairs reads every class attribute a template builds from a
-// list, and pairs each conditional class with each unconditional one beside it.
+// conditionalClassPairs reads every class attribute a template writes, and
+// pairs each modifier with the base it sits beside. A templ.KV class is
+// paired with every unconditional class in the same class={…} list. A plain
+// class="…" literal is paired when one name carries a BEM `--` modifier and
+// the other does not: that is the form that puts a base and a condition on
+// the same element as a string, which the KV reader cannot see.
 func conditionalClassPairs(t *testing.T) []classPair {
 	t.Helper()
 
 	attribute := regexp.MustCompile(`class=\{([^}]*)\}`)
 	literal := regexp.MustCompile(`"([A-Za-z0-9_ -]+)"`)
 	conditional := regexp.MustCompile(`templ\.KV\("([A-Za-z0-9_-]+)"`)
+	literalAttr := regexp.MustCompile(`class="([^"]*)"`)
 
 	var pairs []classPair
 	for _, path := range productionFiles(t, ".templ") {
@@ -193,9 +199,37 @@ func conditionalClassPairs(t *testing.T) []classPair {
 					}
 				}
 			}
+			for _, attr := range literalAttr.FindAllStringSubmatch(line, -1) {
+				classes := strings.Fields(attr[1])
+				for iA, a := range classes {
+					for _, b := range classes[iA+1:] {
+						base, modifier, ok := bemPair(a, b)
+						if !ok {
+							continue
+						}
+						pairs = append(pairs, classPair{path: path, line: i + 1, base: base, modifier: modifier})
+					}
+				}
+			}
 		}
 	}
 	return pairs
+}
+
+// bemPair reports a base and a modifier when exactly one of the two class
+// names carries a BEM `--` suffix. Two names that both have one, or neither,
+// are siblings rather than a condition, and pairing them would compare
+// unrelated colours that happen to share an element.
+func bemPair(a, b string) (base, modifier string, ok bool) {
+	aMod := strings.Contains(a, "--")
+	bMod := strings.Contains(b, "--")
+	if aMod == bMod {
+		return "", "", false
+	}
+	if aMod {
+		return b, a, true
+	}
+	return a, b, true
 }
 
 // colouredClasses maps each class whose own rule sets a colour to where that
@@ -1225,18 +1259,18 @@ func TestProjectionPackagesHaveNoLegacyEntryPoints(t *testing.T) {
 			"ListStrictContext": true,
 			"ReadNote":          true,
 		},
-		"internal/graph":  {"Build": true},
-		"internal/lesson": {"BuildConceptIndex": true, "BuildSlotIndex": true, "LoadConcept": true, "readSidecar": true},
-		"internal/nav":    {"Build": true},
-		"internal/search": {"Build": true},
+		"internal/graph":   {"Build": true},
+		"internal/lesson":  {"BuildConceptIndex": true, "BuildSlotIndex": true, "LoadConcept": true, "readSidecar": true},
+		"internal/nav":     {"Build": true},
+		"internal/lexical": {"Build": true},
 	}
 	var found []string
-	inspected := 0
 	for dir, forbidden := range forbiddenByDir {
 		entries, err := os.ReadDir(filepath.Join(repoRoot, dir))
 		if err != nil {
 			t.Fatalf("ReadDir(%q) error = %v", dir, err)
 		}
+		inspected := 0
 		for _, entry := range entries {
 			if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
 				continue
@@ -1254,9 +1288,9 @@ func TestProjectionPackagesHaveNoLegacyEntryPoints(t *testing.T) {
 				}
 			}
 		}
-	}
-	if inspected == 0 {
-		t.Fatal("no projection source was read, so this check passes whatever those packages declare")
+		if inspected == 0 {
+			t.Errorf("no production source was read under %s, so this row passes for the wrong reason", dir)
+		}
 	}
 	slices.Sort(found)
 	if len(found) != 0 {

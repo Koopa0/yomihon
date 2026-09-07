@@ -33,12 +33,7 @@ func blockAnchorID(address string) string {
 // consumed as the block's title, and a table row, which is cut into cells against
 // its header's column count and drops whatever follows the last.
 func unanchorableLine(line string) bool {
-	if typ, _, _, ok := calloutStart(line); ok {
-		if bucket, _ := calloutBucketOf(typ); bucket != bucketUnknown {
-			return true
-		}
-	}
-	return strings.HasPrefix(strings.TrimLeft(quotePrefix.ReplaceAllString(line, ""), " \t"), "|")
+	return graph.UnanchorableLine(line)
 }
 
 // markBlockAnchor gives the address at the end of line an anchor a browser can

@@ -52,7 +52,48 @@ var (
 
 	// HTMLBlockRawEnd closes any of the four raw-text HTML elements.
 	HTMLBlockRawEnd = regexp.MustCompile(`(?i)</(script|pre|style|textarea)>`)
+
+	// The four raw-text HTML openings, each recognising a self-closing form
+	// (`<pre/>`) as well as the ordinary tag. A self-closing pre is still an
+	// opening: CommonMark does not close a type-1 block on `/>`, so the lines
+	// after it are raw text until a matching end tag, and a heading-shaped
+	// one of them is not a heading.
+	HTMLBlockRawPre      = regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t>]|/>|$)`)
+	HTMLBlockRawScript   = regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t>]|/>|$)`)
+	HTMLBlockRawStyle    = regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t>]|/>|$)`)
+	HTMLBlockRawTextarea = regexp.MustCompile(`(?i)^ {0,3}<textarea(?:[ \t>]|/>|$)`)
+
+	HTMLBlockComment = regexp.MustCompile(`^ {0,3}<!--`)
+	HTMLBlockInstr   = regexp.MustCompile(`^ {0,3}<\?`)
+	HTMLBlockCDATA   = regexp.MustCompile(`^ {0,3}<!\[CDATA\[`)
+	HTMLBlockDecl    = regexp.MustCompile(`^ {0,3}<![A-Za-z]`)
+
+	// quoteMarker is the single leading quote the unanchorable-line test
+	// peels before asking whether a row opens with a pipe. It is the same
+	// shape the page peels; QuotedLine is the CommonMark indent and does
+	// not consume the optional space after `>`.
+	quoteMarker = regexp.MustCompile(`^\s*>\s?`)
+
+	// calloutOpening matches an Obsidian callout's first line. The type
+	// list below is the closed set the page recognises; a type outside it
+	// is a blockquote, and a blockquote can carry an address.
+	calloutOpening = regexp.MustCompile(`^\s*>\s*\[!([A-Za-z]+)\]([+-]?)\s?(.*)$`)
 )
+
+// recognisedCalloutTypes is every callout type the page answers to, written
+// here because the page's own list lives in render/callout.go, which this
+// package must not import. A type added there and not here would let a title
+// carry an address the page would not stamp; a type added here and not there
+// would refuse an address the page stamps. Unknown types stay off this set
+// on purpose: they are not callouts.
+var recognisedCalloutTypes = map[string]bool{
+	"info": true, "note": true, "tip": true, "hint": true, "abstract": true, "summary": true, "todo": true,
+	"question": true, "help": true, "faq": true,
+	"example": true,
+	"quote":   true, "cite": true,
+	"warning": true, "caution": true, "attention": true,
+	"danger": true, "error": true, "bug": true, "fail": true, "failure": true, "missing": true,
+}
 
 // SetextLevel is the level an underline makes, for a line the caller has
 // already recognized as one: '=' underlines a level-1 heading, '-' a level-2
@@ -101,11 +142,8 @@ type LineScan struct {
 
 // Skip advances the scan by one line and reports whether that line belongs to
 // a fenced code block or an authored HTML block, the lines that open and close
-// one included. htmlOpen is the caller's test for an HTML-block opening: the
-// two faces still disagree about a self-closing <pre/>, and each supplies the
-// opener it already uses so a lift of the shared patterns does not change
-// which openings either face recognises.
-func (s *LineScan) Skip(line string, htmlOpen func(string) (func(string) bool, bool)) bool {
+// one included.
+func (s *LineScan) Skip(line string) bool {
 	switch {
 	case s.inFence:
 		if FenceCloses(line, s.fenceByte) {
@@ -122,11 +160,56 @@ func (s *LineScan) Skip(line string, htmlOpen func(string) (func(string) bool, b
 		s.inFence, s.fenceByte = true, marker
 		return true
 	}
-	if closes, ok := htmlOpen(line); ok {
+	if closes, ok := HTMLBlockOpens(line); ok {
 		if !closes(line) {
 			s.htmlCloses = closes
 		}
 		return true
 	}
 	return false
+}
+
+// HTMLBlockOpens reports whether a line opens an authored HTML block, and
+// returns the test for the line that closes it. The raw-text, comment,
+// instruction, CDATA, and declaration blocks close on their own end marker,
+// which may sit on the opening line itself; an element block runs to the next
+// blank line. CDATA is asked before a declaration because both begin `<!`.
+func HTMLBlockOpens(line string) (closes func(string) bool, ok bool) {
+	switch {
+	case HTMLBlockRawPre.MatchString(line),
+		HTMLBlockRawScript.MatchString(line),
+		HTMLBlockRawStyle.MatchString(line),
+		HTMLBlockRawTextarea.MatchString(line):
+		return HTMLBlockRawEnd.MatchString, true
+	case HTMLBlockComment.MatchString(line):
+		return lineContains("-->"), true
+	case HTMLBlockInstr.MatchString(line):
+		return lineContains("?>"), true
+	case HTMLBlockCDATA.MatchString(line):
+		return lineContains("]]>"), true
+	case HTMLBlockDecl.MatchString(line):
+		return lineContains(">"), true
+	case HTMLBlockElement.MatchString(line):
+		return BlankLine, true
+	}
+	return nil, false
+}
+
+func lineContains(marker string) func(string) bool {
+	return func(line string) bool { return strings.Contains(line, marker) }
+}
+
+// UnanchorableLine reports whether a line is one no block address can survive
+// on. Both entries are lines something downstream takes apart: a recognised
+// callout's opening line, which is consumed as the block's title, and a table
+// row, which is cut into cells against its header's column count and drops
+// whatever follows the last. An unknown callout type is a blockquote, not a
+// callout, and can carry an address.
+func UnanchorableLine(line string) bool {
+	if m := calloutOpening.FindStringSubmatch(line); m != nil {
+		if recognisedCalloutTypes[strings.ToLower(m[1])] {
+			return true
+		}
+	}
+	return strings.HasPrefix(strings.TrimLeft(quoteMarker.ReplaceAllString(line, ""), " \t"), "|")
 }

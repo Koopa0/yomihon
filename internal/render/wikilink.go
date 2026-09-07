@@ -434,14 +434,14 @@ type htmlBlockKind struct {
 // coincidence of how the marker is written, not a property of the block, and it
 // would go away the moment the marker were respelled.
 var htmlBlockKinds = []htmlBlockKind{
-	{regexp.MustCompile(`(?i)^ {0,3}<pre(?:[ \t>]|/>|$)`), graph.HTMLBlockRawEnd, "</pre>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<script(?:[ \t>]|/>|$)`), graph.HTMLBlockRawEnd, "</script>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<style(?:[ \t>]|/>|$)`), graph.HTMLBlockRawEnd, "</style>"},
-	{regexp.MustCompile(`(?i)^ {0,3}<textarea(?:[ \t>]|/>|$)`), graph.HTMLBlockRawEnd, "</textarea>"},
-	{regexp.MustCompile(`^ {0,3}<!--`), regexp.MustCompile(`-->`), "-->"},
-	{regexp.MustCompile(`^ {0,3}<\?`), regexp.MustCompile(`\?>`), "?>"},
-	{regexp.MustCompile(`^ {0,3}<!\[CDATA\[`), regexp.MustCompile(`\]\]>`), "]]>"},
-	{regexp.MustCompile(`^ {0,3}<![A-Za-z]`), regexp.MustCompile(`>`), ">"},
+	{graph.HTMLBlockRawPre, graph.HTMLBlockRawEnd, "</pre>"},
+	{graph.HTMLBlockRawScript, graph.HTMLBlockRawEnd, "</script>"},
+	{graph.HTMLBlockRawStyle, graph.HTMLBlockRawEnd, "</style>"},
+	{graph.HTMLBlockRawTextarea, graph.HTMLBlockRawEnd, "</textarea>"},
+	{graph.HTMLBlockComment, regexp.MustCompile(`-->`), "-->"},
+	{graph.HTMLBlockInstr, regexp.MustCompile(`\?>`), "?>"},
+	{graph.HTMLBlockCDATA, regexp.MustCompile(`\]\]>`), "]]>"},
+	{graph.HTMLBlockDecl, regexp.MustCompile(`>`), ">"},
 }
 
 // leadingSpace is the indentation a line carries, which a close this scan writes

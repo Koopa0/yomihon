@@ -135,45 +135,6 @@ func withoutQuoteAndListMarks(line string) string {
 	return candidate
 }
 
-// The HTML block start conditions this face still reads on its own. The
-// raw-text opener here does not recognise a self-closing <pre/>, which is
-// the remaining disagreement with the page.
-var (
-	htmlBlockRawText = regexp.MustCompile(`(?i)^ {0,3}<(script|pre|style|textarea)([ \t>]|$)`)
-	htmlBlockComment = regexp.MustCompile(`^ {0,3}<!--`)
-	htmlBlockInstr   = regexp.MustCompile(`^ {0,3}<\?`)
-	htmlBlockDecl    = regexp.MustCompile(`^ {0,3}<![A-Za-z]`)
-	htmlBlockCDATA   = regexp.MustCompile(`^ {0,3}<!\[CDATA\[`)
-)
-
-// htmlBlockOpens reports whether a line opens an authored HTML block, and
-// returns the test for the line that closes it. The raw-text, comment,
-// instruction, declaration, and CDATA blocks close on their own end marker,
-// which may sit on the opening line itself; an element block runs to the next
-// blank line.
-func htmlBlockOpens(line string) (closes func(string) bool, ok bool) {
-	switch {
-	case htmlBlockRawText.MatchString(line):
-		return graph.HTMLBlockRawEnd.MatchString, true
-	case htmlBlockComment.MatchString(line):
-		return lineContaining("-->"), true
-	case htmlBlockInstr.MatchString(line):
-		return lineContaining("?>"), true
-	case htmlBlockCDATA.MatchString(line):
-		return lineContaining("]]>"), true
-	case htmlBlockDecl.MatchString(line):
-		return lineContaining(">"), true
-	case graph.HTMLBlockElement.MatchString(line):
-		return graph.BlankLine, true
-	}
-	return nil, false
-}
-
-// lineContaining is the closing test of a block that ends on a marker.
-func lineContaining(marker string) func(string) bool {
-	return func(line string) bool { return strings.Contains(line, marker) }
-}
-
 // collectExcerptHeadings adds the id of every heading the reading page's
 // excerpt scan finds when it cuts a transclusion to a section: a '#'-marked
 // heading at up to three spaces of indent, an underlined one made of the run
@@ -187,7 +148,7 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 	paragraph := -1
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
-		if scan.Skip(line, htmlBlockOpens) {
+		if scan.Skip(line) {
 			paragraph = -1
 			continue
 		}
@@ -218,8 +179,9 @@ var oneQuoteMark = regexp.MustCompile(`^\s*>\s?`)
 
 // collectBlockLines keeps the folded text of every line that could answer a
 // block address, so a link's "^name" matches the reading the destination page
-// uses. A line inside a fence is code, and a row opening with a pipe is table
-// syntax whose tail the renderer drops. Only lines carrying a caret are kept.
+// uses. A line inside a fence is code, a recognised callout's opening line is
+// consumed as the title, and a row opening with a pipe is table syntax whose
+// tail the renderer drops. Only lines carrying a caret are kept.
 func collectBlockLines(body string) []string {
 	var out []string
 	inFence, fenceByte := false, byte(0)
@@ -235,7 +197,7 @@ func collectBlockLines(body string) []string {
 			inFence, fenceByte = true, marker
 			continue
 		}
-		if strings.HasPrefix(strings.TrimLeft(unquoted, " \t"), "|") {
+		if graph.UnanchorableLine(line) {
 			continue
 		}
 		trimmed := strings.TrimRight(line, " \t")

@@ -47,6 +47,11 @@ func TestCheckGolden(t *testing.T) {
 		// place, one of each that does not, a same-file fragment the page
 		// never resolves, and a section arriving through a transclusion.
 		{name: "link fragments", fixture: "testdata/vault-fragments", golden: "testdata/golden/fragments.jsonl"},
+		// The page and the check used to disagree about two kinds of line: a
+		// block address on a recognised callout's title, and a heading after
+		// a self-closing <pre/>. This vault holds those two probes; the golden
+		// is the verdict that matches the page.
+		{name: "page and check agree on a scan", fixture: "testdata/vault-scan-agree", golden: "testdata/golden/scan.jsonl"},
 		// One vault covering all three answers the knowledge-scope question
 		// has: a directory the contract spells in another case, one holding a
 		// file that is not a note, and one that is not there at all.

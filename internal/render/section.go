@@ -67,24 +67,6 @@ func (r *Pipeline) indentedCodeLines(body string) map[int]bool {
 	return quoted
 }
 
-// htmlBlockOpen reports whether line opens an authored HTML block, and returns
-// the test for the line closing it. The blocks a blank line does not end are
-// asked for from the one table that describes them, which the callout scan
-// reads too: both are predicting the same parser, and when each kept its own
-// copy they came to disagree about which line ends a raw-text block. An element
-// block is not in that table — a blank line ends it — so it is answered here.
-func htmlBlockOpen(line string) (closes func(string) bool, ok bool) {
-	for i := range htmlBlockKinds {
-		if htmlBlockKinds[i].opens.MatchString(line) {
-			return htmlBlockKinds[i].ends.MatchString, true
-		}
-	}
-	if graph.HTMLBlockElement.MatchString(line) {
-		return graph.BlankLine, true
-	}
-	return nil, false
-}
-
 // sectionHeading is one heading a scan found: the line its section opens on,
 // its level, and the source text its anchor is folded from. An underlined
 // heading opens on the first line of the text, not on the underline.
@@ -104,7 +86,7 @@ func scanHeadings(lines []string) []sectionHeading {
 	var scan graph.LineScan
 	paragraph := -1
 	for i, line := range lines {
-		if scan.Skip(line, htmlBlockOpen) {
+		if scan.Skip(line) {
 			paragraph = -1
 			continue
 		}
