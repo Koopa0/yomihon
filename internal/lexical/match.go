@@ -441,12 +441,8 @@ func snippetAt(plain string, foldStart, foldEnd int) string {
 	}
 	off := sourceOffsetOfFold(plain, foldStart)
 	matchEnd := sourceEndOfFold(plain, foldEnd)
-	if matchEnd < off {
-		matchEnd = off
-	}
-	if matchEnd > len(plain) {
-		matchEnd = len(plain)
-	}
+	matchEnd = max(matchEnd, off)
+	matchEnd = min(matchEnd, len(plain))
 	// Neither boundary may move past the match it was placed around: a match buried
 	// deep in one unbroken run can be stepped over by both at once, reversing the
 	// slice. The close is held at the match's exclusive end, not its first byte —
