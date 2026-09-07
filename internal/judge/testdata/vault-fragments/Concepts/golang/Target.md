@@ -12,3 +12,7 @@ words carrying a block address ^blk1
 ## Twice
 
 > ## Quoted Heading
+
+## Result<T> 的取捨
+
+a heading naming a generic type, so a citation copied off the contents list is not refused

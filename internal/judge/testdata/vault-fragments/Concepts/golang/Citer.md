@@ -18,3 +18,5 @@ type: concept
 ![[Target#Quoted Heading]] cannot be cut to a heading inside a quote.
 ![[Embedder#Real Section]] does not reach through the transclusion a link reaches through.
 ![[Ghost#Section]] names a note nobody wrote, which is the broken-link rule's alone.
+[[Target#Result<T> 的取捨]] copies the heading the destination stamps.
+![[Target#Result<T> 的取捨]] cuts an excerpt at that same heading.

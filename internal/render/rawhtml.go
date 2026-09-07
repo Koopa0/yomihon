@@ -84,6 +84,45 @@ func isAllowlistedMarkup(tag []byte) bool {
 		safeReadAloudTag.Match(tag) || trustedBlockTag.Match(tag)
 }
 
+// visitSafeMarkup is the one tag walk the body renderer and the heading fold
+// share. Each complete tag is kept, dropped, or escaped according to the
+// allowlist; the bytes between tags, and a tail with no closing '>', go to
+// text. Dropping an unrecognised read-aloud marker here is what keeps it out
+// of a heading's name the same way the page drops it from the body.
+func visitSafeMarkup(raw []byte, text, keep, escape func([]byte) error, drop func([]byte)) error {
+	for len(raw) > 0 {
+		start := bytes.IndexByte(raw, '<')
+		if start < 0 {
+			return text(raw)
+		}
+		if start > 0 {
+			if err := text(raw[:start]); err != nil {
+				return err
+			}
+			raw = raw[start:]
+		}
+		end := bytes.IndexByte(raw, '>')
+		if end < 0 {
+			return text(raw)
+		}
+		tag := raw[:end+1]
+		switch {
+		case isAllowlistedMarkup(tag):
+			if err := keep(tag); err != nil {
+				return err
+			}
+		case readAloudMarker.Match(tag):
+			drop(tag)
+		default:
+			if err := escape(tag); err != nil {
+				return err
+			}
+		}
+		raw = raw[end+1:]
+	}
+	return nil
+}
+
 // applySafeMarkup runs authored heading source through the same tag allowlist
 // the body renderer uses, so a later headingInnerText sees escaped tags where
 // the page already did and live ruby where the page already did. Text between
@@ -92,74 +131,32 @@ func isAllowlistedMarkup(tag []byte) bool {
 // second pass of `&amp;` into a different slug. A blanket escape of the whole
 // source would also turn the ruby the reduction is meant to strip into words.
 func applySafeMarkup(raw string) string {
-	in := []byte(raw)
 	var b strings.Builder
-	for len(in) > 0 {
-		start := bytes.IndexByte(in, '<')
-		if start < 0 {
-			b.Write(in)
-			break
-		}
-		if start > 0 {
-			b.Write(in[:start])
-			in = in[start:]
-		}
-		end := bytes.IndexByte(in, '>')
-		if end < 0 {
-			b.Write(in)
-			break
-		}
-		tag := in[:end+1]
-		switch {
-		case isAllowlistedMarkup(tag):
-			b.Write(tag)
-		case readAloudMarker.Match(tag):
-			// The body renderer drops an instruction it cannot carry out.
-			// A heading never shows it either, so it is not part of the name.
-		default:
-			b.Write(util.EscapeHTML(tag))
-		}
-		in = in[end+1:]
+	err := visitSafeMarkup([]byte(raw),
+		func(p []byte) error { b.Write(p); return nil },
+		func(p []byte) error { b.Write(p); return nil },
+		func(p []byte) error { b.Write(util.EscapeHTML(p)); return nil },
+		func([]byte) {},
+	)
+	if err != nil {
+		return raw
 	}
 	return b.String()
 }
 
 func writeSafeMarkup(w util.BufWriter, raw []byte) error {
-	for len(raw) > 0 {
-		start := bytes.IndexByte(raw, '<')
-		if start < 0 {
-			_, err := w.Write(util.EscapeHTML(raw))
-			return err
-		}
-		if start > 0 {
-			if _, err := w.Write(util.EscapeHTML(raw[:start])); err != nil {
-				return err
-			}
-			raw = raw[start:]
-		}
-		end := bytes.IndexByte(raw, '>')
-		if end < 0 {
-			_, err := w.Write(util.EscapeHTML(raw))
-			return err
-		}
-		tag := raw[:end+1]
-		switch {
-		case isAllowlistedMarkup(tag):
-			if _, err := w.Write(tag); err != nil {
-				return err
-			}
-		case readAloudMarker.Match(tag):
-			// An instruction addressed to the renderer, naming something it does
-			// not do. It is not the author's prose and showing it to a reader
-			// would be showing them the machinery, so it goes no further.
-		default:
-			if _, err := w.Write(util.EscapeHTML(tag)); err != nil {
-				return err
-			}
-		}
-		raw = raw[end+1:]
+	escape := func(p []byte) error {
+		_, err := w.Write(util.EscapeHTML(p))
+		return err
 	}
-	return nil
+	return visitSafeMarkup(raw, escape, func(p []byte) error {
+		_, err := w.Write(p)
+		return err
+	}, escape, func([]byte) {
+		// An instruction addressed to the renderer, naming something it does
+		// not do. It is not the author's prose and showing it to a reader
+		// would be showing them the machinery, so it goes no further.
+	})
 }
 
 func renderSafeImage(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {

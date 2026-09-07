@@ -56,6 +56,8 @@ func TestFragmentSectionMatchingMirrorsTheReadingPage(t *testing.T) {
 		"\n" +
 		"## About [[Other|Bar]]\n" +
 		"## がん\n" +
+		"## Result<T> 的取捨\n" +
+		"## 讀本 ①　<ruby>加藤<rt>かとう</rt></ruby>さん\n" +
 		"\n" +
 		"```\n" +
 		"# Fenced Words\n" +
@@ -78,6 +80,8 @@ func TestFragmentSectionMatchingMirrorsTheReadingPage(t *testing.T) {
 		{name: "an underlined heading answers", body: "[[Target#Setext Name]]\n"},
 		{name: "a heading citing a note answers by its display words", body: "[[Target#About Bar]]\n"},
 		{name: "the display words are the name, not the bracket text", body: "[[Target#About Other Bar]]\n", want: []string{"link.section_missing Target#About Other Bar"}},
+		{name: "a heading naming a generic type answers", body: "[[Target#Result<T> 的取捨]]\n"},
+		{name: "a ruby heading named by its rendered text answers", body: "[[Target#讀本 ①　加藤さん]]\n"},
 		{name: "a decomposed spelling reaches a composed heading", body: "[[Target#がん]]\n"},
 		{name: "a heading shape inside a fence stays out of reports", body: "[[Target#Fenced Words]]\n"},
 		{name: "a heading hidden in a comment is not on the page", body: "[[Target#Hidden Heading]]\n", want: []string{"link.section_missing Target#Hidden Heading"}},
@@ -393,6 +397,8 @@ func TestEmbedSectionMatchingMirrorsTheExcerptScan(t *testing.T) {
 		"\n" +
 		"## About [[Other|Bar]]\n" +
 		"## がん\n" +
+		"## Result<T> 的取捨\n" +
+		"## 讀本 ①　<ruby>加藤<rt>かとう</rt></ruby>さん\n" +
 		"\n" +
 		"```\n" +
 		"# Fenced Words\n" +
@@ -420,6 +426,8 @@ func TestEmbedSectionMatchingMirrorsTheExcerptScan(t *testing.T) {
 		{name: "an underlined heading answers", body: "![[Target#Setext Name]]\n"},
 		{name: "a heading citing a note answers by its display words", body: "![[Target#About Bar]]\n"},
 		{name: "the display words are the name, not the bracket text", body: "![[Target#About Other Bar]]\n", want: []string{"embed.section_missing Target#About Other Bar"}},
+		{name: "a heading naming a generic type answers", body: "![[Target#Result<T> 的取捨]]\n"},
+		{name: "a ruby heading named by its rendered text answers", body: "![[Target#讀本 ①　加藤さん]]\n"},
 		{name: "a decomposed spelling reaches a composed heading", body: "![[Target#がん]]\n"},
 		{name: "a heading shape inside a fence is code", body: "![[Target#Fenced Words]]\n", want: []string{"embed.section_missing Target#Fenced Words"}},
 		{name: "a heading shape inside an authored html block is text", body: "![[Target#Blocked Words]]\n", want: []string{"embed.section_missing Target#Blocked Words"}},
