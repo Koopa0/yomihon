@@ -24,6 +24,8 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 		return wording.DiagCalloutNote.In(lang)
 	case render.DiagRiskyFence:
 		return wording.DiagFenceNote.In(lang)
+	case render.DiagHighlightFailed:
+		return wording.DiagHighlightFailedNote.In(lang)
 	case render.DiagEmbedFragmentMissing:
 		return wording.DiagEmbedNote.In(lang)
 	case render.DiagEmbedFragmentRepeated:

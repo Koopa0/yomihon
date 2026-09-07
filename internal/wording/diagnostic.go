@@ -19,6 +19,7 @@ var (
 	DiagEmbedFragmentRepeated = both("嵌入指定的段落在該筆記裡不只一個", "The embedded section name belongs to more than one section")
 	DiagEmbedNotExpanded      = both("摘錄裡的嵌入改以連結呈現", "An embed inside an excerpt is shown as a link")
 	DiagRenderFailed          = both("內文無法轉譯,已改顯示原始文字", "The body could not be rendered; its source text is shown instead")
+	DiagHighlightFailed       = both("程式碼著色沒有完成", "Code highlighting did not finish")
 	DiagLinkBlockGone         = both("找不到連結指定的區塊", "The linked block was not found")
 	DiagLinkSectionGone       = both("找不到連結指定的小節", "The linked section was not found")
 	DiagCommentUnclosed       = both("沒有配對的註解記號", "Unpaired comment marker")
@@ -43,7 +44,11 @@ var (
 		"目標筆記沒有這個小節；連結位址照原樣保留，點下去會落在筆記最上方。",
 		"The target note has no such section; the address is kept as written, and following it lands at the top of the note.",
 	)
-	DiagCommentNote = both("這個註解記號沒有找到配對，它後面的內容全被藏了起來。", "This comment marker has no partner, and everything after it is hidden.")
-	DiagRenderNote  = both("Markdown 轉譯失敗；已顯示原始內容。", "Markdown rendering failed; the source is shown as written.")
+	DiagCommentNote         = both("這個註解記號沒有找到配對，它後面的內容全被藏了起來。", "This comment marker has no partner, and everything after it is hidden.")
+	DiagRenderNote          = both("Markdown 轉譯失敗；已顯示原始內容。", "Markdown rendering failed; the source is shown as written.")
+	DiagHighlightFailedNote = both(
+		"這個程式碼區塊著色時沒有完成；已改以未著色、跳脫後的原文顯示。",
+		"Highlighting this code block did not finish; it is shown as plain escaped text.",
+	)
 	DiagUnknownNote = both("內容轉譯產生未識別的診斷。", "Rendering produced a diagnostic nothing here recognises.")
 )

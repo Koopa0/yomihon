@@ -28,6 +28,8 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return wording.DiagUnknownCallout.In(lang)
 	case render.DiagRiskyFence:
 		return wording.DiagRiskyFence.In(lang)
+	case render.DiagHighlightFailed:
+		return wording.DiagHighlightFailed.In(lang)
 	case render.DiagEmbedFragmentMissing:
 		return wording.DiagEmbedFragmentGone.In(lang)
 	case render.DiagEmbedFragmentRepeated:

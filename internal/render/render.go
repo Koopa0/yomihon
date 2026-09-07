@@ -126,6 +126,10 @@ const (
 	// normally unreachable, and kept so an extension that breaks that assumption
 	// produces a visible diagnostic rather than a blank page.
 	DiagRenderFailed DiagnosticKind = "render-failed"
+	// DiagHighlightFailed means a fenced code block's highlighter timed out or
+	// otherwise failed, so the block is shown as plain escaped text rather than
+	// taking the rest of the note with it. Highlighting is decoration.
+	DiagHighlightFailed DiagnosticKind = "highlight-failed"
 )
 
 // Diagnostic is one note about content yomihon could read but could not present
@@ -410,6 +414,7 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composi
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
+	attachHighlightReporter(doc, col)
 
 	var buf bytes.Buffer
 	if err := r.md.Renderer().Render(&buf, src, doc); err != nil {
