@@ -81,7 +81,9 @@ more than they look like they do:
 - **`[fields] required`** must all be present; `[fields] lesson_only` names keys
   only a lesson may carry.
 - **`[enums.status]` with `[fields.status_group]`** makes statuses conditional
-  on type: a status legal for one type is `schema.enum` on another.
+  on type: a status legal for one type is `schema.enum` on another. A type not
+  named under `[fields.status_group]` is read against the `note` group of
+  `[enums.status]`. Every contract must declare that group.
 
 The frontmatter rules judge only files inside the contract's
 `[scan] knowledge_dirs`. A file outside them is still scanned for links and

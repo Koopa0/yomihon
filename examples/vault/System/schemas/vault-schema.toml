@@ -42,6 +42,8 @@ lesson_only = ["slug", "level", "supersedes", "superseded_by"]
 # it marks that note's content on its own, whichever language the interface is
 # speaking around it.
 
+# A type not named here is read against enums.status.note. Every contract has
+# to declare that group.
 [fields.status_group]
 lesson = ["lesson"]
 
