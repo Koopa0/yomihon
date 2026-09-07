@@ -3359,12 +3359,10 @@ func TestTheFuriganaControlIsOnEveryPage(t *testing.T) {
 	}
 }
 
-// TestAFileTooLargeToSearchSaysSoOnItsOwnPage covers the only thing that makes
-// a bound honest. A note past the cap still renders — every file in the folder
-// stays readable — but nothing reaches it by search, and a search that answers
-// "no results" for a phrase sitting in a note the reader is looking at is a
-// false statement about the folder. The cap already existed for every file kind
-// except the one held three times over.
+// TestAFileTooLargeToSearchSaysSoOnItsOwnPage is the page-side of the bound.
+// A note past the cap is the unreadable page, not a rendered body the server
+// would have to carry. The under-cap note still reads. The generation-side
+// lock is TestAnOverCapNoteIsNotRetained in internal/snapshot.
 func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -3385,25 +3383,77 @@ func TestAFileTooLargeToSearchSaysSoOnItsOwnPage(t *testing.T) {
 	}
 	srv := newServer(t, root)
 
-	// It renders, and it says why a search will not find it.
 	code, page := get(t, srv.Client(), srv.URL+"/notes/huge.md")
-	if code != http.StatusOK {
-		t.Fatalf("GET the oversize note = %d, want 200 — reading is never withheld", code)
+	if code != http.StatusNotFound {
+		t.Fatalf("GET the oversize note = %d, want %d — the body is not carried", code, http.StatusNotFound)
 	}
-	if !strings.Contains(page, "sits here too") {
-		t.Error("the oversize note did not render its own body")
+	if !strings.Contains(page, "檔案存在") {
+		t.Error("the oversize note's page is not the unreadable one")
 	}
-	if !strings.Contains(page, "data-note-unsearchable") {
-		t.Error("the oversize note is absent from the index and its page does not say so")
+	if strings.Contains(page, wording.NothingHere.In(wording.ZhHant)) {
+		t.Error("the oversize note's page is the plain not-found page")
+	}
+	if strings.Contains(page, "sits here too") {
+		t.Error("the oversize note's page retained its body")
 	}
 
-	// The note that is indexed says nothing of the kind.
-	if _, small := get(t, srv.Client(), srv.URL+"/notes/small.md"); strings.Contains(small, "data-note-unsearchable") {
+	code, smallPage := get(t, srv.Client(), srv.URL+"/notes/small.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET the under-cap note = %d, want 200", code)
+	}
+	if !strings.Contains(smallPage, "sits here") {
+		t.Error("the under-cap note did not render its own body")
+	}
+	if strings.Contains(smallPage, "data-note-unsearchable") {
 		t.Error("a note that is searchable was told it is not")
 	}
+}
 
-	// That the index really leaves it out is asserted where the index lives:
-	// TestAnOversizeNoteRendersAndStaysOutOfTheIndex in internal/snapshot.
+// TestAnOverCapNotePageIsUnreadable is the lock that a note past MaxSourceBytes
+// is answered with the unreadable page, not with a rendered body the server
+// would have to carry. The file is still there — that is why the page is not
+// the plain not-found one — and the body is not.
+func TestAnOverCapNotePageIsUnreadable(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	const needle = "rarespelunker"
+	small := "# Small\n\n" + needle + " sits here.\n"
+	if err := os.WriteFile(filepath.Join(root, "small.md"), []byte(small), 0o600); err != nil {
+		t.Fatalf("write small note: %v", err)
+	}
+	huge := "# Huge\n\n" + needle + " sits here too.\n" + strings.Repeat("padding padding padding\n", 60000)
+	if len(huge) <= render.MaxSourceBytes {
+		t.Fatalf("the oversize fixture is %d bytes, which is under the cap; this would prove nothing", len(huge))
+	}
+	if err := os.WriteFile(filepath.Join(root, "huge.md"), []byte(huge), 0o600); err != nil {
+		t.Fatalf("write huge note: %v", err)
+	}
+	srv := newServer(t, root)
+
+	code, page := get(t, srv.Client(), srv.URL+"/notes/huge.md")
+	if code != http.StatusNotFound {
+		t.Fatalf("GET the over-cap note = %d, want %d — the body is not carried", code, http.StatusNotFound)
+	}
+	if !strings.Contains(page, "檔案存在") {
+		t.Error("the over-cap note's page is not the unreadable one")
+	}
+	if strings.Contains(page, wording.NothingHere.In(wording.ZhHant)) {
+		t.Error("the over-cap note's page is the plain not-found page")
+	}
+	if strings.Contains(page, "sits here too") {
+		t.Error("the over-cap note's page retained its body")
+	}
+
+	code, smallPage := get(t, srv.Client(), srv.URL+"/notes/small.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET the under-cap note = %d, want 200", code)
+	}
+	if !strings.Contains(smallPage, "sits here") {
+		t.Error("the under-cap note did not render its own body")
+	}
 }
 
 // TestFolderWithoutARepositoryStillOffersTransitions locks the reading page to

@@ -1687,12 +1687,10 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	}
 }
 
-// TestAnOversizeNoteRendersAndStaysOutOfTheIndex is the half of the bound that
-// makes it honest. Every file in the folder stays readable whatever its size —
-// so the note is captured and its body is there — but the index is where a note
-// costs three copies of itself, and that is where the ceiling belongs. The
-// reader is told on the note's own page; this is the fact that sentence is
-// about.
+// TestAnOversizeNoteRendersAndStaysOutOfTheIndex keeps the generation-shape
+// half of the bound: a note past MaxSourceBytes is not retained, and a note
+// under it still is. The published-skip half — never read, never held back —
+// is TestAnOverCapNoteIsNotRetained.
 func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 	t.Parallel()
 
@@ -1717,18 +1715,81 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 	}
 	gen := store.Current()
 
-	// It is captured and readable.
-	note, ok := gen.Note("huge.md")
-	if !ok {
-		t.Fatal("the oversize note is absent from the generation; reading is never withheld")
+	if note, ok := gen.Note("huge.md"); ok {
+		t.Fatalf("the oversize note was retained in the generation; body length = %d", len(note.Body))
 	}
-	if !strings.Contains(note.Body, "sits here too") {
-		t.Error("the oversize note lost its body")
+	if small, ok := gen.Note("small.md"); !ok || !small.Searchable {
+		t.Error("a note under the cap is missing or reports itself unsearchable")
 	}
-	if note.Searchable {
-		t.Error("the oversize note reports itself searchable, so its page would say nothing")
+
+	results, _, err := gen.Search().SearchN(lexical.Parse(needle), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
 	}
-	if small, _ := gen.Note("small.md"); !small.Searchable {
+	var paths []string
+	for _, r := range results {
+		paths = append(paths, r.RelPath)
+	}
+	if !slices.Contains(paths, "small.md") {
+		t.Errorf("search lost the note under the cap; got %v", paths)
+	}
+	if slices.Contains(paths, "huge.md") {
+		t.Errorf("the oversize note reached the index; got %v", paths)
+	}
+}
+
+// TestAnOverCapNoteIsNotRetained is the lock that a note past MaxSourceBytes
+// is a published skip. The same ceiling every other file has applies: the
+// generation does not read it, does not hold its body, and does not hold the
+// folder back for it. A name can stay so the page can say the file is there;
+// nothing of the file is retained.
+func TestAnOverCapNoteIsNotRetained(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	const needle = "rarespelunker"
+	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\n"+needle+" sits here.\n")
+	huge := "---\ntitle: Huge\ntype: concept\n---\n" + needle + " sits here too.\n" +
+		strings.Repeat("padding padding padding\n", 60000)
+	if len(huge) <= render.MaxSourceBytes {
+		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
+	}
+	writeNote(t, root, "huge.md", huge)
+	contract := testContract(t, root)
+	reader, err := vaultfs.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &recordingSource{
+		Source: reader,
+		reads:  make(map[string]int),
+		fail:   make(map[string]int),
+	}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.retry {
+		t.Fatal("an over-cap note held the generation back; one oversized file would wedge the folder")
+	}
+	if source.reads["huge.md"] != 0 {
+		t.Fatalf("the over-cap note was read %d times; nothing of it should be retained", source.reads["huge.md"])
+	}
+
+	gen := store.Current()
+	if note, ok := gen.Note("huge.md"); ok {
+		t.Fatalf("the over-cap note was retained in the generation; body length = %d", len(note.Body))
+	}
+	if _, isFile := gen.Entry("huge.md"); !isFile {
+		t.Fatal("the over-cap note vanished from the scan; the page would look like a missing file")
+	}
+
+	small, ok := gen.Note("small.md")
+	if !ok || !strings.Contains(small.Body, needle) {
+		t.Fatal("the under-cap note is absent from the generation")
+	}
+	if !small.Searchable {
 		t.Error("a note under the cap reports itself unsearchable")
 	}
 
@@ -1744,7 +1805,13 @@ func TestAnOversizeNoteRendersAndStaysOutOfTheIndex(t *testing.T) {
 		t.Errorf("search lost the note under the cap; got %v", paths)
 	}
 	if slices.Contains(paths, "huge.md") {
-		t.Errorf("the oversize note reached the index, so its page's sentence is untrue; got %v", paths)
+		t.Errorf("the over-cap note reached the index; got %v", paths)
+	}
+
+	writeNote(t, root, "later.md", "---\ntitle: Later\ntype: concept\n---\nlater\n")
+	store.rescan(t.Context())
+	if _, ok := store.Current().Note("later.md"); !ok {
+		t.Error("a note written after the over-cap skip never reached a published generation")
 	}
 }
 

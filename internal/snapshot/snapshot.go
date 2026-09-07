@@ -688,9 +688,16 @@ func buildGeneration(
 		if !note {
 			// A wikilink may point at any vault file, read or not.
 			g.resources = append(g.resources, relPath)
-			if !want.read {
-				continue
+		}
+		if !want.read {
+			if note {
+				// A published skip: the name stays so a citation still lands
+				// and the page can say the file is there. The body does not.
+				log.Warn("vault note skipped: larger than the source size bound",
+					"path", relPath, "bytes", entry.Size())
+				g.unreadable = append(g.unreadable, vault.Parse(relPath, nil))
 			}
+			continue
 		}
 		data, err := source.ReadFile(ctx, entry)
 		if err != nil {
@@ -945,9 +952,14 @@ type bytesWanted struct {
 // wantedBytes decides what this generation needs from one scanned entry.
 func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
 	if note {
-		// A note is always read; only the index has a bound, the one the file page
-		// applies, because a note is held there three times over.
-		return bytesWanted{read: true, indexable: withinSourceCap(entry), holdsBackGeneration: true}
+		if !withinSourceCap(entry) {
+			// A note over the bound is a published skip: the same ceiling every
+			// other file has. Reading it would hold the body for the life of the
+			// generation; holding the folder back for it would wedge every later
+			// change through degradeAfter. The name can stay. The body cannot.
+			return bytesWanted{}
+		}
+		return bytesWanted{read: true, indexable: true, holdsBackGeneration: true}
 	}
 	sidecar := lesson.IsSlotSidecar(entry.Path())
 	indexable := readableAsText(entry)

@@ -225,12 +225,13 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	n, ok := snap.Note(rel)
 	if !ok {
 		// The scan observed a regular file here and this generation has no
-		// body for it: the file exists and could not be read, which is a
-		// different fact — and a different repair — from a path that names
-		// nothing. Asking for the file rather than for anything at the path
-		// is what keeps that repair honest: a folder whose name ends in .md
-		// is observed by the scan too, and no permission on it can be the one
-		// the reader would be sent to clear.
+		// body for it: the file exists and could not be read, or it is over
+		// the source size bound and was skipped. That is a different fact —
+		// and a different repair — from a path that names nothing. Asking
+		// for the file rather than for anything at the path is what keeps
+		// that repair honest: a folder whose name ends in .md is observed
+		// by the scan too, and no permission on it can be the one the
+		// reader would be sent to clear.
 		if _, isFile := snap.Entry(rel); isFile {
 			h.sources.Log.Warn("note captured in scan but unreadable in this generation", "path", rel)
 			h.showUnreadable(w, r, r.URL.Path)
