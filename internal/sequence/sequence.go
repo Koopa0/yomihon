@@ -501,6 +501,17 @@ func (p *parser) container(
 			strings.TrimSpace(own))
 		invalid = true
 	}
+	if role == RolePrimary && localDepth > 0 {
+		// A main-line declaration inside a side branch is the missing cell of
+		// the same matrix: local-in-local is too-deep, and a role under none is
+		// the other conflict. Reporting it here keeps the branch where the
+		// author wrote it; marking it invalid is what stops the page drawing
+		// it as a counted module the walk never reaches.
+		p.report(RuleRoleConflict, line,
+			"a branch cannot take part in the course as the main line while it sits inside a side branch",
+			strings.TrimSpace(own))
+		invalid = true
+	}
 	anchor := ""
 	var anchorSpan Span
 	if role == RoleLocal {

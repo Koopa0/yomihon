@@ -171,3 +171,52 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 		t.Error("the lesson row was read as loose prose, so the part that only groups modules was never descended into")
 	}
 }
+
+// TestANestedPrimaryInsideASideBranchIsReported is the check-command face of
+// the nested-primary cell: the grammar reports it, and that report has to
+// reach the author as a finding. A probe that only parsed the body would miss
+// a wiring regression that swallowed the diagnostic on the way to check.
+func TestANestedPrimaryInsideASideBranchIsReported(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestContract(t, root, nil)
+	write(t, root, "Maps/Course.md",
+		"---\ntitle: Course\ntype: study-path\nstatus: ready\n---\n\n"+
+			"## Main line {sequence=primary}\n\n"+
+			"- [[L01]]\n"+
+			"\t- Side branch {sequence=local}\n"+
+			"\t\t- [[L03]]\n"+
+			"\t\t\t- Nested main line {sequence=primary}\n"+
+			"\t\t\t\t- [[L02]]\n")
+	for _, name := range []string{"L01", "L02", "L03"} {
+		write(t, root, "Writing/"+name+".md",
+			"---\ntitle: "+name+"\ntype: lesson\nstatus: ready\n---\n\nbody\n")
+	}
+
+	findings, err := Check(t.Context(), root)
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+
+	var got *Finding
+	for i := range findings {
+		if findings[i].RuleID == RuleID(sequence.RuleRoleConflict) && findings[i].Path == "Maps/Course.md" {
+			got = &findings[i]
+			break
+		}
+	}
+	if got == nil {
+		var rules []string
+		for _, f := range findings {
+			rules = append(rules, string(f.RuleID))
+		}
+		t.Fatalf("Check() did not report %s; got %v", sequence.RuleRoleConflict, rules)
+	}
+	if got.Message == "" {
+		t.Error("the nested-primary finding carries no message")
+	}
+	if got.SuggestedAction != pathRuleAction[sequence.RuleRoleConflict] {
+		t.Errorf("SuggestedAction = %q, want the existing role-conflict action; generalizing it would move goldens", got.SuggestedAction)
+	}
+}
