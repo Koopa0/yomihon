@@ -79,43 +79,84 @@ func renderSafeRawHTML(w util.BufWriter, source []byte, node ast.Node, entering 
 	return ast.WalkSkipChildren, nil
 }
 
-func writeSafeMarkup(w util.BufWriter, raw []byte) error {
+func isAllowlistedMarkup(tag []byte) bool {
+	return safeMarkupBareTag.Match(tag) || safeMarkupEndTag.Match(tag) || safeMarkupLangTag.Match(tag) ||
+		safeReadAloudTag.Match(tag) || trustedBlockTag.Match(tag)
+}
+
+// visitSafeMarkup is the one tag walk the body renderer and the heading fold
+// share. Each complete tag is kept, dropped, or escaped according to the
+// allowlist; the bytes between tags, and a tail with no closing '>', go to
+// text. Dropping an unrecognised read-aloud marker here is what keeps it out
+// of a heading's name the same way the page drops it from the body.
+func visitSafeMarkup(raw []byte, text, keep, escape func([]byte) error, drop func([]byte)) error {
 	for len(raw) > 0 {
 		start := bytes.IndexByte(raw, '<')
 		if start < 0 {
-			_, err := w.Write(util.EscapeHTML(raw))
-			return err
+			return text(raw)
 		}
 		if start > 0 {
-			if _, err := w.Write(util.EscapeHTML(raw[:start])); err != nil {
+			if err := text(raw[:start]); err != nil {
 				return err
 			}
 			raw = raw[start:]
 		}
 		end := bytes.IndexByte(raw, '>')
 		if end < 0 {
-			_, err := w.Write(util.EscapeHTML(raw))
-			return err
+			return text(raw)
 		}
 		tag := raw[:end+1]
 		switch {
-		case safeMarkupBareTag.Match(tag) || safeMarkupEndTag.Match(tag) || safeMarkupLangTag.Match(tag) ||
-			safeReadAloudTag.Match(tag) || trustedBlockTag.Match(tag):
-			if _, err := w.Write(tag); err != nil {
+		case isAllowlistedMarkup(tag):
+			if err := keep(tag); err != nil {
 				return err
 			}
 		case readAloudMarker.Match(tag):
-			// An instruction addressed to the renderer, naming something it does
-			// not do. It is not the author's prose and showing it to a reader
-			// would be showing them the machinery, so it goes no further.
+			drop(tag)
 		default:
-			if _, err := w.Write(util.EscapeHTML(tag)); err != nil {
+			if err := escape(tag); err != nil {
 				return err
 			}
 		}
 		raw = raw[end+1:]
 	}
 	return nil
+}
+
+// applySafeMarkup runs authored heading source through the same tag allowlist
+// the body renderer uses, so a later headingInnerText sees escaped tags where
+// the page already did and live ruby where the page already did. Text between
+// tags is left as written: goldmark has already resolved character references
+// by the time the page stamps an id, and escaping them here would fold a
+// second pass of `&amp;` into a different slug. A blanket escape of the whole
+// source would also turn the ruby the reduction is meant to strip into words.
+func applySafeMarkup(raw string) string {
+	var b strings.Builder
+	err := visitSafeMarkup([]byte(raw),
+		func(p []byte) error { b.Write(p); return nil },
+		func(p []byte) error { b.Write(p); return nil },
+		func(p []byte) error { b.Write(util.EscapeHTML(p)); return nil },
+		func([]byte) {},
+	)
+	if err != nil {
+		return raw
+	}
+	return b.String()
+}
+
+func writeSafeMarkup(w util.BufWriter, raw []byte) error {
+	escape := func(p []byte) error {
+		_, err := w.Write(util.EscapeHTML(p))
+		return err
+	}
+	return visitSafeMarkup(raw, escape, func(p []byte) error {
+		_, err := w.Write(p)
+		return err
+	}, escape, func([]byte) {
+		// An instruction addressed to the renderer, naming something it does
+		// not do. It is not the author's prose and showing it to a reader
+		// would be showing them the machinery, so it goes no further.
+	})
 }
 
 func renderSafeImage(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {

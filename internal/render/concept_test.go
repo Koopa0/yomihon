@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // conceptLookup is a tiny hand-written stand-in for the concept index: the set
@@ -94,5 +96,51 @@ func TestInjectConceptTriggersReadsAnEscapedHref(t *testing.T) {
 	}
 	if len(refs) != 1 || refs[0] != "Concepts/Q&A.md" {
 		t.Errorf("refs = %v, want [Concepts/Q&A.md]", refs)
+	}
+}
+
+// TestInjectConceptTriggersFollowsTheNoteNotTheFragment is the lock for a
+// wikilink that names a section of a concept note. The trigger follows the
+// note: a fragment is an address inside it, not a different destination, and
+// the alias form is the same citation with a different face. The four rows
+// are markdown the page actually writes — plain, aliased, section, and
+// aliased section — rendered through HTML so the fragment is folded where
+// a wikilink becomes an href, then handed to the trigger pass. A lock that
+// started from a pre-folded anchor would leave that fold unexercised.
+func TestInjectConceptTriggersFollowsTheNoteNotTheFragment(t *testing.T) {
+	t.Parallel()
+
+	const rel = "Concepts/golang/Section probe.md"
+	dest := "## One section\n\nwords\n"
+	r := newRenderer(t, []graph.NoteInput{{RelPath: rel}}, nil, transclusions{rel: dest})
+	lookup := conceptLookup(map[string]string{rel: "section-probe"})
+	href := `/notes/Concepts/golang/Section%20probe.md`
+	sectionHref := href + "#one-section"
+
+	rows := []struct {
+		name, md, href string
+	}{
+		{"plain", "[[Section probe]]", href},
+		{"alias", "[[Section probe|概念]]", href},
+		{"section", "[[Section probe#One section]]", sectionHref},
+		{"alias with section", "[[Section probe#One section|概念]]", sectionHref},
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+
+			page := r.HTML("note.md", "", row.md+"\n", wording.ZhHant)
+			out, refs := render.InjectConceptTriggers(page.HTML, lookup)
+			if !strings.Contains(out, `class="wikilink concept-link" data-concept="section-probe"`) {
+				t.Errorf("concept trigger missing; got:\n%s", out)
+			}
+			if !strings.Contains(out, `href="`+row.href+`"`) {
+				t.Errorf("the href did not survive with its fragment; got:\n%s", out)
+			}
+			if len(refs) != 1 || refs[0] != rel {
+				t.Errorf("refs = %v, want [%s]", refs, rel)
+			}
+		})
 	}
 }

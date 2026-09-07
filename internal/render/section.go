@@ -333,18 +333,13 @@ func ExcerptHeading(slice string) string {
 }
 
 // headingSourceText reduces a heading's markdown source to the text the page
-// stamps its anchor from. A wikilink contributes what it displays, which is what
-// the rendered heading shows and what a reader copies off the page. A course
-// branch declares its part in the order at the end of the heading that opens
-// it, and that declaration is grammar rather than words, so the level decides
-// what the heading is called for the same reason it does on the page.
+// stamps its anchor from. A course branch declares its part in the order at
+// the end of the heading that opens it, and that declaration is grammar
+// rather than words, so the level decides what the heading is called for the
+// same reason it does on the page. The words themselves fold through
+// HeadingWords, the one reduction the check face reads too.
 func headingSourceText(raw string, level int) string {
-	displayed := wikilinkToken.ReplaceAllStringFunc(sequence.HeadingName(raw, level), func(token string) string {
-		inner := strings.TrimPrefix(token, "!")
-		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
-		return display
-	})
-	return headingInnerText(displayed)
+	return HeadingWords(sequence.HeadingName(raw, level))
 }
 
 // blockSlice returns the block carrying the "^name" marker: the run of non-blank

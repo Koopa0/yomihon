@@ -40,6 +40,21 @@ func headingInnerText(inner string) string {
 	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(inner, "")))
 }
 
+// HeadingWords reduces a heading's markdown source to the words the page
+// stamps an id from. A wikilink contributes what it displays. Authored markup
+// then takes the same allowlist the body renderer uses: ruby stays a tag so
+// the reading can be dropped, and every other tag is escaped the way the page
+// already received it. The check face reads a heading through here too, so a
+// name copied off the contents list cannot be refused for using a second fold.
+func HeadingWords(raw string) string {
+	displayed := wikilinkToken.ReplaceAllStringFunc(raw, func(token string) string {
+		inner := strings.TrimPrefix(token, "!")
+		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
+		return display
+	})
+	return headingInnerText(applySafeMarkup(displayed))
+}
+
 // The two halves of a place inside a document, as this package writes them:
 // every attribute value is double-quoted and every quote an author wrote inside
 // one arrived escaped. Deliberately not general HTML rules — they read bytes

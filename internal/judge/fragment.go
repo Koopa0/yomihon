@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"html"
 	"regexp"
 	"strings"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -26,30 +26,12 @@ import (
 // and a name that scan cannot find is reported as an excerpt the page could
 // not cut.
 
-var (
-	// wikilinkInHeading matches a wikilink or transclusion written inside a
-	// heading's text, whose display words are what the rendered heading shows.
-	wikilinkInHeading = regexp.MustCompile(`!?\[\[[^\[\]]+\]\]`)
-	// rubyAnnotation matches a ruby reading or its fallback parentheses, which
-	// the rendered heading carries beside its base text and its id drops.
-	rubyAnnotation = regexp.MustCompile(`(?s)<rt[^>]*>.*?</rt>|<rp[^>]*>.*?</rp>`)
-	// markupTag matches any remaining tag, dropped alone so its content stays.
-	markupTag = regexp.MustCompile(`<[^>]+>`)
-)
-
-// headingWords reduces a heading's source text to the words its rendered
-// form shows, which are the words the page folds an anchor id from: a
-// wikilink contributes what it displays, a ruby annotation's reading drops
-// out with its tags, every other tag drops alone, and character references
-// resolve to the characters they name.
+// headingWords reduces a heading's source text to the words the page stamps
+// an id from. It is the reading page's fold, not a second copy: a heading
+// that names a generic type must answer here the same way the contents list
+// names it, or this face refuses a link the page follows.
 func headingWords(raw string) string {
-	displayed := wikilinkInHeading.ReplaceAllStringFunc(raw, func(token string) string {
-		inner := strings.TrimPrefix(token, "!")
-		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
-		return display
-	})
-	displayed = rubyAnnotation.ReplaceAllString(displayed, "")
-	return html.UnescapeString(markupTag.ReplaceAllString(displayed, ""))
+	return render.HeadingWords(raw)
 }
 
 // anchorSurface reads one body into what its page answers a fragment with:

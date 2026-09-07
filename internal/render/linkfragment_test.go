@@ -418,3 +418,93 @@ func TestSectionLinkStillMissesAHeadingInsideAFence(t *testing.T) {
 		t.Errorf("the fenced-heading gap has closed; this test now records the wrong limit: %q", messages)
 	}
 }
+
+// genericTypeDest carries a heading that names a generic type, the spelling an
+// author copies off the destination's own contents list, and a ruby heading
+// whose live tags the reduction is meant to strip. The two rows travel together
+// because a blanket escape of the source would make the generic type match and
+// would break the ruby one.
+const genericTypeDest = "## Map<K,V> 的取捨\n\nGENERIC-BODY\n\n" +
+	"## 讀本 ①　<ruby>加藤<rt>かとう</rt></ruby>さん\n\nRUBY-BODY\n"
+
+// TestAHeadingCopiedFromTheContentsListReachesTheSameId is the lock for the
+// two reductions that used to disagree. The page stamps its id from rendered
+// text, where markup outside the ruby allowlist has already been escaped; the
+// fragment check and the excerpt used to strip live tags off the markdown
+// source and fold a different id. Copying the contents entry then produced a
+// broken-link diagnostic and a withheld embed, while a ruby heading named by
+// its rendered text already resolved.
+func TestAHeadingCopiedFromTheContentsListReachesTheSameId(t *testing.T) {
+	t.Parallel()
+
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": genericTypeDest})
+	page := r.HTML("B.md", "", genericTypeDest, wording.ZhHant)
+
+	rows := []struct {
+		name, citation, text, id, sentinel string
+	}{
+		{
+			name:     "a heading naming a generic type",
+			citation: "Map<K,V> 的取捨", text: "Map<K,V> 的取捨",
+			id: "map-k-v-的取捨", sentinel: "GENERIC-BODY",
+		},
+		{
+			name:     "a ruby heading named by its rendered text",
+			citation: "讀本 ①　加藤さん", text: "讀本 ①　加藤さん",
+			id: "讀本-①-加藤さん", sentinel: "RUBY-BODY",
+		},
+	}
+
+	for _, row := range rows {
+		found := false
+		for _, entry := range page.TOC {
+			if entry.ID == row.id && entry.Text == row.text {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("%s: the destination does not stamp id %q text %q; TOC=%+v\n%s",
+				row.name, row.id, row.text, page.TOC, page.HTML)
+		}
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+
+			link := r.HTML("note.md", "", "[[B#"+row.citation+"]]\n", wording.ZhHant)
+			wantHref := `/notes/B.md#` + row.id
+			if !strings.Contains(link.HTML, `href="`+wantHref+`"`) {
+				t.Errorf("the link lost the address the contents list names:\nwant %s\ngot  %s", wantHref, link.HTML)
+			}
+			if messages := fragmentDiagnostics(&link); len(messages) != 0 {
+				t.Errorf("a heading copied off the contents list was reported missing: %q", messages)
+			}
+			if strings.Contains(link.HTML, "wikilink-degraded") {
+				t.Errorf("a heading the page stamps was marked degraded:\n%s", link.HTML)
+			}
+
+			embed := r.HTML("note.md", "", "![[B#"+row.citation+"]]\n", wording.ZhHant)
+			if !strings.Contains(embed.HTML, row.sentinel) {
+				t.Errorf("the excerpt was withheld; missing %s:\n%s", row.sentinel, embed.HTML)
+			}
+			if strings.Contains(embed.HTML, "embed--withheld") {
+				t.Errorf("the excerpt was marked withheld:\n%s", embed.HTML)
+			}
+			for _, d := range embed.Diagnostics {
+				if d.Kind == render.DiagEmbedFragmentMissing {
+					t.Errorf("embed diagnostic: %s", d.Message)
+				}
+			}
+
+			slice, found := render.Excerpt(genericTypeDest, row.citation)
+			if !found {
+				t.Errorf("Excerpt did not find %q", row.citation)
+			}
+			if !strings.Contains(slice, row.sentinel) {
+				t.Errorf("Excerpt of %q missing %s:\n%s", row.citation, row.sentinel, slice)
+			}
+		})
+	}
+}

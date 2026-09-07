@@ -44,8 +44,14 @@ func InjectConceptTriggers(htmlOut string, lookup func(relPath string) (id strin
 // that URL was read out of: it strips the /notes/ prefix and path-unescapes each
 // segment back to a vault-relative path. A href that is not a /notes/ link (or
 // fails to decode) yields "" — not a concept, skip it.
+//
+// A section fragment is an address inside the note, not a path segment. It is
+// split off before the path is decoded so a wikilink that names a heading
+// still looks up the note the link navigates to; the caller puts the original
+// href back, fragment included.
 func decodeNotesHref(href string) string {
-	rest, ok := strings.CutPrefix(href, "/notes/")
+	path, _, _ := strings.Cut(href, "#")
+	rest, ok := strings.CutPrefix(path, "/notes/")
 	if !ok {
 		return ""
 	}
