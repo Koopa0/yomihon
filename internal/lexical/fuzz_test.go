@@ -138,6 +138,12 @@ func FuzzSnippet(f *testing.F) {
 		if fenceHi > len(plain) {
 			fenceHi = len(plain)
 		}
+		for fenceLo < len(plain) && !utf8.RuneStart(plain[fenceLo]) {
+			fenceLo++
+		}
+		for fenceHi < len(plain) && !utf8.RuneStart(plain[fenceHi]) {
+			fenceHi++
+		}
 		var fences [][2]int
 		if fenceHi > fenceLo {
 			fences = [][2]int{{fenceLo, fenceHi}}

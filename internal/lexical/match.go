@@ -515,6 +515,7 @@ func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
 	// adjustment last, because the second has to hold whatever the first leaves.
 	// A fence hit skips the sentence reach: source is not a sentence, and walking
 	// back through a preceding paragraph would present it as one.
+	// A fence span is block-aligned, as render.PlainBlocks emits it.
 	opening := runesBefore(plain, off, snippetBefore)
 	inFence, fence := fenceAt(off, fences)
 	if !inFence {
