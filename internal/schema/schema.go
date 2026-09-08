@@ -1302,6 +1302,19 @@ func (c *Contract) Definition() Definition {
 	return cloneDefinition(&c.definition)
 }
 
+// PlannedMarks returns detached copies of the heading and inline marks this
+// contract uses to decide which broken links are tracked forward-references.
+// A vault no contract governs returns nil lists: it declared no marks. A
+// loaded contract that omitted the keys is filled with today's dialect
+// defaults by the loader, and those are what this returns.
+func (c *Contract) PlannedMarks() (heading, inline []string) {
+	if c == nil {
+		return nil, nil
+	}
+	return slices.Clone(c.definition.Rules.PlannedGapMarks),
+		slices.Clone(c.definition.Rules.PlannedInlineMarks)
+}
+
 // StageCount returns the number of lifecycle rows declared by the contract.
 func (c *Contract) StageCount() int {
 	if c == nil {

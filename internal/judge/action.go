@@ -75,6 +75,7 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 	if hooks.afterScan != nil {
 		hooks.afterScan()
 	}
+	marks := plannedMarksFrom(a.authority.contract)
 	for _, entry := range a.scan.Files() {
 		relPath := entry.Path()
 		if !vault.IsMarkdown(relPath) {
@@ -88,7 +89,7 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		if hooks.afterNoteRead != nil {
 			hooks.afterNoteRead(relPath)
 		}
-		a.notes = append(a.notes, parseNoteWithMarks(relPath, data, plannedMarksFrom(a.authority.contract)))
+		a.notes = append(a.notes, parseNoteWithMarks(relPath, data, marks))
 	}
 	return a, nil
 }

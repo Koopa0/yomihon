@@ -70,6 +70,28 @@ func TestDefinitionIsDetached(t *testing.T) {
 	}
 }
 
+// TestPlannedMarksAreDetached asserts a caller that edits the returned lists
+// edits its own copy, the same guarantee Definition() gives.
+func TestPlannedMarksAreDetached(t *testing.T) {
+	t.Parallel()
+
+	contract := loadFixture(t)
+	wantHeading, wantInline := contract.PlannedMarks()
+	heading, inline := contract.PlannedMarks()
+	if len(heading) == 0 || len(inline) == 0 {
+		t.Fatal("fixture planned marks are empty; the detachment claim would be vacuous")
+	}
+	heading[0] = "changed"
+	inline[0] = "changed"
+	gotHeading, gotInline := contract.PlannedMarks()
+	if diff := cmp.Diff(wantHeading, gotHeading); diff != "" {
+		t.Errorf("PlannedMarks() heading changed after caller mutation (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantInline, gotInline); diff != "" {
+		t.Errorf("PlannedMarks() inline changed after caller mutation (-want +got):\n%s", diff)
+	}
+}
+
 // TestDefaultPlannedMarksAreDetached asserts a caller that edits the returned
 // lists edits its own copy, the same guarantee Definition() gives.
 func TestDefaultPlannedMarksAreDetached(t *testing.T) {
@@ -1965,6 +1987,13 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"Definition": func() string {
 			if diff := cmp.Diff(schema.Definition{}, c.Definition()); diff != "" {
 				return "Definition() mismatch (-want +got):\n" + diff
+			}
+			return ""
+		},
+		"PlannedMarks": func() string {
+			heading, inline := c.PlannedMarks()
+			if heading != nil || inline != nil {
+				return fmt.Sprintf("PlannedMarks() = (%v, %v), want nil lists: no contract declared no marks", heading, inline)
 			}
 			return ""
 		},

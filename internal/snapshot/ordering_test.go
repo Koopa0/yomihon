@@ -28,7 +28,7 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 			parse(t, "Sources/course/第9課.md", "b\n"),
 		}
 		idx := graph.New(notes, nil)
-		h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+		h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 		want := []nav.NoteRef{
 			{Name: "第9課", RelPath: "Sources/course/第9課.md"},
@@ -67,7 +67,7 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 			parse(t, "Writing/第9課.md", "see [[no such name]]\n"),
 		}
 		idx := graph.New(notes, nil)
-		h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+		h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 		want := []string{"Writing/第9課.md", "Writing/第10課.md"}
 		got := make([]string, 0, len(h.Unwritten))

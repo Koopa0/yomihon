@@ -4,6 +4,7 @@ import (
 	"iter"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // A wikilink that resolves to nothing is not automatically a fault. The vault
@@ -29,14 +30,17 @@ type Planned struct {
 }
 
 // NewPlanned harvests the declared-but-unwritten concept names from every note
-// body in bodies. Which bodies to feed it is the caller's decision: the
-// adjudicator harvests only from notes the contract allows to egress, since a
-// name planned in a private note must not soften a public broken link, while
-// the reading page harvests from all of them.
-func NewPlanned(bodies iter.Seq[string]) Planned {
+// body in bodies, against the heading and inline marks the contract declared.
+// A nil contract harvests against today's dialect defaults. Which bodies to
+// feed it is the caller's decision: the adjudicator harvests only from notes
+// the contract allows to egress, since a name planned in a private note must
+// not soften a public broken link, while the reading page harvests from all
+// of them.
+func NewPlanned(bodies iter.Seq[string], contract *schema.Contract) Planned {
+	marks := plannedMarksFrom(contract)
 	set := Planned{names: make(map[string]bool)}
 	for body := range bodies {
-		set.add(extractPlannedNames(body))
+		set.add(extractPlannedNamesWith(body, marks))
 	}
 	return set
 }

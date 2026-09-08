@@ -74,8 +74,8 @@ func plannedMarksFrom(c *schema.Contract) plannedMarks {
 	if c == nil {
 		return defaultPlannedMarks()
 	}
-	rules := c.Definition().Rules
-	return plannedMarks{heading: rules.PlannedGapMarks, inline: rules.PlannedInlineMarks}
+	heading, inline := c.PlannedMarks()
+	return plannedMarks{heading: heading, inline: inline}
 }
 
 // byteRange is a half-open byte span [start, stop) into a body.
@@ -413,13 +413,7 @@ func stripParens(s string) string {
 
 // headingIsGap reports whether a heading's text carries any gap mark.
 func headingIsGap(n *ast.Heading, src []byte, headingMarks []string) bool {
-	htext := headingText(n, src)
-	for _, m := range headingMarks {
-		if strings.Contains(htext, m) {
-			return true
-		}
-	}
-	return false
+	return containsAnySubstring(headingText(n, src), headingMarks)
 }
 
 // headingText is a heading's plain text — the text of its inline content with
@@ -591,12 +585,19 @@ func inAnyZone(zones []byteRange, off int) bool {
 }
 
 // containsAnySubstring reports whether s contains any of the marks as a
-// substring. The name says substring because the standard library's
-// ContainsAny asks the opposite question — whether any single rune of a set
-// occurs — and a reader who knows that one would read this call site backwards.
+// substring. Both sides are folded to NFC first, so a heading written with a
+// combining mark hits the composed spelling the contract declared. Case is
+// not folded — two marks that differ only in case are two declarations.
+// The name says substring because the standard library's ContainsAny asks
+// the opposite question — whether any single rune of a set occurs — and a
+// reader who knows that one would read this call site backwards.
 func containsAnySubstring(s string, marks []string) bool {
+	folded := vault.NormalizeNFC(s)
 	for _, m := range marks {
-		if strings.Contains(s, m) {
+		if m == "" {
+			continue
+		}
+		if strings.Contains(folded, vault.NormalizeNFC(m)) {
 			return true
 		}
 	}
