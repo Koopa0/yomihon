@@ -649,6 +649,51 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	}
 }
 
+// The same gap can meet New rather than a later rescan. If that refusal is
+// assigned back onto the Store, the next rebuild skips the check and instance
+// projections stay dark until restart, over a file that came back. New keeps
+// the startup handle; the generation that met the gap is refused; the next
+// rescan asks again.
+func TestNewRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
+	contract := testContract(t, root)
+
+	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	away := path + ".away"
+	if err := os.Rename(path, away); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", path, away, err)
+	}
+	store, _ := newTestStore(t, root, contract)
+
+	startup := store.Current()
+	if len(startup.Navigation().Paths()) != 0 || startup.Navigation().ArtifactClosure().Diagnostic() == "" {
+		t.Errorf("navigation while New met an unreadable contract = %+v, want instance projections withheld", startup.Navigation())
+	}
+	if startup.ArtifactPolicy().Available() {
+		t.Error("the generation New built still classified from a policy that could not re-read its source")
+	}
+
+	if err := os.Rename(away, path); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
+	}
+	store.rescan(t.Context())
+
+	recovered := store.Current()
+	if recovered == startup {
+		t.Fatal("rescan did not publish a new snapshot after the identical contract came back")
+	}
+	if len(recovered.Navigation().Paths()) != 1 || recovered.Navigation().ArtifactClosure().Diagnostic() != "" {
+		t.Errorf("navigation after the identical contract came back = %+v, want the path restored", recovered.Navigation())
+	}
+	if !recovered.ArtifactPolicy().Available() {
+		t.Errorf("artifact policy stayed shut after the identical file came back: %s", recovered.ArtifactPolicy().Diagnostic())
+	}
+}
+
 // A contract that cannot be read is not a contract that changed. A save-by-
 // rename leaves the name absent for a few microseconds, and reading that
 // instant as drift would shut instance projections for the life of the
@@ -682,12 +727,17 @@ func TestRescanRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchang
 	if len(during.Navigation().Paths()) != 0 || during.Navigation().ArtifactClosure().Diagnostic() == "" {
 		t.Errorf("navigation while the contract was unreadable = %+v, want instance projections withheld", during.Navigation())
 	}
-	if during.ArtifactPolicy().Available() {
-		t.Error("the generation that met the gap still classified from a policy that could not re-read its source")
-	}
 
 	if err := os.Rename(away, path); err != nil {
 		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
+	}
+	// ArtifactPolicy re-captures at read time. While the name is absent the
+	// live handle and the refusal copy agree, so this read waits until the
+	// identical file is back and the generation that met the gap is still
+	// the published one. A generation that kept the live handle would now
+	// report available with empty Paths.
+	if during.ArtifactPolicy().Available() {
+		t.Error("the generation that met the gap still classified from a policy that could not re-read its source")
 	}
 	store.rescan(t.Context())
 
