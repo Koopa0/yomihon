@@ -123,6 +123,10 @@ func FuzzSnippet(f *testing.F) {
 	// injected prefix would push a full window over the 250-rune budget.
 	f.Add("```d2\ndirection: right\n```\n\nThe source owns jobs.", "owns jobs", 0, 32)
 	f.Add(strings.Repeat("x", 40)+" UNIQUE_FENCE_HEAD. "+strings.Repeat("y", 10)+" needle "+strings.Repeat("z", 160), "needle", 0, 400)
+	// Mid-rune fenceHi inside 語: production never emits this, and the
+	// oracle must not see it or it deposits a corpus file that fails
+	// go test for everyone.
+	f.Add("000000日本語", "0", 14, 15)
 
 	f.Fuzz(func(t *testing.T, plain, token string, fenceLo, fenceHi int) {
 		if len(plain) > 256<<10 || len(token) > 16<<10 {
@@ -134,6 +138,12 @@ func FuzzSnippet(f *testing.F) {
 		plain = vault.NormalizeNFC(plain)
 		if fenceLo < 0 {
 			fenceLo = 0
+		}
+		if fenceHi < 0 {
+			fenceHi = 0
+		}
+		if fenceLo > len(plain) {
+			fenceLo = len(plain)
 		}
 		if fenceHi > len(plain) {
 			fenceHi = len(plain)
