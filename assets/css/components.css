@@ -38,6 +38,9 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 .yomihon {
+  /* Chrome height, and the extra 16px every fragment landing pad adds so
+     the marked line sits just under the bar rather than flush against it. */
+  --header-height: 56px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -142,7 +145,7 @@ html, body { margin: 0; background: var(--bg); }
    Header
    ============================================================ */
 .y-header {
-  position: sticky; top: 0; z-index: 30; height: 56px; flex: none;
+  position: sticky; top: 0; z-index: 30; height: var(--header-height); flex: none;
   display: flex; align-items: center; gap: 16px; padding: 0 20px;
   background: color-mix(in oklch, var(--panel) 82%, transparent);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
@@ -426,8 +429,9 @@ html, body { margin: 0; background: var(--bg); }
    aligns that span with the viewport top, so without the same clearance the
    headings already have, the marked line sits under the sticky header. The
    landing is that line, not the paragraph's first line: wrapping lines above
-   the caret can still sit under the fold. */
-.y-prose [id^="^"] { scroll-margin-top: 72px; }
+   the caret can still sit under the fold. The pad is the header plus the
+   16px every other landing already keeps, so a taller bar moves this with it. */
+.y-prose [id^="^"] { scroll-margin-top: calc(var(--header-height) + 16px); }
 
 /* inline code + fenced code (chroma) */
 .y-prose code { font-family: var(--font-mono); font-size: 0.82em; background: var(--elevated); padding: 1px 5px; border-radius: var(--r-sm); color: var(--fg); }

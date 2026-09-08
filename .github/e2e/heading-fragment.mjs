@@ -168,6 +168,13 @@ const MUTATIONS = {
     target: 'block-clears-the-header',
     apply: weakenStylesheet('.y-prose [id^="^"]{scroll-margin-top:0}'),
   },
+  // The margin string stays 72px while the bar grows, so the landing
+  // assertion — not the property check — is what has to fire. 56 and 72
+  // are one token; stretching only the painted height is the drift.
+  'stretch-the-header': {
+    target: 'block-clears-the-header',
+    apply: weakenStylesheet('.y-header{height:200px}'),
+  },
 };
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
@@ -215,6 +222,38 @@ const pageAddresses = (page) => page.evaluate(() => ({
   footnoteRefs: [...document.querySelectorAll('.footnote-ref')].length,
   footnoteSections: [...document.querySelectorAll('.footnotes')].length,
 }));
+
+// A bare double rAF never resolves while a cross-document view transition
+// has the arriving document's rendering suspended. Arm before the click so
+// pagereveal can hand us the transition's finished promise; race that and
+// the frames against a timer so the lock finishes under normal motion.
+const armArrival = (page) => page.addInitScript(() => {
+  window.__yArrival = new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    setTimeout(finish, 500);
+    const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(finish));
+    window.addEventListener('pagereveal', (event) => {
+      if (event.viewTransition && event.viewTransition.finished) {
+        event.viewTransition.finished.then(afterPaint, afterPaint);
+        return;
+      }
+      afterPaint();
+    }, { once: true });
+  });
+});
+
+const waitArrival = (page) => page.evaluate(() => {
+  if (window.__yArrival) return window.__yArrival;
+  return new Promise((resolve) => {
+    setTimeout(resolve, 500);
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+});
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -391,6 +430,7 @@ try {
   // fire here first, so this site only runs for its own mode or the plain lock.
   if (!mutation || mutation.target === 'block-clears-the-header') {
     const page = await context.newPage();
+    await armArrival(page);
     const source = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
     if (!source || source.status() !== 200) broken(`the source note returned ${source?.status() ?? 'no response'}, want 200`);
 
@@ -413,19 +453,21 @@ try {
       broken(`following ${JSON.stringify(BLOCK_LINK.label)} did not move this tab (it is still at ${page.url()})`);
     }
 
-    await page.evaluate(() => new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    }));
+    await waitArrival(page);
 
     const arrival = await page.evaluate(() => {
       const target = document.querySelector(':target');
       const header = document.querySelector('.y-header');
+      const host = document.querySelector('.yomihon');
       if (!target) return { missing: 'target' };
       if (!header) return { missing: 'header' };
+      if (!host) return { missing: 'host' };
       const paragraph = target.closest('p');
       if (!paragraph) return { missing: 'paragraph' };
       const lineHeight = parseFloat(getComputedStyle(paragraph).lineHeight);
       const height = paragraph.getBoundingClientRect().height;
+      const headerHeight = parseFloat(getComputedStyle(host).getPropertyValue('--header-height'));
+      const clearance = headerHeight + 16;
       return {
         hash: decodeURIComponent(location.hash.slice(1)),
         id: target.id,
@@ -434,6 +476,7 @@ try {
         headerBottom: header.getBoundingClientRect().bottom,
         viewport: window.innerHeight,
         scrollMarginTop: getComputedStyle(target).scrollMarginTop,
+        clearance,
       };
     });
     if (arrival.missing) {
@@ -445,13 +488,15 @@ try {
     if (!(arrival.lines >= 3)) {
       broken(`the addressed paragraph is ${arrival.lines} lines tall, want 3 or more so a single-line landing cannot hide a wrap`);
     }
-    if (arrival.scrollMarginTop !== '72px') {
-      fail('block-clears-the-header', `the marked line scroll-margin-top is ${JSON.stringify(arrival.scrollMarginTop)}, want "72px" so the jump clears the sticky header`);
+    if (parseFloat(arrival.scrollMarginTop) !== arrival.clearance) {
+      fail('block-clears-the-header', `the marked line scroll-margin-top is ${JSON.stringify(arrival.scrollMarginTop)}, want ${arrival.clearance}px from --header-height so the jump clears the sticky header`);
     }
-    // The caret owes the same 72px pad the headings use. A landing that only
-    // ran out of page can sit anywhere in the viewport and still look clear;
-    // the marked line has to come to rest just under the header.
-    if (!(arrival.top >= arrival.headerBottom && arrival.top <= 80)) {
+    // The caret owes the header's own pad. A landing that only ran out of
+    // page can sit anywhere in the viewport and still look clear; the marked
+    // line has to come to rest just under the painted bar. Stretching the
+    // header while leaving the margin at the token value is what this
+    // assertion exists to catch — the property check above would stay green.
+    if (!(arrival.top >= arrival.headerBottom && arrival.top <= arrival.clearance + 8)) {
       fail('block-clears-the-header', `after following ${JSON.stringify(BLOCK_LINK.label)} the marked line sits at ${arrival.top}px; the header occupies 0–${arrival.headerBottom}px, want the line just under it`);
     }
     await page.close();
