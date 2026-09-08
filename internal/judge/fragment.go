@@ -56,7 +56,7 @@ func anchorSurface(body string) (sections, excerptSections map[string]bool, bloc
 // the same zones the link extraction skips, so the two readings of one note
 // hide the same text.
 func withoutCommentZones(body string) string {
-	codeZones, _ := structure(body)
+	codeZones, _ := structure(body, nil)
 	zones := commentZones(body, codeZones)
 	if len(zones) == 0 {
 		return body

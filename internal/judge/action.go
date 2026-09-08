@@ -88,7 +88,7 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		if hooks.afterNoteRead != nil {
 			hooks.afterNoteRead(relPath)
 		}
-		a.notes = append(a.notes, parseNote(relPath, data))
+		a.notes = append(a.notes, parseNoteWithMarks(relPath, data, plannedMarksFrom(a.authority.contract)))
 	}
 	return a, nil
 }

@@ -59,12 +59,36 @@ func TestDefinitionIsDetached(t *testing.T) {
 
 	mutated.Rules.DomainEqualsFolderUnder[0] = "changed"
 	mutated.Rules.ConceptRequiresProvenance[0] = "changed"
+	mutated.Rules.PlannedGapMarks[0] = "changed"
+	mutated.Rules.PlannedInlineMarks[0] = "changed"
 
 	if diff := cmp.Diff(want, contract.Definition()); diff != "" {
 		t.Errorf("Definition() changed after caller mutation (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(schema.ScanPolicy{}, contract.Definition().Scan); diff != "" {
 		t.Errorf("Definition().Scan handed out the raw scan declaration (-want +got):\n%s", diff)
+	}
+}
+
+// TestDefaultPlannedMarksAreDetached asserts a caller that edits the returned
+// lists edits its own copy, the same guarantee Definition() gives.
+func TestDefaultPlannedMarksAreDetached(t *testing.T) {
+	t.Parallel()
+
+	wantGap := schema.DefaultPlannedGapMarks()
+	wantInline := schema.DefaultPlannedInlineMarks()
+	gap := schema.DefaultPlannedGapMarks()
+	inline := schema.DefaultPlannedInlineMarks()
+	if len(gap) == 0 || len(inline) == 0 {
+		t.Fatal("loader defaults are empty; the detachment claim would be vacuous")
+	}
+	gap[0] = "changed"
+	inline[0] = "changed"
+	if diff := cmp.Diff(wantGap, schema.DefaultPlannedGapMarks()); diff != "" {
+		t.Errorf("DefaultPlannedGapMarks() changed after caller mutation (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantInline, schema.DefaultPlannedInlineMarks()); diff != "" {
+		t.Errorf("DefaultPlannedInlineMarks() changed after caller mutation (-want +got):\n%s", diff)
 	}
 }
 

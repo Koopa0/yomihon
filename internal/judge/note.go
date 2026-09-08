@@ -99,13 +99,20 @@ func (v fmValue) stringValues() []string {
 // repeated key — yields a note flagged bad, reported as one fault rather than a
 // cascade of "field missing" for fields sitting above it.
 func parseNote(rel string, data []byte) note {
+	return parseNoteWithMarks(rel, data, defaultPlannedMarks())
+}
+
+// parseNoteWithMarks is parseNote using the heading and inline marks the
+// contract declared, so a vault that names English marks is extracted
+// against those marks rather than the loader default.
+func parseNoteWithMarks(rel string, data []byte, marks plannedMarks) note {
 	block, found := vault.SplitFrontmatter(data)
 	body := string(block.Body)
 	n := note{
 		path:         rel,
-		wikilinks:    extractWikilinks(body, block.BodyStartLine),
+		wikilinks:    extractWikilinksWith(body, block.BodyStartLine, marks.heading),
 		pathRefs:     extractPathRefs(body, block.BodyStartLine),
-		plannedNames: extractPlannedNames(body),
+		plannedNames: extractPlannedNamesWith(body, marks),
 		sequence:     sequence.Parse(body, block.BodyStartLine),
 	}
 	n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurface(body)
