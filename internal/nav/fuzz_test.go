@@ -22,6 +22,9 @@ func FuzzParseBranches(f *testing.F) {
 		"######## Deep\n+ [[深いリンク]]",
 		"## Controls\x00\n- [[目標\u0085名]]",
 		"## Warnings\n- [[Duplicate Name]]\n- [[Card]]\n- [[No Such Note]]",
+		"## Prose\nSee [[Effective Go]] in a sentence.\n",
+		"## Fence\n```\n- [[Effective Go]]\n```\n",
+		"## Table\n| col |\n| --- |\n| [[Effective Go\\|shown]] |\n",
 	} {
 		f.Add(seed)
 	}
@@ -66,12 +69,13 @@ func FuzzParseBranches(f *testing.F) {
 		}
 
 		maxLines := 1 + strings.Count(body, "\n")
+		maxLinks := strings.Count(body, "[[")
 		nodes, entries := checkBranchTree(t, first, 1)
 		if nodes > maxLines {
 			t.Fatalf("parseBranches() produced %d branches from %d lines", nodes, maxLines)
 		}
-		if entries > maxLines {
-			t.Fatalf("parseBranches() produced %d entries from %d lines", entries, maxLines)
+		if entries > maxLinks {
+			t.Fatalf("parseBranches() produced %d entries from %d wikilink openers", entries, maxLinks)
 		}
 	})
 }

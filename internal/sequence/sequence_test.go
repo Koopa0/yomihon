@@ -199,6 +199,37 @@ func TestRowsTheGrammarMustNotCollect(t *testing.T) {
 	}
 }
 
+// A map asks the live-link scan of the whole body, not of course rows, so a
+// prose or table link is live here even though it is not a lesson, and a
+// fenced copy of one is not.
+func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
+	t.Parallel()
+
+	body := "## Authors\n" +
+		"\n" +
+		"See [[Norwegian Wood]].\n" +
+		"\n" +
+		"```\n" +
+		"[[Fenced]]\n" +
+		"```\n" +
+		"\n" +
+		"| col |\n" +
+		"| --- |\n" +
+		"| [[挪威的森林\\|《挪威的森林》]] |\n"
+	got := LiveWikilinks(body)
+	names := make([]string, 0, len(got))
+	for _, link := range got {
+		names = append(names, link.Target+"|"+link.Display)
+	}
+	want := []string{
+		"Norwegian Wood|Norwegian Wood",
+		"挪威的森林|《挪威的森林》",
+	}
+	if diff := cmp.Diff(want, names); diff != "" {
+		t.Errorf("LiveWikilinks() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestRowsTheGrammarMustCollect is the reject set's control. Without it the
 // test above passes for a parser that collects nothing at all. Every case here
 // is canonical: the row's single live link is its first visible inline.

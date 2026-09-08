@@ -57,6 +57,26 @@ func TestAMapRowCountsBranchesAtEveryDepth(t *testing.T) {
 	}
 }
 
+// A map written as headings and prose still has a branch count: the mark is
+// the number of surviving headings, which is the tree the rail draws, not a
+// second figure invented for the shelf.
+func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
+	t.Parallel()
+
+	prose := nav.Map{Title: "A map written as prose", RelPath: "Maps/Prose map.md", Branches: []nav.Branch{
+		{Heading: "Authors", Entries: []nav.MapEntry{{Text: "Norwegian Wood"}, {Text: "Kafka on the Shore"}}},
+		{Heading: "Forms", Entries: []nav.MapEntry{{Text: "The Wind-Up Bird Chronicle"}}},
+		{Heading: "Editions", Entries: []nav.MapEntry{{Text: "《挪威的森林》"}, {Text: "海辺のカフカ"}}},
+		{Heading: "Places — [[Sputnik Sweetheart]]", Entries: []nav.MapEntry{{Text: "Sputnik Sweetheart"}}},
+		{Heading: "After", Entries: []nav.MapEntry{{Text: "Colorless Tsukuru Tazaki"}}},
+	}}
+	view := NewMapIndex([]nav.Map{prose}, nav.Closure{}, true, wording.ZhHant)
+	want := []Row{{Text: "A map written as prose", Href: "/notes/Maps/Prose%20map.md", Mark: "5 枝"}}
+	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
+		t.Errorf("prose map shelf mark mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestAReportRowNamesItsKindAndItsDay keeps the two kinds of report apart and
 // lifts the day out of a filename written as one. The kinds open differently —
 // a briefing's bytes are shown inside an isolated frame, a written report is a

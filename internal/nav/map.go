@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -19,9 +20,10 @@ type Map struct {
 	Branches []Branch
 }
 
-// Branch is one heading in a map, holding the entries listed directly beneath
-// it and its nested subbranches. A Branch is present only where it or a
-// descendant carries an entry, so a heading of pure prose never appears.
+// Branch is one heading in a map, holding the resolved wikilinks that sit
+// directly beneath it — in a list item, in the heading, or in prose — and
+// its nested subbranches. A Branch is present only where it or a descendant
+// carries an entry, so a heading of pure prose never appears.
 type Branch struct {
 	// Heading is the display label: the English column of a pipe-format
 	// "slug | English | Chinese" heading, otherwise the whole heading text.
@@ -33,9 +35,10 @@ type Branch struct {
 	Subbranches []Branch
 }
 
-// MapEntry is one wikilink list-item of a general map. A map keeps only
+// MapEntry is one resolved wikilink in a general map's body. A map keeps only
 // governed, resolved rows; a study path's PathEntry keeps its warning rows too,
-// because their order is a curriculum.
+// because their order is a curriculum. The shelf's branch count is how many
+// headings this list keeps alive, so the rail and the shelf name the same tree.
 type MapEntry struct {
 	Text       string
 	Target     string
@@ -95,11 +98,12 @@ type branchNode struct {
 // parseBranches builds a map's tree from the body alone, naming no file and no
 // heading. A heading at level >= 2 opens a branch nested under the nearest
 // shallower open heading; an H1 is the document title and is ignored, mirroring
-// the reading page's leading-H1 removal. An entry list-item attaches to the
-// open heading: an unordered bullet ("- ", "* ", "+ ") that is not a GFM task
-// checkbox and carries a [[wikilink]], resolved by graph semantics. Pruning
-// every heading with no entry beneath it leaves a map's prose and checkbox
-// branches out without naming them; only resolved governed rows survive.
+// the reading page's leading-H1 removal. Every live wikilink under the open
+// heading becomes an entry: the same scan a study path already uses, so a
+// link in a list item, a heading, prose, or a table counts, and a link inside
+// a fence, a code span, or an Obsidian comment does not. Pruning every heading
+// with no entry beneath it leaves a map's pure-prose headings out without
+// naming them; only resolved governed rows survive.
 func parseBranches(
 	body string,
 	idx *graph.Index,
@@ -108,9 +112,33 @@ func parseBranches(
 ) []Branch {
 	var roots []*branchNode
 	var stack []*branchNode
+	var scan graph.LineScan
+	links := sequence.LiveWikilinks(body)
+	next := 0
+	offset := 0
+
+	attach := func(until int) {
+		for next < len(links) && links[next].Span.Start < until {
+			link := links[next]
+			next++
+			if len(stack) == 0 {
+				continue
+			}
+			entry := resolveEntry(link.Target, link.Display, idx, statusByPath, policy)
+			if entry.Kind != EntryResolved {
+				continue
+			}
+			top := stack[len(stack)-1]
+			top.entries = append(top.entries, entry)
+		}
+	}
 
 	for line := range strings.SplitSeq(body, "\n") {
-		if text, level, ok := parseHeading(line); ok {
+		lineStart := offset
+		lineEnd := offset + len(line)
+		skip := scan.Skip(line)
+		if text, level, ok := parseHeading(line); ok && !skip {
+			attach(lineStart)
 			node := &branchNode{heading: headingLabel(text), level: level}
 			for len(stack) > 0 && stack[len(stack)-1].level >= level {
 				stack = stack[:len(stack)-1]
@@ -122,22 +150,11 @@ func parseBranches(
 				top.sub = append(top.sub, node)
 			}
 			stack = append(stack, node)
-			continue
 		}
-		inner, ok := parseEntryItem(line)
-		if !ok {
-			continue
-		}
-		entry, ok := makeEntry(inner, idx, statusByPath, policy)
-		if !ok || len(stack) == 0 {
-			continue
-		}
-		if entry.Kind != EntryResolved {
-			continue
-		}
-		top := stack[len(stack)-1]
-		top.entries = append(top.entries, entry)
+		attach(lineEnd)
+		offset = lineEnd + 1
 	}
+	attach(offset)
 	return convertBranches(pruneBranches(roots))
 }
 
@@ -198,61 +215,11 @@ func headingLabel(text string) string {
 	return text
 }
 
-// parseEntryItem reports whether line is an entry list-item and returns the
-// inner text of its first wikilink.
-func parseEntryItem(line string) (inner string, ok bool) {
-	t := strings.TrimLeft(line, " \t")
-	switch {
-	case strings.HasPrefix(t, "- "):
-	case strings.HasPrefix(t, "* "):
-	case strings.HasPrefix(t, "+ "):
-	default:
-		return "", false
-	}
-	rest := t[2:]
-	if isTaskMarker(rest) {
-		return "", false
-	}
-	return firstWikilink(rest)
-}
-
-// isTaskMarker reports whether s, a bullet item's text after its marker, begins
-// with a GFM task checkbox. A "[[" wikilink opener is not one, so an entry
-// bullet is never mistaken for a task item.
-func isTaskMarker(s string) bool {
-	if len(s) < 3 || s[0] != '[' || s[2] != ']' {
-		return false
-	}
-	switch s[1] {
-	case ' ', 'x', 'X':
-	default:
-		return false
-	}
-	return len(s) == 3 || s[3] == ' '
-}
-
-// firstWikilink returns the inner text of the first "[[...]]" in s.
-func firstWikilink(s string) (inner string, ok bool) {
-	_, rest, found := strings.Cut(s, "[[")
-	if !found {
-		return "", false
-	}
-	inner, _, found = strings.Cut(rest, "]]")
-	if !found {
-		return "", false
-	}
-	return inner, true
-}
-
-// makeEntry resolves a wikilink's inner text into an Entry through the same
-// extraction and resolution an in-body wikilink gets, so the two agree exactly.
-// ok is false for a link with no note target, such as a same-file anchor.
-// Unresolved, ambiguous and non-instance targets get distinct warning kinds.
-func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, policy schema.ArtifactPolicy) (MapEntry, bool) {
-	target, display, ok := graph.SplitWikilink(inner)
-	if !ok {
-		return MapEntry{}, false
-	}
+// resolveEntry classifies a live wikilink the map's scanner already admitted.
+// Unresolved, ambiguous and non-instance targets get distinct warning kinds
+// and are dropped by parseBranches; only a uniquely resolved governed row
+// becomes an entry the rail can follow.
+func resolveEntry(target, display string, idx *graph.Index, statusByPath map[string]string, policy schema.ArtifactPolicy) MapEntry {
 	res := idx.Resolve(target)
 	entry := MapEntry{Text: display, Target: target, Kind: entryKindOf(res, policy)}
 	if entry.Kind == EntryResolved {
@@ -262,5 +229,5 @@ func makeEntry(inner string, idx *graph.Index, statusByPath map[string]string, p
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)
 	}
-	return entry, true
+	return entry
 }

@@ -729,9 +729,9 @@ func resolver(t *testing.T, paths ...string) *graph.Index {
 
 // TestParseBranchesGoShape covers the pipe-format Go map shape: H2/H3
 // headings "slug | English | Chinese" (the English column becomes the
-// label) and "- [[MapEntry]]" bullets, with prose lines (範圍/★) between
-// headings that must NOT become entries, and a trailing part with no
-// entries that must be pruned away.
+// label) and "- [[MapEntry]]" bullets. A prose line that names a resolved
+// note is now an entry of the open heading; a trailing part with no
+// resolved wikilink anywhere under it is still pruned.
 func TestParseBranchesGoShape(t *testing.T) {
 	t.Parallel()
 
@@ -766,6 +766,9 @@ func TestParseBranchesGoShape(t *testing.T) {
 		{
 			Heading: "Data and the Hardware",
 			Level:   2,
+			Entries: []MapEntry{
+				{Text: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
+			},
 			Subbranches: []Branch{
 				{
 					Heading: "Text as Bytes",
@@ -793,12 +796,11 @@ func TestParseBranchesGoShape(t *testing.T) {
 }
 
 // TestParseBranchesMinnaShape covers the 大家 shape: the warm-up branch holds
-// direct P entries and the course-sequence branch holds a nested L entry tree;
-// the daily-loop (ordered list), learning levels (a table), and gaps (task
-// checkboxes) branches carry no entry bullets and must prune away — even the
-// gap task item that contains a [[wikilink]], and even the loop's ordered item
-// that contains one. A "待建" bullet with no wikilink is not an entry. The H1
-// title is ignored.
+// direct P entries and the course-sequence branch holds a nested L entry tree.
+// The daily-loop, learning-levels, and gaps branches carry no resolved
+// wikilink and prune away — the loop's ordered item and the gap task items
+// name notes that do not exist, and the levels table names none. A "待建"
+// bullet with no wikilink is not an entry. The H1 title is ignored.
 func TestParseBranchesMinnaShape(t *testing.T) {
 	t.Parallel()
 
@@ -897,7 +899,7 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 		"###notaspace this is not a heading\n" +
 		"#### \n" + // empty-label deeper heading, no entries -> pruned
 		"- \n" + // bare bullet, no wikilink -> not an entry
-		"- [ ] a task with a [[Real]] link -> excluded\n" +
+		"- [ ] a task with a [[Ghost]] link -> unresolved, heading prunes\n" +
 		"- no wikilink here at all\n" +
 		"\n" +
 		"### mod | Module | 模組\n" +
@@ -923,6 +925,121 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fault tolerance) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestParseBranchesProseLinksCountWhatThePageHolds is the constructed case
+// the shelf needed: five headings, seven resolved wikilinks, all in prose, a
+// heading, or a table, none in a list item. A map that holds that and still
+// counts 0 枝 is telling the reader the page is empty.
+func TestParseBranchesProseLinksCountWhatThePageHolds(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t,
+		"Norwegian Wood.md",
+		"Kafka on the Shore.md",
+		"The Wind-Up Bird Chronicle.md",
+		"挪威的森林.md",
+		"海辺のカフカ.md",
+		"Sputnik Sweetheart.md",
+		"Colorless Tsukuru Tazaki.md",
+	)
+
+	body := "## Authors\n" +
+		"\n" +
+		"Murakami sits beside [[Norwegian Wood]] and [[Kafka on the Shore]].\n" +
+		"\n" +
+		"## Forms\n" +
+		"\n" +
+		"See [[The Wind-Up Bird Chronicle]].\n" +
+		"\n" +
+		"## Editions\n" +
+		"\n" +
+		"| work | note |\n" +
+		"| --- | --- |\n" +
+		"| wood | [[挪威的森林\\|《挪威的森林》]] |\n" +
+		"| kafka | [[海辺のカフカ]] |\n" +
+		"\n" +
+		"## Places — [[Sputnik Sweetheart]]\n" +
+		"\n" +
+		"A heading that names a note is still a heading, and the note is still a branch.\n" +
+		"\n" +
+		"## After\n" +
+		"\n" +
+		"Later [[Colorless Tsukuru Tazaki]].\n"
+
+	want := []Branch{
+		{
+			Heading: "Authors",
+			Level:   2,
+			Entries: []MapEntry{
+				{Text: "Norwegian Wood", Target: "Norwegian Wood", RelPath: "Norwegian Wood.md"},
+				{Text: "Kafka on the Shore", Target: "Kafka on the Shore", RelPath: "Kafka on the Shore.md"},
+			},
+		},
+		{
+			Heading: "Forms",
+			Level:   2,
+			Entries: []MapEntry{
+				{Text: "The Wind-Up Bird Chronicle", Target: "The Wind-Up Bird Chronicle", RelPath: "The Wind-Up Bird Chronicle.md"},
+			},
+		},
+		{
+			Heading: "Editions",
+			Level:   2,
+			Entries: []MapEntry{
+				{Text: "《挪威的森林》", Target: "挪威的森林", RelPath: "挪威的森林.md"},
+				{Text: "海辺のカフカ", Target: "海辺のカフカ", RelPath: "海辺のカフカ.md"},
+			},
+		},
+		{
+			Heading: "Places — [[Sputnik Sweetheart]]",
+			Level:   2,
+			Entries: []MapEntry{
+				{Text: "Sputnik Sweetheart", Target: "Sputnik Sweetheart", RelPath: "Sputnik Sweetheart.md"},
+			},
+		},
+		{
+			Heading: "After",
+			Level:   2,
+			Entries: []MapEntry{
+				{Text: "Colorless Tsukuru Tazaki", Target: "Colorless Tsukuru Tazaki", RelPath: "Colorless Tsukuru Tazaki.md"},
+			},
+		},
+	}
+
+	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("parseBranches (prose map) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestParseBranchesFencedWikilinkIsNotAnEntry holds the other half of the
+// admission rule: a resolved wikilink written inside a fenced code block is
+// quoted syntax, not a branch, even when it is shaped as the list item the
+// old scanner would have kept.
+func TestParseBranchesFencedWikilinkIsNotAnEntry(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Fenced.md", "Live.md")
+	body := "## Quoted\n" +
+		"\n" +
+		"```\n" +
+		"- [[Fenced]]\n" +
+		"```\n" +
+		"\n" +
+		"- [[Live]]\n"
+
+	want := []Branch{{
+		Heading: "Quoted",
+		Level:   2,
+		Entries: []MapEntry{
+			{Text: "Live", Target: "Live", RelPath: "Live.md"},
+		},
+	}}
+	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("parseBranches (fenced negative) mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -983,8 +1100,7 @@ func TestPathKeepsAnAmbiguousLessonInOrder(t *testing.T) {
 	}
 }
 
-// TestParseHeading and TestParseEntryItem lock down the two line
-// classifiers the whole rule rests on.
+// TestParseHeading locks the ATX-heading classifier the tree walk rests on.
 func TestParseHeading(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -1008,36 +1124,6 @@ func TestParseHeading(t *testing.T) {
 			if ok != tt.wantOK || text != tt.wantText || level != tt.wantLevel {
 				t.Errorf("parseHeading(%q) = (%q, %d, %t), want (%q, %d, %t)",
 					tt.line, text, level, ok, tt.wantText, tt.wantLevel, tt.wantOK)
-			}
-		})
-	}
-}
-
-func TestParseEntryItem(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name      string
-		line      string
-		wantInner string
-		wantOK    bool
-	}{
-		{name: "go bullet", line: "- [[Slices- Strings and Slices]]", wantInner: "Slices- Strings and Slices", wantOK: true},
-		{name: "minna trailing link", line: "- **L1** intro · [[L01 〜は〜です]]", wantInner: "L01 〜は〜です", wantOK: true},
-		{name: "star bullet", line: "* [[Alt]]", wantInner: "Alt", wantOK: true},
-		{name: "ordered item excluded", line: "1. **step** links [[Loop Link]]", wantOK: false},
-		{name: "task unchecked excluded", line: "- [ ] todo (spec [[Guide]])", wantOK: false},
-		{name: "task checked excluded", line: "- [x] done, see [[Guide]]", wantOK: false},
-		{name: "bullet without wikilink", line: "- **L21** 引用・意見 · 待建", wantOK: false},
-		{name: "blockquote excluded", line: "> prose with [[Link]]", wantOK: false},
-		{name: "bare bullet", line: "- ", wantOK: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			inner, ok := parseEntryItem(tt.line)
-			if ok != tt.wantOK || inner != tt.wantInner {
-				t.Errorf("parseEntryItem(%q) = (%q, %t), want (%q, %t)",
-					tt.line, inner, ok, tt.wantInner, tt.wantOK)
 			}
 		})
 	}
@@ -1859,7 +1945,7 @@ func TestOnlyOneFunctionClassifiesAResolutionKind(t *testing.T) {
 	if matching["entryKindOf"] == 0 {
 		t.Error("entryKindOf no longer matches the resolver's kinds, so this check is watching a name that moved")
 	}
-	for _, builder := range []string{"makeEntry", "buildPathEntry"} {
+	for _, builder := range []string{"resolveEntry", "buildPathEntry"} {
 		if calling[builder] == 0 {
 			t.Errorf("%s does not ask entryKindOf what it resolved", builder)
 		}
