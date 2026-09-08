@@ -164,6 +164,7 @@ type entry struct {
 	PlainFold       string
 	blockEnds       []int
 	fenceRanges     [][2]int
+	fenceFoldRanges [][2]int
 	isFile          bool
 	metadataCapable bool
 	// frontmatterUnreadable records that this note had a frontmatter block that
@@ -256,6 +257,9 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	// same string as normalising the body in one pass.
 	blockEnds := blockEndsOnNormalized(d.PlainText, d.BlockEnds)
 	fenceRanges := fenceRangesOnNormalized(d.PlainText, d.FenceRanges)
+	// Fold-space spans are tabulated here so a query can classify a hit
+	// without walking the note once per fence occurrence.
+	fenceFoldRanges := foldRanges(plain, fenceRanges)
 	noteType := vault.NormalizeNFC(d.NoteType)
 	domain := vault.NormalizeNFC(d.Domain)
 	status := vault.NormalizeNFC(d.Status)
@@ -273,27 +277,28 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		aliasFolds[i] = fold(aliases[i])
 	}
 	return entry{
-		RelPath:      d.RelPath,
-		PathFold:     fold(vault.NormalizeNFC(d.RelPath)),
-		Title:        title,
-		TitleFold:    fold(title),
-		Aliases:      aliases,
-		AliasFolds:   aliasFolds,
-		NoteType:     noteType,
-		NoteTypeFold: fold(noteType),
-		Domain:       domain,
-		DomainFold:   fold(domain),
-		Status:       status,
-		StatusFold:   fold(status),
-		Slug:         slug,
-		SlugFold:     fold(slug),
-		Topics:       topics,
-		TopicFolds:   topicFolds,
-		PlainText:    plain,
-		PlainFold:    fold(plain),
-		blockEnds:    blockEnds,
-		fenceRanges:  fenceRanges,
-		isFile:       d.File,
+		RelPath:         d.RelPath,
+		PathFold:        fold(vault.NormalizeNFC(d.RelPath)),
+		Title:           title,
+		TitleFold:       fold(title),
+		Aliases:         aliases,
+		AliasFolds:      aliasFolds,
+		NoteType:        noteType,
+		NoteTypeFold:    fold(noteType),
+		Domain:          domain,
+		DomainFold:      fold(domain),
+		Status:          status,
+		StatusFold:      fold(status),
+		Slug:            slug,
+		SlugFold:        fold(slug),
+		Topics:          topics,
+		TopicFolds:      topicFolds,
+		PlainText:       plain,
+		PlainFold:       fold(plain),
+		blockEnds:       blockEnds,
+		fenceRanges:     fenceRanges,
+		fenceFoldRanges: fenceFoldRanges,
+		isFile:          d.File,
 		// An unclaimed policy excludes nothing, so every readable note answers over
 		// its own raw frontmatter. A file has no frontmatter, so it answers no
 		// metadata projection under any policy.
@@ -333,16 +338,18 @@ func blockEndsOnNormalized(raw string, ends []int) []int {
 	return out
 }
 
-// fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw),
-// the same prefix-length walk blockEndsOnNormalized uses for exclusive ends.
+// fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw)
+// through the same exclusive-end walk block ends already use. A second
+// prefix machine would drift from that walk the first time one of them
+// changed.
 func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
 	if len(ranges) == 0 {
 		return nil
 	}
 	out := make([][2]int, 0, len(ranges))
 	for _, r := range ranges {
-		start := nfcPrefixLen(raw, r[0])
-		end := nfcPrefixLen(raw, r[1])
+		start := mappedEnd(raw, r[0])
+		end := mappedEnd(raw, r[1])
 		if end > start {
 			out = append(out, [2]int{start, end})
 		}
@@ -350,14 +357,45 @@ func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
 	return out
 }
 
-func nfcPrefixLen(raw string, off int) int {
+func mappedEnd(raw string, off int) int {
 	if off <= 0 {
 		return 0
 	}
-	if off > len(raw) {
-		off = len(raw)
+	mapped := blockEndsOnNormalized(raw, []int{off})
+	if len(mapped) == 0 {
+		return 0
 	}
-	return len(vault.NormalizeNFC(raw[:off]))
+	return mapped[0]
+}
+
+// foldRanges maps source-space half-open spans onto the folded copy of
+// plain, so a query can test membership in fold coordinates.
+func foldRanges(plain string, ranges [][2]int) [][2]int {
+	if len(ranges) == 0 {
+		return nil
+	}
+	_, src := foldWithSourceOffsets(plain)
+	out := make([][2]int, 0, len(ranges))
+	for _, r := range ranges {
+		lo := foldIndexAtSource(src, r[0])
+		hi := foldIndexAtSource(src, r[1])
+		if hi > lo {
+			out = append(out, [2]int{lo, hi})
+		}
+	}
+	return out
+}
+
+func foldIndexAtSource(srcOfFold []int, src int) int {
+	for i, s := range srcOfFold {
+		if s >= src {
+			return i
+		}
+	}
+	if len(srcOfFold) == 0 {
+		return 0
+	}
+	return len(srcOfFold) - 1
 }
 
 // DocumentFromNote extracts a Document from a parsed note: the structured fields

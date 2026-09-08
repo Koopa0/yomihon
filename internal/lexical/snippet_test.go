@@ -717,15 +717,15 @@ func TestExcerptPrefersProseWhenTheSameWordsSitInAFence(t *testing.T) {
 	if !strings.Contains(got, "The source owns jobs after the workers close.") {
 		t.Errorf("snippet() = %q, want the prose window that holds the same words", got)
 	}
-	if results[0].Landing != "owns jobs" {
-		t.Errorf("Landing = %q, want the prose phrase, not the fence copy", results[0].Landing)
+	if results[0].Source {
+		t.Error("Source = true; the prose window answered, so the row is not a fence hit")
 	}
 }
 
 // TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere is the other half: a note
 // whose only mention is inside a fence still produces an excerpt rather than
-// dropping the hit, and that excerpt is marked as source so it does not read
-// as a sentence the note wrote.
+// dropping the hit. The excerpt is the fence's own lines; the row names it
+// as source so those lines are not presented as a sentence the note wrote.
 func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
 	t.Parallel()
 
@@ -753,11 +753,106 @@ func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
 	if !strings.Contains(got, "owns jobs") {
 		t.Errorf("snippet() = %q, dropped the fence words the query asked for", got)
 	}
+	if !results[0].Source {
+		t.Error("Source = false; a fence-only hit must name the excerpt as source")
+	}
 	body := strings.TrimPrefix(got, "…")
-	if !strings.HasPrefix(body, "source:") {
-		t.Errorf("snippet() = %q, want a fence-only excerpt marked as source rather than presented as a sentence", got)
+	if strings.HasPrefix(strings.ToLower(body), "source:") {
+		t.Errorf("snippet() = %q, injected a source prefix into the excerpt", got)
+	}
+	if strings.Contains(got, "something else entirely") {
+		t.Errorf("snippet() = %q, opened as the preceding paragraph", got)
 	}
 	if results[0].Landing == "" {
 		t.Error("Landing is empty; a fence-only hit must still name where it matched")
+	}
+}
+
+// TestMappedEndContractsAnNFDPrefix is the NFC remap lock: identity
+// (mappedEnd → return off) stays green unless a combining mark sits
+// before the offset. blockEndsOnNormalized already does this walk for
+// block ends; a second machine would drift from it.
+func TestMappedEndContractsAnNFDPrefix(t *testing.T) {
+	t.Parallel()
+
+	raw := "caf\u0065\u0301\n\nrest"
+	off := len("caf\u0065\u0301")
+	got := mappedEnd(raw, off)
+	want := blockEndsOnNormalized(raw, []int{off})[0]
+	if got != want {
+		t.Fatalf("mappedEnd(%d) = %d, want blockEndsOnNormalized[0] = %d", off, got, want)
+	}
+	if got == off {
+		t.Fatalf("mappedEnd returned the raw offset %d; NFC contracted the prefix to %d", off, want)
+	}
+}
+
+// TestFenceRangeRemapSurvivesAnNFDCharacter is the excerpt half of that
+// remap: an NFD prefix shrinks under NFC, so unmapped fence ends extend
+// into the following prose and the clamp swallows it.
+func TestFenceRangeRemapSurvivesAnNFDCharacter(t *testing.T) {
+	t.Parallel()
+
+	const token = "UNIQUE_FENCE_ONLY_TOKEN"
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/NFC fence.md", []byte(""+
+			"# NFC fence\n\n"+
+			strings.Repeat("e\u0301", 32)+"\n\n"+
+			"```d2\n"+
+			token+"\n"+
+			"```\n\n"+
+			"The workers close after the source.\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(token), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	if !results[0].Source {
+		t.Fatal("Source = false; the token lives only in the fence")
+	}
+	if strings.Contains(results[0].Snippet, "workers") {
+		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)
+	}
+	if !strings.Contains(results[0].Snippet, token) {
+		t.Fatalf("snippet() = %q, dropped the fence token", results[0].Snippet)
+	}
+}
+
+// TestFenceExcerptDoesNotWalkToThePreviousSentence locks the sentence-start
+// guard: UNIQUE_FENCE_HEAD opens the sentence that contains the match, but
+// it sits past the 40-character lookback (and inside the 120-character
+// reach). Walking back to that sentence would present fence source as
+// prose; clamping to the fence cannot hide it.
+func TestFenceExcerptDoesNotWalkToThePreviousSentence(t *testing.T) {
+	t.Parallel()
+
+	const token = "owns jobs"
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Fence sentence.md", []byte(""+
+			"# Fence sentence\n\n"+
+			"```d2\n"+
+			"PRE. UNIQUE_FENCE_HEAD "+strings.Repeat("y", 50)+" "+token+"\n"+
+			"```\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(`"`+token+`"`), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	if !results[0].Source {
+		t.Fatal("Source = false; the token lives only in the fence")
+	}
+	if strings.Contains(results[0].Snippet, "UNIQUE_FENCE_HEAD") {
+		t.Fatalf("snippet() = %q, walked back to the previous sentence inside the fence", results[0].Snippet)
+	}
+	if !strings.Contains(results[0].Snippet, token) {
+		t.Fatalf("snippet() = %q, dropped the fence words the query asked for", results[0].Snippet)
 	}
 }

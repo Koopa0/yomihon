@@ -28,16 +28,18 @@ func BenchmarkSearch(b *testing.B) {
 // not as a later review.
 func BenchmarkSearchResultMaterialization(b *testing.B) {
 	const notes = 200
-	body := strings.Repeat("The filler paragraph stays out of the way.\n\n", 40) +
+	body := "```d2\nneedle in a fence first\n```\n\n" +
+		strings.Repeat("The filler paragraph stays out of the way.\n\n", 40) +
 		"needle sits here\n\nand more " + strings.Repeat("filler word ", 200)
-	text, ends, _ := render.PlainBlocks(body)
+	text, ends, fences := render.PlainBlocks(body)
 	docs := make([]Document, notes)
 	for i := range docs {
 		docs[i] = Document{
-			RelPath:   fmt.Sprintf("Notes/n%03d.md", i),
-			Title:     fmt.Sprintf("Note %03d", i),
-			PlainText: text,
-			BlockEnds: ends,
+			RelPath:     fmt.Sprintf("Notes/n%03d.md", i),
+			Title:       fmt.Sprintf("Note %03d", i),
+			PlainText:   text,
+			BlockEnds:   ends,
+			FenceRanges: fences,
 		}
 	}
 	idx := NewIndex(docs, validArtifactPolicy(b))
@@ -49,6 +51,53 @@ func BenchmarkSearchResultMaterialization(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+// BenchmarkSearchLiveVaultSizedFences times the 200-row materialization the
+// handler ships, over a corpus the size of the live vault that produced the
+// review numbers (537 notes, many of them carrying a d2 fence that also
+// holds the query). The queries are the ones the review timed: err, return.
+func BenchmarkSearchLiveVaultSizedFences(b *testing.B) {
+	idx := NewIndex(liveVaultSizedFenceDocs(), validArtifactPolicy(b))
+	for _, q := range []string{"err", "return"} {
+		b.Run(q, func(b *testing.B) {
+			query := Parse(q)
+			b.ReportAllocs()
+			for b.Loop() {
+				_, _, err := idx.SearchN(query, 200)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func liveVaultSizedFenceDocs() []Document {
+	const notes = 537
+	fence := "" +
+		"```d2\n" +
+		"direction: right\n" +
+		"Source: \"source\\nowns jobs close\"\n" +
+		"err := work(); if err != nil { return err }\n" +
+		"```\n"
+	prose := "A pipeline stage owns jobs and reports an err only after workers return.\n"
+	// ~8 KiB/note: foldRunes still walks every character on each fence
+	// occurrence, so a short fixture cannot show the live-vault cost.
+	body := fence + strings.Repeat("The filler paragraph stays out of the way.\n\n", 120) + prose +
+		strings.Repeat("and more filler word ", 200)
+	text, ends, fences := render.PlainBlocks(body)
+	docs := make([]Document, notes)
+	for i := range docs {
+		docs[i] = Document{
+			RelPath:     fmt.Sprintf("Notes/n%03d.md", i),
+			Title:       fmt.Sprintf("Note %03d", i),
+			PlainText:   text,
+			BlockEnds:   ends,
+			FenceRanges: fences,
+		}
+	}
+	return docs
 }
 
 // benchDocs is a small fixed corpus spanning a few domains and statuses, with

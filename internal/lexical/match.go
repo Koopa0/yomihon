@@ -52,6 +52,11 @@ type Result struct {
 	// BlockCrossing reports that the match continues past that first block,
 	// so a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
+
+	// Source reports that the deciding excerpt is a fenced block: the words
+	// live only there. The row names that the way it names an alias or a
+	// topic; the excerpt itself stays the fence's own lines.
+	Source bool
 }
 
 const (
@@ -381,9 +386,10 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		status, noteType = "", ""
 	}
 	var bodySnippet, landing, landingEnd string
-	var crossing bool
+	var crossing, fromFence bool
 	if bodyEvidence {
-		foldStart, foldEnd := earliestOffset(e.PlainText, e.PlainFold, tokens, e.fenceRanges)
+		var foldStart, foldEnd int
+		foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
 		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
 		landing, landingEnd, crossing = e.landingAt(foldStart, foldEnd)
 	}
@@ -399,6 +405,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		Landing:       landing,
 		LandingEnd:    landingEnd,
 		BlockCrossing: crossing,
+		Source:        fromFence,
 	}
 }
 
@@ -525,9 +532,6 @@ func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
 	}
 
 	s := collapseFields(plain[start:end])
-	if inFence {
-		s = sourceExcerptPrefix + s
-	}
 	if start > 0 {
 		s = "…" + s
 	}
@@ -538,20 +542,23 @@ func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
 }
 
 func snippet(plain, plainFold string, tokens []string) string {
-	foldStart, foldEnd := earliestOffset(plain, plainFold, tokens, nil)
-	return snippetAt(plain, foldStart, foldEnd, nil)
+	return snippetWithFences(plain, plainFold, tokens, nil)
 }
 
-const sourceExcerptPrefix = "source: "
+func snippetWithFences(plain, plainFold string, tokens []string, fences [][2]int) string {
+	foldStart, foldEnd, _ := earliestOffset(plainFold, tokens, foldRanges(plain, fences))
+	return snippetAt(plain, foldStart, foldEnd, fences)
+}
 
 // earliestOffset returns the folded byte range of the token that should
 // centre the excerpt: the earliest prose hit when the note has one, otherwise
-// the earliest fence hit. start is < 0 when no token occurs.
-func earliestOffset(plain, fold string, tokens []string, fences [][2]int) (start, end int) {
+// the earliest fence hit. start is < 0 when no token occurs. inFence is
+// true only when the words live only in a fence.
+func earliestOffset(fold string, tokens []string, foldFences [][2]int) (start, end int, inFence bool) {
 	proseStart, proseEnd := -1, 0
 	fenceStart, fenceEnd := -1, 0
 	for _, t := range tokens {
-		ps, pe, fs, fe := tokenWindows(plain, fold, t, fences)
+		ps, pe, fs, fe := tokenWindows(fold, t, foldFences)
 		if ps >= 0 && (proseStart < 0 || ps < proseStart) {
 			proseStart, proseEnd = ps, pe
 		}
@@ -560,22 +567,23 @@ func earliestOffset(plain, fold string, tokens []string, fences [][2]int) (start
 		}
 	}
 	if proseStart >= 0 {
-		return proseStart, proseEnd
+		return proseStart, proseEnd, false
 	}
-	return fenceStart, fenceEnd
+	return fenceStart, fenceEnd, fenceStart >= 0
 }
 
 // tokenWindows is one token's earliest prose hit and earliest fence hit.
 // A later occurrence of the same token cannot sit earlier than the first
 // of each kind, so the scan stops once both are known or the text ends.
-func tokenWindows(plain, fold, token string, fences [][2]int) (proseStart, proseEnd, fenceStart, fenceEnd int) {
+// Membership is tested in fold space against spans tabulated at index time.
+func tokenWindows(fold, token string, foldFences [][2]int) (proseStart, proseEnd, fenceStart, fenceEnd int) {
 	proseStart, fenceStart = -1, -1
 	for at := 0; at <= len(fold); {
 		i, stop := phraseIndex(fold, token, at)
 		if i < 0 {
 			return proseStart, proseEnd, fenceStart, fenceEnd
 		}
-		if len(fences) > 0 && inFenceRange(sourceOffsetOfFold(plain, i), fences) {
+		if len(foldFences) > 0 && inFenceRange(i, foldFences) {
 			if fenceStart < 0 {
 				fenceStart, fenceEnd = i, stop
 			}
