@@ -1668,6 +1668,14 @@ func TestSealStatusPinned(t *testing.T) {
 	}
 }
 
+func TestSystemDocumentGroupPinned(t *testing.T) {
+	t.Parallel()
+
+	if got := schema.SystemDocumentGroup; got != "system" {
+		t.Errorf("SystemDocumentGroup = %q, want %q", got, "system")
+	}
+}
+
 // TestStatusValuesAreNeverHardcodedOutsideSchema guards the single-source rule
 // for the status state machine. The legal status values are defined once, in
 // the vault contract that this package alone reads; no other package in this

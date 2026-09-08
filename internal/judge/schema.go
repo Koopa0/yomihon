@@ -151,33 +151,13 @@ func (r *lintRun) note(n *note) []Finding {
 
 	// The group is resolved once and travels to the rule, so the enum the rule
 	// reads is the group it was routed by. Which group holds working documents
-	// is the contract's status-group assignment, not a name this face spells:
-	// any declared group other than the default note group and the lesson
-	// group's is treated as a document group, so a vault that files templates
-	// under "ops" still gets the light rules.
-	if hasType {
-		if group, ok := r.workingDocumentGroup(ty); ok {
-			return append(out, r.documentStatus(n, group)...)
-		}
+	// is pinned on schema.SystemDocumentGroup: the contract assigns membership,
+	// and a vault that files those types under another name still takes the
+	// full knowledge-note rules.
+	if hasType && r.contract.StatusGroup(ty) == schema.SystemDocumentGroup {
+		return append(out, r.documentStatus(n, schema.SystemDocumentGroup)...)
 	}
 	return append(out, r.knowledge(n)...)
-}
-
-// workingDocumentGroup reports the status group a type answers to when that
-// group is neither the default note group nor the lesson group's. An undeclared
-// type has no group and is not a document.
-func (r *lintRun) workingDocumentGroup(ty string) (string, bool) {
-	group := r.contract.StatusGroup(ty)
-	if group == "" {
-		return "", false
-	}
-	if group == r.contract.StatusGroup("") {
-		return "", false
-	}
-	if r.lessonType != "" && group == r.contract.StatusGroup(r.lessonType) {
-		return "", false
-	}
-	return group, true
 }
 
 // articleLanguage reports a language tag the reader's browser cannot act on,

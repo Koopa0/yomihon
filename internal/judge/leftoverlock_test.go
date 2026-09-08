@@ -10,7 +10,7 @@ import (
 
 // leftoverLockContract is the shared Lock vault for the #238 leftovers that
 // need a loaded contract: one knowledge note under Notes, no report type, no
-// title_en in fields.known, and a default note status group.
+// title_en in any declared field list, and a default note status group.
 const leftoverLockContract = `schema_version = "1"
 
 [enums]
@@ -141,8 +141,9 @@ func TestMarkdownCheckReportFrontmatterTheVaultAccepts(t *testing.T) {
 
 // TestExistsMatchesTitleEnOnlyWhenKnown is the Lock for exists / title_en.
 // The local title and the English title are different strings, so a match on
-// title_en cannot be excused as a folded title hit. When fields.known omits
-// title_en, the name is absent; when it declares the field, the match names it.
+// title_en cannot be excused as a folded title hit. When the contract omits
+// title_en from every declared list, the name is absent; when fields.known or
+// a per-type list such as fields.lesson_only declares it, the match names it.
 func TestExistsMatchesTitleEnOnlyWhenKnown(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +185,23 @@ func TestExistsMatchesTitleEnOnlyWhenKnown(t *testing.T) {
 			t.Errorf("exists did not match title_en when fields.known declares it:\n%s", out)
 		}
 	})
+
+	t.Run("declared in fields.lesson_only", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		write(t, root, schema.ContractRelPath, contractFixture(t, nil))
+		write(t, root, "Writing/lessons/golang/Local Name.md", "---\ntitle: Local Name\ntitle_en: English Name\ntype: lesson\ndomain: golang\nstatus: draft\ncreated: 2026-01-01\nupdated: 2026-01-01\nslug: local-name\n---\nBody.\n")
+		out, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "English Name", Format: FormatJSON})
+		if err != nil {
+			t.Fatalf("RunExists() error = %v", err)
+		}
+		if exit != 0 {
+			t.Errorf("RunExists() exit = %d, want 0 (title_en is lesson_only)\n%s", exit, out)
+		}
+		if !bytes.Contains(out, []byte(`"field":"title_en"`)) {
+			t.Errorf("exists did not match title_en when fields.lesson_only declares it:\n%s", out)
+		}
+	})
 }
 
 // TestArticleLanguageGateIsTheContracts is the Lock for the schema.language
@@ -206,13 +224,17 @@ func TestArticleLanguageGateIsTheContracts(t *testing.T) {
 	}
 }
 
-// TestWorkingDocumentsFollowAssignedStatusGroup is the Lock for the
-// systemDocumentGroup literal: a vault that files templates under a group
-// named "ops" still gets the light document rules. On a face that compared
-// the group to the word "system", this note would draw knowledge-note
-// required-field findings for the keys it does not carry.
-func TestWorkingDocumentsFollowAssignedStatusGroup(t *testing.T) {
+// TestThirdStatusGroupKeepsKnowledgeRules is the Lock for the
+// systemDocumentGroup leftover: the group name is schema.SystemDocumentGroup,
+// and assigning a type to any other group does not silence knowledge-note
+// validation. A template filed under "ops" still draws the required-field
+// findings the system group would have waived.
+func TestThirdStatusGroupKeepsKnowledgeRules(t *testing.T) {
 	t.Parallel()
+
+	if schema.SystemDocumentGroup != "system" {
+		t.Fatalf("SystemDocumentGroup = %q, want %q", schema.SystemDocumentGroup, "system")
+	}
 
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
@@ -228,7 +250,8 @@ func TestWorkingDocumentsFollowAssignedStatusGroup(t *testing.T) {
 	}
 	for i := range findings {
 		if findings[i].RuleID == "schema.required" {
-			t.Errorf("a working document in group ops drew a knowledge-note requirement: %+v", findings[i])
+			return
 		}
 	}
+	t.Errorf("a type in group ops drew no knowledge-note requirement; light document rules stay on %s", schema.SystemDocumentGroup)
 }

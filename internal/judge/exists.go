@@ -44,9 +44,9 @@ func (r existsReport) found() bool {
 // English title, normalizing both sides the same way the resolver keys names.
 // A note that exposes the name on more than one field yields one match per
 // field. Matches are ordered by path, then field. title_en is matched only
-// when fields.known declares it: a field the contract does not list is not a
-// name this oracle may report, because check would call the same bytes an
-// unknown key.
+// when the contract declares it — fields.known or a per-type list such as
+// fields.lesson_only. A field the contract does not list is not a name this
+// oracle may report, because check would call the same bytes an unknown key.
 func existsLookup(notes []note, query string, authority scanAuthority) existsReport {
 	key := normalizeKey(query)
 	known := knownFrontmatter(authority)
@@ -76,7 +76,7 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 
 // noteMatches returns every field of n that exposes the normalized key: its
 // filename stem, full filename, title, each alias, and English title when
-// fields.known declares title_en.
+// the contract declares title_en.
 func noteMatches(n *note, key string, known []string) []existsMatch {
 	var matches []existsMatch
 	stem := filenameStem(n.path)
@@ -103,13 +103,15 @@ func noteMatches(n *note, key string, known []string) []existsMatch {
 	return matches
 }
 
-// knownFrontmatter is the contract's fields.known list. A nil contract declares
-// no field, so title_en cannot match.
+// knownFrontmatter is the contract's declared frontmatter set: the shared
+// fields.known list plus every per-type list (today fields.lesson_only). A
+// nil contract declares no field, so title_en cannot match.
 func knownFrontmatter(authority scanAuthority) []string {
 	if authority.contract == nil {
 		return nil
 	}
-	return authority.contract.Definition().Fields.Known
+	fields := authority.contract.Definition().Fields
+	return slices.Concat(fields.Known, fields.LessonOnly)
 }
 
 // filename is the last path segment of a vault-relative, forward-slash path.
