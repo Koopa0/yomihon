@@ -10,6 +10,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -53,13 +54,29 @@ type pathRef struct {
 // code blocks, and headings are located identically.
 var mdParser = goldmark.New().Parser()
 
-// gapMarkers are the heading marks that make the section below them a planned
-// gap: a wikilink there is a forward-reference, not a broken link.
-var gapMarkers = [...]string{"缺口", "待補", "待寫", "待整理", "待建"}
+// plannedMarks are the heading and inline marks one extraction reads. They
+// come from the vault contract through [schema]; a contract that omits the
+// keys is loaded with today's dialect defaults, and a contract that writes
+// an empty list tracks no mark.
+type plannedMarks struct {
+	heading []string
+	inline  []string
+}
 
-// inlinePlannedMarkers are the inline marks (not headings) whose line's [[X]]
-// links are planned forward-references.
-var inlinePlannedMarkers = [...]string{"待整理", "待建", "下一課"}
+func defaultPlannedMarks() plannedMarks {
+	return plannedMarks{
+		heading: schema.DefaultPlannedGapMarks(),
+		inline:  schema.DefaultPlannedInlineMarks(),
+	}
+}
+
+func plannedMarksFrom(c *schema.Contract) plannedMarks {
+	if c == nil {
+		return defaultPlannedMarks()
+	}
+	heading, inline := c.PlannedMarks()
+	return plannedMarks{heading: heading, inline: inline}
+}
 
 // byteRange is a half-open byte span [start, stop) into a body.
 type byteRange struct {
@@ -90,7 +107,11 @@ type rawLink struct {
 // dropping bare same-file anchors, each with its 1-based file line and
 // gap-section context. bodyStartLine is the file line the body begins on.
 func extractWikilinks(body string, bodyStartLine int) []wikiLink {
-	codeZones, headings := structure(body)
+	return extractWikilinksWith(body, bodyStartLine, defaultPlannedMarks().heading)
+}
+
+func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string) []wikiLink {
+	codeZones, headings := structure(body, headingMarks)
 	skip := slices.Concat(codeZones, commentZones(body, codeZones))
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
@@ -125,7 +146,7 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 func extractPathRefs(body string, bodyStartLine int) []pathRef {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
-	codeZones, _ := structure(body)
+	codeZones, _ := structure(body, nil)
 	comments := commentZones(body, codeZones)
 	var refs []pathRef
 	walkNodes(doc, func(n ast.Node) {
@@ -152,7 +173,12 @@ func extractPathRefs(body string, bodyStartLine int) []pathRef {
 // planned marker. These are tracked forward-references: a broken link to one of
 // them is planned, not missing.
 func extractPlannedNames(body string) []string {
-	codeZones, headings := structure(body)
+	marks := defaultPlannedMarks()
+	return extractPlannedNamesWith(body, marks)
+}
+
+func extractPlannedNamesWith(body string, marks plannedMarks) []string {
+	codeZones, headings := structure(body, marks.heading)
 	var names []string
 	var item *string
 	offset := 0
@@ -162,7 +188,7 @@ func extractPlannedNames(body string) []string {
 		inGap := inGapSection(headings, offset) && !inCode
 		item, names = advancePlannedItem(item, names, line, inGap)
 		if !inCode {
-			names = inlinePlannedTargets(line, names)
+			names = inlinePlannedTargets(line, names, marks.inline)
 		}
 		offset += len(raw)
 	}
@@ -199,8 +225,8 @@ func advancePlannedItem(item *string, names []string, line string, inGap bool) (
 
 // inlinePlannedTargets appends the [[X]] targets on a line beside an inline
 // planned marker.
-func inlinePlannedTargets(line string, names []string) []string {
-	if !containsAnySubstring(line, inlinePlannedMarkers[:]) {
+func inlinePlannedTargets(line string, names, inlineMarks []string) []string {
+	if !containsAnySubstring(line, inlineMarks) {
 		return names
 	}
 	for _, r := range rawWikilinks(line) {
@@ -213,7 +239,7 @@ func inlinePlannedTargets(line string, names []string) []string {
 
 // structure locates the code span/block byte ranges to skip and the headings,
 // in document order, using the shared markdown parser.
-func structure(body string) ([]byteRange, []heading) {
+func structure(body string, headingMarks []string) ([]byteRange, []heading) {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
 	var codeZones []byteRange
@@ -233,7 +259,7 @@ func structure(body string) ([]byteRange, []heading) {
 				codeZones = append(codeZones, r)
 			}
 		case *ast.Heading:
-			h := heading{level: node.Level, gap: headingIsGap(node, src)}
+			h := heading{level: node.Level, gap: headingIsGap(node, src, headingMarks)}
 			if r, ok := linesRange(node); ok {
 				h.start = r.start
 				headings = append(headings, h)
@@ -386,14 +412,8 @@ func stripParens(s string) string {
 }
 
 // headingIsGap reports whether a heading's text carries any gap mark.
-func headingIsGap(n *ast.Heading, src []byte) bool {
-	htext := headingText(n, src)
-	for _, m := range gapMarkers {
-		if strings.Contains(htext, m) {
-			return true
-		}
-	}
-	return false
+func headingIsGap(n *ast.Heading, src []byte, headingMarks []string) bool {
+	return containsAnySubstring(headingText(n, src), headingMarks)
 }
 
 // headingText is a heading's plain text — the text of its inline content with
@@ -565,12 +585,19 @@ func inAnyZone(zones []byteRange, off int) bool {
 }
 
 // containsAnySubstring reports whether s contains any of the marks as a
-// substring. The name says substring because the standard library's
-// ContainsAny asks the opposite question — whether any single rune of a set
-// occurs — and a reader who knows that one would read this call site backwards.
+// substring. Both sides are folded to NFC first, so a heading written with a
+// combining mark hits the composed spelling the contract declared. Case is
+// not folded — two marks that differ only in case are two declarations.
+// The name says substring because the standard library's ContainsAny asks
+// the opposite question — whether any single rune of a set occurs — and a
+// reader who knows that one would read this call site backwards.
 func containsAnySubstring(s string, marks []string) bool {
+	folded := vault.NormalizeNFC(s)
 	for _, m := range marks {
-		if strings.Contains(s, m) {
+		if m == "" {
+			continue
+		}
+		if strings.Contains(folded, vault.NormalizeNFC(m)) {
 			return true
 		}
 	}

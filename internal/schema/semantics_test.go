@@ -463,6 +463,34 @@ func TestCoreSemanticsRules(t *testing.T) {
 			to:      `slug_pattern = "["`,
 			wantErr: "rules.slug_pattern: invalid regular expression",
 		},
+		{
+			name: "planned gap marks empty element",
+			from: `slug_pattern = "^[a-z]+$"`,
+			to: `slug_pattern = "^[a-z]+$"
+planned_gap_marks = [""]`,
+			wantErr: "rules.planned_gap_marks: empty value",
+		},
+		{
+			name: "planned gap marks duplicate",
+			from: `slug_pattern = "^[a-z]+$"`,
+			to: `slug_pattern = "^[a-z]+$"
+planned_gap_marks = ["Gaps", "Gaps"]`,
+			wantErr: `rules.planned_gap_marks: duplicate value "Gaps"`,
+		},
+		{
+			name: "planned inline marks empty element",
+			from: `slug_pattern = "^[a-z]+$"`,
+			to: `slug_pattern = "^[a-z]+$"
+planned_inline_marks = [""]`,
+			wantErr: "rules.planned_inline_marks: empty value",
+		},
+		{
+			name: "planned inline marks duplicate",
+			from: `slug_pattern = "^[a-z]+$"`,
+			to: `slug_pattern = "^[a-z]+$"
+planned_inline_marks = ["todo", "todo"]`,
+			wantErr: `rules.planned_inline_marks: duplicate value "todo"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -475,6 +503,62 @@ func TestCoreSemanticsRules(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestPlannedMarksAreLoadedFromTheContract holds the loader polarity: a
+// contract that omits the keys is loaded with today's dialect defaults, so an
+// existing vault does not change behaviour; a contract that writes an empty
+// list tracks no mark; a contract that writes English marks keeps those.
+func TestPlannedMarksAreLoadedFromTheContract(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		extra      string
+		wantGap    []string
+		wantInline []string
+	}{
+		{
+			name:       "omitted keys load today's dialect defaults",
+			wantGap:    DefaultPlannedGapMarks(),
+			wantInline: DefaultPlannedInlineMarks(),
+		},
+		{
+			name: "declared English heading marks replace the heading default",
+			extra: `
+planned_gap_marks = ["Gaps"]`,
+			wantGap:    []string{"Gaps"},
+			wantInline: DefaultPlannedInlineMarks(),
+		},
+		{
+			name: "an empty list is a declaration of none",
+			extra: `
+planned_gap_marks = []
+planned_inline_marks = []`,
+			wantGap:    []string{},
+			wantInline: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			data := semanticallyValidContract
+			if tt.extra != "" {
+				data = replaceContractText(t, data, `slug_pattern = "^[a-z]+$"`, `slug_pattern = "^[a-z]+$"`+tt.extra)
+			}
+			got, err := decodeContract([]byte(data), policySource{})
+			if err != nil {
+				t.Fatalf("decodeContract() error = %v", err)
+			}
+			rules := got.Definition().Rules
+			if diff := cmp.Diff(tt.wantGap, rules.PlannedGapMarks); diff != "" {
+				t.Errorf("PlannedGapMarks mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.wantInline, rules.PlannedInlineMarks); diff != "" {
+				t.Errorf("PlannedInlineMarks mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

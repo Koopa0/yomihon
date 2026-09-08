@@ -730,7 +730,7 @@ func buildGeneration(
 		concepts = lesson.ConceptIndex{}
 	}
 
-	planned := judge.NewPlanned(noteBodies(g.ordered))
+	planned := judge.NewPlanned(noteBodies(g.ordered), contract)
 	backlinks := newBacklinks(g.ordered, graphIndex)
 	gen := &Generation{
 		graph:          graphIndex,

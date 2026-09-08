@@ -64,6 +64,28 @@ var (
 	ErrIllegalTransition = errors.New("transition not allowed by lifecycle")
 )
 
+// The heading and inline marks a contract that omits the keys is loaded with.
+// They are this dialect's gap vocabulary, not a vault's: writing the key
+// replaces them, and writing an empty list tracks no mark.
+var (
+	defaultPlannedGapMarks    = []string{"缺口", "待補", "待寫", "待整理", "待建"}
+	defaultPlannedInlineMarks = []string{"待整理", "待建", "下一課"}
+)
+
+// DefaultPlannedGapMarks is the heading-mark list a contract that omits
+// rules.planned_gap_marks is loaded with, cloned so a caller cannot change
+// the loader's own copy.
+func DefaultPlannedGapMarks() []string {
+	return slices.Clone(defaultPlannedGapMarks)
+}
+
+// DefaultPlannedInlineMarks is the inline-mark list a contract that omits
+// rules.planned_inline_marks is loaded with, cloned so a caller cannot change
+// the loader's own copy.
+func DefaultPlannedInlineMarks() []string {
+	return slices.Clone(defaultPlannedInlineMarks)
+}
+
 // Contract is the validated, immutable vault authority. Its zero value carries
 // no authority; load one with [Load], [LoadFile], or [LoadReader]. A nil
 // *Contract answers as an ungoverned vault: every method is safe to call and
@@ -117,6 +139,8 @@ type contractFile struct {
 type writtenKeys struct {
 	noFrontmatterIsLegal bool
 	requiredInbox        bool
+	plannedGapMarks      bool
+	plannedInlineMarks   bool
 }
 
 // contractMetadata retains the supersession vocabulary the replacement ledger
@@ -194,6 +218,8 @@ type Rules struct {
 	ConceptRequiresProvenance []string `toml:"concept_requires_provenance"`
 	SlugPattern               string   `toml:"slug_pattern"`
 	ForbidTagWithSlash        bool     `toml:"forbid_tag_with_slash"`
+	PlannedGapMarks           []string `toml:"planned_gap_marks"`
+	PlannedInlineMarks        []string `toml:"planned_inline_marks"`
 }
 
 // ScanPolicy is the checker's default scan policy (tool policy, not schema fact).
@@ -300,9 +326,12 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		written: writtenKeys{
 			noFrontmatterIsLegal: tomlMeta.IsDefined("scan", "no_frontmatter_is_legal"),
 			requiredInbox:        tomlMeta.IsDefined("fields", "required_inbox"),
+			plannedGapMarks:      tomlMeta.IsDefined("rules", "planned_gap_marks"),
+			plannedInlineMarks:   tomlMeta.IsDefined("rules", "planned_inline_marks"),
 		},
 		metadata: contractMetadata{supersession: decoded.Supersession},
 	}
+	applyPlannedMarkDefaults(&contract.definition.Rules, contract.written)
 	if !tomlMeta.IsDefined("schema_version") {
 		return nil, errors.New(`missing required key "schema_version"`)
 	}
@@ -830,8 +859,23 @@ func validateStatusGroups(enums *Enums, statusGroups map[string][]string) error 
 	return nil
 }
 
+func applyPlannedMarkDefaults(rules *Rules, written writtenKeys) {
+	if !written.plannedGapMarks {
+		rules.PlannedGapMarks = slices.Clone(defaultPlannedGapMarks)
+	}
+	if !written.plannedInlineMarks {
+		rules.PlannedInlineMarks = slices.Clone(defaultPlannedInlineMarks)
+	}
+}
+
 func validateRules(enums *Enums, fields *Fields, rules *Rules) error {
 	if err := validateDomainRoots(rules.DomainEqualsFolderUnder); err != nil {
+		return err
+	}
+	if err := validateUniqueStrings("rules.planned_gap_marks", rules.PlannedGapMarks); err != nil {
+		return err
+	}
+	if err := validateUniqueStrings("rules.planned_inline_marks", rules.PlannedInlineMarks); err != nil {
 		return err
 	}
 
@@ -1258,6 +1302,19 @@ func (c *Contract) Definition() Definition {
 	return cloneDefinition(&c.definition)
 }
 
+// PlannedMarks returns detached copies of the heading and inline marks this
+// contract uses to decide which broken links are tracked forward-references.
+// A vault no contract governs returns nil lists: it declared no marks. A
+// loaded contract that omitted the keys is filled with today's dialect
+// defaults by the loader, and those are what this returns.
+func (c *Contract) PlannedMarks() (heading, inline []string) {
+	if c == nil {
+		return nil, nil
+	}
+	return slices.Clone(c.definition.Rules.PlannedGapMarks),
+		slices.Clone(c.definition.Rules.PlannedInlineMarks)
+}
+
 // StageCount returns the number of lifecycle rows declared by the contract.
 func (c *Contract) StageCount() int {
 	if c == nil {
@@ -1290,6 +1347,8 @@ func cloneDefinition(source *Definition) Definition {
 			ConceptRequiresProvenance: slices.Clone(source.Rules.ConceptRequiresProvenance),
 			SlugPattern:               source.Rules.SlugPattern,
 			ForbidTagWithSlash:        source.Rules.ForbidTagWithSlash,
+			PlannedGapMarks:           slices.Clone(source.Rules.PlannedGapMarks),
+			PlannedInlineMarks:        slices.Clone(source.Rules.PlannedInlineMarks),
 		},
 	}
 }

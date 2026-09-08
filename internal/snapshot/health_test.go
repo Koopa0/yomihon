@@ -35,7 +35,7 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 		parse(t, "Concepts/cites shared.md", "---\ntitle: Cites Shared\n---\n\nsee [[Shared Title]]\n"),
 	}
 	idx := graph.New(notes, nil)
-	planned := judge.NewPlanned(noteBodies(notes))
+	planned := judge.NewPlanned(noteBodies(notes), nil)
 	h := newHealth(notes, idx, planned, newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	wantTitleOnly := []HealthTitleLink{{
@@ -71,7 +71,7 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 		parse(t, "root.md", "e\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	want := []HealthIslandGroup{
 		{Dir: "Sources/course", Notes: []nav.NoteRef{
@@ -125,7 +125,7 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 				notes = []*vault.Note{target, citer}
 			}
 			idx := graph.New(notes, nil)
-			h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+			h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 			// The citer alone: nothing writes its name down anywhere, while the
 			// target's name is written in the citer either way round.
@@ -189,7 +189,7 @@ func TestHealthReportsSharedNamesNobodyHasLinkedTo(t *testing.T) {
 		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]]\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes)), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	// The names carrying the extension are absent on purpose: two files sharing
 	// "cited.md" necessarily share "cited", and one repair stated twice reads
@@ -200,5 +200,28 @@ func TestHealthReportsSharedNamesNobodyHasLinkedTo(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, h.Collisions); diff != "" {
 		t.Errorf("Collisions mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestDeclaredNonDefaultGapMarkKeepsHarvestedNameOffUnwritten is the lock
+// that snapshot harvests against the contract's marks, not the loader
+// default. A name listed under ## Gaps is owed once the contract writes
+// that heading, so /health must not list it as unwritten. Nowhere stays
+// on the list so the page is still evaluating.
+func TestDeclaredNonDefaultGapMarkKeepsHarvestedNameOffUnwritten(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Maps/ledger.md", "---\ntitle: Ledger\n---\n\n## Gaps\n- Ghost\n")
+	writeNote(t, root, "Concepts/citer.md", "---\ntitle: Citer\n---\n\nSee [[Ghost]] and [[Nowhere]].\n")
+	contract := testContractWithRules(t, root, "planned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []")
+	store, _ := newTestStore(t, root, contract)
+	h := store.Current().health
+
+	if slices.ContainsFunc(h.Unwritten, func(l HealthLink) bool { return l.Target == "Ghost" }) {
+		t.Fatalf("Ghost under declared Gaps is Unwritten; the harvest ignored the contract: %+v", h.Unwritten)
+	}
+	if !slices.ContainsFunc(h.Unwritten, func(l HealthLink) bool { return l.Target == "Nowhere" }) {
+		t.Fatalf("Nowhere is missing from Unwritten; the page is not evaluating: %+v", h.Unwritten)
 	}
 }

@@ -301,7 +301,7 @@ func TestThePlannedSetIsOnlyEnteredThroughTheHarvest(t *testing.T) {
 		t.Error("a set nobody harvested reports a name as planned; the zero value means a corpus that declared nothing")
 	}
 
-	set := NewPlanned(slices.Values([]string{"接下來 [[Consistent Hashing]] 待整理。\n"}))
+	set := NewPlanned(slices.Values([]string{"接下來 [[Consistent Hashing]] 待整理。\n"}), nil)
 	if !set.Has("consistent hashing") {
 		t.Error("NewPlanned did not fold the harvested name the way the resolver folds a link to it")
 	}

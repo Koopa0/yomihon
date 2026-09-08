@@ -68,15 +68,32 @@ func searchStatusCounts(tb testing.TB, idx *lexical.Index) map[string]int {
 
 func testContract(tb testing.TB, root string) *schema.Contract {
 	tb.Helper()
+	return testContractWithRules(tb, root, "")
+}
+
+// testContractWithRules is testContract with extra [rules] lines appended
+// after forbid_tag_with_slash, so a test can declare planned marks without
+// rewriting the fixture.
+func testContractWithRules(tb testing.TB, root, extraRules string) *schema.Contract {
+	tb.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		tb.Fatalf("read contract fixture: %v", err)
+	}
+	text := string(data)
+	if extraRules != "" {
+		const needle = "forbid_tag_with_slash = true"
+		next := strings.Replace(text, needle, needle+"\n"+extraRules, 1)
+		if next == text {
+			tb.Fatal("the contract fixture does not contain the rules needle")
+		}
+		text = next
 	}
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
 		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
 	}
-	if writeErr := os.WriteFile(contractPath, data, 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
+	if writeErr := os.WriteFile(contractPath, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
 		tb.Fatalf("write contract fixture: %v", writeErr)
 	}
 	contract, err := schema.Load(root)
