@@ -117,45 +117,62 @@ func parseBranches(
 	next := 0
 	offset := 0
 
-	attach := func(until int) {
-		for next < len(links) && links[next].Span.Start < until {
-			link := links[next]
-			next++
-			if len(stack) == 0 {
-				continue
-			}
-			entry := resolveEntry(link.Target, link.Display, idx, statusByPath, policy)
-			if entry.Kind != EntryResolved {
-				continue
-			}
-			top := stack[len(stack)-1]
-			top.entries = append(top.entries, entry)
-		}
-	}
-
 	for line := range strings.SplitSeq(body, "\n") {
 		lineStart := offset
 		lineEnd := offset + len(line)
 		skip := scan.Skip(line)
 		if text, level, ok := parseHeading(line); ok && !skip {
-			attach(lineStart)
-			node := &branchNode{heading: headingLabel(text), level: level}
-			for len(stack) > 0 && stack[len(stack)-1].level >= level {
-				stack = stack[:len(stack)-1]
-			}
-			if len(stack) == 0 {
-				roots = append(roots, node)
-			} else {
-				top := stack[len(stack)-1]
-				top.sub = append(top.sub, node)
-			}
-			stack = append(stack, node)
+			attachLiveLinks(stack, links, &next, lineStart, idx, statusByPath, policy)
+			stack = openBranch(&roots, stack, headingLabel(text), level)
 		}
-		attach(lineEnd)
+		attachLiveLinks(stack, links, &next, lineEnd, idx, statusByPath, policy)
 		offset = lineEnd + 1
 	}
-	attach(offset)
+	attachLiveLinks(stack, links, &next, offset, idx, statusByPath, policy)
 	return convertBranches(pruneBranches(roots))
+}
+
+// attachLiveLinks appends every still-unread live link that begins before
+// until onto the open heading. A link before the first heading, or one that
+// does not resolve uniquely to a governed note, is skipped.
+func attachLiveLinks(
+	stack []*branchNode,
+	links []sequence.Link,
+	next *int,
+	until int,
+	idx *graph.Index,
+	statusByPath map[string]string,
+	policy schema.ArtifactPolicy,
+) {
+	for *next < len(links) && links[*next].Span.Start < until {
+		link := links[*next]
+		*next++
+		if len(stack) == 0 {
+			continue
+		}
+		entry := resolveEntry(link.Target, link.Display, idx, statusByPath, policy)
+		if entry.Kind != EntryResolved {
+			continue
+		}
+		top := stack[len(stack)-1]
+		top.entries = append(top.entries, entry)
+	}
+}
+
+// openBranch nests a heading under the nearest still-open shallower heading,
+// or as a new root when none remains.
+func openBranch(roots *[]*branchNode, stack []*branchNode, heading string, level int) []*branchNode {
+	node := &branchNode{heading: heading, level: level}
+	for len(stack) > 0 && stack[len(stack)-1].level >= level {
+		stack = stack[:len(stack)-1]
+	}
+	if len(stack) == 0 {
+		*roots = append(*roots, node)
+	} else {
+		top := stack[len(stack)-1]
+		top.sub = append(top.sub, node)
+	}
+	return append(stack, node)
 }
 
 // pruneBranches drops every node with no entries and no surviving descendant
