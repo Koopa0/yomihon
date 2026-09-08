@@ -67,7 +67,12 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
 			"\n" +
 			"The folder is fixed for the life of the process: reading another one\n" +
-			"means another yomihon, on another port.\n",
+			"means another yomihon, on another port.\n" +
+			"\n" +
+			"A file larger than 1 MiB is not read as characters: the page names the\n" +
+			"bytes and search leaves it out. An in-place rewrite that keeps the same\n" +
+			"inode, mode, size and mtime can stay stale for about an hour; an ordinary\n" +
+			"save that changes size or mtime rebuilds at once.\n",
 		"check": "Usage: yomihon check [--root <vault>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
 			"\n" +
 			"--root is the vault to judge; without it, the folder you are standing in is\n" +
@@ -103,6 +108,11 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"Writes a compact JSON object when the output is not a terminal, and a\n" +
 			"human summary when it is; --format decides instead of the terminal, and\n" +
 			"md falls back to the human view.\n" +
+			"\n" +
+			"When scan.knowledge_dirs names directories, only that layer is tallied.\n" +
+			"A concept or map outside it cannot change a public concept's mount\n" +
+			"state. When the list is omitted or empty, the whole vault is counted.\n" +
+			"A withheld path is never reported.\n" +
 			"\n" +
 			"Exits 0 — coverage reports state, it never gates — and 2 when the\n" +
 			"command itself could not run.\n",
