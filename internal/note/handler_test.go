@@ -1060,7 +1060,7 @@ func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 	}
 	const liveTag = `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>`
 	write("Notes/keep.md", "# kept\n\nbody\n")
-	write("System/reports/daily-briefing/x.html", `<!doctype html>`+liveTag+`<body>hi</body>`)
+	write("Notes/live.html", `<!doctype html>`+liveTag+`<body>hi</body>`)
 	write("Diagrams/x.canvas", "{\"nodes\":[]}\n")
 	srv := newServer(t, root)
 
@@ -1068,7 +1068,7 @@ func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 		t.Errorf("a .md note must still be served; GET keep.md = %d, want 200", code)
 	}
 	for _, rel := range []string{
-		"System/reports/daily-briefing/x.html",
+		"Notes/live.html",
 		"Diagrams/x.canvas",
 	} {
 		code, body := get(t, srv.Client(), srv.URL+"/notes/"+rel)
@@ -1085,7 +1085,7 @@ func TestReadingPageNeverExecutesANonNote(t *testing.T) {
 
 	// The script's own text is shown — escaped, as source — which is the
 	// difference between reading a file and running it.
-	if _, body := get(t, srv.Client(), srv.URL+"/notes/System/reports/daily-briefing/x.html"); !strings.Contains(body, "cdn.jsdelivr") {
+	if _, body := get(t, srv.Client(), srv.URL+"/notes/Notes/live.html"); !strings.Contains(body, "cdn.jsdelivr") {
 		t.Error("the .html source view does not show the file's own text")
 	}
 }

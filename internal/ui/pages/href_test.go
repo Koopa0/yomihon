@@ -2,6 +2,50 @@ package pages
 
 import "testing"
 
+// TestNotesHrefSendsABriefingToTheReportSurface is the address half of the
+// canonical-report lock: a daily-briefing HTML must not be offered as a /notes/
+// source dump. Written reports, unregistered HTML, and a nested file under
+// daily-briefing/ keep the notes address, which is how an unregistered file
+// still opens as source.
+func TestNotesHrefSendsABriefingToTheReportSurface(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "a registered briefing opens at the report surface",
+			path: "System/reports/daily-briefing/browser-boundary.html",
+			want: "/reports/browser-boundary.html",
+		},
+		{
+			name: "a written markdown report stays a note",
+			path: "System/reports/Week of 2026-08-31.md",
+			want: "/notes/System/reports/Week%20of%202026-08-31.md",
+		},
+		{
+			name: "unregistered html elsewhere stays a file page",
+			path: "Notes/page.html",
+			want: "/notes/Notes/page.html",
+		},
+		{
+			name: "a nested file under daily-briefing is not a briefing",
+			path: "System/reports/daily-briefing/sub/x.html",
+			want: "/notes/System/reports/daily-briefing/sub/x.html",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := notesHref(tt.path); got != tt.want {
+				t.Errorf("notesHref(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestObsidianHref pins the editor hand-off URI byte-for-byte. Each expected
 // string is hand-derived from the escaping rules, not read back from the
 // escaper: spaces are %20 (a "+" would reach Obsidian as a literal plus),
