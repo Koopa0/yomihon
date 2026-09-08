@@ -793,18 +793,18 @@ func TestMappedEndContractsAnNFDPrefix(t *testing.T) {
 func TestFenceRangeRemapSurvivesAnNFDCharacter(t *testing.T) {
 	t.Parallel()
 
-	const token = "UNIQUE_FENCE_ONLY_PHRASE"
+	const needle = "UNIQUE_FENCE_ONLY_PHRASE"
 	idx := NewIndex([]Document{
 		DocumentFromNote(vault.Parse("Notes/NFC fence.md", []byte(""+
 			"# NFC fence\n\n"+
 			strings.Repeat("e\u0301", 32)+"\n\n"+
 			"```d2\n"+
-			token+"\n"+
+			needle+"\n"+
 			"```\n\n"+
 			"The workers close after the source.\n"))),
 	}, validArtifactPolicy(t))
 
-	results, _, err := idx.SearchN(Parse(token), -1)
+	results, _, err := idx.SearchN(Parse(needle), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
@@ -812,13 +812,13 @@ func TestFenceRangeRemapSurvivesAnNFDCharacter(t *testing.T) {
 		t.Fatalf("Search() returned %d results, want 1", len(results))
 	}
 	if !results[0].Source {
-		t.Fatal("Source = false; the token lives only in the fence")
+		t.Fatal("Source = false; the phrase lives only in the fence")
 	}
 	if strings.Contains(results[0].Snippet, "workers") {
 		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)
 	}
-	if !strings.Contains(results[0].Snippet, token) {
-		t.Fatalf("snippet() = %q, dropped the fence token", results[0].Snippet)
+	if !strings.Contains(results[0].Snippet, needle) {
+		t.Fatalf("snippet() = %q, dropped the fence phrase", results[0].Snippet)
 	}
 }
 
