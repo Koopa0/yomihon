@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -584,7 +585,12 @@ func TestUndeclaredTypeStatusReadsAgainstTheNoteGroup(t *testing.T) {
 
 func TestLintArticleLanguage(t *testing.T) {
 	t.Parallel()
-	definition := schema.Definition{Fields: schema.Fields{Known: []string{"title", "lang"}}}
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
+	run, err := newLintRun(loadTestAuthority(t, root).contract)
+	if err != nil {
+		t.Fatalf("newLintRun() error = %v", err)
+	}
 	tests := []struct {
 		name string
 		yaml string
@@ -600,7 +606,6 @@ func TestLintArticleLanguage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := parseNote("Writing/T.md", []byte("---\n"+tt.yaml+"\n---\n"))
-			run := &lintRun{definition: definition}
 			got := run.articleLanguage(&n)
 			if len(got) != tt.want {
 				t.Fatalf("articleLanguage() = %#v, want %d finding(s)", got, tt.want)
@@ -779,5 +784,29 @@ func TestADocumentsStatusIsJudgedAgainstItsOwnGroup(t *testing.T) {
 				t.Errorf("rules reported (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// TestEnumFieldsPartition holds the reflection walk to the next field of
+// schema.Enums. Every visible field is either a dedicated rule (Type, Status)
+// identified by the Go name, or an exported []string the walk validates. A
+// vocabulary that is not []string is no longer silently skipped; an unexported
+// field is not visible here, so TypeAssert cannot panic on one; the type
+// exclusion is the identifier, not a struct tag that can be renamed away.
+func TestEnumFieldsPartition(t *testing.T) {
+	t.Parallel()
+
+	dedicated := map[string]bool{"Type": true, "Status": true}
+	for _, field := range reflect.VisibleFields(reflect.TypeFor[schema.Enums]()) {
+		if dedicated[field.Name] {
+			continue
+		}
+		if !field.IsExported() {
+			t.Errorf("Enums.%s is visible but not exported; enumFields TypeAssert would panic", field.Name)
+			continue
+		}
+		if field.Type.Kind() != reflect.Slice || field.Type.Elem().Kind() != reflect.String {
+			t.Errorf("Enums.%s is neither a dedicated rule nor an exported []string; enumFields would skip it silently", field.Name)
+		}
 	}
 }
