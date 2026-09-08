@@ -392,8 +392,9 @@ func checkReportFrontmatter(contract *schema.Contract) string {
 		return ""
 	}
 	n := parseNote("report.md", []byte(block+"body\n"))
-	for _, f := range run.note(&n) {
-		if f.Severity == SeverityError {
+	findings := run.note(&n)
+	for i := range findings {
+		if findings[i].Severity == SeverityError {
 			return ""
 		}
 	}

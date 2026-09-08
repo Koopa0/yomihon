@@ -56,9 +56,9 @@ func writeLeftoverLockVault(t *testing.T, contract string, notes map[string]stri
 
 func schemaFindingMessages(findings []Finding) []string {
 	var out []string
-	for _, f := range findings {
-		if strings.HasPrefix(string(f.RuleID), "schema.") {
-			out = append(out, string(f.RuleID)+": "+f.Message)
+	for i := range findings {
+		if strings.HasPrefix(string(findings[i].RuleID), "schema.") {
+			out = append(out, string(findings[i].RuleID)+": "+findings[i].Message)
 		}
 	}
 	return out
@@ -226,9 +226,9 @@ func TestWorkingDocumentsFollowAssignedStatusGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LintFrontmatter() error = %v", err)
 	}
-	for _, f := range findings {
-		if f.RuleID == "schema.required" {
-			t.Errorf("a working document in group ops drew a knowledge-note requirement: %+v", f)
+	for i := range findings {
+		if findings[i].RuleID == "schema.required" {
+			t.Errorf("a working document in group ops drew a knowledge-note requirement: %+v", findings[i])
 		}
 	}
 }
