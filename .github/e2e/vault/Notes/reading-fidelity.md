@@ -28,6 +28,10 @@ which is a page this machine can neither read nor preview.
 A sixth names a vault file that is not a note at all, [[plain.txt]], which has a
 page of its own and nothing a preview could cut a section out of.
 
+A seventh returns to a marked line in that same note,
+[[Glass Tide#^tide-wrap-1|back to the marked line]], so a block address can be
+followed the way a section can.
+
 Quoting a note that has footnotes of its own puts a second set on this page,
 numbered separately because those definitions live in the note they came from.
 

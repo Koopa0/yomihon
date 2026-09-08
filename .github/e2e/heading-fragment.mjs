@@ -1,5 +1,6 @@
 // Behavior lock: a link written at a section of another note lands the reader
-// on that section.
+// on that section, and a link written at a block address lands them on the
+// marked line, clear of the sticky header.
 //
 // The regression class is quiet and complete: the words on screen still say
 // "note#section", the link still works, and the reader still arrives — at the
@@ -8,11 +9,16 @@
 // a browser and against the destination's own anchor rather than against a
 // string written down twice: the fragment and the heading id are produced by
 // two different passes over two different documents, and the only property
-// worth locking is that they agree.
+// worth locking is that they agree. A block address is the same quiet miss in
+// a different place: the URL and the id are right, and the marked line sits
+// under the header.
 //
 // The destination note is long on purpose. On a note that fits in one screen,
 // "the reader arrived at the section" is already true before anything scrolls,
-// so the arrival check could not have failed.
+// so the arrival check could not have failed. The block fixture wraps to three
+// lines or more for the same reason: a one-line paragraph would sit entirely
+// below the header once the caret did, and could not tell a landing on the
+// marked line from a landing on the paragraph.
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (the note that
 // carries the links). MUTATE names one of the self-test modes below;
@@ -48,7 +54,10 @@ const SITES = [
   'fragment-reaches-the-heading',
   'back-returns-to-the-source',
   'opening-heading-sits-flush',
+  'block-clears-the-header',
 ];
+
+const BLOCK_LINK = { label: 'back to the marked line', id: '^tide-wrap-1' };
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -151,6 +160,13 @@ const MUTATIONS = {
     target: 'title-carries-its-anchor',
     provePath: () => destinationPath,
     apply: rewriteDocuments((body) => body.replaceAll('<h1 id="', '<h1 data-was-id="')),
+  },
+  // The address is right and the marked line still sits under the header: the
+  // clearance the product owes the caret is taken off, which is the defect
+  // this site exists to catch.
+  'pin-the-block-to-the-top': {
+    target: 'block-clears-the-header',
+    apply: weakenStylesheet('.y-prose [id^="^"]{scroll-margin-top:0}'),
   },
 };
 
@@ -369,8 +385,80 @@ try {
     await page.close();
   }
 
+  // A block address is a trailing span, not the paragraph. The jump has to
+  // put that marked line below the sticky header; earlier wrapping lines may
+  // still sit under the fold. Other mutations rewrite heading links and would
+  // fire here first, so this site only runs for its own mode or the plain lock.
+  if (!mutation || mutation.target === 'block-clears-the-header') {
+    const page = await context.newPage();
+    const source = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+    if (!source || source.status() !== 200) broken(`the source note returned ${source?.status() ?? 'no response'}, want 200`);
+
+    proveApplied('block-clears-the-header', proof);
+
+    const anchor = page.locator(`main a.wikilink:text-is("${BLOCK_LINK.label}")`);
+    const found = await anchor.count();
+    if (found !== 1) broken(`the source note carries ${found} links labelled ${JSON.stringify(BLOCK_LINK.label)}, want exactly 1`);
+
+    const href = await anchor.getAttribute('href');
+    const fragment = decodeURIComponent(new URL(href, BASE).hash.slice(1));
+    if (fragment !== BLOCK_LINK.id) {
+      fail('block-clears-the-header', `the link labelled ${JSON.stringify(BLOCK_LINK.label)} names the fragment ${JSON.stringify(fragment)}, want ${JSON.stringify(BLOCK_LINK.id)}`);
+    }
+
+    await anchor.click();
+    const moved = await page.waitForURL((url) => url.pathname.endsWith('Tide.md'), { timeout: 10_000 })
+      .then(() => true, () => false);
+    if (!moved) {
+      broken(`following ${JSON.stringify(BLOCK_LINK.label)} did not move this tab (it is still at ${page.url()})`);
+    }
+
+    await page.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+
+    const arrival = await page.evaluate(() => {
+      const target = document.querySelector(':target');
+      const header = document.querySelector('.y-header');
+      if (!target) return { missing: 'target' };
+      if (!header) return { missing: 'header' };
+      const paragraph = target.closest('p');
+      if (!paragraph) return { missing: 'paragraph' };
+      const lineHeight = parseFloat(getComputedStyle(paragraph).lineHeight);
+      const height = paragraph.getBoundingClientRect().height;
+      return {
+        hash: decodeURIComponent(location.hash.slice(1)),
+        id: target.id,
+        lines: lineHeight ? height / lineHeight : 0,
+        top: target.getBoundingClientRect().top,
+        headerBottom: header.getBoundingClientRect().bottom,
+        viewport: window.innerHeight,
+        scrollMarginTop: getComputedStyle(target).scrollMarginTop,
+      };
+    });
+    if (arrival.missing) {
+      broken(`after following ${JSON.stringify(BLOCK_LINK.label)} the page has no ${arrival.missing}`);
+    }
+    if (arrival.hash !== BLOCK_LINK.id || arrival.id !== BLOCK_LINK.id) {
+      fail('block-clears-the-header', `after following ${JSON.stringify(BLOCK_LINK.label)} the address is ${JSON.stringify(arrival.hash)} on ${JSON.stringify(arrival.id)}, want ${JSON.stringify(BLOCK_LINK.id)}`);
+    }
+    if (!(arrival.lines >= 3)) {
+      broken(`the addressed paragraph is ${arrival.lines} lines tall, want 3 or more so a single-line landing cannot hide a wrap`);
+    }
+    if (arrival.scrollMarginTop !== '72px') {
+      fail('block-clears-the-header', `the marked line scroll-margin-top is ${JSON.stringify(arrival.scrollMarginTop)}, want "72px" so the jump clears the sticky header`);
+    }
+    // The caret owes the same 72px pad the headings use. A landing that only
+    // ran out of page can sit anywhere in the viewport and still look clear;
+    // the marked line has to come to rest just under the header.
+    if (!(arrival.top >= arrival.headerBottom && arrival.top <= 80)) {
+      fail('block-clears-the-header', `after following ${JSON.stringify(BLOCK_LINK.label)} the marked line sits at ${arrival.top}px; the header occupies 0–${arrival.headerBottom}px, want the line just under it`);
+    }
+    await page.close();
+  }
+
   await context.close();
-  console.log("PASS heading-fragment: every cross-note section link carries the destination's own anchor, travels to that heading, and leaves the reader a way back");
+  console.log("PASS heading-fragment: every cross-note section link carries the destination's own anchor, travels to that heading, and a block address lands its marked line below the sticky header");
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

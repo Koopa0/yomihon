@@ -422,6 +422,12 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose sup:has(.footnote-ref) { scroll-margin-top: 72px; }
 .y-prose .footnote-ref, .y-prose .footnote-backref { text-decoration: none; }
 .y-prose .footnote-backref { display: inline-block; min-width: 1.2em; text-align: center; }
+/* A block address is a trailing inline span the fragment names. The browser
+   aligns that span with the viewport top, so without the same clearance the
+   headings already have, the marked line sits under the sticky header. The
+   landing is that line, not the paragraph's first line: wrapping lines above
+   the caret can still sit under the fold. */
+.y-prose [id^="^"] { scroll-margin-top: 72px; }
 
 /* inline code + fenced code (chroma) */
 .y-prose code { font-family: var(--font-mono); font-size: 0.82em; background: var(--elevated); padding: 1px 5px; border-radius: var(--r-sm); color: var(--fg); }
