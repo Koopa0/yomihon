@@ -149,7 +149,7 @@ func TestPlainBlocksTellAWrapFromAParagraphBoundary(t *testing.T) {
 		"The evidence records a bright\ncrimson heron near the tower.\n\n" +
 		"The field notebook calls this bird cobalt\n\n" +
 		"egret beside the old lighthouse.\n"
-	text, ends := render.PlainBlocks(body)
+	text, ends, _ := render.PlainBlocks(body)
 	if text != render.PlainText(body) {
 		t.Fatalf("PlainBlocks text = %q, want the same bytes PlainText returns", text)
 	}
@@ -161,6 +161,45 @@ func TestPlainBlocksTellAWrapFromAParagraphBoundary(t *testing.T) {
 	}
 	if inOneBlock(text, ends, "cobalt", "egret") {
 		t.Errorf("cobalt and egret share a block, so the walk did not part the paragraphs; text = %q ends = %v", text, ends)
+	}
+}
+
+// TestPlainBlocksReportFenceRanges holds the coordinate the excerpt uses to
+// tell a fence from prose: the same bytes stay in the searchable text, and
+// the ranges name exactly those bytes. An indented code block is not a fence.
+func TestPlainBlocksReportFenceRanges(t *testing.T) {
+	t.Parallel()
+
+	body := "" +
+		"# Title\n\n" +
+		"```d2\n" +
+		"direction: right\n" +
+		"```\n\n" +
+		"prose owns jobs here\n\n" +
+		"    indented left alone\n"
+	text, _, fences := render.PlainBlocks(body)
+	if text != render.PlainText(body) {
+		t.Fatalf("PlainBlocks text = %q, want the same bytes PlainText returns", text)
+	}
+	if !strings.Contains(text, "direction: right") {
+		t.Fatalf("PlainBlocks dropped the fence body from the searchable text: %q", text)
+	}
+	if !strings.Contains(text, "prose owns jobs here") {
+		t.Fatalf("PlainBlocks dropped the prose: %q", text)
+	}
+	if len(fences) != 1 {
+		t.Fatalf("fence ranges = %v, want one fenced span", fences)
+	}
+	got := text[fences[0][0]:fences[0][1]]
+	if got != "direction: right" {
+		t.Errorf("fence span = %q, want the fence body and nothing beside it", got)
+	}
+	if strings.Contains(got, "prose") || strings.Contains(got, "indented") {
+		t.Errorf("fence span = %q, swallowed prose or indented code", got)
+	}
+	proseAt := strings.Index(text, "prose owns jobs here")
+	if proseAt >= fences[0][0] && proseAt < fences[0][1] {
+		t.Errorf("prose offset %d sits inside the fence range %v", proseAt, fences[0])
 	}
 }
 

@@ -114,6 +114,11 @@ type Document struct {
 	// built the document from already-extracted text and did not know.
 	BlockEnds []int
 
+	// FenceRanges are the half-open [start, end) spans in PlainText that came
+	// from a fenced code block, as render.PlainBlocks reports them. Empty when
+	// the caller did not know, which treats every hit as prose.
+	FenceRanges [][2]int
+
 	// File marks an entry that is not a note: a vault file shown as characters.
 	// It carries no frontmatter, so it answers no metadata projection, and it
 	// sorts after every note in a result list.
@@ -158,6 +163,7 @@ type entry struct {
 	PlainText       string
 	PlainFold       string
 	blockEnds       []int
+	fenceRanges     [][2]int
 	isFile          bool
 	metadataCapable bool
 	// frontmatterUnreadable records that this note had a frontmatter block that
@@ -249,6 +255,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	// newline is an NFC starter, so joining the normalised slices is the
 	// same string as normalising the body in one pass.
 	blockEnds := blockEndsOnNormalized(d.PlainText, d.BlockEnds)
+	fenceRanges := fenceRangesOnNormalized(d.PlainText, d.FenceRanges)
 	noteType := vault.NormalizeNFC(d.NoteType)
 	domain := vault.NormalizeNFC(d.Domain)
 	status := vault.NormalizeNFC(d.Status)
@@ -285,6 +292,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		PlainText:    plain,
 		PlainFold:    fold(plain),
 		blockEnds:    blockEnds,
+		fenceRanges:  fenceRanges,
 		isFile:       d.File,
 		// An unclaimed policy excludes nothing, so every readable note answers over
 		// its own raw frontmatter. A file has no frontmatter, so it answers no
@@ -325,22 +333,50 @@ func blockEndsOnNormalized(raw string, ends []int) []int {
 	return out
 }
 
+// fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw),
+// the same prefix-length walk blockEndsOnNormalized uses for exclusive ends.
+func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
+	if len(ranges) == 0 {
+		return nil
+	}
+	out := make([][2]int, 0, len(ranges))
+	for _, r := range ranges {
+		start := nfcPrefixLen(raw, r[0])
+		end := nfcPrefixLen(raw, r[1])
+		if end > start {
+			out = append(out, [2]int{start, end})
+		}
+	}
+	return out
+}
+
+func nfcPrefixLen(raw string, off int) int {
+	if off <= 0 {
+		return 0
+	}
+	if off > len(raw) {
+		off = len(raw)
+	}
+	return len(vault.NormalizeNFC(raw[:off]))
+}
+
 // DocumentFromNote extracts a Document from a parsed note: the structured fields
 // from frontmatter and PlainText from the render AST. A note with malformed
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
-	text, ends := render.PlainBlocks(n.Body)
+	text, ends, fences := render.PlainBlocks(n.Body)
 	return Document{
-		RelPath:   n.RelPath,
-		Title:     n.Title(),
-		NoteType:  n.Type(),
-		Domain:    n.Domain(),
-		Status:    n.Status(),
-		Slug:      n.Slug(),
-		Topics:    n.Strings("topics"),
-		Aliases:   n.Aliases(),
-		PlainText: text,
-		BlockEnds: ends,
+		RelPath:     n.RelPath,
+		Title:       n.Title(),
+		NoteType:    n.Type(),
+		Domain:      n.Domain(),
+		Status:      n.Status(),
+		Slug:        n.Slug(),
+		Topics:      n.Strings("topics"),
+		Aliases:     n.Aliases(),
+		PlainText:   text,
+		BlockEnds:   ends,
+		FenceRanges: fences,
 		// A diagnostic here means the block was present and did not parse. A
 		// note that simply carries no frontmatter has none, and is not this.
 		FrontmatterUnreadable: n.FMDiagnostic != "",

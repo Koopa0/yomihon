@@ -37,17 +37,22 @@ var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extensio
 // job and not this walk's. The cost is one incongruity: a search for the
 // declaration finds a note whose page no longer shows those words.
 func PlainText(body string) string {
-	plain, _ := PlainBlocks(body)
+	plain, _, _ := PlainBlocks(body)
 	return plain
 }
 
-// PlainBlocks returns the searchable text of a note body and the exclusive
-// end offset of each block-level contribution in that text. The text is
-// byte-identical to PlainText. A phrase whose match starts in one block and
-// ends in another is one the browser's text directive cannot find, because
-// those words render in different elements; a wrap inside one paragraph is
-// not that case.
-func PlainBlocks(body string) (plain string, blockEnds []int) {
+// PlainBlocks returns the searchable text of a note body, the exclusive end
+// offset of each block-level contribution in that text, and the half-open
+// byte ranges that came from a fenced code block. The text is byte-identical
+// to PlainText. A phrase whose match starts in one block and ends in another
+// is one the browser's text directive cannot find, because those words render
+// in different elements; a wrap inside one paragraph is not that case.
+//
+// Fence ranges sit in the same coordinate space as the text so a later match
+// can tell a hit that landed in source from one that landed in prose. The
+// bodies stay in the text: people search for code snippets. Eligibility of a
+// fence as the excerpt is a decision for the match, not this walk.
+func PlainBlocks(body string) (plain string, blockEnds []int, fenceRanges [][2]int) {
 	src := []byte(plainPreprocess(body))
 	doc := plainParser.Parse(text.NewReader(src))
 
@@ -60,9 +65,9 @@ func PlainBlocks(body string) (plain string, blockEnds []int) {
 		// body (whitespace-collapsed) so a note is never left unsearchable.
 		collapsed := strings.Join(strings.Fields(body), " ")
 		if collapsed == "" {
-			return "", nil
+			return "", nil, nil
 		}
-		return collapsed, []int{len(collapsed)}
+		return collapsed, []int{len(collapsed)}, nil
 	}
 	w.closeBlock()
 	return w.result()
@@ -70,36 +75,68 @@ func PlainBlocks(body string) (plain string, blockEnds []int) {
 
 // plainWalk is the accumulator walkPlain writes. The text is what PlainText
 // always returned; blockEnds are the exclusive ends of each block before the
-// leading and trailing space are trimmed off.
+// leading and trailing space are trimmed off. fenceRanges are the half-open
+// spans written from a fenced code block, in the same raw coordinates.
 type plainWalk struct {
-	b         strings.Builder
-	blockEnds []int
+	b           strings.Builder
+	blockEnds   []int
+	fenceRanges [][2]int
 }
 
-func (w *plainWalk) result() (plain string, blockEnds []int) {
+func (w *plainWalk) result() (plain string, blockEnds []int, fenceRanges [][2]int) {
 	raw := w.b.String()
 	plain = strings.TrimSpace(raw)
 	if plain == "" {
-		return "", nil
+		return "", nil, nil
 	}
 	lead := len(raw) - len(strings.TrimLeftFunc(raw, unicode.IsSpace))
-	for _, end := range w.blockEnds {
+	blockEnds = shiftEnds(w.blockEnds, lead, len(plain))
+	if n := len(blockEnds); n == 0 || blockEnds[n-1] != len(plain) {
+		blockEnds = append(blockEnds, len(plain))
+	}
+	return plain, blockEnds, shiftRanges(w.fenceRanges, lead, len(plain))
+}
+
+// shiftEnds maps exclusive ends recorded in the raw builder onto the
+// trimmed text, dropping empties and keeping them strictly increasing.
+func shiftEnds(ends []int, lead, length int) []int {
+	var out []int
+	for _, end := range ends {
 		adj := end - lead
 		if adj <= 0 {
 			continue
 		}
-		if adj > len(plain) {
-			adj = len(plain)
+		if adj > length {
+			adj = length
 		}
-		if n := len(blockEnds); n > 0 && blockEnds[n-1] >= adj {
+		if n := len(out); n > 0 && out[n-1] >= adj {
 			continue
 		}
-		blockEnds = append(blockEnds, adj)
+		out = append(out, adj)
 	}
-	if n := len(blockEnds); n == 0 || blockEnds[n-1] != len(plain) {
-		blockEnds = append(blockEnds, len(plain))
+	return out
+}
+
+// shiftRanges maps half-open spans the same way, clamping each end to the
+// trimmed text so a fence that sat in leading or trailing space disappears.
+func shiftRanges(ranges [][2]int, lead, length int) [][2]int {
+	var out [][2]int
+	for _, r := range ranges {
+		start, end := r[0]-lead, r[1]-lead
+		if end <= 0 || start >= length {
+			continue
+		}
+		if start < 0 {
+			start = 0
+		}
+		if end > length {
+			end = length
+		}
+		if start < end {
+			out = append(out, [2]int{start, end})
+		}
 	}
-	return plain, blockEnds
+	return out
 }
 
 func (w *plainWalk) closeBlock() {
@@ -115,6 +152,21 @@ func (w *plainWalk) closeBlock() {
 		return
 	}
 	w.blockEnds = append(w.blockEnds, end)
+}
+
+// recordFence notes the half-open span just written from a fenced code
+// block, dropping the trailing newlines closeBlock also drops so the range
+// and the block end name the same last byte.
+func (w *plainWalk) recordFence(start int) {
+	s := w.b.String()
+	end := len(s)
+	for end > start && s[end-1] == '\n' {
+		end--
+	}
+	if end <= start {
+		return
+	}
+	w.fenceRanges = append(w.fenceRanges, [2]int{start, end})
 }
 
 // plainPreprocess rewrites the two Obsidian-dialect constructs goldmark has no
@@ -191,9 +243,15 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	case ast.KindFencedCodeBlock, ast.KindCodeBlock:
 		// Code content lives in the node's line segments, not in child Text
 		// nodes; write it directly and do not descend — code contents are
-		// searchable (people search for code snippets).
+		// searchable (people search for code snippets). A fenced block also
+		// records the span it wrote, so a later excerpt can decline it when
+		// the same words sit in prose. An indented code block is not a fence.
 		writeSeparator(w)
+		start := w.b.Len()
 		writeBlockLines(&w.b, n, source)
+		if n.Kind() == ast.KindFencedCodeBlock {
+			w.recordFence(start)
+		}
 		return ast.WalkSkipChildren, nil
 	case ast.KindText:
 		if t, ok := n.(*ast.Text); ok {

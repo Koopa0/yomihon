@@ -30,7 +30,7 @@ func BenchmarkSearchResultMaterialization(b *testing.B) {
 	const notes = 200
 	body := strings.Repeat("The filler paragraph stays out of the way.\n\n", 40) +
 		"needle sits here\n\nand more " + strings.Repeat("filler word ", 200)
-	text, ends := render.PlainBlocks(body)
+	text, ends, _ := render.PlainBlocks(body)
 	docs := make([]Document, notes)
 	for i := range docs {
 		docs[i] = Document{

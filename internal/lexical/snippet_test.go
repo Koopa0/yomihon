@@ -7,6 +7,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // A snippet window lands wherever the byte count puts it, and where that was
@@ -680,5 +682,82 @@ func TestEverySentenceTerminatorEndsASentenceTheWayItsSetSays(t *testing.T) {
 		if _, expected := endsAlone[terminator]; !expected {
 			t.Errorf("%s is a terminator with no expectation written for it here", strconv.QuoteRune(terminator))
 		}
+	}
+}
+
+// TestExcerptPrefersProseWhenTheSameWordsSitInAFence is the first half of the
+// fence-eligibility lock: the deciding line of a result is the one a reader
+// uses to open it, and a d2 fence that happens to hold the same words must not
+// spend that line on diagram syntax. The fence is written first so the raw
+// earliest offset lands inside it; the prose window has to win on purpose.
+func TestExcerptPrefersProseWhenTheSameWordsSitInAFence(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Both.md", []byte(""+
+			"# Both\n\n"+
+			"```d2\n"+
+			"direction: right\n"+
+			"Source: \"source\\nowns jobs close\"\n"+
+			"```\n\n"+
+			"The source owns jobs after the workers close.\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(`"owns jobs"`), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	got := results[0].Snippet
+	if strings.Contains(got, "direction: right") || strings.Contains(got, `source\n`) {
+		t.Errorf("snippet() = %q, spent the excerpt on the fence that sits first", got)
+	}
+	if !strings.Contains(got, "The source owns jobs after the workers close.") {
+		t.Errorf("snippet() = %q, want the prose window that holds the same words", got)
+	}
+	if results[0].Landing != "owns jobs" {
+		t.Errorf("Landing = %q, want the prose phrase, not the fence copy", results[0].Landing)
+	}
+}
+
+// TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere is the other half: a note
+// whose only mention is inside a fence still produces an excerpt rather than
+// dropping the hit, and that excerpt is marked as source so it does not read
+// as a sentence the note wrote.
+func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Fence only.md", []byte(""+
+			"# Fence only\n\n"+
+			"A paragraph about something else entirely.\n\n"+
+			"```d2\n"+
+			"direction: right\n"+
+			"Source: \"source\\nowns jobs close\"\n"+
+			"```\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(`"owns jobs"`), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	got := results[0].Snippet
+	if got == "" {
+		t.Fatal("snippet() is empty; a fence-only hit must still produce an excerpt")
+	}
+	if !strings.Contains(got, "owns jobs") {
+		t.Errorf("snippet() = %q, dropped the fence words the query asked for", got)
+	}
+	body := strings.TrimPrefix(got, "…")
+	if !strings.HasPrefix(body, "source:") {
+		t.Errorf("snippet() = %q, want a fence-only excerpt marked as source rather than presented as a sentence", got)
+	}
+	if results[0].Landing == "" {
+		t.Error("Landing is empty; a fence-only hit must still name where it matched")
 	}
 }
