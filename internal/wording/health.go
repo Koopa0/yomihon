@@ -10,8 +10,8 @@ var HealthTitle = both("整體狀況", "Health")
 // otherwise indistinguishable from a page that checked nothing. It also names
 // what this page does not cover, and where that is checked instead.
 var HealthAllClear = both(
-	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有人連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——這裡的 status 名單是從「有寫 status 的筆記」來的，沒寫的不會出現在任何一區；那些請跑 ",
-	"Everything this page checks is clear: every [[…]] link has a target, every note is cited by something, no name is claimed by two files, and every status is in the schema's list. Frontmatter missing a required field is not this page's business — the statuses here come from notes that carry one, and a note with none appears in no section at all. For those, run ",
+	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——這裡的 status 名單是從「有寫 status 的筆記」來的，沒寫的不會出現在任何一區；那些請跑 ",
+	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, no name is claimed by two files, and every status is in the schema's list. Frontmatter missing a required field is not this page's business — the statuses here come from notes that carry one, and a note with none appears in no section at all. For those, run ",
 )
 
 // HealthAllClearAfterCommand closes that sentence after the command it names.
@@ -53,10 +53,10 @@ var (
 		"這些筆記都存在。連結指不到它們，是因為寫的是標題，而標題不是這個書庫解析連結用的名字——檔名和 aliases 才是。要修的是那篇筆記的 aliases，不是再寫一篇。",
 		"These notes exist. The links miss them because they name a title, and a title is not what this library resolves a link by — a filename and its aliases are. The repair is that note's aliases, not another note.",
 	)
-	IslandsTitle = both("沒有人連過來的筆記", "Notes nothing cites")
+	IslandsTitle = both("沒有正文連過來的筆記", "Notes nothing cites in the text")
 	IslandsLede  = both(
-		"沒有其他筆記連到它們。很多寫作方式本來就不互相引用——日記、逐字稿、模板、產生出來的報告——所以這裡按資料夾分開，先看形狀，再決定哪一堆值得你看。",
-		"No other note links to these. Plenty of writing is not meant to be cited — journals, transcripts, templates, generated reports — so they are grouped by folder: see the shape first, then decide which group is worth your time.",
+		"沒有其他筆記在正文連到它們。把它們寫進來源聲明並不算這裡說的連過來。很多寫作方式本來就不互相引用——日記、逐字稿、模板、產生出來的報告——所以這裡按資料夾分開，先看形狀，再決定哪一堆值得你看。",
+		"No other note cites these in the text. Naming them as a declared source does not count here. Plenty of writing is not meant to be cited — journals, transcripts, templates, generated reports — so they are grouped by folder: see the shape first, then decide which group is worth your time.",
 	)
 	StatusOutsideEnumTitle = both("狀態值不在允許清單的筆記", "Notes whose status is outside the list")
 	StatusOutsideEnumLede  = both(

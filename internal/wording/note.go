@@ -40,14 +40,18 @@ var (
 	RailNextLesson     = both("下一課：", "Next lesson: ")
 )
 
-// The right rail and the blocks in it.
+// The right rail and the blocks in it. CitedBy names body wikilinks only;
+// BasedOn is the author's based_on declaration, a different claim, so the two
+// labels stay visibly different rather than one number that mixes them.
 var (
 	ReadingAids = both("閱讀輔助", "Reading aids")
 	OnThisPage  = both("本頁內容", "On this page")
 	NoteHealth  = both("筆記狀況", "Note health")
-	CitedBy     = both("連到這篇", "Cited by")
-	CitedByNav  = both("連到這篇的筆記", "Notes that cite this one")
-	CitedByNone = both("目前沒有其他筆記連到這篇。", "No other note cites this one.")
+	CitedBy     = both("正文連到這篇", "Cited in the text")
+	CitedByNav  = both("正文連到這篇的筆記", "Notes that cite this one in the text")
+	CitedByNone = both("目前沒有其他筆記在正文連到這篇。", "No other note cites this one in the text.")
+	BasedOn     = both("聲明的來源", "Declared sources")
+	BasedOnNav  = both("這篇聲明的來源", "Sources this note declared")
 )
 
 // The status face: its label, and what it says in each state that offers no

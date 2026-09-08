@@ -258,6 +258,7 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		StepsCourse:         true,
 		VaultHasLinks:       true,
 		CitedBy:             []nav.NoteRef{{Name: "C01", RelPath: "Concepts/go/C01.md"}},
+		BasedOn:             []nav.NoteRef{{Name: "Book notes", RelPath: "Book notes.md"}, {Name: "[[twin]]"}},
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
 		Sidebar:             NewSidebar(model, current),
 		Governed:            true,

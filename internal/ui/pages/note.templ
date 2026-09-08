@@ -62,6 +62,11 @@ type NoteView struct {
 	// CitedBy are the notes whose text links here. An empty list is an answer —
 	// the note is an island — so the block states that rather than vanishing.
 	CitedBy []nav.NoteRef
+	// BasedOn are the sources this note declared in based_on, in declaration
+	// order. A unique resolution is a title and a link; anything else is the
+	// author's own text, unlinked. An empty list hides the block — declaring
+	// nothing is the default, not a finding.
+	BasedOn []nav.NoteRef
 	TOC     []render.TOCEntry
 
 	// Sidebar is the resolved left navigation for this page.
@@ -234,12 +239,12 @@ templ articleHead(v NoteView, lang wording.Lang) {
 }
 
 // ============================ RIGHT RAIL ============================
-// Reading leads and the ruling closes: the note's own shape, then what leads
-// to it from elsewhere in the vault, then the status panel. The panel used to
-// open the rail so a long outline could not push it past the bottom of the
-// window, which put the page's smallest verb above both of the things the
-// reader came to the rail for. It is reached by scrolling the rail, like
-// everything else in it.
+// Reading leads and the ruling closes: the note's own shape, then the sources
+// it declared, then what leads to it from the text of other notes, then the
+// status panel. The panel used to open the rail so a long outline could not
+// push it past the bottom of the window, which put the page's smallest verb
+// above both of the things the reader came to the rail for. It is reached by
+// scrolling the rail, like everything else in it.
 templ rightRail(v NoteView, lang wording.Lang) {
 	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(lang) }>
 		if len(v.TOC) > 0 {
@@ -248,10 +253,37 @@ templ rightRail(v NoteView, lang wording.Lang) {
 				@tocList(v)
 			</nav>
 		}
+		@basedOn(v, lang)
 		@citedBy(v, lang)
 		@diagnostics(v, lang)
 		@statusPanel(v, lang)
 	</aside>
+}
+
+// basedOn lists the sources this note declared in based_on. It is absent when
+// the note declared none: that is the default, not a finding. A unique
+// resolution is a title and a link; an unresolved or ambiguous value is the
+// author's own text, never a guessed address.
+templ basedOn(v NoteView, lang wording.Lang) {
+	if len(v.BasedOn) > 0 {
+		@basedOnBlock(v, lang)
+	}
+}
+
+templ basedOnBlock(v NoteView, lang wording.Lang) {
+	<nav class="y-basedon" aria-label={ wording.BasedOnNav.In(lang) }>
+		<div class="ui-side__label">
+			{ wording.BasedOn.In(lang) }
+			<span class="ui-navitem__count">{ strconv.Itoa(len(v.BasedOn)) }</span>
+		</div>
+		for _, ref := range v.BasedOn {
+			if ref.RelPath != "" {
+				<a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a>
+			} else {
+				<span class="ui-navitem">{ ref.Name }</span>
+			}
+		}
+	</nav>
 }
 
 // citedBy lists the notes whose text links to this one. Nothing is a real
@@ -354,6 +386,16 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 						<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
 					</summary>
 					@diagnostics(v, lang)
+				</details>
+			}
+			if len(v.BasedOn) > 0 {
+				<details class="y-toc-inline">
+					<summary class="y-toc-inline__summary">
+						@chevron()
+						{ wording.BasedOn.In(lang) }
+						<span class="y-diagcount">{ strconv.Itoa(len(v.BasedOn)) }</span>
+					</summary>
+					@basedOnBlock(v, lang)
 				</details>
 			}
 			// A fact about the library rather than a decoration the narrow

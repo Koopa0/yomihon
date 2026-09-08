@@ -1368,11 +1368,13 @@ html {
   .y-helpbtn, .y-textsizebtn { display: none; }
 }
 
-/* Cited-by: the link graph read backwards. It keeps its heading when the list
-   is empty, because a note nothing cites is a finding rather than a blank —
-   the block disappearing would leave the reader unable to tell an island from
-   a feature this interface does not have. */
-.y-citedby { margin-top: 22px; }
+/* Cited-by and declared sources share spacing: two lists of names in the
+   rail, answering different questions. Cited-by keeps its heading when the
+   list is empty, because a note nothing cites in the text is a finding
+   rather than a blank — the block disappearing would leave the reader
+   unable to tell an island from a feature this interface does not have.
+   Declared sources hide when the note wrote none. */
+.y-citedby, .y-basedon { margin-top: 22px; }
 .y-citedby__none { margin: 4px 8px 0; font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.6; }
 
 /* Whole-folder health: a reading page, not a dashboard. The lists are prose

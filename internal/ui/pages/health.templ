@@ -18,7 +18,8 @@ type HealthView struct {
 	// TitleOnly are citations naming a note's title — the note exists, and the
 	// repair is an alias rather than a new note.
 	TitleOnly []HealthTitleLink
-	// Islands are notes nothing cites, grouped by folder.
+	// Islands are notes nothing cites in the body, grouped by folder.
+	// A based_on declaration is not a citation here; the heading says so.
 	Islands []HealthIslandGroup
 	// IslandCount is every uncited note across the groups, so the heading can
 	// say the whole number the groups add up to.

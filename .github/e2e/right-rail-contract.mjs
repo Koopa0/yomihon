@@ -1,9 +1,10 @@
 // Behavior lock for the wide reading rail. A long table of contents, the
 // status controls, and diagnostics retain their full content height; the rail
 // is the one vertical scroller that makes each focus target reachable. It also
-// holds the order the reader meets them in: the note's own shape, then what
-// leads to it from elsewhere in the vault, and the ruling last — a small verb
-// beside the reading rather than the frame around it.
+// holds the order the reader meets them in: the note's own shape, then the
+// sources it declared, then what leads to it from the text of other notes, and
+// the ruling last — a small verb beside the reading rather than the frame
+// around it.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the long-TOC diagnostic fixture), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -169,7 +170,7 @@ try {
         flexShrink: getComputedStyle(child).flexShrink,
       })),
     }));
-    if (shape.children.length !== 4) broken(`the fixture has ${shape.children.length} rail children, want the outline, cited-by, diagnostics, and the status panel`);
+    if (shape.children.length !== 5) broken(`the fixture has ${shape.children.length} rail children, want the outline, declared sources, cited-by, diagnostics, and the status panel`);
     if (shape.overflowY !== 'auto' || shape.scrollHeight <= shape.clientHeight) {
       broken(`the fixture does not exercise one overflowing rail at 1600×${height}: ${JSON.stringify(shape)}`);
     }
@@ -196,6 +197,7 @@ try {
     // when nothing does, so a missing block is the answer going missing rather
     // than the answer being empty.
     if (await rail.locator('.y-citedby').count() !== 1) broken('the fixture has no cited-by block');
+    if (await rail.locator('.y-basedon').count() !== 1) broken('the fixture has no declared-source block');
     if (await tocLinks.count() !== 24) broken(`the fixture has ${await tocLinks.count()} TOC links, want 24`);
     if (await statusControls.count() === 0) broken('the fixture has no status control');
     if (await diagnostics.count() === 0) broken('the fixture has no diagnostic card');
@@ -217,13 +219,16 @@ try {
         const found = element.querySelector(selector);
         return found ? found.getBoundingClientRect().top + element.scrollTop : null;
       };
-      return { outline: top('nav .y-toc__list'), cited: top('.y-citedby'), ruling: top('.y-statuspanel') };
+      return { outline: top('nav .y-toc__list'), based: top('.y-basedon'), cited: top('.y-citedby'), ruling: top('.y-statuspanel') };
     });
     for (const [name, value] of Object.entries(tops)) {
       if (value === null) broken(`the fixture has no ${name} block, so the order it stands in proves nothing`);
     }
-    if (!(tops.outline < tops.cited)) {
-      failOrder(`what leads to this note is painted above the note's own shape at 1600×${height}: ${JSON.stringify(tops)}`);
+    if (!(tops.outline < tops.based)) {
+      failOrder(`declared sources are painted above the note's own shape at 1600×${height}: ${JSON.stringify(tops)}`);
+    }
+    if (!(tops.based < tops.cited)) {
+      failOrder(`what leads to this note is painted above the sources it declared at 1600×${height}: ${JSON.stringify(tops)}`);
     }
     if (!(tops.cited < tops.ruling)) {
       failOrder(`the ruling is painted above what leads to this note at 1600×${height}: ${JSON.stringify(tops)}; the verb has taken the frame's place`);

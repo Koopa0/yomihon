@@ -153,7 +153,7 @@ func (v *NoteView) diagCount() int {
 // rail's column is dropped and the write face moves to the bottom bar, so no
 // reader sits beside a tall gutter holding a lone status card.
 func (v *NoteView) hasAids() bool {
-	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 || v.citedByShown()
+	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 || v.citedByShown() || len(v.BasedOn) > 0
 }
 
 // citedByShown reports whether the answer about what links here means anything

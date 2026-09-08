@@ -183,7 +183,7 @@ func TestHealthDoesNotCallATitleReferencedNoteUncited(t *testing.T) {
 	if !strings.Contains(page, "Citing") {
 		t.Fatal("the citing note is not on the page at all, so this proves nothing about which list it is in")
 	}
-	islands := healthSectionBody(t, page, "沒有人連過來的筆記")
+	islands := healthSectionBody(t, page, "沒有正文連過來的筆記")
 	if strings.Contains(islands, "Target") {
 		t.Error("a note someone reached by its title is listed among the notes nothing reaches")
 	}
