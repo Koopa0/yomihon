@@ -211,7 +211,7 @@ func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHoo
 	case FormatHuman:
 		stdout = []byte(humanReport(findings, a.authority.domainRoots()))
 	case FormatMarkdown:
-		stdout = []byte(markdownReport(findings, a.authority.domainRoots()))
+		stdout = []byte(markdownReport(findings, a.authority.domainRoots(), a.authority.contract))
 	default:
 		panic("judge: unknown Format: " + o.Format.String())
 	}
