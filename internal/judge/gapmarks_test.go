@@ -61,9 +61,9 @@ func TestContractGapMarksDecideBrokenLinkSeverity(t *testing.T) {
 			wantZH:     SeverityWarn,
 		},
 		{
-			name:       "omitted keys keep today's dialect",
-			wantEN:     SeverityWarn,
-			wantZH:     SeverityInfo,
+			name:   "omitted keys keep today's dialect",
+			wantEN: SeverityWarn,
+			wantZH: SeverityInfo,
 		},
 	}
 	for _, tt := range tests {
@@ -85,8 +85,8 @@ func TestContractGapMarksDecideBrokenLinkSeverity(t *testing.T) {
 				t.Errorf("[[%s]] under ## 缺口: severity %s, want %s; evidence %q",
 					missingZH, zh.Severity, tt.wantZH, zh.Evidence)
 			}
-			assertBrokenEvidence(t, en)
-			assertBrokenEvidence(t, zh)
+			assertBrokenEvidence(t, &en)
+			assertBrokenEvidence(t, &zh)
 		})
 	}
 }
@@ -111,7 +111,7 @@ func bilingualGapVault(t *testing.T, rulesExtra string) string {
 	return root
 }
 
-func assertBrokenEvidence(t *testing.T, f Finding) {
+func assertBrokenEvidence(t *testing.T, f *Finding) {
 	t.Helper()
 	switch f.Severity {
 	case SeverityInfo:

@@ -225,7 +225,7 @@ func advancePlannedItem(item *string, names []string, line string, inGap bool) (
 
 // inlinePlannedTargets appends the [[X]] targets on a line beside an inline
 // planned marker.
-func inlinePlannedTargets(line string, names []string, inlineMarks []string) []string {
+func inlinePlannedTargets(line string, names, inlineMarks []string) []string {
 	if !containsAnySubstring(line, inlineMarks) {
 		return names
 	}
