@@ -793,7 +793,7 @@ func TestMappedEndContractsAnNFDPrefix(t *testing.T) {
 func TestFenceRangeRemapSurvivesAnNFDCharacter(t *testing.T) {
 	t.Parallel()
 
-	const token = "UNIQUE_FENCE_ONLY_TOKEN"
+	const token = "UNIQUE_FENCE_ONLY_PHRASE"
 	idx := NewIndex([]Document{
 		DocumentFromNote(vault.Parse("Notes/NFC fence.md", []byte(""+
 			"# NFC fence\n\n"+
