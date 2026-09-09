@@ -578,6 +578,49 @@ func TestFlipAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 	})
 }
 
+// TestObservedStatusAgreesWithTheReaderAboutWhichNamesExist locks the read
+// half of the spelling walk Flip already uses. The reading page asks with the
+// NFC path the scan published; without the walk, an NFD note looks unreadable
+// and the status face closes even though Flip would succeed.
+func TestObservedStatusAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a differently-cased directory is missing", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writer := newWriter(t, root, loadContract(t))
+
+		const onDiskRel = "Writing/lessons/japanese/L05.md"
+		const requestedRel = "Writing/lessons/JAPANESE/L05.md"
+		writeVaultFile(t, root, onDiskRel, lessonContent("draft"))
+
+		_, err := writer.ObservedStatus(t.Context(), requestedRel)
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("ObservedStatus(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, fs.ErrNotExist)
+		}
+	})
+
+	t.Run("an NFD name is the NFC request", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writer := newWriter(t, root, loadContract(t))
+
+		const nfcLeaf = "käln.md"
+		nfdLeaf := norm.NFD.String(nfcLeaf)
+		if nfdLeaf == nfcLeaf {
+			t.Fatal("NFC and NFD collapsed; this lock would not bind")
+		}
+		onDiskRel := "Writing/" + nfdLeaf
+		requestedRel := "Writing/" + nfcLeaf
+		writeVaultFile(t, root, onDiskRel, lessonContent("draft"))
+
+		observed, err := writer.ObservedStatus(t.Context(), requestedRel)
+		if err != nil || observed != "draft" {
+			t.Fatalf("ObservedStatus(%q) against on-disk %q = (%q, %v), want draft", requestedRel, onDiskRel, observed, err)
+		}
+	})
+}
+
 // TestFlipReportsAMissingNoteAsMissing guards the boundary the on-disk name
 // check introduces: a name that resolves to nothing is a note that is not
 // there, and the operator has to be told that rather than that their note is
