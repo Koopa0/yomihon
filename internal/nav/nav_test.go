@@ -797,14 +797,22 @@ func TestParseBranchesGoShape(t *testing.T) {
 
 // TestParseBranchesMinnaShape covers the 大家 shape: the warm-up branch holds
 // direct P entries and the course-sequence branch holds a nested L entry tree.
-// The daily-loop, learning-levels, and gaps branches carry no resolved
-// wikilink and prune away — the loop's ordered item and the gap task items
-// name notes that do not exist, and the levels table names none. A "待建"
-// bullet with no wikilink is not an entry. The H1 title is ignored.
+// The old rule that only unordered bullets counted was wrong: the daily-loop
+// ordered item and the gap task items are entries once their targets resolve,
+// so those headings stay. The levels table still names none and prunes. A
+// "待建" bullet with no wikilink is not an entry. The H1 title is ignored.
 func TestParseBranchesMinnaShape(t *testing.T) {
 	t.Parallel()
 
-	idx := resolver(t, "jp/P01 Kana.md", "jp/L01 Intro.md", "jp/L02 Next.md", "jp/L03 Verbs.md")
+	idx := resolver(t,
+		"jp/P01 Kana.md",
+		"jp/L01 Intro.md",
+		"jp/L02 Next.md",
+		"jp/L03 Verbs.md",
+		"Loop Link.md",
+		"Some Guide.md",
+		"Another Guide.md",
+	)
 	statusByPath := map[string]string{
 		"jp/P01 Kana.md":  "draft",
 		"jp/L01 Intro.md": "draft",
@@ -857,6 +865,13 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 			},
 		},
 		{
+			Heading: "Daily loop",
+			Level:   2,
+			Entries: []MapEntry{
+				{Text: "Loop Link", Target: "Loop Link", RelPath: "Loop Link.md"},
+			},
+		},
+		{
 			Heading: "Course sequence (order = lines)",
 			Level:   2,
 			Subbranches: []Branch{
@@ -877,6 +892,14 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 				},
 			},
 		},
+		{
+			Heading: "Gaps",
+			Level:   2,
+			Entries: []MapEntry{
+				{Text: "Some Guide", Target: "Some Guide", RelPath: "Some Guide.md"},
+				{Text: "Another Guide", Target: "Another Guide", RelPath: "Another Guide.md"},
+			},
+		},
 	}
 
 	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t))
@@ -887,7 +910,9 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 
 // TestParseBranchesFaultTolerance proves unresolved and ambiguous rows stay out
 // of navigation while a uniquely resolved neighbor remains, and malformed
-// heading/list lines are ignored without panicking.
+// heading/list lines are ignored without panicking. A checkbox that names a
+// resolved note is an entry — the old exclusion of task lines was wrong — so
+// the empty H4 above that task stays.
 func TestParseBranchesFaultTolerance(t *testing.T) {
 	t.Parallel()
 
@@ -897,9 +922,9 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 	body := "## part | Part | 部\n" +
 		"\n" +
 		"###notaspace this is not a heading\n" +
-		"#### \n" + // empty-label deeper heading, no entries -> pruned
+		"#### \n" + // empty-label deeper heading: the task below now keeps it
 		"- \n" + // bare bullet, no wikilink -> not an entry
-		"- [ ] a task with a [[Ghost]] link -> unresolved, heading prunes\n" +
+		"- [ ] a task with a [[Real]] link -> excluded\n" +
 		"- no wikilink here at all\n" +
 		"\n" +
 		"### mod | Module | 模組\n" +
@@ -913,6 +938,11 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 			Heading: "Part",
 			Level:   2,
 			Subbranches: []Branch{
+				{
+					Heading: "",
+					Level:   4,
+					Entries: []MapEntry{{Text: "Real", Target: "Real", RelPath: "ok/Real.md"}},
+				},
 				{
 					Heading: "Module",
 					Level:   3,
@@ -1040,6 +1070,101 @@ func TestParseBranchesFencedWikilinkIsNotAnEntry(t *testing.T) {
 	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fenced negative) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestParseBranchesAdmitsEveryLiveLineKind locks the four line kinds the
+// old list-item parser refused and this walk now keeps. Deleting that parser
+// acquired them as a side effect; each case here names the wanted entry so a
+// later narrowing cannot hide behind the prose and table locks.
+func TestParseBranchesAdmitsEveryLiveLineKind(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		path string
+	}{
+		{name: "ordered list item", line: "1. **step** links [[Loop Link]]", path: "Loop Link.md"},
+		{name: "unchecked task", line: "- [ ] todo (spec [[Guide]])", path: "Guide.md"},
+		{name: "checked task", line: "- [x] done, see [[Guide]]", path: "Guide.md"},
+		{name: "blockquote", line: "> prose with [[Link]]", path: "Link.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			idx := resolver(t, tt.path)
+			target := strings.TrimSuffix(tt.path, ".md")
+			got := parseBranches("## Branch\n\n"+tt.line+"\n", idx, map[string]string{}, testArtifactPolicy(t))
+			want := []Branch{{
+				Heading: "Branch",
+				Level:   2,
+				Entries: []MapEntry{{Text: target, Target: target, RelPath: tt.path}},
+			}}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("parseBranches(%q) mismatch (-want +got):\n%s", tt.line, diff)
+			}
+		})
+	}
+}
+
+// TestParseBranchesIgnoresAHeadingShapedLineInsideAFence holds the fence
+// guard on heading lines. Dropping `&& !skip` stays green on every other
+// case, yet `## Example heading` inside the fence then opens a branch
+// labelled with quoted example code; After hangs from it and the shelf
+// reads 2 枝 for a page that has one heading.
+func TestParseBranchesIgnoresAHeadingShapedLineInsideAFence(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Live.md", "After.md")
+	body := "## Real\n" +
+		"\n" +
+		"See [[Live]].\n" +
+		"\n" +
+		"```\n" +
+		"## Example heading\n" +
+		"```\n" +
+		"\n" +
+		"Later [[After]].\n"
+
+	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	want := []Branch{{
+		Heading: "Real",
+		Level:   2,
+		Entries: []MapEntry{
+			{Text: "Live", Target: "Live", RelPath: "Live.md"},
+			{Text: "After", Target: "After", RelPath: "After.md"},
+		},
+	}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("parseBranches (fenced heading) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestParseBranchesQuotedInlineLinksAreNotEntries holds the two skip zones
+// a line mask cannot see. Reimplementing LiveWikilinks as "skip fenced
+// lines" leaves `[[Backticked]]` and %%[[Commented]]%% as rail entries;
+// both notes resolve here, so only the zones keep them off the tree.
+func TestParseBranchesQuotedInlineLinksAreNotEntries(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Live.md", "Backticked.md", "Commented.md")
+	body := "## Zone\n" +
+		"\n" +
+		"See [[Live]].\n" +
+		"See `[[Backticked]]`.\n" +
+		"%%[[Commented]]%%\n"
+
+	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	want := []Branch{{
+		Heading: "Zone",
+		Level:   2,
+		Entries: []MapEntry{
+			{Text: "Live", Target: "Live", RelPath: "Live.md"},
+		},
+	}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("parseBranches (inline skip zones) mismatch (-want +got):\n%s", diff)
 	}
 }
 

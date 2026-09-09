@@ -213,6 +213,9 @@ func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
 		"[[Fenced]]\n" +
 		"```\n" +
 		"\n" +
+		"A code span `[[Backticked]]` is quoted.\n" +
+		"%%[[Commented]]%%\n" +
+		"\n" +
 		"| col |\n" +
 		"| --- |\n" +
 		"| [[挪威的森林\\|《挪威的森林》]] |\n"
