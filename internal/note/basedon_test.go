@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// KOO-40 lock: a declared based_on source is walkable on the reading page, and
+// A declared based_on source is walkable on the reading page, and
 // an unresolved or ambiguous value stays the author's own text. The two scope
 // labels — declared source versus cited in the text — render as different
 // words on the note page and on the health list.
