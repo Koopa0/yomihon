@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // The rail's type drawers open to meet the page the reader is on — the journal
@@ -168,7 +166,7 @@ func TestCitedByAnswersOnThePage(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	island := citedByBlock(t, body)
-	if !strings.Contains(island, wording.CitedByNone.In(wording.ZhHant)) {
+	if !strings.Contains(island, "目前沒有其他筆記在正文連到這篇。") {
 		t.Errorf("the island does not say it is one; block = %q", island)
 	}
 	// Scoped to the block on purpose: the rail lists every note in the folder,
