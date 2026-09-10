@@ -427,7 +427,10 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 // second reports a non-draft lesson of a domain that no study path of that
 // domain lists. Listed is collected across every path of the domain before
 // that second walk, so a lesson another parallel path owns is not unlisted.
-// A draft lesson is expected work-in-progress and is not reported at all.
+// The second walk emits one finding per such lesson, attached to the first
+// path of the domain in check order — the file the reader opens next to add
+// the lesson. A draft lesson is expected work-in-progress and is not
+// reported at all.
 func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRoles, lessonType string) []Finding {
 	byDomain := lessonsByDomain(notes, lessonType)
 	listedByDomain := make(map[string]map[string]bool)
@@ -449,10 +452,17 @@ func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRole
 		}
 		maps.Copy(union, listed)
 	}
+	seenDomain := make(map[string]bool)
 	for i := range notes {
-		if syllabus := &notes[i]; roles.IsPathType(syllabus.noteType) && syllabus.domain != "" {
-			out = append(out, unlistedLessons(syllabus, byDomain[syllabus.domain], listedByDomain[syllabus.domain])...)
+		syllabus := &notes[i]
+		if !roles.IsPathType(syllabus.noteType) || syllabus.domain == "" {
+			continue
 		}
+		if seenDomain[syllabus.domain] {
+			continue
+		}
+		seenDomain[syllabus.domain] = true
+		out = append(out, unlistedLessons(syllabus, byDomain[syllabus.domain], listedByDomain[syllabus.domain])...)
 	}
 	return out
 }
@@ -498,7 +508,8 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Fin
 
 // unlistedLessons reports each non-draft lesson of the syllabus's domain that
 // no study path of that domain lists. The listed set is the domain union,
-// already collected; this walk only decides what to emit against this path.
+// already collected. The caller invokes this once per domain, against the
+// first path in check order, so one unlisted lesson is one finding.
 func unlistedLessons(syllabus *note, lessons []*note, listed map[string]bool) []Finding {
 	var out []Finding
 	for _, lesson := range lessons {
