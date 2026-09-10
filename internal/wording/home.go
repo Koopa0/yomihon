@@ -34,7 +34,7 @@ var (
 		"Notes in the declared knowledge folders changed most recently",
 	)
 	FolderTiedTitle = both("筆記", "Notes")
-	HomeTiedLede  = both(
+	HomeTiedLede    = both(
 		"這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」",
 		"These files carry identical timestamps, so nothing here is more recent than anything else",
 	)
@@ -43,7 +43,7 @@ var (
 		"Notes in the declared knowledge folders. These files carry identical timestamps, so nothing here is more recent than anything else",
 	)
 	FolderLifecycleTitle = both("依狀態分組", "By status")
-	HomeLifecycleLede  = both("書庫中每篇已索引筆記落在哪裡", "Where each indexed note in the vault sits")
+	HomeLifecycleLede    = both("書庫中每篇已索引筆記落在哪裡", "Where each indexed note in the vault sits")
 	// Beside a shelf narrowed to the declared layer the distribution still
 	// counts every indexed note, so its sentence says that the count reaches
 	// past the shelf; otherwise the file total above it and the total below it
