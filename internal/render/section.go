@@ -156,11 +156,30 @@ func headingSlice(body, heading string) (slice string, matches int) {
 // told reads as the place they named.
 //
 // The fragment is the one an anchor already carries, already folded by the pass
-// that wrote it; nothing here folds a name a second time.
+// that wrote it; nothing here folds a name a second time. An embed of a whole
+// note still comes through here as the note: a hover card that wants only the
+// lede asks ExcerptPreview, so the two surfaces stay one cut for a named
+// fragment and two answers for an empty one.
 func Excerpt(body, fragment string) (slice string, found bool) {
 	stripped, _ := stripObsidianComments(body)
 	slice, matches := excerptOf(stripped, fragment)
 	return slice, matches > 0
+}
+
+// ExcerptPreview is the hover card's reading of the same address Excerpt
+// takes. A named fragment is the same cut. An empty one is the lede — or
+// the first section when the note opens on a heading — and narrowed reports
+// that the rest of the note was left behind, so the card can say so with
+// the sentence a byte-capped preview already uses. An embed still asks
+// Excerpt (or excerptOf) for the whole note; this cut is the card's.
+func ExcerptPreview(body, fragment string) (slice string, found, narrowed bool) {
+	stripped, _ := stripObsidianComments(body)
+	if fragment == "" {
+		slice, narrowed = ledeSlice(stripped)
+		return slice, true, narrowed
+	}
+	slice, matches := excerptOf(stripped, fragment)
+	return slice, matches > 0, false
 }
 
 // excerptOf is the one cut every excerpt is made with, over a body whose
@@ -182,6 +201,33 @@ func excerptOf(stripped, fragment string) (slice string, matches int) {
 		return headingSlice(stripped, fragment)
 	}
 	return stripped, 1
+}
+
+// ledeSlice is the empty-fragment cut a hover card takes: the words before
+// the first heading, or the first section when the note opens on one. The
+// whole note is the cut only when there is no heading to stop at. narrowed
+// says the rest of the note was left behind.
+func ledeSlice(body string) (slice string, narrowed bool) {
+	lines := strings.Split(body, "\n")
+	headings := scanHeadings(lines)
+	if len(headings) == 0 {
+		return body, false
+	}
+	first := headings[0]
+	if first.line > 0 {
+		lede := strings.Join(lines[:first.line], "\n")
+		if strings.TrimSpace(lede) != "" {
+			return lede, true
+		}
+	}
+	end := len(lines)
+	for _, next := range headings[1:] {
+		if next.level <= first.level {
+			end = next.line
+			break
+		}
+	}
+	return strings.Join(lines[first.line:end], "\n"), end < len(lines)
 }
 
 // fragmentOf is the address an embed carries, in the spelling Excerpt reads. A

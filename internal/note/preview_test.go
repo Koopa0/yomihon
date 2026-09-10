@@ -171,9 +171,12 @@ func TestTheCardCutsAtTheSectionTheLinkAddressed(t *testing.T) {
 	}
 }
 
-// TestACardWithNoSectionShowsTheNoteFromTheTop covers the link written at a
-// whole note, which is most of them.
-func TestACardWithNoSectionShowsTheNoteFromTheTop(t *testing.T) {
+// TestABareFragmentCardIsTheLedeAndSaysThereIsMore holds an empty-fragment
+// hover to a taste of the note. The opening words are the cut; the words
+// the later sections own are not; and the card carries the same sentence
+// a byte-capped preview already uses, now on the first screen rather than
+// under a scroll of the whole file.
+func TestABareFragmentCardIsTheLedeAndSaysThereIsMore(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writePreviewVault(t, root)
@@ -183,10 +186,43 @@ func TestACardWithNoSectionShowsTheNoteFromTheTop(t *testing.T) {
 	if card.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
 	}
-	for _, sentinel := range []string{previewBeforeSentinel, previewInsideSentinel, previewAfterSentinel} {
-		if !strings.Contains(card.body, sentinel) {
-			t.Errorf("a card asked for the whole note is missing %q:\n%s", sentinel, card.body)
+	if !strings.Contains(card.body, previewBeforeSentinel) {
+		t.Errorf("the card does not carry the lede:\n%s", card.body)
+	}
+	for _, outside := range []string{previewInsideSentinel, previewAfterSentinel, previewBlockSentinel} {
+		if strings.Contains(card.body, outside) {
+			t.Errorf("the card reaches past the lede to %q:\n%s", outside, card.body)
 		}
+	}
+	if !strings.Contains(card.body, wording.PreviewMore.In(wording.ZhHant)) {
+		t.Errorf("the card stops at the lede and says nothing about it:\n%s", card.body)
+	}
+}
+
+// TestASectionCardIsTheAddressedCutAndDoesNotClaimACap keeps the ?section=
+// path the lock above must not disturb: the addressed words, none of the
+// lede, and no PreviewMore — that address asked for a section, and the
+// section is the whole answer.
+func TestASectionCardIsTheAddressedCutAndDoesNotClaimACap(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writePreviewVault(t, root)
+	srv := newServer(t, root)
+
+	card := askPreview(t, srv.Client(), srv.URL, previewTargetRel, "addressed", wording.ZhHant)
+	if card.code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
+	}
+	if !strings.Contains(card.body, previewInsideSentinel) {
+		t.Errorf("the card does not carry the addressed section's own words:\n%s", card.body)
+	}
+	for _, outside := range []string{previewBeforeSentinel, previewAfterSentinel} {
+		if strings.Contains(card.body, outside) {
+			t.Errorf("the card carries %q, which sits outside the section the link addressed:\n%s", outside, card.body)
+		}
+	}
+	if strings.Contains(card.body, wording.PreviewMore.In(wording.ZhHant)) {
+		t.Errorf("a card holding the addressed section claims the note was cut:\n%s", card.body)
 	}
 }
 
