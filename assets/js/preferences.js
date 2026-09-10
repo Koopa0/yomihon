@@ -33,6 +33,8 @@ export function initPreferences() {
 
   const themeToggle = document.querySelector('[data-theme-toggle]');
   const textsizeToggle = document.querySelector('[data-textsize-toggle]');
+  const rubyToggle = document.querySelector('[data-ruby-toggle]');
+  const shortcutsToggle = document.querySelector('[data-single-key-shortcuts-toggle]');
 
   // The size names come from the control itself, where the server wrote them
   // in the page's language; a copy here would be a second dictionary.
@@ -72,11 +74,11 @@ export function initPreferences() {
     setPreference('theme', effectiveTheme() === 'dark' ? 'light' : 'dark');
     event.currentTarget.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
   });
-  document.querySelector('[data-ruby-toggle]')?.addEventListener('click', (event) => {
+  rubyToggle?.addEventListener('click', (event) => {
     setPreference('ruby', root.dataset.ruby === 'off' ? 'on' : 'off');
     event.currentTarget.setAttribute('aria-pressed', String(root.dataset.ruby === 'on'));
   });
-  document.querySelector('[data-single-key-shortcuts-toggle]')?.addEventListener('change', (event) => {
+  shortcutsToggle?.addEventListener('change', (event) => {
     const value = event.currentTarget.checked ? 'on' : 'off';
     setSingleKeyShortcuts(value);
   });
@@ -103,6 +105,16 @@ export function initPreferences() {
     const size = stored === 'l' || stored === 'xl' ? stored : 'm';
     root.dataset.textsize = size;
     textsizeToggle?.setAttribute('aria-label', textsizeLabel(size));
+    // Only the literal "off" is off, matching the server's stamp: any other
+    // cookie, or none, is the default on. Both the root and the control have
+    // to move together or a restored page shows furigana the cookie refused
+    // and a button that claims the opposite.
+    const ruby = readCookie('yomihon_ruby') === 'off' ? 'off' : 'on';
+    root.dataset.ruby = ruby;
+    rubyToggle?.setAttribute('aria-pressed', String(ruby === 'on'));
+    const shortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
+    root.dataset.singleKeyShortcuts = shortcuts;
+    if (shortcutsToggle) shortcutsToggle.checked = shortcuts === 'on';
     // The document's language cannot be rewritten in place, so a stale one
     // means asking for the page again. The comparison normalises the cookie
     // exactly as the server does — anything but "en" reads as the default —
