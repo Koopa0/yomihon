@@ -382,7 +382,6 @@ patterns:
 	// generation reads it once, like everything else it reads.
 	for _, path := range []string{
 		"Concepts/Alpha.md",
-		"README.md",
 		"System/slots/L01.yaml",
 		schema.ContractRelPath,
 	} {
@@ -394,6 +393,17 @@ patterns:
 	// the page will show its characters, so reading them would buy nothing.
 	if got := source.reads["Diagrams/example.png"]; got != 0 {
 		t.Errorf("non-generation reads[%q] = %d, want 0", "Diagrams/example.png", got)
+	}
+	// skip_basenames leaves README.md out of the note map, so a generation
+	// does not open it to index or project it.
+	if got := source.reads["README.md"]; got != 0 {
+		t.Errorf("skipped-basename reads[%q] = %d, want 0", "README.md", got)
+	}
+	if _, ok := store.Current().Note("README.md"); ok {
+		t.Error("README.md was captured as a note; skip_basenames left it in the note map")
+	}
+	if !store.Current().SkipsNote("README.md") {
+		t.Error("README.md was not recorded as a declared skip")
 	}
 	if _, ok := store.Current().Note("Concepts/Alpha.md"); !ok {
 		t.Error("captured Alpha note is unavailable")

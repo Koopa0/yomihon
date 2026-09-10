@@ -151,6 +151,35 @@ func TestSkipBasenamesIsDetached(t *testing.T) {
 	}
 }
 
+func TestSkipsBasenameMatchesTheDeclaredFilenameOnly(t *testing.T) {
+	t.Parallel()
+
+	contract := loadFixture(t)
+	for _, tt := range []struct {
+		path string
+		want bool
+	}{
+		{path: "README.md", want: true},
+		{path: "Notes/README.md", want: true},
+		{path: "Notes/Kept.md", want: false},
+		{path: "readme.md", want: false},
+		{path: "", want: false},
+	} {
+		if got := contract.SkipsBasename(tt.path); got != tt.want {
+			t.Errorf("SkipsBasename(%q) = %v, want %v", tt.path, got, tt.want)
+		}
+	}
+
+	var zero schema.Contract
+	if zero.SkipsBasename("README.md") {
+		t.Error("zero Contract.SkipsBasename(README.md) = true, want false")
+	}
+	var none *schema.Contract
+	if none.SkipsBasename("README.md") {
+		t.Error("nil Contract.SkipsBasename(README.md) = true, want false")
+	}
+}
+
 func TestZeroContractCarriesNoAuthority(t *testing.T) {
 	t.Parallel()
 
@@ -181,6 +210,9 @@ func TestZeroContractCarriesNoAuthority(t *testing.T) {
 	}
 	if contract.PrivacyPolicy().Available() {
 		t.Error("PrivacyPolicy() on zero Contract is available")
+	}
+	if contract.SkipsBasename("README.md") {
+		t.Error("SkipsBasename() on zero Contract skips a filename")
 	}
 }
 
@@ -2178,6 +2210,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"SkipBasenames": func() string {
 			if got := c.SkipBasenames(); got != nil {
 				return fmt.Sprintf("SkipBasenames() = %v, want nil", got)
+			}
+			return ""
+		},
+		"SkipsBasename": func() string {
+			if c.SkipsBasename("README.md") {
+				return "SkipsBasename() skips a filename a vault nothing governs never declared"
 			}
 			return ""
 		},

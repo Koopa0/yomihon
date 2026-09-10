@@ -1500,6 +1500,20 @@ func (c *Contract) SkipBasenames() []string {
 	return slices.Clone(c.definition.Scan.SkipBasenames)
 }
 
+// SkipsBasename reports whether relPath's final segment is one of the
+// filenames this vault's scan skips. The path is vault-relative and
+// slash-form. An ungoverned vault skips none.
+func (c *Contract) SkipsBasename(relPath string) bool {
+	if c == nil || relPath == "" {
+		return false
+	}
+	base := relPath
+	if i := strings.LastIndexByte(relPath, '/'); i >= 0 {
+		base = relPath[i+1:]
+	}
+	return slices.Contains(c.definition.Scan.SkipBasenames, base)
+}
+
 // ArtifactPolicy returns the contract-derived artifact policy capability.
 func (c *Contract) ArtifactPolicy() ArtifactPolicy {
 	if c == nil {

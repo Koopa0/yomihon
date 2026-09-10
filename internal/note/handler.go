@@ -243,7 +243,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		h.showNotFound(w, r, r.URL.Path, authority, snap)
 		return
 	}
-	if !vault.IsMarkdown(rel) {
+	if !vault.IsMarkdown(rel) || snap.SkipsNote(rel) {
 		if name, ok := nav.BriefingName(rel); ok {
 			// 302, not 301: registration follows file location and can stop
 			// being true. no-store so a vanished briefing cannot keep sending

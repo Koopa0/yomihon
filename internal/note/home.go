@@ -23,7 +23,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	snap := h.sources.Snapshot().Capture()
 	// The desk links to the folder's own introduction rather than reprinting
 	// it, so nothing here renders it and its absence is not news.
-	_, hasReadme := snap.Note(pages.HomeReadmeRelPath)
+	_, hasReadme := snap.Entry(pages.HomeReadmeRelPath)
 	// One reading of the folder's state, used by both halves of the notice
 	// below. Read live, it can change between two questions, and the count in
 	// the sentence would then be answered by a different set of files than the
