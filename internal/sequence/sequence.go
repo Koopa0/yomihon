@@ -305,8 +305,11 @@ func Parse(body string, bodyStartLine int) Document {
 	p.close()
 
 	// Branch state is settled from candidates alone, so fixing a malformed row
-	// never makes a branch change role and report a fresh problem.
+	// never makes a branch change role and report a fresh problem. Row-shape
+	// reports are raised before that settlement; those that sit under none
+	// are withdrawn once Role is known.
 	p.classify(p.roots, false)
+	p.dropRowShapeUnderNone()
 
 	return Document{Groups: p.roots, Diagnostics: p.diagnostics}
 }
@@ -831,6 +834,36 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 		}
 		p.classify(g.subgroups(), underNone || g.Role == RoleNone)
 	}
+}
+
+// dropRowShapeUnderNone withdraws the lesson-row warnings from prose the
+// author already declared out of the course. Those reports are raised while
+// the row is read, before classify settles Role; keeping them after that
+// settlement asks the author to start a lesson row or take it out of a
+// course it was never in.
+func (p *parser) dropRowShapeUnderNone() {
+	quiet := map[int]struct{}{}
+	var mark func(groups []*Group, underNone bool)
+	mark = func(groups []*Group, underNone bool) {
+		for _, g := range groups {
+			out := underNone || g.Role == RoleNone
+			if out {
+				for _, e := range g.entries() {
+					quiet[e.Line] = struct{}{}
+				}
+			}
+			mark(g.subgroups(), out)
+		}
+	}
+	mark(p.roots, false)
+
+	p.diagnostics = slices.DeleteFunc(p.diagnostics, func(d Diagnostic) bool {
+		if d.Rule != RuleEntryNoncanonical && d.Rule != RuleEntryMultiTarget {
+			return false
+		}
+		_, skip := quiet[d.Line]
+		return skip
+	})
 }
 
 // current is the branch a row read right now belongs to, or nil before the
