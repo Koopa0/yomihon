@@ -300,6 +300,14 @@ const waitForNav = (page, state) => page.waitForFunction(
   state,
 );
 
+// The hamburger's hide is author CSS. Measuring at DOMContentLoaded can still
+// read the UA button default (inline-block) before /static/app.css applies
+// display:none, which is how a JS-only mutation was reported as an exposed
+// hamburger instead of the filter assertion it names.
+const waitForAppStyles = (page) => page.waitForFunction(() =>
+  [...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css')),
+);
+
 const openDrawer = async (page) => {
   await page.locator(TOGGLE).click();
   await waitForNav(page, 'open');
@@ -329,6 +337,7 @@ try {
     const page = await context.newPage();
     const proof = await arm(page, sites);
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await waitForAppStyles(page);
     proveApplied(proof);
 
     if (await page.$eval('html', (root) => root.hasAttribute('data-nav'))) {
