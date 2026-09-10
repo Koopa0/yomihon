@@ -344,7 +344,16 @@ deadcode-check:
 	found=$$(deadcode -test $$list); \
 	[ -z "$$found" ] || { printf '%s\n' "$$found" >&2; echo 'nothing reaches the functions above; delete them or say in the code why they stay' >&2; exit 1; }
 
-verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec vuln test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke
+# vuln is last among these prerequisites on purpose. Vulnerability data
+# changes independently of the tree, so a newly published advisory fails
+# this gate overnight. .NOTPARALLEL: verify below holds these
+# prerequisites left to right even under -j, and make stops at the first
+# failure: sitting vuln before test — or anywhere mid-chain, which is
+# where an alphabetical sort would put it — reports the advisory and
+# silences every later gate in that run. Keep it required; do not drop
+# it, and do not re-sort it forward.
+verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke vuln
+.NOTPARALLEL: verify
 
 # The harness this target drives is a maintainer-local checkout that this
 # repository does not ship, so from a clean clone there is nothing here to run.
