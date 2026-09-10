@@ -114,6 +114,13 @@ export function initSearch() {
         timer = null;
         results.setAttribute('aria-busy', 'false');
         clearResults();
+        // A local clear is a successful empty answer: the address must
+        // drop the query the results no longer show, or a reload brings
+        // it back. The dialog never sets the marker, so a note under
+        // the palette keeps its own URL.
+        if (syncsAddress) {
+          history.replaceState(history.state, '', new URL(formURL));
+        }
         return;
       }
 

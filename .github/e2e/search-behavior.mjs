@@ -1,8 +1,10 @@
 // Behavior lock: Home starts at the top and stays a plain GET form; /search and
 // the command palette update in place from the lexical-results endpoint, and
-// /search's own address follows its settled results in place; stale responses
-// cannot replace the newest query; every GET form still works with and without
-// JS.
+// /search's own address follows its settled results in place — including a
+// local clear, which drops q so a reload cannot restore the query the reader
+// just removed. The palette never rewrites the page it floats over. Stale
+// responses cannot replace the newest query; every GET form still works with
+// and without JS.
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (Home), and
 // MUTATE. MUTATE=list prints every self-test mode.
@@ -27,7 +29,9 @@ const SITES = [
   'home-remains-plain-get',
   'page-live-results',
   'page-url-follows-results',
+  'page-url-drops-cleared-query',
   'dialog-live-results',
+  'dialog-clear-keeps-page-url',
   'trailing-debounce',
   'ime-waits-for-composition',
   'superseded-request-is-aborted',
@@ -237,6 +241,24 @@ const MUTATIONS = {
         replacement: "          history.pushState(history.state, '', address);",
       },
     ], 'live-search URL replace'),
+  },
+  'keep-cleared-query-in-url': {
+    target: 'page-url-drops-cleared-query',
+    before: rewriteScript([
+      {
+        needle: "          history.replaceState(history.state, '', new URL(formURL));",
+        replacement: '          void formURL;',
+      },
+    ], 'live-search clear URL sync'),
+  },
+  'dialog-clear-rewrites-url': {
+    target: 'dialog-clear-keeps-page-url',
+    before: rewriteScript([
+      {
+        needle: "        if (syncsAddress) {\n          history.replaceState(history.state, '', new URL(formURL));\n        }",
+        replacement: "        if (true) {\n          history.replaceState(history.state, '', new URL(formURL));\n        }",
+      },
+    ], 'live-search clear URL ownership'),
   },
   'drop-debounce-cancel': {
     target: 'trailing-debounce',
@@ -644,6 +666,93 @@ try {
       if (!after.sameDocument) fail(site, 'the URL sync navigated to a new document instead of rewriting in place');
       if (after.depth !== depthBefore) {
         fail(site, `history depth ${depthBefore} -> ${after.depth}: the live query was pushed, not replaced`);
+      }
+    } finally {
+      await context.close();
+    }
+  }
+
+  // Clearing an answered query is a successful empty answer. The address has
+  // to drop q with the results, or a reload — and a copied link — bring the
+  // query back. Replaced, not pushed: the clear is still the same search.
+  {
+    const site = 'page-url-drops-cleared-query';
+    const scope = '.y-searchpage[data-live-search]';
+    const { context, page } = await start(browser, site, { path: `/search?q=${QUERY}` });
+    try {
+      const input = page.locator(`${scope} [data-live-search-input]`);
+      if (await input.inputValue() !== QUERY) {
+        fail(site, `answered search opened with ${JSON.stringify(await input.inputValue())}, want ${QUERY}`);
+      }
+      if (await page.locator(`${scope} [data-live-search-results]`).getAttribute('data-result-count') !== '1') {
+        fail(site, 'answered search did not open with the tortoise result');
+      }
+      const opened = new URL(page.url());
+      if (opened.pathname !== '/search' || opened.searchParams.get('q') !== QUERY) {
+        fail(site, `answered search opened at ${opened.pathname}${opened.search}, want /search?q=${QUERY}`);
+      }
+      const depthBefore = await page.evaluate(() => {
+        window.__clearedQueryMarker = true;
+        return history.length;
+      });
+      await input.fill('');
+      await waitForCount(page, site, scope, 0);
+      await waitFor(
+        page,
+        site,
+        () => {
+          const url = new URL(location.href);
+          const q = url.searchParams.get('q');
+          return url.pathname === '/search' && (q === null || q === '');
+        },
+        undefined,
+        'clearing an answered query left q in the address',
+      );
+      const after = await page.evaluate(() => ({
+        depth: history.length,
+        sameDocument: window.__clearedQueryMarker === true,
+      }));
+      if (!after.sameDocument) fail(site, 'clearing the query navigated to a new document');
+      if (after.depth !== depthBefore) {
+        fail(site, `history depth ${depthBefore} -> ${after.depth}: the clear was pushed, not replaced`);
+      }
+      await page.reload({ waitUntil: 'load' });
+      const reloaded = new URL(page.url());
+      const reloadedQ = reloaded.searchParams.get('q');
+      if (reloaded.pathname !== '/search' || (reloadedQ !== null && reloadedQ !== '')) {
+        fail(site, `reload after clear landed at ${reloaded.pathname}${reloaded.search}, want a search URL with no q`);
+      }
+      if (await page.locator(`${scope} [data-live-search-input]`).inputValue() !== '') {
+        fail(site, `reload after clear restored input ${JSON.stringify(await page.locator(`${scope} [data-live-search-input]`).inputValue())}`);
+      }
+      if (await page.locator(`${scope} [data-live-search-results]`).getAttribute('data-result-count') !== '0') {
+        fail(site, `reload after clear restored ${await page.locator(`${scope} [data-live-search-results]`).getAttribute('data-result-count')} result(s)`);
+      }
+    } finally {
+      await context.close();
+    }
+  }
+
+  // The palette floats over a page it does not own. Clearing it must leave
+  // that page's address alone — the same ownership the dialog already keeps
+  // while it is producing live results.
+  {
+    const site = 'dialog-clear-keeps-page-url';
+    const scope = 'dialog[data-search][data-live-search]';
+    const note = '/notes/Notes/alpha.md';
+    const { context, page } = await start(browser, site, { path: note });
+    try {
+      await page.keyboard.press('ControlOrMeta+k');
+      await page.locator(`${scope}[open]`).waitFor({ state: 'visible' });
+      const noteURL = page.url();
+      const input = page.locator(`${scope} [data-live-search-input]`);
+      await input.fill(QUERY);
+      await waitForCount(page, site, scope, 1);
+      if (page.url() !== noteURL) fail(site, `typing in the dialog left the note for ${page.url()}`);
+      await input.fill('');
+      await waitForCount(page, site, scope, 0);
+      if (page.url() !== noteURL) {
+        fail(site, `clearing the dialog rewrote the note URL to ${page.url()}`);
       }
     } finally {
       await context.close();
@@ -1062,7 +1171,7 @@ try {
     }
   }
 
-  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; page URL sync; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
+  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
