@@ -1,11 +1,16 @@
 package note_test
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // TestHealthNamesAPathTheScanPassedOver holds the reporting half of the
@@ -52,4 +57,64 @@ func TestHealthNamesAPathTheScanPassedOver(t *testing.T) {
 	if linkCode != http.StatusNotFound {
 		t.Errorf("the symlink is served with status %d; reporting it must not start following it", linkCode)
 	}
+}
+
+// TestHealthNamesANoteOverTheSourceBound is the wire from the generation's
+// size skip to the health page. The snapshot lock holds that Skipped() names
+// the note, and the page lock holds that a filled HealthView renders the row;
+// neither asks whether healthSkipped carried Size across. Dropping that field
+// leaves both green and /health silent about how large the note is.
+func TestHealthNamesANoteOverTheSourceBound(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	huge := "# Huge\n\nrarespelunker sits here too.\n" + strings.Repeat("padding padding padding\n", 60000)
+	if len(huge) <= render.MaxSourceBytes {
+		t.Fatalf("the oversize fixture is %d bytes, which is under the cap; this would prove nothing", len(huge))
+	}
+	if err := os.WriteFile(filepath.Join(root, "huge.md"), []byte(huge), 0o600); err != nil {
+		t.Fatalf("write huge note: %v", err)
+	}
+
+	srv := newServer(t, root)
+	code, page := get(t, srv.Client(), srv.URL+"/health")
+	if code != http.StatusOK {
+		t.Fatalf("health status = %d, want 200", code)
+	}
+	if !strings.Contains(page, "huge.md") {
+		t.Error("the health page does not name the over-bound note")
+	}
+	if !strings.Contains(page, "over the source bound") {
+		t.Error("the health page names the path without saying it is over the source bound")
+	}
+	if want := humanSizeZhHant(int64(len(huge))); !strings.Contains(page, want) {
+		t.Errorf("the health page does not name the size %q", want)
+	}
+	if strings.Contains(page, "yomihon check") {
+		t.Error("the page says the folder has nothing to answer for while holding an over-bound note")
+	}
+}
+
+// humanSizeZhHant is the size the health row prints for a note over the bound:
+// the same climb and thousands grouping the file page uses, in the language
+// GET /health speaks when no cookie chose another.
+func humanSizeZhHant(n int64) string {
+	value := float64(n)
+	unit := "KB"
+	for _, u := range []string{"KB", "MB", "GB"} {
+		value /= 1024
+		unit = u
+		if value < 1024 {
+			break
+		}
+	}
+	digits := strconv.FormatInt(n, 10)
+	var grouped strings.Builder
+	for i, r := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			grouped.WriteByte(',')
+		}
+		grouped.WriteRune(r)
+	}
+	return fmt.Sprintf(wording.ByteSizeFmt.In(wording.ZhHant), value, unit, grouped.String())
 }
