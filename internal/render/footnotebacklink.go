@@ -44,52 +44,68 @@ func renderFootnoteBacklink(w util.BufWriter, _ []byte, node ast.Node, entering 
 	if !ok {
 		return ast.WalkContinue, nil
 	}
-	if _, err := w.WriteString(`&#160;<a href="#`); err != nil {
+	if err := writeFootnoteBacklink(w, n); err != nil {
 		return ast.WalkStop, err
 	}
-	if _, err := w.Write(footnoteRegionPrefix(node)); err != nil {
-		return ast.WalkStop, err
+	return ast.WalkContinue, nil
+}
+
+func writeFootnoteBacklink(w util.BufWriter, n *east.FootnoteBacklink) error {
+	if err := writeFootnoteBacklinkOpen(w, n); err != nil {
+		return err
+	}
+	if n.RefCount > 1 {
+		return writeNamedFootnoteBacklink(w, n)
+	}
+	_, err := w.WriteString(` role="doc-backlink">` + footnoteBacklinkHTML + `</a>`)
+	return err
+}
+
+func writeFootnoteBacklinkOpen(w util.BufWriter, n *east.FootnoteBacklink) error {
+	if _, err := w.WriteString(`&#160;<a href="#`); err != nil {
+		return err
+	}
+	if _, err := w.Write(footnoteRegionPrefix(n)); err != nil {
+		return err
 	}
 	if _, err := w.WriteString("fnref"); err != nil {
-		return ast.WalkStop, err
+		return err
 	}
 	if n.RefIndex > 0 {
 		if _, err := w.WriteString(strconv.Itoa(n.RefIndex)); err != nil {
-			return ast.WalkStop, err
+			return err
 		}
 	}
 	if _, err := w.WriteString(":"); err != nil {
-		return ast.WalkStop, err
+		return err
 	}
 	if _, err := w.WriteString(strconv.Itoa(n.Index)); err != nil {
-		return ast.WalkStop, err
+		return err
 	}
-	if _, err := w.WriteString(`" class="footnote-backref"`); err != nil {
-		return ast.WalkStop, err
+	_, err := w.WriteString(`" class="footnote-backref"`)
+	return err
+}
+
+func writeNamedFootnoteBacklink(w util.BufWriter, n *east.FootnoteBacklink) error {
+	ordinal := strconv.Itoa(n.RefIndex + 1)
+	name := html.EscapeString(footnoteBacklinkName(footnoteLang(n), n.RefIndex+1))
+	if _, err := w.WriteString(` role="doc-backlink" aria-label="`); err != nil {
+		return err
 	}
-	if n.RefCount > 1 {
-		ordinal := strconv.Itoa(n.RefIndex + 1)
-		name := html.EscapeString(footnoteBacklinkName(footnoteLang(node), n.RefIndex+1))
-		if _, err := w.WriteString(` role="doc-backlink" aria-label="`); err != nil {
-			return ast.WalkStop, err
-		}
-		if _, err := w.WriteString(name); err != nil {
-			return ast.WalkStop, err
-		}
-		if _, err := w.WriteString(`">`); err != nil {
-			return ast.WalkStop, err
-		}
-		if _, err := w.WriteString(footnoteBacklinkHTML); err != nil {
-			return ast.WalkStop, err
-		}
-		if _, err := w.WriteString(ordinal); err != nil {
-			return ast.WalkStop, err
-		}
-		_, err := w.WriteString("</a>")
-		return ast.WalkContinue, err
+	if _, err := w.WriteString(name); err != nil {
+		return err
 	}
-	_, err := w.WriteString(` role="doc-backlink">` + footnoteBacklinkHTML + `</a>`)
-	return ast.WalkContinue, err
+	if _, err := w.WriteString(`">`); err != nil {
+		return err
+	}
+	if _, err := w.WriteString(footnoteBacklinkHTML); err != nil {
+		return err
+	}
+	if _, err := w.WriteString(ordinal); err != nil {
+		return err
+	}
+	_, err := w.WriteString("</a>")
+	return err
 }
 
 // footnoteBacklinkName is the accessible name of one return among several. The
