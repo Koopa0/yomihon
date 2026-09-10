@@ -152,6 +152,66 @@ func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 	}
 }
 
+// TestFolderIndexLabelsRootNotesAsTheirOwnGroup holds the half of the root
+// symptom the tree narrowing does not touch: a markdown file at the vault
+// root stays on the shelf, and it is labelled so it is not read as another
+// folder. Both languages carry the same cut.
+func TestFolderIndexLabelsRootNotesAsTheirOwnGroup(t *testing.T) {
+	t.Parallel()
+
+	model := buildModel(t)
+	for _, tt := range []struct {
+		lang wording.Lang
+		want string
+	}{
+		{wording.ZhHant, "根目錄筆記"},
+		{wording.En, "Root notes"},
+	} {
+		view := NewFolderIndex(model, tt.lang)
+		at := -1
+		for i, row := range view.Shelf.Rows {
+			if row.Heading && row.Text == tt.want {
+				at = i
+				break
+			}
+		}
+		if at < 0 {
+			t.Fatalf("folder index (%s) has no %q group; rows = %+v", tt.lang, tt.want, view.Shelf.Rows)
+		}
+		if at+1 >= len(view.Shelf.Rows) || view.Shelf.Rows[at+1].Text != "Reading list" || view.Shelf.Rows[at+1].Heading {
+			t.Errorf("folder index (%s) does not list the root note under the label; rows = %+v", tt.lang, view.Shelf.Rows)
+		}
+	}
+}
+
+// TestFolderLevelLabelsOtherFilesAndLeavesThemUncounted holds the folder page
+// to the shelf rule: 篇 counts notes; the files the desk still serves sit in
+// their own labelled group.
+func TestFolderLevelLabelsOtherFilesAndLeavesThemUncounted(t *testing.T) {
+	t.Parallel()
+
+	files := []nav.NoteRef{
+		{Name: "note", RelPath: "Attachments/note.md"},
+		{Name: "scan.pdf", RelPath: "Attachments/scan.pdf"},
+	}
+	zh := NewFolderLevel("Attachments", "Attachments", files, nil, wording.ZhHant)
+	if zh.Count != "1 篇" {
+		t.Errorf("folder level count = %q, want notes only", zh.Count)
+	}
+	wantZH := []Row{
+		{Text: "note", Href: "/notes/Attachments/note.md"},
+		{Text: "其他檔案", Heading: true},
+		{Text: "scan.pdf", Href: "/notes/Attachments/scan.pdf"},
+	}
+	if diff := cmp.Diff(wantZH, zh.Shelf.Rows); diff != "" {
+		t.Errorf("folder level rows (zh) mismatch (-want +got):\n%s", diff)
+	}
+	en := NewFolderLevel("Attachments", "Attachments", files, nil, wording.En)
+	if en.Shelf.Rows[1].Text != "Other files" || !en.Shelf.Rows[1].Heading {
+		t.Errorf("folder level (%s) other-files label = %+v, want Other files", wording.En, en.Shelf.Rows)
+	}
+}
+
 // TestEveryModeIndexNamesItself keeps a marker on each page that says which of
 // the four modes it is, independent of the words on it. A check that had to
 // recognise a page by its heading would be reading the reader's language, and
