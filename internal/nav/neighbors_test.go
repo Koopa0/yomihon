@@ -258,7 +258,7 @@ func TestJournalOrdersByTheEntriesOwnNames(t *testing.T) {
 		"Diary/2025-08-06.md": base,
 	}
 
-	got := buildJournal(paths, mtimes)
+	got := buildJournal(paths, mtimes, testContract(t).JournalDir())
 	want := []string{"Diary/2025-08-06.md", "Diary/2025-08-05.md", "Diary/2025-08-04.md"}
 	gotPaths := make([]string, 0, len(got))
 	for _, e := range got {

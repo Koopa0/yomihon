@@ -141,6 +141,7 @@ func buildModel(t *testing.T) *nav.Model {
 		contract.NavigationRoles(),
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
+		contract.JournalDir(),
 	)
 	return model
 }
@@ -371,6 +372,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		contract.NavigationRoles(),
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
+		contract.JournalDir(),
 	)
 	if model.NavigationClosure().Diagnostic() == "" || model.ArtifactClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no capability fault: navigation %q artifact %q",
@@ -409,6 +411,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		schema.NavigationRoles{},
 		schema.KnowledgeScope{},
 		schema.ArtifactPolicy{},
+		schema.JournalDir{},
 	)
 	var buf bytes.Buffer
 	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -621,7 +624,7 @@ func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy())
+	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir())
 
 	view := NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant)
 	if len(view.Shelf.Rows) != 1 || view.Shelf.Rows[0].Mark != "5 枝" {

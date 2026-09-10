@@ -62,8 +62,12 @@ type Model struct {
 	// maps are every other map-note tree, ordered by domain and then title.
 	maps []Map
 	// journal is the most recent captured journal entries, newest first, taken
-	// from the file listing rather than from any note type.
+	// from the file listing rather than from any note type. It is empty when
+	// the contract declared no journal directory.
 	journal []JournalEntry
+	// journalDir is the contract's journal capability, so InJournal asks the
+	// same declaration buildJournal did.
+	journalDir schema.JournalDir
 	// reports enumerates System/reports/ — the .md reports first, then the
 	// daily-briefing/ HTML briefings; contents are never parsed.
 	reports []Report
@@ -249,7 +253,7 @@ type NoteSummary struct {
 	Modified time.Time
 }
 
-// JournalEntry is one recent Diary markdown file, carrying the scanner's
+// JournalEntry is one recent journal markdown file, carrying the scanner's
 // captured time rather than one read while rendering.
 type JournalEntry struct {
 	Title    string
@@ -322,6 +326,7 @@ func New(
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
+	journal schema.JournalDir,
 ) *Model {
 	if resolver == nil {
 		panic("nav: New requires a non-nil *graph.Index")
@@ -346,7 +351,7 @@ func New(
 			note:     note,
 		})
 	}
-	return newModel(files, resolver, roles, scope, policy)
+	return newModel(files, resolver, roles, scope, policy, journal)
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
@@ -363,20 +368,26 @@ func newModel(
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
+	journal schema.JournalDir,
 ) *Model {
 	paths := make([]string, 0, len(files))
+	notePaths := make([]string, 0, len(files))
 	mtimes := make(map[string]time.Time, len(files))
 	for _, file := range files {
 		paths = append(paths, file.path)
 		mtimes[file.path] = file.modified
+		if file.note != nil {
+			notePaths = append(notePaths, file.path)
+		}
 	}
 	m := &Model{
 		reports:        buildReports(paths),
-		journal:        buildJournal(paths, mtimes),
+		journal:        buildJournal(paths, mtimes, journal),
+		journalDir:     journal,
 		knowledgeScope: scope,
 	}
-	m.folders, m.rootNotes = buildFolderTree(paths)
-	m.dirNotes = buildDirNotes(paths)
+	m.folders, m.rootNotes = buildFolderTree(notePaths)
+	m.dirNotes = buildDirNotes(notePaths)
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
 	// The recent-notes summary is collected in every contract state; paths and
@@ -460,17 +471,23 @@ func collectNavigationNotes(
 	return statusByPath, mapNotes, knowledgeNotes
 }
 
-// The journal and report projections select by location alone, and the sidebar
-// drawers ask the same question, so each prefix is named once and reached
-// through a predicate rather than copied.
+// The report projection selects by location alone, and the sidebar drawer asks
+// the same question, so the prefix is named once and reached through a
+// predicate rather than copied. The journal directory is a contract
+// declaration; InJournal asks the model that captured it.
 const (
-	journalPrefix = "Diary/"
 	reportsPrefix = "System/reports/"
 	briefingDir   = "daily-briefing"
 )
 
-// InJournal reports whether relPath lives in the journal.
-func InJournal(relPath string) bool { return strings.HasPrefix(relPath, journalPrefix) }
+// InJournal reports whether relPath lives in the journal this model was built
+// from. An undeclared journal contains nothing.
+func (m *Model) InJournal(relPath string) bool {
+	if m == nil {
+		return false
+	}
+	return m.journalDir.Contains(relPath)
+}
 
 // InReports reports whether relPath lives among the reports.
 func InReports(relPath string) bool { return strings.HasPrefix(relPath, reportsPrefix) }
@@ -494,17 +511,18 @@ func BriefingName(relPath string) (name string, ok bool) {
 	return file, true
 }
 
-// buildJournal selects markdown files below Diary from the scanner's path and
-// mtime captures. It does not parse frontmatter, so an untyped entry remains
-// eligible. Nothing here reads a timestamp: the order is the entries' own
-// names, for the reason the sort itself gives, and the mtime each entry carries
-// is a field no surface draws today — the rail shows a journal entry's title
-// and its address, and nothing else.
-func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
+// buildJournal selects markdown files below the declared journal directory
+// from the scanner's path and mtime captures. It does not parse frontmatter,
+// so an untyped entry remains eligible. Nothing here reads a timestamp: the
+// order is the entries' own names, for the reason the sort itself gives, and
+// the mtime each entry carries is a field no surface draws today — the rail
+// shows a journal entry's title and its address, and nothing else. An
+// undeclared journal is an empty projection.
+func buildJournal(paths []string, mtimes map[string]time.Time, journal schema.JournalDir) []JournalEntry {
 	const limit = 5
 	entries := make([]JournalEntry, 0, limit)
 	for _, p := range paths {
-		if !InJournal(p) || !vault.IsMarkdown(p) {
+		if !journal.Contains(p) || !vault.IsMarkdown(p) {
 			continue
 		}
 		_, base := splitDir(p)
@@ -560,9 +578,11 @@ type folderBuilder struct {
 }
 
 // buildFolderTree turns a flat path list, already in the captured reading
-// order, into the top-level folder tree plus the vault-root notes. It mirrors
-// the directory structure to whatever depth the vault has, inventing no level
-// and capping none. Only the top level is reordered into lifecycleOrder.
+// order, into the top-level folder tree plus the vault-root notes. New hands
+// it parsed notes only, so a png or a Makefile never becomes a NoteRef. It
+// mirrors the directory structure to whatever depth the vault has, inventing
+// no level and capping none. Only the top level is reordered into
+// lifecycleOrder.
 func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
 	root := &folderBuilder{subIdx: map[string]*folderBuilder{}}
 	for _, p := range paths {

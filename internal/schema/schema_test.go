@@ -1122,6 +1122,110 @@ non_instance_dirs = ["System/templates"]
 	}
 }
 
+func TestJournalDirIsUnclaimedWhenUndeclared(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	journal := s.JournalDir()
+	if journal.Claim().Claimed() {
+		t.Fatal("JournalDir() claims a declaration the contract never wrote")
+	}
+	if journal.Available() {
+		t.Fatal("JournalDir().Available() = true, want false")
+	}
+	if !journal.Trustworthy() {
+		t.Error("an undeclared journal is untrustworthy; empty is the true answer")
+	}
+	if journal.Contains("Diary/today.md") {
+		t.Error("JournalDir().Contains() = true with no journal_dir, want empty projection")
+	}
+	if !s.NavigationRoles().Available() {
+		t.Errorf("NavigationRoles().Available() = false after optional journal_dir omitted, diagnostic %q", s.NavigationRoles().Diagnostic())
+	}
+}
+
+func TestJournalDirProjectsTheDeclaredDirectory(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+journal_dir = "Diary"
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	journal := s.JournalDir()
+	if !journal.Available() {
+		t.Fatalf("JournalDir().Available() = false, diagnostic %q", journal.Diagnostic())
+	}
+	if !journal.Contains("Diary/today.md") {
+		t.Error("JournalDir().Contains(Diary/today.md) = false, want true")
+	}
+	if journal.Contains("Notes/today.md") {
+		t.Error("JournalDir().Contains(Notes/today.md) = true, want false")
+	}
+}
+
+func TestJournalDirRejectsInvalidDirectory(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+journal_dir = "../Diary"
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	journal := s.JournalDir()
+	if journal.Available() {
+		t.Fatal("JournalDir().Available() = true, want false")
+	}
+	if got := journal.Diagnostic(); !strings.Contains(got, `../Diary`) {
+		t.Errorf("JournalDir().Diagnostic() = %q, want offending value named", got)
+	}
+	if journal.Contains("Diary/today.md") {
+		t.Error("a rejected journal directory still contains a path")
+	}
+	if !s.NavigationRoles().Available() {
+		t.Errorf("NavigationRoles().Available() = false after invalid journal_dir, diagnostic %q", s.NavigationRoles().Diagnostic())
+	}
+}
+
+func TestJournalDirTypeErrorLeavesRolesAvailable(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+journal_dir = ["Diary"]
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	journal := s.JournalDir()
+	if journal.Available() {
+		t.Fatal("JournalDir().Available() = true, want false")
+	}
+	if got := journal.Diagnostic(); !strings.Contains(got, "navigation.journal_dir") {
+		t.Errorf("JournalDir().Diagnostic() = %q, want the journal_dir key named", got)
+	}
+	if !s.NavigationRoles().Available() {
+		t.Errorf("NavigationRoles().Available() = false after journal_dir type error, diagnostic %q", s.NavigationRoles().Diagnostic())
+	}
+}
+
 func TestArtifactPolicyRejectsEmptyDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -1650,7 +1754,7 @@ non_instance_dirs = ["System/templates"]
 func TestCapabilitiesExposeNoMutableBackingCollections(t *testing.T) {
 	t.Parallel()
 
-	for _, capability := range []any{schema.NavigationRoles{}, schema.ArtifactPolicy{}, schema.PrivacyPolicy{}} {
+	for _, capability := range []any{schema.NavigationRoles{}, schema.ArtifactPolicy{}, schema.PrivacyPolicy{}, schema.JournalDir{}} {
 		typ := reflect.TypeOf(capability)
 		for field := range typ.Fields() {
 			if field.IsExported() && (field.Type.Kind() == reflect.Map || field.Type.Kind() == reflect.Slice) {
@@ -2055,10 +2159,10 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		},
 		"Capabilities": func() string {
 			caps := c.Capabilities(schema.Ungoverned())
-			if caps.Navigation.Available() || caps.Knowledge.Available() || caps.Artifacts.Available() {
+			if caps.Navigation.Available() || caps.Knowledge.Available() || caps.Artifacts.Available() || caps.Journal.Available() {
 				return "Capabilities() claims a declared set for a vault nothing governs"
 			}
-			if caps.Navigation.Claim().Claimed() || caps.Artifacts.Claim().Claimed() {
+			if caps.Navigation.Claim().Claimed() || caps.Artifacts.Claim().Claimed() || caps.Journal.Claim().Claimed() {
 				return "Capabilities() reports a withheld declaration where none was ever made"
 			}
 			return ""
@@ -2093,6 +2197,13 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			policy := c.PrivacyPolicy()
 			if policy.Available() || policy.EgressAllowed("Notes/a.md") {
 				return "PrivacyPolicy() permits egress with no declaration behind it"
+			}
+			return ""
+		},
+		"JournalDir": func() string {
+			journal := c.JournalDir()
+			if journal.Available() || journal.Contains("Diary/today.md") {
+				return "JournalDir() claims a declared journal directory"
 			}
 			return ""
 		},

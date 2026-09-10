@@ -179,13 +179,14 @@ func (g Governance) Diagnostic() string { return g.claim.Diagnostic() }
 // a single declaration.
 func (g Governance) Claim() Claim { return g.claim }
 
-// Capabilities are the four declarations one process runs on, resolved
-// together so no consumer can combine a vault-level fault with a zero
-// capability and conclude that nothing was excluded.
+// Capabilities are the declarations one process runs on, resolved together so
+// no consumer can combine a vault-level fault with a zero capability and
+// conclude that nothing was excluded.
 type Capabilities struct {
 	Navigation NavigationRoles
 	Knowledge  KnowledgeScope
 	Artifacts  ArtifactPolicy
+	Journal    JournalDir
 	Language   ArticleLanguage
 }
 
@@ -196,19 +197,22 @@ type Capabilities struct {
 //
 // Each withheld capability carries the vault-level sentence rather than
 // silence. Language is the exception: it has no Available or Diagnostic for a
-// claim to feed, so it returns the same "not declared" zero value.
+// claim to feed, so it returns the same "not declared" zero value. Journal is
+// optional inside [navigation]: an unclaimed directory is an empty shelf.
 func (c *Contract) Capabilities(g Governance) Capabilities {
 	if !g.Trustworthy() {
 		return Capabilities{
 			Navigation: NavigationRoles{claim: g.claim},
 			Knowledge:  KnowledgeScope{claim: g.claim},
 			Artifacts:  ArtifactPolicy{state: &artifactPolicyState{claim: g.claim}},
+			Journal:    JournalDir{claim: g.claim},
 		}
 	}
 	return Capabilities{
 		Navigation: c.NavigationRoles(),
 		Knowledge:  c.KnowledgeScope(),
 		Artifacts:  c.ArtifactPolicy(),
+		Journal:    c.JournalDir(),
 		Language:   c.ArticleLanguage(),
 	}
 }

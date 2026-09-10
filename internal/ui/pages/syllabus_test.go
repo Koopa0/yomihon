@@ -392,6 +392,7 @@ func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Pa
 	model := nav.New(
 		scan.Files(), notes, graph.New(noteList, nil),
 		contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(),
+		contract.JournalDir(),
 	)
 	paths := model.Paths()
 	if len(paths) != 1 {

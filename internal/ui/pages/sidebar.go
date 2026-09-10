@@ -144,7 +144,7 @@ func (s *Sidebar) chainOpen(belongs func(relPath string) bool) bool {
 }
 
 // journalOpen reports whether the page being read lives in the journal.
-func (s *Sidebar) journalOpen() bool { return nav.InJournal(s.CurrentPath) }
+func (s *Sidebar) journalOpen() bool { return s.Model.InJournal(s.CurrentPath) }
 
 // reportsOpen reports whether the page being read is one of the reports.
 func (s *Sidebar) reportsOpen() bool { return nav.InReports(s.CurrentPath) }

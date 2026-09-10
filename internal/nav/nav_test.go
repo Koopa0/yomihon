@@ -42,6 +42,19 @@ func capturedModel(
 	resolver *graph.Index,
 ) *Model {
 	t.Helper()
+	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir())
+}
+
+func capturedModelWithJournal(
+	t *testing.T,
+	root string,
+	roles schema.NavigationRoles,
+	scope schema.KnowledgeScope,
+	policy schema.ArtifactPolicy,
+	resolver *graph.Index,
+	journal schema.JournalDir,
+) *Model {
+	t.Helper()
 	reader, err := vaultfs.Open(root)
 	if err != nil {
 		t.Fatalf("vaultfs.Open() error = %v", err)
@@ -75,7 +88,7 @@ func capturedModel(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, scope, policy)
+	return New(scan.Files(), notes, resolver, roles, scope, policy, journal)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -175,6 +188,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		roles,
 		schema.KnowledgeScope{},
 		policy,
+		testContract(t).JournalDir(),
 	)
 
 	modified := make(map[string]time.Time)
@@ -210,8 +224,8 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		t.Errorf("New Reports = %+v, want captured report", got)
 	}
 	dir, siblings := model.Siblings("Concepts/go/Unreadable.md")
-	if dir != "Concepts/go" || len(siblings) != 2 {
-		t.Errorf("New Siblings(unreadable note) = (%q, %+v), want captured folder membership", dir, siblings)
+	if dir != "Concepts/go" || len(siblings) != 1 || siblings[0].RelPath != targetPath {
+		t.Errorf("New Siblings(unreadable note) = (%q, %+v), want the captured note only", dir, siblings)
 	}
 }
 
@@ -254,6 +268,7 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		roles,
 		schema.KnowledgeScope{},
 		policy,
+		testContract(t).JournalDir(),
 	)
 	want := []NoteSummary{{
 		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
@@ -678,6 +693,41 @@ func TestNewBuildsJournalFromCapturedMtimes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestJournalShelfFollowsTheDeclaredDirectory locks both halves of the
+// journal_dir claim: a vault that never named a journal has no journal shelf,
+// even when Diary/ holds markdown, and a vault that named one projects that
+// folder.
+func TestJournalShelfFollowsTheDeclaredDirectory(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Diary/2026-07-10.md", "# Today\n")
+	writeNavFixture(t, root, "Notes/ordinary.md", "ordinary note\n")
+	roles, policy := testCapabilities(t)
+
+	t.Run("undeclared", func(t *testing.T) {
+		t.Parallel()
+		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{})
+		if len(model.Journal()) != 0 {
+			t.Errorf("undeclared Journal = %v, want empty", model.Journal())
+		}
+		if model.InJournal("Diary/2026-07-10.md") {
+			t.Error("InJournal is true with no journal_dir")
+		}
+	})
+
+	t.Run("declared", func(t *testing.T) {
+		t.Parallel()
+		model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+		if len(model.Journal()) != 1 || model.Journal()[0].RelPath != "Diary/2026-07-10.md" {
+			t.Errorf("declared Journal = %v, want the Diary entry", model.Journal())
+		}
+		if !model.InJournal("Diary/2026-07-10.md") {
+			t.Error("InJournal is false for the declared journal_dir")
+		}
+	})
 }
 
 // TestNewCarriesScannerMtimes proves Home's freshness data comes from the
@@ -1324,6 +1374,125 @@ func TestAnUnlistedTopLevelFolderSortsAfterTheLifecycle(t *testing.T) {
 	want := []string{"Writing", "9-歸檔", "10-草稿"}
 	if diff := cmp.Diff(want, names); diff != "" {
 		t.Errorf("top-level folder order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestLifecycleOrderSortsListedFixtureFoldersBeforeUnlistedOnes asserts what
+// the list promises: a name it holds that the teaching vault also holds sorts
+// before every name the vault holds that the list does not. It does not
+// require every listed name to exist in examples/vault.
+func TestLifecycleOrderSortsListedFixtureFoldersBeforeUnlistedOnes(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join("..", "..", "examples", "vault")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("ReadDir(%s): %v", root, err)
+	}
+	var listed, unlisted []string
+	var paths []string
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		name := entry.Name()
+		paths = append(paths, name+"/note.md")
+		if slices.Contains(lifecycleOrder, name) {
+			listed = append(listed, name)
+		} else {
+			unlisted = append(unlisted, name)
+		}
+	}
+	if len(listed) == 0 || len(unlisted) == 0 {
+		t.Fatalf("examples/vault holds listed=%v unlisted=%v; both sides are required or the claim is vacuous", listed, unlisted)
+	}
+
+	folders, _ := buildFolderTree(paths)
+	got := make([]string, 0, len(folders))
+	for _, folder := range folders {
+		got = append(got, folder.Name)
+	}
+
+	lastListed := -1
+	firstUnlisted := len(got)
+	for i, name := range got {
+		if slices.Contains(listed, name) {
+			lastListed = i
+		}
+		if slices.Contains(unlisted, name) && i < firstUnlisted {
+			firstUnlisted = i
+		}
+	}
+	if lastListed >= firstUnlisted {
+		t.Errorf("listed fixture folders do not all precede unlisted ones: order=%v listed=%v unlisted=%v", got, listed, unlisted)
+	}
+
+	wantListed := make([]string, 0, len(listed))
+	for _, name := range lifecycleOrder {
+		if slices.Contains(listed, name) {
+			wantListed = append(wantListed, name)
+		}
+	}
+	if diff := cmp.Diff(wantListed, got[:len(wantListed)]); diff != "" {
+		t.Errorf("listed fixture folders lost lifecycleOrder (-want +got):\n%s", diff)
+	}
+}
+
+// TestFolderTreeAndCountsComeFromNotesOnly locks #323: the folder shelf and
+// its 篇 counts are built from parsed notes, so a png, a yaml, a Makefile and
+// a root README that never entered the note map are not rows.
+func TestFolderTreeAndCountsComeFromNotesOnly(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	notePath := "Notes/idea.md"
+	writeNavFixture(t, root, notePath, "---\ntitle: Idea\n---\nbody\n")
+	writeNavFixture(t, root, "Notes/diagram.png", "\x89PNG\r\n\x1a\n")
+	writeNavFixture(t, root, "Notes/config.yaml", "k: v\n")
+	writeNavFixture(t, root, "Makefile", "all:\n")
+	writeNavFixture(t, root, "README.md", "# readme\n")
+
+	reader, err := vaultfs.Open(root)
+	if err != nil {
+		t.Fatalf("vaultfs.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close() error = %v", closeErr)
+		}
+	})
+	scan, err := reader.ScanComplete(t.Context())
+	if err != nil {
+		t.Fatalf("ScanComplete() error = %v", err)
+	}
+	note := vault.Parse(notePath, []byte("---\ntitle: Idea\n---\nbody\n"))
+	roles, policy := testCapabilities(t)
+	model := New(
+		scan.Files(),
+		map[string]*vault.Note{notePath: note},
+		graph.New([]*vault.Note{note}, nil),
+		roles,
+		schema.KnowledgeScope{},
+		policy,
+		schema.JournalDir{},
+	)
+
+	if got := model.RootNotes(); len(got) != 0 {
+		t.Errorf("RootNotes = %v, want none: Makefile and README.md are not parsed notes", got)
+	}
+	folders := model.Folders()
+	if len(folders) != 1 || folders[0].Name != "Notes" {
+		t.Fatalf("Folders = %+v, want one Notes folder", folders)
+	}
+	if got := folders[0].Notes; len(got) != 1 || got[0].RelPath != notePath {
+		t.Errorf("Notes folder rows = %v, want only %s", got, notePath)
+	}
+	notes, _, ok := model.Directory("Notes")
+	if !ok {
+		t.Fatal("Directory(Notes) reported no such folder")
+	}
+	if len(notes) != 1 || notes[0].RelPath != notePath {
+		t.Errorf("Directory(Notes) = %v, want only %s", notes, notePath)
 	}
 }
 

@@ -17,8 +17,9 @@ const (
 )
 
 type navigationSection struct {
-	PathTypes []string `toml:"path_types"`
-	MapTypes  []string `toml:"map_types"`
+	PathTypes  []string `toml:"path_types"`
+	MapTypes   []string `toml:"map_types"`
+	JournalDir string   `toml:"journal_dir"`
 }
 
 type artifactSection struct {

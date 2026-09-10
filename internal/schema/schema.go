@@ -108,6 +108,7 @@ type Contract struct {
 	knowledgeScope  KnowledgeScope
 	artifactPolicy  ArtifactPolicy
 	privacyPolicy   PrivacyPolicy
+	journalDir      JournalDir
 	metadata        contractMetadata
 	written         writtenKeys
 
@@ -158,8 +159,9 @@ type contractMetadata struct {
 }
 
 type navigationPrimitives struct {
-	PathTypes toml.Primitive `toml:"path_types"`
-	MapTypes  toml.Primitive `toml:"map_types"`
+	PathTypes  toml.Primitive `toml:"path_types"`
+	MapTypes   toml.Primitive `toml:"map_types"`
+	JournalDir toml.Primitive `toml:"journal_dir"`
 }
 
 type artifactPrimitives struct {
@@ -346,7 +348,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	if contract.version != supportedVersion {
 		return nil, fmt.Errorf("unsupported schema_version %q; supported version is %q", contract.version, supportedVersion)
 	}
-	navigation, navigationTypeErrorKey := decodeNavigationSection(&tomlMeta, decoded.Navigation)
+	navigation, navigationTypeErrorKey, journalTypeErrorKey := decodeNavigationSection(&tomlMeta, decoded.Navigation)
 	artifacts, artifactTypeErrorKey := decodeArtifactSection(&tomlMeta, decoded.Artifacts)
 	privacy, privacyTypeErrorKey := decodePrivacySection(&tomlMeta, decoded.Privacy)
 	unknown := classifyUnknownKeys(tomlMeta.Undecoded())
@@ -372,6 +374,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		&tomlMeta,
 	)
 	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
+	contract.journalDir = resolveJournalDir(navigation, journalTypeErrorKey, &tomlMeta)
 	contract.artifactPolicy = resolveArtifactPolicy(
 		artifacts,
 		artifactTypeErrorKey,
@@ -453,26 +456,42 @@ func resolveInitial(row rawLifecycleStage, ordinal int, declared bool, from []st
 func decodeNavigationSection(
 	metadata *toml.MetaData,
 	primitive toml.Primitive,
-) (section *navigationSection, typeErrorKey string) {
+) (section *navigationSection, rolesTypeErrorKey, journalTypeErrorKey string) {
 	if !metadata.IsDefined("navigation") {
-		return nil, ""
+		return nil, "", ""
 	}
 	var fields navigationPrimitives
 	if err := metadata.PrimitiveDecode(primitive, &fields); err != nil {
-		return nil, "navigation"
+		return nil, "navigation", "navigation"
 	}
 	section = &navigationSection{}
 	if metadata.IsDefined("navigation", "path_types") {
 		if err := metadata.PrimitiveDecode(fields.PathTypes, &section.PathTypes); err != nil {
-			return nil, "navigation.path_types"
+			rolesTypeErrorKey = "navigation.path_types"
 		}
 	}
 	if metadata.IsDefined("navigation", "map_types") {
-		if err := metadata.PrimitiveDecode(fields.MapTypes, &section.MapTypes); err != nil {
-			return nil, "navigation.map_types"
+		if err := metadata.PrimitiveDecode(fields.MapTypes, &section.MapTypes); err != nil && rolesTypeErrorKey == "" {
+			rolesTypeErrorKey = "navigation.map_types"
 		}
 	}
-	return section, ""
+	if metadata.IsDefined("navigation", "journal_dir") {
+		if err := metadata.PrimitiveDecode(fields.JournalDir, &section.JournalDir); err != nil {
+			journalTypeErrorKey = "navigation.journal_dir"
+		}
+	}
+	return section, rolesTypeErrorKey, journalTypeErrorKey
+}
+
+func resolveJournalDir(
+	section *navigationSection,
+	typeErrorKey string,
+	metadata *toml.MetaData,
+) JournalDir {
+	if typeErrorKey != "" {
+		return journalTypeError(typeErrorKey)
+	}
+	return deriveJournalDir(section, metadata.IsDefined("navigation", "journal_dir"))
 }
 
 func decodeArtifactSection(
@@ -1472,6 +1491,14 @@ func (c *Contract) ArtifactPolicy() ArtifactPolicy {
 		return ArtifactPolicy{}
 	}
 	return c.artifactPolicy
+}
+
+// JournalDir returns the contract-derived journal directory capability.
+func (c *Contract) JournalDir() JournalDir {
+	if c == nil {
+		return JournalDir{}
+	}
+	return c.journalDir
 }
 
 // PrivacyPolicy returns the contract-derived fail-closed egress capability.
