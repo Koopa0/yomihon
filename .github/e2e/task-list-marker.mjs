@@ -80,7 +80,7 @@ const readMarkers = (page) =>
         checked: box ? box.checked : null,
       };
     });
-    const ordinary = [...document.querySelectorAll('.y-prose li')].filter(
+    const ordinary = [...document.querySelectorAll('.y-prose ul > li')].filter(
       (li) => !li.querySelector(':scope > input[type="checkbox"]'),
     ).map((li) => ({
       listStyleType: getComputedStyle(li).listStyleType,
