@@ -133,8 +133,9 @@ one page never collide. Beyond that:
 | `[[#Section]]` | **plain text** | a same-file anchor is not implemented, and draws no diagnostic — a silent trap |
 
 Recognised callout types, closed; each group separated by · shares one default
-title, used when the opening line names none. Markdown and wikilinks work in a
-callout body. `success`, `check`, `done`, `important` and `tldr` fall through.
+title, used when the opening line names none. The title is plain text. Markdown
+and wikilinks work in a callout body. `success`, `check`, `done`, `important`
+and `tldr` fall through.
 
 `info` `note` `tip` `hint` `abstract` `summary` `todo` · `question` `help` `faq`
 · `example` · `quote` `cite` · `warning` `caution` `attention` · `danger`

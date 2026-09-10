@@ -484,6 +484,78 @@ func TestTheExampleVaultStillDemonstratesEveryAuthorFace(t *testing.T) {
 	})
 }
 
+// TestTheShippedHaikuQuoteTitleIsPlainText holds the composition the bundled
+// reading example has to demonstrate. A callout title is escaped as plain
+// text, so ruby written there reaches a first-time reader as visible tags
+// while the poem's ruby in the body typesets normally. The sample keeps the
+// attribution on the title as characters, and the readings in the body.
+func TestTheShippedHaikuQuoteTitleIsPlainText(t *testing.T) {
+	t.Parallel()
+	loaded := loadExampleVault(t)
+	const rel = "Notes/芭蕉の句.md"
+	note, ok := loaded.notes[rel]
+	if !ok {
+		t.Fatalf("examples/vault no longer holds %s", rel)
+	}
+
+	opener := firstCalloutLine(note.Body)
+	if opener == "" {
+		t.Fatal("the haiku note no longer opens a callout")
+	}
+	if strings.Contains(opener, "<ruby") || strings.Contains(opener, "<rt") {
+		t.Errorf("the quote title still carries ruby markup, which calloutShell escapes as visible text:\n%s", opener)
+	}
+
+	got := New(graph.New(nil, nil), transcluded{}, noDeclaredTitles{}, holdsEverything{}).
+		HTML(note.RelPath, note.Title(), note.Body, wording.En).HTML
+	title, body, ok := calloutTitleAndBody(got)
+	if !ok {
+		t.Fatalf("the haiku note no longer opens with a quote callout:\n%s", got)
+	}
+	for _, fragment := range []string{"松尾芭蕉", "蛙合", "1686"} {
+		if !strings.Contains(title, fragment) {
+			t.Errorf("the quote title lost %q:\n%s", fragment, title)
+		}
+	}
+	for _, tag := range []string{"<ruby", "<rt", "&lt;ruby", "&lt;rt"} {
+		if strings.Contains(title, tag) {
+			t.Errorf("the quote title is not plain text; it still carries %q:\n%s", tag, title)
+		}
+	}
+	if !strings.Contains(body, `<ruby>古池<rt>ふるいけ</rt></ruby>`) {
+		t.Errorf("the poem's ruby did not render in the callout body:\n%s", body)
+	}
+}
+
+// firstCalloutLine is the first authored callout opener in a note body,
+// skipping the blank line a frontmatter closer usually leaves behind.
+func firstCalloutLine(body string) string {
+	for line := range strings.SplitSeq(body, "\n") {
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "> [!") {
+			return line
+		}
+	}
+	return ""
+}
+
+// calloutTitleAndBody reads the first static callout this package wrote.
+func calloutTitleAndBody(page string) (title, body string, ok bool) {
+	_, rest, ok := strings.Cut(page, `<p class="callout-title">`)
+	if !ok {
+		return "", "", false
+	}
+	title, rest, ok = strings.Cut(rest, `</p>`)
+	if !ok {
+		return "", "", false
+	}
+	_, rest, ok = strings.Cut(rest, `<div class="callout-body">`)
+	if !ok {
+		return "", "", false
+	}
+	body, _, ok = strings.Cut(rest, `</div>`)
+	return title, body, ok
+}
+
 // assertContractDeclaresEverythingItCanRead walks the decoded contract's
 // struct fields, so a key added to [enums], [fields] or [rules] is demanded
 // here without this test being edited. [scan] is not copied onto
