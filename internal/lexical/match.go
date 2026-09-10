@@ -531,6 +531,7 @@ func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
 	} else {
 		start, end = clipFencesFromProse(plain, start, end, off, matchEnd, fences)
 	}
+	start = clipLeadingRun(plain, start, end, off)
 
 	s := collapseFields(plain[start:end])
 	if start > 0 {
@@ -609,6 +610,29 @@ func fenceAt(off int, fences [][2]int) (found bool, span [2]int) {
 		}
 	}
 	return false, [2]int{}
+}
+
+// clipLeadingRun pulls the opening boundary forward when the collapsed
+// window — ellipses included — would exceed the character budget. The usual
+// cause is a sentence-start that opened onto a long unbroken run; the after
+// side is already bounded, so only the lead can overflow. The match stays
+// inside. A token longer than the after-window still occupies the snippet.
+func clipLeadingRun(plain string, start, end, off int) int {
+	budget := snippetBefore + snippetAfter + 2*wordEdgeBudget + 2
+	for start < off {
+		n := utf8.RuneCountInString(collapseFields(plain[start:end]))
+		if start > 0 {
+			n++
+		}
+		if end < len(plain) {
+			n++
+		}
+		if n <= budget {
+			return start
+		}
+		start = runesAfter(plain, start, n-budget)
+	}
+	return min(start, off)
 }
 
 // clipFencesFromProse keeps a prose window from swallowing a fence: a fence

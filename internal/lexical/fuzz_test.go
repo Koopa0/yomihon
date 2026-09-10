@@ -127,6 +127,10 @@ func FuzzSnippet(f *testing.F) {
 	// oracle must not see it or it deposits a corpus file that fails
 	// go test for everyone.
 	f.Add("000000日本語", "0", 14, 15)
+	// A match after a long unbroken run: sentenceStart opens onto the run
+	// and the after-window fills, which used to yield 252 characters
+	// against the 250-rune cap.
+	f.Add("\n"+strings.Repeat("0", 104)+"G"+strings.Repeat("0", 146), "g", 0, 0)
 
 	f.Fuzz(func(t *testing.T, plain, token string, fenceLo, fenceHi int) {
 		if len(plain) > 256<<10 || len(token) > 16<<10 {
