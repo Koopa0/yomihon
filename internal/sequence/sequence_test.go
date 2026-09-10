@@ -806,6 +806,94 @@ func TestNoneSuppressesTheMissingRoleBeneathIt(t *testing.T) {
 	}
 }
 
+// TestNoneDoesNotReportALessonRowShape holds the escape hatch at the row that
+// used to ignore it. Role is settled after the row is read, so a trailing
+// wikilink or a second target still looks like a lesson-row fault while the
+// walk is in progress. Once the settled branch is out of the course — declared
+// none, or undeclared under one — those reports have no honest rewrite. A
+// primary branch in the same document still reports exactly once, so the
+// filter cannot pass by swallowing every row-shape warning. A branch that
+// declares itself into the course under a none ancestor is a contradiction,
+// not quiet prose: role_conflict and the row-shape report both stay.
+func TestNoneDoesNotReportALessonRowShape(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		wantRule Rule
+		wantLine int
+	}{
+		{
+			name: "a trailing link under none is not entry_noncanonical",
+			body: "## Daily routine {sequence=none}\n\n" +
+				"- **Warm up** (10m): read aloud, then see [[Frontmatter]] for the field list.\n\n" +
+				"## Lessons {sequence=primary}\n\n" +
+				"- 第一課 [[L01]]\n",
+			wantRule: RuleEntryNoncanonical,
+			wantLine: 7,
+		},
+		{
+			name: "two targets under none are not entry_multi_target",
+			body: "## Daily routine {sequence=none}\n\n" +
+				"- [[A]] 或 [[B]]\n\n" +
+				"## Lessons {sequence=primary}\n\n" +
+				"- [[L01]] 或 [[L02]]\n",
+			wantRule: RuleEntryMultiTarget,
+			wantLine: 7,
+		},
+		{
+			name: "a nested list under none inherits the hatch",
+			body: "## Daily routine {sequence=none}\n\n" +
+				"- a note\n" +
+				"\t- see [[Frontmatter]] after the warm-up\n\n" +
+				"## Lessons {sequence=primary}\n\n" +
+				"- 第一課 [[L01]]\n",
+			wantRule: RuleEntryNoncanonical,
+			wantLine: 8,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := Parse(tt.body, 1)
+			if len(doc.Diagnostics) != 1 {
+				t.Fatalf("diagnostics = %+v, want exactly one %s on the primary row",
+					doc.Diagnostics, tt.wantRule)
+			}
+			d := doc.Diagnostics[0]
+			if d.Rule != tt.wantRule || d.Line != tt.wantLine {
+				t.Errorf("the remaining report is %s at line %d, want %s at line %d",
+					d.Rule, d.Line, tt.wantRule, tt.wantLine)
+			}
+		})
+	}
+
+	t.Run("a course role under none keeps its row-shape report", func(t *testing.T) {
+		t.Parallel()
+		doc := Parse("## Daily routine {sequence=none}\n\n"+
+			"### Nested primary {sequence=primary}\n\n"+
+			"- 第一課 [[L01]]\n", 1)
+		if got := countRule(doc, RuleRoleConflict); got != 1 {
+			t.Errorf("role_conflict reported %d times, want 1 on the nested branch: %+v",
+				got, doc.Diagnostics)
+		}
+		if d := findRule(doc, RuleRoleConflict); d != nil && d.Line != 3 {
+			t.Errorf("role_conflict reported on line %d, want 3", d.Line)
+		}
+		if d := findRule(doc, RuleEntryNoncanonical); d == nil {
+			t.Fatalf("the conflicted row's shape report was withdrawn: %+v", doc.Diagnostics)
+		} else if d.Line != 5 {
+			t.Errorf("entry_noncanonical reported on line %d, want 5", d.Line)
+		}
+		if len(doc.Diagnostics) != 2 {
+			t.Errorf("diagnostics = %+v, want role_conflict on the branch and entry_noncanonical on the row",
+				doc.Diagnostics)
+		}
+	})
+}
+
 // TestLineNumbersAreFileLinesNotBodyLines keeps a diagnostic findable in the
 // editor the author actually uses: a note with frontmatter reports the line the
 // file shows, not the line the body starts counting from.
