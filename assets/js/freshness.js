@@ -285,6 +285,11 @@ export function initFreshness() {
   // is the same door a tab switch already used.
   window.addEventListener('pagehide', stop);
 
-  start();
-  tick();
+  // A document that loads already hidden never gets a visibilitychange, so
+  // starting here only when the page is in view is what keeps a background
+  // tab quiet. Becoming visible later is the same listener a tab switch uses.
+  if (document.visibilityState === 'visible') {
+    start();
+    tick();
+  }
 }
