@@ -1,0 +1,40 @@
+name: Documentation problem
+description: Something yomihon says or ships is wrong, missing, or impossible to follow.
+title: "docs: "
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        This form is for text: anything that ships in the repository, or that
+        yomihon prints or puts on a page. If yomihon behaves wrongly, file a bug
+        report instead; if the text about that behaviour is wrong, it belongs
+        here.
+
+  - type: input
+    id: where
+    attributes:
+      label: Where the text is
+      description: >-
+        The file and heading, the page and its address, or the command whose
+        help says it.
+      placeholder: README.md, under "Use"
+    validations:
+      required: true
+
+  - type: textarea
+    id: says
+    attributes:
+      label: What it says
+      description: Quote it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: true-instead
+    attributes:
+      label: What is true instead
+      description: >-
+        What the text should say, or what went wrong when you followed it. You
+        do not need the right answer to report a wrong one.
+    validations:
+      required: true
