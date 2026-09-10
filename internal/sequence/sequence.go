@@ -1120,8 +1120,7 @@ func skipZones(doc ast.Node, body string) []Span {
 		}
 		return ast.WalkContinue, nil
 	})
-	zones := append(code, graph.CommentZones(body, code)...)
-	return append(zones, graph.LineSkipZones(body)...)
+	return append(append(code, graph.CommentZones(body, code)...), graph.LineSkipZones(body)...)
 }
 
 // emphasisOpeners are the opening delimiter runs of every emphasis in the
