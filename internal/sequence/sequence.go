@@ -78,7 +78,7 @@ type Span = graph.Span
 
 // Link is one live wikilink in a body: brackets that address another note.
 // An embed, a same-file anchor, a quoted link, and a link written inside
-// code or a comment are not live.
+// code, an authored HTML block, or a comment are not live.
 type Link struct {
 	Target  string
 	Display string
@@ -1004,23 +1004,33 @@ func (h linkHit) span() Span { return Span{Start: h.start, Stop: h.stop} }
 
 // LiveWikilinks are the live wikilinks in body, in document order. It is the
 // same scan a study path's rows already use, so a link written inside a
-// fence, a code span, or an Obsidian comment is not live here either.
+// fence, a code span, an authored HTML block, or an Obsidian comment is
+// not live here either.
 func LiveWikilinks(body string) []Link {
+	links, _ := LiveScan(body)
+	return links
+}
+
+// LiveScan is the live wikilinks in body together with the skip zones that
+// filtered them. A map's heading walk reads these same zones so a line
+// skipped for a link is skipped for a heading.
+func LiveScan(body string) (links []Link, zones []Span) {
 	if body == "" {
-		return nil
+		return nil, nil
 	}
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
-	p := &parser{body: body, zones: skipZones(doc, body)}
+	zones = skipZones(doc, body)
+	p := &parser{body: body, zones: zones}
 	hits := p.linksIn(Span{Start: 0, Stop: len(body)})
 	if len(hits) == 0 {
-		return nil
+		return nil, zones
 	}
 	out := make([]Link, len(hits))
 	for i, h := range hits {
 		out[i] = Link{Target: h.target, Display: h.display, Span: h.span()}
 	}
-	return out
+	return out, zones
 }
 
 // liveWikilinks are the wikilinks in a row's target scope that actually
@@ -1088,9 +1098,10 @@ func childList(item *ast.ListItem) *ast.List {
 	return nil
 }
 
-// skipZones are the byte ranges whose brackets are not live links: code blocks
-// and code spans, and Obsidian comments. It reads the tree the caller already
-// has, because a second parse is a second answer to what the document is.
+// skipZones are the byte ranges whose brackets are not live links: code
+// blocks and code spans, Obsidian comments, and the authored HTML blocks
+// LineScan already hides. It reads the tree the caller already has, because
+// a second parse is a second answer to what the document is.
 func skipZones(doc ast.Node, body string) []Span {
 	var code []Span
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
@@ -1109,7 +1120,8 @@ func skipZones(doc ast.Node, body string) []Span {
 		}
 		return ast.WalkContinue, nil
 	})
-	return append(code, graph.CommentZones(body, code)...)
+	zones := append(code, graph.CommentZones(body, code)...)
+	return append(zones, graph.LineSkipZones(body)...)
 }
 
 // emphasisOpeners are the opening delimiter runs of every emphasis in the

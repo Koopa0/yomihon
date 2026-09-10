@@ -229,7 +229,7 @@ func TestAnUnclosedCommentHidesTheRestOfTheCourse(t *testing.T) {
 
 // A map asks the live-link scan of the whole body, not of course rows, so a
 // prose or table link is live here even though it is not a lesson, and a
-// fenced copy of one is not.
+// fenced, commented, or authored-HTML copy of one is not.
 func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
 	t.Parallel()
 
@@ -243,6 +243,10 @@ func TestLiveWikilinksReadTheBodyNotTheCourseGrammar(t *testing.T) {
 		"\n" +
 		"A code span `[[Backticked]]` is quoted.\n" +
 		"%%[[Commented]]%%\n" +
+		"\n" +
+		"<div>\n" +
+		"[[Blocked]]\n" +
+		"</div>\n" +
 		"\n" +
 		"| col |\n" +
 		"| --- |\n" +

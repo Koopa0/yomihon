@@ -1224,6 +1224,74 @@ func TestParseBranchesQuotedInlineLinksAreNotEntries(t *testing.T) {
 	}
 }
 
+// TestParseBranchesHeadingAndLinkShareEachSkipZone is the lock that the
+// heading pass and the link pass read one skip set. A heading and a
+// wikilink planted in the same zone are refused together; splitting the
+// sets again lets a commented-out heading open a branch that captures the
+// links after it, or keeps an HTML-block link under a heading the block hid.
+func TestParseBranchesHeadingAndLinkShareEachSkipZone(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Live.md", "Hidden.md", "After.md")
+	inner := "## Hidden\n[[Hidden]]\n"
+	tests := []struct {
+		name string
+		zone string
+	}{
+		{name: "obsidian comment", zone: "%%\n" + inner + "%%\n"},
+		{name: "indented code", zone: "    ## Hidden\n    [[Hidden]]\n"},
+		{name: "HTML block", zone: "<div>\n" + inner + "</div>\n"},
+		{name: "backtick fence", zone: "```\n" + inner + "```\n"},
+		{name: "tilde fence", zone: "~~~\n" + inner + "~~~\n"},
+	}
+
+	want := []Branch{
+		{
+			Heading: "Real",
+			Level:   2,
+			Entries: []MapEntry{{Text: "Live", Target: "Live", RelPath: "Live.md"}},
+		},
+		{
+			Heading: "After",
+			Level:   2,
+			Entries: []MapEntry{{Text: "After", Target: "After", RelPath: "After.md"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			body := "## Real\n\nSee [[Live]].\n\n" + tt.zone + "\n## After\n\nLater [[After]].\n"
+			got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+			if heading, link := zoneAdmission(got, "Hidden"); heading != link {
+				t.Errorf("Hidden heading admitted=%v, Hidden link admitted=%v; they must match", heading, link)
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("parseBranches (%s) mismatch (-want +got):\n%s", tt.name, diff)
+			}
+		})
+	}
+}
+
+func zoneAdmission(branches []Branch, name string) (heading, link bool) {
+	var walk func([]Branch)
+	walk = func(nodes []Branch) {
+		for _, b := range nodes {
+			if b.Heading == name {
+				heading = true
+			}
+			for _, e := range b.Entries {
+				if e.Target == name {
+					link = true
+				}
+			}
+			walk(b.Subbranches)
+		}
+	}
+	walk(branches)
+	return heading, link
+}
+
 // TestPathKeepsAPlannedLessonInItsPlace holds the course's own way of being
 // written: a lesson is listed before it exists. The row stays where the author
 // put it and counts toward what the course plans, and it is not somewhere a
