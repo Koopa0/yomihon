@@ -89,11 +89,11 @@ func TestShelfCountSpansCarryTheUnitInTheDOM(t *testing.T) {
 }
 
 func countSpanHTML(html, class string) (string, bool) {
-	at := strings.Index(html, class)
-	if at < 0 {
+	before, _, ok := strings.Cut(html, class)
+	if !ok {
 		return "", false
 	}
-	start := strings.LastIndex(html[:at], "<span")
+	start := strings.LastIndex(before, "<span")
 	if start < 0 {
 		return "", false
 	}

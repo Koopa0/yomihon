@@ -289,17 +289,15 @@ func navAriaLabel(html, class string) string {
 		return ""
 	}
 	tag := html[start : start+end]
-	const key = `aria-label="`
-	i := strings.Index(tag, key)
-	if i < 0 {
+	_, rest, ok := strings.Cut(tag, `aria-label="`)
+	if !ok {
 		return ""
 	}
-	rest := tag[i+len(key):]
-	j := strings.Index(rest, `"`)
-	if j < 0 {
+	label, _, ok := strings.Cut(rest, `"`)
+	if !ok {
 		return ""
 	}
-	return rest[:j]
+	return label
 }
 
 // TestAFootWithNoStepsSaysNothing keeps the foot silent on a note with nowhere
