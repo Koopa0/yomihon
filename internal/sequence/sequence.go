@@ -781,7 +781,7 @@ func (p *parser) openerAt(off int) (Span, bool) {
 
 // anchorTarget is the row a container hangs from: the enclosing list item's
 // own single live link. ok is false when no row sits above it to attach to.
-func (p *parser) anchorTarget(item *ast.ListItem) (string, Span, bool) {
+func (p *parser) anchorTarget(item *ast.ListItem) (target string, span Span, ok bool) {
 	list, ok := item.Parent().(*ast.List)
 	if !ok {
 		return "", Span{}, false
@@ -796,7 +796,7 @@ func (p *parser) anchorTarget(item *ast.ListItem) (string, Span, bool) {
 // anchorOwnTarget is a row's own lesson and identity, and only when the row is
 // one. A row the grammar refused is not a lesson however it reads, so a branch
 // beneath it hangs from nothing rather than from something outside the course.
-func (p *parser) anchorOwnTarget(item *ast.ListItem) (string, Span, bool) {
+func (p *parser) anchorOwnTarget(item *ast.ListItem) (target string, span Span, ok bool) {
 	spans := p.ownSpans(item)
 	if len(spans) == 0 {
 		return "", Span{}, false
