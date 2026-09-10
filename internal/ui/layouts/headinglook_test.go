@@ -22,8 +22,8 @@ func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
 	css := cssComments.ReplaceAllString(string(source), "")
 
 	shared := cssDeclarations(t, ruleBody(t, css, `.y-prose [data-level="1"], .y-prose [data-level="2"], .y-prose [data-level="3"], .y-prose [data-level="4"] {`))
-	if shared["scroll-margin-top"] != "72px" {
-		t.Errorf("authored levels 1–4 declare scroll-margin-top %q, want 72px so a demoted h5 still clears the sticky header", shared["scroll-margin-top"])
+	if shared["scroll-margin-top"] != "var(--header-clearance)" {
+		t.Errorf("authored levels 1–4 declare scroll-margin-top %q, want var(--header-clearance) so a demoted h5 still clears the sticky header", shared["scroll-margin-top"])
 	}
 
 	for _, want := range []struct {
