@@ -418,7 +418,7 @@ func linesRange(n ast.Node) (byteRange, bool) {
 	if ls == nil || ls.Len() == 0 {
 		return byteRange{}, false
 	}
-	return byteRange{ls.At(0).Start, ls.At(ls.Len() - 1).Stop}, true
+	return byteRange{Start: ls.At(0).Start, Stop: ls.At(ls.Len() - 1).Stop}, true
 }
 
 // inlineRange is the span covering an inline node's text children, from the
@@ -441,7 +441,7 @@ func inlineRange(n ast.Node) (byteRange, bool) {
 	if !found {
 		return byteRange{}, false
 	}
-	return byteRange{start, stop}, true
+	return byteRange{Start: start, Stop: stop}, true
 }
 
 // inlineOffset is a source offset on the line an inline node sits on, for
