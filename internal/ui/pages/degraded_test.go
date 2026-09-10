@@ -105,6 +105,9 @@ func TestHealthAllClearClaimsOnlyTheLinksItRead(t *testing.T) {
 	if !strings.Contains(html, "每個 [[…]] 連結都有目標") {
 		t.Errorf("the all-clear does not name which links it read:\n%s", html)
 	}
+	if !strings.Contains(html, "每篇筆記都有正文連過來") {
+		t.Errorf("the all-clear does not name the body-citation scope:\n%s", html)
+	}
 	if strings.Contains(html, "每個連結都有目標") {
 		t.Errorf("the all-clear still claims every link, including the ones this page never reads")
 	}

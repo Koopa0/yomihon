@@ -166,7 +166,7 @@ func TestCitedByAnswersOnThePage(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	island := citedByBlock(t, body)
-	if !strings.Contains(island, "目前沒有其他筆記連到這篇") {
+	if !strings.Contains(island, "目前沒有其他筆記在正文連到這篇。") {
 		t.Errorf("the island does not say it is one; block = %q", island)
 	}
 	// Scoped to the block on purpose: the rail lists every note in the folder,

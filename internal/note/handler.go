@@ -341,6 +341,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Stale:             n.Stale,
 		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
 		CitedBy:           snap.CitedBy(rel),
+		BasedOn:           snap.BasedOn(rel),
 		VaultHasLinks:     snap.AnyCitations(),
 		Prev:              footPrev,
 		Next:              footNext,

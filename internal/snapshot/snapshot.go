@@ -175,11 +175,24 @@ func (g *Generation) Graph() *graph.Index {
 
 // CitedBy returns the notes citing relPath in this generation, sorted by the
 // name each shows. Nothing citing a note is an answer rather than a gap.
+// The answer is body wikilinks only; a based_on declaration is a different
+// claim, read through BasedOn.
 func (g *Generation) CitedBy(relPath string) []nav.NoteRef {
 	if g == nil {
 		return nil
 	}
 	return g.backlinks.To(relPath)
+}
+
+// BasedOn returns the sources relPath declared in based_on, in declaration
+// order. A value that resolves to exactly one note is that note's name and
+// path; an unresolved or ambiguous value is the author's own text with no
+// path, never a guess.
+func (g *Generation) BasedOn(relPath string) []nav.NoteRef {
+	if g == nil {
+		return nil
+	}
+	return projectBasedOn(g.parsed[relPath], g.graph)
 }
 
 // Freshness reports how the generation this view holds relates to the folder on

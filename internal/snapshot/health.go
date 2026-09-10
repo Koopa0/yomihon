@@ -31,8 +31,9 @@ type Health struct {
 	// fails because a title is never a name this vault resolves by. It is kept
 	// apart from the unwritten because the two need opposite repairs.
 	TitleOnly []HealthTitleLink
-	// Islands are notes nothing cites, grouped by the folder they live in so the
-	// shape of the number is visible before the rows are read. No row is dropped.
+	// Islands are notes nothing cites in the body, grouped by the folder they
+	// live in so the shape of the number is visible before the rows are read. A
+	// based_on declaration is not a citation here. No row is dropped.
 	Islands []HealthIslandGroup
 	// Collisions are names more than one file answers to, where a citation
 	// resolves to none of them because the vault refuses to guess.
