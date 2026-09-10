@@ -300,16 +300,26 @@ func Parse(body string, bodyStartLine int) Document {
 	p.zones = skipZones(doc, body)
 	p.openers = emphasisOpeners(doc)
 	p.rows = make(map[int]*Candidate)
+	p.quietRows = make(map[int]struct{})
 
 	p.walkBlocks(doc)
 	p.close()
 
 	// Branch state is settled from candidates alone, so fixing a malformed row
 	// never makes a branch change role and report a fresh problem. Row-shape
-	// reports are raised before that settlement; those that sit under none
-	// are withdrawn once Role is known.
+	// reports are raised before that settlement; classify records the rows
+	// whose settled state is out of the course, and those reports are
+	// withdrawn once Role is known. Withdrawal matches a diagnostic to an
+	// entry by line, so it assumes every row-shape rule reports at the
+	// row's own line.
 	p.classify(p.roots, false)
-	p.dropRowShapeUnderNone()
+	p.diagnostics = slices.DeleteFunc(p.diagnostics, func(d Diagnostic) bool {
+		if d.Rule != RuleEntryNoncanonical && d.Rule != RuleEntryMultiTarget {
+			return false
+		}
+		_, skip := p.quietRows[d.Line]
+		return skip
+	})
 
 	return Document{Groups: p.roots, Diagnostics: p.diagnostics}
 }
@@ -331,6 +341,9 @@ type parser struct {
 	open        []*Group
 	roots       []*Group
 	diagnostics []Diagnostic
+	// quietRows are entry lines whose settled branch is out of the course.
+	// classify records them; Parse withdraws the matching row-shape reports.
+	quietRows map[int]struct{}
 }
 
 func (p *parser) report(rule Rule, line int, message, evidence string) {
@@ -803,7 +816,11 @@ func (p *parser) anchorOwnTarget(item *ast.ListItem) (string, Span, bool) {
 // classify settles every branch the author did not declare, and reports a
 // declared role that contradicts the branch it sits under. underNone carries
 // the one inherited fact: beneath a declared none, rows are body-only, so an
-// undeclared branch there is not a missing declaration.
+// undeclared branch there is not a missing declaration. A branch whose
+// settled state is out of the course — declared none, or undeclared under
+// one — records its rows as quiet so the lesson-row reports raised while
+// they were read can be withdrawn. A branch that declares itself into the
+// course under a none ancestor is a contradiction, not quiet prose.
 func (p *parser) classify(groups []*Group, underNone bool) {
 	for _, g := range groups {
 		switch {
@@ -812,9 +829,12 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 				"a branch cannot take part in the course while the branch above it declares itself out of it",
 				g.Name)
 			g.Invalid = true
+		case g.Role == RoleNone:
+			p.quietRowShape(g)
 		case g.Role.Declared():
 		case underNone:
 			// Body-only: nothing to declare and nothing to report.
+			p.quietRowShape(g)
 		case g.Container:
 			// What is true here is that the list is nested and unexplained,
 			// not that it lists lessons.
@@ -836,34 +856,11 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 	}
 }
 
-// dropRowShapeUnderNone withdraws the lesson-row warnings from prose the
-// author already declared out of the course. Those reports are raised while
-// the row is read, before classify settles Role; keeping them after that
-// settlement asks the author to start a lesson row or take it out of a
-// course it was never in.
-func (p *parser) dropRowShapeUnderNone() {
-	quiet := map[int]struct{}{}
-	var mark func(groups []*Group, underNone bool)
-	mark = func(groups []*Group, underNone bool) {
-		for _, g := range groups {
-			out := underNone || g.Role == RoleNone
-			if out {
-				for _, e := range g.entries() {
-					quiet[e.Line] = struct{}{}
-				}
-			}
-			mark(g.subgroups(), out)
-		}
+// quietRowShape records this branch's own entries as out of the course.
+func (p *parser) quietRowShape(g *Group) {
+	for _, e := range g.entries() {
+		p.quietRows[e.Line] = struct{}{}
 	}
-	mark(p.roots, false)
-
-	p.diagnostics = slices.DeleteFunc(p.diagnostics, func(d Diagnostic) bool {
-		if d.Rule != RuleEntryNoncanonical && d.Rule != RuleEntryMultiTarget {
-			return false
-		}
-		_, skip := quiet[d.Line]
-		return skip
-	})
 }
 
 // current is the branch a row read right now belongs to, or nil before the
