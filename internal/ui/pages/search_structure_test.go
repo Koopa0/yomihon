@@ -279,17 +279,15 @@ func dialogHidesFragmentCount(t *testing.T) bool {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
 	const opener = `.y-searchdialog .y-results__count {`
-	css := string(source)
-	at := strings.Index(css, opener)
-	if at < 0 {
+	_, body, found := strings.Cut(string(source), opener)
+	if !found {
 		return false
 	}
-	body := css[at+len(opener):]
-	end := strings.IndexByte(body, '}')
-	if end < 0 {
+	body, _, found = strings.Cut(body, "}")
+	if !found {
 		t.Fatalf("rule %q is not closed", opener)
 	}
-	for decl := range strings.SplitSeq(body[:end], ";") {
+	for decl := range strings.SplitSeq(body, ";") {
 		property, value, ok := strings.Cut(strings.TrimSpace(decl), ":")
 		if ok && strings.TrimSpace(property) == "display" && strings.TrimSpace(value) == "none" {
 			return true
@@ -298,14 +296,14 @@ func dialogHidesFragmentCount(t *testing.T) bool {
 	return false
 }
 
-func cutElement(html, open, close string) (string, bool) {
-	start := strings.Index(html, open)
-	if start < 0 {
+func cutElement(html, open, closer string) (string, bool) {
+	_, rest, found := strings.Cut(html, open)
+	if !found {
 		return "", false
 	}
-	end := strings.Index(html[start:], close)
-	if end < 0 {
+	inner, _, found := strings.Cut(rest, closer)
+	if !found {
 		return "", false
 	}
-	return html[start : start+end+len(close)], true
+	return open + inner + closer, true
 }
