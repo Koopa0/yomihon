@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -14,10 +15,10 @@ import (
 // are the same facts, gathered.
 type HealthView struct {
 	// Unwritten are citations to names no file carries and no ledger declared.
-	Unwritten []HealthLink
+	Unwritten []snapshot.HealthLink
 	// TitleOnly are citations naming a note's title — the note exists, and the
 	// repair is an alias rather than a new note.
-	TitleOnly []HealthTitleLink
+	TitleOnly []snapshot.HealthTitleLink
 	// Islands are notes nothing cites in the body, grouped by folder.
 	// A based_on declaration is not a citation here; the heading says so.
 	Islands []HealthIslandGroup
@@ -87,25 +88,11 @@ type HealthSkippedSource struct {
 	Size   int64
 }
 
-// HealthLink is one citation with nowhere to land, and the note making it.
-type HealthLink struct {
-	From   nav.NoteRef
-	Target string
-}
-
 // HealthIslandGroup is one folder's uncited notes.
 type HealthIslandGroup struct {
 	Dir   string
 	Name  string
 	Notes []nav.NoteRef
-}
-
-// HealthTitleLink is one citation naming a note's title, with the note it was
-// reaching for.
-type HealthTitleLink struct {
-	From   nav.NoteRef
-	Target string
-	Note   nav.NoteRef
 }
 
 // HealthCollision is one name several files claim, with every claimant: the

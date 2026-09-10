@@ -416,8 +416,8 @@ func recordedWithheldIndexView() ListIndexView {
 func recordedHealthView(model *nav.Model) HealthView {
 	ref := nav.NoteRef{Name: "L01", RelPath: "Writing/lessons/go/L01.md"}
 	return HealthView{
-		Unwritten:             []HealthLink{{From: ref, Target: "Ghost"}},
-		TitleOnly:             []HealthTitleLink{{From: ref, Target: "L02"}},
+		Unwritten:             []snapshot.HealthLink{{From: ref, Target: "Ghost"}},
+		TitleOnly:             []snapshot.HealthTitleLink{{From: ref, Target: "L02"}},
 		Islands:               []HealthIslandGroup{{Dir: "Concepts/go", Notes: []nav.NoteRef{{Name: "C02", RelPath: "Concepts/go/C02.md"}}}},
 		IslandCount:           1,
 		Collisions:            []HealthCollision{{Name: "Repeat", Candidates: []nav.NoteRef{{Name: "Repeat", RelPath: "A/Repeat.md"}, {Name: "Repeat", RelPath: "B/Repeat.md"}}}},

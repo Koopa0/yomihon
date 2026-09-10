@@ -29,8 +29,8 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	unreadableFrontmatter, schemaFaults := schemaFaultLists(snap)
 	view := pages.HealthView{
-		Unwritten:             healthLinks(health.Unwritten),
-		TitleOnly:             healthTitleLinks(health.TitleOnly),
+		Unwritten:             health.Unwritten,
+		TitleOnly:             health.TitleOnly,
 		Islands:               healthIslands(health.Islands, lang),
 		IslandCount:           healthIslandCount(health.Islands),
 		Collisions:            healthCollisions(health.Collisions),
@@ -130,17 +130,6 @@ func healthNoteName(relPath string) string {
 	return strings.TrimSuffix(path.Base(relPath), ".md")
 }
 
-// healthLinks and healthCollisions carry the snapshot's findings across to the
-// page as plain values. The page package holds no feature types — it is what
-// keeps a view from importing the generation it renders.
-func healthLinks(links []snapshot.HealthLink) []pages.HealthLink {
-	out := make([]pages.HealthLink, 0, len(links))
-	for _, link := range links {
-		out = append(out, pages.HealthLink{From: link.From, Target: link.Target})
-	}
-	return out
-}
-
 // healthIslands names each folder for the reader in front of it. The folder at
 // the top of the vault has no name of its own, and what stands in for it is a
 // word rather than a path, so it is chosen here — where the request says which
@@ -163,14 +152,6 @@ func healthIslandCount(groups []snapshot.HealthIslandGroup) int {
 		total += len(g.Notes)
 	}
 	return total
-}
-
-func healthTitleLinks(links []snapshot.HealthTitleLink) []pages.HealthTitleLink {
-	out := make([]pages.HealthTitleLink, 0, len(links))
-	for _, link := range links {
-		out = append(out, pages.HealthTitleLink{From: link.From, Target: link.Target, Note: link.Note})
-	}
-	return out
 }
 
 // healthBlocked carries the freshness record's blocked sources across to the

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/snapshot"
 )
 
 // TestHealthIsNotCleanWhileAnyListHasSomethingInIt holds the one sentence this
@@ -22,8 +23,8 @@ func TestHealthIsNotCleanWhileAnyListHasSomethingInIt(t *testing.T) {
 		name string
 		view HealthView
 	}{
-		{"unwritten citation", HealthView{Unwritten: []HealthLink{{}}}},
-		{"title-only citation", HealthView{TitleOnly: []HealthTitleLink{{}}}},
+		{"unwritten citation", HealthView{Unwritten: []snapshot.HealthLink{{}}}},
+		{"title-only citation", HealthView{TitleOnly: []snapshot.HealthTitleLink{{}}}},
 		{"an uncited note", HealthView{IslandCount: 1}},
 		{"a shared name", HealthView{Collisions: []HealthCollision{{}}}},
 		{"an unreadable source", HealthView{Blocked: []HealthBlockedSource{{}}}},

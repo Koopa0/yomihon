@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
@@ -132,7 +133,7 @@ func TestHealthAllClearClaimsOnlyTheLinksItRead(t *testing.T) {
 // and would go looking to write; the two need opposite repairs.
 func TestHealthDoesNotCallEveryMissingTargetANote(t *testing.T) {
 	t.Parallel()
-	view := HealthView{Unwritten: []HealthLink{
+	view := HealthView{Unwritten: []snapshot.HealthLink{
 		{From: nav.NoteRef{Name: "A", RelPath: "Concepts/A.md"}, Target: "還沒寫的概念"},
 		{From: nav.NoteRef{Name: "A", RelPath: "Concepts/A.md"}, Target: "diagram.png"},
 	}}
