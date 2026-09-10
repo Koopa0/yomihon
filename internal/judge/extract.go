@@ -9,6 +9,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
+	"github.com/koopa0/yomihon/internal/commentzone"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -78,14 +79,9 @@ func plannedMarksFrom(c *schema.Contract) plannedMarks {
 	return plannedMarks{heading: heading, inline: inline}
 }
 
-// byteRange is a half-open byte span [start, stop) into a body.
-type byteRange struct {
-	start, stop int
-}
-
-func (r byteRange) contains(off int) bool {
-	return off >= r.start && off < r.stop
-}
+// byteRange is a half-open byte span into a body. The comment-zone scan
+// owns the type so pairing cannot drift from the reading sequence uses.
+type byteRange = commentzone.Span
 
 // heading is a heading's parsed facts: its start byte offset, its level (used
 // only for relative nesting), and whether its text carries a gap mark.
@@ -112,10 +108,10 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 
 func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string) []wikiLink {
 	codeZones, headings := structure(body, headingMarks)
-	skip := slices.Concat(codeZones, commentZones(body, codeZones))
+	skip := slices.Concat(codeZones, commentzone.Zones(body, codeZones))
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
-		if inAnyZone(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
+		if commentzone.In(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
 			continue
 		}
 		target, ok := stripTarget(raw.inner)
@@ -147,19 +143,19 @@ func extractPathRefs(body string, bodyStartLine int) []pathRef {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
 	codeZones, _ := structure(body, nil)
-	comments := commentZones(body, codeZones)
+	comments := commentzone.Zones(body, codeZones)
 	var refs []pathRef
 	walkNodes(doc, func(n ast.Node) {
 		switch node := n.(type) {
 		case *ast.Link:
 			if target, ok := fileLink(string(node.Destination)); ok {
-				if off, ok := inlineOffset(node); ok && !inAnyZone(comments, off) {
+				if off, ok := inlineOffset(node); ok && !commentzone.In(comments, off) {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: false})
 				}
 			}
 		case *ast.CodeSpan:
 			if target, ok := backtickPath(codeSpanText(node, src)); ok {
-				if off, ok := inlineOffset(node); ok && !inAnyZone(comments, off) {
+				if off, ok := inlineOffset(node); ok && !commentzone.In(comments, off) {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: true})
 				}
 			}
@@ -184,7 +180,7 @@ func extractPlannedNamesWith(body string, marks plannedMarks) []string {
 	offset := 0
 	for raw := range strings.Lines(body) {
 		line := strings.TrimRight(raw, "\r\n")
-		inCode := inAnyZone(codeZones, offset)
+		inCode := commentzone.In(codeZones, offset)
 		inGap := inGapSection(headings, offset) && !inCode
 		item, names = advancePlannedItem(item, names, line, inGap)
 		if !inCode {
@@ -261,10 +257,10 @@ func structure(body string, headingMarks []string) ([]byteRange, []heading) {
 		case *ast.Heading:
 			h := heading{level: node.Level, gap: headingIsGap(node, src, headingMarks)}
 			if r, ok := linesRange(node); ok {
-				h.start = r.start
+				h.start = r.Start
 				headings = append(headings, h)
 			} else if r, ok := inlineRange(node); ok {
-				h.start = r.start
+				h.start = r.Start
 				headings = append(headings, h)
 			}
 		}
@@ -281,30 +277,6 @@ func walkNodes(doc ast.Node, visit func(ast.Node)) {
 		}
 		return ast.WalkContinue, nil
 	})
-}
-
-// commentZones returns the byte ranges of Obsidian %%...%% comments. A %% inside
-// a code zone is ignored first so it cannot shift the pairing of real comments;
-// the remaining marks are paired in order and an unpaired trailing one is
-// dropped.
-func commentZones(body string, codeZones []byteRange) []byteRange {
-	var marks []int
-	for off := 0; ; {
-		rel := strings.Index(body[off:], "%%")
-		if rel < 0 {
-			break
-		}
-		at := off + rel
-		if !inAnyZone(codeZones, at) {
-			marks = append(marks, at)
-		}
-		off = at + 2
-	}
-	var zones []byteRange
-	for k := 0; k+1 < len(marks); k += 2 {
-		zones = append(zones, byteRange{marks[k], marks[k+1] + 2})
-	}
-	return zones
 }
 
 // rawWikilinks scans body for [[...]] pairs, returning the byte offset of each
@@ -499,7 +471,7 @@ func inlineOffset(n ast.Node) (int, bool) {
 	// holds it.
 	for a := n.Parent(); a != nil; a = a.Parent() {
 		if r, ok := linesRange(a); ok {
-			return r.start, true
+			return r.Start, true
 		}
 	}
 	return 0, false
@@ -572,16 +544,6 @@ func isRelativeMdRef(path string) bool {
 		!strings.Contains(path, "*") &&
 		!strings.Contains(path, "<") &&
 		!strings.Contains(path, ">")
-}
-
-// inAnyZone reports whether off falls in any of the ranges.
-func inAnyZone(zones []byteRange, off int) bool {
-	for _, z := range zones {
-		if z.contains(off) {
-			return true
-		}
-	}
-	return false
 }
 
 // containsAnySubstring reports whether s contains any of the marks as a

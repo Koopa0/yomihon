@@ -6,6 +6,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
+	"github.com/koopa0/yomihon/internal/commentzone"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/sequence"
@@ -57,15 +58,15 @@ func anchorSurface(body string) (sections, excerptSections map[string]bool, bloc
 // hide the same text.
 func withoutCommentZones(body string) string {
 	codeZones, _ := structure(body, nil)
-	zones := commentZones(body, codeZones)
+	zones := commentzone.Zones(body, codeZones)
 	if len(zones) == 0 {
 		return body
 	}
 	var b strings.Builder
 	last := 0
 	for _, z := range zones {
-		b.WriteString(body[last:z.start])
-		last = z.stop
+		b.WriteString(body[last:z.Start])
+		last = z.Stop
 	}
 	b.WriteString(body[last:])
 	return b.String()
@@ -86,7 +87,7 @@ func collectParsedHeadings(body string, into map[string]bool) {
 		}
 		raw := ""
 		if r, ok := linesRange(h); ok {
-			raw = body[r.start:r.stop]
+			raw = body[r.Start:r.Stop]
 		}
 		into[graph.SectionID(headingWords(sequence.HeadingName(raw, h.Level)))] = true
 	})

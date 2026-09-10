@@ -45,6 +45,47 @@ func TestExtractedLinksSkipEscapedBrackets(t *testing.T) {
 	}
 }
 
+// TestExtractedLinksSkipUnclosedComments is the case TestCheckSkipsFileReferencesInComments
+// does not cover: its fixture is a closed pair. An unpaired trailing mark used
+// to be dropped, so a link the page hid was still a citation here.
+func TestExtractedLinksSkipUnclosedComments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{
+			name: "a closed pair hides what it wraps",
+			body: "[[Shown]]\n%%[[Hidden]]%%\n[[Also]]\n",
+			want: []string{"Shown", "Also"},
+		},
+		{
+			name: "an unclosed mark hides the rest",
+			body: "[[Shown]]\n%%\n[[Hidden]]\n",
+			want: []string{"Shown"},
+		},
+		{
+			name: "a mark inside a fence is not a comment",
+			body: "[[Shown]]\n```\n%%\n```\n[[Also]]\n",
+			want: []string{"Shown", "Also"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := LinkTargets(tt.body)
+			if len(got) == 0 {
+				got = nil
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("LinkTargets(%q) mismatch (-want +got):\n%s", tt.body, diff)
+			}
+		})
+	}
+}
+
 // The gap-ledger grammar below is the vault's forward-writing convention: a
 // heading marked as a gap opens a section whose list items declare concept
 // names the corpus still owes, and an inline planned mark turns a line's

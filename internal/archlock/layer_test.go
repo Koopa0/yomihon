@@ -16,6 +16,7 @@ const module = "github.com/koopa0/yomihon"
 // the first thing the command constructs and the thing every served face reads
 // from.
 var enginePackages = []string{
+	"internal/commentzone",
 	"internal/graph",
 	"internal/judge",
 	"internal/lesson",

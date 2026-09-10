@@ -18,6 +18,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
+	"github.com/koopa0/yomihon/internal/commentzone"
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
@@ -1123,7 +1124,14 @@ func skipZones(doc ast.Node, body string) []Span {
 		}
 		return ast.WalkContinue, nil
 	})
-	return append(code, commentZones(body, code)...)
+	codeSpans := make([]commentzone.Span, len(code))
+	for i, c := range code {
+		codeSpans[i] = commentzone.Span{Start: c.Start, Stop: c.Stop}
+	}
+	for _, z := range commentzone.Zones(body, codeSpans) {
+		code = append(code, Span{Start: z.Start, Stop: z.Stop})
+	}
+	return code
 }
 
 // emphasisOpeners are the opening delimiter runs of every emphasis in the
@@ -1185,28 +1193,6 @@ func firstTextStart(n ast.Node) (int, bool) {
 		}
 	}
 	return 0, false
-}
-
-// commentZones are the Obsidian %%...%% spans. A %% inside code is ignored so
-// it cannot shift the pairing; an unpaired trailing mark is dropped.
-func commentZones(body string, code []Span) []Span {
-	var marks []int
-	for off := 0; ; {
-		rel := strings.Index(body[off:], "%%")
-		if rel < 0 {
-			break
-		}
-		at := off + rel
-		if !inAnyZone(code, at) {
-			marks = append(marks, at)
-		}
-		off = at + 2
-	}
-	var zones []Span
-	for k := 0; k+1 < len(marks); k += 2 {
-		zones = append(zones, Span{marks[k], marks[k+1] + 2})
-	}
-	return zones
 }
 
 // linesRange is a block node's source span.
