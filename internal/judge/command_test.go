@@ -96,6 +96,82 @@ func TestRunExistsGolden(t *testing.T) {
 	}
 }
 
+const existsFoldVault = "testdata/vault-exists-fold"
+
+// existsFoldExact is the fixture filename as written: a fullwidth colon
+// (U+FF1A) between the two CJK runs. existsFoldASCII is the same letters
+// with the ASCII colon an unswitched IME leaves behind.
+const (
+	existsFoldExact = "指標：逃逸分析"
+	existsFoldASCII = "指標:逃逸分析"
+)
+
+// TestExistsReportsAWidthFoldAsANearMatch holds the hole an agent falls
+// into: a name search already answers with a fold-equal title is told
+// free. The fixture filename carries a fullwidth colon. Queried with that
+// colon it is an exact hit and exits 0; queried with the ASCII twin it is
+// a near match and exits 1. The exit code stays a write-if-absent gate
+// and is not flipped for a near-match-only answer.
+func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fullwidth colon is an exact hit", func(t *testing.T) {
+		t.Parallel()
+		got, exit, err := RunExists(t.Context(), &ExistsOptions{
+			Root: existsFoldVault, Name: existsFoldExact, Format: FormatJSON,
+		})
+		if err != nil {
+			t.Fatalf("RunExists: %v", err)
+		}
+		if exit != 0 {
+			t.Errorf("RunExists(%q) exit = %d, want 0", existsFoldExact, exit)
+		}
+		if bytes.Contains(got, []byte("near_matches")) {
+			t.Errorf("an exact answer carries near_matches: %s", got)
+		}
+		if !bytes.Contains(got, []byte(`"field":"filename"`)) || !bytes.Contains(got, []byte(`"field":"title"`)) {
+			t.Errorf("exact hit missed a field the fixture exposes: %s", got)
+		}
+	})
+
+	t.Run("ascii colon is a near match and exits 1", func(t *testing.T) {
+		t.Parallel()
+		got, exit, err := RunExists(t.Context(), &ExistsOptions{
+			Root: existsFoldVault, Name: existsFoldASCII, Format: FormatJSON,
+		})
+		if err != nil {
+			t.Fatalf("RunExists: %v", err)
+		}
+		if exit != 1 {
+			t.Errorf("RunExists(%q) exit = %d, want 1 for a near-match-only answer", existsFoldASCII, exit)
+		}
+		wantGolden(t, got, "testdata/golden/exists-near-width.golden")
+	})
+
+	t.Run("human names the near match and still says the name does not exist", func(t *testing.T) {
+		t.Parallel()
+		got, exit, err := RunExists(t.Context(), &ExistsOptions{
+			Root: existsFoldVault, Name: existsFoldASCII, Format: FormatHuman,
+		})
+		if err != nil {
+			t.Fatalf("RunExists: %v", err)
+		}
+		if exit != 1 {
+			t.Errorf("human RunExists(%q) exit = %d, want 1", existsFoldASCII, exit)
+		}
+		rendered := string(got)
+		if !strings.Contains(rendered, "does not exist") {
+			t.Errorf("a near-match-only answer no longer says the name does not exist:\n%s", rendered)
+		}
+		if !strings.Contains(rendered, "is near 1 note(s):") {
+			t.Errorf("the human answer does not name the fold-equal note:\n%s", rendered)
+		}
+		if !strings.Contains(rendered, "Concepts/golang/"+existsFoldExact+".md") {
+			t.Errorf("the human answer does not name the fixture path:\n%s", rendered)
+		}
+	})
+}
+
 // TestExistsSkipsDiary pins that the existence oracle never surfaces a note in
 // the private daily journal. An agent's dedup query must not learn a journal
 // note's name, path, or alias, so a query that would match only a journal note

@@ -1,0 +1,43 @@
+schema_version = "1"
+[enums]
+type = ["inbox", "concept", "lesson", "system", "guide"]
+domain = ["golang", "japanese"]
+source_kind = ["course"]
+source_provider = ["example-provider"]
+level = ["fundamental"]
+map_kind = ["topic"]
+[enums.status]
+note = ["seedling", "ready"]
+system = ["active"]
+lesson = ["draft", "ready"]
+[fields]
+required = ["title", "type", "domain"]
+required_inbox = ["title", "type"]
+known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags", "lang"]
+lesson_only = ["slug"]
+[fields.status_group]
+system = ["system", "guide"]
+[rules]
+domain_equals_folder_under = ["Concepts", "Writing/lessons"]
+concept_requires_provenance = ["based_on", "source_locator"]
+slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
+forbid_tag_with_slash = true
+[scan]
+knowledge_dirs = ["Concepts"]
+skip_basenames = ["README.md"]
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "seedling"
+applies_to = ["inbox"]
+from = []
+owner = []

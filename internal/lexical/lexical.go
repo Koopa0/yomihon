@@ -19,9 +19,13 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// fold is the single definer of "what counts as a match": NFC, then the walk
+// Fold is the single definer of "what counts as a match": NFC, then the walk
 // below, applied identically to stored text and to a query token. Case and
 // width folding live only here; vault.NormalizeNFC supplies the shared NFC step.
+func Fold(s string) string {
+	return fold(s)
+}
+
 func fold(s string) string {
 	var out strings.Builder
 	out.Grow(len(s))
