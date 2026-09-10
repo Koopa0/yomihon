@@ -1,10 +1,15 @@
 package render_test
 
 import (
+	"os"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // TestPlainText is the table-driven acceptance for the plain-text
@@ -38,8 +43,14 @@ func TestPlainText(t *testing.T) {
 		{
 			name:    "ruby base and rt included, tags excluded",
 			body:    "<ruby>今日<rt>きょう</rt></ruby>は晴れ\n",
-			present: []string{"今日", "きょう", "は晴れ"},
+			present: []string{"今日", "きょう", "は晴れ", "今日は"},
 			absent:  []string{"<ruby>", "<rt>", "</rt>", "</ruby>"},
+		},
+		{
+			name:    "ruby parenthesis fallback dropped so the base stays one phrase",
+			body:    "<ruby>漢<rp>(</rp><rt>かん</rt><rp>)</rp></ruby>字\n",
+			present: []string{"漢字", "かん"},
+			absent:  []string{"(", ")", "<rp>"},
 		},
 		{
 			name:    "html tags themselves excluded",
@@ -228,6 +239,105 @@ func TestPlainBlocksReportFenceRanges(t *testing.T) {
 	if strings.Contains(got, "see Some Note") && !strings.Contains(got, "[[Some Note]]") {
 		t.Errorf("nested fence span = %q, named rewritten prose as Source", got)
 	}
+}
+
+// bashoRubyBody is the synthetic isolate from the #341 audit: the same
+// sentence the bundled 芭蕉の句 shows, with a reading on each content word.
+const bashoRubyBody = "<ruby>古池<rt>ふるいけ</rt></ruby>や<ruby>蛙<rt>かわず</rt></ruby><ruby>飛<rt>と</rt></ruby>びこむ<ruby>水<rt>みず</rt></ruby>の<ruby>音<rt>おと</rt></ruby>。"
+
+const bashoPlainBody = "古池や蛙飛びこむ水の音。"
+
+// TestRubyReadingsDoNotSplitBasePhrases locks the retrieval contract the
+// page already keeps: a base phrase that hits on a note without ruby also
+// hits when the same sentence is written with furigana, and each reading
+// stays findable on its own. The lock goes through DocumentFromNote and
+// Index.SearchN so a walk that only concatenates text nodes cannot hide
+// behind a substring table that never asked for 今日は or 古池や.
+func TestRubyReadingsDoNotSplitBasePhrases(t *testing.T) {
+	t.Parallel()
+
+	got := render.PlainText(bashoRubyBody)
+	for _, want := range []string{"古池や", "古池や蛙飛びこむ水の音", "ふるいけ", "かわず", "おと"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("PlainText() = %q, missing %q", got, want)
+		}
+	}
+	for _, absent := range []string{"<ruby>", "<rt>", "古池ふるいけや"} {
+		if strings.Contains(got, absent) {
+			t.Errorf("PlainText() = %q, must not contain %q", got, absent)
+		}
+	}
+
+	rubyNote := vault.Parse("Notes/Ruby probe.md", []byte("---\ntitle: Probe\n---\n\n"+bashoRubyBody+"\n"))
+	plainNote := vault.Parse("Notes/Plain probe.md", []byte("---\ntitle: Control\n---\n\n"+bashoPlainBody+"\n"))
+	idx := lexical.NewIndex([]lexical.Document{
+		lexical.DocumentFromNote(rubyNote),
+		lexical.DocumentFromNote(plainNote),
+	}, schema.ArtifactPolicy{})
+
+	queries := []string{"古池", "ふるいけ", "古池や", "古池や蛙飛びこむ水の音"}
+	for _, q := range queries {
+		results, _, err := idx.SearchN(lexical.Parse(q), -1)
+		if err != nil {
+			t.Fatalf("SearchN(%q): %v", q, err)
+		}
+		gotHits := searchPaths(results)
+		if !slices.Contains(gotHits, rubyNote.RelPath) {
+			t.Errorf("query %q on the ruby note = %v, want a hit", q, gotHits)
+		}
+		if q != "ふるいけ" && !slices.Contains(gotHits, plainNote.RelPath) {
+			t.Errorf("query %q on the plain control = %v, want a hit", q, gotHits)
+		}
+	}
+
+	// A base-phrase hit must land on the sentence the page shows, not on a
+	// corpus that spliced readings through it.
+	baseHits, _, err := idx.SearchN(lexical.Parse("古池や"), -1)
+	if err != nil {
+		t.Fatalf("SearchN(古池や): %v", err)
+	}
+	for _, hit := range baseHits {
+		if hit.RelPath != rubyNote.RelPath {
+			continue
+		}
+		if !strings.Contains(hit.Landing, "古池や") {
+			t.Errorf("ruby landing = %q, want the visible base phrase", hit.Landing)
+		}
+		if strings.Contains(hit.Landing, "ふるいけ") {
+			t.Errorf("ruby landing = %q, mixed a reading into the base-phrase destination", hit.Landing)
+		}
+	}
+}
+
+// TestShippedHaikuBasePhraseIsSearchable is the cheap stand-in for a
+// browser pass on the bundled 芭蕉の句: the note the audit queried, through
+// the same DocumentFromNote path search uses.
+func TestShippedHaikuBasePhraseIsSearchable(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../examples/vault/Notes/芭蕉の句.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	note := vault.Parse("Notes/芭蕉の句.md", data)
+	idx := lexical.NewIndex([]lexical.Document{lexical.DocumentFromNote(note)}, schema.ArtifactPolicy{})
+	for _, q := range []string{"古池や", "ふるいけ"} {
+		results, _, err := idx.SearchN(lexical.Parse(q), -1)
+		if err != nil {
+			t.Fatalf("SearchN(%q): %v", q, err)
+		}
+		if len(results) != 1 {
+			t.Errorf("shipped 芭蕉の句 query %q = %d hits, want 1", q, len(results))
+		}
+	}
+}
+
+func searchPaths(results []lexical.Result) []string {
+	out := make([]string, len(results))
+	for i := range results {
+		out[i] = results[i].RelPath
+	}
+	return out
 }
 
 func inOneBlock(text string, ends []int, a, b string) bool {
