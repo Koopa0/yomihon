@@ -329,9 +329,9 @@ func lifecycleRank(name string) int {
 
 // New constructs a navigation model from one captured vault projection: entries
 // supply the canonical paths and observed times, notes the parsed Markdown keyed
-// by canonical path. A missing note reads as an unreadable one and stays a
-// sibling: shelf membership is whether the path is markdown, not whether this
-// generation carried a parse. New neither enumerates nor reopens the vault.
+// by canonical path. Every scanned path is on the shelf; notes and other files
+// are told apart when the page is built, and only notes are counted. New
+// neither enumerates nor reopens the vault.
 func New(
 	entries []vaultfs.Entry,
 	notes map[string]*vault.Note,
