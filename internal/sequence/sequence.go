@@ -2,7 +2,10 @@
 // course lists, which branch each row belongs to, what role the author gave
 // that branch, and what could not be determined. It is the one place that
 // answers those questions, so navigation and the judge read one interpretation
-// rather than scanning the Markdown twice and disagreeing silently.
+// rather than scanning the Markdown twice and disagreeing silently. The live
+// wikilink scan those rows already use is also the scan a general map asks,
+// so a quoted or escaped link cannot be a course lesson on one face and a
+// map branch on the other.
 package sequence
 
 import (
@@ -71,6 +74,15 @@ func (r Role) Declared() bool {
 // always counted from the body's first byte. It is a row's stable identity:
 // two rows naming the same note still differ by where they sit in the source.
 type Span struct{ Start, Stop int }
+
+// Link is one live wikilink in a body: brackets that address another note.
+// An embed, a same-file anchor, a quoted link, and a link written inside
+// code or a comment are not live.
+type Link struct {
+	Target  string
+	Display string
+	Span    Span
+}
 
 func (s Span) contains(off int) bool { return off >= s.Start && off < s.Stop }
 
@@ -964,6 +976,27 @@ type linkHit struct {
 
 // span is where this link is written, as the occurrence identity a row keeps.
 func (h linkHit) span() Span { return Span{Start: h.start, Stop: h.stop} }
+
+// LiveWikilinks are the live wikilinks in body, in document order. It is the
+// same scan a study path's rows already use, so a link written inside a
+// fence, a code span, or an Obsidian comment is not live here either.
+func LiveWikilinks(body string) []Link {
+	if body == "" {
+		return nil
+	}
+	src := []byte(body)
+	doc := mdParser.Parse(text.NewReader(src))
+	p := &parser{body: body, zones: skipZones(doc, body)}
+	hits := p.linksIn(Span{Start: 0, Stop: len(body)})
+	if len(hits) == 0 {
+		return nil
+	}
+	out := make([]Link, len(hits))
+	for i, h := range hits {
+		out[i] = Link{Target: h.target, Display: h.display, Span: h.span()}
+	}
+	return out
+}
 
 // liveWikilinks are the wikilinks in a row's target scope that actually
 // address another note: an embed shows a note rather than listing it, a
