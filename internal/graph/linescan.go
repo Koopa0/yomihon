@@ -89,25 +89,38 @@ func SetextLevel(line string) int {
 // BlankLine reports whether line is empty or only whitespace.
 func BlankLine(line string) bool { return strings.TrimSpace(line) == "" }
 
-// FenceOpens reports whether a line opens a fenced code block, and with which
-// marker byte.
-func FenceOpens(line string) (byte, bool) {
+// FenceOpens reports whether a line opens a fenced code block, with which
+// marker byte and how many of that marker the opener used. The count is what
+// a closer has to meet: CommonMark will not close a longer fence with a
+// shorter run of the same mark.
+func FenceOpens(line string) (marker byte, n int, ok bool) {
 	t := strings.TrimLeft(line, " \t")
-	switch {
-	case strings.HasPrefix(t, "```"):
-		return '`', true
-	case strings.HasPrefix(t, "~~~"):
-		return '~', true
+	if len(t) < 3 {
+		return 0, 0, false
+	}
+	switch t[0] {
+	case '`', '~':
+		for n < len(t) && t[n] == t[0] {
+			n++
+		}
+		if n < 3 {
+			return 0, 0, false
+		}
+		return t[0], n, true
 	default:
-		return 0, false
+		return 0, 0, false
 	}
 }
 
-// FenceCloses reports whether a line closes the open fence: trimmed, at least
-// three characters, all of them the fence marker.
-func FenceCloses(line string, marker byte) bool {
+// FenceCloses reports whether a line closes the open fence: trimmed, all of
+// the fence marker, and at least as long as the opener. A shorter all-marker
+// line is content, not a close.
+func FenceCloses(line string, marker byte, openerLen int) bool {
 	t := strings.TrimSpace(line)
-	return len(t) >= 3 && strings.Count(t, string(marker)) == len(t)
+	if openerLen < 3 {
+		openerLen = 3
+	}
+	return len(t) >= openerLen && strings.Count(t, string(marker)) == len(t)
 }
 
 // LineScan carries the running state a line-by-line walk needs to tell a
@@ -117,6 +130,7 @@ func FenceCloses(line string, marker byte) bool {
 type LineScan struct {
 	inFence    bool
 	fenceByte  byte
+	fenceLen   int
 	htmlCloses func(string) bool
 }
 
@@ -126,7 +140,7 @@ type LineScan struct {
 func (s *LineScan) Skip(line string) bool {
 	switch {
 	case s.inFence:
-		if FenceCloses(line, s.fenceByte) {
+		if FenceCloses(line, s.fenceByte, s.fenceLen) {
 			s.inFence = false
 		}
 		return true
@@ -136,8 +150,8 @@ func (s *LineScan) Skip(line string) bool {
 		}
 		return true
 	}
-	if marker, ok := FenceOpens(line); ok {
-		s.inFence, s.fenceByte = true, marker
+	if marker, n, ok := FenceOpens(line); ok {
+		s.inFence, s.fenceByte, s.fenceLen = true, marker, n
 		return true
 	}
 	if closes, ok := HTMLBlockOpens(line); ok {

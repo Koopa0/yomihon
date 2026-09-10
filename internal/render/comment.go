@@ -15,11 +15,12 @@ func stripObsidianComments(body string) (stripped string, unclosedLine int) {
 	inComment := false
 	inFence := false
 	var fenceByte byte
+	var fenceLen int
 	pending := 0
 
 	for i, line := range lines {
 		if inFence {
-			if fenceCloses(line, fenceByte) {
+			if fenceCloses(line, fenceByte, fenceLen) {
 				inFence = false
 			}
 			continue
@@ -29,9 +30,10 @@ func stripObsidianComments(body string) (stripped string, unclosedLine int) {
 		// on, skip the strip, and leak the fenced block onto the page
 		// and into the search corpus.
 		if !inComment {
-			if marker, _, ok := fenceOpen(line); ok {
+			if marker, n, _, ok := fenceOpen(line); ok {
 				inFence = true
 				fenceByte = marker
+				fenceLen = n
 				continue
 			}
 		}
@@ -47,9 +49,10 @@ func stripObsidianComments(body string) (stripped string, unclosedLine int) {
 		if inComment {
 			continue
 		}
-		if marker, _, ok := fenceOpen(lines[i]); ok {
+		if marker, n, _, ok := fenceOpen(lines[i]); ok {
 			inFence = true
 			fenceByte = marker
+			fenceLen = n
 		}
 	}
 	return strings.Join(lines, "\n"), pending

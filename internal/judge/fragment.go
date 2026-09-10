@@ -178,17 +178,17 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 // tail the renderer drops. Only lines carrying a caret are kept.
 func collectBlockLines(body string) []string {
 	var out []string
-	inFence, fenceByte := false, byte(0)
+	inFence, fenceByte, fenceLen := false, byte(0), 0
 	for line := range strings.SplitSeq(body, "\n") {
 		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
 		if inFence {
-			if graph.FenceCloses(unquoted, fenceByte) {
+			if graph.FenceCloses(unquoted, fenceByte, fenceLen) {
 				inFence = false
 			}
 			continue
 		}
-		if marker, ok := graph.FenceOpens(unquoted); ok {
-			inFence, fenceByte = true, marker
+		if marker, n, ok := graph.FenceOpens(unquoted); ok {
+			inFence, fenceByte, fenceLen = true, marker, n
 			continue
 		}
 		if render.UnanchorableLine(line) {
