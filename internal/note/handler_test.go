@@ -2227,12 +2227,11 @@ func TestHomeWithoutAnIntroductionStaysReadOnly(t *testing.T) {
 	}
 }
 
-// TestTheDeskDoesNotShelveNonNotesAsFolderRows covers a folder nothing
-// classifies: three files, no markdown, no contract. The folder shelf is built
-// from parsed notes, so those files are not 篇 and not rows. They stay
-// reachable at /notes/ the way a wikilink or a typed address already reaches
-// them.
-func TestTheDeskDoesNotShelveNonNotesAsFolderRows(t *testing.T) {
+// TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote covers a folder nothing
+// classifies: three files, no markdown, no contract. Every file is in the
+// folder, so the way in through the folders lists them. The measure counts
+// notes only, so the block says 0 篇 above the three hrefs the desk can open.
+func TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
@@ -2263,21 +2262,21 @@ func TestTheDeskDoesNotShelveNonNotesAsFolderRows(t *testing.T) {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
 	folders := deskBlockMarkup(t, body, "folders")
-	for _, banned := range []string{
-		"3 篇",
+	for _, want := range []string{
+		"0 篇",
 		`href="/notes/todo.txt"`,
 		`href="/notes/older.txt"`,
 		`href="/notes/reading.html"`,
 	} {
-		if strings.Contains(folders, banned) {
-			t.Errorf("the folders block still shelves a non-note as a row %q; block = %q", banned, folders)
+		if !strings.Contains(folders, want) {
+			t.Errorf("the folders block is missing %q; block = %q", want, folders)
 		}
 	}
-	if !strings.Contains(folders, "0 篇") && !strings.Contains(folders, "沒有列出檔案") {
-		t.Errorf("the folders block still promises files; block = %q", folders)
+	if strings.Contains(folders, "3 篇") {
+		t.Errorf("the folders block counted non-notes as 篇; block = %q", folders)
 	}
 	if code, _ = get(t, srv.Client(), srv.URL+"/notes/todo.txt"); code != http.StatusOK {
-		t.Errorf("GET /notes/todo.txt status = %d, want %d: a non-note stays reachable off the shelf", code, http.StatusOK)
+		t.Errorf("GET /notes/todo.txt status = %d, want %d: the desk offers a row that does not answer", code, http.StatusOK)
 	}
 }
 

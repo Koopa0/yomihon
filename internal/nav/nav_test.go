@@ -224,8 +224,8 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		t.Errorf("New Reports = %+v, want captured report", got)
 	}
 	dir, siblings := model.Siblings("Concepts/go/Unreadable.md")
-	if dir != "Concepts/go" || len(siblings) != 1 || siblings[0].RelPath != targetPath {
-		t.Errorf("New Siblings(unreadable note) = (%q, %+v), want the captured note only", dir, siblings)
+	if dir != "Concepts/go" || len(siblings) != 2 {
+		t.Errorf("New Siblings(unreadable note) = (%q, %+v), want captured folder membership", dir, siblings)
 	}
 }
 
@@ -1444,10 +1444,11 @@ func TestLifecycleOrderSortsListedFixtureFoldersBeforeUnlistedOnes(t *testing.T)
 	}
 }
 
-// TestFolderTreeAndCountsComeFromNotesOnly locks #323: the folder shelf and
-// its 篇 counts are built from parsed notes, so a png, a yaml, a Makefile and
-// a root README that never entered the note map are not rows.
-func TestFolderTreeAndCountsComeFromNotesOnly(t *testing.T) {
+// TestFolderTreeKeepsEveryFileTheDeskCanOpen locks the shelf rule: a folder
+// stays when it holds anything the desk serves, markdown membership is
+// vault.IsMarkdown rather than a successful parse, and a png or a Makefile
+// remains a file rather than vanishing.
+func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -1483,23 +1484,32 @@ func TestFolderTreeAndCountsComeFromNotesOnly(t *testing.T) {
 		schema.JournalDir{},
 	)
 
-	if got := model.RootNotes(); len(got) != 0 {
-		t.Errorf("RootNotes = %v, want none: Makefile and README.md are not parsed notes", got)
+	gotRoot := fileRelPaths(model.RootNotes())
+	if diff := cmp.Diff([]string{"Makefile", "README.md"}, gotRoot); diff != "" {
+		t.Errorf("RootNotes mismatch (-want +got):\n%s", diff)
 	}
 	folders := model.Folders()
 	if len(folders) != 1 || folders[0].Name != "Notes" {
 		t.Fatalf("Folders = %+v, want one Notes folder", folders)
 	}
-	if got := folders[0].Notes; len(got) != 1 || got[0].RelPath != notePath {
-		t.Errorf("Notes folder rows = %v, want only %s", got, notePath)
+	if diff := cmp.Diff([]string{"Notes/config.yaml", "Notes/diagram.png", notePath}, fileRelPaths(folders[0].Notes)); diff != "" {
+		t.Errorf("Notes folder rows mismatch (-want +got):\n%s", diff)
 	}
 	notes, _, ok := model.Directory("Notes")
 	if !ok {
 		t.Fatal("Directory(Notes) reported no such folder")
 	}
-	if len(notes) != 1 || notes[0].RelPath != notePath {
-		t.Errorf("Directory(Notes) = %v, want only %s", notes, notePath)
+	if diff := cmp.Diff([]string{"Notes/config.yaml", "Notes/diagram.png", notePath}, fileRelPaths(notes)); diff != "" {
+		t.Errorf("Directory(Notes) mismatch (-want +got):\n%s", diff)
 	}
+}
+
+func fileRelPaths(files []NoteRef) []string {
+	out := make([]string, len(files))
+	for i, file := range files {
+		out[i] = file.RelPath
+	}
+	return out
 }
 
 // TestPlacements inverts the map trees into the note -> placements map the

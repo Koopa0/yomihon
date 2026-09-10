@@ -374,7 +374,13 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		&tomlMeta,
 	)
 	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
-	contract.journalDir = resolveJournalDir(navigation, journalTypeErrorKey, &tomlMeta)
+	contract.journalDir = resolveJournalDir(
+		navigation,
+		journalTypeErrorKey,
+		navigationTypeErrorKey,
+		unknown.navigation,
+		&tomlMeta,
+	)
 	contract.artifactPolicy = resolveArtifactPolicy(
 		artifacts,
 		artifactTypeErrorKey,
@@ -485,11 +491,20 @@ func decodeNavigationSection(
 
 func resolveJournalDir(
 	section *navigationSection,
-	typeErrorKey string,
+	journalTypeErrorKey string,
+	rolesTypeErrorKey string,
+	unknownKeys []string,
 	metadata *toml.MetaData,
 ) JournalDir {
-	if typeErrorKey != "" {
-		return journalTypeError(typeErrorKey)
+	if journalTypeErrorKey != "" {
+		return journalTypeError(journalTypeErrorKey)
+	}
+	if rolesTypeErrorKey != "" {
+		return JournalDir{claim: invalidNavigationRoles("key %q has incompatible TOML type", rolesTypeErrorKey).Claim()}
+	}
+	if len(unknownKeys) > 0 {
+		slices.Sort(unknownKeys)
+		return JournalDir{claim: invalidNavigationRoles("unknown keys %s", formatContractKeys(unknownKeys)).Claim()}
 	}
 	return deriveJournalDir(section, metadata.IsDefined("navigation", "journal_dir"))
 }

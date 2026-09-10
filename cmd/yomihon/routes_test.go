@@ -477,7 +477,7 @@ func TestFolderShelfScope(t *testing.T) {
 			contract:    withDeclaration(`knowledge_dirs = ["Concepts"]`),
 			rootFiles:   true,
 			wantCount:   "4 篇",
-			wantShelf:   []string{"/folders/Concepts", "/notes/README.md", "/notes/Welcome.md"},
+			wantShelf:   []string{"/folders/Concepts", "/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
 			wantPreview: []string{"/folders/Concepts", "/notes/README.md", "/notes/Welcome.md"},
 		},
 		{
@@ -485,7 +485,7 @@ func TestFolderShelfScope(t *testing.T) {
 			contract:    withDeclaration(""),
 			rootFiles:   true,
 			wantCount:   "6 篇",
-			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md"},
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
 			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
 		},
 		{
@@ -493,14 +493,14 @@ func TestFolderShelfScope(t *testing.T) {
 			contract:    withDeclaration(`knowledge_dirs = []`),
 			rootFiles:   true,
 			wantCount:   "6 篇",
-			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md"},
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
 			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
 		},
 		{
 			name:        "missing contract",
 			rootFiles:   true,
 			wantCount:   "6 篇",
-			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md"},
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
 			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
 		},
 		{
@@ -508,7 +508,7 @@ func TestFolderShelfScope(t *testing.T) {
 			contract:    "this is not toml [[[\n",
 			rootFiles:   true,
 			wantCount:   "6 篇",
-			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md"},
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
 			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
 		},
 		{
@@ -516,7 +516,7 @@ func TestFolderShelfScope(t *testing.T) {
 			contract:    withDeclaration(`knowledge_dirs = "Concepts"`),
 			rootFiles:   true,
 			wantCount:   "6 篇",
-			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md"},
+			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
 			wantPreview: []string{"/folders/Concepts", "/folders/System", "/folders/Outside"},
 		},
 		{
@@ -524,8 +524,8 @@ func TestFolderShelfScope(t *testing.T) {
 			contract:    withDeclaration(`knowledge_dirs = ["Missing"]`),
 			rootFiles:   true,
 			wantCount:   "2 篇",
-			wantShelf:   []string{"/notes/README.md", "/notes/Welcome.md"},
-			wantPreview: []string{"/notes/README.md", "/notes/Welcome.md"},
+			wantShelf:   []string{"/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
+			wantPreview: []string{"/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
 		},
 		{
 			name:      "declared folder has no captured files and no root files",

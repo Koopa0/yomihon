@@ -135,7 +135,7 @@ func TestLeadingDateReadsOnlyAWholeDayAtTheFront(t *testing.T) {
 }
 
 // TestTheFolderIndexCountsEveryFileOnTheShelf keeps the kicker's figure
-// counting every descendant of a shelf folder and every root file.
+// counting every markdown note under a shelf folder and at the vault root.
 func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 	t.Parallel()
 

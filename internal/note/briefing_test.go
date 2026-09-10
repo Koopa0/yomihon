@@ -60,10 +60,11 @@ func TestShowRedirectsARegisteredBriefingToTheReportSurface(t *testing.T) {
 	}
 }
 
-// TestABriefingOnlyDirectoryIsNotAFolderShelf holds the folder tree to parsed
-// notes. A daily-briefing directory that holds only HTML is not a note folder,
-// so /folders does not invent a shelf of files the report surface already lists.
-func TestABriefingOnlyDirectoryIsNotAFolderShelf(t *testing.T) {
+// TestFolderPageSendsARegisteredBriefingToTheReportSurface holds the folder
+// listing to the same address the report surface already uses. The page carries
+// no rail, so the shelf row is the only href; a /notes/ twin here is exactly
+// the drop out of report mode the desk cannot keep.
+func TestFolderPageSendsARegisteredBriefingToTheReportSurface(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -71,11 +72,15 @@ func TestABriefingOnlyDirectoryIsNotAFolderShelf(t *testing.T) {
 	srv := newServer(t, root)
 
 	code, body := get(t, srv.Client(), srv.URL+"/folders/System/reports/daily-briefing")
-	if code != http.StatusNotFound {
-		t.Fatalf("GET folder = %d, want 404; body = %q", code, body)
+	if code != http.StatusOK {
+		t.Fatalf("GET folder = %d, want 200", code)
+	}
+	const reportRow = `class="y-row" href="/reports/browser-boundary.html" data-index-row`
+	if !strings.Contains(body, reportRow) {
+		t.Errorf("folder listing does not send the briefing to the report surface; body = %q", body)
 	}
 	if strings.Contains(body, `href="/notes/System/reports/daily-briefing/browser-boundary.html"`) {
-		t.Errorf("a briefing-only directory is still offered as a /notes/ row; body = %q", body)
+		t.Errorf("folder listing still offers the /notes/ twin; body = %q", body)
 	}
 }
 

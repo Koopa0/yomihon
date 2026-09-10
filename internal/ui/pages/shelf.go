@@ -62,6 +62,10 @@ type Row struct {
 	// they are settles that for itself, and the widths that do not show it
 	// ignore the mark.
 	Current bool
+	// Heading marks a group label rather than a document. It carries no
+	// address, and a narrowed shelf skips it the way it skips any row that
+	// leads nowhere.
+	Heading bool
 }
 
 // railRows takes the rows a rail can show around the one the reader is on, and

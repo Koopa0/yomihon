@@ -1202,6 +1202,36 @@ non_instance_dirs = ["System/templates"]
 	}
 }
 
+func TestJournalDirClosesOnUnknownNavigationKeys(t *testing.T) {
+	t.Parallel()
+
+	s := loadContractText(t, `
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+journal_dir = "Diary"
+bogus = 1
+`, `
+[artifacts]
+non_instance_dirs = ["System/templates"]
+`)
+	journal := s.JournalDir()
+	if journal.Trustworthy() {
+		t.Fatal("JournalDir().Trustworthy() = true after an unknown [navigation] key")
+	}
+	if journal.Available() {
+		t.Fatal("JournalDir().Available() = true after an unknown [navigation] key")
+	}
+	got := journal.Diagnostic()
+	want := s.NavigationRoles().Diagnostic()
+	if got == "" || got != want {
+		t.Errorf("JournalDir().Diagnostic() = %q, NavigationRoles().Diagnostic() = %q, want the same closed sentence", got, want)
+	}
+	if !strings.Contains(got, "navigation.bogus") {
+		t.Errorf("JournalDir().Diagnostic() = %q, want the unknown key named", got)
+	}
+}
+
 func TestJournalDirTypeErrorLeavesRolesAvailable(t *testing.T) {
 	t.Parallel()
 

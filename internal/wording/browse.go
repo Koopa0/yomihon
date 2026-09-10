@@ -10,6 +10,12 @@ var (
 	FolderNoteCountOne  = both("%d 篇", "%d note")
 	FolderNoteCountMany = both("%d 篇", "%d notes")
 	FolderEmpty         = both("這個資料夾是空的。", "This folder is empty.")
+	// RootNotes names the markdown files that sit at the vault root, so the
+	// folder shelf does not read them as another folder.
+	RootNotes = both("根目錄筆記", "Root notes")
+	// OtherFiles names the files a folder holds that are not notes. They stay
+	// listed, and they are not counted as 篇.
+	OtherFiles = both("其他檔案", "Other files")
 )
 
 // A file yomihon has no reader for: it says so, and offers the bytes.

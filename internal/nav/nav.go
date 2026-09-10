@@ -87,8 +87,8 @@ type Model struct {
 	// placementIndex maps a note's rel-path to every map placement that lists
 	// it. Read it through Placements.
 	placementIndex map[string][]Placement
-	// dirNotes maps a directory's rel-path to the files directly inside it.
-	// Read it through Siblings.
+	// dirNotes maps a directory's rel-path to every file the desk can open
+	// inside it, notes and the rest. Read it through Siblings.
 	dirNotes map[string][]NoteRef
 }
 
@@ -329,8 +329,9 @@ func lifecycleRank(name string) int {
 
 // New constructs a navigation model from one captured vault projection: entries
 // supply the canonical paths and observed times, notes the parsed Markdown keyed
-// by canonical path. A missing note reads as an unreadable one and does not
-// affect its neighbors. New neither enumerates nor reopens the vault.
+// by canonical path. A missing note reads as an unreadable one and stays a
+// sibling: shelf membership is whether the path is markdown, not whether this
+// generation carried a parse. New neither enumerates nor reopens the vault.
 func New(
 	entries []vaultfs.Entry,
 	notes map[string]*vault.Note,
@@ -383,14 +384,10 @@ func newModel(
 	journal schema.JournalDir,
 ) *Model {
 	paths := make([]string, 0, len(files))
-	notePaths := make([]string, 0, len(files))
 	mtimes := make(map[string]time.Time, len(files))
 	for _, file := range files {
 		paths = append(paths, file.path)
 		mtimes[file.path] = file.modified
-		if file.note != nil {
-			notePaths = append(notePaths, file.path)
-		}
 	}
 	m := &Model{
 		reports:        buildReports(paths),
@@ -398,8 +395,8 @@ func newModel(
 		journalDir:     journal,
 		knowledgeScope: scope,
 	}
-	m.folders, m.rootNotes = buildFolderTree(notePaths)
-	m.dirNotes = buildDirNotes(notePaths)
+	m.folders, m.rootNotes = buildFolderTree(paths)
+	m.dirNotes = buildDirNotes(paths)
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
 	m.journal = Close(journal.Claim())
@@ -591,11 +588,11 @@ type folderBuilder struct {
 }
 
 // buildFolderTree turns a flat path list, already in the captured reading
-// order, into the top-level folder tree plus the vault-root notes. New hands
-// it parsed notes only, so a png or a Makefile never becomes a NoteRef. It
-// mirrors the directory structure to whatever depth the vault has, inventing
-// no level and capping none. Only the top level is reordered into
-// lifecycleOrder.
+// order, into the top-level folder tree plus the vault-root files. A folder
+// stays on the shelf when the desk can open anything in it; a png or a
+// Makefile is still a file. It mirrors the directory structure to whatever
+// depth the vault has, inventing no level and capping none. Only the top
+// level is reordered into lifecycleOrder.
 func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
 	root := &folderBuilder{subIdx: map[string]*folderBuilder{}}
 	for _, p := range paths {

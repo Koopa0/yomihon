@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -254,20 +255,22 @@ func NewFolderIndex(model *nav.Model, lang wording.Lang) ListIndexView {
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
 		wording.FolderIndexLede.In(lang), wording.FolderIndexEmpty.In(lang),
-		folderRows(rootNotes, folders, lang))
+		folderRows(rootNotes, folders, lang, true))
 }
 
 // folderRows is one level of the tree. The folders come first, because a reader
-// descending a tree chooses a branch before a leaf, and each says how much sits
-// under it and opens its own page. The files belonging to no folder follow,
-// carrying no measure: the measure is what a row opens onto, and a note opens
-// onto itself.
+// descending a tree chooses a branch before a leaf, and each says how many
+// notes sit under it and opens its own page. Markdown files follow, then the
+// other files the desk can open, in their own labelled group and uncounted.
+// At the vault root the notes are labelled too, so they are not read as
+// another folder.
 //
 // One level is the whole of it. A page that unfolded every depth at once would
 // be the drawer the reading desk was built to replace, and the level below is
 // one row away.
-func folderRows(rootNotes []nav.NoteRef, folders []nav.Folder, lang wording.Lang) []Row {
-	rows := make([]Row, 0, len(folders)+len(rootNotes))
+func folderRows(files []nav.NoteRef, folders []nav.Folder, lang wording.Lang, root bool) []Row {
+	notes, others := splitNotesAndFiles(files)
+	rows := make([]Row, 0, len(folders)+len(notes)+len(others)+2)
 	for i := range folders {
 		rows = append(rows, Row{
 			Text: folders[i].Name,
@@ -275,15 +278,43 @@ func folderRows(rootNotes []nav.NoteRef, folders []nav.Folder, lang wording.Lang
 			Mark: folderNoteCount(&folders[i], lang),
 		})
 	}
-	for _, note := range rootNotes {
-		rows = append(rows, Row{Text: note.Name, Href: notesHref(note.RelPath)})
+	if len(notes) > 0 {
+		if root {
+			rows = append(rows, Row{Text: wording.RootNotes.In(lang), Heading: true})
+		}
+		for _, note := range notes {
+			rows = append(rows, Row{Text: note.Name, Href: notesHref(note.RelPath)})
+		}
+	}
+	if len(others) > 0 {
+		rows = append(rows, Row{Text: wording.OtherFiles.In(lang), Heading: true})
+		for _, file := range others {
+			rows = append(rows, Row{Text: file.Name, Href: notesHref(file.RelPath)})
+		}
 	}
 	return rows
 }
 
-// countNotes totals the files the tree holds at every depth.
-func countNotes(rootNotes []nav.NoteRef, folders []nav.Folder) int {
-	total := len(rootNotes)
+func splitNotesAndFiles(files []nav.NoteRef) (notes, others []nav.NoteRef) {
+	for _, file := range files {
+		if vault.IsMarkdown(file.RelPath) {
+			notes = append(notes, file)
+			continue
+		}
+		others = append(others, file)
+	}
+	return notes, others
+}
+
+// countNotes totals the markdown notes the tree holds at every depth. Files
+// that are not notes stay on the shelf and are not this figure.
+func countNotes(files []nav.NoteRef, folders []nav.Folder) int {
+	total := 0
+	for _, file := range files {
+		if vault.IsMarkdown(file.RelPath) {
+			total++
+		}
+	}
 	for i := range folders {
 		total += countNotes(folders[i].Notes, folders[i].Subfolders)
 	}
