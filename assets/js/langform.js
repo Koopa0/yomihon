@@ -18,7 +18,7 @@ function carryPosition(form) {
   const y = Math.round(window.scrollY);
   if (y <= 0) return;
   const path = pathOnly(address);
-  next.value = `${path}#${MARK}${y}`;
+  next.value = path + '#' + MARK + y;
 }
 
 function restorePosition() {

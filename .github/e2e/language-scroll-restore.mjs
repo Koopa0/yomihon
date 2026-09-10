@@ -53,7 +53,7 @@ const MUTATIONS = {
   'leave-next-as-the-path': {
     target: 'position-survives-switch',
     apply: rewriteModule(
-      '  next.value = `${path}#${MARK}${y}`;',
+      "  next.value = path + '#' + MARK + y;",
       '  next.value = path;',
       'language-form next rewrite',
     ),
