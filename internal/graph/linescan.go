@@ -95,21 +95,22 @@ func BlankLine(line string) bool { return strings.TrimSpace(line) == "" }
 // shorter run of the same mark.
 func FenceOpens(line string) (marker byte, n int, ok bool) {
 	t := strings.TrimLeft(line, " \t")
-	if len(t) < 3 {
-		return 0, 0, false
-	}
-	switch t[0] {
-	case '`', '~':
-		for n < len(t) && t[n] == t[0] {
-			n++
-		}
-		if n < 3 {
-			return 0, 0, false
-		}
-		return t[0], n, true
+	switch {
+	case strings.HasPrefix(t, "```"):
+		return '`', fenceMarkerRun(t, '`'), true
+	case strings.HasPrefix(t, "~~~"):
+		return '~', fenceMarkerRun(t, '~'), true
 	default:
 		return 0, 0, false
 	}
+}
+
+func fenceMarkerRun(s string, marker byte) int {
+	n := 0
+	for n < len(s) && s[n] == marker {
+		n++
+	}
+	return n
 }
 
 // FenceCloses reports whether a line closes the open fence: trimmed, all of
