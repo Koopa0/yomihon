@@ -59,10 +59,13 @@ var (
 var (
 	StatusLabel          = both("狀態", "Status")
 	WriteFaceUnavailable = both("生命週期寫入目前無法使用。", "Lifecycle writes are unavailable.")
-	NoFrontmatter        = both("沒有 frontmatter（合法）。", "No frontmatter (which is legal).")
-	NoLegalTransitions   = both("目前沒有合法的狀態轉換。", "No status transition is legal from here.")
-	FrontmatterNotYAML   = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
-	ReportsOnlyNote      = both("只陳述狀態，不自動修復。", "Reported, never repaired.")
+	// NoFrontmatter is the sentence for a file that has no frontmatter block.
+	// A present but empty fence pair is a block with no status and uses
+	// StatusUnreadable instead — the judge already keeps those shapes apart.
+	NoFrontmatter      = both("沒有 frontmatter（合法）。", "No frontmatter (which is legal).")
+	NoLegalTransitions = both("目前沒有合法的狀態轉換。", "No status transition is legal from here.")
+	FrontmatterNotYAML = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
+	ReportsOnlyNote    = both("只陳述狀態，不自動修復。", "Reported, never repaired.")
 )
 
 // The way out of a state the interface offers nothing onward from. The second
@@ -87,9 +90,10 @@ var (
 	)
 	// The three causes are a complete division of what reaches this sentence:
 	// the key is absent, its value is empty or null, or what stands there is not
-	// one value at all. A single value the note did write and the reader did not
-	// take as text has its own sentence below, because the repair differs — that
-	// note needs quotation marks, and one reaching this needs a status.
+	// one value at all — an empty fence pair included, which is a block that
+	// wrote none of those. A single value the note did write and the reader did
+	// not take as text has its own sentence below, because the repair differs —
+	// that note needs quotation marks, and one reaching this needs a status.
 	StatusUnreadable = both(
 		"frontmatter 裡讀不出 status 值（缺少、是空的，或不是單一值）。yomihon 只陳述，不修復；",
 		"No status value could be read from the frontmatter — it is missing, empty, or not a single value. yomihon reports and never repairs; ",

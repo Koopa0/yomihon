@@ -601,9 +601,12 @@ func (h *Handler) governance(
 			// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
 			// write.
 		case !n.HasFrontmatter:
-			// Legally no frontmatter (e.g. drills): no keys either.
+			// No block at all (e.g. drills): the absent sentence, no keys.
 			state.noFrontmatter = true
 		default:
+			// A present block, empty fence pair included: the no-status face
+			// when nothing readable was written there. No keys either until a
+			// status can be read.
 			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath, lang)
 			if state.writeDiagnostic == "" {
 				state.statusNotText = state.status == "" && n.StatusNotText

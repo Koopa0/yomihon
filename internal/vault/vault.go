@@ -18,8 +18,12 @@ import (
 
 // Note is one markdown file, frontmatter split from body.
 type Note struct {
-	RelPath     string
-	Frontmatter map[string]any
+	RelPath string
+	// HasFrontmatter is whether the bytes opened a frontmatter block. An empty
+	// fence pair still counts: the block is there even when YAML decodes to no
+	// fields and Frontmatter stays nil.
+	HasFrontmatter bool
+	Frontmatter    map[string]any
 	// FMDiagnostic is non-empty when the frontmatter block exists but is not
 	// valid YAML. Display-only: yomihon reports, a human edits the file.
 	FMDiagnostic string
@@ -31,7 +35,8 @@ type Note struct {
 
 // Parse splits raw file bytes into frontmatter and body and decodes the
 // frontmatter into a map. rel is stored as given, in slash form. Broken YAML
-// becomes the note's FMDiagnostic rather than an error.
+// becomes the note's FMDiagnostic rather than an error. A found block sets
+// HasFrontmatter even when the map stays nil.
 func Parse(rel string, data []byte) *Note {
 	n := &Note{RelPath: rel}
 	block, found := SplitFrontmatter(data)
@@ -40,6 +45,7 @@ func Parse(rel string, data []byte) *Note {
 	if !found {
 		return n
 	}
+	n.HasFrontmatter = true
 	content := block.Content
 	// The yaml parser numbers lines from the first byte it is handed, so the
 	// newlines preceding the block go in front to make a fault cite the file's

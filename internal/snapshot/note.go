@@ -21,7 +21,9 @@ type Reading struct {
 	FMDiagnostic       string
 	Language           string
 	LanguageDiagnostic string
-	HasFrontmatter     bool
+	// HasFrontmatter is whether the source bytes opened a frontmatter block,
+	// including an empty fence pair whose YAML decoded to no fields.
+	HasFrontmatter bool
 	// StatusNotText is true where the note wrote a status the reader did not
 	// take as text, so Status above is empty for a reason a page can name.
 	StatusNotText bool
@@ -57,7 +59,7 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		FMDiagnostic:       parsed.FMDiagnostic,
 		Language:           language,
 		LanguageDiagnostic: diagnostic,
-		HasFrontmatter:     parsed.Frontmatter != nil,
+		HasFrontmatter:     parsed.HasFrontmatter,
 		StatusNotText:      parsed.StatusNotText(),
 		Updated:            parsed.Updated(),
 		ContentIdentity:    vault.ContentIdentity(data),

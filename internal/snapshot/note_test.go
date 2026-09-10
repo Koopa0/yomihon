@@ -46,10 +46,27 @@ func TestCaptureNoteRetainsFrontmatterDiagnosticWithoutAuthority(t *testing.T) {
 
 	data := []byte("---\ntitle: [broken\n---\nbody\n")
 	got := newReading(vault.Parse("Broken.md", data), data, schema.ArticleLanguage{})
-	if got.HasFrontmatter {
-		t.Fatal("malformed frontmatter was marked authoritative")
+	if !got.HasFrontmatter {
+		t.Fatal("malformed frontmatter dropped the block that produced the diagnostic")
 	}
 	if got.FMDiagnostic == "" {
 		t.Fatal("malformed frontmatter diagnostic was dropped")
+	}
+}
+
+// TestCaptureNoteKeepsEmptyBlockApartFromAbsent holds the projection to the
+// split's own answer: an empty fence pair is a present block, and a file with
+// no delimiters is not. Deriving the flag from a nil field map collapses them.
+func TestCaptureNoteKeepsEmptyBlockApartFromAbsent(t *testing.T) {
+	t.Parallel()
+
+	empty := []byte("---\n---\nbody\n")
+	if got := newReading(vault.Parse("Empty.md", empty), empty, schema.ArticleLanguage{}); !got.HasFrontmatter {
+		t.Fatal("empty frontmatter block was projected as absent")
+	}
+
+	absent := []byte("body\n")
+	if got := newReading(vault.Parse("Absent.md", absent), absent, schema.ArticleLanguage{}); got.HasFrontmatter {
+		t.Fatal("a file with no delimiters was projected as a frontmatter block")
 	}
 }
