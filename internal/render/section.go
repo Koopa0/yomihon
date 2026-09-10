@@ -187,25 +187,33 @@ func ledeBeforeHeading(lines []string, first int) bool {
 
 // Excerpt is the part of body that a link's own fragment addresses: a caret
 // opens a block address, anything else names a section, and an empty fragment
-// asks for the opening — the lines before the first heading when they hold
-// content, or that heading plus the lines up to the next heading of any level
-// when the note opens on one. The
-// hover card is the caller that needs a taste rather than a transfer; an embed
-// of the whole note still goes through excerptOf and receives the body itself.
+// asks for the note itself. Obsidian's %% comments come off before any edge is
+// chosen, so a marker cannot span the cut and arrive visible in the excerpt.
 //
-// narrowed is whether that empty-fragment cut left the rest of the note behind.
-// A section or block address is the place the reader named, so it comes back
-// not narrowed even when the note continues after it. An address the note does
-// not answer to comes back not found, and the caller says so. Widening to the
-// whole note would answer a question nobody asked — the reader named one place,
-// and being shown a different one without being told reads as the place they
-// named.
+// An address the note does not answer to comes back not found, and the caller
+// says so. Widening to the whole note would answer a question nobody asked —
+// the reader named one place, and being shown a different one without being
+// told reads as the place they named.
 //
 // The fragment is the one an anchor already carries, already folded by the pass
-// that wrote it; nothing here folds a name a second time. Obsidian's %% comments
-// come off before any edge is chosen, so a marker cannot span the cut and arrive
-// visible in the excerpt.
-func Excerpt(body, fragment string) (slice string, found, narrowed bool) {
+// that wrote it; nothing here folds a name a second time. An embed of a whole
+// note still comes through here as the note: a hover card that wants only the
+// lede asks ExcerptPreview, so the two surfaces stay one cut for a named
+// fragment and two answers for an empty one.
+func Excerpt(body, fragment string) (slice string, found bool) {
+	stripped, _ := stripObsidianComments(body)
+	slice, matches := excerptOf(stripped, fragment)
+	return slice, matches > 0
+}
+
+// ExcerptPreview is the hover card's reading of the same address Excerpt
+// takes. A named fragment is the same cut. An empty one is the lede — the
+// lines before the first heading when they hold content, or that heading plus
+// the lines up to the next heading of any level when the note opens on one —
+// and narrowed reports that the rest of the note was left behind, so the card
+// can say so with the sentence a byte-capped preview already uses. An embed
+// still asks Excerpt (or excerptOf) for the whole note; this cut is the card's.
+func ExcerptPreview(body, fragment string) (slice string, found, narrowed bool) {
 	stripped, _ := stripObsidianComments(body)
 	if fragment == "" {
 		slice, narrowed = ledeSlice(stripped)

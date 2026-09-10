@@ -66,8 +66,9 @@ func (h *Handler) preview(w http.ResponseWriter, r *http.Request) {
 
 // previewOf cuts one card's excerpt out of the note at rel. section is the
 // fragment the link's own address carries, already folded by the pass that
-// wrote it, so nothing here re-reads a name: an empty one asks for the
-// opening, not the note itself.
+// wrote it, so nothing here re-reads a name: an empty one is the lede, or
+// the first section when the note opens on a heading — a taste, not the
+// note itself. The card says when the rest was left behind.
 //
 // The false answer covers every way an address reaches no note — a path outside
 // what this server hands over, a path that is not markdown, and a path this
@@ -84,7 +85,7 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 	if !ok {
 		return pages.PreviewView{Notice: wording.PreviewNoNote.In(lang)}, false
 	}
-	slice, found, narrowed := render.Excerpt(n.Body, section)
+	slice, found, narrowed := render.ExcerptPreview(n.Body, section)
 	if !found {
 		// The sentence is the one the reading page says inside an embed whose
 		// address the note does not answer to, so the card and the article

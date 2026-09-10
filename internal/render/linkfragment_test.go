@@ -498,7 +498,7 @@ func TestAHeadingCopiedFromTheContentsListReachesTheSameId(t *testing.T) {
 				}
 			}
 
-			slice, found, _ := render.Excerpt(genericTypeDest, row.citation)
+			slice, found := render.Excerpt(genericTypeDest, row.citation)
 			if !found {
 				t.Errorf("Excerpt did not find %q", row.citation)
 			}

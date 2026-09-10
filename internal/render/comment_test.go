@@ -67,7 +67,7 @@ func TestObsidianCommentsExcludedFromAllProjections(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			excerpt, _, _ := render.Excerpt(tt.body, "")
+			excerpt, _ := render.Excerpt(tt.body, "")
 			projections := map[string]string{
 				"HTML":      r.HTML("note.md", "", tt.body, wording.ZhHant).HTML,
 				"PlainText": render.PlainText(tt.body),
