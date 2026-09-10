@@ -106,6 +106,12 @@ var ResultAliasLabel = both("別名: ", "also called ")
 // on the row with nothing the reader typed.
 var ResultTopicLabel = both("主題: ", "topic: ")
 
+// ResultSourceLabel names a hit whose deciding excerpt is fenced source
+// rather than a sentence the note wrote. The word sits on the row with
+// the alias and the topic, so the excerpt itself stays the fence's own
+// lines and MarkHits never sees a label yomihon wrote.
+var ResultSourceLabel = both("原始碼", "source")
+
 // SearchHitUnlocated is the line a result carries when the index found a
 // match the opened page cannot locate — a phrase that spans two blocks, and
 // nothing in the first of them a text directive can name. Finding something

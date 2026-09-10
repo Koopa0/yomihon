@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/text/width"
 
@@ -118,6 +119,11 @@ type Document struct {
 	// built the document from already-extracted text and did not know.
 	BlockEnds []int
 
+	// FenceRanges are the half-open [start, end) spans in PlainText that came
+	// from a fenced code block, as render.PlainBlocks reports them. Empty when
+	// the caller did not know, which treats every hit as prose.
+	FenceRanges [][2]int
+
 	// File marks an entry that is not a note: a vault file shown as characters.
 	// It carries no frontmatter, so it answers no metadata projection, and it
 	// sorts after every note in a result list.
@@ -162,6 +168,8 @@ type entry struct {
 	PlainText       string
 	PlainFold       string
 	blockEnds       []int
+	fenceRanges     [][2]int
+	fenceFoldRanges [][2]int
 	isFile          bool
 	metadataCapable bool
 	// frontmatterUnreadable records that this note had a frontmatter block that
@@ -248,11 +256,13 @@ func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	title := vault.NormalizeNFC(d.Title)
 	plain := vault.NormalizeNFC(d.PlainText)
-	// Block ends are taken on the raw walk; NFC each slice and accumulate so
-	// a single combining mark cannot drop the map for the whole note. A
-	// newline is an NFC starter, so joining the normalised slices is the
-	// same string as normalising the body in one pass.
-	blockEnds := blockEndsOnNormalized(d.PlainText, d.BlockEnds)
+	// Block ends and fence bounds share one NFC walk: the two remaps used
+	// to normalise the same slices twice, and a save rebuilds the index.
+	// Fold-space spans are recorded on the same foldRunes walk that
+	// builds PlainFold, so a query can classify a hit without walking
+	// the note once per fence occurrence.
+	blockEnds, fenceRanges := remapPlainOffsets(d.PlainText, d.BlockEnds, d.FenceRanges)
+	plainFold, fenceFoldRanges := foldPlain(plain, fenceRanges)
 	noteType := vault.NormalizeNFC(d.NoteType)
 	domain := vault.NormalizeNFC(d.Domain)
 	status := vault.NormalizeNFC(d.Status)
@@ -270,26 +280,28 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		aliasFolds[i] = fold(aliases[i])
 	}
 	return entry{
-		RelPath:      d.RelPath,
-		PathFold:     fold(vault.NormalizeNFC(d.RelPath)),
-		Title:        title,
-		TitleFold:    fold(title),
-		Aliases:      aliases,
-		AliasFolds:   aliasFolds,
-		NoteType:     noteType,
-		NoteTypeFold: fold(noteType),
-		Domain:       domain,
-		DomainFold:   fold(domain),
-		Status:       status,
-		StatusFold:   fold(status),
-		Slug:         slug,
-		SlugFold:     fold(slug),
-		Topics:       topics,
-		TopicFolds:   topicFolds,
-		PlainText:    plain,
-		PlainFold:    fold(plain),
-		blockEnds:    blockEnds,
-		isFile:       d.File,
+		RelPath:         d.RelPath,
+		PathFold:        fold(vault.NormalizeNFC(d.RelPath)),
+		Title:           title,
+		TitleFold:       fold(title),
+		Aliases:         aliases,
+		AliasFolds:      aliasFolds,
+		NoteType:        noteType,
+		NoteTypeFold:    fold(noteType),
+		Domain:          domain,
+		DomainFold:      fold(domain),
+		Status:          status,
+		StatusFold:      fold(status),
+		Slug:            slug,
+		SlugFold:        fold(slug),
+		Topics:          topics,
+		TopicFolds:      topicFolds,
+		PlainText:       plain,
+		PlainFold:       plainFold,
+		blockEnds:       blockEnds,
+		fenceRanges:     fenceRanges,
+		fenceFoldRanges: fenceFoldRanges,
+		isFile:          d.File,
 		// An unclaimed policy excludes nothing, so every readable note answers over
 		// its own raw frontmatter. A file has no frontmatter, so it answers no
 		// metadata projection under any policy.
@@ -298,33 +310,213 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	}
 }
 
-// blockEndsOnNormalized maps exclusive block ends from raw onto NFC(raw).
-// Each slice is normalised on its own and the lengths are accumulated; the
-// caller stores the NFC body, so these offsets name characters there.
-func blockEndsOnNormalized(raw string, ends []int) []int {
-	if len(ends) == 0 {
-		return nil
+// remapPlainOffsets maps exclusive block ends and half-open fence spans
+// from raw onto NFC(raw) in one left-to-right pass. Each slice is
+// normalised on its own and the lengths are accumulated; the caller
+// stores the NFC body, so these offsets name characters there.
+// Pairing reads the mapped fence slice in the same start/end order the
+// ranges were flattened, so a repeated bound must not be dropped.
+func remapPlainOffsets(raw string, ends []int, fences [][2]int) (blockEnds []int, fenceRanges [][2]int) {
+	if len(ends) == 0 && len(fences) == 0 {
+		return nil, nil
 	}
-	out := make([]int, 0, len(ends))
-	prev, n := 0, 0
+	cur := newNFCCursor(raw, sortedFenceBounds(raw, fences))
+	if len(ends) > 0 {
+		blockEnds = make([]int, 0, len(ends)+1)
+	}
+	prevRaw := 0
 	for _, end := range ends {
-		if end < prev {
+		if end < prevRaw {
 			continue
 		}
 		if end > len(raw) {
 			end = len(raw)
 		}
-		n += len(vault.NormalizeNFC(raw[prev:end]))
-		if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
-			out = append(out, n)
-		}
-		prev = end
+		cur.advanceTo(end)
+		blockEnds = appendUniqueEnd(blockEnds, cur.n)
+		prevRaw = end
 	}
-	if prev < len(raw) {
-		n += len(vault.NormalizeNFC(raw[prev:]))
-		if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
-			out = append(out, n)
+	if len(ends) == 0 || prevRaw < len(raw) {
+		cur.advanceTo(len(raw))
+		if len(ends) > 0 {
+			blockEnds = appendUniqueEnd(blockEnds, cur.n)
 		}
+	}
+	cur.finish()
+	if len(blockEnds) == 0 {
+		blockEnds = nil
+	}
+	if len(fences) > 0 {
+		fenceRanges = pairedSpans(cur.mapped)
+	}
+	return blockEnds, fenceRanges
+}
+
+type rawBound struct {
+	off int
+	i   int
+}
+
+func sortedFenceBounds(raw string, fences [][2]int) []rawBound {
+	bounds := make([]rawBound, 0, 2*len(fences))
+	for _, r := range fences {
+		bounds = append(bounds,
+			rawBound{off: clampOff(r[0], len(raw)), i: len(bounds)},
+			rawBound{off: clampOff(r[1], len(raw)), i: len(bounds) + 1},
+		)
+	}
+	slices.SortStableFunc(bounds, func(a, b rawBound) int {
+		if a.off < b.off {
+			return -1
+		}
+		if a.off > b.off {
+			return 1
+		}
+		return 0
+	})
+	return bounds
+}
+
+// nfcCursor walks raw once, handing back the NFC length at each cut and
+// recording fence bounds as it passes them.
+type nfcCursor struct {
+	raw           string
+	prev, n, next int
+	bounds        []rawBound
+	mapped        []int
+}
+
+func newNFCCursor(raw string, bounds []rawBound) nfcCursor {
+	return nfcCursor{raw: raw, bounds: bounds, mapped: make([]int, len(bounds))}
+}
+
+func (c *nfcCursor) advanceTo(off int) {
+	if off > len(c.raw) {
+		off = len(c.raw)
+	}
+	if off < c.prev {
+		return
+	}
+	for c.next < len(c.bounds) && c.bounds[c.next].off < off {
+		c.recordBound()
+	}
+	if off > c.prev {
+		c.n += len(vault.NormalizeNFC(c.raw[c.prev:off]))
+		c.prev = off
+	}
+	for c.next < len(c.bounds) && c.bounds[c.next].off == off {
+		c.mapped[c.bounds[c.next].i] = c.n
+		c.next++
+	}
+}
+
+func (c *nfcCursor) recordBound() {
+	b := c.bounds[c.next]
+	if b.off > c.prev {
+		c.n += len(vault.NormalizeNFC(c.raw[c.prev:b.off]))
+		c.prev = b.off
+	}
+	c.mapped[b.i] = c.n
+	c.next++
+}
+
+func (c *nfcCursor) finish() {
+	for c.next < len(c.bounds) {
+		c.mapped[c.bounds[c.next].i] = c.n
+		c.next++
+	}
+}
+
+func appendUniqueEnd(out []int, n int) []int {
+	if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
+		return append(out, n)
+	}
+	return out
+}
+
+func clampOff(off, n int) int {
+	if off < 0 {
+		return 0
+	}
+	if off > n {
+		return n
+	}
+	return off
+}
+
+// fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw)
+// through the one remap production uses.
+func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
+	_, fences := remapPlainOffsets(raw, nil, ranges)
+	return fences
+}
+
+// foldPlain folds already-NFC plain and maps fence spans onto that
+// folded copy in the same walk. A second foldRunes pass used to walk
+// the note again just for the bounds, and kept walking past the last one.
+func foldPlain(plain string, ranges [][2]int) (folded string, foldFences [][2]int) {
+	var out strings.Builder
+	out.Grow(len(plain))
+	if len(ranges) == 0 {
+		foldRunes(plain, func(r rune, _ int) {
+			out.WriteRune(r)
+		})
+		return out.String(), nil
+	}
+	type bound struct {
+		src int
+		i   int
+	}
+	bounds := make([]bound, 0, 2*len(ranges))
+	for _, r := range ranges {
+		bounds = append(bounds,
+			bound{src: r[0], i: len(bounds)},
+			bound{src: r[1], i: len(bounds) + 1},
+		)
+	}
+	slices.SortStableFunc(bounds, func(a, b bound) int {
+		if a.src < b.src {
+			return -1
+		}
+		if a.src > b.src {
+			return 1
+		}
+		return 0
+	})
+	mapped := make([]int, len(bounds))
+	next, foldPos := 0, 0
+	foldRunes(plain, func(r rune, at int) {
+		for next < len(bounds) && bounds[next].src <= at {
+			mapped[bounds[next].i] = foldPos
+			next++
+		}
+		out.WriteRune(r)
+		foldPos += utf8.RuneLen(r)
+	})
+	for next < len(bounds) {
+		mapped[bounds[next].i] = foldPos
+		next++
+	}
+	return out.String(), pairedSpans(mapped)
+}
+
+// foldRanges maps source-space half-open spans onto the folded copy of
+// plain. Production records those spans on the foldPlain walk; this
+// keeps the same mapping for a snippet that was not built through NewIndex.
+func foldRanges(plain string, ranges [][2]int) [][2]int {
+	_, foldFences := foldPlain(plain, ranges)
+	return foldFences
+}
+
+func pairedSpans(offs []int) [][2]int {
+	out := make([][2]int, 0, len(offs)/2)
+	for i := 0; i+1 < len(offs); i += 2 {
+		if offs[i+1] > offs[i] {
+			out = append(out, [2]int{offs[i], offs[i+1]})
+		}
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }
@@ -333,18 +525,19 @@ func blockEndsOnNormalized(raw string, ends []int) []int {
 // from frontmatter and PlainText from the render AST. A note with malformed
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
-	text, ends := render.PlainBlocks(n.Body)
+	text, ends, fences := render.PlainBlocks(n.Body)
 	return Document{
-		RelPath:   n.RelPath,
-		Title:     n.Title(),
-		NoteType:  n.Type(),
-		Domain:    n.Domain(),
-		Status:    n.Status(),
-		Slug:      n.Slug(),
-		Topics:    n.Strings("topics"),
-		Aliases:   n.Aliases(),
-		PlainText: text,
-		BlockEnds: ends,
+		RelPath:     n.RelPath,
+		Title:       n.Title(),
+		NoteType:    n.Type(),
+		Domain:      n.Domain(),
+		Status:      n.Status(),
+		Slug:        n.Slug(),
+		Topics:      n.Strings("topics"),
+		Aliases:     n.Aliases(),
+		PlainText:   text,
+		BlockEnds:   ends,
+		FenceRanges: fences,
 		// A diagnostic here means the block was present and did not parse. A
 		// note that simply carries no frontmatter has none, and is not this.
 		FrontmatterUnreadable: n.FMDiagnostic != "",

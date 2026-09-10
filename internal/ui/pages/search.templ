@@ -99,6 +99,11 @@ type SearchResult struct {
 	// BlockCrossing reports that the match continues into a later block, so
 	// a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
+
+	// FromFence marks a hit whose deciding excerpt is a fenced block. The
+	// row names that, the way it names an alias or a topic, so the
+	// excerpt can stay the fence's own lines.
+	FromFence bool
 }
 
 // SnippetRun is one stretch of a result's snippet, marked or not.
@@ -222,6 +227,10 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 								if r.File {
 									<span class="y-result__sep" aria-hidden="true">·</span>
 									<span class="y-result__kind">{ wording.ResultKindFile.In(lang) }</span>
+								}
+								if r.FromFence {
+									<span class="y-result__sep" aria-hidden="true">·</span>
+									<span class="y-result__source">{ wording.ResultSourceLabel.In(lang) }</span>
 								}
 								if len(r.TopicRuns) > 0 {
 									<span class="y-result__sep" aria-hidden="true">·</span>

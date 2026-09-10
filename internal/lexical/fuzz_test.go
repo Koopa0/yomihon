@@ -95,32 +95,40 @@ func validFilters(filters []Filter) bool {
 // snippet must stay one line, preserve valid UTF-8 boundaries, and remain
 // within its fixed window of characters plus at most two ellipses.
 func FuzzSnippet(f *testing.F) {
-	f.Add("prefix 日本語 suffix", "日本語")
-	f.Add(strings.Repeat("a", 40)+"界"+strings.Repeat("b", 160), "界")
-	f.Add("界"+strings.Repeat("a", 39)+"needle", "needle")
-	f.Add("line one\n\tline two\r\nline three", "two")
-	f.Add("", "")
+	f.Add("prefix 日本語 suffix", "日本語", 0, 0)
+	f.Add(strings.Repeat("a", 40)+"界"+strings.Repeat("b", 160), "界", 0, 0)
+	f.Add("界"+strings.Repeat("a", 39)+"needle", "needle", 0, 0)
+	f.Add("line one\n\tline two\r\nline three", "two", 0, 0)
+	f.Add("", "", 0, 0)
 	// A full window of Japanese: 200 characters of it is 600 bytes, so this is
 	// the shape a byte-counted bound reports as too long while the window is
 	// exactly the size it is meant to be.
-	f.Add(strings.Repeat("あ", 200)+"鍵"+strings.Repeat("い", 200), "鍵")
+	f.Add(strings.Repeat("あ", 200)+"鍵"+strings.Repeat("い", 200), "鍵", 0, 0)
 	// A match walled in by letters on both sides, far enough from either end of
 	// the run that both boundaries have to give up on keeping the word whole.
-	f.Add(strings.Repeat("a", 300)+"z"+strings.Repeat("a", 300), "z")
+	f.Add(strings.Repeat("a", 300)+"z"+strings.Repeat("a", 300), "z", 0, 0)
 	// wholeWordEnd retreats through a long digit run to the match's first byte;
 	// the close must still reach past that byte or the window is "0…" and the
 	// token-contains assertion fails.
-	f.Add("0Z"+strings.Repeat("0", 184), "Z")
+	f.Add("0Z"+strings.Repeat("0", 184), "Z", 0, 0)
 	// The same length in ordinary spaced words, where nothing shortens the
 	// window and it fills to its limit.
-	f.Add(strings.Repeat("ab ", 300)+"needle"+strings.Repeat(" cd", 300), "needle")
+	f.Add(strings.Repeat("ab ", 300)+"needle"+strings.Repeat(" cd", 300), "needle", 0, 0)
 	// Fullwidth ASCII folding to a shorter encoding: the source-offset walk
 	// must still land the snippet on the match, not drift into its neighbour.
-	f.Add("３羽の鳥と３つ。２週間後に Ｇｏ の並行。", "3羽")
-	f.Add("心（こころ）", "心(こころ)")
-	f.Add("Ｇｏ の並行処理", "Go")
+	f.Add("３羽の鳥と３つ。２週間後に Ｇｏ の並行。", "3羽", 0, 0)
+	f.Add("心（こころ）", "心(こころ)", 0, 0)
+	f.Add("Ｇｏ の並行処理", "Go", 0, 0)
+	// A fence-only window: the oracle covers the excerpt as rendered, so an
+	// injected prefix would push a full window over the 250-rune budget.
+	f.Add("```d2\ndirection: right\n```\n\nThe source owns jobs.", "owns jobs", 0, 32)
+	f.Add(strings.Repeat("x", 40)+" UNIQUE_FENCE_HEAD. "+strings.Repeat("y", 10)+" needle "+strings.Repeat("z", 160), "needle", 0, 400)
+	// Mid-rune fenceHi inside 語: production never emits this, and the
+	// oracle must not see it or it deposits a corpus file that fails
+	// go test for everyone.
+	f.Add("000000日本語", "0", 14, 15)
 
-	f.Fuzz(func(t *testing.T, plain, token string) {
+	f.Fuzz(func(t *testing.T, plain, token string, fenceLo, fenceHi int) {
 		if len(plain) > 256<<10 || len(token) > 16<<10 {
 			t.Skip()
 		}
@@ -128,10 +136,32 @@ func FuzzSnippet(f *testing.F) {
 		// bytes can leave foldEnd off that walk; the close would then sit
 		// at the end of the body and the length oracle would fire.
 		plain = vault.NormalizeNFC(plain)
+		if fenceLo < 0 {
+			fenceLo = 0
+		}
+		if fenceHi < 0 {
+			fenceHi = 0
+		}
+		if fenceLo > len(plain) {
+			fenceLo = len(plain)
+		}
+		if fenceHi > len(plain) {
+			fenceHi = len(plain)
+		}
+		for fenceLo < len(plain) && !utf8.RuneStart(plain[fenceLo]) {
+			fenceLo++
+		}
+		for fenceHi < len(plain) && !utf8.RuneStart(plain[fenceHi]) {
+			fenceHi++
+		}
+		var fences [][2]int
+		if fenceHi > fenceLo {
+			fences = [][2]int{{fenceLo, fenceHi}}
+		}
 		plainFold := fold(plain)
 		tokens := []string{fold(token)}
-		got := snippet(plain, plainFold, tokens)
-		if got != snippet(plain, plainFold, tokens) {
+		got := snippetWithFences(plain, plainFold, tokens, fences)
+		if got != snippetWithFences(plain, plainFold, tokens, fences) {
 			t.Errorf("snippet(%q, %q) is not deterministic", plain, token)
 		}
 		if utf8.ValidString(plain) && !utf8.ValidString(got) {

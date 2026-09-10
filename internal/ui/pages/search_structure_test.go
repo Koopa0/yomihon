@@ -184,3 +184,33 @@ func TestSearchResultsCarryTheQueryTheyAnswer(t *testing.T) {
 		})
 	}
 }
+
+// TestSearchResultSourceLabelIsNotAHit: the fence mark lives on the row,
+// not in the excerpt. An English query for "source" must still show the
+// label as ordinary text beside the note's own Source:. MarkHits never
+// sees the label; that half is locked in internal/search/source_test.go.
+func TestSearchResultSourceLabelIsNotAHit(t *testing.T) {
+	t.Parallel()
+
+	view := SearchView{
+		Query: "source",
+		Total: 1,
+		Results: []SearchResult{{
+			RelPath:   "Notes/Fence.md",
+			Title:     "Fence",
+			FromFence: true,
+			Snippet:   `direction: right Source: "source\nowns jobs close"`,
+		}},
+	}
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		var buf bytes.Buffer
+		if err := SearchResults(view, lang).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render search results: %v", err)
+		}
+		html := buf.String()
+		want := `<span class="y-result__source">` + wording.ResultSourceLabel.In(lang) + `</span>`
+		if !strings.Contains(html, want) {
+			t.Errorf("lang %s: missing unmarked source label %q in %s", lang, want, html)
+		}
+	}
+}

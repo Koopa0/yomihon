@@ -52,6 +52,11 @@ type Result struct {
 	// BlockCrossing reports that the match continues past that first block,
 	// so a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
+
+	// FromFence reports that the deciding excerpt is a fenced block: the
+	// words live only there. The row names that the way it names an alias
+	// or a topic; the excerpt itself stays the fence's own lines.
+	FromFence bool
 }
 
 const (
@@ -381,10 +386,11 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		status, noteType = "", ""
 	}
 	var bodySnippet, landing, landingEnd string
-	var crossing bool
+	var crossing, fromFence bool
 	if bodyEvidence {
-		foldStart, foldEnd := earliestPhrase(e.PlainFold, tokens)
-		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd)
+		var foldStart, foldEnd int
+		foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
+		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
 		landing, landingEnd, crossing = e.landingAt(foldStart, foldEnd)
 	}
 	return Result{
@@ -399,6 +405,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		Landing:       landing,
 		LandingEnd:    landingEnd,
 		BlockCrossing: crossing,
+		FromFence:     fromFence,
 	}
 }
 
@@ -492,7 +499,7 @@ func runesAfter(s string, off, n int) int {
 // Lowercasing does not preserve length, so the offsets come back through the
 // fold's own mapping: used directly they drift until the window slides clear
 // of the term it was placed around.
-func snippetAt(plain string, foldStart, foldEnd int) string {
+func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
 	if foldStart < 0 {
 		foldStart, foldEnd = 0, 0
 	}
@@ -506,9 +513,24 @@ func snippetAt(plain string, foldStart, foldEnd int) string {
 	// clamping to off made the half-open window exclude the hit (plain "0Z"+184×"0",
 	// token "Z" → "0…"). The sentence-start reach runs first and the whole-word
 	// adjustment last, because the second has to hold whatever the first leaves.
-	opening := sentenceStart(plain, runesBefore(plain, off, snippetBefore), off)
+	// A fence hit skips the sentence reach: source is not a sentence, and walking
+	// back through a preceding paragraph would present it as one.
+	// A fence span is block-aligned, as render.PlainBlocks emits it.
+	opening := runesBefore(plain, off, snippetBefore)
+	inFence, fence := fenceAt(off, fences)
+	if !inFence {
+		opening = sentenceStart(plain, opening, off)
+	}
 	start := min(wholeWordStart(plain, opening), off)
 	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
+	if inFence {
+		start = max(start, fence[0])
+		end = min(end, fence[1])
+		start = min(start, off)
+		end = max(end, matchEnd)
+	} else {
+		start, end = clipFencesFromProse(plain, start, end, off, matchEnd, fences)
+	}
 
 	s := collapseFields(plain[start:end])
 	if start > 0 {
@@ -521,22 +543,97 @@ func snippetAt(plain string, foldStart, foldEnd int) string {
 }
 
 func snippet(plain, plainFold string, tokens []string) string {
-	foldStart, foldEnd := earliestPhrase(plainFold, tokens)
-	return snippetAt(plain, foldStart, foldEnd)
+	return snippetWithFences(plain, plainFold, tokens, nil)
 }
 
-// earliestPhrase returns the byte range of the earliest token in hay, or
-// start < 0 when no token occurs. Landing and the snippet share this scan so
-// a result row does not walk the query twice.
-func earliestPhrase(hay string, tokens []string) (start, end int) {
-	start = -1
+func snippetWithFences(plain, plainFold string, tokens []string, fences [][2]int) string {
+	foldStart, foldEnd, _ := earliestOffset(plainFold, tokens, foldRanges(plain, fences))
+	return snippetAt(plain, foldStart, foldEnd, fences)
+}
+
+// earliestOffset returns the folded byte range of the token that should
+// centre the excerpt: the earliest prose hit when the note has one, otherwise
+// the earliest fence hit. start is < 0 when no token occurs. inFence is
+// true only when the words live only in a fence.
+func earliestOffset(fold string, tokens []string, foldFences [][2]int) (start, end int, inFence bool) {
+	proseStart, proseEnd := -1, 0
+	fenceStart, fenceEnd := -1, 0
 	for _, t := range tokens {
-		i, stop := phraseIndex(hay, t, 0)
-		if i >= 0 && (start < 0 || i < start) {
-			start, end = i, stop
+		ps, pe, fs, fe := tokenWindows(fold, t, foldFences)
+		if ps >= 0 && (proseStart < 0 || ps < proseStart) {
+			proseStart, proseEnd = ps, pe
+		}
+		if fs >= 0 && (fenceStart < 0 || fs < fenceStart) {
+			fenceStart, fenceEnd = fs, fe
 		}
 	}
-	return start, end
+	if proseStart >= 0 {
+		return proseStart, proseEnd, false
+	}
+	return fenceStart, fenceEnd, fenceStart >= 0
+}
+
+// tokenWindows is one token's earliest prose hit and earliest fence hit.
+// A later occurrence of the same token cannot sit earlier than the first
+// of each kind, so the scan stops once both are known or the text ends.
+// Membership is tested in fold space against spans tabulated at index time.
+func tokenWindows(fold, token string, foldFences [][2]int) (proseStart, proseEnd, fenceStart, fenceEnd int) {
+	proseStart, fenceStart = -1, -1
+	for at := 0; at <= len(fold); {
+		i, stop := phraseIndex(fold, token, at)
+		if i < 0 {
+			return proseStart, proseEnd, fenceStart, fenceEnd
+		}
+		if len(foldFences) > 0 && inFenceRange(i, foldFences) {
+			if fenceStart < 0 {
+				fenceStart, fenceEnd = i, stop
+			}
+		} else {
+			proseStart, proseEnd = i, stop
+			return proseStart, proseEnd, fenceStart, fenceEnd
+		}
+		at = max(stop, i+1)
+	}
+	return proseStart, proseEnd, fenceStart, fenceEnd
+}
+
+func inFenceRange(off int, fences [][2]int) bool {
+	found, _ := fenceAt(off, fences)
+	return found
+}
+
+func fenceAt(off int, fences [][2]int) (found bool, span [2]int) {
+	for _, f := range fences {
+		if off >= f[0] && off < f[1] {
+			return true, f
+		}
+	}
+	return false, [2]int{}
+}
+
+// clipFencesFromProse keeps a prose window from swallowing a fence: a fence
+// that overlaps the opening side pushes start forward, and one that overlaps
+// the close pulls end back. The match itself stays inside.
+func clipFencesFromProse(plain string, start, end, off, matchEnd int, fences [][2]int) (clippedStart, clippedEnd int) {
+	for _, f := range fences {
+		if f[1] <= start || f[0] >= end {
+			continue
+		}
+		if f[1] <= off {
+			after := f[1]
+			if after < len(plain) && plain[after] == '\n' {
+				after++
+			}
+			if after > start {
+				start = after
+			}
+			continue
+		}
+		if f[0] >= matchEnd && f[0] < end {
+			end = f[0]
+		}
+	}
+	return min(start, off), max(end, matchEnd)
 }
 
 // wordEdgeBudget bounds how far a boundary may move to keep a word whole. A

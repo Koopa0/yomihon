@@ -1,12 +1,15 @@
 package lexical
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // A snippet window lands wherever the byte count puts it, and where that was
@@ -681,4 +684,260 @@ func TestEverySentenceTerminatorEndsASentenceTheWayItsSetSays(t *testing.T) {
 			t.Errorf("%s is a terminator with no expectation written for it here", strconv.QuoteRune(terminator))
 		}
 	}
+}
+
+// TestExcerptPrefersProseWhenTheSameWordsSitInAFence is the first half of the
+// fence-eligibility lock: the deciding line of a result is the one a reader
+// uses to open it, and a d2 fence that happens to hold the same words must not
+// spend that line on diagram syntax. The fence is written first so the raw
+// earliest offset lands inside it; the prose window has to win on purpose.
+func TestExcerptPrefersProseWhenTheSameWordsSitInAFence(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Both.md", []byte(""+
+			"# Both\n\n"+
+			"```d2\n"+
+			"direction: right\n"+
+			"Source: \"source\\nowns jobs close\"\n"+
+			"```\n\n"+
+			"The source owns jobs after the workers close.\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(`"owns jobs"`), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	got := results[0].Snippet
+	if strings.Contains(got, "direction: right") || strings.Contains(got, `source\n`) {
+		t.Errorf("snippet() = %q, spent the excerpt on the fence that sits first", got)
+	}
+	if !strings.Contains(got, "The source owns jobs after the workers close.") {
+		t.Errorf("snippet() = %q, want the prose window that holds the same words", got)
+	}
+	if results[0].FromFence {
+		t.Error("FromFence = true; the prose window answered, so the row is not a fence hit")
+	}
+}
+
+// TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere is the other half: a note
+// whose only mention is inside a fence still produces an excerpt rather than
+// dropping the hit. The excerpt is the fence's own lines; the row names it
+// as source so those lines are not presented as a sentence the note wrote.
+func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Fence only.md", []byte(""+
+			"# Fence only\n\n"+
+			"A paragraph about something else entirely.\n\n"+
+			"```d2\n"+
+			"direction: right\n"+
+			"Source: \"source\\nowns jobs close\"\n"+
+			"```\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(`"owns jobs"`), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	got := results[0].Snippet
+	if got == "" {
+		t.Fatal("snippet() is empty; a fence-only hit must still produce an excerpt")
+	}
+	if !strings.Contains(got, "owns jobs") {
+		t.Errorf("snippet() = %q, dropped the fence words the query asked for", got)
+	}
+	if !results[0].FromFence {
+		t.Error("FromFence = false; a fence-only hit must name the excerpt as source")
+	}
+	body := strings.TrimPrefix(got, "…")
+	if strings.HasPrefix(strings.ToLower(body), "source:") {
+		t.Errorf("snippet() = %q, injected a source prefix into the excerpt", got)
+	}
+	if strings.Contains(got, "something else entirely") {
+		t.Errorf("snippet() = %q, opened as the preceding paragraph", got)
+	}
+	if results[0].Landing == "" {
+		t.Error("Landing is empty; a fence-only hit must still name where it matched")
+	}
+}
+
+// TestRemapPlainOffsetsPreserveARepeatedBound locks the no-dedupe half
+// of the one NFC remap: two fence spans that share a raw offset must
+// stay two spans, or pairing a flattened [start, end, …] list shifts
+// every later span.
+func TestRemapPlainOffsetsPreserveARepeatedBound(t *testing.T) {
+	t.Parallel()
+
+	raw := "caf\u0065\u0301\n\nrest"
+	off := len("caf\u0065\u0301")
+	_, got := remapPlainOffsets(raw, nil, [][2]int{{0, off}, {off, len(raw)}})
+	if len(got) != 2 {
+		t.Fatalf("remapPlainOffsets fences = %v, want two spans sharing the café bound", got)
+	}
+	if got[0][1] != got[1][0] {
+		t.Fatalf("shared bound mapped to %d and %d; the pair must stay aligned", got[0][1], got[1][0])
+	}
+	if got[0][1] == off {
+		t.Fatalf("mapped offset %d is the raw offset; NFC contracted café 6→5", off)
+	}
+}
+
+// TestFenceRangeRemapSurvivesAnNFDCharacter is the excerpt half of that
+// remap: an NFD prefix shrinks under NFC, so unmapped fence ends extend
+// into the following prose and the clamp swallows it.
+func TestFenceRangeRemapSurvivesAnNFDCharacter(t *testing.T) {
+	t.Parallel()
+
+	const needle = "UNIQUE_FENCE_ONLY_PHRASE"
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/NFC fence.md", []byte(""+
+			"# NFC fence\n\n"+
+			strings.Repeat("e\u0301", 32)+"\n\n"+
+			"```d2\n"+
+			needle+"\n"+
+			"```\n\n"+
+			"The workers close after the source.\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(needle), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	if !results[0].FromFence {
+		t.Fatal("FromFence = false; the phrase lives only in the fence")
+	}
+	if strings.Contains(results[0].Snippet, "workers") {
+		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)
+	}
+	if !strings.Contains(results[0].Snippet, needle) {
+		t.Fatalf("snippet() = %q, dropped the fence phrase", results[0].Snippet)
+	}
+}
+
+// TestFenceExcerptDoesNotWalkToThePreviousSentence locks the sentence-start
+// guard: UNIQUE_FENCE_HEAD opens the sentence that contains the match, but
+// it sits past the 40-character lookback (and inside the 120-character
+// reach). Walking back to that sentence would present fence source as
+// prose; clamping to the fence cannot hide it.
+func TestFenceExcerptDoesNotWalkToThePreviousSentence(t *testing.T) {
+	t.Parallel()
+
+	const token = "owns jobs"
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Fence sentence.md", []byte(""+
+			"# Fence sentence\n\n"+
+			"```d2\n"+
+			"PRE. UNIQUE_FENCE_HEAD "+strings.Repeat("y", 50)+" "+token+"\n"+
+			"```\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(`"`+token+`"`), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	if !results[0].FromFence {
+		t.Fatal("FromFence = false; the token lives only in the fence")
+	}
+	if strings.Contains(results[0].Snippet, "UNIQUE_FENCE_HEAD") {
+		t.Fatalf("snippet() = %q, walked back to the previous sentence inside the fence", results[0].Snippet)
+	}
+	if !strings.Contains(results[0].Snippet, token) {
+		t.Fatalf("snippet() = %q, dropped the fence words the query asked for", results[0].Snippet)
+	}
+}
+
+// TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix is the fold
+// half of the fence remap: fullwidth ASCII narrows 3-to-1 and a CJK wrap
+// drops the break, so the fence's fold offset is not its source offset.
+// Identity (foldPlain recording the source offset as the fold index)
+// places the fold range past the hit and classifies a fence-only phrase
+// as prose.
+func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
+	t.Parallel()
+
+	const needle = "UNIQUE_FOLD_FENCE_PHRASE"
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Fold fence.md", []byte(""+
+			"# Fold fence\n\n"+
+			strings.Repeat("Ｇｏ", 20)+"の\n並行処理。\n\n"+
+			"```d2\n"+
+			needle+"\n"+
+			"```\n\n"+
+			"The workers close after the source.\n"))),
+	}, validArtifactPolicy(t))
+
+	results, _, err := idx.SearchN(Parse(needle), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	if !results[0].FromFence {
+		t.Fatal("FromFence = false; the phrase lives only in the fence")
+	}
+	if strings.Contains(results[0].Snippet, "workers") {
+		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)
+	}
+	if !strings.Contains(results[0].Snippet, needle) {
+		t.Fatalf("snippet() = %q, dropped the fence phrase", results[0].Snippet)
+	}
+}
+
+// TestFoldRangesMatchesTheSourceTableOracle holds the one-pass walk to
+// the table it replaced: a fullwidth and CJK-wrapped prefix makes fold
+// and source offsets diverge, so recording `at` would disagree.
+func TestFoldRangesMatchesTheSourceTableOracle(t *testing.T) {
+	t.Parallel()
+
+	d := DocumentFromNote(vault.Parse("Notes/Fold oracle.md", []byte(""+
+		"# Fold oracle\n\n"+
+		strings.Repeat("Ｇｏ", 20)+"の\n並行処理。\n\n"+
+		"```d2\n"+
+		"UNIQUE_FOLD_ORACLE_PHRASE\n"+
+		"```\n")))
+	plain := vault.NormalizeNFC(d.PlainText)
+	mapped := fenceRangesOnNormalized(d.PlainText, d.FenceRanges)
+	got := foldRanges(plain, mapped)
+	_, src := foldWithSourceOffsets(plain)
+	want := make([][2]int, 0, len(mapped))
+	for _, r := range mapped {
+		lo := foldIndexOracle(src, r[0])
+		hi := foldIndexOracle(src, r[1])
+		if hi > lo {
+			want = append(want, [2]int{lo, hi})
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("foldRanges() = %v, want the source-table mapping %v", got, want)
+	}
+	if len(mapped) != 1 || len(want) != 1 || want[0][0] == mapped[0][0] {
+		t.Fatal("fold and source fence starts agree; the oracle is untested")
+	}
+}
+
+func foldIndexOracle(srcOfFold []int, src int) int {
+	for i, s := range srcOfFold {
+		if s >= src {
+			return i
+		}
+	}
+	if len(srcOfFold) == 0 {
+		return 0
+	}
+	return len(srcOfFold) - 1
 }
