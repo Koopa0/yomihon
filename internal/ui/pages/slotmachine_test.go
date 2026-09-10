@@ -81,6 +81,46 @@ func TestSlotMachineShipsAnEmptyJapaneseLiveRegionPerCard(t *testing.T) {
 	}
 }
 
+// The picker's Japanese term is the drill. The section around it is Chinese
+// chrome, so without a language on the term a screen reader announces わたし
+// with a Chinese voice. The closed face and the list both read the option,
+// and a span inside a customizable-select option survives in the DOM.
+func TestSlotMachinePickerJapaneseDeclaresLang(t *testing.T) {
+	t.Parallel()
+	view := &lesson.Sidecar{Patterns: []lesson.Pattern{{
+		Template: "{A}です",
+		GlossZH:  "{A}。",
+		Slots: map[string]lesson.Position{
+			"A": {
+				LabelZH: "主題",
+				Color:   "topic",
+				Fills: []lesson.Fill{
+					{JP: "わたし", Reading: "わたし", ZH: "我"},
+					{JP: "田中さん", Reading: "たなかさん", ZH: "田中先生"},
+				},
+			},
+		},
+	}}}
+
+	var buf bytes.Buffer
+	if err := SlotMachine(view, "nonce", wording.ZhHant).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render slot machine: %v", err)
+	}
+	html := buf.String()
+
+	for _, want := range []string{
+		`<option value="0"><span lang="ja">わたし</span> — 我</option>`,
+		`<option value="1"><span lang="ja">田中さん</span> — 田中先生</option>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("SlotMachine() = %q, want it to contain %q", html, want)
+		}
+	}
+	if strings.Contains(html, `<option value="0">わたし — 我</option>`) {
+		t.Errorf("SlotMachine() still ships the Japanese term as bare option text: %q", html)
+	}
+}
+
 func TestSlotMachineRendersPatternData(t *testing.T) {
 	t.Parallel()
 	view := &lesson.Sidecar{Patterns: []lesson.Pattern{{
