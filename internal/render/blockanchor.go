@@ -50,12 +50,20 @@ func UnanchorableLine(line string) bool {
 // address, and a repeated name stays with the first block, which is what the
 // excerpt scan and a browser would both do anyway. claim is whether this line
 // is the note's own text; a transcluded body still wraps a classified address
-// so speech can see it, but never takes the id. The span it plants is the
+// so speech can see it, but never takes the id. A caret a code span owns is
+// quoted text, not an address, and is left alone. The span it plants is the
 // signal the speech pass reads.
 func markBlockAnchor(line string, page *composition, inline *[]string, claim bool) string {
 	trimmed := strings.TrimRight(line, " \t")
 	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
 	if m == nil {
+		return line
+	}
+	// A code span is quoted text: the author is showing an expression, not
+	// naming a block. The tail match takes every non-space through the line
+	// end, so it would otherwise swallow the closing backtick and leave
+	// goldmark an unmatched opener.
+	if withinAny(codeSpanRanges(trimmed), m[2], m[3]) {
 		return line
 	}
 	address := trimmed[m[2]:m[3]]

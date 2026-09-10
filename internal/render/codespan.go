@@ -1,8 +1,10 @@
 package render
 
-// The package's one reading of an inline code span. Two passes over a source line
-// depend on it: the %% comment strip, which must not take a displayed percent
-// sign for a marker, and the wikilink pass, which must not convert quoted syntax.
+// The package's one reading of an inline code span. Three passes over a source
+// line depend on it: the %% comment strip, which must not take a displayed
+// percent sign for a marker; the wikilink pass, which must not convert quoted
+// syntax; and the block-address pass, which must not take a caret inside a
+// span for a name.
 
 // backtickRun reports how many backticks start at i, zero when none do.
 func backtickRun(text string, i int) int {

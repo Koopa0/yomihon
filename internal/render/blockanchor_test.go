@@ -298,6 +298,25 @@ func TestBlockAddressAndExcerptScanAgreeOnUnusualLines(t *testing.T) {
 	}
 }
 
+// An interior caret in a single-line code span is an expression being shown,
+// not a block address. The tail match would otherwise take the closing
+// backtick with it, leave goldmark an unmatched opener, and invent an id from
+// the caret through that backtick.
+func TestInteriorCaretInACodeSpanKeepsTheSpan(t *testing.T) {
+	t.Parallel()
+
+	const body = "The XOR expression is `result := left ^right`\n"
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
+	page := r.HTML("B.md", "", body, wording.ZhHant)
+
+	if !strings.Contains(page.HTML, "<code>result := left ^right</code>") {
+		t.Errorf("the code span was lost:\n%s", page.HTML)
+	}
+	if strings.Contains(page.HTML, `id="^`) {
+		t.Errorf("an invented block address was stamped:\n%s", page.HTML)
+	}
+}
+
 // A transcluded body's blocks belong to the note it came from, not to the note
 // being read, so an excerpt brings no anchors with it. Left in, an address
 // this note does not have would land the reader inside someone else's block.
