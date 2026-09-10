@@ -210,6 +210,74 @@ func TestAnExcerptNamesTheBranchItOpensOn(t *testing.T) {
 	}
 }
 
+// A group-container list row declares a role the same way a heading does, and
+// the reading page has to lose that declaration the same way: the reader meets
+// the row's words. sequence.HeadingName is the whole test — a line that is only
+// the marker stays, and a marker quoted in code keeps the closing tag that
+// follows it. "The line" is the <li>'s own text up to its nested list.
+func TestListRowDropsADeclaredRole(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "a container row is called by its own words",
+			body: "- If your notes are not all in English {sequence=local}\n\t- child\n",
+			want: "<li>If your notes are not all in English<ul>",
+		},
+		{
+			name: "a row that is only a declaration keeps it, because nothing else would be left",
+			body: "- {sequence=local}\n\t- child\n",
+			want: "<li>{sequence=local}\n<ul>",
+		},
+		{
+			name: "a role quoted in code is text about the grammar, not a declaration",
+			body: "- a row naming `{sequence=local}`\n\t- child\n",
+			want: "<li>a row naming <code>{sequence=local}</code>\n<ul>",
+		},
+		{
+			name: "a loose container still loses the declaration on its own line",
+			body: "- If your notes are not all in English {sequence=local}\n\n\t- child\n",
+			want: "<li>\n<p>If your notes are not all in English</p>\n<ul>",
+		},
+		{
+			name: "the words the author emphasised survive the declaration coming off",
+			body: "- **bold row** {sequence=none}\n\t- child\n",
+			want: "<li><strong>bold row</strong><ul>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Maps/Course.md", "", tt.body, wording.ZhHant)
+			if !strings.Contains(got.HTML, tt.want) {
+				t.Errorf("the page does not carry %s\ngot:\n%s", tt.want, got.HTML)
+			}
+		})
+	}
+}
+
+// A descendant's words are not the container's line. Passing the whole <li>
+// to HeadingName would leave the marker — the nested list sits after it —
+// so this is the case that fails if "the line" is read too wide.
+func TestListRowMarkerDoesNotReadDescendantText(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	body := "- If your notes are not all in English {sequence=local}\n\t- child still showing `{sequence=primary}`\n"
+	got := r.HTML("Maps/Course.md", "", body, wording.ZhHant)
+	if !strings.Contains(got.HTML, "<li>If your notes are not all in English<ul>") {
+		t.Errorf("the container kept its marker or lost its words:\n%s", got.HTML)
+	}
+	if !strings.Contains(got.HTML, "<code>{sequence=primary}</code>") {
+		t.Errorf("a quoted marker on the child was taken off:\n%s", got.HTML)
+	}
+}
+
 // goldmark reads a run of '#' closing an ATX heading as part of the marks
 // rather than the words, so the page neither shows it nor folds it into the id.
 // Every scan that reads the same heading from its source has to drop it too:
