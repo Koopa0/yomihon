@@ -1,18 +1,20 @@
-// Package commentzone is the one reading of Obsidian %%...%% comment spans.
-// An unpaired mark runs to the end of the body, as Obsidian hides it too.
-// Sequence and the judge consume this scan so a parked row cannot be a
-// lesson on the shelf and invisible on the page.
-package commentzone
+package graph
 
 import "strings"
 
-// Span is a half-open byte range [Start, Stop) into a body.
+// Span is a half-open byte range [Start, Stop) into a body. Comment pairing,
+// the course's skip zones, and a row's source identity all use this one type
+// so a parked mark cannot be a comment on one face and prose on another.
 type Span struct{ Start, Stop int }
 
 // Contains reports whether off falls in the range.
 func (s Span) Contains(off int) bool {
 	return off >= s.Start && off < s.Stop
 }
+
+// Zero reports whether this span identifies nothing — a heading group's
+// anchor, or an orphan's.
+func (s Span) Zero() bool { return s == Span{} }
 
 // In reports whether off falls in any of the ranges.
 func In(zones []Span, off int) bool {
@@ -24,10 +26,11 @@ func In(zones []Span, off int) bool {
 	return false
 }
 
-// Zones are the Obsidian %%...%% spans in body. A mark whose start sits in
-// code is ignored so it cannot shift the pairing; an unpaired trailing mark
-// runs to the end of the body, as Obsidian hides everything after it.
-func Zones(body string, code []Span) []Span {
+// CommentZones are the Obsidian %%...%% spans in body. A mark whose start
+// sits in code is ignored so it cannot shift the pairing; an unpaired
+// trailing mark runs to the end of the body, as Obsidian hides everything
+// after it.
+func CommentZones(body string, code []Span) []Span {
 	var marks []int
 	for off := 0; ; {
 		rel := strings.Index(body[off:], "%%")

@@ -9,7 +9,6 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
-	"github.com/koopa0/yomihon/internal/commentzone"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -79,9 +78,9 @@ func plannedMarksFrom(c *schema.Contract) plannedMarks {
 	return plannedMarks{heading: heading, inline: inline}
 }
 
-// byteRange is a half-open byte span into a body. The comment-zone scan
-// owns the type so pairing cannot drift from the reading sequence uses.
-type byteRange = commentzone.Span
+// byteRange is a half-open byte span into a body. The type is graph's, so
+// pairing cannot drift from the reading sequence uses.
+type byteRange = graph.Span
 
 // heading is a heading's parsed facts: its start byte offset, its level (used
 // only for relative nesting), and whether its text carries a gap mark.
@@ -108,10 +107,10 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 
 func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string) []wikiLink {
 	codeZones, headings := structure(body, headingMarks)
-	skip := slices.Concat(codeZones, commentzone.Zones(body, codeZones))
+	skip := slices.Concat(codeZones, graph.CommentZones(body, codeZones))
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
-		if commentzone.In(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
+		if graph.In(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
 			continue
 		}
 		target, ok := stripTarget(raw.inner)
@@ -143,19 +142,19 @@ func extractPathRefs(body string, bodyStartLine int) []pathRef {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
 	codeZones, _ := structure(body, nil)
-	comments := commentzone.Zones(body, codeZones)
+	comments := graph.CommentZones(body, codeZones)
 	var refs []pathRef
 	walkNodes(doc, func(n ast.Node) {
 		switch node := n.(type) {
 		case *ast.Link:
 			if target, ok := fileLink(string(node.Destination)); ok {
-				if off, ok := inlineOffset(node); ok && !commentzone.In(comments, off) {
+				if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: false})
 				}
 			}
 		case *ast.CodeSpan:
 			if target, ok := backtickPath(codeSpanText(node, src)); ok {
-				if off, ok := inlineOffset(node); ok && !commentzone.In(comments, off) {
+				if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: true})
 				}
 			}
@@ -180,7 +179,7 @@ func extractPlannedNamesWith(body string, marks plannedMarks) []string {
 	offset := 0
 	for raw := range strings.Lines(body) {
 		line := strings.TrimRight(raw, "\r\n")
-		inCode := commentzone.In(codeZones, offset)
+		inCode := graph.In(codeZones, offset)
 		inGap := inGapSection(headings, offset) && !inCode
 		item, names = advancePlannedItem(item, names, line, inGap)
 		if !inCode {

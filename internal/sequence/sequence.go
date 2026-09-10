@@ -18,7 +18,6 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
-	"github.com/koopa0/yomihon/internal/commentzone"
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
@@ -74,7 +73,8 @@ func (r Role) Declared() bool {
 // Span is a half-open byte range into the body a document was parsed from,
 // always counted from the body's first byte. It is a row's stable identity:
 // two rows naming the same note still differ by where they sit in the source.
-type Span struct{ Start, Stop int }
+// The type is graph's, so a comment zone and a row identity cannot drift.
+type Span = graph.Span
 
 // Link is one live wikilink in a body: brackets that address another note.
 // An embed, a same-file anchor, a quoted link, and a link written inside
@@ -84,12 +84,6 @@ type Link struct {
 	Display string
 	Span    Span
 }
-
-func (s Span) contains(off int) bool { return off >= s.Start && off < s.Stop }
-
-// Zero reports whether this span identifies nothing — a heading group's anchor,
-// or an orphan's.
-func (s Span) Zero() bool { return s == Span{} }
 
 // EntryState is what canonical validation decided about one candidate. Only
 // EntryAccepted may become a lesson; every other state keeps the row a row.
@@ -729,7 +723,7 @@ func (p *parser) plainRow(hits []linkHit, spans []Span, name string, line int, o
 // text block and is the first thing there a reader sees. That is answered from
 // what renders rather than from the bytes.
 func (p *parser) linkFirst(hit linkHit, first Span) bool {
-	if !first.contains(hit.start) {
+	if !first.Contains(hit.start) {
 		return false
 	}
 	at, ok := p.firstVisible(first)
@@ -766,7 +760,7 @@ func (p *parser) firstVisible(span Span) (int, bool) {
 // to begin with code.
 func (p *parser) zoneAt(off int) (Span, bool) {
 	for _, z := range p.zones {
-		if z.contains(off) {
+		if z.Contains(off) {
 			return z, true
 		}
 	}
@@ -906,7 +900,7 @@ func (p *parser) pop() {
 func (p *parser) visibleMarkerSpans(raw string, lineStart int) []lineSpan {
 	var out []lineSpan
 	for _, s := range markerSpans(raw) {
-		if inAnyZone(p.zones, lineStart+s.Start) {
+		if graph.In(p.zones, lineStart+s.Start) {
 			continue
 		}
 		out = append(out, s)
@@ -1064,7 +1058,7 @@ func (p *parser) linksIn(rng Span) []linkHit {
 			continue
 		}
 		absolute := rng.Start + open
-		if inAnyZone(p.zones, absolute) {
+		if graph.In(p.zones, absolute) {
 			continue
 		}
 		if open > 0 && segment[open-1] == '!' {
@@ -1094,15 +1088,6 @@ func childList(item *ast.ListItem) *ast.List {
 	return nil
 }
 
-func inAnyZone(zones []Span, off int) bool {
-	for _, z := range zones {
-		if z.contains(off) {
-			return true
-		}
-	}
-	return false
-}
-
 // skipZones are the byte ranges whose brackets are not live links: code blocks
 // and code spans, and Obsidian comments. It reads the tree the caller already
 // has, because a second parse is a second answer to what the document is.
@@ -1124,14 +1109,7 @@ func skipZones(doc ast.Node, body string) []Span {
 		}
 		return ast.WalkContinue, nil
 	})
-	codeSpans := make([]commentzone.Span, len(code))
-	for i, c := range code {
-		codeSpans[i] = commentzone.Span{Start: c.Start, Stop: c.Stop}
-	}
-	for _, z := range commentzone.Zones(body, codeSpans) {
-		code = append(code, Span{Start: z.Start, Stop: z.Stop})
-	}
-	return code
+	return append(code, graph.CommentZones(body, code)...)
 }
 
 // emphasisOpeners are the opening delimiter runs of every emphasis in the
@@ -1147,7 +1125,7 @@ func emphasisOpeners(doc ast.Node) []Span {
 			return ast.WalkContinue, nil
 		}
 		if start, content, ok := emphasisOpener(emphasis); ok {
-			out = append(out, Span{start, content})
+			out = append(out, Span{Start: start, Stop: content})
 		}
 		return ast.WalkContinue, nil
 	})
@@ -1201,7 +1179,7 @@ func linesRange(n ast.Node) (Span, bool) {
 	if ls == nil || ls.Len() == 0 {
 		return Span{}, false
 	}
-	return Span{ls.At(0).Start, ls.At(ls.Len() - 1).Stop}, true
+	return Span{Start: ls.At(0).Start, Stop: ls.At(ls.Len() - 1).Stop}, true
 }
 
 // inlineRange covers an inline node's text children.
@@ -1223,7 +1201,7 @@ func inlineRange(n ast.Node) (Span, bool) {
 	if !found {
 		return Span{}, false
 	}
-	return Span{start, stop}, true
+	return Span{Start: start, Stop: stop}, true
 }
 
 // sourceLine is one line of a block with its offset from the block's start.

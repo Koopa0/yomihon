@@ -6,7 +6,6 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
-	"github.com/koopa0/yomihon/internal/commentzone"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/sequence"
@@ -58,7 +57,7 @@ func anchorSurface(body string) (sections, excerptSections map[string]bool, bloc
 // hide the same text.
 func withoutCommentZones(body string) string {
 	codeZones, _ := structure(body, nil)
-	zones := commentzone.Zones(body, codeZones)
+	zones := graph.CommentZones(body, codeZones)
 	if len(zones) == 0 {
 		return body
 	}
