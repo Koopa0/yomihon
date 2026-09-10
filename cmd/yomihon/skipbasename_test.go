@@ -76,7 +76,8 @@ func writeSkipBasenameLockVault(t *testing.T) string {
 
 // TestSkipBasenamesAreNotNotes is the Lock for #363. A basename the contract
 // names under scan.skip_basenames is not a note: the shelf, search, exists and
-// check all omit it, and /raw/ still serves the file.
+// check all omit it, /notes/ serves it as a file (showFile), and /raw/ still
+// serves the bytes.
 func TestSkipBasenamesAreNotNotes(t *testing.T) {
 	t.Parallel()
 
@@ -146,6 +147,17 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 		}
 	}
 
+	notesCode, shown := skipBasenameGET(t, site, "/notes/README.md")
+	if notesCode != http.StatusOK {
+		t.Errorf("GET /notes/README.md = %d, want 200 (showFile)", notesCode)
+	}
+	if !strings.Contains(shown, `class="y-prose y-source"`) {
+		t.Errorf("GET /notes/README.md is not the showFile source view; page = %q", shown)
+	}
+	if strings.Contains(shown, `y-statuspanel`) {
+		t.Errorf("GET /notes/README.md is a note page; page = %q", shown)
+	}
+
 	raw := skipBasenameRaw(t, site, "/raw/README.md")
 	if !strings.Contains(raw, skipBasenameLockSentinel) {
 		t.Errorf("GET /raw/README.md did not serve the skipped file; body = %q", raw)
@@ -153,6 +165,15 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 }
 
 func skipBasenameRaw(t *testing.T, site http.Handler, target string) string {
+	t.Helper()
+	code, body := skipBasenameGET(t, site, target)
+	if code != http.StatusOK {
+		t.Fatalf("GET %s = %d, want 200", target, code)
+	}
+	return body
+}
+
+func skipBasenameGET(t *testing.T, site http.Handler, target string) (int, string) {
 	t.Helper()
 	recorder := httptest.NewRecorder()
 	site.ServeHTTP(recorder, siteRequest(t, http.MethodGet, target, nil))
@@ -162,12 +183,9 @@ func skipBasenameRaw(t *testing.T, site http.Handler, target string) string {
 			t.Errorf("close %s response: %v", target, err)
 		}
 	}()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("GET %s = %d, want 200", target, response.StatusCode)
-	}
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read %s response: %v", target, err)
 	}
-	return string(body)
+	return response.StatusCode, string(body)
 }
