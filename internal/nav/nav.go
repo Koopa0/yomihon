@@ -466,6 +466,7 @@ func collectNavigationNotes(
 const (
 	journalPrefix = "Diary/"
 	reportsPrefix = "System/reports/"
+	briefingDir   = "daily-briefing"
 )
 
 // InJournal reports whether relPath lives in the journal.
@@ -473,6 +474,25 @@ func InJournal(relPath string) bool { return strings.HasPrefix(relPath, journalP
 
 // InReports reports whether relPath lives among the reports.
 func InReports(relPath string) bool { return strings.HasPrefix(relPath, reportsPrefix) }
+
+// BriefingName reports the filename of a daily-briefing HTML sitting directly
+// under System/reports/daily-briefing/. The report index, the address a
+// folder, rail, or search hit offers, and the report reader's containment
+// check share this shape, so a briefing cannot answer as a reading surface at
+// one URL and as a source dump at another, and a redirect cannot land on a
+// frame that refuses the same path. A written .md report, HTML anywhere else,
+// and a nested file under that folder are not this shape.
+func BriefingName(relPath string) (name string, ok bool) {
+	rest, ok := strings.CutPrefix(relPath, reportsPrefix)
+	if !ok {
+		return "", false
+	}
+	sub, file, found := strings.Cut(rest, "/")
+	if !found || sub != briefingDir || strings.Contains(file, "/") || !strings.HasSuffix(file, ".html") {
+		return "", false
+	}
+	return file, true
+}
 
 // buildJournal selects markdown files below Diary from the scanner's path and
 // mtime captures. It does not parse frontmatter, so an untyped entry remains
@@ -506,28 +526,23 @@ func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
 // latest.html). It reads only the path list — report contents are never
 // opened. README.md files and any non-.md/.html files fall out naturally.
 func buildReports(paths []string) []Report {
-	const briefingDir = "daily-briefing"
-
 	var reports, briefings []Report
 	for _, p := range paths {
+		if name, ok := BriefingName(p); ok {
+			briefings = append(briefings, Report{
+				Name:     name,
+				RelPath:  p,
+				Briefing: true,
+				Latest:   name == "latest.html",
+			})
+			continue
+		}
 		rest, ok := strings.CutPrefix(p, reportsPrefix)
 		if !ok {
 			continue
 		}
-		if !strings.Contains(rest, "/") {
-			if vault.IsMarkdown(rest) {
-				reports = append(reports, Report{Name: rest, RelPath: p})
-			}
-			continue
-		}
-		sub, file, _ := strings.Cut(rest, "/")
-		if sub == briefingDir && !strings.Contains(file, "/") && strings.HasSuffix(file, ".html") {
-			briefings = append(briefings, Report{
-				Name:     file,
-				RelPath:  p,
-				Briefing: true,
-				Latest:   file == "latest.html",
-			})
+		if !strings.Contains(rest, "/") && vault.IsMarkdown(rest) {
+			reports = append(reports, Report{Name: rest, RelPath: p})
 		}
 	}
 	return append(reports, briefings...)
