@@ -22,8 +22,13 @@ from a specific commit, run:
 gh attestation verify yomihon_v0.2.0_darwin_arm64 --repo koopa0/yomihon
 ```
 
-The command prints the commit and the workflow that produced the binary, and
+The command names the repository and the workflow that produced the binary, and
 fails if the file was rebuilt or replaced anywhere between that run and your
-disk. `SHA256SUMS` answers a narrower question — whether the download arrived
-intact — and it is served from the same page as the binary, so it cannot tell
+disk. Add `--format=json` to read the commit it was built from.
+
+Attestation begins with the first release tagged after this section was added.
+Earlier releases predate it and carry none, so the command reports that it
+found no attestation for them rather than that they were tampered with.
+
+`SHA256SUMS` answers a narrower question — whether the download arrived intact — and it is served from the same page as the binary, so it cannot tell
 you the binary is the one this repository built.
