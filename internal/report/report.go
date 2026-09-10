@@ -9,15 +9,12 @@ import (
 	"context"
 	"io/fs"
 	"log/slog"
-	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 )
-
-const briefingRoot = "System/reports/daily-briefing"
 
 // RequestSnapshot is the reading generation and the shell state captured
 // together from one atomic vault generation. Two separate captures could name
@@ -75,8 +72,10 @@ func readReport(
 	view *snapshot.Generation,
 	relPath string,
 ) ([]byte, error) {
-	name, ok := strings.CutPrefix(relPath, briefingRoot+"/")
-	if !ok || name == "" || strings.Contains(name, "/") {
+	// BriefingName is the only briefing-shape test. A second root string here
+	// would let a widened redirect land on an empty frame.
+	name, ok := nav.BriefingName(relPath)
+	if !ok || name == "" {
 		return nil, fs.ErrNotExist
 	}
 	entry, ok := view.Entry(relPath)

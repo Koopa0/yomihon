@@ -476,11 +476,12 @@ func InJournal(relPath string) bool { return strings.HasPrefix(relPath, journalP
 func InReports(relPath string) bool { return strings.HasPrefix(relPath, reportsPrefix) }
 
 // BriefingName reports the filename of a daily-briefing HTML sitting directly
-// under System/reports/daily-briefing/. The report index and the address a
-// folder, rail, or search hit offers share this shape, so a briefing cannot
-// answer as a reading surface at one URL and as a source dump at another.
-// A written .md report, HTML anywhere else, and a nested file under that
-// folder are not this shape.
+// under System/reports/daily-briefing/. The report index, the address a
+// folder, rail, or search hit offers, and the report reader's containment
+// check share this shape, so a briefing cannot answer as a reading surface at
+// one URL and as a source dump at another, and a redirect cannot land on a
+// frame that refuses the same path. A written .md report, HTML anywhere else,
+// and a nested file under that folder are not this shape.
 func BriefingName(relPath string) (name string, ok bool) {
 	rest, ok := strings.CutPrefix(relPath, reportsPrefix)
 	if !ok {
