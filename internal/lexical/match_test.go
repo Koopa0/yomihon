@@ -712,6 +712,34 @@ func TestARootFileOutsideTheKnowledgeLayerSortsAfterANote(t *testing.T) {
 	}
 }
 
+// TestAnExactTitleOutsideTheKnowledgeLayerStillLeadsAPartialTitle pins
+// exactness over the layer. A reader who types a file's exact title has
+// named it; the Ruling's "reading material first" is a tie-break among hits
+// of the same strength, not a rule over that name. The Notes/ partial sorts
+// first by path and is in-layer, so path order and a knowledge-primary sort
+// both put it first — only raiseExactTitles after raiseKnowledge puts the
+// outside exact title ahead.
+func TestAnExactTitleOutsideTheKnowledgeLayerStillLeadsAPartialTitle(t *testing.T) {
+	t.Parallel()
+
+	partial := "Notes/partial.md"
+	exact := "System/exact.md"
+	if vault.ComparePaths(partial, exact) >= 0 {
+		t.Fatal("the in-layer partial must sort first by path, or this fixture cannot catch a missing exact-title raise")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: partial, Title: "needle and more", PlainText: "unrelated"},
+		{RelPath: exact, Title: "needle", PlainText: "unrelated", OutsideKnowledge: true},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("needle")))
+	want := []string{exact, partial}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestAnUndeclaredKnowledgeLayerLeavesSearchOrderUnchanged is the empty-set
 // polarity: nothing is outside an undeclared layer, so the same documents
 // keep the vault's reading order.

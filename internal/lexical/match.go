@@ -99,8 +99,8 @@ func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err
 		}
 		answers.place(e, q.tokens)
 	}
-	answers.raiseExactTitles(q.tokens)
 	answers.raiseKnowledge()
+	answers.raiseExactTitles(q.tokens)
 	hits := answers.ordered()
 	total = len(hits)
 	if limit >= 0 && len(hits) > limit {
@@ -209,7 +209,9 @@ func exactTitleRank(titleFold, needle string) int {
 // raiseKnowledge is the flatten-time tie-break inside every group: a hit the
 // contract placed in the knowledge layer leads a hit it placed outside, and
 // hits that share that answer keep the order they already had. An undeclared
-// layer marks nothing, so the groups stay as raiseExactTitles left them.
+// layer marks nothing, so the groups stay in the vault's reading order.
+// raiseExactTitles then runs, so the layer is a tie-break among hits of the
+// same strength and an exact title still leads a containing one.
 func (b *resultBuckets) raiseKnowledge() {
 	for i := range b.groups {
 		slices.SortStableFunc(b.groups[i], func(left, right hit) int {
