@@ -61,9 +61,17 @@ type Model struct {
 	paths []Path
 	// maps are every other map-note tree, ordered by domain and then title.
 	maps []Map
-	// journal is the most recent captured journal entries, newest first, taken
-	// from the file listing rather than from any note type.
-	journal []JournalEntry
+	// journal records whether the journal projection was withheld, and why.
+	// It is open when the directory was read cleanly and open when no
+	// contract ever named one.
+	journal Closure
+	// journalEntries is the most recent captured journal entries, newest first,
+	// taken from the file listing rather than from any note type. It is empty
+	// when the contract declared no journal directory.
+	journalEntries []JournalEntry
+	// journalDir is the contract's journal capability, so InJournal asks the
+	// same declaration buildJournal did.
+	journalDir schema.JournalDir
 	// reports enumerates System/reports/ — the .md reports first, then the
 	// daily-briefing/ HTML briefings; contents are never parsed.
 	reports []Report
@@ -79,8 +87,8 @@ type Model struct {
 	// placementIndex maps a note's rel-path to every map placement that lists
 	// it. Read it through Placements.
 	placementIndex map[string][]Placement
-	// dirNotes maps a directory's rel-path to the files directly inside it.
-	// Read it through Siblings.
+	// dirNotes maps a directory's rel-path to every file the desk can open
+	// inside it, notes and the rest. Read it through Siblings.
 	dirNotes map[string][]NoteRef
 }
 
@@ -98,6 +106,14 @@ func (m *Model) ArtifactClosure() Closure {
 		return Closure{}
 	}
 	return m.artifact
+}
+
+// JournalClosure reports whether the journal projection was withheld, and why.
+func (m *Model) JournalClosure() Closure {
+	if m == nil {
+		return Closure{}
+	}
+	return m.journal
 }
 
 // DeclaredClosure is the one answer for whether the projections a contract's
@@ -192,7 +208,7 @@ func (m *Model) Journal() []JournalEntry {
 	if m == nil {
 		return nil
 	}
-	return slices.Clone(m.journal)
+	return slices.Clone(m.journalEntries)
 }
 
 // Reports returns the files captured below System/reports/.
@@ -249,7 +265,7 @@ type NoteSummary struct {
 	Modified time.Time
 }
 
-// JournalEntry is one recent Diary markdown file, carrying the scanner's
+// JournalEntry is one recent journal markdown file, carrying the scanner's
 // captured time rather than one read while rendering.
 type JournalEntry struct {
 	Title    string
@@ -313,8 +329,9 @@ func lifecycleRank(name string) int {
 
 // New constructs a navigation model from one captured vault projection: entries
 // supply the canonical paths and observed times, notes the parsed Markdown keyed
-// by canonical path. A missing note reads as an unreadable one and does not
-// affect its neighbors. New neither enumerates nor reopens the vault.
+// by canonical path. Every scanned path is on the shelf; notes and other files
+// are told apart when the page is built, and only notes are counted. New
+// neither enumerates nor reopens the vault.
 func New(
 	entries []vaultfs.Entry,
 	notes map[string]*vault.Note,
@@ -322,6 +339,7 @@ func New(
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
+	journal schema.JournalDir,
 ) *Model {
 	if resolver == nil {
 		panic("nav: New requires a non-nil *graph.Index")
@@ -346,7 +364,7 @@ func New(
 			note:     note,
 		})
 	}
-	return newModel(files, resolver, roles, scope, policy)
+	return newModel(files, resolver, roles, scope, policy, journal)
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
@@ -363,6 +381,7 @@ func newModel(
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
+	journal schema.JournalDir,
 ) *Model {
 	paths := make([]string, 0, len(files))
 	mtimes := make(map[string]time.Time, len(files))
@@ -372,13 +391,15 @@ func newModel(
 	}
 	m := &Model{
 		reports:        buildReports(paths),
-		journal:        buildJournal(paths, mtimes),
+		journalEntries: buildJournal(paths, mtimes, journal),
+		journalDir:     journal,
 		knowledgeScope: scope,
 	}
 	m.folders, m.rootNotes = buildFolderTree(paths)
 	m.dirNotes = buildDirNotes(paths)
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
+	m.journal = Close(journal.Claim())
 	// The recent-notes summary is collected in every contract state; paths and
 	// maps exist only as a contract's own classification, so either closed
 	// declaration ends the build with none of them.
@@ -460,17 +481,23 @@ func collectNavigationNotes(
 	return statusByPath, mapNotes, knowledgeNotes
 }
 
-// The journal and report projections select by location alone, and the sidebar
-// drawers ask the same question, so each prefix is named once and reached
-// through a predicate rather than copied.
+// The report projection selects by location alone, and the sidebar drawer asks
+// the same question, so the prefix is named once and reached through a
+// predicate rather than copied. The journal directory is a contract
+// declaration; InJournal asks the model that captured it.
 const (
-	journalPrefix = "Diary/"
 	reportsPrefix = "System/reports/"
 	briefingDir   = "daily-briefing"
 )
 
-// InJournal reports whether relPath lives in the journal.
-func InJournal(relPath string) bool { return strings.HasPrefix(relPath, journalPrefix) }
+// InJournal reports whether relPath lives in the journal this model was built
+// from. An undeclared journal contains nothing.
+func (m *Model) InJournal(relPath string) bool {
+	if m == nil {
+		return false
+	}
+	return m.journalDir.Contains(relPath)
+}
 
 // InReports reports whether relPath lives among the reports.
 func InReports(relPath string) bool { return strings.HasPrefix(relPath, reportsPrefix) }
@@ -494,17 +521,18 @@ func BriefingName(relPath string) (name string, ok bool) {
 	return file, true
 }
 
-// buildJournal selects markdown files below Diary from the scanner's path and
-// mtime captures. It does not parse frontmatter, so an untyped entry remains
-// eligible. Nothing here reads a timestamp: the order is the entries' own
-// names, for the reason the sort itself gives, and the mtime each entry carries
-// is a field no surface draws today — the rail shows a journal entry's title
-// and its address, and nothing else.
-func buildJournal(paths []string, mtimes map[string]time.Time) []JournalEntry {
+// buildJournal selects markdown files below the declared journal directory
+// from the scanner's path and mtime captures. It does not parse frontmatter,
+// so an untyped entry remains eligible. Nothing here reads a timestamp: the
+// order is the entries' own names, for the reason the sort itself gives, and
+// the mtime each entry carries is a field no surface draws today — the rail
+// shows a journal entry's title and its address, and nothing else. An
+// undeclared journal is an empty projection.
+func buildJournal(paths []string, mtimes map[string]time.Time, journal schema.JournalDir) []JournalEntry {
 	const limit = 5
 	entries := make([]JournalEntry, 0, limit)
 	for _, p := range paths {
-		if !InJournal(p) || !vault.IsMarkdown(p) {
+		if !journal.Contains(p) || !vault.IsMarkdown(p) {
 			continue
 		}
 		_, base := splitDir(p)
@@ -560,9 +588,11 @@ type folderBuilder struct {
 }
 
 // buildFolderTree turns a flat path list, already in the captured reading
-// order, into the top-level folder tree plus the vault-root notes. It mirrors
-// the directory structure to whatever depth the vault has, inventing no level
-// and capping none. Only the top level is reordered into lifecycleOrder.
+// order, into the top-level folder tree plus the vault-root files. A folder
+// stays on the shelf when the desk can open anything in it; a png or a
+// Makefile is still a file. It mirrors the directory structure to whatever
+// depth the vault has, inventing no level and capping none. Only the top
+// level is reordered into lifecycleOrder.
 func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
 	root := &folderBuilder{subIdx: map[string]*folderBuilder{}}
 	for _, p := range paths {

@@ -105,7 +105,7 @@ func TestRejectedClaimCanCloseButNeverOpen(t *testing.T) {
 	// through a capability, in the words of what that capability governs. A
 	// rejection is not a reading, whichever of the two a capability gates on.
 	withheld := (*schema.Contract)(nil).Capabilities(schema.Unreadable(errors.New("unparsable")))
-	if withheld.Navigation.Available() || withheld.Knowledge.Available() || withheld.Artifacts.Available() {
+	if withheld.Navigation.Available() || withheld.Knowledge.Available() || withheld.Artifacts.Available() || withheld.Journal.Available() {
 		t.Error("a rejected declaration left a capability reporting itself available")
 	}
 	if !claim.Claimed() {
@@ -199,6 +199,7 @@ func TestTheFourCapabilitiesAgreeAboutSilence(t *testing.T) {
 		scope    schema.KnowledgeScope
 		artifact schema.ArtifactPolicy
 		privacy  schema.PrivacyPolicy
+		journal  schema.JournalDir
 	)
 
 	// The shared half: silence is silence, whichever capability is asked.
@@ -210,6 +211,7 @@ func TestTheFourCapabilitiesAgreeAboutSilence(t *testing.T) {
 		{"KnowledgeScope", scope.Claim()},
 		{"ArtifactPolicy", artifact.Claim()},
 		{"PrivacyPolicy", privacy.Claim()},
+		{"JournalDir", journal.Claim()},
 	} {
 		if c.claim.Claimed() {
 			t.Errorf("%s reports that something asserted it; nothing did", c.name)
@@ -225,8 +227,8 @@ func TestTheFourCapabilitiesAgreeAboutSilence(t *testing.T) {
 		}
 	}
 
-	// Available is the narrow question, and all four answer it the same way.
-	if roles.Available() || scope.Available() || artifact.Available() || privacy.Available() {
+	// Available is the narrow question, and every capability answers it the same way.
+	if roles.Available() || scope.Available() || artifact.Available() || privacy.Available() || journal.Available() {
 		t.Error("a capability reports a declaration was read where none was written")
 	}
 
@@ -256,5 +258,8 @@ func TestTheFourCapabilitiesAgreeAboutSilence(t *testing.T) {
 	}
 	if roles.IsPathType("study-path") || roles.IsMapType("moc") {
 		t.Error("undeclared navigation roles classify a type: a role nobody declared belongs to no type")
+	}
+	if journal.Contains("Diary/today.md") {
+		t.Error("an undeclared journal directory contains a path: inventing a journal folder a vault never named is a rule its owner did not write")
 	}
 }

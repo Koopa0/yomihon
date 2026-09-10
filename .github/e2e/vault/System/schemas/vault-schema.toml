@@ -39,6 +39,7 @@ skip_basenames = ["README.md"]
 [navigation]
 path_types = ["study-path"]
 map_types = ["moc", "source-map", "topic-map"]
+journal_dir = "Diary"
 
 [artifacts]
 non_instance_dirs = ["System/templates"]

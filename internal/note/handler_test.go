@@ -761,7 +761,7 @@ func loadHomeContractWithSections(t *testing.T, navigationSection, artifactSecti
 	if err != nil {
 		t.Fatalf("read schema test contract: %v", err)
 	}
-	const validNavigation = "[navigation]\npath_types = [\"study-path\"]\nmap_types = [\"moc\", \"source-map\", \"topic-map\"]\n"
+	const validNavigation = "[navigation]\npath_types = [\"study-path\"]\nmap_types = [\"moc\", \"source-map\", \"topic-map\"]\njournal_dir = \"Diary\"\n"
 	const validArtifact = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
 	contractText := strings.Replace(string(base), validNavigation, navigationSection, 1)
 	contractText = strings.Replace(contractText, validArtifact, artifactSection, 1)
@@ -1604,9 +1604,10 @@ func TestMissingPageKeepsCapturedGenerationWhenCurrentSwaps(t *testing.T) {
 	}
 
 	log := slog.New(slog.DiscardHandler)
-	firstStore, firstSource := newSnapshotStore(t, firstRoot, log, nil, schema.Ungoverned())
-	secondStore, _ := newSnapshotStore(t, secondRoot, log, nil, schema.Ungoverned())
-	writer := openStatusWriter(t, firstSource, nil, schema.Ungoverned())
+	contract := loadHomeContract(t)
+	firstStore, firstSource := newSnapshotStore(t, firstRoot, log, contract, contract.Governance())
+	secondStore, _ := newSnapshotStore(t, secondRoot, log, contract, contract.Governance())
+	writer := openStatusWriter(t, firstSource, contract, contract.Governance())
 
 	const (
 		fromFirst  = `href="/notes/Diary/Alpha.md"`
@@ -2228,12 +2229,8 @@ func TestHomeWithoutAnIntroductionStaysReadOnly(t *testing.T) {
 
 // TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote covers a folder nothing
 // classifies: three files, no markdown, no contract. Every file is in the
-// folder, so the way in through the folders lists them and the reader is handed
-// the files themselves rather than one sentence about the newest of them.
-//
-// The measure counts all three and the rows are the vault's own root, which is
-// the same shelf the folder page unfolds — a block that listed only folders
-// here would have shown a count of three above nothing at all.
+// folder, so the way in through the folders lists them. The measure counts
+// notes only, so the block says 0 篇 above the three hrefs the desk can open.
 func TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -2266,7 +2263,7 @@ func TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote(t *testing.T) {
 	}
 	folders := deskBlockMarkup(t, body, "folders")
 	for _, want := range []string{
-		"3 篇",
+		"0 篇",
 		`href="/notes/todo.txt"`,
 		`href="/notes/older.txt"`,
 		`href="/notes/reading.html"`,
@@ -2275,10 +2272,9 @@ func TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote(t *testing.T) {
 			t.Errorf("the folders block is missing %q; block = %q", want, folders)
 		}
 	}
-	// A row on a shelf is a way in, so the one offered here has to answer.
-	// None of these files is a note, and the page that serves them is not the
-	// reading page — which is exactly why the link is worth following rather
-	// than trusting for being well formed.
+	if strings.Contains(folders, "3 篇") {
+		t.Errorf("the folders block counted non-notes as 篇; block = %q", folders)
+	}
 	if code, _ = get(t, srv.Client(), srv.URL+"/notes/todo.txt"); code != http.StatusOK {
 		t.Errorf("GET /notes/todo.txt status = %d, want %d: the desk offers a row that does not answer", code, http.StatusOK)
 	}

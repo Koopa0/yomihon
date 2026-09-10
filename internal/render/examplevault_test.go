@@ -755,6 +755,7 @@ func assertEveryFaceHasSomethingOnIt(t *testing.T, loaded *exampleVault) {
 		loaded.contract.NavigationRoles(),
 		loaded.contract.KnowledgeScope(),
 		loaded.contract.ArtifactPolicy(),
+		loaded.contract.JournalDir(),
 	)
 	for _, face := range []struct {
 		name string

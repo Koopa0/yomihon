@@ -64,6 +64,7 @@ no_frontmatter_is_legal = true
 [navigation]
 path_types = ["study-path"]
 map_types = ["moc"]
+journal_dir = "Diary"
 
 [artifacts]
 non_instance_dirs = ["System/templates"]

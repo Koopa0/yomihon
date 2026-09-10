@@ -242,6 +242,12 @@ func TestUnknownNavigationKeysInvalidateOnlyNavigation(t *testing.T) {
 	if !s.PrivacyPolicy().Available() {
 		t.Errorf("PrivacyPolicy().Available() = false, diagnostic %q", s.PrivacyPolicy().Diagnostic())
 	}
+	if s.JournalDir().Trustworthy() {
+		t.Error("JournalDir stays open after an unknown [navigation] key")
+	}
+	if got := s.JournalDir().Diagnostic(); got != want {
+		t.Errorf("JournalDir().Diagnostic() = %q, want the same sentence as NavigationRoles", got)
+	}
 	if _, ok := s.Stage("lesson", "draft"); !ok {
 		t.Error(`Stage("lesson", "draft") = false, want true`)
 	}
@@ -272,6 +278,12 @@ func TestNavigationTypeErrorInvalidatesOnlyNavigation(t *testing.T) {
 	}
 	if !s.PrivacyPolicy().Available() {
 		t.Errorf("PrivacyPolicy().Available() = false, diagnostic %q", s.PrivacyPolicy().Diagnostic())
+	}
+	if s.JournalDir().Trustworthy() {
+		t.Error("JournalDir stays open after a [navigation] type error")
+	}
+	if got := s.JournalDir().Diagnostic(); got != want {
+		t.Errorf("JournalDir().Diagnostic() = %q, want the same sentence as NavigationRoles", got)
 	}
 	if _, ok := s.Stage("lesson", "draft"); !ok {
 		t.Error(`Stage("lesson", "draft") = false, want true`)

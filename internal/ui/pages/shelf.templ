@@ -107,7 +107,9 @@ templ ShelfPage(s Shelf) {
 // listed — an unwritten lesson is part of its course — and is written as text
 // rather than as a link that goes to the page it is already on.
 templ shelfPageRow(row Row) {
-	if row.Href == "" {
+	if row.Heading {
+		<h2 class="y-railsummary y-railsummary--label">{ row.Text }</h2>
+	} else if row.Href == "" {
 		<span class="y-row" data-index-row>
 			@shelfRowBody(row)
 		</span>

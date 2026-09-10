@@ -66,10 +66,12 @@ func (m *Model) indexOfPath(relPath string) int {
 	return slices.IndexFunc(m.paths, func(p Path) bool { return p.RelPath == relPath })
 }
 
-// Siblings returns the files sharing a directory with the note at relPath,
+// Siblings returns the files sharing a directory with the file at relPath,
 // together with that directory's vault-relative path (empty for a vault-root
-// note). relPath is itself in the list, for the caller to mark, in the captured
-// reading order; the slice is nil when the directory holds nothing.
+// file). relPath is itself in the list, for the caller to mark, in the captured
+// reading order; the slice is nil when the directory holds nothing. An
+// unreadable markdown note stays a sibling: membership is the scanner's kind,
+// not whether this generation carried a parse.
 func (m *Model) Siblings(relPath string) (dir string, notes []NoteRef) {
 	dir, _ = splitDir(relPath)
 	if m == nil {
@@ -118,11 +120,11 @@ func buildPlacementIndex(index map[string][]Placement, maps []Map) map[string][]
 	return index
 }
 
-// Directory returns what a folder holds directly: its files in the captured
-// order, and the folders immediately inside it, each carrying its own contents
-// so a listing can say how much is behind a row before anyone opens it. ok is
-// false for a path no folder in this generation answers to, so a caller can
-// tell an empty folder from one that is not there.
+// Directory returns what a folder holds directly: every file the desk can
+// open, in the captured order, and the folders immediately inside it, each
+// carrying its own contents so a listing can say how much is behind a row
+// before anyone opens it. ok is false for a path no folder in this generation
+// answers to, so a caller can tell an empty folder from one that is not there.
 func (m *Model) Directory(dir string) (notes []NoteRef, subfolders []Folder, ok bool) {
 	if m == nil {
 		return nil, nil, false
