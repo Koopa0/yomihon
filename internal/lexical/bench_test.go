@@ -82,8 +82,9 @@ func liveVaultSizedFenceDocs() []Document {
 		"err := work(); if err != nil { return err }\n" +
 		"```\n"
 	prose := "A pipeline stage owns jobs and reports an err only after workers return.\n"
-	// ~8 KiB/note: foldRunes still walks every character on each fence
-	// occurrence, so a short fixture cannot show the live-vault cost.
+	// ~8 KiB/note: fence spans are folded once at index time; leftover
+	// cost is the snippet and landing walks main already paid, and a
+	// short fixture cannot show that live-vault size.
 	body := fence + strings.Repeat("The filler paragraph stays out of the way.\n\n", 120) + prose +
 		strings.Repeat("and more filler word ", 200)
 	text, ends, fences := render.PlainBlocks(body)
