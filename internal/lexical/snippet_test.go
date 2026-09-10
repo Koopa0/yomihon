@@ -125,6 +125,24 @@ func TestSnippetHoldsItsWindowAtTheMatch(t *testing.T) {
 	}
 }
 
+// TestSnippetCapsAMatchAfterALongUnbrokenRun is the FuzzSnippet input that
+// went red at 252 characters: a newline, a digit run long enough that
+// sentenceStart opens onto it, the match, and enough of the same run that
+// the after-window fills. The leading run is not a sentence anyone is
+// reading, and it may not push the row past the character cap.
+func TestSnippetCapsAMatchAfterALongUnbrokenRun(t *testing.T) {
+	t.Parallel()
+	plain := "\n" + strings.Repeat("0", 104) + "G" + strings.Repeat("0", 146)
+	got := snippet(plain, fold(plain), []string{fold("g")})
+	const maxSnippetRunes = 40 + 160 + 2*24 + 2
+	if n := utf8.RuneCountInString(got); n > maxSnippetRunes {
+		t.Errorf("snippet() length = %d characters, want at most %d", n, maxSnippetRunes)
+	}
+	if !strings.Contains(got, "G") {
+		t.Errorf("snippet() = %q, dropped the match", got)
+	}
+}
+
 // A result that does not say why it matched leaves the reader scanning a grey
 // block for the word they just typed. The runs carry slices of the reader's own
 // text, so nothing is re-cased and nothing becomes markup.
