@@ -145,6 +145,46 @@ func headingSlice(body, heading string) (slice string, matches int) {
 	return slice, matches
 }
 
+// ledeSlice returns the opening of body a hover card shows when no fragment
+// named a place: the lines before the first heading when they hold any
+// non-blank content, or that heading plus the lines up to the next heading of
+// any level when the note opens on one — leading blanks ignored, so a file
+// that starts `\n## …` is an opening heading, not an empty lede. The next
+// heading of any level is the edge, not the next same-or-higher one: an H1
+// opener would otherwise run to the end of the note. narrowed is true when
+// anything is left behind; a cut that is the whole body is not a narrowing.
+func ledeSlice(body string) (slice string, narrowed bool) {
+	lines := strings.Split(body, "\n")
+	headings := scanHeadings(lines)
+	if len(headings) == 0 {
+		return body, false
+	}
+	first := headings[0]
+	if ledeBeforeHeading(lines, first.line) {
+		return strings.Join(lines[:first.line], "\n"), true
+	}
+	end := len(lines)
+	if len(headings) > 1 {
+		end = headings[1].line
+	}
+	if end >= len(lines) {
+		return body, false
+	}
+	return strings.Join(lines[first.line:end], "\n"), true
+}
+
+// ledeBeforeHeading reports whether the lines before the first heading hold
+// any non-blank content. A run of blanks is not a lede: the note opens on
+// that heading, and the card has to show its words rather than an empty body.
+func ledeBeforeHeading(lines []string, first int) bool {
+	for _, line := range lines[:first] {
+		if !graph.BlankLine(line) {
+			return true
+		}
+	}
+	return false
+}
+
 // Excerpt is the part of body that a link's own fragment addresses: a caret
 // opens a block address, anything else names a section, and an empty fragment
 // asks for the note itself. Obsidian's %% comments come off before any edge is
@@ -156,11 +196,31 @@ func headingSlice(body, heading string) (slice string, matches int) {
 // told reads as the place they named.
 //
 // The fragment is the one an anchor already carries, already folded by the pass
-// that wrote it; nothing here folds a name a second time.
+// that wrote it; nothing here folds a name a second time. An embed of a whole
+// note still comes through here as the note: a hover card that wants only the
+// lede asks ExcerptPreview, so the two surfaces stay one cut for a named
+// fragment and two answers for an empty one.
 func Excerpt(body, fragment string) (slice string, found bool) {
 	stripped, _ := stripObsidianComments(body)
 	slice, matches := excerptOf(stripped, fragment)
 	return slice, matches > 0
+}
+
+// ExcerptPreview is the hover card's reading of the same address Excerpt
+// takes. A named fragment is the same cut. An empty one is the lede — the
+// lines before the first heading when they hold content, or that heading plus
+// the lines up to the next heading of any level when the note opens on one —
+// and narrowed reports that the rest of the note was left behind, so the card
+// can say so with the sentence a byte-capped preview already uses. An embed
+// still asks Excerpt (or excerptOf) for the whole note; this cut is the card's.
+func ExcerptPreview(body, fragment string) (slice string, found, narrowed bool) {
+	stripped, _ := stripObsidianComments(body)
+	if fragment == "" {
+		slice, narrowed = ledeSlice(stripped)
+		return slice, true, narrowed
+	}
+	slice, matches := excerptOf(stripped, fragment)
+	return slice, matches > 0, false
 }
 
 // excerptOf is the one cut every excerpt is made with, over a body whose
