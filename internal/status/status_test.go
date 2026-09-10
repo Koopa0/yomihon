@@ -584,9 +584,10 @@ func TestFlipAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 // and the status face closes even though Flip would succeed. The leaf that
 // differs only in case is the spelling targetSpelledAsRequested's doc names:
 // a case-insensitive volume opens L06.MD for L06.md, and the answer must
-// still be the one a case-sensitive volume gives. Asking through the walk
-// — not through a volume that keeps the two names apart — is what watches
-// the comparison fail when it is deleted.
+// still be the one a case-sensitive volume gives. The NFC request whose
+// stored name differs only in case is the same lock on the path the page
+// actually types — deleting uniqueNFCName's case-sensitive NFC comparison
+// (or folding case into it) makes that request answer with a status.
 func TestObservedStatusAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 	t.Parallel()
 
@@ -637,6 +638,26 @@ func TestObservedStatusAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 		observed, err := writer.ObservedStatus(t.Context(), requestedRel)
 		if err != nil || observed != "draft" {
 			t.Fatalf("ObservedStatus(%q) against on-disk %q = (%q, %v), want draft", requestedRel, onDiskRel, observed, err)
+		}
+	})
+
+	t.Run("a differently-cased NFC leaf is missing", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writer := newWriter(t, root, loadContract(t))
+
+		const nfcLeaf = "käln.md"
+		casedLeaf := "Käln.md"
+		if vault.NormalizeNFC(casedLeaf) == vault.NormalizeNFC(nfcLeaf) {
+			t.Fatal("NFC folded the two cases together; this lock would not bind")
+		}
+		onDiskRel := "Writing/" + casedLeaf
+		requestedRel := "Writing/" + nfcLeaf
+		writeVaultFile(t, root, onDiskRel, lessonContent("draft"))
+
+		_, err := writer.ObservedStatus(t.Context(), requestedRel)
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("ObservedStatus(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, fs.ErrNotExist)
 		}
 	})
 }
