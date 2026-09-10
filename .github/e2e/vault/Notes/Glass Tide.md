@@ -51,6 +51,8 @@ Ballast paragraph B4: this passage exists to put distance between the headings o
 
 Ballast paragraph B5: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
 
+- A list item carries a block address so a selector that only names a paragraph cannot answer for every caret. ^tide-item-1
+
 Ballast paragraph B6: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
 
 Ballast paragraph B7: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.

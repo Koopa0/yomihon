@@ -32,6 +32,10 @@ A seventh returns to a marked line in that same note,
 [[Glass Tide#^tide-wrap-1|back to the marked line]], so a block address can be
 followed the way a section can.
 
+An eighth returns to a marked list item,
+[[Glass Tide#^tide-item-1|back to the marked item]], so a block address that is
+not a paragraph is followed the same way.
+
 Quoting a note that has footnotes of its own puts a second set on this page,
 numbered separately because those definitions live in the note they came from.
 
