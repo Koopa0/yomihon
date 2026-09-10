@@ -581,7 +581,12 @@ func TestFlipAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 // TestObservedStatusAgreesWithTheReaderAboutWhichNamesExist locks the read
 // half of the spelling walk Flip already uses. The reading page asks with the
 // NFC path the scan published; without the walk, an NFD note looks unreadable
-// and the status face closes even though Flip would succeed.
+// and the status face closes even though Flip would succeed. The leaf that
+// differs only in case is the spelling targetSpelledAsRequested's doc names:
+// a case-insensitive volume opens L06.MD for L06.md, and the answer must
+// still be the one a case-sensitive volume gives. Asking through the walk
+// — not through a volume that keeps the two names apart — is what watches
+// the comparison fail when it is deleted.
 func TestObservedStatusAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 	t.Parallel()
 
@@ -592,6 +597,21 @@ func TestObservedStatusAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 
 		const onDiskRel = "Writing/lessons/japanese/L05.md"
 		const requestedRel = "Writing/lessons/JAPANESE/L05.md"
+		writeVaultFile(t, root, onDiskRel, lessonContent("draft"))
+
+		_, err := writer.ObservedStatus(t.Context(), requestedRel)
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("ObservedStatus(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, fs.ErrNotExist)
+		}
+	})
+
+	t.Run("a differently-cased leaf is missing", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writer := newWriter(t, root, loadContract(t))
+
+		const onDiskRel = "Writing/lessons/japanese/L06.MD"
+		const requestedRel = "Writing/lessons/japanese/L06.md"
 		writeVaultFile(t, root, onDiskRel, lessonContent("draft"))
 
 		_, err := writer.ObservedStatus(t.Context(), requestedRel)
