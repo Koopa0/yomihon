@@ -78,7 +78,7 @@ templ slotControl(key string, pos lesson.Position) {
 		<select class={ "y-slotselect", "y-slot-" + pos.Color } data-slot-key={ key }>
 			<button type="button"><selectedcontent></selectedcontent></button>
 			for i, f := range pos.Fills {
-				<option value={ strconv.Itoa(i) }>{ f.JP } — { f.ZH }</option>
+				<option value={ strconv.Itoa(i) }><span lang="ja">{ f.JP }</span> — { f.ZH }</option>
 			}
 		</select>
 	</label>
