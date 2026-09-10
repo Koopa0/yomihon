@@ -673,12 +673,17 @@ func TestNewRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchanged(
 	if len(startup.Navigation().Paths()) != 0 || startup.Navigation().ArtifactClosure().Diagnostic() == "" {
 		t.Errorf("navigation while New met an unreadable contract = %+v, want instance projections withheld", startup.Navigation())
 	}
-	if startup.ArtifactPolicy().Available() {
-		t.Error("the generation New built still classified from a policy that could not re-read its source")
-	}
 
 	if err := os.Rename(away, path); err != nil {
 		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
+	}
+	// ArtifactPolicy re-captures at read time. While the name is absent the
+	// live handle and the refusal copy agree, so this read waits until the
+	// identical file is back and the generation New built is still the
+	// published one. A generation that classified from the live handle
+	// would now report available with empty Paths.
+	if startup.ArtifactPolicy().Available() {
+		t.Error("the generation New built still classified from a policy that could not re-read its source")
 	}
 	store.rescan(t.Context())
 
