@@ -245,7 +245,7 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 			Landing:       r.Landing,
 			LandingEnd:    r.LandingEnd,
 			BlockCrossing: r.BlockCrossing,
-			Source:        r.Source,
+			FromFence:     r.FromFence,
 		}
 		// A row that names no status can carry no verdict about one.
 		if governed {

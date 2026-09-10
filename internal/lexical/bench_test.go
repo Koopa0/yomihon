@@ -54,9 +54,8 @@ func BenchmarkSearchResultMaterialization(b *testing.B) {
 }
 
 // BenchmarkSearchLiveVaultSizedFences times the 200-row materialization the
-// handler ships, over a corpus the size of the live vault that produced the
-// review numbers (537 notes, many of them carrying a d2 fence that also
-// holds the query). The queries are the ones the review timed: err, return.
+// handler ships, over 537 notes of about 8 KiB, each opening with a d2
+// fence that also holds the query. The queries are err and return.
 func BenchmarkSearchLiveVaultSizedFences(b *testing.B) {
 	idx := NewIndex(liveVaultSizedFenceDocs(), validArtifactPolicy(b))
 	for _, q := range []string{"err", "return"} {
@@ -74,10 +73,10 @@ func BenchmarkSearchLiveVaultSizedFences(b *testing.B) {
 }
 
 // BenchmarkNewIndex times the build a save pays: the scanner rebuilds on
-// every change, so fence remapping that walks the note per boundary shows
-// up here rather than in the query benches.
+// every change. The corpus is 1226 copies of two ASCII bodies, 597 of
+// them carrying eight fences.
 func BenchmarkNewIndex(b *testing.B) {
-	docs := liveVaultNewIndexDocs()
+	docs := repeatedAsciiFenceDocs()
 	policy := validArtifactPolicy(b)
 	b.ReportAllocs()
 	for b.Loop() {
@@ -113,10 +112,10 @@ func liveVaultSizedFenceDocs() []Document {
 	return docs
 }
 
-// liveVaultNewIndexDocs is the build-cost corpus: every-note count from the
-// live vault, with the fenced notes carrying several fences through the
-// body so a per-boundary NFC walk cannot hide behind a short prefix.
-func liveVaultNewIndexDocs() []Document {
+// repeatedAsciiFenceDocs is the build-cost smoke corpus: 1226 notes,
+// 597 of them the same ASCII body carrying eight fences, the rest the
+// same unfenced ASCII body. It is not a live vault.
+func repeatedAsciiFenceDocs() []Document {
 	const notes = 1226
 	const fenced = 597
 	const fencesPer = 8

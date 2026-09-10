@@ -108,10 +108,10 @@ type SearchResult struct {
 	// a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
 
-	// Source marks a hit whose deciding excerpt is a fenced block. The
+	// FromFence marks a hit whose deciding excerpt is a fenced block. The
 	// row names that, the way it names an alias or a topic, so the
 	// excerpt can stay the fence's own lines.
-	Source bool
+	FromFence bool
 }
 
 // SnippetRun is one stretch of a result's snippet, marked or not.
@@ -538,7 +538,7 @@ func SearchResults(v SearchView, lang wording.Lang) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				}
-				if r.Source {
+				if r.FromFence {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<span class=\"y-result__sep\" aria-hidden=\"true\">·</span> <span class=\"y-result__source\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
