@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -184,14 +183,14 @@ func healthBlocked(blocked []snapshot.BlockedSource) []pages.HealthBlockedSource
 	return out
 }
 
-// healthSkipped carries the scan's unindexed paths across to the page. They
-// are not a freshness fact like the blocked list: a later reading will skip
-// them again, so the page states them as they are rather than as something
-// that may recover.
-func healthSkipped(skipped []vaultfs.Skipped) []pages.HealthSkippedSource {
+// healthSkipped carries the generation's unindexed paths across to the page.
+// They are not a freshness fact like the blocked list: a later reading will
+// skip them again, so the page states them as they are rather than as
+// something that may recover.
+func healthSkipped(skipped []snapshot.Skipped) []pages.HealthSkippedSource {
 	out := make([]pages.HealthSkippedSource, 0, len(skipped))
 	for _, source := range skipped {
-		out = append(out, pages.HealthSkippedSource{Path: source.Path(), Reason: source.Kind().String()})
+		out = append(out, pages.HealthSkippedSource{Path: source.Path, Reason: source.Reason, Size: source.Size})
 	}
 	return out
 }

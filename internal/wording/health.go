@@ -40,8 +40,8 @@ var (
 	BlockedTitle = both("讀不進來的檔案", "Files that could not be read")
 	SkippedTitle = both("掃描略過的路徑", "Paths the scan passed over")
 	SkippedLede  = both(
-		"這些路徑不是一般檔案，多半是符號連結，所以書庫沒有讀它們：它們不出現在導覽、搜尋或判讀裡。要讓其中一個被讀到，把真正的檔案放進書庫。",
-		"These paths are not regular files — most often they are symbolic links — so the library did not read them: they appear in no navigation, no search and no adjudication. To have one read, put the real file in the vault.",
+		"這些路徑掃描看過了卻沒編進索引。符號連結和不是一般檔案的路徑不會出現在導覽、搜尋或判讀裡；超過來源大小上限的筆記會列在書架上，但搜尋找不到它。",
+		"These paths were seen and not indexed. A symbolic link or anything that is not a regular file appears in no navigation, no search and no adjudication; a note over the source bound stays on the shelf, but search will not find it.",
 	)
 	UnwrittenTitle = both("連到不存在的目標", "Links to something that is not there")
 	UnwrittenLede  = both(

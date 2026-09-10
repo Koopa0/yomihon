@@ -29,9 +29,10 @@ type HealthView struct {
 	// Blocked are vault sources the latest snapshot build could not read, so
 	// the pages either lack them or hold their older captured content.
 	Blocked []HealthBlockedSource
-	// Skipped are paths the scan read without trouble and did not index,
-	// because they are not regular files. They are separate from Blocked:
-	// nothing went wrong reading them, and no later reading will pick them up.
+	// Skipped are paths the generation saw and did not index: a symbolic
+	// link the scan passed over, or a note over the source bound. They are
+	// separate from Blocked: nothing went wrong reading them, and no later
+	// reading will pick them up as captured notes.
 	Skipped []HealthSkippedSource
 	// StatusOutsideEnum are the notes whose status value is outside their type's
 	// declared list. An empty list renders nothing, the unknowable case
@@ -77,11 +78,13 @@ type HealthBlockedSource struct {
 	Reason string
 }
 
-// HealthSkippedSource is one path the scan saw and did not index, with what it
-// is instead of a file.
+// HealthSkippedSource is one path the generation saw and did not index, with
+// what it is instead of a captured note. Size is set for a note refused
+// because it is over the source bound; a scan skip has no size to report.
 type HealthSkippedSource struct {
 	Path   string
 	Reason string
+	Size   int64
 }
 
 // HealthLink is one citation with nowhere to land, and the note making it.
@@ -145,6 +148,9 @@ templ Health(v HealthView, c layouts.Chrome) {
 								for _, source := range v.Skipped {
 									<li>
 										<span class="y-healthlist__name">{ source.Path }</span>
+										if source.Size > 0 {
+											<span class="y-healthlist__detail">{ humanSize(source.Size, c.Lang) }</span>
+										}
 										if source.Reason != "" {
 											<span class="y-healthlist__detail"><code lang="en">{ source.Reason }</code></span>
 										}

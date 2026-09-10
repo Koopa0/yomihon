@@ -1898,6 +1898,45 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	}
 }
 
+// TestAnOverCapNoteIsReportedAsSkipped is the lock that a note past the source
+// bound is a skipped projection, not only a server log. Skipped() used to
+// return the scan's list alone; skipUnread appended a stub and logged, and
+// /health had nothing to name.
+func TestAnOverCapNoteIsReportedAsSkipped(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	huge := "---\ntitle: Huge\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
+	if len(huge) <= render.MaxSourceBytes {
+		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
+	}
+	writeNote(t, root, "huge.md", huge)
+	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\nunder the bound\n")
+	contract := testContract(t, root)
+	reader, err := vaultfs.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := store.Current().Skipped()
+	if len(got) != 1 {
+		t.Fatalf("Skipped() = %#v, want the over-bound note alone", got)
+	}
+	if got[0].Path != "huge.md" {
+		t.Errorf("Skipped()[0].Path = %q, want huge.md", got[0].Path)
+	}
+	if got[0].Reason != "over the source bound" {
+		t.Errorf("Skipped()[0].Reason = %q, want over the source bound", got[0].Reason)
+	}
+	if got[0].Size != int64(len(huge)) {
+		t.Errorf("Skipped()[0].Size = %d, want %d", got[0].Size, len(huge))
+	}
+}
+
 // TestAnOverCapNoteKeepsANameForCitations locks skipUnread's body. A note past
 // the bound is not retained, but a citation still lands on it. A bare return
 // in skipUnread drops the stub, and this wikilink goes unresolved.

@@ -150,6 +150,11 @@ type Generation struct {
 	// the retained generation is the one being served, and it is what has to be
 	// able to say the folder has moved on without it.
 	freshness *atomic.Pointer[liveAttempt]
+
+	// sizeSkipped are notes this reading refused because they are over the
+	// source bound. The scan still lists them as files; Skipped() is the
+	// face that says they were not indexed.
+	sizeSkipped []Skipped
 }
 
 // Capture returns a request-local Generation bound to one point-in-time artifact
@@ -314,15 +319,43 @@ func (g *Generation) Files() []vaultfs.Entry {
 	return g.scan.Files()
 }
 
-// Skipped returns the paths this generation's scan saw and did not index, such
-// as a symbolic link standing where a note is expected. They are carried
-// beside the files because a folder that organises by link would otherwise
-// lose notes with nothing anywhere saying so.
-func (g *Generation) Skipped() []vaultfs.Skipped {
+// Skipped is one path this generation saw and did not index. A scan skip
+// names what the path is instead of a file; a size skip names the bound the
+// note crossed and how large it is, so /health can list it beside the scan
+// skips instead of leaving only a server log.
+type Skipped struct {
+	Path   string
+	Reason string
+	Size   int64
+}
+
+// overSourceBound is the reason a size skip carries. It is the phrase the
+// health row shows, and the one the lock looks for.
+const overSourceBound = "over the source bound"
+
+// Skipped returns the paths this generation saw and did not index: a
+// symbolic link the scan passed over, and a note this reading refused
+// because it is over the source bound. The scan's own list is the first
+// half; skipUnread fills the rest. They are carried beside the files
+// because a folder that organises by link — or that holds one note past
+// the bound — would otherwise lose it with nothing anywhere saying so.
+func (g *Generation) Skipped() []Skipped {
 	if g == nil {
 		return nil
 	}
-	return g.scan.Skipped()
+	scan := g.scan.Skipped()
+	if len(scan) == 0 && len(g.sizeSkipped) == 0 {
+		return nil
+	}
+	out := make([]Skipped, 0, len(scan)+len(g.sizeSkipped))
+	for _, source := range scan {
+		out = append(out, Skipped{Path: source.Path(), Reason: source.Kind().String()})
+	}
+	out = append(out, g.sizeSkipped...)
+	slices.SortFunc(out, func(a, b Skipped) int {
+		return vault.ComparePaths(a.Path, b.Path)
+	})
+	return out
 }
 
 // Entry returns the captured regular-file identity for canonicalPath.
@@ -778,6 +811,7 @@ func buildGeneration(
 		titles:         titles,
 		parsed:         g.parsed,
 		sidecars:       g.sidecars,
+		sizeSkipped:    slices.Clone(g.sizeSkipped),
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen)
 	return gen, blocked, nil
@@ -804,6 +838,9 @@ type generation struct {
 	resources []string
 	// findings are the schema's verdicts, kept only for notes that drew one.
 	findings map[string][]judge.Finding
+	// sizeSkipped are notes this reading refused for size, recorded here so
+	// the published generation can name them in Skipped().
+	sizeSkipped []Skipped
 }
 
 // newGeneration opens an empty generation sized for a folder of entries files.
@@ -822,8 +859,9 @@ func newGeneration(entries int) *generation {
 
 // skipUnread records a note this generation chose not to read. The stub is a
 // name so a citation still lands and the page can say the file is there;
-// nothing of the file is retained. A non-note that was not wanted is simply
-// absent, as before.
+// nothing of the file is retained. The skip itself is stored so Skipped()
+// can name it on /health; a log line alone is not a face. A non-note that
+// was not wanted is simply absent, as before.
 func (g *generation) skipUnread(relPath string, note bool, size int64, log *slog.Logger) {
 	if !note {
 		return
@@ -831,6 +869,11 @@ func (g *generation) skipUnread(relPath string, note bool, size int64, log *slog
 	log.Warn("vault note skipped: larger than the source size bound",
 		"path", relPath, "bytes", size)
 	g.unreadable = append(g.unreadable, vault.Parse(relPath, nil))
+	g.sizeSkipped = append(g.sizeSkipped, Skipped{
+		Path:   relPath,
+		Reason: overSourceBound,
+		Size:   size,
+	})
 }
 
 // captureNote files one note this reading opened into every projection built
