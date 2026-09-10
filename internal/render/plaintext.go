@@ -6,6 +6,7 @@ package render
 // to disagree with the renderer about what a note says.
 
 import (
+	"bytes"
 	"strings"
 	"unicode"
 
@@ -27,6 +28,8 @@ var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extensio
 // PlainText returns the searchable plain text of a note body: prose, headings,
 // table cells, task text, code-fence contents and the base and reading of
 // hand-written ruby, but not the HTML tags or the callout marker syntax. A
+// ruby reading is written after the block's base text so the phrase a reader
+// sees stays one substring, and the reading remains findable on its own. A
 // wikilink contributes both its target and its display text. The body must arrive
 // with its frontmatter removed, and the text keeps its case and Unicode form.
 //
@@ -70,6 +73,7 @@ func PlainBlocks(body string) (plain string, blockEnds []int, fenceRanges [][2]i
 		return collapsed, []int{len(collapsed)}, nil
 	}
 	w.closeBlock()
+	w.flushReadings()
 	return w.result()
 }
 
@@ -81,6 +85,13 @@ type plainWalk struct {
 	b           strings.Builder
 	blockEnds   []int
 	fenceRanges [][2]int
+	// readings holds <rt>/<rtc> text until the block's base text has been
+	// closed, so a visible phrase is not split by its furigana. rubyAnno and
+	// rubyParen are the open-tag depths that decide where the next text node
+	// goes; <rp> is only a parenthesis fallback and is dropped.
+	readings  strings.Builder
+	rubyAnno  int
+	rubyParen int
 }
 
 func (w *plainWalk) result() (plain string, blockEnds []int, fenceRanges [][2]int) {
@@ -236,9 +247,19 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		return ast.WalkContinue, nil
 	}
 	switch n.Kind() {
-	case ast.KindRawHTML, ast.KindHTMLBlock:
+	case ast.KindRawHTML:
 		// The tags are not content. Text between them arrives as separate text
 		// nodes rather than children, so skipping here drops only the tags.
+		// Ruby is the exception: <rt> (and <rtc>) hold a reading that must
+		// not sit between the base characters a reader can see.
+		if raw, ok := n.(*ast.RawHTML); ok {
+			for i := range raw.Segments.Len() {
+				seg := raw.Segments.At(i)
+				w.seeMarkup(seg.Value(source))
+			}
+		}
+		return ast.WalkSkipChildren, nil
+	case ast.KindHTMLBlock:
 		return ast.WalkSkipChildren, nil
 	case ast.KindFencedCodeBlock, ast.KindCodeBlock:
 		// Code content lives in the node's line segments, not in child Text
@@ -255,18 +276,18 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		return ast.WalkSkipChildren, nil
 	case ast.KindText:
 		if t, ok := n.(*ast.Text); ok {
-			w.b.Write(t.Value(source))
+			w.writeVisible(t.Value(source))
 			if t.SoftLineBreak() || t.HardLineBreak() {
-				w.b.WriteByte('\n')
+				w.writeBreak()
 			}
 		}
 	case ast.KindString:
 		if s, ok := n.(*ast.String); ok {
-			w.b.Write(s.Value)
+			w.writeVisible(s.Value)
 		}
 	case ast.KindAutoLink:
 		if a, ok := n.(*ast.AutoLink); ok {
-			w.b.Write(a.URL(source))
+			w.writeVisible(a.URL(source))
 		}
 	default:
 		if n.Type() == ast.TypeBlock {
@@ -284,6 +305,7 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 // which side of it each word sat on.
 func writeSeparator(w *plainWalk) {
 	w.closeBlock()
+	w.flushReadings()
 	if w.b.Len() == 0 {
 		return
 	}
@@ -291,6 +313,114 @@ func writeSeparator(w *plainWalk) {
 	if s[len(s)-1] != '\n' {
 		w.b.WriteByte('\n')
 	}
+}
+
+// writeVisible appends one text node's bytes to the corpus: into the held
+// readings while inside <rt>/<rtc>, nowhere while inside <rp>, and into the
+// block's base text otherwise.
+func (w *plainWalk) writeVisible(p []byte) {
+	switch {
+	case w.rubyParen > 0:
+		return
+	case w.rubyAnno > 0:
+		w.readings.Write(p)
+	default:
+		w.b.Write(p)
+	}
+}
+
+func (w *plainWalk) writeBreak() {
+	switch {
+	case w.rubyParen > 0:
+		return
+	case w.rubyAnno > 0:
+		w.readings.WriteByte('\n')
+	default:
+		w.b.WriteByte('\n')
+	}
+}
+
+// seeMarkup notes a raw HTML tag so the following text nodes are routed.
+// A self-closing tag has no following text of its own and is ignored.
+func (w *plainWalk) seeMarkup(raw []byte) {
+	name, closing, selfClose := markupName(raw)
+	if selfClose {
+		return
+	}
+	switch name {
+	case "rt", "rtc":
+		if closing {
+			if w.rubyAnno > 0 {
+				w.rubyAnno--
+			}
+			return
+		}
+		if w.rubyAnno == 0 && w.readings.Len() > 0 {
+			s := w.readings.String()
+			if s[len(s)-1] != ' ' && s[len(s)-1] != '\n' {
+				w.readings.WriteByte(' ')
+			}
+		}
+		w.rubyAnno++
+	case "rp":
+		if closing {
+			if w.rubyParen > 0 {
+				w.rubyParen--
+			}
+			return
+		}
+		w.rubyParen++
+	}
+}
+
+// flushReadings writes held ruby readings as their own block after the base
+// text they came from. A later match on the base phrase can then land on the
+// sentence the page shows, and a match on the reading still finds the note.
+func (w *plainWalk) flushReadings() {
+	if w.readings.Len() == 0 {
+		return
+	}
+	if w.b.Len() > 0 {
+		s := w.b.String()
+		if s[len(s)-1] != '\n' {
+			w.b.WriteByte('\n')
+		}
+	}
+	w.b.WriteString(w.readings.String())
+	w.readings.Reset()
+	w.closeBlock()
+}
+
+// markupName reads the tag name out of one raw HTML segment. Comments,
+// processing instructions and a fragment that is not a tag report no name.
+func markupName(raw []byte) (name string, closing, selfClose bool) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) < 3 || raw[0] != '<' || raw[len(raw)-1] != '>' {
+		return "", false, false
+	}
+	inner := strings.TrimSpace(string(raw[1 : len(raw)-1]))
+	if inner == "" || inner[0] == '!' || inner[0] == '?' {
+		return "", false, false
+	}
+	if strings.HasPrefix(inner, "/") {
+		closing = true
+		inner = strings.TrimSpace(inner[1:])
+	}
+	if strings.HasSuffix(inner, "/") {
+		selfClose = true
+		inner = strings.TrimSpace(strings.TrimSuffix(inner, "/"))
+	}
+	if inner == "" {
+		return "", closing, selfClose
+	}
+	nameEnd := len(inner)
+	for i, c := range inner {
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
+			nameEnd = i
+			break
+		}
+	}
+	return strings.ToLower(inner[:nameEnd]), closing, selfClose
 }
 
 // writeBlockLines appends the raw source of a node's line segments (used for
