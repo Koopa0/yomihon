@@ -70,4 +70,13 @@ func countLamps(listing string) int {
 +	return len(listing)
 ```
 
+A task list is two markers if the sheet forgets: a disc and a checkbox.
+
+- [ ] Unfinished task
+- [x] Finished task
+
+An ordinary list still owes its disc.
+
+- an ordinary item
+
 [^scope]: Only the scope of this study is covered.

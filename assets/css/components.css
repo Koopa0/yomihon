@@ -405,6 +405,17 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose ul, .y-prose ol { margin: 14px 0 0; padding-left: 1.5em; }
 .y-prose ul { list-style: disc; }
 .y-prose ol { list-style: decimal; }
+/* A GFM task item already carries a checkbox. The disc inherited from
+   the ul sits beside it, which reads as two markers on one row. Hide
+   the disc on those items only; ordinary list items keep theirs. The
+   checkbox then occupies the marker gutter so the text lines up with
+   a neighbouring plain list. */
+.y-prose li:has(> input[type="checkbox"]) { list-style: none; }
+.y-prose li:has(> input[type="checkbox"]) > input[type="checkbox"] {
+  margin-inline-start: -1.4em;
+  margin-inline-end: 0.35em;
+  vertical-align: middle;
+}
 .y-prose li { margin: 4px 0; }
 .y-prose blockquote { margin: 22px 0 0; padding: 2px 0 2px 16px; border-left: 2px solid var(--border-strong); color: var(--fg-subtle); }
 .y-prose hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
