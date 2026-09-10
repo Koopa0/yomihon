@@ -61,10 +61,14 @@ type Model struct {
 	paths []Path
 	// maps are every other map-note tree, ordered by domain and then title.
 	maps []Map
-	// journal is the most recent captured journal entries, newest first, taken
-	// from the file listing rather than from any note type. It is empty when
-	// the contract declared no journal directory.
-	journal []JournalEntry
+	// journal records whether the journal projection was withheld, and why.
+	// It is open when the directory was read cleanly and open when no
+	// contract ever named one.
+	journal Closure
+	// journalEntries is the most recent captured journal entries, newest first,
+	// taken from the file listing rather than from any note type. It is empty
+	// when the contract declared no journal directory.
+	journalEntries []JournalEntry
 	// journalDir is the contract's journal capability, so InJournal asks the
 	// same declaration buildJournal did.
 	journalDir schema.JournalDir
@@ -102,6 +106,14 @@ func (m *Model) ArtifactClosure() Closure {
 		return Closure{}
 	}
 	return m.artifact
+}
+
+// JournalClosure reports whether the journal projection was withheld, and why.
+func (m *Model) JournalClosure() Closure {
+	if m == nil {
+		return Closure{}
+	}
+	return m.journal
 }
 
 // DeclaredClosure is the one answer for whether the projections a contract's
@@ -196,7 +208,7 @@ func (m *Model) Journal() []JournalEntry {
 	if m == nil {
 		return nil
 	}
-	return slices.Clone(m.journal)
+	return slices.Clone(m.journalEntries)
 }
 
 // Reports returns the files captured below System/reports/.
@@ -382,7 +394,7 @@ func newModel(
 	}
 	m := &Model{
 		reports:        buildReports(paths),
-		journal:        buildJournal(paths, mtimes, journal),
+		journalEntries: buildJournal(paths, mtimes, journal),
 		journalDir:     journal,
 		knowledgeScope: scope,
 	}
@@ -390,6 +402,7 @@ func newModel(
 	m.dirNotes = buildDirNotes(notePaths)
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
+	m.journal = Close(journal.Claim())
 	// The recent-notes summary is collected in every contract state; paths and
 	// maps exist only as a contract's own classification, so either closed
 	// declaration ends the build with none of them.

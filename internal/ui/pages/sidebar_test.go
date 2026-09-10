@@ -400,6 +400,41 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	}
 }
 
+// TestSidebarRendersRejectedJournalDirDiagnostic is the journal half of the
+// capability-fault lock: a contract that wrote journal_dir and could not honour
+// it must say so on the rail. Gating the drawer on an empty projection alone
+// made a typo look like a vault that never kept a journal.
+func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	contract := rejectedJournalDirContract(t)
+	model := nav.New(
+		nil, nil, graph.BuildFromNotes(nil, nil),
+		contract.NavigationRoles(),
+		contract.KnowledgeScope(),
+		contract.ArtifactPolicy(),
+		contract.JournalDir(),
+	)
+	if !model.JournalClosure().Closed() || model.JournalClosure().Diagnostic() == "" {
+		t.Fatalf("fixture produced no journal fault: closed=%t diagnostic=%q",
+			model.JournalClosure().Closed(), model.JournalClosure().Diagnostic())
+	}
+	var buf bytes.Buffer
+	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	for _, want := range []string{
+		`data-sidebar-group="journal"`,
+		"日誌目前無法使用。",
+		htmlEscape(model.JournalClosure().Diagnostic()),
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rendered rejected-journal sidebar is missing %q", want)
+		}
+	}
+}
+
 // TestSidebarSaysNothingForAnUngovernedFolder is the other half: a folder that
 // carries no contract declared nothing, so it has no paths and no maps, and the
 // rail must not apologise on every page for the ordinary shape of a directory.
@@ -420,8 +455,10 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 	html := buf.String()
 	for _, unwanted := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
+		`data-sidebar-group="journal"`,
 		"路徑與地圖目前無法使用",
 		"治理項目投影目前無法使用",
+		"日誌目前無法使用",
 	} {
 		if strings.Contains(html, unwanted) {
 			t.Errorf("ungoverned sidebar renders %q; nothing ever claimed governance here", unwanted)
@@ -468,6 +505,53 @@ map_types = ["moc"]
 
 [artifacts]
 non_instance_dirs = ["../escape"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+`
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("schema.LoadFile = %v", err)
+	}
+	return contract
+}
+
+// rejectedJournalDirContract writes a journal_dir the capability refuses, so
+// the journal projection closes while paths and maps stay open.
+func rejectedJournalDirContract(t *testing.T) *schema.Contract {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	text := `schema_version = "1"
+
+[enums]
+type = ["concept", "moc", "study-path"]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "based_on"]
+
+[rules]
+concept_requires_provenance = ["based_on"]
+
+[scan]
+knowledge_dirs = ["Concepts"]
+
+[navigation]
+path_types = ["study-path"]
+map_types = ["moc"]
+journal_dir = "../escape"
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
 
 [[lifecycle]]
 status = "draft"

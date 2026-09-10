@@ -48,6 +48,7 @@ var (
 	)
 	PathsAndMapsUnavailable = both("路徑與地圖目前無法使用。", "Paths and maps are unavailable.")
 	ArtifactsUnavailable    = both("治理項目投影目前無法使用。", "Governed-item projections are unavailable.")
+	JournalUnavailable      = both("日誌目前無法使用。", "Journal is unavailable.")
 )
 
 // CourseOrderOf names a study path's own order, which the foot of the article

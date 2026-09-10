@@ -713,6 +713,12 @@ func TestJournalShelfFollowsTheDeclaredDirectory(t *testing.T) {
 		if len(model.Journal()) != 0 {
 			t.Errorf("undeclared Journal = %v, want empty", model.Journal())
 		}
+		if model.JournalClosure().Closed() {
+			t.Error("undeclared JournalClosure is shut; an unnamed journal is empty, not withheld")
+		}
+		if model.JournalClosure().Diagnostic() != "" {
+			t.Errorf("undeclared JournalClosure().Diagnostic() = %q, want silent", model.JournalClosure().Diagnostic())
+		}
 		if model.InJournal("Diary/2026-07-10.md") {
 			t.Error("InJournal is true with no journal_dir")
 		}
@@ -1722,7 +1728,7 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 		rootNotes:       []NoteRef{{Name: "README", RelPath: "README.md"}},
 		paths:           []Path{{Title: "Path"}},
 		maps:            []Map{{Title: "Map"}},
-		journal:         []JournalEntry{{Title: "Today"}},
+		journalEntries:  []JournalEntry{{Title: "Today"}},
 		reports:         []Report{{Name: "report.md"}},
 		knowledgeNotes:  []NoteSummary{{Title: "A"}},
 		knowledgeScoped: true,
@@ -1816,7 +1822,7 @@ func immutableModelFixture() *Model {
 			Planned: 2,
 		}},
 		maps:           []Map{{Title: "Map", RelPath: "Maps/Map.md", Branches: []Branch{{Heading: "Shelf"}}}},
-		journal:        []JournalEntry{{Title: "Recent", RelPath: "Journal/Recent.md"}},
+		journalEntries: []JournalEntry{{Title: "Recent", RelPath: "Journal/Recent.md"}},
 		reports:        []Report{{Name: "report.md", RelPath: "System/reports/report.md"}},
 		knowledgeNotes: []NoteSummary{{Title: "Lesson", RelPath: "Writing/Lessons/Lesson.md"}},
 		placementIndex: map[string][]Placement{
