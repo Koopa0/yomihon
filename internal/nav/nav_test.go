@@ -1245,23 +1245,21 @@ func TestParseBranchesHeadingAndLinkShareEachSkipZone(t *testing.T) {
 		{name: "tilde fence", zone: "~~~\n" + inner + "~~~\n"},
 	}
 
-	want := []Branch{
-		{
-			Heading: "Real",
-			Level:   2,
-			Entries: []MapEntry{{Text: "Live", Target: "Live", RelPath: "Live.md"}},
+	want := []Branch{{
+		Heading: "Real",
+		Level:   2,
+		Entries: []MapEntry{
+			{Text: "Live", Target: "Live", RelPath: "Live.md"},
+			{Text: "After", Target: "After", RelPath: "After.md"},
 		},
-		{
-			Heading: "After",
-			Level:   2,
-			Entries: []MapEntry{{Text: "After", Target: "After", RelPath: "After.md"}},
-		},
-	}
+	}}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			body := "## Real\n\nSee [[Live]].\n\n" + tt.zone + "\n## After\n\nLater [[After]].\n"
+			// After sits past the zone with no new heading, so a ghost
+			// heading the zone failed to hide files it under Hidden.
+			body := "## Real\n\nSee [[Live]].\n\n" + tt.zone + "\nLater [[After]].\n"
 			got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
 			if heading, link := zoneAdmission(got, "Hidden"); heading != link {
 				t.Errorf("Hidden heading admitted=%v, Hidden link admitted=%v; they must match", heading, link)
