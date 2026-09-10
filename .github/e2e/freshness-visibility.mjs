@@ -243,13 +243,17 @@ try {
     });
     if (!column) broken('the note page carries no freshness watch to start');
 
-    try {
-      await page.waitForEvent('request', {
-        predicate: (request) => isFreshness(request.url()),
-        timeout: 4000,
-      });
-    } catch {
-      broken('a visible note never asked /freshness/, so a restore resume would prove nothing');
+    // tick() runs during load. Waiting for the next request after goto
+    // would miss the one that already proved the watch is alive.
+    if (polls.length < 1) {
+      try {
+        await page.waitForEvent('request', {
+          predicate: (request) => isFreshness(request.url()),
+          timeout: 4000,
+        });
+      } catch {
+        broken('a visible note never asked /freshness/, so a restore resume would prove nothing');
+      }
     }
 
     await page.evaluate(() => {
