@@ -142,8 +142,10 @@ func TestMarkdownCheckReportFrontmatterTheVaultAccepts(t *testing.T) {
 // TestExistsMatchesTitleEnOnlyWhenKnown is the Lock for exists / title_en.
 // The local title and the English title are different strings, so a match on
 // title_en cannot be excused as a folded title hit. When the contract omits
-// title_en from every declared list, the name is absent; when fields.known or
-// a per-type list such as fields.lesson_only declares it, the match names it.
+// title_en from every declared list, the name is absent; when fields.known
+// declares it, or fields.lesson_only declares it on a lesson, the match names
+// it. A concept carrying the same lesson-only field is the leftover case:
+// check calls the key unknown, so exists must not report it.
 func TestExistsMatchesTitleEnOnlyWhenKnown(t *testing.T) {
 	t.Parallel()
 
@@ -200,6 +202,43 @@ func TestExistsMatchesTitleEnOnlyWhenKnown(t *testing.T) {
 		}
 		if !bytes.Contains(out, []byte(`"field":"title_en"`)) {
 			t.Errorf("exists did not match title_en when fields.lesson_only declares it:\n%s", out)
+		}
+	})
+
+	t.Run("lesson_only field on a concept is unknown", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		write(t, root, schema.ContractRelPath, contractFixture(t, nil))
+		const concept = "---\ntitle: Local Name\ntitle_en: English Name\ntype: concept\ndomain: golang\nstatus: seedling\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\nBody.\n"
+		write(t, root, "Concepts/golang/Local Name.md", concept)
+		out, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "English Name", Format: FormatJSON})
+		if err != nil {
+			t.Fatalf("RunExists() error = %v", err)
+		}
+		if exit != 1 {
+			t.Errorf("RunExists() exit = %d, want 1 (title_en is lesson_only on a concept)\n%s", exit, out)
+		}
+		if bytes.Contains(out, []byte(`"field":"title_en"`)) {
+			t.Errorf("exists matched title_en on a concept; check calls that field unknown:\n%s", out)
+		}
+
+		contract, err := schema.Load(root)
+		if err != nil {
+			t.Fatalf("schema.Load() error = %v", err)
+		}
+		findings, err := LintFrontmatter("Concepts/golang/Local Name.md", []byte(concept), contract)
+		if err != nil {
+			t.Fatalf("LintFrontmatter() error = %v", err)
+		}
+		unknown := false
+		for i := range findings {
+			if findings[i].RuleID == "schema.unknown_key" && findings[i].Message == `frontmatter "title_en" is not a known field` {
+				unknown = true
+				break
+			}
+		}
+		if !unknown {
+			t.Errorf("check did not call title_en unknown on the concept: %v", schemaFindingMessages(findings))
 		}
 	})
 }
