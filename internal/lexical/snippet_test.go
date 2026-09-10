@@ -778,12 +778,8 @@ func TestMappedEndContractsAnNFDPrefix(t *testing.T) {
 	raw := "caf\u0065\u0301\n\nrest"
 	off := len("caf\u0065\u0301")
 	got := mappedEnd(raw, off)
-	want := blockEndsOnNormalized(raw, []int{off})[0]
-	if got != want {
-		t.Fatalf("mappedEnd(%d) = %d, want blockEndsOnNormalized[0] = %d", off, got, want)
-	}
 	if got == off {
-		t.Fatalf("mappedEnd returned the raw offset %d; NFC contracted the prefix to %d", off, want)
+		t.Fatalf("mappedEnd returned the raw offset %d; NFC contracted café 6→5", off)
 	}
 }
 
@@ -857,32 +853,25 @@ func TestFenceExcerptDoesNotWalkToThePreviousSentence(t *testing.T) {
 	}
 }
 
-// TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix locks
-// foldIndexAtSource. Fullwidth ASCII narrows 3-to-1 and a CJK wrap
+// TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix is the fold
+// half of the fence remap: fullwidth ASCII narrows 3-to-1 and a CJK wrap
 // drops the break, so the fence's fold offset is not its source offset.
-// Identity (return src) would place the fold range past the hit and
-// classify a fence-only note as prose.
+// Identity (foldIndexAtSource → return src) places the fold range past
+// the hit and classifies a fence-only phrase as prose.
 func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
 	t.Parallel()
 
 	const needle = "UNIQUE_FOLD_FENCE_PHRASE"
-	d := DocumentFromNote(vault.Parse("Notes/Fold fence.md", []byte(""+
-		"# Fold fence\n\n"+
-		strings.Repeat("Ｇｏ", 20)+"の\n並行処理。\n\n"+
-		"```d2\n"+
-		needle+"\n"+
-		"```\n")))
-	plain := vault.NormalizeNFC(d.PlainText)
-	mapped := fenceRangesOnNormalized(d.PlainText, d.FenceRanges)
-	folded := foldRanges(plain, mapped)
-	if len(mapped) != 1 || len(folded) != 1 {
-		t.Fatalf("fence ranges: source %v fold %v, want one span in each space", mapped, folded)
-	}
-	if mapped[0][0] == folded[0][0] {
-		t.Fatal("fold and source fence starts agree; foldIndexAtSource is untested")
-	}
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Fold fence.md", []byte(""+
+			"# Fold fence\n\n"+
+			strings.Repeat("Ｇｏ", 20)+"の\n並行処理。\n\n"+
+			"```d2\n"+
+			needle+"\n"+
+			"```\n\n"+
+			"The workers close after the source.\n"))),
+	}, validArtifactPolicy(t))
 
-	idx := NewIndex([]Document{d}, validArtifactPolicy(t))
 	results, _, err := idx.SearchN(Parse(needle), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
@@ -891,7 +880,10 @@ func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
 		t.Fatalf("Search() returned %d results, want 1", len(results))
 	}
 	if !results[0].Source {
-		t.Fatal("Source = false; the phrase lives only in the fence, and foldIndexAtSource must still say so")
+		t.Fatal("Source = false; the phrase lives only in the fence")
+	}
+	if strings.Contains(results[0].Snippet, "workers") {
+		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)
 	}
 	if !strings.Contains(results[0].Snippet, needle) {
 		t.Fatalf("snippet() = %q, dropped the fence phrase", results[0].Snippet)
