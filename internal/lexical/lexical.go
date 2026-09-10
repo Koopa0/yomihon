@@ -252,15 +252,13 @@ func (idx *Index) WithArtifactPolicy(policy schema.ArtifactPolicy) *Index {
 func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	title := vault.NormalizeNFC(d.Title)
 	plain := vault.NormalizeNFC(d.PlainText)
-	// Block ends are taken on the raw walk; NFC each slice and accumulate so
-	// a single combining mark cannot drop the map for the whole note. A
-	// newline is an NFC starter, so joining the normalised slices is the
-	// same string as normalising the body in one pass.
-	blockEnds := blockEndsOnNormalized(d.PlainText, d.BlockEnds)
-	fenceRanges := fenceRangesOnNormalized(d.PlainText, d.FenceRanges)
-	// Fold-space spans are tabulated here so a query can classify a hit
-	// without walking the note once per fence occurrence.
-	fenceFoldRanges := foldRanges(plain, fenceRanges)
+	// Block ends and fence bounds share one NFC walk: the two remaps used
+	// to normalise the same slices twice, and a save rebuilds the index.
+	// Fold-space spans are recorded on the same foldRunes walk that
+	// builds PlainFold, so a query can classify a hit without walking
+	// the note once per fence occurrence.
+	blockEnds, fenceRanges := remapPlainOffsets(d.PlainText, d.BlockEnds, d.FenceRanges)
+	plainFold, fenceFoldRanges := foldPlain(plain, fenceRanges)
 	noteType := vault.NormalizeNFC(d.NoteType)
 	domain := vault.NormalizeNFC(d.Domain)
 	status := vault.NormalizeNFC(d.Status)
@@ -295,7 +293,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		Topics:          topics,
 		TopicFolds:      topicFolds,
 		PlainText:       plain,
-		PlainFold:       fold(plain),
+		PlainFold:       plainFold,
 		blockEnds:       blockEnds,
 		fenceRanges:     fenceRanges,
 		fenceFoldRanges: fenceFoldRanges,
@@ -308,82 +306,28 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	}
 }
 
-// blockEndsOnNormalized maps exclusive block ends from raw onto NFC(raw).
-// Each slice is normalised on its own and the lengths are accumulated; the
-// caller stores the NFC body, so these offsets name characters there.
-func blockEndsOnNormalized(raw string, ends []int) []int {
-	if len(ends) == 0 {
-		return nil
+// remapPlainOffsets maps exclusive block ends and half-open fence spans
+// from raw onto NFC(raw) in one left-to-right pass. Each slice is
+// normalised on its own and the lengths are accumulated; the caller
+// stores the NFC body, so these offsets name characters there.
+// Pairing reads the mapped fence slice in the same start/end order the
+// ranges were flattened, so a repeated bound must not be dropped.
+func remapPlainOffsets(raw string, ends []int, fences [][2]int) (blockEnds []int, fenceRanges [][2]int) {
+	if len(ends) == 0 && len(fences) == 0 {
+		return nil, nil
 	}
-	out := make([]int, 0, len(ends))
-	prev, n := 0, 0
-	for _, end := range ends {
-		if end < prev {
-			continue
-		}
-		if end > len(raw) {
-			end = len(raw)
-		}
-		n += len(vault.NormalizeNFC(raw[prev:end]))
-		if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
-			out = append(out, n)
-		}
-		prev = end
-	}
-	if prev < len(raw) {
-		n += len(vault.NormalizeNFC(raw[prev:]))
-		if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
-			out = append(out, n)
-		}
-	}
-	return out
-}
-
-// fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw)
-// in one left-to-right pass. mappedEnd used to normalise the whole note
-// twice per boundary — thousands of times per build — and a save rebuilds
-// the index. Pairing reads the mapped slice in the same start/end order
-// the ranges were flattened, so a repeated bound must not be dropped.
-func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
-	if len(ranges) == 0 {
-		return nil
-	}
-	offs := make([]int, 0, 2*len(ranges))
-	for _, r := range ranges {
-		offs = append(offs, r[0], r[1])
-	}
-	return pairedSpans(offsetsOnNormalized(raw, offs))
-}
-
-func mappedEnd(raw string, off int) int {
-	if off <= 0 {
-		return 0
-	}
-	return offsetsOnNormalized(raw, []int{off})[0]
-}
-
-// offsetsOnNormalized maps raw offsets onto NFC(raw) the way
-// blockEndsOnNormalized accumulates exclusive ends, but it keeps a
-// one-to-one result: two bounds that share a raw offset stay two mapped
-// offsets so a flattened [start, end, start, end] list can be paired back.
-func offsetsOnNormalized(raw string, offs []int) []int {
-	if len(offs) == 0 {
-		return nil
-	}
-	type bound struct {
+	type fenceBound struct {
 		off int
 		i   int
 	}
-	bounds := make([]bound, len(offs))
-	for i, off := range offs {
-		if off < 0 {
-			off = 0
-		} else if off > len(raw) {
-			off = len(raw)
-		}
-		bounds[i] = bound{off: off, i: i}
+	fbounds := make([]fenceBound, 0, 2*len(fences))
+	for _, r := range fences {
+		fbounds = append(fbounds,
+			fenceBound{off: clampOff(r[0], len(raw)), i: len(fbounds)},
+			fenceBound{off: clampOff(r[1], len(raw)), i: len(fbounds) + 1},
+		)
 	}
-	slices.SortStableFunc(bounds, func(a, b bound) int {
+	slices.SortStableFunc(fbounds, func(a, b fenceBound) int {
 		if a.off < b.off {
 			return -1
 		}
@@ -392,44 +336,109 @@ func offsetsOnNormalized(raw string, offs []int) []int {
 		}
 		return 0
 	})
-	out := make([]int, len(offs))
-	prev, n := 0, 0
-	for _, b := range bounds {
-		if b.off > prev {
-			n += len(vault.NormalizeNFC(raw[prev:b.off]))
-			prev = b.off
+	mappedFence := make([]int, len(fbounds))
+	if len(ends) > 0 {
+		blockEnds = make([]int, 0, len(ends)+1)
+	}
+
+	prev, n, fi := 0, 0, 0
+	advanceTo := func(off int) {
+		if off > len(raw) {
+			off = len(raw)
 		}
-		out[b.i] = n
+		if off < prev {
+			return
+		}
+		for fi < len(fbounds) && fbounds[fi].off < off {
+			if fbounds[fi].off > prev {
+				n += len(vault.NormalizeNFC(raw[prev:fbounds[fi].off]))
+				prev = fbounds[fi].off
+			}
+			mappedFence[fbounds[fi].i] = n
+			fi++
+		}
+		if off > prev {
+			n += len(vault.NormalizeNFC(raw[prev:off]))
+			prev = off
+		}
+		for fi < len(fbounds) && fbounds[fi].off == off {
+			mappedFence[fbounds[fi].i] = n
+			fi++
+		}
 	}
-	return out
+
+	prevRaw := 0
+	for _, end := range ends {
+		if end < prevRaw {
+			continue
+		}
+		if end > len(raw) {
+			end = len(raw)
+		}
+		advanceTo(end)
+		if n > 0 && (len(blockEnds) == 0 || blockEnds[len(blockEnds)-1] != n) {
+			blockEnds = append(blockEnds, n)
+		}
+		prevRaw = end
+	}
+	if len(ends) == 0 || prevRaw < len(raw) {
+		advanceTo(len(raw))
+		if len(ends) > 0 && n > 0 && (len(blockEnds) == 0 || blockEnds[len(blockEnds)-1] != n) {
+			blockEnds = append(blockEnds, n)
+		}
+	}
+	for fi < len(fbounds) {
+		mappedFence[fbounds[fi].i] = n
+		fi++
+	}
+	if len(blockEnds) == 0 {
+		blockEnds = nil
+	}
+	if len(fences) > 0 {
+		fenceRanges = pairedSpans(mappedFence)
+	}
+	return blockEnds, fenceRanges
 }
 
-// foldRanges maps source-space half-open spans onto the folded copy of
-// plain, so a query can test membership in fold coordinates. It walks
-// foldRunes once and records only the boundary offsets: materialising
-// the full source table is eight bytes per source byte, per fenced note.
-func foldRanges(plain string, ranges [][2]int) [][2]int {
+func clampOff(off, n int) int {
+	if off < 0 {
+		return 0
+	}
+	if off > n {
+		return n
+	}
+	return off
+}
+
+// fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw)
+// through the one remap production uses.
+func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
+	_, fences := remapPlainOffsets(raw, nil, ranges)
+	return fences
+}
+
+// foldPlain folds already-NFC plain and maps fence spans onto that
+// folded copy in the same walk. A second foldRunes pass used to walk
+// the note again just for the bounds, and kept walking past the last one.
+func foldPlain(plain string, ranges [][2]int) (folded string, foldFences [][2]int) {
+	var out strings.Builder
+	out.Grow(len(plain))
 	if len(ranges) == 0 {
-		return nil
-	}
-	offs := make([]int, 0, 2*len(ranges))
-	for _, r := range ranges {
-		offs = append(offs, r[0], r[1])
-	}
-	return pairedSpans(foldBoundaryOffsets(plain, offs))
-}
-
-func foldBoundaryOffsets(plain string, srcOffs []int) []int {
-	if len(srcOffs) == 0 {
-		return nil
+		foldRunes(plain, func(r rune, _ int) {
+			out.WriteRune(r)
+		})
+		return out.String(), nil
 	}
 	type bound struct {
 		src int
 		i   int
 	}
-	bounds := make([]bound, len(srcOffs))
-	for i, src := range srcOffs {
-		bounds[i] = bound{src: src, i: i}
+	bounds := make([]bound, 0, 2*len(ranges))
+	for _, r := range ranges {
+		bounds = append(bounds,
+			bound{src: r[0], i: len(bounds)},
+			bound{src: r[1], i: len(bounds) + 1},
+		)
 	}
 	slices.SortStableFunc(bounds, func(a, b bound) int {
 		if a.src < b.src {
@@ -440,20 +449,29 @@ func foldBoundaryOffsets(plain string, srcOffs []int) []int {
 		}
 		return 0
 	})
-	out := make([]int, len(srcOffs))
+	mapped := make([]int, len(bounds))
 	next, foldPos := 0, 0
 	foldRunes(plain, func(r rune, at int) {
 		for next < len(bounds) && bounds[next].src <= at {
-			out[bounds[next].i] = foldPos
+			mapped[bounds[next].i] = foldPos
 			next++
 		}
+		out.WriteRune(r)
 		foldPos += utf8.RuneLen(r)
 	})
 	for next < len(bounds) {
-		out[bounds[next].i] = foldPos
+		mapped[bounds[next].i] = foldPos
 		next++
 	}
-	return out
+	return out.String(), pairedSpans(mapped)
+}
+
+// foldRanges maps source-space half-open spans onto the folded copy of
+// plain. Production records those spans on the foldPlain walk; this
+// keeps the same mapping for a snippet that was not built through NewIndex.
+func foldRanges(plain string, ranges [][2]int) [][2]int {
+	_, foldFences := foldPlain(plain, ranges)
+	return foldFences
 }
 
 func pairedSpans(offs []int) [][2]int {

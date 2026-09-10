@@ -718,8 +718,8 @@ func TestExcerptPrefersProseWhenTheSameWordsSitInAFence(t *testing.T) {
 	if !strings.Contains(got, "The source owns jobs after the workers close.") {
 		t.Errorf("snippet() = %q, want the prose window that holds the same words", got)
 	}
-	if results[0].Source {
-		t.Error("Source = true; the prose window answered, so the row is not a fence hit")
+	if results[0].FromFence {
+		t.Error("FromFence = true; the prose window answered, so the row is not a fence hit")
 	}
 }
 
@@ -754,8 +754,8 @@ func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
 	if !strings.Contains(got, "owns jobs") {
 		t.Errorf("snippet() = %q, dropped the fence words the query asked for", got)
 	}
-	if !results[0].Source {
-		t.Error("Source = false; a fence-only hit must name the excerpt as source")
+	if !results[0].FromFence {
+		t.Error("FromFence = false; a fence-only hit must name the excerpt as source")
 	}
 	body := strings.TrimPrefix(got, "…")
 	if strings.HasPrefix(strings.ToLower(body), "source:") {
@@ -769,39 +769,24 @@ func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
 	}
 }
 
-// TestMappedEndContractsAnNFDPrefix is the NFC remap lock: identity
-// (mappedEnd → return off) stays green unless a combining mark sits
-// before the offset. offsetsOnNormalized is the one pass fence bounds
-// use; mappedEnd is that pass for a single offset.
-func TestMappedEndContractsAnNFDPrefix(t *testing.T) {
+// TestRemapPlainOffsetsPreserveARepeatedBound locks the no-dedupe half
+// of the one NFC remap: two fence spans that share a raw offset must
+// stay two spans, or pairing a flattened [start, end, …] list shifts
+// every later span.
+func TestRemapPlainOffsetsPreserveARepeatedBound(t *testing.T) {
 	t.Parallel()
 
 	raw := "caf\u0065\u0301\n\nrest"
 	off := len("caf\u0065\u0301")
-	got := mappedEnd(raw, off)
-	if got == off {
-		t.Fatalf("mappedEnd returned the raw offset %d; NFC contracted café 6→5", off)
-	}
-}
-
-// TestOffsetsOnNormalizedPreserveARepeatedBound locks the no-dedupe
-// half of that pass: two fence bounds that share a raw offset must stay
-// two mapped offsets, or pairing a flattened [start, end, …] list
-// shifts every later span.
-func TestOffsetsOnNormalizedPreserveARepeatedBound(t *testing.T) {
-	t.Parallel()
-
-	raw := "caf\u0065\u0301\n\nrest"
-	off := len("caf\u0065\u0301")
-	got := offsetsOnNormalized(raw, []int{off, off})
+	_, got := remapPlainOffsets(raw, nil, [][2]int{{0, off}, {off, len(raw)}})
 	if len(got) != 2 {
-		t.Fatalf("offsetsOnNormalized(%d, %d) = %v, want two mapped offsets", off, off, got)
+		t.Fatalf("remapPlainOffsets fences = %v, want two spans sharing the café bound", got)
 	}
-	if got[0] != got[1] {
-		t.Fatalf("repeated bound mapped to %d and %d; the pair must stay aligned", got[0], got[1])
+	if got[0][1] != got[1][0] {
+		t.Fatalf("shared bound mapped to %d and %d; the pair must stay aligned", got[0][1], got[1][0])
 	}
-	if got[0] == off {
-		t.Fatalf("mapped offset %d is the raw offset; NFC contracted café 6→5", got[0])
+	if got[0][1] == off {
+		t.Fatalf("mapped offset %d is the raw offset; NFC contracted café 6→5", off)
 	}
 }
 
@@ -829,8 +814,8 @@ func TestFenceRangeRemapSurvivesAnNFDCharacter(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("Search() returned %d results, want 1", len(results))
 	}
-	if !results[0].Source {
-		t.Fatal("Source = false; the phrase lives only in the fence")
+	if !results[0].FromFence {
+		t.Fatal("FromFence = false; the phrase lives only in the fence")
 	}
 	if strings.Contains(results[0].Snippet, "workers") {
 		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)
@@ -864,8 +849,8 @@ func TestFenceExcerptDoesNotWalkToThePreviousSentence(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("Search() returned %d results, want 1", len(results))
 	}
-	if !results[0].Source {
-		t.Fatal("Source = false; the token lives only in the fence")
+	if !results[0].FromFence {
+		t.Fatal("FromFence = false; the token lives only in the fence")
 	}
 	if strings.Contains(results[0].Snippet, "UNIQUE_FENCE_HEAD") {
 		t.Fatalf("snippet() = %q, walked back to the previous sentence inside the fence", results[0].Snippet)
@@ -878,8 +863,9 @@ func TestFenceExcerptDoesNotWalkToThePreviousSentence(t *testing.T) {
 // TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix is the fold
 // half of the fence remap: fullwidth ASCII narrows 3-to-1 and a CJK wrap
 // drops the break, so the fence's fold offset is not its source offset.
-// Identity (foldBoundaryOffsets recording the source offset) places
-// the fold range past the hit and classifies a fence-only phrase as prose.
+// Identity (foldPlain recording the source offset as the fold index)
+// places the fold range past the hit and classifies a fence-only phrase
+// as prose.
 func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
 	t.Parallel()
 
@@ -901,8 +887,8 @@ func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("Search() returned %d results, want 1", len(results))
 	}
-	if !results[0].Source {
-		t.Fatal("Source = false; the phrase lives only in the fence")
+	if !results[0].FromFence {
+		t.Fatal("FromFence = false; the phrase lives only in the fence")
 	}
 	if strings.Contains(results[0].Snippet, "workers") {
 		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)

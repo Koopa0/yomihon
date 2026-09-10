@@ -53,10 +53,10 @@ type Result struct {
 	// so a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
 
-	// Source reports that the deciding excerpt is a fenced block: the words
-	// live only there. The row names that the way it names an alias or a
-	// topic; the excerpt itself stays the fence's own lines.
-	Source bool
+	// FromFence reports that the deciding excerpt is a fenced block: the
+	// words live only there. The row names that the way it names an alias
+	// or a topic; the excerpt itself stays the fence's own lines.
+	FromFence bool
 }
 
 const (
@@ -405,7 +405,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		Landing:       landing,
 		LandingEnd:    landingEnd,
 		BlockCrossing: crossing,
-		Source:        fromFence,
+		FromFence:     fromFence,
 	}
 }
 
