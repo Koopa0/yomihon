@@ -316,57 +316,10 @@ func remapPlainOffsets(raw string, ends []int, fences [][2]int) (blockEnds []int
 	if len(ends) == 0 && len(fences) == 0 {
 		return nil, nil
 	}
-	type fenceBound struct {
-		off int
-		i   int
-	}
-	fbounds := make([]fenceBound, 0, 2*len(fences))
-	for _, r := range fences {
-		fbounds = append(fbounds,
-			fenceBound{off: clampOff(r[0], len(raw)), i: len(fbounds)},
-			fenceBound{off: clampOff(r[1], len(raw)), i: len(fbounds) + 1},
-		)
-	}
-	slices.SortStableFunc(fbounds, func(a, b fenceBound) int {
-		if a.off < b.off {
-			return -1
-		}
-		if a.off > b.off {
-			return 1
-		}
-		return 0
-	})
-	mappedFence := make([]int, len(fbounds))
+	cur := newNFCCursor(raw, sortedFenceBounds(raw, fences))
 	if len(ends) > 0 {
 		blockEnds = make([]int, 0, len(ends)+1)
 	}
-
-	prev, n, fi := 0, 0, 0
-	advanceTo := func(off int) {
-		if off > len(raw) {
-			off = len(raw)
-		}
-		if off < prev {
-			return
-		}
-		for fi < len(fbounds) && fbounds[fi].off < off {
-			if fbounds[fi].off > prev {
-				n += len(vault.NormalizeNFC(raw[prev:fbounds[fi].off]))
-				prev = fbounds[fi].off
-			}
-			mappedFence[fbounds[fi].i] = n
-			fi++
-		}
-		if off > prev {
-			n += len(vault.NormalizeNFC(raw[prev:off]))
-			prev = off
-		}
-		for fi < len(fbounds) && fbounds[fi].off == off {
-			mappedFence[fbounds[fi].i] = n
-			fi++
-		}
-	}
-
 	prevRaw := 0
 	for _, end := range ends {
 		if end < prevRaw {
@@ -375,29 +328,106 @@ func remapPlainOffsets(raw string, ends []int, fences [][2]int) (blockEnds []int
 		if end > len(raw) {
 			end = len(raw)
 		}
-		advanceTo(end)
-		if n > 0 && (len(blockEnds) == 0 || blockEnds[len(blockEnds)-1] != n) {
-			blockEnds = append(blockEnds, n)
-		}
+		cur.advanceTo(end)
+		blockEnds = appendUniqueEnd(blockEnds, cur.n)
 		prevRaw = end
 	}
 	if len(ends) == 0 || prevRaw < len(raw) {
-		advanceTo(len(raw))
-		if len(ends) > 0 && n > 0 && (len(blockEnds) == 0 || blockEnds[len(blockEnds)-1] != n) {
-			blockEnds = append(blockEnds, n)
+		cur.advanceTo(len(raw))
+		if len(ends) > 0 {
+			blockEnds = appendUniqueEnd(blockEnds, cur.n)
 		}
 	}
-	for fi < len(fbounds) {
-		mappedFence[fbounds[fi].i] = n
-		fi++
-	}
+	cur.finish()
 	if len(blockEnds) == 0 {
 		blockEnds = nil
 	}
 	if len(fences) > 0 {
-		fenceRanges = pairedSpans(mappedFence)
+		fenceRanges = pairedSpans(cur.mapped)
 	}
 	return blockEnds, fenceRanges
+}
+
+type rawBound struct {
+	off int
+	i   int
+}
+
+func sortedFenceBounds(raw string, fences [][2]int) []rawBound {
+	bounds := make([]rawBound, 0, 2*len(fences))
+	for _, r := range fences {
+		bounds = append(bounds,
+			rawBound{off: clampOff(r[0], len(raw)), i: len(bounds)},
+			rawBound{off: clampOff(r[1], len(raw)), i: len(bounds) + 1},
+		)
+	}
+	slices.SortStableFunc(bounds, func(a, b rawBound) int {
+		if a.off < b.off {
+			return -1
+		}
+		if a.off > b.off {
+			return 1
+		}
+		return 0
+	})
+	return bounds
+}
+
+// nfcCursor walks raw once, handing back the NFC length at each cut and
+// recording fence bounds as it passes them.
+type nfcCursor struct {
+	raw           string
+	prev, n, next int
+	bounds        []rawBound
+	mapped        []int
+}
+
+func newNFCCursor(raw string, bounds []rawBound) nfcCursor {
+	return nfcCursor{raw: raw, bounds: bounds, mapped: make([]int, len(bounds))}
+}
+
+func (c *nfcCursor) advanceTo(off int) {
+	if off > len(c.raw) {
+		off = len(c.raw)
+	}
+	if off < c.prev {
+		return
+	}
+	for c.next < len(c.bounds) && c.bounds[c.next].off < off {
+		c.recordBound()
+	}
+	if off > c.prev {
+		c.n += len(vault.NormalizeNFC(c.raw[c.prev:off]))
+		c.prev = off
+	}
+	for c.next < len(c.bounds) && c.bounds[c.next].off == off {
+		c.mapped[c.bounds[c.next].i] = c.n
+		c.next++
+	}
+}
+
+func (c *nfcCursor) recordBound() {
+	b := c.bounds[c.next]
+	if b.off > c.prev {
+		c.n += len(vault.NormalizeNFC(c.raw[c.prev:b.off]))
+		c.prev = b.off
+	}
+	c.mapped[b.i] = c.n
+	c.next++
+}
+
+func (c *nfcCursor) finish() {
+	for c.next < len(c.bounds) {
+		c.mapped[c.bounds[c.next].i] = c.n
+		c.next++
+	}
+}
+
+func appendUniqueEnd(out []int, n int) []int {
+	if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
+		return append(out, n)
+	}
+	return out
 }
 
 func clampOff(off, n int) int {

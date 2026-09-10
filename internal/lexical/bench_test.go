@@ -76,7 +76,7 @@ func BenchmarkSearchLiveVaultSizedFences(b *testing.B) {
 // every change. The corpus is 1226 copies of two ASCII bodies, 597 of
 // them carrying eight fences.
 func BenchmarkNewIndex(b *testing.B) {
-	docs := repeatedAsciiFenceDocs()
+	docs := repeatedASCIIFenceDocs()
 	policy := validArtifactPolicy(b)
 	b.ReportAllocs()
 	for b.Loop() {
@@ -112,10 +112,10 @@ func liveVaultSizedFenceDocs() []Document {
 	return docs
 }
 
-// repeatedAsciiFenceDocs is the build-cost smoke corpus: 1226 notes,
+// repeatedASCIIFenceDocs is the build-cost smoke corpus: 1226 notes,
 // 597 of them the same ASCII body carrying eight fences, the rest the
 // same unfenced ASCII body. It is not a live vault.
-func repeatedAsciiFenceDocs() []Document {
+func repeatedASCIIFenceDocs() []Document {
 	const notes = 1226
 	const fenced = 597
 	const fencesPer = 8
