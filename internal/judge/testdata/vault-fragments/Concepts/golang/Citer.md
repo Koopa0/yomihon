@@ -20,3 +20,5 @@ type: concept
 ![[Ghost#Section]] names a note nobody wrote, which is the broken-link rule's alone.
 [[Target#Result<T> 的取捨]] copies the heading the destination stamps.
 ![[Target#Result<T> 的取捨]] cuts an excerpt at that same heading.
+[[Target#^trapped]] names a caret that sits inside a longer fence.
+[[Target#^genuine]] reaches the line after that fence.

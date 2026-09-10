@@ -197,15 +197,16 @@ func authorProse(source string) string {
 	var kept []string
 	inFence := false
 	var fenceByte byte
+	var fenceLen int
 	for line := range strings.SplitSeq(source, "\n") {
 		if inFence {
-			if fenceCloses(line, fenceByte) {
+			if fenceCloses(line, fenceByte, fenceLen) {
 				inFence = false
 			}
 			continue
 		}
-		if marker, _, ok := fenceOpen(line); ok {
-			inFence, fenceByte = true, marker
+		if marker, n, _, ok := fenceOpen(line); ok {
+			inFence, fenceByte, fenceLen = true, marker, n
 			continue
 		}
 		kept = append(kept, blankCodeSpans(line))

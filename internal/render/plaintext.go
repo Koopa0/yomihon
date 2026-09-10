@@ -129,15 +129,16 @@ func plainPreprocess(body string) string {
 	lines := strings.Split(body, "\n")
 	inFence := false
 	var fenceByte byte
+	var fenceLen int
 	for i, line := range lines {
 		switch {
 		case inFence:
-			if fenceCloses(line, fenceByte) {
+			if fenceCloses(line, fenceByte, fenceLen) {
 				inFence = false
 			}
 		default:
-			if marker, _, ok := fenceOpen(line); ok {
-				inFence, fenceByte = true, marker
+			if marker, n, _, ok := fenceOpen(line); ok {
+				inFence, fenceByte, fenceLen = true, marker, n
 			} else {
 				lines[i] = plainLine(line)
 			}

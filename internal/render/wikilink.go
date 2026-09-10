@@ -380,22 +380,24 @@ var (
 )
 
 // fenceOpen reports whether line opens a fenced code block, with its marker
-// byte ('`' or '~') and the trimmed info string. The open itself is the line
-// scan's; the info string is this face's, because a mermaid fence is identified
-// by what follows the marks.
-func fenceOpen(line string) (marker byte, info string, ok bool) {
-	marker, ok = graph.FenceOpens(line)
+// byte ('`' or '~'), how many of that marker the opener used, and the trimmed
+// info string. The open and the run length are the line scan's; the info
+// string is this face's, because a mermaid fence is identified by what
+// follows the marks.
+func fenceOpen(line string) (marker byte, n int, info string, ok bool) {
+	marker, n, ok = graph.FenceOpens(line)
 	if !ok {
-		return 0, "", false
+		return 0, 0, "", false
 	}
 	t := strings.TrimLeft(line, " \t")
-	return marker, strings.TrimSpace(strings.TrimLeft(t, string(marker))), true
+	return marker, n, strings.TrimSpace(t[n:]), true
 }
 
 // fenceCloses reports whether line is a bare fence-close line for marker:
-// once trimmed, every character is marker and there are at least 3.
-func fenceCloses(line string, marker byte) bool {
-	return graph.FenceCloses(line, marker)
+// once trimmed, every character is marker and there are at least openerLen
+// of them. A shorter all-marker line is still fence content.
+func fenceCloses(line string, marker byte, openerLen int) bool {
+	return graph.FenceCloses(line, marker, openerLen)
 }
 
 // htmlBlockKind is one of the HTML blocks CommonMark ends at a particular
@@ -554,6 +556,7 @@ type preprocessState struct {
 
 	inFence   bool
 	fenceByte byte
+	fenceLen  int
 	// htmlEnds matches the appearance that ends the HTML block this scan is
 	// inside, nil when it is inside none.
 	htmlEnds *regexp.Regexp
@@ -614,7 +617,7 @@ func (st *preprocessState) trackHTMLBlock(line string) {
 func scanFenceLine(st *preprocessState, col *collector) {
 	line := st.lines[st.i]
 	switch {
-	case fenceCloses(line, st.fenceByte):
+	case fenceCloses(line, st.fenceByte, st.fenceLen):
 		st.inFence, st.pendingClose = false, ""
 	case !st.riskyFenceReported && looksRisky(line):
 		st.riskyFenceReported = true
@@ -631,12 +634,12 @@ func scanFenceLine(st *preprocessState, col *collector) {
 // a fence opener. A ```mermaid fence is instead consumed whole by consumeMermaid,
 // never left open for scanFenceLine.
 func tryOpenFence(st *preprocessState) bool {
-	marker, info, ok := fenceOpen(st.lines[st.i])
+	marker, n, info, ok := fenceOpen(st.lines[st.i])
 	if !ok {
 		return false
 	}
 	if strings.EqualFold(info, "mermaid") {
-		consumeMermaid(st, marker)
+		consumeMermaid(st, marker, n)
 		return true
 	}
 	// A close of this scan's own writing has to look like the opener: as many
@@ -644,10 +647,8 @@ func tryOpenFence(st *preprocessState) bool {
 	// the same indentation, since a fence opened inside a list item is closed
 	// from inside that item — a close at the margin ends the item instead and
 	// opens a fence of its own.
-	opener := strings.TrimLeft(st.lines[st.i], " \t")
-	run := len(opener) - len(strings.TrimLeft(opener, string(marker)))
-	st.inFence, st.fenceByte = true, marker
-	st.pendingClose = leadingSpace(st.lines[st.i]) + strings.Repeat(string(marker), run)
+	st.inFence, st.fenceByte, st.fenceLen = true, marker, n
+	st.pendingClose = leadingSpace(st.lines[st.i]) + strings.Repeat(string(marker), n)
 	st.kept = append(st.kept, st.lines[st.i])
 	st.i++
 	return true
@@ -659,10 +660,10 @@ func tryOpenFence(st *preprocessState) bool {
 // reader without scripting sees, and URL-encoded in data-mermaid-code, whose
 // charset needs no further attribute escaping. The browser side decodes that
 // attribute and replaces the content with the rendered diagram.
-func consumeMermaid(st *preprocessState, marker byte) {
+func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 	st.i++
 	start := st.i
-	for st.i < len(st.lines) && !fenceCloses(st.lines[st.i], marker) {
+	for st.i < len(st.lines) && !fenceCloses(st.lines[st.i], marker, openerLen) {
 		st.i++
 	}
 	src := strings.Join(st.lines[start:st.i], "\n")

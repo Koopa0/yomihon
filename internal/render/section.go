@@ -269,20 +269,20 @@ func blockSlice(body, block string) (string, bool) {
 // code rather than an address, so the scan tracks fences as it walks.
 func blockMarkerLine(lines []string, block string) int {
 	want := graph.FoldFragment("^" + block)
-	inFence, fenceByte := false, byte(0)
+	inFence, fenceByte, fenceLen := false, byte(0), 0
 	for i, line := range lines {
 		// A fence is looked for with any quote marker taken off it, because a
 		// fence written inside a callout opens one: that body is read on its
 		// own with the markers stripped, and a line of code in it is code.
 		unquoted := quotePrefix.ReplaceAllString(line, "")
 		if inFence {
-			if fenceCloses(unquoted, fenceByte) {
+			if fenceCloses(unquoted, fenceByte, fenceLen) {
 				inFence = false
 			}
 			continue
 		}
-		if open, _, ok := fenceOpen(unquoted); ok {
-			inFence, fenceByte = true, open
+		if open, n, _, ok := fenceOpen(unquoted); ok {
+			inFence, fenceByte, fenceLen = true, open, n
 			continue
 		}
 		if UnanchorableLine(line) {
