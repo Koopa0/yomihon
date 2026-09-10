@@ -22,3 +22,4 @@ type: concept
 ![[Target#Result<T> 的取捨]] cuts an excerpt at that same heading.
 [[Target#^trapped]] names a caret that sits inside a longer fence.
 [[Target#^genuine]] reaches the line after that fence.
+[[Target#^right`]] names a caret that sits inside a code span.

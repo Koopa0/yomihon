@@ -44,15 +44,34 @@ func UnanchorableLine(line string) bool {
 	return strings.HasPrefix(strings.TrimLeft(quotePrefix.ReplaceAllString(line, ""), " \t"), "|")
 }
 
+// CodeSpanOwnsBlockAddress reports whether the caret a line would take as a
+// block address sits inside a single-line code span. A caret there is the
+// author showing an expression, not naming a block. The three readers of a
+// block address ask this together so a link, an excerpt, and the page's ids
+// stay on one answer. Indented code and fences are not this question: those
+// have their own readings already.
+func CodeSpanOwnsBlockAddress(line string) bool {
+	trimmed := strings.TrimRight(line, " \t")
+	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
+	if m == nil {
+		return false
+	}
+	return withinAny(codeSpanRanges(trimmed), m[2], m[3])
+}
+
 // markBlockAnchor gives the address at the end of line an anchor a browser can
 // scroll to, leaving every visible character where it was: the marker keeps the
 // author's capitals and only the id is folded. A page carries one anchor per
 // address, and a repeated name stays with the first block, which is what the
 // excerpt scan and a browser would both do anyway. claim is whether this line
 // is the note's own text; a transcluded body still wraps a classified address
-// so speech can see it, but never takes the id. The span it plants is the
+// so speech can see it, but never takes the id. A caret a code span owns is
+// quoted text, not an address, and is left alone. The span it plants is the
 // signal the speech pass reads.
 func markBlockAnchor(line string, page *composition, inline *[]string, claim bool) string {
+	if CodeSpanOwnsBlockAddress(line) {
+		return line
+	}
 	trimmed := strings.TrimRight(line, " \t")
 	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
 	if m == nil {

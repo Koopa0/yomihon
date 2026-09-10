@@ -274,6 +274,10 @@ func TestBlockAddressAndExcerptScanAgreeOnUnusualLines(t *testing.T) {
 			name: "an address shown in a code span", address: "^cs", addressed: false,
 			body: "text `^cs`\n", reasonWhen: "the address is quoted text",
 		},
+		{
+			name: "an interior caret in a code span", address: "^right`", addressed: false,
+			body: "The XOR expression is `result := left ^right`\n", reasonWhen: "the caret is inside a code span",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -295,6 +299,25 @@ func TestBlockAddressAndExcerptScanAgreeOnUnusualLines(t *testing.T) {
 				t.Errorf("the link addresses this block = %v, want %v (%s):\n%s", hasFragment, tt.addressed, tt.reasonWhen, got.HTML)
 			}
 		})
+	}
+}
+
+// An interior caret in a single-line code span is an expression being shown,
+// not a block address. The tail match would otherwise take the closing
+// backtick with it, leave goldmark an unmatched opener, and invent an id from
+// the caret through that backtick.
+func TestInteriorCaretInACodeSpanKeepsTheSpan(t *testing.T) {
+	t.Parallel()
+
+	const body = "The XOR expression is `result := left ^right`\n"
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
+	page := r.HTML("B.md", "", body, wording.ZhHant)
+
+	if !strings.Contains(page.HTML, "<code>result := left ^right</code>") {
+		t.Errorf("the code span was lost:\n%s", page.HTML)
+	}
+	if strings.Contains(page.HTML, `id="^`) {
+		t.Errorf("an invented block address was stamped:\n%s", page.HTML)
 	}
 }
 
