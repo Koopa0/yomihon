@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/text/width"
 
@@ -339,63 +340,133 @@ func blockEndsOnNormalized(raw string, ends []int) []int {
 }
 
 // fenceRangesOnNormalized maps half-open fence spans from raw onto NFC(raw)
-// through the same exclusive-end walk block ends already use. A second
-// prefix machine would drift from that walk the first time one of them
-// changed.
+// in one left-to-right pass. mappedEnd used to normalise the whole note
+// twice per boundary — thousands of times per build — and a save rebuilds
+// the index. Pairing reads the mapped slice in the same start/end order
+// the ranges were flattened, so a repeated bound must not be dropped.
 func fenceRangesOnNormalized(raw string, ranges [][2]int) [][2]int {
 	if len(ranges) == 0 {
 		return nil
 	}
-	out := make([][2]int, 0, len(ranges))
+	offs := make([]int, 0, 2*len(ranges))
 	for _, r := range ranges {
-		start := mappedEnd(raw, r[0])
-		end := mappedEnd(raw, r[1])
-		if end > start {
-			out = append(out, [2]int{start, end})
-		}
+		offs = append(offs, r[0], r[1])
 	}
-	return out
+	return pairedSpans(offsetsOnNormalized(raw, offs))
 }
 
 func mappedEnd(raw string, off int) int {
 	if off <= 0 {
 		return 0
 	}
-	mapped := blockEndsOnNormalized(raw, []int{off})
-	if len(mapped) == 0 {
-		return 0
-	}
-	return mapped[0]
+	return offsetsOnNormalized(raw, []int{off})[0]
 }
 
-// foldRanges maps source-space half-open spans onto the folded copy of
-// plain, so a query can test membership in fold coordinates.
-func foldRanges(plain string, ranges [][2]int) [][2]int {
-	if len(ranges) == 0 {
+// offsetsOnNormalized maps raw offsets onto NFC(raw) the way
+// blockEndsOnNormalized accumulates exclusive ends, but it keeps a
+// one-to-one result: two bounds that share a raw offset stay two mapped
+// offsets so a flattened [start, end, start, end] list can be paired back.
+func offsetsOnNormalized(raw string, offs []int) []int {
+	if len(offs) == 0 {
 		return nil
 	}
-	_, src := foldWithSourceOffsets(plain)
-	out := make([][2]int, 0, len(ranges))
-	for _, r := range ranges {
-		lo := foldIndexAtSource(src, r[0])
-		hi := foldIndexAtSource(src, r[1])
-		if hi > lo {
-			out = append(out, [2]int{lo, hi})
+	type bound struct {
+		off int
+		i   int
+	}
+	bounds := make([]bound, len(offs))
+	for i, off := range offs {
+		if off < 0 {
+			off = 0
+		} else if off > len(raw) {
+			off = len(raw)
 		}
+		bounds[i] = bound{off: off, i: i}
+	}
+	slices.SortStableFunc(bounds, func(a, b bound) int {
+		if a.off < b.off {
+			return -1
+		}
+		if a.off > b.off {
+			return 1
+		}
+		return 0
+	})
+	out := make([]int, len(offs))
+	prev, n := 0, 0
+	for _, b := range bounds {
+		if b.off > prev {
+			n += len(vault.NormalizeNFC(raw[prev:b.off]))
+			prev = b.off
+		}
+		out[b.i] = n
 	}
 	return out
 }
 
-func foldIndexAtSource(srcOfFold []int, src int) int {
-	for i, s := range srcOfFold {
-		if s >= src {
-			return i
+// foldRanges maps source-space half-open spans onto the folded copy of
+// plain, so a query can test membership in fold coordinates. It walks
+// foldRunes once and records only the boundary offsets: materialising
+// the full source table is eight bytes per source byte, per fenced note.
+func foldRanges(plain string, ranges [][2]int) [][2]int {
+	if len(ranges) == 0 {
+		return nil
+	}
+	offs := make([]int, 0, 2*len(ranges))
+	for _, r := range ranges {
+		offs = append(offs, r[0], r[1])
+	}
+	return pairedSpans(foldBoundaryOffsets(plain, offs))
+}
+
+func foldBoundaryOffsets(plain string, srcOffs []int) []int {
+	if len(srcOffs) == 0 {
+		return nil
+	}
+	type bound struct {
+		src int
+		i   int
+	}
+	bounds := make([]bound, len(srcOffs))
+	for i, src := range srcOffs {
+		bounds[i] = bound{src: src, i: i}
+	}
+	slices.SortStableFunc(bounds, func(a, b bound) int {
+		if a.src < b.src {
+			return -1
+		}
+		if a.src > b.src {
+			return 1
+		}
+		return 0
+	})
+	out := make([]int, len(srcOffs))
+	next, foldPos := 0, 0
+	foldRunes(plain, func(r rune, at int) {
+		for next < len(bounds) && bounds[next].src <= at {
+			out[bounds[next].i] = foldPos
+			next++
+		}
+		foldPos += utf8.RuneLen(r)
+	})
+	for next < len(bounds) {
+		out[bounds[next].i] = foldPos
+		next++
+	}
+	return out
+}
+
+func pairedSpans(offs []int) [][2]int {
+	out := make([][2]int, 0, len(offs)/2)
+	for i := 0; i+1 < len(offs); i += 2 {
+		if offs[i+1] > offs[i] {
+			out = append(out, [2]int{offs[i], offs[i+1]})
 		}
 	}
-	if len(srcOfFold) == 0 {
-		return 0
+	if len(out) == 0 {
+		return nil
 	}
-	return len(srcOfFold) - 1
+	return out
 }
 
 // DocumentFromNote extracts a Document from a parsed note: the structured fields

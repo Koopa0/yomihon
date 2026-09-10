@@ -1,6 +1,7 @@
 package lexical
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -770,8 +771,8 @@ func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
 
 // TestMappedEndContractsAnNFDPrefix is the NFC remap lock: identity
 // (mappedEnd → return off) stays green unless a combining mark sits
-// before the offset. blockEndsOnNormalized already does this walk for
-// block ends; a second machine would drift from it.
+// before the offset. offsetsOnNormalized is the one pass fence bounds
+// use; mappedEnd is that pass for a single offset.
 func TestMappedEndContractsAnNFDPrefix(t *testing.T) {
 	t.Parallel()
 
@@ -780,6 +781,27 @@ func TestMappedEndContractsAnNFDPrefix(t *testing.T) {
 	got := mappedEnd(raw, off)
 	if got == off {
 		t.Fatalf("mappedEnd returned the raw offset %d; NFC contracted café 6→5", off)
+	}
+}
+
+// TestOffsetsOnNormalizedPreserveARepeatedBound locks the no-dedupe
+// half of that pass: two fence bounds that share a raw offset must stay
+// two mapped offsets, or pairing a flattened [start, end, …] list
+// shifts every later span.
+func TestOffsetsOnNormalizedPreserveARepeatedBound(t *testing.T) {
+	t.Parallel()
+
+	raw := "caf\u0065\u0301\n\nrest"
+	off := len("caf\u0065\u0301")
+	got := offsetsOnNormalized(raw, []int{off, off})
+	if len(got) != 2 {
+		t.Fatalf("offsetsOnNormalized(%d, %d) = %v, want two mapped offsets", off, off, got)
+	}
+	if got[0] != got[1] {
+		t.Fatalf("repeated bound mapped to %d and %d; the pair must stay aligned", got[0], got[1])
+	}
+	if got[0] == off {
+		t.Fatalf("mapped offset %d is the raw offset; NFC contracted café 6→5", got[0])
 	}
 }
 
@@ -856,8 +878,8 @@ func TestFenceExcerptDoesNotWalkToThePreviousSentence(t *testing.T) {
 // TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix is the fold
 // half of the fence remap: fullwidth ASCII narrows 3-to-1 and a CJK wrap
 // drops the break, so the fence's fold offset is not its source offset.
-// Identity (foldIndexAtSource → return src) places the fold range past
-// the hit and classifies a fence-only phrase as prose.
+// Identity (foldBoundaryOffsets recording the source offset) places
+// the fold range past the hit and classifies a fence-only phrase as prose.
 func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
 	t.Parallel()
 
@@ -888,4 +910,48 @@ func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
 	if !strings.Contains(results[0].Snippet, needle) {
 		t.Fatalf("snippet() = %q, dropped the fence phrase", results[0].Snippet)
 	}
+}
+
+// TestFoldRangesMatchesTheSourceTableOracle holds the one-pass walk to
+// the table it replaced: a fullwidth and CJK-wrapped prefix makes fold
+// and source offsets diverge, so recording `at` would disagree.
+func TestFoldRangesMatchesTheSourceTableOracle(t *testing.T) {
+	t.Parallel()
+
+	d := DocumentFromNote(vault.Parse("Notes/Fold oracle.md", []byte(""+
+		"# Fold oracle\n\n"+
+		strings.Repeat("Ｇｏ", 20)+"の\n並行処理。\n\n"+
+		"```d2\n"+
+		"UNIQUE_FOLD_ORACLE_PHRASE\n"+
+		"```\n")))
+	plain := vault.NormalizeNFC(d.PlainText)
+	mapped := fenceRangesOnNormalized(d.PlainText, d.FenceRanges)
+	got := foldRanges(plain, mapped)
+	_, src := foldWithSourceOffsets(plain)
+	want := make([][2]int, 0, len(mapped))
+	for _, r := range mapped {
+		lo := foldIndexOracle(src, r[0])
+		hi := foldIndexOracle(src, r[1])
+		if hi > lo {
+			want = append(want, [2]int{lo, hi})
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("foldRanges() = %v, want the source-table mapping %v", got, want)
+	}
+	if len(mapped) != 1 || len(want) != 1 || want[0][0] == mapped[0][0] {
+		t.Fatal("fold and source fence starts agree; the oracle is untested")
+	}
+}
+
+func foldIndexOracle(srcOfFold []int, src int) int {
+	for i, s := range srcOfFold {
+		if s >= src {
+			return i
+		}
+	}
+	if len(srcOfFold) == 0 {
+		return 0
+	}
+	return len(srcOfFold) - 1
 }

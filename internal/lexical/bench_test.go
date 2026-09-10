@@ -73,6 +73,18 @@ func BenchmarkSearchLiveVaultSizedFences(b *testing.B) {
 	}
 }
 
+// BenchmarkNewIndex times the build a save pays: the scanner rebuilds on
+// every change, so fence remapping that walks the note per boundary shows
+// up here rather than in the query benches.
+func BenchmarkNewIndex(b *testing.B) {
+	docs := liveVaultNewIndexDocs()
+	policy := validArtifactPolicy(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = NewIndex(docs, policy)
+	}
+}
+
 func liveVaultSizedFenceDocs() []Document {
 	const notes = 537
 	fence := "" +
@@ -96,6 +108,46 @@ func liveVaultSizedFenceDocs() []Document {
 			PlainText:   text,
 			BlockEnds:   ends,
 			FenceRanges: fences,
+		}
+	}
+	return docs
+}
+
+// liveVaultNewIndexDocs is the build-cost corpus: every-note count from the
+// live vault, with the fenced notes carrying several fences through the
+// body so a per-boundary NFC walk cannot hide behind a short prefix.
+func liveVaultNewIndexDocs() []Document {
+	const notes = 1226
+	const fenced = 597
+	const fencesPer = 8
+	var fencedBody strings.Builder
+	chunk := strings.Repeat("The filler paragraph stays out of the way.\n\n", 15)
+	for i := 0; i < fencesPer; i++ {
+		fencedBody.WriteString(chunk)
+		fencedBody.WriteString("```d2\n")
+		fencedBody.WriteString(fmt.Sprintf("fence %d holds err and return\n", i))
+		fencedBody.WriteString("```\n\n")
+	}
+	fencedBody.WriteString(strings.Repeat("and more filler word ", 80))
+	fencedText, fencedEnds, fences := render.PlainBlocks(fencedBody.String())
+	proseText, proseEnds, _ := render.PlainBlocks(strings.Repeat(chunk, fencesPer) + strings.Repeat("and more filler word ", 80))
+	docs := make([]Document, notes)
+	for i := range docs {
+		if i < fenced {
+			docs[i] = Document{
+				RelPath:     fmt.Sprintf("Notes/n%03d.md", i),
+				Title:       fmt.Sprintf("Note %03d", i),
+				PlainText:   fencedText,
+				BlockEnds:   fencedEnds,
+				FenceRanges: fences,
+			}
+			continue
+		}
+		docs[i] = Document{
+			RelPath:   fmt.Sprintf("Notes/n%03d.md", i),
+			Title:     fmt.Sprintf("Note %03d", i),
+			PlainText: proseText,
+			BlockEnds: proseEnds,
 		}
 	}
 	return docs
