@@ -1097,7 +1097,23 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-lesson { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 11px 6px; border-bottom: 1px solid var(--border-faint); color: inherit; text-decoration: none; }
 .y-lesson:hover { background: var(--overlay); }
 .y-lesson .y-navdot { justify-self: center; }
-.y-lesson__title { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-kai); font-size: var(--fs-ed-20); color: var(--fg); }
+/* A phone row used to hide the words that decide which lesson to open
+   (nowrap + ellipsis beside a whole status badge). Two lines is enough to
+   tell "Slices- Strings and Slices" from its neighbours; the badge stays
+   on the auto track and must not wrap. The rail keeps its own ellipsis. */
+.y-lesson__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-kai);
+  font-size: var(--fs-ed-20);
+  color: var(--fg);
+}
+.y-lesson .ui-status { white-space: nowrap; }
 .y-lesson--broken { cursor: help; }
 .y-lesson--broken .y-lesson__title { color: var(--fg-muted); }
 
