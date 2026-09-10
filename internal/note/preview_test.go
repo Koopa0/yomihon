@@ -150,7 +150,9 @@ func TestTheCardShowsTheExcerptAnEmbedOfTheSameAddressShows(t *testing.T) {
 }
 
 // TestTheCardCutsAtTheSectionTheLinkAddressed states the cut in its own right,
-// so the agreement above cannot pass by both sides showing the whole note.
+// so the agreement above cannot pass by both sides showing the whole note. The
+// reader named one place and received it, so the card stays notice-free — the
+// note continuing after that section is not "more" of what they asked for.
 func TestTheCardCutsAtTheSectionTheLinkAddressed(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -169,11 +171,17 @@ func TestTheCardCutsAtTheSectionTheLinkAddressed(t *testing.T) {
 			t.Errorf("the card carries %q, which sits outside the section the link addressed:\n%s", outside, card.body)
 		}
 	}
+	if strings.Contains(card.body, wording.PreviewMore.In(wording.ZhHant)) {
+		t.Errorf("a card holding the section the reader named claims the note goes on:\n%s", card.body)
+	}
 }
 
-// TestACardWithNoSectionShowsTheNoteFromTheTop covers the link written at a
-// whole note, which is most of them.
-func TestACardWithNoSectionShowsTheNoteFromTheTop(t *testing.T) {
+// TestACardWithNoSectionStopsAtTheLedeAndSaysSo holds the empty-fragment cut: a
+// bare [[note]] is most links, and shipping the whole body into a 288px card
+// leaves the existing "there is more" sentence at the bottom of a thousands-of-
+// pixels scroll. The card shows the opening and wording.PreviewMore, and
+// nothing that sits past the first heading.
+func TestACardWithNoSectionStopsAtTheLedeAndSaysSo(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writePreviewVault(t, root)
@@ -183,10 +191,16 @@ func TestACardWithNoSectionShowsTheNoteFromTheTop(t *testing.T) {
 	if card.code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
 	}
-	for _, sentinel := range []string{previewBeforeSentinel, previewInsideSentinel, previewAfterSentinel} {
-		if !strings.Contains(card.body, sentinel) {
-			t.Errorf("a card asked for the whole note is missing %q:\n%s", sentinel, card.body)
+	if !strings.Contains(card.body, previewBeforeSentinel) {
+		t.Errorf("a card asked for the note itself is missing the opening:\n%s", card.body)
+	}
+	for _, past := range []string{previewInsideSentinel, previewAfterSentinel} {
+		if strings.Contains(card.body, past) {
+			t.Errorf("a card asked for the note itself reached past the lede with %q:\n%s", past, card.body)
 		}
+	}
+	if !strings.Contains(card.body, wording.PreviewMore.In(wording.ZhHant)) {
+		t.Errorf("a lede cut left the rest of the note behind and said nothing about it:\n%s", card.body)
 	}
 }
 

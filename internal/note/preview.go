@@ -66,8 +66,8 @@ func (h *Handler) preview(w http.ResponseWriter, r *http.Request) {
 
 // previewOf cuts one card's excerpt out of the note at rel. section is the
 // fragment the link's own address carries, already folded by the pass that
-// wrote it, so nothing here re-reads a name: an empty one asks for the note
-// itself.
+// wrote it, so nothing here re-reads a name: an empty one asks for the
+// opening, not the note itself.
 //
 // The false answer covers every way an address reaches no note — a path outside
 // what this server hands over, a path that is not markdown, and a path this
@@ -84,7 +84,7 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 	if !ok {
 		return pages.PreviewView{Notice: wording.PreviewNoNote.In(lang)}, false
 	}
-	slice, found := render.Excerpt(n.Body, section)
+	slice, found, narrowed := render.Excerpt(n.Body, section)
 	if !found {
 		// The sentence is the one the reading page says inside an embed whose
 		// address the note does not answer to, so the card and the article
@@ -104,7 +104,11 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 		// would be a second place answering to one the page already has.
 		BodyHTML: render.StripAnchors(snap.RenderIn(previewRegion, rel, source, lang).HTML),
 	}
-	if truncated {
+	// The notice fires when either the byte cap or the empty-fragment cut left
+	// words behind. A lede is far under the budget, so the cut has to say so
+	// itself; both paths reuse the one sentence, because a second one would be
+	// a second way to say one fact.
+	if truncated || narrowed {
 		view.Notice = wording.PreviewMore.In(lang)
 	}
 	return view, true

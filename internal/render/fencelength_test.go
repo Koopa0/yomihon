@@ -50,7 +50,7 @@ func TestAShorterFenceInsideALongerFenceStaysLiteral(t *testing.T) {
 		t.Run(markerName(marker), func(t *testing.T) {
 			t.Parallel()
 			body := nestedShorterFence(marker)
-			excerpt, _ := render.Excerpt(body, "")
+			excerpt, _, _ := render.Excerpt(body, "")
 			page := r.HTML("note.md", "", body, wording.ZhHant)
 			projections := map[string]string{
 				"HTML":      page.HTML,
@@ -91,7 +91,7 @@ func TestAnOrdinaryFenceStillGuardsAndCloses(t *testing.T) {
 		t.Run(markerName(marker)+" inside", func(t *testing.T) {
 			t.Parallel()
 			body := ordinaryFence(marker)
-			excerpt, _ := render.Excerpt(body, "")
+			excerpt, _, _ := render.Excerpt(body, "")
 			page := r.HTML("note.md", "", body, wording.ZhHant)
 			projections := map[string]string{
 				"HTML":      page.HTML,
@@ -117,7 +117,7 @@ func TestAnOrdinaryFenceStillGuardsAndCloses(t *testing.T) {
 		t.Run(markerName(marker)+" after", func(t *testing.T) {
 			t.Parallel()
 			body := ordinaryFenceThenProse(marker)
-			excerpt, _ := render.Excerpt(body, "")
+			excerpt, _, _ := render.Excerpt(body, "")
 			page := r.HTML("note.md", "", body, wording.ZhHant)
 			plain := render.PlainText(body)
 

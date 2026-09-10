@@ -145,22 +145,61 @@ func headingSlice(body, heading string) (slice string, matches int) {
 	return slice, matches
 }
 
+// ledeSlice returns the opening of body a hover card shows when no fragment
+// named a place: the lines before the first heading, or that first heading's
+// own section when the note opens on one. The rest of the note is left behind
+// the same way headingSlice leaves the next same-or-higher heading, and
+// narrowed says so — a cut that happens to be the whole body is not a narrowing.
+func ledeSlice(body string) (slice string, narrowed bool) {
+	lines := strings.Split(body, "\n")
+	headings := scanHeadings(lines)
+	if len(headings) == 0 {
+		return body, false
+	}
+	first := headings[0]
+	end := first.line
+	if first.line == 0 {
+		end = len(lines)
+		for _, next := range headings[1:] {
+			if next.level <= first.level {
+				end = next.line
+				break
+			}
+		}
+	}
+	if end >= len(lines) {
+		return body, false
+	}
+	return strings.Join(lines[:end], "\n"), true
+}
+
 // Excerpt is the part of body that a link's own fragment addresses: a caret
 // opens a block address, anything else names a section, and an empty fragment
-// asks for the note itself. Obsidian's %% comments come off before any edge is
-// chosen, so a marker cannot span the cut and arrive visible in the excerpt.
+// asks for the opening — the lines before the first heading, or that heading's
+// own section when the note opens on one, cut the way headingSlice cuts. The
+// hover card is the caller that needs a taste rather than a transfer; an embed
+// of the whole note still goes through excerptOf and receives the body itself.
 //
-// An address the note does not answer to comes back not found, and the caller
-// says so. Widening to the whole note would answer a question nobody asked —
-// the reader named one place, and being shown a different one without being
-// told reads as the place they named.
+// narrowed is whether that empty-fragment cut left the rest of the note behind.
+// A section or block address is the place the reader named, so it comes back
+// not narrowed even when the note continues after it. An address the note does
+// not answer to comes back not found, and the caller says so. Widening to the
+// whole note would answer a question nobody asked — the reader named one place,
+// and being shown a different one without being told reads as the place they
+// named.
 //
 // The fragment is the one an anchor already carries, already folded by the pass
-// that wrote it; nothing here folds a name a second time.
-func Excerpt(body, fragment string) (slice string, found bool) {
+// that wrote it; nothing here folds a name a second time. Obsidian's %% comments
+// come off before any edge is chosen, so a marker cannot span the cut and arrive
+// visible in the excerpt.
+func Excerpt(body, fragment string) (slice string, found, narrowed bool) {
 	stripped, _ := stripObsidianComments(body)
+	if fragment == "" {
+		slice, narrowed = ledeSlice(stripped)
+		return slice, true, narrowed
+	}
 	slice, matches := excerptOf(stripped, fragment)
-	return slice, matches > 0
+	return slice, matches > 0, false
 }
 
 // excerptOf is the one cut every excerpt is made with, over a body whose
