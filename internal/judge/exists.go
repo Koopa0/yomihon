@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/lexical"
 )
 
 // The exists oracle answers "does a note for this name already exist?" for a
 // dedup check before writing. It is deliberately wider than the resolver,
 // matching filename, title, alias and English title, and each hit reports which
 // field matched. A false "no" would make a caller write a duplicate, so it
-// over-recalls. The shape is part of the frozen output.
+// over-recalls. Fold-equal names — a fullwidth colon beside its ASCII twin —
+// are reported as near matches, distinct from an exact hit, and do not flip
+// the exit code. The shape is part of the frozen output.
 
 // existsMatch is one note that exposes the queried name, and the field it
 // matched on.
@@ -24,6 +28,12 @@ type existsMatch struct {
 type existsReport struct {
 	Query   string        `json:"query"`
 	Matches []existsMatch `json:"matches"`
+	// NearMatches are notes that answer under the search index's fold
+	// (fullwidth ASCII narrowed, then lowercase) but not under the resolver
+	// key. They are omitted when the second pass finds nothing, so an
+	// ordinary answer's bytes stay unchanged — the same omitempty contract
+	// Withheld already ships under.
+	NearMatches []existsMatch `json:"near_matches,omitempty"`
 	// Withheld says a note the contract keeps out of agent-facing output
 	// answers to the name. It carries nothing else, because the caller needs
 	// only two warnings: do not create a second note under the name, and do not
@@ -35,72 +45,114 @@ type existsReport struct {
 // found reports whether any note answers to the queried name, including one
 // this command may not describe. A withheld note is a note: answering "absent"
 // for one would have a caller gating on the exit code put a second,
-// describable note under a private note's own name.
+// describable note under a private note's own name. A near match is not an
+// answer: flipping found() for one would change the exit code a write-if-absent
+// gate already depends on.
 func (r existsReport) found() bool {
 	return len(r.Matches) > 0 || r.Withheld
 }
 
 // existsLookup looks query up across every note's filename, title, aliases, and
-// English title, normalizing both sides the same way the resolver keys names.
-// A note that exposes the name on more than one field yields one match per
-// field. Matches are ordered by path, then field. title_en is matched only
-// when the contract declares it for that note's type — fields.known, or a
-// per-type list such as fields.lesson_only on a lesson. A field check would
-// call unknown is not a name this oracle may report.
+// English title. The first pass keys both sides the way the resolver keys
+// names. A second pass runs the same fields through lexical.Fold, and any hit
+// that was not already exact is a near match. A note that exposes the name on
+// more than one field yields one match per field. Matches are ordered by path,
+// then field. title_en is matched only when the contract declares it for that
+// note's type — fields.known, or a per-type list such as fields.lesson_only on
+// a lesson. A field check would call unknown is not a name this oracle may
+// report.
 func existsLookup(notes []note, query string, authority scanAuthority) existsReport {
 	key := normalizeKey(query)
+	foldKey := lexical.Fold(query)
 	matches := []existsMatch{}
+	var near []existsMatch
 	withheld := false
 	for i := range notes {
 		n := &notes[i]
 		known := knownFrontmatter(authority, n.noteType)
+		exact := noteMatches(n, key, known)
 		if !authority.egressAllowed(n.path) {
 			// A contract-private note never describes itself here: no path, no
 			// field, no value. That it answers to the name is still reported,
-			// because the alternative tells the caller the name is free.
-			if len(noteMatches(n, key, known)) > 0 {
+			// because the alternative tells the caller the name is free. A
+			// fold-only hit is not an answer and must not flip withheld: that
+			// would change the exit code the same way flipping found() would.
+			if len(exact) > 0 {
 				withheld = true
 			}
 			continue
 		}
-		matches = append(matches, noteMatches(n, key, known)...)
+		matches = append(matches, exact...)
+		near = append(near, withoutExact(noteMatchesFolded(n, foldKey, known), exact)...)
 	}
-	slices.SortStableFunc(matches, func(a, b existsMatch) int {
-		if c := strings.Compare(a.Path, b.Path); c != 0 {
-			return c
-		}
-		return strings.Compare(a.Field, b.Field)
-	})
-	return existsReport{Query: query, Matches: matches, Withheld: withheld}
+	sortExistsMatches(matches)
+	sortExistsMatches(near)
+	return existsReport{Query: query, Matches: matches, NearMatches: near, Withheld: withheld}
 }
 
 // noteMatches returns every field of n that exposes the normalized key: its
 // filename stem, full filename, title, each alias, and English title when
 // the contract declares title_en for this note's type.
 func noteMatches(n *note, key string, known []string) []existsMatch {
+	return collectFieldMatches(n, key, known, normalizeKey)
+}
+
+// noteMatchesFolded is the second pass: the same fields, keyed through the
+// search index's fold rather than the resolver key.
+func noteMatchesFolded(n *note, key string, known []string) []existsMatch {
+	return collectFieldMatches(n, key, known, lexical.Fold)
+}
+
+func collectFieldMatches(n *note, key string, known []string, fold func(string) string) []existsMatch {
 	var matches []existsMatch
 	stem := filenameStem(n.path)
-	if normalizeKey(stem) == key {
+	if fold(stem) == key {
 		matches = append(matches, existsMatch{Path: n.path, Field: "filename", Value: stem})
 	}
 	// A full filename also matches, so a caller that built a candidate filename
 	// (with its extension) never gets a false "not found".
 	full := filename(n.path)
-	if full != stem && normalizeKey(full) == key {
+	if full != stem && fold(full) == key {
 		matches = append(matches, existsMatch{Path: n.path, Field: "filename", Value: full})
 	}
-	if n.title != "" && normalizeKey(n.title) == key {
+	if n.title != "" && fold(n.title) == key {
 		matches = append(matches, existsMatch{Path: n.path, Field: "title", Value: n.title})
 	}
 	for _, alias := range n.aliases {
-		if normalizeKey(alias) == key {
+		if fold(alias) == key {
 			matches = append(matches, existsMatch{Path: n.path, Field: "alias", Value: alias})
 		}
 	}
-	if n.titleEn != "" && slices.Contains(known, "title_en") && normalizeKey(n.titleEn) == key {
+	if n.titleEn != "" && slices.Contains(known, "title_en") && fold(n.titleEn) == key {
 		matches = append(matches, existsMatch{Path: n.path, Field: "title_en", Value: n.titleEn})
 	}
 	return matches
+}
+
+func withoutExact(folded, exact []existsMatch) []existsMatch {
+	if len(folded) == 0 || len(exact) == 0 {
+		return folded
+	}
+	seen := make(map[existsMatch]struct{}, len(exact))
+	for _, m := range exact {
+		seen[m] = struct{}{}
+	}
+	var out []existsMatch
+	for _, m := range folded {
+		if _, ok := seen[m]; !ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func sortExistsMatches(matches []existsMatch) {
+	slices.SortStableFunc(matches, func(a, b existsMatch) int {
+		if c := strings.Compare(a.Path, b.Path); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Field, b.Field)
+	})
 }
 
 // knownFrontmatter is the contract's declared frontmatter set for one note
@@ -151,13 +203,19 @@ func notesAmong(matches []existsMatch) int {
 // echoed inside literal quotes and never escaped, so its own bytes read back
 // unchanged.
 func renderExists(r existsReport) string {
-	if !r.found() {
-		return "\"" + r.Query + "\" does not exist\n"
-	}
 	var s strings.Builder
+	if !r.found() {
+		fmt.Fprintf(&s, "\"%s\" does not exist\n", r.Query)
+	}
 	if len(r.Matches) > 0 {
 		fmt.Fprintf(&s, "\"%s\" exists in %d note(s):\n", r.Query, notesAmong(r.Matches))
 		for _, m := range r.Matches {
+			fmt.Fprintf(&s, "  %s (matched %s)\n", m.Path, m.Field)
+		}
+	}
+	if len(r.NearMatches) > 0 {
+		fmt.Fprintf(&s, "\"%s\" is near %d note(s):\n", r.Query, notesAmong(r.NearMatches))
+		for _, m := range r.NearMatches {
 			fmt.Fprintf(&s, "  %s (matched %s)\n", m.Path, m.Field)
 		}
 	}
