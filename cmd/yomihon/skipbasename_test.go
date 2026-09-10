@@ -100,8 +100,11 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 	}
 
 	search := readingPage(t, site, "/search?q="+skipBasenameLockSentinel)
-	if strings.Contains(search, "README.md") || strings.Contains(search, skipBasenameLockSentinel) {
+	if strings.Contains(search, `href="/notes/README.md"`) {
 		t.Errorf("GET /search indexed the skipped basename; page = %q", search)
+	}
+	if !strings.Contains(search, `data-result-count="0"`) {
+		t.Errorf("GET /search for the skipped sentinel was not empty; page = %q", search)
 	}
 	keptSearch := readingPage(t, site, "/search?q=Kept")
 	if !strings.Contains(keptSearch, `href="/notes/Notes/Kept.md`) {
@@ -109,8 +112,9 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 	}
 
 	existsOut, existsExit, existsErr := judge.RunExists(t.Context(), &judge.ExistsOptions{
-		Root: root,
-		Name: "README.md",
+		Root:   root,
+		Name:   "README.md",
+		Format: judge.FormatHuman,
 	})
 	if existsErr != nil {
 		t.Fatalf("exists README.md: %v", existsErr)
@@ -118,8 +122,8 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 	if existsExit != 1 {
 		t.Errorf("exists README.md exit = %d, want 1 (absent); stdout = %s", existsExit, existsOut)
 	}
-	if strings.Contains(string(existsOut), "README.md") {
-		t.Errorf("exists named the skipped basename; stdout = %s", existsOut)
+	if !strings.Contains(string(existsOut), "does not exist") {
+		t.Errorf("exists README.md did not report absence; stdout = %s", existsOut)
 	}
 	keptOut, keptExit, keptErr := judge.RunExists(t.Context(), &judge.ExistsOptions{
 		Root: root,
