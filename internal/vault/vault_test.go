@@ -138,8 +138,8 @@ func TestACarriageReturnOnlyFileHasNoFrontmatter(t *testing.T) {
 
 	const content = "---\rtitle: CR\r---\rbody"
 	n := vault.Parse("note.md", []byte(content))
-	if n.Frontmatter != nil || n.FMDiagnostic != "" {
-		t.Errorf("Parse() frontmatter = %#v, diagnostic %q, want none of either", n.Frontmatter, n.FMDiagnostic)
+	if n.HasFrontmatter || n.Frontmatter != nil || n.FMDiagnostic != "" {
+		t.Errorf("Parse() HasFrontmatter = %v frontmatter = %#v, diagnostic %q, want none of either", n.HasFrontmatter, n.Frontmatter, n.FMDiagnostic)
 	}
 	if n.Body != content {
 		t.Errorf("Parse() body = %q, want the whole file", n.Body)
@@ -184,15 +184,16 @@ func TestNonMappingYAMLIsInvalidYAML(t *testing.T) {
 	}
 }
 
-// TestAnEmptyFrontmatterBlockReadsAsNoFrontmatter pins the current
-// equivalence: a note opening with an empty fence pair carries no fields, no
-// diagnostic, and answers every frontmatter question exactly as a note with
-// no block at all. The one trace the block leaves is the body's file line,
-// which still counts the fences.
-func TestAnEmptyFrontmatterBlockReadsAsNoFrontmatter(t *testing.T) {
+// TestAnEmptyFrontmatterBlockIsPresentWithoutFields pins the two facts an
+// empty fence pair leaves: the block is there, and it decoded to no fields.
+// Field lookups still match a file with no block; HasFrontmatter does not.
+func TestAnEmptyFrontmatterBlockIsPresentWithoutFields(t *testing.T) {
 	t.Parallel()
 
 	n := vault.Parse("note.md", []byte("---\n---\nbody\n"))
+	if !n.HasFrontmatter {
+		t.Error("Parse() HasFrontmatter = false, want the empty block counted as present")
+	}
 	if n.Frontmatter != nil || n.FMDiagnostic != "" {
 		t.Errorf("Parse() frontmatter = %#v, diagnostic %q, want none of either", n.Frontmatter, n.FMDiagnostic)
 	}
@@ -204,6 +205,34 @@ func TestAnEmptyFrontmatterBlockReadsAsNoFrontmatter(t *testing.T) {
 	}
 	if got := n.Title(); got != "note" {
 		t.Errorf("Title() = %q, want the filename stem", got)
+	}
+}
+
+// TestParseReportsWhetherAFrontmatterBlockWasThere holds block presence to the
+// split, not to whether YAML produced a map. An empty fence pair and a
+// malformed block are present; a file with no delimiters is not.
+func TestParseReportsWhetherAFrontmatterBlockWasThere(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		data string
+		want bool
+	}{
+		{name: "no delimiters", data: "# body\n", want: false},
+		{name: "empty fence pair", data: "---\n---\nbody\n", want: true},
+		{name: "fields", data: "---\ntitle: Note\n---\nbody\n", want: true},
+		{name: "malformed YAML", data: "---\ntitle: [broken\n---\nbody\n", want: true},
+		{name: "unterminated is body", data: "---\ntitle: Open\nbody\n", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := vault.Parse("note.md", []byte(tt.data))
+			if n.HasFrontmatter != tt.want {
+				t.Errorf("Parse(%q) HasFrontmatter = %v, want %v", tt.data, n.HasFrontmatter, tt.want)
+			}
+		})
 	}
 }
 

@@ -44,6 +44,9 @@ func FuzzParse(f *testing.F) {
 		if first.RelPath != rel || first.Body != string(block.Body) {
 			t.Errorf("Parse(%q) = path %q body %q, want path %q body %q", data, first.RelPath, first.Body, rel, block.Body)
 		}
+		if first.HasFrontmatter != found {
+			t.Errorf("Parse(%q) HasFrontmatter = %v, SplitFrontmatter found = %v", data, first.HasFrontmatter, found)
+		}
 		if utf8.Valid(data) && !utf8.ValidString(first.Body) {
 			t.Errorf("Parse(valid UTF-8 %q) returned invalid UTF-8 body %x", data, first.Body)
 		}
