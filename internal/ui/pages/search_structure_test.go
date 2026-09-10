@@ -2,6 +2,7 @@ package pages
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -213,4 +214,98 @@ func TestSearchResultSourceLabelIsNotAHit(t *testing.T) {
 			t.Errorf("lang %s: missing unmarked source label %q in %s", lang, want, html)
 		}
 	}
+}
+
+// The palette and the page share one results fragment. The fragment prints a
+// count so a reader without scripting still sees a number on /search; the
+// dialog already announces the same number through its live status. Showing
+// both is two voices for one fact, so the fragment's count is hidden there.
+func TestSearchDialogStatesTheCountOnce(t *testing.T) {
+	t.Parallel()
+
+	hits := []SearchResult{{Title: "First", RelPath: "Concepts/first.md"}}
+	view := SearchView{Query: "日本語", Results: hits, Total: 83}
+
+	var pageBuf bytes.Buffer
+	if err := Search(view, layouts.Chrome{}).Render(t.Context(), &pageBuf); err != nil {
+		t.Fatalf("render search page: %v", err)
+	}
+	page := pageBuf.String()
+	dialog, ok := cutElement(page, `<dialog class="y-searchdialog`, "</dialog>")
+	if !ok {
+		t.Fatal("the page has no command palette")
+	}
+
+	var fragBuf bytes.Buffer
+	if err := SearchResults(view, wording.ZhHant).Render(t.Context(), &fragBuf); err != nil {
+		t.Fatalf("render search results: %v", err)
+	}
+	fragment := fragBuf.String()
+
+	const emptySlot = `<div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>`
+	if !strings.Contains(dialog, emptySlot) {
+		t.Fatalf("the palette has no empty results slot to fill; dialog = %q", dialog)
+	}
+	filled := strings.Replace(dialog, emptySlot, fragment, 1)
+
+	if !strings.Contains(filled, `data-live-search-status`) || !strings.Contains(filled, `role="status"`) || !strings.Contains(filled, `aria-live="polite"`) {
+		t.Error("the palette lost the live status that announces the count")
+	}
+	if !strings.Contains(filled, `class="y-results__count"`) {
+		t.Fatal("the fragment no longer carries a count, so hiding it inside the dialog proves nothing")
+	}
+
+	visible := 1
+	if !dialogHidesFragmentCount(t) {
+		visible++
+	}
+	if visible != 1 {
+		t.Errorf("the palette states the count %d times, want once", visible)
+	}
+
+	if strings.Count(page, `class="y-results__count"`) != 1 {
+		t.Errorf("the full search page states the fragment count %d times, want once", strings.Count(page, `class="y-results__count"`))
+	}
+	if !strings.Contains(page, "共 83 筆") {
+		t.Error("the full search page lost its visible count")
+	}
+}
+
+func dialogHidesFragmentCount(t *testing.T) bool {
+	t.Helper()
+	const path = "../../../assets/css/components.css"
+	source, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	const opener = `.y-searchdialog .y-results__count {`
+	css := string(source)
+	at := strings.Index(css, opener)
+	if at < 0 {
+		return false
+	}
+	body := css[at+len(opener):]
+	end := strings.IndexByte(body, '}')
+	if end < 0 {
+		t.Fatalf("rule %q is not closed", opener)
+	}
+	for decl := range strings.SplitSeq(body[:end], ";") {
+		property, value, ok := strings.Cut(strings.TrimSpace(decl), ":")
+		if ok && strings.TrimSpace(property) == "display" && strings.TrimSpace(value) == "none" {
+			return true
+		}
+	}
+	return false
+}
+
+func cutElement(html, open, close string) (string, bool) {
+	start := strings.Index(html, open)
+	if start < 0 {
+		return "", false
+	}
+	end := strings.Index(html[start:], close)
+	if end < 0 {
+		return "", false
+	}
+	return html[start : start+end+len(close)], true
 }
