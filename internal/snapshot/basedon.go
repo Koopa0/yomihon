@@ -60,6 +60,7 @@ func declaredSource(idx *graph.Index, value string) (nav.NoteRef, bool) {
 	if res.Kind != graph.KindUnique {
 		return nav.NoteRef{Name: written}, true
 	}
+	// Unique rows use the target's nav.Label, not any |display text the author wrote.
 	return nav.NoteRef{Name: nav.Label(res.RelPath), RelPath: res.RelPath}, true
 }
 
