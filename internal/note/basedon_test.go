@@ -107,7 +107,7 @@ func TestDeclaredSourcesOnTheReadingPage(t *testing.T) {
 		if zebra < 0 || apple < 0 || middle < 0 {
 			t.Fatalf("a declared source is missing; block = %q", block)
 		}
-		if !(zebra < apple && apple < middle) {
+		if zebra >= apple || apple >= middle {
 			t.Errorf("declared sources were reordered; block = %q", block)
 		}
 	})
