@@ -102,6 +102,24 @@ func TestObsidianHref(t *testing.T) {
 			rel:  "Notes/n.md",
 			want: "obsidian://open?path=/Users/my%20reader/obsidian%20vault/Notes/n.md",
 		},
+		{
+			name: "a slash inside a name stays a separator",
+			root: "/Users/reader/vault",
+			rel:  "Notes/a/b.md",
+			want: "obsidian://open?path=/Users/reader/vault/Notes/a/b.md",
+		},
+		{
+			name: "NFC composed form is escaped as written",
+			root: "/Users/reader/vault",
+			rel:  "Notes/caf\u00e9.md",
+			want: "obsidian://open?path=/Users/reader/vault/Notes/caf%C3%A9.md",
+		},
+		{
+			name: "decomposed form is escaped as written",
+			root: "/Users/reader/vault",
+			rel:  "Notes/cafe\u0301.md",
+			want: "obsidian://open?path=/Users/reader/vault/Notes/cafe%CC%81.md",
+		},
 		{name: "empty root yields no link", rel: "Notes/n.md", want: ""},
 		{name: "empty rel yields no link", root: "/Users/reader/vault", want: ""},
 	}
