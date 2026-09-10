@@ -754,21 +754,13 @@ func buildGeneration(
 	g := newGeneration(len(entries))
 	blocked := blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
-	navEntries := make([]vaultfs.Entry, 0, len(entries))
+	entries = g.omitDeclaredBasenames(entries, contract)
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
 		relPath := entry.Path()
-		if contract.SkipsBasename(relPath) {
-			// Declared skip: a file, never a note. Wikilinks and /raw/ still
-			// reach it; the shelf, the index, and exists do not.
-			g.resources = append(g.resources, relPath)
-			g.skippedNotes[relPath] = struct{}{}
-			continue
-		}
-		navEntries = append(navEntries, entry)
 		note := vault.IsMarkdown(relPath)
 		want := wantedBytes(entry, note)
 		if !note {
@@ -801,7 +793,7 @@ func buildGeneration(
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
-	navigation := nav.New(navEntries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal)
+	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal)
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.files), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
@@ -884,6 +876,23 @@ func newGeneration(entries int) *generation {
 		findings:     make(map[string][]judge.Finding),
 		skippedNotes: make(map[string]struct{}),
 	}
+}
+
+// omitDeclaredBasenames leaves scan.skip_basenames out of the note map.
+// Each omitted path is still a resource, so /raw/ and wikilinks reach it;
+// the shelf, the index, and exists do not.
+func (g *generation) omitDeclaredBasenames(entries []vaultfs.Entry, contract *schema.Contract) []vaultfs.Entry {
+	kept := make([]vaultfs.Entry, 0, len(entries))
+	for _, entry := range entries {
+		relPath := entry.Path()
+		if contract.SkipsBasename(relPath) {
+			g.resources = append(g.resources, relPath)
+			g.skippedNotes[relPath] = struct{}{}
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return kept
 }
 
 // skipUnread records a note this generation chose not to read. The stub is a
