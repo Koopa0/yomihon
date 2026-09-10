@@ -77,20 +77,23 @@ func renderedWikilinkHref(t *testing.T, page string) string {
 		t.Fatalf("wikilink did not resolve:\n%s", page)
 	}
 	const mark = ` class="wikilink"`
-	at := strings.Index(page, mark)
-	if at < 0 {
+	before, _, found := strings.Cut(page, mark)
+	if !found {
 		t.Fatalf("no resolved wikilink in:\n%s", page)
 	}
-	open := strings.LastIndex(page[:at], `<a href="`)
+	open := strings.LastIndex(before, `<a href="`)
 	if open < 0 {
 		t.Fatalf("wikilink has no href:\n%s", page)
 	}
-	rest := page[open+len(`<a href="`):]
-	end := strings.Index(rest, `"`)
-	if end < 0 {
+	_, quoted, found := strings.Cut(before[open:], `<a href="`)
+	if !found {
+		t.Fatalf("wikilink has no href:\n%s", page)
+	}
+	href, _, found := strings.Cut(quoted, `"`)
+	if !found {
 		t.Fatalf("href is unclosed:\n%s", page)
 	}
-	return html.UnescapeString(rest[:end])
+	return html.UnescapeString(href)
 }
 
 type emptyBodies struct{}
