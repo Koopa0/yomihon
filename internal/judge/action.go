@@ -78,7 +78,7 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 	marks := plannedMarksFrom(a.authority.contract)
 	for _, entry := range a.scan.Files() {
 		relPath := entry.Path()
-		if !vault.IsMarkdown(relPath) {
+		if !vault.IsMarkdown(relPath) || a.authority.contract.SkipsBasename(relPath) {
 			a.resources = append(a.resources, relPath)
 			continue
 		}

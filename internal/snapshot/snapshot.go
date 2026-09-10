@@ -141,6 +141,11 @@ type Generation struct {
 	parsed   map[string]*vault.Note
 	sidecars map[string][]byte
 
+	// skippedNotes are markdown paths this generation left out of the note map
+	// because the contract named their basename under scan.skip_basenames.
+	// They stay in the scan so /raw/ and a wikilink can still reach the file.
+	skippedNotes map[string]struct{}
+
 	// built is this generation's own account of itself, fixed when it was
 	// published, so it stays true beside the content a response captured.
 	built buildFacts
@@ -399,6 +404,17 @@ func (g *Generation) Note(canonicalPath string) (Reading, bool) {
 	}
 	note, ok := g.notes[canonicalPath]
 	return note, ok
+}
+
+// SkipsNote reports that this generation observed canonicalPath and left it
+// out of the note map because the contract named its basename under
+// scan.skip_basenames. A skipped path is a file, not a note.
+func (g *Generation) SkipsNote(canonicalPath string) bool {
+	if g == nil {
+		return false
+	}
+	_, ok := g.skippedNotes[canonicalPath]
+	return ok
 }
 
 // Render projects markdown through the resolver and captured transclusion bodies
@@ -738,12 +754,21 @@ func buildGeneration(
 	g := newGeneration(len(entries))
 	blocked := blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
+	navEntries := make([]vaultfs.Entry, 0, len(entries))
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
 		relPath := entry.Path()
+		if contract.SkipsBasename(relPath) {
+			// Declared skip: a file, never a note. Wikilinks and /raw/ still
+			// reach it; the shelf, the index, and exists do not.
+			g.resources = append(g.resources, relPath)
+			g.skippedNotes[relPath] = struct{}{}
+			continue
+		}
+		navEntries = append(navEntries, entry)
 		note := vault.IsMarkdown(relPath)
 		want := wantedBytes(entry, note)
 		if !note {
@@ -776,7 +801,7 @@ func buildGeneration(
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
-	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal)
+	navigation := nav.New(navEntries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal)
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.files), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
@@ -811,6 +836,7 @@ func buildGeneration(
 		titles:         titles,
 		parsed:         g.parsed,
 		sidecars:       g.sidecars,
+		skippedNotes:   g.skippedNotes,
 		sizeSkipped:    slices.Clone(g.sizeSkipped),
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen)
@@ -838,6 +864,8 @@ type generation struct {
 	resources []string
 	// findings are the schema's verdicts, kept only for notes that drew one.
 	findings map[string][]judge.Finding
+	// skippedNotes are paths left out of the note map by skip_basenames.
+	skippedNotes map[string]struct{}
 	// sizeSkipped are notes this reading refused for size, recorded here so
 	// the published generation can name them in Skipped().
 	sizeSkipped []Skipped
@@ -846,14 +874,15 @@ type generation struct {
 // newGeneration opens an empty generation sized for a folder of entries files.
 func newGeneration(entries int) *generation {
 	return &generation{
-		parsed:     make(map[string]*vault.Note),
-		ordered:    make([]*vault.Note, 0, entries),
-		unreadable: make([]*vault.Note, 0),
-		readings:   make(map[string]Reading),
-		sidecars:   make(map[string][]byte),
-		files:      make([]lexical.Document, 0, entries),
-		resources:  make([]string, 0, entries),
-		findings:   make(map[string][]judge.Finding),
+		parsed:       make(map[string]*vault.Note),
+		ordered:      make([]*vault.Note, 0, entries),
+		unreadable:   make([]*vault.Note, 0),
+		readings:     make(map[string]Reading),
+		sidecars:     make(map[string][]byte),
+		files:        make([]lexical.Document, 0, entries),
+		resources:    make([]string, 0, entries),
+		findings:     make(map[string][]judge.Finding),
+		skippedNotes: make(map[string]struct{}),
 	}
 }
 
