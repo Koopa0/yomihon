@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -248,6 +249,21 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 				"筆記狀況",
 				"y-inlineaids",
 				"y-statuspanel",
+			},
+			wantAbsent: []string{"y-shell--rail-empty"},
+		},
+		{
+			name: "declared sources alone keep the rail",
+			view: NoteView{
+				Title:   "T",
+				RelPath: "a.md",
+				BasedOn: []nav.NoteRef{{Name: "Book notes", RelPath: "Book notes.md"}},
+			},
+			wantAids: true,
+			wantPresent: []string{
+				"y-basedon",
+				`ui-side__label">聲明的來源`,
+				"y-inlineaids",
 			},
 			wantAbsent: []string{"y-shell--rail-empty"},
 		},

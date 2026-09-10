@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // A declared based_on source is walkable on the reading page, and
@@ -38,8 +36,12 @@ func TestDeclaredSourcesOnTheReadingPage(t *testing.T) {
 			`based_on: "[[twin]]"`,
 			"the name two files answer to",
 		),
-		"A/twin.md": "one\n",
-		"B/twin.md": "two\n",
+		"A/twin.md":         "one\n",
+		"B/twin.md":         "two\n",
+		"Sources/Zebra.md":  "z\n",
+		"Sources/Apple.md":  "a\n",
+		"Sources/Middle.md": "m\n",
+		"Writing/Order.md":  "---\nbased_on:\n  - Zebra\n  - Apple\n  - Middle\n---\n\nno body link\n",
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -50,7 +52,7 @@ func TestDeclaredSourcesOnTheReadingPage(t *testing.T) {
 			t.Fatalf("status = %d, want 200", code)
 		}
 		block := basedOnBlock(t, body)
-		if !strings.Contains(block, wording.BasedOn.In(wording.ZhHant)) {
+		if !strings.Contains(block, `ui-side__label">聲明的來源`) {
 			t.Errorf("the declaring note does not label its sources; block = %q", block)
 		}
 		if !strings.Contains(block, `href="/notes/Concepts/yomihon/Source`) {
@@ -58,6 +60,10 @@ func TestDeclaredSourcesOnTheReadingPage(t *testing.T) {
 		}
 		if !strings.Contains(block, "Source model") {
 			t.Errorf("the resolved source is not named; block = %q", block)
+		}
+		rail := railRight(t, body)
+		if !strings.Contains(rail, `class="y-basedon"`) {
+			t.Errorf("the wide rail has no declared-source block; rail = %q", rail)
 		}
 	})
 
@@ -87,6 +93,24 @@ func TestDeclaredSourcesOnTheReadingPage(t *testing.T) {
 			t.Errorf("an ambiguous source was guessed into a link; block = %q", block)
 		}
 	})
+
+	t.Run("declaration order is the list order, not a sort", func(t *testing.T) {
+		t.Parallel()
+		code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/Order.md")
+		if code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		block := basedOnBlock(t, body)
+		zebra := strings.Index(block, "Zebra")
+		apple := strings.Index(block, "Apple")
+		middle := strings.Index(block, "Middle")
+		if zebra < 0 || apple < 0 || middle < 0 {
+			t.Fatalf("a declared source is missing; block = %q", block)
+		}
+		if !(zebra < apple && apple < middle) {
+			t.Errorf("declared sources were reordered; block = %q", block)
+		}
+	})
 }
 
 func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
@@ -108,9 +132,11 @@ func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	declared := wording.BasedOn.In(wording.ZhHant)
-	cited := wording.CitedBy.In(wording.ZhHant)
-	islands := wording.IslandsTitle.In(wording.ZhHant)
+	const (
+		declared = `ui-side__label">聲明的來源`
+		cited    = `ui-side__label">正文連到這篇`
+		islands  = "沒有正文連過來的筆記"
+	)
 	if declared == cited {
 		t.Fatal("the declared-source label and the text-citation label are the same words")
 	}
@@ -139,7 +165,7 @@ func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
 		t.Fatalf("source status = %d, want 200", code)
 	}
 	citedBlock := citedByBlock(t, source)
-	if !strings.Contains(citedBlock, wording.CitedByNone.In(wording.ZhHant)) {
+	if !strings.Contains(citedBlock, "目前沒有其他筆記在正文連到這篇。") {
 		t.Errorf("the source note's backlinks do not say they count text citations; block = %q", citedBlock)
 	}
 	if strings.Contains(citedBlock, `href="/notes/Concepts/yomihon/Derived`) {
@@ -176,6 +202,20 @@ func basedOnBlock(t *testing.T, body string) string {
 	end := strings.Index(body[start:], "</nav>")
 	if end < 0 {
 		t.Fatal("the declared-source block is not closed")
+	}
+	return body[start : start+end]
+}
+
+func railRight(t *testing.T, body string) string {
+	t.Helper()
+	const open = `<aside class="y-rail-right"`
+	start := strings.Index(body, open)
+	if start < 0 {
+		t.Fatal("the reading page has no right rail")
+	}
+	end := strings.Index(body[start:], "</aside>")
+	if end < 0 {
+		t.Fatal("the right rail is not closed")
 	}
 	return body[start : start+end]
 }
