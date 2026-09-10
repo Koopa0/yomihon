@@ -637,6 +637,130 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if _, _, err := got.Search().SearchN(lexical.Parse("status:ready"), -1); err == nil {
 		t.Error("metadata search succeeded under source-stale artifact policy")
 	}
+
+	// Rewrite the fixture through the helper that owns the contract path, so
+	// no reader-supplied bytes reach writeNote's shared sink.
+	testContract(t, root)
+	store.rescan(t.Context())
+	if restored := store.Current(); restored.ArtifactPolicy().Available() || len(restored.Navigation().Paths()) != 0 {
+		t.Errorf("navigation after restoring the original bytes = %+v, want the digest latch to hold until restart", restored.Navigation())
+	}
+}
+
+// The same gap can meet New rather than a later rescan. If that refusal is
+// assigned back onto the Store, the next rebuild skips the check and instance
+// projections stay dark until restart, over a file that came back. New keeps
+// the startup handle; the generation that met the gap is refused; the next
+// rescan asks again.
+func TestNewRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
+	contract := testContract(t, root)
+
+	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	away := path + ".away"
+	if err := os.Rename(path, away); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", path, away, err)
+	}
+	store, _ := newTestStore(t, root, contract)
+
+	startup := store.Current()
+	if len(startup.Navigation().Paths()) != 0 || startup.Navigation().ArtifactClosure().Diagnostic() == "" {
+		t.Errorf("navigation while New met an unreadable contract = %+v, want instance projections withheld", startup.Navigation())
+	}
+
+	if err := os.Rename(away, path); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
+	}
+	// ArtifactPolicy re-captures at read time. While the name is absent the
+	// live handle and the refusal copy agree, so this read waits until the
+	// identical file is back and the generation New built is still the
+	// published one. A generation that classified from the live handle
+	// would now report available with empty Paths.
+	if startup.ArtifactPolicy().Available() {
+		t.Error("the generation New built still classified from a policy that could not re-read its source")
+	}
+	store.rescan(t.Context())
+
+	recovered := store.Current()
+	if recovered == startup {
+		t.Fatal("rescan did not publish a new snapshot after the identical contract came back")
+	}
+	if len(recovered.Navigation().Paths()) != 1 || recovered.Navigation().ArtifactClosure().Diagnostic() != "" {
+		t.Errorf("navigation after the identical contract came back = %+v, want the path restored", recovered.Navigation())
+	}
+	if !recovered.ArtifactPolicy().Available() {
+		t.Errorf("artifact policy stayed shut after the identical file came back: %s", recovered.ArtifactPolicy().Diagnostic())
+	}
+}
+
+// A contract that cannot be read is not a contract that changed. A save-by-
+// rename leaves the name absent for a few microseconds, and reading that
+// instant as drift would shut instance projections for the life of the
+// process over bytes nobody touched. The generation that meets the gap is
+// refused; the next one asks again; only bytes that really differ latch.
+func TestRescanRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
+	contract := testContract(t, root)
+	store, _ := newTestStore(t, root, contract)
+
+	first := store.Current()
+	if len(first.Navigation().Paths()) != 1 || first.Navigation().ArtifactClosure().Diagnostic() != "" {
+		t.Fatalf("initial navigation = %+v, want one available path", first.Navigation())
+	}
+
+	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	away := path + ".away"
+	if err := os.Rename(path, away); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", path, away, err)
+	}
+	store.rescan(t.Context())
+
+	during := store.Current()
+	if during == first {
+		t.Fatal("rescan did not publish a new snapshot while the contract was unreadable")
+	}
+	if len(during.Navigation().Paths()) != 0 || during.Navigation().ArtifactClosure().Diagnostic() == "" {
+		t.Errorf("navigation while the contract was unreadable = %+v, want instance projections withheld", during.Navigation())
+	}
+
+	if err := os.Rename(away, path); err != nil {
+		t.Fatalf("Rename(%q, %q) = %v", away, path, err)
+	}
+	// ArtifactPolicy re-captures at read time. While the name is absent the
+	// live handle and the refusal copy agree, so this read waits until the
+	// identical file is back and the generation that met the gap is still
+	// the published one. A generation that kept the live handle would now
+	// report available with empty Paths.
+	if during.ArtifactPolicy().Available() {
+		t.Error("the generation that met the gap still classified from a policy that could not re-read its source")
+	}
+	store.rescan(t.Context())
+
+	recovered := store.Current()
+	if recovered == during {
+		t.Fatal("rescan did not publish a new snapshot after the identical contract came back")
+	}
+	if len(recovered.Navigation().Paths()) != 1 || recovered.Navigation().ArtifactClosure().Diagnostic() != "" {
+		t.Errorf("navigation after the identical contract came back = %+v, want the path restored", recovered.Navigation())
+	}
+	if !recovered.ArtifactPolicy().Available() {
+		t.Errorf("artifact policy stayed shut after the identical file came back: %s", recovered.ArtifactPolicy().Diagnostic())
+	}
+
+	// A later ordinary change must not revive a refusal that already lifted.
+	writeNote(t, root, "Concepts/Beta.md", "---\ntitle: Beta\ntype: concept\nstatus: draft\n---\nbody\n")
+	store.rescan(t.Context())
+	if got := store.Current(); len(got.Navigation().Paths()) != 1 || got.Navigation().ArtifactClosure().Diagnostic() != "" {
+		t.Errorf("navigation after an unrelated rescan = %+v, want the recovered path to stay", got.Navigation())
+	}
 }
 
 // The egress declaration is revalidated on the same beat as the artifact one.

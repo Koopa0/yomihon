@@ -1,0 +1,53 @@
+name: Wish
+description: Something yomihon should do differently, from the size of a heading to a capability it does not have.
+title: "wish: "
+labels: [needs-owner]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        yomihon is a reading room for notes you already have, so a wish is
+        judged from the reading it came out of. Say what you were reading and
+        what you wanted to do next.
+
+        Two changes are outside what yomihon is: reaching the network, and
+        writing anything into a note other than one `status` value. A wish that
+        needs either of those is a different conversation.
+
+        Every wish waits for a decision on direction before anyone writes code.
+
+  - type: textarea
+    id: reading
+    attributes:
+      label: The reading you were doing
+      description: >-
+        The moment this came up — the note, course, or search in front of you,
+        and what you wanted to do next.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What yomihon does today
+      description: What happens in that moment now. If nothing happens, say so.
+    validations:
+      required: true
+
+  - type: textarea
+    id: instead
+    attributes:
+      label: What it should do instead
+      description: >-
+        One behaviour, described closely enough that two people reading this
+        would build the same thing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: smaller
+    attributes:
+      label: Anything smaller that would do
+      description: >-
+        A smaller change that gets you most of the way. That is often the one
+        that lands.

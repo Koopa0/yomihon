@@ -43,23 +43,27 @@ func (r existsReport) found() bool {
 // existsLookup looks query up across every note's filename, title, aliases, and
 // English title, normalizing both sides the same way the resolver keys names.
 // A note that exposes the name on more than one field yields one match per
-// field. Matches are ordered by path, then field.
+// field. Matches are ordered by path, then field. title_en is matched only
+// when the contract declares it for that note's type — fields.known, or a
+// per-type list such as fields.lesson_only on a lesson. A field check would
+// call unknown is not a name this oracle may report.
 func existsLookup(notes []note, query string, authority scanAuthority) existsReport {
 	key := normalizeKey(query)
 	matches := []existsMatch{}
 	withheld := false
 	for i := range notes {
 		n := &notes[i]
+		known := knownFrontmatter(authority, n.noteType)
 		if !authority.egressAllowed(n.path) {
 			// A contract-private note never describes itself here: no path, no
 			// field, no value. That it answers to the name is still reported,
 			// because the alternative tells the caller the name is free.
-			if len(noteMatches(n, key)) > 0 {
+			if len(noteMatches(n, key, known)) > 0 {
 				withheld = true
 			}
 			continue
 		}
-		matches = append(matches, noteMatches(n, key)...)
+		matches = append(matches, noteMatches(n, key, known)...)
 	}
 	slices.SortStableFunc(matches, func(a, b existsMatch) int {
 		if c := strings.Compare(a.Path, b.Path); c != 0 {
@@ -71,8 +75,9 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 }
 
 // noteMatches returns every field of n that exposes the normalized key: its
-// filename stem, full filename, title, each alias, and English title.
-func noteMatches(n *note, key string) []existsMatch {
+// filename stem, full filename, title, each alias, and English title when
+// the contract declares title_en for this note's type.
+func noteMatches(n *note, key string, known []string) []existsMatch {
 	var matches []existsMatch
 	stem := filenameStem(n.path)
 	if normalizeKey(stem) == key {
@@ -92,10 +97,26 @@ func noteMatches(n *note, key string) []existsMatch {
 			matches = append(matches, existsMatch{Path: n.path, Field: "alias", Value: alias})
 		}
 	}
-	if n.titleEn != "" && normalizeKey(n.titleEn) == key {
+	if n.titleEn != "" && slices.Contains(known, "title_en") && normalizeKey(n.titleEn) == key {
 		matches = append(matches, existsMatch{Path: n.path, Field: "title_en", Value: n.titleEn})
 	}
 	return matches
+}
+
+// knownFrontmatter is the contract's declared frontmatter set for one note
+// type: the shared fields.known list, plus the per-type list only when that
+// type is the one the list applies to (today fields.lesson_only on a lesson).
+// A nil contract declares no field, so title_en cannot match.
+func knownFrontmatter(authority scanAuthority, noteType string) []string {
+	if authority.contract == nil {
+		return nil
+	}
+	fields := authority.contract.Definition().Fields
+	lessonType, _ := authority.contract.LessonType()
+	if noteType == lessonType {
+		return slices.Concat(fields.Known, fields.LessonOnly)
+	}
+	return fields.Known
 }
 
 // filename is the last path segment of a vault-relative, forward-slash path.

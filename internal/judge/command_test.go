@@ -64,7 +64,8 @@ func TestRunCoverageGolden(t *testing.T) {
 
 // TestRunExistsGolden asserts the exists command's JSON and human renderings
 // and its exit code — 0 when a match exists, 1 when none does — over the report
-// fixture, covering a multi-note alias hit, a title/title_en hit, and a miss.
+// fixture, covering a multi-note alias hit, a title hit whose English title is
+// not in fields.known, and a miss.
 func TestRunExistsGolden(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -75,7 +76,7 @@ func TestRunExistsGolden(t *testing.T) {
 		wantExit int
 	}{
 		{name: "alias across two notes", query: "shared", format: FormatJSON, golden: "testdata/golden/exists-shared.golden", wantExit: 0},
-		{name: "title and title_en", query: "Slices in Depth", format: FormatJSON, golden: "testdata/golden/exists-titleen.golden", wantExit: 0},
+		{name: "title folds; title_en is undeclared", query: "Slices in Depth", format: FormatJSON, golden: "testdata/golden/exists-titleen.golden", wantExit: 0},
 		{name: "no match", query: "Nonexistent Concept", format: FormatJSON, golden: "testdata/golden/exists-missing.golden", wantExit: 1},
 		{name: "human match", query: "shared", format: FormatHuman, golden: "testdata/golden/exists-shared-human.golden", wantExit: 0},
 		{name: "human miss", query: "Nonexistent Concept", format: FormatHuman, golden: "testdata/golden/exists-missing-human.golden", wantExit: 1},

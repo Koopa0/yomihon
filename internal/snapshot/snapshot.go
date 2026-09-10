@@ -466,13 +466,13 @@ func New(
 	}
 
 	capabilities := contract.Capabilities(governance)
-	capabilities.Artifacts = capabilities.Artifacts.ValidateSource()
+	generationCaps := validateArtifactSource(capabilities)
 	validatePrivacySource(contract)
 	scan, err := source.ScanAvailable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
-	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, capabilities, contract)
+	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, generationCaps, contract)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
@@ -544,6 +544,23 @@ func validatePrivacySource(contract *schema.Contract) {
 	contract.PrivacyPolicy().ValidateSource()
 }
 
+// validateArtifactSource re-reads the contract file behind the artifact
+// declaration for one generation. The copy it returns is what that generation
+// projects over; the stored handle is left alone. An unreadable source is
+// caller-local — ValidateSource returns a handle with no source binding — so
+// assigning that refusal back would make the next rescan skip the check and
+// leave instance projections dark until restart, over a file that came back.
+// Digest drift still latches on the shared state the stored handle points at.
+func validateArtifactSource(
+	//nolint:gocritic // hugeParam: the copy is the point; a pointer would let this generation's caller-local refusal reach the stored handle
+	capabilities schema.Capabilities,
+) schema.Capabilities {
+	if capabilities.Artifacts.Available() {
+		capabilities.Artifacts = capabilities.Artifacts.ValidateSource()
+	}
+	return capabilities
+}
+
 func (s *Store) rescan(ctx context.Context) {
 	scan, err := s.source.ScanAvailable(ctx)
 	if err != nil {
@@ -566,9 +583,7 @@ func (s *Store) rescan(ctx context.Context) {
 	if s.retry && s.now().Before(s.nextRetry) && s.incompleteScan.SameFiles(scan) {
 		return
 	}
-	if s.capabilities.Artifacts.Available() {
-		s.capabilities.Artifacts = s.capabilities.Artifacts.ValidateSource()
-	}
+	capabilities := validateArtifactSource(s.capabilities)
 	validatePrivacySource(s.contract)
 	candidate, blocked, err := buildGeneration(
 		ctx,
@@ -576,7 +591,7 @@ func (s *Store) rescan(ctx context.Context) {
 		s.ptr.Load(),
 		scan,
 		s.log,
-		s.capabilities,
+		capabilities,
 		s.contract,
 	)
 	if err != nil {

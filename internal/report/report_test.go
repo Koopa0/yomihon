@@ -489,6 +489,35 @@ func TestTraversalNeverServesAFile(t *testing.T) {
 	}
 }
 
+// TestReadReportAcceptsAPathBriefingNameAccepts holds the briefing shape to
+// one owner. A path BriefingName admits is one readReport must also admit, or
+// the /notes/ redirect lands on a report frame that refuses the file.
+func TestReadReportAcceptsAPathBriefingNameAccepts(t *testing.T) {
+	t.Parallel()
+	root := vaultWithBriefing(t)
+	source, view := rootedReportView(t, root)
+
+	var rel, name string
+	for _, rep := range view.Navigation().Reports() {
+		got, ok := nav.BriefingName(rep.RelPath)
+		if ok {
+			rel, name = rep.RelPath, got
+			break
+		}
+	}
+	if rel == "" {
+		t.Fatal("the fixture briefing was not a path BriefingName accepts")
+	}
+
+	got, err := readReport(t.Context(), source, view, rel)
+	if err != nil {
+		t.Fatalf("readReport(%q) error = %v; BriefingName accepted it as %q", rel, err, name)
+	}
+	if string(got) != briefingFixture {
+		t.Errorf("readReport(%q) = %q, want the fixture BriefingName named %q", rel, got, name)
+	}
+}
+
 // TestRawConfinesToSystemReports is defense-in-depth: even if a scanner bug ever
 // listed a Briefing whose path is outside System/reports/ (here a Diary note, a
 // hard never-egress), /raw refuses to serve it — the allowlist is not the only

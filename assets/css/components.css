@@ -15,11 +15,18 @@
    Base
    ============================================================ */
 html, body { margin: 0; background: var(--bg); }
+/* Chrome height, and the extra 16px every fragment landing pad adds so
+   the marked line sits just under the bar rather than flush against it.
+   On :root so the skip link — a sibling of .yomihon — inherits it too. */
+:root {
+  --header-height: 56px;
+  --header-clearance: calc(var(--header-height) + 16px);
+}
 
 .y-skiplink {
   position: fixed;
   z-index: 101;
-  /* Keep the focused link below the 56px header so it cannot cover the
+  /* Keep the focused link below the header so it cannot cover the
      navigation trigger or another persistent header control. */
   top: 64px;
   left: 8px;
@@ -29,7 +36,7 @@ html, body { margin: 0; background: var(--bg); }
   background: var(--panel);
   color: var(--fg);
   font: var(--fw-medium) var(--fs-13)/var(--lh-normal) var(--font-sans);
-  translate: 0 calc(-100% - 72px);
+  translate: 0 calc(-100% - var(--header-clearance));
 }
 .y-skiplink:focus {
   translate: 0;
@@ -142,7 +149,7 @@ html, body { margin: 0; background: var(--bg); }
    Header
    ============================================================ */
 .y-header {
-  position: sticky; top: 0; z-index: 30; height: 56px; flex: none;
+  position: sticky; top: 0; z-index: 30; height: var(--header-height); flex: none;
   display: flex; align-items: center; gap: 16px; padding: 0 20px;
   background: color-mix(in oklch, var(--panel) 82%, transparent);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
@@ -228,18 +235,18 @@ html, body { margin: 0; background: var(--bg); }
 .y-shell--rail-empty { grid-template-columns: 264px minmax(0, 1fr); }
 .y-shell--rail-empty .y-rail-right { display: none; }
 .y-shell--rail-empty ~ .y-sealbar { display: flex; }
-.y-nav-scrim { display: none; position: fixed; inset: 56px 0 0 0; background: oklch(0 0 0 / .42); z-index: 44; }
+.y-nav-scrim { display: none; position: fixed; inset: var(--header-height) 0 0 0; background: oklch(0 0 0 / .42); z-index: 44; }
 
 /* The rails stay put while the prose moves under them: sticky to just below
    the header, each with its own overflow so a long tree scrolls without
    taking the reading column with it. */
 .y-rail-left {
   border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto;
-  padding: 6px 10px 48px; height: calc(100vh - 56px); position: sticky; top: 56px;
+  padding: 6px 10px 48px; height: calc(100vh - var(--header-height)); position: sticky; top: var(--header-height);
 }
 .y-rail-right {
-  border-left: 1px solid var(--border); overflow-y: auto; height: calc(100vh - 56px);
-  position: sticky; top: 56px; padding: 26px 22px 48px; display: flex; flex-direction: column; gap: 26px;
+  border-left: 1px solid var(--border); overflow-y: auto; height: calc(100vh - var(--header-height));
+  position: sticky; top: var(--header-height); padding: 26px 22px 48px; display: flex; flex-direction: column; gap: 26px;
 }
 .y-rail-right > * { flex: none; }
 /* The document scrolls, not this element. A reader arrives with focus on the
@@ -349,7 +356,7 @@ html, body { margin: 0; background: var(--bg); }
 /* The title can be a link's destination — a note opening with a heading that
    repeats it hands its anchor here — so it keeps the same clearance from the
    sticky header that every heading in the prose has. */
-.y-title { font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-38); line-height: 1.25; letter-spacing: 0.01em; color: var(--fg); margin: 14px 0 0; scroll-margin-top: 72px; text-wrap: balance; overflow-wrap: anywhere; }
+.y-title { font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-38); line-height: 1.25; letter-spacing: 0.01em; color: var(--fg); margin: 14px 0 0; scroll-margin-top: var(--header-clearance); text-wrap: balance; overflow-wrap: anywhere; }
 .y-metarow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 20px 0; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
 /* a long unbroken title or path breaks mid-string instead of overflowing the
    column; min-width:0 lets the flex item shrink so the break can take effect */
@@ -387,7 +394,7 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose [data-level="4"] { font-size: var(--fs-18); margin: 26px 0 0; }
 .y-prose [data-level="1"], .y-prose [data-level="2"], .y-prose [data-level="3"], .y-prose [data-level="4"] {
   font-family: var(--font-display); font-weight: var(--fw-semibold); color: var(--fg);
-  letter-spacing: var(--track-snug); line-height: 1.4; scroll-margin-top: 72px; text-wrap: balance;
+  letter-spacing: var(--track-snug); line-height: 1.4; scroll-margin-top: var(--header-clearance); text-wrap: balance;
 }
 /* The size rows share specificity with `.y-prose > :first-child` (0,2,0) and
    sit later, so an opening heading used to keep its top margin and drop the
@@ -417,11 +424,18 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose .footnotes { margin: 44px 0 0; font-family: var(--font-sans); font-size: var(--fs-14); line-height: var(--lh-read); color: var(--fg-subtle); }
 .y-prose .footnotes hr { margin: 0 0 18px; }
 .y-prose .footnotes ol { margin: 0; padding-left: 1.4em; }
-.y-prose .footnotes li { margin: 8px 0; scroll-margin-top: 72px; }
+.y-prose .footnotes li { margin: 8px 0; scroll-margin-top: var(--header-clearance); }
 .y-prose .footnotes p { margin: 0; }
-.y-prose sup:has(.footnote-ref) { scroll-margin-top: 72px; }
+.y-prose sup:has(.footnote-ref) { scroll-margin-top: var(--header-clearance); }
 .y-prose .footnote-ref, .y-prose .footnote-backref { text-decoration: none; }
 .y-prose .footnote-backref { display: inline-block; min-width: 1.2em; text-align: center; }
+/* A block address is a trailing inline span the fragment names. The browser
+   aligns that span with the viewport top, so without the same clearance the
+   headings already have, the marked line sits under the sticky header. The
+   landing is that line, not the paragraph's first line: wrapping lines above
+   the caret can still sit under the fold. The pad is --header-clearance, so a
+   taller bar moves every landing with it. */
+.y-prose [id^="^"] { scroll-margin-top: var(--header-clearance); }
 
 /* inline code + fenced code (chroma) */
 .y-prose code { font-family: var(--font-mono); font-size: 0.82em; background: var(--elevated); padding: 1px 5px; border-radius: var(--r-sm); color: var(--fg); }
@@ -488,13 +502,13 @@ html, body { margin: 0; background: var(--bg); }
 /* The moment the sentence becomes true usually finds the reader deep in the
    prose, and the element lives at the top of the column — left in plain flow
    it sat thousands of pixels above the viewport, detected but unseen. Sticky
-   keeps it just below the header (the 56px every pinned edge here clears)
+   keeps it just below the header (the --header-height every pinned edge here clears)
    without moving the reader's place; the page ground behind it, because it
    floats over prose once stuck. Scoped to the state attribute the banner
    carries so the recovery page's hold note, which shares the class, stays in
    flow beside its link. No motion is added, so reduced-motion needs nothing. */
 .y-freshness[data-freshness] {
-  position: sticky; top: 56px; z-index: 5;
+  position: sticky; top: var(--header-height); z-index: 5;
   background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--border-faint);
 }
 .y-freshness__action { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1037,7 +1051,7 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-syl-ready { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
 
 .y-part-block { margin-top: 30px; }
-.y-part { display: flex; align-items: baseline; gap: 14px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 72px; }
+.y-part { display: flex; align-items: baseline; gap: 14px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--border); scroll-margin-top: var(--header-clearance); }
 .y-part__num { flex: none; min-width: 24px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
 .y-part__name { flex: 1; min-width: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); color: var(--fg); }
 .y-partcount { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-subtle); background: var(--elevated); border: 1px solid var(--border-faint); border-radius: var(--r-sm); padding: 3px 8px; white-space: nowrap; }
@@ -1245,7 +1259,7 @@ html {
   /* A page with no rail has nothing for the drawer to open. */
   html[data-js] .yomihon:has(.y-rail-left) .y-hamburger { display: inline-flex; }
   html[data-js] .y-rail-left {
-    position: fixed; top: 56px; bottom: 0; left: 0; width: min(300px, 86vw);
+    position: fixed; top: var(--header-height); bottom: 0; left: 0; width: min(300px, 86vw);
     max-height: none; z-index: 45; transform: translateX(-102%);
     transition: transform .18s var(--ease-standard); box-shadow: var(--shadow-2);
   }

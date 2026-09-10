@@ -2,4 +2,12 @@ blank_issues_enabled: true
 contact_links:
   - name: Report a security vulnerability
     url: https://github.com/koopa0/yomihon/security/advisories/new
-    about: Private, not a public issue — see SECURITY.md.
+    about: >-
+      Private advisory, never a public issue. Anything that writes outside
+      status, or leaves the machine, belongs here. Attach no vault content.
+  - name: Write notes yomihon can read
+    url: https://github.com/koopa0/yomihon/blob/main/skills/yomihon-authoring/SKILL.md
+    about: >-
+      A note that reads correctly in Obsidian but is missing from a course, a
+      count, previous and next, or search is usually a contract question. This
+      says which frontmatter opens which capability.

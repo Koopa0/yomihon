@@ -1,5 +1,6 @@
 // Behavior lock: a link written at a section of another note lands the reader
-// on that section.
+// on that section, and a link written at a block address lands them on the
+// marked line, clear of the sticky header.
 //
 // The regression class is quiet and complete: the words on screen still say
 // "note#section", the link still works, and the reader still arrives — at the
@@ -8,11 +9,16 @@
 // a browser and against the destination's own anchor rather than against a
 // string written down twice: the fragment and the heading id are produced by
 // two different passes over two different documents, and the only property
-// worth locking is that they agree.
+// worth locking is that they agree. A block address is the same quiet miss in
+// a different place: the URL and the id are right, and the marked line sits
+// under the header.
 //
 // The destination note is long on purpose. On a note that fits in one screen,
 // "the reader arrived at the section" is already true before anything scrolls,
-// so the arrival check could not have failed.
+// so the arrival check could not have failed. The block fixture wraps to three
+// lines or more for the same reason: a one-line paragraph would sit entirely
+// below the header once the caret did, and could not tell a landing on the
+// marked line from a landing on the paragraph.
 //
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (the note that
 // carries the links). MUTATE names one of the self-test modes below;
@@ -48,6 +54,12 @@ const SITES = [
   'fragment-reaches-the-heading',
   'back-returns-to-the-source',
   'opening-heading-sits-flush',
+  'block-clears-the-header',
+];
+
+const BLOCK_LINKS = [
+  { label: 'back to the marked line', id: '^tide-wrap-1', host: 'p', minLines: 3 },
+  { label: 'back to the marked item', id: '^tide-item-1', host: 'li' },
 ];
 
 class LockFired extends Error {
@@ -152,6 +164,19 @@ const MUTATIONS = {
     provePath: () => destinationPath,
     apply: rewriteDocuments((body) => body.replaceAll('<h1 id="', '<h1 data-was-id="')),
   },
+  // The address is right and the marked line still sits under the header: the
+  // clearance the product owes the caret is taken off, which is the defect
+  // this site exists to catch.
+  'pin-the-block-to-the-top': {
+    target: 'block-clears-the-header',
+    apply: weakenStylesheet('.y-prose [id^="^"]{scroll-margin-top:0}'),
+  },
+  // The margin string stays at the token while the painted bar grows, so
+  // the landing assertion — not the property check — is what has to fire.
+  'stretch-the-header': {
+    target: 'block-clears-the-header',
+    apply: weakenStylesheet('.y-header{height:200px}'),
+  },
 };
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
@@ -199,6 +224,38 @@ const pageAddresses = (page) => page.evaluate(() => ({
   footnoteRefs: [...document.querySelectorAll('.footnote-ref')].length,
   footnoteSections: [...document.querySelectorAll('.footnotes')].length,
 }));
+
+// A bare double rAF never resolves while a cross-document view transition
+// has the arriving document's rendering suspended. Arm before the click so
+// pagereveal can hand us the transition's finished promise; race that and
+// the frames against a timer so the lock finishes under normal motion.
+const armArrival = (page) => page.addInitScript(() => {
+  window.__yArrival = new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    setTimeout(finish, 500);
+    const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(finish));
+    window.addEventListener('pagereveal', (event) => {
+      if (event.viewTransition && event.viewTransition.finished) {
+        event.viewTransition.finished.then(afterPaint, afterPaint);
+        return;
+      }
+      afterPaint();
+    }, { once: true });
+  });
+});
+
+const waitArrival = (page) => page.evaluate(() => {
+  if (window.__yArrival) return window.__yArrival;
+  return new Promise((resolve) => {
+    setTimeout(resolve, 500);
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+});
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -251,10 +308,12 @@ try {
       .find((h) => h.textContent.trim() === 'Fourth-level landing');
     if (!heading) return null;
     const style = getComputedStyle(heading);
+    const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height'));
     return {
       tag: heading.tagName,
       level: heading.getAttribute('data-level'),
       scrollMarginTop: style.scrollMarginTop,
+      clearance: headerHeight + 16,
     };
   });
   if (!fourth) {
@@ -263,8 +322,8 @@ try {
   if (fourth.tag !== 'H5' || fourth.level !== '4') {
     fail('fragment-reaches-the-heading', `the #### heading rendered as ${fourth.tag} data-level=${JSON.stringify(fourth.level)}, want H5 data-level="4"`);
   }
-  if (fourth.scrollMarginTop !== '72px') {
-    fail('fragment-reaches-the-heading', `the demoted h5 scroll-margin-top is ${JSON.stringify(fourth.scrollMarginTop)}, want "72px" so the jump clears the sticky header`);
+  if (parseFloat(fourth.scrollMarginTop) !== fourth.clearance) {
+    fail('fragment-reaches-the-heading', `the demoted h5 scroll-margin-top is ${JSON.stringify(fourth.scrollMarginTop)}, want ${fourth.clearance}px from --header-height so the jump clears the sticky header`);
   }
   const titleText = await reader.evaluate(() => document.querySelector('h1.y-title').textContent.trim());
   if (!anchors[titleText]) {
@@ -369,8 +428,94 @@ try {
     await page.close();
   }
 
+  // A block address is a trailing span, not the paragraph. The jump has to
+  // put that marked line below the sticky header; earlier wrapping lines may
+  // still sit under the fold. A second address lives on a list item so a
+  // selector that only names p cannot answer for every caret. Other mutations
+  // rewrite heading links and would fire here first, so this site only runs
+  // for its own mode or the plain lock.
+  if (!mutation || mutation.target === 'block-clears-the-header') {
+    for (const link of BLOCK_LINKS) {
+      const page = await context.newPage();
+      await armArrival(page);
+      const source = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+      if (!source || source.status() !== 200) broken(`the source note returned ${source?.status() ?? 'no response'}, want 200`);
+
+      proveApplied('block-clears-the-header', proof);
+
+      const anchor = page.locator(`main a.wikilink:text-is("${link.label}")`);
+      const found = await anchor.count();
+      if (found !== 1) broken(`the source note carries ${found} links labelled ${JSON.stringify(link.label)}, want exactly 1`);
+
+      const href = await anchor.getAttribute('href');
+      const fragment = decodeURIComponent(new URL(href, BASE).hash.slice(1));
+      if (fragment !== link.id) {
+        fail('block-clears-the-header', `the link labelled ${JSON.stringify(link.label)} names the fragment ${JSON.stringify(fragment)}, want ${JSON.stringify(link.id)}`);
+      }
+
+      await anchor.click();
+      const moved = await page.waitForURL((url) => url.pathname.endsWith('Tide.md'), { timeout: 10_000 })
+        .then(() => true, () => false);
+      if (!moved) {
+        broken(`following ${JSON.stringify(link.label)} did not move this tab (it is still at ${page.url()})`);
+      }
+
+      await waitArrival(page);
+
+      const arrival = await page.evaluate((host) => {
+        const target = document.querySelector(':target');
+        const header = document.querySelector('.y-header');
+        if (!target) return { missing: 'target' };
+        if (!header) return { missing: 'header' };
+        const block = target.closest(host);
+        if (!block) return { missing: host };
+        const lineHeight = parseFloat(getComputedStyle(block).lineHeight);
+        const height = block.getBoundingClientRect().height;
+        const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height'));
+        const paintedHeight = header.getBoundingClientRect().height;
+        const clearance = headerHeight + 16;
+        return {
+          hash: decodeURIComponent(location.hash.slice(1)),
+          id: target.id,
+          host: block.tagName,
+          lines: lineHeight ? height / lineHeight : 0,
+          top: target.getBoundingClientRect().top,
+          headerBottom: header.getBoundingClientRect().bottom,
+          headerHeight,
+          paintedHeight,
+          viewport: window.innerHeight,
+          scrollMarginTop: getComputedStyle(target).scrollMarginTop,
+          clearance,
+        };
+      }, link.host);
+      if (arrival.missing) {
+        broken(`after following ${JSON.stringify(link.label)} the page has no ${arrival.missing}`);
+      }
+      if (arrival.hash !== link.id || arrival.id !== link.id) {
+        fail('block-clears-the-header', `after following ${JSON.stringify(link.label)} the address is ${JSON.stringify(arrival.hash)} on ${JSON.stringify(arrival.id)}, want ${JSON.stringify(link.id)}`);
+      }
+      if (link.minLines && !(arrival.lines >= link.minLines)) {
+        broken(`the addressed ${link.host} is ${arrival.lines} lines tall, want ${link.minLines} or more so a single-line landing cannot hide a wrap`);
+      }
+      if (parseFloat(arrival.scrollMarginTop) !== arrival.clearance) {
+        fail('block-clears-the-header', `after following ${JSON.stringify(link.label)} the marked line scroll-margin-top is ${JSON.stringify(arrival.scrollMarginTop)}, want ${arrival.clearance}px from --header-height`);
+      }
+      if (arrival.headerHeight !== arrival.paintedHeight) {
+        fail('block-clears-the-header', `after following ${JSON.stringify(link.label)} --header-height is ${arrival.headerHeight}px but the painted bar is ${arrival.paintedHeight}px tall`);
+      }
+      // Bound the painted bar, not the token: a landing that only ran out of
+      // page can sit anywhere in the viewport and still look clear, and a
+      // token that no longer matches the bar would still pass a clearance
+      // derived from the custom property.
+      if (!(arrival.top >= arrival.headerBottom && arrival.top <= arrival.headerBottom + 24)) {
+        fail('block-clears-the-header', `after following ${JSON.stringify(link.label)} the marked line sits at ${arrival.top}px; the header occupies 0–${arrival.headerBottom}px, want the line just under it`);
+      }
+      await page.close();
+    }
+  }
+
   await context.close();
-  console.log("PASS heading-fragment: every cross-note section link carries the destination's own anchor, travels to that heading, and leaves the reader a way back");
+  console.log("PASS heading-fragment: every cross-note section link carries the destination's own anchor, travels to that heading, and a block address on a paragraph or a list item lands its marked line below the sticky header");
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

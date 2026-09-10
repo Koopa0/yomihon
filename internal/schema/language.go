@@ -27,6 +27,13 @@ func (c *Contract) ArticleLanguage() ArticleLanguage {
 	return ArticleLanguage{declared: slices.Contains(c.definition.Fields.Known, articleLanguageField)}
 }
 
+// Declared reports whether the contract gave the article-language field
+// authority. A face that needs to know whether to judge the field at all asks
+// here rather than re-reading fields.known for the same word.
+func (l ArticleLanguage) Declared() bool {
+	return l.declared
+}
+
 // Resolve returns a canonical BCP 47 tag for one note frontmatter map. A tag
 // comes back only where the contract gives the field authority and the note
 // declares a value the tag grammar accepts; missing authority, a missing field,

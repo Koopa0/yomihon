@@ -1,8 +1,27 @@
 name: Bug report
-description: Something in yomihon is broken.
-title: "[bug]: "
-labels: [bug]
+description: Something yomihon does is wrong.
+title: "bug: "
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Three reports go somewhere other than here.
+
+        **Something reads badly rather than wrongly** — a heading too close to
+        the text under it, a control you cannot reach from the keyboard, a page
+        that prints its navigation — is a wish, not a bug. Use the wish form.
+
+        **yomihon changed something in a note other than its `status` value, or
+        made a network connection.** Report that through
+        [GitHub's private advisory form](https://github.com/koopa0/yomihon/security/advisories/new),
+        never in a public issue.
+
+        **A note reads correctly in Obsidian but is missing from a course, a
+        count, previous and next, or search.** Read
+        [the authoring skill](https://github.com/koopa0/yomihon/blob/main/skills/yomihon-authoring/SKILL.md)
+        and run `yomihon check --root <vault>` first. Usually the vault contract
+        has not opened that capability for the note, and `check` says which one.
+
   - type: textarea
     id: what-happened
     attributes:
@@ -18,38 +37,60 @@ body:
       required: true
 
   - type: textarea
-    id: repro-steps
+    id: what-you-ran
     attributes:
-      label: Steps to reproduce
-      description: From a clean start — the command you ran, then what you clicked or requested.
+      label: What you ran
+      description: >-
+        From a clean start: the command, then what you opened or asked for. If
+        you could not make it happen again, write what you tried instead. A
+        failed attempt is worth filing.
       placeholder: |
         1. yomihon ~/notes
         2. open http://127.0.0.1:9610/...
         3. ...
+
+        or: what I tried, and what happened instead
+    validations:
+      required: true
+
+  - type: dropdown
+    id: last-seen
+    attributes:
+      label: Where you last saw it
+      options:
+        - I built from main and saw it there
+        - I saw it on an installed release and have not tried main
+        - I tried to see it again and could not
+        - I could not build or run yomihon to check
     validations:
       required: true
 
   - type: input
-    id: version
+    id: build
     attributes:
-      label: yomihon version
-      description: Output of `yomihon --version` if your build has it, otherwise the commit you built from.
-      placeholder: v0.2.0, or a commit hash
-    validations:
-      required: true
+      label: Which build
+      description: >-
+        Whichever of these you have: the name of the release file you
+        downloaded, the commit you built from, or the `mod` line from
+        `go version -m "$(command -v yomihon)"`.
+      placeholder: yomihon_v0.2.0_darwin_arm64
 
   - type: textarea
     id: contract
     attributes:
       label: Contract snippet
-      description: The section of your `System/schemas/vault-schema.toml` the bug touches, if it touches one.
+      description: >-
+        The part of your `System/schemas/vault-schema.toml` the bug touches, if
+        it touches one. Trim it to that part — a contract names your folders.
       render: toml
 
   - type: textarea
     id: minimal-vault
     attributes:
       label: Minimal vault
-      description: The smallest folder that reproduces it — a directory tree, or a link to one.
+      description: >-
+        The smallest folder that reproduces it — a directory tree, or a link to
+        one. Build it from scratch rather than attaching your own notes.
 
   - type: textarea
     id: check-output

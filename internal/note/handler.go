@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -223,7 +224,9 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 // show serves one entry of the browse tree. Every file the tree lists opens
 // here; the presentation follows the kind. Markdown is the note page — the
 // reading surface with its status face, table of contents and diagnostics.
-// Everything else is a read-only view of a file, built by showFile.
+// A daily-briefing HTML redirects to the report surface so a hand-typed
+// /notes/ address cannot dump chroma source of a file the shelf already
+// frames. Everything else is a read-only view of a file, built by showFile.
 //
 // A note's body reaches this first-party page through the markdown pipeline's
 // inert authored-markup subset. Ruby reading aids survive; executable,
@@ -241,6 +244,14 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !vault.IsMarkdown(rel) {
+		if name, ok := nav.BriefingName(rel); ok {
+			// 302, not 301: registration follows file location and can stop
+			// being true. no-store so a vanished briefing cannot keep sending
+			// a reader to a report page that no longer exists.
+			w.Header().Set("Cache-Control", "no-store")
+			http.Redirect(w, r, "/reports/"+url.PathEscape(name), http.StatusFound)
+			return
+		}
 		h.showFile(w, r, rel, authority, snap)
 		return
 	}

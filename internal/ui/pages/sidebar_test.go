@@ -558,6 +558,100 @@ func TestSidebarZeroEntryMapKeepsDisclosureAndOpenLink(t *testing.T) {
 	}
 }
 
+// A map written as headings and prose links lists those links on the rail,
+// which is the same tree whose length the shelf prints as 枝. Changing only
+// the shelf's figure would leave the two faces disagreeing about the same map.
+func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	files := map[string]string{
+		"Maps/Prose map.md": "---\ntitle: A map written as prose\ntype: topic-map\ndomain: golang\n---\n" +
+			"## Authors\n\nMurakami sits beside [[Norwegian Wood]] and [[Kafka on the Shore]].\n\n" +
+			"## Forms\n\nSee [[The Wind-Up Bird Chronicle]].\n\n" +
+			"## Editions\n\n| work | note |\n| --- | --- |\n" +
+			"| wood | [[挪威的森林\\|《挪威的森林》]] |\n" +
+			"| kafka | [[海辺のカフカ]] |\n\n" +
+			"## Places — [[Sputnik Sweetheart]]\n\nA heading that names a note.\n\n" +
+			"## After\n\nLater [[Colorless Tsukuru Tazaki]].\n\n" +
+			"## Quoted\n\n```\n- [[Fenced]]\n```\n",
+		"Norwegian Wood.md":             "---\ntitle: Norwegian Wood\ntype: concept\ndomain: golang\n---\nbody\n",
+		"Kafka on the Shore.md":         "---\ntitle: Kafka on the Shore\ntype: concept\ndomain: golang\n---\nbody\n",
+		"The Wind-Up Bird Chronicle.md": "---\ntitle: The Wind-Up Bird Chronicle\ntype: concept\ndomain: golang\n---\nbody\n",
+		"挪威的森林.md":                      "---\ntitle: 挪威的森林\ntype: concept\ndomain: golang\n---\nbody\n",
+		"海辺のカフカ.md":                     "---\ntitle: 海辺のカフカ\ntype: concept\ndomain: golang\n---\nbody\n",
+		"Sputnik Sweetheart.md":         "---\ntitle: Sputnik Sweetheart\ntype: concept\ndomain: golang\n---\nbody\n",
+		"Colorless Tsukuru Tazaki.md":   "---\ntitle: Colorless Tsukuru Tazaki\ntype: concept\ndomain: golang\n---\nbody\n",
+		"Fenced.md":                     "---\ntitle: Fenced\ntype: concept\ndomain: golang\n---\nbody\n",
+	}
+	for rel, content := range files {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	reader, err := vaultfs.Open(root)
+	if err != nil {
+		t.Fatalf("vaultfs.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close() error = %v", closeErr)
+		}
+	})
+	scan, err := reader.ScanComplete(t.Context())
+	if err != nil {
+		t.Fatalf("ScanComplete() error = %v", err)
+	}
+	notes := make(map[string]*vault.Note)
+	noteList := make([]*vault.Note, 0, len(scan.Files()))
+	for _, entry := range scan.Files() {
+		data, readErr := reader.ReadFile(t.Context(), entry)
+		if readErr != nil {
+			t.Fatalf("ReadFile() error = %v", readErr)
+		}
+		note := vault.Parse(entry.Path(), data)
+		notes[entry.Path()] = note
+		noteList = append(noteList, note)
+	}
+	contract, err := schema.LoadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("schema.LoadFile = %v", err)
+	}
+	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy())
+
+	view := NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant)
+	if len(view.Shelf.Rows) != 1 || view.Shelf.Rows[0].Mark != "5 枝" {
+		t.Errorf("prose map shelf = %#v, want one row marked 5 枝", view.Shelf.Rows)
+	}
+
+	var buf bytes.Buffer
+	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	for _, want := range []string{
+		"Norwegian Wood",
+		"Kafka on the Shore",
+		"The Wind-Up Bird Chronicle",
+		"《挪威的森林》",
+		"海辺のカフカ",
+		"Sputnik Sweetheart",
+		"Colorless Tsukuru Tazaki",
+		`href="/notes/Norwegian%20Wood.md"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rail is missing prose-map entry %q", want)
+		}
+	}
+	if strings.Contains(html, "Fenced") {
+		t.Error("rail lists a wikilink that was written inside a fenced code block")
+	}
+}
+
 func detailsTagByKey(t *testing.T, html, key string) string {
 	t.Helper()
 	marker := `data-key="` + key + `"`

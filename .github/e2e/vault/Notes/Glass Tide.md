@@ -24,6 +24,8 @@ Ballast paragraph A5: this passage exists to put distance between the headings o
 
 Ballast paragraph A6: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
 
+The paragraph a block address lands on is long on purpose. A one-line fixture would sit entirely below the header once the caret did, and could not tell a landing on the marked line from a landing on the paragraph. These sentences wrap past three lines at the reading measure so the caret is not on the first line, and a reader who followed the address sees that marked line clear of the sticky header even when the earlier lines of the same paragraph have already gone under the fold. ^tide-wrap-1
+
 Ballast paragraph A7: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
 
 Ballast paragraph A8: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
@@ -48,6 +50,8 @@ Ballast paragraph B3: this passage exists to put distance between the headings o
 Ballast paragraph B4: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
 
 Ballast paragraph B5: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
+
+- A list item carries a block address so a selector that only names a paragraph cannot answer for every caret. ^tide-item-1
 
 Ballast paragraph B6: this passage exists to put distance between the headings of this note, so a jump to one of them has somewhere to travel and a failure to travel has somewhere to show.
 

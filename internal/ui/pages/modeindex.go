@@ -162,7 +162,9 @@ func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView
 }
 
 // NewMapIndex builds the map index. A map's measure is how many branches it
-// holds at every depth, which is the shape of the subject it draws.
+// holds at every depth, which is the shape of the subject it draws. Those
+// branches are the same tree the rail lists, so a map whose only wikilinks
+// sit in prose or a table still has a count.
 func NewMapIndex(maps []nav.Map, closure nav.Closure, governed bool, lang wording.Lang) ListIndexView {
 	rows := make([]Row, 0, len(maps))
 	for i := range maps {

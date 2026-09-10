@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/lexical"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -31,8 +32,16 @@ func VaultHref(prefix, p string) string {
 	return prefix + strings.Join(segments, "/")
 }
 
-// notesHref builds the reading-page URL for a vault-relative path.
-func notesHref(p string) string { return VaultHref("/notes/", p) }
+// notesHref builds the reading-page URL for a vault-relative path. A
+// daily-briefing HTML opens at the report surface rather than as a /notes/
+// source dump, so a folder row, a rail twin and a search hit land where the
+// shelf already sends the reader.
+func notesHref(p string) string {
+	if name, ok := nav.BriefingName(p); ok {
+		return reportHref(name)
+	}
+	return VaultHref("/notes/", p)
+}
 
 // rawHref builds the unchanged-bytes URL for a vault-relative path. It is its
 // own route rather than a suffix on the note URL, which a vault directory named
