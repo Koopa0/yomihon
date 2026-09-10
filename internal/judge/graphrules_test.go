@@ -115,3 +115,29 @@ func TestUnlistedLessonIsReportedForAnySourceKind(t *testing.T) {
 		})
 	}
 }
+
+// TestDiskUnlistedUsesTheDomainPathUnion holds that map.disk_unlisted
+// answers from the union of a domain's study paths, not from each path
+// walking the domain alone. Two paths that each list half the ready
+// lessons of one domain produce no finding: those lessons are listed,
+// just not on every path.
+func TestDiskUnlistedUsesTheDomainPathUnion(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, unlistedSourceKindContract)
+	write(t, root, "Maps/Path A.md",
+		"---\ntitle: Path A\ntype: study-path\nstatus: ready\ndomain: japanese\n---\n\n"+
+			"## Main {sequence=primary}\n\n- [[Lesson A]]\n")
+	write(t, root, "Maps/Path B.md",
+		"---\ntitle: Path B\ntype: study-path\nstatus: ready\ndomain: japanese\n---\n\n"+
+			"## Main {sequence=primary}\n\n- [[Lesson B]]\n")
+	write(t, root, "Writing/Lesson A.md",
+		"---\ntitle: Lesson A\ntype: lesson\nstatus: ready\ndomain: japanese\nsource_kind: book\nslug: lessona\n---\nbody\n")
+	write(t, root, "Writing/Lesson B.md",
+		"---\ntitle: Lesson B\ntype: lesson\nstatus: ready\ndomain: japanese\nsource_kind: book\nslug: lessonb\n---\nbody\n")
+
+	out := string(runCheck(t, root))
+	if strings.Contains(out, `"rule_id":"map.disk_unlisted"`) {
+		t.Errorf("map.disk_unlisted fired for lessons listed on a parallel path of the same domain; findings:\n%s", out)
+	}
+}
