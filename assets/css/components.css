@@ -714,6 +714,10 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-searchdialog__input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
 .y-searchdialog__input:focus-visible { outline: none; }
 .y-searchdialog .y-live-search__status { margin-inline: 18px; }
+/* The fragment still prints a count so /search names how many it found without
+   a script. The palette already announces that number in the live status, so
+   a second line here is the same fact in a second voice. */
+.y-searchdialog .y-results__count { display: none; }
 .y-searchdialog .y-searchresults { max-height: min(52vh, 480px); padding: 0 6px 12px; overflow-y: auto; overscroll-behavior: contain; }
 .y-searchdialog .y-results { margin-top: 10px; }
 .y-searchdialog .y-searchpage__empty { margin: 18px 12px 8px; }
@@ -953,7 +957,10 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
    one-character-wide tower. */
 .y-homeblock--faults { grid-column: 1 / -1; }
 .y-homeblock__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
-.y-homeblock__head h2 { margin: 0; font-family: var(--font-display); font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--fg); }
+/* CJK min-content is one character, so a five-character title beside its lede
+   orphans the last glyph before the description wraps. Keep the heading intact
+   and let the description take the wrap. */
+.y-homeblock__head h2 { margin: 0; flex: none; white-space: nowrap; font-family: var(--font-display); font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--fg); }
 .y-homeblock__head p { margin: 0 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); text-align: right; }
 .y-homeempty { margin: 4px 0 0; font-family: var(--font-serif); font-style: italic; font-size: var(--fs-13); color: var(--fg-faint); }
 .y-homerecent, .y-homepaths { display: flex; flex-direction: column; }
