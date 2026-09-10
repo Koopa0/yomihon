@@ -499,9 +499,12 @@ func (w *Writer) VaultRoot() string {
 // ObservedStatus reports the status the note carries on disk right now. The
 // reading page's other values come from a scan seconds old, which is right for
 // a body or a link graph; an older status would offer a transition from a
-// state the note has already left.
+// state the note has already left. The path is the NFC identity the scan
+// already served; the walk opens the stored spelling, the same way Flip does,
+// so an NFD note still answers and the page can offer the transitions Flip
+// would honour.
 func (w *Writer) ObservedStatus(ctx context.Context, rel string) (string, error) {
-	relSlash, osPath, err := normalizeRelPath(rel)
+	relSlash, _, err := normalizeRelPath(rel)
 	if err != nil {
 		return "", err
 	}
@@ -515,7 +518,11 @@ func (w *Writer) ObservedStatus(ctx context.Context, rel string) (string, error)
 	if w.root == nil {
 		return "", ErrClosed
 	}
-	source, err := readRegularFile(w.root, osPath, relSlash)
+	storedRel, storedSlash, err := w.targetSpelledAsRequested(relSlash, nil)
+	if err != nil {
+		return "", err
+	}
+	source, err := readRegularFile(w.root, storedRel, storedSlash)
 	if err != nil {
 		return "", err
 	}
