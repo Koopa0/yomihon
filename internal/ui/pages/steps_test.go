@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -36,12 +37,12 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 			view: NoteView{
 				Prev:        nav.NoteRef{Name: "Setup", RelPath: "Writing/Setup.md"},
 				Next:        nav.NoteRef{Name: "Basics", RelPath: "Writing/Basics.md"},
-				StepsLabel:  "Go course 課程順序",
+				StepsLabel:  "Go course 從此步往下",
 				StepsCourse: true,
 			},
 			want: []string{
-				`<nav class="y-steps" aria-label="Go course 課程順序">`,
-				`<p class="y-steps__source">Go course 課程順序</p>`,
+				`<nav class="y-steps" aria-label="Go course 從此步往下">`,
+				`<p class="y-steps__source">Go course 從此步往下</p>`,
 				`<span class="y-steps__role">上一課</span>`,
 				`<span class="y-steps__role">下一課</span>`,
 				`href="/notes/Writing/Setup.md" rel="prev"`,
@@ -70,10 +71,10 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 			name: "a first lesson has no step back",
 			view: NoteView{
 				Next:        nav.NoteRef{Name: "Basics", RelPath: "Writing/Basics.md"},
-				StepsLabel:  "Go course 課程順序",
+				StepsLabel:  "Go course 從此步往下",
 				StepsCourse: true,
 			},
-			want:      []string{`<p class="y-steps__source">Go course 課程順序</p>`, `<span class="y-steps__role">下一課</span>`},
+			want:      []string{`<p class="y-steps__source">Go course 從此步往下</p>`, `<span class="y-steps__role">下一課</span>`},
 			forbidden: []string{`rel="prev"`, "上一課"},
 		},
 	}
@@ -131,7 +132,7 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 			wantPrev: "Course/C01.md",
 			// The folder's neighbour is S01; the course's is C03.
 			wantNext:   "Course/C03.md",
-			wantLabel:  "Branch course 課程順序",
+			wantLabel:  "Branch course 從此步往下",
 			wantCourse: true,
 		},
 		{
@@ -140,7 +141,7 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 			wantPrev: "Course/S01.md",
 			// No next: the branch never rejoins the main line.
 			wantNext:   "",
-			wantLabel:  "Branch course 課程順序",
+			wantLabel:  "Branch course 從此步往下",
 			wantCourse: true,
 		},
 	}
@@ -234,6 +235,71 @@ func buildStepsModel(t *testing.T) *nav.Model {
 		contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(),
 		contract.JournalDir(),
 	)
+}
+
+// TestStudyPathLandmarksDoNotShareAName locks the ruling on #293: on a note
+// one course teaches, the rail names the path's whole order and the foot
+// names the step onward. Landmark navigation must not offer two identically
+// named navigations.
+func TestStudyPathLandmarksDoNotShareAName(t *testing.T) {
+	t.Parallel()
+
+	model := buildStepsModel(t)
+	current := "Course/C02.md"
+	prev, next, label, course := FooterSequence(model, current, wording.ZhHant)
+	if !course || label == "" {
+		t.Fatalf("FooterSequence(%q) did not choose a course foot: label=%q course=%v", current, label, course)
+	}
+
+	var rail bytes.Buffer
+	if err := sidebar(NewSidebar(model, current), layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &rail); err != nil {
+		t.Fatalf("render sidebar: %v", err)
+	}
+	railName := navAriaLabel(rail.String(), "y-lessonsteps")
+	if railName == "" {
+		t.Fatalf("the rail has no y-lessonsteps landmark; html = %q", rail.String())
+	}
+
+	var foot bytes.Buffer
+	view := NoteView{Prev: prev, Next: next, StepsLabel: label, StepsCourse: course}
+	if err := sequenceSteps(view, wording.ZhHant).Render(t.Context(), &foot); err != nil {
+		t.Fatalf("render sequence steps: %v", err)
+	}
+	footName := navAriaLabel(foot.String(), "y-steps")
+	if footName == "" {
+		t.Fatalf("the foot has no y-steps landmark; html = %q", foot.String())
+	}
+	if railName == footName {
+		t.Errorf("rail and foot share the landmark name %q", railName)
+	}
+}
+
+func navAriaLabel(html, class string) string {
+	marker := `class="` + class + `"`
+	at := strings.Index(html, marker)
+	if at < 0 {
+		return ""
+	}
+	start := strings.LastIndex(html[:at+len(marker)], "<nav")
+	if start < 0 {
+		return ""
+	}
+	end := strings.Index(html[start:], ">")
+	if end < 0 {
+		return ""
+	}
+	tag := html[start : start+end]
+	const key = `aria-label="`
+	i := strings.Index(tag, key)
+	if i < 0 {
+		return ""
+	}
+	rest := tag[i+len(key):]
+	j := strings.Index(rest, `"`)
+	if j < 0 {
+		return ""
+	}
+	return rest[:j]
 }
 
 // TestAFootWithNoStepsSaysNothing keeps the foot silent on a note with nowhere

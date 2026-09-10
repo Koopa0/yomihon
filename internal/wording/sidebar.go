@@ -51,9 +51,16 @@ var (
 	JournalUnavailable      = both("日誌目前無法使用。", "Journal is unavailable.")
 )
 
-// CourseOrderOf names a study path's own order, which the foot of the article
-// and the rail both walk. It carries the path's title, so it is a format.
+// CourseOrderOf names a study path's own order, which the rail walks. It
+// carries the path's title, so it is a format. The foot of the article names
+// the step onward with CourseOnwardOf, so landmark navigation does not hear
+// the same name twice.
 var CourseOrderOf = both("%s 課程順序", "%s course order")
+
+// CourseOnwardOf names the step onward from this note inside a study path,
+// which the foot of the article offers. The rail names the path's whole order
+// with CourseOrderOf.
+var CourseOnwardOf = both("%s 從此步往下", "%s onward from this step")
 
 // FolderAdjacency is the other order the foot can walk: the files either side
 // of this one inside its own folder.

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestHomeSearchHasNoAutofocusAttribute(t *testing.T) {
@@ -54,6 +55,41 @@ func TestHomeSearchIsPlainGETForm(t *testing.T) {
 	} {
 		if strings.Contains(section, absent) {
 			t.Errorf("Home() plain GET search contains live-search marker %q", absent)
+		}
+	}
+}
+
+// TestShelfCountSpansCarryTheUnitInTheDOM locks #295: a shelf count is a
+// role-less span, so the unit lives in the DOM rather than on aria-label.
+func TestShelfCountSpansCarryTheUnitInTheDOM(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	statuses := NewStatusDistribution(
+		[]LifecycleItem{{Name: "draft", Count: 3, Href: statusHref("draft")}},
+		[]LifecycleItem{{Count: 2, Label: wording.NoStatusStated.In(wording.ZhHant)}},
+		false, wording.ZhHant,
+	)
+	if err := FolderIndex(ListIndexView{}, RecentBlock{}, statuses, layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render FolderIndex: %v", err)
+	}
+	html := buf.String()
+	for _, class := range []string{`class="y-homechip__count"`, `class="y-homeunstated__count"`} {
+		at := strings.Index(html, class)
+		if at < 0 {
+			t.Fatalf("shelf is missing %s", class)
+		}
+		start := strings.LastIndex(html[:at], "<span")
+		close := strings.Index(html[at:], "</span></span>")
+		if start < 0 || close < 0 {
+			t.Fatalf("count span %s is incomplete", class)
+		}
+		span := html[start : at+close+len("</span></span>")]
+		if strings.Contains(span, "aria-label") {
+			t.Errorf("role-less count span still carries aria-label: %q", span)
+		}
+		if !strings.Contains(span, `<span class="y-offscreen"> 篇筆記</span>`) {
+			t.Errorf("count span does not put the unit in the DOM: %q", span)
 		}
 	}
 }

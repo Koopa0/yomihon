@@ -141,7 +141,7 @@ templ lifecycleChipBody(it LifecycleItem, lang wording.Lang) {
 	if it.Unknown {
 		@statusOutsideEnumMark(lang)
 	}
-	<span class="y-homechip__count" aria-label={ plural(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }>{ strconv.Itoa(it.Count) }</span>
+	<span class="y-homechip__count">{ strconv.Itoa(it.Count) }<span class="y-offscreen">{ countUnit(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }</span></span>
 }
 
 // unstatedChipBody is what a cell shows when it stands for notes carrying no
@@ -153,5 +153,5 @@ templ unstatedChipBody(it LifecycleItem, lang wording.Lang) {
 	} else {
 		<span>{ statusChipLabel(it.Name, lang) }</span>
 	}
-	<span class="y-homeunstated__count" aria-label={ plural(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }>{ strconv.Itoa(it.Count) }</span>
+	<span class="y-homeunstated__count">{ strconv.Itoa(it.Count) }<span class="y-offscreen">{ countUnit(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }</span></span>
 }

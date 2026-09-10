@@ -55,9 +55,12 @@ var (
 )
 
 // The status face: its label, and what it says in each state that offers no
-// control.
+// control. StatusBar names the fixed-bottom face so landmark navigation
+// reaches the status, the frontmatter diagnostics, and the only write control
+// at the widths where the right rail is absent.
 var (
 	StatusLabel          = both("狀態", "Status")
+	StatusBar            = both("狀態與寫入", "Status and write")
 	WriteFaceUnavailable = both("生命週期寫入目前無法使用。", "Lifecycle writes are unavailable.")
 	NoFrontmatter        = both("沒有 frontmatter（合法）。", "No frontmatter (which is legal).")
 	NoLegalTransitions   = both("目前沒有合法的狀態轉換。", "No status transition is legal from here.")

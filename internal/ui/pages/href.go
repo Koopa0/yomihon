@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/lexical"
@@ -151,6 +152,17 @@ func plural(n int, one, many wording.Phrase, lang wording.Lang) string {
 		return fmt.Sprintf(one.In(lang), n)
 	}
 	return fmt.Sprintf(many.In(lang), n)
+}
+
+// countUnit is the plural phrase after its digits, so a visible tally can
+// keep the number on screen and put the unit in the accessibility tree
+// without an aria-label on a role-less span.
+func countUnit(n int, one, many wording.Phrase, lang wording.Lang) string {
+	full := plural(n, one, many, lang)
+	if unit, ok := strings.CutPrefix(full, strconv.Itoa(n)); ok && unit != "" {
+		return unit
+	}
+	return full
 }
 
 // statusChipLabel names one square of the lifecycle block, saying in words that
