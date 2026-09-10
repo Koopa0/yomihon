@@ -856,3 +856,44 @@ func TestFenceExcerptDoesNotWalkToThePreviousSentence(t *testing.T) {
 		t.Fatalf("snippet() = %q, dropped the fence words the query asked for", results[0].Snippet)
 	}
 }
+
+// TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix locks
+// foldIndexAtSource. Fullwidth ASCII narrows 3-to-1 and a CJK wrap
+// drops the break, so the fence's fold offset is not its source offset.
+// Identity (return src) would place the fold range past the hit and
+// classify a fence-only note as prose.
+func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
+	t.Parallel()
+
+	const needle = "UNIQUE_FOLD_FENCE_PHRASE"
+	d := DocumentFromNote(vault.Parse("Notes/Fold fence.md", []byte(""+
+		"# Fold fence\n\n"+
+		strings.Repeat("Ｇｏ", 20)+"の\n並行処理。\n\n"+
+		"```d2\n"+
+		needle+"\n"+
+		"```\n")))
+	plain := vault.NormalizeNFC(d.PlainText)
+	mapped := fenceRangesOnNormalized(d.PlainText, d.FenceRanges)
+	folded := foldRanges(plain, mapped)
+	if len(mapped) != 1 || len(folded) != 1 {
+		t.Fatalf("fence ranges: source %v fold %v, want one span in each space", mapped, folded)
+	}
+	if mapped[0][0] == folded[0][0] {
+		t.Fatal("fold and source fence starts agree; foldIndexAtSource is untested")
+	}
+
+	idx := NewIndex([]Document{d}, validArtifactPolicy(t))
+	results, _, err := idx.SearchN(Parse(needle), -1)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(results))
+	}
+	if !results[0].Source {
+		t.Fatal("Source = false; the phrase lives only in the fence, and foldIndexAtSource must still say so")
+	}
+	if !strings.Contains(results[0].Snippet, needle) {
+		t.Fatalf("snippet() = %q, dropped the fence phrase", results[0].Snippet)
+	}
+}
