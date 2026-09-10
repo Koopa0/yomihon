@@ -32,6 +32,12 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
+      # Provenance is signed with a short-lived OIDC identity minted for this
+      # run; `attestations: write` stores the signed statement alongside the
+      # repository so `gh attestation verify` can check a downloaded binary
+      # against the source and workflow that produced it.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -67,6 +73,16 @@ jobs:
           done
 
           ( cd dist && sha256sum -- * > SHA256SUMS )
+
+      # The attestation covers the four published binaries. SHA256SUMS is
+      # derived from them and is not attested separately: a reader who
+      # verifies a binary's provenance has already established the bytes,
+      # and one who only checks the sums is trusting the same release page
+      # that served them.
+      - name: Attest the published binaries
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/yomihon_*
 
       # A tag such as v1.0.0-rc1 marks a pre-release; a plain v1.0.0 does
       # not. --verify-tag requires the tag to exist on the remote before
