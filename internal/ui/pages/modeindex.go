@@ -51,12 +51,12 @@ type RecentBlock struct {
 // it, because the distribution beside it counts every indexed note, and two
 // true figures over unnamed sets read as a contradiction.
 func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) RecentBlock {
-	block := RecentBlock{Title: wording.HomeTiedTitle.In(lang), Notes: notes}
+	block := RecentBlock{Title: wording.FolderTiedTitle.In(lang), Notes: notes}
 	switch {
 	case ordered && scoped:
-		block.Title, block.Lede = wording.HomeRecentTitle.In(lang), wording.HomeRecentLedeScoped.In(lang)
+		block.Title, block.Lede = wording.FolderRecentTitle.In(lang), wording.FolderRecentLedeScoped.In(lang)
 	case ordered:
-		block.Title, block.Lede = wording.HomeRecentTitle.In(lang), wording.HomeRecentLede.In(lang)
+		block.Title, block.Lede = wording.FolderRecentTitle.In(lang), wording.HomeRecentLede.In(lang)
 	case scoped:
 		block.Lede = wording.HomeTiedLedeScoped.In(lang)
 	default:
