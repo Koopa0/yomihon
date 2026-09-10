@@ -2,6 +2,7 @@ package render_test
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -281,10 +282,10 @@ func TestRubyReadingsDoNotSplitBasePhrases(t *testing.T) {
 			t.Fatalf("SearchN(%q): %v", q, err)
 		}
 		gotHits := searchPaths(results)
-		if !containsPath(gotHits, rubyNote.RelPath) {
+		if !slices.Contains(gotHits, rubyNote.RelPath) {
 			t.Errorf("query %q on the ruby note = %v, want a hit", q, gotHits)
 		}
-		if q != "ふるいけ" && !containsPath(gotHits, plainNote.RelPath) {
+		if q != "ふるいけ" && !slices.Contains(gotHits, plainNote.RelPath) {
 			t.Errorf("query %q on the plain control = %v, want a hit", q, gotHits)
 		}
 	}
@@ -333,19 +334,10 @@ func TestShippedHaikuBasePhraseIsSearchable(t *testing.T) {
 
 func searchPaths(results []lexical.Result) []string {
 	out := make([]string, len(results))
-	for i, r := range results {
-		out[i] = r.RelPath
+	for i := range results {
+		out[i] = results[i].RelPath
 	}
 	return out
-}
-
-func containsPath(paths []string, want string) bool {
-	for _, p := range paths {
-		if p == want {
-			return true
-		}
-	}
-	return false
 }
 
 func inOneBlock(text string, ends []int, a, b string) bool {

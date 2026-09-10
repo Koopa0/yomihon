@@ -247,19 +247,12 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		return ast.WalkContinue, nil
 	}
 	switch n.Kind() {
-	case ast.KindRawHTML:
+	case ast.KindRawHTML, ast.KindHTMLBlock:
 		// The tags are not content. Text between them arrives as separate text
 		// nodes rather than children, so skipping here drops only the tags.
 		// Ruby is the exception: <rt> (and <rtc>) hold a reading that must
 		// not sit between the base characters a reader can see.
-		if raw, ok := n.(*ast.RawHTML); ok {
-			for i := range raw.Segments.Len() {
-				seg := raw.Segments.At(i)
-				w.seeMarkup(seg.Value(source))
-			}
-		}
-		return ast.WalkSkipChildren, nil
-	case ast.KindHTMLBlock:
+		w.seeRawHTML(n, source)
 		return ast.WalkSkipChildren, nil
 	case ast.KindFencedCodeBlock, ast.KindCodeBlock:
 		// Code content lives in the node's line segments, not in child Text
@@ -275,12 +268,7 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		}
 		return ast.WalkSkipChildren, nil
 	case ast.KindText:
-		if t, ok := n.(*ast.Text); ok {
-			w.writeVisible(t.Value(source))
-			if t.SoftLineBreak() || t.HardLineBreak() {
-				w.writeBreak()
-			}
-		}
+		w.writeTextNode(n, source)
 	case ast.KindString:
 		if s, ok := n.(*ast.String); ok {
 			w.writeVisible(s.Value)
@@ -312,6 +300,28 @@ func writeSeparator(w *plainWalk) {
 	s := w.b.String()
 	if s[len(s)-1] != '\n' {
 		w.b.WriteByte('\n')
+	}
+}
+
+func (w *plainWalk) seeRawHTML(n ast.Node, source []byte) {
+	raw, ok := n.(*ast.RawHTML)
+	if !ok {
+		return
+	}
+	for i := range raw.Segments.Len() {
+		seg := raw.Segments.At(i)
+		w.seeMarkup(seg.Value(source))
+	}
+}
+
+func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
+	t, ok := n.(*ast.Text)
+	if !ok {
+		return
+	}
+	w.writeVisible(t.Value(source))
+	if t.SoftLineBreak() || t.HardLineBreak() {
+		w.writeBreak()
 	}
 }
 
