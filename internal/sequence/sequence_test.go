@@ -199,6 +199,34 @@ func TestRowsTheGrammarMustNotCollect(t *testing.T) {
 	}
 }
 
+// TestAnUnclosedCommentHidesTheRestOfTheCourse holds the study-path pair that
+// used to disagree with the page: a closed %% parked two rows, and the same
+// text without the closer hid them on the page while the shelf still counted
+// them. Both documents list only the two rows written before the mark.
+func TestAnUnclosedCommentHidesTheRestOfTheCourse(t *testing.T) {
+	t.Parallel()
+
+	visible := "## Course {sequence=primary}\n\n- [[A]]\n- [[B]]\n\n"
+	parked := "%%\n- [[C]]\n- [[D]]\n"
+	want := []string{"A", "B"}
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "closed pair", body: visible + parked + "%%\n"},
+		{name: "unpaired trailing", body: visible + parked},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := Parse(tt.body, 1)
+			if diff := cmp.Diff(want, collected(doc.Groups)); diff != "" {
+				t.Errorf("Parse() collected the rows a comment hid (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 // A map asks the live-link scan of the whole body, not of course rows, so a
 // prose or table link is live here even though it is not a lesson, and a
 // fenced copy of one is not.

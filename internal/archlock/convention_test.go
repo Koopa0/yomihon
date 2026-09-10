@@ -940,9 +940,10 @@ func TestOneOwnerFoldsAFragment(t *testing.T) {
 // was told a link was fine to a place the page had already marked broken.
 // The scan is found by the bytes that make it a scan rather than by its type
 // name, since the two copies already disagreed about what to call it. Each
-// row names its owner: the heading, fence, quote-prefix, and HTML-block
-// patterns live in internal/graph/; the callout opening, the closed type
-// list, and the line no address can survive on live in internal/render/,
+// row names its owner: the heading, fence, quote-prefix, HTML-block, and
+// Obsidian comment-pairing patterns live in internal/graph/; the callout
+// opening, the closed type list, and the line no address can survive on live
+// in internal/render/,
 // because only that package holds the vocabulary the page answers to.
 func TestOneOwnerScansALine(t *testing.T) {
 	t.Parallel()
@@ -956,6 +957,8 @@ func TestOneOwnerScansALine(t *testing.T) {
 		{"a backtick fence the scan opens", "strings.HasPrefix(t, \"```\")", "internal/graph/"},
 		{"a tilde fence the scan opens", `strings.HasPrefix(t, "~~~")`, "internal/graph/"},
 		{"a fence-close line the scan recognises", `strings.Count(t, string(marker)) == len(t)`, "internal/graph/"},
+		{"an unpaired Obsidian comment running to the end of the body", "Span{Start: start, Stop: len(body)}", "internal/graph/"},
+		{"the pairing of a closed Obsidian comment mark", "Stop: marks[k+1] + 2", "internal/graph/"},
 		{"the function that refuses a line no block address can survive on", "func UnanchorableLine(line string) bool", "internal/render/"},
 		{"the function that refuses a caret a code span owns as an address", "func CodeSpanOwnsBlockAddress(line string) bool", "internal/render/"},
 		{"the first group of callout types the page answers to", `"info", "note", "tip", "hint", "abstract", "summary", "todo"`, "internal/render/"},
