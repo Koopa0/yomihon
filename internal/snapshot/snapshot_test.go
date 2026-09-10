@@ -638,11 +638,9 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 		t.Error("metadata search succeeded under source-stale artifact policy")
 	}
 
-	original, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read contract fixture: %v", err)
-	}
-	writeNote(t, root, "System/schemas/vault-schema.toml", string(original))
+	// Rewrite the fixture through the helper that owns the contract path, so
+	// no reader-supplied bytes reach writeNote's shared sink.
+	testContract(t, root)
 	store.rescan(t.Context())
 	if restored := store.Current(); restored.ArtifactPolicy().Available() || len(restored.Navigation().Paths()) != 0 {
 		t.Errorf("navigation after restoring the original bytes = %+v, want the digest latch to hold until restart", restored.Navigation())
