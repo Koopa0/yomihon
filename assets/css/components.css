@@ -405,6 +405,24 @@ html, body { margin: 0; background: var(--bg); }
 .y-prose ul, .y-prose ol { margin: 14px 0 0; padding-left: 1.5em; }
 .y-prose ul { list-style: disc; }
 .y-prose ol { list-style: decimal; }
+/* A GFM task item already carries a checkbox. Goldmark emits two
+   shapes and no task-list class: a tight item puts the input on the
+   li, a loose or multi-paragraph item wraps it in a p. The disc
+   inherited from the ul sits beside either, which reads as two
+   markers on one row. Hide the disc on those ul items only; ordinary
+   discs stay, and an ordered task keeps the number the author wrote.
+   The checkbox then occupies the marker gutter so the text lines up
+   with a neighbouring plain list. */
+.y-prose ul > li:has(> input[type="checkbox"]:first-child),
+.y-prose ul > li:has(> p:first-child > input[type="checkbox"]:first-child) {
+  list-style: none;
+}
+.y-prose ul > li:has(> input[type="checkbox"]:first-child) > input[type="checkbox"]:first-child,
+.y-prose ul > li:has(> p:first-child > input[type="checkbox"]:first-child) > p:first-child > input[type="checkbox"]:first-child {
+  margin-inline-start: -1.4em;
+  margin-inline-end: 0.35em;
+  vertical-align: middle;
+}
 .y-prose li { margin: 4px 0; }
 .y-prose blockquote { margin: 22px 0 0; padding: 2px 0 2px 16px; border-left: 2px solid var(--border-strong); color: var(--fg-subtle); }
 .y-prose hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
