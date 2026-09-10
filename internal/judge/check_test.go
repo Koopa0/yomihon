@@ -45,9 +45,11 @@ func TestCheckGolden(t *testing.T) {
 		{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
 		// The fragment half of a link: a section and a block address that
 		// place, one of each that does not, a same-file fragment the page
-		// never resolves, a section arriving through a transclusion, and a
+		// never resolves, a section arriving through a transclusion, a
 		// longer fence whose shorter inner line must not steal the closer
-		// — so ^trapped stays code and ^genuine after the fence answers.
+		// — so ^trapped stays code and ^genuine after the fence answers —
+		// and a caret inside a code span that now draws a broken-fragment
+		// finding.
 		{name: "link fragments", fixture: "testdata/vault-fragments", golden: "testdata/golden/fragments.jsonl"},
 		// The page and the check used to disagree about two kinds of line: a
 		// block address on a recognised callout's title, and a heading after

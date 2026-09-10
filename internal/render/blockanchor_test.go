@@ -274,6 +274,10 @@ func TestBlockAddressAndExcerptScanAgreeOnUnusualLines(t *testing.T) {
 			name: "an address shown in a code span", address: "^cs", addressed: false,
 			body: "text `^cs`\n", reasonWhen: "the address is quoted text",
 		},
+		{
+			name: "an interior caret in a code span", address: "^right`", addressed: false,
+			body: "The XOR expression is `result := left ^right`\n", reasonWhen: "the caret is inside a code span",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

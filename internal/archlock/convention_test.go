@@ -957,6 +957,7 @@ func TestOneOwnerScansALine(t *testing.T) {
 		{"a tilde fence the scan opens", `strings.HasPrefix(t, "~~~")`, "internal/graph/"},
 		{"a fence-close line the scan recognises", `strings.Count(t, string(marker)) == len(t)`, "internal/graph/"},
 		{"the function that refuses a line no block address can survive on", "func UnanchorableLine(line string) bool", "internal/render/"},
+		{"the function that refuses a caret a code span owns as an address", "func CodeSpanOwnsBlockAddress(line string) bool", "internal/render/"},
 		{"the first group of callout types the page answers to", `"info", "note", "tip", "hint", "abstract", "summary", "todo"`, "internal/render/"},
 	} {
 		t.Run(spelling.what, func(t *testing.T) {

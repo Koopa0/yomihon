@@ -44,6 +44,21 @@ func UnanchorableLine(line string) bool {
 	return strings.HasPrefix(strings.TrimLeft(quotePrefix.ReplaceAllString(line, ""), " \t"), "|")
 }
 
+// CodeSpanOwnsBlockAddress reports whether the caret a line would take as a
+// block address sits inside a single-line code span. A caret there is the
+// author showing an expression, not naming a block. The three readers of a
+// block address ask this together so a link, an excerpt, and the page's ids
+// stay on one answer. Indented code and fences are not this question: those
+// have their own readings already.
+func CodeSpanOwnsBlockAddress(line string) bool {
+	trimmed := strings.TrimRight(line, " \t")
+	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
+	if m == nil {
+		return false
+	}
+	return withinAny(codeSpanRanges(trimmed), m[2], m[3])
+}
+
 // markBlockAnchor gives the address at the end of line an anchor a browser can
 // scroll to, leaving every visible character where it was: the marker keeps the
 // author's capitals and only the id is folded. A page carries one anchor per
@@ -54,16 +69,12 @@ func UnanchorableLine(line string) bool {
 // quoted text, not an address, and is left alone. The span it plants is the
 // signal the speech pass reads.
 func markBlockAnchor(line string, page *composition, inline *[]string, claim bool) string {
+	if CodeSpanOwnsBlockAddress(line) {
+		return line
+	}
 	trimmed := strings.TrimRight(line, " \t")
 	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
 	if m == nil {
-		return line
-	}
-	// A code span is quoted text: the author is showing an expression, not
-	// naming a block. The tail match takes every non-space through the line
-	// end, so it would otherwise swallow the closing backtick and leave
-	// goldmark an unmatched opener.
-	if withinAny(codeSpanRanges(trimmed), m[2], m[3]) {
 		return line
 	}
 	address := trimmed[m[2]:m[3]]

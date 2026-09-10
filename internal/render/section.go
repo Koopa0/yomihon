@@ -266,7 +266,9 @@ func blockSlice(body, block string) (string, bool) {
 
 // blockMarkerLine reports which line carries the marker naming block, or -1
 // when the note has no such marker. A marker written inside a fenced block is
-// code rather than an address, so the scan tracks fences as it walks.
+// code rather than an address, so the scan tracks fences as it walks. A caret
+// a single-line code span owns is the same kind of quoted text, asked of the
+// one predicate the page and the check share.
 func blockMarkerLine(lines []string, block string) int {
 	want := graph.FoldFragment("^" + block)
 	inFence, fenceByte, fenceLen := false, byte(0), 0
@@ -285,7 +287,7 @@ func blockMarkerLine(lines []string, block string) int {
 			inFence, fenceByte, fenceLen = true, open, n
 			continue
 		}
-		if UnanchorableLine(line) {
+		if UnanchorableLine(line) || CodeSpanOwnsBlockAddress(line) {
 			continue
 		}
 		trimmed := graph.FoldFragment(strings.TrimRight(line, " \t"))

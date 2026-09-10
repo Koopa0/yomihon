@@ -26,3 +26,5 @@ this line is still code ^trapped
 ````
 
 real paragraph ^genuine
+
+The XOR expression is `result := left ^right`

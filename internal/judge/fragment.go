@@ -174,8 +174,9 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 // collectBlockLines keeps the folded text of every line that could answer a
 // block address, so a link's "^name" matches the reading the destination page
 // uses. A line inside a fence is code, a recognised callout's opening line is
-// consumed as the title, and a row opening with a pipe is table syntax whose
-// tail the renderer drops. Only lines carrying a caret are kept.
+// consumed as the title, a row opening with a pipe is table syntax whose tail
+// the renderer drops, and a caret a single-line code span owns is quoted text.
+// Only lines carrying a caret are kept.
 func collectBlockLines(body string) []string {
 	var out []string
 	inFence, fenceByte, fenceLen := false, byte(0), 0
@@ -191,7 +192,7 @@ func collectBlockLines(body string) []string {
 			inFence, fenceByte, fenceLen = true, marker, n
 			continue
 		}
-		if render.UnanchorableLine(line) {
+		if render.UnanchorableLine(line) || render.CodeSpanOwnsBlockAddress(line) {
 			continue
 		}
 		trimmed := strings.TrimRight(line, " \t")
