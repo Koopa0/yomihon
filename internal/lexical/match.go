@@ -72,7 +72,8 @@ const (
 // body hits, a note's topic hits, the same three over vault files that are not
 // notes, then the path-only hits, notes again before files. Each group keeps
 // the vault's reading order, except that a fold-equal exact title leads the
-// title-note group, and every text hit outranks every path-only hit.
+// title-note group, a knowledge-layer hit leads an outside-knowledge hit
+// inside the same group, and every text hit outranks every path-only hit.
 //
 // An empty query returns nothing and a pure-filter query lands every match in
 // the title bucket. A metadata filter excludes non-instance artifacts, and
@@ -99,6 +100,7 @@ func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err
 		answers.place(e, q.tokens)
 	}
 	answers.raiseExactTitles(q.tokens)
+	answers.raiseKnowledge()
 	hits := answers.ordered()
 	total = len(hits)
 	if limit >= 0 && len(hits) > limit {
@@ -199,6 +201,25 @@ func (b *resultBuckets) raiseExactTitles(tokens []string) {
 
 func exactTitleRank(titleFold, needle string) int {
 	if titleFold == needle {
+		return 1
+	}
+	return 0
+}
+
+// raiseKnowledge is the flatten-time tie-break inside every group: a hit the
+// contract placed in the knowledge layer leads a hit it placed outside, and
+// hits that share that answer keep the order they already had. An undeclared
+// layer marks nothing, so the groups stay as raiseExactTitles left them.
+func (b *resultBuckets) raiseKnowledge() {
+	for i := range b.groups {
+		slices.SortStableFunc(b.groups[i], func(left, right hit) int {
+			return cmp.Compare(knowledgeRank(left.entry), knowledgeRank(right.entry))
+		})
+	}
+}
+
+func knowledgeRank(e *entry) int {
+	if e.outsideKnowledge {
 		return 1
 	}
 	return 0
