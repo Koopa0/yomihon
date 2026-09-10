@@ -122,10 +122,10 @@ func liveVaultNewIndexDocs() []Document {
 	const fencesPer = 8
 	var fencedBody strings.Builder
 	chunk := strings.Repeat("The filler paragraph stays out of the way.\n\n", 15)
-	for i := 0; i < fencesPer; i++ {
+	for i := range fencesPer {
 		fencedBody.WriteString(chunk)
 		fencedBody.WriteString("```d2\n")
-		fencedBody.WriteString(fmt.Sprintf("fence %d holds err and return\n", i))
+		fmt.Fprintf(&fencedBody, "fence %d holds err and return\n", i)
 		fencedBody.WriteString("```\n\n")
 	}
 	fencedBody.WriteString(strings.Repeat("and more filler word ", 80))
