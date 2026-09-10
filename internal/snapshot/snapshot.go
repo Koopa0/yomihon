@@ -794,7 +794,7 @@ func buildGeneration(
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal)
-	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.files), projectionPolicy)
+	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.files, capabilities.Knowledge), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
@@ -1082,16 +1082,25 @@ func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
 // indexDocuments gathers what this generation will answer searches from. Every
 // captured note is here: a note over the source bound never reached the
 // generation, so this loop does not decide size. Files join only when their
-// own page shows their characters.
+// own page shows their characters. Knowledge-layer membership is Includes
+// on the contract's scope, not a second copy of that directory list.
 func indexDocuments(
 	notes []*vault.Note,
 	files []lexical.Document,
+	knowledge schema.KnowledgeScope,
 ) []lexical.Document {
 	documents := make([]lexical.Document, 0, len(notes)+len(files))
 	for _, note := range notes {
-		documents = append(documents, lexical.DocumentFromNote(note))
+		doc := lexical.DocumentFromNote(note)
+		doc.OutsideKnowledge = !knowledge.Includes(note.RelPath)
+		documents = append(documents, doc)
 	}
-	return append(documents, files...)
+	for i := range files {
+		file := files[i]
+		file.OutsideKnowledge = !knowledge.Includes(file.RelPath)
+		documents = append(documents, file)
+	}
+	return documents
 }
 
 // readableAsText reports whether a vault file that is not a note is a candidate
