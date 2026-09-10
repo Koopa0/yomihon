@@ -18,6 +18,12 @@ const (
 	previewInsideSentinel = "SENTINEL the words the addressed section owns"
 	previewAfterSentinel  = "SENTINEL the words the section after it owns"
 	previewBlockSentinel  = "SENTINEL the words the marked block owns"
+	// The two openings a lede cut has to take as "the note starts on a
+	// heading": a blank line then ##, and a # title with a later ##.
+	previewOpensOnHeadingSentinel      = "SENTINEL the words the first section after a blank line owns"
+	previewAfterOpensOnHeadingSentinel = "SENTINEL the words the second section after a blank line owns"
+	previewTitleIntroSentinel          = "SENTINEL the intro under the opening title"
+	previewAfterTitleSentinel          = "SENTINEL the words under the heading after the title"
 )
 
 // previewTarget is the note a card is opened on: two sections named plainly,
@@ -35,12 +41,38 @@ const previewTarget = "---\ntitle: Target\n---\n\n" +
 
 const previewTargetRel = "Notes/target.md"
 
+// previewOpensOnHeading is the Goroutines.md shape: a blank line, then the
+// first heading. The body keeps that leading blank so the cut cannot key on
+// line 0 and still find the opening.
+const previewOpensOnHeading = "---\ntitle: Opens on heading\n---\n\n" +
+	"## First\n\n" +
+	previewOpensOnHeadingSentinel + "\n\n" +
+	"## Second\n\n" +
+	previewAfterOpensOnHeadingSentinel + "\n"
+
+const previewOpensOnHeadingRel = "Notes/opens-on-heading.md"
+
+// previewOpensOnTitle starts on `# Title` with no blank after the fence, so
+// the first heading really is line 0 of the body. A same-or-higher cut never
+// meets another H1 and used to return the whole note.
+const previewOpensOnTitle = "---\ntitle: Opens on title\n---\n" +
+	"# Title\n\n" +
+	previewTitleIntroSentinel + "\n\n" +
+	"## A\n\n" +
+	previewAfterTitleSentinel + "\n"
+
+const previewOpensOnTitleRel = "Notes/opens-on-title.md"
+
 // writePreviewVault lays down the note a card is opened on and the note that
 // embeds the same address, so the two cuts can be compared against each other
-// rather than against a slice this file worked out on its own.
+// rather than against a slice this file worked out on its own. The two
+// opening-on-a-heading notes lock the empty-fragment shapes a lede-only cut
+// misses: a blank line before the first heading, and an H1 that owns the rest.
 func writePreviewVault(t *testing.T, root string) {
 	t.Helper()
 	writeVaultNote(t, root, previewTargetRel, previewTarget)
+	writeVaultNote(t, root, previewOpensOnHeadingRel, previewOpensOnHeading)
+	writeVaultNote(t, root, previewOpensOnTitleRel, previewOpensOnTitle)
 	writeVaultNote(t, root, "Notes/host.md",
 		"---\ntitle: Host\n---\n\nThe host body.\n\n![[target#Addressed]]\n")
 }
@@ -201,6 +233,60 @@ func TestACardWithNoSectionStopsAtTheLedeAndSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(card.body, wording.PreviewMore.In(wording.ZhHant)) {
 		t.Errorf("a lede cut left the rest of the note behind and said nothing about it:\n%s", card.body)
+	}
+}
+
+// TestACardOnANoteThatOpensOnAHeadingAfterABlankLineShowsThatSection is the
+// Goroutines.md shape. A leading blank is not a lede, so the card shows the
+// first section's words — not an empty body and only the notice — and stops
+// before the next heading.
+func TestACardOnANoteThatOpensOnAHeadingAfterABlankLineShowsThatSection(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writePreviewVault(t, root)
+	srv := newServer(t, root)
+
+	card := askPreview(t, srv.Client(), srv.URL, previewOpensOnHeadingRel, "", wording.ZhHant)
+	if card.code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
+	}
+	if !strings.Contains(card.body, previewOpensOnHeadingSentinel) {
+		t.Errorf("a card on a note that opens on a heading after a blank line is missing that section's words:\n%s", card.body)
+	}
+	if strings.Contains(card.body, previewAfterOpensOnHeadingSentinel) {
+		t.Errorf("a card on a note that opens on a heading after a blank line reached the next section:\n%s", card.body)
+	}
+	if !strings.Contains(card.body, wording.PreviewMore.In(wording.ZhHant)) {
+		t.Errorf("a first-section cut left the rest of the note behind and said nothing about it:\n%s", card.body)
+	}
+}
+
+// TestACardOnANoteThatOpensOnATitleStopsAtTheNextHeading holds the other
+// empty-fragment hole: `# Title`, an intro, then `## A`. The card shows the
+// title and the intro, nothing under the next heading, and the notice. A cut
+// that waits for the next same-or-higher heading never finds one and ships
+// the whole note.
+func TestACardOnANoteThatOpensOnATitleStopsAtTheNextHeading(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writePreviewVault(t, root)
+	srv := newServer(t, root)
+
+	card := askPreview(t, srv.Client(), srv.URL, previewOpensOnTitleRel, "", wording.ZhHant)
+	if card.code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", card.code, http.StatusOK, card.body)
+	}
+	if !strings.Contains(card.body, "Title") {
+		t.Errorf("a card on a note that opens on a title is missing that title:\n%s", card.body)
+	}
+	if !strings.Contains(card.body, previewTitleIntroSentinel) {
+		t.Errorf("a card on a note that opens on a title is missing the intro under it:\n%s", card.body)
+	}
+	if strings.Contains(card.body, previewAfterTitleSentinel) {
+		t.Errorf("a card on a note that opens on a title reached past the next heading:\n%s", card.body)
+	}
+	if !strings.Contains(card.body, wording.PreviewMore.In(wording.ZhHant)) {
+		t.Errorf("a title cut left the rest of the note behind and said nothing about it:\n%s", card.body)
 	}
 }
 

@@ -146,10 +146,13 @@ func headingSlice(body, heading string) (slice string, matches int) {
 }
 
 // ledeSlice returns the opening of body a hover card shows when no fragment
-// named a place: the lines before the first heading, or that first heading's
-// own section when the note opens on one. The rest of the note is left behind
-// the same way headingSlice leaves the next same-or-higher heading, and
-// narrowed says so — a cut that happens to be the whole body is not a narrowing.
+// named a place: the lines before the first heading when they hold any
+// non-blank content, or that heading plus the lines up to the next heading of
+// any level when the note opens on one — leading blanks ignored, so a file
+// that starts `\n## …` is an opening heading, not an empty lede. The next
+// heading of any level is the edge, not the next same-or-higher one: an H1
+// opener would otherwise run to the end of the note. narrowed is true when
+// anything is left behind; a cut that is the whole body is not a narrowing.
 func ledeSlice(body string) (slice string, narrowed bool) {
 	lines := strings.Split(body, "\n")
 	headings := scanHeadings(lines)
@@ -157,26 +160,36 @@ func ledeSlice(body string) (slice string, narrowed bool) {
 		return body, false
 	}
 	first := headings[0]
-	end := first.line
-	if first.line == 0 {
-		end = len(lines)
-		for _, next := range headings[1:] {
-			if next.level <= first.level {
-				end = next.line
-				break
-			}
-		}
+	if ledeBeforeHeading(lines, first.line) {
+		return strings.Join(lines[:first.line], "\n"), true
+	}
+	end := len(lines)
+	if len(headings) > 1 {
+		end = headings[1].line
 	}
 	if end >= len(lines) {
 		return body, false
 	}
-	return strings.Join(lines[:end], "\n"), true
+	return strings.Join(lines[first.line:end], "\n"), true
+}
+
+// ledeBeforeHeading reports whether the lines before the first heading hold
+// any non-blank content. A run of blanks is not a lede: the note opens on
+// that heading, and the card has to show its words rather than an empty body.
+func ledeBeforeHeading(lines []string, first int) bool {
+	for _, line := range lines[:first] {
+		if !graph.BlankLine(line) {
+			return true
+		}
+	}
+	return false
 }
 
 // Excerpt is the part of body that a link's own fragment addresses: a caret
 // opens a block address, anything else names a section, and an empty fragment
-// asks for the opening — the lines before the first heading, or that heading's
-// own section when the note opens on one, cut the way headingSlice cuts. The
+// asks for the opening — the lines before the first heading when they hold
+// content, or that heading plus the lines up to the next heading of any level
+// when the note opens on one. The
 // hover card is the caller that needs a taste rather than a transfer; an embed
 // of the whole note still goes through excerptOf and receives the body itself.
 //
