@@ -810,11 +810,6 @@ func escapedVaultPath(p string) string {
 	return strings.Join(segments, "/")
 }
 
-// EscapedVaultPath is escapedVaultPath under the name a test in this package
-// can call after importing pages. A file in package render cannot import
-// pages: pages already imports render. The two segment loops stay two loops.
-func EscapedVaultPath(p string) string { return escapedVaultPath(p) }
-
 // notesHref builds the reading page's URL for a vault-relative path.
 func notesHref(p string) string {
 	return "/notes/" + escapedVaultPath(p)
