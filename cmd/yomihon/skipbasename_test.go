@@ -173,7 +173,7 @@ func skipBasenameRaw(t *testing.T, site http.Handler, target string) string {
 	return body
 }
 
-func skipBasenameGET(t *testing.T, site http.Handler, target string) (int, string) {
+func skipBasenameGET(t *testing.T, site http.Handler, target string) (code int, body string) {
 	t.Helper()
 	recorder := httptest.NewRecorder()
 	site.ServeHTTP(recorder, siteRequest(t, http.MethodGet, target, nil))
@@ -183,9 +183,9 @@ func skipBasenameGET(t *testing.T, site http.Handler, target string) (int, strin
 			t.Errorf("close %s response: %v", target, err)
 		}
 	}()
-	body, err := io.ReadAll(response.Body)
+	b, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read %s response: %v", target, err)
 	}
-	return response.StatusCode, string(body)
+	return response.StatusCode, string(b)
 }
