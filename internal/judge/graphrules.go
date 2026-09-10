@@ -422,17 +422,34 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 	}
 }
 
-// mapDiskMismatch reconciles each study-path against the lessons on disk. Its
-// first direction reports a syllabus link that resolves to nothing; its second
-// reports a lesson of the syllabus's domain that exists on disk but is not
-// listed. A draft lesson is expected work-in-progress and is not reported at
-// all.
+// mapDiskMismatch reconciles study-paths against the lessons on disk. Its
+// first direction reports a syllabus link that resolves to nothing; its
+// second reports a non-draft lesson of a domain that no study path of that
+// domain lists. Listed is collected across every path of the domain before
+// that second walk, so a lesson another parallel path owns is not unlisted.
+// A draft lesson is expected work-in-progress and is not reported at all.
 func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRoles, lessonType string) []Finding {
 	byDomain := lessonsByDomain(notes, lessonType)
+	listedByDomain := make(map[string]map[string]bool)
 	var out []Finding
 	for i := range notes {
 		if syllabus := &notes[i]; roles.IsPathType(syllabus.noteType) {
-			out = append(out, reconcileSyllabus(syllabus, idx, byDomain)...)
+			listed, mismatches := reconcileSyllabus(syllabus, idx)
+			out = append(out, mismatches...)
+			if syllabus.domain == "" {
+				continue
+			}
+			union := listedByDomain[syllabus.domain]
+			if union == nil {
+				listedByDomain[syllabus.domain] = listed
+				continue
+			}
+			maps.Copy(union, listed)
+		}
+	}
+	for i := range notes {
+		if syllabus := &notes[i]; roles.IsPathType(syllabus.noteType) && syllabus.domain != "" {
+			out = append(out, unlistedLessons(syllabus, byDomain[syllabus.domain], listedByDomain[syllabus.domain])...)
 		}
 	}
 	return out
@@ -450,10 +467,10 @@ func lessonsByDomain(notes []note, lessonType string) map[string][]*note {
 	return byDomain
 }
 
-// reconcileSyllabus reports one study-path's disagreements with disk: each of
-// its links that resolves to nothing, then each lesson of its domain that
-// exists but is not listed, skipping draft lessons.
-func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*note) []Finding {
+// reconcileSyllabus reports one study-path's links that resolve to nothing,
+// and the set of lessons it lists. The unlisted walk waits until every path
+// of the domain has been collected.
+func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Finding) {
 	var out []Finding
 	listed := make(map[string]bool)
 	lessons := courseLessonLinks(syllabus)
@@ -474,10 +491,15 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index, byDomain map[string][]*
 			panic("judge: unknown graph.Kind: " + res.Kind.String())
 		}
 	}
-	if syllabus.domain == "" {
-		return out
-	}
-	for _, lesson := range byDomain[syllabus.domain] {
+	return listed, out
+}
+
+// unlistedLessons reports each non-draft lesson of the syllabus's domain that
+// no study path of that domain lists. The listed set is the domain union,
+// already collected; this walk only decides what to emit against this path.
+func unlistedLessons(syllabus *note, lessons []*note, listed map[string]bool) []Finding {
+	var out []Finding
+	for _, lesson := range lessons {
 		expected := lesson.status == schema.DraftStatus
 		if !listed[lesson.path] && !expected {
 			out = append(out, diskUnlisted(syllabus, lesson))
@@ -508,8 +530,8 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 	}
 }
 
-// diskUnlisted is a non-draft lesson on disk that the syllabus for its
-// domain does not list. Writing a lesson before adding it to the syllabus is
+// diskUnlisted is a non-draft lesson on disk that no study path of its
+// domain lists. Writing a lesson before adding it to a syllabus is
 // normal, so it is reported at warning level and nothing here decides more than
 // that: whether a warning stops a run belongs to whoever starts it. Denying
 // warnings, or naming this rule, makes it gate like any other.
