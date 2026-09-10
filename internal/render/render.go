@@ -236,11 +236,12 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 	}
 }
 
-// HTML renders one note's body: the markdown pipeline, plus the three passes that
+// HTML renders one note's body: the markdown pipeline, plus the passes that
 // only make sense once at the top level — removing a leading H1 that duplicates
 // the page's title, assigning heading slugs one tag down so they sit under the
 // chrome title while data-level keeps the authored outline for look and contents,
 // collecting the table of contents over the assembled HTML so ids stay unique,
+// taking a declared role off a list row the way a heading already loses one,
 // and resolving assets. relPath is required because markdown writes an image
 // path relative to its own note.
 func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
@@ -263,6 +264,9 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 	// slugged, so a section further down that reduces to the same name is the
 	// one that has to move aside.
 	htmlOut, toc := assignHeadingIDs(res.HTML, titleAnchor)
+	// A container row's {sequence=…} is the same grammar a heading already
+	// loses; the source is left as the author wrote it.
+	htmlOut = stripListRowRoles(htmlOut)
 	res.HTML = resolveAssetHrefs(htmlOut, relPath, r.files, lang, &res.Diagnostics)
 	res.TOC = toc
 	res.TitleAnchor = titleAnchor
