@@ -498,7 +498,10 @@ func TestTheShippedHaikuQuoteTitleIsPlainText(t *testing.T) {
 		t.Fatalf("examples/vault no longer holds %s", rel)
 	}
 
-	opener, _, _ := strings.Cut(note.Body, "\n")
+	opener := firstCalloutLine(note.Body)
+	if opener == "" {
+		t.Fatal("the haiku note no longer opens a callout")
+	}
 	if strings.Contains(opener, "<ruby") || strings.Contains(opener, "<rt") {
 		t.Errorf("the quote title still carries ruby markup, which calloutShell escapes as visible text:\n%s", opener)
 	}
@@ -522,6 +525,17 @@ func TestTheShippedHaikuQuoteTitleIsPlainText(t *testing.T) {
 	if !strings.Contains(body, `<ruby>古池<rt>ふるいけ</rt></ruby>`) {
 		t.Errorf("the poem's ruby did not render in the callout body:\n%s", body)
 	}
+}
+
+// firstCalloutLine is the first authored callout opener in a note body,
+// skipping the blank line a frontmatter closer usually leaves behind.
+func firstCalloutLine(body string) string {
+	for line := range strings.SplitSeq(body, "\n") {
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "> [!") {
+			return line
+		}
+	}
+	return ""
 }
 
 // calloutTitleAndBody reads the first static callout this package wrote.
