@@ -11,10 +11,10 @@ import (
 
 // TestReportGolden asserts the human and markdown renderings of the report
 // fixture equal their goldens byte for byte. The human golden is the reference
-// tool's exact output; the markdown golden is that output with only its two
-// tool-identity lines changed to name yomihon, the sole place the format
-// deliberately departs from the reference (see the tool identity in
-// markdownReport).
+// tool's exact output. The markdown golden is that view with a preamble this
+// fixture's contract accepts: it does not declare type report, so the body
+// opens by saying so rather than with frontmatter the vault's own check would
+// reject.
 func TestReportGolden(t *testing.T) {
 	t.Parallel()
 	findings, err := Check(t.Context(), "testdata/vault-report")
@@ -38,7 +38,7 @@ func TestReportGolden(t *testing.T) {
 		golden string
 	}{
 		{name: "human", got: []byte(humanReport(findings, roots)), golden: "testdata/golden/report-human.golden"},
-		{name: "markdown", got: []byte(markdownReport(findings, roots)), golden: "testdata/golden/report-md.golden"},
+		{name: "markdown", got: []byte(markdownReport(findings, roots, contract)), golden: "testdata/golden/report-md.golden"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

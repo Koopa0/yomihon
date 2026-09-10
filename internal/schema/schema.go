@@ -45,6 +45,14 @@ const (
 	// instead of each writing the word down.
 	DraftStatus = "draft"
 
+	// SystemDocumentGroup is the status group holding a vault's own working
+	// documents rather than knowledge it wrote. Membership is the contract's
+	// answer under fields.status_group; only the group's name is pinned here,
+	// because nothing in the contract marks a group as holding documents. A
+	// vault that files those types under another name still takes the full
+	// knowledge-note rules.
+	SystemDocumentGroup = "system"
+
 	// conceptType is the note type a vault-schema.toml reserves for distilled
 	// ideas, spelled once so no face keeps a second copy.
 	conceptType = "concept"

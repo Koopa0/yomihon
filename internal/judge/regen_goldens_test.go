@@ -135,7 +135,7 @@ func TestRegenerateGoldens(t *testing.T) {
 		body   []byte
 	}{
 		{golden: "testdata/golden/report-human.golden", body: []byte(humanReport(reportFindings, roots))},
-		{golden: "testdata/golden/report-md.golden", body: []byte(markdownReport(reportFindings, roots))},
+		{golden: "testdata/golden/report-md.golden", body: []byte(markdownReport(reportFindings, roots, contract))},
 	}
 	for _, tt := range reportFaces {
 		if err := os.WriteFile(tt.golden, tt.body, 0o600); err != nil {

@@ -2,6 +2,21 @@ package schema
 
 import "testing"
 
+func TestArticleLanguageDeclared(t *testing.T) {
+	t.Parallel()
+	if (&Contract{}).ArticleLanguage().Declared() {
+		t.Error("ArticleLanguage().Declared() = true without a contract, want false")
+	}
+	known := &Contract{definition: Definition{Fields: Fields{Known: []string{"title", "lang"}}}}
+	if !known.ArticleLanguage().Declared() {
+		t.Error("ArticleLanguage().Declared() = false when fields.known lists lang, want true")
+	}
+	lessonOnly := &Contract{definition: Definition{Fields: Fields{LessonOnly: []string{"lang"}}}}
+	if lessonOnly.ArticleLanguage().Declared() {
+		t.Error("ArticleLanguage().Declared() = true when only lesson fields list lang, want false")
+	}
+}
+
 func TestArticleLanguageRequiresContractAuthority(t *testing.T) {
 	t.Parallel()
 	resolver := (&Contract{}).ArticleLanguage()

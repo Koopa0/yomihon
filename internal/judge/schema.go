@@ -84,13 +84,6 @@ func unmatchedKnowledgeDir(dir string) Finding {
 	}
 }
 
-// systemDocumentGroup is the status group holding a vault's own working
-// documents rather than knowledge it wrote. Membership is the contract's
-// answer; only the group's name is this face's, because nothing in the
-// contract marks a group as holding documents. A vault filing its documents
-// under another name has the full knowledge-note rules applied to them.
-const systemDocumentGroup = "system"
-
 // lintRun is one contract resolved into everything the frontmatter rules read,
 // held together for the length of one scan. Every field is derived from the
 // contract exactly once, and they travel together because they have to agree:
@@ -157,9 +150,12 @@ func (r *lintRun) note(n *note) []Finding {
 	}
 
 	// The group is resolved once and travels to the rule, so the enum the rule
-	// reads is the group it was routed by.
-	if hasType && r.contract.StatusGroup(ty) == systemDocumentGroup {
-		return append(out, r.documentStatus(n, systemDocumentGroup)...)
+	// reads is the group it was routed by. Which group holds working documents
+	// is pinned on schema.SystemDocumentGroup: the contract assigns membership,
+	// and a vault that files those types under another name still takes the
+	// full knowledge-note rules.
+	if hasType && r.contract.StatusGroup(ty) == schema.SystemDocumentGroup {
+		return append(out, r.documentStatus(n, schema.SystemDocumentGroup)...)
 	}
 	return append(out, r.knowledge(n)...)
 }
@@ -167,7 +163,7 @@ func (r *lintRun) note(n *note) []Finding {
 // articleLanguage reports a language tag the reader's browser cannot act on,
 // for the vaults whose contract knows the field at all.
 func (r *lintRun) articleLanguage(n *note) []Finding {
-	if !slices.Contains(r.definition.Fields.Known, "lang") {
+	if !r.contract.ArticleLanguage().Declared() {
 		return nil
 	}
 	value, ok := n.frontmatter["lang"]
@@ -216,7 +212,7 @@ func (r *lintRun) lessonSlug(n *note) []Finding {
 // checked here is the enum that decided this note is a document.
 func (r *lintRun) documentStatus(n *note, group string) []Finding {
 	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(r.definition.Enums.Status[group], st) {
-		return []Finding{schemaFinding(n, "schema.enum", "status", st, "is not a valid system status")}
+		return []Finding{schemaFinding(n, "schema.enum", "status", st, "is not a valid "+group+" status")}
 	}
 	return nil
 }
@@ -274,17 +270,21 @@ func (r *lintRun) required(n *note) []Finding {
 func (r *lintRun) enumFields(n *note) []Finding {
 	var out []Finding
 	enums := reflect.ValueOf(r.definition.Enums)
-	enumType := enums.Type()
 	// Walk declaration order to preserve finding order. Type and grouped
-	// status retain their dedicated rules.
-	for i := range enums.NumField() {
-		field := enumType.Field(i).Tag.Get("toml")
-		allowed, ok := reflect.TypeAssert[[]string](enums.Field(i))
-		if !ok || field == "type" || len(allowed) == 0 {
+	// status retain their dedicated rules, identified by the Go name so a
+	// renamed struct tag cannot quietly pull them into this walk. Visible
+	// fields only: an unexported field panics through TypeAssert.
+	for _, field := range reflect.VisibleFields(enums.Type()) {
+		if field.Name == "Type" || field.Name == "Status" {
 			continue
 		}
-		if v, ok := fmScalar(n.frontmatter, field); ok && !slices.Contains(allowed, v) {
-			out = append(out, schemaFinding(n, "schema.enum", field, v, "is not an allowed value"))
+		allowed, ok := reflect.TypeAssert[[]string](enums.FieldByIndex(field.Index))
+		if !ok || len(allowed) == 0 {
+			continue
+		}
+		name := field.Tag.Get("toml")
+		if v, ok := fmScalar(n.frontmatter, name); ok && !slices.Contains(allowed, v) {
+			out = append(out, schemaFinding(n, "schema.enum", name, v, "is not an allowed value"))
 		}
 	}
 	return out
