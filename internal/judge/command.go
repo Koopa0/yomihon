@@ -53,6 +53,7 @@ func allRuleIDs() []RuleID {
 		"schema.unmatched_knowledge_dir",
 		"scan.skipped",
 		"collision.name",
+		calloutTitleMarkupRule,
 		predecessorNotArchivedRule,
 		archivedNavigationRule,
 		// The authoring contract's own rules. This list has to match what the

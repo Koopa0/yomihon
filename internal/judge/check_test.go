@@ -70,6 +70,9 @@ func TestCheckGolden(t *testing.T) {
 		// out of it, so without this finding the vault loses the note and the
 		// command says the folder is clean.
 		{name: "a path that is not a file", fixture: "testdata/vault-symlink", golden: "testdata/golden/symlink.jsonl"},
+		// Markup on a recognised callout's title line. Additive fixture for
+		// callout.title_markup; existing goldens stay byte-identical.
+		{name: "callout title markup", fixture: "testdata/vault-callout-title", golden: "testdata/golden/callout-title.jsonl"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
