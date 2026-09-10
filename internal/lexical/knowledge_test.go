@@ -117,7 +117,7 @@ func knowledgeScopeDeclaring(tb testing.TB, knowledgeDirsLine string) schema.Kno
 		tb.Fatal("fixture drift: the schema testdata contract no longer declares the knowledge_dirs needle")
 	}
 	path := filepath.Join(tb.TempDir(), "vault-schema.toml")
-	if writeErr := os.WriteFile(path, []byte(text), 0o600); writeErr != nil {
+	if writeErr := os.WriteFile(path, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- testdata contract rewritten into tb.TempDir
 		tb.Fatalf("os.WriteFile: %v", writeErr)
 	}
 	loaded, err := schema.LoadFile(path)
