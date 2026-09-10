@@ -1,7 +1,8 @@
 // Persisted presentation preferences. The server renders the cookie-backed
 // state on first byte; this enhancement changes the root attributes, keeps the
-// controls' state current, and re-syncs both after a back/forward-cache
-// restore revives HTML older than the cookies.
+// controls' state current, and re-syncs theme, text size, furigana and
+// single-key shortcuts after a back/forward-cache restore revives HTML older
+// than the cookies.
 //
 // Language is not handled here: its words are the server's, so its control is
 // a plain form the server answers with a redirect. This module only checks,
@@ -84,7 +85,7 @@ export function initPreferences() {
   // A back/forward-cache restore revives the document exactly as it left,
   // while the cookies may have moved on — a theme chosen on the next page
   // arrives back on a page still stamped with the old one. The cookies are
-  // the truth, so the root attributes and the controls' state are rewritten
+  // the truth, so every presentation attribute and its control are rewritten
   // from them, honouring only the values the server honours. An ordinary
   // load needs none of this and is gated out: the server just stamped the
   // same cookies itself.
@@ -111,6 +112,17 @@ export function initPreferences() {
     const lang = readCookie('yomihon_lang') === 'en' ? 'en' : 'zh-Hant';
     if (root.lang !== lang) {
       location.reload();
+    }
+    // Ruby and single-key shortcuts use the same restore path as theme and
+    // text size: only the literal "off" is off, matching the server.
+    const ruby = readCookie('yomihon_ruby') === 'off' ? 'off' : 'on';
+    root.dataset.ruby = ruby;
+    document.querySelector('[data-ruby-toggle]')?.setAttribute('aria-pressed', String(ruby === 'on'));
+    const shortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
+    root.dataset.singleKeyShortcuts = shortcuts;
+    const shortcutsToggle = document.querySelector('[data-single-key-shortcuts-toggle]');
+    if (shortcutsToggle) {
+      shortcutsToggle.checked = shortcuts === 'on';
     }
   });
 }

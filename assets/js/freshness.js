@@ -285,6 +285,8 @@ export function initFreshness() {
   // is the same door a tab switch already used.
   window.addEventListener('pagehide', stop);
 
-  start();
-  tick();
+  if (document.visibilityState === 'visible') {
+    start();
+    tick();
+  }
 }
