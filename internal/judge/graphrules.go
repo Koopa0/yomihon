@@ -433,19 +433,21 @@ func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRole
 	listedByDomain := make(map[string]map[string]bool)
 	var out []Finding
 	for i := range notes {
-		if syllabus := &notes[i]; roles.IsPathType(syllabus.noteType) {
-			listed, mismatches := reconcileSyllabus(syllabus, idx)
-			out = append(out, mismatches...)
-			if syllabus.domain == "" {
-				continue
-			}
-			union := listedByDomain[syllabus.domain]
-			if union == nil {
-				listedByDomain[syllabus.domain] = listed
-				continue
-			}
-			maps.Copy(union, listed)
+		syllabus := &notes[i]
+		if !roles.IsPathType(syllabus.noteType) {
+			continue
 		}
+		listed, mismatches := reconcileSyllabus(syllabus, idx)
+		out = append(out, mismatches...)
+		if syllabus.domain == "" {
+			continue
+		}
+		union := listedByDomain[syllabus.domain]
+		if union == nil {
+			listedByDomain[syllabus.domain] = listed
+			continue
+		}
+		maps.Copy(union, listed)
 	}
 	for i := range notes {
 		if syllabus := &notes[i]; roles.IsPathType(syllabus.noteType) && syllabus.domain != "" {
