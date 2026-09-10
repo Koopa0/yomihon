@@ -75,16 +75,10 @@ func TestShelfCountSpansCarryTheUnitInTheDOM(t *testing.T) {
 	}
 	html := buf.String()
 	for _, class := range []string{`class="y-homechip__count"`, `class="y-homeunstated__count"`} {
-		at := strings.Index(html, class)
-		if at < 0 {
-			t.Fatalf("shelf is missing %s", class)
+		span, ok := countSpanHTML(html, class)
+		if !ok {
+			t.Fatalf("shelf is missing a complete %s span", class)
 		}
-		start := strings.LastIndex(html[:at], "<span")
-		close := strings.Index(html[at:], "</span></span>")
-		if start < 0 || close < 0 {
-			t.Fatalf("count span %s is incomplete", class)
-		}
-		span := html[start : at+close+len("</span></span>")]
 		if strings.Contains(span, "aria-label") {
 			t.Errorf("role-less count span still carries aria-label: %q", span)
 		}
@@ -92,6 +86,39 @@ func TestShelfCountSpansCarryTheUnitInTheDOM(t *testing.T) {
 			t.Errorf("count span does not put the unit in the DOM: %q", span)
 		}
 	}
+}
+
+func countSpanHTML(html, class string) (string, bool) {
+	at := strings.Index(html, class)
+	if at < 0 {
+		return "", false
+	}
+	start := strings.LastIndex(html[:at], "<span")
+	if start < 0 {
+		return "", false
+	}
+	depth := 0
+	for i := start; i < len(html); {
+		if strings.HasPrefix(html[i:], "<span") {
+			depth++
+			gt := strings.Index(html[i:], ">")
+			if gt < 0 {
+				return "", false
+			}
+			i += gt + 1
+			continue
+		}
+		if strings.HasPrefix(html[i:], "</span>") {
+			depth--
+			i += len("</span>")
+			if depth == 0 {
+				return html[start:i], true
+			}
+			continue
+		}
+		i++
+	}
+	return "", false
 }
 
 func homeSearchSection(t *testing.T, html string) string {
