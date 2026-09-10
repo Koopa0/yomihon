@@ -141,3 +141,37 @@ func TestDiskUnlistedUsesTheDomainPathUnion(t *testing.T) {
 		t.Errorf("map.disk_unlisted fired for lessons listed on a parallel path of the same domain; findings:\n%s", out)
 	}
 }
+
+// TestDiskUnlistedIsOneFindingPerLesson holds that an unlisted lesson is one
+// domain fact, not one row per study path of that domain. Two paths that list
+// none of a ready lesson produce one finding, attached to the first path in
+// check order — the file the reader opens next to add the lesson.
+func TestDiskUnlistedIsOneFindingPerLesson(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, unlistedSourceKindContract)
+	write(t, root, "Maps/Path A.md",
+		"---\ntitle: Path A\ntype: study-path\nstatus: ready\ndomain: japanese\n---\n\n"+
+			"## Main {sequence=primary}\n\n- [[Listed]]\n")
+	write(t, root, "Maps/Path B.md",
+		"---\ntitle: Path B\ntype: study-path\nstatus: ready\ndomain: japanese\n---\n\n"+
+			"## Main {sequence=primary}\n\n- [[Listed]]\n")
+	write(t, root, "Writing/Listed.md",
+		"---\ntitle: Listed\ntype: lesson\nstatus: ready\ndomain: japanese\nsource_kind: book\nslug: listed\n---\nbody\n")
+	write(t, root, "Writing/Unlisted.md",
+		"---\ntitle: Unlisted\ntype: lesson\nstatus: ready\ndomain: japanese\nsource_kind: book\nslug: unlisted\n---\nbody\n")
+
+	out := string(runCheck(t, root))
+	if n := strings.Count(out, `"rule_id":"map.disk_unlisted"`); n != 1 {
+		t.Errorf("map.disk_unlisted reported %d times, want 1 for one unlisted lesson; findings:\n%s", n, out)
+	}
+	if !strings.Contains(out, `"path":"Writing/Unlisted.md"`) {
+		t.Errorf("the finding did not name the unlisted lesson; findings:\n%s", out)
+	}
+	if !strings.Contains(out, "not listed in syllabus Maps/Path A.md") {
+		t.Errorf("the finding did not attach to the first path in check order; findings:\n%s", out)
+	}
+	if strings.Contains(out, "not listed in syllabus Maps/Path B.md") {
+		t.Errorf("the finding also attached to a later path of the same domain; findings:\n%s", out)
+	}
+}
