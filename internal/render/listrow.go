@@ -61,20 +61,20 @@ func unwrapOwnParagraph(own string) (inner, prefix, suffix string, ok bool) {
 	for start < len(own) && isHTMLSpace(own[start]) {
 		start++
 	}
-	const open = "<p>"
-	if !strings.HasPrefix(own[start:], open) {
+	const pOpen = "<p>"
+	if !strings.HasPrefix(own[start:], pOpen) {
 		return "", "", "", false
 	}
 	end := len(own)
 	for end > start && isHTMLSpace(own[end-1]) {
 		end--
 	}
-	const close = "</p>"
-	if !strings.HasSuffix(own[start:end], close) {
+	const pClose = "</p>"
+	if !strings.HasSuffix(own[start:end], pClose) {
 		return "", "", "", false
 	}
-	innerStart := start + len(open)
-	innerEnd := end - len(close)
+	innerStart := start + len(pOpen)
+	innerEnd := end - len(pClose)
 	if innerEnd < innerStart {
 		return "", "", "", false
 	}
