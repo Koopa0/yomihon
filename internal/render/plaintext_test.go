@@ -201,6 +201,33 @@ func TestPlainBlocksReportFenceRanges(t *testing.T) {
 	if proseAt >= fences[0][0] && proseAt < fences[0][1] {
 		t.Errorf("prose offset %d sits inside the fence range %v", proseAt, fences[0])
 	}
+
+	// A four-marker opener may hold a shorter all-marker line as content.
+	// goldmark already does; the preprocess close must agree, or the range
+	// names bytes that were rewritten as prose and Source would show them.
+	nested := "" +
+		"~~~~\n" +
+		"code alpha\n" +
+		"~~~\n" +
+		"see [[Some Note]] inside the fence\n" +
+		"~~~~\n"
+	text, _, fences = render.PlainBlocks(nested)
+	if text != render.PlainText(nested) {
+		t.Fatalf("nested PlainBlocks text = %q, want the same bytes PlainText returns", text)
+	}
+	if !strings.Contains(text, "[[Some Note]]") {
+		t.Fatalf("plain rewrote the nested wikilink as prose: %q", text)
+	}
+	if len(fences) != 1 {
+		t.Fatalf("nested fence ranges = %v, want one fenced span", fences)
+	}
+	got = text[fences[0][0]:fences[0][1]]
+	if !strings.Contains(got, "code alpha") || !strings.Contains(got, "~~~") || !strings.Contains(got, "[[Some Note]]") {
+		t.Errorf("nested fence span = %q, want the body goldmark keeps, including the shorter closer and the literal wikilink", got)
+	}
+	if strings.Contains(got, "see Some Note") && !strings.Contains(got, "[[Some Note]]") {
+		t.Errorf("nested fence span = %q, named rewritten prose as Source", got)
+	}
 }
 
 func inOneBlock(text string, ends []int, a, b string) bool {
