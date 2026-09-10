@@ -101,9 +101,11 @@ type branchNode struct {
 // the reading page's leading-H1 removal. Every live wikilink under the open
 // heading becomes an entry: the same scan a study path already uses, so a
 // link in a list item, a heading, prose, or a table counts, and a link inside
-// a fence, a code span, or an Obsidian comment does not. Pruning every heading
-// with no entry beneath it leaves a map's pure-prose headings out without
-// naming them; only resolved governed rows survive.
+// a fence, a code span, an authored HTML block, or an Obsidian comment does
+// not. Headings read those same skip zones, so a line skipped for a link is
+// skipped for a heading. Pruning every heading with no entry beneath it
+// leaves a map's pure-prose headings out without naming them; only resolved
+// governed rows survive.
 func parseBranches(
 	body string,
 	idx *graph.Index,
@@ -112,16 +114,14 @@ func parseBranches(
 ) []Branch {
 	var roots []*branchNode
 	var stack []*branchNode
-	var scan graph.LineScan
-	links := sequence.LiveWikilinks(body)
+	links, zones := sequence.LiveScan(body)
 	next := 0
 	offset := 0
 
 	for line := range strings.SplitSeq(body, "\n") {
 		lineStart := offset
 		lineEnd := offset + len(line)
-		skip := scan.Skip(line)
-		if text, level, ok := parseHeading(line); ok && !skip {
+		if text, level, ok := parseHeading(line); ok && !graph.In(zones, lineStart) {
 			attachLiveLinks(stack, links, &next, lineStart, idx, statusByPath, policy)
 			stack = openBranch(&roots, stack, headingLabel(text), level)
 		}

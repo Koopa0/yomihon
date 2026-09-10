@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -98,6 +99,56 @@ func TestFenceClosesNeedsTheOpenerLength(t *testing.T) {
 			t.Parallel()
 			if got := graph.FenceCloses(tt.line, tt.marker, tt.openerLen); got != tt.want {
 				t.Errorf("FenceCloses(%q, %q, %d) = %v, want %v", tt.line, tt.marker, tt.openerLen, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestLineSkipZonesCoversWhatSkipHides is the range form of Skip: a heading
+// shaped line inside an HTML block or either fence sits in the span, and the
+// real heading after the zone does not.
+func TestLineSkipZonesCoversWhatSkipHides(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		in   string
+		out  string
+	}{
+		{
+			name: "HTML block",
+			body: "## Real\n<div>\n## Hidden\n</div>\n\n## After\n",
+			in:   "## Hidden\n",
+			out:  "## After\n",
+		},
+		{
+			name: "backtick fence",
+			body: "## Real\n```\n## Hidden\n```\n## After\n",
+			in:   "## Hidden\n",
+			out:  "## After\n",
+		},
+		{
+			name: "tilde fence",
+			body: "## Real\n~~~\n## Hidden\n~~~\n## After\n",
+			in:   "## Hidden\n",
+			out:  "## After\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			zones := graph.LineSkipZones(tt.body)
+			hidden := strings.Index(tt.body, tt.in)
+			after := strings.Index(tt.body, tt.out)
+			if hidden < 0 || after < 0 {
+				t.Fatalf("fixture lost %q or %q", tt.in, tt.out)
+			}
+			if !graph.In(zones, hidden) {
+				t.Errorf("LineSkipZones() missed %q at %d: %#v", tt.in, hidden, zones)
+			}
+			if graph.In(zones, after) {
+				t.Errorf("LineSkipZones() swallowed %q at %d: %#v", tt.out, after, zones)
 			}
 		})
 	}

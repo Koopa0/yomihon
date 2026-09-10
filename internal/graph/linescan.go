@@ -164,6 +164,36 @@ func (s *LineScan) Skip(line string) bool {
 	return false
 }
 
+// LineSkipZones are the body ranges Skip hides: fenced code and authored
+// HTML blocks, the lines that open and close one included. The map's link
+// scan reads them so a bracket sitting where a heading walk already refused
+// cannot stay live.
+func LineSkipZones(body string) []Span {
+	if body == "" {
+		return nil
+	}
+	var scan LineScan
+	var zones []Span
+	var start int
+	in := false
+	offset := 0
+	for line := range strings.SplitSeq(body, "\n") {
+		if scan.Skip(line) {
+			if !in {
+				in, start = true, offset
+			}
+		} else if in {
+			zones = append(zones, Span{Start: start, Stop: offset})
+			in = false
+		}
+		offset += len(line) + 1
+	}
+	if in {
+		zones = append(zones, Span{Start: start, Stop: len(body)})
+	}
+	return zones
+}
+
 // HTMLBlockOpens reports whether a line opens an authored HTML block, and
 // returns the test for the line that closes it. The raw-text, comment,
 // instruction, CDATA, and declaration blocks close on their own end marker,
