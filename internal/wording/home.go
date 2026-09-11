@@ -18,7 +18,7 @@ var (
 var (
 	HomeFaultsTitle   = both("契約能力", "Contract capabilities")
 	HomeFaultsLede    = both("書庫宣告了無法履行的事", "The vault declares something it cannot honour")
-	HomeFaultsBrowser = both("部分投影已關閉。", "Some projections are closed.")
+	HomeFaultsBrowser = both("有些頁面暫時看不到。", "Some pages are temporarily unavailable.")
 	HomeDegradedTitle = both("讀不進來的檔案", "Files that could not be read")
 	FolderRecentTitle = both("最近變更", "Recently changed")
 	// The scoped ledes name the set the block lists — the contract's declared
@@ -28,17 +28,17 @@ var (
 	// carries no lede: the heading already says what the list is, and naming
 	// a layer there would invent a rule its owner never wrote.
 	FolderRecentLedeScoped = both(
-		"知識層資料夾中最近改動過的筆記",
-		"Notes in the declared knowledge folders changed most recently",
+		"知識層資料夾中",
+		"In the declared knowledge folders",
 	)
-	FolderTiedTitle = both("筆記", "Notes")
+	FolderTiedTitle = both("排不出先後的筆記", "Notes with identical timestamps")
 	FolderTiedLede  = both(
-		"這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」",
-		"These files carry identical timestamps, so nothing here is more recent than anything else",
+		"這些檔案的時間戳相同。",
+		"These files carry identical timestamps.",
 	)
 	FolderTiedLedeScoped = both(
-		"知識層資料夾中的筆記。這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」",
-		"Notes in the declared knowledge folders. These files carry identical timestamps, so nothing here is more recent than anything else",
+		"知識層資料夾中，時間戳相同的筆記。",
+		"Notes with identical timestamps in the declared knowledge folders.",
 	)
 	FolderLifecycleTitle = both("依狀態分組", "By status")
 	// Beside a shelf narrowed to the declared layer the distribution still
@@ -93,15 +93,15 @@ var (
 // could not be parsed. Nothing they declare could be read, so they belong to
 // no status — and until the YAML is repaired, nothing else about them can be
 // judged either.
-var LifecycleUnreadable = both("無法判讀", "Could not be read")
+var LifecycleUnreadable = both("讀不出來", "Could not be read")
 
 // LifecycleUnstatedNote sits under the cells for notes carrying no status. One
 // of those cells is not a fault: for some kinds of note, declaring no status
 // is exactly right, and a number in a panel about lifecycle would otherwise
 // read as something to go and fix.
 var LifecycleUnstatedNote = both(
-	"「未標示狀態」對某些類型的筆記是合法的；「無法判讀」則是 frontmatter 需要修。",
-	"No status stated is legal for some kinds of note; could not be read means the frontmatter needs repair.")
+	"有些類型的筆記本來就不寫狀態。",
+	"Some kinds of note do not carry a status.")
 
 // What the home page says about an egress declaration the contract made and
 // yomihon refused. The loss is not on this page — nothing here consults egress

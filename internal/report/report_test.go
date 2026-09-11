@@ -580,7 +580,7 @@ func TestRawReturnsNotFoundWhenFileVanishes(t *testing.T) {
 func TestReportSaysWhenPartOfItCannotDraw(t *testing.T) {
 	t.Parallel()
 
-	const notice = "程式不會在這裡執行"
+	const notice = "這裡不執行程式"
 
 	t.Run("a briefing that draws with a script says so", func(t *testing.T) {
 		t.Parallel()

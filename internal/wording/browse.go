@@ -21,8 +21,8 @@ var (
 // A file yomihon has no reader for: it says so, and offers the bytes.
 var (
 	NoReaderForFile = both(
-		"這裡沒有可呈現此檔案的閱讀器；仍可取得未修改的原始位元組。",
-		"There is no reader here for this file. Its bytes are still available, unchanged.",
+		"這裡沒有這種檔案的閱讀器；原始檔仍可下載。",
+		"There is no reader here for this kind of file; the original file can still be downloaded.",
 	)
 	FileName       = both("名稱", "Name")
 	FileSize       = both("大小", "Size")
@@ -33,8 +33,8 @@ var (
 
 // ReportAsIs says what a report loses by being shown here rather than run.
 var ReportAsIs = both(
-	"這份文件以原樣顯示。它有一部分要靠程式繪製，而程式不會在這裡執行——那些部分不會出現。",
-	"This document is shown as it was written. Parts of it are drawn by code, and code does not run here, so those parts are absent.",
+	"有一部分要靠程式繪製，這裡不執行程式，那些部分不會出現。",
+	"Parts of it are drawn by code; code does not run here, so those parts are absent.",
 )
 
 // The page for an address that named nothing, and for a file that exists and
@@ -58,8 +58,8 @@ var (
 	AddressAsked = both("你要找的位置", "The address you asked for")
 	WhatNext     = both("下一步", "What next")
 	NotFoundNext = both(
-		"從資料夾那一格往下找，或用上方的搜尋找筆記裡的字。",
-		"Work down from the folders on the desk, or use the search above to look inside notes.",
+		"從閱讀桌的資料夾往下找，或用上方的搜尋。",
+		"Work down from the folders on the desk, or use the search above.",
 	)
 	LeaveThisPage = both("離開這一頁", "Leave this page")
 	BackHome      = both("返回首頁", "Back to home")
@@ -84,5 +84,5 @@ var (
 var (
 	FileNotFound       = both("找不到指定的檔案", "That file was not found")
 	FileUnreadable     = both("無法讀取檔案", "That file could not be read")
-	SandboxUnavailable = both("無法為此內容建立隔離，因此沒有提供", "This content's isolation could not be established, so it was not served")
+	SandboxUnavailable = both("這份內容無法安全顯示，因此沒有提供", "This content cannot be shown safely, so it was not served")
 )

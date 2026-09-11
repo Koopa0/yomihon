@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // The rail's type drawers open to meet the page the reader is on — the journal
@@ -484,7 +486,8 @@ func TestTheFolderIndexSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
-		if !strings.Contains(body, "最近改動過的筆記") {
+		if !strings.Contains(body, wording.FolderRecentTitle.In(wording.ZhHant)) ||
+			!strings.Contains(body, wording.FolderRecentLedeScoped.In(wording.ZhHant)) {
 			t.Errorf("Home hedges on notes its timestamps do order; body = %q", body)
 		}
 	})

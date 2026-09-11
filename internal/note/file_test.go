@@ -138,13 +138,13 @@ func TestFileRouteRendersEachKind(t *testing.T) {
 		{
 			name:    "binary bytes take the information page",
 			path:    "blob",
-			want:    []string{`ui-type">檔案資訊<`, "沒有可呈現此檔案的閱讀器", "application/octet-stream"},
+			want:    []string{`ui-type">檔案資訊<`, "沒有這種檔案的閱讀器", "application/octet-stream"},
 			notWant: []string{`<pre class="chroma"`},
 		},
 		{
 			name:    "text past the cap takes the information page",
 			path:    "big.txt",
-			want:    []string{`ui-type">檔案資訊<`, "沒有可呈現此檔案的閱讀器", "text/plain"},
+			want:    []string{`ui-type">檔案資訊<`, "沒有這種檔案的閱讀器", "text/plain"},
 			notWant: []string{`<pre class="chroma"`},
 		},
 		{

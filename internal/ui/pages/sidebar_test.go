@@ -387,7 +387,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	for _, want := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
 		"路徑與地圖",
-		"治理項目投影目前無法使用",
+		"筆記清單目前無法使用",
 		// The sentences themselves, HTML-escaped exactly as the page writes them.
 		htmlEscape(model.NavigationClosure().Diagnostic()),
 		htmlEscape(model.ArtifactClosure().Diagnostic()),
@@ -460,7 +460,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		`data-sidebar-group="navigation-diagnostics"`,
 		`data-sidebar-group="journal"`,
 		"路徑與地圖目前無法使用",
-		"治理項目投影目前無法使用",
+		"筆記清單目前無法使用",
 		"日誌目前無法使用",
 	} {
 		if strings.Contains(html, unwanted) {

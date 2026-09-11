@@ -15,12 +15,12 @@ var (
 		"Courses and books, read in the order they lay out.",
 	)
 	DeskMapsLede = both(
-		"一個主題的枝與葉，從上往下看。",
-		"One subject's branches and leaves, seen from above.",
+		"一個主題底下有什麼。",
+		"What's under one subject.",
 	)
 	DeskReportsLede = both(
-		"每日簡報與稽核，照它們被寫下的樣子。",
-		"Daily briefings and audits, as they were written.",
+		"每日簡報與稽核。",
+		"Daily briefings and audits.",
 	)
 	DeskFoldersLede = both(
 		"照檔案存放的位置瀏覽。",
@@ -55,8 +55,8 @@ var (
 		"Add System/schemas/vault-schema.toml.",
 	)
 	ReportIndexLede = both(
-		"寫在書庫裡的報告與每日簡報，照原樣顯示。",
-		"The reports and daily briefings written into the vault, shown as they were written.",
+		"每日簡報與寫下的報告。",
+		"Daily briefings and written reports.",
 	)
 	ReportIndexEmpty = both(
 		"這個書庫裡沒有報告。",

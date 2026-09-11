@@ -43,11 +43,11 @@ var (
 // What the rail says when a projection it would have listed cannot be built.
 var (
 	PathsMapsAndArtifactsUnavailable = both(
-		"路徑、地圖與治理項目投影目前無法使用。",
-		"Paths, maps and governed-item projections are unavailable.",
+		"路徑、地圖與筆記清單目前無法使用。",
+		"Paths, maps and note listings are unavailable.",
 	)
 	PathsAndMapsUnavailable = both("路徑與地圖目前無法使用。", "Paths and maps are unavailable.")
-	ArtifactsUnavailable    = both("治理項目投影目前無法使用。", "Governed-item projections are unavailable.")
+	ArtifactsUnavailable    = both("筆記清單目前無法使用。", "Note listings are unavailable.")
 	JournalUnavailable      = both("日誌目前無法使用。", "Journal is unavailable.")
 )
 
@@ -80,7 +80,7 @@ var (
 // showing. The count is worked out in the browser from what is on screen, so
 // the sentence is filled in there, from these.
 var (
-	FilterPartialOne  = both("只篩了側欄現在列出的項目，另外 1 項沒有被搜到。", "Only what the rail already listed was filtered; 1 more was not reached.")
-	FilterPartialMany = both("只篩了側欄現在列出的項目，另外 {count} 項沒有被搜到。", "Only what the rail already listed was filtered; {count} more were not reached.")
+	FilterPartialOne  = both("只篩了側欄列出的項目，另外 1 項沒搜到。", "Only what the rail listed was filtered; 1 more was not reached.")
+	FilterPartialMany = both("只篩了側欄列出的項目，另外 {count} 項沒搜到。", "Only what the rail listed was filtered; {count} more were not reached.")
 	FilterSearchAll   = both("搜尋全部 →", "Search everything →")
 )
