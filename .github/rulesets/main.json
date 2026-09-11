@@ -38,6 +38,7 @@
         "strict_required_status_checks_policy": false,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
+          {"context": "commit-attribution", "integration_id": 15368},
           {"context": "verify", "integration_id": 15368},
           {"context": "govulncheck", "integration_id": 15368},
           {"context": "coverage", "integration_id": 15368},
