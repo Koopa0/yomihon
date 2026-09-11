@@ -74,12 +74,12 @@ func TestChromeFromRequestReadsFuriganaPreference(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		cookieValue string
-		want        bool
+		want        string
 	}{
-		{name: "missing leaves the aids on", want: true},
-		{name: "the one word that turns them off", cookieValue: "off", want: false},
-		{name: "on", cookieValue: "on", want: true},
-		{name: "an unknown value leaves them on", cookieValue: "maybe", want: true},
+		{name: "missing leaves the aids on", want: "on"},
+		{name: "the one word that turns them off", cookieValue: "off", want: "off"},
+		{name: "on", cookieValue: "on", want: "on"},
+		{name: "an unknown value leaves them on", cookieValue: "maybe", want: "on"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -87,8 +87,8 @@ func TestChromeFromRequestReadsFuriganaPreference(t *testing.T) {
 			if tt.cookieValue != "" {
 				r.Header.Set("Cookie", "yomihon_ruby="+tt.cookieValue)
 			}
-			if got := ChromeFromRequest(r, "測試").RubyEnabled; got != tt.want {
-				t.Errorf("RubyEnabled = %v, want %v", got, tt.want)
+			if got := ChromeFromRequest(r, "測試").Ruby; got != tt.want {
+				t.Errorf("Ruby = %q, want %q", got, tt.want)
 			}
 		})
 	}
