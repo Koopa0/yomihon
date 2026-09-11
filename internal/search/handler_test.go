@@ -509,7 +509,7 @@ func TestEmptyResultsNameTheCorpusAndFilesAreLabelled(t *testing.T) {
 		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler))
 
-	const corpusHint = "圖片、PDF 與其他二進位檔案只在導覽中列出"
+	const corpusHint = "圖片、PDF 這類檔案只列出，不讀內容"
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=haystack", http.NoBody)
 	rr := httptest.NewRecorder()
