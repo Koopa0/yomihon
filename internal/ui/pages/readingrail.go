@@ -25,10 +25,11 @@ type ReadingRail struct {
 	CurrentPath string
 	Kind        ReadingRailKind
 
-	book      *nav.Path
-	neighbors nav.Neighbors
-	hereDir   string
-	here      []nav.NoteRef
+	book         *nav.Path
+	neighbors    nav.Neighbors
+	hereDir      string
+	here         []nav.NoteRef
+	openBranches map[string]bool
 }
 
 // NewReadingRail resolves the one map a note page should show. noteDomain is
@@ -51,6 +52,16 @@ func NewReadingRail(model *nav.Model, currentPath, noteDomain string) ReadingRai
 	if book := model.TeachingPath(currentPath, noteDomain); book != nil {
 		rr.Kind = ReadingRailBook
 		rr.book = book
+		rr.openBranches = map[string]bool{}
+		for _, p := range model.Placements(currentPath) {
+			if p.MapRelPath != book.RelPath {
+				continue
+			}
+			headings := p.Headings
+			for i := 1; i <= len(headings); i++ {
+				rr.openBranches[branchKey(p.MapRelPath, headings[:i])] = true
+			}
+		}
 		neighbors := model.PathNeighbors(currentPath)
 		for i := range neighbors {
 			step := neighbors[i]
@@ -91,6 +102,11 @@ func (r *ReadingRail) HereShelf(lang wording.Lang) Shelf {
 
 func (r *ReadingRail) current(relPath string) bool {
 	return relPath != "" && relPath == r.CurrentPath
+}
+
+// branchOpen reports whether a book branch lies on the path to the current note.
+func (r *ReadingRail) branchOpen(pathRel string, headings []string) bool {
+	return r.openBranches[branchKey(pathRel, headings)]
 }
 
 func (r *ReadingRail) currentHref(href string) bool {

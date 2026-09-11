@@ -35,7 +35,6 @@ func TestReadingRailBookShowsOnePath(t *testing.T) {
 		`data-sidebar-group="maps"`,
 		`data-sidebar-group="journal"`,
 		`data-sidebar-group="reports"`,
-		`<details`,
 		`yomihon.nav`,
 	} {
 		if strings.Contains(html, ban) {

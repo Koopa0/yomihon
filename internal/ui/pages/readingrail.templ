@@ -75,20 +75,27 @@ templ bookRail(rr ReadingRail, c layouts.Chrome) {
 					}
 				</nav>
 			}
-			<div class="y-railgroup">
-				for _, sec := range view.Branches {
-					@bookRailBranch(rr, c, rr.book.RelPath, nil, sec)
-				}
-			</div>
+			for _, sec := range view.Branches {
+				@bookRailBranch(rr, c, rr.book.RelPath, nil, sec)
+			}
 		</div>
 	}
 }
 
 templ bookRailBranch(rr ReadingRail, c layouts.Chrome, pathRel string, chain []string, sec PathBranchView) {
-	<div class="y-railbook__branch" data-book-branch={ branchKey(pathRel, childChain(chain, sec.Heading)) }>
-		<div class="y-railsummary y-railsummary--label">{ sec.Heading }</div>
-		@bookRailItems(rr, c, pathRel, childChain(chain, sec.Heading), sec)
-	</div>
+	<details
+		open?={ rr.branchOpen(pathRel, childChain(chain, sec.Heading)) }
+		data-book-branch={ branchKey(pathRel, childChain(chain, sec.Heading)) }
+		{ disclosureAttrs("bookbranch:"+branchKey(pathRel, childChain(chain, sec.Heading)), rr.branchOpen(pathRel, childChain(chain, sec.Heading)))... }
+	>
+		<summary class="y-railsummary y-railsummary--label">
+			@chevron()
+			{ sec.Heading }
+		</summary>
+		<div class="y-railgroup">
+			@bookRailItems(rr, c, pathRel, childChain(chain, sec.Heading), sec)
+		</div>
+	</details>
 }
 
 templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []string, sec PathBranchView) {
