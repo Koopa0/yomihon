@@ -49,8 +49,9 @@ type NoteView struct {
 	RenderDiagnostics []render.Diagnostic
 	// Prev and Next are the notes either side of this one in the sequence the
 	// foot of the article offers. StepsLabel names that sequence, printed and
-	// spoken alike; StepsCourse says whether it is a course's declared order
-	// rather than folder adjacency, which picks the step words.
+	// spoken alike — a course's step onward, or folder adjacency — so the rail
+	// can keep the path's whole order under a different landmark name.
+	// StepsCourse says which order arrived, which picks the step words.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
 	StepsLabel  string
@@ -609,7 +610,7 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 templ statusBar(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
-		<div class="y-sealbar" data-status-state={ face.token() }>
+		<section class="y-sealbar" aria-label={ wording.StatusBar.In(lang) } data-status-state={ face.token() }>
 			switch face {
 				case faceNonInstance:
 					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(lang) }</p>
@@ -642,7 +643,7 @@ templ statusBar(v NoteView, lang wording.Lang) {
 					<span class="y-sealbar__spacer"></span>
 					@legalTransitionForms(v, lang)
 			}
-		</div>
+		</section>
 	}
 }
 

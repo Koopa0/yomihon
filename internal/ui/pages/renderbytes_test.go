@@ -254,7 +254,7 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		},
 		Prev:                nav.NoteRef{Name: "L00", RelPath: "Writing/lessons/go/L00.md"},
 		Next:                nav.NoteRef{Name: "L02", RelPath: "Writing/lessons/go/L02.md"},
-		StepsLabel:          "Go 課程順序",
+		StepsLabel:          "Go 從此步往下",
 		StepsCourse:         true,
 		VaultHasLinks:       true,
 		CitedBy:             []nav.NoteRef{{Name: "C01", RelPath: "Concepts/go/C01.md"}},

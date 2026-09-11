@@ -1,6 +1,11 @@
 package pages
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // TestNotesHrefSendsABriefingToTheReportSurface is the address half of the
 // canonical-report lock: a daily-briefing HTML must not be offered as a /notes/
@@ -237,5 +242,39 @@ func TestHitFragment(t *testing.T) {
 				t.Errorf("hitFragment() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCountUnitKeepsThePhraseAfterTheDigits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		n    int
+		lang wording.Lang
+		want string
+	}{
+		{name: "zh-Hant one", n: 1, lang: wording.ZhHant, want: " 篇筆記"},
+		{name: "zh-Hant many", n: 3, lang: wording.ZhHant, want: " 篇筆記"},
+		{name: "en one", n: 1, lang: wording.En, want: " note"},
+		{name: "en many", n: 3, lang: wording.En, want: " notes"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := countUnit(tt.n, wording.NoteCountOne, wording.NoteCountMany, tt.lang)
+			if got != tt.want {
+				t.Errorf("countUnit(%d, %s) = %q, want %q", tt.n, tt.lang, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCountUnitDropsDigitsThatDoNotLeadThePhrase(t *testing.T) {
+	t.Parallel()
+
+	got := countUnit(3, wording.DegradedNoticeOne, wording.DegradedNoticeMany, wording.ZhHant)
+	if strings.Contains(got, "3") {
+		t.Errorf("countUnit returned the digits it should have taken out: %q", got)
 	}
 }

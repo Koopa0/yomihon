@@ -599,8 +599,8 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	// The order's name is printed for every reader, not spoken only to
 	// assistive technology, and each link says it hands over a lesson.
 	for _, want := range []string{
-		`aria-label="Go course 課程順序"`,
-		`<p class="y-steps__source">Go course 課程順序</p>`,
+		`aria-label="Go course 從此步往下"`,
+		`<p class="y-steps__source">Go course 從此步往下</p>`,
 		`<span class="y-steps__role">下一課</span>`,
 	} {
 		if !strings.Contains(body, want) {
@@ -641,8 +641,8 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	for _, forbidden := range []string{
 		`<span class="y-steps__role">上一課</span>`,
 		`<span class="y-steps__role">下一課</span>`,
-		`<p class="y-steps__source">Go course 課程順序</p>`,
-		`aria-label="Go course 課程順序"`,
+		`<p class="y-steps__source">Go course 從此步往下</p>`,
+		`aria-label="Go course 從此步往下"`,
 	} {
 		if strings.Contains(foot, forbidden) {
 			t.Errorf("a folder foot borrows the course's chrome %q; foot = %q", forbidden, foot)

@@ -688,7 +688,7 @@ func statusSurfaces(t *testing.T, page string) []renderedStatusSurface {
 		name, open, close string
 	}{
 		{name: "status panel", open: `<section class="y-statuspanel`, close: "</section>"},
-		{name: "seal bar", open: `<div class="y-sealbar`, close: "</div>"},
+		{name: "seal bar", open: `<section class="y-sealbar`, close: "</section>"},
 	}
 	surfaces := make([]renderedStatusSurface, 0, len(definitions))
 	for _, definition := range definitions {
@@ -2586,13 +2586,21 @@ func chipCounts(t *testing.T, block string) []int {
 		if open < 0 || end < 0 || end < open {
 			t.Fatalf("a chip count is malformed: %q", rest[:80])
 		}
-		n, err := strconv.Atoi(strings.TrimSpace(rest[open+1 : end]))
+		n, err := strconv.Atoi(leadingDigits(rest[open+1 : end]))
 		if err != nil {
 			t.Fatalf("a chip count is not a number: %v", err)
 		}
 		out = append(out, n)
 		rest = rest[end:]
 	}
+}
+
+// leadingDigits reads the visible tally before any offscreen unit text.
+func leadingDigits(inner string) string {
+	if i := strings.IndexByte(inner, '<'); i >= 0 {
+		inner = inner[:i]
+	}
+	return strings.TrimSpace(inner)
 }
 
 // TestShowNoFrontmatter exercises handler.go's NoFrontmatter branch with a
@@ -3914,7 +3922,7 @@ func unstatedCounts(t *testing.T, block string) []int {
 		if open < 0 || shut < 0 || shut < open {
 			t.Fatalf("an unstated cell's count is not readable: %q", rest[:min(len(rest), 120)])
 		}
-		n, err := strconv.Atoi(strings.TrimSpace(rest[open+1 : shut]))
+		n, err := strconv.Atoi(leadingDigits(rest[open+1 : shut]))
 		if err != nil {
 			t.Fatalf("an unstated cell states no number: %v", err)
 		}

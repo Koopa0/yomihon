@@ -335,6 +335,13 @@ func TestStatusBarMirrorsTheStatusPanelGuard(t *testing.T) {
 			if got := strings.Contains(buf.String(), "y-sealbar"); got != tt.wantStatusBar {
 				t.Errorf("status bar rendered = %v, want %v", got, tt.wantStatusBar)
 			}
+			if tt.wantStatusBar {
+				html := buf.String()
+				want := `<section class="y-sealbar" aria-label="` + wording.StatusBar.In(wording.ZhHant) + `"`
+				if !strings.Contains(html, want) {
+					t.Errorf("status bar is not a named region: missing %q", want)
+				}
+			}
 		})
 	}
 

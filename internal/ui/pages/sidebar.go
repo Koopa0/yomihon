@@ -243,7 +243,8 @@ func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 // call it. A note exactly one course teaches steps through that course, whose
 // declared order the folder's alphabetical one can contradict completely; every
 // other note keeps the folder, two courses included, because nothing here knows
-// which the reader is walking.
+// which the reader is walking. A course foot names the step onward, not the
+// path's whole order — the rail already uses that name.
 //
 // course reports which order won, so the foot can print it: that and the step
 // words are all a sighted reader has to tell a course from folder adjacency.
@@ -253,7 +254,7 @@ func FooterSequence(model *nav.Model, relPath string, lang wording.Lang) (prev, 
 		return prev, next, "", false
 	}
 	if steps := model.PathNeighbors(relPath); len(steps) == 1 {
-		return steps[0].Prev, steps[0].Next, fmt.Sprintf(wording.CourseOrderOf.In(lang), steps[0].PathTitle), true
+		return steps[0].Prev, steps[0].Next, fmt.Sprintf(wording.CourseOnwardOf.In(lang), steps[0].PathTitle), true
 	}
 	prev, next = model.FolderStep(relPath)
 	return prev, next, wording.FolderAdjacency.In(lang), false
