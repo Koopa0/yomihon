@@ -1,5 +1,5 @@
 {
-  "_note": "Hand-applied import artifact for GitHub ruleset id 22428376. Live enforcement lives in repository settings and the rulesets API, not this path.",
+  "_note": "Hand-applied import artifact for GitHub ruleset id 22428376. Live enforcement lives in repository settings and the rulesets API, not this path. check-gate-contract compares this file to the workflow contract, not to the live ruleset, so a context added here before the maintainer applies it will pass the gate while remaining unenforced on merge.",
   "name": "main",
   "target": "branch",
   "enforcement": "active",
