@@ -68,7 +68,7 @@ templ ShelfRail(s Shelf, limit int, dir, more string) {
 					class={ "ui-navitem", templ.KV("is-active", row.Current) }
 					href={ templ.URL(row.Href) }
 					{ currentAttr(row.Current)... }
-				>{ row.Text }</a>
+				><span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span></a>
 			}
 			if trimmed > 0 {
 				<a class="y-here__more" href={ templ.URL(s.Href) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir={ dir }>{ fmt.Sprintf(more, trimmed) }</a>
@@ -81,7 +81,7 @@ templ ShelfRail(s Shelf, limit int, dir, more string) {
 // come to look different for being on a different width.
 templ shelfRowLink(row Row) {
 	<a class="ui-navitem" href={ templ.URL(row.Href) } data-desk-item>
-		{ row.Text }
+		<span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
 		if row.Mark != "" {
 			<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--warn", row.Fault) }>{ row.Mark }</span>
 		}

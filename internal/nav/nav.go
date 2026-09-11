@@ -343,6 +343,7 @@ func New(
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 	journal schema.JournalDir,
+	articleLang schema.ArticleLanguage,
 ) *Model {
 	if resolver == nil {
 		panic("nav: New requires a non-nil *graph.Index")
@@ -367,7 +368,7 @@ func New(
 			note:     note,
 		})
 	}
-	return newModel(files, resolver, roles, scope, policy, journal)
+	return newModel(files, resolver, roles, scope, policy, journal, articleLang)
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
@@ -385,6 +386,7 @@ func newModel(
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
 	journal schema.JournalDir,
+	articleLang schema.ArticleLanguage,
 ) *Model {
 	paths := make([]string, 0, len(files))
 	mtimes := make(map[string]time.Time, len(files))
@@ -398,8 +400,9 @@ func newModel(
 		journalDir:     journal,
 		knowledgeScope: scope,
 	}
-	m.folders, m.rootNotes = buildFolderTree(paths)
-	m.dirNotes = buildDirNotes(paths)
+	langs := noteLanguages(files, articleLang)
+	m.folders, m.rootNotes = buildFolderTree(paths, langs)
+	m.dirNotes = buildDirNotes(paths, langs)
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
 	m.journal = Close(journal.Claim())
@@ -590,18 +593,34 @@ type folderBuilder struct {
 	subIdx  map[string]*folderBuilder
 }
 
+// noteLanguages resolves each captured note's declared article language once,
+// so every NoteRef the model hands listing surfaces can stamp it without a
+// second read of the same frontmatter.
+func noteLanguages(files []capturedFile, articleLang schema.ArticleLanguage) map[string]string {
+	langs := make(map[string]string)
+	for _, file := range files {
+		if file.note == nil {
+			continue
+		}
+		if tag, err := articleLang.Resolve(file.note.Frontmatter); err == nil {
+			langs[file.path] = tag
+		}
+	}
+	return langs
+}
+
 // buildFolderTree turns a flat path list, already in the captured reading
 // order, into the top-level folder tree plus the vault-root files. A folder
 // stays on the shelf when the desk can open anything in it; a png or a
 // Makefile is still a file. It mirrors the directory structure to whatever
 // depth the vault has, inventing no level and capping none. Only the top
 // level is reordered into lifecycleOrder.
-func buildFolderTree(paths []string) (folders []Folder, rootNotes []NoteRef) {
+func buildFolderTree(paths []string, langs map[string]string) (folders []Folder, rootNotes []NoteRef) {
 	root := &folderBuilder{subIdx: map[string]*folderBuilder{}}
 	for _, p := range paths {
 		dir, base := splitDir(p)
 		parent := ensureFolder(root, dir)
-		parent.notes = append(parent.notes, NoteRef{Name: displayName(base), RelPath: p})
+		parent.notes = append(parent.notes, NoteRef{Name: displayName(base), RelPath: p, Language: langs[p]})
 	}
 
 	top := slices.Clone(root.subs)

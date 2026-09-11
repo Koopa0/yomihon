@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -23,7 +24,7 @@ func newServer(t *testing.T, root string) *httptest.Server {
 	t.Helper()
 	model := loadModel(t, root)
 	mux := http.NewServeMux()
-	syllabus.New(func() nav.Shell { return nav.Shell{Nav: model} }, slog.New(slog.DiscardHandler)).Register(mux)
+	syllabus.New(func() nav.Shell { return nav.Shell{Nav: model} }, func() *snapshot.Generation { return nil }, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -65,7 +66,7 @@ func loadModel(t *testing.T, root string) *nav.Model {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir())
+	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage())
 	return model
 }
 
@@ -217,7 +218,7 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	syllabus.New(func() nav.Shell {
 		calls++
 		return nav.Shell{Nav: model, Governed: true}
-	}, slog.New(slog.DiscardHandler)).Register(mux)
+	}, func() *snapshot.Generation { return nil }, slog.New(slog.DiscardHandler)).Register(mux)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/syllabus/Maps/Go%20path.md", http.NoBody))
 	if rr.Code != http.StatusOK {
@@ -279,7 +280,7 @@ func TestNewHandlerPanicsOnNilShell(t *testing.T) {
 			t.Fatal("New(nil Shell) did not panic")
 		}
 	}()
-	syllabus.New(nil, slog.New(slog.DiscardHandler))
+	syllabus.New(nil, func() *snapshot.Generation { return nil }, slog.New(slog.DiscardHandler))
 }
 
 // The page says how big a course is, never how much of it is done. The figure

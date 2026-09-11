@@ -25,7 +25,7 @@ func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 		{Title: "Go path", RelPath: "Maps/Go path.md", Planned: 4},
 		{Title: "Unread structure", RelPath: "Maps/Broken.md", Diagnostics: []sequence.Diagnostic{{}}},
 		{Title: "Plans nothing", RelPath: "Maps/Empty.md"},
-	}, nav.Closure{}, true, wording.ZhHant)
+	}, nav.Closure{}, true, wording.ZhHant, nil)
 
 	want := []Row{
 		{Text: "Go path", Href: "/syllabus/Maps/Go%20path.md", Mark: "4 課"},
@@ -50,7 +50,7 @@ func TestAMapRowCountsBranchesAtEveryDepth(t *testing.T) {
 		{Heading: "One", Subbranches: []nav.Branch{{Heading: "One a"}, {Heading: "One b"}}},
 		{Heading: "Two"},
 	}}
-	view := NewMapIndex([]nav.Map{deep}, nav.Closure{}, true, wording.ZhHant)
+	view := NewMapIndex([]nav.Map{deep}, nav.Closure{}, true, wording.ZhHant, nil)
 	want := []Row{{Text: "Deep", Href: "/notes/Maps/Deep.md", Mark: "4 枝"}}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("map rows mismatch (-want +got):\n%s", diff)
@@ -70,7 +70,7 @@ func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
 		{Heading: "Places — [[Sputnik Sweetheart]]", Entries: []nav.MapEntry{{Text: "Sputnik Sweetheart"}}},
 		{Heading: "After", Entries: []nav.MapEntry{{Text: "Colorless Tsukuru Tazaki"}}},
 	}}
-	view := NewMapIndex([]nav.Map{prose}, nav.Closure{}, true, wording.ZhHant)
+	view := NewMapIndex([]nav.Map{prose}, nav.Closure{}, true, wording.ZhHant, nil)
 	want := []Row{{Text: "A map written as prose", Href: "/notes/Maps/Prose%20map.md", Mark: "5 枝"}}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("prose map shelf mark mismatch (-want +got):\n%s", diff)
@@ -89,7 +89,7 @@ func TestAReportRowNamesItsKindAndItsDay(t *testing.T) {
 		{Name: "2026-07-10 vault audit.md", RelPath: "System/reports/2026-07-10 vault audit.md"},
 		{Name: "notes.md", RelPath: "System/reports/notes.md"},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
-	}, wording.ZhHant)
+	}, wording.ZhHant, nil)
 
 	want := []Row{
 		{
@@ -224,9 +224,9 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		mode      string
 		component templ.Component
 	}{
-		{pathMode, ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, wording.ZhHant), layouts.Chrome{})},
-		{mapMode, ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant), layouts.Chrome{})},
-		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant), layouts.Chrome{})},
+		{pathMode, ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, wording.ZhHant, nil), layouts.Chrome{})},
+		{mapMode, ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant, nil), layouts.Chrome{})},
+		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant, nil), layouts.Chrome{})},
 		{folderMode, FolderIndex(NewFolderIndex(model, wording.ZhHant, nil), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
 	}
 	for _, tt := range tests {

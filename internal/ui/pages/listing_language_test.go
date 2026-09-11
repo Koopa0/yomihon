@@ -5,6 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -100,5 +103,24 @@ func TestFolderListingLanguageComesOnlyFromAuthority(t *testing.T) {
 				t.Errorf("shelf row missing %q in %q", tt.want, html)
 			}
 		})
+	}
+}
+
+// TestHealthListingLanguageComesOnlyFromAuthority holds health link names the
+// same way as other listings: declared language on the span, absent otherwise.
+func TestHealthListingLanguageComesOnlyFromAuthority(t *testing.T) {
+	t.Parallel()
+	ref := nav.NoteRef{Name: "L01", RelPath: "Writing/lessons/japanese/L01.md", Language: "ja"}
+	view := HealthView{
+		Unwritten: []snapshot.HealthLink{{From: ref, Target: "Ghost"}},
+	}
+	var buf bytes.Buffer
+	if err := Health(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	want := `<a class="y-healthlink" href="/notes/Writing/lessons/japanese/L01.md"><span lang="ja">L01</span></a>`
+	if !strings.Contains(html, want) {
+		t.Errorf("Health() missing %q in %q", want, html)
 	}
 }

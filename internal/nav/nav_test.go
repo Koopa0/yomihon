@@ -41,7 +41,7 @@ func capturedModel(
 	resolver *graph.Index,
 ) *Model {
 	t.Helper()
-	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir())
+	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir(), testContract(t).ArticleLanguage())
 }
 
 func capturedModelWithJournal(
@@ -52,6 +52,7 @@ func capturedModelWithJournal(
 	policy schema.ArtifactPolicy,
 	resolver *graph.Index,
 	journal schema.JournalDir,
+	articleLang schema.ArticleLanguage,
 ) *Model {
 	t.Helper()
 	reader, err := vault.Open(root)
@@ -87,7 +88,7 @@ func capturedModelWithJournal(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, scope, policy, journal)
+	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -188,6 +189,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		schema.KnowledgeScope{},
 		policy,
 		testContract(t).JournalDir(),
+		testContract(t).ArticleLanguage(),
 	)
 
 	modified := make(map[string]time.Time)
@@ -268,6 +270,7 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		schema.KnowledgeScope{},
 		policy,
 		testContract(t).JournalDir(),
+		testContract(t).ArticleLanguage(),
 	)
 	want := []NoteSummary{{
 		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
@@ -708,7 +711,7 @@ func TestJournalShelfFollowsTheDeclaredDirectory(t *testing.T) {
 
 	t.Run("undeclared", func(t *testing.T) {
 		t.Parallel()
-		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{})
+		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{}, schema.ArticleLanguage{})
 		if len(model.Journal()) != 0 {
 			t.Errorf("undeclared Journal = %v, want empty", model.Journal())
 		}
@@ -1409,7 +1412,7 @@ func TestBuildFolderTree(t *testing.T) {
 	}
 	wantRoot := []NoteRef{{Name: "CLAUDE", RelPath: "CLAUDE.md"}}
 
-	folders, rootNotes := buildFolderTree(paths)
+	folders, rootNotes := buildFolderTree(paths, nil)
 	if diff := cmp.Diff(wantFolders, folders); diff != "" {
 		t.Errorf("buildFolderTree folders mismatch (-want +got):\n%s", diff)
 	}
@@ -1434,7 +1437,7 @@ func TestAnUnlistedTopLevelFolderSortsAfterTheLifecycle(t *testing.T) {
 		"Writing/w.md",
 	}
 
-	folders, rootNotes := buildFolderTree(paths)
+	folders, rootNotes := buildFolderTree(paths, nil)
 	if len(rootNotes) != 0 {
 		t.Fatalf("buildFolderTree rootNotes = %v, want none", rootNotes)
 	}
@@ -1478,7 +1481,7 @@ func TestLifecycleOrderSortsListedFixtureFoldersBeforeUnlistedOnes(t *testing.T)
 		t.Fatalf("examples/vault holds listed=%v unlisted=%v; both sides are required or the claim is vacuous", listed, unlisted)
 	}
 
-	folders, _ := buildFolderTree(paths)
+	folders, _ := buildFolderTree(paths, nil)
 	got := make([]string, 0, len(folders))
 	for _, folder := range folders {
 		got = append(got, folder.Name)
@@ -1547,6 +1550,7 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 		schema.KnowledgeScope{},
 		policy,
 		schema.JournalDir{},
+		testContract(t).ArticleLanguage(),
 	)
 
 	gotRoot := fileRelPaths(model.RootNotes())
@@ -1659,7 +1663,7 @@ func TestSiblings(t *testing.T) {
 		"Concepts/rust/Bar.md",
 		"README.md",
 	}
-	m := &Model{dirNotes: buildDirNotes(paths)}
+	m := &Model{dirNotes: buildDirNotes(paths, nil)}
 
 	tests := []struct {
 		name      string
@@ -2192,8 +2196,8 @@ func TestAFolderPageOrdersItsSubfoldersTheWayItOrdersItsNotes(t *testing.T) {
 	// builder preserves insertion order below the top level, so a fixture that
 	// listed them already sorted would pass with the sort deleted.
 	paths := []string{"Writing/第10週/b.md", "Writing/第9週/a.md"}
-	folders, rootNotes := buildFolderTree(paths)
-	model := &Model{dirNotes: buildDirNotes(paths), folders: folders, rootNotes: rootNotes}
+	folders, rootNotes := buildFolderTree(paths, nil)
+	model := &Model{dirNotes: buildDirNotes(paths, nil), folders: folders, rootNotes: rootNotes}
 
 	_, subfolders, ok := model.Directory("Writing")
 	if !ok {

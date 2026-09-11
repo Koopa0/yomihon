@@ -382,7 +382,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		Log:            log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
-	syllabus.New(shellProvider, log).Register(mux)
+	syllabus.New(shellProvider, func() *snapshot.Generation { return store.Current().Capture() }, log).Register(mux)
 	report.New(reader, reportProvider, log).Register(mux)
 
 	srv := httptest.NewServer(mux)

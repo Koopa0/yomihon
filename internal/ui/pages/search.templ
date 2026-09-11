@@ -252,7 +252,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 								}
 							</span>
 							if note := unlocatedNote(&r, lang); note != "" {
-								<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>{ note }</span>
+								<span class="y-result__snippet">{ note }</span>
 							} else if len(r.SnippetRuns) > 0 {
 								<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>
 									@hitRuns(r.SnippetRuns)

@@ -94,9 +94,10 @@ const rewritePath = (path, needle, replacement, label, want = 1) => async (page)
 // none. What decides how it is announced is the nearest declaration above it,
 // which is what this collects.
 const readListingLanguages = () => ({
-  searchTitles: Array.from(document.querySelectorAll('.y-result__title'), (element) => ({
-    text: element.textContent,
-    lang: element.getAttribute('lang'),
+  searchTitles: Array.from(document.querySelectorAll('.y-result'), (element) => ({
+    href: element.getAttribute('href'),
+    text: element.querySelector('.y-result__title')?.textContent,
+    lang: element.querySelector('.y-result__title')?.getAttribute('lang'),
   })),
   folderTitles: Array.from(document.querySelectorAll('.y-row__title'), (element) => ({
     text: element.textContent,
@@ -202,7 +203,7 @@ const MUTATIONS = {
   },
   'stamp-search-undeclared-lang': {
     target: 'listing-search-undeclared-language',
-    apply: rewritePath(SEARCH_UNDECLARED, '<span class="y-result__title">は</span>', '<span class="y-result__title" lang="ja">は</span>', 'undeclared search listing title language'),
+    apply: rewritePath(SEARCH_UNDECLARED, `<a class="y-result" href="${UNDECLARED_NOTE}"><span class="y-result__title">は</span>`, `<a class="y-result" href="${UNDECLARED_NOTE}"><span class="y-result__title" lang="ja">は</span>`, 'undeclared search listing title language'),
   },
 };
 
@@ -370,9 +371,9 @@ try {
     fail('listing-folder-declared-language', `L01 folder title declares ${JSON.stringify(declaredFolderTitle.lang)}, want "ja"`);
   }
 
-  const undeclaredSearchTitle = searchUndeclaredDOM.searchTitles.find((row) => row.text === 'は');
+  const undeclaredSearchTitle = searchUndeclaredDOM.searchTitles.find((row) => row.href === UNDECLARED_NOTE);
   if (!undeclaredSearchTitle) {
-    broken(`search for type:concept は returned no .y-result__title rows: ${JSON.stringify(searchUndeclaredDOM.searchTitles)}`);
+    broken(`search for type:concept は returned no row for ${UNDECLARED_NOTE}: ${JSON.stringify(searchUndeclaredDOM.searchTitles)}`);
   } else if (undeclaredSearchTitle.lang !== null) {
     fail('listing-search-undeclared-language', `は search title declares ${JSON.stringify(undeclaredSearchTitle.lang)}, want null: the note declared no language and yomihon does not guess`);
   }

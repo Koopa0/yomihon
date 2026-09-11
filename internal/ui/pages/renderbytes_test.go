@@ -114,8 +114,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
-		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, recordedChrome().Lang), recordedChrome())},
-		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, recordedChrome().Lang), recordedChrome())},
+		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, recordedChrome().Lang, nil), recordedChrome())},
+		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, recordedChrome().Lang, nil), recordedChrome())},
 		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
@@ -334,7 +334,7 @@ func recordedHomeView(model *nav.Model) HomeView {
 		PrivacyFault:   "the contract declares no privacy scope",
 		Degraded:       "有檔案讀不進來",
 		DegradedDetail: "permission denied",
-		Blocks:         NewDeskBlocks(model, true, recordedChrome().Lang),
+		Blocks:         NewDeskBlocks(model, true, recordedChrome().Lang, nil),
 		ReadmeMissing:  true,
 	}
 }
@@ -380,7 +380,7 @@ func recordedReportIndexView() ListIndexView {
 		{Name: "2026-07-10 vault audit.md", RelPath: "System/reports/2026-07-10 vault audit.md"},
 		{Name: "notes on the scan.md", RelPath: "System/reports/notes on the scan.md"},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
-	}, recordedChrome().Lang)
+	}, recordedChrome().Lang, nil)
 }
 
 // recordedWithheldIndexView is a mode index whose declaration could not be
@@ -396,7 +396,7 @@ func recordedFaultedIndexView() ListIndexView {
 		Title:       "Unread Course",
 		RelPath:     "Maps/unread.md",
 		Diagnostics: []sequence.Diagnostic{{Rule: "path.nesting_too_deep", Line: 4, Message: "nested past one level"}},
-	}}, nav.Closure{}, true, recordedChrome().Lang)
+	}}, nav.Closure{}, true, recordedChrome().Lang, nil)
 }
 
 // recordedSilentlyWithheldIndexView is the state a page can reach without a
@@ -405,11 +405,11 @@ func recordedFaultedIndexView() ListIndexView {
 // that it holds none — the same silence the desk keeps — and nothing recorded
 // that until this.
 func recordedSilentlyWithheldIndexView() ListIndexView {
-	return NewMapIndex(nil, nav.Close(schema.Rejected("")), true, recordedChrome().Lang)
+	return NewMapIndex(nil, nav.Close(schema.Rejected("")), true, recordedChrome().Lang, nil)
 }
 
 func recordedWithheldIndexView() ListIndexView {
-	return NewMapIndex(nil, nav.Close(schema.Rejected("the contract could not be read")), true, recordedChrome().Lang)
+	return NewMapIndex(nil, nav.Close(schema.Rejected("the contract could not be read")), true, recordedChrome().Lang, nil)
 }
 
 // recordedFaultedModeIndexView is a mode index whose fault is stated below an
