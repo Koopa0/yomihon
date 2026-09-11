@@ -147,8 +147,8 @@ const MUTATIONS = {
   'inject-post-retry': {
     target: 'no-post-retry',
     apply: rewriteStatusBody(
-      '<a class="y-recovery__action y-recovery__action--quiet" href="/">返回首頁</a></nav>',
-      '<a class="y-recovery__action y-recovery__action--quiet" href="/">返回首頁</a><form method="post" action="/status"><button type="submit">retry</button></form></nav>',
+      '<a class="y-recovery__action y-recovery__action--quiet" href="/">返回閱讀桌</a></nav>',
+      '<a class="y-recovery__action y-recovery__action--quiet" href="/">返回閱讀桌</a><form method="post" action="/status"><button type="submit">retry</button></form></nav>',
       'POST retry control',
     ),
   },

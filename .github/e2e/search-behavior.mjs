@@ -104,8 +104,8 @@ const MUTATIONS = {
     target: 'home-does-not-take-focus',
     before: rewriteHome([
       {
-        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記">',
-        replacement: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記" autofocus>',
+        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋書庫">',
+        replacement: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋書庫" autofocus>',
       },
     ], 'Home document'),
   },
@@ -153,8 +153,8 @@ const MUTATIONS = {
         expected: 1,
       },
       {
-        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記">',
-        replacement: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記" data-live-search-input>',
+        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋書庫">',
+        replacement: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋書庫" data-live-search-input>',
         expected: 1,
       },
       {
@@ -181,8 +181,8 @@ const MUTATIONS = {
     target: 'button-submits-get',
     before: rewriteHome([
       {
-        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋筆記">',
-        replacement: 'name="query" placeholder="搜尋書庫…" aria-label="搜尋筆記">',
+        needle: 'name="q" placeholder="搜尋書庫…" aria-label="搜尋書庫">',
+        replacement: 'name="query" placeholder="搜尋書庫…" aria-label="搜尋書庫">',
       },
     ], 'Home query field'),
   },

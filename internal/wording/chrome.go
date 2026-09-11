@@ -16,15 +16,15 @@ var ToggleNavigation = both("切換導覽", "Toggle navigation")
 var BrandTag = both("書庫", "Library")
 
 // SearchNotes labels the way into search, both as the control's accessible name
-// and as the dialog's.
-var SearchNotes = both("搜尋筆記", "Search notes")
+// and as the dialog's. The library is what you search.
+var SearchNotes = both("搜尋書庫", "Search the library")
 
 // SearchNotesPrompt is the same invitation with the ellipsis a placeholder
 // carries, so the control reads as a field waiting rather than a label.
-var SearchNotesPrompt = both("搜尋筆記…", "Search notes…")
+var SearchNotesPrompt = both("搜尋書庫…", "Search the library…")
 
-// SearchLibraryPrompt is the dialog's own field: it searches the whole library,
-// which is a wider promise than the button that opened it.
+// SearchLibraryPrompt is the dialog field's placeholder: the same search object
+// as the button, with the ellipsis a placeholder carries.
 var SearchLibraryPrompt = both("搜尋書庫…", "Search the library…")
 
 // ToggleFurigana names the control for the reading aids over Japanese text.
