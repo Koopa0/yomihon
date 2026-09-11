@@ -2,6 +2,7 @@ package layouts
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -90,5 +91,47 @@ func TestTextSizeControlCarriesItsThreeNamesForTheScript(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestThemeIconFollowsSystemDarkPreference holds the theme toggle's two icon
+// entrances together. A reader who chose dark enters through the
+// [data-theme="dark"] attribute the server stamps; a reader who chose nothing
+// on a dark system enters through the prefers-color-scheme media block. Both
+// must show the moon and hide the sun, and an explicit light choice must
+// escape the media block entirely.
+func TestThemeIconFollowsSystemDarkPreference(t *testing.T) {
+	t.Parallel()
+	const path = "../../../assets/css/components.css"
+	source, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	css := cssComments.ReplaceAllString(string(source), "")
+
+	chosenSun := ruleBody(t, css, `[data-theme="dark"] .y-ico-sun {`)
+	chosenMoon := ruleBody(t, css, `[data-theme="dark"] .y-ico-moon {`)
+	if !strings.Contains(chosenSun, "display: none") {
+		t.Fatalf("the chosen-dark sun rule does not hide the sun: %q", chosenSun)
+	}
+	if !strings.Contains(chosenMoon, "display: block") {
+		t.Fatalf("the chosen-dark moon rule does not show the moon: %q", chosenMoon)
+	}
+
+	mediaAt := strings.Index(css, "@media (prefers-color-scheme: dark)")
+	if mediaAt < 0 {
+		t.Fatalf("%s has no prefers-color-scheme dark block; a reader who chose nothing keeps the sun on a dark system", path)
+	}
+	media := css[mediaAt:]
+	if !strings.Contains(media[:strings.Index(media, "{")+200], `:root:not([data-theme="light"])`) {
+		t.Fatalf("the media block does not guard on :root:not([data-theme=\"light\"]); an explicit light choice must escape it")
+	}
+	systemSun := ruleBody(t, media, `:root:not([data-theme="light"]) .y-ico-sun {`)
+	systemMoon := ruleBody(t, media, `:root:not([data-theme="light"]) .y-ico-moon {`)
+	if !strings.Contains(systemSun, "display: none") {
+		t.Fatalf("the system-dark sun rule does not hide the sun: %q", systemSun)
+	}
+	if !strings.Contains(systemMoon, "display: block") {
+		t.Fatalf("the system-dark moon rule does not show the moon: %q", systemMoon)
 	}
 }

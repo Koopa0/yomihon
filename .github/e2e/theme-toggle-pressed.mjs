@@ -1,11 +1,14 @@
-// Behavior lock for the theme control's pressed state. The server renders it
-// from the stored choice, which is all a server can see: a system that prefers
-// dark never reaches it. So a reader who has chosen nothing, on a dark system,
-// is shown a dark page by a button claiming it is not pressed — and the first
-// press then reads as switching to the thing already on screen.
+// Behavior lock for the theme control's pressed state and icon. The server
+// renders both from the stored choice, which is all a server can see: a system
+// that prefers dark never reaches it. So a reader who has chosen nothing, on a
+// dark system, is shown a dark page by a button claiming it is not pressed and
+// carrying a sun — and the first press then reads as switching to the thing
+// already on screen.
 //
 // WAI-ARIA says aria-pressed reports whether the toggle is currently pressed,
-// so on that page it has to be true. The client is the only side that can know.
+// so on that page it has to be true. The client is the only side that can know
+// the pressed answer; the stylesheet is the only side that can know the icon
+// before script runs.
 //
 // What this does not cover: the same answer is recomputed after a
 // back/forward-cache restore, and driving a real bfcache restore from a headless
@@ -22,7 +25,12 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['pressed-matches-painted-theme', 'not-pressed-on-a-light-page'];
+const SITES = [
+  'pressed-matches-painted-theme',
+  'not-pressed-on-a-light-page',
+  'moon-shown-when-following-system-dark',
+  'sun-shown-when-following-system-light',
+];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -56,6 +64,20 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
   };
 };
 
+const rewriteCSS = (needle, replacement, label) => async (page) => {
+  let matches = 0;
+  await page.route('**/app.css', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    matches += original.split(needle).length - 1;
+    await route.fulfill({ response, body: original.replace(needle, replacement) });
+  });
+  return () => {
+    if (matches !== 1) return `${label} needle matched ${matches} times, want exactly 1`;
+    return '';
+  };
+};
+
 const MUTATIONS = {
   'always-pressed': {
     target: 'not-pressed-on-a-light-page',
@@ -71,6 +93,22 @@ const MUTATIONS = {
       "themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));\n\n  textsizeToggle",
       "themeToggle?.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));\n\n  textsizeToggle",
       'first-paint pressed state',
+    ),
+  },
+  'system-dark-icon-reads-explicit-theme-only': {
+    target: 'moon-shown-when-following-system-dark',
+    apply: rewriteCSS(
+      '@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .y-ico-sun{display:none}:root:not([data-theme=light]) .y-ico-moon{display:block}}',
+      '',
+      'system-dark icon media block',
+    ),
+  },
+  'system-light-icon-reads-explicit-theme-only': {
+    target: 'sun-shown-when-following-system-light',
+    apply: rewriteCSS(
+      '[data-theme=dark] .y-ico-moon{display:block}',
+      '.y-ico-moon{display:block}',
+      'moon shown only on an explicit dark choice',
     ),
   },
 };
@@ -97,14 +135,23 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-const pressedState = (page) =>
+const themeControlState = (page) =>
   page.evaluate(() => {
     const toggle = document.querySelector('[data-theme-toggle]');
     if (!toggle) return null;
+    const sun = toggle.querySelector('.y-ico-sun');
+    const moon = toggle.querySelector('.y-ico-moon');
+    const visible = (element) => {
+      if (!element) return false;
+      const style = getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0;
+    };
     return {
       pressed: toggle.getAttribute('aria-pressed'),
       painted: getComputedStyle(document.documentElement).colorScheme,
       stamped: document.documentElement.dataset.theme ?? '',
+      sunVisible: visible(sun),
+      moonVisible: visible(moon),
     };
   });
 
@@ -122,7 +169,7 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
-  const onLoad = await pressedState(page);
+  const onLoad = await themeControlState(page);
   if (onLoad === null) broken('the page carries no theme control to read');
   if (onLoad.stamped !== '') {
     broken(`the root already carries a stored theme (${onLoad.stamped}); this probe needs a reader who has chosen nothing`);
@@ -133,6 +180,12 @@ try {
   if (onLoad.pressed !== 'true') {
     fail('pressed-matches-painted-theme', `the page is dark and the control reports aria-pressed=${onLoad.pressed}, want true`);
   }
+  if (onLoad.sunVisible || !onLoad.moonVisible) {
+    fail(
+      'moon-shown-when-following-system-dark',
+      `the page is dark and the control shows sun=${onLoad.sunVisible} moon=${onLoad.moonVisible}, want sun=false moon=true`,
+    );
+  }
 
   // The other direction, on its own page: an answer hardcoded to "pressed"
   // satisfies the assertion above and is wrong for every reader whose system
@@ -141,7 +194,7 @@ try {
   const lightPage = await lightContext.newPage();
   if (MUTATE) await MUTATIONS[MUTATE].apply(lightPage);
   await lightPage.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-  const onLight = await pressedState(lightPage);
+  const onLight = await themeControlState(lightPage);
   if (onLight === null) broken('the light page carries no theme control to read');
   if (onLight.painted.includes('dark')) {
     broken(`the page painted ${onLight.painted} under a light system preference, so the two directions are not separated`);
@@ -149,8 +202,14 @@ try {
   if (onLight.pressed !== 'false') {
     fail('not-pressed-on-a-light-page', `the page is light and the control reports aria-pressed=${onLight.pressed}, want false`);
   }
+  if (!onLight.sunVisible || onLight.moonVisible) {
+    fail(
+      'sun-shown-when-following-system-light',
+      `the page is light and the control shows sun=${onLight.sunVisible} moon=${onLight.moonVisible}, want sun=true moon=false`,
+    );
+  }
 
-  console.log('PASS theme-toggle-pressed: the control reports pressed on a dark page nobody chose, and not pressed on a light one');
+  console.log('PASS theme-toggle-pressed: the control reports pressed on a dark page nobody chose, not pressed on a light one, and the icon follows the painted theme before script runs');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

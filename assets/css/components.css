@@ -221,6 +221,13 @@ html, body { margin: 0; background: var(--bg); }
 .y-ico-moon { display: none; }
 [data-theme="dark"] .y-ico-sun { display: none; }
 [data-theme="dark"] .y-ico-moon { display: block; }
+/* The moon enters the same way the dark palette does: a reader who chose
+   nothing on a dark system sees dark before any script runs, and the glyph
+   has to agree. An explicit light choice escapes through the :not() guard. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .y-ico-sun { display: none; }
+  :root:not([data-theme="light"]) .y-ico-moon { display: block; }
+}
 
 .y-hamburger { display: none; }
 
