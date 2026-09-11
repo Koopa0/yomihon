@@ -1,0 +1,30 @@
+{
+  "canonical_job": "verify",
+  "ci_only_jobs": [
+    {"name": "coverage"},
+    {
+      "name": "portable-core",
+      "matrix": ["macos-15", "windows-latest"]
+    }
+  ],
+  "removed_duplicate_jobs": [
+    "govulncheck",
+    "assets-drift",
+    "lint-frontend",
+    "e2e-http",
+    "fuzz",
+    "e2e-behavior",
+    "e2e-mutations"
+  ],
+  "required_verify_targets": [
+    "vuln",
+    "fmt-check",
+    "css-check",
+    "frontend-check",
+    "e2e-http-check",
+    "fuzz-smoke",
+    "performance-smoke",
+    "browser-check",
+    "mutation-check"
+  ]
+}

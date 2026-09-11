@@ -63,8 +63,8 @@ jobs:
           go-version-file: go.mod
 
       # assets/css/output.css and the templ-generated Go under internal/ui
-      # are committed source, kept current by the gate job's assets-drift
-      # check, so building the released binary needs no generation step
+      # are committed source, kept current by the gate job's make verify
+      # run, so building the released binary needs no generation step
       # here — only the four published platforms, cross-compiled without
       # cgo the same way `make portable-build-check` already does.
       - name: Cross-build the published platforms
