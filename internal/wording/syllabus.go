@@ -2,9 +2,9 @@ package wording
 
 // The syllabus: a study path read as a course rather than as a note.
 
-// SyllabusKicker sits above the title, before the vault's own word for the
-// thing, which the markup writes and neither half of this pair carries.
-var SyllabusKicker = both("課綱 · ", "Syllabus · ")
+// SyllabusKicker names the kind above the path's own title. The page is still
+// a syllabus; OpenSyllabus keeps that name for the rail link into it.
+var SyllabusKicker = both("學習路徑 · ", "Study path · ")
 
 // PathItemUnreadable stands where a course lists something the page could not
 // read as either a lesson or a branch. Dropping such a row would take it off a
@@ -35,7 +35,7 @@ var (
 var (
 	StudyPathNav = both("學習路徑導覽", "Study path navigation")
 	StudyPaths   = both("學習路徑", "Study paths")
-	ThisPath     = both("本路徑", "This path")
+	ThisPath     = both("這條學習路徑", "This study path")
 )
 
 // What the page says over an empty course, split by which repair is due.
