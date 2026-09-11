@@ -138,7 +138,10 @@ templ header(c Chrome) {
 		// and the same page asked for again — a redirect back to the address the
 		// form carries. It works with no script at all, which matters most for
 		// this control: a reader who cannot read the interface must still be
-		// able to leave it.
+		// able to leave it. Script, when it is there, rewrites the hidden next
+		// field with a reading-position fragment before submit so the reload
+		// can put the reader back where they were; an unmodified form still
+		// posts the bare path and lands at the top.
 		<form class="y-langform" method="post" action="/lang">
 			<input type="hidden" name="lang" value={ string(c.Lang.Other()) }/>
 			<input type="hidden" name="next" value={ c.ReturnTo }/>

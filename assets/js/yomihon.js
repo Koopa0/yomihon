@@ -5,6 +5,7 @@ import { initContents } from './contents.js';
 import { initDiagrams } from './diagrams.js';
 import { initDrawer } from './drawer.js';
 import { initFreshness } from './freshness.js';
+import { initLangForm } from './langform.js';
 import { initLesson } from './lesson.js';
 import { initPreferences } from './preferences.js';
 import { initPreview } from './preview.js';
@@ -19,6 +20,7 @@ function init() {
 
   const drawer = initDrawer();
   const sidebar = initSidebar();
+  initLangForm();
   initPreferences();
   initContents();
   initFreshness();
