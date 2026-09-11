@@ -3825,7 +3825,7 @@ func TestTheLifecycleBlockDropsTheQueueHeading(t *testing.T) {
 	if row := homeLifecycleRow(t, block, "draft"); !strings.Contains(row, ">1<") {
 		t.Errorf("the draft row does not state its count; row = %q", row)
 	}
-	if !strings.Contains(block, "依狀態分組") {
+	if !strings.Contains(block, wording.FolderLifecycleTitle.In(wording.ZhHant)) {
 		t.Error("the block does not carry the distribution heading")
 	}
 	for _, phrase := range []string{"等你處理", "待判讀內容"} {
@@ -4110,7 +4110,7 @@ func TestASingleNoteClaimsNoTimestampTie(t *testing.T) {
 	if strings.Contains(recent, "時間戳一模一樣") || strings.Contains(recent, "identical timestamps") {
 		t.Errorf("a single-note vault claims a timestamp tie; section = %q", recent)
 	}
-	if !strings.Contains(recent, `<h2 id="folders-recent-title">最近變更</h2>`) {
+	if !strings.Contains(recent, `<h2 id="folders-recent-title">`+wording.FolderRecentTitle.In(wording.ZhHant)+`</h2>`) {
 		t.Errorf("a single-note vault does not carry the ordinary recency heading; section = %q", recent)
 	}
 }

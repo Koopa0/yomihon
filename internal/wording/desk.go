@@ -36,8 +36,8 @@ var (
 		"Daily briefings and audits, as they were written.",
 	)
 	DeskFoldersLede = both(
-		"照檔案的位置瀏覽；狀態與最近修改在這裡。",
-		"Browse by where the files are; status and recent changes are here.",
+		"照檔案存放的位置瀏覽。",
+		"Browse by where the files are stored.",
 	)
 )
 

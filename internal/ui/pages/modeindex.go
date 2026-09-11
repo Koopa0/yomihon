@@ -51,16 +51,16 @@ type RecentBlock struct {
 // it, because the distribution beside it counts every indexed note, and two
 // true figures over unnamed sets read as a contradiction.
 func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) RecentBlock {
-	block := RecentBlock{Title: wording.HomeTiedTitle.In(lang), Notes: notes}
+	block := RecentBlock{Title: wording.FolderTiedTitle.In(lang), Notes: notes}
 	switch {
 	case ordered && scoped:
-		block.Title, block.Lede = wording.HomeRecentTitle.In(lang), wording.HomeRecentLedeScoped.In(lang)
+		block.Title, block.Lede = wording.FolderRecentTitle.In(lang), wording.FolderRecentLedeScoped.In(lang)
 	case ordered:
-		block.Title, block.Lede = wording.HomeRecentTitle.In(lang), wording.HomeRecentLede.In(lang)
+		block.Title, block.Lede = wording.FolderRecentTitle.In(lang), wording.FolderRecentLede.In(lang)
 	case scoped:
-		block.Lede = wording.HomeTiedLedeScoped.In(lang)
+		block.Lede = wording.FolderTiedLedeScoped.In(lang)
 	default:
-		block.Lede = wording.HomeTiedLede.In(lang)
+		block.Lede = wording.FolderTiedLede.In(lang)
 	}
 	return block
 }
@@ -82,9 +82,9 @@ type StatusDistribution struct {
 // so beside a shelf narrowed to the declared knowledge layer the sentence says
 // the count reaches past the shelf; an unscoped shelf keeps the plain sentence.
 func NewStatusDistribution(statuses, unstated []LifecycleItem, scoped bool, lang wording.Lang) StatusDistribution {
-	lede := wording.HomeLifecycleLede.In(lang)
+	lede := wording.FolderLifecycleLede.In(lang)
 	if scoped {
-		lede = wording.HomeLifecycleLedeScoped.In(lang)
+		lede = wording.FolderLifecycleLedeScoped.In(lang)
 	}
 	return StatusDistribution{Lede: lede, Statuses: statuses, Unstated: unstated}
 }

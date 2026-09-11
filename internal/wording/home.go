@@ -21,34 +21,34 @@ var (
 	HomeFaultsBrowser = both("部分投影已關閉。", "Some projections are closed.")
 	HomeDegradedTitle = both("讀取狀況", "Read health")
 	HomeDegradedLede  = both("有檔案這次沒有讀進來", "Some files could not be read this time")
-	HomeRecentTitle   = both("最近變更", "Recently changed")
-	HomeRecentLede    = both("最近改動過的筆記", "Notes changed most recently")
+	FolderRecentTitle = both("最近變更", "Recently changed")
+	FolderRecentLede  = both("最近改動過的筆記", "Notes changed most recently")
 	// The scoped ledes name the set the block lists — the contract's declared
 	// knowledge layer — because the status distribution beside it counts
 	// every indexed note, and two true numbers over unstated sets read as a
 	// contradiction. A folder that declared no layer lists everything and
 	// keeps the plain ledes: naming a layer there would invent a rule its
 	// owner never wrote.
-	HomeRecentLedeScoped = both(
+	FolderRecentLedeScoped = both(
 		"知識層資料夾中最近改動過的筆記",
 		"Notes in the declared knowledge folders changed most recently",
 	)
-	HomeTiedTitle = both("筆記", "Notes")
-	HomeTiedLede  = both(
+	FolderTiedTitle = both("筆記", "Notes")
+	FolderTiedLede  = both(
 		"這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」",
 		"These files carry identical timestamps, so nothing here is more recent than anything else",
 	)
-	HomeTiedLedeScoped = both(
+	FolderTiedLedeScoped = both(
 		"知識層資料夾中的筆記。這些檔案的時間戳一模一樣，排不出先後，所以這裡不是「最近」",
 		"Notes in the declared knowledge folders. These files carry identical timestamps, so nothing here is more recent than anything else",
 	)
-	HomeLifecycleTitle = both("依狀態分組", "By status")
-	HomeLifecycleLede  = both("書庫中每篇已索引筆記落在哪裡", "Where each indexed note in the vault sits")
+	FolderLifecycleTitle = both("依狀態分組", "By status")
+	FolderLifecycleLede  = both("書庫中每篇已索引筆記落在哪裡", "Where each indexed note in the vault sits")
 	// Beside a shelf narrowed to the declared layer the distribution still
 	// counts every indexed note, so its sentence says that the count reaches
 	// past the shelf; otherwise the file total above it and the total below it
 	// disagree with no set named for either.
-	HomeLifecycleLedeScoped = both(
+	FolderLifecycleLedeScoped = both(
 		"書庫中每篇已索引筆記落在哪裡，含書架之外的資料夾",
 		"Where each indexed note in the vault sits, including folders off the shelf",
 	)
