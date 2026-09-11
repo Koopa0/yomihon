@@ -450,6 +450,9 @@ const plantSearchFixture = (page, theme, { busy }) => page.evaluate(({ selectedT
   fixture.id = 'contrast-search-fixture';
   fixture.className = 'y-searchresults';
   fixture.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+  // Pinned above the sticky sealbar so a real :hover can land on the row.
+  // Position does not change the computed wash or the ancestor walk.
+  fixture.style.cssText = 'position:fixed;top:24px;left:24px;z-index:2147483647;width:min(480px,90vw)';
   fixture.innerHTML = html;
   host.appendChild(fixture);
   return {};
@@ -543,11 +546,15 @@ const measureMark = async (page, theme, ground) => {
       await page.locator('#contrast-search-fixture .y-result').hover();
       const hovered = await page.waitForFunction(() => {
         const row = document.querySelector('#contrast-search-fixture .y-result');
-        if (!row) return false;
-        const color = getComputedStyle(row).backgroundColor;
-        const match = color.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
-        if (!match) return false;
-        return (match[4] === undefined ? 1 : Number(match[4])) === 1;
+        if (!row || !row.matches(':hover')) return false;
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return false;
+        context.fillStyle = getComputedStyle(row).backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+        return context.getImageData(0, 0, 1, 1).data[3] === 255;
       }).then(() => true, () => false);
       if (!hovered) return { issue: 'the hovered result never took an opaque overlay' };
     }
