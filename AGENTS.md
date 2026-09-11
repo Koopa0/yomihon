@@ -18,6 +18,8 @@ Finish the change. Do not advertise that an agent wrote it.
 - Work from an issue that carries the `grok` label. An issue labeled
   `needs-owner`, `needs-repro`, or `blocked` is not yours until that label
   changes.
+- An issue that an open pull request already references is taken. Stop
+  rather than open a second one.
 - Treat the issue body as the specification. When the issue also carries a
   ruling comment, that comment wins: it names the behavior today, the behavior
   wanted, the test that locks it, and the scope you stay inside. Build that and
@@ -44,6 +46,9 @@ Finish the change. Do not advertise that an agent wrote it.
    it, which has read a red gate as green here before. A scoped
    `go test ./internal/status/` is worth reporting, so long as you call it what
    it is.
+6. When a review asks for a change, push it and reply once, in English, naming
+   the commit. Do not restate the gate: CI runs it on every push, and a claim
+   that it is green is not evidence a reviewer can use.
 
 Never merge a pull request; opening it ends your work.
 
