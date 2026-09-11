@@ -196,6 +196,116 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 	}
 }
 
+// TestEmptyProbeVaultsGuideFirstRunOverHTTP drives the two vault shapes the
+// ruling names through the assembled reader: a bare empty directory, and the
+// same directory carrying only the contract file.
+func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
+	t.Parallel()
+
+	contract, err := os.ReadFile(filepath.Join("..", "..", "internal", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema fixture: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name     string
+		files    map[string]string
+		path     wording.Phrase
+		mapState wording.Phrase
+		step     wording.Phrase
+	}{
+		{
+			name:     "bare empty directory",
+			files:    nil,
+			path:     wording.PathIndexUngoverned,
+			mapState: wording.MapIndexUngoverned,
+			step:     wording.IndexUngovernedNext,
+		},
+		{
+			name: "contract only",
+			files: map[string]string{
+				schema.ContractRelPath: string(contract),
+			},
+			path:     wording.PathIndexEmpty,
+			mapState: wording.MapIndexEmpty,
+			step:     wording.IndexDeclaredEmptyNext,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			for rel, body := range tt.files {
+				full := filepath.Join(root, filepath.FromSlash(rel))
+				if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+					t.Fatalf("mkdir for %s: %v", rel, err)
+				}
+				if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+					t.Fatalf("write %s: %v", rel, err)
+				}
+			}
+			site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+			if err != nil {
+				t.Fatalf("newReadingSite: %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := site.close(); closeErr != nil {
+					t.Errorf("readingSite.close() error = %v", closeErr)
+				}
+			})
+
+			for _, surface := range []struct {
+				name  string
+				fetch func() string
+				state wording.Phrase
+			}{
+				{
+					name: "desk paths",
+					fetch: func() string {
+						return deskBlockMarkup(t, readingPage(t, site, "/"), "paths")
+					},
+					state: tt.path,
+				},
+				{
+					name: "desk maps",
+					fetch: func() string {
+						return deskBlockMarkup(t, readingPage(t, site, "/"), "maps")
+					},
+					state: tt.mapState,
+				},
+				{
+					name:  "path index",
+					fetch: func() string { return readingPage(t, site, "/paths") },
+					state: tt.path,
+				},
+				{
+					name:  "map index",
+					fetch: func() string { return readingPage(t, site, "/maps") },
+					state: tt.mapState,
+				},
+			} {
+				t.Run(surface.name, func(t *testing.T) {
+					t.Parallel()
+					assertEmptyGuide(t, surface.name, surface.fetch(), surface.state, tt.step)
+				})
+			}
+		})
+	}
+}
+
+func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phrase) {
+	t.Helper()
+	lang := wording.ZhHant
+	if !strings.Contains(got, state.In(lang)) {
+		t.Errorf("%s empty sentence missing %q; got %q", where, state.In(lang), got)
+	}
+	if !strings.Contains(got, step.In(lang)) {
+		t.Errorf("%s next step missing %q; got %q", where, step.In(lang), got)
+	}
+	if strings.Contains(got, "宣告") {
+		t.Errorf("%s still uses 宣告 jargon: %q", where, got)
+	}
+}
+
 // deskBlockMarkup slices one way in out of the desk, from its own marker to the
 // end of the section it opens.
 func deskBlockMarkup(t *testing.T, page, mode string) string {
