@@ -131,7 +131,7 @@ func TestSearchResultMarkedRunsIntroduceNoSpacing(t *testing.T) {
 	for _, want := range []string{
 		`<span class="y-result__meta">Lessons/Building <mark>yomihon</mark> from source.md`,
 		`<span class="y-result__topic">主題: building <mark>yomihon</mark></span>`,
-		`<span class="y-result__alias">別名: building <mark>yomihon</mark> from source</span>`,
+		`<span class="y-result__alias">又稱 building <mark>yomihon</mark> from source</span>`,
 		`<span class="y-result__snippet">how to build <mark>yomihon</mark> from source</span>`,
 	} {
 		if !strings.Contains(html, want) {

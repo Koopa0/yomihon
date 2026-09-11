@@ -21,8 +21,8 @@ func TestEmptySearchOffersLifecycleFilterOnlyWhereLifecycleExists(t *testing.T) 
 		wantOffer  bool
 		wantAlways string
 	}{
-		{name: "a governed vault has statuses to filter by", governed: true, wantOffer: true, wantAlways: "請嘗試較少或不同的詞"},
-		{name: "a plain folder has none", governed: false, wantOffer: false, wantAlways: "請嘗試較少或不同的詞"},
+		{name: "a governed vault has statuses to filter by", governed: true, wantOffer: true, wantAlways: "請試較少或不同的詞"},
+		{name: "a plain folder has none", governed: false, wantOffer: false, wantAlways: "請試較少或不同的詞"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestEmptySearchOffersStepBacks(t *testing.T) {
 		t.Fatalf("SearchResults(...).Render() error = %v", err)
 	}
 	got := buf.String()
-	for _, want := range []string{"退一步找", `href="/search?q=20+mg"`, "1 筆"} {
+	for _, want := range []string{"改用較短的詞", `href="/search?q=20+mg"`, "1 筆"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("SearchResults() with step-backs missing %q in:\n%s", want, got)
 		}
@@ -63,7 +63,7 @@ func TestEmptySearchOffersStepBacks(t *testing.T) {
 	if err := SearchResults(SearchView{Query: "20mg"}, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("SearchResults(...).Render() error = %v", err)
 	}
-	if strings.Contains(buf.String(), "退一步找") {
+	if strings.Contains(buf.String(), "改用較短的詞") {
 		t.Error("SearchResults() with no step-backs still renders the offer heading")
 	}
 }

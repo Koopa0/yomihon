@@ -87,7 +87,7 @@ func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(body, "退一步找") || !strings.Contains(body, "20+mg") {
+	if !strings.Contains(body, "改用較短的詞") || !strings.Contains(body, "20+mg") {
 		t.Errorf("empty answer does not offer the loosened search; body = %q", body)
 	}
 
@@ -101,7 +101,7 @@ func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
 	if !strings.Contains(body, "共 1 筆") {
 		t.Fatalf("the with-results probe found nothing, so it can prove nothing; body = %q", body)
 	}
-	if strings.Contains(body, "退一步找") {
+	if strings.Contains(body, "改用較短的詞") {
 		t.Errorf("an answer with results still carries step-back advice; body = %q", body)
 	}
 }
