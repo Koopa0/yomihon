@@ -22,6 +22,7 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 		governed bool
 		path     wording.Phrase
 		mapState wording.Phrase
+		folder   wording.Phrase
 		step     wording.Phrase
 	}{
 		{
@@ -29,6 +30,7 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 			governed: false,
 			path:     wording.PathIndexUngoverned,
 			mapState: wording.MapIndexUngoverned,
+			folder:   wording.FolderIndexUngoverned,
 			step:     wording.IndexUngovernedNext,
 		},
 		{
@@ -36,6 +38,7 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 			governed: true,
 			path:     wording.PathIndexEmpty,
 			mapState: wording.MapIndexEmpty,
+			folder:   wording.FolderIndexEmpty,
 			step:     wording.IndexDeclaredEmptyNext,
 		},
 	}
@@ -45,6 +48,7 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 				t.Parallel()
 				pathView := NewPathIndex(nil, nav.Closure{}, tt.governed, lang, nil)
 				mapView := NewMapIndex(nil, nav.Closure{}, tt.governed, lang, nil)
+				folderView := NewFolderIndex(&nav.Model{}, tt.governed, lang, nil)
 				for _, view := range []struct {
 					name  string
 					state wording.Phrase
@@ -52,17 +56,21 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 				}{
 					{name: "paths", state: tt.path, got: pathView.Shelf.Empty},
 					{name: "maps", state: tt.mapState, got: mapView.Shelf.Empty},
+					{name: "folders", state: tt.folder, got: folderView.Shelf.Empty},
 				} {
 					assertEmptyGuide(t, view.name, view.got, view.state, tt.step, lang)
 				}
 				blocks := NewDeskBlocks(&nav.Model{}, tt.governed, lang, nil)
 				for _, block := range blocks {
-					if block.Mode != pathMode && block.Mode != mapMode {
+					if block.Mode != pathMode && block.Mode != mapMode && block.Mode != folderMode {
 						continue
 					}
 					state := tt.path
-					if block.Mode == mapMode {
+					switch block.Mode {
+					case mapMode:
 						state = tt.mapState
+					case folderMode:
+						state = tt.folder
 					}
 					assertEmptyGuide(t, "desk/"+block.Mode, block.Shelf.Empty, state, tt.step, lang)
 				}
@@ -103,6 +111,11 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 			mode:  mapMode,
 			view:  NewMapIndex(nil, nav.Closure{}, false, wording.ZhHant, nil),
 			state: wording.MapIndexUngoverned,
+		},
+		{
+			mode:  folderMode,
+			view:  NewFolderIndex(&nav.Model{}, false, wording.ZhHant, nil),
+			state: wording.FolderIndexUngoverned,
 		},
 	} {
 		t.Run(tt.mode, func(t *testing.T) {
