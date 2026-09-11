@@ -516,7 +516,7 @@ html, body { margin: 0; background: var(--bg); }
   color: var(--fg-muted); font-size: var(--fs-13); margin: 0 0 12px;
   animation: y-flipreceipt-in var(--dur-slow) var(--ease-standard);
 }
-@keyframes y-flipreceipt-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes y-flipreceipt-in { from { transform: translateY(4px); } to { transform: translateY(0); } }
 
 /* The freshness line: one quiet sentence the client puts above the article when
    the file has moved on from the words printed below. It takes the flip

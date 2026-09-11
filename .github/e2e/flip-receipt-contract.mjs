@@ -1,4 +1,4 @@
-// Behavior lock for the flip receipt's arrival: a short entrance fade and a
+// Behavior lock for the flip receipt's arrival: a short entrance slide and a
 // clean address once the sentence has landed. The server mints the receipt from
 // ?from=; the client drops that token so a copied URL does not suggest a replay
 // the write path has already refused.
@@ -93,7 +93,7 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 // Author CSS must be in effect before the entrance declaration is read. Measuring
 // as soon as the element exists can still see animation:none before /static/app.css
 // applies, and a cross-document view transition can suspend painting on the
-// arriving page until pagereveal — long enough for a 200ms fade to finish unseen.
+// arriving page until pagereveal.
 const waitForAppStyles = (page) => page.waitForFunction(() =>
   [...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css')),
 );
@@ -121,36 +121,6 @@ const readEntranceDeclaration = (receipt) => receipt.evaluate((el) => {
   const style = getComputedStyle(el);
   return { name: style.animationName, duration: style.animationDuration };
 });
-
-// waitForFullOpacity waits until the receipt's entrance has landed at full
-// strength. The declaration is checked separately because a 200ms fade cannot
-// be sampled mid-flight once navigation and the selector wait have elapsed.
-const waitForFullOpacity = async (receipt) => {
-  try {
-    return await receipt.evaluate((el) => new Promise((resolve, reject) => {
-      let interval = 0;
-      const deadline = setTimeout(() => {
-        if (interval) clearInterval(interval);
-        reject(new Error('the flip receipt never reached full opacity'));
-      }, 2000);
-      const tick = () => {
-        if (getComputedStyle(el).opacity === '1') {
-          clearTimeout(deadline);
-          if (interval) clearInterval(interval);
-          resolve(1);
-          return true;
-        }
-        return false;
-      };
-      if (tick()) return;
-      interval = setInterval(() => {
-        if (tick()) clearInterval(interval);
-      }, 16);
-    }));
-  } catch {
-    return receipt.evaluate((el) => Number(getComputedStyle(el).opacity));
-  }
-};
 
 const injectReceipt = async (page) => {
   const arrival = `${BASE}${PAGE}?from=draft`;
@@ -227,10 +197,6 @@ try {
   if (parseFloat(entrance.duration) <= 0) {
     fail('entrance-fade', `entrance duration is ${JSON.stringify(entrance.duration)}, want a non-zero duration`);
   }
-  const opacity = await waitForFullOpacity(receipt);
-  if (opacity !== 1) {
-    fail('entrance-fade', `the receipt never reached full opacity: sampled opacity ${opacity}`);
-  }
 
   await page.waitForFunction(() => !new URL(location.href).searchParams.has('from'), null, { timeout: 2000 }).catch(() => {});
   const address = new URL(page.url());
@@ -252,7 +218,7 @@ try {
     }
   }
 
-  console.log(`PASS flip-receipt-contract: entrance ${entrance.name} (${entrance.duration}) at opacity ${opacity} and address ${address.pathname}`);
+  console.log(`PASS flip-receipt-contract: entrance ${entrance.name} (${entrance.duration}) and address ${address.pathname}`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
