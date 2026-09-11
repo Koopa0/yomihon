@@ -164,13 +164,15 @@ const MUTATIONS = {
     contexts: ['nojs'],
     apply: serveLightRoot(),
   },
-  // Opacity on the result region fades every descendant word. The lock
-  // composites that ancestor opacity before computing the ratio, which is
-  // the only way it can see this class: the token pairs above are opaque.
+  // Opacity on the path-line ink, inside the busy region, fades the word
+  // against the elevated ground. Opacity on the opaque container would
+  // fade the ground with the ink and the ratio would not move. The lock
+  // composites ancestor opacity before computing the ratio, which is the
+  // only way it can see this class: the token pairs above are opaque.
   'fade-busy-search-ink': {
     target: 'busy-search-aa',
     contexts: ['search'],
-    apply: weakenStylesheet('app.css', '.y-searchresults[aria-busy="true"]{opacity:0.58}'),
+    apply: weakenStylesheet('app.css', '.y-searchresults[aria-busy="true"] .y-result__meta{opacity:0.58}'),
   },
   // A mark that inherits faint path-line ink through the gold wash lands
   // under 4.5:1 on every ground the row sits on. The lock composites the
