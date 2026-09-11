@@ -52,7 +52,7 @@ const MUTATIONS = {
     target: 'entrance-fade',
     apply: rewriteFetched(
       '**/app.css',
-      'animation:y-flipreceipt-in var(--dur-slow)var(--ease-standard)',
+      'animation:y-flipreceipt-in',
       'animation:none',
       'flip receipt entrance animation',
     ),
