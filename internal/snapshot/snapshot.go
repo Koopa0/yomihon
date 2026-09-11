@@ -999,7 +999,7 @@ func (g *generation) carryFile(from carriedGeneration, relPath string, want byte
 
 // blockedFromProblems carries the scan's unobservable paths into the build's
 // blocked-source list, so an unopenable directory reports like an unread file.
-func blockedFromProblems(problems []vault.Problem) []BlockedSource {
+func blockedFromProblems(problems []vault.Diagnostic) []BlockedSource {
 	if len(problems) == 0 {
 		return nil
 	}

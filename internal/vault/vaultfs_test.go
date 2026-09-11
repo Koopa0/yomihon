@@ -438,9 +438,9 @@ func TestScanReturnsDefensiveClones(t *testing.T) {
 
 	firstErr := errors.New("first")
 	secondErr := errors.New("second")
-	problemScan := Scan{state: &scanState{problems: []Problem{{path: "bad", err: firstErr}}}}
+	problemScan := Scan{state: &scanState{problems: []Diagnostic{{path: "bad", err: firstErr}}}}
 	problems := problemScan.Problems()
-	problems[0] = Problem{path: "changed", err: secondErr}
+	problems[0] = Diagnostic{path: "changed", err: secondErr}
 	gotProblems := problemScan.Problems()
 	if len(gotProblems) != 1 || gotProblems[0].Path() != "bad" || !errors.Is(gotProblems[0].Err(), firstErr) {
 		t.Fatalf("Problems() after caller mutation = %#v, want unchanged problem", gotProblems)
