@@ -476,8 +476,13 @@ html, body { margin: 0; background: var(--bg); }
    those sit outside the column. Left prose-scoped, a results page fell back to
    the browser's own pure yellow — the one saturated primary colour anywhere in
    the product, fired dozens of times at once on a page of hits, and on a dark
-   evening it landed on a near-black ground. */
-.yomihon mark { background: color-mix(in oklch, var(--gold) 26%, transparent); color: inherit; padding: 0 .15rem; border-radius: 2px; }
+   evening it landed on a near-black ground.
+
+   The ink is explicit, not inherited: a mark on the path line sits in 11px
+   faint type, and inheriting that token through the gold wash lands under
+   4.5:1. Horizontal padding is omitted so a stemmed tail sits against its
+   highlighted head (`<mark>Goroutine</mark>s` is one word). */
+.yomihon mark { background: color-mix(in oklch, var(--gold) 26%, transparent); color: var(--gold-ink); border-radius: 2px; }
 
 /* wikilinks — the renderer's real classes (a.wikilink / .wikilink-broken / .wikilink-ambiguous) */
 .y-prose a.wikilink { color: var(--link); border-bottom: 1px solid var(--accent-muted); }
@@ -735,7 +740,30 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-searchpage__form .y-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
 .y-live-search__status { min-height: 1.4em; margin: 8px 4px 0; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-muted); }
 .y-live-search__status:empty { min-height: 0; margin-block: 0; }
-.y-searchresults[aria-busy="true"] { opacity: 0.58; }
+/* Live search keeps the last answer on screen while the next one loads.
+   Fading the region would fade every word with it — already-compliant ink
+   compositing down past AA at the one moment a reader is waiting to read.
+   The busy signal sits on the container: a quieter ground, a line, and a
+   spinner. The ink stays opaque. */
+.y-searchresults[aria-busy="true"] {
+  position: relative;
+  background: var(--elevated);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.y-searchresults[aria-busy="true"]::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--fg-subtle);
+  border-radius: 50%;
+  animation: y-search-spin 0.7s linear infinite;
+  pointer-events: none;
+}
+@keyframes y-search-spin { to { transform: rotate(1turn); } }
 .y-searchpage__empty { margin: 28px 4px; font-family: var(--font-serif); color: var(--fg-subtle); }
 .y-searchpage__empty p { margin: 0; }
 .y-searchpage__emptytitle { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-20); font-weight: var(--fw-regular); color: var(--fg); }

@@ -1,5 +1,6 @@
 // Browser lock for legibility in both reading themes: the text tokens the
-// interface is built from, and the syntax colours inside a code block.
+// interface is built from, the syntax colours inside a code block, busy-search
+// ink after ancestor opacity is composited, and a mark after its wash is.
 //
 // The least-prominent text tokens are used at 10-13px, including inside
 // elevated and hover surfaces, so they owe the normal-text WCAG AA ratio
@@ -7,9 +8,11 @@
 // same reason, and owes it against the surface it is actually painted on:
 // the reading page gives a code block the product's own panel, so a palette
 // measured against the highlighter's intended background would be measuring a
-// colour nobody sees. Every reading of a colour here comes from a real span on
-// a real page, because the regression this exists to catch is a stylesheet that
-// is perfectly valid and still paints near-black words on a near-black panel.
+// colour nobody sees. Text and code readings come from a real span on a real
+// page. Busy-search and mark readings plant the production classes on that
+// page — idle, hovered, and aria-busy — because those states are brief and
+// the regression this exists to catch is a stylesheet that is perfectly valid
+// and still paints near-black words on a near-black panel.
 //
 // Chrome performs the OKLCH conversion; the lock reads the resulting pixels
 // from a canvas rather than maintaining a second color-conversion algorithm.
@@ -36,6 +39,9 @@ const SITES = [
   'print-code-light',
   'code-forced-colors',
   'dark-code-persists',
+  'busy-search-aa',
+  'mark-aa',
+  'mark-padding',
 ];
 
 // The colours are named by the literal bytes the two palettes ship, never by a
@@ -157,6 +163,30 @@ const MUTATIONS = {
     target: 'dark-code-persists',
     contexts: ['nojs'],
     apply: serveLightRoot(),
+  },
+  // Opacity on the path-line ink, inside the busy region, fades the word
+  // against the elevated ground. Opacity on the opaque container would
+  // fade the ground with the ink and the ratio would not move. The lock
+  // composites ancestor opacity before computing the ratio, which is the
+  // only way it can see this class: the token pairs above are opaque.
+  'fade-busy-search-ink': {
+    target: 'busy-search-aa',
+    contexts: ['search'],
+    apply: weakenStylesheet('app.css', '.y-searchresults[aria-busy="true"] .y-result__meta{opacity:0.58}'),
+  },
+  // A mark that inherits faint path-line ink through the gold wash lands
+  // under 4.5:1 on every ground the row sits on. The lock composites the
+  // translucent background first, and visits hover and busy, not only idle.
+  'inherit-mark-ink': {
+    target: 'mark-aa',
+    contexts: ['search'],
+    apply: weakenStylesheet('app.css', '.yomihon mark{color:inherit}'),
+  },
+  // Horizontal padding splits a stemmed word from its highlighted head.
+  'pad-mark-inline': {
+    target: 'mark-padding',
+    contexts: ['search'],
+    apply: weakenStylesheet('app.css', '.yomihon mark{padding:0 .15rem}'),
   },
 };
 
@@ -315,6 +345,227 @@ const measureCode = (page) => page.evaluate(() => {
   return { measurements };
 });
 
+// The busy result region used to fade every descendant word. This reading
+// multiplies ancestor opacities — only until the first opaque surface, which
+// already includes the faded group — and composites the ink through that
+// product onto that surface. Walking past the opaque ground would fade the
+// ink twice and compare it to an un-faded panel, a false red. That walk is
+// the only way a token-pair probe can see
+// `.y-searchresults[aria-busy="true"] { opacity: … }`.
+const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
+  document.documentElement.dataset.theme = selectedTheme;
+  const host = document.querySelector('.yomihon');
+  if (!host) return { issue: 'the shell .yomihon was not on the page' };
+  const fixture = document.createElement('div');
+  fixture.className = 'y-searchresults';
+  fixture.setAttribute('aria-busy', 'true');
+  fixture.innerHTML = '<ol class="y-results" role="list"><li><a class="y-result" href="#"><span class="y-result__title">Alpha</span><span class="y-result__meta"><mark>Goroutine</mark>s.md</span></a></li></ol>';
+  host.appendChild(fixture);
+  const planted = { fixture };
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) {
+    planted.fixture.remove();
+    return { issue: 'a 2D canvas context is unavailable' };
+  }
+  const SENTINEL = '#ff00ff';
+  const raster = (value) => {
+    context.fillStyle = SENTINEL;
+    context.fillStyle = value;
+    if (context.fillStyle === SENTINEL) return { issue: `the browser could not rasterize the colour ${value}` };
+    context.clearRect(0, 0, 1, 1);
+    context.fillRect(0, 0, 1, 1);
+    const pixel = context.getImageData(0, 0, 1, 1).data;
+    return { channels: [pixel[0], pixel[1], pixel[2]], alpha: pixel[3] };
+  };
+  const luminance = (channels) => {
+    const linear = channels.map((channel) => {
+      const value = channel / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+
+  try {
+    const ink = planted.fixture.querySelector('.y-result__meta');
+    if (!ink) return { issue: 'the busy fixture had no path-line ink to measure' };
+    const foreground = raster(getComputedStyle(ink).color);
+    if (foreground.issue) return { issue: foreground.issue };
+    if (foreground.alpha !== 255) return { issue: `busy-search ink rasterized with alpha ${foreground.alpha}` };
+
+    let opacity = 1;
+    let background = null;
+    for (let el = ink; el; el = el.parentElement) {
+      const style = getComputedStyle(el);
+      const painted = raster(style.backgroundColor);
+      if (painted.issue) return { issue: painted.issue };
+      if (painted.alpha === 255) {
+        background = painted;
+        break;
+      }
+      const own = Number.parseFloat(style.opacity);
+      if (Number.isNaN(own)) return { issue: `an ancestor opacity was not a number (${style.opacity})` };
+      opacity *= own;
+    }
+    if (!background) return { issue: 'nothing opaque was found behind the busy path-line ink' };
+
+    const faded = foreground.channels.map((channel, index) => (
+      Math.round(channel * opacity + background.channels[index] * (1 - opacity))
+    ));
+    const a = luminance(faded);
+    const b = luminance(background.channels);
+    return {
+      opacity,
+      ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+      text: '--fg-faint through ancestor opacity',
+      color: `rgb(${faded.join(' ')})`,
+      background: `rgb(${background.channels.join(' ')})`,
+    };
+  } finally {
+    planted.fixture.remove();
+  }
+}, theme);
+
+// A mark's gold wash is translucent. Measuring the token pair without
+// compositing that wash over the surface is how a 4.26:1 path-line hit
+// shipped as a passing token. The wash lets the row's ground through, so
+// the idle page is the most favourable reading; a hovered row (--overlay)
+// and the busy container (--elevated) are darker — the grounds that
+// stayed under 4.5:1 when the idle page cleared it. 11px normal text
+// still owes 4.5:1 on each.
+const SEARCH_MARK_HTML = '<ol class="y-results" role="list"><li><a class="y-result" href="#"><span class="y-result__title">Alpha</span><span class="y-result__meta"><mark>Goroutine</mark>s.md</span></a></li></ol>';
+const MARK_GROUNDS = [
+  { name: 'hover', busy: false, hover: true },
+  { name: 'busy', busy: true, hover: false },
+  { name: 'idle', busy: false, hover: false },
+];
+
+const plantSearchFixture = (page, theme, { busy }) => page.evaluate(({ selectedTheme, busy: isBusy, html }) => {
+  document.documentElement.dataset.theme = selectedTheme;
+  document.getElementById('contrast-search-fixture')?.remove();
+  const host = document.querySelector('.yomihon');
+  if (!host) return { issue: 'the shell .yomihon was not on the page' };
+  const fixture = document.createElement('div');
+  fixture.id = 'contrast-search-fixture';
+  fixture.className = 'y-searchresults';
+  fixture.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+  // Pinned above the sticky sealbar so a real :hover can land on the row.
+  // Position does not change the computed wash or the ancestor walk.
+  fixture.style.cssText = 'position:fixed;top:24px;left:24px;z-index:2147483647;width:min(480px,90vw)';
+  fixture.innerHTML = html;
+  host.appendChild(fixture);
+  return {};
+}, { selectedTheme: theme, busy, html: SEARCH_MARK_HTML });
+
+const removeSearchFixture = (page) => page.evaluate(() => {
+  document.getElementById('contrast-search-fixture')?.remove();
+});
+
+const measurePlantedMark = (page, groundName) => page.evaluate((selectedGround) => {
+  const fixture = document.getElementById('contrast-search-fixture');
+  if (!fixture) return { issue: 'the search fixture was not on the page' };
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return { issue: 'a 2D canvas context is unavailable' };
+  const SENTINEL = '#ff00ff';
+  const raster = (value) => {
+    context.fillStyle = SENTINEL;
+    context.fillStyle = value;
+    if (context.fillStyle === SENTINEL) return { issue: `the browser could not rasterize the colour ${value}` };
+    context.clearRect(0, 0, 1, 1);
+    context.fillRect(0, 0, 1, 1);
+    const pixel = context.getImageData(0, 0, 1, 1).data;
+    return { channels: [pixel[0], pixel[1], pixel[2]], alpha: pixel[3] };
+  };
+  const luminance = (channels) => {
+    const linear = channels.map((channel) => {
+      const value = channel / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+
+  const mark = fixture.querySelector('mark');
+  if (!mark) return { issue: 'the fixture had no mark to measure' };
+  if (selectedGround === 'hover') {
+    const row = mark.closest('.y-result');
+    if (!row) return { issue: 'the hovered fixture had no result row' };
+    const rowBg = raster(getComputedStyle(row).backgroundColor);
+    if (rowBg.issue) return { issue: rowBg.issue };
+    if (rowBg.alpha !== 255) return { issue: 'the hovered result has no opaque overlay, so this reading is not a hover' };
+  }
+  if (selectedGround === 'busy') {
+    const regionBg = raster(getComputedStyle(fixture).backgroundColor);
+    if (regionBg.issue) return { issue: regionBg.issue };
+    if (regionBg.alpha !== 255) return { issue: 'the busy container has no opaque ground' };
+  }
+  const style = getComputedStyle(mark);
+  const foreground = raster(style.color);
+  if (foreground.issue) return { issue: foreground.issue };
+  if (foreground.alpha !== 255) return { issue: `a mark's colour rasterized with alpha ${foreground.alpha}` };
+  const wash = raster(style.backgroundColor);
+  if (wash.issue) return { issue: wash.issue };
+
+  let surface = null;
+  for (let el = mark.parentElement; el; el = el.parentElement) {
+    const painted = raster(getComputedStyle(el).backgroundColor);
+    if (painted.issue) return { issue: painted.issue };
+    if (painted.alpha === 255) {
+      surface = painted;
+      break;
+    }
+  }
+  if (!surface) return { issue: 'nothing opaque was found behind the mark' };
+
+  const cover = wash.alpha / 255;
+  const composited = wash.channels.map((channel, index) => (
+    Math.round(channel * cover + surface.channels[index] * (1 - cover))
+  ));
+  const a = luminance(foreground.channels);
+  const b = luminance(composited);
+  return {
+    ground: selectedGround,
+    ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+    text: mark.textContent,
+    color: `rgb(${foreground.channels.join(' ')})`,
+    background: `rgb(${composited.join(' ')})`,
+    paddingInlineStart: style.paddingInlineStart,
+    paddingInlineEnd: style.paddingInlineEnd,
+  };
+}, groundName);
+
+const measureMark = async (page, theme, ground) => {
+  const planted = await plantSearchFixture(page, theme, { busy: ground.busy });
+  if (planted.issue) return planted;
+  try {
+    if (ground.hover) {
+      await page.locator('#contrast-search-fixture .y-result').hover();
+      const hovered = await page.waitForFunction(() => {
+        const row = document.querySelector('#contrast-search-fixture .y-result');
+        if (!row || !row.matches(':hover')) return false;
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return false;
+        context.fillStyle = getComputedStyle(row).backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+        return context.getImageData(0, 0, 1, 1).data[3] === 255;
+      }).then(() => true, () => false);
+      if (!hovered) return { issue: 'the hovered result never took an opaque overlay' };
+    }
+    return await measurePlantedMark(page, ground.name);
+  } finally {
+    await removeSearchFixture(page);
+  }
+};
+
 // Gathers one theme's readings from every page code appears on, so a palette
 // that is right in prose and wrong on a whole-file view cannot pass.
 const readCode = async (page, paths) => {
@@ -362,6 +613,49 @@ try {
       const weakest = result.measurements.reduce((left, right) => (left.ratio < right.ratio ? left : right));
       if (weakest.ratio < AA) {
         fail(`${theme}-text-aa`, `${weakest.text} on ${weakest.surface} is ${weakest.ratio.toFixed(3)}:1 (${weakest.foreground} on ${weakest.background}), want at least ${AA}:1`);
+      }
+    }
+    await context.close();
+  }
+
+  // Busy search ink through ancestor opacity, and a mark on the path line
+  // with its wash composited over the surface it actually sits on — idle,
+  // hovered, and aria-busy. Both wear the production classes; the fixture
+  // is how the probe sees them without racing a query.
+  {
+    const context = await openContext(browser, 'search');
+    const page = await context.newPage();
+    const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+    if (!response || response.status() !== 200) broken(`search fixture navigation returned ${response?.status() ?? 'no response'}, want 200`);
+
+    proveApplied('busy-search-aa', 'search');
+    for (const theme of ['light', 'dark']) {
+      const result = await measureBusySearch(page, theme);
+      if (result.issue) broken(result.issue);
+      if (result.ratio < AA) {
+        fail('busy-search-aa', `busy search ${theme}: ${result.text} is ${result.ratio.toFixed(3)}:1 at opacity ${result.opacity.toFixed(2)} (${result.color} on ${result.background}), want at least ${AA}:1`);
+      }
+    }
+
+    proveApplied('mark-aa', 'search');
+    proveApplied('mark-padding', 'search');
+    for (const theme of ['light', 'dark']) {
+      const readings = [];
+      for (const ground of MARK_GROUNDS) {
+        const result = await measureMark(page, theme, ground);
+        if (result.issue) broken(`mark ${theme} ${ground.name}: ${result.issue}`);
+        readings.push(result);
+      }
+      const weakest = readings.reduce((left, right) => (left.ratio < right.ratio ? left : right));
+      if (weakest.ratio < AA) {
+        fail('mark-aa', `mark ${theme} ${weakest.ground}: ${JSON.stringify(weakest.text)} is ${weakest.ratio.toFixed(3)}:1 (${weakest.color} on ${weakest.background}), want at least ${AA}:1`);
+      }
+      for (const result of readings) {
+        const start = Number.parseFloat(result.paddingInlineStart);
+        const end = Number.parseFloat(result.paddingInlineEnd);
+        if (start !== 0 || end !== 0) {
+          fail('mark-padding', `mark ${theme} ${result.ground} has padding-inline ${result.paddingInlineStart} ${result.paddingInlineEnd}, want 0`);
+        }
       }
     }
     await context.close();
@@ -443,7 +737,7 @@ try {
     await quiet.close();
   }
 
-  console.log('PASS contrast-contract: every text token and every highlighted word clears 4.5:1 in both themes, on screen, on paper, and with no script running');
+  console.log('PASS contrast-contract: every text token, every highlighted word, busy-search ink through ancestor opacity, and every mark on the path line — idle, hovered, and busy — clears 4.5:1 in both themes, on screen, on paper, and with no script running');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
