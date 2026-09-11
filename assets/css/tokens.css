@@ -48,7 +48,7 @@
   --warn:          oklch(0.470 0.125 70);
   --warn-bg:       oklch(0.560 0.120 70 / 0.10);
   --gold:          oklch(0.660 0.098 82);   /* kintsugi seam thread */
-  --gold-ink:      oklch(0.480 0.100 82);   /* corrections (訂正) carry this, never 朱 */
+  --gold-ink:      oklch(0.461 0.100 82);   /* corrections (訂正) carry this, never 朱 */
 
   /* ---- Growth track — muted sage (never out-shouts the accent) ---- */
   --sage:          oklch(0.450 0.060 145);
@@ -104,7 +104,7 @@
   --warn:          oklch(0.860 0.120 82);
   --warn-bg:       oklch(0.800 0.130 80 / 0.14);
   --gold:          oklch(0.735 0.098 84);
-  --gold-ink:      oklch(0.775 0.098 84);
+  --gold-ink:      oklch(0.807 0.098 84);
 
   --sage:          oklch(0.820 0.065 148);
   --sage-bg:       oklch(0.680 0.060 148 / 0.13);
@@ -161,7 +161,7 @@
     --warn:          oklch(0.860 0.120 82);
     --warn-bg:       oklch(0.800 0.130 80 / 0.14);
     --gold:          oklch(0.735 0.098 84);
-    --gold-ink:      oklch(0.775 0.098 84);
+    --gold-ink:      oklch(0.807 0.098 84);
 
     --sage:          oklch(0.820 0.065 148);
     --sage-bg:       oklch(0.680 0.060 148 / 0.13);

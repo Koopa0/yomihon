@@ -8,9 +8,11 @@
 // same reason, and owes it against the surface it is actually painted on:
 // the reading page gives a code block the product's own panel, so a palette
 // measured against the highlighter's intended background would be measuring a
-// colour nobody sees. Every reading of a colour here comes from a real span on
-// a real page, because the regression this exists to catch is a stylesheet that
-// is perfectly valid and still paints near-black words on a near-black panel.
+// colour nobody sees. Text and code readings come from a real span on a real
+// page. Busy-search and mark readings plant the production classes on that
+// page — idle, hovered, and aria-busy — because those states are brief and
+// the regression this exists to catch is a stylesheet that is perfectly valid
+// and still paints near-black words on a near-black panel.
 //
 // Chrome performs the OKLCH conversion; the lock reads the resulting pixels
 // from a canvas rather than maintaining a second color-conversion algorithm.
@@ -171,7 +173,8 @@ const MUTATIONS = {
     apply: weakenStylesheet('app.css', '.y-searchresults[aria-busy="true"]{opacity:0.58}'),
   },
   // A mark that inherits faint path-line ink through the gold wash lands
-  // under 4.5:1. The lock composites the translucent background first.
+  // under 4.5:1 on every ground the row sits on. The lock composites the
+  // translucent background first, and visits hover and busy, not only idle.
   'inherit-mark-ink': {
     target: 'mark-aa',
     contexts: ['search'],
@@ -341,9 +344,12 @@ const measureCode = (page) => page.evaluate(() => {
 });
 
 // The busy result region used to fade every descendant word. This reading
-// multiplies ancestor opacities and composites the ink through that product
-// onto the first opaque surface, which is the only way a token-pair probe
-// can see `.y-searchresults[aria-busy="true"] { opacity: … }`.
+// multiplies ancestor opacities — only until the first opaque surface, which
+// already includes the faded group — and composites the ink through that
+// product onto that surface. Walking past the opaque ground would fade the
+// ink twice and compare it to an un-faded panel, a false red. That walk is
+// the only way a token-pair probe can see
+// `.y-searchresults[aria-busy="true"] { opacity: … }`.
 const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
   document.documentElement.dataset.theme = selectedTheme;
   const host = document.querySelector('.yomihon');
@@ -392,14 +398,15 @@ const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
     let background = null;
     for (let el = ink; el; el = el.parentElement) {
       const style = getComputedStyle(el);
+      const painted = raster(style.backgroundColor);
+      if (painted.issue) return { issue: painted.issue };
+      if (painted.alpha === 255) {
+        background = painted;
+        break;
+      }
       const own = Number.parseFloat(style.opacity);
       if (Number.isNaN(own)) return { issue: `an ancestor opacity was not a number (${style.opacity})` };
       opacity *= own;
-      if (!background) {
-        const painted = raster(style.backgroundColor);
-        if (painted.issue) return { issue: painted.issue };
-        if (painted.alpha === 255) background = painted;
-      }
     }
     if (!background) return { issue: 'nothing opaque was found behind the busy path-line ink' };
 
@@ -422,25 +429,45 @@ const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
 
 // A mark's gold wash is translucent. Measuring the token pair without
 // compositing that wash over the surface is how a 4.26:1 path-line hit
-// shipped as a passing token. 11px normal text still owes 4.5:1.
-const measureMark = (page, theme) => page.evaluate((selectedTheme) => {
+// shipped as a passing token. The wash lets the row's ground through, so
+// the idle page is the most favourable reading; a hovered row (--overlay)
+// and the busy container (--elevated) are darker — the grounds that
+// stayed under 4.5:1 when the idle page cleared it. 11px normal text
+// still owes 4.5:1 on each.
+const SEARCH_MARK_HTML = '<ol class="y-results" role="list"><li><a class="y-result" href="#"><span class="y-result__title">Alpha</span><span class="y-result__meta"><mark>Goroutine</mark>s.md</span></a></li></ol>';
+const MARK_GROUNDS = [
+  { name: 'hover', busy: false, hover: true },
+  { name: 'busy', busy: true, hover: false },
+  { name: 'idle', busy: false, hover: false },
+];
+
+const plantSearchFixture = (page, theme, { busy }) => page.evaluate(({ selectedTheme, busy: isBusy, html }) => {
   document.documentElement.dataset.theme = selectedTheme;
+  document.getElementById('contrast-search-fixture')?.remove();
   const host = document.querySelector('.yomihon');
   if (!host) return { issue: 'the shell .yomihon was not on the page' };
   const fixture = document.createElement('div');
+  fixture.id = 'contrast-search-fixture';
   fixture.className = 'y-searchresults';
-  fixture.setAttribute('aria-busy', 'false');
-  fixture.innerHTML = '<ol class="y-results" role="list"><li><a class="y-result" href="#"><span class="y-result__title">Alpha</span><span class="y-result__meta"><mark>Goroutine</mark>s.md</span></a></li></ol>';
+  fixture.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+  fixture.innerHTML = html;
   host.appendChild(fixture);
+  return {};
+}, { selectedTheme: theme, busy, html: SEARCH_MARK_HTML });
+
+const removeSearchFixture = (page) => page.evaluate(() => {
+  document.getElementById('contrast-search-fixture')?.remove();
+});
+
+const measurePlantedMark = (page, groundName) => page.evaluate((selectedGround) => {
+  const fixture = document.getElementById('contrast-search-fixture');
+  if (!fixture) return { issue: 'the search fixture was not on the page' };
 
   const canvas = document.createElement('canvas');
   canvas.width = 1;
   canvas.height = 1;
   const context = canvas.getContext('2d', { willReadFrequently: true });
-  if (!context) {
-    fixture.remove();
-    return { issue: 'a 2D canvas context is unavailable' };
-  }
+  if (!context) return { issue: 'a 2D canvas context is unavailable' };
   const SENTINEL = '#ff00ff';
   const raster = (value) => {
     context.fillStyle = SENTINEL;
@@ -459,45 +486,76 @@ const measureMark = (page, theme) => page.evaluate((selectedTheme) => {
     return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
   };
 
-  try {
-    const mark = fixture.querySelector('mark');
-    if (!mark) return { issue: 'the fixture had no mark to measure' };
-    const style = getComputedStyle(mark);
-    const foreground = raster(style.color);
-    if (foreground.issue) return { issue: foreground.issue };
-    if (foreground.alpha !== 255) return { issue: `a mark's colour rasterized with alpha ${foreground.alpha}` };
-    const wash = raster(style.backgroundColor);
-    if (wash.issue) return { issue: wash.issue };
-
-    let surface = null;
-    for (let el = mark.parentElement; el; el = el.parentElement) {
-      const painted = raster(getComputedStyle(el).backgroundColor);
-      if (painted.issue) return { issue: painted.issue };
-      if (painted.alpha === 255) {
-        surface = painted;
-        break;
-      }
-    }
-    if (!surface) return { issue: 'nothing opaque was found behind the mark' };
-
-    const cover = wash.alpha / 255;
-    const composited = wash.channels.map((channel, index) => (
-      Math.round(channel * cover + surface.channels[index] * (1 - cover))
-    ));
-    const a = luminance(foreground.channels);
-    const b = luminance(composited);
-    return {
-      ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
-      text: mark.textContent,
-      color: `rgb(${foreground.channels.join(' ')})`,
-      background: `rgb(${composited.join(' ')})`,
-      paddingInlineStart: style.paddingInlineStart,
-      paddingInlineEnd: style.paddingInlineEnd,
-    };
-  } finally {
-    fixture.remove();
+  const mark = fixture.querySelector('mark');
+  if (!mark) return { issue: 'the fixture had no mark to measure' };
+  if (selectedGround === 'hover') {
+    const row = mark.closest('.y-result');
+    if (!row) return { issue: 'the hovered fixture had no result row' };
+    const rowBg = raster(getComputedStyle(row).backgroundColor);
+    if (rowBg.issue) return { issue: rowBg.issue };
+    if (rowBg.alpha !== 255) return { issue: 'the hovered result has no opaque overlay, so this reading is not a hover' };
   }
-}, theme);
+  if (selectedGround === 'busy') {
+    const regionBg = raster(getComputedStyle(fixture).backgroundColor);
+    if (regionBg.issue) return { issue: regionBg.issue };
+    if (regionBg.alpha !== 255) return { issue: 'the busy container has no opaque ground' };
+  }
+  const style = getComputedStyle(mark);
+  const foreground = raster(style.color);
+  if (foreground.issue) return { issue: foreground.issue };
+  if (foreground.alpha !== 255) return { issue: `a mark's colour rasterized with alpha ${foreground.alpha}` };
+  const wash = raster(style.backgroundColor);
+  if (wash.issue) return { issue: wash.issue };
+
+  let surface = null;
+  for (let el = mark.parentElement; el; el = el.parentElement) {
+    const painted = raster(getComputedStyle(el).backgroundColor);
+    if (painted.issue) return { issue: painted.issue };
+    if (painted.alpha === 255) {
+      surface = painted;
+      break;
+    }
+  }
+  if (!surface) return { issue: 'nothing opaque was found behind the mark' };
+
+  const cover = wash.alpha / 255;
+  const composited = wash.channels.map((channel, index) => (
+    Math.round(channel * cover + surface.channels[index] * (1 - cover))
+  ));
+  const a = luminance(foreground.channels);
+  const b = luminance(composited);
+  return {
+    ground: selectedGround,
+    ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+    text: mark.textContent,
+    color: `rgb(${foreground.channels.join(' ')})`,
+    background: `rgb(${composited.join(' ')})`,
+    paddingInlineStart: style.paddingInlineStart,
+    paddingInlineEnd: style.paddingInlineEnd,
+  };
+}, groundName);
+
+const measureMark = async (page, theme, ground) => {
+  const planted = await plantSearchFixture(page, theme, { busy: ground.busy });
+  if (planted.issue) return planted;
+  try {
+    if (ground.hover) {
+      await page.locator('#contrast-search-fixture .y-result').hover();
+      const hovered = await page.waitForFunction(() => {
+        const row = document.querySelector('#contrast-search-fixture .y-result');
+        if (!row) return false;
+        const color = getComputedStyle(row).backgroundColor;
+        const match = color.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
+        if (!match) return false;
+        return (match[4] === undefined ? 1 : Number(match[4])) === 1;
+      }).then(() => true, () => false);
+      if (!hovered) return { issue: 'the hovered result never took an opaque overlay' };
+    }
+    return await measurePlantedMark(page, ground.name);
+  } finally {
+    await removeSearchFixture(page);
+  }
+};
 
 // Gathers one theme's readings from every page code appears on, so a palette
 // that is right in prose and wrong on a whole-file view cannot pass.
@@ -552,8 +610,9 @@ try {
   }
 
   // Busy search ink through ancestor opacity, and a mark on the path line
-  // with its wash composited over the surface. Both wear the production
-  // classes; the fixture is how the probe sees them without racing a query.
+  // with its wash composited over the surface it actually sits on — idle,
+  // hovered, and aria-busy. Both wear the production classes; the fixture
+  // is how the probe sees them without racing a query.
   {
     const context = await openContext(browser, 'search');
     const page = await context.newPage();
@@ -572,15 +631,22 @@ try {
     proveApplied('mark-aa', 'search');
     proveApplied('mark-padding', 'search');
     for (const theme of ['light', 'dark']) {
-      const result = await measureMark(page, theme);
-      if (result.issue) broken(result.issue);
-      if (result.ratio < AA) {
-        fail('mark-aa', `mark ${theme}: ${JSON.stringify(result.text)} is ${result.ratio.toFixed(3)}:1 (${result.color} on ${result.background}), want at least ${AA}:1`);
+      const readings = [];
+      for (const ground of MARK_GROUNDS) {
+        const result = await measureMark(page, theme, ground);
+        if (result.issue) broken(`mark ${theme} ${ground.name}: ${result.issue}`);
+        readings.push(result);
       }
-      const start = Number.parseFloat(result.paddingInlineStart);
-      const end = Number.parseFloat(result.paddingInlineEnd);
-      if (start !== 0 || end !== 0) {
-        fail('mark-padding', `mark ${theme} has padding-inline ${result.paddingInlineStart} ${result.paddingInlineEnd}, want 0`);
+      const weakest = readings.reduce((left, right) => (left.ratio < right.ratio ? left : right));
+      if (weakest.ratio < AA) {
+        fail('mark-aa', `mark ${theme} ${weakest.ground}: ${JSON.stringify(weakest.text)} is ${weakest.ratio.toFixed(3)}:1 (${weakest.color} on ${weakest.background}), want at least ${AA}:1`);
+      }
+      for (const result of readings) {
+        const start = Number.parseFloat(result.paddingInlineStart);
+        const end = Number.parseFloat(result.paddingInlineEnd);
+        if (start !== 0 || end !== 0) {
+          fail('mark-padding', `mark ${theme} ${result.ground} has padding-inline ${result.paddingInlineStart} ${result.paddingInlineEnd}, want 0`);
+        }
       }
     }
     await context.close();
@@ -662,7 +728,7 @@ try {
     await quiet.close();
   }
 
-  console.log('PASS contrast-contract: every text token, every highlighted word, busy-search ink through ancestor opacity, and every mark on the path line clears 4.5:1 in both themes, on screen, on paper, and with no script running');
+  console.log('PASS contrast-contract: every text token, every highlighted word, busy-search ink through ancestor opacity, and every mark on the path line — idle, hovered, and busy — clears 4.5:1 in both themes, on screen, on paper, and with no script running');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
