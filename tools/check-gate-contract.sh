@@ -71,6 +71,21 @@ verify_invocation() {
   jq -r '.ci_jobs[] | select(.name == "verify") | .invocation // empty' "$contract"
 }
 
+job_runs_make_target() {
+  job="$1"
+  target="$2"
+  awk -v job="$job" -v target="$target" '
+    /^  [a-zA-Z0-9_-]+:$/ {
+      sub(/^  /, "")
+      sub(/:$/, "")
+      active = $0
+      next
+    }
+    active == job && $0 ~ ("make " target "([[:space:]]|$)") { found = 1 }
+    END { exit !found }
+  ' "$workflow"
+}
+
 # Comment lines are not steps. A recipe line may carry a trailing comment, but
 # a line whose first non-blank character is "#" runs nothing.
 uncommented() {
@@ -196,6 +211,15 @@ if [ "$contract_count" -ne "$((owned_count + $(printf '%s\n' "$verify_ci" | wc -
   fail "CI-owned prerequisites and verify-ci must partition verify prerequisites exactly once"
 fi
 
+while IFS="$(printf '\t')" read -r job target; do
+  [ -n "$job" ] && [ -n "$target" ] || continue
+  if ! job_runs_make_target "$job" "$target"; then
+    fail "$job must run make $target for its owned prerequisite"
+  fi
+done <<EOF
+$(jq -r '.ci_jobs[] | select(.owns != null) | .name as $job | .owns[] | [$job, .] | @tsv' "$contract")
+EOF
+
 contexts=$(ruleset_contexts)
 [ -n "$contexts" ] || fail "read no required contexts out of $ruleset"
 
@@ -225,7 +249,11 @@ workflow_lint=$(lint_globs "$workflow")
 if [ -z "$make_lint" ]; then
   fail "read no frontend lint targets out of $makefile"
 elif [ -z "$workflow_lint" ]; then
-  fail "read no frontend lint targets out of $workflow"
+  if job_runs_make_target lint-frontend frontend-check; then
+    workflow_lint=$make_lint
+  else
+    fail "read no frontend lint targets out of $workflow"
+  fi
 elif [ "$make_lint" != "$workflow_lint" ]; then
   fail "frontend lint targets differ between $makefile and $workflow"
   printf '%s\n' "$make_lint" | sed 's/^/  make: /' >&2
