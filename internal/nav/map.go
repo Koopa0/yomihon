@@ -44,6 +44,7 @@ type MapEntry struct {
 	Target     string
 	RelPath    string
 	Status     string
+	Language   string
 	Kind       EntryKind
 	Candidates []string
 }
@@ -75,6 +76,7 @@ func parseMap(
 	n *vault.Note,
 	idx *graph.Index,
 	statusByPath map[string]string,
+	langsByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) Map {
 	return Map{
@@ -82,7 +84,7 @@ func parseMap(
 		RelPath:  n.RelPath,
 		Domain:   n.Domain(),
 		Type:     n.Type(),
-		Branches: parseBranches(n.Body, idx, statusByPath, policy),
+		Branches: parseBranches(n.Body, idx, statusByPath, langsByPath, policy),
 	}
 }
 
@@ -110,6 +112,7 @@ func parseBranches(
 	body string,
 	idx *graph.Index,
 	statusByPath map[string]string,
+	langsByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) []Branch {
 	var roots []*branchNode
@@ -122,13 +125,13 @@ func parseBranches(
 		lineStart := offset
 		lineEnd := offset + len(line)
 		if text, level, ok := parseHeading(line); ok && !graph.In(zones, lineStart) {
-			attachLiveLinks(stack, links, &next, lineStart, idx, statusByPath, policy)
+			attachLiveLinks(stack, links, &next, lineStart, idx, statusByPath, langsByPath, policy)
 			stack = openBranch(&roots, stack, headingLabel(text), level)
 		}
-		attachLiveLinks(stack, links, &next, lineEnd, idx, statusByPath, policy)
+		attachLiveLinks(stack, links, &next, lineEnd, idx, statusByPath, langsByPath, policy)
 		offset = lineEnd + 1
 	}
-	attachLiveLinks(stack, links, &next, offset, idx, statusByPath, policy)
+	attachLiveLinks(stack, links, &next, offset, idx, statusByPath, langsByPath, policy)
 	return convertBranches(pruneBranches(roots))
 }
 
@@ -142,6 +145,7 @@ func attachLiveLinks(
 	until int,
 	idx *graph.Index,
 	statusByPath map[string]string,
+	langsByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) {
 	for *next < len(links) && links[*next].Span.Start < until {
@@ -150,7 +154,7 @@ func attachLiveLinks(
 		if len(stack) == 0 {
 			continue
 		}
-		entry := resolveEntry(link.Target, link.Display, idx, statusByPath, policy)
+		entry := resolveEntry(link.Target, link.Display, idx, statusByPath, langsByPath, policy)
 		if entry.Kind != EntryResolved {
 			continue
 		}
@@ -236,12 +240,13 @@ func headingLabel(text string) string {
 // Unresolved, ambiguous and non-instance targets get distinct warning kinds
 // and are dropped by parseBranches; only a uniquely resolved governed row
 // becomes an entry the rail can follow.
-func resolveEntry(target, display string, idx *graph.Index, statusByPath map[string]string, policy schema.ArtifactPolicy) MapEntry {
+func resolveEntry(target, display string, idx *graph.Index, statusByPath map[string]string, langsByPath map[string]string, policy schema.ArtifactPolicy) MapEntry {
 	res := idx.Resolve(target)
 	entry := MapEntry{Text: display, Target: target, Kind: entryKindOf(res, policy)}
 	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
 		entry.Status = statusByPath[res.RelPath]
+		entry.Language = langsByPath[res.RelPath]
 	}
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)

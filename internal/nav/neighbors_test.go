@@ -50,8 +50,8 @@ func TestPathNeighbors(t *testing.T) {
 		"System/templates/Template-only.md",
 	)
 	policy := testArtifactPolicy(t)
-	goPath := buildPath(pathNote("Maps/go.md", "Go 課綱", goBody), idx, nil, policy)
-	jpPath := buildPath(pathNote("Maps/jp.md", "日本語 學習路徑", jpBody), idx, nil, policy)
+	goPath := buildPath(pathNote("Maps/go.md", "Go 課綱", goBody), idx, nil, nil, policy)
+	jpPath := buildPath(pathNote("Maps/jp.md", "日本語 學習路徑", jpBody), idx, nil, nil, policy)
 	m := &Model{paths: []Path{goPath, jpPath}}
 
 	tests := []struct {

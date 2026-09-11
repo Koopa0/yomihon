@@ -420,10 +420,10 @@ func newModel(
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
-			m.paths = append(m.paths, buildPath(n, resolver, statusByPath, policy))
+			m.paths = append(m.paths, buildPath(n, resolver, statusByPath, langs, policy))
 			continue
 		}
-		m.maps = append(m.maps, parseMap(n, resolver, statusByPath, policy))
+		m.maps = append(m.maps, parseMap(n, resolver, statusByPath, langs, policy))
 	}
 	slices.SortStableFunc(m.maps, func(a, b Map) int {
 		if byDomain := cmp.Compare(a.Domain, b.Domain); byDomain != 0 {

@@ -42,7 +42,7 @@ func TestACourseCountsTheReadyLessonsItDraws(t *testing.T) {
 		"- [[Nobody wrote this one]]\n" +
 		"\n## 日常 {sequence=none}\n\n- [[R01]]\n" +
 		"\n## 忘了宣告\n\n- [[U01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, status, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, status, nil, testArtifactPolicy(t))
 
 	if p.Ready != 3 {
 		t.Errorf("Ready = %d, want 3: L01 and L03 on the main line plus S01 on the side branch, and neither the block declared out of the course nor the branch nobody declared", p.Ready)
@@ -62,7 +62,7 @@ func TestABranchSaysWhetherASurfaceDrawsIt(t *testing.T) {
 	body := "## 結構\n\n" +
 		"### 主線 {sequence=primary}\n\n- [[L01]]\n" +
 		"\n## 日常 {sequence=none}\n\n- [[L01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 
 	if len(p.Groups) != 2 {
 		t.Fatalf("groups = %d, want the structural heading and the block declared out of the course", len(p.Groups))
@@ -88,7 +88,7 @@ func TestABranchSaysWhichRowsItTeaches(t *testing.T) {
 	idx := resolver(t, "Writing/L01.md")
 	body := "## 主線 {sequence=primary}\n\n- [[L01]]\n" +
 		"\n## 日常 {sequence=none}\n\n- [[L01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 
 	taught := p.Groups[0]
 	untaught := p.Groups[1]

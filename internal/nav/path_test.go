@@ -27,7 +27,7 @@ func TestAPathCountsTheMainLineOnly(t *testing.T) {
 		"- [[L03]]\n" +
 		"\n## 日常 {sequence=none}\n\n- [[R01]]\n" +
 		"\n## 忘了宣告\n\n- [[U01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 
 	if p.Planned != 3 {
 		t.Errorf("Planned = %d, want 3: the main line's three lessons, without the side branch, the routine block, or the branch nobody declared", p.Planned)
@@ -42,7 +42,7 @@ func TestAnUndeclaredCourseProjectsNothing(t *testing.T) {
 
 	idx := resolver(t, "Writing/L01.md", "Writing/L02.md")
 	body := "## Part\n\n- [[L01]]\n- [[L02]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 
 	if p.Planned != 0 {
 		t.Errorf("Planned = %d, want 0; nothing here says these rows are a course", p.Planned)
@@ -71,7 +71,7 @@ func TestPrimaryAndLocalNeverLinkToEachOther(t *testing.T) {
 		"\t\t- [[S01]]\n" +
 		"\t\t- [[S02]]\n" +
 		"- [[L03]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 	m := &Model{paths: []Path{p}}
 
 	ref := func(name, rel string) NoteRef { return NoteRef{Name: name, RelPath: rel} }
@@ -125,7 +125,7 @@ func TestAStructuralHeadingStillCarriesItsParts(t *testing.T) {
 
 	idx := resolver(t, "Writing/L01.md", "Writing/L02.md")
 	body := "## Part\n\n### Module {sequence=primary}\n\n- [[L01]]\n- [[L02]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 
 	if p.Planned != 2 {
 		t.Errorf("Planned = %d, want 2; a part that only groups modules still carries their lessons", p.Planned)
@@ -170,7 +170,7 @@ func TestTheWalkNumbersWhatItPlans(t *testing.T) {
 		"\n## 日常 {sequence=none}\n\n- [[R01]]\n" +
 		"\n## 忘了宣告\n\n- [[U01]]\n" +
 		"\n## 壞 {sequence=primary} {sequence=local}\n\n- [[V01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 
 	want := map[string]int{
 		"L01": 1, "L02": 2, "L03": 3, "L04": 4,
@@ -228,7 +228,7 @@ func TestReversePlacementTakesOnlyCourseMembership(t *testing.T) {
 	body := "## 主線 {sequence=primary}\n\n- [[L01]]\n" +
 		"\n## 日常 {sequence=none}\n\n- [[R01]]\n" +
 		"\n## 忘了宣告\n\n- [[U01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 
 	index := make(map[string][]Placement)
 	pathPlacements(index, &p)
@@ -254,7 +254,7 @@ func TestAPathCarriesTheGrammarsDiagnostics(t *testing.T) {
 
 	idx := resolver(t, "Writing/L01.md")
 	body := "## Part\n\n- [[L01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
 
 	if len(p.Diagnostics) == 0 {
 		t.Fatal("an undeclared branch with rows left no diagnostic on the path")

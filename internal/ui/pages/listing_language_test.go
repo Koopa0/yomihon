@@ -137,7 +137,7 @@ func TestSearchUnlocatedNoteUsesNoArticleLanguage(t *testing.T) {
 }
 
 // TestRailListingLanguageComesOnlyFromAuthority holds the left-rail folder shelf
-// the same way: declared language on the row span, absent otherwise.
+// and map rows the same way: declared language on the row span, absent otherwise.
 func TestRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -164,6 +164,15 @@ func TestRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 				t.Errorf("ShelfRail() missing %q in %q", tt.want, html)
 			}
 		})
+	}
+
+	entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: "Writing/lessons/japanese/L01.md", Text: "L01", Language: "ja"}
+	var buf bytes.Buffer
+	if err := entryLink(Sidebar{}, layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render map row: %v", err)
+	}
+	if html := buf.String(); !strings.Contains(html, `<span lang="ja">L01</span>`) {
+		t.Errorf("entryLink missing Japanese language stamp in %q", html)
 	}
 }
 

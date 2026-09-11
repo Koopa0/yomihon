@@ -847,7 +847,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t))
+	got := parseBranches(body, idx, statusByPath, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (Go shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -960,7 +960,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t))
+	got := parseBranches(body, idx, statusByPath, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (大家 shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -1010,7 +1010,7 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fault tolerance) mismatch (-want +got):\n%s", diff)
 	}
@@ -1096,7 +1096,7 @@ func TestParseBranchesProseLinksCountWhatThePageHolds(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (prose map) mismatch (-want +got):\n%s", diff)
 	}
@@ -1125,7 +1125,7 @@ func TestParseBranchesFencedWikilinkIsNotAnEntry(t *testing.T) {
 			{Text: "Live", Target: "Live", RelPath: "Live.md"},
 		},
 	}}
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fenced negative) mismatch (-want +got):\n%s", diff)
 	}
@@ -1153,7 +1153,7 @@ func TestParseBranchesAdmitsEveryLiveLineKind(t *testing.T) {
 			t.Parallel()
 			idx := resolver(t, tt.path)
 			target := strings.TrimSuffix(tt.path, ".md")
-			got := parseBranches("## Branch\n\n"+tt.line+"\n", idx, map[string]string{}, testArtifactPolicy(t))
+			got := parseBranches("## Branch\n\n"+tt.line+"\n", idx, map[string]string{}, nil, testArtifactPolicy(t))
 			want := []Branch{{
 				Heading: "Branch",
 				Level:   2,
@@ -1185,7 +1185,7 @@ func TestParseBranchesIgnoresAHeadingShapedLineInsideAFence(t *testing.T) {
 		"\n" +
 		"Later [[After]].\n"
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	want := []Branch{{
 		Heading: "Real",
 		Level:   2,
@@ -1213,7 +1213,7 @@ func TestParseBranchesQuotedInlineLinksAreNotEntries(t *testing.T) {
 		"See `[[Backticked]]`.\n" +
 		"%%[[Commented]]%%\n"
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	want := []Branch{{
 		Heading: "Zone",
 		Level:   2,
@@ -1262,7 +1262,7 @@ func TestParseBranchesHeadingAndLinkShareEachSkipZone(t *testing.T) {
 			// After sits past the zone with no new heading, so a ghost
 			// heading the zone failed to hide files it under Hidden.
 			body := "## Real\n\nSee [[Live]].\n\n" + tt.zone + "\nLater [[After]].\n"
-			got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+			got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 			if heading, link := zoneAdmission(got, "Hidden"); heading != link {
 				t.Errorf("Hidden heading admitted=%v, Hidden link admitted=%v; they must match", heading, link)
 			}
@@ -1301,7 +1301,7 @@ func TestPathKeepsAPlannedLessonInItsPlace(t *testing.T) {
 
 	idx := resolver(t, "Writing/Existing.md")
 	body := "## Course {sequence=primary}\n\n- [[Existing]]\n- [[Unwritten Lesson]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, testArtifactPolicy(t))
 
 	want := []groupShape{{
 		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 2,
@@ -1329,7 +1329,7 @@ func TestPathKeepsAnAmbiguousLessonInOrder(t *testing.T) {
 
 	idx := resolver(t, "Writing/First.md", "A/Repeated.md", "B/Repeated.md", "Writing/Last.md")
 	body := "## Course {sequence=primary}\n\n- [[First]]\n- [[Repeated|Unresolved choice]]\n- [[Last]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, testArtifactPolicy(t))
 
 	want := []groupShape{{
 		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 3,
