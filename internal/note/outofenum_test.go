@@ -202,7 +202,7 @@ func TestHealthReachesEveryOutOfEnumNote(t *testing.T) {
 	// as "Outside" and in the island list below as "outside". A title is not a
 	// name this vault resolves links by, and the section above this one exists
 	// to report readers who believed otherwise.
-	for _, want := range []string{">outside</a>", ">outside-too</a>"} {
+	for _, want := range []string{">outside</span></a>", ">outside-too</span></a>"} {
 		if !strings.Contains(section, want) {
 			t.Errorf("the row does not name the note the way the rest of the page does (%q missing); section = %q", want, section)
 		}

@@ -30,7 +30,7 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 		"Writing/磨豆機校正基礎.md", "Writing/粒徑分布判讀.md", "Writing/校正實作.md",
 		"Writing/注水練習.md", "Writing/沖煮記錄.md",
 	)
-	p := buildPath(note, idx, nil, testArtifactPolicy(t))
+	p := buildPath(note, idx, nil, nil, testArtifactPolicy(t))
 
 	// "Home reads 8 課" — the main line, the unwritten eighth lesson included.
 	if p.Planned != 8 {

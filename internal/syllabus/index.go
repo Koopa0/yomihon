@@ -16,7 +16,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	pageShell := h.shell()
 	model := pageShell.Nav
-	view := pages.NewPathIndex(model.Paths(), model.DeclaredClosure(), pageShell.Governed, lang)
+	view := pages.NewPathIndex(model.Paths(), model.DeclaredClosure(), pageShell.Governed, lang, pages.ArticleLanguageFromSnapshot(h.snapshotFn()))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write study-path index", "error", err)
 	}

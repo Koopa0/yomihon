@@ -261,7 +261,7 @@ templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 			{ currentAttr(sb.current(entry.RelPath))... }
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
-			{ entry.Text }
+			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
 			if entry.Status != "" && !sb.current(entry.RelPath) {
 				<span class="ui-navitem__count">{ entry.Status }</span>
 			}
@@ -273,7 +273,7 @@ templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 			title={ entryResolutionTitle(entry.Kind, c.Lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-			{ entry.Text }
+			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
 			<span class="ui-navitem__count">{ entryResolutionLabel(entry.Kind, c.Lang) }</span>
 		</span>
 	}
@@ -312,7 +312,7 @@ templ entryLink(sb Sidebar, c layouts.Chrome, entry nav.MapEntry) {
 			{ currentAttr(sb.current(entry.RelPath))... }
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
-			{ entry.Text }
+			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
 			if entry.Status != "" && !sb.current(entry.RelPath) {
 				<span class="ui-navitem__count">{ entry.Status }</span>
 			}
@@ -324,7 +324,7 @@ templ entryLink(sb Sidebar, c layouts.Chrome, entry nav.MapEntry) {
 			title={ entryResolutionTitle(entry.Kind, c.Lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-			{ entry.Text }
+			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
 			<span class="ui-navitem__count y-navmark--warn">{ entryResolutionLabel(entry.Kind, c.Lang) }</span>
 		</span>
 	}

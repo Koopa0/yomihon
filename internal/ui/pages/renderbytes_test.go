@@ -114,14 +114,14 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", Sidebar: NewSidebar(model, ""), NeedsScript: true}, recordedChrome())},
-		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, recordedChrome().Lang), recordedChrome())},
-		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, recordedChrome().Lang), recordedChrome())},
+		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, recordedChrome().Lang, nil), recordedChrome())},
+		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, recordedChrome().Lang, nil), recordedChrome())},
 		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
-		{"folder-index-page", FolderIndex(NewFolderIndex(model, recordedChrome().Lang), RecentBlock{}, StatusDistribution{}, recordedChrome())},
+		{"folder-index-page", FolderIndex(NewFolderIndex(model, recordedChrome().Lang, nil), RecentBlock{}, StatusDistribution{}, recordedChrome())},
 		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
 	}
 	for _, state := range recordedStatusStates() {
@@ -334,7 +334,7 @@ func recordedHomeView(model *nav.Model) HomeView {
 		PrivacyFault:   "the contract declares no privacy scope",
 		Degraded:       "有檔案讀不進來",
 		DegradedDetail: "permission denied",
-		Blocks:         NewDeskBlocks(model, true, recordedChrome().Lang),
+		Blocks:         NewDeskBlocks(model, true, recordedChrome().Lang, nil),
 		ReadmeMissing:  true,
 	}
 }
@@ -363,7 +363,7 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Status: "draft", Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
 		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Status: "seed", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
 	}, true, true, recordedChrome().Lang)
-	return NewFolderIndex(model, recordedChrome().Lang), recent, NewStatusDistribution(
+	return NewFolderIndex(model, recordedChrome().Lang, nil), recent, NewStatusDistribution(
 		[]LifecycleItem{
 			{Name: "draft", Count: 2, Href: statusHref("draft")},
 			{Name: "ready", Count: 1, Sealed: true, Href: statusHref("ready")},
@@ -380,7 +380,7 @@ func recordedReportIndexView() ListIndexView {
 		{Name: "2026-07-10 vault audit.md", RelPath: "System/reports/2026-07-10 vault audit.md"},
 		{Name: "notes on the scan.md", RelPath: "System/reports/notes on the scan.md"},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
-	}, recordedChrome().Lang)
+	}, recordedChrome().Lang, nil)
 }
 
 // recordedWithheldIndexView is a mode index whose declaration could not be
@@ -396,7 +396,7 @@ func recordedFaultedIndexView() ListIndexView {
 		Title:       "Unread Course",
 		RelPath:     "Maps/unread.md",
 		Diagnostics: []sequence.Diagnostic{{Rule: "path.nesting_too_deep", Line: 4, Message: "nested past one level"}},
-	}}, nav.Closure{}, true, recordedChrome().Lang)
+	}}, nav.Closure{}, true, recordedChrome().Lang, nil)
 }
 
 // recordedSilentlyWithheldIndexView is the state a page can reach without a
@@ -405,11 +405,11 @@ func recordedFaultedIndexView() ListIndexView {
 // that it holds none — the same silence the desk keeps — and nothing recorded
 // that until this.
 func recordedSilentlyWithheldIndexView() ListIndexView {
-	return NewMapIndex(nil, nav.Close(schema.Rejected("")), true, recordedChrome().Lang)
+	return NewMapIndex(nil, nav.Close(schema.Rejected("")), true, recordedChrome().Lang, nil)
 }
 
 func recordedWithheldIndexView() ListIndexView {
-	return NewMapIndex(nil, nav.Close(schema.Rejected("the contract could not be read")), true, recordedChrome().Lang)
+	return NewMapIndex(nil, nav.Close(schema.Rejected("the contract could not be read")), true, recordedChrome().Lang, nil)
 }
 
 // recordedFaultedModeIndexView is a mode index whose fault is stated below an
@@ -417,7 +417,7 @@ func recordedWithheldIndexView() ListIndexView {
 // reaches this by setting view.Fault after NewFolderIndex without calling
 // withholdListing; no ListIndex constructor produces it on its own.
 func recordedFaultedModeIndexView(model *nav.Model) ListIndexView {
-	view := NewFolderIndex(model, recordedChrome().Lang)
+	view := NewFolderIndex(model, recordedChrome().Lang, nil)
 	view.Fault = "artifact unavailable"
 	return view
 }
@@ -464,7 +464,7 @@ func recordedFolderView(*nav.Model) FolderView {
 				{Name: "L03", RelPath: "Writing/lessons/go/L03.md"},
 			},
 		}},
-		recordedChrome().Lang)
+		recordedChrome().Lang, nil)
 }
 
 func recordedRecoveryView(model *nav.Model) StatusRecoveryView {

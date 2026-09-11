@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -78,7 +79,7 @@ func TestRecentHomeNotesAccuseNothingWhenTheContractCannotBeRead(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			recent, _ := recentShelfNotes(notes, true, tt.view)
+			recent, _ := recentShelfNotes(notes, true, tt.view, nil)
 			if len(recent) != len(notes) {
 				t.Fatalf("recentShelfNotes returned %d rows, want %d", len(recent), len(notes))
 			}
@@ -95,5 +96,27 @@ func TestRecentHomeNotesAccuseNothingWhenTheContractCannotBeRead(t *testing.T) {
 				t.Errorf("recentShelfNotes flagged %d rows, want %d", flags, tt.wantFlags)
 			}
 		})
+	}
+}
+
+func TestRecentShelfNotesCarryDeclaredLanguage(t *testing.T) {
+	t.Parallel()
+	lookup := pages.ArticleLanguageFor(func(relPath string) string {
+		if relPath == "Writing/lessons/japanese/L01.md" {
+			return "ja"
+		}
+		return ""
+	})
+	notes := []nav.NoteSummary{{
+		Title:   "L01 わたしは学生です",
+		RelPath: "Writing/lessons/japanese/L01.md",
+		Type:    "lesson",
+	}}
+	recent, _ := recentShelfNotes(notes, false, status.Authority{}, lookup)
+	if len(recent) != 1 {
+		t.Fatalf("recentShelfNotes returned %d rows, want 1", len(recent))
+	}
+	if recent[0].Language != "ja" {
+		t.Errorf("recent row language = %q, want ja", recent[0].Language)
 	}
 }

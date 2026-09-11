@@ -30,7 +30,8 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	pageShell := shell.Project(h.sources.Status(), h.sources.Snapshot().Capture())
 	model := pageShell.Nav
-	view := pages.NewMapIndex(model.Maps(), model.DeclaredClosure(), pageShell.Governed, lang)
+	snap := h.sources.Snapshot().Capture()
+	view := pages.NewMapIndex(model.Maps(), model.DeclaredClosure(), pageShell.Governed, lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)
 	}
@@ -66,9 +67,10 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	// no closure gates it: the navigation model builds it in every contract
 	// state, degraded to the all-inclusive, layer-citation-free answer when a
 	// declaration could not be honoured.
-	recent, recentOrdered := recentShelfNotes(model.KnowledgeNotes(), pageShell.Governed, authority)
+	articleLang := articleLanguageLookup(snap)
+	recent, recentOrdered := recentShelfNotes(model.KnowledgeNotes(), pageShell.Governed, authority, articleLang)
 
-	view := pages.NewFolderIndex(model, lang)
+	view := pages.NewFolderIndex(model, lang, articleLang)
 	// Two of the three causes the desk states can empty or degrade something
 	// drawn here: the write authority closes the distribution, and the artifact
 	// policy closes it too and takes the knowledge layer off the recent list.
@@ -208,6 +210,7 @@ func recentShelfNotes(
 	notes []nav.NoteSummary,
 	governed bool,
 	authority status.Authority,
+	articleLang pages.ArticleLanguageFor,
 ) (recent []pages.HomeNote, ordered bool) {
 	rules := !authority.Closed()
 	notes = slices.Clone(notes)
@@ -234,6 +237,9 @@ func recentShelfNotes(
 	out := make([]pages.HomeNote, 0, len(notes))
 	for _, n := range notes {
 		item := pages.HomeNote{Title: n.Title, RelPath: n.RelPath, Type: n.Type}
+		if articleLang != nil {
+			item.Language = articleLang(n.RelPath)
+		}
 		// A status chip names a value from a declared vocabulary. Without a
 		// contract there is no vocabulary, so raw frontmatter text is not
 		// dressed up as a lifecycle state — and a view that holds no
@@ -251,4 +257,17 @@ func recentShelfNotes(
 		out = append(out, item)
 	}
 	return out, ordered
+}
+
+func articleLanguageLookup(snap *snapshot.Generation) pages.ArticleLanguageFor {
+	return func(relPath string) string {
+		if snap == nil {
+			return ""
+		}
+		note, ok := snap.Note(relPath)
+		if !ok {
+			return ""
+		}
+		return note.Language
+	}
 }

@@ -204,7 +204,7 @@ func TestARailThatFitsSaysItLeftNothing(t *testing.T) {
 	if strings.Contains(got, "y-here__more") {
 		t.Errorf("a rail showing every row offered the rest of them:\n%s", got)
 	}
-	if !strings.Contains(got, `<a class="ui-navitem is-active" href="/a" aria-current="page">a</a>`) {
+	if !strings.Contains(got, `<a class="ui-navitem is-active" href="/a" aria-current="page"><span>a</span></a>`) {
 		t.Errorf("the rail does not mark the row the reader is on:\n%s", got)
 	}
 }
@@ -248,12 +248,12 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 	model := buildModel(t)
 	lang := wording.ZhHant
 	pages := map[string]ListIndexView{
-		pathMode:   NewPathIndex(model.Paths(), nav.Closure{}, true, lang),
-		mapMode:    NewMapIndex(model.Maps(), nav.Closure{}, true, lang),
-		reportMode: NewReportIndex(model.Reports(), lang),
-		folderMode: NewFolderIndex(model, lang),
+		pathMode:   NewPathIndex(model.Paths(), nav.Closure{}, true, lang, nil),
+		mapMode:    NewMapIndex(model.Maps(), nav.Closure{}, true, lang, nil),
+		reportMode: NewReportIndex(model.Reports(), lang, nil),
+		folderMode: NewFolderIndex(model, lang, nil),
 	}
-	blocks := NewDeskBlocks(model, true, lang)
+	blocks := NewDeskBlocks(model, true, lang, nil)
 	seen := 0
 	for _, block := range blocks {
 		page, ok := pages[block.Mode]

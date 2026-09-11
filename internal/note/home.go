@@ -31,7 +31,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	visible := shell.Project(authority, snap)
 	visibleNav := visible.Nav
-	blocks := pages.NewDeskBlocks(visibleNav, visible.Governed, lang)
+	blocks := pages.NewDeskBlocks(visibleNav, visible.Governed, lang, pages.ArticleLanguageFromSnapshot(snap))
 	// The reason a way in is empty, stated once at the foot of the page. The
 	// desk draws all four ways in, so what it says here is the union of what
 	// the four pages behind them say: the write authority, which empties the

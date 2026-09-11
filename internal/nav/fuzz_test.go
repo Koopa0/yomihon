@@ -51,7 +51,7 @@ func FuzzParseBranches(f *testing.F) {
 	// The harness proves its own reach before fuzzing: if the fixed vault
 	// stopped resolving the seed links, every tree would be empty again and
 	// the tree assertions would pass over anything.
-	smoke := parseBranches("## part\n- [[Effective Go]]", idx, nil, policy)
+	smoke := parseBranches("## part\n- [[Effective Go]]", idx, nil, nil, policy)
 	if len(smoke) != 1 || len(smoke[0].Entries) != 1 || smoke[0].Entries[0].Kind != EntryResolved {
 		f.Fatalf("harness self-check: parseBranches() = %#v, want one branch holding one resolved entry", smoke)
 	}
@@ -62,8 +62,8 @@ func FuzzParseBranches(f *testing.F) {
 			return
 		}
 
-		first := parseBranches(body, idx, nil, policy)
-		second := parseBranches(body, idx, nil, policy)
+		first := parseBranches(body, idx, nil, nil, policy)
+		second := parseBranches(body, idx, nil, nil, policy)
 		if diff := cmp.Diff(first, second); diff != "" {
 			t.Fatalf("parseBranches() is not deterministic (-first +second):\n%s", diff)
 		}

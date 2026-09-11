@@ -214,7 +214,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := nav.Label(dir)
-	view := pages.NewFolderLevel(dir, name, notes, subfolders, origin.Language(r))
+	view := pages.NewFolderLevel(dir, name, notes, subfolders, origin.Language(r), articleLanguageLookup(snap))
 	if err := pages.Folder(view, layouts.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder page", "path", dir, "error", err)
 	}

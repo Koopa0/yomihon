@@ -53,6 +53,11 @@ type HomeNote struct {
 	// declare for its type — the per-note question the reading page and the
 	// search row ask, not the distribution chip's aggregated one.
 	StatusOutsideEnum bool
+
+	// Language is the note's own declared BCP 47 tag when the contract gave
+	// the field authority and the frontmatter carried a valid value. Empty
+	// otherwise, so a listing inherits the page language rather than guessing.
+	Language string
 }
 
 // Home renders the desk. Each block is marked with the mode it opens, so a

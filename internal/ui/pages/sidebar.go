@@ -86,7 +86,7 @@ func NewSidebar(model *nav.Model, currentPath string) Sidebar {
 func (s *Sidebar) HereShelf(lang wording.Lang) Shelf {
 	rows := make([]Row, 0, len(s.Here))
 	for _, n := range s.Here {
-		rows = append(rows, Row{Text: n.Name, Href: notesHref(n.RelPath), Current: s.current(n.RelPath)})
+		rows = append(rows, Row{Text: n.Name, Href: notesHref(n.RelPath), Current: s.current(n.RelPath), Language: n.Language})
 	}
 	return Shelf{Title: hereLabel(s.HereDir, lang), Href: folderHref(s.HereDir), Rows: rows}
 }

@@ -28,18 +28,19 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	health := snap.Health()
 	fresh := snap.Freshness()
 	unreadableFrontmatter, schemaFaults := schemaFaultLists(snap)
+	articleLang := articleLanguageLookup(snap)
 	view := pages.HealthView{
-		Unwritten:             health.Unwritten,
-		TitleOnly:             health.TitleOnly,
-		Islands:               healthIslands(health.Islands, lang),
+		Unwritten:             healthLinks(health.Unwritten, articleLang),
+		TitleOnly:             healthTitleLinks(health.TitleOnly, articleLang),
+		Islands:               healthIslands(health.Islands, lang, articleLang),
 		IslandCount:           healthIslandCount(health.Islands),
-		Collisions:            healthCollisions(health.Collisions),
+		Collisions:            healthCollisions(health.Collisions, articleLang),
 		Blocked:               healthBlocked(fresh.Blocked),
 		Skipped:               healthSkipped(snap.Skipped()),
-		StatusOutsideEnum:     statusesOutsideEnum(authority, snap),
-		StatusUnreachable:     statusesUnreachable(authority, snap),
-		FrontmatterUnreadable: unreadableFrontmatter,
-		SchemaFaults:          schemaFaults,
+		StatusOutsideEnum:     statusesOutsideEnum(authority, snap, articleLang),
+		StatusUnreachable:     statusesUnreachable(authority, snap, articleLang),
+		FrontmatterUnreadable: noteRefs(unreadableFrontmatter, articleLang),
+		SchemaFaults:          noteRefs(schemaFaults, articleLang),
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
 		// A folder that declared no vocabulary has no schema findings to
 		// report, and that is an answer rather than a failure — the view says
@@ -78,7 +79,7 @@ func schemaFaultLists(snap *snapshot.Generation) (unreadable, faults []nav.NoteR
 		if !ok {
 			continue
 		}
-		ref := nav.NoteRef{RelPath: rel, Name: note.Title}
+		ref := nav.NoteRef{RelPath: rel, Name: note.Title, Language: articleLanguageLookup(snap)(rel)}
 		if slices.ContainsFunc(findings, func(f judge.Finding) bool { return f.RuleID == "schema.frontmatter" }) {
 			unreadable = append(unreadable, ref)
 			continue
@@ -99,7 +100,52 @@ func schemaFaultLists(snap *snapshot.Generation) (unreadable, faults []nav.NoteR
 //
 // The rows arrive in the index's own path order, which is the order the rest
 // of the page lists findings in.
-func statusesOutsideEnum(authority status.Authority, snap *snapshot.Generation) []pages.HealthStatusNote {
+func healthLinks(links []snapshot.HealthLink, articleLang pages.ArticleLanguageFor) []snapshot.HealthLink {
+	if articleLang == nil {
+		return links
+	}
+	out := make([]snapshot.HealthLink, len(links))
+	for i, link := range links {
+		out[i] = snapshot.HealthLink{From: noteRef(link.From, articleLang), Target: link.Target}
+	}
+	return out
+}
+
+func healthTitleLinks(links []snapshot.HealthTitleLink, articleLang pages.ArticleLanguageFor) []snapshot.HealthTitleLink {
+	if articleLang == nil {
+		return links
+	}
+	out := make([]snapshot.HealthTitleLink, len(links))
+	for i, link := range links {
+		out[i] = snapshot.HealthTitleLink{
+			From:   noteRef(link.From, articleLang),
+			Target: link.Target,
+			Note:   noteRef(link.Note, articleLang),
+		}
+	}
+	return out
+}
+
+func noteRefs(refs []nav.NoteRef, articleLang pages.ArticleLanguageFor) []nav.NoteRef {
+	if articleLang == nil {
+		return refs
+	}
+	out := make([]nav.NoteRef, len(refs))
+	for i, ref := range refs {
+		out[i] = noteRef(ref, articleLang)
+	}
+	return out
+}
+
+func noteRef(ref nav.NoteRef, articleLang pages.ArticleLanguageFor) nav.NoteRef {
+	if ref.Language != "" || articleLang == nil {
+		return ref
+	}
+	ref.Language = articleLang(ref.RelPath)
+	return ref
+}
+
+func statusesOutsideEnum(authority status.Authority, snap *snapshot.Generation, articleLang pages.ArticleLanguageFor) []pages.HealthStatusNote {
 	if !authority.Governed() || authority.Closed() {
 		return nil
 	}
@@ -113,7 +159,7 @@ func statusesOutsideEnum(authority status.Authority, snap *snapshot.Generation) 
 			continue
 		}
 		out = append(out, pages.HealthStatusNote{
-			Note:   nav.NoteRef{Name: healthNoteName(h.RelPath), RelPath: h.RelPath},
+			Note:   noteRef(nav.NoteRef{Name: healthNoteName(h.RelPath), RelPath: h.RelPath}, articleLang),
 			Type:   h.Type,
 			Status: h.Status,
 		})
@@ -125,7 +171,7 @@ func statusesOutsideEnum(authority status.Authority, snap *snapshot.Generation) 
 // group while no lifecycle row with that status applies to its type. It reads
 // the same holder list the outside-enum section uses, so the two faces cannot
 // disagree about which notes exist.
-func statusesUnreachable(authority status.Authority, snap *snapshot.Generation) []pages.HealthStatusNote {
+func statusesUnreachable(authority status.Authority, snap *snapshot.Generation, articleLang pages.ArticleLanguageFor) []pages.HealthStatusNote {
 	if !authority.Governed() || authority.Closed() {
 		return nil
 	}
@@ -142,7 +188,7 @@ func statusesUnreachable(authority status.Authority, snap *snapshot.Generation) 
 			continue
 		}
 		out = append(out, pages.HealthStatusNote{
-			Note:   nav.NoteRef{Name: healthNoteName(h.RelPath), RelPath: h.RelPath},
+			Note:   noteRef(nav.NoteRef{Name: healthNoteName(h.RelPath), RelPath: h.RelPath}, articleLang),
 			Type:   h.Type,
 			Status: h.Status,
 		})
@@ -164,14 +210,14 @@ func healthNoteName(relPath string) string {
 // the top of the vault has no name of its own, and what stands in for it is a
 // word rather than a path, so it is chosen here — where the request says which
 // language to choose it in — rather than by the scan that grouped the notes.
-func healthIslands(groups []snapshot.HealthIslandGroup, lang wording.Lang) []pages.HealthIslandGroup {
+func healthIslands(groups []snapshot.HealthIslandGroup, lang wording.Lang, articleLang pages.ArticleLanguageFor) []pages.HealthIslandGroup {
 	out := make([]pages.HealthIslandGroup, 0, len(groups))
 	for _, g := range groups {
 		name := g.Dir
 		if name == "" {
 			name = wording.VaultRoot.In(lang)
 		}
-		out = append(out, pages.HealthIslandGroup{Dir: g.Dir, Name: name, Notes: g.Notes})
+		out = append(out, pages.HealthIslandGroup{Dir: g.Dir, Name: name, Notes: noteRefs(g.Notes, articleLang)})
 	}
 	return out
 }
@@ -222,7 +268,7 @@ func lastCompleteBuild(fresh *snapshot.Freshness) string {
 
 // healthCollisions maps each shared name onto the page type, which keeps
 // Candidates as []nav.NoteRef rather than the generation's []string.
-func healthCollisions(collisions []snapshot.HealthCollision) []pages.HealthCollision {
+func healthCollisions(collisions []snapshot.HealthCollision, articleLang pages.ArticleLanguageFor) []pages.HealthCollision {
 	out := make([]pages.HealthCollision, 0, len(collisions))
 	for _, collision := range collisions {
 		// Every row of one collision would otherwise read the same word:
@@ -231,7 +277,7 @@ func healthCollisions(collisions []snapshot.HealthCollision) []pages.HealthColli
 		// separates them, and separating them is the whole point of the list.
 		candidates := make([]nav.NoteRef, 0, len(collision.Candidates))
 		for _, candidate := range collision.Candidates {
-			candidates = append(candidates, nav.NoteRef{Name: candidate, RelPath: candidate})
+			candidates = append(candidates, noteRef(nav.NoteRef{Name: candidate, RelPath: candidate}, articleLang))
 		}
 		out = append(out, pages.HealthCollision{Name: collision.Name, Candidates: candidates})
 	}

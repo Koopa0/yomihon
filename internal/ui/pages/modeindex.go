@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -94,7 +95,7 @@ func NewStatusDistribution(statuses, unstated []LifecycleItem, scoped bool, lang
 // — how many lessons it lays out — and never how far anyone has got: a count
 // that described a status as progress ran backwards as the work was finished,
 // and does not return under another name.
-func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wording.Lang) ListIndexView {
+func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
@@ -107,10 +108,11 @@ func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wor
 			mark = joinMarks(extent, wording.NoStructureRead.In(lang))
 		}
 		rows = append(rows, Row{
-			Text:  studyPath.Title,
-			Href:  syllabusHref(studyPath.RelPath),
-			Mark:  mark,
-			Fault: unread,
+			Text:     studyPath.Title,
+			Href:     syllabusHref(studyPath.RelPath),
+			Mark:     mark,
+			Fault:    unread,
+			Language: rowLanguage(articleLang, studyPath.RelPath),
 		})
 	}
 	view := listIndex(pathMode, wording.Paths.In(lang),
@@ -166,13 +168,14 @@ func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView
 // holds at every depth, which is the shape of the subject it draws. Those
 // branches are the same tree the rail lists, so a map whose only wikilinks
 // sit in prose or a table still has a count.
-func NewMapIndex(maps []nav.Map, closure nav.Closure, governed bool, lang wording.Lang) ListIndexView {
+func NewMapIndex(maps []nav.Map, closure nav.Closure, governed bool, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(maps))
 	for i := range maps {
 		rows = append(rows, Row{
-			Text: maps[i].Title,
-			Href: notesHref(maps[i].RelPath),
-			Mark: plural(countBranches(maps[i].Branches), wording.BranchCountOne, wording.BranchCountMany, lang),
+			Text:     maps[i].Title,
+			Href:     notesHref(maps[i].RelPath),
+			Mark:     plural(countBranches(maps[i].Branches), wording.BranchCountOne, wording.BranchCountMany, lang),
+			Language: rowLanguage(articleLang, maps[i].RelPath),
 		})
 	}
 	view := listIndex(mapMode, wording.Maps.In(lang),
@@ -197,7 +200,7 @@ func countBranches(branches []nav.Branch) int {
 // an isolated frame, and a written report is a note like any other. The row
 // keeps the filename the author gave it and lifts the day out of the front of
 // that name where there is one; nothing here opens a report to describe it.
-func NewReportIndex(reports []nav.Report, lang wording.Lang) ListIndexView {
+func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(reports))
 	for _, report := range reports {
 		href, kind := notesHref(report.RelPath), wording.WrittenReport.In(lang)
@@ -209,9 +212,10 @@ func NewReportIndex(reports []nav.Report, lang wording.Lang) ListIndexView {
 			newest = wording.Newest.In(lang)
 		}
 		rows = append(rows, Row{
-			Text: report.Name,
-			Href: href,
-			Mark: joinMarks(leadingDate(report.Name), kind, newest),
+			Text:     report.Name,
+			Href:     href,
+			Mark:     joinMarks(leadingDate(report.Name), kind, newest),
+			Language: rowLanguage(articleLang, report.RelPath),
 		})
 	}
 	return listIndex(reportMode, wording.Reports.In(lang),
@@ -245,17 +249,45 @@ func leadingDate(name string) string {
 	return head
 }
 
+// ArticleLanguageFor returns a note's declared article language by path, or
+// empty when the note declared none or the contract gave no authority.
+type ArticleLanguageFor func(relPath string) string
+
+// rowLanguage reads one listing row's declared language from the lookup the
+// handler built for this request.
+func rowLanguage(articleLang ArticleLanguageFor, relPath string) string {
+	if articleLang == nil || relPath == "" {
+		return ""
+	}
+	return articleLang(relPath)
+}
+
+// ArticleLanguageFromSnapshot returns a lookup backed by one captured
+// generation's resolved note languages.
+func ArticleLanguageFromSnapshot(snap *snapshot.Generation) ArticleLanguageFor {
+	if snap == nil {
+		return nil
+	}
+	return func(relPath string) string {
+		note, ok := snap.Note(relPath)
+		if !ok {
+			return ""
+		}
+		return note.Language
+	}
+}
+
 // NewFolderIndex builds the folder shelf from the declared knowledge layer,
 // or the full directory tree when no scope is available. Its measure includes
 // every file below those folders and every root file, so a vault whose files
 // all sit at the root counts and lists them without calling itself empty.
-func NewFolderIndex(model *nav.Model, lang wording.Lang) ListIndexView {
+func NewFolderIndex(model *nav.Model, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rootNotes := model.RootNotes()
 	folders := model.ShelfFolders()
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
 		wording.FolderIndexLede.In(lang), wording.FolderIndexEmpty.In(lang),
-		folderRows(rootNotes, folders, lang, true))
+		folderRows(rootNotes, folders, lang, true, articleLang))
 }
 
 // folderRows is one level of the tree. The folders come first, because a reader
@@ -268,7 +300,7 @@ func NewFolderIndex(model *nav.Model, lang wording.Lang) ListIndexView {
 // One level is the whole of it. A page that unfolded every depth at once would
 // be the drawer the reading desk was built to replace, and the level below is
 // one row away.
-func folderRows(files []nav.NoteRef, folders []nav.Folder, lang wording.Lang, root bool) []Row {
+func folderRows(files []nav.NoteRef, folders []nav.Folder, lang wording.Lang, root bool, articleLang ArticleLanguageFor) []Row {
 	notes, others := splitNotesAndFiles(files)
 	rows := make([]Row, 0, len(folders)+len(notes)+len(others)+2)
 	for i := range folders {
@@ -283,7 +315,11 @@ func folderRows(files []nav.NoteRef, folders []nav.Folder, lang wording.Lang, ro
 			rows = append(rows, Row{Text: wording.RootNotes.In(lang), Heading: true})
 		}
 		for _, note := range notes {
-			rows = append(rows, Row{Text: note.Name, Href: notesHref(note.RelPath)})
+			language := note.Language
+			if language == "" && articleLang != nil {
+				language = articleLang(note.RelPath)
+			}
+			rows = append(rows, Row{Text: note.Name, Href: notesHref(note.RelPath), Language: language})
 		}
 	}
 	if len(others) > 0 {
@@ -351,17 +387,17 @@ const deskBlockItems = 3
 // index pages list, so a block and the page its heading opens can never
 // disagree about what the vault holds. A withheld declaration leaves its block
 // empty; the reason is stated once for the whole desk, below the seam.
-func NewDeskBlocks(model *nav.Model, governed bool, lang wording.Lang) []DeskBlock {
+func NewDeskBlocks(model *nav.Model, governed bool, lang wording.Lang, articleLang ArticleLanguageFor) []DeskBlock {
 	// The blocks are the mode pages narrowed, so they refuse what those pages
 	// refuse: each constructor is handed the same declaration closure the page
 	// is, and withhold then takes back only what a block would otherwise claim
 	// about how much it holds.
 	closure := model.DeclaredClosure()
 	withheld := closure.Closed()
-	pathIndex := NewPathIndex(model.Paths(), closure, governed, lang)
-	mapIndex := NewMapIndex(model.Maps(), closure, governed, lang)
-	reportIndex := NewReportIndex(model.Reports(), lang)
-	folderIndex := NewFolderIndex(model, lang)
+	pathIndex := NewPathIndex(model.Paths(), closure, governed, lang, articleLang)
+	mapIndex := NewMapIndex(model.Maps(), closure, governed, lang, articleLang)
+	reportIndex := NewReportIndex(model.Reports(), lang, articleLang)
+	folderIndex := NewFolderIndex(model, lang, articleLang)
 	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))
 	mapBlock := deskBlock(&mapIndex, wording.DeskMapsLede.In(lang))
 	if withheld {

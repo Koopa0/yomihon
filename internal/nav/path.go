@@ -150,6 +150,7 @@ type PathEntry struct {
 	Kind       EntryKind
 	RelPath    string
 	Status     string
+	Language   string
 	Candidates []string
 }
 
@@ -165,6 +166,7 @@ func buildPath(
 	n *vault.Note,
 	idx *graph.Index,
 	statusByPath map[string]string,
+	langsByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) Path {
 	doc := sequence.Parse(n.Body, n.BodyLine)
@@ -176,7 +178,7 @@ func buildPath(
 		Diagnostics: doc.Diagnostics,
 	}
 	for _, g := range doc.Groups {
-		p.Groups = append(p.Groups, buildPathGroup(g, idx, statusByPath, policy))
+		p.Groups = append(p.Groups, buildPathGroup(g, idx, statusByPath, langsByPath, policy))
 	}
 	main, locals := projectStops(p.Groups)
 	p.Planned = main.planned
@@ -198,6 +200,7 @@ func buildPathGroup(
 	g *sequence.Group,
 	idx *graph.Index,
 	statusByPath map[string]string,
+	langsByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) *PathGroup {
 	out := &PathGroup{
@@ -216,13 +219,13 @@ func buildPathGroup(
 	for _, item := range g.Items {
 		switch {
 		case item.Entry != nil:
-			entry := buildPathEntry(item.Entry, idx, statusByPath, policy)
+			entry := buildPathEntry(item.Entry, idx, statusByPath, langsByPath, policy)
 			if entry.State == sequence.EntryAccepted {
 				out.Planned++
 			}
 			out.Items = append(out.Items, PathItem{Entry: entry})
 		case item.Branch != nil:
-			child := buildPathGroup(item.Branch, idx, statusByPath, policy)
+			child := buildPathGroup(item.Branch, idx, statusByPath, langsByPath, policy)
 			// A branch counts what the main line beneath it carries, because a
 			// part whose lessons all sit in child branches would otherwise read
 			// zero. Only the main line joins counts end to end: a side branch
@@ -251,6 +254,7 @@ func buildPathEntry(
 	c *sequence.Candidate,
 	idx *graph.Index,
 	statusByPath map[string]string,
+	langsByPath map[string]string,
 	policy schema.ArtifactPolicy,
 ) *PathEntry {
 	entry := &PathEntry{
@@ -268,6 +272,7 @@ func buildPathEntry(
 	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
 		entry.Status = statusByPath[res.RelPath]
+		entry.Language = langsByPath[res.RelPath]
 	}
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)

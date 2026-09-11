@@ -236,6 +236,7 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 		out[i] = pages.SearchResult{
 			RelPath:       r.RelPath,
 			Title:         r.Title,
+			Language:      r.Language,
 			Snippet:       r.Snippet,
 			SnippetRuns:   snippetRuns(r.Snippet, tokens),
 			PathRuns:      snippetRuns(r.RelPath, tokens),

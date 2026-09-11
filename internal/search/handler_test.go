@@ -593,3 +593,28 @@ func TestAnUnreadableContractSpeaksTheReadersLanguage(t *testing.T) {
 		})
 	}
 }
+
+// TestSearchListingLanguageThroughIndex holds the path from a declared language
+// on the indexed note through the handler to the rendered search row.
+func TestSearchListingLanguageThroughIndex(t *testing.T) {
+	t.Parallel()
+	idx := lexical.NewIndex([]lexical.Document{{
+		RelPath:   "Writing/lessons/japanese/L01.md",
+		Title:     "L01 わたしは学生です",
+		NoteType:  "lesson",
+		PlainText: "わたしは学生です",
+		Language:  "ja",
+	}}, validArtifactPolicy(t))
+	mux := http.NewServeMux()
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	_, body := getBody(t, srv.Client(), srv.URL+"/search?q=L01")
+	want := `<span class="y-result__title" lang="ja">`
+	if !strings.Contains(body, want) {
+		t.Fatalf("search listing missing %q; body = %q", want, body)
+	}
+}

@@ -152,7 +152,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 							<ul class="y-healthlist">
 								for _, link := range v.Unwritten {
 									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }>{ link.From.Name }</a>
+										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }><span { authoredLanguageAttrs(link.From.Language)... }>{ link.From.Name }</span></a>
 										<span class="y-healthlist__detail">{ fmt.Sprintf(wording.LinkedToFmt.In(c.Lang), link.Target) }</span>
 									</li>
 								}
@@ -162,10 +162,10 @@ templ Health(v HealthView, c layouts.Chrome) {
 							<ul class="y-healthlist">
 								for _, link := range v.TitleOnly {
 									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }>{ link.From.Name }</a>
+										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }><span { authoredLanguageAttrs(link.From.Language)... }>{ link.From.Name }</span></a>
 										<span class="y-healthlist__detail">
 											{ fmt.Sprintf(wording.TitleOnlyMeansTo.In(c.Lang), link.Target) }
-											<a class="y-healthlink" href={ templ.URL(notesHref(link.Note.RelPath)) }>{ link.Note.Name }</a>
+											<a class="y-healthlink" href={ templ.URL(notesHref(link.Note.RelPath)) }><span { authoredLanguageAttrs(link.Note.Language)... }>{ link.Note.Name }</span></a>
 										</span>
 									</li>
 								}
@@ -180,7 +180,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 									</summary>
 									<ul class="y-healthlist">
 										for _, ref := range group.Notes {
-											<li><a class="y-healthlink" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a></li>
+											<li><a class="y-healthlink" href={ templ.URL(notesHref(ref.RelPath)) }><span { authoredLanguageAttrs(ref.Language)... }>{ ref.Name }</span></a></li>
 										}
 									</ul>
 								</details>
@@ -192,7 +192,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 							<ul class="y-healthlist">
 								for _, found := range v.FrontmatterUnreadable {
 									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.RelPath)) }>{ found.Name }</a>
+										<a class="y-healthlink" href={ templ.URL(notesHref(found.RelPath)) }><span { authoredLanguageAttrs(found.Language)... }>{ found.Name }</span></a>
 									</li>
 								}
 							</ul>
@@ -201,7 +201,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 							<ul class="y-healthlist">
 								for _, found := range v.SchemaFaults {
 									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.RelPath)) }>{ found.Name }</a>
+										<a class="y-healthlink" href={ templ.URL(notesHref(found.RelPath)) }><span { authoredLanguageAttrs(found.Language)... }>{ found.Name }</span></a>
 									</li>
 								}
 							</ul>
@@ -210,7 +210,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 							<ul class="y-healthlist">
 								for _, found := range v.StatusOutsideEnum {
 									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }>{ found.Note.Name }</a>
+										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }><span { authoredLanguageAttrs(found.Note.Language)... }>{ found.Note.Name }</span></a>
 										<span class="y-healthlist__detail">
 											{ fmt.Sprintf(wording.StatusAndTypeFmt.In(c.Lang), found.Status, found.Type) }
 										</span>
@@ -222,7 +222,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 							<ul class="y-healthlist">
 								for _, found := range v.StatusUnreachable {
 									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }>{ found.Note.Name }</a>
+										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }><span { authoredLanguageAttrs(found.Note.Language)... }>{ found.Note.Name }</span></a>
 										<span class="y-healthlist__detail">
 											{ fmt.Sprintf(wording.StatusAndTypeFmt.In(c.Lang), found.Status, found.Type) }
 										</span>
@@ -240,7 +240,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 												if i > 0 {
 													<span aria-hidden="true">・</span>
 												}
-												<a class="y-healthlink" href={ templ.URL(notesHref(candidate.RelPath)) }>{ candidate.Name }</a>
+												<a class="y-healthlink" href={ templ.URL(notesHref(candidate.RelPath)) }><span { authoredLanguageAttrs(candidate.Language)... }>{ candidate.Name }</span></a>
 											}
 										</span>
 									</li>

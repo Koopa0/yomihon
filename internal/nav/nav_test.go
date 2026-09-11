@@ -41,7 +41,7 @@ func capturedModel(
 	resolver *graph.Index,
 ) *Model {
 	t.Helper()
-	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir())
+	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir(), testContract(t).ArticleLanguage())
 }
 
 func capturedModelWithJournal(
@@ -52,6 +52,7 @@ func capturedModelWithJournal(
 	policy schema.ArtifactPolicy,
 	resolver *graph.Index,
 	journal schema.JournalDir,
+	articleLang schema.ArticleLanguage,
 ) *Model {
 	t.Helper()
 	reader, err := vault.Open(root)
@@ -87,7 +88,7 @@ func capturedModelWithJournal(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, scope, policy, journal)
+	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -188,6 +189,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		schema.KnowledgeScope{},
 		policy,
 		testContract(t).JournalDir(),
+		testContract(t).ArticleLanguage(),
 	)
 
 	modified := make(map[string]time.Time)
@@ -268,6 +270,7 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		schema.KnowledgeScope{},
 		policy,
 		testContract(t).JournalDir(),
+		testContract(t).ArticleLanguage(),
 	)
 	want := []NoteSummary{{
 		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
@@ -708,7 +711,7 @@ func TestJournalShelfFollowsTheDeclaredDirectory(t *testing.T) {
 
 	t.Run("undeclared", func(t *testing.T) {
 		t.Parallel()
-		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{})
+		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{}, schema.ArticleLanguage{})
 		if len(model.Journal()) != 0 {
 			t.Errorf("undeclared Journal = %v, want empty", model.Journal())
 		}
@@ -844,7 +847,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t))
+	got := parseBranches(body, idx, statusByPath, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (Go shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -957,7 +960,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath, testArtifactPolicy(t))
+	got := parseBranches(body, idx, statusByPath, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (大家 shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -1007,7 +1010,7 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fault tolerance) mismatch (-want +got):\n%s", diff)
 	}
@@ -1093,7 +1096,7 @@ func TestParseBranchesProseLinksCountWhatThePageHolds(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (prose map) mismatch (-want +got):\n%s", diff)
 	}
@@ -1122,7 +1125,7 @@ func TestParseBranchesFencedWikilinkIsNotAnEntry(t *testing.T) {
 			{Text: "Live", Target: "Live", RelPath: "Live.md"},
 		},
 	}}
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fenced negative) mismatch (-want +got):\n%s", diff)
 	}
@@ -1150,7 +1153,7 @@ func TestParseBranchesAdmitsEveryLiveLineKind(t *testing.T) {
 			t.Parallel()
 			idx := resolver(t, tt.path)
 			target := strings.TrimSuffix(tt.path, ".md")
-			got := parseBranches("## Branch\n\n"+tt.line+"\n", idx, map[string]string{}, testArtifactPolicy(t))
+			got := parseBranches("## Branch\n\n"+tt.line+"\n", idx, map[string]string{}, nil, testArtifactPolicy(t))
 			want := []Branch{{
 				Heading: "Branch",
 				Level:   2,
@@ -1182,7 +1185,7 @@ func TestParseBranchesIgnoresAHeadingShapedLineInsideAFence(t *testing.T) {
 		"\n" +
 		"Later [[After]].\n"
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	want := []Branch{{
 		Heading: "Real",
 		Level:   2,
@@ -1210,7 +1213,7 @@ func TestParseBranchesQuotedInlineLinksAreNotEntries(t *testing.T) {
 		"See `[[Backticked]]`.\n" +
 		"%%[[Commented]]%%\n"
 
-	got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 	want := []Branch{{
 		Heading: "Zone",
 		Level:   2,
@@ -1259,7 +1262,7 @@ func TestParseBranchesHeadingAndLinkShareEachSkipZone(t *testing.T) {
 			// After sits past the zone with no new heading, so a ghost
 			// heading the zone failed to hide files it under Hidden.
 			body := "## Real\n\nSee [[Live]].\n\n" + tt.zone + "\nLater [[After]].\n"
-			got := parseBranches(body, idx, map[string]string{}, testArtifactPolicy(t))
+			got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
 			if heading, link := zoneAdmission(got, "Hidden"); heading != link {
 				t.Errorf("Hidden heading admitted=%v, Hidden link admitted=%v; they must match", heading, link)
 			}
@@ -1298,7 +1301,7 @@ func TestPathKeepsAPlannedLessonInItsPlace(t *testing.T) {
 
 	idx := resolver(t, "Writing/Existing.md")
 	body := "## Course {sequence=primary}\n\n- [[Existing]]\n- [[Unwritten Lesson]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, testArtifactPolicy(t))
 
 	want := []groupShape{{
 		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 2,
@@ -1326,7 +1329,7 @@ func TestPathKeepsAnAmbiguousLessonInOrder(t *testing.T) {
 
 	idx := resolver(t, "Writing/First.md", "A/Repeated.md", "B/Repeated.md", "Writing/Last.md")
 	body := "## Course {sequence=primary}\n\n- [[First]]\n- [[Repeated|Unresolved choice]]\n- [[Last]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, testArtifactPolicy(t))
 
 	want := []groupShape{{
 		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 3,
@@ -1409,7 +1412,7 @@ func TestBuildFolderTree(t *testing.T) {
 	}
 	wantRoot := []NoteRef{{Name: "CLAUDE", RelPath: "CLAUDE.md"}}
 
-	folders, rootNotes := buildFolderTree(paths)
+	folders, rootNotes := buildFolderTree(paths, nil)
 	if diff := cmp.Diff(wantFolders, folders); diff != "" {
 		t.Errorf("buildFolderTree folders mismatch (-want +got):\n%s", diff)
 	}
@@ -1434,7 +1437,7 @@ func TestAnUnlistedTopLevelFolderSortsAfterTheLifecycle(t *testing.T) {
 		"Writing/w.md",
 	}
 
-	folders, rootNotes := buildFolderTree(paths)
+	folders, rootNotes := buildFolderTree(paths, nil)
 	if len(rootNotes) != 0 {
 		t.Fatalf("buildFolderTree rootNotes = %v, want none", rootNotes)
 	}
@@ -1478,7 +1481,7 @@ func TestLifecycleOrderSortsListedFixtureFoldersBeforeUnlistedOnes(t *testing.T)
 		t.Fatalf("examples/vault holds listed=%v unlisted=%v; both sides are required or the claim is vacuous", listed, unlisted)
 	}
 
-	folders, _ := buildFolderTree(paths)
+	folders, _ := buildFolderTree(paths, nil)
 	got := make([]string, 0, len(folders))
 	for _, folder := range folders {
 		got = append(got, folder.Name)
@@ -1547,6 +1550,7 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 		schema.KnowledgeScope{},
 		policy,
 		schema.JournalDir{},
+		testContract(t).ArticleLanguage(),
 	)
 
 	gotRoot := fileRelPaths(model.RootNotes())
@@ -1659,7 +1663,7 @@ func TestSiblings(t *testing.T) {
 		"Concepts/rust/Bar.md",
 		"README.md",
 	}
-	m := &Model{dirNotes: buildDirNotes(paths)}
+	m := &Model{dirNotes: buildDirNotes(paths, nil)}
 
 	tests := []struct {
 		name      string
@@ -2192,8 +2196,8 @@ func TestAFolderPageOrdersItsSubfoldersTheWayItOrdersItsNotes(t *testing.T) {
 	// builder preserves insertion order below the top level, so a fixture that
 	// listed them already sorted would pass with the sort deleted.
 	paths := []string{"Writing/第10週/b.md", "Writing/第9週/a.md"}
-	folders, rootNotes := buildFolderTree(paths)
-	model := &Model{dirNotes: buildDirNotes(paths), folders: folders, rootNotes: rootNotes}
+	folders, rootNotes := buildFolderTree(paths, nil)
+	model := &Model{dirNotes: buildDirNotes(paths, nil), folders: folders, rootNotes: rootNotes}
 
 	_, subfolders, ok := model.Directory("Writing")
 	if !ok {

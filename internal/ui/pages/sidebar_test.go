@@ -141,6 +141,7 @@ func buildModel(t *testing.T) *nav.Model {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
+		contract.ArticleLanguage(),
 	)
 	return model
 }
@@ -372,6 +373,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
+		contract.ArticleLanguage(),
 	)
 	if model.NavigationClosure().Diagnostic() == "" || model.ArtifactClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no capability fault: navigation %q artifact %q",
@@ -413,6 +415,7 @@ func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
+		contract.ArticleLanguage(),
 	)
 	if !model.JournalClosure().Closed() || model.JournalClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no journal fault: closed=%t diagnostic=%q",
@@ -446,6 +449,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		schema.KnowledgeScope{},
 		schema.ArtifactPolicy{},
 		schema.JournalDir{},
+		schema.ArticleLanguage{},
 	)
 	var buf bytes.Buffer
 	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -608,7 +612,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 	here, _, _ = strings.Cut(here, "</nav>")
 	for _, want := range []string{
 		`href="/notes/System/templates/Template%20map.md"`,
-		`href="/notes/System/templates/Template%20target.md">Template target</a>`,
+		`href="/notes/System/templates/Template%20target.md"><span>Template target</span></a>`,
 	} {
 		if !strings.Contains(here, want) {
 			t.Errorf("the folder holding a non-instance artifact does not offer it: %q", want)
@@ -707,9 +711,9 @@ func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir())
+	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage())
 
-	view := NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant)
+	view := NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant, nil)
 	if len(view.Shelf.Rows) != 1 || view.Shelf.Rows[0].Mark != "5 枝" {
 		t.Errorf("prose map shelf = %#v, want one row marked 5 枝", view.Shelf.Rows)
 	}

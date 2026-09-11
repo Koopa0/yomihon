@@ -132,7 +132,19 @@ func linkTexts(t *testing.T, fragment string) []string {
 		if open < 0 || shut < 0 || shut < open {
 			t.Fatalf("a link in the fragment does not close: %q", chunk[:min(len(chunk), 120)])
 		}
-		out = append(out, chunk[open+1:shut])
+		out = append(out, linkInnerText(chunk[open+1:shut]))
 	}
 	return out
+}
+
+func linkInnerText(inner string) string {
+	if strings.HasPrefix(strings.TrimSpace(inner), "<") {
+		if start := strings.IndexByte(inner, '>'); start >= 0 {
+			inner = inner[start+1:]
+		}
+	}
+	if end := strings.Index(inner, "</"); end >= 0 {
+		inner = inner[:end]
+	}
+	return inner
 }

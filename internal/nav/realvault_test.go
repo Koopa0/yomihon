@@ -57,7 +57,7 @@ func TestNewRealVault(t *testing.T) {
 		notes[entry.Path()] = note
 		noteList = append(noteList, note)
 	}
-	model := New(scan.Files(), notes, graph.New(noteList, resources), roles, contract.KnowledgeScope(), policy, contract.JournalDir())
+	model := New(scan.Files(), notes, graph.New(noteList, resources), roles, contract.KnowledgeScope(), policy, contract.JournalDir(), contract.ArticleLanguage())
 	if roles.Available() == (model.NavigationClosure().Diagnostic() != "") {
 		t.Error("real-vault navigation diagnostic disagrees with capability availability")
 	}

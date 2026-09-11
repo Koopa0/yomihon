@@ -792,8 +792,8 @@ func buildGeneration(
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
-	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal)
-	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.files, capabilities.Knowledge), projectionPolicy)
+	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language)
+	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
@@ -1087,10 +1087,14 @@ func indexDocuments(
 	notes []*vault.Note,
 	files []lexical.Document,
 	knowledge schema.KnowledgeScope,
+	languages schema.ArticleLanguage,
 ) []lexical.Document {
 	documents := make([]lexical.Document, 0, len(notes)+len(files))
 	for _, note := range notes {
 		doc := lexical.DocumentFromNote(note)
+		if tag, err := languages.Resolve(note.Frontmatter); err == nil {
+			doc.Language = tag
+		}
 		doc.OutsideKnowledge = !knowledge.Includes(note.RelPath)
 		documents = append(documents, doc)
 	}
