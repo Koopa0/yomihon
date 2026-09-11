@@ -4076,10 +4076,10 @@ func TestTheRecentListStatesItsKnowledgeScope(t *testing.T) {
 	if strings.Contains(recent, "Outside") {
 		t.Errorf("the recent block lists a note outside the knowledge layer; section = %q", recent)
 	}
-	if !strings.Contains(recent, "知識層資料夾中最近改動過的筆記") {
+	if !strings.Contains(recent, "知識層資料夾中") {
 		t.Errorf("the recent block does not state its scope; section = %q", recent)
 	}
-	if strings.Contains(recent, "時間戳一模一樣") {
+	if strings.Contains(recent, "時間戳相同") {
 		t.Errorf("distinct times still read as a tie; section = %q", recent)
 	}
 
@@ -4115,7 +4115,7 @@ func TestASingleNoteClaimsNoTimestampTie(t *testing.T) {
 		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
-	if strings.Contains(recent, "時間戳一模一樣") || strings.Contains(recent, "identical timestamps") {
+	if strings.Contains(recent, "時間戳相同") || strings.Contains(recent, wording.FolderTiedTitle.In(wording.ZhHant)) {
 		t.Errorf("a single-note vault claims a timestamp tie; section = %q", recent)
 	}
 	if !strings.Contains(recent, `<h2 id="folders-recent-title">`+wording.FolderRecentTitle.In(wording.ZhHant)+`</h2>`) {
@@ -4151,7 +4151,7 @@ func TestTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
 		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
-	if !strings.Contains(recent, "知識層資料夾中的筆記。這些檔案的時間戳一模一樣") {
+	if !strings.Contains(recent, "知識層資料夾中，時間戳相同的筆記。") {
 		t.Errorf("tied times in a scoped list do not say both facts; section = %q", recent)
 	}
 }
@@ -4285,7 +4285,7 @@ func TestAnUnscopedTieKeepsThePlainNotice(t *testing.T) {
 		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
-	if !strings.Contains(recent, "<p>這些檔案的時間戳一模一樣") {
+	if !strings.Contains(recent, "<p>這些檔案的時間戳相同。") {
 		t.Errorf("an unscoped tie lost its plain notice; section = %q", recent)
 	}
 	if strings.Contains(recent, "知識層") {

@@ -63,7 +63,7 @@ func TestHealthSaysWhenItCouldNotEvaluate(t *testing.T) {
 		if strings.Contains(page, "PLACEHOLDER-SLOT") {
 			t.Error("the placeholder is still reported, so the page is answering from a scope it does not know")
 		}
-		if !strings.Contains(page, "引用與孤島無法評估") {
+		if !strings.Contains(page, "引用與沒人引用的筆記無法評估") {
 			t.Error("the page does not say the citation lists could not be evaluated")
 		}
 		if strings.Contains(page, "yomihon check") {

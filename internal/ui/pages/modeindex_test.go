@@ -289,8 +289,8 @@ func TestRecentBlockNamesItsReachBesideANarrowedShelf(t *testing.T) {
 		lang    wording.Lang
 		want    string
 	}{
-		{name: "ordered scoped zh", ordered: true, scoped: true, lang: wording.ZhHant, want: "知識層資料夾中最近改動過的筆記"},
-		{name: "ordered scoped en", ordered: true, scoped: true, lang: wording.En, want: "Notes in the declared knowledge folders changed most recently"},
+		{name: "ordered scoped zh", ordered: true, scoped: true, lang: wording.ZhHant, want: "知識層資料夾中"},
+		{name: "ordered scoped en", ordered: true, scoped: true, lang: wording.En, want: "In the declared knowledge folders"},
 		{name: "ordered unscoped zh", ordered: true, scoped: false, lang: wording.ZhHant, want: ""},
 		{name: "ordered unscoped en", ordered: true, scoped: false, lang: wording.En, want: ""},
 	} {

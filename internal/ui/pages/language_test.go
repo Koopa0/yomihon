@@ -28,7 +28,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 			render: func(buf *bytes.Buffer) error {
 				return fileInfo(FileView{Title: "blob", Size: 2, ContentType: "application/octet-stream"}, wording.ZhHant).Render(t.Context(), buf)
 			},
-			want:      []string{"沒有可呈現此檔案的閱讀器", "2 位元組", "開啟原始位元組"},
+			want:      []string{"沒有這種檔案的閱讀器", "2 位元組", "開啟原始位元組"},
 			forbidden: []string{"no reader here", "2 bytes", "Open raw bytes"},
 		},
 		{
@@ -36,7 +36,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 			render: func(buf *bytes.Buffer) error {
 				return SearchResults(SearchView{Query: "needle", Diagnostic: "technical diagnostic", Governed: true}, wording.ZhHant).Render(t.Context(), buf)
 			},
-			want:      []string{"中介資料搜尋目前無法使用", "vault schema 的治理資料無法使用", `lang="en"`},
+			want:      []string{"依欄位篩選目前無法使用", "狀態與類型資料目前無法使用", `lang="en"`},
 			forbidden: []string{"Metadata search unavailable", "Search is temporarily unavailable"},
 		},
 		{

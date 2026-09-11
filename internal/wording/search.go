@@ -19,8 +19,8 @@ var (
 
 // What the results say about their own limits.
 var (
-	MetadataSearchUnavailable = both("中介資料搜尋目前無法使用。", "Metadata search is unavailable.")
-	GovernanceUnavailable     = both("vault schema 的治理資料無法使用。", "The vault schema's governance data is unavailable.")
+	MetadataSearchUnavailable = both("依欄位篩選目前無法使用。", "Filtering by field is unavailable right now.")
+	GovernanceUnavailable     = both("狀態與類型資料目前無法使用。", "Status and type data are unavailable right now.")
 	ResultKindFile            = both("檔案", "File")
 )
 
