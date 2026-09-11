@@ -1,0 +1,210 @@
+name: Claude review
+
+# One review per push on every pull request, and the merge that follows a
+# passing verdict.
+#
+# Claude reads .github/claude/review.md, exercises the locks in the checkout,
+# and posts exactly one comment whose first line is "Verdict: PASS @ <sha>" or
+# "Verdict: BLOCKED @ <sha>". A deterministic step then acts on that line.
+# BLOCKED wakes the coding agent with a comment posted from the maintainer's
+# token, because a comment from that account is the trigger the agent is known
+# to honour. PASS arms auto-merge, so the merge itself still waits for every
+# required check and lands only when they are green.
+#
+# Claude never holds the maintainer's token. It runs with the Claude GitHub App
+# token and a fixed tool list that cannot push, and the steps that carry the
+# maintainer's token run after Claude has exited. Three blocked rounds hand the
+# pull request to the maintainer instead of a fourth review.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+# A second push while a review is running makes that review moot.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+env:
+  # Above this many changed lines, or touching a wall, the stronger model reads.
+  OPUS_LINES: 400
+  OPUS_PATHS: '^(internal/(status|schema|judge|archlock)/|cmd/)'
+  # Everything Claude may run. No push, no commit, no merge, no label.
+  TOOLS: "Read,Grep,Glob,Edit,Bash(go test:*),Bash(go build:*),Bash(go vet:*),Bash(go tool templ:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git merge-base:*),Bash(git checkout:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+
+jobs:
+  gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      blocked: ${{ steps.rounds.outputs.blocked }}
+      model: ${{ steps.model.outputs.model }}
+    steps:
+      - name: Count the blocked rounds so far
+        id: rounds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          n=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
+            --jq '[.[] | select(.body | startswith("Verdict: BLOCKED"))] | length')
+          echo "blocked=$n" >> "$GITHUB_OUTPUT"
+          echo "blocked rounds so far: $n"
+
+      - name: Hand a fourth round to the maintainer
+        if: fromJSON(steps.rounds.outputs.blocked) >= 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr edit "$PR" --add-label needs-owner
+          gh pr comment "$PR" --body "Three blocked rounds. This pull request now waits for the maintainer."
+
+      - name: Choose the model
+        id: model
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          ADDED: ${{ github.event.pull_request.additions }}
+          DELETED: ${{ github.event.pull_request.deletions }}
+          DEEP: ${{ contains(github.event.pull_request.labels.*.name, 'needs-deep-review') }}
+        run: |
+          model=sonnet
+          if [ $((ADDED + DELETED)) -gt "$OPUS_LINES" ] || [ "$DEEP" = true ] \
+            || gh pr diff "$PR" --name-only | grep -Eq "$OPUS_PATHS"; then
+            model=opus
+          fi
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+          echo "model: $model (${ADDED}+${DELETED} lines)"
+
+  review:
+    needs: gate
+    if: fromJSON(needs.gate.outputs.blocked) < 3
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Review
+        id: claude
+        uses: anthropics/claude-code-action@0a8d3c9443bbff909ab973b6a17a340b913f229f # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: "cursor[bot]"
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} of
+            ${{ github.repository }}. Its head commit
+            ${{ github.event.pull_request.head.sha }} is checked out in the
+            working directory. Read .github/claude/review.md first and follow
+            it exactly. Post your one comment with
+            `gh pr comment ${{ github.event.pull_request.number }} --body-file <file>`.
+          claude_args: |
+            --model ${{ needs.gate.outputs.model }}
+            --max-turns 40
+            --allowedTools "${{ env.TOOLS }}"
+
+      - name: Read the verdict
+        id: verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          line=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
+            --jq '[.[] | select(.body | startswith("Verdict: "))] | last | .body // ""' | head -n 1)
+          echo "verdict line: ${line:-none}"
+          case "$line" in
+            "Verdict: PASS @ $HEAD_SHA"*)    result=pass ;;
+            "Verdict: BLOCKED @ $HEAD_SHA"*) result=blocked ;;
+            *)                               result=none ;;
+          esac
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+
+      # The coding agent starts on a comment that begins with "@cursor" and is
+      # posted by an account it trusts; whether it honours one from an App is
+      # not documented, so this one is posted with the maintainer's token.
+      - name: Wake the coding agent
+        if: steps.verdict.outputs.result == 'blocked'
+        env:
+          GH_TOKEN: ${{ secrets.MAINTAINER_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR" --body "@cursor Address the review above on this branch, then push and reply once naming the commit."
+
+      # The judge goldens are a frozen contract: a branch that moves them is
+      # merged by a person who has read each changed line. Everything else is
+      # squashed with the branch's own commit bodies, minus attribution
+      # trailers, plus the closing lines from the pull request body.
+      - name: Arm the merge
+        if: steps.verdict.outputs.result == 'pass'
+        env:
+          GH_TOKEN: ${{ secrets.MAINTAINER_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          base=$(git merge-base origin/main HEAD)
+          if [ -n "$(git diff --name-only "$base" HEAD -- internal/judge/testdata)" ]; then
+            gh pr edit "$PR" --add-label needs-owner
+            gh pr comment "$PR" --body "The judge goldens moved on this branch, so the maintainer merges this one by hand."
+            exit 0
+          fi
+          title=$(gh pr view "$PR" --json title --jq .title)
+          {
+            git log --reverse --format='%b' "$base"..HEAD | grep -vi '^co-authored-by:' || true
+            echo
+            gh pr view "$PR" --json body --jq .body | grep -oiE '(closes|fixes) #[0-9]+' | sort -u || true
+          } > "$RUNNER_TEMP/merge-body.txt"
+          if [ "$(gh pr view "$PR" --json isDraft --jq .isDraft)" = true ]; then
+            gh pr ready "$PR"
+          fi
+          gh pr merge "$PR" --auto --squash --subject "$title" --body-file "$RUNNER_TEMP/merge-body.txt"
+
+  # "@claude" in a pull request comment asks a question or a second look.
+  # "@claude opus" and "@claude fable" pick the model; anything else is sonnet.
+  mention:
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Choose the model from the mention
+        id: model
+        env:
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          case "$BODY" in
+            *"@claude fable"*) model=fable ;;
+            *"@claude opus"*)  model=opus ;;
+            *)                 model=sonnet ;;
+          esac
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+
+      - uses: anthropics/claude-code-action@0a8d3c9443bbff909ab973b6a17a340b913f229f # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --model ${{ steps.model.outputs.model }}
+            --max-turns 40
+            --allowedTools "${{ env.TOOLS }}"
