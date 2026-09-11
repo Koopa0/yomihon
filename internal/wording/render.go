@@ -36,7 +36,7 @@ var EmbedMediaFmt = both("［內嵌檔案：%s —— 還沒辦法直接顯示�
 // place and the whole note is a wider answer than the one they wrote. The
 // English is the sentence Obsidian shows for the same fault, so a reader who
 // wrote the note there meets the same words here.
-var ExcerptWithheldFmt = both("找不到「%s」：〈%s〉裡沒有這個位址。", "Unable to find “%s” in %s.")
+var ExcerptWithheldFmt = both("找不到「%s」：〈%s〉裡沒有這個位址。", "Unable to find \"%s\" in %s.")
 
 // EmbedSourceFrom opens an excerpt's provenance line; the source note's name
 // follows it as a link. An excerpt is another note's words, and the one thing
@@ -111,7 +111,7 @@ var AmbiguousTargetFmt = both(
 // It does not offer to show the others. An embed addresses one section, and
 // which one an address means is the author's to settle in their own file.
 var EmbedRepeatedHeadingFmt = both(
-	"這篇筆記裡有 %d 個叫「%s」的小節,以下顯示第一個。",
+	"這篇筆記裡有 %d 個叫「%s」的小節，以下顯示第一個。",
 	"This note has %d sections called %q; the first one follows.")
 
 // UnwrittenFileFmt is a name with a file's extension and nothing behind it.

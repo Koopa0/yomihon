@@ -473,11 +473,11 @@ func TestASectionTheNoteDoesNotHaveIsRefusedNotWidened(t *testing.T) {
 	}{
 		{name: "a section", section: "nowhere-in-this-note", notice: map[wording.Lang]string{
 			wording.ZhHant: "找不到「#nowhere-in-this-note」：〈target〉裡沒有這個位址。",
-			wording.En:     "Unable to find “#nowhere-in-this-note” in target.",
+			wording.En:     "Unable to find &#34;#nowhere-in-this-note&#34; in target.",
 		}},
 		{name: "a block", section: "^nowhere", notice: map[wording.Lang]string{
 			wording.ZhHant: "找不到「#^nowhere」：〈target〉裡沒有這個位址。",
-			wording.En:     "Unable to find “#^nowhere” in target.",
+			wording.En:     "Unable to find &#34;#^nowhere&#34; in target.",
 		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

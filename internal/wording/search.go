@@ -66,7 +66,7 @@ var (
 // of the sentence cannot come to disagree about what a filter is.
 var (
 	UnknownFilterFmt = both(
-		"「%s」不是 yomihon 認得的篩選器,已當一般文字搜尋。認得的是:",
+		"「%s」不是 yomihon 認得的篩選器，已當一般文字搜尋。認得的是：",
 		"%q is not a filter yomihon knows, so it was searched for as ordinary text. The ones it knows are: ")
 
 	UnknownFilterEnd = both("。", ".")
@@ -81,7 +81,7 @@ var ListSeparator = both("、", ", ")
 // FilterKeysAvailable opens the blank search page with the constraints the
 // field understands. A reader who has typed nothing cannot discover them any
 // other way, and this is the one moment saying so costs them no answer.
-var FilterKeysAvailable = both("可用的篩選器:", "Filters you can use: ")
+var FilterKeysAvailable = both("可用的篩選器：", "Filters you can use: ")
 
 // SearchEmptyLede opens the search page before anything has been asked. The
 // prefixes below it are the field's grammar, which is worth knowing and is not
@@ -101,7 +101,7 @@ var ResultAliasLabel = both("又稱 ", "also called ")
 // ResultTopicLabel introduces the subject a result answered to when it was
 // not in the title or the body. Without the word, a topic-only hit would sit
 // on the row with nothing the reader typed.
-var ResultTopicLabel = both("主題: ", "topic: ")
+var ResultTopicLabel = both("主題： ", "topic: ")
 
 // ResultSourceLabel names a hit whose deciding excerpt is fenced source
 // rather than a sentence the note wrote. The word sits on the row with
@@ -125,8 +125,8 @@ var SearchHitUnlocated = both(
 // number, because the two languages disagree about where a plural shows and
 // joining fragments would put the count in the wrong place in one of them.
 var (
-	LiveSearchCountOne  = both("「{query}」有 1 筆結果。", "1 result for “{query}”.")
-	LiveSearchCountMany = both("「{query}」有 {count} 筆結果。", "{count} results for “{query}”.")
+	LiveSearchCountOne  = both("「{query}」有 1 筆結果。", "1 result for \"{query}\".")
+	LiveSearchCountMany = both("「{query}」有 {count} 筆結果。", "{count} results for \"{query}\".")
 	LiveSearchOffline   = both(
 		"即時結果目前無法使用；按 Enter 執行完整搜尋。",
 		"Live results are unavailable right now; press Enter for the full search.")
@@ -141,4 +141,4 @@ var (
 // it is written in.
 var LiveSearchStaleFmt = both(
 	"下方結果回答的是先前的查詢「%s」。",
-	"The results below answer the earlier query “%s”.")
+	"The results below answer the earlier query \"%s\".")
