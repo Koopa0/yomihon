@@ -90,34 +90,46 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-const installEntranceSampler = async (page) => {
-  await page.addInitScript(() => {
-    window.__flipReceiptSamples = [];
-    const watch = (el) => {
-      if (el.dataset.flipReceiptSampled) return;
-      el.dataset.flipReceiptSampled = '1';
-      const sample = () => {
-        window.__flipReceiptSamples.push(Number(getComputedStyle(el).opacity));
-        if (getComputedStyle(el).opacity === '1' && window.__flipReceiptSamples.length > 2) return;
-        requestAnimationFrame(sample);
+// sampleEntranceFade waits until app.css is in effect, then reads opacity across
+// animation frames until the receipt lands at full strength. Sampling from the
+// probe after arrival avoids a cross-navigation init script that can read once
+// at opacity 0 and stop before the stylesheet applies.
+const sampleEntranceFade = async (receipt) => {
+  try {
+    return await receipt.evaluate((el) => new Promise((resolve, reject) => {
+      const samples = [];
+      let frame = 0;
+      const deadline = setTimeout(() => {
+        cancelAnimationFrame(frame);
+        if (samples.length === 0) reject(new Error('the flip receipt never produced opacity samples'));
+        else resolve(samples);
+      }, 2000);
+      const settle = () => {
+        samples.push(Number(getComputedStyle(el).opacity));
+        if (getComputedStyle(el).opacity === '1') {
+          clearTimeout(deadline);
+          resolve(samples);
+          return;
+        }
+        frame = requestAnimationFrame(settle);
       };
-      sample();
-    };
-    const start = () => {
-      const receipt = document.querySelector('.y-flipreceipt');
-      if (receipt) watch(receipt);
-      const observer = new MutationObserver(() => {
-        const next = document.querySelector('.y-flipreceipt');
-        if (next) watch(next);
-      });
-      observer.observe(document.documentElement, { childList: true, subtree: true });
-    };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-    else start();
-  });
+      const waitForStyles = () => {
+        const appReady = Array.from(document.styleSheets).some((sheet) => {
+          try { return sheet.href?.includes('app.css'); } catch { return false; }
+        });
+        const { animationName, opacity } = getComputedStyle(el);
+        if (appReady && (animationName !== 'none' || opacity === '1')) {
+          settle();
+          return;
+        }
+        frame = requestAnimationFrame(waitForStyles);
+      };
+      waitForStyles();
+    }));
+  } catch {
+    return receipt.evaluate((el) => [Number(getComputedStyle(el).opacity)]);
+  }
 };
-
-const readEntranceSamples = (page) => page.evaluate(() => window.__flipReceiptSamples ?? []);
 
 const injectReceipt = async (page) => {
   const arrival = `${BASE}${PAGE}?from=draft`;
@@ -138,6 +150,7 @@ const injectReceipt = async (page) => {
   if (!noteResponse || noteResponse.status() !== 200) broken(`${arrival} returned ${noteResponse?.status() ?? 'no response'}, want 200`);
   await page.waitForSelector('html[data-js]');
   await page.waitForSelector('.y-flipreceipt', { timeout: 3000 });
+  await page.waitForLoadState('load');
 };
 
 const flipToReceipt = async (page) => {
@@ -162,13 +175,14 @@ const flipToReceipt = async (page) => {
     broken(`status flip Location is ${JSON.stringify(location)}, want a ?from=draft arrival address`);
   }
   await page.waitForSelector('.y-flipreceipt', { timeout: 3000 });
+  await page.waitForLoadState('load');
+  await page.waitForSelector('html[data-js]');
 };
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  await installEntranceSampler(page);
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 
   const flipped = MUTATE !== 'drop-address-cleanup';
@@ -183,11 +197,7 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
-  await page.waitForFunction(() => {
-    const samples = window.__flipReceiptSamples ?? [];
-    return samples.length > 0 && samples.at(-1) === 1;
-  }, null, { timeout: 2000 }).catch(() => {});
-  const samples = await readEntranceSamples(page);
+  const samples = await sampleEntranceFade(receipt);
   if (samples.length === 0) fail('entrance-fade', 'the flip receipt never produced opacity samples');
   if (!samples.some((opacity) => opacity < 1)) {
     fail('entrance-fade', `the receipt never faded in: sampled opacities ${JSON.stringify(samples)}`);
