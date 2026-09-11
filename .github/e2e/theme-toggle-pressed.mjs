@@ -64,9 +64,18 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
   };
 };
 
-const injectStyle = (content) => async (page) => {
-  await page.addStyleTag({ content });
-  return () => '';
+const rewriteCSS = (needle, replacement, label) => async (page) => {
+  let matches = 0;
+  await page.route('**/app.css', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    matches += original.split(needle).length - 1;
+    await route.fulfill({ response, body: original.replace(needle, replacement) });
+  });
+  return () => {
+    if (matches !== 1) return `${label} needle matched ${matches} times, want exactly 1`;
+    return '';
+  };
 };
 
 const MUTATIONS = {
@@ -88,13 +97,19 @@ const MUTATIONS = {
   },
   'system-dark-icon-reads-explicit-theme-only': {
     target: 'moon-shown-when-following-system-dark',
-    apply: injectStyle(
-      '@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .y-ico-sun { display: block !important; } :root:not([data-theme="light"]) .y-ico-moon { display: none !important; } }',
+    apply: rewriteCSS(
+      '@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .y-ico-sun{display:none}:root:not([data-theme=light]) .y-ico-moon{display:block}}',
+      '',
+      'system-dark icon media block',
     ),
   },
   'system-light-icon-reads-explicit-theme-only': {
     target: 'sun-shown-when-following-system-light',
-    apply: injectStyle('.y-ico-sun { display: block !important; } .y-ico-moon { display: none !important; }'),
+    apply: rewriteCSS(
+      '[data-theme=dark] .y-ico-moon{display:block}',
+      '.y-ico-moon{display:block}',
+      'moon shown only on an explicit dark choice',
+    ),
   },
 };
 
