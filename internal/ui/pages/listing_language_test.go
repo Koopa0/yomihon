@@ -106,6 +106,37 @@ func TestFolderListingLanguageComesOnlyFromAuthority(t *testing.T) {
 	}
 }
 
+// TestRailListingLanguageComesOnlyFromAuthority holds the left-rail folder shelf
+// the same way: declared language on the row span, absent otherwise.
+func TestRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		lang string
+		want string
+	}{
+		{name: "undeclared note states no language", want: `<a class="ui-navitem" href="/notes/Notes/alpha.md"><span>Alpha</span></a>`},
+		{name: "Japanese note stamps title", lang: "ja", want: `<a class="ui-navitem" href="/notes/Writing/lessons/japanese/L01.md"><span lang="ja">L01</span></a>`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			row := Row{Text: "Alpha", Href: "/notes/Notes/alpha.md"}
+			if tt.lang == "ja" {
+				row = Row{Text: "L01", Href: "/notes/Writing/lessons/japanese/L01.md", Language: tt.lang}
+			}
+			shelf := Shelf{Title: "here", Href: "/folders/here", Rows: []Row{row}}
+			var buf bytes.Buffer
+			if err := ShelfRail(shelf, 24, "here", "另外 %d 篇 →").Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			if html := buf.String(); !strings.Contains(html, tt.want) {
+				t.Errorf("ShelfRail() missing %q in %q", tt.want, html)
+			}
+		})
+	}
+}
+
 // TestHealthListingLanguageComesOnlyFromAuthority holds health link names the
 // same way as other listings: declared language on the span, absent otherwise.
 func TestHealthListingLanguageComesOnlyFromAuthority(t *testing.T) {
