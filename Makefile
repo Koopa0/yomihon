@@ -46,7 +46,7 @@ needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
 }
 endef
 
-.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-spec clean
+.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-ci verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -355,6 +355,12 @@ deadcode-check:
 # it, and do not re-sort it forward.
 verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke vuln
 .NOTPARALLEL: verify
+
+# CI runs this instead of verify so sibling jobs own the prerequisites they
+# already reach. Local clones still use `make verify` unchanged.
+verify-ci:
+	@sh tools/run-verify-ci.sh
+.NOTPARALLEL: verify-ci
 
 # The harness this target drives is a maintainer-local checkout that this
 # repository does not ship, so from a clean clone there is nothing here to run.

@@ -26,18 +26,18 @@
   ],
   "ci_jobs": [
     {"name": "commit-attribution"},
-    {"name": "verify"},
-    {"name": "govulncheck"},
+    {"name": "verify", "invocation": "verify-ci"},
+    {"name": "govulncheck", "owns": ["vuln"]},
     {"name": "coverage"},
     {
       "name": "portable-core",
       "matrix": ["macos-15", "windows-latest"]
     },
-    {"name": "assets-drift"},
-    {"name": "lint-frontend"},
-    {"name": "e2e-http"},
-    {"name": "fuzz"},
-    {"name": "e2e-behavior"},
-    {"name": "e2e-mutations"}
+    {"name": "assets-drift", "owns": ["css-check"]},
+    {"name": "lint-frontend", "owns": ["frontend-check"]},
+    {"name": "e2e-http", "owns": ["e2e-http-check"]},
+    {"name": "fuzz", "owns": ["fuzz-smoke", "performance-smoke"]},
+    {"name": "e2e-behavior", "owns": ["browser-check"]},
+    {"name": "e2e-mutations", "owns": ["mutation-check"]}
   ]
 }

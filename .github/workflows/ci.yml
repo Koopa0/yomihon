@@ -118,7 +118,7 @@ jobs:
           install -D "${RUNNER_TEMP}/tailwindcss" "$(go env GOPATH)/bin/tailwindcss"
 
       - name: Verify
-        run: make verify
+        run: make verify-ci
 
   # Scans the dependency and standard-library surface for known
   # vulnerabilities. Kept separate from the build-and-test gate so a new
