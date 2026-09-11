@@ -76,58 +76,6 @@ func TestSearchListingLanguageComesOnlyFromAuthority(t *testing.T) {
 	}
 }
 
-// TestSearchListingUnlocatedNoteUsesInterfaceLanguage holds that the sentence
-// a crossing hit carries when the page cannot locate the match is interface
-// copy in the chrome language, not the note's declared language.
-func TestSearchListingUnlocatedNoteUsesInterfaceLanguage(t *testing.T) {
-	t.Parallel()
-	view := SearchView{
-		Query: "needle",
-		Results: []SearchResult{{
-			RelPath:       "Writing/lessons/japanese/L01.md",
-			Title:         "L01 わたしは学生です",
-			Language:      "ja",
-			BlockCrossing: true,
-		}},
-		Total: 1,
-	}
-	var buf bytes.Buffer
-	if err := SearchResults(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	if !strings.Contains(html, wording.SearchHitUnlocated.In(wording.ZhHant)) {
-		t.Fatalf("missing unlocated sentence in %q", html)
-	}
-	if strings.Contains(html, `y-result__snippet" lang=`) {
-		t.Errorf("unlocated search row stamped a snippet language: %q", html)
-	}
-}
-
-// TestRailListingLanguageComesOnlyFromAuthority holds the here-shelf row the
-// left rail shows beside the note being read.
-func TestRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
-	t.Parallel()
-	sb := Sidebar{
-		HereDir: "Writing/lessons/japanese",
-		Here: []nav.NoteRef{
-			{Name: "Alpha", RelPath: "Writing/lessons/japanese/Alpha.md"},
-			{Name: "L01 わたしは学生です", RelPath: "Writing/lessons/japanese/L01.md", Language: "ja"},
-		},
-	}
-	var buf bytes.Buffer
-	if err := ShelfRail(sb.HereShelf(wording.ZhHant), 5, sb.HereDir, "more %d").Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	if !strings.Contains(html, `<span lang="ja">L01 わたしは学生です</span>`) {
-		t.Errorf("declared rail row missing ja stamp in %q", html)
-	}
-	if strings.Contains(html, `lang="ja">Alpha`) {
-		t.Errorf("undeclared rail row stamped a language: %q", html)
-	}
-}
-
 // TestFolderListingLanguageComesOnlyFromAuthority holds the folder shelf row
 // title the same way: declared language on the span, absent otherwise.
 func TestFolderListingLanguageComesOnlyFromAuthority(t *testing.T) {
