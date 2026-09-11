@@ -1,0 +1,42 @@
+{
+  "_note": "Gate-contract reads this file and the committed .github/rulesets/main.json artifact. It never reads the live GitHub ruleset; live enforcement is repository settings and the rulesets API.",
+  "verify_prerequisites": [
+    "tracked-paths-check",
+    "mod-check",
+    "fmt-check",
+    "css-check",
+    "vet",
+    "lint",
+    "staticcheck",
+    "gosec",
+    "test",
+    "convention-check",
+    "real-vault-build-check",
+    "workflow-check",
+    "build-check",
+    "frontend-check",
+    "check-fixtures",
+    "e2e-http-check",
+    "fuzz-smoke",
+    "browser-check",
+    "mutation-check",
+    "portable-build-check",
+    "performance-smoke",
+    "vuln"
+  ],
+  "ci_jobs": [
+    {"name": "verify"},
+    {"name": "govulncheck"},
+    {"name": "coverage"},
+    {
+      "name": "portable-core",
+      "matrix": ["macos-15", "windows-latest"]
+    },
+    {"name": "assets-drift"},
+    {"name": "lint-frontend"},
+    {"name": "e2e-http"},
+    {"name": "fuzz"},
+    {"name": "e2e-behavior"},
+    {"name": "e2e-mutations"}
+  ]
+}
