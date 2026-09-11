@@ -460,6 +460,55 @@ func TestTransitionButtonsAreDescribedByTheSchemaNotices(t *testing.T) {
 	})
 }
 
+// TestSchemaNoticesStandInReadingColumn pins where unknown-field guidance
+// renders. The block carries the id the transition controls describe
+// themselves by, so it must appear exactly once in the document; hiding it
+// inside the right rail made it vanish at the widths where that rail is gone.
+func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
+	t.Parallel()
+
+	v := NoteView{
+		Governed:    true,
+		Title:       "Probe",
+		RelPath:     "Writing/lessons/japanese/L01.md",
+		Status:      "draft",
+		Transitions: []Transition{{To: schema.SealStatus}},
+		SchemaNotices: [][]wording.SchemaPart{
+			{{Text: "mystery_key", Code: true}, {Text: " 不是 schema 認得的欄位。"}},
+		},
+	}
+	var buf bytes.Buffer
+	if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+
+	_, afterArticle, ok := strings.Cut(html, `<article class="y-article">`)
+	if !ok {
+		t.Fatal("the page has no article")
+	}
+	article, _, ok := strings.Cut(afterArticle, "</article>")
+	if !ok {
+		t.Fatal("the article is not closed")
+	}
+
+	if !strings.Contains(article, `id="schema-notices"`) {
+		t.Fatalf("the schema notices block is not in the reading column:\n%s", article)
+	}
+	if strings.Contains(article, `aside class="y-rail-right"`) {
+		t.Fatal("the reading column should not contain the right rail")
+	}
+	railStart := strings.Index(html, `<aside class="y-rail-right"`)
+	if railStart >= 0 && strings.Contains(html[railStart:], `id="schema-notices"`) {
+		t.Errorf("the schema notices block still renders inside the right rail")
+	}
+	proseStart := strings.Index(article, `<div class="y-prose">`)
+	noticeStart := strings.Index(article, `id="schema-notices"`)
+	if proseStart < 0 || noticeStart < 0 || noticeStart > proseStart {
+		t.Errorf("the schema notices block must sit above the prose; notice@%d prose@%d", noticeStart, proseStart)
+	}
+}
+
 // TestInlineDiagnosticsFoldAboveTheProse pins the placement, not the contents.
 // At widths where the right rail is gone this block sits between the title and
 // the first sentence, so an open list of findings was the last thing the page
