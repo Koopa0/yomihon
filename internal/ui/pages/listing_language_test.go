@@ -106,6 +106,36 @@ func TestFolderListingLanguageComesOnlyFromAuthority(t *testing.T) {
 	}
 }
 
+// TestSearchUnlocatedNoteUsesNoArticleLanguage holds the interface sentence a
+// block-crossing row carries when the page cannot locate the hit: it is chosen
+// by the chrome language and must not inherit the note's declared tag.
+func TestSearchUnlocatedNoteUsesNoArticleLanguage(t *testing.T) {
+	t.Parallel()
+	view := SearchView{
+		Query: "needle",
+		Results: []SearchResult{{
+			RelPath:       "Notes/alpha.md",
+			Title:         "Alpha",
+			Language:      "ja",
+			BlockCrossing: true,
+			Landing:       "",
+			LandingEnd:    "",
+		}},
+		Total: 1,
+	}
+	var buf bytes.Buffer
+	if err := SearchResults(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, wording.SearchHitUnlocated.In(wording.ZhHant)) {
+		t.Fatalf("SearchResults() missing unlocated note sentence in %q", html)
+	}
+	if strings.Contains(html, `y-result__snippet" lang=`) {
+		t.Errorf("unlocated search row stamped snippet language: %q", html)
+	}
+}
+
 // TestRailListingLanguageComesOnlyFromAuthority holds the left-rail folder shelf
 // the same way: declared language on the row span, absent otherwise.
 func TestRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
