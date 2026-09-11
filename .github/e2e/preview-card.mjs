@@ -585,9 +585,20 @@ try {
 
 	// The two links that must open nothing: one the renderer marked as landing
 	// somewhere other than it says, and one that leaves this machine.
+	// Reading-column schema notices push these links down, so they are scrolled
+	// into view once before the loop. Scrolling inside the assertion window would
+	// dismiss a card the mutation opened, because preview.js closes on scroll.
+	const negativeLinks = [];
 	for (const label of [DEGRADED_LINK, EXTERNAL_LINK]) {
-		const link = await only(page, label);
+		negativeLinks.push({ label, link: await only(page, label) });
+	}
+	for (const { link } of negativeLinks) {
 		await link.scrollIntoViewIfNeeded();
+	}
+	await page.waitForTimeout(300);
+	await page.mouse.move(4, 4);
+	await settles(page, false, 2000);
+	for (const { label, link } of negativeLinks) {
 		await link.hover();
 		await page.waitForTimeout(700);
 		proveApplied('a-link-that-cannot-be-previewed-opens-nothing', proof);
