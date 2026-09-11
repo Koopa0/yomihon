@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/wording"
@@ -266,5 +267,14 @@ func TestCountUnitKeepsThePhraseAfterTheDigits(t *testing.T) {
 				t.Errorf("countUnit(%d, %s) = %q, want %q", tt.n, tt.lang, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCountUnitDropsDigitsThatDoNotLeadThePhrase(t *testing.T) {
+	t.Parallel()
+
+	got := countUnit(3, wording.DegradedNoticeOne, wording.DegradedNoticeMany, wording.ZhHant)
+	if strings.Contains(got, "3") {
+		t.Errorf("countUnit returned the digits it should have taken out: %q", got)
 	}
 }

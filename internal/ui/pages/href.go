@@ -158,11 +158,8 @@ func plural(n int, one, many wording.Phrase, lang wording.Lang) string {
 // keep the number on screen and put the unit in the accessibility tree
 // without an aria-label on a role-less span.
 func countUnit(n int, one, many wording.Phrase, lang wording.Lang) string {
-	full := plural(n, one, many, lang)
-	if unit, ok := strings.CutPrefix(full, strconv.Itoa(n)); ok && unit != "" {
-		return unit
-	}
-	return full
+	_, unit, _ := strings.Cut(plural(n, one, many, lang), strconv.Itoa(n))
+	return unit
 }
 
 // statusChipLabel names one square of the lifecycle block, saying in words that
