@@ -90,6 +90,33 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
+// Author CSS must be in effect before the entrance declaration is read. Measuring
+// as soon as the element exists can still see animation:none before /static/app.css
+// applies, and a cross-document view transition can suspend painting on the
+// arriving page until pagereveal — long enough for a 200ms fade to finish unseen.
+const waitForAppStyles = (page) => page.waitForFunction(() =>
+  [...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css')),
+);
+
+const waitArrival = (page) => page.evaluate(() => new Promise((resolve) => {
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    resolve();
+  };
+  setTimeout(finish, 600);
+  const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(finish));
+  afterPaint();
+  window.addEventListener('pagereveal', (event) => {
+    if (event.viewTransition?.finished) {
+      event.viewTransition.finished.then(afterPaint, afterPaint);
+      return;
+    }
+    afterPaint();
+  }, { once: true });
+}));
+
 const readEntranceDeclaration = (receipt) => receipt.evaluate((el) => {
   const style = getComputedStyle(el);
   return { name: style.animationName, duration: style.animationDuration };
@@ -185,6 +212,8 @@ try {
 
   const receipt = page.locator('.y-flipreceipt');
   if (await receipt.count() !== 1) broken(`the arrival page carries ${await receipt.count()} flip receipts, want 1`);
+  await waitForAppStyles(page);
+  await waitArrival(page);
 
   if (proof) {
     const issue = proof();
