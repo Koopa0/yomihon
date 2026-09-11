@@ -8,6 +8,13 @@
 # Makefile without updating the contract fails here, and listing one in the
 # contract that verify no longer reaches fails here too.
 set -eu
+lock_test=0
+case "${1:-}" in
+  --lock-test)
+    lock_test=1
+    shift
+    ;;
+esac
 makefile="${1:-Makefile}"
 workflow="${2:-.github/workflows/ci.yml}"
 ruleset="${3:-.github/rulesets/main.json}"
@@ -87,9 +94,30 @@ lint_globs() {
   uncommented "$1" | awk '/biome lint/ { for (i = 1; i <= NF; i++) if ($i ~ /\*/) print $i }' | sorted_lines
 }
 
+run_lock_test() {
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/gate-contract-lock.XXXXXX")
+  trap 'rm -rf "$tmp"' EXIT INT HUP
+  cp "$makefile" "$tmp/Makefile"
+  cp "$workflow" "$tmp/ci.yml"
+  cp "$ruleset" "$tmp/main.json"
+  cp "$contract" "$tmp/gate-contract.json"
+  sed '/^verify:/ s/ test / /' "$tmp/Makefile" >"$tmp/Makefile.new"
+  mv "$tmp/Makefile.new" "$tmp/Makefile"
+  if sh "$0" "$tmp/Makefile" "$tmp/ci.yml" "$tmp/main.json" "$tmp/gate-contract.json"; then
+    echo "check-gate-contract: lock test survived dropping test from verify; the contract must fail closed" >&2
+    exit 1
+  fi
+  echo "check-gate-contract: lock test caught a dropped verify prerequisite"
+}
+
 [ -f "$contract" ] || fail "missing contract file $contract"
 [ -f "$ruleset" ] || fail "missing ruleset file $ruleset"
 command -v jq >/dev/null || fail "jq is required to read $contract and $ruleset"
+
+if [ "$lock_test" -eq 1 ]; then
+  run_lock_test
+  exit 0
+fi
 
 reached=$(verify_prereqs)
 [ -n "$reached" ] || fail "read no verify prerequisites out of $makefile"
@@ -110,30 +138,7 @@ fi
 jobs=$(ci_jobs)
 [ -n "$jobs" ] || fail "read no jobs out of $workflow"
 
-<<<<<<< HEAD
-contract_targets=$(
-  jq -r '.required_verify_targets[]' "$contract" | sorted_lines
-)
-[ -n "$contract_targets" ] || fail "read no required verify targets out of $contract"
-if ! same_sets "$contract_targets" "$reached"; then
-  fail "verify prerequisites differ from the contract"
-  printf '%s\n' "$contract_targets" | sed 's/^/  contract: /' >&2
-  printf '%s\n' "$reached" | sed 's/^/  verify:   /' >&2
-fi
-
-while IFS= read -r removed; do
-  [ -n "$removed" ] || continue
-  if printf '%s\n' "$jobs" | grep -qx "$removed"; then
-    fail "$workflow still defines duplicate job $removed; its behavior belongs under make verify"
-  fi
-done <<EOF
-$(jq -r '.removed_duplicate_jobs[]' "$contract")
-EOF
-
-expected_jobs=$(jq -r '.canonical_job, .ci_only_jobs[].name' "$contract" | sorted_lines)
-=======
 expected_jobs=$(jq -r '.ci_jobs[].name' "$contract" | sorted_lines)
->>>>>>> 1c6d2c7 (ci: pin all 22 verify prerequisites in gate-contract)
 if ! same_sets "$expected_jobs" "$jobs"; then
   fail "CI jobs differ from the contract"
   printf '%s\n' "$expected_jobs" | sed 's/^/  expected: /' >&2

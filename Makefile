@@ -170,6 +170,7 @@ workflow-check:
 	@$(call require-go-tool,actionlint,github.com/rhysd/actionlint,$(ACTIONLINT_VERSION))
 	@sh tools/check-ci-tools.sh
 	@sh tools/check-gate-contract.sh
+	@sh tools/check-gate-contract.sh --lock-test
 	@shellcheck --version | awk '$$1 == "version:" && $$2 == "$(SHELLCHECK_VERSION)" { found = 1 } END { exit !found }' || { \
 		echo 'ShellCheck $(SHELLCHECK_VERSION) is required' >&2; \
 		exit 1; \
