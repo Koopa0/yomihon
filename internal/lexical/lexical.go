@@ -139,6 +139,11 @@ type Document struct {
 	// not be parsed, which is not the same as a note that declares nothing. Both
 	// arrive with every field empty, and only this tells them apart.
 	FrontmatterUnreadable bool
+
+	// Language is the note's own declared BCP 47 tag when the contract gave
+	// the field authority and the frontmatter carried a valid value. Empty
+	// otherwise, so a listing inherits the page language rather than guessing.
+	Language string
 }
 
 // entry is one indexed note. Title and PlainText keep their display form and the
@@ -183,6 +188,10 @@ type entry struct {
 	// could not be parsed, so a tally can separate it from a note that declared
 	// nothing.
 	frontmatterUnreadable bool
+
+	// language is the note's declared article language, carried into results
+	// so a listing can stamp title and snippet without re-reading frontmatter.
+	language string
 }
 
 // Index is the whole in-memory search index, entries kept in the vault's reading
@@ -315,6 +324,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		// metadata projection under any policy.
 		metadataCapable:       !d.File && policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
 		frontmatterUnreadable: d.FrontmatterUnreadable,
+		language:              d.Language,
 	}
 }
 

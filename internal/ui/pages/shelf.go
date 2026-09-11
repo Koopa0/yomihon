@@ -66,6 +66,10 @@ type Row struct {
 	// address, and a narrowed shelf skips it the way it skips any row that
 	// leads nowhere.
 	Heading bool
+	// Language is the note's own declared BCP 47 tag when the contract gave
+	// the field authority and the frontmatter carried a valid value. Empty
+	// otherwise, so a listing inherits the page language rather than guessing.
+	Language string
 }
 
 // railRows takes the rows a rail can show around the one the reader is on, and

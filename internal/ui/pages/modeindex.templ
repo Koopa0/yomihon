@@ -53,7 +53,7 @@ templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Ch
 						for _, n := range recent.Notes {
 							<a class="y-homenote" href={ templ.URL(notesHref(n.RelPath)) } data-home-recent-note>
 								<span class="y-homenote__main">
-									<span class="y-homenote__title">{ n.Title }</span>
+									<span class="y-homenote__title" { authoredLanguageAttrs(n.Language)... }>{ n.Title }</span>
 									<span class="y-homenote__path">{ n.RelPath }</span>
 								</span>
 								<span class="y-homenote__meta">

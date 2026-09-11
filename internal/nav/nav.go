@@ -295,6 +295,10 @@ func cloneFolders(source []Folder) []Folder {
 type NoteRef struct {
 	Name    string
 	RelPath string
+	// Language is the note's own declared BCP 47 tag when the contract gave
+	// the field authority and the frontmatter carried a valid value. Empty
+	// otherwise, so a listing inherits the page language rather than guessing.
+	Language string
 }
 
 // Report is one file under System/reports/. Briefing marks the daily-briefing/

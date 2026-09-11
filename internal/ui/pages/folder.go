@@ -21,7 +21,7 @@ type FolderView struct {
 // NewFolderLevel builds one level of the tree. The folders come first with
 // how many notes sit under each of them, then the notes in this folder, then
 // the other files the desk can open, labelled and uncounted.
-func NewFolderLevel(dir, name string, notes []nav.NoteRef, subfolders []nav.Folder, lang wording.Lang) FolderView {
+func NewFolderLevel(dir, name string, notes []nav.NoteRef, subfolders []nav.Folder, lang wording.Lang, articleLang ArticleLanguageFor) FolderView {
 	count := plural(countNotes(notes, nil), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang)
 	if len(subfolders) > 0 {
 		count = plural(len(subfolders), wording.SubfolderCountOne, wording.SubfolderCountMany, lang) + count
@@ -32,7 +32,7 @@ func NewFolderLevel(dir, name string, notes []nav.NoteRef, subfolders []nav.Fold
 		Shelf: Shelf{
 			Title: name,
 			Empty: wording.FolderEmpty.In(lang),
-			Rows:  folderRows(notes, subfolders, lang, false),
+			Rows:  folderRows(notes, subfolders, lang, false, articleLang),
 		},
 	}
 }

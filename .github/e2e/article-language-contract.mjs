@@ -19,6 +19,10 @@ const DECLARED_PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/
 const MISSING_PAGE = '/notes/Notes/alpha.md';
 const DECLARED_RAW = '/raw/Writing/lessons/japanese/L01.md';
 const CONTRACT_RAW = '/raw/System/schemas/vault-schema.toml';
+const SEARCH_DECLARED = '/search?q=L01';
+const FOLDERS = '/folders/Writing/lessons/japanese';
+const SEARCH_UNDECLARED = '/search?q=type%3Aconcept%20%E3%81%AF';
+const UNDECLARED_NOTE = '/notes/Concepts/japanese/%E3%81%AF.md';
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
@@ -37,6 +41,9 @@ const SITES = [
   'switched-shell-language',
   'switched-chrome-language',
   'switched-authored-language',
+  'listing-search-declared-language',
+  'listing-folder-declared-language',
+  'listing-search-undeclared-language',
 ];
 
 class LockFired extends Error {
@@ -86,6 +93,17 @@ const rewritePath = (path, needle, replacement, label, want = 1) => async (page)
 // at all. So an entry cannot be read by its own attribute — it usually has
 // none. What decides how it is announced is the nearest declaration above it,
 // which is what this collects.
+const readListingLanguages = () => ({
+  searchTitles: Array.from(document.querySelectorAll('.y-result__title'), (element) => ({
+    text: element.textContent,
+    lang: element.getAttribute('lang'),
+  })),
+  folderTitles: Array.from(document.querySelectorAll('.y-row__title'), (element) => ({
+    text: element.textContent,
+    lang: element.getAttribute('lang'),
+  })),
+});
+
 const readLanguages = () => ({
   shellLanguage: document.documentElement.getAttribute('lang'),
   articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
@@ -174,6 +192,18 @@ const MUTATIONS = {
     on: 'switched',
     apply: rewritePath(DECLARED_PAGE, '<div class="y-toc__list" lang="ja">', '<div class="y-toc__list" lang="en">', 'switched contents-list language', 2),
   },
+  'drop-search-listing-lang': {
+    target: 'listing-search-declared-language',
+    apply: rewritePath(SEARCH_DECLARED, '<span class="y-result__title" lang="ja">', '<span class="y-result__title">', 'search listing title language'),
+  },
+  'drop-folder-listing-lang': {
+    target: 'listing-folder-declared-language',
+    apply: rewritePath(FOLDERS, '<span class="y-row__title" lang="ja">', '<span class="y-row__title">', 'folder listing title language'),
+  },
+  'stamp-search-undeclared-lang': {
+    target: 'listing-search-undeclared-language',
+    apply: rewritePath(SEARCH_UNDECLARED, '<span class="y-result__title">は</span>', '<span class="y-result__title" lang="ja">は</span>', 'undeclared search listing title language'),
+  },
 };
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
@@ -222,6 +252,24 @@ try {
   if (!response || response.status() !== 200) broken(`${MISSING_PAGE} returned ${response?.status() ?? 'no response'}, want 200`);
   const missingDOM = await page.evaluate(() => ({
     shellLanguage: document.documentElement.getAttribute('lang'),
+    articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
+  }));
+
+  response = await page.goto(BASE + SEARCH_DECLARED, { waitUntil: 'domcontentloaded' });
+  if (!response || response.status() !== 200) broken(`${SEARCH_DECLARED} returned ${response?.status() ?? 'no response'}, want 200`);
+  const searchDeclaredDOM = await page.evaluate(readListingLanguages);
+
+  response = await page.goto(BASE + FOLDERS, { waitUntil: 'domcontentloaded' });
+  if (!response || response.status() !== 200) broken(`${FOLDERS} returned ${response?.status() ?? 'no response'}, want 200`);
+  const folderDOM = await page.evaluate(readListingLanguages);
+
+  response = await page.goto(BASE + SEARCH_UNDECLARED, { waitUntil: 'domcontentloaded' });
+  if (!response || response.status() !== 200) broken(`${SEARCH_UNDECLARED} returned ${response?.status() ?? 'no response'}, want 200`);
+  const searchUndeclaredDOM = await page.evaluate(readListingLanguages);
+
+  response = await page.goto(BASE + UNDECLARED_NOTE, { waitUntil: 'domcontentloaded' });
+  if (!response || response.status() !== 200) broken(`${UNDECLARED_NOTE} returned ${response?.status() ?? 'no response'}, want 200`);
+  const undeclaredArticleDOM = await page.evaluate(() => ({
     articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
   }));
 
@@ -308,6 +356,30 @@ try {
     fail('missing-article-language', `note-without-lang article langs are ${JSON.stringify(missingDOM.articleLanguages)}, want exactly [null]: no attribute, so the page language is inherited`);
   }
 
+  const declaredSearchTitle = searchDeclaredDOM.searchTitles.find((row) => row.text.includes('L01'));
+  if (!declaredSearchTitle) {
+    broken(`search for L01 returned no .y-result__title rows: ${JSON.stringify(searchDeclaredDOM.searchTitles)}`);
+  } else if (declaredSearchTitle.lang !== 'ja') {
+    fail('listing-search-declared-language', `L01 search title declares ${JSON.stringify(declaredSearchTitle.lang)}, want "ja"`);
+  }
+
+  const declaredFolderTitle = folderDOM.folderTitles.find((row) => row.text.includes('L01'));
+  if (!declaredFolderTitle) {
+    broken(`folders returned no L01 .y-row__title rows: ${JSON.stringify(folderDOM.folderTitles)}`);
+  } else if (declaredFolderTitle.lang !== 'ja') {
+    fail('listing-folder-declared-language', `L01 folder title declares ${JSON.stringify(declaredFolderTitle.lang)}, want "ja"`);
+  }
+
+  const undeclaredSearchTitle = searchUndeclaredDOM.searchTitles.find((row) => row.text === 'は');
+  if (!undeclaredSearchTitle) {
+    broken(`search for type:concept は returned no .y-result__title rows: ${JSON.stringify(searchUndeclaredDOM.searchTitles)}`);
+  } else if (undeclaredSearchTitle.lang !== null) {
+    fail('listing-search-undeclared-language', `は search title declares ${JSON.stringify(undeclaredSearchTitle.lang)}, want null: the note declared no language and yomihon does not guess`);
+  }
+  if (undeclaredArticleDOM.articleLanguages.length !== 1 || undeclaredArticleDOM.articleLanguages[0] !== null) {
+    fail('listing-search-undeclared-language', `は article langs are ${JSON.stringify(undeclaredArticleDOM.articleLanguages)}, want exactly [null] so the listing lock is not satisfied by a reading page that already declared one`);
+  }
+
   // The second pass. Everything the interface says is now English and
   // everything the author wrote is still Japanese, and the two are nested
   // inside each other: the frame declares one language and the article inside
@@ -341,7 +413,7 @@ try {
     }
   }
 
-  console.log('PASS article-language-contract: article, chrome islands, contents entries, read-aloud, and slot output keep their ruled language boundaries, in both languages the chrome speaks');
+  console.log('PASS article-language-contract: article, chrome islands, contents entries, read-aloud, slot output, and search and folder listings keep their ruled language boundaries, in both languages the chrome speaks');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

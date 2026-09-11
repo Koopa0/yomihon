@@ -146,7 +146,7 @@ func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 	// Diary stay outside this shelf's measure.
 	const files = 9
 
-	view := NewFolderIndex(buildModel(t), wording.ZhHant)
+	view := NewFolderIndex(buildModel(t), wording.ZhHant, nil)
 	if view.Kicker != "9 篇" {
 		t.Errorf("folder index kicker = %q, want it to name all %d files on the shelf", view.Kicker, files)
 	}
@@ -167,7 +167,7 @@ func TestFolderIndexLabelsRootNotesAsTheirOwnGroup(t *testing.T) {
 		{wording.ZhHant, "根目錄筆記"},
 		{wording.En, "Root notes"},
 	} {
-		view := NewFolderIndex(model, tt.lang)
+		view := NewFolderIndex(model, tt.lang, nil)
 		at := -1
 		for i, row := range view.Shelf.Rows {
 			if row.Heading && row.Text == tt.want {
@@ -194,7 +194,7 @@ func TestFolderLevelLabelsOtherFilesAndLeavesThemUncounted(t *testing.T) {
 		{Name: "note", RelPath: "Attachments/note.md"},
 		{Name: "scan.pdf", RelPath: "Attachments/scan.pdf"},
 	}
-	zh := NewFolderLevel("Attachments", "Attachments", files, nil, wording.ZhHant)
+	zh := NewFolderLevel("Attachments", "Attachments", files, nil, wording.ZhHant, nil)
 	if zh.Count != "1 篇" {
 		t.Errorf("folder level count = %q, want notes only", zh.Count)
 	}
@@ -206,7 +206,7 @@ func TestFolderLevelLabelsOtherFilesAndLeavesThemUncounted(t *testing.T) {
 	if diff := cmp.Diff(wantZH, zh.Shelf.Rows); diff != "" {
 		t.Errorf("folder level rows (zh) mismatch (-want +got):\n%s", diff)
 	}
-	en := NewFolderLevel("Attachments", "Attachments", files, nil, wording.En)
+	en := NewFolderLevel("Attachments", "Attachments", files, nil, wording.En, nil)
 	if en.Shelf.Rows[1].Text != "Other files" || !en.Shelf.Rows[1].Heading {
 		t.Errorf("folder level (%s) other-files label = %+v, want Other files", wording.En, en.Shelf.Rows)
 	}
@@ -227,7 +227,7 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		{pathMode, ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, wording.ZhHant), layouts.Chrome{})},
 		{mapMode, ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant), layouts.Chrome{})},
 		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant), layouts.Chrome{})},
-		{folderMode, FolderIndex(NewFolderIndex(model, wording.ZhHant), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
+		{folderMode, FolderIndex(NewFolderIndex(model, wording.ZhHant, nil), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode, func(t *testing.T) {

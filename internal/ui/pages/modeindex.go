@@ -245,17 +245,21 @@ func leadingDate(name string) string {
 	return head
 }
 
+// ArticleLanguageFor returns a note's declared article language by path, or
+// empty when the note declared none or the contract gave no authority.
+type ArticleLanguageFor func(relPath string) string
+
 // NewFolderIndex builds the folder shelf from the declared knowledge layer,
 // or the full directory tree when no scope is available. Its measure includes
 // every file below those folders and every root file, so a vault whose files
 // all sit at the root counts and lists them without calling itself empty.
-func NewFolderIndex(model *nav.Model, lang wording.Lang) ListIndexView {
+func NewFolderIndex(model *nav.Model, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rootNotes := model.RootNotes()
 	folders := model.ShelfFolders()
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
 		wording.FolderIndexLede.In(lang), wording.FolderIndexEmpty.In(lang),
-		folderRows(rootNotes, folders, lang, true))
+		folderRows(rootNotes, folders, lang, true, articleLang))
 }
 
 // folderRows is one level of the tree. The folders come first, because a reader
@@ -268,7 +272,7 @@ func NewFolderIndex(model *nav.Model, lang wording.Lang) ListIndexView {
 // One level is the whole of it. A page that unfolded every depth at once would
 // be the drawer the reading desk was built to replace, and the level below is
 // one row away.
-func folderRows(files []nav.NoteRef, folders []nav.Folder, lang wording.Lang, root bool) []Row {
+func folderRows(files []nav.NoteRef, folders []nav.Folder, lang wording.Lang, root bool, articleLang ArticleLanguageFor) []Row {
 	notes, others := splitNotesAndFiles(files)
 	rows := make([]Row, 0, len(folders)+len(notes)+len(others)+2)
 	for i := range folders {
@@ -283,7 +287,11 @@ func folderRows(files []nav.NoteRef, folders []nav.Folder, lang wording.Lang, ro
 			rows = append(rows, Row{Text: wording.RootNotes.In(lang), Heading: true})
 		}
 		for _, note := range notes {
-			rows = append(rows, Row{Text: note.Name, Href: notesHref(note.RelPath)})
+			language := note.Language
+			if language == "" && articleLang != nil {
+				language = articleLang(note.RelPath)
+			}
+			rows = append(rows, Row{Text: note.Name, Href: notesHref(note.RelPath), Language: language})
 		}
 	}
 	if len(others) > 0 {
@@ -361,7 +369,7 @@ func NewDeskBlocks(model *nav.Model, governed bool, lang wording.Lang) []DeskBlo
 	pathIndex := NewPathIndex(model.Paths(), closure, governed, lang)
 	mapIndex := NewMapIndex(model.Maps(), closure, governed, lang)
 	reportIndex := NewReportIndex(model.Reports(), lang)
-	folderIndex := NewFolderIndex(model, lang)
+	folderIndex := NewFolderIndex(model, lang, nil)
 	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))
 	mapBlock := deskBlock(&mapIndex, wording.DeskMapsLede.In(lang))
 	if withheld {

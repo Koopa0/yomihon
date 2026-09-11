@@ -57,6 +57,11 @@ type Result struct {
 	// words live only there. The row names that the way it names an alias
 	// or a topic; the excerpt itself stays the fence's own lines.
 	FromFence bool
+
+	// Language is the note's own declared BCP 47 tag when the contract gave
+	// the field authority and the frontmatter carried a valid value. Empty
+	// otherwise, so a listing inherits the page language rather than guessing.
+	Language string
 }
 
 const (
@@ -429,6 +434,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		LandingEnd:    landingEnd,
 		BlockCrossing: crossing,
 		FromFence:     fromFence,
+		Language:      e.language,
 	}
 }
 

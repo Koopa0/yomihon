@@ -121,7 +121,7 @@ templ shelfPageRow(row Row) {
 }
 
 templ shelfRowBody(row Row) {
-	<span class="y-row__title">{ row.Text }</span>
+	<span class="y-row__title" { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
 	if row.Mark != "" {
 		<span class={ "y-row__measure", templ.KV("y-row__measure--warn", row.Fault) }>{ row.Mark }</span>
 	}

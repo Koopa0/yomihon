@@ -53,8 +53,12 @@ type SearchView struct {
 type SearchResult struct {
 	RelPath string
 	Title   string
-	Status  string
-	Snippet string
+	// Language is the note's own declared BCP 47 tag when the contract gave
+	// the field authority and the frontmatter carried a valid value. Empty
+	// otherwise, so a listing inherits the page language rather than guessing.
+	Language string
+	Status   string
+	Snippet  string
 
 	// SnippetRuns is the snippet cut into the stretches that matched the query
 	// and the stretches that did not, so the page can mark the words the reader
@@ -210,7 +214,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 				for _, r := range v.Results {
 					<li>
 						<a class="y-result" href={ templ.URL(notesHref(r.RelPath) + hitFragment(&r)) }>
-							<span class="y-result__title">{ r.Title }</span>
+							<span class="y-result__title" { authoredLanguageAttrs(r.Language)... }>{ r.Title }</span>
 							<span class="y-result__meta">
 								if len(r.PathRuns) > 0 {
 									@hitRuns(r.PathRuns)
@@ -248,13 +252,13 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 								}
 							</span>
 							if note := unlocatedNote(&r, lang); note != "" {
-								<span class="y-result__snippet">{ note }</span>
+								<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>{ note }</span>
 							} else if len(r.SnippetRuns) > 0 {
-								<span class="y-result__snippet">
+								<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>
 									@hitRuns(r.SnippetRuns)
 								</span>
 							} else if r.Snippet != "" {
-								<span class="y-result__snippet">{ r.Snippet }</span>
+								<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>{ r.Snippet }</span>
 							}
 						</a>
 					</li>
