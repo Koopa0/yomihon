@@ -190,6 +190,8 @@ func lastCompleteBuild(fresh *snapshot.Freshness) string {
 	return fresh.LastComplete.Format("2006-01-02 15:04")
 }
 
+// healthCollisions maps each shared name onto the page type, which keeps
+// Candidates as []nav.NoteRef rather than the generation's []string.
 func healthCollisions(collisions []snapshot.HealthCollision) []pages.HealthCollision {
 	out := make([]pages.HealthCollision, 0, len(collisions))
 	for _, collision := range collisions {
