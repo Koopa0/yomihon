@@ -93,11 +93,11 @@ var (
 var (
 	EntryUnresolved       = both("未解析", "Unresolved")
 	EntryAmbiguous        = both("有歧義", "Ambiguous")
-	EntryNonInstance      = both("非治理項目", "Not governed")
+	EntryNonInstance      = both("非課文", "Not a lesson")
 	EntryResolved         = both("已解析", "Resolved")
 	EntryUnresolvedTitle  = both("找不到目標", "The target was not found")
 	EntryAmbiguousTitle   = both("目標有歧義", "The target is ambiguous")
-	EntryNonInstanceTitle = both("目標不屬於生命週期治理範圍", "The target is outside lifecycle governance")
+	EntryNonInstanceTitle = both("目標不是課文", "The target is not a lesson")
 )
 
 // The parentheses the offscreen explanation of a link sits inside, and the

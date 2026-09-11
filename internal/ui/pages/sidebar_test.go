@@ -587,7 +587,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 		t.Fatalf("sidebar path/map markers = %d/%d, want ordered groups", pathsAt, mapsAt)
 	}
 	paths := html[pathsAt:mapsAt]
-	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">非治理項目</span>"} {
+	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">非課文</span>"} {
 		if !strings.Contains(paths, want) {
 			t.Errorf("sidebar Paths is missing non-instance warning output %q", want)
 		}
@@ -617,7 +617,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 	}
 	// The warning belongs to the course that named the file, not to the folder
 	// it sits in: there it is one file among its neighbours.
-	if strings.Contains(here, ">非治理項目</span>") {
+	if strings.Contains(here, ">非課文</span>") {
 		t.Error("the folder listing repeats the course's warning about a file in it")
 	}
 }
