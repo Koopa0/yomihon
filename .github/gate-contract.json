@@ -17,14 +17,27 @@
     "e2e-mutations"
   ],
   "required_verify_targets": [
-    "vuln",
+    "tracked-paths-check",
+    "mod-check",
     "fmt-check",
     "css-check",
+    "vet",
+    "lint",
+    "staticcheck",
+    "gosec",
+    "test",
+    "convention-check",
+    "real-vault-build-check",
+    "workflow-check",
+    "build-check",
     "frontend-check",
+    "check-fixtures",
     "e2e-http-check",
     "fuzz-smoke",
-    "performance-smoke",
     "browser-check",
-    "mutation-check"
+    "mutation-check",
+    "portable-build-check",
+    "performance-smoke",
+    "vuln"
   ]
 }

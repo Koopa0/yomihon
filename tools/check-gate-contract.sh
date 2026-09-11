@@ -89,14 +89,15 @@ reached=$(verify_prereqs)
 jobs=$(ci_jobs)
 [ -n "$jobs" ] || fail "read no jobs out of $workflow"
 
-while IFS= read -r target; do
-  [ -n "$target" ] || continue
-  if ! printf '%s\n' "$reached" | grep -qx "$target"; then
-    fail "$makefile verify does not reach $target, which a removed duplicate job used to own"
-  fi
-done <<EOF
-$(jq -r '.required_verify_targets[]' "$contract")
-EOF
+contract_targets=$(
+  jq -r '.required_verify_targets[]' "$contract" | sorted_lines
+)
+[ -n "$contract_targets" ] || fail "read no required verify targets out of $contract"
+if ! same_sets "$contract_targets" "$reached"; then
+  fail "verify prerequisites differ from the contract"
+  printf '%s\n' "$contract_targets" | sed 's/^/  contract: /' >&2
+  printf '%s\n' "$reached" | sed 's/^/  verify:   /' >&2
+fi
 
 while IFS= read -r removed; do
   [ -n "$removed" ] || continue
