@@ -1184,10 +1184,25 @@ html {
   to { background: transparent; box-shadow: 0 0 0 6px transparent; }
 }
 
-/* Entry transitions for the top-layer surfaces: first-frame styles let the
-   open state transition in instead of popping. */
-.y-searchdialog[open] { transition: opacity var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard); }
-.y-conceptsheet[open] { transition: opacity var(--dur-slow) var(--ease-standard); }
+/* Top-layer open and close. The transition lives on the element, not on
+   [open]: removing the open state used to drop the declaration, so the
+   exit had nowhere to live and the surface vanished mid-curve. display
+   and overlay stay in the list with allow-discrete so the element remains
+   on the top layer while it fades; display alone would keep painting
+   frames after it had already left, behind the backdrop. */
+.y-searchdialog {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: display var(--dur-slow) var(--ease-standard), overlay var(--dur-slow) var(--ease-standard), opacity var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
+  transition-behavior: allow-discrete;
+}
+.y-searchdialog[open] { opacity: 1; transform: none; }
+.y-conceptsheet {
+  opacity: 0;
+  transition: display var(--dur-slow) var(--ease-standard), overlay var(--dur-slow) var(--ease-standard), opacity var(--dur-slow) var(--ease-standard);
+  transition-behavior: allow-discrete;
+}
+.y-conceptsheet[open] { opacity: 1; }
 @starting-style {
   .y-searchdialog[open] { opacity: 0; transform: translateY(-6px); }
   .y-conceptsheet[open] { opacity: 0; }
@@ -1512,8 +1527,11 @@ html {
   overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px;
   background: var(--panel); color: var(--fg); border: 1px solid var(--border);
   border-radius: var(--r-md); box-shadow: var(--shadow-2);
+  opacity: 0;
+  transition: display var(--dur-base) var(--ease-standard), overlay var(--dur-base) var(--ease-standard), opacity var(--dur-base) var(--ease-standard);
+  transition-behavior: allow-discrete;
 }
-.y-preview:popover-open { transition: opacity var(--dur-base) var(--ease-standard); }
+.y-preview:popover-open { opacity: 1; }
 @starting-style { .y-preview:popover-open { opacity: 0; } }
 .y-preview__body { content-visibility: auto; contain-intrinsic-block-size: auto 20rem; }
 /* The excerpt opens flush: the space a first heading or paragraph normally

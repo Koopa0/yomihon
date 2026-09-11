@@ -9,9 +9,10 @@
 // better answer with a worse one. Nothing here moves focus for the same reason.
 //
 // Where the card lands is CSS's decision, made from an anchor name this module
-// writes onto the link under the pointer and removes from the previous one. The
-// module owns when the card opens, what is in it, and when it closes; it owns
-// no geometry at all.
+// writes onto the link under the pointer and removes from the previous one.
+// The name stays until the card has finished hiding: the exit is painted, and
+// without the name the card has no place to be. The module owns when the card
+// opens, what is in it, and when it closes; it owns no geometry at all.
 export function initPreview() {
   const root = document.querySelector('[data-preview-endpoint]');
   const card = document.querySelector('[data-preview-card]');
@@ -36,6 +37,8 @@ export function initPreview() {
   let timer = null;
   let controller = null;
   let anchored = null;
+  let exiting = null;
+  let hideGen = 0;
 
   // The address of the excerpt one link asks for: the note's own path carried
   // over from the link verbatim, and the fragment it addresses read off the
@@ -65,10 +68,42 @@ export function initPreview() {
     timer = null;
     controller?.abort();
     controller = null;
+    // The attribute is the CSS anchor. hidePopover() starts the exit and
+    // returns at once. The toggle is queued as a task, so by the time it
+    // runs card.getAnimations() already holds the exit transitions — the
+    // empty branch is reduced motion or transition: none. Dropping the
+    // name here, or in that handler without waiting, would leave a painted
+    // card with no position-anchor. The name stays until those animations
+    // finish. close() itself forgets nothing: the toggle moves `anchored`
+    // aside so a hover that arrives mid-fade is a new open.
+    if (card.matches(':popover-open')) {
+      card.hidePopover();
+      return;
+    }
     anchored?.removeAttribute('data-preview-open');
     anchored = null;
-    if (card.matches(':popover-open')) card.hidePopover();
+    exiting?.removeAttribute('data-preview-open');
+    exiting = null;
   }
+
+  card.addEventListener('toggle', (event) => {
+    if (event.newState !== 'closed') return;
+    exiting = anchored;
+    anchored = null;
+    const leaving = exiting;
+    const gen = ++hideGen;
+    const drop = () => {
+      if (hideGen !== gen || exiting !== leaving || !leaving) return;
+      leaving.removeAttribute('data-preview-open');
+      exiting = null;
+    };
+    const anims = card.getAnimations();
+    if (anims.length === 0) {
+      drop();
+      return;
+    }
+    Promise.all(anims.map((animation) => animation.finished.catch(() => {}))).then(drop);
+  });
 
   async function open(link) {
     const url = excerptURL(link);
@@ -81,7 +116,10 @@ export function initPreview() {
       // Imported rather than adopted: the parsed document is what the cache
       // holds, and moving its node into this page would empty the entry.
       card.replaceChildren(document.importNode(body, true));
-      anchored?.removeAttribute('data-preview-open');
+      hideGen += 1;
+      if (anchored && anchored !== link) anchored.removeAttribute('data-preview-open');
+      if (exiting && exiting !== link) exiting.removeAttribute('data-preview-open');
+      exiting = null;
       anchored = link;
       link.setAttribute('data-preview-open', '');
       if (!card.matches(':popover-open')) card.showPopover();
