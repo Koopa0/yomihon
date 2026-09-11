@@ -302,13 +302,11 @@ type NoteRef struct {
 }
 
 // Report is one file under System/reports/. Name is the note title for .md
-// reports and the HTML filename for briefings. Filename is the vault basename
-// for leadingDate on written reports and equals Name for briefings.
-// Briefing marks the daily-briefing/ HTML files (as opposed to the .md
-// reports); Latest marks latest.html.
+// reports and the HTML filename for briefings. Briefing marks the
+// daily-briefing/ HTML files (as opposed to the .md reports); Latest marks
+// latest.html.
 type Report struct {
 	Name     string
-	Filename string
 	RelPath  string
 	Briefing bool
 	Latest   bool
@@ -570,7 +568,6 @@ func buildReports(files []capturedFile) []Report {
 		if name, ok := BriefingName(p); ok {
 			briefings = append(briefings, Report{
 				Name:     name,
-				Filename: name,
 				RelPath:  p,
 				Briefing: true,
 				Latest:   name == "latest.html",
@@ -587,9 +584,8 @@ func buildReports(files []capturedFile) []Report {
 				name = file.note.Title()
 			}
 			reports = append(reports, Report{
-				Name:     name,
-				Filename: rest,
-				RelPath:  p,
+				Name:    name,
+				RelPath: p,
 			})
 		}
 	}
