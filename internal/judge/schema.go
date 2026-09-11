@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // checkSchema validates every knowledge note's frontmatter against the
@@ -42,7 +42,7 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 // rules off for the ground its author meant to govern while every gate stays
 // green. A declaration is answered by the directory itself or by any file
 // below it, so an emptied inbox is still the folder the contract named.
-func checkKnowledgeScope(scan vaultfs.Scan, contract *schema.Contract) []Finding {
+func checkKnowledgeScope(scan vault.Scan, contract *schema.Contract) []Finding {
 	declared := contract.KnowledgeScope().Declared()
 	if len(declared) == 0 {
 		return nil

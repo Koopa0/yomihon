@@ -26,15 +26,15 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-func openReadingVault(t *testing.T, root string) *vaultfs.Reader {
+func openReadingVault(t *testing.T, root string) *vault.Reader {
 	t.Helper()
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if err := reader.Close(); err != nil {
@@ -50,7 +50,7 @@ func newSnapshotStore(
 	log *slog.Logger,
 	contract *schema.Contract,
 	governance schema.Governance,
-) (*snapshot.Store, *vaultfs.Reader) {
+) (*snapshot.Store, *vault.Reader) {
 	t.Helper()
 	source := openReadingVault(t, root)
 	store, err := snapshot.New(t.Context(), source, log, contract, governance)
@@ -62,7 +62,7 @@ func newSnapshotStore(
 
 func openStatusWriter(
 	t *testing.T,
-	source *vaultfs.Reader,
+	source *vault.Reader,
 	contract *schema.Contract,
 	governance schema.Governance,
 ) *status.Writer {

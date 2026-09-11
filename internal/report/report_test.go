@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -64,11 +64,11 @@ func newHandler(t *testing.T, root string) http.Handler {
 	return mux
 }
 
-func rootedReportView(t *testing.T, root string) (*vaultfs.Reader, *snapshot.Generation) {
+func rootedReportView(t *testing.T, root string) (*vault.Reader, *snapshot.Generation) {
 	t.Helper()
-	source, err := vaultfs.Open(root)
+	source, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open(%q) error: %v", root, err)
+		t.Fatalf("vault.Open(%q) error: %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := source.Close(); closeErr != nil {

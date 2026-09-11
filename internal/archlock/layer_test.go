@@ -26,7 +26,6 @@ var enginePackages = []string{
 	"internal/sequence",
 	"internal/snapshot",
 	"internal/vault",
-	"internal/vaultfs",
 	"internal/wording",
 }
 
@@ -98,32 +97,6 @@ func TestTheDictionaryNeverReadsARequest(t *testing.T) {
 	}
 	if slices.Contains(allDependencies(t, module+"/internal/wording"), server) {
 		t.Errorf("the dictionary reaches %s; a sentence is answered without a request, and reading one belongs in internal/origin", server)
-	}
-}
-
-// TestTheNoteModelIsReachableWithoutTheReadCapability keeps the two halves of
-// the vault split apart from the side that is easy to lose.
-//
-// A package that only asks what a note says has no business acquiring the
-// ability to open one: the reading capability's whole value is that the set of
-// packages holding it is small enough to audit. The three below ask the model
-// alone today, and the way that quietly stops being true is a helper moving
-// across the line — a path predicate, a normalizer — because it looked like it
-// belonged nearer the disk.
-func TestTheNoteModelIsReachableWithoutTheReadCapability(t *testing.T) {
-	t.Parallel()
-
-	for _, pkg := range []string{"internal/graph", "internal/lesson", "internal/render"} {
-		t.Run(pkg, func(t *testing.T) {
-			t.Parallel()
-			deps := dependencies(t, module+"/"+pkg)
-			if !slices.Contains(deps, module+"/internal/vault") {
-				t.Fatalf("%s no longer depends on the note model at all, so this row asserts nothing", pkg)
-			}
-			if slices.Contains(deps, module+"/internal/vaultfs") {
-				t.Errorf("%s reaches the vault read capability; it needs the note model only", pkg)
-			}
-		})
 	}
 }
 

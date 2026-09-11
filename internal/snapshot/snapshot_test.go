@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -128,11 +128,11 @@ func testContractDeclaringPrivacy(tb testing.TB, root, dir string) *schema.Contr
 	return contract
 }
 
-func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vaultfs.Reader) {
+func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store, *vault.Reader) {
 	tb.Helper()
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		tb.Fatalf("vaultfs.Open: %v", err)
+		tb.Fatalf("vault.Open: %v", err)
 	}
 	tb.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -146,7 +146,7 @@ func newTestStore(tb testing.TB, root string, contract *schema.Contract) (*Store
 	return store, reader
 }
 
-func closeReader(tb testing.TB, reader *vaultfs.Reader) {
+func closeReader(tb testing.TB, reader *vault.Reader) {
 	tb.Helper()
 	if err := reader.Close(); err != nil {
 		tb.Errorf("Reader.Close: %v", err)
@@ -197,7 +197,7 @@ func TestAGenerationReturnsImmutableProjections(t *testing.T) {
 		t.Fatal("Files() returned no captured files")
 	}
 	wantFirstPath := files[0].Path()
-	files[0] = vaultfs.Entry{}
+	files[0] = vault.Entry{}
 	if got := gen.Files()[0].Path(); got != wantFirstPath {
 		t.Errorf("Files()[0].Path() after mutation = %q, want %q", got, wantFirstPath)
 	}
@@ -322,12 +322,12 @@ type recordingSource struct {
 	fail  map[string]int
 }
 
-func (s *recordingSource) ScanAvailable(ctx context.Context) (vaultfs.Scan, error) {
+func (s *recordingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
 	s.scans++
 	return s.Source.ScanAvailable(ctx)
 }
 
-func (s *recordingSource) ReadFile(ctx context.Context, entry vaultfs.Entry) ([]byte, error) {
+func (s *recordingSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
 	path := entry.Path()
 	s.reads[path]++
 	if s.fail[path] > 0 {
@@ -357,7 +357,7 @@ patterns:
 `)
 	writeNote(t, root, "Diagrams/example.png", "not really an image")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,7 +420,7 @@ func TestRescanRetriesTransientReadWithoutMetadataChange(t *testing.T) {
 	const path = "Concepts/Alpha.md"
 	writeNote(t, root, path, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 	root := t.TempDir()
 	const relPath = "Concepts/Alpha.md"
 	writeNote(t, root, relPath, "---\ntitle: Alpha\ntype: concept\n---\nold body\n")
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -871,9 +871,9 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 
 	root := t.TempDir()
 	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open: %v", err)
+		t.Fatalf("vault.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -982,7 +982,7 @@ func TestBuildGenerationIndexesTextFilesAndSkipsTheRest(t *testing.T) {
 	writeNote(t, root, "Notes/huge.txt", strings.Repeat("findable body ", (render.MaxSourceBytes/14)+1))
 
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1014,7 +1014,7 @@ func searchPaths(t *testing.T, store *Store, query string) []string {
 
 func storeWithNotes(t *testing.T, root string, contract *schema.Contract) *Store {
 	t.Helper()
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1104,7 +1104,7 @@ func TestBuildGenerationStillResolvesWikilinksToFiles(t *testing.T) {
 	writeNote(t, root, "Concepts/Note.md", "---\ntitle: Note\ntype: concept\n---\n\nsee [[drawing.svg]]\n")
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1144,7 +1144,7 @@ func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "notes.txt", "plain text\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1190,7 +1190,7 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "Concepts/Base.md", "---\ntitle: Base\ntype: concept\n---\nbase\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1275,7 +1275,7 @@ func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1349,7 +1349,7 @@ func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
 	const unreadable = "Concepts/Alpha.md"
 	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha as first read\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1464,7 +1464,7 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	)
 	writeNote(t, root, carried, "---\ntitle: Carried\ntype: concept\n---\nthe words read before the file shut\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1550,7 +1550,7 @@ func TestAFolderBeingWrittenInStillDegrades(t *testing.T) {
 	const unreadable = "Concepts/Alpha.md"
 	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1601,7 +1601,7 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1688,7 +1688,7 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 	const blocked = "Concepts/Alpha.md"
 	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1829,7 +1829,7 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	const failing = "Concepts/Alpha.md"
 	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1875,7 +1875,7 @@ func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
 	oversize := "sentences:\n" + strings.Repeat("  - text: rarespelunker\n", (render.MaxSourceBytes/24)+64)
 	writeNote(t, root, "System/slots/L01.yaml", oversize)
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1907,7 +1907,7 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (rarespelunker) >>\nendobj\n%%EOF\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1945,7 +1945,7 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	}
 	writeNote(t, root, "huge.md", huge)
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2016,7 +2016,7 @@ func TestAnOverCapNoteIsReportedAsSkipped(t *testing.T) {
 	writeNote(t, root, "huge.md", huge)
 	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\nunder the bound\n")
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2054,7 +2054,7 @@ func TestAnOverCapNoteKeepsANameForCitations(t *testing.T) {
 	}
 	writeNote(t, root, "huge.md", huge)
 	contract := testContract(t, root)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}

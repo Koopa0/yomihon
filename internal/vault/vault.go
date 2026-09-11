@@ -1,8 +1,10 @@
-// Package vault is the note model: what a markdown file in the Obsidian vault
-// means once its bytes are in hand. It splits frontmatter from body, reads
-// frontmatter values, locates the spans the status write face replaces, and
-// holds the one order vault paths sort by. It opens nothing, and it reads
-// fault-tolerantly: broken frontmatter yields a diagnostic, never an error.
+// Package vault is the vault on disk: path identity, the note model, and the
+// read capability. It splits frontmatter from body, reads frontmatter values,
+// locates the spans the status write face replaces, and holds the one order
+// vault paths sort by. A Reader pins one vault directory and answers what is
+// under it; it never writes. Broken frontmatter yields a diagnostic, never an
+// error. Every read descends the recorded path component by component and
+// refuses the moment an object stops being the one observed.
 package vault
 
 import (

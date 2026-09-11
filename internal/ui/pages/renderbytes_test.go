@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -220,9 +220,9 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 			t.Fatalf("WriteFile(%s): %v", rel, err)
 		}
 	}
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open: %v", err)
+		t.Fatalf("vault.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

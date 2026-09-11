@@ -1,9 +1,4 @@
-// Package vaultfs pins one vault directory as a read capability and answers
-// what is under it, what each file was when observed, and what its bytes are
-// now. It never writes. Every read descends the recorded path component by
-// component and refuses the moment an object stops being the one observed, so
-// a rename under a reader's feet costs the read rather than yielding bytes.
-package vaultfs
+package vault
 
 import (
 	"context"
@@ -17,8 +12,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // ErrSourceChanged means the filesystem object a vault entry selected is no
@@ -345,7 +338,7 @@ func cloneEntry(entry Entry) Entry {
 }
 
 func validCanonicalPath(relPath string) bool {
-	return fs.ValidPath(relPath) && relPath == vault.NormalizeNFC(relPath)
+	return fs.ValidPath(relPath) && relPath == NormalizeNFC(relPath)
 }
 
 type sourceObservation struct {
@@ -512,7 +505,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		}
 		return nil
 	}
-	canonical := vault.NormalizeNFC(filepath.ToSlash(raw))
+	canonical := NormalizeNFC(filepath.ToSlash(raw))
 	if err := recordCanonicalPath(w.seen, raw, canonical); err != nil {
 		return err
 	}
@@ -550,7 +543,7 @@ func (w *sourceWalk) problem(raw string, d fs.DirEntry, err error) error {
 	if raw == "." || w.completeness == scanComplete {
 		return err
 	}
-	canonical := vault.NormalizeNFC(filepath.ToSlash(raw))
+	canonical := NormalizeNFC(filepath.ToSlash(raw))
 	if collisionErr := recordCanonicalPath(w.seen, raw, canonical); collisionErr != nil {
 		return collisionErr
 	}
@@ -588,7 +581,7 @@ func recordCanonicalPath(seen map[string]string, raw, canonical string) error {
 
 // Lookup resolves one canonical vault-relative path without reading its bytes.
 func (r *Reader) Lookup(relPath string) (Entry, error) {
-	if r == nil || r.root == nil || relPath == "." || !fs.ValidPath(relPath) || relPath != vault.NormalizeNFC(relPath) {
+	if r == nil || r.root == nil || relPath == "." || !fs.ValidPath(relPath) || relPath != NormalizeNFC(relPath) {
 		return Entry{}, errors.New("invalid vault entry path")
 	}
 	return r.observe(relPath)
@@ -657,7 +650,7 @@ func (r *Reader) observe(relPath string) (entry Entry, resultErr error) {
 	return Entry{
 		token:    r.token,
 		rawPath:  relPath,
-		path:     vault.NormalizeNFC(filepath.ToSlash(relPath)),
+		path:     NormalizeNFC(filepath.ToSlash(relPath)),
 		observed: observed,
 	}, nil
 }
@@ -777,7 +770,7 @@ func (r *Reader) readEntry(
 
 func (r *Reader) owns(e Entry) bool {
 	if r == nil || r.root == nil || e.token != r.token || e.rawPath == "" ||
-		!fs.ValidPath(e.rawPath) || e.path != vault.NormalizeNFC(filepath.ToSlash(e.rawPath)) {
+		!fs.ValidPath(e.rawPath) || e.path != NormalizeNFC(filepath.ToSlash(e.rawPath)) {
 		return false
 	}
 	components := strings.Split(e.rawPath, "/")

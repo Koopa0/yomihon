@@ -25,7 +25,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -167,7 +166,7 @@ type fileSnapshot struct {
 // contract, or an unavailable artifact policy, closes the write face.
 // governance is what the folder asserted about its own contract, which a nil
 // contract cannot answer; with a contract it must be contract.Governance().
-func Open(source *vaultfs.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
+func Open(source *vault.Reader, contract *schema.Contract, governance schema.Governance, log *slog.Logger) (*Writer, error) {
 	if source == nil {
 		panic("status: Open requires a non-nil Reader")
 	}
@@ -727,7 +726,7 @@ func (w *Writer) validateWriteTarget(relSlash string, descend func(*os.Root, str
 	// resource the reading face never shows cannot acquire a transition. It is
 	// asked before the lifecycle's reach is, because whether a file is a note
 	// at all comes before which folder the note sits in.
-	if !vault.IsMarkdown(relSlash) || vaultfs.OutsideScan(relSlash) {
+	if !vault.IsMarkdown(relSlash) || vault.OutsideScan(relSlash) {
 		return "", "", ErrNonInstance
 	}
 	if err := ungoverned(policy, w.contract.KnowledgeScope(), relSlash); err != nil {

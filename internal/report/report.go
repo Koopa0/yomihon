@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // RequestSnapshot is the reading generation and the shell state captured
@@ -26,14 +25,14 @@ type RequestSnapshot struct {
 
 // Handler serves the reports face through one process-owned vault Reader.
 type Handler struct {
-	source   *vaultfs.Reader
+	source   *vault.Reader
 	snapshot func() RequestSnapshot
 	log      *slog.Logger
 }
 
 // New wires the reports feature. Every dependency must be non-nil: a nil is a
 // wiring bug that must fail here, not on the first request.
-func New(source *vaultfs.Reader, snapshotProvider func() RequestSnapshot, log *slog.Logger) *Handler {
+func New(source *vault.Reader, snapshotProvider func() RequestSnapshot, log *slog.Logger) *Handler {
 	if source == nil {
 		panic("report: New requires a non-nil Source")
 	}
@@ -68,7 +67,7 @@ func resolveReport(model *nav.Model, name string) (nav.Report, bool) {
 
 func readReport(
 	ctx context.Context,
-	source *vaultfs.Reader,
+	source *vault.Reader,
 	view *snapshot.Generation,
 	relPath string,
 ) ([]byte, error) {
