@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // newServer builds a real nav.Model from a temp vault (real-first: no fakes)
@@ -145,9 +146,9 @@ func TestShow(t *testing.T) {
 	}
 	main := syllabusMain(t, body)
 	for _, want := range []string{
-		`class="y-shell2"`, // the study-path shell rendered
-		"學習路徑",             // the switcher label outside main
-		"本路徑",              // the part jump-nav outside main
+		`class="y-shell2"`,                    // the study-path shell rendered
+		wording.StudyPaths.In(wording.ZhHant), // the switcher label outside main
+		wording.ThisPath.In(wording.ZhHant),   // the part jump-nav outside main
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("study-path shell missing %q; body = %q", want, body)
