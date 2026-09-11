@@ -48,6 +48,7 @@ probes=(
   "theme-toggle-pressed.mjs|/notes/Notes/alpha.md"
   "preference-restore.mjs|/notes/Notes/alpha.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
 )
 

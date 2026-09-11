@@ -182,7 +182,20 @@ function holdRulings(column) {
   };
 }
 
+// stripFlipReceiptQuery drops the arrival-only ?from= token once the receipt
+// has landed. The server needs it to mint the sentence; keeping it in the
+// address bar would suggest a replay the write path has already refused.
+function stripFlipReceiptQuery() {
+  const receipt = document.querySelector('.y-flipreceipt');
+  if (!receipt) return;
+  const address = new URL(location.href);
+  if (!address.searchParams.has('from')) return;
+  address.searchParams.delete('from');
+  history.replaceState(history.state, '', address);
+}
+
 export function initFreshness() {
+  stripFlipReceiptQuery();
   const column = document.querySelector('[data-freshness-path][data-freshness-identity]');
   if (!column) return;
   const path = column.dataset.freshnessPath;
