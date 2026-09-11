@@ -9,7 +9,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/schema-notice-probe.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['notice-painted-mid', 'notice-painted-narrow', 'notice-describedby'];
+const SITES = ['notice-painted', 'notice-describedby'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -26,10 +26,10 @@ const fail = (site, message) => {
 };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED schema-notice-visibility: ${message}`); };
 
-const rewritePath = (path, needle, replacement, expected, label) => async (page) => {
+const rewritePath = (path, needle, replacement, expected, label) => async (context) => {
   let requests = 0;
   let matches = 0;
-  await page.route(BASE + path, async (route) => {
+  await context.route(BASE + path, async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
@@ -53,11 +53,11 @@ const hideVia = (path, selector, label) => rewritePath(
 
 const MUTATIONS = {
   'hide-notice': {
-    target: 'notice-painted-mid',
+    target: 'notice-painted',
     apply: hideVia(PAGE, '#schema-notices', 'schema-notice hide style'),
   },
   'clip-notice-out-of-sight': {
-    target: 'notice-painted-narrow',
+    target: 'notice-painted',
     apply: rewritePath(
       PAGE,
       '</head>',
@@ -68,7 +68,7 @@ const MUTATIONS = {
   },
   'drop-describedby': {
     target: 'notice-describedby',
-    apply: rewritePath(PAGE, ' aria-describedby="schema-notices"', '', 1, 'schema-notice describedby'),
+    apply: rewritePath(PAGE, ' aria-describedby="schema-notices"', '', 2, 'schema-notice describedby'),
   },
 };
 
@@ -160,24 +160,32 @@ const assertDescribedBy = async (page) => {
   }
 };
 
+const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
+const proveApplied = (site) => {
+  if (!mutation || mutation.target !== site) return;
+  const issue = proof();
+  if (issue) notApplied(`${MUTATE}: ${issue}`);
+};
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
-  for (const [width, site] of [[1280, 'notice-painted-mid'], [390, 'notice-painted-narrow']]) {
-    const page = await browser.newPage({ viewport: { width, height: 800 } });
-    if (MUTATE && site === MUTATIONS[MUTATE].target) {
-      proof = await MUTATIONS[MUTATE].apply(page);
-    }
+  const context = await browser.newContext();
+  if (mutation) proof = await mutation.apply(context);
+
+  for (const width of [390, 1280]) {
+    const page = await context.newPage({ viewport: { width, height: 800 } });
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-    await assertNoticeVisible(page, site);
-    if (width === 1280) await assertDescribedBy(page);
+    await assertNoticeVisible(page, 'notice-painted');
+    proveApplied('notice-painted');
+    if (width === 1280) {
+      await assertDescribedBy(page);
+      proveApplied('notice-describedby');
+    }
     await page.close();
   }
 
-  if (proof) {
-    const issue = proof();
-    if (issue) notApplied(`${MUTATE}: ${issue}`);
-  }
+  await context.close();
   console.log('PASS schema-notice-visibility: the unknown-field notice is painted in the reading column and still describes the sealbar submit');
 } catch (err) {
   if (proof && !(err instanceof NotApplied)) {
