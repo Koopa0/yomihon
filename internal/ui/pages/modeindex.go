@@ -136,9 +136,9 @@ func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wor
 // reader needs and the one the old single sentence could not make.
 func emptySentence(governed bool, declared, ungoverned wording.Phrase, lang wording.Lang) string {
 	if governed {
-		return declared.In(lang)
+		return declared.In(lang) + wording.IndexDeclaredEmptyNext.In(lang)
 	}
-	return ungoverned.In(lang)
+	return ungoverned.In(lang) + wording.IndexUngovernedNext.In(lang)
 }
 
 // listIndex assembles a mode's page from the parts every one of them has. The
