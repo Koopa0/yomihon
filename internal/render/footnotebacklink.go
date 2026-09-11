@@ -9,6 +9,7 @@ package render
 // back to, only when there is more than one.
 
 import (
+	"fmt"
 	"html"
 	"strconv"
 
@@ -112,10 +113,7 @@ func writeNamedFootnoteBacklink(w util.BufWriter, n *east.FootnoteBacklink) erro
 // visible ordinal is only a digit; this is what says which citation it leads
 // back to. A footnote cited once never asks, so these words never appear.
 func footnoteBacklinkName(lang wording.Lang, ordinal int) string {
-	if lang == wording.En {
-		return "Back to citation " + strconv.Itoa(ordinal)
-	}
-	return "返回第 " + strconv.Itoa(ordinal) + " 次引用"
+	return fmt.Sprintf(wording.FootnoteBacklinkFmt.In(lang), ordinal)
 }
 
 func footnoteLang(n ast.Node) wording.Lang {
