@@ -90,56 +90,38 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-// sampleEntranceFade waits until app.css is in effect, then reads opacity across
-// animation frames until the receipt lands at full strength. Sampling from the
-// probe after arrival avoids a cross-navigation init script that can read once
-// at opacity 0 and stop before the stylesheet applies.
-const sampleEntranceFade = async (receipt) => {
+const readEntranceDeclaration = (receipt) => receipt.evaluate((el) => {
+  const style = getComputedStyle(el);
+  return { name: style.animationName, duration: style.animationDuration };
+});
+
+// waitForFullOpacity waits until the receipt's entrance has landed at full
+// strength. The declaration is checked separately because a 200ms fade cannot
+// be sampled mid-flight once navigation and the selector wait have elapsed.
+const waitForFullOpacity = async (receipt) => {
   try {
     return await receipt.evaluate((el) => new Promise((resolve, reject) => {
-      const samples = [];
-      let frame = 0;
       let interval = 0;
-      const stop = () => {
-        clearTimeout(deadline);
-        cancelAnimationFrame(frame);
-        if (interval) clearInterval(interval);
-      };
       const deadline = setTimeout(() => {
-        stop();
-        if (samples.length === 0) reject(new Error('the flip receipt never produced opacity samples'));
-        else resolve(samples);
+        if (interval) clearInterval(interval);
+        reject(new Error('the flip receipt never reached full opacity'));
       }, 2000);
-      const settle = () => {
-        const tick = () => {
-          samples.push(Number(getComputedStyle(el).opacity));
-          if (getComputedStyle(el).opacity === '1') {
-            stop();
-            resolve(samples);
-            return true;
-          }
-          return false;
-        };
-        if (tick()) return;
-        interval = setInterval(() => {
-          if (tick()) clearInterval(interval);
-        }, 16);
-      };
-      const waitForStyles = () => {
-        const appReady = Array.from(document.styleSheets).some((sheet) => {
-          try { return sheet.href?.includes('app.css'); } catch { return false; }
-        });
-        const { animationName, opacity } = getComputedStyle(el);
-        if (appReady && (animationName !== 'none' || opacity === '1')) {
-          settle();
-          return;
+      const tick = () => {
+        if (getComputedStyle(el).opacity === '1') {
+          clearTimeout(deadline);
+          if (interval) clearInterval(interval);
+          resolve(1);
+          return true;
         }
-        frame = requestAnimationFrame(waitForStyles);
+        return false;
       };
-      waitForStyles();
+      if (tick()) return;
+      interval = setInterval(() => {
+        if (tick()) clearInterval(interval);
+      }, 16);
     }));
   } catch {
-    return receipt.evaluate((el) => [Number(getComputedStyle(el).opacity)]);
+    return receipt.evaluate((el) => Number(getComputedStyle(el).opacity));
   }
 };
 
@@ -209,13 +191,16 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
-  const samples = await sampleEntranceFade(receipt);
-  if (samples.length === 0) fail('entrance-fade', 'the flip receipt never produced opacity samples');
-  if (!samples.some((opacity) => opacity < 1)) {
-    fail('entrance-fade', `the receipt never faded in: sampled opacities ${JSON.stringify(samples)}`);
+  const entrance = await readEntranceDeclaration(receipt);
+  if (entrance.name !== 'y-flipreceipt-in') {
+    fail('entrance-fade', `entrance animation is ${JSON.stringify(entrance.name)}, want "y-flipreceipt-in"`);
   }
-  if (samples.at(-1) !== 1) {
-    fail('entrance-fade', `the receipt never reached full opacity: sampled opacities ${JSON.stringify(samples)}`);
+  if (parseFloat(entrance.duration) <= 0) {
+    fail('entrance-fade', `entrance duration is ${JSON.stringify(entrance.duration)}, want a non-zero duration`);
+  }
+  const opacity = await waitForFullOpacity(receipt);
+  if (opacity !== 1) {
+    fail('entrance-fade', `the receipt never reached full opacity: sampled opacity ${opacity}`);
   }
 
   await page.waitForFunction(() => !new URL(location.href).searchParams.has('from'), null, { timeout: 2000 }).catch(() => {});
@@ -238,7 +223,7 @@ try {
     }
   }
 
-  console.log(`PASS flip-receipt-contract: entrance fade ${JSON.stringify(samples)} and address ${address.pathname}`);
+  console.log(`PASS flip-receipt-contract: entrance ${entrance.name} (${entrance.duration}) at opacity ${opacity} and address ${address.pathname}`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
