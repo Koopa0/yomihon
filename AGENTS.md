@@ -74,6 +74,28 @@ Never merge a pull request; opening it ends your work.
   `.templ` source, and `make css` regenerates `assets/css/output.css` from
   `assets/css/input.css`. The gate compares both against a fresh generation.
 
+## What a lock may anchor on
+
+A check that passes on whatever was convenient to read at write time will fail
+in review. Before writing an assertion, name the property you mean to protect
+and ask whether the probe reads that property directly.
+
+- **Stable declaration, not transient state.** Assert properties readable at any
+  moment — a class name, a declared animation, a stable end state — not a frame
+  you might miss (mid-animation opacity, a timer window).
+- **Product names, not minifier output.** Mutation needles match identifiers
+  the source declares (class, keyframe, variable name), not exact whitespace or
+  token order a build tool emitted.
+- **Exactly one site.** A needle must match one intended edit site and no
+  others. When it matches zero or more than one, the probe must fail —
+  `probes.sh` exits 2 when a mutation matched nothing and 1 when the
+  regression was caught; do not guess among multiple hits or treat a dead needle
+  as green.
+- **The whole set.** When a check owns a set (prerequisites, allowed members,
+  driven probes), derive and pin every member from the source of truth. An
+  allowlist of the interesting items leaves the rest unguarded, and that
+  omission is invisible on a green run.
+
 ## What you may not touch
 
 - The meaning of a field or a state machine in
