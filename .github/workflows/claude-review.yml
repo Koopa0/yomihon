@@ -15,6 +15,12 @@ name: Claude review
 # token and a fixed tool list that cannot push, and the steps that carry the
 # maintainer's token run after Claude has exited. Three blocked rounds hand the
 # pull request to the maintainer instead of a fourth review.
+#
+# A missing verdict fails the job (a skipped or stalled review is red, not
+# green). Auto-merge is disarmed at the start of every round, so an arming
+# cannot outlive the head it was made for. Only a comment from claude[bot]
+# counts as a verdict. "@claude" from a bot or from anyone outside the
+# repository's write set does not start a job.
 
 on:
   pull_request:
@@ -37,6 +43,8 @@ env:
   # Above this many changed lines, or touching a wall, the stronger model reads.
   OPUS_LINES: 400
   OPUS_PATHS: '^(internal/(status|schema|judge|archlock)/|cmd/)'
+  # The GitHub App login that posts Verdict: lines. Anyone else is ignored.
+  REVIEWER: "claude[bot]"
   # Everything Claude may run. No push, no commit, no merge, no label.
   TOOLS: "Read,Grep,Glob,Edit,Bash(go test:*),Bash(go build:*),Bash(go vet:*),Bash(go tool templ:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git merge-base:*),Bash(git checkout:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
 
@@ -49,14 +57,27 @@ jobs:
       blocked: ${{ steps.rounds.outputs.blocked }}
       model: ${{ steps.model.outputs.model }}
     steps:
+      # A PASS on the previous head must not survive this push: CI going
+      # green on a newer commit would merge it while its review is still
+      # running, or never ran. Disarm first; Arm the merge re-arms only
+      # after a verdict for this head.
+      - name: Disarm auto-merge from the previous head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$(gh pr view "$PR" --json autoMergeRequest --jq '.autoMergeRequest != null')" = true ]; then
+            gh pr merge "$PR" --disable-auto
+          fi
+
       - name: Count the blocked rounds so far
         id: rounds
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          n=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
-            --jq '[.[] | select(.body | startswith("Verdict: BLOCKED"))] | length')
+          n=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
+            --jq '(add // []) | [.[] | select(.user.login == env.REVIEWER and (.body | startswith("Verdict: BLOCKED")))] | length')
           echo "blocked=$n" >> "$GITHUB_OUTPUT"
           echo "blocked rounds so far: $n"
 
@@ -68,6 +89,7 @@ jobs:
         run: |
           gh pr edit "$PR" --add-label needs-owner
           gh pr comment "$PR" --body "Three blocked rounds. This pull request now waits for the maintainer."
+          exit 1
 
       - name: Choose the model
         id: model
@@ -126,8 +148,9 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          line=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
-            --jq '[.[] | select(.body | startswith("Verdict: "))] | last | .body // ""' | head -n 1)
+          line=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
+            --jq '(add // []) | [.[] | select(.user.login == env.REVIEWER and (.body | startswith("Verdict: ")))] | last | .body // ""' \
+            | head -n 1)
           echo "verdict line: ${line:-none}"
           case "$line" in
             "Verdict: PASS @ $HEAD_SHA"*)    result=pass ;;
@@ -174,10 +197,35 @@ jobs:
           fi
           gh pr merge "$PR" --auto --squash --subject "$title" --body-file "$RUNNER_TEMP/merge-body.txt"
 
+      # A skipped action, a turn cap, or a comment that is not a verdict for
+      # this head used to leave the job green. The check is red unless Claude
+      # posted PASS or BLOCKED for the SHA that started this run.
+      - name: Fail unless this head has a verdict
+        env:
+          RESULT: ${{ steps.verdict.outputs.result }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          case "$RESULT" in
+            pass|blocked) ;;
+            *)
+              echo "no Verdict: PASS|BLOCKED @ $HEAD_SHA from $REVIEWER"
+              exit 1
+              ;;
+          esac
+
   # "@claude" in a pull request comment asks a question or a second look.
   # "@claude opus" and "@claude fable" pick the model; anything else is sonnet.
+  # Bots are excluded so a reply that quotes "@claude" cannot re-enter this
+  # job. Write access is OWNER / MEMBER / COLLABORATOR; anyone else on a
+  # public pull request would otherwise start a job that holds the Claude
+  # token and compiles the checkout.
   mention:
-    if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude')
+    if: >
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '@claude') &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
