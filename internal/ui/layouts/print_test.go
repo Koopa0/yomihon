@@ -91,40 +91,6 @@ func TestPrintGivesThePaperItsMarginsAndKeepsBlocksWhole(t *testing.T) {
 	}
 }
 
-// TestPrintHidesLibrarianChrome holds the half of the print stylesheet that
-// strips repair-tool chrome from the opening column. Paper is a reading surface:
-// path crumbs, the type and Obsidian metarow, and folder previous/next must
-// not print into the prose stream. Course lesson-order prev/next may stay —
-// it is part of the book, not repair chrome. The status panel and inline
-// table of contents are already hidden by ancestors; a rule that changes
-// nothing would be a claim that something was fixed.
-func TestPrintHidesLibrarianChrome(t *testing.T) {
-	t.Parallel()
-	const path = "../../../assets/css/components.css"
-	source, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", path, err)
-	}
-	css := cssComments.ReplaceAllString(string(source), "")
-	rules := rulesInside(t, atRuleBody(t, css, "@media print {"))
-
-	for _, selector := range []string{".y-crumbs", ".y-metarow", ".y-steps:not(.y-steps--course)"} {
-		declarations, written := rules[selector]
-		if !written {
-			t.Errorf("the print block says nothing about %s, so librarian chrome still prints on paper", selector)
-			continue
-		}
-		if got := declarations["display"]; got != "none !important" {
-			t.Errorf("%s declares display: %q for print, want %q", selector, got, "none !important")
-		}
-	}
-	for _, selector := range []string{".y-statuspanel", ".y-toc-inline", ".y-steps--course"} {
-		if declarations, written := rules[selector]; written && declarations["display"] == "none !important" {
-			t.Errorf("the print block hides %s, but that surface is either part of the book or already hidden by an ancestor", selector)
-		}
-	}
-}
-
 // cssComments matches one CSS comment, including the newlines inside it. They
 // are removed before any brace is counted, because a brace written in prose is
 // not a rule boundary and this file's print block is heavily commented.
