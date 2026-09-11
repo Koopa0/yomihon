@@ -222,7 +222,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 							<ul class="y-healthlist">
 								for _, found := range v.StatusUnreachable {
 									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }>{ found.Note.Name }</a>
+										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }><span { authoredLanguageAttrs(found.Note.Language)... }>{ found.Note.Name }</span></a>
 										<span class="y-healthlist__detail">
 											{ fmt.Sprintf(wording.StatusAndTypeFmt.In(c.Lang), found.Status, found.Type) }
 										</span>

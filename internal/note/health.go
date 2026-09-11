@@ -37,16 +37,10 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		Collisions:            healthCollisions(health.Collisions, articleLang),
 		Blocked:               healthBlocked(fresh.Blocked),
 		Skipped:               healthSkipped(snap.Skipped()),
-<<<<<<< HEAD
-		StatusOutsideEnum:     statusesOutsideEnum(authority, snap),
-		StatusUnreachable:     statusesUnreachable(authority, snap),
-		FrontmatterUnreadable: unreadableFrontmatter,
-		SchemaFaults:          schemaFaults,
-=======
 		StatusOutsideEnum:     statusesOutsideEnum(authority, snap, articleLang),
+		StatusUnreachable:     statusesUnreachable(authority, snap, articleLang),
 		FrontmatterUnreadable: noteRefs(unreadableFrontmatter, articleLang),
 		SchemaFaults:          noteRefs(schemaFaults, articleLang),
->>>>>>> ec20527 (Stamp declared article language on listing surfaces)
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
 		// A folder that declared no vocabulary has no schema findings to
 		// report, and that is an answer rather than a failure — the view says
@@ -177,7 +171,7 @@ func statusesOutsideEnum(authority status.Authority, snap *snapshot.Generation, 
 // group while no lifecycle row with that status applies to its type. It reads
 // the same holder list the outside-enum section uses, so the two faces cannot
 // disagree about which notes exist.
-func statusesUnreachable(authority status.Authority, snap *snapshot.Generation) []pages.HealthStatusNote {
+func statusesUnreachable(authority status.Authority, snap *snapshot.Generation, articleLang pages.ArticleLanguageFor) []pages.HealthStatusNote {
 	if !authority.Governed() || authority.Closed() {
 		return nil
 	}
@@ -194,7 +188,7 @@ func statusesUnreachable(authority status.Authority, snap *snapshot.Generation) 
 			continue
 		}
 		out = append(out, pages.HealthStatusNote{
-			Note:   nav.NoteRef{Name: healthNoteName(h.RelPath), RelPath: h.RelPath},
+			Note:   noteRef(nav.NoteRef{Name: healthNoteName(h.RelPath), RelPath: h.RelPath}, articleLang),
 			Type:   h.Type,
 			Status: h.Status,
 		})
