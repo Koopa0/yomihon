@@ -31,6 +31,10 @@ var (
 	FileNotIndexed = both("這個檔案的內容不會被搜尋讀取。", "This file's contents are not read by search.")
 )
 
+// OpenReportAsWritten is the visible door to the iframe's own address: the
+// report as authored, outside the sandboxed shell.
+var OpenReportAsWritten = both("以原樣開啟", "Open as written")
+
 // ReportAsIs says what a report loses by being shown here rather than run.
 var ReportAsIs = both(
 	"有一部分要靠程式繪製，這裡不執行程式，那些部分不會出現。",

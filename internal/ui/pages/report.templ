@@ -31,7 +31,10 @@ templ Report(v ReportView, c layouts.Chrome) {
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main y-reportmain">
-				<h1 class="y-reporttitle">{ v.Name }</h1>
+				<div class="y-reporthead">
+					<h1 class="y-reporttitle">{ v.Name }</h1>
+					<a class="y-reportraw" href={ templ.URL(reportRawHref(v.Name)) }>{ wording.OpenReportAsWritten.In(c.Lang) }</a>
+				</div>
 				if v.NeedsScript {
 					<p class="y-homeempty" data-report-inert>
 						{ wording.ReportAsIs.In(c.Lang) }

@@ -193,6 +193,27 @@ func TestHomeNamesTheGenerationItCouldNotFinish(t *testing.T) {
 	}
 }
 
+// TestReportOffersTheFramesOwnAddress holds the visible door to the iframe's
+// /raw endpoint. Printing and full-page reading use that address; the shell
+// must not hide it behind DOM inspection.
+func TestReportOffersTheFramesOwnAddress(t *testing.T) {
+	t.Parallel()
+	const name = "browser-boundary.html"
+	var buf bytes.Buffer
+	view := ReportView{Name: name, Sidebar: NewSidebar(&nav.Model{}, "")}
+	if err := Report(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+	wantSrc := reportRawHref(name)
+	if !strings.Contains(html, `class="y-reportraw" href="`+wantSrc+`"`) {
+		t.Errorf("the report shell must offer the frame address %q; html = %q", wantSrc, html)
+	}
+	if !strings.Contains(html, `class="y-reportframe" src="`+wantSrc+`"`) {
+		t.Errorf("the report frame must point at %q; html = %q", wantSrc, html)
+	}
+}
+
 // TestAReportSaysWhatItCannotDraw holds the report shell's one honest
 // admission. A briefing that draws part of itself with a script arrives here
 // with scripting shut off, so that part is simply absent — and a hole with
