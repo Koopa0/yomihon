@@ -1,8 +1,10 @@
 // Behavior lock: the three top-layer surfaces close on the same curve they
 // open. The transition used to be declared only on [open] / :popover-open, so
 // native close dropped the declaration and the surface vanished mid-curve.
-// Go tests cannot see CSS. The probe opens each surface, closes it, and reads
-// the animations that close() / hidePopover() actually started.
+// Go tests cannot see CSS. The probe opens each surface, closes it the way a
+// reader does, and reads the animations that started. The preview is also
+// asked to stay where it was: its close used to drop the CSS anchor before
+// the exit had painted, and the card jumped to the viewport corner.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a lesson that carries a concept term and a
 // plain wikilink), and MUTATE. MUTATE=list prints every watched regression.
@@ -21,6 +23,7 @@ const SITES = [
   'search-exit-has-frames',
   'sheet-exit-has-frames',
   'preview-exit-has-frames',
+  'preview-exit-stays-put',
   'reduced-motion-cuts-through',
 ];
 
@@ -61,6 +64,23 @@ const appendStylesheet = (rule) => async (page) => {
   return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the appended rule reached no page');
 };
 
+// Rewrites the preview module. The replacement is counted, so a needle that
+// no longer matches the source reports itself rather than passing as a
+// mutation nobody noticed.
+const rewritePreview = (needle, replacement) => async (page) => {
+  let matched = -1;
+  await page.route('**/static/preview.js', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    matched = original.split(needle).length - 1;
+    await route.fulfill({ response, body: original.split(needle).join(replacement) });
+  });
+  return () =>
+    matched === 1
+      ? ''
+      : `the module needle ${JSON.stringify(needle)} matched ${matched === -1 ? 'nothing, because the module was never fetched' : `${matched} times, want 1`}`;
+};
+
 const MUTATIONS = {
   // The original defect on the search dialog: the transition lives only while
   // [open] is set, so close() has nowhere for exit frames to run.
@@ -80,6 +100,23 @@ const MUTATIONS = {
     target: 'preview-exit-has-frames',
     apply: appendStylesheet(
       '.y-preview{transition:none;opacity:1}.y-preview:popover-open{transition:opacity 120ms}',
+    ),
+  },
+  // The original defect on the hover card: the CSS anchor is stripped in
+  // close() before hidePopover() returns, so the painted exit has no
+  // position-anchor and the card teleports to the viewport corner.
+  'strip-anchor-before-hide': {
+    target: 'preview-exit-stays-put',
+    apply: rewritePreview(
+      `    if (card.matches(':popover-open')) {
+      card.hidePopover();
+      return;
+    }
+    anchored?.removeAttribute('data-preview-open');
+    anchored = null;`,
+      `    anchored?.removeAttribute('data-preview-open');
+    anchored = null;
+    if (card.matches(':popover-open')) card.hidePopover();`,
     ),
   },
   // Keeps a visible exit under reduced motion, which the blanket already cuts.
@@ -143,6 +180,37 @@ const closeAndRead = (page, selector, kind) =>
 
 const longest = (reading) => (reading.durations ?? []).reduce((max, n) => (n > max ? n : max), 0);
 
+const boxShift = (reading) => {
+  const dx = Math.abs((reading.next?.x ?? 0) - (reading.start?.x ?? 0));
+  const dy = Math.abs((reading.next?.y ?? 0) - (reading.start?.y ?? 0));
+  return { dx, dy };
+};
+
+// The preview's close is the module's close(), reached the way a reader
+// reaches it — Escape — not a direct hidePopover(). hidePopover() never
+// drops the CSS anchor, so a jump the production close used to cause
+// could not appear.
+const closePreviewAsReader = (page, selector) =>
+  page.evaluate(async (sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return { error: 'missing' };
+    if (!el.matches(':popover-open')) return { error: 'not-open' };
+    const start = el.getBoundingClientRect();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const anims = el.getAnimations();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const next = el.getBoundingClientRect();
+    return {
+      count: anims.length,
+      durations: anims.map((a) => {
+        const duration = a.effect?.getComputedTiming().duration;
+        return typeof duration === 'number' ? duration : 0;
+      }),
+      start: { x: start.x, y: start.y },
+      next: { x: next.x, y: next.y },
+    };
+  }, selector);
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
@@ -150,6 +218,7 @@ try {
   const page = await context.newPage();
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('load');
   if (proof) {
     const issue = proof();
     if (issue) notApplied(`${MUTATE}: ${issue}`);
@@ -188,12 +257,22 @@ try {
     timeout: 4000,
   });
   await waitSettled(page, PREVIEW);
-  const previewExit = await closeAndRead(page, PREVIEW, 'popover');
+  const previewExit = await closePreviewAsReader(page, PREVIEW);
   if (previewExit.error) broken(`preview close: ${previewExit.error}`);
+  if (previewExit.start.x === 0 && previewExit.start.y === 0) {
+    broken('preview opened at the viewport origin, so a stay-put check would pass over a card that was never anchored');
+  }
   if (previewExit.count < 1 || longest(previewExit) < 50) {
     fail(
       'preview-exit-has-frames',
       `preview close started ${previewExit.count} animations, longest ${longest(previewExit)}ms`,
+    );
+  }
+  const shift = boxShift(previewExit);
+  if (shift.dx > 8 || shift.dy > 8) {
+    fail(
+      'preview-exit-stays-put',
+      `preview jumped from x=${Math.round(previewExit.start.x)},y=${Math.round(previewExit.start.y)} to x=${Math.round(previewExit.next.x)},y=${Math.round(previewExit.next.y)} on close`,
     );
   }
 
@@ -210,7 +289,7 @@ try {
     );
   }
 
-  console.log('PASS dialog-exit: search, sheet, and preview close with frames; reduced motion cuts through');
+  console.log('PASS dialog-exit: search, sheet, and preview close with frames; preview stays put; reduced motion cuts through');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
