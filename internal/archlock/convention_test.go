@@ -1267,7 +1267,7 @@ func TestProjectionPackagesHaveNoLegacyEntryPoints(t *testing.T) {
 	t.Parallel()
 
 	forbiddenByDir := map[string]map[string]bool{
-		"internal/vaultfs": {
+		"internal/vault": {
 			"List":              true,
 			"ListStrict":        true,
 			"ListStrictContext": true,

@@ -41,7 +41,6 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -52,7 +51,7 @@ import (
 // view for the request. Source changes affect the next request; a write still
 // revalidates current authority under the lifecycle lock.
 type Sources struct {
-	Source   *vaultfs.Reader
+	Source   *vault.Reader
 	Status   func() status.Authority
 	Snapshot func() *snapshot.Generation
 	// ObservedStatus is a closure over the write package's read of the note's

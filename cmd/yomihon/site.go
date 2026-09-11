@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -37,7 +37,7 @@ type readingSite struct {
 	// nothing here and is wrong.
 	snapshots *snapshot.Store
 	writer    *status.Writer
-	source    *vaultfs.Reader
+	source    *vault.Reader
 	cancel    context.CancelFunc
 	watchers  sync.WaitGroup
 	requestMu sync.Mutex
@@ -69,7 +69,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 }
 
 func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *readingSite, resultErr error) {
-	source, err := vaultfs.Open(root)
+	source, err := vault.Open(root)
 	if err != nil {
 		return nil, fmt.Errorf("open vault source: %w", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // The disk-reference rule resolves markdown [text](path) links and backticked
@@ -15,7 +14,7 @@ import (
 
 // checkDiskRefs resolves every note's path references against the action's
 // complete captured membership and returns the findings.
-func checkDiskRefs(notes []note, scan vaultfs.Scan, authority scanAuthority) []Finding {
+func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -41,7 +40,7 @@ func classifyPathRef(
 	n *note,
 	noteDir string,
 	pref pathRef,
-	scan vaultfs.Scan,
+	scan vault.Scan,
 	authority scanAuthority,
 ) (Finding, bool) {
 	return classifyPathRefWithContains(n, noteDir, pref, authority, scan.Contains)
@@ -84,7 +83,7 @@ func classifyCodeRef(
 	if (rootOK && contains(rootRel)) || (noteOK && contains(noteRel)) {
 		return Finding{}, false
 	}
-	if !rootOK || vaultfs.OutsideScan(rootRel) {
+	if !rootOK || vault.OutsideScan(rootRel) {
 		return Finding{}, false
 	}
 	return deadInRoot(n, pref, rootRel), true
@@ -108,7 +107,7 @@ func classifyProseRef(
 	}
 	// The scan never visits a hidden path, so calling such a link broken would
 	// report the scan's own boundary as a missing file.
-	if vaultfs.OutsideScan(rel) {
+	if vault.OutsideScan(rel) {
 		return Finding{}, false
 	}
 	return deadInRoot(n, pref, rel), true

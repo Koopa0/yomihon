@@ -23,7 +23,6 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -53,8 +52,8 @@ const reconcileEvery = int(time.Hour / scanInterval)
 // Source is the rooted read capability required to construct a generation. It is
 // defined by its only consumer so a test can count scans and reads.
 type Source interface {
-	ScanAvailable(context.Context) (vaultfs.Scan, error)
-	ReadFile(context.Context, vaultfs.Entry) ([]byte, error)
+	ScanAvailable(context.Context) (vault.Scan, error)
+	ReadFile(context.Context, vault.Entry) ([]byte, error)
 }
 
 // Freshness is the published account of how the reading generation relates to
@@ -122,7 +121,7 @@ type Generation struct {
 	artifactPolicy schema.ArtifactPolicy
 	privacyPolicy  schema.PrivacyPolicy
 
-	scan     vaultfs.Scan
+	scan     vault.Scan
 	notes    map[string]Reading
 	markdown *render.Pipeline
 
@@ -317,7 +316,7 @@ func (g *Generation) PrivacyPolicy() schema.PrivacyPolicy {
 
 // Files returns this generation's captured regular files in canonical path
 // order. The returned slice and entries are independent of the Generation.
-func (g *Generation) Files() []vaultfs.Entry {
+func (g *Generation) Files() []vault.Entry {
 	if g == nil {
 		return nil
 	}
@@ -364,9 +363,9 @@ func (g *Generation) Skipped() []Skipped {
 }
 
 // Entry returns the captured regular-file identity for canonicalPath.
-func (g *Generation) Entry(canonicalPath string) (vaultfs.Entry, bool) {
+func (g *Generation) Entry(canonicalPath string) (vault.Entry, bool) {
 	if g == nil {
-		return vaultfs.Entry{}, false
+		return vault.Entry{}, false
 	}
 	return g.scan.Entry(canonicalPath)
 }
@@ -385,7 +384,7 @@ func (g *Generation) MissingFile(canonicalPath string) bool {
 	// is missing while that route answers 200 for it would be a diagnostic about
 	// this reader's own spelling.
 	canonicalPath = vault.NormalizeNFC(canonicalPath)
-	if vaultfs.OutsideScan(canonicalPath) {
+	if vault.OutsideScan(canonicalPath) {
 		return false
 	}
 	return !g.scan.Contains(canonicalPath)
@@ -461,7 +460,7 @@ type Store struct {
 	// contract is the folder's own vocabulary, read once at startup — the same
 	// reading the capabilities above came from. No Generation holds it.
 	contract *schema.Contract
-	prev     vaultfs.Scan
+	prev     vault.Scan
 	retry    bool
 
 	// consecutiveIncomplete, nextRetry, and incompleteScan bound the retry loop.
@@ -470,7 +469,7 @@ type Store struct {
 	// change bypasses the wait and restarts the schedule.
 	consecutiveIncomplete int
 	nextRetry             time.Time
-	incompleteScan        vaultfs.Scan
+	incompleteScan        vault.Scan
 
 	// incompleteSincePublish counts the build attempts that have come back
 	// incomplete since the last generation that read everything, and decides
@@ -670,7 +669,7 @@ func (s *Store) rescan(ctx context.Context) {
 	s.incompleteSincePublish = 0
 	s.lastComplete = builtAt
 	s.nextRetry = time.Time{}
-	s.incompleteScan = vaultfs.Scan{}
+	s.incompleteScan = vault.Scan{}
 	s.logBuild("vault snapshot rebuilt", candidate, scan)
 }
 
@@ -680,7 +679,7 @@ func (s *Store) rescan(ctx context.Context) {
 // damaging fault, since every note written since is answered with a 404 in a
 // folder otherwise intact. What publishes holds the last copy of each source it
 // could not read and records that it is not whole. The retry state is untouched.
-func (s *Store) publishOnceDegraded(candidate *Generation, scan vaultfs.Scan, blocked []BlockedSource) {
+func (s *Store) publishOnceDegraded(candidate *Generation, scan vault.Scan, blocked []BlockedSource) {
 	if s.incompleteSincePublish < degradeAfter {
 		return
 	}
@@ -701,7 +700,7 @@ func (s *Store) publishOnceDegraded(candidate *Generation, scan vaultfs.Scan, bl
 // attempt restarts the schedule: the world moved, so this is a new failure. The
 // blocked sources and the running count go to the live record, which is how a
 // page serving the retained generation can say the folder has moved on.
-func (s *Store) noteIncomplete(scan vaultfs.Scan, blocked []BlockedSource) {
+func (s *Store) noteIncomplete(scan vault.Scan, blocked []BlockedSource) {
 	if !s.incompleteScan.SameFiles(scan) {
 		s.consecutiveIncomplete = 0
 	}
@@ -739,7 +738,7 @@ func buildGeneration(
 	ctx context.Context,
 	source Source,
 	previous *Generation,
-	scan vaultfs.Scan,
+	scan vault.Scan,
 	log *slog.Logger,
 	//nolint:gocritic // hugeParam: the copy is the point and it replaces four heavier
 	// parameters. A pointer would let the reconciliation loop's next
@@ -881,8 +880,8 @@ func newGeneration(entries int) *generation {
 // omitDeclaredBasenames leaves scan.skip_basenames out of the note map.
 // Each omitted path is still a resource, so /raw/ and wikilinks reach it;
 // the shelf, the index, and exists do not.
-func (g *generation) omitDeclaredBasenames(entries []vaultfs.Entry, contract *schema.Contract) []vaultfs.Entry {
-	kept := make([]vaultfs.Entry, 0, len(entries))
+func (g *generation) omitDeclaredBasenames(entries []vault.Entry, contract *schema.Contract) []vault.Entry {
+	kept := make([]vault.Entry, 0, len(entries))
 	for _, entry := range entries {
 		relPath := entry.Path()
 		if contract.SkipsBasename(relPath) {
@@ -1000,7 +999,7 @@ func (g *generation) carryFile(from carriedGeneration, relPath string, want byte
 
 // blockedFromProblems carries the scan's unobservable paths into the build's
 // blocked-source list, so an unopenable directory reports like an unread file.
-func blockedFromProblems(problems []vaultfs.Problem) []BlockedSource {
+func blockedFromProblems(problems []vault.Problem) []BlockedSource {
 	if len(problems) == 0 {
 		return nil
 	}
@@ -1059,7 +1058,7 @@ type bytesWanted struct {
 }
 
 // wantedBytes decides what this generation needs from one scanned entry.
-func wantedBytes(entry vaultfs.Entry, note bool) bytesWanted {
+func wantedBytes(entry vault.Entry, note bool) bytesWanted {
 	if note {
 		if !withinSourceCap(entry) {
 			// A note over the bound is a published skip: the same ceiling every
@@ -1107,7 +1106,7 @@ func indexDocuments(
 // for the text index: not a picture, not a PDF, and small enough that its own
 // page shows its characters. The predicates are the page's, so if yomihon shows
 // a file to you as text you can find it.
-func readableAsText(entry vaultfs.Entry) bool {
+func readableAsText(entry vault.Entry) bool {
 	relPath := entry.Path()
 	return !render.IsPicture(relPath) &&
 		!render.IsPDF(relPath) &&
@@ -1116,11 +1115,11 @@ func readableAsText(entry vaultfs.Entry) bool {
 
 // withinSourceCap reports whether a file is small enough for its characters to be
 // held. It is the ceiling the file page applies, so search and display agree.
-func withinSourceCap(entry vaultfs.Entry) bool {
+func withinSourceCap(entry vault.Entry) bool {
 	return entry.Size() <= render.MaxSourceBytes
 }
 
-func (s *Store) logBuild(message string, gen *Generation, scan vaultfs.Scan) {
+func (s *Store) logBuild(message string, gen *Generation, scan vault.Scan) {
 	s.log.Info(message,
 		"files", len(scan.Files()),
 		"scan_problems", len(scan.Problems()),

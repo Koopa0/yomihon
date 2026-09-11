@@ -6,7 +6,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // policySource binds a startup-derived capability to the exact contract file it
@@ -18,8 +18,8 @@ type policySource struct {
 }
 
 type pinnedPolicySource struct {
-	reader *vaultfs.Reader
-	entry  vaultfs.Entry
+	reader *vault.Reader
+	entry  vault.Entry
 }
 
 // reread reports whether the contract file still carries the bytes the policy
@@ -40,7 +40,7 @@ func (s policySource) reread() (bool, error) {
 	)
 	if s.pinned != nil {
 		data, err = s.pinned.reader.ReadFile(context.Background(), s.pinned.entry)
-		if errors.Is(err, vaultfs.ErrSourceChanged) {
+		if errors.Is(err, vault.ErrSourceChanged) {
 			// The pinned identity includes the modification time, which a
 			// checkout or a save-by-rename moves without changing a byte. Only
 			// the bytes matter here, so select the file again and let the

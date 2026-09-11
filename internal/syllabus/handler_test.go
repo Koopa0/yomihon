@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // newServer builds a real nav.Model from a temp vault (real-first: no fakes)
@@ -32,9 +31,9 @@ func newServer(t *testing.T, root string) *httptest.Server {
 
 func loadModel(t *testing.T, root string) *nav.Model {
 	t.Helper()
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open() error = %v", err)
+		t.Fatalf("vault.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

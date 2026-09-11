@@ -1,4 +1,4 @@
-package vaultfs
+package vault
 
 import (
 	"context"

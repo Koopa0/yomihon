@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // Closure records why a projection carries nothing. It is a reason rather than
@@ -333,7 +332,7 @@ func lifecycleRank(name string) int {
 // are told apart when the page is built, and only notes are counted. New
 // neither enumerates nor reopens the vault.
 func New(
-	entries []vaultfs.Entry,
+	entries []vault.Entry,
 	notes map[string]*vault.Note,
 	resolver *graph.Index,
 	roles schema.NavigationRoles,
@@ -346,7 +345,7 @@ func New(
 	}
 
 	observed := slices.Clone(entries)
-	slices.SortFunc(observed, func(a, b vaultfs.Entry) int {
+	slices.SortFunc(observed, func(a, b vault.Entry) int {
 		return vault.ComparePaths(a.Path(), b.Path())
 	})
 	files := make([]capturedFile, 0, len(observed))

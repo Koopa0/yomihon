@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The two refusals a caller has to be able to tell apart. Both mean the same
@@ -46,7 +46,7 @@ func (a scanAuthority) domainRoots() domainRoots {
 	return a.contract.Definition().Rules.DomainEqualsFolderUnder
 }
 
-func loadScanAuthority(ctx context.Context, reader *vaultfs.Reader) (scanAuthority, error) {
+func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {
 	contract, err := schema.LoadReader(ctx, reader)
 	if err != nil {
 		if schema.ContractAbsent(err) {

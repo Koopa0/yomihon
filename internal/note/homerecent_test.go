@@ -10,16 +10,16 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // homeStatusView opens one lifecycle over an empty folder under the supplied
 // authorities and returns its read-only view.
 func homeStatusView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.Authority {
 	t.Helper()
-	reader, err := vaultfs.Open(t.TempDir())
+	reader, err := vault.Open(t.TempDir())
 	if err != nil {
-		t.Fatalf("vaultfs.Open: %v", err)
+		t.Fatalf("vault.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

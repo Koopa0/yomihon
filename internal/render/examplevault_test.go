@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -273,7 +272,7 @@ func obsidianComment(text string) bool {
 type exampleVault struct {
 	contract *schema.Contract
 	notes    map[string]*vault.Note
-	entries  []vaultfs.Entry
+	entries  []vault.Entry
 	source   string
 	reading  string
 }
@@ -281,7 +280,7 @@ type exampleVault struct {
 func loadExampleVault(t *testing.T) *exampleVault {
 	t.Helper()
 
-	reader, err := vaultfs.Open(exampleVaultRoot)
+	reader, err := vault.Open(exampleVaultRoot)
 	if err != nil {
 		t.Fatalf("open the example vault at %s: %v", exampleVaultRoot, err)
 	}
@@ -667,12 +666,12 @@ func assertEveryDeclarationIsUsed(t *testing.T, loaded *exampleVault) {
 	// contract and absent from the vault fails here; a directory that is
 	// present but wired into nothing would not.
 	privacy := loaded.contract.PrivacyPolicy()
-	if !slices.ContainsFunc(loaded.entries, func(e vaultfs.Entry) bool { return !privacy.EgressAllowed(e.Path()) }) {
+	if !slices.ContainsFunc(loaded.entries, func(e vault.Entry) bool { return !privacy.EgressAllowed(e.Path()) }) {
 		t.Error("the privacy policy denies egress to no path in examples/vault: every file the scan " +
 			"found is allowed out, so never_egress_dirs names directories this vault does not have")
 	}
 	artifacts := loaded.contract.ArtifactPolicy()
-	if !slices.ContainsFunc(loaded.entries, func(e vaultfs.Entry) bool { return artifacts.IsNonInstance(e.Path()) }) {
+	if !slices.ContainsFunc(loaded.entries, func(e vault.Entry) bool { return artifacts.IsNonInstance(e.Path()) }) {
 		t.Error("the artifact policy claims no path in examples/vault: no file the scan found sits " +
 			"under non_instance_dirs, so it names a directory this vault does not have")
 	}
@@ -692,7 +691,7 @@ func assertEveryDeclarationIsUsed(t *testing.T, loaded *exampleVault) {
 	}
 
 	for _, root := range definition.Rules.DomainEqualsFolderUnder {
-		if !slices.ContainsFunc(loaded.entries, func(e vaultfs.Entry) bool {
+		if !slices.ContainsFunc(loaded.entries, func(e vault.Entry) bool {
 			return strings.HasPrefix(e.Path(), root+"/") && strings.Contains(strings.TrimPrefix(e.Path(), root+"/"), "/")
 		}) {
 			t.Errorf("the contract ties a note's domain to its folder under %q and examples/vault "+
