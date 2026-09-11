@@ -86,18 +86,18 @@ func TestAReportRowNamesItsKindAndItsDay(t *testing.T) {
 	t.Parallel()
 
 	view := NewReportIndex([]nav.Report{
-		{Name: "2026-07-10 vault audit.md", RelPath: "System/reports/2026-07-10 vault audit.md"},
-		{Name: "notes.md", RelPath: "System/reports/notes.md"},
+		{Name: "Vault audit", RelPath: "System/reports/2026-07-10 vault audit.md"},
+		{Name: "notes", RelPath: "System/reports/notes.md"},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 	}, wording.ZhHant, nil)
 
 	want := []Row{
 		{
-			Text: "2026-07-10 vault audit.md",
+			Text: "Vault audit",
 			Href: "/notes/System/reports/2026-07-10%20vault%20audit.md",
 			Mark: "2026-07-10 · 書庫筆記",
 		},
-		{Text: "notes.md", Href: "/notes/System/reports/notes.md", Mark: "書庫筆記"},
+		{Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "書庫筆記"},
 		{Text: "latest.html", Href: "/reports/latest.html", Mark: "每日簡報 · 最新"},
 	}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
