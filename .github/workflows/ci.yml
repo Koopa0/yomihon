@@ -18,11 +18,14 @@ on:
 permissions:
   contents: read
 
-# Only the newest run for a ref needs to finish; superseded runs are cancelled
-# so a burst of pushes does not queue redundant work.
+# A newer push to a pull request supersedes the run in flight, so that run is
+# cancelled. A push to main is a merge, and main's own run is the only proof
+# that the merged tree is green: a required check on a pull request ran
+# against the base that branch had, not the one it lands on. So a run on main
+# is left to finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The stylesheet generator and the Go linter are pinned by version and by
 # checksum, so a version bump surfaces as an intentional change here rather
