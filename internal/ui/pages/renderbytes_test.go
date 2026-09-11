@@ -122,7 +122,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
-		{"folder-index-page", FolderIndex(NewFolderIndex(model, recordedChrome().Lang, nil), RecentBlock{}, StatusDistribution{}, recordedChrome())},
+		{"folder-index-page", FolderIndex(NewFolderIndex(model, true, recordedChrome().Lang, nil), RecentBlock{}, StatusDistribution{}, recordedChrome())},
 		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
 	}
 	for _, state := range recordedStatusStates() {
@@ -397,7 +397,7 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Status: "draft", Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
 		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Status: "seed", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
 	}, true, true, recordedChrome().Lang)
-	return NewFolderIndex(model, recordedChrome().Lang, nil), recent, NewStatusDistribution(
+	return NewFolderIndex(model, true, recordedChrome().Lang, nil), recent, NewStatusDistribution(
 		[]LifecycleItem{
 			{Name: "draft", Count: 2, Href: statusHref("draft")},
 			{Name: "ready", Count: 1, Sealed: true, Href: statusHref("ready")},
@@ -451,7 +451,7 @@ func recordedWithheldIndexView() ListIndexView {
 // reaches this by setting view.Fault after NewFolderIndex without calling
 // withholdListing; no ListIndex constructor produces it on its own.
 func recordedFaultedModeIndexView(model *nav.Model) ListIndexView {
-	view := NewFolderIndex(model, recordedChrome().Lang, nil)
+	view := NewFolderIndex(model, true, recordedChrome().Lang, nil)
 	view.Fault = "artifact unavailable"
 	return view
 }

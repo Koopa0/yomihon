@@ -281,12 +281,12 @@ func ArticleLanguageFromSnapshot(snap *snapshot.Generation) ArticleLanguageFor {
 // or the full directory tree when no scope is available. Its measure includes
 // every file below those folders and every root file, so a vault whose files
 // all sit at the root counts and lists them without calling itself empty.
-func NewFolderIndex(model *nav.Model, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
+func NewFolderIndex(model *nav.Model, governed bool, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rootNotes := model.RootNotes()
 	folders := model.ShelfFolders()
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
-		wording.FolderIndexLede.In(lang), wording.FolderIndexEmpty.In(lang),
+		wording.FolderIndexLede.In(lang), emptySentence(governed, wording.FolderIndexEmpty, wording.FolderIndexUngoverned, lang),
 		folderRows(rootNotes, folders, lang, true, articleLang))
 }
 
@@ -397,7 +397,7 @@ func NewDeskBlocks(model *nav.Model, governed bool, lang wording.Lang, articleLa
 	pathIndex := NewPathIndex(model.Paths(), closure, governed, lang, articleLang)
 	mapIndex := NewMapIndex(model.Maps(), closure, governed, lang, articleLang)
 	reportIndex := NewReportIndex(model.Reports(), lang, articleLang)
-	folderIndex := NewFolderIndex(model, lang, articleLang)
+	folderIndex := NewFolderIndex(model, governed, lang, articleLang)
 	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))
 	mapBlock := deskBlock(&mapIndex, wording.DeskMapsLede.In(lang))
 	if withheld {

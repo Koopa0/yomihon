@@ -212,6 +212,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 		files    map[string]string
 		path     wording.Phrase
 		mapState wording.Phrase
+		folder   wording.Phrase
 		step     wording.Phrase
 	}{
 		{
@@ -219,6 +220,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 			files:    nil,
 			path:     wording.PathIndexUngoverned,
 			mapState: wording.MapIndexUngoverned,
+			folder:   wording.FolderIndexUngoverned,
 			step:     wording.IndexUngovernedNext,
 		},
 		{
@@ -228,6 +230,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 			},
 			path:     wording.PathIndexEmpty,
 			mapState: wording.MapIndexEmpty,
+			folder:   wording.FolderIndexEmpty,
 			step:     wording.IndexDeclaredEmptyNext,
 		},
 	} {
@@ -281,6 +284,18 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 					name:  "map index",
 					fetch: func() string { return readingPage(t, site, "/maps") },
 					state: tt.mapState,
+				},
+				{
+					name: "desk folders",
+					fetch: func() string {
+						return deskBlockMarkup(t, readingPage(t, site, "/"), "folders")
+					},
+					state: tt.folder,
+				},
+				{
+					name:  "folder index",
+					fetch: func() string { return readingPage(t, site, "/folders") },
+					state: tt.folder,
 				},
 			} {
 				t.Run(surface.name, func(t *testing.T) {

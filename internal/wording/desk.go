@@ -74,6 +74,10 @@ var (
 		"這裡沒有列出檔案。",
 		"No files are listed here.",
 	)
+	FolderIndexUngoverned = both(
+		"這個資料夾還沒有契約。",
+		"This folder has no contract yet.",
+	)
 )
 
 // What each mode counts. Chinese uses a different measure word for each kind of
