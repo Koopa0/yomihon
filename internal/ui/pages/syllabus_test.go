@@ -487,7 +487,7 @@ func TestSyllabusGuideClaimsNothingAboutTheNote(t *testing.T) {
 	// The way to the note's own page survives — where whatever the author
 	// wrote actually lives. The first-time greeting does not.
 	html := render(t, normal, wording.ZhHant)
-	if !strings.Contains(html, `<a href="/notes/Maps/Path.md">`) {
+	if !strings.Contains(html, `<a class="y-syl-read" href="/notes/Maps/Path.md">`) {
 		t.Errorf("the guide link is gone; html = %q", html)
 	}
 	if strings.Contains(html, "第一次使用這條路徑？") || strings.Contains(html, `class="y-syl-guide"`) {
@@ -742,7 +742,7 @@ func TestAnEmptyCourseLeadsWithItsDiagnosticAndNotAnInvitation(t *testing.T) {
 	if html := render(t, walked); strings.Contains(html, `class="y-syl-guide"`) || strings.Contains(html, "第一次使用這條路徑？") {
 		t.Errorf("a path with a declared course still greets the reader as if it were their first time; html = %q", html)
 	}
-	if html := render(t, walked); !strings.Contains(html, wording.ReadTheGuide.In(wording.ZhHant)) {
+	if html := render(t, walked); !strings.Contains(html, wording.ReadTheGuide.In(wording.ZhHant)) || !strings.Contains(html, `class="y-syl-read"`) {
 		t.Errorf("a path with a declared course lost the way to the note; html = %q", html)
 	}
 

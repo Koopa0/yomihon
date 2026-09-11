@@ -70,7 +70,7 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 	// before it explains itself, so the two halves of the page cannot give
 	// different answers about whether this path has a course.
 	if len(v.Branches) > 0 {
-		<a href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
+		<a class="y-syl-read" href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
 	}
 }
 

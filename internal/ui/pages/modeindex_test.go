@@ -274,3 +274,32 @@ func TestStatusDistributionNamesItsReachBesideANarrowedShelf(t *testing.T) {
 		})
 	}
 }
+
+// TestRecentBlockNamesItsReachBesideANarrowedShelf holds the sentence under
+// the recent list to the shelf beside it: a shelf narrowed to the declared
+// layer names that set, and an unscoped ordered shelf carries no sentence —
+// the heading already says what the list is.
+func TestRecentBlockNamesItsReachBesideANarrowedShelf(t *testing.T) {
+	t.Parallel()
+	notes := []HomeNote{{Title: "n"}}
+	for _, tt := range []struct {
+		name    string
+		ordered bool
+		scoped  bool
+		lang    wording.Lang
+		want    string
+	}{
+		{name: "ordered scoped zh", ordered: true, scoped: true, lang: wording.ZhHant, want: "知識層資料夾中最近改動過的筆記"},
+		{name: "ordered scoped en", ordered: true, scoped: true, lang: wording.En, want: "Notes in the declared knowledge folders changed most recently"},
+		{name: "ordered unscoped zh", ordered: true, scoped: false, lang: wording.ZhHant, want: ""},
+		{name: "ordered unscoped en", ordered: true, scoped: false, lang: wording.En, want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := NewRecentBlock(notes, tt.ordered, tt.scoped, tt.lang)
+			if got.Lede != tt.want {
+				t.Errorf("lede = %q, want %q", got.Lede, tt.want)
+			}
+		})
+	}
+}
