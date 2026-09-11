@@ -130,8 +130,9 @@ owner = ["author"]
 # left absent: an absent row would say the vault never allowed it.
 [[lifecycle]]
 status = "published"
-# Every type whose status list carries the value, and no more. A lesson's list
-# does not, so naming it here would be a row for a status that type cannot hold.
+# In this starting-point contract, name only types whose status list carries
+# the value. A lesson's list does not, so naming it here would be a row for
+# a status that type cannot hold.
 applies_to = ["note", "study-path", "moc", "concept", "inbox"]
 initial = false
 from = ["ready"]

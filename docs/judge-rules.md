@@ -44,6 +44,7 @@ rules and does not define new behavior.
 | `schema.provenance` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.required` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.slug` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
+| `schema.status_unreachable` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.unknown_key` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.unmatched_knowledge_dir` | `vault-schema.toml#scan` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `supersession.archived_navigation_target` | `vault-schema.toml#supersession` | [`internal/judge/supersession.go`](../internal/judge/supersession.go) |

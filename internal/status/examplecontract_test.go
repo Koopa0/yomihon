@@ -51,7 +51,7 @@ func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 		for _, status := range statuses {
 			stage, ok := contract.Stage(noteType, status)
 			if !ok {
-				t.Errorf("Stage(%q, %q) is absent: the example declares a status no lifecycle row can set", noteType, status)
+				t.Errorf("Stage(%q, %q) is absent: the starting point should list a lifecycle row for every status it declares for this type", noteType, status)
 				continue
 			}
 			if len(stage.Owner) == 0 {
@@ -67,9 +67,9 @@ func TestShippedExampleContractLoadsAndReachesEveryStatus(t *testing.T) {
 
 	// The last step is one the contract allows and yomihon refuses to make: the
 	// published value records something that happened outside the vault, so the
-	// control is never offered. The two are different layers, and the walk is
-	// about this one — a status the contract declares and no row could reach
-	// would be a fault in the contract whatever the write face later decides.
+	// control is never offered. The walk above is written for this starting-point
+	// contract — every status it lists for a type should have a row that type can
+	// reach, which is a claim about the teaching material, not about every vault.
 	walk := []struct{ from, to string }{
 		{"", "draft"},
 		{"draft", "ready"},

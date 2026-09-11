@@ -37,6 +37,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		Blocked:               healthBlocked(fresh.Blocked),
 		Skipped:               healthSkipped(snap.Skipped()),
 		StatusOutsideEnum:     statusesOutsideEnum(authority, snap),
+		StatusUnreachable:     statusesUnreachable(authority, snap),
 		FrontmatterUnreadable: unreadableFrontmatter,
 		SchemaFaults:          schemaFaults,
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
@@ -109,6 +110,35 @@ func statusesOutsideEnum(authority status.Authority, snap *snapshot.Generation) 
 	out := make([]pages.HealthStatusNote, 0, len(holders))
 	for _, h := range holders {
 		if authority.KnownStatus(h.Type, h.Status) {
+			continue
+		}
+		out = append(out, pages.HealthStatusNote{
+			Note:   nav.NoteRef{Name: healthNoteName(h.RelPath), RelPath: h.RelPath},
+			Type:   h.Type,
+			Status: h.Status,
+		})
+	}
+	return out
+}
+
+// statusesUnreachable names the notes whose status is in its type's declared
+// group while no lifecycle row with that status applies to its type. It reads
+// the same holder list the outside-enum section uses, so the two faces cannot
+// disagree about which notes exist.
+func statusesUnreachable(authority status.Authority, snap *snapshot.Generation) []pages.HealthStatusNote {
+	if !authority.Governed() || authority.Closed() {
+		return nil
+	}
+	holders, err := snap.Search().StatusHolders()
+	if err != nil {
+		return nil
+	}
+	out := make([]pages.HealthStatusNote, 0, len(holders))
+	for _, h := range holders {
+		if !authority.KnownStatus(h.Type, h.Status) {
+			continue
+		}
+		if authority.ReachableStatus(h.Type, h.Status) {
 			continue
 		}
 		out = append(out, pages.HealthStatusNote{

@@ -433,6 +433,7 @@ func recordedHealthView(model *nav.Model) HealthView {
 		Blocked:               []HealthBlockedSource{{Path: "Sources/articles/Raw.md", Reason: "permission denied"}},
 		Skipped:               []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
 		StatusOutsideEnum:     []HealthStatusNote{{Note: ref, Type: "lesson", Status: "seed"}},
+		StatusUnreachable:     []HealthStatusNote{{Note: ref, Type: "concept", Status: "published"}},
 		FrontmatterUnreadable: []nav.NoteRef{ref},
 		SchemaFaults:          []nav.NoteRef{ref},
 		Sidebar:               NewSidebar(model, ""),

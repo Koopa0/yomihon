@@ -55,6 +55,11 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 			text(schemaProvenanceStart), code("based_on"),
 			text(schemaProvenanceMiddle), code("source_locator"), text(schemaProvenanceEnd),
 		}
+	case "schema.status_unreachable":
+		return []SchemaPart{
+			code(field), text(schemaWrittenAs), code(target),
+			text(schemaStatusUnreachableForType), code(folder), text(schemaStatusUnreachableEnd),
+		}
 	}
 	return []SchemaPart{text(schemaUnknownRuleStart), code(ruleID), text(schemaUnknownRuleEnd)}
 }
@@ -89,6 +94,11 @@ var (
 	schemaProvenanceStart  = both("這篇 concept 既沒寫 ", "This concept has neither ")
 	schemaProvenanceMiddle = both(" 也沒寫 ", " nor ")
 	schemaProvenanceEnd    = both("。", ".")
+
+	schemaStatusUnreachableForType = both(
+		"在它的類型所屬清單裡,但沒有任何 lifecycle 列套用到 ",
+		" is in its type's list, but no lifecycle row applies to type ")
+	schemaStatusUnreachableEnd = both("。", ".")
 
 	schemaUnknownRuleStart = both("schema 對這篇報了一項 ", "The schema reported ")
 	schemaUnknownRuleEnd   = both(",而這個頁面還沒有它的說法。", " about this note, and this page has no words for it yet.")

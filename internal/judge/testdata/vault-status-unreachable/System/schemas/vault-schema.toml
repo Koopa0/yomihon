@@ -1,0 +1,51 @@
+schema_version = "1"
+
+[enums]
+type = ["note", "concept"]
+
+[enums.status]
+note = ["draft", "ready", "published"]
+
+[fields]
+required = ["title", "type", "status", "domain", "created", "updated"]
+known = ["title", "type", "status", "domain", "created", "updated", "based_on"]
+lesson_only = []
+
+[rules]
+concept_requires_provenance = ["based_on"]
+slug_pattern = "^[a-z]+$"
+
+[scan]
+knowledge_dirs = ["Concepts", "Notes"]
+skip_basenames = []
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+initial = true
+from = []
+owner = ["author"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["*"]
+initial = false
+from = ["draft"]
+owner = ["author"]
+
+[[lifecycle]]
+status = "published"
+applies_to = ["note"]
+initial = false
+from = ["ready"]
+owner = ["author"]

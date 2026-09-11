@@ -39,6 +39,9 @@ type HealthView struct {
 	// declared list. An empty list renders nothing, the unknowable case
 	// included, and the section's number is this list's own length.
 	StatusOutsideEnum []HealthStatusNote
+	// StatusUnreachable are the notes whose status is in its type's declared
+	// group while no lifecycle row with that status applies to its type.
+	StatusUnreachable []HealthStatusNote
 	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
 	// so nothing they declare could be judged at all.
 	FrontmatterUnreadable []nav.NoteRef
@@ -206,6 +209,18 @@ templ Health(v HealthView, c layouts.Chrome) {
 						@healthSection(wording.StatusOutsideEnumTitle.In(c.Lang), len(v.StatusOutsideEnum), wording.StatusOutsideEnumLede.In(c.Lang)) {
 							<ul class="y-healthlist">
 								for _, found := range v.StatusOutsideEnum {
+									<li>
+										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }>{ found.Note.Name }</a>
+										<span class="y-healthlist__detail">
+											{ fmt.Sprintf(wording.StatusAndTypeFmt.In(c.Lang), found.Status, found.Type) }
+										</span>
+									</li>
+								}
+							</ul>
+						}
+						@healthSection(wording.StatusUnreachableTitle.In(c.Lang), len(v.StatusUnreachable), wording.StatusUnreachableLede.In(c.Lang)) {
+							<ul class="y-healthlist">
+								for _, found := range v.StatusUnreachable {
 									<li>
 										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }>{ found.Note.Name }</a>
 										<span class="y-healthlist__detail">
