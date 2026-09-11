@@ -2,17 +2,6 @@
 
 This file governs any agent that opens a pull request here.
 
-## Commit and GitHub text — no agent identity
-
-Do not put any of the following in commit messages, PR titles/bodies, or
-Issue/PR comments:
-
-- `Co-authored-by: Cursor Agent <…>` or any Cursor Co-authored-by trailer
-- Self-identification as Cursor / Cursor Agent / app/cursor / “written by
-  Cursor”
-
-Finish the change. Do not advertise that an agent wrote it.
-
 ## What you may work on
 
 - Work from an issue that carries the `grok` label. An issue labeled
@@ -27,6 +16,20 @@ Finish the change. Do not advertise that an agent wrote it.
 - Check the premise before you write code. If the behavior the issue describes
   no longer occurs on current `main`, say so on the issue and stop. Do not
   redefine the issue into a change you can make.
+
+## Commit and GitHub text — no agent identity
+
+Do not put any of the following in commit messages, PR titles/bodies, or
+Issue/PR comments:
+
+- Any `Co-authored-by` trailer
+- Self-identification as Cursor / Cursor Agent / app/cursor / “written by
+  Cursor”
+
+Finish the change. Do not advertise that an agent wrote it.
+
+This rule covers what the agent writes. The integration's own PR footer is
+the maintainer's to switch off.
 
 ## The pull request
 
