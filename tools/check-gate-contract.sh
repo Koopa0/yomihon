@@ -2,7 +2,8 @@
 # Owns the mapping between three surfaces that must stay aligned:
 #   1. every prerequisite reached by `make verify`;
 #   2. the CI jobs the workflow defines;
-#   3. the status contexts the protected `main` ruleset requires.
+#   3. the status contexts listed in the committed .github/rulesets/main.json
+#      artifact — never the live GitHub ruleset.
 #
 # The contract lists all verify prerequisites explicitly. Dropping one from the
 # Makefile without updating the contract fails here, and listing one in the
@@ -181,5 +182,5 @@ elif [ "$make_lint" != "$workflow_lint" ]; then
   printf '%s\n' "$workflow_lint" | sed 's/^/  ci:   /' >&2
 fi
 
-[ "$status" -eq 0 ] && echo "check-gate-contract: verify prerequisites, CI jobs, and ruleset contexts align"
+[ "$status" -eq 0 ] && echo "check-gate-contract: verify prerequisites, CI jobs, and contexts in the committed .github/rulesets/main.json align"
 exit "$status"

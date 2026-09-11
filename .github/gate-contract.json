@@ -1,5 +1,5 @@
 {
-  "_note": "Hand-applied import artifact for GitHub ruleset id 22428376. Live enforcement lives in repository settings and the rulesets API, not this path.",
+  "_note": "Gate-contract reads this file and the committed .github/rulesets/main.json artifact. It never reads the live GitHub ruleset; live enforcement is repository settings and the rulesets API.",
   "verify_prerequisites": [
     "tracked-paths-check",
     "mod-check",
