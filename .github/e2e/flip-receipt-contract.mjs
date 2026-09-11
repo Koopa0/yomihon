@@ -1,0 +1,242 @@
+// Behavior lock for the flip receipt's arrival: a short entrance fade and a
+// clean address once the sentence has landed. The server mints the receipt from
+// ?from=; the client drops that token so a copied URL does not suggest a replay
+// the write path has already refused.
+//
+// Env: YOMIHON_BASE, PAGE_PATH (the writable L01 fixture), and MUTATE.
+import { chromium } from 'playwright-core';
+
+const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
+const RAW = '/raw/Writing/lessons/japanese/L01.md';
+const MUTATE = process.env.MUTATE || '';
+
+const SITES = ['entrance-fade', 'address-cleanup'];
+
+class LockFired extends Error {
+  constructor(site, message) {
+    super(message);
+    this.site = site;
+  }
+}
+class ProbeBroken extends Error {}
+class NotApplied extends Error {}
+
+const fail = (site, message) => {
+  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN flip-receipt-contract: unknown assertion site ${site}`);
+  throw new LockFired(site, `FAIL flip-receipt-contract: ${message}`);
+};
+const broken = (message) => { throw new ProbeBroken(`BROKEN flip-receipt-contract: ${message}`); };
+const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED flip-receipt-contract: ${message}`); };
+
+const rewriteFetched = (pattern, needle, replacement, label) => async (page) => {
+  let matches = 0;
+  let counted = false;
+  await page.route(pattern, async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    if (!counted) {
+      matches = original.split(needle).length - 1;
+      counted = true;
+    }
+    await route.fulfill({ response, body: original.replace(needle, replacement) });
+  });
+  return () => {
+    if (matches !== 1) return `${label} needle matched ${matches} times, want exactly 1`;
+    return '';
+  };
+};
+
+const MUTATIONS = {
+  'drop-entrance': {
+    target: 'entrance-fade',
+    apply: rewriteFetched(
+      '**/app.css',
+      'animation:y-flipreceipt-in var(--dur-slow)var(--ease-standard)',
+      'animation:none',
+      'flip receipt entrance animation',
+    ),
+  },
+  'drop-address-cleanup': {
+    target: 'address-cleanup',
+    apply: rewriteFetched(
+      '**/freshness.js',
+      "  address.searchParams.delete('from');\n",
+      '',
+      'from query deletion',
+    ),
+  },
+};
+
+for (const [name, mutation] of Object.entries(MUTATIONS)) {
+  if (!SITES.includes(mutation.target)) {
+    console.error(`flip-receipt-contract: mutation ${name} aims at unknown site ${mutation.target}`);
+    process.exit(2);
+  }
+}
+for (const site of SITES) {
+  if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
+    console.error(`flip-receipt-contract: assertion site ${site} has no mutation`);
+    process.exit(2);
+  }
+}
+
+if (MUTATE === 'list') {
+  for (const name of Object.keys(MUTATIONS)) console.log(name);
+  process.exit(0);
+}
+if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
+  console.error(`flip-receipt-contract: unknown MUTATE mode ${MUTATE}`);
+  process.exit(2);
+}
+
+const installEntranceSampler = async (page) => {
+  await page.addInitScript(() => {
+    window.__flipReceiptSamples = [];
+    const watch = (el) => {
+      if (el.dataset.flipReceiptSampled) return;
+      el.dataset.flipReceiptSampled = '1';
+      const sample = () => {
+        window.__flipReceiptSamples.push(Number(getComputedStyle(el).opacity));
+        if (getComputedStyle(el).opacity === '1' && window.__flipReceiptSamples.length > 2) return;
+        requestAnimationFrame(sample);
+      };
+      sample();
+    };
+    const start = () => {
+      const receipt = document.querySelector('.y-flipreceipt');
+      if (receipt) watch(receipt);
+      const observer = new MutationObserver(() => {
+        const next = document.querySelector('.y-flipreceipt');
+        if (next) watch(next);
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
+  });
+};
+
+const readEntranceSamples = (page) => page.evaluate(() => window.__flipReceiptSamples ?? []);
+
+const injectReceipt = async (page) => {
+  const arrival = `${BASE}${PAGE}?from=draft`;
+  await page.route(`${BASE}${PAGE}*`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const original = await response.text();
+    const receipt = '<p class="y-flipreceipt" role="status">fixture receipt</p>';
+    const body = original.includes('class="y-flipreceipt"')
+      ? original
+      : original.replace('<main id="main-content"', `${receipt}<main id="main-content"`);
+    await route.fulfill({ response, body });
+  });
+  const noteResponse = await page.goto(arrival, { waitUntil: 'domcontentloaded' });
+  if (!noteResponse || noteResponse.status() !== 200) broken(`${arrival} returned ${noteResponse?.status() ?? 'no response'}, want 200`);
+  await page.waitForSelector('html[data-js]');
+  await page.waitForSelector('.y-flipreceipt', { timeout: 3000 });
+};
+
+const flipToReceipt = async (page) => {
+  const noteResponse = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  if (!noteResponse || noteResponse.status() !== 200) broken(`${PAGE} returned ${noteResponse?.status() ?? 'no response'}, want 200`);
+  await page.waitForSelector('html[data-js]');
+
+  const form = page.locator('form.y-statusform')
+    .filter({ has: page.locator('input[name="to"][value="ready"]') })
+    .first();
+  if (await form.count() !== 1) broken('the L01 fixture exposes no draft-to-ready status form');
+  const [postResponse] = await Promise.all([
+    page.waitForResponse((response) => response.url().includes('/status') && response.request().method() === 'POST'),
+    form.evaluate((element) => element.requestSubmit()),
+  ]);
+  if (!postResponse) broken('the status flip produced no status response');
+  if (postResponse.status() !== 303) {
+    broken(`status flip returned ${postResponse.status()}, want 303`);
+  }
+  const location = postResponse.headers().location ?? '';
+  if (!location.includes('from=draft')) {
+    broken(`status flip Location is ${JSON.stringify(location)}, want a ?from=draft arrival address`);
+  }
+  await page.waitForSelector('.y-flipreceipt', { timeout: 3000 });
+};
+
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+let proof = null;
+try {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await installEntranceSampler(page);
+  proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+
+  const flipped = MUTATE !== 'drop-address-cleanup';
+  if (MUTATE === 'drop-address-cleanup') await injectReceipt(page);
+  else await flipToReceipt(page);
+
+  const receipt = page.locator('.y-flipreceipt');
+  if (await receipt.count() !== 1) broken(`the arrival page carries ${await receipt.count()} flip receipts, want 1`);
+
+  if (proof) {
+    const issue = proof();
+    if (issue) notApplied(`${MUTATE}: ${issue}`);
+  }
+
+  await page.waitForFunction(() => {
+    const samples = window.__flipReceiptSamples ?? [];
+    return samples.length > 0 && samples.at(-1) === 1;
+  }, null, { timeout: 2000 }).catch(() => {});
+  const samples = await readEntranceSamples(page);
+  if (samples.length === 0) fail('entrance-fade', 'the flip receipt never produced opacity samples');
+  if (!samples.some((opacity) => opacity < 1)) {
+    fail('entrance-fade', `the receipt never faded in: sampled opacities ${JSON.stringify(samples)}`);
+  }
+  if (samples.at(-1) !== 1) {
+    fail('entrance-fade', `the receipt never reached full opacity: sampled opacities ${JSON.stringify(samples)}`);
+  }
+
+  await page.waitForFunction(() => !new URL(location.href).searchParams.has('from'), null, { timeout: 2000 }).catch(() => {});
+  const address = new URL(page.url());
+  if (address.searchParams.has('from')) {
+    fail('address-cleanup', `the address still carries from=${JSON.stringify(address.searchParams.get('from'))}`);
+  }
+  if (address.pathname !== PAGE) {
+    fail('address-cleanup', `cleanup changed the path to ${address.pathname}, want ${PAGE}`);
+  }
+
+  if (flipped) {
+    const rawAfter = await page.evaluate(async (path) => {
+      const result = await fetch(path, { cache: 'no-store' });
+      return { status: result.status, body: await result.text() };
+    }, RAW);
+    if (rawAfter.status !== 200) broken(`${RAW} returned ${rawAfter.status} after the flip, want 200`);
+    if (!rawAfter.body.includes('status: ready')) {
+      broken('the fixture note did not flip to ready');
+    }
+  }
+
+  console.log(`PASS flip-receipt-contract: entrance fade ${JSON.stringify(samples)} and address ${address.pathname}`);
+} catch (err) {
+  if (err instanceof NotApplied) {
+    console.error(err.message);
+    console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
+    process.exitCode = 2;
+  } else if (err instanceof LockFired) {
+    console.error(err.message);
+    if (MUTATE) {
+      const { target } = MUTATIONS[MUTATE];
+      if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+      else console.error(`no catch: ${MUTATE} injects a regression the ${target} assertion watches for, but the ${err.site} assertion fired first`);
+    }
+    process.exitCode = 1;
+  } else if (err instanceof ProbeBroken) {
+    console.error(err.message);
+    process.exitCode = 1;
+  } else {
+    console.error(err);
+    process.exitCode = 1;
+  }
+} finally {
+  await browser.close();
+}
