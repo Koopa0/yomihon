@@ -33,9 +33,10 @@ type note struct {
 	basedOn    []string
 	related    []string
 
-	wikilinks    []wikiLink
-	pathRefs     []pathRef
-	plannedNames []string
+	wikilinks     []wikiLink
+	pathRefs      []pathRef
+	plannedNames  []string
+	calloutTitles []calloutTitle
 
 	// sectionAnchors, excerptSectionAnchors, and blockAnchorLines are what this
 	// note's body answers a fragment with: the folded ids of every heading a
@@ -109,11 +110,12 @@ func parseNoteWithMarks(rel string, data []byte, marks plannedMarks) note {
 	block, found := vault.SplitFrontmatter(data)
 	body := string(block.Body)
 	n := note{
-		path:         rel,
-		wikilinks:    extractWikilinksWith(body, block.BodyStartLine, marks.heading),
-		pathRefs:     extractPathRefs(body, block.BodyStartLine),
-		plannedNames: extractPlannedNamesWith(body, marks),
-		sequence:     sequence.Parse(body, block.BodyStartLine),
+		path:          rel,
+		wikilinks:     extractWikilinksWith(body, block.BodyStartLine, marks.heading),
+		pathRefs:      extractPathRefs(body, block.BodyStartLine),
+		plannedNames:  extractPlannedNamesWith(body, marks),
+		calloutTitles: extractCalloutTitles(body, block.BodyStartLine),
+		sequence:      sequence.Parse(body, block.BodyStartLine),
 	}
 	n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurface(body)
 	if !found {

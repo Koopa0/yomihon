@@ -11,6 +11,7 @@ rules and does not define new behavior.
 |---|---|---|
 | `collision.alias` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `collision.name` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
+| `callout.title_markup` | `yomihon` | [`internal/judge/callout.go`](../internal/judge/callout.go) |
 | `embed.block_missing` | `yomihon` | [`internal/judge/fragment.go`](../internal/judge/fragment.go) |
 | `embed.section_missing` | `yomihon` | [`internal/judge/fragment.go`](../internal/judge/fragment.go) |
 | `link.block_missing` | `yomihon` | [`internal/judge/fragment.go`](../internal/judge/fragment.go) |

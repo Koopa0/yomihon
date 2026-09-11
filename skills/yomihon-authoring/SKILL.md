@@ -131,6 +131,7 @@ one page never collide. Beyond that:
 | `## 標題` | a heading with an anchor | CJK survives verbatim; a repeated slug bumps `-2`, `-3` until it is free |
 | `<!-- read-aloud: ja -->` | a speech control on the next paragraph | `ja` is the only value, and it acts on a `type: lesson` note only — not on one held by a directory the contract's `[artifacts] non_instance_dirs` names. Anywhere else the comment is accepted and does nothing |
 | `[[#Section]]` | **plain text** | a same-file anchor is not implemented, and draws no diagnostic — a silent trap |
+| `> [!quote] [[Note]]` | **plain text** | a recognised callout's title is escaped, not parsed; a wikilink, an HTML tag (ruby is one instance), emphasis or a code span there draws `callout.title_markup` — move the markup into the body or write the title as plain text |
 
 Recognised callout types, closed; each group separated by · shares one default
 title, used when the opening line names none. The title is plain text. Markdown

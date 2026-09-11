@@ -71,6 +71,7 @@ func TestRegenerateGoldens(t *testing.T) {
 		{fixture: "testdata/vault-symlink", golden: "testdata/golden/symlink.jsonl"},
 		{fixture: "testdata/vault-titlecollision", golden: "testdata/golden/titlecollision.jsonl"},
 		{fixture: "testdata/vault-titlecollision", golden: "testdata/golden/titlecollision-privacy.jsonl", private: []string{"Private"}},
+		{fixture: "testdata/vault-callout-title", golden: "testdata/golden/callout-title.jsonl"},
 	}
 	for _, tt := range engine {
 		root := judgeFixtureRootWithPrivacy(t, tt.fixture, tt.private...)
