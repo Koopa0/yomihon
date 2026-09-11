@@ -107,11 +107,7 @@ requires eleven checks and `make verify` is one of them; two of the others
 build, vet, and test on macOS and Windows runners, so a green run on your
 machine does not tell you those passed.
 
-It builds, checks formatting, vets, lints, runs the Go tests, compares the
-generated files against their sources, scans for known vulnerabilities, drives
-the HTTP and browser contracts against a fixture vault, fuzzes every target,
-cross-builds for six platforms, and proves the browser probes can still fail.
-The `verify` target in the Makefile is the full list.
+The `verify` target in the Makefile is the list of what it runs.
 
 Beyond the Go toolchain, `make verify` needs:
 
@@ -146,7 +142,7 @@ Use the bug form for anything that is broken. It asks what happened, what you
 expected, how to reproduce it from a clean start, and which build you ran. There
 is no `--version` flag yet, so give the commit you built from.
 
-Three of its fields are optional, and they are the ones that decide whether a
+Four of its fields are optional. Three of them decide whether a
 report about vault behavior can be reproduced at all:
 
 - the section of your `System/schemas/vault-schema.toml` the bug touches;
