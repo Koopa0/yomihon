@@ -129,6 +129,12 @@ type Document struct {
 	// sorts after every note in a result list.
 	File bool
 
+	// OutsideKnowledge marks an entry the contract placed outside the
+	// knowledge layer. It stays in the index; when a group is flattened,
+	// these follow every hit that is inside the layer. An undeclared layer
+	// marks nothing.
+	OutsideKnowledge bool
+
 	// FrontmatterUnreadable marks a note whose frontmatter was there and could
 	// not be parsed, which is not the same as a note that declares nothing. Both
 	// arrive with every field empty, and only this tells them apart.
@@ -163,15 +169,16 @@ type entry struct {
 	// Topics are the note's declared subjects, held as written. TopicFolds
 	// is what matching reads; Topics is what the result row shows, so a
 	// declared Colour Theory is not rewritten as colour theory.
-	Topics          []string
-	TopicFolds      []string
-	PlainText       string
-	PlainFold       string
-	blockEnds       []int
-	fenceRanges     [][2]int
-	fenceFoldRanges [][2]int
-	isFile          bool
-	metadataCapable bool
+	Topics           []string
+	TopicFolds       []string
+	PlainText        string
+	PlainFold        string
+	blockEnds        []int
+	fenceRanges      [][2]int
+	fenceFoldRanges  [][2]int
+	isFile           bool
+	outsideKnowledge bool
+	metadataCapable  bool
 	// frontmatterUnreadable records that this note had a frontmatter block that
 	// could not be parsed, so a tally can separate it from a note that declared
 	// nothing.
@@ -280,28 +287,29 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		aliasFolds[i] = fold(aliases[i])
 	}
 	return entry{
-		RelPath:         d.RelPath,
-		PathFold:        fold(vault.NormalizeNFC(d.RelPath)),
-		Title:           title,
-		TitleFold:       fold(title),
-		Aliases:         aliases,
-		AliasFolds:      aliasFolds,
-		NoteType:        noteType,
-		NoteTypeFold:    fold(noteType),
-		Domain:          domain,
-		DomainFold:      fold(domain),
-		Status:          status,
-		StatusFold:      fold(status),
-		Slug:            slug,
-		SlugFold:        fold(slug),
-		Topics:          topics,
-		TopicFolds:      topicFolds,
-		PlainText:       plain,
-		PlainFold:       plainFold,
-		blockEnds:       blockEnds,
-		fenceRanges:     fenceRanges,
-		fenceFoldRanges: fenceFoldRanges,
-		isFile:          d.File,
+		RelPath:          d.RelPath,
+		PathFold:         fold(vault.NormalizeNFC(d.RelPath)),
+		Title:            title,
+		TitleFold:        fold(title),
+		Aliases:          aliases,
+		AliasFolds:       aliasFolds,
+		NoteType:         noteType,
+		NoteTypeFold:     fold(noteType),
+		Domain:           domain,
+		DomainFold:       fold(domain),
+		Status:           status,
+		StatusFold:       fold(status),
+		Slug:             slug,
+		SlugFold:         fold(slug),
+		Topics:           topics,
+		TopicFolds:       topicFolds,
+		PlainText:        plain,
+		PlainFold:        plainFold,
+		blockEnds:        blockEnds,
+		fenceRanges:      fenceRanges,
+		fenceFoldRanges:  fenceFoldRanges,
+		isFile:           d.File,
+		outsideKnowledge: d.OutsideKnowledge,
 		// An unclaimed policy excludes nothing, so every readable note answers over
 		// its own raw frontmatter. A file has no frontmatter, so it answers no
 		// metadata projection under any policy.

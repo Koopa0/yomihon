@@ -1002,6 +1002,99 @@ func TestBuildGenerationIndexesTextFilesAndSkipsTheRest(t *testing.T) {
 	}
 }
 
+func searchPaths(t *testing.T, store *Store, query string) []string {
+	t.Helper()
+	results := snapshotSearch(t, store.Current().Search(), query)
+	out := make([]string, len(results))
+	for i := range results {
+		out[i] = results[i].RelPath
+	}
+	return out
+}
+
+func storeWithNotes(t *testing.T, root string, contract *schema.Contract) *Store {
+	t.Helper()
+	reader, err := vaultfs.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	store, err := New(t.Context(), reader, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store
+}
+
+func writeNeedlePair(t *testing.T, root string) {
+	t.Helper()
+	writeNote(t, root, "System/early.md", "---\ntitle: Early\ntype: system\n---\nneedle in a template\n")
+	writeNote(t, root, "Writing/late.md", "---\ntitle: Late\ntype: writing\n---\nneedle in a note\n")
+	writeNote(t, root, "AAA.md", "---\ntitle: Root\ntype: guide\n---\nneedle at the root\n")
+}
+
+// TestSearchRanksAKnowledgeLayerNoteAboveASystemFile plumbs OutsideKnowledge
+// from the contract's KnowledgeScope. Writing/ is in the layer; System/ and a
+// vault-root file are not. The System path and the root file both sort first,
+// so path order cannot pass this. Nothing leaves the index.
+func TestSearchRanksAKnowledgeLayerNoteAboveASystemFile(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNeedlePair(t, root)
+	store := storeWithNotes(t, root, testContract(t, root))
+
+	got := searchPaths(t, store, "needle")
+	want := []string{"Writing/late.md", "AAA.md", "System/early.md"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestSearchKeepsReadingOrderWhenNoKnowledgeLayerIsDeclared is the undeclared
+// polarity through the same three files: Includes reports everything, so the
+// flag stays off and the vault's reading order stands.
+func TestSearchKeepsReadingOrderWhenNoKnowledgeLayerIsDeclared(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNeedlePair(t, root)
+	contract := testContractWithoutKnowledgeDirs(t, root)
+	if contract.KnowledgeScope().Available() {
+		t.Fatal("the undeclared fixture still claims a knowledge layer")
+	}
+	store := storeWithNotes(t, root, contract)
+
+	got := searchPaths(t, store, "needle")
+	want := []string{"AAA.md", "System/early.md", "Writing/late.md"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func testContractWithoutKnowledgeDirs(tb testing.TB, root string) *schema.Contract {
+	tb.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		tb.Fatalf("read contract fixture: %v", err)
+	}
+	const needle = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	text := strings.Replace(string(data), needle, `knowledge_dirs = []`, 1)
+	if text == string(data) {
+		tb.Fatal("the contract fixture does not contain the knowledge_dirs needle")
+	}
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
+		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)
+	}
+	if writeErr := os.WriteFile(contractPath, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- every caller supplies a testing.T.TempDir root
+		tb.Fatalf("write contract fixture: %v", writeErr)
+	}
+	contract, err := schema.Load(root)
+	if err != nil {
+		tb.Fatalf("schema.Load: %v", err)
+	}
+	return contract
+}
+
 // TestBuildGenerationStillResolvesWikilinksToFiles guards the hole the widening most
 // plausibly opens. Every vault file has to reach the link resolver whether or
 // not its bytes are read, so a note pointing at a picture keeps resolving.

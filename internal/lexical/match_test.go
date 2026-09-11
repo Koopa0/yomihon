@@ -661,6 +661,109 @@ func TestANoteThatDeclaresATopicAndSaysItInProseRanksAsABodyHit(t *testing.T) {
 	}
 }
 
+// TestAKnowledgeLayerHitLeadsAnOutsideHitInItsGroup is the flatten-time
+// knowledge rank. A System file and a knowledge-layer note share one
+// evidence group; the System path sorts first so path order cannot pass
+// this. The note leads; the file stays in the answer. Notes/ sorts before
+// System/ under ComparePaths, so the layer note here is Writing/.
+func TestAKnowledgeLayerHitLeadsAnOutsideHitInItsGroup(t *testing.T) {
+	t.Parallel()
+
+	outside := "System/early.md"
+	inside := "Writing/late.md"
+	if vault.ComparePaths(outside, inside) >= 0 {
+		t.Fatal("the System path must sort first, or this fixture cannot catch a missing knowledge rank")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: outside, Title: "Unrelated", PlainText: "needle in a template", OutsideKnowledge: true},
+		{RelPath: inside, Title: "Unrelated", PlainText: "needle in a note"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("needle")))
+	want := []string{inside, outside}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestARootFileOutsideTheKnowledgeLayerSortsAfterANote pins the Includes cut
+// at the first slash: a vault-root file matches no declared directory, so it
+// demotes. README.md is skip_basenames in the example vault and never reaches
+// the index, which is why the fixture is a root file that does.
+func TestARootFileOutsideTheKnowledgeLayerSortsAfterANote(t *testing.T) {
+	t.Parallel()
+
+	root := "AAA.md"
+	note := "Notes/late.md"
+	if vault.ComparePaths(root, note) >= 0 {
+		t.Fatal("the root file must sort first, or this fixture cannot catch a missing demotion")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: root, Title: "Unrelated", PlainText: "needle at the root", OutsideKnowledge: true},
+		{RelPath: note, Title: "Unrelated", PlainText: "needle in a note"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("needle")))
+	want := []string{note, root}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAnExactTitleOutsideTheKnowledgeLayerStillLeadsAPartialTitle pins
+// exactness over the layer. A reader who types a file's exact title has
+// named it; the Ruling's "reading material first" is a tie-break among hits
+// of the same strength, not a rule over that name. The Notes/ partial sorts
+// first by path and is in-layer, so path order and a knowledge-primary sort
+// both put it first — only raiseExactTitles after raiseKnowledge puts the
+// outside exact title ahead.
+func TestAnExactTitleOutsideTheKnowledgeLayerStillLeadsAPartialTitle(t *testing.T) {
+	t.Parallel()
+
+	partial := "Notes/partial.md"
+	exact := "System/exact.md"
+	if vault.ComparePaths(partial, exact) >= 0 {
+		t.Fatal("the in-layer partial must sort first by path, or this fixture cannot catch a missing exact-title raise")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: partial, Title: "needle and more", PlainText: "unrelated"},
+		{RelPath: exact, Title: "needle", PlainText: "unrelated", OutsideKnowledge: true},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("needle")))
+	want := []string{exact, partial}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAnUndeclaredKnowledgeLayerLeavesSearchOrderUnchanged is the empty-set
+// polarity: nothing is outside an undeclared layer, so the same documents
+// keep the vault's reading order.
+func TestAnUndeclaredKnowledgeLayerLeavesSearchOrderUnchanged(t *testing.T) {
+	t.Parallel()
+
+	early := "System/early.md"
+	late := "Writing/late.md"
+	if vault.ComparePaths(early, late) >= 0 {
+		t.Fatal("the System path must sort first, or this fixture cannot catch a silent reorder")
+	}
+
+	idx := NewIndex([]Document{
+		{RelPath: early, Title: "Unrelated", PlainText: "needle in a template"},
+		{RelPath: late, Title: "Unrelated", PlainText: "needle in a note"},
+	}, validArtifactPolicy(t))
+
+	got := paths(searchResults(t, idx, Parse("needle")))
+	want := []string{early, late}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Search(needle) order mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestResultsSortTheWayTheirNumbersRead holds the results list to the same
 // reading order the sidebar shows a course in. Comparing code points puts 第10課
 // between 第1課 and 第2課, so a reader who found their lessons in one order in
