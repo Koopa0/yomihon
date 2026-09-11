@@ -484,16 +484,14 @@ func TestSyllabusGuideClaimsNothingAboutTheNote(t *testing.T) {
 		}
 	}
 
-	// The invitation itself survives: the block, its question, and the way to
-	// the note's own page — where whatever the author wrote actually lives.
+	// The way to the note's own page survives — where whatever the author
+	// wrote actually lives. The first-time greeting does not.
 	html := render(t, normal, wording.ZhHant)
-	for _, want := range []string{
-		"第一次使用這條路徑？",
-		`<a href="/notes/Maps/Path.md">`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("the guide invitation lost %q; html = %q", want, html)
-		}
+	if !strings.Contains(html, `<a class="y-syl-read" href="/notes/Maps/Path.md">`) {
+		t.Errorf("the guide link is gone; html = %q", html)
+	}
+	if strings.Contains(html, "第一次使用這條路徑？") || strings.Contains(html, `class="y-syl-guide"`) {
+		t.Errorf("the first-time greeting is still on the page; html = %q", html)
 	}
 }
 
@@ -719,13 +717,12 @@ func TestACourseReportsAnItemItCouldNotRead(t *testing.T) {
 }
 
 // TestAnEmptyCourseLeadsWithItsDiagnosticAndNotAnInvitation settles which of
-// the two things a course page can say goes first. The invitation asks whether
-// this is the reader's first time on the path and offers the note that
-// explains it; the diagnostic says the note declared no structure and names
-// the markers that would declare some. Both were rendered on an empty course,
-// invitation first — so the page welcomed a reader into a course and then told
-// them the course was not there. The diagnostic is the honest thing to lead
-// with, and the invitation belongs to a path that has something to walk.
+// the two things a course page can say goes first. The diagnostic says the
+// note declared no structure and names the markers that would declare some.
+// A first-time greeting used to sit above that on every path with branches,
+// forever, because nothing records a visit. The diagnostic is the honest
+// thing to lead with; the way to the note itself still belongs to a path
+// that has something to walk.
 func TestAnEmptyCourseLeadsWithItsDiagnosticAndNotAnInvitation(t *testing.T) {
 	t.Parallel()
 
@@ -742,24 +739,14 @@ func TestAnEmptyCourseLeadsWithItsDiagnosticAndNotAnInvitation(t *testing.T) {
 	walked.Parts, walked.Entries = 1, 1
 	walked.Branches = []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}}
 
-	for _, tt := range []struct {
-		name  string
-		view  PathView
-		wants bool
-	}{
-		{"a path with a declared course invites the reader into it", walked, true},
-		{"a path with none does not", base, false},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			html := render(t, tt.view)
-			if got := strings.Contains(html, `class="y-syl-guide"`); got != tt.wants {
-				t.Errorf("the invitation is present = %v, want %v; html = %q", got, tt.wants, html)
-			}
-		})
+	if html := render(t, walked); strings.Contains(html, `class="y-syl-guide"`) || strings.Contains(html, "第一次使用這條路徑？") {
+		t.Errorf("a path with a declared course still greets the reader as if it were their first time; html = %q", html)
+	}
+	if html := render(t, walked); !strings.Contains(html, wording.ReadTheGuide.In(wording.ZhHant)) || !strings.Contains(html, `class="y-syl-read"`) {
+		t.Errorf("a path with a declared course lost the way to the note; html = %q", html)
 	}
 
-	// The page still says something when the invitation goes: an empty course
+	// The page still says something when the greeting goes: an empty course
 	// that lost both would be a title over nothing.
 	if html := render(t, base); !strings.Contains(html, `class="y-syl-nocourse"`) {
 		t.Errorf("the empty course page carries no explanation of why it is empty; html = %q", html)

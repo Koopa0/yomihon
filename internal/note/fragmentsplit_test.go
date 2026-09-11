@@ -42,7 +42,7 @@ func noteConditions(t *testing.T, body string) string {
 	if start < 0 {
 		t.Fatalf("the note page carries no 筆記狀況 list; body = %q", body)
 	}
-	block, _, closed := strings.Cut(body[start:], `<p class="y-diag__note">`)
+	block, _, closed := strings.Cut(body[start:], `</section>`)
 	if !closed {
 		t.Fatalf("the 筆記狀況 list is not closed; body = %q", body)
 	}

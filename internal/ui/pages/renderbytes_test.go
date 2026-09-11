@@ -408,9 +408,7 @@ func recordedSilentlyWithheldIndexView() ListIndexView {
 }
 
 func recordedWithheldIndexView() ListIndexView {
-	view := NewMapIndex(nil, nav.Closure{}, true, recordedChrome().Lang)
-	view.Fault = "the contract could not be read"
-	return view
+	return NewMapIndex(nil, nav.Close(schema.Rejected("the contract could not be read")), true, recordedChrome().Lang)
 }
 
 func recordedHealthView(model *nav.Model) HealthView {

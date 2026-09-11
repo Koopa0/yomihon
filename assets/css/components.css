@@ -1153,15 +1153,7 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-syl-raillabel--gap { padding-top: 20px; }
 
 
-.y-syl-guide {
-  display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  margin: 22px 0 4px; padding: 16px 18px;
-  border: 1px solid var(--border); border-left: 3px solid var(--accent);
-  border-radius: var(--r-md); background: var(--panel);
-}
-.y-syl-guide strong { font-family: var(--font-sans); font-size: var(--fs-14); }
-.y-syl-guide p { margin: 3px 0 0; color: var(--fg-subtle); font-family: var(--font-sans); font-size: var(--fs-13); }
-.y-syl-guide a { flex: none; color: var(--accent); font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium); }
+.y-syl-read { display: inline-flex; align-items: center; margin: 22px 0 4px; color: var(--accent); font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium); }
 
 /* ============================================================
    Reading smoothness — scroll feel, wrapping, arrival
@@ -1353,7 +1345,6 @@ html {
   .y-searchbtn { min-width: 0; }
   .y-searchbtn__label, .y-searchbtn .ui-kbd { display: none; }
   .y-article { --article-gutter: 24px; padding: 32px var(--article-gutter) 120px; }
-  .y-syl-guide { align-items: flex-start; flex-direction: column; gap: 10px; }
 }
 @media (max-width: 520px) {
   .y-header { gap: 5px; padding-inline: 8px; }

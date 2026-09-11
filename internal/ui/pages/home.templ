@@ -66,7 +66,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 				<header class="y-home__head">
 					<div class="y-home__kicker">{ wording.HomeKicker.In(c.Lang) }</div>
 					<h1 class="y-title">{ wording.HomeTitle.In(c.Lang) }</h1>
-					<p>{ wording.HomeDeskLede.In(c.Lang) }</p>
 				</header>
 				// One row rather than a fifth block. The four ways in are what
 				// the desk is for; a field is how a reader who already knows
@@ -87,11 +86,8 @@ templ Home(v HomeView, c layouts.Chrome) {
 					}
 				</div>
 				// Below this line the page stops being about reading and starts
-				// being about the vault's own health. Saying where that line is
-				// means a reader who arrives to a clean desk still knows where a
-				// fault would have appeared.
+				// being about the vault's own health.
 				<div class="y-seam" aria-hidden="true"></div>
-				<p class="y-homeseamnote">{ wording.HomeSeamNote.In(c.Lang) }</p>
 				if v.Fault != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
 						@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
@@ -110,7 +106,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 				}
 				if v.Degraded != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="degraded" aria-labelledby="home-degraded-title">
-						@homeBlockHead("home-degraded-title", wording.HomeDegradedTitle.In(c.Lang), wording.HomeDegradedLede.In(c.Lang))
+						@homeBlockHead("home-degraded-title", wording.HomeDegradedTitle.In(c.Lang), "")
 						<p class="y-homeempty" data-home-degraded>
 							@browserDiagnostic(v.Degraded, v.DegradedDetail)
 						</p>
@@ -129,7 +125,9 @@ templ Home(v HomeView, c layouts.Chrome) {
 templ homeBlockHead(id, title, note string) {
 	<header class="y-homeblock__head">
 		<h2 id={ id }>{ title }</h2>
-		<p>{ note }</p>
+		if note != "" {
+			<p>{ note }</p>
+		}
 	</header>
 }
 

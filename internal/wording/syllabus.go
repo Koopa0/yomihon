@@ -14,19 +14,10 @@ var PathItemUnreadable = both(
 	"這條路徑列了一項無法判讀的內容,這一頁沒有把它讀成課程或分部。",
 	"This path lists something that could not be read as either a lesson or a branch.")
 
-// The invitation shown to a reader who has not walked this path before, and
-// the way into the note it points at. The lede says what this page is — the
-// structural projection — and where the rest of the author's text lives. It
-// claims nothing about what that text contains: the page has not read it,
-// and the words it used to promise appeared in no note at all.
-var (
-	FirstTimeHere = both("第一次使用這條路徑？", "First time on this path?")
-	FirstTimeLede = both(
-		"這一頁只列出宣告的課程結構；結構之外作者還寫了什麼，都在筆記本文的頁面上。",
-		"This page lists only the declared course structure; whatever else the author wrote is on the note's own page.",
-	)
-	ReadTheGuide = both("閱讀筆記本文 ", "Read the note itself ")
-)
+// ReadTheGuide is the way into the note this path is drawn from. The words
+// say where the author's own text lives and claim nothing about what that
+// text contains: the page has not read it.
+var ReadTheGuide = both("閱讀筆記本文 ", "Read the note itself ")
 
 // A branch's own label. Local branches carry their heading; the main line does
 // not need one. Either can resume an order already open above it, and the
@@ -94,7 +85,6 @@ var (
 	EntryUnresolved       = both("未解析", "Unresolved")
 	EntryAmbiguous        = both("有歧義", "Ambiguous")
 	EntryNonInstance      = both("非課文", "Not a lesson")
-	EntryResolved         = both("已解析", "Resolved")
 	EntryUnresolvedTitle  = both("找不到目標", "The target was not found")
 	EntryAmbiguousTitle   = both("目標有歧義", "The target is ambiguous")
 	EntryNonInstanceTitle = both("目標不是課文", "The target is not a lesson")

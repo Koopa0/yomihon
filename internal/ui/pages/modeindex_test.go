@@ -147,7 +147,7 @@ func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 	const files = 9
 
 	view := NewFolderIndex(buildModel(t), wording.ZhHant)
-	if view.Kicker != "資料夾 · 9 篇" {
+	if view.Kicker != "9 篇" {
 		t.Errorf("folder index kicker = %q, want it to name all %d files on the shelf", view.Kicker, files)
 	}
 }
@@ -246,7 +246,8 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 // TestStatusDistributionNamesItsReachBesideANarrowedShelf holds the sentence
 // under the distribution to the shelf beside it: a shelf narrowed to the
 // declared layer sits above a count that still reaches every indexed note, so
-// the sentence says so, and an unscoped shelf keeps the plain sentence.
+// the sentence says so, and an unscoped shelf carries no sentence — the
+// heading already says what the block is.
 func TestStatusDistributionNamesItsReachBesideANarrowedShelf(t *testing.T) {
 	t.Parallel()
 	items := []LifecycleItem{{Name: "draft", Count: 2}}
@@ -258,8 +259,8 @@ func TestStatusDistributionNamesItsReachBesideANarrowedShelf(t *testing.T) {
 	}{
 		{name: "scoped zh", scoped: true, lang: wording.ZhHant, want: "書庫中每篇已索引筆記落在哪裡，含書架之外的資料夾"},
 		{name: "scoped en", scoped: true, lang: wording.En, want: "Where each indexed note in the vault sits, including folders off the shelf"},
-		{name: "unscoped zh", scoped: false, lang: wording.ZhHant, want: "書庫中每篇已索引筆記落在哪裡"},
-		{name: "unscoped en", scoped: false, lang: wording.En, want: "Where each indexed note in the vault sits"},
+		{name: "unscoped zh", scoped: false, lang: wording.ZhHant, want: ""},
+		{name: "unscoped en", scoped: false, lang: wording.En, want: ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -269,6 +270,35 @@ func TestStatusDistributionNamesItsReachBesideANarrowedShelf(t *testing.T) {
 			}
 			if len(got.Statuses) != 1 {
 				t.Errorf("statuses were not carried through: %v", got.Statuses)
+			}
+		})
+	}
+}
+
+// TestRecentBlockNamesItsReachBesideANarrowedShelf holds the sentence under
+// the recent list to the shelf beside it: a shelf narrowed to the declared
+// layer names that set, and an unscoped ordered shelf carries no sentence —
+// the heading already says what the list is.
+func TestRecentBlockNamesItsReachBesideANarrowedShelf(t *testing.T) {
+	t.Parallel()
+	notes := []HomeNote{{Title: "n"}}
+	for _, tt := range []struct {
+		name    string
+		ordered bool
+		scoped  bool
+		lang    wording.Lang
+		want    string
+	}{
+		{name: "ordered scoped zh", ordered: true, scoped: true, lang: wording.ZhHant, want: "知識層資料夾中最近改動過的筆記"},
+		{name: "ordered scoped en", ordered: true, scoped: true, lang: wording.En, want: "Notes in the declared knowledge folders changed most recently"},
+		{name: "ordered unscoped zh", ordered: true, scoped: false, lang: wording.ZhHant, want: ""},
+		{name: "ordered unscoped en", ordered: true, scoped: false, lang: wording.En, want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := NewRecentBlock(notes, tt.ordered, tt.scoped, tt.lang)
+			if got.Lede != tt.want {
+				t.Errorf("lede = %q, want %q", got.Lede, tt.want)
 			}
 		})
 	}

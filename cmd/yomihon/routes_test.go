@@ -543,7 +543,7 @@ func TestFolderShelfScope(t *testing.T) {
 				if diff := cmp.Diff(tt.wantShelf, shelfRowHrefs(t, page, "data-index-row")); diff != "" {
 					t.Errorf("GET /folders shelf hrefs mismatch (-want +got):\n%s", diff)
 				}
-				if want := `<div class="y-home__kicker">資料夾 · ` + tt.wantCount + `</div>`; !strings.Contains(page, want) {
+				if want := `<div class="y-home__kicker">` + tt.wantCount + `</div>`; !strings.Contains(page, want) {
 					t.Errorf("GET /folders shelf count is missing %q", want)
 				}
 				if tt.wantShelf == nil && !strings.Contains(page, "data-index-empty") {
