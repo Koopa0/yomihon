@@ -1505,7 +1505,7 @@ func TestReaderRejectsAParentSwappedForOneHoldingTheSameFile(t *testing.T) {
 func TestBothWalksConfirmTheirDescent(t *testing.T) {
 	t.Parallel()
 
-	const source = "vaultfs.go"
+	const source = "reader.go"
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, source, nil, 0)
 	if err != nil {

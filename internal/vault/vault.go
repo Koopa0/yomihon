@@ -6,7 +6,8 @@
 // it never writes. Every read descends the recorded path component by
 // component and refuses the moment an object stops being the one observed, so
 // a rename under a reader's feet costs the read rather than yielding bytes.
-// Broken frontmatter yields a diagnostic, never an error.
+// Broken frontmatter is recorded on the note itself rather than returned as
+// an error.
 package vault
 
 import (
