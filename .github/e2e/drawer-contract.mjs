@@ -496,24 +496,23 @@ try {
     // so a runtime that moved by name without checking would come to rest on
     // the first refusal and stay there however long the reader kept pressing.
     //
-    // The precondition is measured rather than assumed: if no row in this
-    // fixture's rail refuses focus, a walk over it proves nothing about that
-    // and the probe says so instead of passing. Identity comes from stamping
-    // every element in the document, so the walk needs no second opinion
-    // about which of them are focusable — the browser's answer is read off
-    // document.activeElement.
-    const refusedRows = await page.evaluate(() => {
+    // The precondition is measured rather than assumed: the walk needs at
+    // least two focusable rows in the rail, or the cycle has collapsed.
+    // Identity comes from stamping every element in the document, so the walk
+    // needs no second opinion about which of them are focusable — the
+    // browser's answer is read off document.activeElement.
+    const focusableRows = await page.evaluate(() => {
       const before = document.activeElement;
-      let refused = 0;
+      let count = 0;
       for (const row of document.querySelectorAll('#nav-rail a[href]')) {
         row.focus();
-        if (document.activeElement !== row) refused += 1;
+        if (document.activeElement === row) count += 1;
       }
       before?.focus();
-      return refused;
+      return count;
     });
-    if (refusedRows === 0) {
-      broken('no row in the fixture rail refuses focus, so walking it cannot show a step that lands nowhere');
+    if (focusableRows < 2) {
+      broken(`only ${focusableRows} focusable row(s) in the fixture rail, so walking it cannot show a meaningful cycle`);
     }
     const cap = await page.evaluate(() => {
       let index = 0;

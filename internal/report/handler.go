@@ -48,7 +48,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.ReportView{
 		Name:        rep.Name,
-		Sidebar:     pages.NewSidebar(shell.Nav, rep.RelPath),
+		ReadingRail: pages.NewReportReadingRail(shell.Nav, rep.RelPath),
 		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
 	}
 	if err := pages.Report(view, layouts.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {

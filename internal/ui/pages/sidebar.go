@@ -217,11 +217,17 @@ type CapabilityFault struct {
 // projections, one entry per distinct cause: one cause commonly closes both
 // paths and instance projections, and saying it twice reads as two faults.
 func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
-	if s.Model == nil {
+	return ModelCapabilityFaults(s.Model, lang)
+}
+
+// ModelCapabilityFaults is the shared closure logic for any rail that carries
+// capability faults beside a reading surface.
+func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFault {
+	if model == nil {
 		return nil
 	}
-	navigation := s.Model.NavigationClosure()
-	artifact := s.Model.ArtifactClosure()
+	navigation := model.NavigationClosure()
+	artifact := model.ArtifactClosure()
 	switch {
 	case navigation.Closed() && artifact.Closed() && navigation.Diagnostic() == artifact.Diagnostic():
 		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation.Diagnostic()}}

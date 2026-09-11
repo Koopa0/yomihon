@@ -16,6 +16,7 @@ type Reading struct {
 	Title              string
 	Body               string
 	Type               string
+	Domain             string
 	Status             string
 	Slug               string
 	FMDiagnostic       string
@@ -54,6 +55,7 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		Title:              parsed.Title(),
 		Body:               parsed.Body,
 		Type:               parsed.Type(),
+		Domain:             parsed.Domain(),
 		Status:             parsed.Status(),
 		Slug:               parsed.Slug(),
 		FMDiagnostic:       parsed.FMDiagnostic,

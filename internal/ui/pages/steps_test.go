@@ -252,8 +252,8 @@ func TestStudyPathLandmarksDoNotShareAName(t *testing.T) {
 	}
 
 	var rail bytes.Buffer
-	if err := sidebar(NewSidebar(model, current), layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &rail); err != nil {
-		t.Fatalf("render sidebar: %v", err)
+	if err := readingRail(NewReadingRail(model, current, "golang"), layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &rail); err != nil {
+		t.Fatalf("render reading rail: %v", err)
 	}
 	railName := navAriaLabel(rail.String(), "y-lessonsteps")
 	if railName == "" {

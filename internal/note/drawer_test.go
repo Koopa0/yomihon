@@ -12,14 +12,10 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// The rail's type drawers open to meet the page the reader is on — the journal
-// drawer on a journal page, the report drawer on a report, the study-path
-// drawer on a note some path has placed — and render closed everywhere else.
-// The rail's shape never changes; only which drawer stands open does. Both
-// directions are locked per drawer, because a drawer that is always open is
-// exactly the state this replaced: the study-path drawer used to greet every
-// page, including the reports, fully expanded.
-func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
+// The reading rail carries one map chosen by what is being read: the book
+// inside a study path, the folder on a plain note, or the list of reports on a
+// report — never the whole-vault drawers the desk offers.
+func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -44,16 +40,6 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	const (
-		pathsOpen     = `<details open data-sidebar-group="paths"`
-		pathsClosed   = `<details data-sidebar-group="paths"`
-		journalOpen   = `<details open data-sidebar-group="journal"`
-		journalShut   = `<details data-sidebar-group="journal"`
-		reportsOpen   = `<details open data-sidebar-group="reports"`
-		reportsClosed = `<details data-sidebar-group="reports"`
-		mapsOpen      = `<details open data-sidebar-group="maps"`
-		mapsClosed    = `<details data-sidebar-group="maps"`
-	)
 	tests := []struct {
 		name string
 		url  string
@@ -61,51 +47,55 @@ func TestSidebarDrawersOpenForThePageAtHand(t *testing.T) {
 		ban  []string
 	}{
 		{
-			name: "a placed lesson opens the study-path drawer alone",
+			name: "a placed lesson carries the book alone",
 			url:  "/notes/Writing/lessons/golang/Slices.md",
-			// The planned lesson between the two written ones is a warning
-			// row, not a stop: the step forward from the first lesson lands
-			// on the third, and the first lesson has no step back.
 			want: []string{
-				pathsOpen, journalShut, reportsClosed, mapsClosed,
+				`data-reading-rail="book"`,
+				`data-book-path="Maps/Go path.md"`,
 				`下一課：Maps lesson →`,
 			},
+			ban: []string{`data-sidebar-group=`},
 		},
 		{
 			name: "the closing lesson steps back across the planned row",
 			url:  "/notes/Writing/lessons/golang/Maps%20lesson.md",
-			want: []string{pathsOpen, `← 上一課：Slices`},
+			want: []string{`data-reading-rail="book"`, `← 上一課：Slices`},
 		},
 		{
-			name: "a journal entry opens the journal drawer alone",
+			name: "a journal entry carries its folder",
 			url:  "/notes/Diary/2026-07-31.md",
-			want: []string{journalOpen, pathsClosed, reportsClosed, mapsClosed},
+			want: []string{`data-reading-rail="folder"`, `class="y-here"`},
+			ban:  []string{`data-sidebar-group=`},
 		},
 		{
-			name: "a report opens the report drawer alone",
+			name: "a report carries the reports list",
 			url:  "/notes/System/reports/weekly.md",
-			want: []string{reportsOpen, pathsClosed, journalShut, mapsClosed},
+			want: []string{`data-reading-rail="reports"`, `data-reading-reports`, `weekly.md`},
+			ban:  []string{`data-sidebar-group=`},
 		},
 		{
-			name: "an unplaced note opens none of them",
+			name: "an unplaced note carries its folder",
 			url:  "/notes/Concepts/plain.md",
-			want: []string{pathsClosed, journalShut, reportsClosed, mapsClosed},
-			ban:  []string{"上一課", "下一課"},
+			want: []string{`data-reading-rail="folder"`, `class="y-here"`},
+			ban:  []string{"上一課", "下一課", `data-sidebar-group=`},
 		},
 		{
-			name: "a note some map places opens the map drawer alone",
+			name: "a note some map places still carries its folder",
 			url:  "/notes/Concepts/linked.md",
-			want: []string{mapsOpen, pathsClosed, journalShut, reportsClosed},
+			want: []string{`data-reading-rail="folder"`, `class="y-here"`},
+			ban:  []string{`data-sidebar-group=`},
 		},
 		{
-			name: "the map itself opens its own drawer",
+			name: "the map itself carries its folder",
 			url:  "/notes/Maps/atlas.md",
-			want: []string{mapsOpen, `<details open data-map-tree="Maps/atlas.md"`, pathsClosed},
+			want: []string{`data-reading-rail="folder"`},
+			ban:  []string{`data-map-tree=`, `data-sidebar-group=`},
 		},
 		{
-			name: "the study path itself opens its own drawer",
+			name: "the study path note carries the book alone",
 			url:  "/notes/Maps/Go path.md",
-			want: []string{pathsOpen, `<details open data-map-tree="Maps/Go path.md"`, mapsClosed},
+			want: []string{`data-reading-rail="book"`, `data-book-path="Maps/Go path.md"`},
+			ban:  []string{`data-sidebar-group=`},
 		},
 	}
 	for _, tt := range tests {

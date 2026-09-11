@@ -320,7 +320,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// One resolved rail answers both the navigation and the article's own way
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
-	sidebar := pages.NewSidebar(state.shell.Nav, n.RelPath)
+	readingRail := pages.NewReadingRail(state.shell.Nav, n.RelPath, n.Domain)
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, lang)
 	flippedFrom := vouchedOrigin(authority, h.sources.ConsumeReceipt, rel, n.Type,
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
@@ -349,7 +349,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		TOC:               result.TOC,
 		BodyHTML:          result.HTML,
 		TitleAnchor:       result.TitleAnchor,
-		Sidebar:           sidebar,
+		ReadingRail:       readingRail,
 		Governed:          state.shell.Governed,
 		NonInstance:       state.nonInstance(),
 		WriteDiagnostic:   state.writeDiagnostic,

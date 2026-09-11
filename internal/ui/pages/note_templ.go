@@ -78,8 +78,8 @@ type NoteView struct {
 	BasedOn []nav.NoteRef
 	TOC     []render.TOCEntry
 
-	// Sidebar is the resolved left navigation for this page.
-	Sidebar Sidebar
+	// ReadingRail is the one map this page carries in the left rail.
+	ReadingRail ReadingRail
 
 	// Governed says whether anything claimed authority over this vault. Both
 	// status faces are absent where it is false, a folder with no contract
@@ -206,7 +206,7 @@ func Note(v NoteView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = sidebar(v.Sidebar, c).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = readingRail(v.ReadingRail, c).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

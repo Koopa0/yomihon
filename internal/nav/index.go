@@ -43,7 +43,27 @@ func (m *Model) IsMap(relPath string) bool {
 	if m == nil {
 		return false
 	}
-	return slices.IndexFunc(m.maps, func(x Map) bool { return x.RelPath == relPath }) >= 0
+	return m.indexOfMap(relPath) >= 0
+}
+
+// Map returns the general map at relPath, or nil when no map in this
+// generation answers to that name.
+func (m *Model) Map(relPath string) *Map {
+	at := m.indexOfMap(relPath)
+	if at < 0 {
+		return nil
+	}
+	cloned := m.maps[at]
+	cloned.Branches = cloneBranches(m.maps[at].Branches)
+	return &cloned
+}
+
+// indexOfMap is where relPath sits among the general maps, or -1.
+func (m *Model) indexOfMap(relPath string) int {
+	if m == nil {
+		return -1
+	}
+	return slices.IndexFunc(m.maps, func(x Map) bool { return x.RelPath == relPath })
 }
 
 // Path returns the study path at relPath, or nil when no course in this

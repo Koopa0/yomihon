@@ -70,8 +70,8 @@ type NoteView struct {
 	BasedOn []nav.NoteRef
 	TOC     []render.TOCEntry
 
-	// Sidebar is the resolved left navigation for this page.
-	Sidebar Sidebar
+	// ReadingRail is the one map this page carries in the left rail.
+	ReadingRail ReadingRail
 
 	// Governed says whether anything claimed authority over this vault. Both
 	// status faces are absent where it is false, a folder with no contract
@@ -143,7 +143,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
-			@sidebar(v.Sidebar, c)
+			@readingRail(v.ReadingRail, c)
 			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
 				@flipReceipt(v, lang)
 				<article class="y-article" { authoredLanguageAttrs(v.Language)... }>

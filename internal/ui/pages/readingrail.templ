@@ -1,0 +1,157 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// readingRail is the narrow left navigation on a reading surface: one map
+// chosen by what is being read, never by the address the reader arrived from.
+templ readingRail(rr ReadingRail, c layouts.Chrome) {
+	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
+		<input
+			class="y-filter"
+			type="text"
+			placeholder={ wording.FilterNavigation.In(c.Lang) }
+			aria-label={ wording.FilterNavigationLabel.In(c.Lang) }
+			autocomplete="off"
+			spellcheck="false"
+			data-nav-filter
+			hidden
+		/>
+		<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
+		<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
+		if rr.Model != nil {
+			if faults := rr.CapabilityFaults(c.Lang); len(faults) > 0 {
+				<div class="y-railsep" aria-hidden="true"></div>
+				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
+					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
+					for _, fault := range faults {
+						<p>
+							@browserDiagnostic(fault.Summary, fault.Detail)
+						</p>
+					}
+				</section>
+			}
+		}
+		switch rr.Kind {
+			case ReadingRailBook:
+				@bookRail(rr, c)
+			case ReadingRailFolder:
+				if rr.Model != nil {
+					@ShelfRail(rr.HereShelf(c.Lang), railWindow, rr.hereDir, wording.MoreInFolder.In(c.Lang))
+				}
+			case ReadingRailReports:
+				if rr.Model != nil {
+					@reportsRail(rr, c)
+				}
+		}
+	</aside>
+	<script nonce={ c.Nonce }>
+		(() => {
+			"use strict";
+			const filter = document.querySelector(".y-rail-left [data-nav-filter]");
+			if (filter) {
+				filter.hidden = false;
+			}
+		})();
+	</script>
+}
+
+templ bookRail(rr ReadingRail, c layouts.Chrome) {
+	if rr.book != nil {
+		{{ view := rr.bookView() }}
+		<div class="y-railbook" data-book-path={ rr.book.RelPath }>
+			<a class="y-railbook__title" href={ templ.URL(syllabusHref(rr.book.RelPath)) }>{ rr.book.Title }</a>
+			<p class="y-railbook__span">{ plural(view.Parts, wording.PartCountOne, wording.PartCountMany, c.Lang) } · { plural(view.Entries, wording.LessonCountOne, wording.LessonCountMany, c.Lang) }</p>
+			if rr.neighbors.Prev.RelPath != "" || rr.neighbors.Next.RelPath != "" {
+				<nav class="y-lessonsteps" aria-label={ rr.courseStepsLabel(c.Lang) }>
+					if rr.neighbors.Prev.RelPath != "" {
+						<a class="ui-navitem" href={ templ.URL(notesHref(rr.neighbors.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }{ rr.neighbors.Prev.Name }</a>
+					}
+					if rr.neighbors.Next.RelPath != "" {
+						<a class="ui-navitem" href={ templ.URL(notesHref(rr.neighbors.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }{ rr.neighbors.Next.Name } →</a>
+					}
+				</nav>
+			}
+			<div class="y-railgroup">
+				for _, sec := range view.Branches {
+					@bookRailBranch(rr, c, rr.book.RelPath, nil, sec)
+				}
+			</div>
+		</div>
+	}
+}
+
+templ bookRailBranch(rr ReadingRail, c layouts.Chrome, pathRel string, chain []string, sec PathBranchView) {
+	<div class="y-railbook__branch" data-book-branch={ branchKey(pathRel, childChain(chain, sec.Heading)) }>
+		<div class="y-railsummary y-railsummary--label">{ sec.Heading }</div>
+		@bookRailItems(rr, c, pathRel, childChain(chain, sec.Heading), sec)
+	</div>
+}
+
+templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []string, sec PathBranchView) {
+	for _, run := range sec.Runs(c.Lang) {
+		if run.Branch != nil {
+			@bookRailBranch(rr, c, pathRel, chain, *run.Branch)
+		} else {
+			for _, entry := range run.Entries {
+				@bookRailEntry(rr, c, entry)
+			}
+		}
+	}
+}
+
+templ bookRailEntry(rr ReadingRail, c layouts.Chrome, entry PathEntryView) {
+	if entry.Kind == nav.EntryResolved {
+		<a
+			class={ "ui-navitem", templ.KV("is-active", rr.currentHref(entry.Href)) }
+			href={ templ.URL(entry.Href) }
+			{ currentAttr(rr.currentHref(entry.Href))... }
+		>
+			<span class="y-navdot" aria-hidden="true"></span>
+			<span>{ entry.Text }</span>
+			if entry.Status != "" && !rr.currentHref(entry.Href) {
+				<span class="ui-navitem__count">{ entry.Status }</span>
+			}
+		</a>
+	} else {
+		<span
+			class="ui-navitem y-navitem--broken"
+			data-resolution={ entryResolutionCode(entry.Kind) }
+			title={ entryResolutionTitle(entry.Kind, c.Lang) }
+		>
+			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
+			<span>{ entry.Text }</span>
+			<span class="ui-navitem__count">{ entryResolutionLabel(entry.Kind, c.Lang) }</span>
+		</span>
+	}
+}
+
+templ reportsRail(rr ReadingRail, c layouts.Chrome) {
+	<nav class="y-railreports" aria-label={ wording.Reports.In(c.Lang) } data-reading-reports>
+		for _, rep := range rr.Model.Reports() {
+			if rep.Briefing {
+				<a
+					class={ "ui-navitem", templ.KV("is-active", rr.current(rep.RelPath)) }
+					href={ templ.URL(reportHref(rep.Name)) }
+					{ currentAttr(rr.current(rep.RelPath))... }
+				>
+					{ rep.Name }
+					if rep.Latest {
+						<span class="y-navmark">{ wording.Newest.In(c.Lang) }</span>
+					}
+				</a>
+			} else {
+				<a
+					class={ "ui-navitem", templ.KV("is-active", rr.current(rep.RelPath)) }
+					href={ templ.URL(notesHref(rep.RelPath)) }
+					{ currentAttr(rr.current(rep.RelPath))... }
+				>
+					{ rep.Name }
+				</a>
+			}
+		}
+	</nav>
+}
