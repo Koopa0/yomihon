@@ -13,6 +13,7 @@ schema.provenance	Notes/reading-fidelity.md
 schema.required	Notes/alpha.md
 schema.required	Notes/beta.md
 schema.required	Notes/browser-boundary.md
+schema.status_unreachable	Notes/seedling-inbox.md
 schema.unknown_key	Notes/alpha.md
 schema.unknown_key	Notes/beta.md
 schema.unknown_key	Notes/browser-boundary.md
