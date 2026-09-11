@@ -103,9 +103,9 @@ make lint          # golangci-lint at the version the Makefile pins
 ### The gate
 
 `make verify` is the gate you run before you push. Continuous integration
-requires four checks and `make verify` is one of them; coverage is CI-only
-review evidence, and the other two build, vet, and test on macOS and Windows
-runners, so a green run on your machine does not tell you those passed.
+requires eleven checks and `make verify` is one of them; two of the others
+build, vet, and test on macOS and Windows runners, so a green run on your
+machine does not tell you those passed.
 
 The `verify` target in the Makefile is the list of what it runs.
 
@@ -294,7 +294,7 @@ rule identifiers and authorities the frozen findings carry.
 A ruleset protects `main`, and nobody can bypass it, including the maintainer:
 
 - Every change arrives through a pull request. GitHub refuses a direct push.
-- All four required checks have to be green on the head commit. An approving
+- All eleven required checks have to be green on the head commit. An approving
   review is not required, except on a pull request carrying a change GitHub
   cannot attribute to an account.
 - History stays linear, so a change lands squashed or rebased and the branch is

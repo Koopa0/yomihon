@@ -1,10 +1,37 @@
 {
-  "canonical_job": "verify",
-  "ci_only_jobs": [
+  "_note": "Hand-applied import artifact for GitHub ruleset id 22428376. Live enforcement lives in repository settings and the rulesets API, not this path.",
+  "verify_prerequisites": [
+    "tracked-paths-check",
+    "mod-check",
+    "fmt-check",
+    "css-check",
+    "vet",
+    "lint",
+    "staticcheck",
+    "gosec",
+    "test",
+    "convention-check",
+    "real-vault-build-check",
+    "workflow-check",
+    "build-check",
+    "frontend-check",
+    "check-fixtures",
+    "e2e-http-check",
+    "fuzz-smoke",
+    "browser-check",
+    "mutation-check",
+    "portable-build-check",
+    "performance-smoke",
+    "vuln"
+  ],
+  "ci_jobs": [
+    {"name": "verify"},
+    {"name": "govulncheck"},
     {"name": "coverage"},
     {
       "name": "portable-core",
       "matrix": ["macos-15", "windows-latest"]
+<<<<<<< HEAD
     }
   ],
   "removed_duplicate_jobs": [
@@ -39,5 +66,14 @@
     "portable-build-check",
     "performance-smoke",
     "vuln"
+=======
+    },
+    {"name": "assets-drift"},
+    {"name": "lint-frontend"},
+    {"name": "e2e-http"},
+    {"name": "fuzz"},
+    {"name": "e2e-behavior"},
+    {"name": "e2e-mutations"}
+>>>>>>> 1c6d2c7 (ci: pin all 22 verify prerequisites in gate-contract)
   ]
 }

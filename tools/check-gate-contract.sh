@@ -1,12 +1,12 @@
 #!/bin/sh
 # Owns the mapping between three surfaces that must stay aligned:
-#   1. the prerequisites reached by `make verify`;
-#   2. the CI jobs that add evidence beyond that canonical gate;
+#   1. every prerequisite reached by `make verify`;
+#   2. the CI jobs the workflow defines;
 #   3. the status contexts the protected `main` ruleset requires.
 #
-# A same-platform job that only reruns a verify prerequisite is a duplicate
-# and fails here. A required context with no matching job, or a job with no
-# matching required context, fails here too.
+# The contract lists all verify prerequisites explicitly. Dropping one from the
+# Makefile without updating the contract fails here, and listing one in the
+# contract that verify no longer reaches fails here too.
 set -eu
 makefile="${1:-Makefile}"
 workflow="${2:-.github/workflows/ci.yml}"
@@ -51,6 +51,10 @@ ruleset_contexts() {
   jq -r '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' "$ruleset" | sorted_lines
 }
 
+contract_verify_prereqs() {
+  jq -r '.verify_prerequisites[]' "$contract" | sorted_lines
+}
+
 # Comment lines are not steps. A recipe line may carry a trailing comment, but
 # a line whose first non-blank character is "#" runs nothing.
 uncommented() {
@@ -79,6 +83,10 @@ vet_tags() {
   ' | sorted_lines
 }
 
+lint_globs() {
+  uncommented "$1" | awk '/biome lint/ { for (i = 1; i <= NF; i++) if ($i ~ /\*/) print $i }' | sorted_lines
+}
+
 [ -f "$contract" ] || fail "missing contract file $contract"
 [ -f "$ruleset" ] || fail "missing ruleset file $ruleset"
 command -v jq >/dev/null || fail "jq is required to read $contract and $ruleset"
@@ -86,9 +94,23 @@ command -v jq >/dev/null || fail "jq is required to read $contract and $ruleset"
 reached=$(verify_prereqs)
 [ -n "$reached" ] || fail "read no verify prerequisites out of $makefile"
 
+contract_prereqs=$(contract_verify_prereqs)
+[ -n "$contract_prereqs" ] || fail "read no verify prerequisites out of $contract"
+
+if ! same_sets "$reached" "$contract_prereqs"; then
+  fail "verify prerequisites differ between $makefile and $contract"
+  tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/yomihon-gate-contract.XXXXXX")
+  trap 'rm -rf "$tmpdir"' 0 HUP INT TERM
+  printf '%s\n' "$reached" > "$tmpdir/reached"
+  printf '%s\n' "$contract_prereqs" > "$tmpdir/contract"
+  comm -23 "$tmpdir/reached" "$tmpdir/contract" | sed 's/^/  only in make: /' >&2
+  comm -13 "$tmpdir/reached" "$tmpdir/contract" | sed 's/^/  only in contract: /' >&2
+fi
+
 jobs=$(ci_jobs)
 [ -n "$jobs" ] || fail "read no jobs out of $workflow"
 
+<<<<<<< HEAD
 contract_targets=$(
   jq -r '.required_verify_targets[]' "$contract" | sorted_lines
 )
@@ -109,6 +131,9 @@ $(jq -r '.removed_duplicate_jobs[]' "$contract")
 EOF
 
 expected_jobs=$(jq -r '.canonical_job, .ci_only_jobs[].name' "$contract" | sorted_lines)
+=======
+expected_jobs=$(jq -r '.ci_jobs[].name' "$contract" | sorted_lines)
+>>>>>>> 1c6d2c7 (ci: pin all 22 verify prerequisites in gate-contract)
 if ! same_sets "$expected_jobs" "$jobs"; then
   fail "CI jobs differ from the contract"
   printf '%s\n' "$expected_jobs" | sed 's/^/  expected: /' >&2
@@ -119,9 +144,7 @@ contexts=$(ruleset_contexts)
 [ -n "$contexts" ] || fail "read no required contexts out of $ruleset"
 
 expected_contexts=$(
-  canonical=$(jq -r '.canonical_job' "$contract")
-  printf '%s\n' "$canonical"
-  jq -r '.ci_only_jobs[] | if (.matrix | length) > 0 then .name as $job | .matrix[] | "\($job) (\(.))" else .name end' "$contract"
+  jq -r '.ci_jobs[] | if (.matrix | length) > 0 then .name as $job | .matrix[] | "\($job) (\(.))" else .name end' "$contract"
 )
 if ! same_sets "$expected_contexts" "$contexts"; then
   fail "ruleset contexts differ from the contract"
@@ -136,10 +159,22 @@ if [ -z "$make_vet" ]; then
 elif [ -z "$workflow_vet" ]; then
   fail "read no vet tag sets out of $workflow"
 elif [ "$make_vet" != "$workflow_vet" ]; then
-  fail "vet tag sets differ between $makefile and $workflow (portable-core must scan the same ground as verify)"
+  fail "vet tag sets differ between $makefile and $workflow"
   printf '%s\n' "$make_vet" | sed 's/^/  make: /' >&2
   printf '%s\n' "$workflow_vet" | sed 's/^/  ci:   /' >&2
 fi
 
-[ "$status" -eq 0 ] && echo "check-gate-contract: verify prerequisites, CI-only jobs, and ruleset contexts align"
+make_lint=$(lint_globs "$makefile")
+workflow_lint=$(lint_globs "$workflow")
+if [ -z "$make_lint" ]; then
+  fail "read no frontend lint targets out of $makefile"
+elif [ -z "$workflow_lint" ]; then
+  fail "read no frontend lint targets out of $workflow"
+elif [ "$make_lint" != "$workflow_lint" ]; then
+  fail "frontend lint targets differ between $makefile and $workflow"
+  printf '%s\n' "$make_lint" | sed 's/^/  make: /' >&2
+  printf '%s\n' "$workflow_lint" | sed 's/^/  ci:   /' >&2
+fi
+
+[ "$status" -eq 0 ] && echo "check-gate-contract: verify prerequisites, CI jobs, and ruleset contexts align"
 exit "$status"

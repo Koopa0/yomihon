@@ -1,4 +1,5 @@
 {
+  "_note": "Hand-applied import artifact for GitHub ruleset id 22428376. Live enforcement lives in repository settings and the rulesets API, not this path.",
   "name": "main",
   "target": "branch",
   "enforcement": "active",
@@ -38,9 +39,16 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {"context": "verify", "integration_id": 15368},
+          {"context": "govulncheck", "integration_id": 15368},
           {"context": "coverage", "integration_id": 15368},
           {"context": "portable-core (macos-15)", "integration_id": 15368},
-          {"context": "portable-core (windows-latest)", "integration_id": 15368}
+          {"context": "portable-core (windows-latest)", "integration_id": 15368},
+          {"context": "assets-drift", "integration_id": 15368},
+          {"context": "lint-frontend", "integration_id": 15368},
+          {"context": "e2e-http", "integration_id": 15368},
+          {"context": "fuzz", "integration_id": 15368},
+          {"context": "e2e-behavior", "integration_id": 15368},
+          {"context": "e2e-mutations", "integration_id": 15368}
         ]
       }
     }
