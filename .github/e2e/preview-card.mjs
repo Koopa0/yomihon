@@ -587,6 +587,7 @@ try {
 	// somewhere other than it says, and one that leaves this machine.
 	for (const label of [DEGRADED_LINK, EXTERNAL_LINK]) {
 		const link = await only(page, label);
+		await link.scrollIntoViewIfNeeded();
 		await link.hover();
 		await page.waitForTimeout(700);
 		proveApplied('a-link-that-cannot-be-previewed-opens-nothing', proof);
