@@ -35,6 +35,7 @@ func TestHealthCarriesDeclaredArticleLanguage(t *testing.T) {
 		{
 			name: "healthLinks",
 			got: func(t *testing.T) string {
+				t.Helper()
 				out := healthLinks([]snapshot.HealthLink{{From: ref, Target: "Ghost"}}, articleLang)
 				if len(out) != 1 {
 					t.Fatalf("healthLinks() = %d links, want 1", len(out))
@@ -45,6 +46,7 @@ func TestHealthCarriesDeclaredArticleLanguage(t *testing.T) {
 		{
 			name: "healthTitleLinks",
 			got: func(t *testing.T) string {
+				t.Helper()
 				out := healthTitleLinks([]snapshot.HealthTitleLink{{From: ref, Target: "Ghost", Note: ref}}, articleLang)
 				if len(out) != 1 {
 					t.Fatalf("healthTitleLinks() = %d links, want 1", len(out))
@@ -58,6 +60,7 @@ func TestHealthCarriesDeclaredArticleLanguage(t *testing.T) {
 		{
 			name: "noteRefs",
 			got: func(t *testing.T) string {
+				t.Helper()
 				out := noteRefs([]nav.NoteRef{ref}, articleLang)
 				if len(out) != 1 {
 					t.Fatalf("noteRefs() = %d refs, want 1", len(out))
@@ -68,6 +71,7 @@ func TestHealthCarriesDeclaredArticleLanguage(t *testing.T) {
 		{
 			name: "schemaFaultLists",
 			got: func(t *testing.T) string {
+				t.Helper()
 				_, faults := schemaFaultLists(healthLanguageSchemaSnapshot(t))
 				if len(faults) != 1 {
 					t.Fatalf("schemaFaultLists() faults = %d, want 1", len(faults))

@@ -240,7 +240,7 @@ func headingLabel(text string) string {
 // Unresolved, ambiguous and non-instance targets get distinct warning kinds
 // and are dropped by parseBranches; only a uniquely resolved governed row
 // becomes an entry the rail can follow.
-func resolveEntry(target, display string, idx *graph.Index, statusByPath map[string]string, langsByPath map[string]string, policy schema.ArtifactPolicy) MapEntry {
+func resolveEntry(target, display string, idx *graph.Index, statusByPath, langsByPath map[string]string, policy schema.ArtifactPolicy) MapEntry {
 	res := idx.Resolve(target)
 	entry := MapEntry{Text: display, Target: target, Kind: entryKindOf(res, policy)}
 	if entry.Kind == EntryResolved {
