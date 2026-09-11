@@ -316,6 +316,53 @@ func TestFootnoteTextIsSearchable(t *testing.T) {
 	}
 }
 
+// TestATwiceCitedFootnoteNamesEachReturn is the lock for a footnote that more
+// than one place cites. The addresses are correct and both work; the cost is
+// that goldmark draws the same arrow twice, so the reader cannot tell which
+// return leads where and has to guess. Each return carries the ordinal of the
+// citation it goes back to, and an accessible name that says the same thing.
+// A footnote cited once is outside this defect and must keep the bytes it has
+// today — including the golden dialect footnote, which is a single reference.
+func TestATwiceCitedFootnoteNamesEachReturn(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+
+	twice := r.HTML("Notes/研究.md", "", "第一次[^n]，第二次[^n]。\n\n[^n]: 定義。\n", wording.ZhHant)
+	const wantTwice = "" +
+		`<p>第一次<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>，第二次<sup id="fnref1:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>。</p>` + "\n" +
+		`<div class="footnotes" role="doc-endnotes">` + "\n" +
+		"<hr>\n" +
+		"<ol>\n" +
+		`<li id="fn:1">` + "\n" +
+		`<p>定義。&#160;<a href="#fnref:1" class="footnote-backref" role="doc-backlink" aria-label="返回第 1 次引用">&#x21a9;&#xfe0e;1</a>&#160;<a href="#fnref1:1" class="footnote-backref" role="doc-backlink" aria-label="返回第 2 次引用">&#x21a9;&#xfe0e;2</a></p>` + "\n" +
+		"</li>\n" +
+		"</ol>\n" +
+		"</div>\n"
+	if diff := cmp.Diff(wantTwice, twice.HTML); diff != "" {
+		t.Errorf("twice-cited footnote HTML differs from the named returns (-want +got):\n%s", diff)
+	}
+
+	once := r.HTML("Notes/研究.md", "", "一次引用[^n]。\n\n[^n]: 定義。\n", wording.ZhHant)
+	const wantOnce = "" +
+		`<p>一次引用<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>。</p>` + "\n" +
+		`<div class="footnotes" role="doc-endnotes">` + "\n" +
+		"<hr>\n" +
+		"<ol>\n" +
+		`<li id="fn:1">` + "\n" +
+		`<p>定義。&#160;<a href="#fnref:1" class="footnote-backref" role="doc-backlink">&#x21a9;&#xfe0e;</a></p>` + "\n" +
+		"</li>\n" +
+		"</ol>\n" +
+		"</div>\n"
+	if diff := cmp.Diff(wantOnce, once.HTML); diff != "" {
+		t.Errorf("once-cited footnote HTML differs from today's bytes (-want +got):\n%s", diff)
+	}
+
+	twiceEn := r.HTML("Notes/研究.md", "", "first[^n], second[^n].\n\n[^n]: def.\n", wording.En)
+	if !strings.Contains(twiceEn.HTML, `aria-label="Back to citation 1"`) || !strings.Contains(twiceEn.HTML, `aria-label="Back to citation 2"`) {
+		t.Errorf("English twice-cited returns must name their destinations in English:\n%s", twiceEn.HTML)
+	}
+}
+
 // TestFootnoteWithoutDefinitionStaysLiteral is the honesty half: a reference
 // nobody defined has nowhere to go, so it stays the characters the author
 // typed. Inventing a destination for it is the same fabrication the contract

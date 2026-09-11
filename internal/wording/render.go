@@ -126,3 +126,9 @@ var UnwrittenFileFmt = both("還沒有「%s」這個檔案", "There is no file c
 var EmbedNotExpanded = both(
 	"這段摘錄裡有一個嵌入，因為嵌入只展開一層，改以連結呈現。",
 	"This excerpt contains an embed of its own; embeds expand one level, so it is shown as a link.")
+
+// FootnoteBacklinkFmt is the accessible name of one return among several. The
+// visible mark is only an arrow and a digit; this is what says which citation
+// the return leads back to. A footnote cited once never asks, so these words
+// never appear.
+var FootnoteBacklinkFmt = both("返回第 %d 次引用", "Back to citation %d")

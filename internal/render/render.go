@@ -230,7 +230,7 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 				// The extension is told only what to prefix the ids with, per body,
 				// so several bodies on one page do not share a first note's id.
 				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{},
+				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{},
 			),
 		),
 	}
@@ -420,6 +420,7 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composi
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
+	doc.SetAttributeString(footnoteLangAttr, []byte(page.lang))
 	attachHighlightReporter(doc, col)
 
 	var buf bytes.Buffer
