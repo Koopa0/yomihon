@@ -76,8 +76,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          n=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
-            --jq '(add // []) | [.[] | select(.user.login == env.REVIEWER and (.body | startswith("Verdict: BLOCKED")))] | length')
+          n=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
+            --jq '.[] | select(.user.login == env.REVIEWER and (.body | startswith("Verdict: BLOCKED"))) | .id' \
+            | wc -l | tr -d ' ')
           echo "blocked=$n" >> "$GITHUB_OUTPUT"
           echo "blocked rounds so far: $n"
 
@@ -148,9 +149,9 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          line=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
-            --jq '(add // []) | [.[] | select(.user.login == env.REVIEWER and (.body | startswith("Verdict: ")))] | last | .body // ""' \
-            | head -n 1)
+          line=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
+            --jq '.[] | select(.user.login == env.REVIEWER and (.body | startswith("Verdict: "))) | (.body | split("\n")[0])' \
+            | tail -n 1)
           echo "verdict line: ${line:-none}"
           case "$line" in
             "Verdict: PASS @ $HEAD_SHA"*)    result=pass ;;
@@ -158,6 +159,12 @@ jobs:
             *)                               result=none ;;
           esac
           echo "result=$result" >> "$GITHUB_OUTPUT"
+          if [ "$result" = none ]; then
+            seen=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
+              --jq '.[] | select(.body | startswith("Verdict: ")) | .user.login' \
+              | paste -sd, -)
+            echo "Verdict: comment authors: ${seen:-none}"
+          fi
 
       # The coding agent starts on a comment that begins with "@cursor" and is
       # posted by an account it trusts; whether it honours one from an App is
@@ -179,7 +186,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MAINTAINER_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          [ "$(gh pr view "$PR" --json headRefOid --jq .headRefOid)" = "$HEAD_SHA" ] || exit 0
           base=$(git merge-base origin/main HEAD)
           if [ -n "$(git diff --name-only "$base" HEAD -- internal/judge/testdata)" ]; then
             gh pr edit "$PR" --add-label needs-owner
