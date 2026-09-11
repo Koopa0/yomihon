@@ -22,7 +22,7 @@ func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	const faulty = "Concepts/golang/Bad.md"
 	const clean = "Concepts/golang/Fine.md"
 	faultyBody := "---\ntitle: Bad\ntype: concept\ndomain: golang\nstatus: bogus\ncreated: 2026-06-01\nupdated: 2026-06-01\nextra: 1\n---\n\nbody\n"
-	cleanBody := "---\ntitle: Fine\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Something]]\"\n---\n\nbody\n"
+	cleanBody := "---\ntitle: Fine\ntype: concept\ndomain: golang\nstatus: seedling\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Something]]\"\n---\n\nbody\n"
 
 	root := t.TempDir()
 	contract := testContract(t, root)

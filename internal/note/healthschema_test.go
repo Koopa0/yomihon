@@ -73,7 +73,7 @@ func TestHealthIsNotCleanWhileTheSchemaHasSomethingToSay(t *testing.T) {
 func TestHealthStillSaysAllClearForAFolderWithNothingToAnswer(t *testing.T) {
 	t.Parallel()
 
-	const body = "---\ntitle: Fine\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Fine]]\"\n---\n\nbody\n"
+	const body = "---\ntitle: Fine\ntype: concept\ndomain: golang\nstatus: seedling\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Fine]]\"\n---\n\nbody\n"
 	srv := newServerWithContract(t, writeOneNote(t, "Concepts/golang/Fine.md", body), loadHomeContract(t))
 
 	code, page := get(t, srv.Client(), srv.URL+"/health")

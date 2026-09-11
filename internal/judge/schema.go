@@ -233,6 +233,7 @@ func (r *lintRun) knowledge(n *note) []Finding {
 		}
 		out = append(out, schemaFinding(n, "schema.enum", "status", st, reason))
 	}
+	out = append(out, r.unreachableStatus(n, n.noteType, group)...)
 	out = append(out, r.enumFields(n)...)
 	out = append(out, r.structural(n)...)
 	return out
@@ -354,6 +355,38 @@ func schemaRuleSource(ruleID RuleID) string {
 		return sourceContractRules
 	default:
 		return sourceContract
+	}
+}
+
+// unreachableStatus reports a note whose status is in its type's declared
+// group while no lifecycle row with that status applies to its type.
+func (r *lintRun) unreachableStatus(n *note, noteType, group string) []Finding {
+	if noteType == "" || !slices.Contains(r.definition.Enums.Type, noteType) {
+		return nil
+	}
+	st, ok := fmScalar(n.frontmatter, "status")
+	if !ok || !slices.Contains(r.definition.Enums.Status[group], st) {
+		return nil
+	}
+	if _, reachable := r.contract.Stage(noteType, st); reachable {
+		return nil
+	}
+	return []Finding{statusUnreachableFinding(n, noteType, st)}
+}
+
+func statusUnreachableFinding(n *note, noteType, status string) Finding {
+	message := fmt.Sprintf(`status %q for type %q has no lifecycle row that applies`, status, noteType)
+	return Finding{
+		RuleID:          "schema.status_unreachable",
+		Severity:        SeverityError,
+		Path:            n.path,
+		Field:           new("status"),
+		Message:         message,
+		Evidence:        "frontmatter validated against vault-schema.toml",
+		SuggestedAction: "change the status to one a lifecycle row applies to this type, or extend the lifecycle so this status applies to this type",
+		SourceRule:      sourceContract,
+		Target:          new(status),
+		Fingerprint:     fingerprint("schema.status_unreachable", n.path, noteType+"\x1f"+status),
 	}
 }
 

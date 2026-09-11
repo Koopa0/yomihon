@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,6 +42,7 @@ func TestCheckSchemaGolden(t *testing.T) {
 		{name: "rules", fixture: "testdata/vault-schema", golden: "testdata/golden/schema.jsonl"},
 		{name: "scalar coercion", fixture: "testdata/vault-coercion", golden: "testdata/golden/coercion.jsonl"},
 		{name: "parser strictness", fixture: "testdata/vault-strictness", golden: "testdata/golden/strictness.jsonl"},
+		{name: "unreachable status", fixture: "testdata/vault-status-unreachable", golden: "testdata/golden/status-unreachable.jsonl"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -809,4 +811,92 @@ func TestEnumFieldsPartition(t *testing.T) {
 			t.Errorf("Enums.%s is neither a dedicated rule nor an exported []string; enumFields would skip it silently", field.Name)
 		}
 	}
+}
+
+// TestStatusUnreachableJudgeLock holds the per-note rule the issue reproduces:
+// a status the group declares while no lifecycle row applies to the note's
+// type fires, and widening the row back silences it.
+func TestStatusUnreachableJudgeLock(t *testing.T) {
+	t.Parallel()
+
+	const body = "---\ntitle: Stranded\ntype: concept\ndomain: probe\nstatus: published\n" +
+		"created: 2026-01-01\nupdated: 2026-01-01\nbased_on: [\"x\"]\n---\nbody\n"
+	const relPath = "Concepts/probe/Stranded.md"
+
+	lint := func(publishedAppliesTo string) []Finding {
+		t.Helper()
+		root := t.TempDir()
+		contract := unreachableLockContract(publishedAppliesTo)
+		write(t, root, schema.ContractRelPath, contract)
+		loaded := loadTestAuthority(t, root).contract
+		findings, err := LintFrontmatter(relPath, []byte(body), loaded)
+		if err != nil {
+			t.Fatalf("LintFrontmatter() error = %v", err)
+		}
+		return findings
+	}
+
+	narrowed := lint(`["note"]`)
+	var gotNarrowed []string
+	for _, f := range narrowed {
+		gotNarrowed = append(gotNarrowed, string(f.RuleID))
+	}
+	if !slices.Contains(gotNarrowed, "schema.status_unreachable") {
+		t.Fatalf("narrowed contract findings = %v, want schema.status_unreachable", gotNarrowed)
+	}
+
+	control := lint(`["note", "concept"]`)
+	for _, f := range control {
+		if f.RuleID == "schema.status_unreachable" {
+			t.Fatalf("widened contract reported schema.status_unreachable on %q", f.Path)
+		}
+	}
+}
+
+func unreachableLockContract(publishedAppliesTo string) string {
+	return `schema_version = "1"
+
+[enums]
+type = ["concept", "note"]
+
+[enums.status]
+note = ["draft", "ready", "published"]
+
+[fields]
+required = ["title", "type", "domain", "status", "created", "updated"]
+known = ["title", "type", "domain", "status", "created", "updated", "based_on"]
+lesson_only = []
+
+[rules]
+concept_requires_provenance = ["based_on"]
+slug_pattern = "^[a-z]+$"
+
+[scan]
+knowledge_dirs = ["Concepts"]
+skip_basenames = []
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+initial = true
+from = []
+owner = ["author"]
+
+[[lifecycle]]
+status = "published"
+applies_to = ` + publishedAppliesTo + `
+initial = false
+from = ["ready"]
+owner = ["author"]
+
+[privacy]
+never_egress_dirs = []
+`
 }

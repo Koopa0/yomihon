@@ -51,6 +51,7 @@ func allRuleIDs() []RuleID {
 		"schema.provenance",
 		"schema.frontmatter",
 		"schema.unmatched_knowledge_dir",
+		"schema.status_unreachable",
 		"scan.skipped",
 		"collision.name",
 		calloutTitleMarkupRule,

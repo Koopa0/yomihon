@@ -63,6 +63,11 @@ var (
 		"這些筆記的 status 不在它的類型在 schema 宣告的清單裡。筆記頁會標出它們；要修正請直接編輯 frontmatter。",
 		"These notes carry a status the schema does not declare for their type. The reading page marks them; the repair is a frontmatter edit.",
 	)
+	StatusUnreachableTitle = both("沒有任何生命週期列到達的狀態", "Notes in a status no lifecycle row reaches")
+	StatusUnreachableLede  = both(
+		"這些筆記的 status 在它的類型所屬清單裡，但沒有任何 lifecycle 列套用到這個類型。通常是手改 frontmatter，或是縮小 lifecycle 列時筆記還留在舊狀態。",
+		"These notes carry a status their type's list declares, but no lifecycle row applies to that type. That usually means a hand-edited frontmatter value, or a lifecycle row narrowed while notes were already there.",
+	)
 	CollisionsTitle = both("兩個檔案共用的名字", "Names two files answer to")
 	CollisionsLede  = both(
 		"連到這些名字的連結不會生效，因為無法判斷指的是哪一個，而這裡不猜。",

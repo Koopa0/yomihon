@@ -96,6 +96,7 @@ func TestRegenerateGoldens(t *testing.T) {
 		{fixture: "testdata/vault-schema", golden: "testdata/golden/schema.jsonl"},
 		{fixture: "testdata/vault-coercion", golden: "testdata/golden/coercion.jsonl"},
 		{fixture: "testdata/vault-strictness", golden: "testdata/golden/strictness.jsonl"},
+		{fixture: "testdata/vault-status-unreachable", golden: "testdata/golden/status-unreachable.jsonl"},
 	}
 	for _, tt := range schemaOnly {
 		notes, err := collectNotes(t.Context(), tt.fixture)

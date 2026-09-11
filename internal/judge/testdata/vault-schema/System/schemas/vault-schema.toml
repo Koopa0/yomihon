@@ -38,6 +38,6 @@ never_egress_dirs = []
 
 [[lifecycle]]
 status = "seedling"
-applies_to = ["inbox"]
+applies_to = ["inbox", "concept"]
 from = []
 owner = []

@@ -363,7 +363,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		NoFrontmatter:       state.noFrontmatter,
 		StatusUnknown:       state.statusUnknown,
 		StatusNotText:       state.statusNotText,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, lang),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n.Type, lang),
 		FlippedFrom:         flippedFrom,
 		// The layer that withheld the transition set, when that is why it is
 		// empty, so the page names it instead of the schema.
@@ -409,13 +409,17 @@ func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (disp
 //
 // The folder comes from the same captured generation as the findings, so the
 // explanation names the folder the domain rule compared.
-func schemaNotices(findings []judge.Finding, folder string, lang wording.Lang) [][]wording.SchemaPart {
+func schemaNotices(findings []judge.Finding, domainFolder, noteType string, lang wording.Lang) [][]wording.SchemaPart {
 	if len(findings) == 0 {
 		return nil
 	}
 	notices := make([][]wording.SchemaPart, 0, len(findings))
 	for i := range findings {
 		f := &findings[i]
+		folder := domainFolder
+		if f.RuleID == "schema.status_unreachable" {
+			folder = noteType
+		}
 		notices = append(notices, wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), deref(f.Target), folder))
 	}
 	return notices

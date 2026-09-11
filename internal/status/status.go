@@ -444,6 +444,17 @@ func (v Authority) LegalTransition(noteType, from, to string) bool {
 	return v.contract.Transition(noteType, from, to) == nil
 }
 
+// ReachableStatus reports whether the contract defines a lifecycle row that
+// applies to noteType for status. A closed view treats every status as
+// reachable so callers do not invent faults from silence.
+func (v Authority) ReachableStatus(noteType, status string) bool {
+	if !v.available() {
+		return true
+	}
+	_, ok := v.contract.Stage(noteType, schema.NormalizeStatus(status))
+	return ok
+}
+
 // KnownStatus reports whether status is among the contract's declared values
 // for the given note type. A closed view knows none; so does an undeclared type.
 func (v Authority) KnownStatus(noteType, status string) bool {
