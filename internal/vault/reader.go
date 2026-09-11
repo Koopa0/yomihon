@@ -1,9 +1,4 @@
-// Package vaultfs pins one vault directory as a read capability and answers
-// what is under it, what each file was when observed, and what its bytes are
-// now. It never writes. Every read descends the recorded path component by
-// component and refuses the moment an object stops being the one observed, so
-// a rename under a reader's feet costs the read rather than yielding bytes.
-package vaultfs
+package vault
 
 import (
 	"context"
@@ -17,8 +12,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // ErrSourceChanged means the filesystem object a vault entry selected is no
@@ -133,26 +126,27 @@ func (e Entry) ModTime() time.Time {
 	return e.observed[len(e.observed)-1].info.ModTime()
 }
 
-// Problem records one nested path that an available scan could not observe.
-type Problem struct {
+// Diagnostic records one nested path that an available scan could not observe.
+type Diagnostic struct {
 	path string
 	err  error
 }
 
-// Path returns the canonical vault-relative path associated with p. The root
+// Path returns the canonical vault-relative path associated with d. The root
 // is represented by ".".
-func (p Problem) Path() string { return p.path }
+func (d Diagnostic) Path() string { return d.path }
 
-// Err returns the observation error associated with p.
-func (p Problem) Err() error { return p.err }
+// Err returns the observation error associated with d.
+func (d Diagnostic) Err() error { return d.err }
 
-// Skipped records one path the scan saw plainly and did not index, with the
-// reason it is not one of the vault's files. It is not a Problem: a problem is
-// a path the scan could not observe at all, and a complete scan fails on one,
-// whereas a skipped path was read without trouble and is simply not something
-// this vault can hold a note in. A vault that organises by symbolic link loses
-// notes here, so the skip is recorded rather than passed over in silence.
-type Skipped struct {
+// SkipDiagnostic records one path the scan saw plainly and did not index, with
+// the reason it is not one of the vault's files. It is not a Diagnostic: a
+// diagnostic is a path the scan could not observe at all, and a complete scan
+// fails on one, whereas a skipped path was read without trouble and is simply
+// not something this vault can hold a note in. A vault that organises by
+// symbolic link loses notes here, so the skip is recorded rather than passed
+// over in silence.
+type SkipDiagnostic struct {
 	path string
 	kind SkipKind
 }
@@ -210,10 +204,10 @@ func (k SkipKind) String() string {
 }
 
 // Path returns the canonical vault-relative path that was not indexed.
-func (s Skipped) Path() string { return s.path }
+func (s SkipDiagnostic) Path() string { return s.path }
 
 // Kind returns why the path is not one of the vault's files.
-func (s Skipped) Kind() SkipKind { return s.kind }
+func (s SkipDiagnostic) Kind() SkipKind { return s.kind }
 
 // Scan is an immutable observation of one Reader's file domain.
 type Scan struct {
@@ -226,8 +220,8 @@ type scanState struct {
 	files    []Entry
 	entries  map[string]Entry
 	contains map[string]struct{}
-	problems []Problem
-	skipped  []Skipped
+	problems []Diagnostic
+	skipped  []SkipDiagnostic
 }
 
 // Files returns the observed regular files in canonical path order.
@@ -271,7 +265,7 @@ func (s Scan) Contains(canonicalPath string) bool {
 // Problems returns the nested paths an available scan could not observe,
 // sorted by path and then by the observation error's text, so two scans of
 // the same trouble report it in the same order.
-func (s Scan) Problems() []Problem {
+func (s Scan) Problems() []Diagnostic {
 	if s.state == nil {
 		return nil
 	}
@@ -282,7 +276,7 @@ func (s Scan) Problems() []Problem {
 // path and then by kind, so two scans of the same folder report them in the
 // same order. Both scan kinds record these: a skipped path is a fact about the
 // folder, not a failure of the reading.
-func (s Scan) Skipped() []Skipped {
+func (s Scan) Skipped() []SkipDiagnostic {
 	if s.state == nil {
 		return nil
 	}
@@ -345,7 +339,7 @@ func cloneEntry(entry Entry) Entry {
 }
 
 func validCanonicalPath(relPath string) bool {
-	return fs.ValidPath(relPath) && relPath == vault.NormalizeNFC(relPath)
+	return fs.ValidPath(relPath) && relPath == NormalizeNFC(relPath)
 }
 
 type sourceObservation struct {
@@ -451,13 +445,13 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 	slices.SortFunc(walk.entries, func(a, b Entry) int {
 		return strings.Compare(a.path, b.path)
 	})
-	slices.SortFunc(walk.problems, func(a, b Problem) int {
+	slices.SortFunc(walk.problems, func(a, b Diagnostic) int {
 		if byPath := strings.Compare(a.path, b.path); byPath != 0 {
 			return byPath
 		}
 		return strings.Compare(a.err.Error(), b.err.Error())
 	})
-	slices.SortFunc(walk.skipped, func(a, b Skipped) int {
+	slices.SortFunc(walk.skipped, func(a, b SkipDiagnostic) int {
 		if byPath := strings.Compare(a.path, b.path); byPath != 0 {
 			return byPath
 		}
@@ -492,8 +486,8 @@ type sourceWalk struct {
 	directories  map[string]fs.FileInfo
 	contains     map[string]struct{}
 	entries      []Entry
-	problems     []Problem
-	skipped      []Skipped
+	problems     []Diagnostic
+	skipped      []SkipDiagnostic
 }
 
 func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkErr error) error {
@@ -512,7 +506,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		}
 		return nil
 	}
-	canonical := vault.NormalizeNFC(filepath.ToSlash(raw))
+	canonical := NormalizeNFC(filepath.ToSlash(raw))
 	if err := recordCanonicalPath(w.seen, raw, canonical); err != nil {
 		return err
 	}
@@ -526,7 +520,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		return nil
 	}
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		w.skipped = append(w.skipped, Skipped{path: canonical, kind: skipKind(info.Mode())})
+		w.skipped = append(w.skipped, SkipDiagnostic{path: canonical, kind: skipKind(info.Mode())})
 		return nil
 	}
 	observed, err := observedSource(raw, w.directories, info)
@@ -550,11 +544,11 @@ func (w *sourceWalk) problem(raw string, d fs.DirEntry, err error) error {
 	if raw == "." || w.completeness == scanComplete {
 		return err
 	}
-	canonical := vault.NormalizeNFC(filepath.ToSlash(raw))
+	canonical := NormalizeNFC(filepath.ToSlash(raw))
 	if collisionErr := recordCanonicalPath(w.seen, raw, canonical); collisionErr != nil {
 		return collisionErr
 	}
-	w.problems = append(w.problems, Problem{path: canonical, err: err})
+	w.problems = append(w.problems, Diagnostic{path: canonical, err: err})
 	if d != nil && d.IsDir() {
 		return fs.SkipDir
 	}
@@ -588,7 +582,7 @@ func recordCanonicalPath(seen map[string]string, raw, canonical string) error {
 
 // Lookup resolves one canonical vault-relative path without reading its bytes.
 func (r *Reader) Lookup(relPath string) (Entry, error) {
-	if r == nil || r.root == nil || relPath == "." || !fs.ValidPath(relPath) || relPath != vault.NormalizeNFC(relPath) {
+	if r == nil || r.root == nil || relPath == "." || !fs.ValidPath(relPath) || relPath != NormalizeNFC(relPath) {
 		return Entry{}, errors.New("invalid vault entry path")
 	}
 	return r.observe(relPath)
@@ -657,7 +651,7 @@ func (r *Reader) observe(relPath string) (entry Entry, resultErr error) {
 	return Entry{
 		token:    r.token,
 		rawPath:  relPath,
-		path:     vault.NormalizeNFC(filepath.ToSlash(relPath)),
+		path:     NormalizeNFC(filepath.ToSlash(relPath)),
 		observed: observed,
 	}, nil
 }
@@ -777,7 +771,7 @@ func (r *Reader) readEntry(
 
 func (r *Reader) owns(e Entry) bool {
 	if r == nil || r.root == nil || e.token != r.token || e.rawPath == "" ||
-		!fs.ValidPath(e.rawPath) || e.path != vault.NormalizeNFC(filepath.ToSlash(e.rawPath)) {
+		!fs.ValidPath(e.rawPath) || e.path != NormalizeNFC(filepath.ToSlash(e.rawPath)) {
 		return false
 	}
 	components := strings.Split(e.rawPath, "/")

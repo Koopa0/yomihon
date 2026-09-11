@@ -18,7 +18,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -80,9 +80,9 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	source, err := vaultfs.Open(root)
+	source, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
 	contract, err := schema.LoadReader(t.Context(), source)
 	if err != nil {
@@ -134,9 +134,9 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	source, err := vaultfs.Open(root)
+	source, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
 	contract, err := schema.LoadReader(t.Context(), source)
 	if err != nil {

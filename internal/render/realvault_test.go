@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -28,7 +27,7 @@ func testRealVaultRendersWithoutFaults(t *testing.T) {
 	defer redactRealVaultPanic(t)
 
 	root := requireRealVaultRoot(t)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal("open configured real vault failed")
 	}

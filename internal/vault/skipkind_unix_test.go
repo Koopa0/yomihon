@@ -1,6 +1,6 @@
 //go:build unix
 
-package vaultfs
+package vault
 
 import (
 	"path/filepath"

@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -202,9 +201,9 @@ func buildStepsModel(t *testing.T) *nav.Model {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open() error = %v", err)
+		t.Fatalf("vault.Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

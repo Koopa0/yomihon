@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // Check scans the vault rooted at root for corpus-level findings and returns
@@ -131,7 +130,7 @@ func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
 // anything is refused rather than filtered with, since an empty answer would
 // read as a clean verdict over ground never covered; the refusals are ordered
 // — shape, then withheld, then unobserved — so none becomes an existence oracle.
-func filterByPaths(findings []Finding, paths []string, scan vaultfs.Scan, authority scanAuthority) ([]Finding, error) {
+func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authority scanAuthority) ([]Finding, error) {
 	if err := scopeIsWrittenFromTheVaultRoot(paths); err != nil {
 		return nil, err
 	}

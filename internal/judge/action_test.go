@@ -439,7 +439,7 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 			if owner != nil {
 				qualified := owner.Name + "." + selector.Sel.Name
 				switch qualified {
-				case "vaultfs.Open", "schema.LoadReader":
+				case "vault.Open", "schema.LoadReader":
 					counts[qualified]++
 				case "os.ReadFile":
 					counts[qualified]++
@@ -471,7 +471,7 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 		t.Errorf("production path bypasses = %v, want none", forbidden)
 	}
 	wantCounts := map[string]int{
-		"vaultfs.Open":      1,
+		"vault.Open":        1,
 		"schema.LoadReader": 1,
 		"ScanComplete":      1,
 		"ReadFile":          1,

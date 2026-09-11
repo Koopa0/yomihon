@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 )
 
 // errVaultScan is what an observation that could not be made answers with. It
@@ -40,15 +39,15 @@ type actionHooks struct {
 // reader, contract authority, file membership, and parsed notes all belong to
 // the same selected vault directory.
 type action struct {
-	reader    *vaultfs.Reader
-	scan      vaultfs.Scan
+	reader    *vault.Reader
+	scan      vault.Scan
 	authority scanAuthority
 	notes     []note
 	resources []string
 }
 
 func openAction(ctx context.Context, root string, hooks actionHooks) (*action, error) {
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		// Opening the folder fails before one vault byte is read, so there is
 		// no policy state to report and nothing observed to withhold. Answering

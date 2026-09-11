@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // TestRealVaultSlotsLoadAndValidate checks only anonymous structural
@@ -21,7 +21,7 @@ func TestRealVaultSlotsLoadAndValidate(t *testing.T) {
 	defer redactRealVaultPanic(t)
 
 	root := requireRealVaultRoot(t)
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal("open configured real vault failed")
 	}

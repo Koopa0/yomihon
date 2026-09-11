@@ -12,7 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/vaultfs"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 func judgeFixtureRoot(tb testing.TB, root string) string {
@@ -50,9 +50,9 @@ func testScanAuthority(tb testing.TB, privateDirs ...string) scanAuthority {
 
 func loadTestAuthority(tb testing.TB, root string) scanAuthority {
 	tb.Helper()
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		tb.Fatalf("vaultfs.Open() error = %v", err)
+		tb.Fatalf("vault.Open() error = %v", err)
 	}
 	tb.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

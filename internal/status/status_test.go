@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/vaultfs"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -136,9 +135,9 @@ func loadContractWithoutKnowledgeDirs(t *testing.T) *schema.Contract {
 
 func newWriter(t *testing.T, root string, contract *schema.Contract) *status.Writer {
 	t.Helper()
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -290,9 +289,9 @@ func TestOpenRejectsAReplacementOfTheReadersRoot(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {
@@ -1885,9 +1884,9 @@ func TestFlipRefusesPublishedTarget(t *testing.T) {
 func TestTheSweepSaysWhatItSetAside(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	reader, err := vaultfs.Open(root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("vaultfs.Open(%q) error = %v", root, err)
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
 	t.Cleanup(func() {
 		if closeErr := reader.Close(); closeErr != nil {

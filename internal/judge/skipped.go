@@ -1,6 +1,6 @@
 package judge
 
-import "github.com/koopa0/yomihon/internal/vaultfs"
+import "github.com/koopa0/yomihon/internal/vault"
 
 // checkSkipped reports the paths the scan saw and did not index. A vault that
 // organises by symbolic link loses notes here without being told: the file
@@ -9,7 +9,7 @@ import "github.com/koopa0/yomihon/internal/vaultfs"
 // a warning rather than an error because the folder is not malformed — it
 // holds something a note cannot be read out of, and only the author can say
 // whether that was meant.
-func checkSkipped(scan vaultfs.Scan) []Finding {
+func checkSkipped(scan vault.Scan) []Finding {
 	skipped := scan.Skipped()
 	out := make([]Finding, 0, len(skipped))
 	for _, entry := range skipped {
@@ -23,10 +23,10 @@ func checkSkipped(scan vaultfs.Scan) []Finding {
 // the day it grows a socket: what a reader does about it is the part that
 // differs. The kind's own spelling comes from the scan, which owns that closed
 // set, so the bytes a consumer parses have one source.
-func skippedFinding(path string, kind vaultfs.SkipKind) Finding {
+func skippedFinding(path string, kind vault.SkipKind) Finding {
 	message := "this path is not a regular file, so nothing was read from it: it holds no note, answers no link, and appears in no listing"
 	action := "replace it with a regular file, or remove it if nothing needs it"
-	if kind == vaultfs.SkipSymlink {
+	if kind == vault.SkipSymlink {
 		message = "this path is a symbolic link, so nothing was read from it: it holds no note, answers no link, and appears in no listing"
 		action = "move the file itself into the vault, and cite it from a note with a wikilink rather than linking to it on disk"
 	}
