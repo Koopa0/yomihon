@@ -119,6 +119,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
+		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
 		{"folder-index-page", FolderIndex(NewFolderIndex(model, recordedChrome().Lang), RecentBlock{}, StatusDistribution{}, recordedChrome())},
 		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
@@ -409,6 +410,16 @@ func recordedSilentlyWithheldIndexView() ListIndexView {
 
 func recordedWithheldIndexView() ListIndexView {
 	return NewMapIndex(nil, nav.Close(schema.Rejected("the contract could not be read")), true, recordedChrome().Lang)
+}
+
+// recordedFaultedModeIndexView is a mode index whose fault is stated below an
+// intact head — kicker, title, and count still show. internal/note/index.go
+// reaches this by setting view.Fault after NewFolderIndex without calling
+// withholdListing; no ListIndex constructor produces it on its own.
+func recordedFaultedModeIndexView(model *nav.Model) ListIndexView {
+	view := NewFolderIndex(model, recordedChrome().Lang)
+	view.Fault = "artifact unavailable"
+	return view
 }
 
 func recordedHealthView(model *nav.Model) HealthView {
