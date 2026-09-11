@@ -69,11 +69,13 @@ export function initPreview() {
     controller?.abort();
     controller = null;
     // The attribute is the CSS anchor. hidePopover() starts the exit and
-    // returns at once, and the toggle that follows fires in the same turn,
-    // so dropping the name here — or on that event alone — would leave a
-    // painted card with no position-anchor. It stays until the exit
-    // animations finish. close() itself forgets nothing: the toggle moves
-    // `anchored` aside so a hover that arrives mid-fade is a new open.
+    // returns at once. The toggle is queued as a task, so by the time it
+    // runs card.getAnimations() already holds the exit transitions — the
+    // empty branch is reduced motion or transition: none. Dropping the
+    // name here, or in that handler without waiting, would leave a painted
+    // card with no position-anchor. The name stays until those animations
+    // finish. close() itself forgets nothing: the toggle moves `anchored`
+    // aside so a hover that arrives mid-fade is a new open.
     if (card.matches(':popover-open')) {
       card.hidePopover();
       return;
