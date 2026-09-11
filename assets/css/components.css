@@ -382,7 +382,7 @@ html, body { margin: 0; background: var(--bg); }
 /* ============================================================
    Reading prose — styles the renderer's REAL output (never reshaped)
    ============================================================ */
-.y-prose { font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-cjk); color: var(--fg-muted); }
+.y-prose { font-family: var(--font-read); font-size: var(--fs-ed-17); line-height: var(--lh-cjk); color: var(--fg-muted); }
 .y-prose > :first-child { margin-top: 0; }
 .y-prose p { margin: 18px 0 0; }
 /* Size, the section bar and the fragment landing pad follow the authored
@@ -897,7 +897,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
   .y-slotselect option::checkmark { color: var(--c); }
 }
 
-.y-slotoutput { font-family: var(--font-serif); font-size: var(--fs-ed-24); line-height: var(--lh-cjk); color: var(--fg); margin: 18px 0 0; }
+.y-slotoutput { font-family: var(--font-read); font-size: var(--fs-ed-24); line-height: var(--lh-cjk); color: var(--fg); margin: 18px 0 0; }
 .y-slotout { color: var(--c); background: color-mix(in oklch, var(--c) 12%, transparent); border-radius: 4px; padding: 0 3px; }
 .y-slotout rt { color: var(--c); }
 .y-slotgloss { font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg-muted); margin: 8px 0 0; }
@@ -1502,6 +1502,63 @@ html {
 .y-healthlinkbtn:hover { background: var(--overlay); color: var(--fg); }
 @media (max-width: 900px) {
   .y-healthlinkbtn { display: none; }
+}
+
+/* The reading choices, reached by a word rather than a gear, because a gear
+   promises a machine and what is behind this one is seven sentences, so the
+   label says the thing and the panel behind it does the explaining. It keeps
+   its place at every width — a reader on a narrow window is the one most
+   likely to want the text larger, and an entry that hides there hides exactly
+   when it is needed. */
+.y-prefslink {
+  padding: 5px 9px; border-radius: var(--r-sm); font-family: var(--font-mono);
+  font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none;
+  white-space: nowrap;
+}
+.y-prefslink:hover { background: var(--overlay); color: var(--fg); }
+@media (max-width: 520px) {
+  .y-prefslink { padding: 5px 4px; }
+}
+/* The same page again, from the panel that explains how the interface behaves:
+   a reader who opened this one was already asking that question. */
+.y-kbdhelp__prefs {
+  display: block; margin: 12px 0 0; padding-top: 10px;
+  border-top: 1px solid var(--border-faint); font-size: var(--fs-12);
+  color: var(--accent); text-decoration: none;
+}
+.y-kbdhelp__prefs:hover { text-decoration: underline; }
+
+/* The reading choices, one page. It is a column of small panels rather than a
+   grid of switches: each choice is its own form with its own submit, and the
+   sentence under each heading — what the choice changes, and what it leaves
+   alone — is the part that earns the panel. No rail down the side, because the
+   page is reached from whatever was being read and gives it straight back. */
+.y-prefs { max-width: var(--measure-article); margin: 0 auto; padding: 42px 48px 120px; }
+.y-prefs__lede { margin: 18px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-subtle); }
+.y-preffield { display: block; margin: 28px 0 0; }
+.y-preffield fieldset { margin: 0; min-width: 0; padding: 16px 20px 18px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
+.y-preffield legend { padding: 0 6px; margin-inline-start: -6px; font-family: var(--font-sans); font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--fg); }
+.y-preffield__note { margin: 2px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
+.y-preffield__options { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 0 0; }
+.y-preffield__options label { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: var(--fs-14); color: var(--fg); cursor: pointer; }
+.y-preffield__options input { width: 14px; height: 14px; margin: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+/* The submit stays visible where a script turns picking into submitting, so a
+   reader arrowing through the options is not committing each one on the way. */
+.y-preffield__apply {
+  margin: 16px 0 0; padding: 6px 14px; border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm); background: var(--elevated); font-family: var(--font-sans);
+  font-size: var(--fs-13); color: var(--fg); cursor: pointer;
+}
+.y-preffield__apply:hover { background: var(--overlay); }
+.y-prefs .y-kbdhelp__list { margin: 28px 0 0; }
+/* What this browser is holding, listed by the page that puts it there. */
+.y-prefs__storage { margin: 42px 0 0; padding-top: 20px; border-top: 1px solid var(--border); }
+.y-prefs__storage h2 { margin: 0; font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: 0.09em; text-transform: uppercase; font-weight: inherit; color: var(--fg-subtle); }
+.y-prefs__storage ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.y-prefs__storage li { font-family: var(--font-mono); font-size: var(--fs-12); line-height: 1.6; color: var(--fg-muted); overflow-wrap: anywhere; }
+.y-prefs__storage p { margin: 12px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
+@media (max-width: 900px) {
+  .y-prefs { padding: 32px 20px 120px; }
 }
 
 /* One folder seen whole. A reading page, not a file manager: no sizes, no
