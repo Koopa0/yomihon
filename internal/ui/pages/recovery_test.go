@@ -94,7 +94,7 @@ func TestStatusRecoveryWithoutPathOffersHomeOnly(t *testing.T) {
 	if strings.Contains(html, ">返回筆記</a>") {
 		t.Errorf("recovery page offers a note link without a validated path; html = %q", html)
 	}
-	if !strings.Contains(html, `href="/">返回首頁</a>`) {
+	if !strings.Contains(html, `href="/">`+wording.BackHome.In(wording.ZhHant)+`</a>`) {
 		t.Errorf("recovery page has no Home recovery link; html = %q", html)
 	}
 }

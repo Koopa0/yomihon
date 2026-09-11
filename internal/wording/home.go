@@ -9,7 +9,7 @@ var HomeReadmeTitle = both("這個書庫的說明", "About this library")
 // The page's own heading and the word above it.
 var (
 	HomeKicker = both("閱讀桌", "Reading desk")
-	HomeTitle  = both("首頁", "Home")
+	HomeTitle  = both("閱讀桌", "Reading desk")
 )
 
 // Each of these blocks states what it is and what it is for. The second line

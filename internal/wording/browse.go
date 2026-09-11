@@ -66,7 +66,7 @@ var (
 		"Work down from the folders on the desk, or use the search above.",
 	)
 	LeaveThisPage = both("離開這一頁", "Leave this page")
-	BackHome      = both("返回首頁", "Back to home")
+	BackHome      = both("返回閱讀桌", "Back to the desk")
 	// BackToFolders climbs out of one level of the tree to the listing of all
 	// of it, which is where the crumbs above it stop.
 	BackToFolders = both("返回資料夾", "Back to folders")

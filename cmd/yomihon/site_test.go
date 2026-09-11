@@ -57,7 +57,7 @@ func TestProductionStatusFailureUsesTheReadingShell(t *testing.T) {
 	html := string(body)
 	for _, want := range []string{
 		"y-brand",
-		"搜尋筆記",
+		wording.SearchNotes.In(wording.ZhHant),
 		"狀態尚未變更",
 		`href="/notes/Maps/study.md"`,
 		`data-sidebar-group="paths"`,
