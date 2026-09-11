@@ -276,8 +276,6 @@ func entryResolutionLabel(kind nav.EntryKind, lang wording.Lang) string {
 		return wording.EntryAmbiguous.In(lang)
 	case nav.EntryNonInstance:
 		return wording.EntryNonInstance.In(lang)
-	case nav.EntryResolved:
-		return wording.EntryResolved.In(lang)
 	default:
 		return entryResolutionCode(kind)
 	}

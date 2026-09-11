@@ -2,19 +2,6 @@ package wording
 
 // The desk and the four mode index pages a reader enters it through.
 
-// The line under the desk's title, and the sentence marking off the part of
-// the page that is about the vault's health rather than about reading.
-var (
-	HomeDeskLede = both(
-		"一個書庫。從你要讀的那一種東西進去。",
-		"One library. Come in through the kind of thing you want to read.",
-	)
-	HomeSeamNote = both(
-		"這條線以下是這個書庫的說明，以及有事時才出現的診斷與契約狀況。",
-		"Below this line: what this library says about itself, and any diagnostics or contract faults there are to report.",
-	)
-)
-
 // ShelfAll ends a narrowed shelf, where the rest of it is one click away. It
 // states no number: the shelf's own count is already in its head, and a second
 // figure describing the same listing is a figure that can disagree with it.
@@ -41,21 +28,13 @@ var (
 	)
 )
 
-// The mode index pages state the same thing at more length, and say what an
-// empty mode means: a vault that declared none of something is not a vault
-// missing a feature.
+// What an empty mode means: a vault that declared none of something is not a
+// vault missing a feature. A filled shelf's head already carries the count;
+// a second sentence that restates the heading is not written here.
 var (
-	PathIndexLede = both(
-		"書庫宣告的每一條路徑，以及各自的課數。",
-		"Every path the vault declares, and how many lessons each lays out.",
-	)
 	PathIndexEmpty = both(
 		"這個書庫沒有宣告任何路徑。",
 		"This vault declares no paths.",
-	)
-	MapIndexLede = both(
-		"書庫宣告的每一張地圖，以及各自的枝數。",
-		"Every map the vault declares, and how many branches each holds.",
 	)
 	MapIndexEmpty = both(
 		"這個書庫沒有宣告任何地圖。",

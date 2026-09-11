@@ -44,12 +44,7 @@ var (
 
 // The chrome's link to the health page carries no name of its own: it is
 // wording.HealthTitle, the heading that page prints, so the word a reader
-// follows and the word they arrive at cannot drift apart. Only the hover title
-// is written here, because it says what the link does rather than what the page
-// is called.
-
-// HealthLinkTitle says what that page counts, so the label does not have to.
-var HealthLinkTitle = both("整體狀況：連結、孤島、名字衝突", "Health: links, islands, name collisions")
+// follows and the word they arrive at cannot drift apart.
 
 // TextSizeMark is the text-size control's glyph. The English side is a letter
 // rather than the character, because the control's whole job is to be legible
@@ -108,24 +103,6 @@ var CurrentlyOff = both("目前關閉", "Currently off")
 var SingleKeyShortcutsNote = both(
 	"關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。",
 	"With these off, / and [ type the way the browser types them; ⌘K and Esc are unaffected.",
-)
-
-// SingleKeyShortcutsTakeover is the other half of that sentence: what leaving
-// them on costs. The panel named the switch and what each key reaches, and
-// said nothing about the page holding a key shut against whatever else the
-// reader's browser does with it — so a lone slash that used to open a quick
-// in-page find stopped doing so, silently, and the one control that would
-// give it back read as being about this page's own keys.
-//
-// It speaks for the slash alone, and only where there is a filter to jump to,
-// because that is the whole of what gets claimed: the sidebar key is let
-// through wherever it has no drawer to fold, which its own row says. Which
-// browsers bind a bare slash is the browser's business and not a fact yomihon
-// can assert, so the common case is offered as an example rather than stated
-// as the rule.
-var SingleKeyShortcutsTakeover = both(
-	"開啟時，有篩選可跳的頁面就接手「/」；有些瀏覽器用單獨的 / 開啟頁內快速尋找，那時它不會出現。",
-	"While they are on, a page with a filter to jump to claims /; some browsers open a quick in-page find on a lone /, and it will not appear there.",
 )
 
 // SearchDialogEnter and SearchDialogEsc are the dialog's own footer: the two

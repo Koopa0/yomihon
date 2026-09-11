@@ -104,14 +104,19 @@ templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Ch
 	}
 }
 
-// indexHead is the head every mode index carries: what the mode is called and
-// how much of it there is, the title, and the sentence saying what a reader is
-// looking at.
+// indexHead is the head every mode index carries: how much of the mode there
+// is, the mode's name, and — when the listing needs one — the sentence saying
+// what a reader is looking at. A withheld page has no count to print, and an
+// empty kicker is not written.
 templ indexHead(kicker, title, lede string, lang wording.Lang) {
 	<header class="y-home__head">
-		<div class="y-home__kicker">{ kicker }</div>
+		if kicker != "" {
+			<div class="y-home__kicker">{ kicker }</div>
+		}
 		<h1 class="y-title">{ title }</h1>
-		<p>{ lede }</p>
+		if lede != "" {
+			<p>{ lede }</p>
+		}
 		<a class="y-back" href="/">{ wording.BackHome.In(lang) }</a>
 	</header>
 }

@@ -4159,7 +4159,8 @@ func TestTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
 // TestAnUnscopedVaultClaimsNoKnowledgeLayer holds the scope phrase to
 // vaults that declared one. A folder without a contract lists everything, and
 // a lede naming a knowledge layer there would invent a rule its owner never
-// wrote.
+// wrote. The heading stands alone: a second sentence that restates it is not
+// written.
 func TestAnUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -4180,11 +4181,14 @@ func TestAnUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
 		t.Fatalf("GET /folders status = %d, want 200", code)
 	}
 	recent := homeSection(t, body, `data-home-block="recent"`)
+	if !strings.Contains(recent, wording.FolderRecentTitle.In(wording.ZhHant)) {
+		t.Errorf("an unscoped vault lost the recency heading; section = %q", recent)
+	}
 	if strings.Contains(recent, "知識層") {
 		t.Errorf("an unscoped vault's recent block names a knowledge layer; section = %q", recent)
 	}
-	if !strings.Contains(recent, "最近改動過的筆記") {
-		t.Errorf("the unscoped lede is gone; section = %q", recent)
+	if strings.Contains(recent, "最近改動過的筆記") {
+		t.Errorf("an unscoped vault still paraphrases its own heading; section = %q", recent)
 	}
 }
 
@@ -4355,10 +4359,11 @@ func TestAnUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
 			t.Errorf("recent block is missing %q; section = %q", want, recent)
 		}
 	}
-	// The plain lede, not the scoped one: the knowledge layer is this
-	// contract's own declaration, and this contract cannot vouch for it.
-	if !strings.Contains(recent, "最近改動過的筆記") {
-		t.Errorf("the plain lede is gone; section = %q", recent)
+	// No scoped lede: the knowledge layer is this contract's own
+	// declaration, and this contract cannot vouch for it. The heading
+	// already says what the list is.
+	if strings.Contains(recent, "最近改動過的筆記") {
+		t.Errorf("an unreadable contract's recent block still paraphrases its heading; section = %q", recent)
 	}
 	if strings.Contains(recent, "知識層") {
 		t.Errorf("an unreadable contract's recent block cites a knowledge layer; section = %q", recent)

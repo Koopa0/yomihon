@@ -56,7 +56,7 @@ func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) R
 	case ordered && scoped:
 		block.Title, block.Lede = wording.FolderRecentTitle.In(lang), wording.FolderRecentLedeScoped.In(lang)
 	case ordered:
-		block.Title, block.Lede = wording.FolderRecentTitle.In(lang), wording.FolderRecentLede.In(lang)
+		block.Title = wording.FolderRecentTitle.In(lang)
 	case scoped:
 		block.Lede = wording.FolderTiedLedeScoped.In(lang)
 	default:
@@ -80,9 +80,10 @@ type StatusDistribution struct {
 // NewStatusDistribution builds the block with the sentence it can stand
 // behind. The distribution counts every indexed note whatever the shelf shows,
 // so beside a shelf narrowed to the declared knowledge layer the sentence says
-// the count reaches past the shelf; an unscoped shelf keeps the plain sentence.
+// the count reaches past the shelf; an unscoped shelf carries no sentence,
+// because the heading already says what the block is.
 func NewStatusDistribution(statuses, unstated []LifecycleItem, scoped bool, lang wording.Lang) StatusDistribution {
-	lede := wording.FolderLifecycleLede.In(lang)
+	lede := ""
 	if scoped {
 		lede = wording.FolderLifecycleLedeScoped.In(lang)
 	}
@@ -114,7 +115,7 @@ func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wor
 	}
 	view := listIndex(pathMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
-		wording.PathIndexLede.In(lang), emptySentence(governed, wording.PathIndexEmpty, wording.PathIndexUngoverned, lang), rows)
+		"", emptySentence(governed, wording.PathIndexEmpty, wording.PathIndexUngoverned, lang), rows)
 	view.Fault = closure.Diagnostic()
 	withholdListing(&view, closure)
 	return view
@@ -139,9 +140,8 @@ func emptySentence(governed bool, declared, ungoverned wording.Phrase, lang word
 }
 
 // listIndex assembles a mode's page from the parts every one of them has. The
-// kicker repeats the shelf's own name and measure because it is the page's
-// heading rather than the shelf's, and reading them from the shelf is what
-// keeps the two from disagreeing.
+// kicker is the shelf's own measure, and the title is the mode's name; reading
+// the count from the shelf is what keeps the two from disagreeing.
 //
 // A page that reads a declaration takes that declaration's closure and states
 // its reason. It does not also refuse to list: a closure that is shut leaves
@@ -151,7 +151,7 @@ func emptySentence(governed bool, declared, ungoverned wording.Phrase, lang word
 func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView {
 	return ListIndexView{
 		Mode:   mode,
-		Kicker: modeKicker(title, count),
+		Kicker: modeKicker(count),
 		Shelf: Shelf{
 			Title: title,
 			Lede:  lede,
@@ -177,7 +177,7 @@ func NewMapIndex(maps []nav.Map, closure nav.Closure, governed bool, lang wordin
 	}
 	view := listIndex(mapMode, wording.Maps.In(lang),
 		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
-		wording.MapIndexLede.In(lang), emptySentence(governed, wording.MapIndexEmpty, wording.MapIndexUngoverned, lang), rows)
+		"", emptySentence(governed, wording.MapIndexEmpty, wording.MapIndexUngoverned, lang), rows)
 	view.Fault = closure.Diagnostic()
 	withholdListing(&view, closure)
 	return view
@@ -321,11 +321,10 @@ func countNotes(files []nav.NoteRef, folders []nav.Folder) int {
 	return total
 }
 
-// modeKicker is the line above a mode index's title: what the mode is called,
-// and how much of it there is. The separator is punctuation both languages set
-// the same way, so it is written here rather than carried in the dictionary.
-func modeKicker(name, count string) string {
-	return name + " · " + count
+// modeKicker is the line above a mode index's title: how much of the mode
+// there is. The name sits in the heading below, once.
+func modeKicker(count string) string {
+	return count
 }
 
 // folderNoteCount is what a folder shows beside its name wherever it is listed:
@@ -387,7 +386,7 @@ func withholdListing(v *ListIndexView, closure nav.Closure) {
 		return
 	}
 	withhold(&v.Shelf)
-	v.Kicker = v.Shelf.Title
+	v.Kicker = ""
 }
 
 // withhold takes back what a shelf would otherwise claim about an organisation

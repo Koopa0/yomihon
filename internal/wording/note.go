@@ -68,7 +68,6 @@ var (
 	NoFrontmatter      = both("沒有 frontmatter（合法）。", "No frontmatter (which is legal).")
 	NoLegalTransitions = both("目前沒有合法的狀態轉換。", "No status transition is legal from here.")
 	FrontmatterNotYAML = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
-	ReportsOnlyNote    = both("只陳述狀態，不自動修復。", "Reported, never repaired.")
 )
 
 // The way out of a state the interface offers nothing onward from. The second
