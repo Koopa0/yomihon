@@ -14,9 +14,9 @@ var PathItemUnreadable = both(
 	"這條路徑列了一項無法判讀的內容,這一頁沒有把它讀成課程或分部。",
 	"This path lists something that could not be read as either a lesson or a branch.")
 
-// The way into the note this path is drawn from. The words say where the
-// author's own text lives and claim nothing about what that text contains:
-// the page has not read it.
+// ReadTheGuide is the way into the note this path is drawn from. The words
+// say where the author's own text lives and claim nothing about what that
+// text contains: the page has not read it.
 var ReadTheGuide = both("閱讀筆記本文 ", "Read the note itself ")
 
 // A branch's own label. Local branches carry their heading; the main line does
