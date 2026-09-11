@@ -24,7 +24,6 @@ const fail = (site, message) => {
   if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN schema-notice-visibility: unknown assertion site ${site}`);
   throw new LockFired(site, `FAIL schema-notice-visibility: ${message}`);
 };
-const broken = (message) => { throw new ProbeBroken(`BROKEN schema-notice-visibility: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED schema-notice-visibility: ${message}`); };
 
 const rewritePath = (path, needle, replacement, expected, label) => async (page) => {
