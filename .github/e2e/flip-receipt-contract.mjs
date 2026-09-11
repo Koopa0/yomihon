@@ -99,19 +99,31 @@ const sampleEntranceFade = async (receipt) => {
     return await receipt.evaluate((el) => new Promise((resolve, reject) => {
       const samples = [];
       let frame = 0;
-      const deadline = setTimeout(() => {
+      let interval = 0;
+      const stop = () => {
+        clearTimeout(deadline);
         cancelAnimationFrame(frame);
+        if (interval) clearInterval(interval);
+      };
+      const deadline = setTimeout(() => {
+        stop();
         if (samples.length === 0) reject(new Error('the flip receipt never produced opacity samples'));
         else resolve(samples);
       }, 2000);
       const settle = () => {
-        samples.push(Number(getComputedStyle(el).opacity));
-        if (getComputedStyle(el).opacity === '1') {
-          clearTimeout(deadline);
-          resolve(samples);
-          return;
-        }
-        frame = requestAnimationFrame(settle);
+        const tick = () => {
+          samples.push(Number(getComputedStyle(el).opacity));
+          if (getComputedStyle(el).opacity === '1') {
+            stop();
+            resolve(samples);
+            return true;
+          }
+          return false;
+        };
+        if (tick()) return;
+        interval = setInterval(() => {
+          if (tick()) clearInterval(interval);
+        }, 16);
       };
       const waitForStyles = () => {
         const appReady = Array.from(document.styleSheets).some((sheet) => {
