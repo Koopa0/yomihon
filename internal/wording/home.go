@@ -6,11 +6,9 @@ package wording
 // home shows in place of anything yomihon would have had to invent.
 var HomeReadmeTitle = both("這個書庫的說明", "About this library")
 
-// The page's own heading and the word above it.
-var (
-	HomeKicker = both("閱讀桌", "Reading desk")
-	HomeTitle  = both("閱讀桌", "Reading desk")
-)
+// HomeTitle is the desk's own heading. The arrival surface carries no kicker:
+// the H1 is the name, and a line above it would only repeat it.
+var HomeTitle = both("閱讀桌", "Reading desk")
 
 // Each of these blocks states what it is and what it is for. The second line
 // is not a subtitle: it says what the reader is looking at, for a block whose
