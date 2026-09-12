@@ -46,11 +46,7 @@ var (
 	)
 	// What a folder with no contract is told instead. It names what is missing
 	// without speaking as if the folder had declared an empty set.
-	PathIndexUngoverned = both(
-		"這個資料夾還沒有契約。",
-		"This folder has no contract yet.",
-	)
-	MapIndexUngoverned = both(
+	IndexUngoverned = both(
 		"這個資料夾還沒有契約。",
 		"This folder has no contract yet.",
 	)
@@ -73,10 +69,6 @@ var (
 	FolderIndexEmpty = both(
 		"這裡沒有列出檔案。",
 		"No files are listed here.",
-	)
-	FolderIndexUngoverned = both(
-		"這個資料夾還沒有契約。",
-		"This folder has no contract yet.",
 	)
 )
 

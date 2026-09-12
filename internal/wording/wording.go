@@ -107,3 +107,13 @@ func (p Phrase) In(lang Lang) string {
 	}
 	return p.zhHant
 }
+
+// JoinGuide chains an empty-state sentence and the step that follows it.
+// Chinese closes the first clause with a full stop and needs no gap; English
+// needs a space so the two sentences do not run together.
+func JoinGuide(state, step Phrase, lang Lang) string {
+	if lang == En {
+		return state.In(lang) + " " + step.In(lang)
+	}
+	return state.In(lang) + step.In(lang)
+}

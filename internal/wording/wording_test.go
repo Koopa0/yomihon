@@ -186,6 +186,57 @@ func TestKnownAcceptsOnlyTheTwoSpokenLanguages(t *testing.T) {
 	}
 }
 
+// JoinGuide must leave English clauses apart and Chinese ones contiguous. A
+// check that only asks whether each half appears somewhere cannot see them
+// glued together as "yet.Add".
+func TestJoinGuide(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name  string
+		state Phrase
+		step  Phrase
+		lang  Lang
+		want  string
+	}{
+		{
+			name:  "english governed path",
+			state: PathIndexEmpty,
+			step:  IndexDeclaredEmptyNext,
+			lang:  En,
+			want:  "This vault has no study paths yet. Add a .md file to the folder yomihon is reading.",
+		},
+		{
+			name:  "english governed folder",
+			state: FolderIndexEmpty,
+			step:  IndexDeclaredEmptyNext,
+			lang:  En,
+			want:  "No files are listed here. Add a .md file to the folder yomihon is reading.",
+		},
+		{
+			name:  "english ungoverned",
+			state: IndexUngoverned,
+			step:  IndexUngovernedNext,
+			lang:  En,
+			want:  "This folder has no contract yet. Add System/schemas/vault-schema.toml.",
+		},
+		{
+			name:  "chinese governed path",
+			state: PathIndexEmpty,
+			step:  IndexDeclaredEmptyNext,
+			lang:  ZhHant,
+			want:  "這個書庫裡還沒有學習路徑。在 yomihon 正在讀的資料夾裡新增一個 .md 檔。",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := JoinGuide(tt.state, tt.step, tt.lang); got != tt.want {
+				t.Errorf("JoinGuide() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // Other is the complement of a two-value set, so it has to be a complement:
 // never the language it was given, and its own inverse.
 func TestOtherIsTheLanguageThisOneIsNot(t *testing.T) {
