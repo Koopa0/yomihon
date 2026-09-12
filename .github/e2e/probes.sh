@@ -39,6 +39,7 @@ probes=(
   "preview-card.mjs|/notes/Notes/reading-fidelity.md"
   "task-list-marker.mjs|/notes/Notes/reading-fidelity.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
+  "vault-sidebar.mjs|/search"
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
   "status-recovery-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
