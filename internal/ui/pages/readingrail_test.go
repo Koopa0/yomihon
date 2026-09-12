@@ -80,7 +80,7 @@ func TestReadingRailReportsListsReports(t *testing.T) {
 	for _, want := range []string{
 		`data-reading-rail="reports"`,
 		`data-reading-reports`,
-		`2026-07-10 vault audit.md`,
+		`Vault audit`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("reports rail missing %q", want)
