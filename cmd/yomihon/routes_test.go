@@ -309,8 +309,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 
 func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phrase) {
 	t.Helper()
-	lang := wording.ZhHant
-	want := state.In(lang) + step.In(lang)
+	want := wording.JoinGuide(state, step, wording.ZhHant)
 	if !strings.Contains(got, want) {
 		t.Errorf("%s empty guide want %q; got %q", where, want, got)
 	}
