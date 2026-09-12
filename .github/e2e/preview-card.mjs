@@ -612,8 +612,14 @@ try {
 	// A wikilink to a vault file that is not a note. It resolved, it works, and
 	// clicking it opens that file's own page — so a card telling the reader
 	// there is nothing at the address would be contradicted by the link itself.
+	// The seal bar now sits after the prose, so this link sits lower; scroll it
+	// into view and settle before measuring, not inside the window.
 	{
 		const file = await only(page, NON_NOTE_LINK);
+		await file.scrollIntoViewIfNeeded();
+		await page.waitForTimeout(300);
+		await page.mouse.move(4, 4);
+		await settles(page, false, 2000);
 		await file.hover();
 		await page.waitForTimeout(900);
 		proveApplied('a-vault-file-that-is-not-a-note-opens-nothing', proof);
