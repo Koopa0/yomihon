@@ -28,6 +28,7 @@ probes=(
   "drawer-contract.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
+  "report-frame-contract.mjs|/reports/browser-boundary.html"
   "article-language-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"
   "right-rail-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
