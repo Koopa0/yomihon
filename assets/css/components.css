@@ -236,12 +236,11 @@ html, body { margin: 0; background: var(--bg); }
    ============================================================ */
 .y-shell { display: grid; grid-template-columns: 264px minmax(0, 1fr) 316px; flex: 1; align-items: start; }
 /* The right rail exists to hold reading aids — the table of contents and the
-   diagnostics list. A note with neither drops the rail's column entirely: the
-   reading column takes the width, and the fixed-bottom status bar carries the
-   status face at every viewport width, not only narrow ones. */
+   diagnostics list. A note with neither drops the rail's column entirely and
+   the reading column takes the width; the status face at the article's end
+   carries write controls wherever the rail is absent. */
 .y-shell--rail-empty { grid-template-columns: 264px minmax(0, 1fr); }
 .y-shell--rail-empty .y-rail-right { display: none; }
-.y-shell--rail-empty ~ .y-sealbar { display: flex; }
 .y-nav-scrim { display: none; position: fixed; inset: var(--header-height) 0 0 0; background: oklch(0 0 0 / .42); z-index: 44; }
 
 /* The rails stay put while the prose moves under them: sticky to just below
@@ -701,15 +700,17 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-statusflag code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
 
 /* ============================================================
-   Status bar — the status face wherever the right rail is absent: narrow
-   viewports (the rail is hidden) and no-aid notes (the rail's column is
-   dropped, the sibling rule under .y-shell--rail-empty reveals this bar).
-   The y-sealbar class names are kept; the layout predates the bar being a
-   plain control surface.
+   Status bar — the status face at the end of the article wherever the right
+   rail is absent: narrow viewports hide the rail, and no-aid notes drop its
+   column. The write face belongs after reading, not pinned to the viewport
+   bottom. The y-sealbar class names are kept; the layout predates the bar
+   being a plain control surface.
    ============================================================ */
-.y-sealbar { display: none; align-items: center; flex-wrap: wrap; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
-  padding: 10px 16px; border-top: 1px solid var(--border);
-  background: color-mix(in oklch, var(--panel) 92%, transparent); backdrop-filter: blur(10px); }
+.y-sealbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 26px;
+  padding: 10px 16px; border-top: 1px solid var(--border); background: var(--panel); }
+@media (min-width: 1281px) {
+  .y-shell:not(.y-shell--rail-empty) .y-sealbar { display: none; }
+}
 .y-sealbar__spacer { flex: 1; }
 .y-sealbar .y-xbtn { width: auto; padding-inline: 14px; }
 .y-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
@@ -1322,7 +1323,6 @@ html {
 @media (max-width: 1280px) {
   .y-shell { grid-template-columns: 248px minmax(0, 1fr); }
   .y-rail-right { display: none !important; }
-  .y-sealbar { display: flex; }
   .y-inlineaids { display: flex; flex-direction: column; gap: 22px; margin: 26px 0 6px; }
 }
 @media (max-width: 900px) {
