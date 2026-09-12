@@ -1,10 +1,13 @@
 // Behavior lock: a reading page carries one map — the book inside a study path
 // on alpha, with the current entry marked and study-path warnings kept — and
-// never the whole-vault drawers the desk offers.
+// never the whole-vault drawers the desk offers. Search still mounts the vault
+// sidebar, so group order, map default, and journal default stay browser-locked
+// there while reading pages use the one-map rail.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
+const DESK_PAGE = '/search';
 const HOME = '/';
 const MAP_PAGE = '/notes/Maps/reading.md';
 const STUDY_PAGE = '/syllabus/Maps/study.md';
@@ -16,6 +19,9 @@ const SITES = [
   'path-noninstance-warning',
   'path-unresolved-warning',
   'vault-drawers-absent',
+  'group-order',
+  'map-open',
+  'journal-collapsed',
   'map-page-unwritten-kept',
   'path-page-unresolved-kept',
   'path-page-noninstance-kept',
@@ -77,6 +83,22 @@ const MUTATIONS = {
   'restore-vault-drawers': {
     target: 'vault-drawers-absent',
     apply: replaceEvery('<div class="y-railgroup">', '<div class="y-railgroup" data-sidebar-group="paths">'),
+  },
+  'swap-paths-maps': {
+    target: 'group-order',
+    apply: rewritePath(DESK_PAGE, (body) => body
+      .replaceAll('data-sidebar-group="paths"', 'data-sidebar-group="swap"')
+      .replaceAll('data-sidebar-group="maps"', 'data-sidebar-group="paths"')
+      .replaceAll('data-sidebar-group="swap"', 'data-sidebar-group="maps"')),
+  },
+  'open-current-map': {
+    target: 'map-open',
+    apply: rewritePath(DESK_PAGE, (body) => body
+      .replace(/<details data-map-tree="Maps\/reading\.md"/g, '<details open data-map-tree="Maps/reading.md"')),
+  },
+  'open-journal': {
+    target: 'journal-collapsed',
+    apply: rewritePath(DESK_PAGE, (body) => body.replaceAll('<details data-sidebar-group="journal"', '<details open data-sidebar-group="journal"')),
   },
   'drop-unwritten-map-row': {
     target: 'map-page-unwritten-kept',
@@ -156,6 +178,25 @@ try {
   const groups = await sidebar.locator('[data-sidebar-group]').count();
   if (groups !== 0) fail('vault-drawers-absent', `the reading rail still carries ${groups} vault drawer group(s)`);
 
+  await page.goto(BASE + DESK_PAGE, { waitUntil: 'domcontentloaded' });
+  const deskSidebar = page.locator('aside.y-rail-left');
+  if (await deskSidebar.count() !== 1) broken('the desk page has no single sidebar');
+
+  const deskGroups = await deskSidebar.locator('[data-sidebar-group]').evaluateAll((elements) => elements.map((el) => el.dataset.sidebarGroup));
+  if (deskGroups.join(',') !== 'paths,maps,journal,reports') {
+    fail('group-order', `groups are ${deskGroups.join(',') || 'absent'}, want paths,maps,journal,reports`);
+  }
+
+  const map = deskSidebar.locator('details[data-map-tree="Maps/reading.md"]');
+  if (await map.count() !== 1) fail('map-open', 'the fixture topic map did not appear on the desk sidebar');
+  if (await map.evaluate((el) => el.open)) fail('map-open', 'a map opened on a page with no current note');
+
+  const journal = deskSidebar.locator('details[data-sidebar-group="journal"]');
+  if (await journal.count() !== 1 || await journal.locator('a[href="/notes/Diary/2026-07-10.md"]').count() !== 1) {
+    fail('journal-collapsed', 'the untyped Diary fixture did not become a Journal entry on the desk sidebar');
+  }
+  if (await journal.evaluate((el) => el.open)) fail('journal-collapsed', 'Journal starts open on the desk sidebar');
+
   await page.setViewportSize({ width: 1270, height: 720 });
   await page.goto(BASE + HOME, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -183,7 +224,7 @@ try {
   }
   if (proof && !proof()) notApplied(`the ${MUTATE} mutation changed nothing in the document`);
 
-  console.log('PASS sidebar-content: one book rail on alpha; study-path warnings kept; vault drawers absent; map and syllabus pages unchanged');
+  console.log('PASS sidebar-content: one book rail on alpha; vault drawers absent; desk sidebar order and defaults on search; map and syllabus pages unchanged');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
