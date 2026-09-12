@@ -11,9 +11,8 @@ import (
 // no contents, no status panel and no diagnostics.
 type ReportView struct {
 	Name string
-	// Sidebar is the resolved left navigation, built with this report as the
-	// current file so the drawer opens and the folder tree reveals the branch.
-	Sidebar Sidebar
+	// ReadingRail is the list of reports beside this briefing.
+	ReadingRail ReadingRail
 	// NeedsScript records that this document draws part of itself with a
 	// script. Scripts never run here, and a chart-shaped hole with nothing
 	// explaining it reads as a broken report rather than the boundary working.
@@ -29,7 +28,7 @@ templ Report(v ReportView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@sidebar(v.Sidebar, c)
+			@readingRail(v.ReadingRail, c)
 			<main id="main-content" tabindex="-1" class="y-main y-reportmain">
 				<div class="y-reporthead">
 					<h1 class="y-reporttitle">{ v.Name }</h1>

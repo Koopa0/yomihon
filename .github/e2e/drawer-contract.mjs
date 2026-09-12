@@ -491,17 +491,32 @@ try {
     // And the whole way round, with real key presses. Both cases above take a
     // single step from a control focused by the test, which is the one shape
     // of walk that cannot see a step landing nowhere: the list of what looks
-    // focusable is not the list of what the browser will focus — most of this
-    // rail's rows sit inside collapsed disclosures, report a box, and refuse —
-    // so a runtime that moved by name without checking would come to rest on
-    // the first refusal and stay there however long the reader kept pressing.
+    // focusable is not the list of what the browser will focus — a row inside a
+    // collapsed disclosure reports a box and still refuses focus, so a runtime
+    // that moved by name without checking would come to rest on the first
+    // refusal and stay there however long the reader kept pressing.
     //
-    // The precondition is measured rather than assumed: if no row in this
-    // fixture's rail refuses focus, a walk over it proves nothing about that
-    // and the probe says so instead of passing. Identity comes from stamping
-    // every element in the document, so the walk needs no second opinion
-    // about which of them are focusable — the browser's answer is read off
-    // document.activeElement.
+    // PR-1 reading rail has no <details>, so every visible link accepts focus.
+    // The focus-landed guard in drawer.js is still live on pages that mount the
+    // old sidebar; it stays. This fixture still drives alpha.md to exercise the
+    // reading-rail drawer. Before the Tab-walk we inject one closed disclosure
+    // with a link when the rail offers none, so step-without-checking-focus-
+    // landed remains a runtime lock rather than a shape the fixture outgrew.
+    await page.evaluate(() => {
+      const rail = document.querySelector('#nav-rail');
+      if (!rail || rail.querySelector('[data-e2e-focus-refusal]')) return;
+      let refused = 0;
+      for (const row of rail.querySelectorAll('a[href]')) {
+        row.focus();
+        if (document.activeElement !== row) refused += 1;
+      }
+      if (refused > 0) return;
+      const trap = document.createElement('details');
+      trap.dataset.e2eFocusRefusal = '1';
+      trap.innerHTML = '<summary aria-hidden="true">probe trap</summary><a href="/notes/Notes/probe-trap.md">probe trap</a>';
+      const host = rail.querySelector('.y-railgroup') || rail;
+      host.appendChild(trap);
+    });
     const refusedRows = await page.evaluate(() => {
       const before = document.activeElement;
       let refused = 0;
@@ -514,6 +529,19 @@ try {
     });
     if (refusedRows === 0) {
       broken('no row in the fixture rail refuses focus, so walking it cannot show a step that lands nowhere');
+    }
+    const focusableRows = await page.evaluate(() => {
+      const before = document.activeElement;
+      let count = 0;
+      for (const row of document.querySelectorAll('#nav-rail a[href]')) {
+        row.focus();
+        if (document.activeElement === row) count += 1;
+      }
+      before?.focus();
+      return count;
+    });
+    if (focusableRows < 2) {
+      broken(`only ${focusableRows} focusable row(s) in the fixture rail, so walking it cannot show a meaningful cycle`);
     }
     const cap = await page.evaluate(() => {
       let index = 0;

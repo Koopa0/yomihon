@@ -53,13 +53,12 @@ required_home_sites=(paths maps reports folders search vault-readme kbd-shortcut
 # The rail, checked where it now lives: beside the thing being read. The map
 # tree marker is what proves a tree rendered rather than an empty group.
 note_markers=(
-  'sidebar-paths|data-sidebar-group="paths"'
-  'sidebar-maps|data-sidebar-group="maps"'
-  'sidebar-map-fixture|data-map-tree="Maps/reading.md"'
-  'sidebar-journal|data-sidebar-group="journal"'
+  'reading-rail-book|data-reading-rail="book"'
+  'reading-rail-path|data-book-path="Maps/study.md"'
+  'reading-rail-current|aria-current="page"'
 )
 
-required_note_sites=(sidebar-paths sidebar-maps sidebar-map-fixture sidebar-journal)
+required_note_sites=(reading-rail-book reading-rail-path reading-rail-current)
 
 check_home_marker_table() {
   local actual required

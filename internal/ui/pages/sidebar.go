@@ -217,11 +217,17 @@ type CapabilityFault struct {
 // projections, one entry per distinct cause: one cause commonly closes both
 // paths and instance projections, and saying it twice reads as two faults.
 func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
-	if s.Model == nil {
+	return ModelCapabilityFaults(s.Model, lang)
+}
+
+// ModelCapabilityFaults is the shared closure logic for any rail that carries
+// capability faults beside a reading surface.
+func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFault {
+	if model == nil {
 		return nil
 	}
-	navigation := s.Model.NavigationClosure()
-	artifact := s.Model.ArtifactClosure()
+	navigation := model.NavigationClosure()
+	artifact := model.ArtifactClosure()
 	switch {
 	case navigation.Closed() && artifact.Closed() && navigation.Diagnostic() == artifact.Diagnostic():
 		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
@@ -254,7 +260,13 @@ func FooterSequence(model *nav.Model, relPath string, lang wording.Lang) (prev, 
 		return prev, next, "", false
 	}
 	if steps := model.PathNeighbors(relPath); len(steps) == 1 {
-		return steps[0].Prev, steps[0].Next, fmt.Sprintf(wording.CourseOnwardOf.In(lang), steps[0].PathTitle), true
+		step := steps[0]
+		// A path can list a note with no walkable stop on either side — planned
+		// rows and side branches drop out of the course walk — and an empty foot
+		// then leaves keyboard reading with nowhere to go inside the article.
+		if step.Prev.RelPath != "" || step.Next.RelPath != "" {
+			return step.Prev, step.Next, fmt.Sprintf(wording.CourseOnwardOf.In(lang), step.PathTitle), true
+		}
 	}
 	prev, next = model.FolderStep(relPath)
 	return prev, next, wording.FolderAdjacency.In(lang), false

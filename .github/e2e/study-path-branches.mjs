@@ -18,7 +18,7 @@ const PATH_INDEX = '/paths';
 const COURSE_PAGE = '/syllabus/Maps/branches.md';
 const SECOND_LESSON = '/notes/Course/C02.md';
 const SIDE_LESSON = '/notes/Course/S01.md';
-const MAP_PAGE = '/notes/Notes/alpha.md';
+const MAP_PAGE = '/notes/Maps/reading.md';
 const ROUTINE_LESSON = '/notes/Course/R01.md';
 
 const SITES = [
@@ -109,7 +109,7 @@ const MUTATIONS = {
   },
   'empty-the-general-map': {
     target: 'general-maps-unchanged',
-    apply: rewriteDocument(MAP_PAGE, 'data-map-tree="Maps/reading.md"', 'data-map-tree="Maps/removed.md"', 'general map drawer'),
+    apply: rewriteDocument(MAP_PAGE, 'Unwritten Note', 'Removed map row', 'general map note body'),
   },
 };
 
@@ -204,10 +204,10 @@ try {
   }
   // The routine block is absent from the course's own drawer too. The folder
   // tree still lists the file, because a folder is not a course.
-  const drawer = page.locator('[data-map-tree="Maps/branches.md"]');
-  if (await drawer.count() !== 1) broken(`the course drawer is present ${await drawer.count()} times, want 1`);
-  if (await drawer.locator('a[href="/notes/Course/R01.md"]').count() !== 0) {
-    fail('declared-out-stays-out', 'a lesson declared out of the course appears in the course drawer');
+  const book = page.locator('[data-book-path="Maps/branches.md"]');
+  if (await book.count() !== 1) broken(`the course book rail is present ${await book.count()} times, want 1`);
+  if (await book.locator('a[href="/notes/Course/R01.md"]').count() !== 0) {
+    fail('declared-out-stays-out', 'a lesson declared out of the course appears in the course book rail');
   }
 
   // A lesson the course declared itself out of is in no course. Opened on its
@@ -223,10 +223,9 @@ try {
     fail('declared-out-is-in-no-course',
       `a lesson declared out of the course is offered its course order: ${JSON.stringify(stepLabels)}`);
   }
-  const routineDrawer = page.locator('[data-map-tree="Maps/branches.md"]');
-  if (await routineDrawer.count() !== 1) broken(`the course drawer is present ${await routineDrawer.count()} times, want 1`);
-  if (await routineDrawer.locator(`a[href="${ROUTINE_LESSON}"]`).count() !== 0) {
-    fail('declared-out-is-in-no-course', 'the course drawer places a lesson the course declared itself out of');
+  const routineBook = page.locator('[data-book-path="Maps/branches.md"]');
+  if (await routineBook.count() !== 0) {
+    fail('declared-out-is-in-no-course', 'a lesson declared out of the course still carries a course book rail');
   }
   const folderRow = page.locator(`.y-rail-left a[href="${ROUTINE_LESSON}"]`);
   if (await folderRow.count() === 0) {
@@ -243,9 +242,8 @@ try {
   // Narrowing courses must not narrow maps: a general map still lists what it
   // lists, through the grammar it always used.
   await page.goto(BASE + MAP_PAGE, { waitUntil: 'domcontentloaded' });
-  const mapTree = page.locator('[data-map-tree="Maps/reading.md"]');
-  if (await mapTree.count() !== 1) {
-    fail('general-maps-unchanged', `the general map drawer is present ${await mapTree.count()} times, want 1`);
+  if (!((await page.locator('main').textContent()).includes('Unwritten Note'))) {
+    fail('general-maps-unchanged', 'the general map note no longer lists its unresolved row');
   }
 
   assertApplied();

@@ -3072,12 +3072,12 @@ func TestShowIncludesSidebar(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	for _, want := range []string{
-		`class="y-rail-left"`, // the nav rail rendered at all
-		"Writing",             // a lifecycle folder in the collapsed Folders tree
-		"Go path",             // the study-path title
-		"Data",                // the pipe-format H2's English label
-		`href="/notes/Writing/lessons/golang/Slices.md"`, // the resolved lesson link
-		"draft", // the lesson's status badge
+		`class="y-rail-left"`,
+		`data-reading-rail="book"`,
+		"Go path",
+		"Data",
+		`href="/notes/Writing/lessons/golang/Slices.md"`,
+		"draft",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("reading page sidebar missing %q; body = %q", want, body)
@@ -3104,7 +3104,7 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	for _, want := range []string{
-		`data-map-tree="Maps/Reading map.md"`,
+		`data-reading-rail="folder"`,
 		// The reason reaches a pointer through the title and everyone else
 		// through text carried out of sight, so both are named here: a
 		// state told by cursor alone is told to no one on a phone.

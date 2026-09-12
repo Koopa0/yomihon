@@ -118,7 +118,7 @@ func TestReportRoutesCaptureSnapshotOnce(t *testing.T) {
 			// The navigation model rides on the shell this route was handed,
 			// so the rail's reports group witnesses that shell rather than
 			// one the renderer derived for itself.
-			if tt.wantShell && !strings.Contains(rr.Body.String(), `data-sidebar-group="reports"`) {
+			if tt.wantShell && !strings.Contains(rr.Body.String(), `data-reading-rail="reports"`) {
 				t.Errorf("response did not render the shell it was handed; body = %q", rr.Body.String())
 			}
 		})
