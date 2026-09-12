@@ -143,6 +143,15 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 			wantLabel:  "Branch course 從此步往下",
 			wantCourse: true,
 		},
+		{
+			name:     "a path stop with no walkable neighbour keeps the folder",
+			current:  "Course/X01.md",
+			wantPrev: "Course/S02.md",
+			// The local branch lists only X01; the course walk has no stop on either side.
+			wantNext:   "",
+			wantLabel:  "同資料夾的前後檔案",
+			wantCourse: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -182,6 +191,8 @@ func buildStepsModel(t *testing.T) *nav.Model {
 			"\t- 選修 {sequence=local}\n" +
 			"\t\t- [[S01]]\n" +
 			"\t\t- [[S02]]\n" +
+			"\t- 獨行 {sequence=local}\n" +
+			"\t\t- [[X01]]\n" +
 			"- [[C03]]\n",
 		"Maps/Second course.md": "---\ntitle: Second course\ntype: study-path\ndomain: golang\n---\n\n" +
 			"## 導讀 {sequence=primary}\n\n" +
@@ -191,6 +202,7 @@ func buildStepsModel(t *testing.T) *nav.Model {
 		"Course/C03.md": lesson("C03"),
 		"Course/S01.md": lesson("S01"),
 		"Course/S02.md": lesson("S02"),
+		"Course/X01.md": lesson("X01"),
 	}
 	for rel, content := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))
