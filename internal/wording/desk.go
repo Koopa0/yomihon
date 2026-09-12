@@ -28,30 +28,31 @@ var (
 	)
 )
 
-// What an empty mode means: a vault that declared none of something is not a
-// vault missing a feature. A filled shelf's head already carries the count;
-// a second sentence that restates the heading is not written here.
+// What an empty path or map listing says, and the one step a first-time reader
+// can take next. The state sentence and the step are separate phrases so a
+// check can name each through wording.*.In without literals.
 var (
 	PathIndexEmpty = both(
-		"這個書庫沒有宣告任何路徑。",
-		"This vault declares no paths.",
+		"這個書庫裡還沒有學習路徑。",
+		"This vault has no study paths yet.",
 	)
 	MapIndexEmpty = both(
-		"這個書庫沒有宣告任何地圖。",
-		"This vault declares no maps.",
+		"這個書庫裡還沒有地圖。",
+		"This vault has no maps yet.",
 	)
-	// What a folder with no contract is told instead. "Declares none" is a
-	// sentence about a declaration, and a folder no contract governs has made
-	// none for it to be about: it is not answering that question badly, it was
-	// never asked it. The sentence names what is missing and what it would have
-	// given, so a reader can tell an empty answer from an absent question.
-	PathIndexUngoverned = both(
-		"這個資料夾還沒有契約；課程是契約宣告出來的。",
-		"This folder has no contract yet; a course is something a contract declares.",
+	IndexDeclaredEmptyNext = both(
+		"在 yomihon 正在讀的資料夾裡新增一個 .md 檔。",
+		"Add a .md file to the folder yomihon is reading.",
 	)
-	MapIndexUngoverned = both(
-		"這個資料夾還沒有契約；地圖是契約宣告出來的。",
-		"This folder has no contract yet; a map is something a contract declares.",
+	// What a folder with no contract is told instead. It names what is missing
+	// without speaking as if the folder had declared an empty set.
+	IndexUngoverned = both(
+		"這個資料夾還沒有契約。",
+		"This folder has no contract yet.",
+	)
+	IndexUngovernedNext = both(
+		"請新增 System/schemas/vault-schema.toml。",
+		"Add System/schemas/vault-schema.toml.",
 	)
 	ReportIndexLede = both(
 		"寫在書庫裡的報告與每日簡報，照原樣顯示。",

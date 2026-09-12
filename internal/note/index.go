@@ -70,7 +70,7 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	articleLang := articleLanguageLookup(snap)
 	recent, recentOrdered := recentShelfNotes(model.KnowledgeNotes(), pageShell.Governed, authority, articleLang)
 
-	view := pages.NewFolderIndex(model, lang, articleLang)
+	view := pages.NewFolderIndex(model, pageShell.Governed, lang, articleLang)
 	// Two of the three causes the desk states can empty or degrade something
 	// drawn here: the write authority closes the distribution, and the artifact
 	// policy closes it too and takes the knowledge layer off the recent list.

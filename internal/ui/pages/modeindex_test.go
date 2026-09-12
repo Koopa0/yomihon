@@ -146,7 +146,7 @@ func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 	// Diary stay outside this shelf's measure.
 	const files = 9
 
-	view := NewFolderIndex(buildModel(t), wording.ZhHant, nil)
+	view := NewFolderIndex(buildModel(t), true, wording.ZhHant, nil)
 	if view.Kicker != "9 篇" {
 		t.Errorf("folder index kicker = %q, want it to name all %d files on the shelf", view.Kicker, files)
 	}
@@ -167,7 +167,7 @@ func TestFolderIndexLabelsRootNotesAsTheirOwnGroup(t *testing.T) {
 		{wording.ZhHant, "根目錄筆記"},
 		{wording.En, "Root notes"},
 	} {
-		view := NewFolderIndex(model, tt.lang, nil)
+		view := NewFolderIndex(model, true, tt.lang, nil)
 		at := -1
 		for i, row := range view.Shelf.Rows {
 			if row.Heading && row.Text == tt.want {
@@ -227,7 +227,7 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		{pathMode, ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, wording.ZhHant, nil), layouts.Chrome{})},
 		{mapMode, ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant, nil), layouts.Chrome{})},
 		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant, nil), layouts.Chrome{})},
-		{folderMode, FolderIndex(NewFolderIndex(model, wording.ZhHant, nil), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
+		{folderMode, FolderIndex(NewFolderIndex(model, true, wording.ZhHant, nil), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode, func(t *testing.T) {
