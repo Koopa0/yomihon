@@ -200,7 +200,7 @@ func TestReportOffersTheFramesOwnAddress(t *testing.T) {
 	t.Parallel()
 	const name = "browser-boundary.html"
 	var buf bytes.Buffer
-	view := ReportView{Name: name, ReadingRail: NewReportReadingRail(&nav.Model{}, "System/reports/daily-briefing/browser-boundary.html")}
+	view := ReportView{Name: name}
 	if err := Report(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
