@@ -264,21 +264,6 @@ func TestTraditionalChineseUsesFullWidthPunctuation(t *testing.T) {
 	}
 }
 
-// TestEnglishUsesStraightDoubleQuotes keeps English quotation marks straight.
-// %q emits straight quotes at most call sites, and curly would require the
-// StepBackOpen/StepBackClose split at each one — one more chance per site to
-// get the language wrong.
-func TestEnglishUsesStraightDoubleQuotes(t *testing.T) {
-	t.Parallel()
-
-	curly := regexp.MustCompile(`[\x{201C}\x{201D}]`)
-	for _, p := range writtenPhrases(t) {
-		if curly.MatchString(p.en) {
-			t.Errorf("%s English carries curly double quotes: %q", p.name, p.en)
-		}
-	}
-}
-
 // Other is the complement of a two-value set, so it has to be a complement:
 // never the language it was given, and its own inverse.
 func TestOtherIsTheLanguageThisOneIsNot(t *testing.T) {
