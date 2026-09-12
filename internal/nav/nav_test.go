@@ -2022,26 +2022,42 @@ func TestModelConcurrentProjectionMutationDoesNotChangePublishedData(t *testing.
 func TestBuildReports(t *testing.T) {
 	t.Parallel()
 
-	paths := []string{
-		"Concepts/foo.md",
-		"System/reports/Run-Report.md",
-		"System/reports/daily-briefing/README.md",
-		"System/reports/daily-briefing/koopa0-briefing-2026-07-02.html",
-		"System/reports/daily-briefing/latest.html",
-		"System/reports/vault-check.md",
-		"System/reports/notes.txt",
+	titled := vault.Parse("System/reports/Run-Report.md", []byte("---\ntitle: Run report\n---\nbody\n"))
+	files := []capturedFile{
+		{path: "Concepts/foo.md"},
+		{path: "System/reports/Run-Report.md", note: titled},
+		{path: "System/reports/daily-briefing/README.md"},
+		{path: "System/reports/daily-briefing/koopa0-briefing-2026-07-02.html"},
+		{path: "System/reports/daily-briefing/latest.html"},
+		{path: "System/reports/vault-check.md"},
+		{path: "System/reports/notes.txt"},
 	}
 
 	want := []Report{
-		{Name: "Run-Report.md", RelPath: "System/reports/Run-Report.md"},
-		{Name: "vault-check.md", RelPath: "System/reports/vault-check.md"},
+		{Name: "Run report", RelPath: "System/reports/Run-Report.md"},
+		{Name: "vault-check", RelPath: "System/reports/vault-check.md"},
 		{Name: "koopa0-briefing-2026-07-02.html", RelPath: "System/reports/daily-briefing/koopa0-briefing-2026-07-02.html", Briefing: true},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 	}
 
-	got := buildReports(paths)
+	got := buildReports(files)
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("buildReports mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestBuildReportsUsesParsedNoteTitle keeps a parsed note's own title answer
+// on the row: frontmatter when present, otherwise the filename stem.
+func TestBuildReportsUsesParsedNoteTitle(t *testing.T) {
+	t.Parallel()
+
+	files := []capturedFile{
+		{path: "System/reports/notes.md", note: vault.Parse("System/reports/notes.md", []byte("just prose\n"))},
+	}
+	got := buildReports(files)
+	want := []Report{{Name: "notes", RelPath: "System/reports/notes.md"}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("buildReports parsed-note title mismatch (-want +got):\n%s", diff)
 	}
 }
 

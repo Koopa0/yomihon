@@ -301,9 +301,10 @@ type NoteRef struct {
 	Language string
 }
 
-// Report is one file under System/reports/. Briefing marks the daily-briefing/
-// HTML files (as opposed to the .md reports); Latest marks latest.html.
-// nav records names and paths only — report contents are never parsed.
+// Report is one file under System/reports/. Name is the note title for .md
+// reports and the HTML filename for briefings. Briefing marks the
+// daily-briefing/ HTML files (as opposed to the .md reports); Latest marks
+// latest.html.
 type Report struct {
 	Name     string
 	RelPath  string
@@ -395,7 +396,7 @@ func newModel(
 		mtimes[file.path] = file.modified
 	}
 	m := &Model{
-		reports:        buildReports(paths),
+		reports:        buildReports(files),
 		journalEntries: buildJournal(paths, mtimes, journal),
 		journalDir:     journal,
 		knowledgeScope: scope,
@@ -557,11 +558,13 @@ func buildJournal(paths []string, mtimes map[string]time.Time, journal schema.Jo
 
 // buildReports enumerates System/reports/: the .md reports directly in that
 // folder (in path order), then the daily-briefing/ HTML briefings (marking
-// latest.html). It reads only the path list — report contents are never
-// opened. README.md files and any non-.md/.html files fall out naturally.
-func buildReports(paths []string) []Report {
+// latest.html). Written reports take the parsed note title when one exists and
+// fall back to the filename without its extension. README.md files and any
+// non-.md/.html files fall out naturally.
+func buildReports(files []capturedFile) []Report {
 	var reports, briefings []Report
-	for _, p := range paths {
+	for _, file := range files {
+		p := file.path
 		if name, ok := BriefingName(p); ok {
 			briefings = append(briefings, Report{
 				Name:     name,
@@ -576,7 +579,14 @@ func buildReports(paths []string) []Report {
 			continue
 		}
 		if !strings.Contains(rest, "/") && vault.IsMarkdown(rest) {
-			reports = append(reports, Report{Name: rest, RelPath: p})
+			name := displayName(rest)
+			if file.note != nil {
+				name = file.note.Title()
+			}
+			reports = append(reports, Report{
+				Name:    name,
+				RelPath: p,
+			})
 		}
 	}
 	return append(reports, briefings...)

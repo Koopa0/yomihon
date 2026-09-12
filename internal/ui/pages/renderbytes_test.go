@@ -411,8 +411,8 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 // newest mark, none of which the shared fixture vault has.
 func recordedReportIndexView() ListIndexView {
 	return NewReportIndex([]nav.Report{
-		{Name: "2026-07-10 vault audit.md", RelPath: "System/reports/2026-07-10 vault audit.md"},
-		{Name: "notes on the scan.md", RelPath: "System/reports/notes on the scan.md"},
+		{Name: "Vault audit", RelPath: "System/reports/2026-07-10 vault audit.md"},
+		{Name: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 	}, recordedChrome().Lang, nil)
 }

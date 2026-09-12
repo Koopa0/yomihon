@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"path"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
@@ -198,8 +199,8 @@ func countBranches(branches []nav.Branch) int {
 // NewReportIndex builds the report index. The two kinds are named apart because
 // they are read apart: a briefing is a program's output, shown as bytes inside
 // an isolated frame, and a written report is a note like any other. The row
-// keeps the filename the author gave it and lifts the day out of the front of
-// that name where there is one; nothing here opens a report to describe it.
+// shows the note title and lifts the day from the vault basename when the
+// filename starts with one; nothing here opens a report to describe it.
 func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(reports))
 	for _, report := range reports {
@@ -214,7 +215,7 @@ func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang Article
 		rows = append(rows, Row{
 			Text:     report.Name,
 			Href:     href,
-			Mark:     joinMarks(leadingDate(report.Name), kind, newest),
+			Mark:     joinMarks(leadingDate(path.Base(report.RelPath)), kind, newest),
 			Language: rowLanguage(articleLang, report.RelPath),
 		})
 	}
