@@ -118,7 +118,7 @@ jobs:
           install -D "${RUNNER_TEMP}/tailwindcss" "$(go env GOPATH)/bin/tailwindcss"
 
       - name: Verify
-        run: make verify
+        run: make verify-ci
 
   # Scans the dependency and standard-library surface for known
   # vulnerabilities. Kept separate from the build-and-test gate so a new
@@ -268,18 +268,15 @@ jobs:
           git add -A
           git diff --cached --exit-code
 
-      - name: Fetch the pinned stylesheet generator
+      - name: Install Tailwind CSS (pinned)
         run: |
           curl -sSfL "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64" -o "${RUNNER_TEMP}/tailwindcss"
           echo "${TAILWIND_SHA256}  ${RUNNER_TEMP}/tailwindcss" | sha256sum -c -
           chmod +x "${RUNNER_TEMP}/tailwindcss"
-
-      - name: Regenerate the stylesheet
-        run: |
-          "${RUNNER_TEMP}/tailwindcss" -i assets/css/input.css -o assets/css/output.css --minify
+          install -D "${RUNNER_TEMP}/tailwindcss" "$(go env GOPATH)/bin/tailwindcss"
 
       - name: Fail if the stylesheet is out of date
-        run: git diff --exit-code -- assets/css/output.css
+        run: make css-check
 
   # The runtime script and the hand-written stylesheet sources, linted with
   # pinned tools. Node lives only on the runner; the product build stays free of
@@ -296,22 +293,8 @@ jobs:
           cache: npm
           cache-dependency-path: .github/package-lock.json
 
-      - name: Install the frontend linters
-        run: npm ci --prefix .github --ignore-scripts --no-audit --fund=false
-
-      # biome.json turns off four rules where the runtime deliberately differs
-      # from biome's defaults: explicit nil guards over optional chaining, a
-      # couple of string concatenations, and the cookie writes behind the theme
-      # and furigana toggles. Every other rule stays on, and a warning fails the
-      # job.
-      - name: Lint the runtime and browser-probe scripts
-        run: npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs .github/*.mjs
-
-      # The stylesheet sources keep their own house style; the config holds on to
-      # the correctness rules and allows the Tailwind theme at-rule. The Make
-      # target owns deterministic source discovery, including future additions.
-      - name: Lint the stylesheet sources
-        run: make stylelint-check
+      - name: Lint the frontend sources
+        run: make frontend-check
 
   # Builds the server, drives each reading face against a small fixture vault,
   # and checks the live listening socket is bound to loopback and nothing else.

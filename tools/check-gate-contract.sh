@@ -63,6 +63,29 @@ contract_verify_prereqs() {
   jq -r '.verify_prerequisites[]' "$contract" | sorted_lines
 }
 
+ci_owned_prereqs() {
+  jq -r '.ci_jobs[] | select(.owns != null) | .owns[]' "$contract" | sorted_lines
+}
+
+verify_invocation() {
+  jq -r '.ci_jobs[] | select(.name == "verify") | .invocation // empty' "$contract"
+}
+
+job_runs_make_target() {
+  job="$1"
+  target="$2"
+  awk -v job="$job" -v target="$target" '
+    /^  [a-zA-Z0-9_-]+:$/ {
+      sub(/^  /, "")
+      sub(/:$/, "")
+      active = $0
+      next
+    }
+    active == job && $0 ~ ("make " target "([[:space:]]|$)") { found = 1 }
+    END { exit !found }
+  ' "$workflow"
+}
+
 # Comment lines are not steps. A recipe line may carry a trailing comment, but
 # a line whose first non-blank character is "#" runs nothing.
 uncommented() {
@@ -146,6 +169,57 @@ if ! same_sets "$expected_jobs" "$jobs"; then
   printf '%s\n' "$jobs" | sed 's/^/  workflow: /' >&2
 fi
 
+invocation=$(verify_invocation)
+[ -n "$invocation" ] || fail "contract must name the verify job invocation target"
+case "$invocation" in
+  verify-ci) ;;
+  *)
+    fail "verify job invocation must be verify-ci, not $invocation"
+    ;;
+esac
+if ! awk '
+  /^  verify:/ { in_job = 1; next }
+  in_job && /^  [a-zA-Z0-9_-]+:$/ { in_job = 0 }
+  in_job && /make verify-ci/ { found = 1 }
+  END { exit !found }
+' "$workflow"; then
+  fail "verify job must run make $invocation"
+fi
+
+owned=$(ci_owned_prereqs)
+[ -n "$owned" ] || fail "read no CI-owned prerequisites out of $contract"
+
+owned_count=$(printf '%s\n' "$owned" | wc -l | tr -d ' ')
+contract_count=$(printf '%s\n' "$contract_prereqs" | wc -l | tr -d ' ')
+if [ "$owned_count" -ne "$(printf '%s\n' "$owned" | sorted_lines | wc -l | tr -d ' ')" ]; then
+  fail "CI-owned prerequisites must be unique in $contract"
+fi
+
+tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/yomihon-gate-contract-owned.XXXXXX")
+trap 'rm -rf "$tmpdir"' 0 HUP INT TERM
+printf '%s\n' "$owned" > "$tmpdir/owned"
+printf '%s\n' "$contract_prereqs" > "$tmpdir/all"
+if [ -n "$(comm -23 "$tmpdir/owned" "$tmpdir/all")" ]; then
+  fail "CI-owned prerequisites must be verify prerequisites"
+  comm -23 "$tmpdir/owned" "$tmpdir/all" | sed 's/^/  owned but not verify: /' >&2
+fi
+verify_ci=$(comm -13 "$tmpdir/owned" "$tmpdir/all" | sorted_lines)
+if [ -z "$verify_ci" ]; then
+  fail "verify-ci would run no prerequisites; every verify prerequisite must be owned by a sibling job or verify-ci"
+fi
+if [ "$contract_count" -ne "$((owned_count + $(printf '%s\n' "$verify_ci" | wc -l | tr -d ' ')))" ]; then
+  fail "CI-owned prerequisites and verify-ci must partition verify prerequisites exactly once"
+fi
+
+while IFS="$(printf '\t')" read -r job target; do
+  [ -n "$job" ] && [ -n "$target" ] || continue
+  if ! job_runs_make_target "$job" "$target"; then
+    fail "$job must run make $target for its owned prerequisite"
+  fi
+done <<EOF
+$(jq -r '.ci_jobs[] | select(.owns != null) | .name as $job | .owns[] | [$job, .] | @tsv' "$contract")
+EOF
+
 contexts=$(ruleset_contexts)
 [ -n "$contexts" ] || fail "read no required contexts out of $ruleset"
 
@@ -175,7 +249,11 @@ workflow_lint=$(lint_globs "$workflow")
 if [ -z "$make_lint" ]; then
   fail "read no frontend lint targets out of $makefile"
 elif [ -z "$workflow_lint" ]; then
-  fail "read no frontend lint targets out of $workflow"
+  if job_runs_make_target lint-frontend frontend-check; then
+    workflow_lint=$make_lint
+  else
+    fail "read no frontend lint targets out of $workflow"
+  fi
 elif [ "$make_lint" != "$workflow_lint" ]; then
   fail "frontend lint targets differ between $makefile and $workflow"
   printf '%s\n' "$make_lint" | sed 's/^/  make: /' >&2
