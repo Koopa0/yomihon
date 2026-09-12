@@ -64,8 +64,8 @@ const MUTATIONS = {
   'inject-template-map-projection': {
     target: 'map-projection-omitted',
     apply: rewriteDocument((body) => body.replaceAll(
-      '地圖</summary>',
-      '地圖</summary><details data-map-tree="System/templates/Template map.md"></details>',
+      '<div class="y-railbook" data-book-path="Maps/study.md">',
+      '<div class="y-railbook" data-book-path="Maps/study.md"><details data-map-tree="System/templates/Template map.md"></details>',
     )),
   },
   'inject-template-recent': {
@@ -136,10 +136,10 @@ try {
   let response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   if (!response) broken(`navigation to ${PAGE} returned no response`);
   if (response.status() !== 200) broken(`${PAGE} status ${response.status()}, want 200`);
-  const projections = page.locator('[data-sidebar-group="paths"], [data-sidebar-group="maps"]');
-  const projectionText = (await projections.allTextContents()).join('\n');
-  if (await projections.locator('[data-map-tree="System/templates/Template map.md"]').count() !== 0 || projectionText.includes(MAP_TITLE)) {
-    fail('map-projection-omitted', 'the template map leaked into Paths or Maps');
+  const rail = page.locator('[data-reading-rail]');
+  const projectionText = (await rail.allTextContents()).join('\n');
+  if (await rail.locator('[data-map-tree="System/templates/Template map.md"]').count() !== 0 || projectionText.includes(MAP_TITLE)) {
+    fail('map-projection-omitted', 'the template map leaked into the reading rail');
   }
   // Browsable means the folder these files sit in still offers them. The rail
   // no longer carries the vault's folders at all, so this is asked of that

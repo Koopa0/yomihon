@@ -10,5 +10,4 @@ domain: golang
 - [[Alpha]]
 - [[Template lesson|Template-only lesson]]
 - [[Unwritten Lesson]]
-	- More {sequence=local}
-		- [[Beta]]
+- [[Beta]]
