@@ -18,7 +18,7 @@ var (
 var (
 	HomeFaultsTitle   = both("契約能力", "Contract capabilities")
 	HomeFaultsLede    = both("書庫宣告了無法履行的事", "The vault declares something it cannot honour")
-	HomeFaultsBrowser = both("有些頁面暫時看不到。", "Some pages are temporarily unavailable.")
+	HomeFaultsBrowser = both("有些頁面因此看不到。", "Some pages cannot be shown because of it.")
 	HomeDegradedTitle = both("讀不進來的檔案", "Files that could not be read")
 	FolderRecentTitle = both("最近變更", "Recently changed")
 	// The scoped ledes name the set the block lists — the contract's declared
@@ -33,12 +33,12 @@ var (
 	)
 	FolderTiedTitle = both("排不出先後的筆記", "Notes with identical timestamps")
 	FolderTiedLede  = both(
-		"這些檔案的時間戳相同。",
-		"These files carry identical timestamps.",
+		"所以下面的順序沒有意義。",
+		"So the order below means nothing.",
 	)
 	FolderTiedLedeScoped = both(
-		"知識層資料夾中，時間戳相同的筆記。",
-		"Notes with identical timestamps in the declared knowledge folders.",
+		"知識層資料夾中",
+		"In the declared knowledge folders",
 	)
 	FolderLifecycleTitle = both("依狀態分組", "By status")
 	// Beside a shelf narrowed to the declared layer the distribution still
