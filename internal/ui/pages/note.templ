@@ -148,6 +148,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 				@flipReceipt(v, lang)
 				<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
 					@articleHead(v, lang)
+					@schemaNotices(v, lang)
 					@inlineAids(v, lang)
 					<div class="y-prose">
 						@templ.Raw(v.BodyHTML)
@@ -461,7 +462,6 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 							@legalTransitionForms(v, lang)
 						</div>
 				}
-				@schemaNotices(v, lang)
 			}
 		</section>
 	}
@@ -472,6 +472,9 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 // carry both at once — so these are said alongside, each naming its own field.
 // The block carries the id the transition submits describe themselves by and
 // renders only where there is a finding, so id and references appear together.
+// It lives in the reading column rather than the rail so the notice stays
+// visible at every width; the rail is hidden on narrow viewports and dropped
+// when a note has no reading aids.
 templ schemaNotices(v NoteView, lang wording.Lang) {
 	if len(v.SchemaNotices) > 0 {
 		<div id={ schemaNoticesID }>
