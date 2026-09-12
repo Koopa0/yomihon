@@ -25,7 +25,7 @@ var MoreInFolder = both("另外 %d 篇 →", "%d more →")
 // The rail's section headings.
 var (
 	PathsAndMaps = both("路徑與地圖", "Paths and maps")
-	Paths        = both("路徑", "Paths")
+	Paths        = both("學習路徑", "Study paths")
 	Maps         = both("地圖", "Maps")
 	Journal      = both("日誌", "Journal")
 	Reports      = both("報告", "Reports")

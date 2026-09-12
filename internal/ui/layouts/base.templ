@@ -185,7 +185,7 @@ templ searchDialog(lang wording.Lang) {
 		<search>
 			<form class="y-searchdialog__form" method="get" action="/search" data-live-search-form>
 				<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-				<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
+				<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
 				<span class="ui-kbd">esc</span>
 			</form>
 		</search>

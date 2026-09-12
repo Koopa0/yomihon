@@ -973,7 +973,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
    changing their identity. */
 .y-home { max-width: 980px; margin: 0 auto; padding: 42px 48px 120px; }
 .y-home__head { margin-bottom: 26px; }
-.y-home__kicker, .y-homereadme__kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.09em; color: var(--fg-faint); }
+.y-home__kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.09em; color: var(--fg-faint); }
 .y-home__head .y-title { margin-top: 10px; }
 .y-home__head > p { max-width: 600px; margin: 10px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg-subtle); }
 .y-homegrid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }

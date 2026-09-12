@@ -69,7 +69,6 @@ templ Home(v HomeView, c layouts.Chrome) {
 		<main id="main-content" tabindex="-1" class="y-main y-deskmain">
 			<div class="y-home">
 				<header class="y-home__head">
-					<div class="y-home__kicker">{ wording.HomeKicker.In(c.Lang) }</div>
 					<h1 class="y-title">{ wording.HomeTitle.In(c.Lang) }</h1>
 				</header>
 				// One row rather than a fifth block. The four ways in are what
@@ -81,7 +80,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 				<search class="y-homesearchrow" data-home-block="search">
 					<form class="y-homesearch" method="get" action="/search">
 						<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-						<input type="search" name="q" placeholder={ wording.SearchLibraryPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
+						<input type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
 						<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
 					</form>
 				</search>
