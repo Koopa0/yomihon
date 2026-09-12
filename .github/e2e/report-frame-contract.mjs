@@ -82,7 +82,7 @@ const breakReportRawLinkHref = async (page) => {
 		const original = await response.text();
 		const rewritten = original.replace(
 			/(<a class="y-reportraw" href=")([^"]+)(")/,
-			(match, prefix, href, suffix) => {
+			(_match, prefix, href, suffix) => {
 				matches += 1;
 				return `${prefix}${href}-drift${suffix}`;
 			},
