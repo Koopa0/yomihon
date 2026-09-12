@@ -73,6 +73,31 @@ const hideReportRawLink = async (page) => {
 			: "the stylesheet was never requested, so the hidden-link rule reached no page";
 };
 
+const breakReportRawLinkHref = async (page) => {
+	let requests = 0;
+	let matches = 0;
+	await page.route(BASE + PAGE, async (route) => {
+		requests += 1;
+		const response = await route.fetch();
+		const original = await response.text();
+		const rewritten = original.replace(
+			/(<a class="y-reportraw" href=")([^"]+)(")/,
+			(match, prefix, href, suffix) => {
+				matches += 1;
+				return `${prefix}${href}-drift${suffix}`;
+			},
+		);
+		await route.fulfill({ response, body: rewritten });
+	});
+	return () => {
+		if (requests !== 1)
+			return `report shell was requested ${requests} times, want exactly 1`;
+		if (matches !== 1)
+			return `report raw link href matched ${matches} times, want exactly 1`;
+		return "";
+	};
+};
+
 const MUTATIONS = {
 	"strip-report-frame-height": {
 		target: "report-frame-fills-column",
@@ -81,6 +106,10 @@ const MUTATIONS = {
 	"hide-report-raw-link": {
 		target: "report-raw-link-matches-frame",
 		apply: hideReportRawLink,
+	},
+	"break-report-raw-link-href": {
+		target: "report-raw-link-matches-frame",
+		apply: breakReportRawLinkHref,
 	},
 };
 
