@@ -202,6 +202,12 @@
   --font-mono:    "Geist Mono", ui-monospace, "Noto Sans TC", monospace;
   --font-kai:     "LXGW WenKai TC", "Kaiti TC", "Kaiti SC", "Noto Serif TC", "Songti TC", "Hiragino Mincho ProN", serif;
 
+  /* The face a reader's own choice sets their reading in. Having chosen
+     nothing leaves the root without data-font and this base value answers: the
+     明體 the charter reads in. A choice replaces this one value and none of
+     the stacks above it, so choosing a face never rewrites a face. */
+  --font-read: var(--font-serif);
+
   /* UI scale */
   --fs-11: 0.6875rem;
   --fs-12: 0.75rem;
@@ -291,4 +297,19 @@
   --fs-ed-24: 1.75rem;
   --fs-ed-30: 2.1875rem;
   --fs-ed-38: 2.625rem;
+}
+
+/* The reading face at the owner's chosen one. All three are written out, the
+   one that matches the base included, so the faces a reader is offered and the
+   faces this sheet knows can be compared as two lists rather than trusted to
+   have stayed in step. Only this one value moves: the stacks the chrome, the
+   headings and the code are set from are untouched. */
+:root[data-font="serif"] {
+  --font-read: var(--font-serif);
+}
+:root[data-font="sans"] {
+  --font-read: var(--font-sans);
+}
+:root[data-font="kai"] {
+  --font-read: var(--font-kai);
 }
