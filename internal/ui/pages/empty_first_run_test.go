@@ -81,7 +81,14 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 
 func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phrase, lang wording.Lang) {
 	t.Helper()
-	want := wording.JoinGuide(state, step, lang)
+	stateText := state.In(lang)
+	stepText := step.In(lang)
+	var want string
+	if lang == wording.En {
+		want = stateText + " " + stepText
+	} else {
+		want = stateText + stepText
+	}
 	if !strings.Contains(got, want) {
 		t.Errorf("%s empty guide want %q; got %q", where, want, got)
 	}
