@@ -19,13 +19,9 @@ var BrandTag = both("書庫", "Library")
 // and as the dialog's. The library is what you search.
 var SearchNotes = both("搜尋書庫", "Search the library")
 
-// SearchNotesPrompt is the same invitation with the ellipsis a placeholder
-// carries, so the control reads as a field waiting rather than a label.
+// SearchNotesPrompt is the search invitation with the ellipsis a placeholder
+// carries — header button label, dialog field, and desk field alike.
 var SearchNotesPrompt = both("搜尋書庫…", "Search the library…")
-
-// SearchLibraryPrompt is the dialog field's placeholder: the same search object
-// as the button, with the ellipsis a placeholder carries.
-var SearchLibraryPrompt = both("搜尋書庫…", "Search the library…")
 
 // ToggleFurigana names the control for the reading aids over Japanese text.
 var ToggleFurigana = both("切換振假名", "Toggle furigana")
