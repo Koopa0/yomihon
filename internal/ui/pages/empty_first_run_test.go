@@ -81,13 +81,24 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 
 func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phrase, lang wording.Lang) {
 	t.Helper()
-	want := wording.JoinGuide(state, step, lang)
+	want := emptyGuideWant(state, step, lang)
 	if !strings.Contains(got, want) {
 		t.Errorf("%s empty guide want %q; got %q", where, want, got)
 	}
 	if strings.Contains(got, "宣告") {
 		t.Errorf("%s still uses 宣告 jargon: %q", where, got)
 	}
+}
+
+// emptyGuideWant spells the separator the test expects between clauses. English
+// needs a space; Chinese does not. The expectation is independent of
+// wording.JoinGuide so a broken join fails here as well as in TestJoinGuide.
+func emptyGuideWant(state, step wording.Phrase, lang wording.Lang) string {
+	sep := ""
+	if lang == wording.En {
+		sep = " "
+	}
+	return state.In(lang) + sep + step.In(lang)
 }
 
 // TestEmptyPathAndMapIndexPagesRenderTheGuide keeps the empty slot on the mode
