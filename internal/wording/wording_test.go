@@ -237,6 +237,33 @@ func TestJoinGuide(t *testing.T) {
 	}
 }
 
+// TestTraditionalChineseUsesFullWidthPunctuation keeps the Traditional Chinese
+// chrome on full-width marks. Half-width punctuation in CJK context was a copy
+// defect across fifteen sites; one phrase is exempt because it quotes YAML
+// syntax. English is held to straight quotes in the same walk: %q and the other
+// format verbs already emit them at twenty-two sites, and curly at the four
+// former exceptions would mean StepBackOpen/StepBackClose-style splits at each
+// one — one more chance per site to put both conventions on one screen again.
+func TestTraditionalChineseUsesFullWidthPunctuation(t *testing.T) {
+	t.Parallel()
+
+	exempt := map[string]string{
+		"StatusFieldUnsupportedYAMLNext": "quotes YAML status: 值 syntax",
+	}
+	halfWidth := regexp.MustCompile(`[,;():]`)
+	for _, p := range writtenPhrases(t) {
+		if _, ok := exempt[p.name]; ok {
+			continue
+		}
+		if halfWidth.MatchString(p.zhHant) {
+			t.Errorf("%s Traditional Chinese carries half-width punctuation: %q", p.name, p.zhHant)
+		}
+		if strings.ContainsAny(p.en, "\u201c\u201d") {
+			t.Errorf("%s English carries curly quotes: %q", p.name, p.en)
+		}
+	}
+}
+
 // Other is the complement of a two-value set, so it has to be a complement:
 // never the language it was given, and its own inverse.
 func TestOtherIsTheLanguageThisOneIsNot(t *testing.T) {

@@ -73,7 +73,7 @@ var (
 	schemaNotInList = both("不在 schema 的允許清單裡。", ", which is not in the schema's list.")
 
 	schemaNotALanguageTag = both(
-		"不是合法的語言標籤(BCP 47)。",
+		"不是合法的語言標籤（BCP 47）。",
 		", which is not a valid BCP 47 language tag.")
 
 	schemaNotASlug = both(
@@ -84,10 +84,10 @@ var (
 	schemaFolderMismatchEnd = both(" 不一致。", ".")
 
 	schemaLegacyTagIn  = both(" 寫在 ", " in ")
-	schemaLegacyTagEnd = both(" 裡,是舊式標籤,schema 要的是一個欄位。", " is a legacy tag; the schema asks for a field.")
+	schemaLegacyTagEnd = both(" 裡，是舊式標籤，schema 要的是一個欄位。", " is a legacy tag; the schema asks for a field.")
 
 	schemaRequiredStart = both("schema 要求這種筆記寫 ", "The schema requires ")
-	schemaRequiredEnd   = both(",這篇沒有。", " on a note of this kind, and this one has none.")
+	schemaRequiredEnd   = both("，這篇沒有。", " on a note of this kind, and this one has none.")
 
 	schemaUnknownKey = both(" 不是 schema 認得的欄位。", " is not a field the schema knows.")
 
@@ -96,12 +96,12 @@ var (
 	schemaProvenanceEnd    = both("。", ".")
 
 	schemaStatusUnreachableForType = both(
-		"在它的類型所屬清單裡,但沒有任何 lifecycle 列套用到 ",
+		"在它的類型所屬清單裡，但沒有任何 lifecycle 列套用到 ",
 		" is in its type's list, but no lifecycle row applies to type ")
 	schemaStatusUnreachableEnd = both("。", ".")
 
 	schemaUnknownRuleStart = both("schema 對這篇報了一項 ", "The schema reported ")
-	schemaUnknownRuleEnd   = both(",而這個頁面還沒有它的說法。", " about this note, and this page has no words for it yet.")
+	schemaUnknownRuleEnd   = both("，而這個頁面還沒有它的說法。", " about this note, and this page has no words for it yet.")
 )
 
 // The two things the health page says about frontmatter. They are separate
@@ -115,7 +115,7 @@ var (
 		"Notes whose frontmatter could not be read")
 
 	HealthFrontmatterLede = both(
-		"這些筆記的 frontmatter 不是合法的 YAML。內文照常閱讀、連結照常解析,但它們宣告的每一項都無法判斷;在依狀態分組裡,它們只出現在「無法判讀」一格。",
+		"這些筆記的 frontmatter 不是合法的 YAML。內文照常閱讀、連結照常解析，但它們宣告的每一項都無法判斷；在依狀態分組裡，它們只出現在「無法判讀」一格。",
 		"These notes' frontmatter is not valid YAML. The body still reads and the links still resolve, but nothing they declare could be judged; in the grouping by status they appear only in the cell for what could not be read.")
 
 	HealthSchemaTitle = both(
@@ -123,6 +123,6 @@ var (
 		"Notes the schema has something to say about")
 
 	HealthSchemaLede = both(
-		"這些筆記的 frontmatter 讀得出來,但有 schema 不接受的地方。每一篇的細節在它自己的頁面上。",
+		"這些筆記的 frontmatter 讀得出來，但有 schema 不接受的地方。每一篇的細節在它自己的頁面上。",
 		"These notes' frontmatter reads, and something in it is not what the schema accepts. Each note's own page says which.")
 )

@@ -128,7 +128,7 @@ func TestAWithheldEmbedSaysSoInTheBody(t *testing.T) {
 		notice string
 	}{
 		{lang: wording.ZhHant, notice: `<p class="embed__note">找不到「#Gamma」：〈B〉裡沒有這個位址。</p>`},
-		{lang: wording.En, notice: `<p class="embed__note">Unable to find “#Gamma” in B.</p>`},
+		{lang: wording.En, notice: `<p class="embed__note">Unable to find &#34;#Gamma&#34; in B.</p>`},
 	} {
 		withheld := r.HTML("note.md", "", "![[B#Gamma]]\n", tt.lang)
 		for _, sentinel := range []string{"ALPHATEXT", "BETATEXT", "TOPTEXT"} {

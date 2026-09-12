@@ -11,7 +11,7 @@ var SyllabusKicker = both("課綱 · ", "Syllabus · ")
 // page whose whole job is showing the course as it is written, and the reader
 // would be looking at a list quietly missing an item.
 var PathItemUnreadable = both(
-	"這條路徑列了一項無法判讀的內容,這一頁沒有把它讀成課程或分部。",
+	"這條路徑列了一項無法判讀的內容，這一頁沒有把它讀成課程或分部。",
 	"This path lists something that could not be read as either a lesson or a branch.")
 
 // ReadTheGuide is the way into the note this path is drawn from. The words

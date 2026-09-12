@@ -18,7 +18,7 @@ var (
 	DiagEmbedFragmentGone     = both("找不到嵌入指定的段落", "The embedded section was not found")
 	DiagEmbedFragmentRepeated = both("嵌入指定的段落在該筆記裡不只一個", "The embedded section name belongs to more than one section")
 	DiagEmbedNotExpanded      = both("摘錄裡的嵌入改以連結呈現", "An embed inside an excerpt is shown as a link")
-	DiagRenderFailed          = both("內文無法轉譯,已改顯示原始文字", "The body could not be rendered; its source text is shown instead")
+	DiagRenderFailed          = both("內文無法轉譯，已改顯示原始文字", "The body could not be rendered; its source text is shown instead")
 	DiagHighlightFailed       = both("程式碼著色沒有完成", "Code highlighting did not finish")
 	DiagLinkBlockGone         = both("找不到連結指定的區塊", "The linked block was not found")
 	DiagLinkSectionGone       = both("找不到連結指定的小節", "The linked section was not found")
@@ -30,7 +30,7 @@ var (
 // missing something.
 var (
 	DiagImageMissingNote = both(
-		"這篇要顯示的圖片,書庫裡沒有那個檔案。圖片留在原處,旁邊標出來;yomihon 只陳述,不修復。",
+		"這篇要顯示的圖片，書庫裡沒有那個檔案。圖片留在原處，旁邊標出來；yomihon 只陳述，不修復。",
 		"This note shows a picture and the vault holds no file at that path. The picture is left where the author put it and marked in place; yomihon reports and never repairs.")
 	DiagUnwrittenNote  = both("這個 wikilink 或嵌入的目標尚未建立。", "This wikilink or embed points at something that has not been written.")
 	DiagAmbiguousNote  = both("wikilink 或嵌入目標有歧義。", "This wikilink or embed has more than one target.")

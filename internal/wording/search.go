@@ -27,7 +27,7 @@ var (
 // The empty result, and the way back out of it.
 var (
 	NoResultsFmt     = both("找不到「%s」的結果。", "Nothing matches %q.")
-	StepBackLabel    = both("退一步找：", "Try a shorter query: ")
+	StepBackLabel    = both("改用較短的詞：", "Try a shorter query: ")
 	StepBackOpen     = both("「", "\"")
 	StepBackClose    = both("」", "\"")
 	StepBackCountFmt = both("（%d 筆）", " (%d)")
@@ -38,12 +38,12 @@ var (
 // status hint would name a facility that is not there.
 var (
 	SearchScopeHintWithStatus = both(
-		"搜尋涵蓋筆記，以及任何能以文字呈現的檔案；圖片、PDF 與其他二進位檔案只在導覽中列出，內容不會被讀取。請嘗試較少或不同的詞，或用 ",
+		"圖片、PDF 這類檔案只列出，不讀內容。請試較少或不同的詞，或用 ",
 		"Search covers notes and any file that can be shown as text. Images, PDFs and other binary files are listed in the navigation but never read. Try fewer or different words, or narrow by lifecycle with ",
 	)
 	SearchScopeHintAfterCommand = both(" 依生命週期縮小範圍。", ".")
 	SearchScopeHint             = both(
-		"搜尋涵蓋筆記，以及任何能以文字呈現的檔案；圖片、PDF 與其他二進位檔案只在導覽中列出，內容不會被讀取。請嘗試較少或不同的詞。",
+		"圖片、PDF 這類檔案只列出，不讀內容。請試較少或不同的詞。",
 		"Search covers notes and any file that can be shown as text. Images, PDFs and other binary files are listed in the navigation but never read. Try fewer or different words.",
 	)
 )
@@ -66,7 +66,7 @@ var (
 // of the sentence cannot come to disagree about what a filter is.
 var (
 	UnknownFilterFmt = both(
-		"「%s」不是 yomihon 認得的篩選器,已當一般文字搜尋。認得的是:",
+		"「%s」不是 yomihon 認得的篩選器，已當一般文字搜尋。認得的是：",
 		"%q is not a filter yomihon knows, so it was searched for as ordinary text. The ones it knows are: ")
 
 	UnknownFilterEnd = both("。", ".")
@@ -81,17 +81,14 @@ var ListSeparator = both("、", ", ")
 // FilterKeysAvailable opens the blank search page with the constraints the
 // field understands. A reader who has typed nothing cannot discover them any
 // other way, and this is the one moment saying so costs them no answer.
-var FilterKeysAvailable = both("可用的篩選器:", "Filters you can use: ")
+var FilterKeysAvailable = both("可用的篩選器：", "Filters you can use: ")
 
-// SearchEmptyTitle and SearchEmptyLede open the search page before anything has
-// been asked. The prefixes below them are the field's grammar, which is worth
-// knowing and is not what a reader who has just arrived is looking for.
-var (
-	SearchEmptyTitle = both("搜尋這個書庫", "Search this library")
-	SearchEmptyLede  = both(
-		"打字找筆記的標題或內文；按 Enter 看全部結果。",
-		"Type to find a note by its title or its text; press Enter for every result.",
-	)
+// SearchEmptyLede opens the search page before anything has been asked. The
+// prefixes below it are the field's grammar, which is worth knowing and is not
+// what a reader who has just arrived is looking for.
+var SearchEmptyLede = both(
+	"按 Enter 看全部結果。",
+	"Press Enter for every result.",
 )
 
 // ResultAliasLabel introduces the name a result answered to when it was not
@@ -99,12 +96,12 @@ var (
 // title looking like a second title. The gap after the label belongs to the
 // phrase in both languages, so the space a reader sees is one an author chose
 // rather than one a template happened to keep.
-var ResultAliasLabel = both("別名: ", "also called ")
+var ResultAliasLabel = both("又稱 ", "also called ")
 
 // ResultTopicLabel introduces the subject a result answered to when it was
 // not in the title or the body. Without the word, a topic-only hit would sit
 // on the row with nothing the reader typed.
-var ResultTopicLabel = both("主題: ", "topic: ")
+var ResultTopicLabel = both("主題： ", "topic: ")
 
 // ResultSourceLabel names a hit whose deciding excerpt is fenced source
 // rather than a sentence the note wrote. The word sits on the row with
@@ -128,8 +125,8 @@ var SearchHitUnlocated = both(
 // number, because the two languages disagree about where a plural shows and
 // joining fragments would put the count in the wrong place in one of them.
 var (
-	LiveSearchCountOne  = both("「{query}」有 1 筆結果。", "1 result for “{query}”.")
-	LiveSearchCountMany = both("「{query}」有 {count} 筆結果。", "{count} results for “{query}”.")
+	LiveSearchCountOne  = both("「{query}」有 1 筆結果。", "1 result for \"{query}\".")
+	LiveSearchCountMany = both("「{query}」有 {count} 筆結果。", "{count} results for \"{query}\".")
 	LiveSearchOffline   = both(
 		"即時結果目前無法使用；按 Enter 執行完整搜尋。",
 		"Live results are unavailable right now; press Enter for the full search.")
@@ -144,4 +141,4 @@ var (
 // it is written in.
 var LiveSearchStaleFmt = both(
 	"下方結果回答的是先前的查詢「%s」。",
-	"The results below answer the earlier query “%s”.")
+	"The results below answer the earlier query \"%s\".")
