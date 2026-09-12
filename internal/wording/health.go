@@ -10,8 +10,8 @@ var HealthTitle = both("整體狀況", "Health")
 // otherwise indistinguishable from a page that checked nothing. It also names
 // what this page does not cover, and where that is checked instead.
 var HealthAllClear = both(
-	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——這裡的 status 名單是從「有寫 status 的筆記」來的，沒寫的不會出現在任何一區；那些請跑 ",
-	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, no name is claimed by two files, and every status is in the schema's list. Frontmatter missing a required field is not this page's business — the statuses here come from notes that carry one, and a note with none appears in no section at all. For those, run ",
+	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——那些請跑 ",
+	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, no name is claimed by two files, and every status is in the schema's list. Frontmatter missing a required field is not this page's business — for those, run ",
 )
 
 // HealthAllClearAfterCommand closes that sentence after the command it names.
@@ -19,8 +19,8 @@ var HealthAllClearAfterCommand = both("。", ".")
 
 // HealthReportsOnly is the promise the whole page rests on.
 var HealthReportsOnly = both(
-	"這裡只陳述狀況，不會動你的檔案。要修改請在編輯器裡改那個檔案。",
-	"This page reports and never touches your files. To change something, change the file in your editor.",
+	"這裡只回報，不會動你的檔案。",
+	"This page reports and never touches your files.",
 )
 
 // The lede over unreadable files, which changes with whether a complete read
@@ -95,7 +95,7 @@ var (
 // is missing and the sentence under it says why.
 var (
 	HealthInstanceScopeUnknown = both(
-		"引用與孤島無法評估",
+		"引用與沒人引用的筆記無法評估",
 		"Citations and uncited notes could not be evaluated")
 	HealthSchemaScopeUnknown = both(
 		"schema 相關的檢查無法評估",

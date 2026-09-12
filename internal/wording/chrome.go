@@ -88,8 +88,8 @@ var (
 // condition the way the reader can see it rather than by a pixel count, whose
 // one home is the stylesheet.
 var ShortcutSidebarNarrowOnly = both(
-	"寬到側欄一直看得見的視窗上，這個鍵沒有作用。",
-	"On a window wide enough to keep the sidebar in view, this key does nothing.",
+	"側欄一直看得見時，這個鍵沒有作用。",
+	"When the sidebar stays in view, this key does nothing.",
 )
 
 // SingleKeyShortcuts names the preference that decides whether a bare key does
