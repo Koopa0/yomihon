@@ -1417,6 +1417,13 @@ html {
   .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions {
     display: none !important;
   }
+  /* Librarian chrome in the opening column is for repair on screen, not for
+     paper. A printed page is the title and the body; path crumbs, type and
+     Obsidian metarow, and folder previous/next stay off the sheet. Course
+     lesson-order prev/next may remain — it is part of the book. */
+  .y-crumbs, .y-metarow, .y-steps:not(.y-steps--course) {
+    display: none !important;
+  }
   .y-shell, .y-shell2 { display: block; }
   .y-main { min-width: 0; }
   /* Paper has edges the screen does not, and a block that runs across one

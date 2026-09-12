@@ -658,9 +658,16 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 // page — the rail prints course steps too.
 func stepsBlock(t *testing.T, body string) string {
 	t.Helper()
-	start := strings.Index(body, `<nav class="y-steps"`)
-	if start < 0 {
+	// The marker stops before the closing quote so a modifier class on the
+	// same element — y-steps--course on the foot nav — still matches.
+	marker := `class="y-steps`
+	at := strings.Index(body, marker)
+	if at < 0 {
 		t.Fatal("the page has no article-foot steps")
+	}
+	start := strings.LastIndex(body[:at+len(marker)], "<nav")
+	if start < 0 {
+		t.Fatal("the page has no article-foot steps nav")
 	}
 	block, _, closed := strings.Cut(body[start:], "</nav>")
 	if !closed {
