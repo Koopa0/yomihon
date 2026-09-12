@@ -34,6 +34,7 @@ probes=(
   "right-rail-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "skip-link-contract.mjs|/notes/Notes/alpha.md"
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
+  "print-librarian-chrome.mjs|/notes/Notes/reading-fidelity.md"
   "heading-fragment.mjs|/notes/Notes/reading-fidelity.md"
   "preview-card.mjs|/notes/Notes/reading-fidelity.md"
   "task-list-marker.mjs|/notes/Notes/reading-fidelity.md"

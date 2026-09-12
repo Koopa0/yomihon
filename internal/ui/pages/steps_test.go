@@ -40,7 +40,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				StepsCourse: true,
 			},
 			want: []string{
-				`<nav class="y-steps" aria-label="Go course 從此步往下">`,
+				`<nav class="y-steps y-steps--course" aria-label="Go course 從此步往下">`,
 				`<p class="y-steps__source">Go course 從此步往下</p>`,
 				`<span class="y-steps__role">上一課</span>`,
 				`<span class="y-steps__role">下一課</span>`,
@@ -275,7 +275,9 @@ func TestStudyPathLandmarksDoNotShareAName(t *testing.T) {
 }
 
 func navAriaLabel(html, class string) string {
-	marker := `class="` + class + `"`
+	// The marker stops before the closing quote so a modifier class on the
+	// same element — y-steps--course on the foot nav — still matches.
+	marker := `class="` + class
 	at := strings.Index(html, marker)
 	if at < 0 {
 		return ""

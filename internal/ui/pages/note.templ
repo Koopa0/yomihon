@@ -325,7 +325,7 @@ templ citedByBlock(v NoteView, lang wording.Lang) {
 // render one field, so the two cannot drift apart.
 templ sequenceSteps(v NoteView, lang wording.Lang) {
 	if v.Prev.RelPath != "" || v.Next.RelPath != "" {
-		<nav class="y-steps" aria-label={ v.StepsLabel }>
+		<nav class={ "y-steps", templ.KV("y-steps--course", v.StepsCourse) } aria-label={ v.StepsLabel }>
 			<p class="y-steps__source">{ v.StepsLabel }</p>
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
