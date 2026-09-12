@@ -218,9 +218,9 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 		{
 			name:     "bare empty directory",
 			files:    nil,
-			path:     wording.PathIndexUngoverned,
-			mapState: wording.MapIndexUngoverned,
-			folder:   wording.FolderIndexUngoverned,
+			path:     wording.IndexUngoverned,
+			mapState: wording.IndexUngoverned,
+			folder:   wording.IndexUngoverned,
 			step:     wording.IndexUngovernedNext,
 		},
 		{
@@ -309,12 +309,9 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 
 func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phrase) {
 	t.Helper()
-	lang := wording.ZhHant
-	if !strings.Contains(got, state.In(lang)) {
-		t.Errorf("%s empty sentence missing %q; got %q", where, state.In(lang), got)
-	}
-	if !strings.Contains(got, step.In(lang)) {
-		t.Errorf("%s next step missing %q; got %q", where, step.In(lang), got)
+	want := wording.JoinGuide(state, step, wording.ZhHant)
+	if !strings.Contains(got, want) {
+		t.Errorf("%s empty guide want %q; got %q", where, want, got)
 	}
 	if strings.Contains(got, "宣告") {
 		t.Errorf("%s still uses 宣告 jargon: %q", where, got)

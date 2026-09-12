@@ -28,9 +28,9 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 		{
 			name:     "folder with no contract",
 			governed: false,
-			path:     wording.PathIndexUngoverned,
-			mapState: wording.MapIndexUngoverned,
-			folder:   wording.FolderIndexUngoverned,
+			path:     wording.IndexUngoverned,
+			mapState: wording.IndexUngoverned,
+			folder:   wording.IndexUngoverned,
 			step:     wording.IndexUngovernedNext,
 		},
 		{
@@ -81,11 +81,9 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 
 func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phrase, lang wording.Lang) {
 	t.Helper()
-	if !strings.Contains(got, state.In(lang)) {
-		t.Errorf("%s empty sentence missing %q; got %q", where, state.In(lang), got)
-	}
-	if !strings.Contains(got, step.In(lang)) {
-		t.Errorf("%s next step missing %q; got %q", where, step.In(lang), got)
+	want := wording.JoinGuide(state, step, lang)
+	if !strings.Contains(got, want) {
+		t.Errorf("%s empty guide want %q; got %q", where, want, got)
 	}
 	if strings.Contains(got, "宣告") {
 		t.Errorf("%s still uses 宣告 jargon: %q", where, got)
@@ -105,17 +103,17 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 		{
 			mode:  pathMode,
 			view:  NewPathIndex(nil, nav.Closure{}, false, wording.ZhHant, nil),
-			state: wording.PathIndexUngoverned,
+			state: wording.IndexUngoverned,
 		},
 		{
 			mode:  mapMode,
 			view:  NewMapIndex(nil, nav.Closure{}, false, wording.ZhHant, nil),
-			state: wording.MapIndexUngoverned,
+			state: wording.IndexUngoverned,
 		},
 		{
 			mode:  folderMode,
 			view:  NewFolderIndex(&nav.Model{}, false, wording.ZhHant, nil),
-			state: wording.FolderIndexUngoverned,
+			state: wording.IndexUngoverned,
 		},
 	} {
 		t.Run(tt.mode, func(t *testing.T) {

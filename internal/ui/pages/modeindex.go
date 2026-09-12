@@ -117,7 +117,7 @@ func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wor
 	}
 	view := listIndex(pathMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
-		"", emptySentence(governed, wording.PathIndexEmpty, wording.PathIndexUngoverned, lang), rows)
+		"", emptySentence(governed, wording.PathIndexEmpty, lang), rows)
 	view.Fault = closure.Diagnostic()
 	withholdListing(&view, closure)
 	return view
@@ -134,11 +134,11 @@ func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wor
 // completeness. So the two sentences separate a folder with no contract from a
 // folder whose contract declares none of this kind, which is the distinction a
 // reader needs and the one the old single sentence could not make.
-func emptySentence(governed bool, declared, ungoverned wording.Phrase, lang wording.Lang) string {
+func emptySentence(governed bool, declared wording.Phrase, lang wording.Lang) string {
 	if governed {
-		return declared.In(lang) + wording.IndexDeclaredEmptyNext.In(lang)
+		return wording.JoinGuide(declared, wording.IndexDeclaredEmptyNext, lang)
 	}
-	return ungoverned.In(lang) + wording.IndexUngovernedNext.In(lang)
+	return wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, lang)
 }
 
 // listIndex assembles a mode's page from the parts every one of them has. The
@@ -180,7 +180,7 @@ func NewMapIndex(maps []nav.Map, closure nav.Closure, governed bool, lang wordin
 	}
 	view := listIndex(mapMode, wording.Maps.In(lang),
 		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
-		"", emptySentence(governed, wording.MapIndexEmpty, wording.MapIndexUngoverned, lang), rows)
+		"", emptySentence(governed, wording.MapIndexEmpty, lang), rows)
 	view.Fault = closure.Diagnostic()
 	withholdListing(&view, closure)
 	return view
@@ -286,7 +286,7 @@ func NewFolderIndex(model *nav.Model, governed bool, lang wording.Lang, articleL
 	folders := model.ShelfFolders()
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
-		wording.FolderIndexLede.In(lang), emptySentence(governed, wording.FolderIndexEmpty, wording.FolderIndexUngoverned, lang),
+		wording.FolderIndexLede.In(lang), emptySentence(governed, wording.FolderIndexEmpty, lang),
 		folderRows(rootNotes, folders, lang, true, articleLang))
 }
 
