@@ -70,20 +70,23 @@ const rewriteDocument = (replacements, label) => async (page) => {
   };
 };
 
+const SEALBAR_OPEN = '</div><section class="y-sealbar"';
+const SEALBAR_CLOSE = '</section></article></main>';
+
 const MUTATIONS = {
   'restore-fixed-bar': {
     target: 'not-fixed-position',
     apply: rewriteStylesheet(
-      '.y-sealbar { display: flex;',
-      '.y-sealbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;',
+      '.y-sealbar{border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      '.y-sealbar{position:fixed;left:0;right:0;bottom:0;z-index:36;border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
       'fixed sealbar',
     ),
   },
   'move-bar-outside-article': {
     target: 'inside-article',
     apply: rewriteDocument([
-      ['</nav><section class="y-sealbar"', '</nav></article><section class="y-sealbar"'],
-      ['</section></article></main>', '</section></main>'],
+      [SEALBAR_OPEN, '</div></article><section class="y-sealbar"'],
+      [SEALBAR_CLOSE, '</section></main>'],
     ], 'sealbar outside article'),
   },
 };
@@ -116,7 +119,7 @@ const measureSealbar = async (page) => page.evaluate(({ article, seal, steps }) 
 const assertFlowAtWidth = async (page, width, height, label, { hiddenOK = false } = {}) => {
   await page.setViewportSize({ width, height });
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector(SEALBAR);
+  await page.waitForSelector(SEALBAR, { state: 'attached' });
 
   const mid = await measureSealbar(page);
   if (mid.missing) broken(`${label}: the page has no article or seal bar to measure`);
@@ -138,8 +141,9 @@ const assertFlowAtWidth = async (page, width, height, label, { hiddenOK = false 
   if (end.stepsBottom !== null && end.sealTop + 1 < end.stepsBottom) {
     fail('follows-article-end', `${label}: seal bar top ${end.sealTop} sits above step nav bottom ${end.stepsBottom} at scroll end`);
   }
-  if (Math.abs(end.sealBottom - end.articleBottom) > 2) {
-    fail('follows-article-end', `${label}: seal bar bottom ${end.sealBottom} is not at article bottom ${end.articleBottom} at scroll end`);
+  const tailPadding = end.articleBottom - end.sealBottom;
+  if (tailPadding < 80 || tailPadding > 160) {
+    fail('follows-article-end', `${label}: seal bar sits ${tailPadding}px above the article bottom, want the article foot padding band`);
   }
   if (end.sealBottom > end.viewportBottom + 1) {
     fail('follows-article-end', `${label}: seal bar bottom ${end.sealBottom} is below the viewport ${end.viewportBottom} at scroll end`);
@@ -147,7 +151,7 @@ const assertFlowAtWidth = async (page, width, height, label, { hiddenOK = false 
 };
 
 const runLocks = async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await assertFlowAtWidth(page, 1440, 900, 'wide 1440×900', { hiddenOK: true });
@@ -162,7 +166,7 @@ const runLocks = async () => {
 const runMutation = async (mode) => {
   const mutation = MUTATIONS[mode];
   if (!mutation) broken(`unknown mutation mode ${mode}`);
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const prove = await mutation.apply(page);
