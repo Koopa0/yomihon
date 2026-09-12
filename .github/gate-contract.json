@@ -25,6 +25,7 @@
     "vuln"
   ],
   "ci_jobs": [
+    {"name": "commit-attribution"},
     {"name": "verify"},
     {"name": "govulncheck"},
     {"name": "coverage"},
