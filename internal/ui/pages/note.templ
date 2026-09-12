@@ -154,11 +154,11 @@ templ Note(v NoteView, c layouts.Chrome) {
 						@templ.Raw(v.BodyHTML)
 					</div>
 					@sequenceSteps(v, lang)
+					@statusBar(v, lang)
 				</article>
 			</main>
 			@rightRail(v, lang)
 		</div>
-		@statusBar(v, lang)
 		@conceptSheet(v.Concepts, lang)
 		@previewCard()
 	}
@@ -603,12 +603,12 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 	}
 }
 
-// statusBar is the status face at every width where the right rail is absent:
-// narrow viewports hide the rail, and a note with no reading aids drops its
-// column. It mirrors the status panel's states, so the write face always has
-// somewhere to appear. A frontmatter diagnostic suppresses governance state,
-// no status having been parsed; a non-instance stays named, that classification
-// coming from its path.
+// statusBar is the status face at the end of the article wherever the right
+// rail is absent: narrow viewports hide the rail, and a note with no reading
+// aids drops its column. The write face belongs after reading, not pinned to
+// the viewport bottom. It mirrors the status panel's states. A frontmatter
+// diagnostic suppresses governance state, no status having been parsed; a
+// non-instance stays named, that classification coming from its path.
 templ statusBar(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}

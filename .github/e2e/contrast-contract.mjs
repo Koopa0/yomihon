@@ -452,7 +452,7 @@ const plantSearchFixture = (page, theme, { busy }) => page.evaluate(({ selectedT
   fixture.id = 'contrast-search-fixture';
   fixture.className = 'y-searchresults';
   fixture.setAttribute('aria-busy', isBusy ? 'true' : 'false');
-  // Pinned above the sticky sealbar so a real :hover can land on the row.
+  // Placed above the in-flow seal bar so a real :hover can land on the row.
   // Position does not change the computed wash or the ancestor walk.
   fixture.style.cssText = 'position:fixed;top:24px;left:24px;z-index:2147483647;width:min(480px,90vw)';
   fixture.innerHTML = html;
