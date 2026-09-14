@@ -28,9 +28,14 @@ const shelfRecentLimit = 7
 // closed.
 func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	pageShell := shell.Project(h.sources.Status(), h.sources.Snapshot().Capture())
-	model := pageShell.Nav
+	authority := h.sources.Status()
+	// The names and counts below and the language each row is declared in come
+	// from this one reading of the published pointer. Taken twice, a rebuild
+	// between them puts one note's title beside another version's language, and
+	// the row describes something the vault never held.
 	snap := h.sources.Snapshot().Capture()
+	pageShell := shell.Project(authority, snap)
+	model := pageShell.Nav
 	view := pages.NewMapIndex(model.Maps(), model.DeclaredClosure(), pageShell.Governed, lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)

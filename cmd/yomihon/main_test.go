@@ -362,10 +362,6 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		snap := store.Current().Capture()
 		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
 	}
-	shellProvider := func() nav.Shell {
-		authority := writer.Authority()
-		return shell.Project(authority, store.Current().Capture())
-	}
 	searchProvider := func() search.RequestSnapshot {
 		authority := writer.Authority()
 		snap := store.Current().Capture()
@@ -382,7 +378,10 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		Log:            log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
-	syllabus.New(shellProvider, func() *snapshot.Generation { return store.Current().Capture() }, log).Register(mux)
+	syllabus.New(func() (nav.Shell, *snapshot.Generation) {
+		snap := store.Current().Capture()
+		return shell.Project(writer.Authority(), snap), snap
+	}, log).Register(mux)
 	report.New(reader, reportProvider, log).Register(mux)
 
 	srv := httptest.NewServer(mux)

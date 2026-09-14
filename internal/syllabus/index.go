@@ -14,9 +14,9 @@ import (
 // rather than becoming a second route to a projection that was withheld.
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	pageShell := h.shell()
+	pageShell, snap := h.current()
 	model := pageShell.Nav
-	view := pages.NewPathIndex(model.Paths(), model.DeclaredClosure(), pageShell.Governed, lang, pages.ArticleLanguageFromSnapshot(h.snapshotFn()))
+	view := pages.NewPathIndex(model.Paths(), model.DeclaredClosure(), pageShell.Governed, lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write study-path index", "error", err)
 	}
