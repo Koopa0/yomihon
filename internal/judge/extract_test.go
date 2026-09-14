@@ -284,6 +284,64 @@ func TestGapMarkInsideACodeSpanOpensNothing(t *testing.T) {
 	}
 }
 
+// A heading wrapped in %% is content the author took back: Obsidian hides it,
+// so it is no more a section boundary than a commented-out link is a link. The
+// same note is written four ways — mark visible, opening mark hidden, a closing
+// heading hidden, and that closing heading left visible — and both readings of
+// a section have to agree: the names harvested under it, and whether a link
+// below it is owned by it.
+func TestAHeadingInsideACommentBoundsNoSection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		body         string
+		wantNames    []string
+		wantUnderGap bool
+	}{
+		{
+			name:         "a visible mark opens the section",
+			body:         "## 缺口\n\n- 甲\n\n[[Ghost]]\n",
+			wantNames:    []string{"甲"},
+			wantUnderGap: true,
+		},
+		{
+			name:         "a hidden opening mark opens nothing",
+			body:         "%%\n## 缺口\n%%\n\n- 甲\n\n[[Ghost]]\n",
+			wantNames:    nil,
+			wantUnderGap: false,
+		},
+		{
+			name:         "a hidden closing heading closes nothing",
+			body:         "## 缺口\n\n%%\n## 完成\n%%\n\n- 甲\n\n[[Ghost]]\n",
+			wantNames:    []string{"甲"},
+			wantUnderGap: true,
+		},
+		{
+			name:         "a visible closing heading still closes the section",
+			body:         "## 缺口\n\n## 完成\n\n- 甲\n\n[[Ghost]]\n",
+			wantNames:    nil,
+			wantUnderGap: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if diff := cmp.Diff(tt.wantNames, extractPlannedNames(tt.body)); diff != "" {
+				t.Errorf("extractPlannedNames(%q) mismatch (-want +got):\n%s", tt.body, diff)
+			}
+			links := extractWikilinksWith(tt.body, 1, defaultPlannedMarks().heading)
+			if len(links) != 1 || links[0].target != "Ghost" {
+				t.Fatalf("extractWikilinksWith(%q) = %+v, want the one [[Ghost]] link", tt.body, links)
+			}
+			if links[0].underGapHeading != tt.wantUnderGap {
+				t.Errorf("[[Ghost]] in %q: underGapHeading = %t, want %t",
+					tt.body, links[0].underGapHeading, tt.wantUnderGap)
+			}
+		})
+	}
+}
+
 // TestPathRefsSplitNoteFromResourceOnTheExactExtension holds the judge to the
 // one Markdown test every other reader uses: the path ends in ".md", those
 // exact bytes. An uppercase spelling names a resource, and a resource is not a
