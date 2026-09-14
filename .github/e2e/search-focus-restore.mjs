@@ -83,8 +83,11 @@ const MUTATIONS = {
   'open-as-if-the-body-link-held-focus': {
     target: 'header-open-returns-to-header',
     apply: rewriteSearch(
-      '    if (!dialog.open) dialog.showModal();',
-      '    document.querySelector(\'.y-prose a.wikilink\')?.focus();\n    if (!dialog.open) dialog.showModal();',
+      // Anchored on the header control's own two lines: showing the dialog
+      // moved behind one function that every way in goes through, and the
+      // bare call to it appears in each of them.
+      '    event.preventDefault();\n    open();',
+      '    event.preventDefault();\n    document.querySelector(\'.y-prose a.wikilink\')?.focus();\n    open();',
     ),
   },
   // Keeps the Escape landing correct and steals the next Tab into the header,
