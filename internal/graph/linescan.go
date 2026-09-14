@@ -95,6 +95,13 @@ func BlankLine(line string) bool { return strings.TrimSpace(line) == "" }
 // shorter run of the same mark.
 func FenceOpens(line string) (marker byte, n int, ok bool) {
 	t := strings.TrimLeft(line, " \t")
+	// CommonMark allows at most three spaces before an opening fence; deeper
+	// than that the line is indented code, so a fence an author wrote as an
+	// example of one opens nothing. A tab is four columns and is already too
+	// deep.
+	if indent := line[:len(line)-len(t)]; len(indent) > 3 || strings.Contains(indent, "\t") {
+		return 0, 0, false
+	}
 	switch {
 	case strings.HasPrefix(t, "```"):
 		return '`', fenceMarkerRun(t, '`'), true

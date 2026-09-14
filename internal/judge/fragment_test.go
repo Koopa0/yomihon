@@ -691,3 +691,30 @@ func TestTheGenerousScanReadsAHeadingTheWayThePageDoes(t *testing.T) {
 		t.Errorf("this face reads a heading with %q; this lock holds %q", got, want)
 	}
 }
+
+// The same indented example, on the face that decides whether a link's
+// heading address resolves. Read as an opening fence it hides every heading
+// below it, so an address a note really carries is reported as one it does
+// not have.
+func TestAnchorSurfaceKeepsAHeadingBelowAnIndentedFenceExample(t *testing.T) {
+	t.Parallel()
+
+	const below = "## Later Heading\n\ntext under it\n"
+	for _, tt := range []struct {
+		name string
+		body string
+	}{
+		{name: "an indented backtick example", body: "# Title\n\n    ```\n\n" + below},
+		{name: "an indented tilde example", body: "# Title\n\n    ~~~\n\n" + below},
+		{name: "ordinary indented text, the control", body: "# Title\n\n    marker\n\n" + below},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, excerpt, _ := anchorSurface(tt.body)
+			if !excerpt["later-heading"] {
+				t.Errorf("anchorSurface() excerpt headings = %v, want later-heading among them", excerpt)
+			}
+		})
+	}
+}
