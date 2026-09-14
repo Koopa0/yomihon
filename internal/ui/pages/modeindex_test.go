@@ -25,7 +25,7 @@ func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 		{Title: "Go path", RelPath: "Maps/Go path.md", Planned: 4},
 		{Title: "Unread structure", RelPath: "Maps/Broken.md", Diagnostics: []sequence.Diagnostic{{}}},
 		{Title: "Plans nothing", RelPath: "Maps/Empty.md"},
-	}, nav.Closure{}, true, wording.ZhHant, nil)
+	}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 
 	want := []Row{
 		{Text: "Go path", Href: "/syllabus/Maps/Go%20path.md", Mark: "4 課"},
@@ -50,7 +50,7 @@ func TestAMapRowCountsBranchesAtEveryDepth(t *testing.T) {
 		{Heading: "One", Subbranches: []nav.Branch{{Heading: "One a"}, {Heading: "One b"}}},
 		{Heading: "Two"},
 	}}
-	view := NewMapIndex([]nav.Map{deep}, nav.Closure{}, true, wording.ZhHant, nil)
+	view := NewMapIndex([]nav.Map{deep}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	want := []Row{{Text: "Deep", Href: "/notes/Maps/Deep.md", Mark: "4 枝"}}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("map rows mismatch (-want +got):\n%s", diff)
@@ -70,7 +70,7 @@ func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
 		{Heading: "Places — [[Sputnik Sweetheart]]", Entries: []nav.MapEntry{{Text: "Sputnik Sweetheart"}}},
 		{Heading: "After", Entries: []nav.MapEntry{{Text: "Colorless Tsukuru Tazaki"}}},
 	}}
-	view := NewMapIndex([]nav.Map{prose}, nav.Closure{}, true, wording.ZhHant, nil)
+	view := NewMapIndex([]nav.Map{prose}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	want := []Row{{Text: "A map written as prose", Href: "/notes/Maps/Prose%20map.md", Mark: "5 枝"}}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("prose map shelf mark mismatch (-want +got):\n%s", diff)
@@ -146,7 +146,7 @@ func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 	// Diary stay outside this shelf's measure.
 	const files = 9
 
-	view := NewFolderIndex(buildModel(t), true, wording.ZhHant, nil)
+	view := NewFolderIndex(buildModel(t), ContractGoverning, wording.ZhHant, nil)
 	if view.Kicker != "9 篇" {
 		t.Errorf("folder index kicker = %q, want it to name all %d files on the shelf", view.Kicker, files)
 	}
@@ -167,7 +167,7 @@ func TestFolderIndexLabelsRootNotesAsTheirOwnGroup(t *testing.T) {
 		{wording.ZhHant, "根目錄筆記"},
 		{wording.En, "Root notes"},
 	} {
-		view := NewFolderIndex(model, true, tt.lang, nil)
+		view := NewFolderIndex(model, ContractGoverning, tt.lang, nil)
 		at := -1
 		for i, row := range view.Shelf.Rows {
 			if row.Heading && row.Text == tt.want {
@@ -224,10 +224,10 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		mode      string
 		component templ.Component
 	}{
-		{pathMode, ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, true, wording.ZhHant, nil), layouts.Chrome{})},
-		{mapMode, ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant, nil), layouts.Chrome{})},
+		{pathMode, ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
+		{mapMode, ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
 		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant, nil), layouts.Chrome{})},
-		{folderMode, FolderIndex(NewFolderIndex(model, true, wording.ZhHant, nil), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
+		{folderMode, FolderIndex(NewFolderIndex(model, ContractGoverning, wording.ZhHant, nil), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode, func(t *testing.T) {

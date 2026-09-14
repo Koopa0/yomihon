@@ -36,7 +36,7 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(authority, snap)
 	model := pageShell.Nav
-	view := pages.NewMapIndex(model.Maps(), model.DeclaredClosure(), pageShell.Governed, lang, pages.ArticleLanguageFromSnapshot(snap))
+	view := pages.NewMapIndex(model.Maps(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)
 	}
@@ -75,7 +75,7 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	articleLang := articleLanguageLookup(snap)
 	recent, recentOrdered := recentShelfNotes(model.KnowledgeNotes(), pageShell.Governed, authority, articleLang)
 
-	view := pages.NewFolderIndex(model, pageShell.Governed, lang, articleLang)
+	view := pages.NewFolderIndex(model, pages.ContractStateFrom(pageShell.Governed, snap), lang, articleLang)
 	// Two of the three causes the desk states can empty or degrade something
 	// drawn here: the write authority closes the distribution, and the artifact
 	// policy closes it too and takes the knowledge layer off the recent list.
