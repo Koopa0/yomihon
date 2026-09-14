@@ -3,6 +3,11 @@
 export function initSearch() {
   const delay = 180;
 
+  // What a region has to be asked when it is shown again. A dialog keeps its
+  // rows while it is closed, so this is registered per region and run from the
+  // one place that opens one.
+  const onReopen = new Map();
+
   document.querySelectorAll('[data-live-search]').forEach((region) => {
     const form = region.querySelector('[data-live-search-form]');
     const input = region.querySelector('[data-live-search-input]');
@@ -143,20 +148,47 @@ export function initSearch() {
       if (!composing) schedule();
     });
     form.addEventListener('submit', cancelPending);
-    if (region.tagName === 'DIALOG') region.addEventListener('close', cancelPending);
+    if (region.tagName === 'DIALOG') {
+      region.addEventListener('close', cancelPending);
+      // Closing leaves the rows where they are and stops whatever was on its
+      // way to replace them. So the box and the rows can disagree by the time
+      // the reader comes back: they typed something these rows never answered.
+      // Reopening is the only moment that can be noticed, and nothing was
+      // noticing it — the rows went on standing for a search the reader had
+      // already moved off. Asking again is the same debounce a keystroke uses,
+      // and until it lands the rows say which query they do answer.
+      onReopen.set(region, () => {
+        const query = input.value.trim();
+        if (!query) return;
+        const note = results.querySelector('[data-live-search-stale]');
+        if ((note?.dataset.liveSearchStale ?? '').trim() === query) return;
+        markStaleNote(query);
+        schedule();
+      });
+    }
   });
 
   const dialog = document.querySelector('[data-search]');
+
+  // Every way the dialog is shown comes through here, so a way added later
+  // cannot arrive without the region being asked whether what it is showing
+  // still belongs to what is in the box.
+  function open() {
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    onReopen.get(dialog)?.();
+  }
+
   document.querySelector('[data-search-open]')?.addEventListener('click', (event) => {
     if (!dialog) return;
     event.preventDefault();
-    if (!dialog.open) dialog.showModal();
+    open();
   });
 
   function toggle() {
     if (!dialog) return;
     if (dialog.open) dialog.close();
-    else dialog.showModal();
+    else open();
   }
 
   function closeAndRestoreFocus() {

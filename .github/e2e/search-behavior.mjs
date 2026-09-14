@@ -25,6 +25,7 @@ const HIT_DIRECTIVE = `${HIT_NOTE}#:~:text=${HIT_QUERY}`;
 
 const SITES = [
   'search-form-fits-the-narrowest-phone',
+  'reopening-answers-the-query-in-the-box',
   'announcement-quotes-the-query',
   'home-starts-at-top',
   'home-does-not-take-focus',
@@ -128,6 +129,15 @@ const announceThroughAReplacementTemplate = (page) => rewriteResponse(
   'the announcement builder',
 );
 
+// Reopening stops asking, which is what it did before: the rows go on standing
+// for a search the reader has already moved off.
+const reopenWithoutAsking = (page) => rewriteResponse(
+  page,
+  '**/search.js',
+  [{ needle: '    onReopen.get(dialog)?.();', replacement: '' }],
+  'the reopen check',
+);
+
 const MUTATIONS = {
   // A flex item keeps its content's width unless it is allowed to shrink, and
   // the search box's content is wider than the narrowest phone.
@@ -138,6 +148,10 @@ const MUTATIONS = {
   'announce-through-a-replacement-template': {
     target: 'announcement-quotes-the-query',
     before: announceThroughAReplacementTemplate,
+  },
+  'reopen-without-asking': {
+    target: 'reopening-answers-the-query-in-the-box',
+    before: reopenWithoutAsking,
   },
   'home-autofocus': {
     target: 'home-does-not-take-focus',
@@ -355,8 +369,11 @@ const MUTATIONS = {
     target: 'live-error-recovery',
     before: rewriteScript([
       {
-        needle: '        markStaleNote(query);',
-        replacement: '        void query;',
+        // Anchored on the line above it: the same call is made when a reopened
+        // palette finds it is showing another query's rows, and a needle that
+        // names both mutates neither.
+        needle: "        status.textContent = status.dataset.liveSearchOffline ?? '';\n        markStaleNote(query);",
+        replacement: "        status.textContent = status.dataset.liveSearchOffline ?? '';\n        void query;",
       },
     ], 'live-search stale-results label'),
   },
@@ -1324,7 +1341,62 @@ try {
     await spoken.context.close();
   }
 
-  console.log('PASS search-behavior: a query is announced as typed; the form fits 320px in both languages; Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
+  // Closing the palette leaves its rows where they are. A reader who typed a
+  // new query and closed before it landed comes back to the box holding one
+  // search and the list holding another, and nothing was asking on their
+  // behalf. Two things are required of the return: the rows say they are not
+  // this query's, and the query in the box is answered without being asked
+  // for again.
+  {
+    const palette = await start(browser, 'reopening-answers-the-query-in-the-box');
+    const answered = () => palette.page.evaluate(() => {
+      const region = document.querySelector('[data-search] [data-live-search-results]');
+      const note = region.querySelector('[data-live-search-stale]');
+      return {
+        answers: (note?.dataset.liveSearchStale ?? '').trim(),
+        told: note ? !note.hidden : false,
+        box: document.querySelector('[data-search] [data-live-search-input]').value,
+      };
+    });
+    await palette.page.keyboard.press('Control+k');
+    await palette.page.fill('[data-search] [data-live-search-input]', 'alpha');
+    await waitFor(
+      palette.page,
+      'reopening-answers-the-query-in-the-box',
+      () => document.querySelector('[data-search] [data-live-search-results] [data-live-search-stale]')?.dataset.liveSearchStale?.trim() === 'alpha',
+      null,
+      'the palette never answered the first query, so there is nothing to come back to',
+    );
+    // Typed and closed inside the wait before the request goes out.
+    await palette.page.fill('[data-search] [data-live-search-input]', 'beta');
+    await palette.page.keyboard.press('Escape');
+    await palette.page.waitForFunction(() => !document.querySelector('[data-search]').open, null, { timeout: 3000 });
+    await palette.page.keyboard.press('Control+k');
+
+    const onReturn = await answered();
+    if (onReturn.box !== 'beta') {
+      throw new ProbeBroken(`BROKEN search-behavior: the reopened palette holds ${JSON.stringify(onReturn.box)}, want the query that was typed before it closed`);
+    }
+    if (onReturn.answers === 'beta') {
+      throw new ProbeBroken('BROKEN search-behavior: the palette had already answered the new query on reopening, so this run never had a mismatch to resolve');
+    }
+    if (!onReturn.told) {
+      fail(
+        'reopening-answers-the-query-in-the-box',
+        `on reopening, the rows answer ${JSON.stringify(onReturn.answers)} while the box holds ${JSON.stringify(onReturn.box)}, and nothing on screen says so`,
+      );
+    }
+    await waitFor(
+      palette.page,
+      'reopening-answers-the-query-in-the-box',
+      () => document.querySelector('[data-search] [data-live-search-results] [data-live-search-stale]')?.dataset.liveSearchStale?.trim() === 'beta',
+      null,
+      'the reopened palette never answered the query in its own box',
+    );
+    await palette.context.close();
+  }
+
+  console.log('PASS search-behavior: a reopened palette answers its own box; a query is announced as typed; the form fits 320px in both languages; Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
