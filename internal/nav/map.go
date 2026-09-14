@@ -119,20 +119,71 @@ func parseBranches(
 	var stack []*branchNode
 	links, zones := sequence.LiveScan(body)
 	next := 0
-	offset := 0
 
-	for line := range strings.SplitSeq(body, "\n") {
-		lineStart := offset
-		lineEnd := offset + len(line)
-		if text, level, ok := parseHeading(line); ok && !graph.In(zones, lineStart) {
-			attachLiveLinks(stack, links, &next, lineStart, idx, statusByPath, langsByPath, policy)
-			stack = openBranch(&roots, stack, headingLabel(text), level)
-		}
-		attachLiveLinks(stack, links, &next, lineEnd, idx, statusByPath, langsByPath, policy)
-		offset = lineEnd + 1
+	for _, h := range scanBranchHeadings(body, zones) {
+		attachLiveLinks(stack, links, &next, h.start, idx, statusByPath, langsByPath, policy)
+		stack = openBranch(&roots, stack, headingLabel(h.text), h.level)
 	}
-	attachLiveLinks(stack, links, &next, offset, idx, statusByPath, langsByPath, policy)
+	attachLiveLinks(stack, links, &next, len(body), idx, statusByPath, langsByPath, policy)
 	return convertBranches(pruneBranches(roots))
+}
+
+// branchHeading is one heading the walk found: where it begins in the body,
+// its level, and the words it shows. An underlined heading begins on the
+// first line of its words rather than on the underline, so a wikilink written
+// in those words belongs to the branch they name, as one in a marked heading
+// does.
+type branchHeading struct {
+	start int
+	level int
+	text  string
+}
+
+// scanBranchHeadings reads the headings that open a branch as the page that
+// displays them does: marked with a run of one to six '#' at the indent
+// CommonMark allows, or underlined beneath a run of prose, with the run of
+// closing '#' an author may balance the opening one with left out of the
+// words. A level-1 heading is the document title and opens nothing, in either
+// form. A line the link scan skipped is no more a heading than it is a link,
+// indented or not. An underline titles running prose alone: a blank line, a
+// quote, a list item, a break rule, another underline, or an indented code
+// line opening the run ends what it could claim.
+func scanBranchHeadings(body string, zones []graph.Span) []branchHeading {
+	var out []branchHeading
+	paragraph, offset := -1, 0
+	for line := range strings.SplitSeq(body, "\n") {
+		start := offset
+		offset = start + len(line) + 1
+		if graph.In(zones, start) {
+			paragraph = -1
+			continue
+		}
+		if m := graph.ATXHeading.FindStringSubmatch(line); m != nil {
+			if level := len(m[1]); level >= 2 {
+				out = append(out, branchHeading{start: start, level: level, text: strings.TrimSpace(m[2])})
+			}
+			paragraph = -1
+			continue
+		}
+		switch {
+		case paragraph >= 0 && graph.SetextUnderline.MatchString(line):
+			if level := graph.SetextLevel(line); level >= 2 {
+				out = append(out, branchHeading{
+					start: paragraph,
+					level: level,
+					text:  strings.TrimSpace(body[paragraph : start-1]),
+				})
+			}
+			paragraph = -1
+		case graph.BlankLine(line), graph.QuotedLine.MatchString(line), graph.ListItemLine.MatchString(line),
+			graph.BreakRuleLine.MatchString(line), graph.SetextUnderline.MatchString(line),
+			paragraph < 0 && graph.IndentedCodeLine.MatchString(line):
+			paragraph = -1
+		case paragraph < 0:
+			paragraph = start
+		}
+	}
+	return out
 }
 
 // attachLiveLinks appends every still-unread live link that begins before
@@ -208,19 +259,6 @@ func convertBranches(nodes []*branchNode) []Branch {
 		})
 	}
 	return out
-}
-
-// parseHeading reports an ATX heading of level >= 2: the "#" run starts the
-// line, runs at least twice, and is followed by a space.
-func parseHeading(line string) (text string, level int, ok bool) {
-	n := 0
-	for n < len(line) && line[n] == '#' {
-		n++
-	}
-	if n < 2 || n >= len(line) || line[n] != ' ' {
-		return "", 0, false
-	}
-	return strings.TrimSpace(line[n+1:]), n, true
 }
 
 // headingLabel is a heading's display label: the English column of a
