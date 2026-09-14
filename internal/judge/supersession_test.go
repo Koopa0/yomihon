@@ -312,3 +312,158 @@ func courseNote(path, body string) note {
 		sequence:  sequence.Parse(body, 1),
 	}
 }
+
+// TestSupersessionFoldsTheNoteStatusSpelling holds the replacement-ledger
+// verdicts to one answer per status word. A contract's values and a note's own
+// value reach this code from different places — a filesystem hands over a
+// decomposed spelling, an editor and the search index a composed one — so one
+// word can arrive as two byte strings. A contract folds its own values as it
+// reads them, and is refused at load if it archives with a spelling those
+// values do not carry, so the note's value is the only side left to fold;
+// while it was not folded, a superseded lesson and an archived link target
+// both went unreported for the spelling their own vault happened to use.
+//
+// Both rules are reached by their own rows, and each comparison the rules make
+// against a status has one: the status set a note's type declares, and the
+// archived word itself, on the note being judged and on the note it links to.
+func TestSupersessionFoldsTheNoteStatusSpelling(t *testing.T) {
+	t.Parallel()
+
+	// One word in two spellings, twice: a live status and the archived one.
+	// Both are written from code points, so nothing between the keyboard and
+	// the compiler can fold one form into the other. The decomposed form
+	// carries the voiced-sound mark as its own code point.
+	const (
+		liveComposed       = "\u6e96\u5099\u305a\u307f"
+		liveDecomposed     = "\u6e96\u5099\u3059\u3099\u307f"
+		archivedComposed   = "\u4fdd\u7ba1\u305a\u307f"
+		archivedDecomposed = "\u4fdd\u7ba1\u3059\u3099\u307f"
+	)
+	for _, pair := range [][2]string{{liveComposed, liveDecomposed}, {archivedComposed, archivedDecomposed}} {
+		if pair[0] == pair[1] || schema.NormalizeStatus(pair[1]) != pair[0] {
+			t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", pair[0], pair[1])
+		}
+	}
+
+	contract := loadSupersessionContract(t, statusSpellingReplacements(liveComposed, archivedComposed))
+	vocabulary, ok := contract.Supersession()
+	if !ok {
+		t.Fatal("the fixture contract declares no replacement ledger")
+	}
+	if vocabulary.ArchivedStatus != archivedComposed {
+		t.Fatalf("archived status = %q, want %q", vocabulary.ArchivedStatus, archivedComposed)
+	}
+	// A lesson and a study path read against different status groups, and a
+	// row expecting no finding would pass for the wrong reason if either word
+	// were missing from either of them.
+	for _, noteType := range []string{"lesson", "study-path"} {
+		for _, word := range []string{liveComposed, archivedComposed} {
+			if declared := contract.Statuses(noteType); !slices.Contains(declared, word) {
+				t.Fatalf("Statuses(%q) = %q, want it to declare %q", noteType, declared, word)
+			}
+		}
+	}
+	authority := scanAuthority{contract: contract, privacy: contract.PrivacyPolicy()}
+
+	superseded := func(status string) []note {
+		return []note{{
+			path:     "Writing/Old.md",
+			noteType: "lesson",
+			status:   status,
+			frontmatter: map[string]fmValue{
+				"successors": {list: []string{"New"}, stringList: []string{"New"}, isList: true},
+			},
+		}}
+	}
+	navigation := func(sourceStatus, targetStatus string) []note {
+		source := courseNote("Maps/Path.md", "## 主線 {sequence=primary}\n\n- [[Target]]\n")
+		source.status = sourceStatus
+		return []note{source, {path: "Writing/Target.md", noteType: "lesson", status: targetStatus}}
+	}
+
+	tests := []struct {
+		name      string
+		notes     []note
+		wantRules []string
+	}{
+		{
+			name: "predecessor/decomposed live status", notes: superseded(liveDecomposed),
+			wantRules: []string{predecessorNotArchivedRule},
+		},
+		{
+			name: "predecessor/composed live status", notes: superseded(liveComposed),
+			wantRules: []string{predecessorNotArchivedRule},
+		},
+		{name: "predecessor/composed archived status", notes: superseded(archivedComposed)},
+		{name: "predecessor/decomposed archived status", notes: superseded(archivedDecomposed)},
+		{
+			name: "navigation/decomposed live source", notes: navigation(liveDecomposed, archivedComposed),
+			wantRules: []string{archivedNavigationRule},
+		},
+		{
+			name: "navigation/decomposed archived target", notes: navigation(liveComposed, archivedDecomposed),
+			wantRules: []string{archivedNavigationRule},
+		},
+		{
+			name: "navigation/composed throughout", notes: navigation(liveComposed, archivedComposed),
+			wantRules: []string{archivedNavigationRule},
+		},
+		{name: "navigation/live target", notes: navigation(liveComposed, liveComposed)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			findings := supersessionFindings(tt.notes, buildIndex(tt.notes, nil), authority)
+			var gotRules []string
+			for i := range findings {
+				gotRules = append(gotRules, string(findings[i].RuleID))
+			}
+			if !slices.Equal(gotRules, tt.wantRules) {
+				t.Errorf("rules = %v, want %v", gotRules, tt.wantRules)
+			}
+		})
+	}
+}
+
+// statusSpellingReplacements rewrites the fixture contract to speak a status
+// vocabulary that has two spellings: both words join every status group, the
+// replacement ledger archives with the second of them, and each gets the
+// lifecycle row the ledger's own validation requires of an archived status.
+func statusSpellingReplacements(live, archived string) [][2]string {
+	const archivedLifecycleRow = `[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = ["koopa"]
+`
+	return [][2]string{
+		{
+			`[enums.status]
+note = ["draft", "ready", "archived"]
+lesson = ["draft", "ready", "archived"]
+`,
+			`[enums.status]
+note = ["draft", "ready", "archived", "` + live + `", "` + archived + `"]
+lesson = ["draft", "ready", "archived", "` + live + `", "` + archived + `"]
+`,
+		},
+		{`archived_status = "archived"`, `archived_status = "` + archived + `"`},
+		{
+			archivedLifecycleRow,
+			archivedLifecycleRow + `
+[[lifecycle]]
+status = "` + live + `"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+
+[[lifecycle]]
+status = "` + archived + `"
+applies_to = ["*"]
+from = ["*"]
+owner = ["koopa"]
+`,
+		},
+	}
+}

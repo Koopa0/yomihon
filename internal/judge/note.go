@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -160,6 +161,15 @@ func readTypedFields(n *note, doc *yaml.Node) {
 	n.slug = strField(root, "slug")
 	n.basedOn = listField(root, "based_on")
 	n.related = listField(root, "related")
+}
+
+// statusWord is a note's status folded to the spelling a contract's declared
+// values already carry, the contract having folded them as it read them. A
+// rule comparing the two then answers about the status word rather than about
+// the bytes a filesystem or an editor handed over. The raw value stays on the
+// note: a finding quotes the note as written.
+func statusWord(n *note) string {
+	return schema.NormalizeStatus(n.status)
 }
 
 // mappingValue returns the value node for a top-level key, or false when the

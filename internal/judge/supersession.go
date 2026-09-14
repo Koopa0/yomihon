@@ -45,8 +45,8 @@ func predecessorNotArchived(
 			artifacts.IsNonInstance(n.path) {
 			continue
 		}
-		if !slices.Contains(authority.contract.Statuses(n.noteType), n.status) ||
-			n.status == vocabulary.ArchivedStatus ||
+		if !slices.Contains(authority.contract.Statuses(n.noteType), statusWord(n)) ||
+			statusWord(n) == vocabulary.ArchivedStatus ||
 			len(frontmatterStringValues(n, vocabulary.SuccessorField)) == 0 {
 			continue
 		}
@@ -104,7 +104,7 @@ func archivedNavigationTargets(
 				!authority.egressAllowed(target.path) ||
 				artifacts.IsNonInstance(target.path) ||
 				authority.contract.StatusGroup(target.noteType) == "" ||
-				target.status != vocabulary.ArchivedStatus {
+				statusWord(target) != vocabulary.ArchivedStatus {
 				continue
 			}
 			findings = append(findings, archivedNavigationFinding(source, target, link, vocabulary))
@@ -114,7 +114,8 @@ func archivedNavigationTargets(
 }
 
 func liveStatus(contract *schema.Contract, n *note, archivedStatus string) bool {
-	return n.status != archivedStatus && slices.Contains(contract.Statuses(n.noteType), n.status)
+	status := statusWord(n)
+	return status != archivedStatus && slices.Contains(contract.Statuses(n.noteType), status)
 }
 
 func archivedNavigationFinding(
