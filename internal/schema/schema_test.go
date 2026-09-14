@@ -2297,6 +2297,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"StatusesInGroup": func() string {
+			if got := c.StatusesInGroup("note"); got != nil {
+				return fmt.Sprintf("StatusesInGroup() = %v, want nil", got)
+			}
+			return ""
+		},
 		"Stage": func() string {
 			if got, ok := c.Stage("lesson", "draft"); ok {
 				return fmt.Sprintf("Stage() = (%+v, true), want no lifecycle row", got)

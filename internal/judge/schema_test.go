@@ -900,3 +900,139 @@ owner = ["author"]
 never_egress_dirs = []
 `
 }
+
+// TestStatusEnumFoldsTheSpelling holds the frontmatter verdict to one answer
+// per status word. A contract and a note reach this code from different
+// places — a filesystem hands over a decomposed spelling, an editor and the
+// search index a composed one — so one word can arrive as two byte strings.
+// The reading page's status face folds them; while this face did not, a single
+// page could say the status was outside the contract and offer a transition
+// out of that same status. Case is a separate matter: two statuses differing
+// only in case are two declarations the contract meant, and stay two.
+//
+// The three status verdicts are each reached by their own rows: the knowledge
+// rules, the lighter document rules a status group of working documents takes,
+// and the eligibility guard in front of the unreachable-status rule, which only
+// sees a status the group declares.
+func TestStatusEnumFoldsTheSpelling(t *testing.T) {
+	t.Parallel()
+
+	// One word in two spellings, written from code points so nothing
+	// between the keyboard and the compiler can fold one into the other:
+	// the dakuten composed into one letter, then left as the bare letter
+	// followed by its combining mark.
+	composed := "\u9032\u884c\u4e2d\u304c"
+	decomposed := "\u9032\u884c\u4e2d\u304b\u3099"
+	if composed == decomposed || schema.NormalizeStatus(decomposed) != composed {
+		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
+	}
+
+	tests := []struct {
+		name     string
+		declared string
+		noteType string
+		status   string
+		want     []string
+	}{
+		{name: "knowledge/composed contract, composed note", declared: composed, noteType: "memo", status: composed},
+		{name: "knowledge/decomposed contract, decomposed note", declared: decomposed, noteType: "memo", status: decomposed},
+		{name: "knowledge/composed contract, decomposed note", declared: composed, noteType: "memo", status: decomposed},
+		{name: "knowledge/decomposed contract, composed note", declared: decomposed, noteType: "memo", status: composed},
+		{
+			name: "knowledge/undeclared word", declared: composed, noteType: "memo", status: "other",
+			want: []string{"schema.enum other"},
+		},
+		{
+			name: "knowledge/case is not folded", declared: "draft", noteType: "memo", status: "Draft",
+			want: []string{"schema.enum Draft"},
+		},
+		{name: "document/composed contract, decomposed note", declared: composed, noteType: "worklog", status: decomposed},
+		{name: "document/decomposed contract, composed note", declared: decomposed, noteType: "worklog", status: composed},
+		{
+			name: "document/undeclared word", declared: composed, noteType: "worklog", status: "other",
+			want: []string{"schema.enum other"},
+		},
+		{
+			name: "unreachable/composed contract, composed note", declared: composed, noteType: "journal", status: composed,
+			want: []string{"schema.status_unreachable " + composed},
+		},
+		{
+			name: "unreachable/composed contract, decomposed note", declared: composed, noteType: "journal", status: decomposed,
+			want: []string{"schema.status_unreachable " + decomposed},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			write(t, root, schema.ContractRelPath, statusSpellingContract(tt.declared))
+			data := []byte("---\ntitle: Probe\ntype: " + tt.noteType + "\nstatus: " + tt.status + "\n---\nBody.\n")
+			write(t, root, "Notes/Probe.md", string(data))
+			contract, err := schema.Load(root)
+			if err != nil {
+				t.Fatalf("schema.Load() error = %v", err)
+			}
+			findings, err := LintFrontmatter("Notes/Probe.md", data, contract)
+			if err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+			var got []string
+			for i := range findings {
+				got = append(got, string(findings[i].RuleID)+" "+*findings[i].Target)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// statusSpellingContract declares one substantive status in both status
+// groups, spelled the way the caller asks. A memo takes the knowledge rules
+// and has a lifecycle row for that status; a journal takes the same rules with
+// no row for it, so a status the group declares is still one nothing can reach;
+// a worklog belongs to the working-document group and takes the lighter rules.
+func statusSpellingContract(declared string) string {
+	return `schema_version = "1"
+
+[enums]
+type = ["memo", "journal", "worklog"]
+
+[enums.status]
+note = ["` + declared + `", "archived"]
+system = ["` + declared + `", "archived"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "status"]
+
+[fields.status_group]
+system = ["worklog"]
+
+[scan]
+knowledge_dirs = ["Notes"]
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "` + declared + `"
+applies_to = ["memo"]
+from = []
+owner = []
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = []
+owner = []
+`
+}
