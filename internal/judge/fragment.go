@@ -175,12 +175,13 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 // block address, so a link's "^name" matches the reading the destination page
 // uses. A line inside a fence is code, a recognised callout's opening line is
 // consumed as the title, a row opening with a pipe is table syntax whose tail
-// the renderer drops, and a caret a single-line code span owns is quoted text.
+// the renderer drops, and a caret a code span owns is quoted text.
 // Only lines carrying a caret are kept.
 func collectBlockLines(body string) []string {
 	var out []string
 	inFence, fenceByte, fenceLen := false, byte(0), 0
-	for line := range strings.SplitSeq(body, "\n") {
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
 		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
 		if inFence {
 			if graph.FenceCloses(unquoted, fenceByte, fenceLen) {
@@ -192,7 +193,7 @@ func collectBlockLines(body string) []string {
 			inFence, fenceByte, fenceLen = true, marker, n
 			continue
 		}
-		if render.UnanchorableLine(line) || render.CodeSpanOwnsBlockAddress(line) {
+		if render.UnanchorableLine(line) || render.CodeSpanOwnsBlockAddress(lines, i) {
 			continue
 		}
 		trimmed := strings.TrimRight(line, " \t")
