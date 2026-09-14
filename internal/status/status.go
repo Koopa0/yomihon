@@ -15,6 +15,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	pathpkg "path"
 	"path/filepath"
@@ -1087,7 +1088,7 @@ func replaceRegularFile(
 		return linkErr
 	}
 	rung := selectRung(preparedParent, hooks)
-	tmpName, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp, source.name, hooks.listXattrs)
+	tmpName, attrs, err := writeTemp(preparedParent, data, source.file.Mode().Perm(), hooks.syncTemp, source.name, hooks.listXattrs)
 	if err != nil {
 		closeRoot(preparedParent)
 		return err
@@ -1117,7 +1118,7 @@ func replaceRegularFile(
 	if hooks.afterAuthority != nil {
 		hooks.afterAuthority()
 	}
-	if err = sourceUnmodified(installParent, relSlash, source); err != nil {
+	if err = sourceUnmodified(installParent, relSlash, source, attrs, hooks.listXattrs); err != nil {
 		closeRoot(installParent)
 		return err
 	}
@@ -1172,7 +1173,13 @@ func refuseIfHardLinked(parent *os.Root, source *fileSnapshot, relSlash string) 
 	return refuseHardLinked(current, relSlash)
 }
 
-func sourceUnmodified(parent *os.Root, relSlash string, source *fileSnapshot) error {
+// sourceUnmodified reports whether the note still holds everything the
+// prepared replacement was built from. attrs is the extended-attribute set the
+// replacement carries; it is compared here because an attribute-only update
+// moves none of the identity, mode, mtime or bytes the other clauses compare,
+// so without it the replacement would put back the value another program has
+// already moved on from.
+func sourceUnmodified(parent *os.Root, relSlash string, source *fileSnapshot, attrs map[string][]byte, listXattrs func(int) ([]string, error)) error {
 	current, opened, err := readCurrentSource(parent, relSlash, source)
 	if err != nil {
 		return err
@@ -1189,6 +1196,13 @@ func sourceUnmodified(parent *os.Root, relSlash string, source *fileSnapshot) er
 	}
 	if !after.ModTime().Equal(source.file.ModTime()) || after.Mode() != source.file.Mode() || !bytes.Equal(current, source.data) {
 		return fmt.Errorf("%w: %s changed while flipping", ErrConcurrentWrite, relSlash)
+	}
+	currentAttrs, err := currentXattrs(parent, source.name, listXattrs)
+	if err != nil {
+		return err
+	}
+	if !maps.EqualFunc(attrs, currentAttrs, bytes.Equal) {
+		return fmt.Errorf("%w: attributes of %s changed while flipping", ErrConcurrentWrite, relSlash)
 	}
 	return nil
 }
@@ -1318,39 +1332,41 @@ func tempName() string {
 // bytes, the source's permission bits, and the source's extended attributes.
 // Birth time cannot survive an atomic replace and is not copied. attrSrc is
 // the source's directory entry inside parent; empty skips the attribute copy
-// (the install probe's throwaways have none to keep).
-func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os.File) error, attrSrc string, listXattrs func(int) ([]string, error)) (string, error) {
-	name := tempName()
+// (the install probe's throwaways have none to keep). attrs names the
+// attributes the replacement now carries, so the install can read the source's
+// again and refuse rather than put back a value another program moved on from.
+func writeTemp(parent *os.Root, data []byte, mode os.FileMode, syncFile func(*os.File) error, attrSrc string, listXattrs func(int) ([]string, error)) (name string, attrs map[string][]byte, err error) {
+	name = tempName()
 	tmp, err := parent.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		return "", fmt.Errorf("create temp file: %w", err)
+		return "", nil, fmt.Errorf("create temp file: %w", err)
 	}
 	if _, err = tmp.Write(data); err != nil {
-		return abandonTemp(parent, tmp, name, fmt.Errorf("write temp file: %w", err))
+		return "", nil, abandonTemp(parent, tmp, name, fmt.Errorf("write temp file: %w", err))
 	}
 	if err = tmp.Chmod(mode); err != nil {
-		return abandonTemp(parent, tmp, name, fmt.Errorf("chmod temp file: %w", err))
+		return "", nil, abandonTemp(parent, tmp, name, fmt.Errorf("chmod temp file: %w", err))
 	}
 	if attrSrc != "" {
-		if err = copyXattrsFrom(parent, attrSrc, tmp, listXattrs); err != nil {
-			return abandonTemp(parent, tmp, name, err)
+		if attrs, err = copyXattrsFrom(parent, attrSrc, tmp, listXattrs); err != nil {
+			return "", nil, abandonTemp(parent, tmp, name, err)
 		}
 	}
 	if syncFile == nil {
 		syncFile = (*os.File).Sync
 	}
 	if err = syncFile(tmp); err != nil {
-		return abandonTemp(parent, tmp, name, fmt.Errorf("sync temp file: %w", err))
+		return "", nil, abandonTemp(parent, tmp, name, fmt.Errorf("sync temp file: %w", err))
 	}
 	if err = tmp.Close(); err != nil {
 		_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup after the primary close error
-		return "", fmt.Errorf("close temp file: %w", err)
+		return "", nil, fmt.Errorf("close temp file: %w", err)
 	}
-	return name, nil
+	return name, attrs, nil
 }
 
-func abandonTemp(parent *os.Root, tmp *os.File, name string, cause error) (string, error) {
+func abandonTemp(parent *os.Root, tmp *os.File, name string, cause error) error {
 	_ = tmp.Close()         //nolint:errcheck // the cause is the actionable failure
 	_ = parent.Remove(name) //nolint:errcheck // best-effort cleanup after the primary error
-	return "", cause
+	return cause
 }

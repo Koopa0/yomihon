@@ -24,58 +24,68 @@ func refuseHardLinked(info os.FileInfo, relSlash string) error {
 	return fmt.Errorf("%w: %s has %d names; a flip would leave the others on the pre-flip bytes", ErrHardLinked, relSlash, stat.Nlink)
 }
 
-func copyXattrsFrom(parent *os.Root, srcName string, dst *os.File, list func(int) ([]string, error)) error {
+// copyXattrsFrom copies the source's extended attributes onto the replacement
+// and reports the set it copied, so the same set can be read from the source
+// again before the replacement takes the note's name.
+func copyXattrsFrom(parent *os.Root, srcName string, dst *os.File, list func(int) ([]string, error)) (map[string][]byte, error) {
+	attrs, err := currentXattrs(parent, srcName, list)
+	if err != nil {
+		return nil, err
+	}
+	for name, value := range attrs {
+		if setErr := unix.Fsetxattr(int(dst.Fd()), name, value, 0); setErr != nil && !xattrIgnorable(setErr) {
+			return nil, fmt.Errorf("copy extended attributes: copy %q: %w", name, setErr)
+		}
+	}
+	return attrs, nil
+}
+
+// currentXattrs reads the extended attributes a replacement carries: the names
+// this package propagates, each paired with the value the source holds right
+// now. One reader answers both the copy and the later comparison, so an
+// attribute the filesystem refuses to list or read is absent from both sets
+// rather than turning tolerance into a refusal.
+func currentXattrs(parent *os.Root, srcName string, list func(int) ([]string, error)) (map[string][]byte, error) {
 	src, err := parent.Open(srcName)
 	if err != nil {
-		return fmt.Errorf("open source to copy attributes: %w", err)
+		return nil, fmt.Errorf("open source to read attributes: %w", err)
 	}
-	err = copyXattrs(int(src.Fd()), int(dst.Fd()), list)
+	attrs, err := readXattrs(int(src.Fd()), list)
 	if closeErr := src.Close(); err == nil {
 		err = closeErr
 	}
 	if err != nil {
-		return fmt.Errorf("copy extended attributes: %w", err)
+		return nil, fmt.Errorf("read extended attributes: %w", err)
 	}
-	return nil
+	return attrs, nil
 }
 
-func copyXattrs(srcFd, dstFd int, list func(int) ([]string, error)) error {
+func readXattrs(fd int, list func(int) ([]string, error)) (map[string][]byte, error) {
 	if list == nil {
 		list = listXattrNames
 	}
-	names, err := list(srcFd)
+	names, err := list(fd)
 	if err != nil {
 		if xattrIgnorable(err) {
-			return nil
+			return map[string][]byte{}, nil
 		}
-		return err
+		return nil, err
 	}
+	attrs := make(map[string][]byte, len(names))
 	for _, name := range names {
 		if skipCopyXattr(name) {
 			continue
 		}
-		if err := copyOneXattr(srcFd, dstFd, name); err != nil {
-			return err
+		value, getErr := getXattr(fd, name)
+		if getErr != nil {
+			if xattrIgnorable(getErr) {
+				continue
+			}
+			return nil, fmt.Errorf("read %q: %w", name, getErr)
 		}
+		attrs[name] = value
 	}
-	return nil
-}
-
-func copyOneXattr(srcFd, dstFd int, name string) error {
-	value, err := getXattr(srcFd, name)
-	if err != nil {
-		if xattrIgnorable(err) {
-			return nil
-		}
-		return fmt.Errorf("read %q: %w", name, err)
-	}
-	if err := unix.Fsetxattr(dstFd, name, value, 0); err != nil {
-		if xattrIgnorable(err) {
-			return nil
-		}
-		return fmt.Errorf("copy %q: %w", name, err)
-	}
-	return nil
+	return attrs, nil
 }
 
 func listXattrNames(fd int) ([]string, error) {
