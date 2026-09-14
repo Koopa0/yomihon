@@ -254,7 +254,7 @@ func (r *lintRun) knowledge(n *note) []Finding {
 func (r *lintRun) required(n *note) []Finding {
 	ty, hasType := fmScalar(n.frontmatter, "type")
 	isInbox := hasType && ty == r.inboxType
-	noDomain := isInbox || (hasType && slices.Contains(r.definition.Fields.DomainExempt, ty))
+	noDomain := isInbox || (hasType && slices.Contains(r.definition.Fields.DomainExempt, schema.NormalizeWord(ty)))
 	required := r.definition.Fields.Required
 	if isInbox && r.inboxDeclared {
 		// The declared set is the whole answer for a capture, so nothing is
@@ -292,7 +292,10 @@ func (r *lintRun) enumFields(n *note) []Finding {
 			continue
 		}
 		name := field.Tag.Get("toml")
-		if v, ok := fmScalar(n.frontmatter, name); ok && !slices.Contains(allowed, v) {
+		// The contract holds its own values in one spelling already, so only
+		// the note's value is folded here; the finding still carries the word
+		// the file wrote, so a reader is shown their own bytes.
+		if v, ok := fmScalar(n.frontmatter, name); ok && !slices.Contains(allowed, schema.NormalizeWord(v)) {
 			out = append(out, schemaFinding(n, "schema.enum", name, v, "is not an allowed value"))
 		}
 	}
