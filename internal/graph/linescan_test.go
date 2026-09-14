@@ -104,6 +104,47 @@ func TestFenceClosesNeedsTheOpenerLength(t *testing.T) {
 	}
 }
 
+// TestFenceClosesRefusesAnOverIndentedCloser is the closing half of the
+// indent rule the opening half already keeps. CommonMark allows a closing
+// marker at most three spaces of indent; written deeper it is text the block
+// shows, which is how an author displays a fence without ending the one they
+// are inside. The trailing side is untouched, so a closer followed by spaces
+// or by a carriage return still closes, and the length rule still decides on
+// its own.
+func TestFenceClosesRefusesAnOverIndentedCloser(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		line      string
+		marker    byte
+		openerLen int
+		want      bool
+	}{
+		{name: "no indent closes", line: "```", marker: '`', openerLen: 3, want: true},
+		{name: "one space closes", line: " ```", marker: '`', openerLen: 3, want: true},
+		{name: "two spaces close", line: "  ```", marker: '`', openerLen: 3, want: true},
+		{name: "three spaces, the deepest CommonMark allows", line: "   ```", marker: '`', openerLen: 3, want: true},
+		{name: "four spaces is code the block shows", line: "    ```", marker: '`', openerLen: 3, want: false},
+		{name: "five spaces is code the block shows", line: "     ```", marker: '`', openerLen: 3, want: false},
+		{name: "eight spaces is code the block shows", line: "        ```", marker: '`', openerLen: 3, want: false},
+		{name: "a tab is four columns, so already too deep", line: "\t```", marker: '`', openerLen: 3, want: false},
+		{name: "three spaces then a tab", line: "   \t```", marker: '`', openerLen: 3, want: false},
+		{name: "four spaces of tildes is code the block shows", line: "    ~~~", marker: '~', openerLen: 3, want: false},
+		{name: "trailing spaces still close", line: "```   ", marker: '`', openerLen: 3, want: true},
+		{name: "a carriage return still closes", line: "```\r", marker: '`', openerLen: 3, want: true},
+		{name: "indent does not excuse a short run", line: "  ```", marker: '`', openerLen: 4, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := graph.FenceCloses(tt.line, tt.marker, tt.openerLen); got != tt.want {
+				t.Errorf("FenceCloses(%q, %q, %d) = %v, want %v", tt.line, tt.marker, tt.openerLen, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestLineSkipZonesCoversWhatSkipHides is the range form of Skip: a heading
 // shaped line inside an HTML block or either fence sits in the span, and the
 // real heading after the zone does not.
@@ -131,6 +172,16 @@ func TestLineSkipZonesCoversWhatSkipHides(t *testing.T) {
 		{
 			name: "tilde fence",
 			body: "## Real\n~~~\n## Hidden\n~~~\n## After\n",
+			in:   "## Hidden\n",
+			out:  "## After\n",
+		},
+		{
+			// The indented marker is content the block shows, so the fence
+			// runs on to the marker at the margin. Ending it early hands the
+			// code text to the reader as prose and turns the real closer into
+			// an opening, which then swallows everything the note has left.
+			name: "a fence stays open past a marker written four spaces in",
+			body: "## Real\n```\n    ```\n## Hidden\n```\n## After\n",
 			in:   "## Hidden\n",
 			out:  "## After\n",
 		},
