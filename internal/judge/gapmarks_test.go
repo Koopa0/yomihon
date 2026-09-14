@@ -203,6 +203,7 @@ const (
 	citerNotePath  = "Writing/Citer.md"
 	ledgerNotePath = "Writing/Ledger.md"
 	missingGhost   = "Ghost"
+	missingPhantom = "Phantom"
 )
 
 // TestPlannedMarkCountsOnlyWhereTheAuthorSpeaks is the lock: an inline planned
@@ -249,6 +250,81 @@ func TestPlannedMarkCountsOnlyWhereTheAuthorSpeaks(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestACommentedHeadingBoundsNoGapSection is the same lock one level up, at the
+// public result a pipeline reads: a gap heading Obsidian hides opens no section,
+// so the declaration under it softens nothing; a closing heading Obsidian hides
+// ends no section, so the declaration under it is still spoken. Both readings of
+// the section are asserted at once — the name harvested for another note's link,
+// and the ownership of a link written in the section itself.
+func TestACommentedHeadingBoundsNoGapSection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		ledger string
+		want   Severity
+		exit   int
+	}{
+		{name: "a visible mark opens the section", ledger: "## Gaps\n\n- Ghost\n\n[[Phantom]]", want: SeverityInfo, exit: 0},
+		{name: "a hidden opening mark opens nothing", ledger: "%%\n## Gaps\n%%\n\n- Ghost\n\n[[Phantom]]", want: SeverityWarn, exit: 1},
+		{name: "a hidden closing heading closes nothing", ledger: "## Gaps\n\n%%\n## Finished\n%%\n\n- Ghost\n\n[[Phantom]]", want: SeverityInfo, exit: 0},
+		{name: "a visible closing heading still closes the section", ledger: "## Gaps\n\n## Finished\n\n- Ghost\n\n[[Phantom]]", want: SeverityWarn, exit: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := gapSectionVault(t, tt.ledger)
+			findings, err := Check(t.Context(), root)
+			if err != nil {
+				t.Fatalf("Check() error = %v", err)
+			}
+
+			cited := findBroken(t, findings, citerNotePath, missingGhost)
+			if cited.Severity != tt.want {
+				t.Errorf("[[%s]] cited by %s, declared where %s: severity %s, want %s; evidence %q",
+					missingGhost, citerNotePath, tt.name, cited.Severity, tt.want, cited.Evidence)
+			}
+			assertBrokenEvidence(t, &cited)
+
+			inside := findBroken(t, findings, ledgerNotePath, missingPhantom)
+			if inside.Severity != tt.want {
+				t.Errorf("[[%s]] written in %s where %s: severity %s, want %s; evidence %q",
+					missingPhantom, ledgerNotePath, tt.name, inside.Severity, tt.want, inside.Evidence)
+			}
+			assertBrokenEvidence(t, &inside)
+
+			_, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"warn"}})
+			if err != nil {
+				t.Fatalf("RunCheck(--deny warn) error = %v", err)
+			}
+			if exit != tt.exit {
+				t.Errorf("check --deny warn exit = %d, want %d; all findings %v", exit, tt.exit, findings)
+			}
+		})
+	}
+}
+
+// gapSectionVault writes the same two notes under a contract that tracks the
+// English heading mark and no inline mark, so where the heading is written is
+// the only thing that can decide either severity.
+func gapSectionVault(t *testing.T, ledgerBody string) string {
+	t.Helper()
+	root := t.TempDir()
+	write(t, root, citerNotePath, plannedFixtureNote("Citer", "See [[Ghost]]."))
+	write(t, root, ledgerNotePath, plannedFixtureNote("Ledger", ledgerBody))
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
+		[2]string{
+			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`knowledge_dirs = ["Writing"]`,
+		},
+		[2]string{
+			"forbid_tag_with_slash = true",
+			"forbid_tag_with_slash = true\nplanned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []",
+		},
+	))
+	return root
 }
 
 // quotedPlannedVault writes the two notes with ledgerBody as the whole body of
