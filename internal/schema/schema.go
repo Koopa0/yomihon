@@ -1563,6 +1563,17 @@ func (c *Contract) Statuses(noteType string) []string {
 	return slices.Clone(c.statusesByGroup[c.StatusGroup(noteType)])
 }
 
+// StatusesInGroup returns the legal status values a status group declares, for
+// a caller that has already resolved the group a note reads against. The values
+// carry the spelling every comparison uses, so a caller folds only the value it
+// is judging. A group the contract does not declare returns nil.
+func (c *Contract) StatusesInGroup(group string) []string {
+	if c == nil {
+		return nil
+	}
+	return slices.Clone(c.statusesByGroup[group])
+}
+
 // NormalizeStatus is the one spelling rule for a status word: every comparison
 // against a declared status goes through it, both the contract's values as they
 // are read and a note's own value as it is judged. A status arrives decomposed

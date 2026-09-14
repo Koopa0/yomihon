@@ -648,6 +648,46 @@ owner = []
 	return replaceContractText(t, lifecycleContract, wildcardArchive, replacement)
 }
 
+// TestStatusesInGroupFoldsTheDeclaredSpelling holds the view the frontmatter
+// rules read. A caller that has already resolved which group a note reads
+// against gets that group's values in the spelling comparisons use, so it folds
+// only the value it is judging, and a contract that decomposes a word still
+// answers a note that composes it. A group the contract never declared answers
+// with nothing.
+func TestStatusesInGroupFoldsTheDeclaredSpelling(t *testing.T) {
+	t.Parallel()
+
+	// One word the contract decomposes, as the bare letter followed by its
+	// combining mark, written from code points so nothing between the keyboard
+	// and the compiler can fold it into the composed form it must answer with.
+	decomposed := "\u9032\u884c\u4e2d\u304b\u3099"
+	composed := "\u9032\u884c\u4e2d\u304c"
+	if decomposed == composed {
+		t.Fatalf("the fixture spellings are the same bytes: %q", decomposed)
+	}
+	s := decodeLifecycleFixture(t, `schema_version = "1"
+
+[enums]
+type = ["article"]
+
+[enums.status]
+note = ["`+decomposed+`", "archived"]
+
+[[lifecycle]]
+status = "`+decomposed+`"
+applies_to = ["article"]
+from = []
+owner = ["editor"]
+`)
+
+	if got, want := s.StatusesInGroup("note"), []string{composed, "archived"}; !slices.Equal(got, want) {
+		t.Errorf("StatusesInGroup(note) = %q, want %q", got, want)
+	}
+	if got := s.StatusesInGroup("lesson"); got != nil {
+		t.Errorf("StatusesInGroup(undeclared group) = %q, want nil", got)
+	}
+}
+
 func decodeLifecycleFixture(t *testing.T, data string) *Contract {
 	t.Helper()
 

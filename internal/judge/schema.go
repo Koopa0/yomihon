@@ -207,11 +207,19 @@ func (r *lintRun) lessonSlug(n *note) []Finding {
 	return out
 }
 
+// statusDeclared reports whether a status group declares this status word. The
+// contract holds its own values in one spelling already, so only the note's
+// value is folded here, and a note that composes a word its contract decomposes
+// still names the status the contract declares.
+func (r *lintRun) statusDeclared(group, status string) bool {
+	return slices.Contains(r.contract.StatusesInGroup(group), schema.NormalizeStatus(status))
+}
+
 // documentStatus reports a document's status outside the status set its own
 // group declares. The group is the one the caller routed by, so the enum
 // checked here is the enum that decided this note is a document.
 func (r *lintRun) documentStatus(n *note, group string) []Finding {
-	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(r.definition.Enums.Status[group], st) {
+	if st, ok := fmScalar(n.frontmatter, "status"); ok && !r.statusDeclared(group, st) {
 		return []Finding{schemaFinding(n, "schema.enum", "status", st, "is not a valid "+group+" status")}
 	}
 	return nil
@@ -226,7 +234,7 @@ func (r *lintRun) knowledge(n *note) []Finding {
 	// A type outside the contract resolves to no group and reads against the
 	// general note group; it already carries its own finding.
 	group := cmp.Or(r.contract.StatusGroup(n.noteType), "note")
-	if st, ok := fmScalar(n.frontmatter, "status"); ok && !slices.Contains(r.definition.Enums.Status[group], st) {
+	if st, ok := fmScalar(n.frontmatter, "status"); ok && !r.statusDeclared(group, st) {
 		reason := "is not a valid status"
 		if group != "note" {
 			reason = "is not a valid " + group + " status"
@@ -365,7 +373,7 @@ func (r *lintRun) unreachableStatus(n *note, noteType, group string) []Finding {
 		return nil
 	}
 	st, ok := fmScalar(n.frontmatter, "status")
-	if !ok || !slices.Contains(r.definition.Enums.Status[group], st) {
+	if !ok || !r.statusDeclared(group, st) {
 		return nil
 	}
 	if _, reachable := r.contract.Stage(noteType, st); reachable {
