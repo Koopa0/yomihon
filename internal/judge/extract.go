@@ -107,7 +107,9 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 
 func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string) []wikiLink {
 	codeZones, headings := structure(body, headingMarks)
-	skip := slices.Concat(codeZones, graph.CommentZones(body, codeZones))
+	comments := graph.CommentZones(body, codeZones)
+	headings = spokenHeadings(headings, comments)
+	skip := slices.Concat(codeZones, comments)
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
 		if graph.In(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
@@ -178,7 +180,9 @@ func extractPlannedNames(body string) []string {
 // so a declaration that is merely shown cannot soften another note's link.
 func extractPlannedNamesWith(body string, marks plannedMarks) []string {
 	codeZones, headings := structure(body, marks.heading)
-	spoken := blankZones(body, slices.Concat(codeZones, graph.CommentZones(body, codeZones)))
+	comments := graph.CommentZones(body, codeZones)
+	headings = spokenHeadings(headings, comments)
+	spoken := blankZones(body, slices.Concat(codeZones, comments))
 	var names []string
 	var item *string
 	offset := 0
@@ -346,6 +350,14 @@ func stripTarget(inner string) (string, bool) {
 	beforeBlock, _, _ := strings.Cut(beforeHeading, "^")
 	target := strings.TrimSpace(beforeBlock)
 	return target, target != ""
+}
+
+// spokenHeadings drops the headings the author took back inside an Obsidian
+// comment, so a section is bounded by the same authored content the harvest
+// reads. A heading Obsidian hides is no more a boundary than a commented-out
+// link is a link: it neither opens a section nor closes one.
+func spokenHeadings(headings []heading, comments []byteRange) []heading {
+	return slices.DeleteFunc(headings, func(h heading) bool { return graph.In(comments, h.start) })
 }
 
 // inGapSection reports whether offset falls in a section opened by a gap heading
