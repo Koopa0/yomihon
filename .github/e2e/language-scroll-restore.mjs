@@ -193,10 +193,22 @@ try {
   // is the one a script would have to wait for. The reading choices are behind
   // the only link the chrome offers on every page, so that is the arrival this
   // walks into.
-  await Promise.all([
-    page.waitForURL('**/preferences**'),
-    page.locator('.y-prefslink').click(),
-  ]);
+  // A held arrival has two shapes and this site owns both. The lighter one
+  // finishes loading and never paints; the heavier one never finishes loading
+  // at all, and reaching the readings below would already be impossible. Left
+  // uncaught, that heavier shape kills the run before any assertion speaks,
+  // which reads as a broken probe rather than as the page a reader cannot see.
+  try {
+    await Promise.all([
+      page.waitForURL('**/preferences**'),
+      page.locator('.y-prefslink').click(),
+    ]);
+  } catch (held) {
+    fail(
+      'an-arrival-paints',
+      `the page reached by following a link never finished loading: ${String(held.message).split('\n')[0]}`,
+    );
+  }
   const arrival = await page.evaluate(() => new Promise((resolve) => {
     let painted = false;
     requestAnimationFrame(() => { painted = true; });
