@@ -954,6 +954,13 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			Kind: DiagWikilinkBroken, Target: target, Section: link.Heading,
 			Message: fmt.Sprintf("embed target %q does not resolve", target),
 		})
+		// The reader is told there is no such note, which a reload can deliver
+		// news about exactly as an excerpt can: once someone writes the note,
+		// this record is no longer what the render makes of the embed.
+		col.page.transcluded = append(col.page.transcluded, transcludedExcerpt{
+			absence: absentNote,
+			path:    target,
+		})
 		return unwrittenTarget(target, source, link.Heading, col.page.lang)
 	case graph.KindAmbiguous:
 		col.report(&Diagnostic{
@@ -983,8 +990,13 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			// The author named one place in the note and the note has no such
 			// place, so nothing of it is shown: the block says which address
 			// failed, and the provenance line is the way on to the note for a
-			// reader who wants the rest. It is not recorded as transcluded,
-			// because no words of the note reached the page.
+			// reader who wants the rest. No words of the note reached the page,
+			// so what is recorded is the absence itself, and an address written
+			// into that note later moves the record off it.
+			col.page.transcluded = append(col.page.transcluded, transcludedExcerpt{
+				absence: absentAddress,
+				path:    res.RelPath,
+			})
 			return `<div class="` + embedClass(true) + `">` + embedSourceLine(res.RelPath, col.page.lang) +
 				withheldNotice(res.RelPath, fragmentOf(link), col.page.lang) + `</div>`
 		}

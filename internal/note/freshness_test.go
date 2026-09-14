@@ -446,10 +446,10 @@ func askFreshnessEmbeds(t *testing.T, client *http.Client, srvURL, identity, emb
 }
 
 // TestReadingPageStampsWhatItTranscluded pins the stamp's presence to the
-// page's actual pull: a host that embeds another note's section carries the
+// page's own citations: a host that embeds another note's section carries the
 // digest, and a note that embeds nothing carries no such attribute — so the
-// narrow ask, and the endpoint work that answers it, exist only where an
-// excerpt does.
+// narrow ask, and the endpoint work that answers it, exist only where an embed
+// does.
 func TestReadingPageStampsWhatItTranscluded(t *testing.T) {
 	t.Parallel()
 	srv := newEmbedServer(t, embedSourceBody)
@@ -544,6 +544,93 @@ func TestFreshnessAnnouncesARemovedEmbeddedSource(t *testing.T) {
 	}
 	if got != "stale" {
 		t.Errorf("freshness of a page whose embedded source left the vault = %q, want %q", got, "stale")
+	}
+}
+
+// newMissingEmbedServer builds a server over the watched host alone, so its
+// embed names a note nobody has written and the page says so where the excerpt
+// would have stood.
+func newMissingEmbedServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	root := t.TempDir()
+	writeFreshNote(t, root, embedHostBody)
+	return newServer(t, root)
+}
+
+// embedSourceWithoutTheAddress is the source note written without the section
+// the host's embed names: the note is there, and none of it is shown.
+const embedSourceWithoutTheAddress = "intro\n\n# Tail\n\nOutside words.\n"
+
+// TestFreshnessAnnouncesAMissingEmbedTargetArriving is what an open page owes a
+// reader whose agent is writing while they read: the page opened saying there
+// is no such note, someone wrote it, and the words are there to be had. The
+// host file never changed, so nothing but the stamp can carry that news.
+func TestFreshnessAnnouncesAMissingEmbedTargetArriving(t *testing.T) {
+	t.Parallel()
+	missing := newMissingEmbedServer(t)
+	pageStamp := pageEmbedsStamp(t, missing.Client(), missing.URL)
+
+	after := newEmbedServer(t, embedSourceBody)
+	code, got := askFreshnessEmbeds(t, after.Client(), after.URL, identityOf(embedHostBody), pageStamp)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", code, http.StatusOK)
+	}
+	if got != "stale" {
+		t.Errorf("freshness of a page whose missing embed target was written = %q, want %q", got, "stale")
+	}
+
+	// A page opened against that same generation is level with it, so the
+	// answer above came from the stamp moving and not from the comparison
+	// having been made to answer stale for every page carrying one.
+	code, got = askFreshnessEmbeds(t, after.Client(), after.URL, identityOf(embedHostBody),
+		pageEmbedsStamp(t, after.Client(), after.URL))
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", code, http.StatusOK)
+	}
+	if got != "unchanged" {
+		t.Errorf("freshness of a page already showing the excerpt = %q, want %q", got, "unchanged")
+	}
+}
+
+// TestFreshnessSeparatesAMissingNoteFromAMissingAddress holds the two absences
+// apart. A note written without the section the embed names moves the page from
+// one sentence to the other, and a reader who is told a note does not exist,
+// then told the note exists and this address in it does not, has been told two
+// different things — so a stamp that collapsed them would leave the second
+// unsaid, and the address arriving after that would be compared against the
+// wrong state.
+func TestFreshnessSeparatesAMissingNoteFromAMissingAddress(t *testing.T) {
+	t.Parallel()
+	missing := newMissingEmbedServer(t)
+	withoutAddress := newEmbedServer(t, embedSourceWithoutTheAddress)
+	expanded := newEmbedServer(t, embedSourceBody)
+
+	noNote := pageEmbedsStamp(t, missing.Client(), missing.URL)
+	noAddress := pageEmbedsStamp(t, withoutAddress.Client(), withoutAddress.URL)
+	whole := pageEmbedsStamp(t, expanded.Client(), expanded.URL)
+	if noNote == noAddress || noNote == whole || noAddress == whole {
+		t.Fatalf("the three states a page can show for one embed stamped %q, %q and %q; two of them are one digest",
+			noNote, noAddress, whole)
+	}
+
+	// The note arrives without the address the embed names: the page's sentence
+	// changes, so its answer has to.
+	code, got := askFreshnessEmbeds(t, withoutAddress.Client(), withoutAddress.URL, identityOf(embedHostBody), noNote)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", code, http.StatusOK)
+	}
+	if got != "stale" {
+		t.Errorf("freshness of a page told there is no such note, once the note exists without the address = %q, want %q",
+			got, "stale")
+	}
+
+	// The address is written into the note that was already there.
+	code, got = askFreshnessEmbeds(t, expanded.Client(), expanded.URL, identityOf(embedHostBody), noAddress)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", code, http.StatusOK)
+	}
+	if got != "stale" {
+		t.Errorf("freshness of a page whose withheld address was written = %q, want %q", got, "stale")
 	}
 }
 

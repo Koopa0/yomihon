@@ -83,10 +83,10 @@ type NoteView struct {
 	// rendered, carried in every transition form so the write face can refuse
 	// a ruling that was read against content the disk no longer holds.
 	ContentIdentity string
-	// TranscludedIdentity is the render's digest over the excerpts this page
-	// pulled in, empty where it pulled in none. It rides the freshness watch
-	// alone: a ruling binds the note's own bytes, and an embedded source is not
-	// among them.
+	// TranscludedIdentity is the render's digest over what every embed here came
+	// to — the excerpt pulled in, or the absence shown in its place — and is
+	// empty where the page carries none. It rides the freshness watch alone: a
+	// ruling binds the note's own bytes, and an embedded source is not among them.
 	TranscludedIdentity string
 	NonInstance         bool
 	WriteDiagnostic     string

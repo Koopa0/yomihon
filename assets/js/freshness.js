@@ -205,10 +205,10 @@ export function initFreshness() {
   // identity leaves that one value out, so the ask carries it separately; the
   // recovery column stamps no status and asks about its identity alone.
   const printedStatus = column.dataset.freshnessStatus;
-  // The identity of what the render pulled in from other notes, stamped only
-  // on a page that actually did. The host's identity cannot cover those
-  // bytes, so without this half of the ask an edit to an embedded source
-  // never reaches an open page.
+  // The identity of what every embed on this page came to, stamped only on a
+  // page that carries an embed. The host's identity cannot cover those bytes,
+  // nor their not being there, so without this half of the ask neither an edit
+  // to an embedded source nor a missing one arriving reaches an open page.
   const transcluded = column.dataset.freshnessEmbeds;
 
   const article = column.querySelector('.y-article');

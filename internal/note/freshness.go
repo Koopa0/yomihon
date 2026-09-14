@@ -95,12 +95,12 @@ func (l *freshnessLog) changed(path, cause string) bool {
 // stale like any other change a reload would deliver. A caller that carries no
 // status, as the recovery page does not, is compared on its identity alone.
 //
-// A page whose render pulled words in from other notes carries a third value:
-// the identity of the excerpts it transcluded, which the host's own identity
-// cannot cover because those bytes live in other files. It is compared the
-// same way the status is — only when carried, and only once the host's own
-// bytes are level — so a page that transcluded nothing keeps exactly the ask
-// and the answer it always had.
+// A page whose render read an embed at all carries a third value: the identity
+// of what those embeds came to, which the host's own identity cannot cover
+// because it turns on bytes that live in other files, or on their not being
+// there. It is compared the same way the status is — only when carried, and
+// only once the host's own bytes are level — so a page with no embed on it
+// keeps exactly the ask and the answer it always had.
 func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
@@ -149,8 +149,8 @@ func malformedIdentity(field string, lang wording.Lang) string {
 // and the identity of what it transcluded. The two optional halves each
 // travel with their own carried flag because absence and emptiness are
 // different claims — a page that printed no status stamps an empty one, while
-// the recovery page carries none at all, and a page that transcluded nothing
-// carries no stamp rather than a digest of nothing.
+// the recovery page carries none at all, and a page that read no embed carries
+// no stamp rather than a digest of nothing.
 type freshnessAsk struct {
 	rendered           [sha256.Size]byte
 	printedStatus      string
@@ -201,12 +201,12 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 	// reload would actually render that change, and the render below reads
 	// the same captured bodies a reload would. Until the generation catches
 	// such an edit up, the honest answer is that nothing a reload could
-	// deliver has changed. What the stamp covers is exactly what was
-	// expanded: an embed that resolved to nothing on the open page is not in
-	// it, so a source that has since become embeddable is news only a reader
-	// who reloads on their own receives. The recomputation runs only for a
-	// page that carried a stamp, so a page that transcluded nothing costs
-	// this endpoint nothing new.
+	// deliver has changed. What the stamp covers is what each embed came to —
+	// the excerpt expanded, and equally the absence shown in its place — so a
+	// note, or an address inside one, written since the page opened reaches
+	// the reader as the same reload offer any other change gets. The
+	// recomputation runs only for a page that carried a stamp, so a page with
+	// no embed on it costs this endpoint nothing new.
 	if ask.transcludedCarried &&
 		hex.EncodeToString(ask.transcluded[:]) != transcludedNow(snap, rel, published.Body) {
 		return freshStale
