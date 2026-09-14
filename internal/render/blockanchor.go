@@ -48,19 +48,18 @@ func UnanchorableLine(line string) bool {
 // block address sits inside a code span. A caret there is the author
 // showing an expression, not naming a block. The CommonMark spec lets a line
 // ending stand inside a code span, so the span is looked for over the run of
-// non-blank lines that line belongs to rather than over that line alone: an
+// lines goldmark reads with that one rather than over that line alone: an
 // expression the author wrapped is still one span, and its closing backtick is
 // not a delimiter this pass may eat. The three readers of a block address ask
 // this together so a link, an excerpt, and the page's ids stay on one answer.
 // Indented code and fences are not this question: those have their own
 // readings already.
 //
-// One blindness is recorded rather than fixed: the run is bounded by blank
-// lines and by nothing else, so two stray backticks an author wrote on either
-// side of anything else that ends a block — a fence, a heading, a list marker,
-// a quote or callout opener — with no blank line between them pair here into a
-// span goldmark would never draw, and an address caught between them is left
-// unmarked on all three faces.
+// The run ends at a blank line and at every other line that ends a block, so
+// two stray backticks an author wrote on either side of a heading, a list
+// marker, a quote or callout opener, a thematic break or a fence never pair
+// into a span goldmark would not draw, and the ordinary paragraph between them
+// keeps its address on all three faces.
 func CodeSpanOwnsBlockAddress(lines []string, at int) bool {
 	trimmed := strings.TrimRight(lines[at], " \t")
 	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
@@ -68,14 +67,44 @@ func CodeSpanOwnsBlockAddress(lines []string, at int) bool {
 		return false
 	}
 	start, end := at, at+1
-	for start > 0 && strings.TrimSpace(lines[start-1]) != "" {
+	for start > 0 && !inlineRunBreaks(lines[start-1], lines[start]) {
 		start--
 	}
-	for end < len(lines) && strings.TrimSpace(lines[end]) != "" {
+	for end < len(lines) && !inlineRunBreaks(lines[end-1], lines[end]) {
 		end++
 	}
 	off := len(strings.Join(lines[start:at+1], "\n")) - len(lines[at])
 	return withinAny(codeSpanRanges(strings.Join(lines[start:end], "\n")), off+m[2], off+m[3])
+}
+
+// inlineRunBreaks reports whether two adjacent lines, above then below, reach
+// goldmark in separate blocks, so a code span opened on one cannot close on
+// the other. A blank line separates them, and so does a line that is a block
+// of its own on either side: an ATX heading, the line underlining one, a
+// thematic break, a fence opening or closing. A list marker or a quote opener
+// separates them only as the lower line, since CommonMark lets the line under
+// one continue it lazily. The quote marker comes off first, so a heading
+// written inside a callout separates them there too. Indented code and
+// authored markup keep the blindness they already had.
+func inlineRunBreaks(above, below string) bool {
+	if graph.BlankLine(above) || graph.BlankLine(below) {
+		return true
+	}
+	if graph.QuotedLine.MatchString(below) && !graph.QuotedLine.MatchString(above) {
+		return true
+	}
+	above, below = quotePrefix.ReplaceAllString(above, ""), quotePrefix.ReplaceAllString(below, "")
+	if graph.ListItemLine.MatchString(below) {
+		return true
+	}
+	for _, line := range []string{above, below} {
+		_, _, fence := graph.FenceOpens(line)
+		if fence || graph.ATXHeading.MatchString(line) ||
+			graph.SetextUnderline.MatchString(line) || graph.BreakRuleLine.MatchString(line) {
+			return true
+		}
+	}
+	return false
 }
 
 // markBlockAnchor gives the address at the end of line an anchor a browser can
