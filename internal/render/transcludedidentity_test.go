@@ -16,13 +16,17 @@ func hostStamp(t *testing.T, r *render.Pipeline, body string) string {
 	return r.HTML("host.md", "", body, wording.ZhHant).TranscludedIdentity
 }
 
-// TestTranscludedIdentityFollowsWhatTheRenderExpands pins which citations the
-// stamp covers: exactly the ones whose expansion puts another note's words on
-// the page. Everything the render shows without expanding — quoted syntax, an
-// escaped token, a picture, a name that resolves to nothing, a body the
-// generation never captured — leaves the stamp empty, so a page that
-// transcluded nothing keeps the narrower polling ask it always had.
-func TestTranscludedIdentityFollowsWhatTheRenderExpands(t *testing.T) {
+// TestTranscludedIdentityCoversEveryEmbedTheRenderRead pins which citations the
+// stamp covers: every embed the render read to an end, whether that end put
+// another note's words on the page or the sentence saying where they would have
+// stood. The second half is there so a note, or an address inside one, written
+// while a page is open is a change that page can be told about. What the render
+// never read as an embed — quoted syntax, an escaped token, a plain link — is
+// out, and so is an end that is neither words nor an absence a reload would
+// fill: a picture paints, and a body the generation never captured is a fault
+// this page reports. A page with none of the covered kinds on it keeps the
+// narrower polling ask it always had.
+func TestTranscludedIdentityCoversEveryEmbedTheRenderRead(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t,
 		[]graph.NoteInput{{RelPath: "X.md"}, {RelPath: "Ghost.md"}},
@@ -41,9 +45,9 @@ func TestTranscludedIdentityFollowsWhatTheRenderExpands(t *testing.T) {
 		{name: "an embed inside fenced code is shown, not followed", body: "```\n![[X]]\n```\n", stamped: false},
 		{name: "an embed inside a code span is quoted syntax", body: "The syntax `![[X]]` embeds.\n", stamped: false},
 		{name: "an escaped embed is shown, not followed", body: "\\![[X]]\n", stamped: false},
-		{name: "an unresolved embed brings no words", body: "![[Nowhere]]\n", stamped: false},
-		{name: "an embed whose address the note does not answer to shows none of it", body: "![[X#Nope]]\n", stamped: false},
-		{name: "an embed whose block address the note does not answer to shows none of it", body: "![[X#^nope]]\n", stamped: false},
+		{name: "an embed naming a note nobody has written", body: "![[Nowhere]]\n", stamped: true},
+		{name: "an embed whose address the note does not answer to shows none of it", body: "![[X#Nope]]\n", stamped: true},
+		{name: "an embed whose block address the note does not answer to shows none of it", body: "![[X#^nope]]\n", stamped: true},
 		{name: "a picture embed is not another note's words", body: "![[pic.png]]\n", stamped: false},
 		{name: "an embed whose body was never captured", body: "![[Ghost]]\n", stamped: false},
 	} {
@@ -54,6 +58,32 @@ func TestTranscludedIdentityFollowsWhatTheRenderExpands(t *testing.T) {
 				t.Errorf("TranscludedIdentity of %q = %q, want stamped = %t", tt.body, got, tt.stamped)
 			}
 		})
+	}
+}
+
+// TestTranscludedIdentityKeepsTheTwoAbsencesApart is the discrimination the
+// absence half owes a reader: a note nobody has written and a note that answers
+// to no such address in it are two different sentences on the page, and writing
+// the note without the address moves the reader from the first to the second.
+// The embed here names its target by the path that target will have, so the
+// note the page names is the same string either way and every other part of the
+// recording is empty — which leaves the absence itself as the only thing that
+// can tell the two apart.
+func TestTranscludedIdentityKeepsTheTwoAbsencesApart(t *testing.T) {
+	t.Parallel()
+	const host = "![[X.md#Sec]]\n"
+	written := []graph.NoteInput{{RelPath: "X.md"}}
+	noNote := hostStamp(t, newRenderer(t, nil, nil, nil), host)
+	noAddress := hostStamp(t,
+		newRenderer(t, written, nil, transclusions{"X.md": "# Other\n\nNot the section named.\n"}), host)
+	expanded := hostStamp(t,
+		newRenderer(t, written, nil, transclusions{"X.md": "# Sec\n\nWords.\n"}), host)
+
+	if noNote == "" || noAddress == "" || expanded == "" {
+		t.Fatalf("one of the three states stamped nothing: %q, %q, %q", noNote, noAddress, expanded)
+	}
+	if noNote == noAddress || noNote == expanded || noAddress == expanded {
+		t.Errorf("the three states stamped %q, %q and %q; two of them are one digest", noNote, noAddress, expanded)
 	}
 }
 

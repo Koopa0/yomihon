@@ -171,12 +171,13 @@ type Result struct {
 	// heading was a place a link could name, so the anchor moves to where its
 	// words now are. It is empty when no such heading was written.
 	TitleAnchor string
-	// TranscludedIdentity is one digest over everything this render pulled in
-	// from other notes: each excerpt expanded, in the order the page shows them,
-	// bound to its source note and the scope decision that cut it. Empty when
-	// nothing was transcluded. The reading page stamps it beside its content
-	// identity, so a freshness answer can say whether a reload would deliver
-	// different transcluded words.
+	// TranscludedIdentity is one digest over what this render made of every
+	// embed it read, in the order the page shows them: each excerpt expanded,
+	// bound to its source note and the scope decision that cut it, and each
+	// absence shown where an excerpt would have stood. Empty when the render
+	// read no embed. The reading page stamps it beside its content identity, so
+	// a freshness answer can say whether a reload would deliver different words
+	// — a note or an address written since the page opened included.
 	TranscludedIdentity string
 }
 
@@ -288,8 +289,9 @@ type composition struct {
 	base    string
 	regions int
 	blocks  map[string]bool
-	// transcluded records every excerpt this assembly expanded, in document
-	// order. Only something the separately parsed bodies share accounts for all.
+	// transcluded records what every embed this assembly read came to, in
+	// document order. Only something the separately parsed bodies share
+	// accounts for all.
 	transcluded []transcludedExcerpt
 	// lang is the language this render's own sentences are written in. It sits
 	// here rather than on the pipeline, which belongs to a scan and serves readers
@@ -297,21 +299,41 @@ type composition struct {
 	lang wording.Lang
 }
 
-// transcludedExcerpt is one embed a render actually expanded, recorded as the
-// page consumed it: the source note, how many places answered the address the
-// cut was made at, and the sliced bytes. Identical bytes from two notes are two
-// different excerpts, because an image inside each resolves against its own
+// The two absences a page shows where an excerpt would have stood: nobody has
+// written the note, or the note is there and answers to no such address in it.
+// They are held apart because a note written without the address the embed
+// names moves the page from one of these sentences to the other, and they are
+// short tokens of their own rather than any of those sentences, because the
+// digest covers source bytes, which no language of the interface can reach.
+const (
+	absentNote    = "absent-note"
+	absentAddress = "absent-address"
+)
+
+// transcludedExcerpt is one embed as the page received it: the excerpt it
+// expanded, or the absence shown in its place. An expanded one is recorded as
+// the page consumed it — the source note, how many places answered the address
+// the cut was made at, and the sliced bytes. Identical bytes from two notes are
+// two different excerpts, because an image inside each resolves against its own
 // note's directory; the same bytes cut as the only candidate and as the first
 // of several are two excerpts too, because the page says which it is showing.
 type transcludedExcerpt struct {
+	// absence is empty for an expanded excerpt and otherwise names which of the
+	// two the page showed instead. It is the one thing that tells those two
+	// apart: a match count of zero says an excerpt was withheld, not which
+	// address failed. The address itself stays out, because it is written in
+	// the host's own bytes, which the content identity already covers.
+	absence string
+	// path is the note the excerpt came from, or the name the embed wrote where
+	// nothing answered to it.
 	path    string
 	matches int
 	slice   string
 }
 
-// transcludedIdentity is one digest over everything a render pulled in from other
-// notes. Every value is length-delimited before hashing, so two different
-// collections cannot frame the same byte stream. Nothing transcluded yields the
+// transcludedIdentity is one digest over what a render made of every embed it
+// read. Every value is length-delimited before hashing, so two different
+// collections cannot frame the same byte stream. No embed read at all yields the
 // empty string rather than a digest of an empty list.
 func transcludedIdentity(excerpts []transcludedExcerpt) string {
 	if len(excerpts) == 0 {
@@ -320,6 +342,7 @@ func transcludedIdentity(excerpts []transcludedExcerpt) string {
 	var framed []byte
 	for i := range excerpts {
 		e := &excerpts[i]
+		framed = frameValue(framed, e.absence)
 		framed = frameValue(framed, e.path)
 		framed = frameValue(framed, strconv.Itoa(e.matches))
 		framed = frameValue(framed, e.slice)

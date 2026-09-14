@@ -106,8 +106,8 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 		"data-freshness-gonetitle":   wording.FreshnessHoldGoneTitle.In(lang),
 		"data-freshness-writehold":   wording.FreshnessWriteHold.In(lang),
 	}
-	// Absent rather than empty for a page that pulled in nothing, which keeps
-	// that page's polling ask as narrow as it was before the stamp existed.
+	// Absent rather than empty for a page that reads no embed, which keeps that
+	// page's polling ask as narrow as it was before the stamp existed.
 	if v.TranscludedIdentity != "" {
 		attrs["data-freshness-embeds"] = v.TranscludedIdentity
 	}
