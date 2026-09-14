@@ -378,9 +378,10 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 }
 
 // matchesFilter reports whether e satisfies one filter. type/status/domain/slug
-// compare the folded copies; topic is folded membership of TopicFolds; folder is a
-// folded rel_path prefix at a "/" boundary, so "folder:Writing" matches
-// "Writing" and "Writing/x.md" and "writing/x.md", but never "Writing-old/x.md".
+// compare the folded copies; topic is folded membership of TopicFolds; folder is
+// a rel_path prefix taken one directory name at a time, so "folder:Writing"
+// matches "Writing" and "Writing/x.md" and "writing/x.md", but never
+// "Writing-old/x.md".
 func (e *entry) matchesFilter(f Filter) bool {
 	switch f.Key {
 	case "type":
@@ -394,7 +395,7 @@ func (e *entry) matchesFilter(f Filter) bool {
 	case "topic":
 		return slices.Contains(e.TopicFolds, f.Value)
 	case "folder":
-		return e.PathFold == f.Value || strings.HasPrefix(e.PathFold, f.Value+"/")
+		return withinFolder(e.RelPath, f.Value)
 	default:
 		// A filter reaches this only where Parse recognized its key, and Parse
 		// recognizes exactly the keys the grammar table holds; a Query keeps
@@ -404,6 +405,27 @@ func (e *entry) matchesFilter(f Filter) bool {
 		// saying so. The two sets are compared in a test instead.
 		return false
 	}
+}
+
+// withinFolder reports whether relPath is folder itself or sits under it. Both
+// sides are cut at their own "/" first and the directory names are folded one
+// by one, so case and width still meet inside a name while a name that carries
+// a fullwidth solidus stays one directory rather than reading as a parent and a
+// child. Folding the two paths whole and looking for a "/" cannot tell those
+// apart, since the fold narrows that character to a separator the vault never
+// wrote.
+func withinFolder(relPath, folder string) bool {
+	names := strings.Split(relPath, "/")
+	want := strings.Split(folder, "/")
+	if len(want) > len(names) {
+		return false
+	}
+	for i, name := range want {
+		if fold(name) != fold(names[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // result builds a Result for e, with a snippet centered on the earliest

@@ -41,7 +41,7 @@ func TestParse(t *testing.T) {
 			input: "type:a type:b",
 			want:  &Query{filters: []Filter{{Key: "type", Value: "a"}, {Key: "type", Value: "b"}}},
 		},
-		{name: "11 folder drops trailing slash", input: "folder:Writing/", want: &Query{filters: []Filter{{Key: "folder", Value: "writing"}}}},
+		{name: "11 folder drops trailing slash and keeps its names as written", input: "folder:Writing/", want: &Query{filters: []Filter{{Key: "folder", Value: "Writing"}}}},
 		{name: "12 slug splits on first colon", input: "slug:a:b", want: &Query{filters: []Filter{{Key: "slug", Value: "a:b"}}}},
 		{name: "13 unknown key is bare token and is remembered as one", input: "foo:bar", want: &Query{tokens: []string{"foo:bar"}, unknownKeys: []string{"foo"}}},
 		{name: "14 classify before fold", input: "Type:lesson", want: &Query{tokens: []string{"type:lesson"}, unknownKeys: []string{"Type"}}},
@@ -140,7 +140,7 @@ func TestParseQuotedPhrase(t *testing.T) {
 		{
 			name:  "a quoted folder value drops its trailing slash",
 			input: `folder:"My Notes/"`,
-			want:  &Query{filters: []Filter{{Key: "folder", Value: "my notes"}}},
+			want:  &Query{filters: []Filter{{Key: "folder", Value: "My Notes"}}},
 		},
 		{
 			name:  "quoting the key makes the whole field text",
