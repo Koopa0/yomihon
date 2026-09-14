@@ -355,7 +355,9 @@ func stripTarget(inner string) (string, bool) {
 // spokenHeadings drops the headings the author took back inside an Obsidian
 // comment, so a section is bounded by the same authored content the harvest
 // reads. A heading Obsidian hides is no more a boundary than a commented-out
-// link is a link: it neither opens a section nor closes one.
+// link is a link: it neither opens a section nor closes one. The result reuses
+// the caller's storage, so the filtered list replaces the one passed in rather
+// than standing beside it.
 func spokenHeadings(headings []heading, comments []byteRange) []heading {
 	return slices.DeleteFunc(headings, func(h heading) bool { return graph.In(comments, h.start) })
 }
