@@ -36,6 +36,17 @@ const loopbackListenerFile = "cmd/yomihon/main.go"
 // the two names that reach the resolver behind it. Those two are written out
 // because they are a pair and not a family: a prefix would claim a shape the
 // standard library does not have here.
+//
+// crypto/tls dials on its own, without the caller spelling anything from net,
+// so its Dial family is refused by the same prefix. That prefix also takes in
+// Dialer, the type whose methods dial: a call on a value is invisible to a walk
+// that resolves import names, but no file can hold a Dialer without spelling
+// the type. Client wraps a connection as its outbound side and is written out
+// exactly, because its four Client-prefixed siblings are configuration and name
+// no connection. Listen binds a socket of its own, the same way net.Listen
+// does, so it is refused alongside the dialers with no exemption; NewListener
+// wraps a listener that already exists and opens nothing, so it stays absent.
+// Server and Config are the rest of the serving half and are absent too.
 func opensAConnection(pkg, symbol string) bool {
 	switch pkg {
 	case "net":
@@ -50,6 +61,8 @@ func opensAConnection(pkg, symbol string) bool {
 			strings.HasPrefix(symbol, "Lookup")
 	case "net/http":
 		return slices.Contains(outboundClientSurface, symbol)
+	case "crypto/tls":
+		return symbol == "Client" || symbol == "Listen" || strings.HasPrefix(symbol, "Dial")
 	}
 	return false
 }
@@ -64,7 +77,7 @@ func outboundSites(path string, fset *token.FileSet, file *ast.File) (found []si
 	pkgOf := map[string]string{}
 	for _, imp := range file.Imports {
 		p, err := strconv.Unquote(imp.Path.Value)
-		if err != nil || (p != "net" && p != "net/http") {
+		if err != nil || (p != "net" && p != "net/http" && p != "crypto/tls") {
 			continue
 		}
 		switch {
@@ -111,9 +124,9 @@ func outboundSites(path string, fset *token.FileSet, file *ast.File) (found []si
 
 // TestTheOnlySocketProductionCodeOpensIsTheLoopbackListener keeps yomihon off
 // the network. It reads every shipped Go file for a spelling that opens a
-// connection — a dialer, a listener, a name lookup, or net/http's client half —
-// and permits exactly one: the listener the command binds for the server
-// itself.
+// connection — a dialer, a listener, a name lookup, net/http's client half, or
+// crypto/tls's dialers and client side — and permits exactly one: the listener
+// the command binds for the server itself.
 //
 // Serving what this machine asked for is not reaching out. The stylesheet and
 // the diagram module under /static/ are same-origin answers written to a
