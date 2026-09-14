@@ -225,10 +225,10 @@ const pageAddresses = (page) => page.evaluate(() => ({
   footnoteSections: [...document.querySelectorAll('.footnotes')].length,
 }));
 
-// A bare double rAF never resolves while a cross-document view transition
-// has the arriving document's rendering suspended. Arm before the click so
-// pagereveal can hand us the transition's finished promise; race that and
-// the frames against a timer so the lock finishes under normal motion.
+// A navigation announces the arrival it delivers, and the frames that follow
+// it are what this waits on. Armed before the click, because the announcement
+// is made to the document that receives it and cannot be asked for afterwards;
+// raced against a timer so the lock finishes rather than hanging.
 const armArrival = (page) => page.addInitScript(() => {
   window.__yArrival = new Promise((resolve) => {
     let settled = false;
@@ -239,11 +239,7 @@ const armArrival = (page) => page.addInitScript(() => {
     };
     setTimeout(finish, 500);
     const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(finish));
-    window.addEventListener('pagereveal', (event) => {
-      if (event.viewTransition && event.viewTransition.finished) {
-        event.viewTransition.finished.then(afterPaint, afterPaint);
-        return;
-      }
+    window.addEventListener('pagereveal', () => {
       afterPaint();
     }, { once: true });
   });

@@ -261,11 +261,6 @@ func TestCSSCarriesTheMotionGuarantees(t *testing.T) {
 	if exempt := ":not(.y-readline)"; !strings.Contains(m[1], exempt) {
 		t.Errorf("the blanket kill selector %q is missing the %s exemption", strings.TrimSpace(m[1]), exempt)
 	}
-
-	off := regexp.MustCompile(`@media \(prefers-reduced-motion: reduce\) \{\s*@view-transition \{\s*navigation: none;`)
-	if !off.MatchString(css) {
-		t.Error("no reduced-motion view-transition rule sets navigation: none")
-	}
 }
 
 func TestThirdPartyAssetProvenance(t *testing.T) {

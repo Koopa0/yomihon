@@ -90,10 +90,9 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-// Author CSS must be in effect before the entrance declaration is read. Measuring
-// as soon as the element exists can still see animation:none before /static/app.css
-// applies, and a cross-document view transition can suspend painting on the
-// arriving page until pagereveal.
+// Author CSS must be in effect before the entrance declaration is read.
+// Measuring as soon as the element exists can still see animation:none before
+// /static/app.css applies.
 const waitForAppStyles = (page) => page.waitForFunction(() =>
   [...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css')),
 );
@@ -108,11 +107,7 @@ const waitArrival = (page) => page.evaluate(() => new Promise((resolve) => {
   setTimeout(finish, 600);
   const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(finish));
   afterPaint();
-  window.addEventListener('pagereveal', (event) => {
-    if (event.viewTransition?.finished) {
-      event.viewTransition.finished.then(afterPaint, afterPaint);
-      return;
-    }
+  window.addEventListener('pagereveal', () => {
     afterPaint();
   }, { once: true });
 }));
