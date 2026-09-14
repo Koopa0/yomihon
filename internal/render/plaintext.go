@@ -350,21 +350,53 @@ func (w *plainWalk) writeBreak() {
 	}
 }
 
+// closeRubyParen and closeRubyAnno end one open parenthesis or one open
+// annotation. Closing subtracts rather than clearing, so an inner ruby ends
+// only what it opened and leaves an annotation the ruby around it is still
+// inside; a spelling that writes every end tag reaches each of these with
+// nothing open, and is therefore read exactly as before.
+func (w *plainWalk) closeRubyParen() {
+	if w.rubyParen > 0 {
+		w.rubyParen--
+	}
+}
+
+func (w *plainWalk) closeRubyAnno() {
+	if w.rubyAnno > 0 {
+		w.rubyAnno--
+	}
+}
+
 // seeMarkup notes a raw HTML tag so the following text nodes are routed.
 // A self-closing tag has no following text of its own and is ignored.
+//
+// The end tags of rt and rp may be left out, and HTML fixes where each one
+// then ends: a parenthesis at the next annotation, at the next parenthesis, or
+// at the end of the ruby, and an annotation at a parenthesis, at the next
+// annotation, or at the end of the ruby. Left unclosed, the count never
+// returns to zero and every later text node in the note is routed into the
+// annotation the scan believes it is still inside — so a paragraph far below a
+// ruby stops reaching the corpus while the page goes on showing it.
 func (w *plainWalk) seeMarkup(raw []byte) {
 	name, closing, selfClose := markupName(raw)
 	if selfClose {
 		return
 	}
 	switch name {
+	case "ruby":
+		if closing {
+			w.closeRubyParen()
+			w.closeRubyAnno()
+		}
 	case "rt", "rtc":
 		if closing {
-			if w.rubyAnno > 0 {
-				w.rubyAnno--
-			}
+			w.closeRubyAnno()
 			return
 		}
+		w.closeRubyParen()
+		// Settled before the spacing below reads the count, so a reading whose
+		// end tag was left out is still separated from the one starting here.
+		w.closeRubyAnno()
 		if w.rubyAnno == 0 && w.readings.Len() > 0 {
 			s := w.readings.String()
 			if s[len(s)-1] != ' ' && s[len(s)-1] != '\n' {
@@ -374,11 +406,11 @@ func (w *plainWalk) seeMarkup(raw []byte) {
 		w.rubyAnno++
 	case "rp":
 		if closing {
-			if w.rubyParen > 0 {
-				w.rubyParen--
-			}
+			w.closeRubyParen()
 			return
 		}
+		w.closeRubyAnno()
+		w.closeRubyParen()
 		w.rubyParen++
 	}
 }

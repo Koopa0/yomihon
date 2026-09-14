@@ -389,3 +389,87 @@ func TestBareURLsAreIndexedVerbatim(t *testing.T) {
 		}
 	}
 }
+
+// The end tags of rt and rp may be left out — before another annotation,
+// before a parenthesis, or at the ruby's own end — and HTML says where each
+// one closes then (the rt and rp element definitions). A scanner that never
+// closes them routes the rest of the note into the annotation it believes it
+// is still inside, so a paragraph far below a ruby stops being searchable
+// while the page still shows it.
+//
+// Each case is judged against the same note with every end tag written out,
+// because the two spellings are one note and nothing here should have an
+// opinion about the corpus's shape that only one of them holds. The phrases
+// are checked against that written form first: an oracle that has itself
+// stopped carrying them would otherwise let the comparison pass on two
+// identically broken readings.
+func TestRubyEndTagsMayBeLeftOut(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		omitted string
+		written string
+		present []string
+		absent  []string
+	}{
+		{
+			name:    "both the rp and the rt end tag",
+			omitted: "<ruby>漢<rp>(<rt>かん<rp>)</ruby>字の話。\n\nUniqueFollowingParagraph\n",
+			written: "<ruby>漢<rp>(</rp><rt>かん</rt><rp>)</rp></ruby>字の話。\n\nUniqueFollowingParagraph\n",
+			present: []string{"漢字の話", "かん", "UniqueFollowingParagraph"},
+			absent:  []string{"(", ")"},
+		},
+		{
+			name:    "only the rt end tag, closed by the ruby",
+			omitted: "<ruby>漢<rt>かん</ruby>字の話。\n\nUniqueFollowingParagraph\n",
+			written: "<ruby>漢<rt>かん</rt></ruby>字の話。\n\nUniqueFollowingParagraph\n",
+			present: []string{"漢字の話", "かん", "UniqueFollowingParagraph"},
+		},
+		{
+			name:    "adjacent rubies, each leaving its annotation open",
+			omitted: "<ruby>今<rt>いま</ruby><ruby>日<rt>ひ</ruby>は晴れ。\n\nUniqueFollowingParagraph\n",
+			written: "<ruby>今<rt>いま</rt></ruby><ruby>日<rt>ひ</rt></ruby>は晴れ。\n\nUniqueFollowingParagraph\n",
+			present: []string{"今日は晴れ", "いま", "ひ", "UniqueFollowingParagraph"},
+		},
+		{
+			name:    "a heading and a paragraph well below the ruby",
+			omitted: "<ruby>漢<rp>(<rt>かん<rp>)</ruby>字。\n\n## UniqueLaterHeading\n\nUniqueLaterParagraph\n",
+			written: "<ruby>漢<rp>(</rp><rt>かん</rt><rp>)</rp></ruby>字。\n\n## UniqueLaterHeading\n\nUniqueLaterParagraph\n",
+			present: []string{"漢字", "かん", "UniqueLaterHeading", "UniqueLaterParagraph"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			want := render.PlainText(tt.written)
+			for _, phrase := range tt.present {
+				if !strings.Contains(want, phrase) {
+					t.Fatalf("the written spelling reads %q, which is missing %q, so it cannot judge the spelling that leaves the end tags out", want, phrase)
+				}
+			}
+			if got := render.PlainText(tt.omitted); got != want {
+				t.Errorf("PlainText() with the end tags left out = %q, want the written spelling's %q", got, want)
+			}
+			for _, unwanted := range tt.absent {
+				if strings.Contains(want, unwanted) {
+					t.Errorf("PlainText() = %q, must not contain %q", want, unwanted)
+				}
+			}
+		})
+	}
+}
+
+// The written spelling is what every case above is judged against, so its own
+// reading is pinned here rather than assumed: the base phrase whole, the
+// reading beside it, and the paragraph after it.
+func TestRubyWrittenOutEndTagsReadAsOneBasePhrase(t *testing.T) {
+	t.Parallel()
+
+	got := render.PlainText("<ruby>漢<rp>(</rp><rt>かん</rt><rp>)</rp></ruby>字の話。\n\nUniqueFollowingParagraph\n")
+	if want := "漢字の話。\nかん\nUniqueFollowingParagraph"; got != want {
+		t.Errorf("PlainText() = %q, want %q", got, want)
+	}
+}
