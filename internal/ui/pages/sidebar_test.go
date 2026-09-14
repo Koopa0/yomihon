@@ -713,7 +713,7 @@ func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
 	}
 	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage())
 
-	view := NewMapIndex(model.Maps(), nav.Closure{}, true, wording.ZhHant, nil)
+	view := NewMapIndex(model.Maps(), nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	if len(view.Shelf.Rows) != 1 || view.Shelf.Rows[0].Mark != "5 枝" {
 		t.Errorf("prose map shelf = %#v, want one row marked 5 枝", view.Shelf.Rows)
 	}

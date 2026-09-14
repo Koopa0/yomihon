@@ -54,6 +54,17 @@ var (
 		"請新增 System/schemas/vault-schema.toml。",
 		"Add System/schemas/vault-schema.toml.",
 	)
+	// What a folder is told when the contract is there and this process never
+	// read it, which is what a reader sees who added one while yomihon was
+	// already reading the folder. The contract is read once, at start.
+	IndexContractUnloaded = both(
+		"這個資料夾有契約，但 yomihon 是在啟動時讀契約的，當時還沒有這一份。",
+		"This folder has a contract, but yomihon reads the contract when it starts, and this one was not there then.",
+	)
+	IndexContractUnloadedNext = both(
+		"請重新啟動 yomihon。",
+		"Restart yomihon.",
+	)
 	ReportIndexLede = both(
 		"每日簡報與寫下的報告。",
 		"Daily briefings and written reports.",

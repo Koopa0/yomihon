@@ -2,9 +2,11 @@ package pages
 
 import (
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -96,7 +98,7 @@ func NewStatusDistribution(statuses, unstated []LifecycleItem, scoped bool, lang
 // — how many lessons it lays out — and never how far anyone has got: a count
 // that described a status as progress ran backwards as the work was finished,
 // and does not return under another name.
-func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
+func NewPathIndex(paths []nav.Path, closure nav.Closure, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
@@ -118,28 +120,77 @@ func NewPathIndex(paths []nav.Path, closure nav.Closure, governed bool, lang wor
 	}
 	view := listIndex(pathMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
-		"", emptySentence(governed, wording.PathIndexEmpty, lang), rows)
+		"", emptySentence(contract, wording.PathIndexEmpty, lang), rows)
 	view.Fault = closure.Diagnostic()
 	withholdListing(&view, closure)
 	return view
 }
 
+// ContractState is what an empty listing may say about the folder's contract.
+// It holds apart the two absences a reader cannot tell apart from the page: a
+// folder carrying no contract, and a contract sitting in the folder that this
+// process never loaded.
+type ContractState int
+
+const (
+	// ContractGoverning is a folder something claimed authority over — a
+	// contract that loaded, one that could not be read, and one that left a
+	// section out, because the claim is what governs rather than its
+	// completeness.
+	ContractGoverning ContractState = iota
+	// ContractAbsent is a folder holding no contract file.
+	ContractAbsent
+	// ContractUnloaded is a contract file this reading holds and this process
+	// does not. The contract is read once, when yomihon starts, so one that
+	// arrives afterwards is a file on the shelf and no authority at all.
+	ContractUnloaded
+)
+
+// String names a contract state for a diagnostic or a log line. A state
+// outside the three constants is a programming error and panics.
+func (s ContractState) String() string {
+	switch s {
+	case ContractGoverning:
+		return "governing"
+	case ContractAbsent:
+		return "absent"
+	case ContractUnloaded:
+		return "unloaded"
+	default:
+		panic("pages: unknown ContractState: " + strconv.Itoa(int(s)))
+	}
+}
+
+// ContractStateFrom names that state from what one request already holds:
+// whether anything claimed authority over the folder, and whether the
+// generation this page lists from saw the contract file. Seeing the name in
+// that reading is the whole of the evidence — nothing here opens the file,
+// reads it or acts on it, and the folder stays ungoverned until yomihon is
+// started again.
+func ContractStateFrom(governed bool, snap *snapshot.Generation) ContractState {
+	switch {
+	case governed:
+		return ContractGoverning
+	case snap.Contains(schema.ContractRelPath):
+		return ContractUnloaded
+	}
+	return ContractAbsent
+}
+
 // emptySentence chooses what an empty listing says. A folder no contract
 // governs has declared nothing to be empty of, so telling it that it "declares
-// none" answers a question it was never asked; the ungoverned sentence states
-// what is true of it instead.
-//
-// governed is whether anything claimed authority over this folder at all — true
-// for a contract that loaded, for one that could not be read, and for one that
-// left a section out, because the claim is what governs rather than its
-// completeness. So the two sentences separate a folder with no contract from a
-// folder whose contract declares none of this kind, which is the distinction a
-// reader needs and the one the old single sentence could not make.
-func emptySentence(governed bool, declared wording.Phrase, lang wording.Lang) string {
-	if governed {
+// none" answers a question it was never asked; the other two sentences say what
+// is true of it instead, and they are two because the way out is two: one
+// reader has a contract to write, the other only has yomihon to start again.
+func emptySentence(contract ContractState, declared wording.Phrase, lang wording.Lang) string {
+	switch contract {
+	case ContractUnloaded:
+		return wording.JoinGuide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext, lang)
+	case ContractAbsent:
+		return wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, lang)
+	default:
 		return wording.JoinGuide(declared, wording.IndexDeclaredEmptyNext, lang)
 	}
-	return wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, lang)
 }
 
 // listIndex assembles a mode's page from the parts every one of them has. The
@@ -169,7 +220,7 @@ func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView
 // holds at every depth, which is the shape of the subject it draws. Those
 // branches are the same tree the rail lists, so a map whose only wikilinks
 // sit in prose or a table still has a count.
-func NewMapIndex(maps []nav.Map, closure nav.Closure, governed bool, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
+func NewMapIndex(maps []nav.Map, closure nav.Closure, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(maps))
 	for i := range maps {
 		rows = append(rows, Row{
@@ -181,7 +232,7 @@ func NewMapIndex(maps []nav.Map, closure nav.Closure, governed bool, lang wordin
 	}
 	view := listIndex(mapMode, wording.Maps.In(lang),
 		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
-		"", emptySentence(governed, wording.MapIndexEmpty, lang), rows)
+		"", emptySentence(contract, wording.MapIndexEmpty, lang), rows)
 	view.Fault = closure.Diagnostic()
 	withholdListing(&view, closure)
 	return view
@@ -282,12 +333,12 @@ func ArticleLanguageFromSnapshot(snap *snapshot.Generation) ArticleLanguageFor {
 // or the full directory tree when no scope is available. Its measure includes
 // every file below those folders and every root file, so a vault whose files
 // all sit at the root counts and lists them without calling itself empty.
-func NewFolderIndex(model *nav.Model, governed bool, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
+func NewFolderIndex(model *nav.Model, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rootNotes := model.RootNotes()
 	folders := model.ShelfFolders()
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
-		wording.FolderIndexLede.In(lang), emptySentence(governed, wording.FolderIndexEmpty, lang),
+		wording.FolderIndexLede.In(lang), emptySentence(contract, wording.FolderIndexEmpty, lang),
 		folderRows(rootNotes, folders, lang, true, articleLang))
 }
 
@@ -388,17 +439,17 @@ const deskBlockItems = 3
 // index pages list, so a block and the page its heading opens can never
 // disagree about what the vault holds. A withheld declaration leaves its block
 // empty; the reason is stated once for the whole desk, below the seam.
-func NewDeskBlocks(model *nav.Model, governed bool, lang wording.Lang, articleLang ArticleLanguageFor) []DeskBlock {
+func NewDeskBlocks(model *nav.Model, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) []DeskBlock {
 	// The blocks are the mode pages narrowed, so they refuse what those pages
 	// refuse: each constructor is handed the same declaration closure the page
 	// is, and withhold then takes back only what a block would otherwise claim
 	// about how much it holds.
 	closure := model.DeclaredClosure()
 	withheld := closure.Closed()
-	pathIndex := NewPathIndex(model.Paths(), closure, governed, lang, articleLang)
-	mapIndex := NewMapIndex(model.Maps(), closure, governed, lang, articleLang)
+	pathIndex := NewPathIndex(model.Paths(), closure, contract, lang, articleLang)
+	mapIndex := NewMapIndex(model.Maps(), closure, contract, lang, articleLang)
 	reportIndex := NewReportIndex(model.Reports(), lang, articleLang)
-	folderIndex := NewFolderIndex(model, governed, lang, articleLang)
+	folderIndex := NewFolderIndex(model, contract, lang, articleLang)
 	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))
 	mapBlock := deskBlock(&mapIndex, wording.DeskMapsLede.In(lang))
 	if withheld {
