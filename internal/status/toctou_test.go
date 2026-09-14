@@ -696,7 +696,7 @@ func TestSourceUnmodifiedDetectsConcurrentWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openSameParent() = %v", err)
 	}
-	err = sourceUnmodified(parent, "note.md", &source)
+	err = sourceUnmodified(parent, "note.md", &source, nil, nil)
 	closeRoot(parent)
 	if !errors.Is(err, ErrConcurrentWrite) {
 		t.Fatalf("sourceUnmodified() = %v, want an error wrapping %v", err, ErrConcurrentWrite)
@@ -725,7 +725,7 @@ func TestSourceUnmodifiedNoChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openSameParent() = %v", err)
 	}
-	if err := sourceUnmodified(parent, "note.md", &source); err != nil {
+	if err := sourceUnmodified(parent, "note.md", &source, nil, nil); err != nil {
 		t.Errorf("sourceUnmodified() = %v, want nil when nothing touched the file", err)
 	}
 	closeRoot(parent)
@@ -759,7 +759,7 @@ func TestSourceUnmodifiedDetectsSameMtimeContentChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openSameParent() = %v", err)
 	}
-	err = sourceUnmodified(parent, "note.md", &source)
+	err = sourceUnmodified(parent, "note.md", &source, nil, nil)
 	closeRoot(parent)
 	if !errors.Is(err, ErrConcurrentWrite) {
 		t.Fatalf("sourceUnmodified() after equal-length byte change = %v, want %v", err, ErrConcurrentWrite)
@@ -787,7 +787,7 @@ func TestSourceUnmodifiedDetectsModeChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openSameParent() = %v", err)
 	}
-	err = sourceUnmodified(parent, "note.md", &source)
+	err = sourceUnmodified(parent, "note.md", &source, nil, nil)
 	closeRoot(parent)
 	if !errors.Is(err, ErrConcurrentWrite) {
 		t.Fatalf("sourceUnmodified() after mode change = %v, want %v", err, ErrConcurrentWrite)
