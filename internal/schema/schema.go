@@ -476,6 +476,7 @@ func foldDeclaredWords(contract *Contract, navigation *navigationSection) {
 	for _, noteTypes := range contract.definition.Fields.StatusGroup {
 		foldWords(noteTypes)
 	}
+	foldWords(contract.definition.Fields.DomainExempt)
 	for i := range contract.stages {
 		stage := &contract.stages[i]
 		stage.Status = NormalizeWord(stage.Status)
