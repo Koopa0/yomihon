@@ -62,6 +62,7 @@ export function initPreferences() {
   // announcement, so a write site added later cannot leave a drawing a frame
   // behind the page by not thinking to mention itself.
   function writeTheme(choice, stored) {
+    const before = effectiveTheme();
     if (stored) {
       setPreference('theme', choice);
     } else if (choice) {
@@ -69,13 +70,18 @@ export function initPreferences() {
     } else {
       delete root.dataset.theme;
     }
+    const after = effectiveTheme();
     // The server stamps this control's pressed state from the stored choice,
     // which is all it can see: prefers-color-scheme never reaches it. With no
     // choice stored and a dark system preference the page paints dark and the
     // attribute says otherwise, so this agrees with what the reader is looking
     // at, both on arrival and after every later write.
-    themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
-    themeChanged();
+    themeToggle?.setAttribute('aria-pressed', String(after === 'dark'));
+    // A write that left the theme where it was is not news. The cookie read
+    // after a cache restore usually names the theme the page is already
+    // showing, and announcing that would redraw every diagram on the page each
+    // time the reader stepped back to it.
+    if (after !== before) themeChanged();
   }
 
   // Nothing has moved yet: this is the server's own stamp going through the
