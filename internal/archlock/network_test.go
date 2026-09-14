@@ -43,8 +43,10 @@ const loopbackListenerFile = "cmd/yomihon/main.go"
 // that resolves import names, but no file can hold a Dialer without spelling
 // the type. Client wraps a connection as its outbound side and is written out
 // exactly, because its four Client-prefixed siblings are configuration and name
-// no connection. Server, NewListener and Config are the serving half and are
-// absent rather than exempted.
+// no connection. Listen binds a socket of its own, the same way net.Listen
+// does, so it is refused alongside the dialers with no exemption; NewListener
+// wraps a listener that already exists and opens nothing, so it stays absent.
+// Server and Config are the rest of the serving half and are absent too.
 func opensAConnection(pkg, symbol string) bool {
 	switch pkg {
 	case "net":
@@ -60,7 +62,7 @@ func opensAConnection(pkg, symbol string) bool {
 	case "net/http":
 		return slices.Contains(outboundClientSurface, symbol)
 	case "crypto/tls":
-		return symbol == "Client" || strings.HasPrefix(symbol, "Dial")
+		return symbol == "Client" || symbol == "Listen" || strings.HasPrefix(symbol, "Dial")
 	}
 	return false
 }
