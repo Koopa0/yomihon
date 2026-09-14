@@ -62,3 +62,28 @@ func TestExcerptFindsAHeadingBelowAnIndentedFenceExample(t *testing.T) {
 		})
 	}
 }
+
+// A note showing what a fence looks like writes the marker four spaces in,
+// which CommonMark keeps inside the block. A walk that ends the fence there
+// reads the code text as prose and the real closing marker as an opening, so
+// the preview a reader opens before following a link offers the sections the
+// page does not have and refuses the one it does.
+func TestExcerptReadsTheSectionsTheFenceReallyLeaves(t *testing.T) {
+	t.Parallel()
+
+	const body = "```\n    ```\n## Code Example\n```\n\n## Real Heading\nreal section body\n"
+
+	slice, found := Excerpt(body, "real-heading")
+	if !found {
+		t.Fatalf("Excerpt() cannot find the one heading the page shows")
+	}
+	if !strings.Contains(slice, "real section body") {
+		t.Errorf("Excerpt() = %q, want the text under the heading", slice)
+	}
+	if strings.Contains(slice, "## Code Example") {
+		t.Errorf("Excerpt() = %q, want no code text from inside the fence", slice)
+	}
+	if _, found := Excerpt(body, "code-example"); found {
+		t.Error("Excerpt() offers a section made of code text; the page has no such heading")
+	}
+}

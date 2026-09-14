@@ -61,6 +61,16 @@ func TestLiveWikilinksSurviveAnIndentedFenceExample(t *testing.T) {
 			want:   []string{"L01", "L02"},
 			absent: "Inside",
 		},
+		{
+			// The marker four spaces in is content the fence shows, so the
+			// fence runs on to the marker at the margin. Ending it early
+			// makes that real closer an opening, and the lesson rows below
+			// it fall inside a block that never ends.
+			name:   "a fence stays open past a marker written four spaces in",
+			body:   "## Part {sequence=primary}\n\n```\n    ```\n[[Inside]]\n```\n\n" + lessons,
+			want:   []string{"L01", "L02"},
+			absent: "Inside",
+		},
 	}
 
 	for _, tt := range tests {

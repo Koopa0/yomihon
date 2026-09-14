@@ -718,3 +718,21 @@ func TestAnchorSurfaceKeepsAHeadingBelowAnIndentedFenceExample(t *testing.T) {
 		})
 	}
 }
+
+// The same note on the face that decides which addresses a note carries. A
+// marker written four spaces in is content CommonMark keeps inside the fence,
+// so a walk that ends the block there loses the heading the note really has
+// and credits it with one made out of code text.
+func TestAnchorSurfaceReadsTheHeadingsAFenceReallyLeaves(t *testing.T) {
+	t.Parallel()
+
+	const body = "```\n    ```\n## Code Example\n```\n\n## Real Heading\nreal section body\n"
+
+	_, excerpt, _ := anchorSurface(body)
+	if !excerpt["real-heading"] {
+		t.Errorf("anchorSurface() excerpt headings = %v, want real-heading among them", excerpt)
+	}
+	if excerpt["code-example"] {
+		t.Errorf("anchorSurface() excerpt headings = %v, want no heading made of code text", excerpt)
+	}
+}

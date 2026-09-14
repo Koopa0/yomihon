@@ -120,11 +120,19 @@ func fenceMarkerRun(s string, marker byte) int {
 	return n
 }
 
-// FenceCloses reports whether a line closes the open fence: trimmed, all of
-// the fence marker, and at least as long as the opener. A shorter all-marker
-// line is content, not a close.
+// FenceCloses reports whether a line closes the open fence: at most three
+// spaces of indent, then all of the fence marker, and at least as long as the
+// opener. A shorter all-marker line is content, not a close, and so is a
+// deeper one — CommonMark keeps a marker written four spaces in inside the
+// block, which is how a note shows what a fence looks like without ending the
+// fence it is showing it in. This is the rule the opening side already keeps,
+// and a tab is four columns and already too deep for either.
 func FenceCloses(line string, marker byte, openerLen int) bool {
-	t := strings.TrimSpace(line)
+	t := strings.TrimLeft(line, " \t")
+	if indent := line[:len(line)-len(t)]; len(indent) > 3 || strings.Contains(indent, "\t") {
+		return false
+	}
+	t = strings.TrimSpace(t)
 	if openerLen < 3 {
 		openerLen = 3
 	}
