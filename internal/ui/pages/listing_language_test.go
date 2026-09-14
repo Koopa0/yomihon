@@ -176,6 +176,109 @@ func TestRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 	}
 }
 
+// TestBookRailListingLanguageComesOnlyFromAuthority holds the reading page's
+// book rail the way every other listing is held: a lesson's title carries the
+// language that lesson declared and none where it declared nothing, while the
+// rail's own words stay the interface's. The rail is read under English chrome,
+// so a title that had merely inherited the document would be announced as
+// English — which is what a reader of a Japanese course would hear.
+func TestBookRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
+	t.Parallel()
+	chrome := layouts.Chrome{Lang: wording.En}
+
+	rows := []struct {
+		name  string
+		entry PathEntryView
+		want  string
+	}{
+		{
+			name:  "a lesson that declared its language",
+			entry: PathEntryView{Kind: nav.EntryResolved, Text: "日本語の課", Href: "/notes/Lessons/Language lesson.md", Language: "ja"},
+			want:  `<span lang="ja">日本語の課</span>`,
+		},
+		{
+			name:  "a lesson that declared none",
+			entry: PathEntryView{Kind: nav.EntryResolved, Text: "Alpha", Href: "/notes/Notes/alpha.md"},
+			want:  `<span>Alpha</span>`,
+		},
+		{
+			// Navigation reads a declaration only off a target that resolved,
+			// so a row standing where nothing did carries none and is left to
+			// inherit the page. The row is asked anyway, because both branches
+			// of it ask the view the same way and this is the one that would
+			// go unnoticed if it stopped.
+			name:  "a row that reached nothing",
+			entry: PathEntryView{Kind: nav.EntryAmbiguous, Text: "日本語の課"},
+			want:  `<span>日本語の課</span>`,
+		},
+	}
+	for _, tt := range rows {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := bookRailEntry(ReadingRail{}, chrome, tt.entry).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render book rail row: %v", err)
+			}
+			html := buf.String()
+			if !strings.Contains(html, tt.want) {
+				t.Errorf("book rail row missing %q in %q", tt.want, html)
+			}
+			// The language belongs to the title alone. On the row itself it
+			// would also cover the status chip and the resolution word beside
+			// it, which are the rail's words and not the lesson's.
+			opening, _, _ := strings.Cut(html, ">")
+			if strings.Contains(opening, "lang=") {
+				t.Errorf("the whole book rail row took the lesson's language: %q", opening)
+			}
+		})
+	}
+
+	// The study path's own page lists the same rows from the same view, so the
+	// language it now carries is stamped there too rather than only where the
+	// defect was reported.
+	t.Run("the study path's own row", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		entry := PathEntryView{Kind: nav.EntryResolved, Text: "日本語の課", Href: "/notes/Lessons/Language lesson.md", Language: "ja"}
+		if err := entryRow(entry, wording.En).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render study path row: %v", err)
+		}
+		want := `<span class="y-lesson__title" lang="ja">日本語の課</span>`
+		if html := buf.String(); !strings.Contains(html, want) {
+			t.Errorf("study path row missing %q in %q", want, html)
+		}
+	})
+
+	t.Run("the steps either side", func(t *testing.T) {
+		t.Parallel()
+		rail := ReadingRail{
+			book: &nav.Path{Title: "日本語の道", RelPath: "Maps/Language path.md"},
+			neighbors: nav.Neighbors{
+				PathTitle:   "日本語の道",
+				PathRelPath: "Maps/Language path.md",
+				Prev:        nav.NoteRef{Name: "L00 はじめに", RelPath: "Lessons/L00.md", Language: "ja"},
+				Next:        nav.NoteRef{Name: "Alpha", RelPath: "Lessons/alpha.md"},
+			},
+		}
+		var buf bytes.Buffer
+		if err := bookRail(rail, chrome).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render book rail: %v", err)
+		}
+		html := buf.String()
+		// Each expectation puts the interface's word immediately before the
+		// span, which is the boundary itself: the words naming the step stay
+		// English and the title they hand over to stays Japanese.
+		for _, want := range []string{
+			`Previous lesson: <span lang="ja">L00 はじめに</span>`,
+			`Next lesson: <span>Alpha</span>`,
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("the book rail's steps are missing %q in %q", want, html)
+			}
+		}
+	})
+}
+
 // TestHealthListingLanguageComesOnlyFromAuthority holds health link names the
 // same way as other listings: declared language on the span, absent otherwise.
 func TestHealthListingLanguageComesOnlyFromAuthority(t *testing.T) {

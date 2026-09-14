@@ -64,8 +64,9 @@ type PathItemView struct {
 }
 
 // PathEntryView is one linked or warning row. Only resolved rows have an href, a
-// status, or the ready accent. Number is copied from navigation's walk, the one
-// owner of sequence position, and zero means the walk never reaches the row.
+// status, a ready accent, or a language. Number is copied from navigation's
+// walk, the one owner of sequence position, and zero means the walk never
+// reaches the row.
 type PathEntryView struct {
 	Text   string
 	Href   string
@@ -73,6 +74,11 @@ type PathEntryView struct {
 	Sealed bool
 	Kind   nav.EntryKind
 	Number int
+	// Language is the tag the note this row reached declared, carried so a
+	// surface can stamp the title it prints rather than leaving it to inherit
+	// the page. It is that note's own answer or empty, never a guess: a row
+	// that reached no note has nothing to have read a declaration from.
+	Language string
 }
 
 // PathRunView is one uninterrupted stretch of what a branch lists: a run of
@@ -252,9 +258,11 @@ func countModules(sv *PathBranchView) int {
 }
 
 // buildPathEntry maps one nav entry onto a linked or warning study-path row. The
-// number is copied for every row, so a planned lesson keeps its place.
+// number is copied for every row, so a planned lesson keeps its place; the
+// language travels with the rest of what a resolved target answered, because a
+// row that resolved to nothing read no note and so carries no declaration.
 func buildPathEntry(entry *nav.PathEntry) PathEntryView {
-	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number}
+	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
 	if entry.Kind != nav.EntryResolved {
 		return v
 	}

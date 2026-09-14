@@ -40,7 +40,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				StepsCourse: true,
 			},
 			want: []string{
-				`<nav class="y-steps y-steps--course" aria-label="Go course 從此步往下">`,
+				`<nav class="y-steps y-steps--course" lang="zh-Hant" aria-label="Go course 從此步往下">`,
 				`<p class="y-steps__source">Go course 從此步往下</p>`,
 				`<span class="y-steps__role">上一課</span>`,
 				`<span class="y-steps__role">下一課</span>`,
@@ -57,7 +57,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				StepsLabel: "同資料夾的前後檔案",
 			},
 			want: []string{
-				`<nav class="y-steps" aria-label="同資料夾的前後檔案">`,
+				`<nav class="y-steps" lang="zh-Hant" aria-label="同資料夾的前後檔案">`,
 				`<p class="y-steps__source">同資料夾的前後檔案</p>`,
 				`<span class="y-steps__role">上一份</span>`,
 				`<span class="y-steps__role">下一份</span>`,

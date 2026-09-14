@@ -52,14 +52,14 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 			want: []string{
 				`data-reading-rail="book"`,
 				`data-book-path="Maps/Go path.md"`,
-				`下一課：Maps lesson →`,
+				`下一課：<span>Maps lesson</span> →`,
 			},
 			ban: []string{`data-sidebar-group=`},
 		},
 		{
 			name: "the closing lesson steps back across the planned row",
 			url:  "/notes/Writing/lessons/golang/Maps%20lesson.md",
-			want: []string{`data-reading-rail="book"`, `← 上一課：Slices`},
+			want: []string{`data-reading-rail="book"`, `← 上一課：<span>Slices</span>`},
 		},
 		{
 			name: "a journal entry carries its folder",

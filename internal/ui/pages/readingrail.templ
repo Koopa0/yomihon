@@ -68,10 +68,10 @@ templ bookRail(rr ReadingRail, c layouts.Chrome) {
 			if rr.neighbors.Prev.RelPath != "" || rr.neighbors.Next.RelPath != "" {
 				<nav class="y-lessonsteps" aria-label={ rr.courseStepsLabel(c.Lang) }>
 					if rr.neighbors.Prev.RelPath != "" {
-						<a class="ui-navitem" href={ templ.URL(notesHref(rr.neighbors.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }{ rr.neighbors.Prev.Name }</a>
+						<a class="ui-navitem" href={ templ.URL(notesHref(rr.neighbors.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }<span { authoredLanguageAttrs(rr.neighbors.Prev.Language)... }>{ rr.neighbors.Prev.Name }</span></a>
 					}
 					if rr.neighbors.Next.RelPath != "" {
-						<a class="ui-navitem" href={ templ.URL(notesHref(rr.neighbors.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }{ rr.neighbors.Next.Name } →</a>
+						<a class="ui-navitem" href={ templ.URL(notesHref(rr.neighbors.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }<span { authoredLanguageAttrs(rr.neighbors.Next.Language)... }>{ rr.neighbors.Next.Name }</span> →</a>
 					}
 				</nav>
 			}
@@ -110,6 +110,12 @@ templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []st
 	}
 }
 
+// bookRailEntry is one row of the book: a lesson the reader can open, or the
+// words the course lists where nothing could be opened. The title carries
+// whatever language the view holds for it, while the status chip and the
+// resolution word beside it stay the interface's. Both branches of the row ask
+// the same way, so neither can be left behind; navigation reads a declaration
+// only off a target that resolved, so today the second branch has none to carry.
 templ bookRailEntry(rr ReadingRail, c layouts.Chrome, entry PathEntryView) {
 	if entry.Kind == nav.EntryResolved {
 		<a
@@ -118,7 +124,7 @@ templ bookRailEntry(rr ReadingRail, c layouts.Chrome, entry PathEntryView) {
 			{ currentAttr(rr.currentHref(entry.Href))... }
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
-			<span>{ entry.Text }</span>
+			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
 			if entry.Status != "" && !rr.currentHref(entry.Href) {
 				<span class="ui-navitem__count">{ entry.Status }</span>
 			}
@@ -130,7 +136,7 @@ templ bookRailEntry(rr ReadingRail, c layouts.Chrome, entry PathEntryView) {
 			title={ entryResolutionTitle(entry.Kind, c.Lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-			<span>{ entry.Text }</span>
+			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
 			<span class="ui-navitem__count">{ entryResolutionLabel(entry.Kind, c.Lang) }</span>
 		</span>
 	}

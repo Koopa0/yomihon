@@ -8,8 +8,101 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
+
+// TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage holds the language
+// boundary inside the article of a note that declared one of its own. The
+// article speaks the author's language, and each block the page adds inside it
+// out of yomihon's own words — the schema findings, the file row, the sentence
+// about a file that could not be re-read, the foot of the article and the
+// status bar — declares the interface language again. Without that a Japanese
+// note has its Chinese or English chrome announced to assistive technology as
+// Japanese.
+//
+// The neighbour titles at the foot are the other authors' words, so they carry
+// what those notes declared and nothing where they declared nothing: the reset
+// above them must not hand them a language nobody chose.
+//
+// The run walks both languages the chrome speaks, which is what separates a
+// block that follows the reader from one that merely agrees with the default.
+// Each expectation is a whole opening tag, the only way to say which element is
+// being asked about.
+func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		lang wording.Lang
+		tag  string
+	}{
+		{name: "Traditional Chinese chrome", lang: wording.ZhHant, tag: "zh-Hant"},
+		{name: "English chrome", lang: wording.En, tag: "en"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := NoteView{
+				Title:        "L01 わたしは学生です",
+				RelPath:      "Writing/lessons/japanese/L01.md",
+				Language:     "ja",
+				Type:         "lesson",
+				Status:       "draft",
+				ObsidianHref: "obsidian://open?path=/vault/Writing/lessons/japanese/L01.md",
+				Stale:        true,
+				Updated:      "2026-07-10",
+				UpdatedAt:    "2026-07-10",
+				Governed:     true,
+				Transitions:  []Transition{{To: "ready"}},
+				SchemaNotices: [][]wording.SchemaPart{{
+					{Text: "mystery_key", Code: true},
+					{Text: " is not a field the schema knows."},
+				}},
+				Prev:        nav.NoteRef{Name: "L00 はじめに", RelPath: "Writing/lessons/japanese/L00.md", Language: "ja"},
+				Next:        nav.NoteRef{Name: "L02", RelPath: "Writing/lessons/japanese/L02.md"},
+				StepsLabel:  "Japanese course",
+				StepsCourse: true,
+			}
+			var buf bytes.Buffer
+			if err := Note(view, layouts.Chrome{Lang: tt.lang}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := buf.String()
+			for _, want := range []string{
+				`<article class="y-article" lang="ja">`,
+				`<div id="schema-notices" lang="` + tt.tag + `">`,
+				`<a class="y-metarow__raw" lang="` + tt.tag + `" href="/raw/Writing/lessons/japanese/L01.md">`,
+				`<a class="y-metarow__raw" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
+				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
+				`<nav class="y-steps y-steps--course" lang="` + tt.tag + `" aria-label="Japanese course">`,
+				`<section class="y-sealbar" lang="` + tt.tag + `" aria-label="`,
+				`<span class="y-steps__name" lang="ja">L00 はじめに</span>`,
+				`<span class="y-steps__name">L02</span>`,
+			} {
+				if !strings.Contains(html, want) {
+					t.Errorf("the reading page is missing %q; html = %q", want, html)
+				}
+			}
+			// The date is the one interface word in the file row with no class
+			// naming it, so the row is read out and asked directly. Nothing in
+			// it may still be announced in the note's language.
+			at := strings.Index(html, `<div class="y-metarow">`)
+			if at < 0 {
+				t.Fatalf("the reading page carries no file row; html = %q", html)
+			}
+			row, _, closed := strings.Cut(html[at:], "</div>")
+			if !closed {
+				t.Fatalf("the file row never closes; html = %q", html)
+			}
+			if !strings.Contains(row, `<span lang="`+tt.tag+`">`) {
+				t.Errorf("the file row's date does not declare the interface language %q; row = %q", tt.tag, row)
+			}
+			if strings.Contains(row, `lang="ja"`) {
+				t.Errorf("the file row announces yomihon's own words in the note's language; row = %q", row)
+			}
+		})
+	}
+}
 
 // TestBrowserCopyUsesTraditionalChinese keeps machine tokens independent from
 // the human-facing labels, guidance, diagnostics, and accessible explanations
