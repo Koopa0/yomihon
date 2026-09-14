@@ -179,5 +179,9 @@ export function initSearch() {
 function resultCount(status, query, count) {
   const template = count === 1 ? status.dataset.liveSearchCountone : status.dataset.liveSearchCountmany;
   if (!template) return '';
-  return template.replace('{query}', query).replace('{count}', String(count));
+  // A replacer function rather than a string: a string replacement reads $&,
+  // $$, $` and $' as instructions, so a reader searching for one of them was
+  // told about a different search than the one they made. One pass rather than
+  // two, so a query that contains the other placeholder is not read as one.
+  return template.replace(/\{query\}|\{count\}/g, (mark) => (mark === '{query}' ? query : String(count)));
 }
