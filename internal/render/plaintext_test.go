@@ -512,6 +512,11 @@ func TestNestedRubyKeepsTheBasePhrase(t *testing.T) {
 				"<ruby>漢<rt>か<ruby>ん<rt>n</ruby>じ</ruby><ruby>字<rt>じ</ruby>の話。\n\nUniqueFollowingParagraph\n",
 			},
 		},
+		{
+			name:    "an inner ruby nested inside the outer's base text, not its annotation",
+			written: "<ruby>漢<ruby>字<rt>じ</rt></ruby>語<rt>かん</rt></ruby>\n",
+			want:    "漢字語\nじ かん",
+		},
 	}
 
 	for _, tt := range tests {
