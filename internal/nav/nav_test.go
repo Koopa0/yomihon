@@ -1301,6 +1301,14 @@ func TestParseBranchesReadsTheHeadingFormsThePageShows(t *testing.T) {
 		{name: "closing marks", heading: "## References ##", want: branch},
 		{name: "marked h1 opens nothing", heading: "# References", want: nil},
 		{name: "underlined h1 opens nothing", heading: "References\n==========", want: nil},
+		// Marks with no words after them are still a heading, and the branch
+		// they open carries the empty label to the rail rather than a name
+		// this package invented for it.
+		{name: "marks with no words", heading: "#### ", want: []Branch{{
+			Heading: "",
+			Level:   4,
+			Entries: []MapEntry{{Text: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
+		}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
