@@ -202,9 +202,14 @@ func TestBookRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 			want:  `<span>Alpha</span>`,
 		},
 		{
-			name:  "a row that reached nothing still says the words it lists",
-			entry: PathEntryView{Kind: nav.EntryAmbiguous, Text: "日本語の課", Language: "ja"},
-			want:  `<span lang="ja">日本語の課</span>`,
+			// Navigation reads a declaration only off a target that resolved,
+			// so a row standing where nothing did carries none and is left to
+			// inherit the page. The row is asked anyway, because both branches
+			// of it ask the view the same way and this is the one that would
+			// go unnoticed if it stopped.
+			name:  "a row that reached nothing",
+			entry: PathEntryView{Kind: nav.EntryAmbiguous, Text: "日本語の課"},
+			want:  `<span>日本語の課</span>`,
 		},
 	}
 	for _, tt := range rows {

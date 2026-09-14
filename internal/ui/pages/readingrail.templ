@@ -111,9 +111,11 @@ templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []st
 }
 
 // bookRailEntry is one row of the book: a lesson the reader can open, or the
-// words the course lists where nothing could be opened. Either way the words
-// are an author's, so the row's title carries the language its note declared,
-// while the status chip and the resolution word beside it stay the interface's.
+// words the course lists where nothing could be opened. The title carries
+// whatever language the view holds for it, while the status chip and the
+// resolution word beside it stay the interface's. Both branches of the row ask
+// the same way, so neither can be left behind; navigation reads a declaration
+// only off a target that resolved, so today the second branch has none to carry.
 templ bookRailEntry(rr ReadingRail, c layouts.Chrome, entry PathEntryView) {
 	if entry.Kind == nav.EntryResolved {
 		<a
