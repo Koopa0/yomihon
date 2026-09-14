@@ -30,8 +30,12 @@ type artifactSection struct {
 // general maps; its membership sets cannot be changed after loading. The zero
 // value is unclaimed, so both sets are empty and no note is either.
 type NavigationRoles struct {
-	pathTypes map[string]struct{}
-	mapTypes  map[string]struct{}
+	// pathTypes and mapTypes are the declared words in the order the contract
+	// wrote them. Both sets are a handful of words a vault names once, and the
+	// order is what a reader shown the declaration is shown, so they are kept
+	// as the contract's own sequence rather than sorted into a lookup.
+	pathTypes []string
+	mapTypes  []string
 	claim     Claim
 }
 
@@ -63,8 +67,7 @@ func (r NavigationRoles) IsPathType(noteType string) bool {
 	if !r.Trustworthy() {
 		return false
 	}
-	_, ok := r.pathTypes[NormalizeWord(noteType)]
-	return ok
+	return slices.Contains(r.pathTypes, NormalizeWord(noteType))
 }
 
 // IsMapType reports whether noteType is declared as a general map.
@@ -72,8 +75,31 @@ func (r NavigationRoles) IsMapType(noteType string) bool {
 	if !r.Trustworthy() {
 		return false
 	}
-	_, ok := r.mapTypes[NormalizeWord(noteType)]
-	return ok
+	return slices.Contains(r.mapTypes, NormalizeWord(noteType))
+}
+
+// PathTypes returns the types the contract declares for ordered study paths, in
+// the order it declared them, and MapTypes the same for general maps. They are
+// the words a surface names when it has to say what puts a note on one of those
+// two shelves: nothing else can spell them, because a second copy of the
+// vault's vocabulary goes on saying a word the vault has since renamed. A
+// declaration nothing made, or one that could not be honoured, names none —
+// the same answer IsPathType and IsMapType give about every note. The returned
+// slice is the caller's own.
+func (r NavigationRoles) PathTypes() []string {
+	if !r.Trustworthy() {
+		return nil
+	}
+	return slices.Clone(r.pathTypes)
+}
+
+// MapTypes returns the types the contract declares as general maps. See
+// PathTypes for what the answer means.
+func (r NavigationRoles) MapTypes() []string {
+	if !r.Trustworthy() {
+		return nil
+	}
+	return slices.Clone(r.mapTypes)
 }
 
 // ArtifactPolicy identifies vault directories whose files are readable
@@ -197,28 +223,28 @@ func deriveNavigationRoles(
 	for _, noteType := range enumTypes {
 		known[noteType] = struct{}{}
 	}
-	paths := make(map[string]struct{}, len(section.PathTypes))
+	paths := make([]string, 0, len(section.PathTypes))
 	for _, noteType := range section.PathTypes {
 		if _, ok := known[noteType]; !ok {
 			return invalidNavigationRoles("path type %q is not declared in enums.type", noteType)
 		}
-		if _, duplicate := paths[noteType]; duplicate {
+		if slices.Contains(paths, noteType) {
 			return invalidNavigationRoles("path type %q is declared more than once", noteType)
 		}
-		paths[noteType] = struct{}{}
+		paths = append(paths, noteType)
 	}
-	maps := make(map[string]struct{}, len(section.MapTypes))
+	maps := make([]string, 0, len(section.MapTypes))
 	for _, noteType := range section.MapTypes {
 		if _, ok := known[noteType]; !ok {
 			return invalidNavigationRoles("map type %q is not declared in enums.type", noteType)
 		}
-		if _, duplicate := maps[noteType]; duplicate {
+		if slices.Contains(maps, noteType) {
 			return invalidNavigationRoles("map type %q is declared more than once", noteType)
 		}
-		if _, pathType := paths[noteType]; pathType {
+		if slices.Contains(paths, noteType) {
 			return invalidNavigationRoles("type %q is declared as both a path and a map", noteType)
 		}
-		maps[noteType] = struct{}{}
+		maps = append(maps, noteType)
 	}
 	return NavigationRoles{pathTypes: paths, mapTypes: maps, claim: heldClaim()}
 }

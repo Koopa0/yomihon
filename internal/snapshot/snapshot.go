@@ -120,6 +120,10 @@ type Generation struct {
 	health         Health
 	artifactPolicy schema.ArtifactPolicy
 	privacyPolicy  schema.PrivacyPolicy
+	// navRoles is the declaration this generation's paths and maps were
+	// projected through, kept so a surface can name what fills those two
+	// shelves with the same words the projection classified by.
+	navRoles schema.NavigationRoles
 
 	scan     vault.Scan
 	notes    map[string]Reading
@@ -312,6 +316,16 @@ func (g *Generation) PrivacyPolicy() schema.PrivacyPolicy {
 		return schema.PrivacyPolicy{}
 	}
 	return g.privacyPolicy
+}
+
+// NavigationRoles returns the navigation declaration this generation was built
+// through. A page shows it to a reader whose shelf is empty, because a note
+// reaches Paths or Maps by declaring one of these types and by nothing else.
+func (g *Generation) NavigationRoles() schema.NavigationRoles {
+	if g == nil {
+		return schema.NavigationRoles{}
+	}
+	return g.navRoles
 }
 
 // Files returns this generation's captured regular files in canonical path
@@ -819,6 +833,7 @@ func buildGeneration(
 		backlinks:      backlinks,
 		health:         newHealth(g.ordered, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
 		artifactPolicy: capabilities.Artifacts,
+		navRoles:       capabilities.Navigation,
 		privacyPolicy:  contract.PrivacyPolicy(),
 		scan:           scan,
 		notes:          g.readings,
