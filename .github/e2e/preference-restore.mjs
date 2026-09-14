@@ -59,7 +59,7 @@ const MUTATIONS = {
   'skip-theme-resync': {
     target: 'restore-theme',
     apply: rewriteModule(
-      "    const theme = readCookie('yomihon_theme');\n    if (theme === 'dark' || theme === 'light') {\n      root.dataset.theme = theme;\n    } else {\n      delete root.dataset.theme;\n    }\n    themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));\n",
+      "    const theme = readCookie('yomihon_theme');\n    writeTheme(theme === 'dark' || theme === 'light' ? theme : null, false);\n",
       '',
       'theme restore',
     ),

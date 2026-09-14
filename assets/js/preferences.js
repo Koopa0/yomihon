@@ -51,12 +51,37 @@ export function initPreferences() {
     );
   }
 
-  // The server stamps this control's pressed state from the stored choice,
-  // which is all it can see: prefers-color-scheme never reaches it. With no
-  // choice stored and a dark system preference the page paints dark and the
-  // attribute says otherwise, so the first thing this does is agree with what
-  // the reader is looking at.
-  themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
+  // Anything drawn in the theme's own colours, rather than styled by the
+  // stylesheet, has to be told when the theme moves. One listener, because one
+  // thing is drawn that way.
+  let themeChanged = () => {};
+
+  // The only place the reader's theme reaches the root element. A choice they
+  // made is stored as well; the rewrite from the cookie after a cache restore
+  // is not, and may have no value to write at all. Both leave through the same
+  // announcement, so a write site added later cannot leave a drawing a frame
+  // behind the page by not thinking to mention itself.
+  function writeTheme(choice, stored) {
+    if (stored) {
+      setPreference('theme', choice);
+    } else if (choice) {
+      root.dataset.theme = choice;
+    } else {
+      delete root.dataset.theme;
+    }
+    // The server stamps this control's pressed state from the stored choice,
+    // which is all it can see: prefers-color-scheme never reaches it. With no
+    // choice stored and a dark system preference the page paints dark and the
+    // attribute says otherwise, so this agrees with what the reader is looking
+    // at, both on arrival and after every later write.
+    themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
+    themeChanged();
+  }
+
+  // Nothing has moved yet: this is the server's own stamp going through the
+  // same door, so the control agrees with what the reader is looking at from
+  // the first paint rather than only after they touch it.
+  writeTheme(root.dataset.theme || null, false);
 
   textsizeToggle?.addEventListener('click', (event) => {
     const next = { m: 'l', l: 'xl', xl: 'm' }[root.dataset.textsize] || 'l';
@@ -67,12 +92,11 @@ export function initPreferences() {
     // just did.
     event.currentTarget.setAttribute('aria-label', textsizeLabel(next));
   });
-  themeToggle?.addEventListener('click', (event) => {
+  themeToggle?.addEventListener('click', () => {
     // The flip starts from what the reader sees: with no stored choice the
     // page may already be dark from the system, and the first press must then
     // choose light rather than restate dark.
-    setPreference('theme', effectiveTheme() === 'dark' ? 'light' : 'dark');
-    event.currentTarget.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
+    writeTheme(effectiveTheme() === 'dark' ? 'light' : 'dark', true);
   });
   rubyToggle?.addEventListener('click', (event) => {
     setPreference('ruby', root.dataset.ruby === 'off' ? 'on' : 'off');
@@ -95,12 +119,7 @@ export function initPreferences() {
       return;
     }
     const theme = readCookie('yomihon_theme');
-    if (theme === 'dark' || theme === 'light') {
-      root.dataset.theme = theme;
-    } else {
-      delete root.dataset.theme;
-    }
-    themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
+    writeTheme(theme === 'dark' || theme === 'light' ? theme : null, false);
     const stored = readCookie('yomihon_textsize');
     const size = stored === 'l' || stored === 'xl' ? stored : 'm';
     root.dataset.textsize = size;
@@ -125,4 +144,12 @@ export function initPreferences() {
       location.reload();
     }
   });
+
+  // What the reader is looking at, and a way to be told when that changes.
+  return {
+    theme: effectiveTheme,
+    onThemeChange(listener) {
+      themeChanged = listener;
+    },
+  };
 }

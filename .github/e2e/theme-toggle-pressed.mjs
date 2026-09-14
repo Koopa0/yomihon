@@ -82,16 +82,16 @@ const MUTATIONS = {
   'always-pressed': {
     target: 'not-pressed-on-a-light-page',
     apply: rewriteModule(
-      "themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));\n\n  textsizeToggle",
-      "themeToggle?.setAttribute('aria-pressed', String(true));\n\n  textsizeToggle",
+      "themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));\n    themeChanged();",
+      "themeToggle?.setAttribute('aria-pressed', String(true));\n    themeChanged();",
       'first-paint pressed state, hardcoded',
     ),
   },
   'load-reads-stored-choice-only': {
     target: 'pressed-matches-painted-theme',
     apply: rewriteModule(
-      "themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));\n\n  textsizeToggle",
-      "themeToggle?.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));\n\n  textsizeToggle",
+      "themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));\n    themeChanged();",
+      "themeToggle?.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));\n    themeChanged();",
       'first-paint pressed state',
     ),
   },
