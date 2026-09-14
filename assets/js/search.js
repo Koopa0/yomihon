@@ -149,7 +149,15 @@ export function initSearch() {
     });
     form.addEventListener('submit', cancelPending);
     if (region.tagName === 'DIALOG') {
-      region.addEventListener('close', cancelPending);
+      // Closing clears the attribute at once and announces itself afterwards,
+      // so a reader who reopens quickly can have the announcement arrive after
+      // the reopening. Cancelling then would throw away the search the reopen
+      // had just asked for, and the palette would sit on the old rows with
+      // nothing on its way. The announcement is about a dialog that is closed;
+      // if it is open again by the time it lands, there is nothing to stop.
+      region.addEventListener('close', () => {
+        if (!region.open) cancelPending();
+      });
       // Closing leaves the rows where they are and stops whatever was on its
       // way to replace them. So the box and the rows can disagree by the time
       // the reader comes back: they typed something these rows never answered.
