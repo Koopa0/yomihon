@@ -18,6 +18,7 @@ const SEARCH_OPEN = '[data-search-open]';
 const SHEET = '[data-concept-sheet]';
 const CONCEPT = '[data-concept]';
 const PREVIEW = '[data-preview-card]';
+const SHEET_SECTION = 'sheet-opens-at-the-named-section';
 const PREVIEW_LINK = '.y-prose a.wikilink[href="/notes/Notes/Glass%20Tide.md"]:not(.concept-link)';
 const SITES = [
   'search-exit-has-frames',
@@ -25,7 +26,7 @@ const SITES = [
   'preview-exit-has-frames',
   'preview-exit-stays-put',
   'reduced-motion-cuts-through',
-  'sheet-opens-at-the-named-section',
+  SHEET_SECTION,
 ];
 
 class LockFired extends Error {
@@ -96,10 +97,22 @@ const rewritePreview = (needle, replacement) => async (page) => {
 };
 
 const MUTATIONS = {
+  // The other way to miss: carrying the reader somewhere far from where they
+  // asked. Landing anywhere is not the behavior; landing at the named section
+  // is, so the lock has to reject an overshoot as firmly as a no-op.
+  'open-the-sheet-past-the-section': {
+    target: SHEET_SECTION,
+    apply: rewriteLesson(
+      `        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
+          : 0;`,
+      '        body.scrollTop = body.scrollHeight;',
+    ),
+  },
   // The defect itself: every opening lands at the top of the note, whatever
   // the link named.
   'open-the-sheet-at-the-top': {
-    target: 'sheet-opens-at-the-named-section',
+    target: SHEET_SECTION,
     apply: rewriteLesson(
       `        body.scrollTop = target
           ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
@@ -241,7 +254,13 @@ let proof = null;
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
-  proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+  // Each mutation aims at one site, and the named-section site runs on its own
+  // pages below, so this page takes every mode except those. Arming on the aim
+  // rather than on a mode name keeps a newly added mutation from either missing
+  // the page it was written for or landing on one it was not.
+  proof = MUTATE && MUTATIONS[MUTATE].target !== SHEET_SECTION
+    ? await MUTATIONS[MUTATE].apply(page)
+    : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('load');
   if (proof) {
@@ -323,7 +342,7 @@ try {
   for (const width of [390, 1600]) {
     const named = await browser.newContext({ viewport: { width, height: 800 } });
     const namedPage = await named.newPage();
-    const proof = MUTATE === 'open-the-sheet-at-the-top'
+    const proof = MUTATE && MUTATIONS[MUTATE].target === SHEET_SECTION
       ? await MUTATIONS[MUTATE].apply(namedPage)
       : null;
     await namedPage.goto(BASE + PAGE, { waitUntil: 'load' });
