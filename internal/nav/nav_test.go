@@ -1245,6 +1245,7 @@ func TestParseBranchesHeadingAndLinkShareEachSkipZone(t *testing.T) {
 		{name: "HTML block", zone: "<div>\n" + inner + "</div>\n"},
 		{name: "backtick fence", zone: "```\n" + inner + "```\n"},
 		{name: "tilde fence", zone: "~~~\n" + inner + "~~~\n"},
+		{name: "indented fence", zone: "  ```\n  ## Hidden\n  [[Hidden]]\n  ```\n"},
 	}
 
 	want := []Branch{{
@@ -1270,6 +1271,121 @@ func TestParseBranchesHeadingAndLinkShareEachSkipZone(t *testing.T) {
 				t.Errorf("parseBranches (%s) mismatch (-want +got):\n%s", tt.name, diff)
 			}
 		})
+	}
+}
+
+// TestParseBranchesReadsTheHeadingFormsThePageShows holds the branch walk to
+// the heading syntax the note itself is written in. Each row is a heading a
+// reader sees on the page, or, for the seven-mark row, prose the page never
+// turns into one; the branch beneath has to agree with what is displayed,
+// label included, or the shelf reports a count of a page the reader is not
+// looking at.
+func TestParseBranchesReadsTheHeadingFormsThePageShows(t *testing.T) {
+	t.Parallel()
+
+	branch := []Branch{{
+		Heading: "References",
+		Level:   2,
+		Entries: []MapEntry{{Text: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
+	}}
+	tests := []struct {
+		name    string
+		heading string
+		want    []Branch
+	}{
+		{name: "marked", heading: "## References", want: branch},
+		{name: "indented marks", heading: "  ## References", want: branch},
+		{name: "underlined", heading: "References\n----------", want: branch},
+		{name: "tab after the marks", heading: "##\tReferences", want: branch},
+		{name: "seven marks is prose", heading: "####### References", want: nil},
+		{name: "closing marks", heading: "## References ##", want: branch},
+		{name: "marked h1 opens nothing", heading: "# References", want: nil},
+		{name: "underlined h1 opens nothing", heading: "References\n==========", want: nil},
+		// Marks with no words after them are still a heading, and the branch
+		// they open carries the empty label to the rail rather than a name
+		// this package invented for it.
+		{name: "marks with no words", heading: "#### ", want: []Branch{{
+			Heading: "",
+			Level:   4,
+			Entries: []MapEntry{{Text: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
+		}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			idx := resolver(t, "Alpha.md")
+			body := tt.heading + "\n\nSee [[Alpha]].\n"
+			got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("parseBranches(%q) mismatch (-want +got):\n%s", body, diff)
+			}
+		})
+	}
+}
+
+// TestParseBranchesGivesAnUnderlinedHeadingItsOwnLink holds where an
+// underlined heading begins. Its words are written above the underline, so a
+// link in them is the branch's own, as a link in a marked heading is; reading
+// the heading as starting on the underline would file it under the branch
+// before.
+func TestParseBranchesGivesAnUnderlinedHeadingItsOwnLink(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Alpha.md", "Beta.md")
+	body := "## First\n" +
+		"\n" +
+		"See [[Alpha]].\n" +
+		"\n" +
+		"A word about [[Beta]]\n" +
+		"---------------------\n"
+
+	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+	want := []Branch{
+		{
+			Heading: "First",
+			Level:   2,
+			Entries: []MapEntry{{Text: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
+		},
+		{
+			Heading: "A word about [[Beta]]",
+			Level:   2,
+			Entries: []MapEntry{{Text: "Beta", Target: "Beta", RelPath: "Beta.md"}},
+		},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("parseBranches (underlined heading link) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestNewCountsAMapWrittenInEitherHeadingForm is the same reading at the
+// shelf: two maps carrying one heading and one link each, written in the two
+// forms the older walk refused, reaching the model the maps list counts from.
+func TestNewCountsAMapWrittenInEitherHeadingForm(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\ndomain: golang\nstatus: growing\n---\nbody\n")
+	writeNavFixture(t, root, "Maps/Indented.md",
+		"---\ntitle: Indented\ntype: moc\ndomain: golang\n---\n  ## References\n\nSee [[Alpha]].\n")
+	writeNavFixture(t, root, "Maps/Underlined.md",
+		"---\ntitle: Underlined\ntype: moc\ndomain: golang\n---\nReferences\n----------\n\nSee [[Alpha]].\n")
+
+	roles, policy := testCapabilities(t)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+
+	branches := []Branch{{
+		Heading: "References",
+		Level:   2,
+		Entries: []MapEntry{{
+			Text: "Alpha", Target: "Alpha", RelPath: "Concepts/Alpha.md", Status: "growing", Kind: EntryResolved,
+		}},
+	}}
+	want := []Map{
+		{Title: "Indented", RelPath: "Maps/Indented.md", Domain: "golang", Type: "moc", Branches: branches},
+		{Title: "Underlined", RelPath: "Maps/Underlined.md", Domain: "golang", Type: "moc", Branches: branches},
+	}
+	if diff := cmp.Diff(want, model.Maps()); diff != "" {
+		t.Errorf("New Maps mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -1346,35 +1462,6 @@ func TestPathKeepsAnAmbiguousLessonInOrder(t *testing.T) {
 	}}
 	if diff := cmp.Diff(want, groupShapes(p.Groups)); diff != "" {
 		t.Errorf("buildPath(ambiguous lesson) mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestParseHeading locks the ATX-heading classifier the tree walk rests on.
-func TestParseHeading(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name      string
-		line      string
-		wantText  string
-		wantLevel int
-		wantOK    bool
-	}{
-		{name: "h2 pipe", line: "## slug | English | 中文", wantText: "slug | English | 中文", wantLevel: 2, wantOK: true},
-		{name: "h3 plain", line: "### 解碼期", wantText: "解碼期", wantLevel: 3, wantOK: true},
-		{name: "h1 ignored", line: "# Title", wantOK: false},
-		{name: "no space", line: "###notaspace", wantOK: false},
-		{name: "not a heading", line: "- [[Entry]]", wantOK: false},
-		{name: "h4 empty label", line: "#### ", wantText: "", wantLevel: 4, wantOK: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			text, level, ok := parseHeading(tt.line)
-			if ok != tt.wantOK || text != tt.wantText || level != tt.wantLevel {
-				t.Errorf("parseHeading(%q) = (%q, %d, %t), want (%q, %d, %t)",
-					tt.line, text, level, ok, tt.wantText, tt.wantLevel, tt.wantOK)
-			}
-		})
 	}
 }
 

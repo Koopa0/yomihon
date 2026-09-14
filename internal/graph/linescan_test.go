@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
@@ -333,5 +335,94 @@ func TestLineSkipZonesLeavesAnIndentedExampleAlone(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestHeadingsReadsBothFormsTheWayThePageDoes freezes the one heading grammar
+// the reading page, the check and the map rail each used to answer on its own.
+// Every row is a shape at least one of the three had to get right: the indents
+// that make a marked heading and the two that do not, a closing run balanced
+// and glued, a run of seven marks, a heading-shaped line inside each kind of
+// block that reaches the reader as written, and every line kind that ends a run
+// of prose before an underline could title it.
+func TestHeadingsReadsBothFormsTheWayThePageDoes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want []graph.Heading
+	}{
+		{"empty", "", nil},
+		{"setext equals", "Title\n=====\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "Title"}}},
+		{"setext dashes", "Title\n-----\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Title"}}},
+		{"setext underline indented three", "Title\n   ---\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Title"}}},
+		{"setext underline indented four", "Title\n    ---\n\nprose\n", nil},
+		{"multiline setext", "One line\nand another\n=========\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "One line\nand another"}}},
+		{"two underlines", "Title\n===\n===\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "Title"}}},
+		{"atx indent one", " # One\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "One"}}},
+		{"atx indent three", "   ### Deep\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 3, Text: "Deep"}}},
+		{"atx indent four", "    #### Not a heading\n\nprose\n", nil},
+		{"atx tab indent", "\t# Tabbed in\n\nprose\n", nil},
+		{"closing hashes", "## Balanced ##\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Balanced"}}},
+		{"closing hashes glued", "## Glued##\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Glued##"}}},
+		{"tab after the marks", "##\tTabbed\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Tabbed"}}},
+		{"seven marks", "####### Seven\n\n## Real\n", []graph.Heading{{Line: 2, Start: 15, Level: 2, Text: "Real"}}},
+		{"hash glued to text", "#NotAHeading\n\n## Real\n", []graph.Heading{{Line: 2, Start: 14, Level: 2, Text: "Real"}}},
+		{"marks with no words", "#### \n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 4, Text: ""}}},
+		{"trailing spaces", "##  Spaced  \n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Spaced"}}},
+		{"hash in fence", "```\n# Fenced\n```\n\n## Real\n", []graph.Heading{{Line: 4, Start: 18, Level: 2, Text: "Real"}}},
+		{"hash in fence indented two", "- item\n\n  ```\n  # Fenced\n  ```\n\n## Real\n", []graph.Heading{{Line: 6, Start: 32, Level: 2, Text: "Real"}}},
+		{"hash in fence indented four", "- item\n\n    ```\n    # Fenced\n    ```\n\n## Real\n", []graph.Heading{{Line: 6, Start: 38, Level: 2, Text: "Real"}}},
+		{"dedented hash in fence indented two", "- item\n\n  ```\n# Dedented\n  ```\n\n## Real\n", []graph.Heading{{Line: 6, Start: 32, Level: 2, Text: "Real"}}},
+		{"hash in html block", "<div>\n# Inside\n</div>\n\n## Real\n", []graph.Heading{{Line: 4, Start: 23, Level: 2, Text: "Real"}}},
+		{"hash in raw html block", "<pre>\n# Inside\n</pre>\n\n## Real\n", []graph.Heading{{Line: 4, Start: 23, Level: 2, Text: "Real"}}},
+		{"underline in html block", "<div>\nTitle\n=====\n</div>\n\n## Real\n", []graph.Heading{{Line: 5, Start: 26, Level: 2, Text: "Real"}}},
+		{"break rule in a paragraph", "prose\n---\nmore prose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "prose"}}},
+		{"break rule alone", "prose\n\n---\n\nmore prose\n", nil},
+		{"underline after a list item", "- item\n===\n\nprose\n", nil},
+		{"underline after a quote", "> quoted\n===\n\nprose\n", nil},
+		{"underline after indented code", "prose\n\n    code\n===\n\ntail\n", nil},
+		{"underline after a heading", "## Marked\n===\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Marked"}}},
+		{"no trailing newline", "## Tail", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Tail"}}},
+		{"heading then deeper heading", "# Title\n\nlede\n\n## Two\n\n### Three\n\n## Two again\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "Title"}, {Line: 4, Start: 15, Level: 2, Text: "Two"}, {Line: 6, Start: 23, Level: 3, Text: "Three"}, {Line: 8, Start: 34, Level: 2, Text: "Two again"}}},
+		{"setext then atx", "Words\n=====\n\n## After\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "Words"}, {Line: 3, Start: 13, Level: 2, Text: "After"}}},
+		{"paragraph then blank then underline", "prose\n\n===\n\ntail\n", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := graph.Headings(tt.body, graph.LineSkipZones(tt.body))
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("Headings(%q) mismatch (-want +got):\n%s", tt.body, diff)
+			}
+		})
+	}
+}
+
+// TestHeadingsHidesWhateverTheCallersZonesHide is why the hidden ranges are an
+// argument rather than a reading the walk makes for itself. A line walk sees
+// fenced code and authored HTML; the map rail also hands over the ranges its
+// parsed tree found, and an Obsidian comment is one of them. A heading parked
+// in a comment is on neither the page a reader arrives at nor the rail.
+func TestHeadingsHidesWhateverTheCallersZonesHide(t *testing.T) {
+	t.Parallel()
+
+	body := "%%\n## Parked\n%%\n\n## Live\n"
+	lineWalk := graph.Headings(body, graph.LineSkipZones(body))
+	want := []graph.Heading{
+		{Line: 1, Start: 3, Level: 2, Text: "Parked"},
+		{Line: 4, Start: 17, Level: 2, Text: "Live"},
+	}
+	if diff := cmp.Diff(want, lineWalk); diff != "" {
+		t.Errorf("a line walk alone mismatch (-want +got):\n%s", diff)
+	}
+
+	zones := append(graph.LineSkipZones(body), graph.CommentZones(body, nil)...)
+	withComments := graph.Headings(body, zones)
+	wantLive := []graph.Heading{{Line: 4, Start: 17, Level: 2, Text: "Live"}}
+	if diff := cmp.Diff(wantLive, withComments); diff != "" {
+		t.Errorf("with the comment ranges handed over, mismatch (-want +got):\n%s", diff)
 	}
 }

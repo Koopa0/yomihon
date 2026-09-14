@@ -119,19 +119,15 @@ func parseBranches(
 	var stack []*branchNode
 	links, zones := sequence.LiveScan(body)
 	next := 0
-	offset := 0
 
-	for line := range strings.SplitSeq(body, "\n") {
-		lineStart := offset
-		lineEnd := offset + len(line)
-		if text, level, ok := parseHeading(line); ok && !graph.In(zones, lineStart) {
-			attachLiveLinks(stack, links, &next, lineStart, idx, statusByPath, langsByPath, policy)
-			stack = openBranch(&roots, stack, headingLabel(text), level)
+	for _, h := range graph.Headings(body, zones) {
+		if h.Level < 2 {
+			continue
 		}
-		attachLiveLinks(stack, links, &next, lineEnd, idx, statusByPath, langsByPath, policy)
-		offset = lineEnd + 1
+		attachLiveLinks(stack, links, &next, h.Start, idx, statusByPath, langsByPath, policy)
+		stack = openBranch(&roots, stack, headingLabel(strings.TrimSpace(h.Text)), h.Level)
 	}
-	attachLiveLinks(stack, links, &next, offset, idx, statusByPath, langsByPath, policy)
+	attachLiveLinks(stack, links, &next, len(body), idx, statusByPath, langsByPath, policy)
 	return convertBranches(pruneBranches(roots))
 }
 
@@ -208,19 +204,6 @@ func convertBranches(nodes []*branchNode) []Branch {
 		})
 	}
 	return out
-}
-
-// parseHeading reports an ATX heading of level >= 2: the "#" run starts the
-// line, runs at least twice, and is followed by a space.
-func parseHeading(line string) (text string, level int, ok bool) {
-	n := 0
-	for n < len(line) && line[n] == '#' {
-		n++
-	}
-	if n < 2 || n >= len(line) || line[n] != ' ' {
-		return "", 0, false
-	}
-	return strings.TrimSpace(line[n+1:]), n, true
 }
 
 // headingLabel is a heading's display label: the English column of a

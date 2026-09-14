@@ -13,10 +13,10 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// The CommonMark block structure an embed reads before it can cut a section out
-// of a note: which lines are headings, which are inside a fence or an HTML block
-// and therefore text, and where one section ends. It scans source rather than
-// rendered HTML, because an embed slices the file's own bytes.
+// Where one section of a note ends, so an embed can cut it out. Which lines
+// are headings is answered by the one grammar every face reads; this file puts
+// that answer to the note's own source rather than to rendered HTML, because an
+// embed slices the file's own bytes.
 
 // indentedCodeLines reports which lines of body this pipeline will show the
 // reader as written because an indented code block holds them, so a bracket pair
@@ -67,53 +67,6 @@ func (r *Pipeline) indentedCodeLines(body string) map[int]bool {
 	return quoted
 }
 
-// sectionHeading is one heading a scan found: the line its section opens on,
-// its level, and the source text its anchor is folded from. An underlined
-// heading opens on the first line of the text, not on the underline.
-type sectionHeading struct {
-	line  int
-	level int
-	text  string
-}
-
-// scanHeadings reports every heading in lines, in document order, reading them
-// the way the page that displays them does: '#'-marked and underlined both count,
-// and a heading-looking line inside fenced code or an authored HTML block counts
-// as neither. An underline only makes a heading of running prose, and where the
-// reading is ambiguous the scan keeps the plainer one, which never invents a heading.
-func scanHeadings(lines []string) []sectionHeading {
-	var out []sectionHeading
-	var scan graph.LineScan
-	paragraph := -1
-	for i, line := range lines {
-		if scan.Skip(line) {
-			paragraph = -1
-			continue
-		}
-		if m := graph.ATXHeading.FindStringSubmatch(line); m != nil {
-			out = append(out, sectionHeading{line: i, level: len(m[1]), text: m[2]})
-			paragraph = -1
-			continue
-		}
-		switch {
-		case paragraph >= 0 && graph.SetextUnderline.MatchString(line):
-			out = append(out, sectionHeading{
-				line:  paragraph,
-				level: graph.SetextLevel(line),
-				text:  strings.Join(lines[paragraph:i], "\n"),
-			})
-			paragraph = -1
-		case graph.BlankLine(line), graph.QuotedLine.MatchString(line), graph.ListItemLine.MatchString(line),
-			graph.BreakRuleLine.MatchString(line), graph.SetextUnderline.MatchString(line),
-			paragraph < 0 && graph.IndentedCodeLine.MatchString(line):
-			paragraph = -1
-		case paragraph < 0:
-			paragraph = i
-		}
-	}
-	return out
-}
-
 // headingSlice returns the section of body that heading names: the first heading
 // whose text folds to the same slug, through to the line before the next heading
 // of the same or a higher level, deeper ones included. A repeated name takes the
@@ -123,9 +76,9 @@ func scanHeadings(lines []string) []sectionHeading {
 func headingSlice(body, heading string) (slice string, matches int) {
 	want := graph.SectionID(heading)
 	lines := strings.Split(body, "\n")
-	headings := scanHeadings(lines)
+	headings := graph.Headings(body, graph.LineSkipZones(body))
 	for i, h := range headings {
-		if graph.SectionID(headingSourceText(h.text, h.level)) != want {
+		if graph.SectionID(headingSourceText(h.Text, h.Level)) != want {
 			continue
 		}
 		matches++
@@ -134,10 +87,10 @@ func headingSlice(body, heading string) (slice string, matches int) {
 			// and what the rest are for is to say how many there were.
 			continue
 		}
-		slice = strings.Join(lines[h.line:], "\n")
+		slice = strings.Join(lines[h.Line:], "\n")
 		for _, next := range headings[i+1:] {
-			if next.level <= h.level {
-				slice = strings.Join(lines[h.line:next.line], "\n")
+			if next.Level <= h.Level {
+				slice = strings.Join(lines[h.Line:next.Line], "\n")
 				break
 			}
 		}
@@ -155,22 +108,22 @@ func headingSlice(body, heading string) (slice string, matches int) {
 // anything is left behind; a cut that is the whole body is not a narrowing.
 func ledeSlice(body string) (slice string, narrowed bool) {
 	lines := strings.Split(body, "\n")
-	headings := scanHeadings(lines)
+	headings := graph.Headings(body, graph.LineSkipZones(body))
 	if len(headings) == 0 {
 		return body, false
 	}
 	first := headings[0]
-	if ledeBeforeHeading(lines, first.line) {
-		return strings.Join(lines[:first.line], "\n"), true
+	if ledeBeforeHeading(lines, first.Line) {
+		return strings.Join(lines[:first.Line], "\n"), true
 	}
 	end := len(lines)
 	if len(headings) > 1 {
-		end = headings[1].line
+		end = headings[1].Line
 	}
 	if end >= len(lines) {
 		return body, false
 	}
-	return strings.Join(lines[first.line:end], "\n"), true
+	return strings.Join(lines[first.Line:end], "\n"), true
 }
 
 // ledeBeforeHeading reports whether the lines before the first heading hold

@@ -135,39 +135,14 @@ func withoutQuoteAndListMarks(line string) string {
 }
 
 // collectExcerptHeadings adds the id of every heading the reading page's
-// excerpt scan finds when it cuts a transclusion to a section: a '#'-marked
-// heading at up to three spaces of indent, an underlined one made of the run
-// of prose above it, and nothing inside fenced code or an authored HTML block.
-// A heading inside a quote or a list item is not cut to, because the scan
-// strips neither marker. An underline only makes a heading of running prose:
-// a blank line, a quote, a list item, a break rule, another underline, or an
-// indented code line opening the run ends what it could claim.
+// excerpt scan finds when it cuts a transclusion to a section. It is that
+// page's own heading grammar, read from where both faces read it, over the
+// ranges a line walk hides: a heading-shaped line inside fenced code or an
+// authored HTML block is neither face's heading. A heading inside a quote or
+// a list item is not cut to, because the grammar strips neither marker.
 func collectExcerptHeadings(body string, into map[string]bool) {
-	var scan graph.LineScan
-	paragraph := -1
-	lines := strings.Split(body, "\n")
-	for i, line := range lines {
-		if scan.Skip(line) {
-			paragraph = -1
-			continue
-		}
-		if m := graph.ATXHeading.FindStringSubmatch(line); m != nil {
-			into[graph.SectionID(headingWords(sequence.HeadingName(m[2], len(m[1]))))] = true
-			paragraph = -1
-			continue
-		}
-		switch {
-		case paragraph >= 0 && graph.SetextUnderline.MatchString(line):
-			name := sequence.HeadingName(strings.Join(lines[paragraph:i], "\n"), graph.SetextLevel(line))
-			into[graph.SectionID(headingWords(name))] = true
-			paragraph = -1
-		case graph.BlankLine(line), graph.QuotedLine.MatchString(line), graph.ListItemLine.MatchString(line),
-			graph.BreakRuleLine.MatchString(line), graph.SetextUnderline.MatchString(line),
-			paragraph < 0 && graph.IndentedCodeLine.MatchString(line):
-			paragraph = -1
-		case paragraph < 0:
-			paragraph = i
-		}
+	for _, h := range graph.Headings(body, graph.LineSkipZones(body)) {
+		into[graph.SectionID(headingWords(sequence.HeadingName(h.Text, h.Level)))] = true
 	}
 }
 
