@@ -25,6 +25,7 @@ const HIT_DIRECTIVE = `${HIT_NOTE}#:~:text=${HIT_QUERY}`;
 
 const SITES = [
   'search-form-fits-the-narrowest-phone',
+  'announcement-quotes-the-query',
   'home-starts-at-top',
   'home-does-not-take-focus',
   'home-remains-plain-get',
@@ -114,12 +115,29 @@ const appendToStylesheet = (rule, label) => async (page) => {
   return () => (seen === 0 ? `${label} never requested the stylesheet` : '');
 };
 
+// The announcement built the way it was built before: a string replacement,
+// which reads $&, $$, $` and $' as instructions, and a second pass that can
+// reach what the first one wrote.
+const announceThroughAReplacementTemplate = (page) => rewriteResponse(
+  page,
+  '**/search.js',
+  [{
+    needle: "template.replace(/\\{query\\}|\\{count\\}/g, (mark) => (mark === '{query}' ? query : String(count)))",
+    replacement: "template.replace('{query}', query).replace('{count}', String(count))",
+  }],
+  'the announcement builder',
+);
+
 const MUTATIONS = {
   // A flex item keeps its content's width unless it is allowed to shrink, and
   // the search box's content is wider than the narrowest phone.
   'let-the-search-input-refuse-to-shrink': {
     target: 'search-form-fits-the-narrowest-phone',
     before: appendToStylesheet('.y-searchpage__form input{min-width:auto}', 'the narrow-phone stylesheet'),
+  },
+  'announce-through-a-replacement-template': {
+    target: 'announcement-quotes-the-query',
+    before: announceThroughAReplacementTemplate,
   },
   'home-autofocus': {
     target: 'home-does-not-take-focus',
@@ -1227,7 +1245,86 @@ try {
     }
   }
 
-  console.log('PASS search-behavior: the form fits 320px in both languages; Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
+  // What the page says out loud about a search has to be the search the reader
+  // typed. These five are the strings a replacement template reads as
+  // instructions, plus one that names the sentence's other placeholder; a
+  // reader looking for any of them was told about a different search. Both
+  // languages, because the two sentences order their placeholders differently
+  // and only one of the orders lets a query's own placeholder be eaten.
+  //
+  // The sentence to expect is assembled here by walking the template once and
+  // copying what it finds, which is a different algorithm from the one under
+  // test. Building it with a replacement would let the same misreading produce
+  // the same wrong answer on both sides and call that agreement.
+  const fillTemplate = (template, query, count) => {
+    const marks = { '{query}': query, '{count}': String(count) };
+    const parts = [];
+    let rest = template;
+    for (;;) {
+      let at = -1;
+      let mark = '';
+      for (const candidate of Object.keys(marks)) {
+        const found = rest.indexOf(candidate);
+        if (found !== -1 && (at === -1 || found < at)) {
+          at = found;
+          mark = candidate;
+        }
+      }
+      if (at === -1) {
+        parts.push(rest);
+        return parts.join('');
+      }
+      parts.push(rest.slice(0, at), marks[mark]);
+      rest = rest.slice(at + mark.length);
+    }
+  };
+
+  for (const [language, cookies] of [['zh-Hant', null], ['en', [{ name: 'yomihon_lang', value: 'en', url: BASE }]]]) {
+    const spoken = await start(browser, 'announcement-quotes-the-query', { path: '/search', cookies });
+    for (const query of ['$&', '$$', '$`', "$'", 'a{count}b']) {
+      // The sentence from the query before this one is still standing, and it
+      // is not empty, so waiting for the region to say something at all is
+      // already satisfied before anything happens. Waiting for it to say
+      // something *different* is what separates this query's answer from the
+      // last one's; the five queries are chosen so that no two of them can be
+      // announced identically.
+      const saidBefore = await spoken.page.evaluate(
+        () => document.querySelector('[data-live-search-status]').textContent,
+      );
+      await spoken.page.fill('[data-live-search-input]', query);
+      await waitFor(
+        spoken.page,
+        'announcement-quotes-the-query',
+        (previous) => (document.querySelector('[data-live-search-status]')?.textContent ?? '') !== previous,
+        saidBefore,
+        `the announcement for ${JSON.stringify(query)} in ${language} never replaced the one before it`,
+      );
+      const spokenNow = await spoken.page.evaluate(() => {
+        const status = document.querySelector('[data-live-search-status]');
+        const results = document.querySelector('[data-live-search-results]');
+        return {
+          said: status.textContent,
+          countone: status.dataset.liveSearchCountone,
+          countmany: status.dataset.liveSearchCountmany,
+          count: Number(results.dataset.resultCount),
+        };
+      });
+      const template = spokenNow.count === 1 ? spokenNow.countone : spokenNow.countmany;
+      if (!template) {
+        throw new ProbeBroken('BROKEN search-behavior: the status carries no sentence to fill in');
+      }
+      const want = fillTemplate(template, query, spokenNow.count);
+      if (spokenNow.said !== want) {
+        fail(
+          'announcement-quotes-the-query',
+          `searching ${JSON.stringify(query)} in ${language} was announced as ${JSON.stringify(spokenNow.said)}, want ${JSON.stringify(want)}`,
+        );
+      }
+    }
+    await spoken.context.close();
+  }
+
+  console.log('PASS search-behavior: a query is announced as typed; the form fits 320px in both languages; Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
