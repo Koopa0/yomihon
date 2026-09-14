@@ -282,6 +282,10 @@ func TestBlockAddressAndExcerptScanAgreeOnUnusualLines(t *testing.T) {
 			name: "an interior caret in a code span written across lines", address: "^right`", addressed: false,
 			body: "The XOR expression is `result := left\n^right`\n", reasonWhen: "the caret is inside a code span",
 		},
+		{
+			name: "an interior caret on a code span's opening line", address: "^right", addressed: false,
+			body: "The XOR expression is `result := left ^right\nmore`\n", reasonWhen: "the caret is inside a code span",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -336,6 +340,11 @@ func TestInteriorCaretInACodeSpanKeepsTheSpan(t *testing.T) {
 			name: "wrapped, the caret inside the second line",
 			body: "The XOR expression is `result := left\nx ^right`\n",
 			want: "<code>result := left x ^right</code>",
+		},
+		{
+			name: "wrapped, the caret on the opening line",
+			body: "The XOR expression is `result := left ^right\nmore`\n",
+			want: "<code>result := left ^right more</code>",
 		},
 		{
 			// The stray backticks on either side pair only if the run of

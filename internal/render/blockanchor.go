@@ -57,9 +57,10 @@ func UnanchorableLine(line string) bool {
 //
 // One blindness is recorded rather than fixed: the run is bounded by blank
 // lines and by nothing else, so two stray backticks an author wrote on either
-// side of a fence, a heading, or a list marker with no blank line between them
-// pair here into a span goldmark would never draw, and an address caught
-// between them is left unmarked on all three faces.
+// side of anything else that ends a block — a fence, a heading, a list marker,
+// a quote or callout opener — with no blank line between them pair here into a
+// span goldmark would never draw, and an address caught between them is left
+// unmarked on all three faces.
 func CodeSpanOwnsBlockAddress(lines []string, at int) bool {
 	trimmed := strings.TrimRight(lines[at], " \t")
 	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
