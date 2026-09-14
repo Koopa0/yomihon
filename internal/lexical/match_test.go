@@ -393,6 +393,45 @@ func TestSearchFolderBoundary(t *testing.T) {
 	}
 }
 
+// TestFolderFilterReadsTheSeparatorsTheVaultWrote pins where a folder filter
+// takes its boundary: the path's own "/", and nothing that merely folds into
+// one. A vault may hold a top-level directory whose name carries a fullwidth
+// solidus, and reading that character as a separator answered a reader who had
+// restricted a query to Writing with a note that never sat there, while
+// offering Writing/Archive as a directory the vault does not have.
+func TestFolderFilterReadsTheSeparatorsTheVaultWrote(t *testing.T) {
+	t.Parallel()
+	idx := NewIndex([]Document{
+		{RelPath: "Writing/Real.md", Title: "Real", PlainText: "one"},
+		{RelPath: "Writing／Archive/Sibling.md", Title: "Sibling", PlainText: "two"},
+		{RelPath: "Notes/Archive/Nested.md", Title: "Nested", PlainText: "three"},
+		{RelPath: "Ｗide/One.md", Title: "One", PlainText: "four"},
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{"a folder name ends at a real separator", "folder:Writing", []string{"Writing/Real.md"}},
+		{"a directory the vault does not have answers nothing", "folder:Writing/Archive", []string{}},
+		{"the name as written reaches what is under it", "folder:Writing／Archive", []string{"Writing／Archive/Sibling.md"}},
+		{"a real nested directory still matches", "folder:Notes/Archive", []string{"Notes/Archive/Nested.md"}},
+		{"case still does not matter", "folder:writing", []string{"Writing/Real.md"}},
+		{"a fullwidth letter in a name still folds", "folder:wide", []string{"Ｗide/One.md"}},
+		{"a trailing slash is the same folder", "folder:Writing/", []string{"Writing/Real.md"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := paths(searchResults(t, idx, Parse(tt.query)))
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", tt.query, diff)
+			}
+		})
+	}
+}
+
 func TestSearchTokens(t *testing.T) {
 	t.Parallel()
 	idx := filterFixture(t)

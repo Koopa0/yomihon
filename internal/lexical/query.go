@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Filter is one structured constraint: a fixed key and its folded value.
+// Filter is one structured constraint: a fixed key and its value, folded except
+// for a folder value, which is held as the reader wrote it because matching
+// folds it one directory name at a time.
 type Filter struct {
 	Key   string
 	Value string
@@ -109,8 +111,9 @@ func isFilterKey(key string) bool {
 // Parse turns a raw query string into a Query. A token is a filter only if its
 // pre-fold key is exactly one of the six lowercase keys, split on the first
 // colon; every other token is a folded bare token. A filter value is folded
-// here, once, the way a token is, and a "folder:" value drops a trailing slash
-// before that fold. A span in matched quotes — ASCII or the full-width pairs —
+// here, once, the way a token is; a "folder:" value instead drops a trailing
+// slash and stays as written, because matching folds it a directory name at a
+// time. A span in matched quotes — ASCII or the full-width pairs —
 // is one bare token, whitespace and all, so its words match only where they sit
 // together, and a run of whitespace in it matches any run in the note; an
 // unpartnered quote is dropped. Quoting a key asks for those characters as
@@ -120,7 +123,10 @@ func Parse(q string) *Query {
 	for _, field := range quoteFields(q) {
 		key, value, reading := splitFilter(field.text, field.quotedFrom)
 		if reading == readAsFilter {
-			out.filters = append(out.filters, Filter{Key: key, Value: fold(value)})
+			if key != "folder" {
+				value = fold(value)
+			}
+			out.filters = append(out.filters, Filter{Key: key, Value: value})
 			continue
 		}
 		if reading == readAsUnknownFilter && !slices.Contains(out.unknownKeys, key) {
