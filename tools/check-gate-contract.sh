@@ -63,8 +63,11 @@ contract_verify_prereqs() {
   jq -r '.verify_prerequisites[]' "$contract" | sorted_lines
 }
 
-ci_owned_prereqs() {
-  jq -r '.ci_jobs[] | select(.owns != null) | .owns[]' "$contract" | sorted_lines
+# Reads the owners as the contract lists them. Sorting the duplicates out here
+# would leave the uniqueness check below comparing a value with itself, which is
+# how a second listing of one prerequisite passed for as long as it did.
+ci_owned_listing() {
+  jq -r '.ci_jobs[] | select(.owns != null) | .owns[]' "$contract"
 }
 
 verify_invocation() {
@@ -118,20 +121,55 @@ lint_globs() {
   uncommented "$1" | awk '/biome lint/ { for (i = 1; i <= NF; i++) if ($i ~ /\*/) print $i }' | sorted_lines
 }
 
-run_lock_test() {
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/gate-contract-lock.XXXXXX")
-  trap 'rm -rf "$tmp"' EXIT INT HUP
+lock_copies() {
   cp "$makefile" "$tmp/Makefile"
   cp "$workflow" "$tmp/ci.yml"
   cp "$ruleset" "$tmp/main.json"
   cp "$contract" "$tmp/gate-contract.json"
-  sed '/^verify:/ s/ test / /' "$tmp/Makefile" >"$tmp/Makefile.new"
-  mv "$tmp/Makefile.new" "$tmp/Makefile"
-  if sh "$0" "$tmp/Makefile" "$tmp/ci.yml" "$tmp/main.json" "$tmp/gate-contract.json"; then
-    echo "check-gate-contract: lock test survived dropping test from verify; the contract must fail closed" >&2
+}
+
+# A case answers only for the damage it installed. It requires the checker to
+# fail and to say why in the words that name this case: a copy left damaged by
+# an earlier case fails for the earlier reason, and a guard that does nothing
+# would read as having caught something.
+lock_case() {
+  injected="$1"
+  reason="$2"
+  if sh "$0" "$tmp/Makefile" "$tmp/ci.yml" "$tmp/main.json" "$tmp/gate-contract.json" >"$tmp/out" 2>"$tmp/err"; then
+    echo "check-gate-contract: lock test survived $injected; the contract must fail closed" >&2
     exit 1
   fi
-  echo "check-gate-contract: lock test caught a dropped verify prerequisite"
+  if ! grep -q "$reason" "$tmp/err"; then
+    echo "check-gate-contract: lock test for $injected failed for another reason:" >&2
+    cat "$tmp/err" >&2
+    exit 1
+  fi
+  echo "check-gate-contract: lock test caught $injected"
+}
+
+run_lock_test() {
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/gate-contract-lock.XXXXXX")
+  trap 'rm -rf "$tmp"' EXIT INT HUP
+
+  lock_copies
+  sed '/^verify:/ s/ test / /' "$tmp/Makefile" >"$tmp/Makefile.new"
+  mv "$tmp/Makefile.new" "$tmp/Makefile"
+  if grep -q '^verify:.* test ' "$tmp/Makefile"; then
+    echo "check-gate-contract: lock test could not drop test from verify" >&2
+    exit 1
+  fi
+  lock_case "a dropped verify prerequisite" "verify prerequisites differ"
+
+  lock_copies
+  jq '(.ci_jobs[] | select(.name == "lint-frontend") | .owns) += ["frontend-check"]' \
+    "$tmp/gate-contract.json" >"$tmp/gate-contract.new"
+  mv "$tmp/gate-contract.new" "$tmp/gate-contract.json"
+  listings=$(jq '[.ci_jobs[] | select(.owns != null) | .owns[] | select(. == "frontend-check")] | length' "$tmp/gate-contract.json")
+  if [ "$listings" -ne 2 ]; then
+    echo "check-gate-contract: lock test could not list frontend-check twice" >&2
+    exit 1
+  fi
+  lock_case "a prerequisite owned twice" "must be unique"
 }
 
 [ -f "$contract" ] || fail "missing contract file $contract"
@@ -186,12 +224,14 @@ if ! awk '
   fail "verify job must run make $invocation"
 fi
 
-owned=$(ci_owned_prereqs)
-[ -n "$owned" ] || fail "read no CI-owned prerequisites out of $contract"
+listed=$(ci_owned_listing)
+[ -n "$listed" ] || fail "read no CI-owned prerequisites out of $contract"
+owned=$(printf '%s\n' "$listed" | sorted_lines)
 
+listed_count=$(printf '%s\n' "$listed" | wc -l | tr -d ' ')
 owned_count=$(printf '%s\n' "$owned" | wc -l | tr -d ' ')
 contract_count=$(printf '%s\n' "$contract_prereqs" | wc -l | tr -d ' ')
-if [ "$owned_count" -ne "$(printf '%s\n' "$owned" | sorted_lines | wc -l | tr -d ' ')" ]; then
+if [ "$listed_count" -ne "$owned_count" ]; then
   fail "CI-owned prerequisites must be unique in $contract"
 fi
 

@@ -365,9 +365,6 @@ jobs:
           cache: npm
           cache-dependency-path: .github/package-lock.json
 
-      - name: Install the browser driver
-        run: npm ci --prefix .github --ignore-scripts --no-audit --fund=false
-
       - name: Record the browser build
         run: google-chrome --version
 
@@ -400,9 +397,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: .github/package-lock.json
-
-      - name: Install the browser driver
-        run: npm ci --prefix .github --ignore-scripts --no-audit --fund=false
 
       - name: Record the browser build
         run: google-chrome --version
