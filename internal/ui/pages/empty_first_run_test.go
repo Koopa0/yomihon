@@ -223,13 +223,13 @@ func TestContractStateReadsTheFileOffTheScanThePageListsFrom(t *testing.T) {
 			t.Parallel()
 			snap := ungovernedSnapshot(t, tt.files)
 			if got := ContractStateFrom(false, snap); got != tt.want {
-				t.Errorf("ContractStateFrom(false, snap) = %s, want %s", contractStateName(got), contractStateName(tt.want))
+				t.Errorf("ContractStateFrom(false, snap) = %s, want %s", got, tt.want)
 			}
 			// A folder something claims authority over is that, whatever is on
 			// its shelf: the sentence about a file nobody loaded belongs only
 			// to the reader who has no authority behind the page.
 			if got := ContractStateFrom(true, snap); got != ContractGoverning {
-				t.Errorf("ContractStateFrom(true, snap) = %s, want %s", contractStateName(got), contractStateName(ContractGoverning))
+				t.Errorf("ContractStateFrom(true, snap) = %s, want %s", got, ContractGoverning)
 			}
 		})
 	}
@@ -275,19 +275,6 @@ func TestAContractStateRefusesToNameAValueItDoesNotDeclare(t *testing.T) {
 	}()
 	_ = ContractState(99).String()
 	t.Error("ContractState(99).String() returned instead of panicking")
-}
-
-// contractStateName names a state for a failure line, because a transcript
-// reading "= 1, want 2" says nothing about which folder the reader is in.
-func contractStateName(state ContractState) string {
-	switch state {
-	case ContractAbsent:
-		return "ContractAbsent"
-	case ContractUnloaded:
-		return "ContractUnloaded"
-	default:
-		return "ContractGoverning"
-	}
 }
 
 // ungovernedSnapshot reads one temporary folder the way the server does, with
