@@ -246,29 +246,28 @@ func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFaul
 }
 
 // FooterSequence chooses which order the foot of the article offers, and what to
-// call it. A note exactly one course teaches steps through that course, whose
-// declared order the folder's alphabetical one can contradict completely; every
-// other note keeps the folder, two courses included, because nothing here knows
-// which the reader is walking. A course foot names the step onward, not the
-// path's whole order — the rail already uses that name.
+// call it. The rail has already resolved which book, if any, the page is being
+// read inside, and the foot walks that same book: one page offers one lesson
+// onward, wherever on it the reader reaches. A page whose rail resolved no book
+// — none teaches this note, or several do and none of them is its own — keeps
+// the folder, whose alphabetical order a course's declared one can contradict
+// completely. A course foot names the step onward, not the path's whole order —
+// the rail already uses that name.
 //
 // course reports which order won, so the foot can print it: that and the step
 // words are all a sighted reader has to tell a course from folder adjacency.
-func FooterSequence(model *nav.Model, relPath string, lang wording.Lang) (prev, next nav.NoteRef, label string, course bool) {
-	relPath = vault.NormalizeNFC(relPath)
-	if model == nil || relPath == "" {
+func FooterSequence(rail *ReadingRail, lang wording.Lang) (prev, next nav.NoteRef, label string, course bool) {
+	if rail == nil || rail.Model == nil || rail.CurrentPath == "" {
 		return prev, next, "", false
 	}
-	if steps := model.PathNeighbors(relPath); len(steps) == 1 {
-		step := steps[0]
-		// A path can list a note with no walkable stop on either side — planned
-		// rows and side branches drop out of the course walk — and an empty foot
-		// then leaves keyboard reading with nowhere to go inside the article.
-		if step.Prev.RelPath != "" || step.Next.RelPath != "" {
-			return step.Prev, step.Next, fmt.Sprintf(wording.CourseOnwardOf.In(lang), step.PathTitle), true
-		}
+	step := rail.neighbors
+	// A book can list a note with no walkable stop on either side — planned
+	// rows and side branches drop out of the course walk — and an empty foot
+	// then leaves keyboard reading with nowhere to go inside the article.
+	if step.PathRelPath != "" && (step.Prev.RelPath != "" || step.Next.RelPath != "") {
+		return step.Prev, step.Next, fmt.Sprintf(wording.CourseOnwardOf.In(lang), step.PathTitle), true
 	}
-	prev, next = model.FolderStep(relPath)
+	prev, next = rail.Model.FolderStep(rail.CurrentPath)
 	return prev, next, wording.FolderAdjacency.In(lang), false
 }
 

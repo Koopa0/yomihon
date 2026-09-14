@@ -321,7 +321,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
 	readingRail := pages.NewReadingRail(state.shell.Nav, n.RelPath, n.Domain)
-	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(state.shell.Nav, n.RelPath, lang)
+	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(&readingRail, lang)
 	flippedFrom := vouchedOrigin(authority, h.sources.ConsumeReceipt, rel, n.Type,
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
