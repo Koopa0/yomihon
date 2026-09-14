@@ -24,9 +24,9 @@ func TestAHeadingInsideASelfClosingRawTextBlockIsNotASection(t *testing.T) {
 		t.Run(opener, func(t *testing.T) {
 			t.Parallel()
 
-			got := scanHeadings([]string{opener, "", "# Heading after", "", "Prose after that."})
-			if len(got) != 0 {
-				t.Errorf("scanHeadings found %d headings after %s, which opens a block the page never closes: %+v", len(got), opener, got)
+			body := opener + "\n\n# Heading after\n\nProse after that.\n"
+			if slice, found := Excerpt(body, "heading-after"); found {
+				t.Errorf("Excerpt() cut %q at a heading inside the block %s opens, which the page never closes", slice, opener)
 			}
 		})
 	}

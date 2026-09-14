@@ -209,6 +209,70 @@ func LineSkipZones(body string) []Span {
 	return zones
 }
 
+// Heading is one heading a body's line walk found: where the heading opens,
+// in both coordinates its readers cut by, the level its marks or its
+// underline give it, and its source words. An underlined heading opens on
+// the first line of its words rather than on the underline, so a reader that
+// cuts from here keeps the words the heading is read by.
+type Heading struct {
+	// Line is the zero-based index of the opening line among the body's
+	// lines; Start is the byte offset of that same line. One place, in the
+	// two coordinates the readers of a body already cut with.
+	Line  int
+	Start int
+	Level int
+	// Text is the heading's source, folded by nothing: for a marked heading
+	// the words between the marks and any closing run the author balanced
+	// them with, and for an underlined one the lines of prose the underline
+	// titles, joined by newline as the body wrote them.
+	Text string
+}
+
+// Headings reports every heading in body, in document order, read the way the
+// page that displays them does: marked with a run of one to six '#' at the
+// indent CommonMark allows, or underlined beneath a run of prose. A line
+// inside zones is not a heading — the caller passes the ranges its own face
+// hides, so a face that hides more than a line walk can see hides it here
+// too. An underline titles running prose alone: a blank line, a quote, a list
+// item, a break rule, another underline, or an indented code line opening the
+// run ends what it could claim. Where the reading is ambiguous the plainer
+// one is kept, which never invents a heading.
+func Headings(body string, zones []Span) []Heading {
+	lines := strings.Split(body, "\n")
+	var out []Heading
+	paragraph, paragraphStart, offset := -1, 0, 0
+	for i, line := range lines {
+		start := offset
+		offset = start + len(line) + 1
+		if In(zones, start) {
+			paragraph = -1
+			continue
+		}
+		if m := ATXHeading.FindStringSubmatch(line); m != nil {
+			out = append(out, Heading{Line: i, Start: start, Level: len(m[1]), Text: m[2]})
+			paragraph = -1
+			continue
+		}
+		switch {
+		case paragraph >= 0 && SetextUnderline.MatchString(line):
+			out = append(out, Heading{
+				Line:  paragraph,
+				Start: paragraphStart,
+				Level: SetextLevel(line),
+				Text:  strings.Join(lines[paragraph:i], "\n"),
+			})
+			paragraph = -1
+		case BlankLine(line), QuotedLine.MatchString(line), ListItemLine.MatchString(line),
+			BreakRuleLine.MatchString(line), SetextUnderline.MatchString(line),
+			paragraph < 0 && IndentedCodeLine.MatchString(line):
+			paragraph = -1
+		case paragraph < 0:
+			paragraph, paragraphStart = i, start
+		}
+	}
+	return out
+}
+
 // HTMLBlockOpens reports whether a line opens an authored HTML block, and
 // returns the test for the line that closes it. The raw-text, comment,
 // instruction, CDATA, and declaration blocks close on their own end marker,

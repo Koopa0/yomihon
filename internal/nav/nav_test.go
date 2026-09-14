@@ -18,7 +18,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -1300,6 +1299,8 @@ func TestParseBranchesReadsTheHeadingFormsThePageShows(t *testing.T) {
 		{name: "tab after the marks", heading: "##\tReferences", want: branch},
 		{name: "seven marks is prose", heading: "####### References", want: nil},
 		{name: "closing marks", heading: "## References ##", want: branch},
+		{name: "marked h1 opens nothing", heading: "# References", want: nil},
+		{name: "underlined h1 opens nothing", heading: "References\n==========", want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1453,49 +1454,6 @@ func TestPathKeepsAnAmbiguousLessonInOrder(t *testing.T) {
 	}}
 	if diff := cmp.Diff(want, groupShapes(p.Groups)); diff != "" {
 		t.Errorf("buildPath(ambiguous lesson) mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestScanBranchHeadings locks the heading classifier the tree walk rests on,
-// one body per row so the underlined form can be written at all.
-func TestScanBranchHeadings(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		body string
-		want []branchHeading
-	}{
-		{
-			name: "h2 pipe",
-			body: "## slug | English | 中文",
-			want: []branchHeading{{start: 0, level: 2, text: "slug | English | 中文"}},
-		},
-		{name: "h3 plain", body: "### 解碼期", want: []branchHeading{{start: 0, level: 3, text: "解碼期"}}},
-		{name: "h1 opens nothing", body: "# Title"},
-		{name: "underlined h1 opens nothing", body: "Title\n====="},
-		{name: "no space", body: "###notaspace"},
-		{name: "not a heading", body: "- [[Entry]]"},
-		{name: "h4 empty label", body: "#### ", want: []branchHeading{{start: 0, level: 4, text: ""}}},
-		{
-			name: "underlined follows its words",
-			body: "Lead\n\nReferences\n----------",
-			want: []branchHeading{{start: 6, level: 2, text: "References"}},
-		},
-		{
-			name: "a break rule is not an underline",
-			body: "\n----------\n## After",
-			want: []branchHeading{{start: 12, level: 2, text: "After"}},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			_, zones := sequence.LiveScan(tt.body)
-			got := scanBranchHeadings(tt.body, zones)
-			if diff := cmp.Diff(tt.want, got, cmp.AllowUnexported(branchHeading{})); diff != "" {
-				t.Errorf("scanBranchHeadings(%q) mismatch (-want +got):\n%s", tt.body, diff)
-			}
-		})
 	}
 }
 
