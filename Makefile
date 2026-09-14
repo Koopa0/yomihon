@@ -46,7 +46,7 @@ needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
 }
 endef
 
-.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-ci verify-spec clean
+.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-deps frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-ci verify-spec clean
 
 build: gen css
 	go build -o bin/yomihon ./cmd/yomihon
@@ -224,8 +224,15 @@ mod-check:
 
 
 
-frontend-check:
+# The frontend tools are pinned in .github/package-lock.json and land in
+# .github/node_modules. Installing them is a target of its own because three
+# gates need those tools and only one of them lints: when the browser gates
+# depend on the lint instead, every job that drives a browser lints the same
+# sources again and one answer is reported three times per run.
+frontend-deps:
 	npm ci --prefix .github --ignore-scripts --no-audit --fund=false
+
+frontend-check: frontend-deps
 	npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs .github/*.mjs
 	@$(MAKE) --no-print-directory stylelint-check
 
@@ -283,14 +290,14 @@ fuzz-smoke:
 		case "$$out" in *'no fuzz tests to fuzz'*) echo "$$pkg $$target explored no inputs" >&2; exit 1;; esac; \
 	done < "$$manifest"
 
-browser-check: frontend-check
+browser-check: frontend-deps
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-browser.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
 	bash .github/e2e/serve.sh "$$tmp/yomihon" 19734 -- bash .github/e2e/probes.sh
 
-mutation-check: frontend-check
+mutation-check: frontend-deps
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-mutations.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \

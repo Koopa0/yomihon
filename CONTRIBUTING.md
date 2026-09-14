@@ -124,8 +124,8 @@ templ needs no installation. It is a tool directive in `go.mod`, so
 
 Three stages reach the network: `mod-check`, `vuln`, which fetches the
 vulnerability database, and `frontend-check`, which runs `npm ci`. Two stages
-drive a browser: `browser-check` and `mutation-check`, each of which runs
-`frontend-check` first.
+drive a browser: `browser-check` and `mutation-check`, each of which installs
+those npm dependencies first and leaves the lint to `frontend-check`.
 
 On a shared Linux runner the same target takes about twenty minutes.
 
