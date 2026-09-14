@@ -25,6 +25,7 @@ const SITES = [
   'preview-exit-has-frames',
   'preview-exit-stays-put',
   'reduced-motion-cuts-through',
+  'sheet-opens-at-the-named-section',
 ];
 
 class LockFired extends Error {
@@ -67,6 +68,19 @@ const appendStylesheet = (rule) => async (page) => {
 // Rewrites the preview module. The replacement is counted, so a needle that
 // no longer matches the source reports itself rather than passing as a
 // mutation nobody noticed.
+// The same for the lesson module, which is where the sheet is opened.
+const rewriteLesson = (needle, replacement) => async (page) => {
+  let matched = -1;
+  await page.route('**/static/lesson.js', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    matched = original.split(needle).length - 1;
+    await route.fulfill({ response, body: original.split(needle).join(replacement) });
+  });
+  return () =>
+    matched === 1 ? '' : `the lesson needle matched ${matched} times, want exactly 1`;
+};
+
 const rewritePreview = (needle, replacement) => async (page) => {
   let matched = -1;
   await page.route('**/static/preview.js', async (route) => {
@@ -82,6 +96,17 @@ const rewritePreview = (needle, replacement) => async (page) => {
 };
 
 const MUTATIONS = {
+  // The defect itself: every opening lands at the top of the note, whatever
+  // the link named.
+  'open-the-sheet-at-the-top': {
+    target: 'sheet-opens-at-the-named-section',
+    apply: rewriteLesson(
+      `        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
+          : 0;`,
+      '        body.scrollTop = 0;',
+    ),
+  },
   // The original defect on the search dialog: the transition lives only while
   // [open] is set, so close() has nowhere for exit frames to run.
   'restore-search-open-only': {
@@ -287,6 +312,53 @@ try {
       'reduced-motion-cuts-through',
       `search close under reduced motion lasted ${longest(reduced)}ms`,
     );
+  }
+
+  // A link may name a section of a concept rather than the concept. The sheet
+  // is its own scrolling box, so the jump a page makes to an id cannot reach
+  // inside it: the reader who asked for a section has to be carried there, or
+  // they arrive at the top of the note with nothing saying where they asked to
+  // be. Both widths, because the sheet is a side panel on one and a bottom
+  // sheet on the other, and the section sits at a different height in each.
+  for (const width of [390, 1600]) {
+    const named = await browser.newContext({ viewport: { width, height: 800 } });
+    const namedPage = await named.newPage();
+    const proof = MUTATE === 'open-the-sheet-at-the-top'
+      ? await MUTATIONS[MUTATE].apply(namedPage)
+      : null;
+    await namedPage.goto(BASE + PAGE, { waitUntil: 'load' });
+    await namedPage.waitForSelector('html[data-js]');
+    const sectionLink = namedPage.locator(`${CONCEPT}[href*="#"]`).first();
+    if ((await sectionLink.count()) < 1) {
+      broken('the lesson carries no concept link naming a section, so this has nothing to open');
+    }
+    await sectionLink.click();
+    await namedPage.waitForFunction((sheet) => document.querySelector(sheet)?.open, SHEET, { timeout: 3000 });
+    if (proof) {
+      const issue = proof();
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
+    }
+    const landing = await namedPage.evaluate(() => {
+      const body = document.querySelector('[data-concept-body]');
+      const fragment = decodeURIComponent(
+        (document.querySelector('[data-concept][href*="#"]')?.getAttribute('href') || '').split('#')[1] || '',
+      );
+      const target = fragment ? body.querySelector(`#${CSS.escape(fragment)}`) : null;
+      if (!target) return { found: false };
+      const box = body.getBoundingClientRect();
+      const at = target.getBoundingClientRect();
+      return { found: true, fromTop: Math.round(at.top - box.top), height: Math.round(box.height) };
+    });
+    if (!landing.found) {
+      broken('the opened sheet holds no element with the id the link named');
+    }
+    if (landing.fromTop < 0 || landing.fromTop > landing.height) {
+      fail(
+        'sheet-opens-at-the-named-section',
+        `at ${width}px the sheet opened with the named section ${landing.fromTop}px from the top of a ${landing.height}px box, so the reader has to go looking for what they followed`,
+      );
+    }
+    await named.close();
   }
 
   console.log('PASS dialog-exit: search, sheet, and preview close with frames; preview stays put; reduced motion cuts through');
