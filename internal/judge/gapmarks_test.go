@@ -195,3 +195,93 @@ func assertBrokenEvidence(t *testing.T, f *Finding) {
 		t.Errorf("severity %s is outside the lock", f.Severity)
 	}
 }
+
+// quotedPlannedPaths name the two notes the placement lock uses: a Ledger note
+// carrying one inline planned declaration, and a Citer note whose link has no
+// target anywhere in the vault.
+const (
+	citerNotePath  = "Writing/Citer.md"
+	ledgerNotePath = "Writing/Ledger.md"
+	missingGhost   = "Ghost"
+)
+
+// TestPlannedMarkCountsOnlyWhereTheAuthorSpeaks is the lock: an inline planned
+// declaration softens another note's broken link to a tracked forward-reference
+// only where it is written as prose. Quoted inside a fence or a code span, or
+// taken back inside an Obsidian comment, it declares nothing and the other
+// note's link stays a warning. The exit of a --deny warn run is asserted beside
+// the severity because that exit is what a pipeline reads.
+func TestPlannedMarkCountsOnlyWhereTheAuthorSpeaks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		ledger string
+		want   Severity
+		exit   int
+	}{
+		{name: "written as prose", ledger: "todo: [[Ghost]]", want: SeverityInfo, exit: 0},
+		{name: "quoted in a fence", ledger: "```\ntodo: [[Ghost]]\n```", want: SeverityWarn, exit: 1},
+		{name: "quoted in a code span", ledger: "Example: `todo: [[Ghost]]`", want: SeverityWarn, exit: 1},
+		{name: "taken back in a comment", ledger: "%% todo: [[Ghost]] %%", want: SeverityWarn, exit: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := quotedPlannedVault(t, tt.ledger)
+			findings, err := Check(t.Context(), root)
+			if err != nil {
+				t.Fatalf("Check() error = %v", err)
+			}
+			got := findBroken(t, findings, citerNotePath, missingGhost)
+			if got.Severity != tt.want {
+				t.Errorf("[[%s]] cited by %s, declared %s: severity %s, want %s; evidence %q",
+					missingGhost, citerNotePath, tt.name, got.Severity, tt.want, got.Evidence)
+			}
+			assertBrokenEvidence(t, &got)
+
+			_, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"warn"}})
+			if err != nil {
+				t.Fatalf("RunCheck(--deny warn) error = %v", err)
+			}
+			if exit != tt.exit {
+				t.Errorf("check --deny warn exit = %d, want %d; all findings %v", exit, tt.exit, findings)
+			}
+		})
+	}
+}
+
+// quotedPlannedVault writes the two notes with ledgerBody as the whole body of
+// the Ledger note, under a contract that tracks the inline mark and no heading
+// mark, so where the declaration is written is the only thing that can decide
+// the Citer note's severity.
+func quotedPlannedVault(t *testing.T, ledgerBody string) string {
+	t.Helper()
+	root := t.TempDir()
+	write(t, root, citerNotePath, plannedFixtureNote("Citer", "See [[Ghost]]."))
+	write(t, root, ledgerNotePath, plannedFixtureNote("Ledger", ledgerBody))
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
+		[2]string{
+			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`knowledge_dirs = ["Writing"]`,
+		},
+		[2]string{
+			"forbid_tag_with_slash = true",
+			"forbid_tag_with_slash = true\nplanned_gap_marks = []\nplanned_inline_marks = [\"todo\"]",
+		},
+	))
+	return root
+}
+
+func plannedFixtureNote(title, body string) string {
+	return `---
+title: ` + title + `
+type: writing
+domain: golang
+status: draft
+created: 2026-01-01
+updated: 2026-01-01
+---
+
+` + body + "\n"
+}

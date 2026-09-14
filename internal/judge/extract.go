@@ -172,19 +172,20 @@ func extractPlannedNames(body string) []string {
 	return extractPlannedNamesWith(body, marks)
 }
 
+// extractPlannedNamesWith harvests only where the author is speaking: a marker
+// or a target inside code is quoted syntax and one inside an Obsidian comment
+// is content the author took back, exactly as the link extraction reads them,
+// so a declaration that is merely shown cannot soften another note's link.
 func extractPlannedNamesWith(body string, marks plannedMarks) []string {
 	codeZones, headings := structure(body, marks.heading)
+	spoken := blankZones(body, slices.Concat(codeZones, graph.CommentZones(body, codeZones)))
 	var names []string
 	var item *string
 	offset := 0
-	for raw := range strings.Lines(body) {
+	for raw := range strings.Lines(spoken) {
 		line := strings.TrimRight(raw, "\r\n")
-		inCode := graph.In(codeZones, offset)
-		inGap := inGapSection(headings, offset) && !inCode
-		item, names = advancePlannedItem(item, names, line, inGap)
-		if !inCode {
-			names = inlinePlannedTargets(line, names, marks.inline)
-		}
+		item, names = advancePlannedItem(item, names, line, inGapSection(headings, offset))
+		names = inlinePlannedTargets(line, names, marks.inline)
 		offset += len(raw)
 	}
 	if item != nil {
@@ -230,6 +231,25 @@ func inlinePlannedTargets(line string, names, inlineMarks []string) []string {
 		}
 	}
 	return names
+}
+
+// blankZones replaces the bytes of every zone with spaces, keeping newlines and
+// keeping the body's length, so what is left reads as the note's prose while
+// every offset still addresses the original note — which is what lets a harvest
+// blank a zone and go on asking the headings located in the body itself.
+func blankZones(body string, zones []byteRange) string {
+	if len(zones) == 0 {
+		return body
+	}
+	b := []byte(body)
+	for _, z := range zones {
+		for i := z.Start; i < z.Stop; i++ {
+			if b[i] != '\n' {
+				b[i] = ' '
+			}
+		}
+	}
+	return string(b)
 }
 
 // structure locates the code span/block byte ranges to skip and the headings,
