@@ -188,6 +188,12 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 
 // articleHead is the breadcrumb + title + type meta + the kintsugi seam above
 // the rendered body.
+//
+// The article around it speaks the note's own language, so the words here that
+// are yomihon's rather than the author's declare the interface language again.
+// They do it one element at a time rather than from the file row's root,
+// because that row also prints the note's address, and a path a reader wrote in
+// Japanese is not the interface's to relabel.
 templ articleHead(v NoteView, lang wording.Lang) {
 	if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
 		<div class="y-crumbs">
@@ -214,7 +220,7 @@ templ articleHead(v NoteView, lang wording.Lang) {
 			// The date is a fact about the note like its type, so it sits with
 			// the facts, before the links that act.
 			if v.Updated != "" {
-				<span>{ noteDateLabel(&v, lang) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
+				<span lang={ lang.Tag() }>{ noteDateLabel(&v, lang) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
 			}
 			if v.RelPath != "" {
 				<span>{ v.RelPath }</span>
@@ -222,7 +228,7 @@ templ articleHead(v NoteView, lang wording.Lang) {
 				// to ask what the file actually says, so it carries the door to
 				// the bytes. The line count is load-bearing: templ emits a
 				// comment's newlines as whitespace between these two links.
-				<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(lang) }</a>
+				<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(lang) }</a>
 			}
 			if v.ObsidianHref != "" {
 				// Every repair yomihon reports is a hand edit, so the page
@@ -230,12 +236,12 @@ templ articleHead(v NoteView, lang wording.Lang) {
 				// built and escaped server-side, so it bypasses the sanitizer
 				// that would reject its custom scheme. The line count is
 				// load-bearing here too, for the whitespace before this link.
-				<a class="y-metarow__raw" href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
+				<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
 			}
 		</div>
 	}
 	if v.Stale {
-		<p class="y-fileinfo__note" data-note-stale>{ wording.NoteStale.In(lang) }</p>
+		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}
 	<div class="y-seam" aria-hidden="true"></div>
 }
@@ -323,21 +329,25 @@ templ citedByBlock(v NoteView, lang wording.Lang) {
 // rather than only spoken, because a course's declared order and folder
 // adjacency can disagree completely. The printed label and the accessible name
 // render one field, so the two cannot drift apart.
+//
+// The foot's own words belong to the interface, and the two titles it names
+// belong to the notes they lead to, each carrying whatever language that note
+// declared and none where it declared nothing.
 templ sequenceSteps(v NoteView, lang wording.Lang) {
 	if v.Prev.RelPath != "" || v.Next.RelPath != "" {
-		<nav class={ "y-steps", templ.KV("y-steps--course", v.StepsCourse) } aria-label={ v.StepsLabel }>
+		<nav class={ "y-steps", templ.KV("y-steps--course", v.StepsCourse) } lang={ lang.Tag() } aria-label={ v.StepsLabel }>
 			<p class="y-steps__source">{ v.StepsLabel }</p>
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
 					<span class="y-steps__dir" aria-hidden="true">←</span>
 					<span class="y-steps__role">{ stepWordPrev(v.StepsCourse, lang) }</span>
-					<span class="y-steps__name">{ v.Prev.Name }</span>
+					<span class="y-steps__name" { authoredLanguageAttrs(v.Prev.Language)... }>{ v.Prev.Name }</span>
 				</a>
 			}
 			if v.Next.RelPath != "" {
 				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
 					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, lang) }</span>
-					<span class="y-steps__name">{ v.Next.Name }</span>
+					<span class="y-steps__name" { authoredLanguageAttrs(v.Next.Language)... }>{ v.Next.Name }</span>
 					<span class="y-steps__dir" aria-hidden="true">→</span>
 				</a>
 			}
@@ -477,7 +487,7 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 // when a note has no reading aids.
 templ schemaNotices(v NoteView, lang wording.Lang) {
 	if len(v.SchemaNotices) > 0 {
-		<div id={ schemaNoticesID }>
+		<div id={ schemaNoticesID } lang={ lang.Tag() }>
 			for _, notice := range v.SchemaNotices {
 				<p class="y-statuspanel__notice y-statusflag">
 					for _, part := range notice {
@@ -612,7 +622,7 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 templ statusBar(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
-		<section class="y-sealbar" aria-label={ wording.StatusBar.In(lang) } data-status-state={ face.token() }>
+		<section class="y-sealbar" lang={ lang.Tag() } aria-label={ wording.StatusBar.In(lang) } data-status-state={ face.token() }>
 			switch face {
 				case faceNonInstance:
 					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(lang) }</p>
