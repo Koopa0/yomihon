@@ -39,14 +39,11 @@ function restorePosition() {
   requestAnimationFrame(() => {
     requestAnimationFrame(apply);
   });
-  // A cross-document view transition can paint the arrival at the top and
-  // only then hand the document back; the position has to be applied again
-  // when that motion finishes, or the first write is lost.
-  window.addEventListener('pagereveal', (event) => {
-    if (event.viewTransition?.finished) {
-      event.viewTransition.finished.then(apply, apply);
-      return;
-    }
+  // An arrival is announced once the document that receives it is revealed,
+  // which on a navigation can be after this module first ran; the position is
+  // applied again there, or the first write lands on a document that has not
+  // been handed over yet.
+  window.addEventListener('pagereveal', () => {
     apply();
   }, { once: true });
 }
