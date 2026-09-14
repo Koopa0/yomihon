@@ -182,3 +182,105 @@ func TestFenceOpensReportsTheRunLength(t *testing.T) {
 		})
 	}
 }
+
+// TestFenceOpensRefusesAnIndentedExample is CommonMark's opening-indent rule,
+// which every other pattern in this scanner already keeps: at most three
+// spaces before an opening fence. Four or more makes the line indented code,
+// so an author showing what a fence looks like is writing content. Read as an
+// opener it never meets a closer, and the exclusion it starts runs to the end
+// of the note — taking the lesson rows, headings and links below it with it.
+func TestFenceOpensRefusesAnIndentedExample(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		open bool
+	}{
+		{name: "no indent", line: "```", open: true},
+		{name: "one space", line: " ```", open: true},
+		{name: "three spaces, the deepest CommonMark allows", line: "   ```", open: true},
+		{name: "four spaces is indented code", line: "    ```", open: false},
+		{name: "four spaces of tildes is indented code", line: "    ~~~", open: false},
+		{name: "eight spaces is indented code", line: "        ```", open: false},
+		{name: "a tab is four columns, so already too deep", line: "\t```", open: false},
+		{name: "three spaces then a tab", line: "   \t```", open: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, _, got := graph.FenceOpens(tt.line); got != tt.open {
+				t.Errorf("FenceOpens(%q) opened = %v, want %v", tt.line, got, tt.open)
+			}
+		})
+	}
+}
+
+// TestLineSkipZonesLeavesAnIndentedExampleAlone is the same rule where it is
+// felt: the zones an indented example produces, and what a real fence and an
+// authored HTML block still produce beside it.
+func TestLineSkipZonesLeavesAnIndentedExampleAlone(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		body   string
+		hidden []string
+		shown  []string
+	}{
+		{
+			name:  "an indented backtick example hides nothing after it",
+			body:  "    ```\n\ntail text\n",
+			shown: []string{"tail text"},
+		},
+		{
+			name:  "an indented tilde example hides nothing after it",
+			body:  "    ~~~\n\ntail text\n",
+			shown: []string{"tail text"},
+		},
+		{
+			name:   "a real fence still hides its contents",
+			body:   "```\nhidden text\n```\n\ntail text\n",
+			hidden: []string{"hidden text"},
+			shown:  []string{"tail text"},
+		},
+		{
+			name:   "an authored HTML block still hides its contents",
+			body:   "<div>\nhidden text\n</div>\n\ntail text\n",
+			hidden: []string{"hidden text"},
+			shown:  []string{"tail text"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			zones := graph.LineSkipZones(tt.body)
+			covered := func(needle string) bool {
+				at := strings.Index(tt.body, needle)
+				if at < 0 {
+					t.Fatalf("the body does not contain %q, so this case asserts nothing", needle)
+				}
+				for _, z := range zones {
+					if at >= z.Start && at < z.Stop {
+						return true
+					}
+				}
+				return false
+			}
+			for _, needle := range tt.hidden {
+				if !covered(needle) {
+					t.Errorf("LineSkipZones(%q) leaves %q live, want it hidden", tt.body, needle)
+				}
+			}
+			for _, needle := range tt.shown {
+				if covered(needle) {
+					t.Errorf("LineSkipZones(%q) hides %q, want it live", tt.body, needle)
+				}
+			}
+		})
+	}
+}
