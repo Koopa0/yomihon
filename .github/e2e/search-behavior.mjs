@@ -24,6 +24,7 @@ const HIT_NOTE = '/notes/Notes/Glass%20Tide.md';
 const HIT_DIRECTIVE = `${HIT_NOTE}#:~:text=${HIT_QUERY}`;
 
 const SITES = [
+  'search-form-fits-the-narrowest-phone',
   'home-starts-at-top',
   'home-does-not-take-focus',
   'home-remains-plain-get',
@@ -99,7 +100,27 @@ const rewriteHome = (replacements, label) => (page) => rewriteResponse(page, BAS
 const rewriteSearchPage = (replacements, label) => (page) => rewriteResponse(page, BASE + '/search', replacements, label);
 const rewriteScript = (replacements, label, moduleName = 'search.js') => (page) => rewriteResponse(page, `**/${moduleName}`, replacements, label);
 
+// Appending to the product's own stylesheet lands outside the layer it
+// declares, so the appended rule outranks the one it stands in for without an
+// importance flag.
+const appendToStylesheet = (rule, label) => async (page) => {
+  let seen = 0;
+  await page.route('**/static/app.css', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    seen += 1;
+    await route.fulfill({ response, body: `${original}\n${rule}\n` });
+  });
+  return () => (seen === 0 ? `${label} never requested the stylesheet` : '');
+};
+
 const MUTATIONS = {
+  // A flex item keeps its content's width unless it is allowed to shrink, and
+  // the search box's content is wider than the narrowest phone.
+  'let-the-search-input-refuse-to-shrink': {
+    target: 'search-form-fits-the-narrowest-phone',
+    before: appendToStylesheet('.y-searchpage__form input{min-width:auto}', 'the narrow-phone stylesheet'),
+  },
   'home-autofocus': {
     target: 'home-does-not-take-focus',
     before: rewriteHome([
@@ -430,8 +451,11 @@ const start = async (browser, site, {
   javaScriptEnabled = true,
   clock = false,
   initScript = null,
+  viewport = { width: 1270, height: 720 },
+  cookies = null,
 } = {}) => {
-  const context = await browser.newContext({ javaScriptEnabled, viewport: { width: 1270, height: 720 } });
+  const context = await browser.newContext({ javaScriptEnabled, viewport });
+  if (cookies) await context.addCookies(cookies);
   const page = await context.newPage();
   if (initScript) await page.addInitScript(initScript);
   if (clock) await page.clock.install({ time: new Date('2026-07-11T00:00:00Z') });
@@ -1171,7 +1195,39 @@ try {
     }
   }
 
-  console.log('PASS search-behavior: Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
+  // The search page on the narrowest phone anyone still reads on. A form whose
+  // input will not shrink pushes its own submit past the right edge, and the
+  // reader has to scroll sideways to reach the button they came for — in both
+  // languages, because the button's word is longer in one of them.
+  for (const [language, cookies] of [['zh-Hant', null], ['en', [{ name: 'yomihon_lang', value: 'en', url: BASE }]]]) {
+    for (const width of [320, 375]) {
+      const narrow = await start(browser, 'search-form-fits-the-narrowest-phone', {
+        path: '/search',
+        viewport: { width, height: 640 },
+        cookies,
+      });
+      const measured = await narrow.page.evaluate(() => {
+        const button = document.querySelector('.y-searchpage__form .y-xbtn');
+        return {
+          scrollWidth: document.documentElement.scrollWidth,
+          right: button ? Math.round(button.getBoundingClientRect().right * 10) / 10 : null,
+          word: button ? button.textContent.trim() : null,
+        };
+      });
+      if (measured.right === null) {
+        throw new ProbeBroken(`BROKEN search-behavior: the search page at ${width}px carries no submit button to measure`);
+      }
+      if (measured.scrollWidth > width || measured.right > width) {
+        fail(
+          'search-form-fits-the-narrowest-phone',
+          `at ${width}px in ${language} the page is ${measured.scrollWidth}px wide and the ${JSON.stringify(measured.word)} button ends at ${measured.right}, so reaching it means scrolling sideways`,
+        );
+      }
+      await narrow.context.close();
+    }
+  }
+
+  console.log('PASS search-behavior: the form fits 320px in both languages; Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

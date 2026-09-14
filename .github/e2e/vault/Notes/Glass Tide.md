@@ -71,6 +71,14 @@ A #### heading. The shell writes it as h5; the authored level keeps the
 scroll margin that used to live on h4, so a jump here still clears the
 sticky header.
 
+##### Fifth-level landing
+
+A link can name this one too.
+
+###### Sixth-level landing
+
+And this one.
+
 ## Sensory material
 
 A plain section, named by a link that shows the reader different words.

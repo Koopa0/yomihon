@@ -55,6 +55,7 @@ const SITES = [
   'back-returns-to-the-source',
   'opening-heading-sits-flush',
   'block-clears-the-header',
+  'deep-headings-clear-the-header',
 ];
 
 const BLOCK_LINKS = [
@@ -133,6 +134,13 @@ const MUTATIONS = {
   'bury-the-target': {
     target: 'fragment-reaches-the-heading',
     apply: weakenStylesheet('.y-prose [data-level]{scroll-margin-top:4000px}'),
+  },
+  // The two deepest headings keep the clearance every other level has. A link
+  // may name any of them, and the ones nobody styled are the ones most easily
+  // left behind the header.
+  'flatten-the-deep-headings': {
+    target: 'deep-headings-clear-the-header',
+    apply: weakenStylesheet('.y-prose [data-level="5"],.y-prose [data-level="6"]{scroll-margin-top:0}'),
   },
   // Following the link stops being a step this tab took, so there is nothing
   // for the browser's own back button to undo.
@@ -321,6 +329,28 @@ try {
   if (parseFloat(fourth.scrollMarginTop) !== fourth.clearance) {
     fail('fragment-reaches-the-heading', `the demoted h5 scroll-margin-top is ${JSON.stringify(fourth.scrollMarginTop)}, want ${fourth.clearance}px from --header-height so the jump clears the sticky header`);
   }
+  // The same question at the two levels nothing styles: a heading a link can
+  // name has to come to rest where the reader can see it, whatever its depth.
+  const deep = await reader.evaluate(() => {
+    const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height'));
+    const read = (level) => {
+      const heading = document.querySelector(`.y-prose [data-level="${level}"]`);
+      return heading ? getComputedStyle(heading).scrollMarginTop : null;
+    };
+    return { five: read('5'), six: read('6'), clearance: headerHeight + 16 };
+  });
+  if (deep.five === null || deep.six === null) {
+    broken('the destination page carries no fifth- or sixth-level heading, so the deepest levels are not being measured');
+  }
+  for (const [level, margin] of [['5', deep.five], ['6', deep.six]]) {
+    if (parseFloat(margin) !== deep.clearance) {
+      fail(
+        'deep-headings-clear-the-header',
+        `a level-${level} heading has scroll-margin-top ${JSON.stringify(margin)}, want ${deep.clearance}px — a link naming it lands with the header over it`,
+      );
+    }
+  }
+
   const titleText = await reader.evaluate(() => document.querySelector('h1.y-title').textContent.trim());
   if (!anchors[titleText]) {
     fail('title-carries-its-anchor', `the destination's visible title ${JSON.stringify(titleText)} carries no id, so the section it absorbed can be named by a link and reached by nobody`);
