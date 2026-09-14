@@ -149,6 +149,18 @@ const MUTATIONS = {
     target: 'announcement-quotes-the-query',
     before: announceThroughAReplacementTemplate,
   },
+  // The guard that makes a late close harmless. Without it the close
+  // announcement, which arrives after the reopening, cancels the search the
+  // reopening asked for.
+  'cancel-on-a-late-close': {
+    target: 'reopening-answers-the-query-in-the-box',
+    before: rewriteScript([
+      {
+        needle: "      region.addEventListener('close', () => {\n        if (!region.open) cancelPending();\n      });",
+        replacement: "      region.addEventListener('close', cancelPending);",
+      },
+    ], 'the late-close guard'),
+  },
   'reopen-without-asking': {
     target: 'reopening-answers-the-query-in-the-box',
     before: reopenWithoutAsking,
@@ -1369,9 +1381,20 @@ try {
     );
     // Typed and closed inside the wait before the request goes out.
     await palette.page.fill('[data-search] [data-live-search-input]', 'beta');
-    await palette.page.keyboard.press('Escape');
-    await palette.page.waitForFunction(() => !document.querySelector('[data-search]').open, null, { timeout: 3000 });
-    await palette.page.keyboard.press('Control+k');
+    // Closing and reopening in one task, which is what makes this a lock
+    // rather than a coin toss. Closing clears the open attribute at once and
+    // queues the announcement; pressing both keys in the same task puts the
+    // reopening in front of that announcement every time, instead of whenever
+    // the machine happens to be slow enough. Driven as key presses, so it is
+    // the product's own shortcut path being exercised and not the dialog.
+    await palette.page.evaluate(() => {
+      const press = (key, ctrl) => window.dispatchEvent(
+        new KeyboardEvent('keydown', { key, ctrlKey: ctrl, bubbles: true, cancelable: true }),
+      );
+      press('Escape', false);
+      press('k', true);
+    });
+    await palette.page.waitForFunction(() => document.querySelector('[data-search]').open, null, { timeout: 3000 });
 
     const onReturn = await answered();
     if (onReturn.box !== 'beta') {
