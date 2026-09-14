@@ -196,9 +196,9 @@ func assertBrokenEvidence(t *testing.T, f *Finding) {
 	}
 }
 
-// quotedPlannedPaths name the two notes the placement lock uses: a Ledger note
-// carrying one inline planned declaration, and a Citer note whose link has no
-// target anywhere in the vault.
+// The placement lock reads two notes: a Ledger note carrying one inline planned
+// declaration, and a Citer note whose link names a target no note in the vault
+// carries.
 const (
 	citerNotePath  = "Writing/Citer.md"
 	ledgerNotePath = "Writing/Ledger.md"
