@@ -1036,3 +1036,249 @@ from = []
 owner = []
 `
 }
+
+// TestOptionalEnumFoldsTheSpelling holds every optional vocabulary to one
+// answer per declared word. A contract is written in an editor and a note's
+// frontmatter is read back off a filesystem, and the two hand over different
+// byte strings for the same word, so a membership test on the bytes can call a
+// note's value undeclared while it names exactly what the contract lists. The
+// contract folds its own values as it loads, which left the note's value as the
+// one unfolded side: a contract and a note carrying identical decomposed bytes
+// disagreed, because only one of them had been folded.
+//
+// Both directions are covered, because a contract can be the decomposed side as
+// easily as a note can. A word the contract never declares is the control that
+// keeps the folding from becoming a blanket yes, and the finding it produces
+// carries the note's own bytes: a reader is shown what their file says, not a
+// respelling of it.
+func TestOptionalEnumFoldsTheSpelling(t *testing.T) {
+	t.Parallel()
+
+	// Two words, each in two spellings, written from code points so nothing
+	// between the keyboard and the compiler can fold one into the other: the
+	// dakuten composed into one letter, then the bare letter followed by its
+	// combining mark.
+	const (
+		composed        = "\u304c\u3044\u306d\u3093"
+		decomposed      = "\u304b\u3099\u3044\u306d\u3093"
+		otherComposed   = "\u3050\u3093"
+		otherDecomposed = "\u304f\u3099\u3093"
+	)
+	if composed == decomposed || schema.NormalizeWord(decomposed) != composed {
+		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
+	}
+	if otherComposed == otherDecomposed || schema.NormalizeWord(otherDecomposed) != otherComposed {
+		t.Fatalf("the control spellings are not one word in two forms: %q and %q", otherComposed, otherDecomposed)
+	}
+	if composed == otherComposed {
+		t.Fatalf("the control word is the declared word: %q", composed)
+	}
+
+	// The table below names the vocabularies it covers, so a vocabulary added
+	// to the contract without a row here is reported rather than left untested.
+	var fields []string
+	for _, field := range reflect.VisibleFields(reflect.TypeFor[schema.Enums]()) {
+		if field.Name == "Type" || field.Name == "Status" {
+			continue
+		}
+		fields = append(fields, field.Tag.Get("toml"))
+	}
+	if want := []string{"domain", "source_kind", "source_provider", "level", "map_kind"}; !slices.Equal(fields, want) {
+		t.Fatalf("optional vocabularies = %q, want %q", fields, want)
+	}
+
+	spellings := []struct {
+		name     string
+		declared string
+		value    string
+		// wantValue is the word the finding must carry, or empty when the
+		// note's value names what the contract declared.
+		wantValue string
+	}{
+		{name: "composed contract, composed note", declared: composed, value: composed},
+		{name: "composed contract, decomposed note", declared: composed, value: decomposed},
+		{name: "decomposed contract, composed note", declared: decomposed, value: composed},
+		{name: "decomposed contract, decomposed note", declared: decomposed, value: decomposed},
+		{
+			name: "a word the contract never declared", declared: composed, value: "other",
+			wantValue: "other",
+		},
+		{
+			name: "a different word, decomposed in the note", declared: composed, value: otherDecomposed,
+			wantValue: otherDecomposed,
+		},
+	}
+	for _, field := range fields {
+		for _, tt := range spellings {
+			t.Run(field+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				root := t.TempDir()
+				write(t, root, schema.ContractRelPath, optionalEnumContract(field, tt.declared))
+				data := []byte("---\ntitle: Probe\ntype: memo\nstatus: draft\n" + field + ": " + tt.value + "\n---\nBody.\n")
+				write(t, root, "Notes/Probe.md", string(data))
+				contract, err := schema.Load(root)
+				if err != nil {
+					t.Fatalf("schema.Load() error = %v", err)
+				}
+				findings, err := LintFrontmatter("Notes/Probe.md", data, contract)
+				if err != nil {
+					t.Fatalf("LintFrontmatter() error = %v", err)
+				}
+				var want []string
+				if tt.wantValue != "" {
+					want = []string{"schema.enum " + field + ` "` + tt.wantValue + `" is not an allowed value` +
+						" target=" + tt.wantValue}
+				}
+				if diff := cmp.Diff(want, describeFindings(findings)); diff != "" {
+					t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+// TestDomainExemptTypeFoldsTheSpelling holds the waiver a contract writes for a
+// type that carries no domain. The waiver is read by comparing the note's own
+// type against the exempted list, so a type spelled one way in the contract and
+// another in the note lost its waiver and the note was told a field it is
+// excused from is missing. A type the contract does not exempt is the control:
+// it still has to carry the field.
+func TestDomainExemptTypeFoldsTheSpelling(t *testing.T) {
+	t.Parallel()
+
+	const (
+		composed   = "\u304c\u3044\u306d\u3093"
+		decomposed = "\u304b\u3099\u3044\u306d\u3093"
+	)
+	if composed == decomposed || schema.NormalizeWord(decomposed) != composed {
+		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
+	}
+
+	tests := []struct {
+		name     string
+		declared string
+		noteType string
+		want     []string
+	}{
+		{name: "composed contract, composed note", declared: composed, noteType: composed},
+		{name: "composed contract, decomposed note", declared: composed, noteType: decomposed},
+		{name: "decomposed contract, composed note", declared: decomposed, noteType: composed},
+		{name: "decomposed contract, decomposed note", declared: decomposed, noteType: decomposed},
+		{
+			name: "a type the contract does not exempt", declared: composed, noteType: "memo",
+			want: []string{"schema.required domain is required"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			write(t, root, schema.ContractRelPath, domainExemptContract(tt.declared))
+			data := []byte("---\ntitle: Probe\ntype: " + tt.noteType + "\nstatus: draft\n---\nBody.\n")
+			write(t, root, "Notes/Probe.md", string(data))
+			contract, err := schema.Load(root)
+			if err != nil {
+				t.Fatalf("schema.Load() error = %v", err)
+			}
+			findings, err := LintFrontmatter("Notes/Probe.md", data, contract)
+			if err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+			if diff := cmp.Diff(tt.want, describeFindings(findings)); diff != "" {
+				t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// describeFindings renders each finding as the sentence a reader is shown plus
+// the value it points at, so a comparison covers both the wording and the bytes
+// the finding carries.
+func describeFindings(findings []Finding) []string {
+	var got []string
+	for i := range findings {
+		f := &findings[i]
+		entry := string(f.RuleID) + " " + f.Message
+		if f.Target != nil {
+			entry += " target=" + *f.Target
+		}
+		got = append(got, entry)
+	}
+	return got
+}
+
+// optionalEnumContract declares one word for one optional vocabulary, spelled
+// the way the caller asks, and leaves every other vocabulary open.
+func optionalEnumContract(field, declared string) string {
+	return `schema_version = "1"
+
+[enums]
+type = ["memo"]
+` + field + ` = ["` + declared + `"]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "status", "domain", "source_kind", "source_provider", "level", "map_kind"]
+
+[scan]
+knowledge_dirs = ["Notes"]
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = []
+`
+}
+
+// domainExemptContract requires a domain of every note and excuses one type
+// from it, naming that type in both places the way the caller asks.
+func domainExemptContract(declared string) string {
+	return `schema_version = "1"
+
+[enums]
+type = ["memo", "` + declared + `"]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type", "domain"]
+known = ["title", "type", "status", "domain"]
+domain_exempt_types = ["` + declared + `"]
+
+[scan]
+knowledge_dirs = ["Notes"]
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = []
+`
+}

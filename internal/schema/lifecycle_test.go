@@ -869,3 +869,70 @@ func TestOneWordDeclaredTwiceIsRefused(t *testing.T) {
 	}
 	assertContractError(t, both, "enums.type: duplicate value")
 }
+
+// TestDomainExemptTypesAreFolded holds the waiver list to the spelling every
+// other declared word is held to. The list names types, and it is compared
+// against a note's own type, so a contract that spells the word one way while
+// the note spells it the other loses the waiver. Folding it as the contract
+// loads also settles it against the type vocabulary it has to be a subset of:
+// the two are declared in the same file and were folded on only one side, so a
+// contract naming one word decomposed in both places was refused outright.
+func TestDomainExemptTypesAreFolded(t *testing.T) {
+	t.Parallel()
+
+	// One word in two spellings, written from code points so nothing between
+	// the keyboard and the compiler can fold one into the other: the dakuten
+	// composed into one letter, then the bare letter and its combining mark.
+	const (
+		composed   = "\u304c\u3044\u306d\u3093"
+		decomposed = "\u304b\u3099\u3044\u306d\u3093"
+	)
+	if composed == decomposed || NormalizeWord(decomposed) != composed {
+		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
+	}
+
+	tests := []struct {
+		name         string
+		declaredType string
+		exempt       string
+	}{
+		{name: "both composed", declaredType: composed, exempt: composed},
+		{name: "both decomposed", declaredType: decomposed, exempt: decomposed},
+		{name: "composed vocabulary, decomposed waiver", declaredType: composed, exempt: decomposed},
+		{name: "decomposed vocabulary, composed waiver", declaredType: decomposed, exempt: composed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			contract := decodeLifecycleFixture(t, domainExemptFixture(tt.declaredType, tt.exempt))
+			if got, want := contract.Definition().Fields.DomainExempt, []string{composed}; !slices.Equal(got, want) {
+				t.Errorf("Definition().Fields.DomainExempt = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// domainExemptFixture declares one note type and excuses it from carrying a
+// domain, spelling the vocabulary and the waiver the way the caller asks.
+func domainExemptFixture(declaredType, exempt string) string {
+	return `schema_version = "1"
+
+[enums]
+type = ["` + declaredType + `"]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "status"]
+domain_exempt_types = ["` + exempt + `"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["` + declaredType + `"]
+from = []
+owner = []
+`
+}
