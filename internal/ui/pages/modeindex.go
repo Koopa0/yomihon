@@ -2,6 +2,7 @@ package pages
 
 import (
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/nav"
@@ -144,6 +145,21 @@ const (
 	// arrives afterwards is a file on the shelf and no authority at all.
 	ContractUnloaded
 )
+
+// String names a contract state for a diagnostic or a log line. A state
+// outside the three constants is a programming error and panics.
+func (s ContractState) String() string {
+	switch s {
+	case ContractGoverning:
+		return "governing"
+	case ContractAbsent:
+		return "absent"
+	case ContractUnloaded:
+		return "unloaded"
+	default:
+		panic("pages: unknown ContractState: " + strconv.Itoa(int(s)))
+	}
+}
 
 // ContractStateFrom names that state from what one request already holds:
 // whether anything claimed authority over the folder, and whether the
