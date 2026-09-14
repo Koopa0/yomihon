@@ -110,11 +110,7 @@ const waitSettled = (page) => page.evaluate(() => new Promise((resolve) => {
   setTimeout(finish, 600);
   const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(finish));
   afterPaint();
-  window.addEventListener('pagereveal', (event) => {
-    if (event.viewTransition?.finished) {
-      event.viewTransition.finished.then(afterPaint, afterPaint);
-      return;
-    }
+  window.addEventListener('pagereveal', () => {
     afterPaint();
   }, { once: true });
 }));
