@@ -28,6 +28,7 @@ const MUTATE = process.env.MUTATE || '';
 const SITES = [
   'pressed-matches-painted-theme',
   'not-pressed-on-a-light-page',
+  'pressed-follows-the-system',
   'moon-shown-when-following-system-dark',
   'sun-shown-when-following-system-light',
 ];
@@ -82,17 +83,27 @@ const MUTATIONS = {
   'always-pressed': {
     target: 'not-pressed-on-a-light-page',
     apply: rewriteModule(
-      "themeToggle?.setAttribute('aria-pressed', String(after === 'dark'));\n    // A write that left the theme",
-      "themeToggle?.setAttribute('aria-pressed', String(true));\n    // A write that left the theme",
+      "themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));\n  }",
+      "themeToggle?.setAttribute('aria-pressed', String(true));\n  }",
       'first-paint pressed state, hardcoded',
     ),
   },
   'load-reads-stored-choice-only': {
     target: 'pressed-matches-painted-theme',
     apply: rewriteModule(
-      "themeToggle?.setAttribute('aria-pressed', String(after === 'dark'));\n    // A write that left the theme",
-      "themeToggle?.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));\n    // A write that left the theme",
+      "themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));\n  }",
+      "themeToggle?.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));\n  }",
       'first-paint pressed state',
+    ),
+  },
+  // The listener still runs and still redraws; only the control is left
+  // unsaid, so this fires the pressed site and nothing else.
+  'leave-the-control-behind-the-system': {
+    target: 'pressed-follows-the-system',
+    apply: rewriteModule(
+      '    markThemePressed();\n    themeChanged();',
+      '    themeChanged();',
+      'system-change control update',
     ),
   },
   'system-dark-icon-reads-explicit-theme-only': {
@@ -209,7 +220,46 @@ try {
     );
   }
 
-  console.log('PASS theme-toggle-pressed: the control reports pressed on a dark page nobody chose, not pressed on a light one, and the icon follows the painted theme before script runs');
+  // The system can move while the page is open. A reader who stored nothing is
+  // following it, so what the control reports has to move with them; a reader
+  // who stored a choice is not, and the same change must leave their control
+  // saying what it said. The second half is what separates following the
+  // reader from reacting to any media change at all.
+  await lightPage.emulateMedia({ colorScheme: 'dark' });
+  await lightPage.waitForFunction(
+    () => document.querySelector('[data-theme-toggle]')?.getAttribute('aria-pressed') === 'true',
+    null,
+    { timeout: 3000 },
+  ).catch(() => {});
+  const afterSystemDark = await themeControlState(lightPage);
+  if (afterSystemDark.pressed !== 'true') {
+    fail(
+      'pressed-follows-the-system',
+      `the system went dark under a reader who stored nothing and the control reports aria-pressed=${afterSystemDark.pressed}, want true`,
+    );
+  }
+
+  const storedContext = await browser.newContext({ colorScheme: 'light', viewport: { width: 1280, height: 800 } });
+  await storedContext.addCookies([{ name: 'yomihon_theme', value: 'light', url: BASE }]);
+  const storedPage = await storedContext.newPage();
+  if (MUTATE) await MUTATIONS[MUTATE].apply(storedPage);
+  await storedPage.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  const storedBefore = await themeControlState(storedPage);
+  if (storedBefore === null) broken('the stored-choice page carries no theme control to read');
+  if (storedBefore.stamped !== 'light') {
+    broken(`the stored-choice page carries data-theme=${JSON.stringify(storedBefore.stamped)}, want light`);
+  }
+  await storedPage.emulateMedia({ colorScheme: 'dark' });
+  await storedPage.waitForTimeout(500);
+  const storedAfter = await themeControlState(storedPage);
+  if (storedAfter.pressed !== storedBefore.pressed) {
+    fail(
+      'pressed-follows-the-system',
+      `the system went dark under a stored light choice and the control moved from aria-pressed=${storedBefore.pressed} to ${storedAfter.pressed}, want it unchanged`,
+    );
+  }
+
+  console.log('PASS theme-toggle-pressed: the control reports pressed on a dark page nobody chose, not pressed on a light one, the icon follows the painted theme before script runs, and the answer follows the system only for a reader who stored nothing');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

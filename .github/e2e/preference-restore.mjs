@@ -21,6 +21,7 @@ const SITES = [
   'restore-textsize',
   'restore-ruby',
   'restore-shortcuts',
+  'restore-font',
   'restore-ruby-unknown-is-on',
   'restore-shortcuts-unknown-is-on',
 ];
@@ -56,6 +57,14 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
 };
 
 const MUTATIONS = {
+  'skip-font-resync': {
+    target: 'restore-font',
+    apply: rewriteModule(
+      "    const font = readCookie('yomihon_font');\n",
+      "    const font = '';\n",
+      'font restore',
+    ),
+  },
   'skip-theme-resync': {
     target: 'restore-theme',
     apply: rewriteModule(
@@ -139,6 +148,7 @@ const preferenceState = (page) =>
       theme: root.dataset.theme ?? '',
       textsize: root.dataset.textsize ?? '',
       ruby: root.dataset.ruby ?? '',
+      font: root.dataset.font ?? '',
       shortcuts: root.dataset.singleKeyShortcuts ?? '',
       themePressed: themeToggle ? themeToggle.getAttribute('aria-pressed') : null,
       textsizeLabel: textsizeToggle ? textsizeToggle.getAttribute('aria-label') : null,
@@ -184,6 +194,7 @@ try {
     root.dataset.textsize = 'm';
     root.dataset.ruby = 'on';
     root.dataset.singleKeyShortcuts = 'on';
+    root.dataset.font = 'serif';
     document.querySelector('[data-theme-toggle]')?.setAttribute('aria-pressed', 'false');
     document.querySelector('[data-ruby-toggle]')?.setAttribute('aria-pressed', 'true');
     const shortcutsToggle = document.querySelector('[data-single-key-shortcuts-toggle]');
@@ -192,6 +203,7 @@ try {
     document.cookie = 'yomihon_textsize=xl;path=/;max-age=31536000;samesite=lax';
     document.cookie = 'yomihon_ruby=off;path=/;max-age=31536000;samesite=lax';
     document.cookie = 'yomihon_shortcuts=off;path=/;max-age=31536000;samesite=lax';
+    document.cookie = 'yomihon_font=sans;path=/;max-age=31536000;samesite=lax';
   });
 
   const before = await preferenceState(page);
@@ -210,6 +222,12 @@ try {
   }
   if (after.ruby !== 'off' || after.rubyPressed !== 'false') {
     fail('restore-ruby', `after restore ruby=${after.ruby} aria-pressed=${after.rubyPressed}, want off/false`);
+  }
+  // The typeface is the reading surface itself, and it was the one stamped
+  // choice the restore path walked past: theme and size came back corrected
+  // while the words stayed in the face the reader had already left behind.
+  if (after.font !== 'sans') {
+    fail('restore-font', `after restore font=${after.font}, want sans`);
   }
   if (after.shortcuts !== 'off' || after.shortcutsChecked !== false) {
     fail('restore-shortcuts', `after restore shortcuts=${after.shortcuts} checked=${after.shortcutsChecked}, want off/false`);
