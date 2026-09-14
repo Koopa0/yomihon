@@ -1,7 +1,11 @@
-// Carry the reading position through the language-switch round trip.
-// The control stays a plain POST form: this only rewrites the hidden next
-// field before submit, and applies the fragment the redirect comes back with.
-// Without script the form still posts the bare path and lands at the top.
+// Carry the reading position through the round trips that leave a note and
+// come back to it: the language form, and the walk out to the reading choices
+// and back. Both end in a redirect the server builds from an address the page
+// handed it, so the position rides on that address and nothing new is stored.
+// The controls stay a plain POST form and a plain link; this only rewrites the
+// address just before it is followed, and applies the fragment the redirect
+// comes back with. Without script both still carry the bare path and land at
+// the top.
 
 const MARK = 'y-at:';
 
@@ -48,8 +52,28 @@ function restorePosition() {
   }, { once: true });
 }
 
+// The walk to the reading choices is a link, so the position goes on the
+// address it already carries to come back by. It is written into that address
+// rather than into any form on the page it leads to: which forms that page has
+// is its own business and has been rearranged before, while the return address
+// is the one thing every one of them sends the reader home by.
+function carryPositionToLink(link) {
+  const address = new URL(link.href, location.href);
+  const from = address.searchParams.get('from');
+  if (!from || !from.startsWith('/') || from.startsWith('//')) return;
+  const y = Math.round(window.scrollY);
+  if (y <= 0) return;
+  address.searchParams.set('from', pathOnly(from) + '#' + MARK + y);
+  link.href = address.pathname + address.search;
+}
+
 export function initLangForm() {
   restorePosition();
+  for (const link of document.querySelectorAll('[data-carry-position]')) {
+    link.addEventListener('click', () => {
+      carryPositionToLink(link);
+    });
+  }
   const form = document.querySelector('.y-langform');
   if (!form) return;
   form.addEventListener('submit', () => {
