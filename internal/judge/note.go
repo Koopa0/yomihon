@@ -169,7 +169,7 @@ func readTypedFields(n *note, doc *yaml.Node) {
 // the bytes a filesystem or an editor handed over. The raw value stays on the
 // note: a finding quotes the note as written.
 func statusWord(n *note) string {
-	return schema.NormalizeStatus(n.status)
+	return schema.NormalizeWord(n.status)
 }
 
 // mappingValue returns the value node for a top-level key, or false when the

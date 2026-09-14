@@ -63,7 +63,7 @@ func (r NavigationRoles) IsPathType(noteType string) bool {
 	if !r.Trustworthy() {
 		return false
 	}
-	_, ok := r.pathTypes[noteType]
+	_, ok := r.pathTypes[NormalizeWord(noteType)]
 	return ok
 }
 
@@ -72,7 +72,7 @@ func (r NavigationRoles) IsMapType(noteType string) bool {
 	if !r.Trustworthy() {
 		return false
 	}
-	_, ok := r.mapTypes[noteType]
+	_, ok := r.mapTypes[NormalizeWord(noteType)]
 	return ok
 }
 

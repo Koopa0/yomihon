@@ -138,7 +138,7 @@ func (r *lintRun) note(n *note) []Finding {
 
 	var out []Finding
 	ty, hasType := fmScalar(n.frontmatter, "type")
-	if hasType && !slices.Contains(r.definition.Enums.Type, ty) {
+	if hasType && !r.contract.DeclaresType(ty) {
 		out = append(out, schemaFinding(n, "schema.enum", "type", ty, "is not an allowed type"))
 	}
 
@@ -212,7 +212,7 @@ func (r *lintRun) lessonSlug(n *note) []Finding {
 // value is folded here, and a note that composes a word its contract decomposes
 // still names the status the contract declares.
 func (r *lintRun) statusDeclared(group, status string) bool {
-	return slices.Contains(r.contract.StatusesInGroup(group), schema.NormalizeStatus(status))
+	return slices.Contains(r.contract.StatusesInGroup(group), schema.NormalizeWord(status))
 }
 
 // documentStatus reports a document's status outside the status set its own
@@ -369,7 +369,7 @@ func schemaRuleSource(ruleID RuleID) string {
 // unreachableStatus reports a note whose status is in its type's declared
 // group while no lifecycle row with that status applies to its type.
 func (r *lintRun) unreachableStatus(n *note, noteType, group string) []Finding {
-	if noteType == "" || !slices.Contains(r.definition.Enums.Type, noteType) {
+	if noteType == "" || !r.contract.DeclaresType(noteType) {
 		return nil
 	}
 	st, ok := fmScalar(n.frontmatter, "status")

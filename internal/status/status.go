@@ -406,8 +406,8 @@ func (v Authority) CanReturn(noteType, from, to string) bool {
 	if !v.available() || from == "" || to == "" {
 		return false
 	}
-	from = schema.NormalizeStatus(from)
-	to = schema.NormalizeStatus(to)
+	from = schema.NormalizeWord(from)
+	to = schema.NormalizeWord(to)
 	if from == to {
 		return true
 	}
@@ -451,14 +451,14 @@ func (v Authority) ReachableStatus(noteType, status string) bool {
 	if !v.available() {
 		return true
 	}
-	_, ok := v.contract.Stage(noteType, schema.NormalizeStatus(status))
+	_, ok := v.contract.Stage(noteType, schema.NormalizeWord(status))
 	return ok
 }
 
 // KnownStatus reports whether status is among the contract's declared values
 // for the given note type. A closed view knows none; so does an undeclared type.
 func (v Authority) KnownStatus(noteType, status string) bool {
-	return v.available() && slices.Contains(v.contract.Statuses(noteType), schema.NormalizeStatus(status))
+	return v.available() && slices.Contains(v.contract.Statuses(noteType), schema.NormalizeWord(status))
 }
 
 // IsLessonType reports whether noteType is the type this vault files its
