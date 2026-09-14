@@ -473,3 +473,64 @@ func TestRubyWrittenOutEndTagsReadAsOneBasePhrase(t *testing.T) {
 		t.Errorf("PlainText() = %q, want %q", got, want)
 	}
 }
+
+// An annotation may carry a ruby of its own: rt holds phrasing content, and
+// a browser keeps the nesting. Everything inside the outer annotation is that
+// annotation's reading — the inner ruby's base and its own reading included,
+// in document order — so the base phrase the page shows stays one substring
+// and the readings follow it. An inner annotation opening or closing must
+// leave the outer one open; a scan that ends an annotation at any rt, rather
+// than at the same ruby's, sends the tail of the outer reading into the base
+// phrase and the phrase stops finding its note.
+//
+// The inner ruby's end tags may be left out like any other's, each closing
+// where HTML says it closes, and a ruby after the nested one still starts a
+// reading of its own, held apart from the one before it.
+func TestNestedRubyKeepsTheBasePhrase(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		written string
+		want    string
+		omitted []string
+	}{
+		{
+			name:    "an annotation carrying a ruby of its own",
+			written: "<ruby>漢<rt>か<ruby>ん<rt>n</rt></ruby>じ</rt></ruby>字の話。\n\nUniqueFollowingParagraph\n",
+			want:    "漢字の話。\nかんnじ\nUniqueFollowingParagraph",
+			omitted: []string{
+				"<ruby>漢<rt>か<ruby>ん<rt>n</ruby>じ</rt></ruby>字の話。\n\nUniqueFollowingParagraph\n",
+				"<ruby>漢<rt>か<ruby>ん<rt>n</ruby>じ</ruby>字の話。\n\nUniqueFollowingParagraph\n",
+			},
+		},
+		{
+			name:    "a sibling ruby after the nested one",
+			written: "<ruby>漢<rt>か<ruby>ん<rt>n</rt></ruby>じ</rt></ruby><ruby>字<rt>じ</rt></ruby>の話。\n\nUniqueFollowingParagraph\n",
+			want:    "漢字の話。\nかんnじ じ\nUniqueFollowingParagraph",
+			omitted: []string{
+				"<ruby>漢<rt>か<ruby>ん<rt>n</ruby>じ</ruby><ruby>字<rt>じ</ruby>の話。\n\nUniqueFollowingParagraph\n",
+			},
+		},
+		{
+			name:    "an inner ruby nested inside the outer's base text, not its annotation",
+			written: "<ruby>漢<ruby>字<rt>じ</rt></ruby>語<rt>かん</rt></ruby>\n",
+			want:    "漢字語\nじ かん",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := render.PlainText(tt.written); got != tt.want {
+				t.Errorf("PlainText() with every end tag written = %q, want %q", got, tt.want)
+			}
+			for _, omitted := range tt.omitted {
+				if got := render.PlainText(omitted); got != tt.want {
+					t.Errorf("PlainText(%q) = %q, want the written spelling's %q", omitted, got, tt.want)
+				}
+			}
+		})
+	}
+}
