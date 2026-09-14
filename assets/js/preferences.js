@@ -56,6 +56,16 @@ export function initPreferences() {
   // thing is drawn that way.
   let themeChanged = () => {};
 
+  // The server stamps this control's pressed state from the stored choice,
+  // which is all it can see: prefers-color-scheme never reaches it. With no
+  // choice stored and a dark system preference the page paints dark and the
+  // attribute says otherwise. So the control is told from here, from what the
+  // reader is actually looking at — on arrival, after a write, and when the
+  // system moves underneath a reader who stored nothing.
+  function markThemePressed() {
+    themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
+  }
+
   // The only place the reader's theme reaches the root element. A choice they
   // made is stored as well; the rewrite from the cookie after a cache restore
   // is not, and may have no value to write at all. Both leave through the same
@@ -71,12 +81,7 @@ export function initPreferences() {
       delete root.dataset.theme;
     }
     const after = effectiveTheme();
-    // The server stamps this control's pressed state from the stored choice,
-    // which is all it can see: prefers-color-scheme never reaches it. With no
-    // choice stored and a dark system preference the page paints dark and the
-    // attribute says otherwise, so this agrees with what the reader is looking
-    // at, both on arrival and after every later write.
-    themeToggle?.setAttribute('aria-pressed', String(after === 'dark'));
+    markThemePressed();
     // A write that left the theme where it was is not news. The cookie read
     // after a cache restore usually names the theme the page is already
     // showing, and announcing that would redraw every diagram on the page each
@@ -88,6 +93,17 @@ export function initPreferences() {
   // same door, so the control agrees with what the reader is looking at from
   // the first paint rather than only after they touch it.
   writeTheme(root.dataset.theme || null, false);
+
+  // A reader who stored no choice is following the system, and the system can
+  // change while they are reading: the stylesheet repaints on its own, but the
+  // control that reports the theme and anything drawn in the theme's colours
+  // are told here. A stored choice fixes the theme, so the same change moves
+  // nothing and says nothing.
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (root.dataset.theme) return;
+    markThemePressed();
+    themeChanged();
+  });
 
   textsizeToggle?.addEventListener('click', (event) => {
     const next = { m: 'l', l: 'xl', xl: 'm' }[root.dataset.textsize] || 'l';
@@ -137,6 +153,15 @@ export function initPreferences() {
     const ruby = readCookie('yomihon_ruby') === 'off' ? 'off' : 'on';
     root.dataset.ruby = ruby;
     rubyToggle?.setAttribute('aria-pressed', String(ruby === 'on'));
+    // The reading typeface honours the same three names the server does, and
+    // like the theme it may have nothing to write: a reader who chose none
+    // leaves the attribute off the root rather than on a default.
+    const font = readCookie('yomihon_font');
+    if (font === 'serif' || font === 'sans' || font === 'kai') {
+      root.dataset.font = font;
+    } else {
+      delete root.dataset.font;
+    }
     const shortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
     root.dataset.singleKeyShortcuts = shortcuts;
     if (shortcutsToggle) shortcutsToggle.checked = shortcuts === 'on';
