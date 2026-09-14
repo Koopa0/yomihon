@@ -243,6 +243,21 @@ try {
   // of its own, because the mutation has to be shown to have reached the
   // document that is being measured rather than inherited from the first.
   const prefsPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  // Every document this page loads records its own arrival: whether one came
+  // with a view transition, and whether that transition ever finished. The
+  // listener has to be installed before the document exists, because pagereveal
+  // has already fired by the time anything outside can ask.
+  await prefsPage.addInitScript(() => {
+    window.__arrival = { reveal: false, transition: false, finished: false };
+    window.addEventListener('pagereveal', (event) => {
+      window.__arrival.reveal = true;
+      window.__arrival.transition = Boolean(event.viewTransition);
+      event.viewTransition?.finished.then(
+        () => { window.__arrival.finished = true; },
+        () => { window.__arrival.finished = 'rejected'; },
+      );
+    }, { once: true });
+  });
   const prefsProof = MUTATE ? await MUTATIONS[MUTATE].apply(prefsPage) : null;
   const prefsResponse = await prefsPage.goto(BASE + PAGE, { waitUntil: 'load' });
   if (!prefsResponse || prefsResponse.status() !== 200) {
