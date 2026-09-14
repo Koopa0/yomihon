@@ -514,9 +514,12 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 			// classified so speech can drop the address. Embeds being allowed is
 			// exactly the state of being the note's own text. Links convert first,
 			// so a caret inside one is never read as an address. A code span is
-			// the same kind of quoted text; markBlockAnchor leaves a caret it
-			// owns alone, and does not widen that to indented code.
-			line = markBlockAnchor(line, col.page, &st.marks.inline, allowEmbed == embedsAllowed)
+			// the same kind of quoted text, asked of the author's own lines
+			// because a span can run past the end of one; the answer does not
+			// widen to indented code.
+			if !CodeSpanOwnsBlockAddress(st.lines, st.i) {
+				line = markBlockAnchor(line, col.page, &st.marks.inline, allowEmbed == embedsAllowed)
+			}
 			st.kept = append(st.kept, line)
 			st.i++
 		}
