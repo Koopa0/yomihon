@@ -25,7 +25,7 @@ func newServer(t *testing.T, root string) *httptest.Server {
 	t.Helper()
 	model := loadModel(t, root)
 	mux := http.NewServeMux()
-	syllabus.New(func() nav.Shell { return nav.Shell{Nav: model} }, func() *snapshot.Generation { return nil }, slog.New(slog.DiscardHandler)).Register(mux)
+	syllabus.New(func() (nav.Shell, *snapshot.Generation) { return nav.Shell{Nav: model}, nil }, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -216,10 +216,10 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	model := loadModel(t, root)
 	calls := 0
 	mux := http.NewServeMux()
-	syllabus.New(func() nav.Shell {
+	syllabus.New(func() (nav.Shell, *snapshot.Generation) {
 		calls++
-		return nav.Shell{Nav: model, Governed: true}
-	}, func() *snapshot.Generation { return nil }, slog.New(slog.DiscardHandler)).Register(mux)
+		return nav.Shell{Nav: model, Governed: true}, nil
+	}, slog.New(slog.DiscardHandler)).Register(mux)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/syllabus/Maps/Go%20path.md", http.NoBody))
 	if rr.Code != http.StatusOK {
@@ -271,17 +271,18 @@ func TestShowNotFound(t *testing.T) {
 	}
 }
 
-// TestNewHandlerPanicsOnNilShell mirrors internal/note's nil-dependency coverage:
-// a provider returning an empty shell is valid, but a nil provider is a
-// wiring bug that must fail at construction, not on the first request.
-func TestNewHandlerPanicsOnNilShell(t *testing.T) {
+// TestNewHandlerPanicsOnNilProvider mirrors internal/note's nil-dependency
+// coverage: a provider answering with an empty shell and no generation is
+// valid, but a nil provider is a wiring bug that must fail at construction, not
+// on the first request.
+func TestNewHandlerPanicsOnNilProvider(t *testing.T) {
 	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
-			t.Fatal("New(nil Shell) did not panic")
+			t.Fatal("New(nil provider) did not panic")
 		}
 	}()
-	syllabus.New(nil, func() *snapshot.Generation { return nil }, slog.New(slog.DiscardHandler))
+	syllabus.New(nil, slog.New(slog.DiscardHandler))
 }
 
 // The page says how big a course is, never how much of it is done. The figure

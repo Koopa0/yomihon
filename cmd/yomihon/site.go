@@ -136,6 +136,10 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		snap := store.Current().Capture()
 		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
 	}
+	pathProvider := func() (nav.Shell, *snapshot.Generation) {
+		snap := store.Current().Capture()
+		return shell.Project(writer.Authority(), snap), snap
+	}
 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
@@ -149,7 +153,7 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 	status.NewHandler(writer, shellProvider, log).Register(mux)
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
-	syllabus.New(shellProvider, func() *snapshot.Generation { return store.Current().Capture() }, log).Register(mux)
+	syllabus.New(pathProvider, log).Register(mux)
 	report.New(source, reportProvider, log).Register(mux)
 	asset.Register(mux)
 
