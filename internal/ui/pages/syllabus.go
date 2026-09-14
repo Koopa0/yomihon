@@ -73,6 +73,11 @@ type PathEntryView struct {
 	Sealed bool
 	Kind   nav.EntryKind
 	Number int
+	// Language is the tag the listed note declared, carried so a surface can
+	// stamp the title it prints. It is the note's own answer or empty, never a
+	// guess, and a row that reached nothing keeps whatever the path's author
+	// wrote about it.
+	Language string
 }
 
 // PathRunView is one uninterrupted stretch of what a branch lists: a run of
@@ -254,7 +259,7 @@ func countModules(sv *PathBranchView) int {
 // buildPathEntry maps one nav entry onto a linked or warning study-path row. The
 // number is copied for every row, so a planned lesson keeps its place.
 func buildPathEntry(entry *nav.PathEntry) PathEntryView {
-	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number}
+	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
 	if entry.Kind != nav.EntryResolved {
 		return v
 	}

@@ -172,7 +172,7 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 	if l.Kind == nav.EntryResolved {
 		<a class="y-lesson" href={ templ.URL(l.Href) }>
 			<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Sealed) } aria-hidden="true"></span>
-			<span class="y-lesson__title">{ l.Text }</span>
+			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Text }</span>
 			if l.Status != "" {
 				<span class={ "ui-status", "ui-status--" + l.Status }>{ l.Status }</span>
 			}
@@ -184,7 +184,7 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 			title={ entryResolutionTitle(l.Kind, lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-			<span class="y-lesson__title">{ l.Text }</span>
+			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Text }</span>
 			<span class="y-navmark y-navmark--warn">{ entryResolutionLabel(l.Kind, lang) }</span>
 		</span>
 	}
