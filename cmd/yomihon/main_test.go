@@ -367,6 +367,10 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		snap := store.Current().Capture()
 		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(authority, snap), Status: authority}
 	}
+	pathProvider := func() (nav.Shell, *snapshot.Generation) {
+		snap := store.Current().Capture()
+		return shell.Project(writer.Authority(), snap), snap
+	}
 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
@@ -378,10 +382,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		Log:            log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
-	syllabus.New(func() (nav.Shell, *snapshot.Generation) {
-		snap := store.Current().Capture()
-		return shell.Project(writer.Authority(), snap), snap
-	}, log).Register(mux)
+	syllabus.New(pathProvider, log).Register(mux)
 	report.New(reader, reportProvider, log).Register(mux)
 
 	srv := httptest.NewServer(mux)
