@@ -30,11 +30,24 @@ const loopbackListenerFile = "cmd/yomihon/main.go"
 // thing that would start one. The net families are matched by prefix, so a
 // variant the standard library grows is refused the day it appears; Listener is
 // the interface a server is handed, and naming one starts nothing.
+//
+// Turning a name into an address is itself a call to whatever answers for this
+// machine, so the whole Lookup family is refused beside the dialers, and so are
+// the two names that reach the resolver behind it. Those two are written out
+// because they are a pair and not a family: a prefix would claim a shape the
+// standard library does not have here.
 func opensAConnection(pkg, symbol string) bool {
 	switch pkg {
 	case "net":
-		return symbol != "Listener" &&
-			(strings.HasPrefix(symbol, "Dial") || strings.HasPrefix(symbol, "Listen"))
+		switch symbol {
+		case "Listener":
+			return false
+		case "DefaultResolver", "Resolver":
+			return true
+		}
+		return strings.HasPrefix(symbol, "Dial") ||
+			strings.HasPrefix(symbol, "Listen") ||
+			strings.HasPrefix(symbol, "Lookup")
 	case "net/http":
 		return slices.Contains(outboundClientSurface, symbol)
 	}
@@ -98,8 +111,9 @@ func outboundSites(path string, fset *token.FileSet, file *ast.File) (found []si
 
 // TestTheOnlySocketProductionCodeOpensIsTheLoopbackListener keeps yomihon off
 // the network. It reads every shipped Go file for a spelling that opens a
-// connection — a dialer, a listener, or net/http's client half — and permits
-// exactly one: the listener the command binds for the server itself.
+// connection — a dialer, a listener, a name lookup, or net/http's client half —
+// and permits exactly one: the listener the command binds for the server
+// itself.
 //
 // Serving what this machine asked for is not reaching out. The stylesheet and
 // the diagram module under /static/ are same-origin answers written to a
