@@ -100,11 +100,11 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 }
 
 // TestTheFootChoosesTheOrderItCanKnow pins FooterSequence's choice — and the
-// course flag that now travels with it — against the real navigation build.
-// A note two courses teach falls back to the folder, because which course the
-// reader is walking is not knowable; a side branch's last lesson ends its
-// branch rather than rejoining the main line; and the main line steps over a
-// side branch hanging inside it.
+// course flag that travels with it — against the real navigation build. These
+// lessons declare no domain of their own, so a note two courses teach falls
+// back to the folder, nothing having picked one course out; a side branch's
+// last lesson ends its branch rather than rejoining the main line; and the
+// main line steps over a side branch hanging inside it.
 func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 	t.Parallel()
 
@@ -156,7 +156,8 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			prev, next, label, course := FooterSequence(model, tt.current, wording.ZhHant)
+			resolved := NewReadingRail(model, tt.current, "")
+			prev, next, label, course := FooterSequence(&resolved, wording.ZhHant)
 			if prev.RelPath != tt.wantPrev {
 				t.Errorf("FooterSequence(%q) prev = %q, want %q", tt.current, prev.RelPath, tt.wantPrev)
 			}
@@ -258,13 +259,14 @@ func TestStudyPathLandmarksDoNotShareAName(t *testing.T) {
 
 	model := buildStepsModel(t)
 	current := "Course/C02.md"
-	prev, next, label, course := FooterSequence(model, current, wording.ZhHant)
+	resolved := NewReadingRail(model, current, "golang")
+	prev, next, label, course := FooterSequence(&resolved, wording.ZhHant)
 	if !course || label == "" {
 		t.Fatalf("FooterSequence(%q) did not choose a course foot: label=%q course=%v", current, label, course)
 	}
 
 	var rail bytes.Buffer
-	if err := readingRail(NewReadingRail(model, current, "golang"), layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &rail); err != nil {
+	if err := readingRail(resolved, layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &rail); err != nil {
 		t.Fatalf("render reading rail: %v", err)
 	}
 	railName := navAriaLabel(rail.String(), "y-lessonsteps")
