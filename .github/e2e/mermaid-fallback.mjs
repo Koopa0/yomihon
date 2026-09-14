@@ -21,6 +21,8 @@ const SITES = [
   'module-load-fallback',
   'label-linebreak-render',
   'diagram-failure-is-visible',
+  'initial-theme-follows-system',
+  'theme-change-redraws',
 ];
 // A label written across two lines. Drawn as HTML this becomes an unclosed
 // break inside a foreign object, which the strict parse the runtime performs
@@ -98,10 +100,22 @@ const rewriteRuntimeTwice = (moduleName, first, second) => async (page) => {
   return () => matches;
 };
 
-const HTML_LABELS_ON = ['    htmlLabels: false,', '    htmlLabels: true,'];
+const HTML_LABELS_ON = ['      htmlLabels: false,', '      htmlLabels: true,'];
 const SWALLOW_PARSE_FAILURE = [
-  "        throw new Error('the renderer produced markup that is not an SVG');",
-  '        continue;',
+  "          throw new Error('the renderer produced markup that is not an SVG');",
+  '          continue;',
+];
+// The reader's own theme, read from the one place that knows what they are
+// looking at, put back to the explicit attribute alone — which is absent when
+// a dark system preference painted the page and no choice was ever stored.
+const EXPLICIT_ATTRIBUTE_THEME = [
+  "      theme: preferences.theme() === 'dark' ? 'dark' : 'default',",
+  "      theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',",
+];
+// A theme change still arrives and still chains, and draws nothing.
+const NO_REDRAW = [
+  '    drawing = drawing.then(draw, draw)',
+  '    drawing = drawing.then(() => {}, () => {})',
 ];
 
 const MUTATIONS = {
@@ -117,9 +131,17 @@ const MUTATIONS = {
     target: 'module-success-render',
     apply: rewriteRuntime(
       'diagrams.js',
-      '      element.appendChild(document.importNode(svgElement, true));',
-      "      element.appendChild(document.createTextNode('render suppressed'));",
+      '        element.appendChild(document.importNode(svgElement, true));',
+      "        element.appendChild(document.createTextNode('render suppressed'));",
     ),
+  },
+  'restore-explicit-attribute-theme': {
+    target: 'initial-theme-follows-system',
+    apply: rewriteRuntime('diagrams.js', EXPLICIT_ATTRIBUTE_THEME[0], EXPLICIT_ATTRIBUTE_THEME[1]),
+  },
+  'drop-theme-redraw': {
+    target: 'theme-change-redraws',
+    apply: rewriteRuntime('diagrams.js', NO_REDRAW[0], NO_REDRAW[1]),
   },
   'suppress-load-error-marker': {
     target: 'module-load-fallback',
@@ -190,6 +212,14 @@ const alphaOf = (color) => {
   if (!Number.isFinite(number)) return Number.NaN;
   return token.endsWith('%') ? number / 100 : number;
 };
+
+// The colour the renderer drew a node in, which is what separates its themes.
+// Read from the drawn shape rather than from the source it came from: the theme
+// reaches the diagram through the renderer, so only the drawing can answer.
+const nodeFill = (page) => page.evaluate(() => {
+  const node = document.querySelector('.mermaid-diagram > svg .node rect');
+  return node ? getComputedStyle(node).fill : null;
+});
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let fallbackBrowser = null;
@@ -310,7 +340,64 @@ try {
     await context.close();
   }
 
-  console.log('PASS mermaid-fallback: module load renders SVG; aborted module restores readable source with no shimmer; a wrapped label renders and a failure says so');
+  // Case 4: a diagram is drawn in the theme the reader is actually looking at,
+  // and follows them when they change it. The stored choice is only half of
+  // that — a dark system preference with nothing stored paints the page dark
+  // while leaving the root attribute absent, so reading the attribute alone
+  // prints a light diagram onto a dark page. The drawing an explicit dark
+  // choice produces is the standard both halves are held to, which keeps this
+  // on the claim rather than on the renderer's palette, and a release that
+  // drew both themes alike would say so here instead of passing quietly.
+  {
+    const themePage = async (name, { colorScheme, stored }) => {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme });
+      if (stored) await context.addCookies([{ name: 'yomihon_theme', value: stored, url: BASE }]);
+      const page = await context.newPage();
+      const injected = await injectDiagram(page);
+      const mutated = (await arm(page, 'initial-theme-follows-system'))
+        ?? (await arm(page, 'theme-change-redraws'));
+      await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+      proveDiagramInjected(injected, name);
+      // Each page proves the rewrite reached it: a page that quietly kept the
+      // original runtime would otherwise stand in this comparison as evidence.
+      proveMutationApplied(mutated);
+      await page.waitForFunction(() => document.querySelector('.mermaid-diagram > svg'), null, { timeout: 5000 }).catch(() => {});
+      if (await page.locator('.mermaid-diagram').count() !== 1) broken(`${name} has no single injected Mermaid block`);
+      return { context, page };
+    };
+
+    const explicitDark = await themePage('case 4 (stored dark)', { colorScheme: 'light', stored: 'dark' });
+    const systemDark = await themePage('case 4 (system dark)', { colorScheme: 'dark' });
+    const systemLight = await themePage('case 4 (system light)', { colorScheme: 'light' });
+
+    const darkFill = await nodeFill(explicitDark.page);
+    const lightFill = await nodeFill(systemLight.page);
+    if (!darkFill || !lightFill) broken('case 4 read no colour from a drawn diagram node');
+    if (darkFill === lightFill) broken(`case 4 cannot see a theme apart: both draw a node ${darkFill}`);
+
+    const systemDarkFill = await nodeFill(systemDark.page);
+    if (systemDarkFill !== darkFill) {
+      fail('initial-theme-follows-system', `case 4: a dark system preference with no stored choice drew a node ${systemDarkFill}, want the dark drawing's ${darkFill}`);
+    }
+
+    await systemLight.page.click('[data-theme-toggle]');
+    // The claim is where the redraw lands, not that it has begun, so this waits
+    // for the drawn colour to move and then reads where it settled.
+    await systemLight.page.waitForFunction((previous) => {
+      const node = document.querySelector('.mermaid-diagram > svg .node rect');
+      return node && getComputedStyle(node).fill !== previous;
+    }, lightFill, { timeout: 5000 }).catch(() => {});
+    const redrawn = await nodeFill(systemLight.page);
+    if (redrawn !== darkFill) {
+      fail('theme-change-redraws', `case 4: after the reader chose dark the diagram drew a node ${redrawn}, want the dark drawing's ${darkFill}`);
+    }
+
+    await explicitDark.context.close();
+    await systemDark.context.close();
+    await systemLight.context.close();
+  }
+
+  console.log('PASS mermaid-fallback: module load renders SVG; aborted module restores readable source with no shimmer; a wrapped label renders and a failure says so; a diagram is drawn in the theme the reader sees and follows a change of it');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

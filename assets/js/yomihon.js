@@ -21,14 +21,14 @@ function init() {
   const drawer = initDrawer();
   const sidebar = initSidebar();
   initLangForm();
-  initPreferences();
+  const preferences = initPreferences();
   initContents();
   initFreshness();
   const search = initSearch();
   initShortcuts({ drawer, sidebar, search });
   initLesson();
   initPreview();
-  initDiagrams().catch((error) => {
+  initDiagrams(preferences).catch((error) => {
     root.setAttribute('data-mermaid-error', '');
     console.warn('[yomihon] mermaid rendering failed outside a diagram:', error);
   });
