@@ -512,3 +512,107 @@ func TestAScanStopsWhenTheCallerGivesUp(t *testing.T) {
 		t.Errorf("Check() returned %d findings from a scan that was stopped", len(findings))
 	}
 }
+
+// A command that ends in failure has to withhold what a command that ends in
+// success would. The contract can be narrowed while a run is under way, and the
+// file a read then stops on may be one the narrowed contract withholds — but
+// the error naming it was built from the authority the run began with. Four
+// states separate the two readings that matter from the two that must not
+// move: a narrowed contract is the only one that changes what is said, and a
+// folder that never had a contract keeps its own refusal rather than gaining a
+// report of a privacy authority it never had.
+func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
+	t.Parallel()
+
+	const sentinelDir = "ARestricted"
+	const sentinelPath = sentinelDir + "/PrivateSentinel.md"
+
+	commands := []string{"check", "coverage", "exists"}
+	states := []struct {
+		name string
+		// privateFrom is what the contract withholds when the run starts.
+		privateFrom []string
+		// narrow rewrites the contract to withhold sentinelDir mid-run.
+		narrow bool
+		// removeFile makes the next read of the already-scanned sentinel fail.
+		removeFile bool
+		// noContract starts the run with no contract at all.
+		noContract bool
+		want       error
+		// namesSentinel is whether the refusal may spell the withdrawn path.
+		namesSentinel bool
+	}{
+		{
+			name:   "narrowed mid-run, and a read then fails",
+			narrow: true, removeFile: true,
+			want: ErrPrivacyAuthorityUnavailable,
+		},
+		{
+			name:        "withheld from the start, and a read fails",
+			privateFrom: []string{sentinelDir}, removeFile: true,
+			want: errWithheldUnreadable,
+		},
+		{
+			name:       "contract unchanged, and a read fails",
+			removeFile: true,
+			// Nothing was withdrawn, so the operator is still owed the name of
+			// the file their run stopped on. This is the case that refuses a
+			// repair which simply withholds everything.
+			namesSentinel: true,
+		},
+		{
+			name:   "narrowed mid-run, and every read succeeds",
+			narrow: true,
+			want:   ErrPrivacyAuthorityUnavailable,
+		},
+		{
+			name:       "no contract at all",
+			noContract: true,
+			want:       ErrNoVaultContract,
+		},
+	}
+
+	for _, st := range states {
+		for _, command := range commands {
+			t.Run(st.name+"/"+command, func(t *testing.T) {
+				t.Parallel()
+
+				root := t.TempDir()
+				if !st.noContract {
+					writeTestContract(t, root, st.privateFrom)
+				}
+				write(t, root, sentinelPath, "---\ntitle: PrivateSentinel\n---\n")
+				write(t, root, "Notes/Target.md", "---\ntitle: Target\n---\n")
+				sentinel := filepath.Join(root, filepath.FromSlash(sentinelPath))
+
+				_, err := runPrepared(t.Context(), t, command, root, "Target",
+					actionHooks{afterScan: func() {
+						if st.narrow {
+							writeTestContract(t, root, []string{sentinelDir})
+						}
+						if st.removeFile {
+							if rmErr := os.Remove(sentinel); rmErr != nil {
+								t.Fatalf("Remove(sentinel) error = %v", rmErr)
+							}
+						}
+					}}, nil)
+				if err == nil {
+					t.Fatalf("%s returned no error", command)
+				}
+				if st.want != nil && !errors.Is(err, st.want) {
+					t.Errorf("%s error = %v, want %v", command, err, st.want)
+				}
+				if got := strings.Contains(err.Error(), sentinelPath); got != st.namesSentinel {
+					if st.namesSentinel {
+						t.Errorf("%s error = %v, want it to name %s", command, err, sentinelPath)
+					} else {
+						t.Errorf("%s error names the withdrawn path: %v", command, err)
+					}
+				}
+				if !st.namesSentinel && strings.Contains(err.Error(), sentinelDir) {
+					t.Errorf("%s error names the withdrawn directory: %v", command, err)
+				}
+			})
+		}
+	}
+}
