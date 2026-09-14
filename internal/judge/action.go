@@ -138,7 +138,22 @@ func (a *action) finish() error {
 	return closeErr
 }
 
+// abort ends a run that failed. The cause was built from the authority the run
+// started with, and it may name a file: the contract can have been narrowed
+// since that name was taken, in which case saying it would describe ground the
+// contract has closed. So the same source a finished payload is checked against
+// is checked again here, and a run that fails says no more about the folder
+// than a run that succeeds would.
+//
+// Authority that never loaded has nothing to recheck, and its own refusal is
+// what the caller is owed: a folder carrying no contract has to keep saying so
+// rather than report a privacy authority it never had.
 func (a *action) abort(cause error) error {
+	if a.authority.contract != nil {
+		if authorityErr := a.authority.validate(); authorityErr != nil {
+			cause = authorityErr
+		}
+	}
 	if closeErr := a.close(); closeErr != nil {
 		return closeErr
 	}
