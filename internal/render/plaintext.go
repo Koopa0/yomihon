@@ -86,12 +86,43 @@ type plainWalk struct {
 	blockEnds   []int
 	fenceRanges [][2]int
 	// readings holds <rt>/<rtc> text until the block's base text has been
-	// closed, so a visible phrase is not split by its furigana. rubyAnno and
-	// rubyParen are the open-tag depths that decide where the next text node
-	// goes; <rp> is only a parenthesis fallback and is dropped.
-	readings  strings.Builder
-	rubyAnno  int
-	rubyParen int
+	// closed, so a visible phrase is not split by its furigana. ruby is the
+	// stack of open <ruby> elements, innermost last, each recording which of
+	// its children the walk is inside; together they decide where the next
+	// text node goes, and an inner ruby's end restores the state of the one
+	// around it. <rp> is only a parenthesis fallback and is dropped.
+	readings strings.Builder
+	ruby     []rubyChild
+}
+
+// rubyChild names which child of an open <ruby> the walk is inside: its base
+// text, an <rt> or <rtc> annotation, or an <rp> parenthesis fallback. As the
+// result of rubyRoute it also names where text goes, since a parenthesis
+// outranks an annotation and an annotation outranks base text.
+type rubyChild uint8
+
+const (
+	rubyBase rubyChild = iota
+	rubyAnnotation
+	rubyParen
+)
+
+// rubyRoute is where text inside the given open rubies goes. A parenthesis
+// fallback anywhere around the text drops it, an annotation anywhere around
+// it holds it as a reading, and otherwise it is base text — so the base and
+// the reading of a ruby written inside another's annotation both stay in
+// that annotation.
+func rubyRoute(open []rubyChild) rubyChild {
+	route := rubyBase
+	for _, child := range open {
+		if child == rubyParen {
+			return rubyParen
+		}
+		if child == rubyAnnotation {
+			route = rubyAnnotation
+		}
+	}
+	return route
 }
 
 func (w *plainWalk) result() (plain string, blockEnds []int, fenceRanges [][2]int) {
@@ -329,10 +360,10 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 // readings while inside <rt>/<rtc>, nowhere while inside <rp>, and into the
 // block's base text otherwise.
 func (w *plainWalk) writeVisible(p []byte) {
-	switch {
-	case w.rubyParen > 0:
+	switch rubyRoute(w.ruby) {
+	case rubyParen:
 		return
-	case w.rubyAnno > 0:
+	case rubyAnnotation:
 		w.readings.Write(p)
 	default:
 		w.b.Write(p)
@@ -340,30 +371,13 @@ func (w *plainWalk) writeVisible(p []byte) {
 }
 
 func (w *plainWalk) writeBreak() {
-	switch {
-	case w.rubyParen > 0:
+	switch rubyRoute(w.ruby) {
+	case rubyParen:
 		return
-	case w.rubyAnno > 0:
+	case rubyAnnotation:
 		w.readings.WriteByte('\n')
 	default:
 		w.b.WriteByte('\n')
-	}
-}
-
-// closeRubyParen and closeRubyAnno end one open parenthesis or one open
-// annotation. Closing subtracts rather than clearing, so an inner ruby ends
-// only what it opened and leaves an annotation the ruby around it is still
-// inside; a spelling that writes every end tag reaches each of these with
-// nothing open, and is therefore read exactly as before.
-func (w *plainWalk) closeRubyParen() {
-	if w.rubyParen > 0 {
-		w.rubyParen--
-	}
-}
-
-func (w *plainWalk) closeRubyAnno() {
-	if w.rubyAnno > 0 {
-		w.rubyAnno--
 	}
 }
 
@@ -371,12 +385,14 @@ func (w *plainWalk) closeRubyAnno() {
 // A self-closing tag has no following text of its own and is ignored.
 //
 // The end tags of rt and rp may be left out, and HTML fixes where each one
-// then ends: a parenthesis at the next annotation, at the next parenthesis, or
-// at the end of the ruby, and an annotation at a parenthesis, at the next
-// annotation, or at the end of the ruby. Left unclosed, the count never
-// returns to zero and every later text node in the note is routed into the
-// annotation the scan believes it is still inside — so a paragraph far below a
-// ruby stops reaching the corpus while the page goes on showing it.
+// then ends: at the next annotation or parenthesis of the same ruby, or at
+// that ruby's end. The same ruby's only — an annotation may hold a ruby of
+// its own, whose annotation opens and closes without touching the one around
+// it, so the text after the inner ruby is still the outer reading. Left
+// unclosed instead, every later text node in the note would be routed into
+// the annotation the scan believes it is still inside, and a paragraph far
+// below a ruby would stop reaching the corpus while the page goes on showing
+// it.
 func (w *plainWalk) seeMarkup(raw []byte) {
 	name, closing, selfClose := markupName(raw)
 	if selfClose {
@@ -385,33 +401,57 @@ func (w *plainWalk) seeMarkup(raw []byte) {
 	switch name {
 	case "ruby":
 		if closing {
-			w.closeRubyParen()
-			w.closeRubyAnno()
+			if n := len(w.ruby); n > 0 {
+				w.ruby = w.ruby[:n-1]
+			}
+			return
 		}
+		w.ruby = append(w.ruby, rubyBase)
 	case "rt", "rtc":
 		if closing {
-			w.closeRubyAnno()
+			w.leaveRubyChild(rubyAnnotation)
 			return
 		}
-		w.closeRubyParen()
-		// Settled before the spacing below reads the count, so a reading whose
-		// end tag was left out is still separated from the one starting here.
-		w.closeRubyAnno()
-		if w.rubyAnno == 0 && w.readings.Len() > 0 {
-			s := w.readings.String()
-			if s[len(s)-1] != ' ' && s[len(s)-1] != '\n' {
-				w.readings.WriteByte(' ')
-			}
-		}
-		w.rubyAnno++
+		w.enterRubyChild(rubyAnnotation)
 	case "rp":
 		if closing {
-			w.closeRubyParen()
+			w.leaveRubyChild(rubyParen)
 			return
 		}
-		w.closeRubyAnno()
-		w.closeRubyParen()
-		w.rubyParen++
+		w.enterRubyChild(rubyParen)
+	}
+}
+
+// enterRubyChild moves the innermost open ruby into the child opening here,
+// which ends whichever of its children was open before — the end tag HTML
+// lets an author leave out. An annotation or parenthesis with no ruby open
+// around it is treated as if one were, so its text is still held as a
+// reading or dropped as a fallback rather than read as base text.
+//
+// Two readings written one after the other are held apart by a space, so a
+// later match sees two words rather than one run. A reading that opens inside
+// another ruby's annotation is that annotation continuing, and gets none.
+func (w *plainWalk) enterRubyChild(child rubyChild) {
+	if len(w.ruby) == 0 {
+		w.ruby = append(w.ruby, rubyBase)
+	}
+	top := len(w.ruby) - 1
+	if child == rubyAnnotation && rubyRoute(w.ruby[:top]) == rubyBase && w.readings.Len() > 0 {
+		s := w.readings.String()
+		if s[len(s)-1] != ' ' && s[len(s)-1] != '\n' {
+			w.readings.WriteByte(' ')
+		}
+	}
+	w.ruby[top] = child
+}
+
+// leaveRubyChild returns the innermost open ruby to its base text when the
+// end tag names the child it is inside. An end tag for a child already ended,
+// whether by a sibling that opened or by never having opened, changes
+// nothing.
+func (w *plainWalk) leaveRubyChild(child rubyChild) {
+	if n := len(w.ruby); n > 0 && w.ruby[n-1] == child {
+		w.ruby[n-1] = rubyBase
 	}
 }
 
