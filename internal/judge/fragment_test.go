@@ -190,13 +190,23 @@ func TestFragmentBlockMatchingMirrorsTheReadingPage(t *testing.T) {
 		"code ^fenced\n" +
 		"```\n" +
 		"\n" +
-		"> quoted words ^quoted\n"
+		"> quoted words ^quoted\n" +
+		"\n" +
+		// Two stray backticks with a heading between them are two blocks, not
+		// one span, so the ordinary paragraph in the middle keeps its address
+		// here exactly as it keeps its anchor on the page.
+		"Before `\n" +
+		"## Heading\n" +
+		"a paragraph ^crossblock\n" +
+		"## Other\n" +
+		"After `\n"
 	tests := []struct {
 		name string
 		body string
 		want []string
 	}{
 		{name: "a missing block is reported", body: "[[Target#^ghost]]\n", want: []string{"link.block_missing Target#^ghost"}},
+		{name: "an address between two blocks holding stray backticks answers", body: "[[Target#^crossblock]]\n"},
 		{name: "an existing address is not", body: "[[Target#^blk1]]\n"},
 		{name: "the bare caret spelling reads the same address", body: "[[Target^blk1]]\n"},
 		{name: "the address folds case like every fragment", body: "[[Target#^BLK1]]\n"},

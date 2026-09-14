@@ -388,3 +388,101 @@ func TestATranscludedBodyBringsNoBlockAnchors(t *testing.T) {
 		t.Errorf("an embedded note's block address was claimed by the page reading it:\n%s", got.HTML)
 	}
 }
+
+// A code span is looked for over the run of lines goldmark reads together with
+// the address, and that run ends where a block ends, not only at a blank line.
+// Two stray backticks an author wrote on either side of a heading, a list
+// item, a quote opener, a thematic break or a fence used to pair into a span
+// goldmark never draws, and the ordinary paragraph caught between them lost
+// its address on all three faces at once: the page stamped no id, the excerpt
+// came back not found, and the check called a good link broken. The last two
+// rows are a span that really does wrap a line ending, which still owns its
+// caret: the window narrowed to the block, it did not shrink to the line.
+func TestCodeSpanWindowStopsAtABlockBoundary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		body  string
+		at    int
+		owned bool
+	}{
+		{
+			name: "an ATX heading on each side",
+			body: "Before `\n## Heading\nA paragraph ^genuine\n## Other\nAfter `\n",
+			at:   2,
+		},
+		{
+			// "===" underlines the line above it and nothing else reads it,
+			// so this row rests on that shape alone.
+			name: "a line underlining a heading on each side",
+			body: "Before `\n===\nA paragraph ^genuine\n===\nAfter `\n",
+			at:   2,
+		},
+		{
+			// "***" is a thematic break and never an underline, so this row
+			// rests on that shape alone.
+			name: "a thematic break on each side",
+			body: "Before `\n***\nA paragraph ^genuine\n***\nAfter `\n",
+			at:   2,
+		},
+		{
+			// A list marker ends the line above it, not the one below: the
+			// address is the item's own text, continued lazily.
+			name: "a list item on each side",
+			body: "Before `\n- an item\nA paragraph ^genuine\n- another item\nAfter `\n",
+			at:   2,
+		},
+		{
+			name: "a quote opening under the stray",
+			body: "Before `\n> A paragraph ^genuine\n> after `\n",
+			at:   1,
+		},
+		{
+			name: "a callout opening under the stray",
+			body: "Before `\n> [!note] Title\n> A paragraph ^genuine\n> after `\n",
+			at:   2,
+		},
+		{
+			// Tilde fences, so the boundary being read is the fence line and
+			// not a backtick run the span reader would count.
+			name: "a fenced block on each side",
+			body: "Before `\n~~~\ncode\n~~~\nA paragraph ^genuine\n~~~\ncode\n~~~\nAfter `\n",
+			at:   4,
+		},
+		{
+			name:  "a span the author wrapped inside one paragraph",
+			body:  "The XOR is `left ^genuine\nright` ends it\n",
+			at:    0,
+			owned: true,
+		},
+		{
+			name:  "a span the author wrapped inside one quote",
+			body:  "> The XOR is `left ^genuine\n> right` ends it\n",
+			at:    0,
+			owned: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			addressed := !tt.owned
+
+			if got := render.CodeSpanOwnsBlockAddress(strings.Split(tt.body, "\n"), tt.at); got != tt.owned {
+				t.Errorf("a code span owns the address = %v, want %v", got, tt.owned)
+			}
+			if _, found := render.Excerpt(tt.body, "^genuine"); found != addressed {
+				t.Errorf("the excerpt finds the address = %v, want %v", found, addressed)
+			}
+
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": tt.body})
+			page := r.HTML("B.md", "", tt.body, wording.ZhHant)
+			if got := strings.Contains(page.HTML, `<span id="^genuine">^genuine</span>`); got != addressed {
+				t.Errorf("the page anchors the address = %v, want %v:\n%s", got, addressed, page.HTML)
+			}
+			if tt.owned && !strings.Contains(page.HTML, "<code>left ^genuine right</code>") {
+				t.Errorf("the page no longer draws the span that owns the caret:\n%s", page.HTML)
+			}
+		})
+	}
+}
