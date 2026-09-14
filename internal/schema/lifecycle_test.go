@@ -724,3 +724,148 @@ func replaceLifecycleRowText(t *testing.T, contract string, row int, from, to st
 	parts[row] = strings.Replace(parts[row], from, to, 1)
 	return strings.Join(parts, header)
 }
+
+// TestDeclaredTypeSpellingDoesNotChangeTheAnswer holds every lookup keyed by a
+// note type to one answer per type word. A contract is written in an editor and
+// a note's own type is read back off a filesystem, and the two hand over
+// different byte strings for one word, so a lookup that compares the bytes can
+// lose a note's whole lifecycle: no stage, no status group, no transition to
+// offer, and a study path that no longer recognises its own type. Both
+// directions are here, because a contract can be the decomposed side as easily
+// as a note can.
+//
+// Case is a separate matter and stays unfolded: two types differing only in
+// case are two declarations the contract meant. An undeclared word is the
+// control that keeps the folding from becoming a blanket yes.
+func TestDeclaredTypeSpellingDoesNotChangeTheAnswer(t *testing.T) {
+	t.Parallel()
+
+	// One word in two spellings, written from code points so nothing between
+	// the keyboard and the compiler can fold one into the other: the dakuten
+	// composed into one letter, then the bare letter and its combining mark.
+	const (
+		composed   = "\u304c\u3044\u306d\u3093"
+		decomposed = "\u304b\u3099\u3044\u306d\u3093"
+	)
+	if composed == decomposed || NormalizeWord(decomposed) != composed {
+		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
+	}
+
+	tests := []struct {
+		name     string
+		declared string
+		query    string
+		want     bool
+	}{
+		{name: "composed contract, composed note", declared: composed, query: composed, want: true},
+		{name: "composed contract, decomposed note", declared: composed, query: decomposed, want: true},
+		{name: "decomposed contract, composed note", declared: decomposed, query: composed, want: true},
+		{name: "decomposed contract, decomposed note", declared: decomposed, query: decomposed, want: true},
+		{name: "one spelling throughout", declared: "article", query: "article", want: true},
+		{name: "a type the contract never declared", declared: composed, query: "article"},
+		{name: "case is not folded", declared: "article", query: "Article"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			contract := decodeLifecycleFixture(t, typeSpellingContract(tt.declared))
+			if _, ok := contract.Stage(tt.query, "draft"); ok != tt.want {
+				t.Errorf("Stage(%q, draft) found = %v, want %v", tt.query, ok, tt.want)
+			}
+			wantGroup := ""
+			if tt.want {
+				wantGroup = "system"
+			}
+			if got := contract.StatusGroup(tt.query); got != wantGroup {
+				t.Errorf("StatusGroup(%q) = %q, want %q", tt.query, got, wantGroup)
+			}
+			var wantStatuses []string
+			if tt.want {
+				wantStatuses = []string{"draft", "ready"}
+			}
+			if got := contract.Statuses(tt.query); !slices.Equal(got, wantStatuses) {
+				t.Errorf("Statuses(%q) = %q, want %q", tt.query, got, wantStatuses)
+			}
+			// The write face reaches the status group by its own route, so a
+			// lookup folded everywhere else can still refuse a legal move.
+			err := contract.Transition(tt.query, "draft", "ready")
+			if (err == nil) != tt.want {
+				t.Errorf("Transition(%q, draft, ready) = %v, want an answer of %v", tt.query, err, tt.want)
+			}
+			if got := contract.DeclaresType(tt.query); got != tt.want {
+				t.Errorf("DeclaresType(%q) = %v, want %v", tt.query, got, tt.want)
+			}
+			if got := contract.NavigationRoles().IsPathType(tt.query); got != tt.want {
+				t.Errorf("IsPathType(%q) = %v, want %v", tt.query, got, tt.want)
+			}
+		})
+	}
+}
+
+// typeSpellingContract declares exactly one note type, spelled the way the
+// caller asks, and names that spelling everywhere a type word keys a table: the
+// type vocabulary, the status-group membership, the navigation roles, and the
+// lifecycle rows. A word the fixture does not declare therefore reaches none of
+// them.
+func typeSpellingContract(declared string) string {
+	return `schema_version = "1"
+
+[enums]
+type = ["` + declared + `"]
+
+[enums.status]
+note = ["draft", "ready"]
+system = ["draft", "ready"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type", "status"]
+
+[fields.status_group]
+system = ["` + declared + `"]
+
+[navigation]
+path_types = ["` + declared + `"]
+map_types = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["` + declared + `"]
+from = []
+owner = []
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["` + declared + `"]
+from = ["draft"]
+owner = []
+`
+}
+
+// TestOneWordDeclaredTwiceIsRefused holds the order the words are folded in.
+// Folding happens before the contract is validated, so a contract naming one
+// word in two spellings is refused as the duplicate declaration it is, rather
+// than loading with tables that answer to whichever spelling was read last.
+func TestOneWordDeclaredTwiceIsRefused(t *testing.T) {
+	t.Parallel()
+
+	const (
+		composed   = "\u304c\u3044\u306d\u3093"
+		decomposed = "\u304b\u3099\u3044\u306d\u3093"
+	)
+	if composed == decomposed || NormalizeWord(decomposed) != composed {
+		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
+	}
+	single := typeSpellingContract(composed)
+	both := strings.Replace(
+		single,
+		`type = ["`+composed+`"]`,
+		`type = ["`+composed+`", "`+decomposed+`"]`,
+		1,
+	)
+	if both == single {
+		t.Fatal("the fixture edit matched nothing, so this case would pass without ever declaring one word twice")
+	}
+	assertContractError(t, both, "enums.type: duplicate value")
+}

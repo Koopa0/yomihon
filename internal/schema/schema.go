@@ -362,6 +362,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	if err != nil {
 		return nil, err
 	}
+	foldDeclaredWords(contract, navigation)
 	if err := validateContractSemantics(contract); err != nil {
 		return nil, err
 	}
@@ -413,19 +414,13 @@ func decodeLifecycleStages(rows []rawLifecycleStage) ([]Stage, error) {
 		case row.Owner == nil:
 			return nil, fmt.Errorf(`lifecycle row %d: missing required key "owner"`, ordinal)
 		}
-		// The wildcard is grammar rather than a status, so the fold skips it.
 		from := slices.Clone(*row.From)
-		for j, predecessor := range from {
-			if predecessor != "*" {
-				from[j] = NormalizeStatus(predecessor)
-			}
-		}
 		initial, err := resolveInitial(row, ordinal, declared, from)
 		if err != nil {
 			return nil, err
 		}
 		stages[i] = Stage{
-			Status:    NormalizeStatus(*row.Status),
+			Status:    *row.Status,
 			AppliesTo: slices.Clone(*row.AppliesTo),
 			Initial:   initial,
 			From:      from,
@@ -452,10 +447,51 @@ func resolveInitial(row rawLifecycleStage, ordinal int, declared bool, from []st
 	if !*row.Initial && len(from) == 0 {
 		return false, fmt.Errorf(
 			`lifecycle row %d: status %q declares initial = false and names no predecessor, so nothing could ever reach it`,
-			ordinal, NormalizeStatus(*row.Status),
+			ordinal, NormalizeWord(*row.Status),
 		)
 	}
 	return *row.Initial, nil
+}
+
+// foldDeclaredWords folds every word this contract declares to one spelling, so
+// a note's own value is the only side left to fold when something compares the
+// two. A contract is written in an editor and a note's frontmatter is read back
+// off a filesystem, and the two hand over different byte strings for the same
+// word; a lookup keyed on the bytes then loses that note's whole lifecycle.
+// This runs before the contract is validated, so a contract declaring one word
+// twice is refused as the duplicate it is. Case is left alone: two words
+// differing only in case are two declarations the contract meant, and the
+// lifecycle wildcard is ASCII and passes through as itself.
+func foldDeclaredWords(contract *Contract, navigation *navigationSection) {
+	enums := &contract.definition.Enums
+	for _, words := range [][]string{
+		enums.Type, enums.Domain, enums.SourceKind,
+		enums.SourceProvider, enums.Level, enums.MapKind,
+	} {
+		foldWords(words)
+	}
+	for _, statuses := range enums.Status {
+		foldWords(statuses)
+	}
+	for _, noteTypes := range contract.definition.Fields.StatusGroup {
+		foldWords(noteTypes)
+	}
+	for i := range contract.stages {
+		stage := &contract.stages[i]
+		stage.Status = NormalizeWord(stage.Status)
+		foldWords(stage.AppliesTo)
+		foldWords(stage.From)
+	}
+	if navigation != nil {
+		foldWords(navigation.PathTypes)
+		foldWords(navigation.MapTypes)
+	}
+}
+
+func foldWords(words []string) {
+	for i, word := range words {
+		words[i] = NormalizeWord(word)
+	}
 }
 
 func decodeNavigationSection(
@@ -1073,10 +1109,7 @@ func compileLifecycleStatusLookups(contract *Contract) map[string]map[string]str
 	contract.statusesByGroup = make(map[string][]string, len(contract.definition.Enums.Status))
 	statusSets := make(map[string]map[string]struct{}, len(contract.definition.Enums.Status))
 	for group, statuses := range contract.definition.Enums.Status {
-		declared := make([]string, len(statuses))
-		for i, st := range statuses {
-			declared[i] = NormalizeStatus(st)
-		}
+		declared := slices.Clone(statuses)
 		contract.statusesByGroup[group] = declared
 		statusSets[group] = stringSet(declared)
 	}
@@ -1470,7 +1503,7 @@ func (c *Contract) DeclaresType(noteType string) bool {
 	if c == nil {
 		return false
 	}
-	return slices.Contains(c.definition.Enums.Type, noteType)
+	return slices.Contains(c.definition.Enums.Type, NormalizeWord(noteType))
 }
 
 // NavigationRoles returns the contract-derived navigation role capability.
@@ -1547,7 +1580,7 @@ func (c *Contract) StatusGroup(noteType string) string {
 	if noteType == "" {
 		return "note"
 	}
-	if group, declared := c.statusGroupByType[noteType]; declared {
+	if group, declared := c.statusGroupByType[NormalizeWord(noteType)]; declared {
 		return group
 	}
 	return ""
@@ -1574,13 +1607,14 @@ func (c *Contract) StatusesInGroup(group string) []string {
 	return slices.Clone(c.statusesByGroup[group])
 }
 
-// NormalizeStatus is the one spelling rule for a status word: every comparison
-// against a declared status goes through it, both the contract's values as they
-// are read and a note's own value as it is judged. A status arrives decomposed
-// from the filesystem and composed from the search index, so the bytes are
-// folded before anything compares them. Case is deliberately not folded — two
-// statuses differing only in case are two declarations the contract meant.
-func NormalizeStatus(s string) string {
+// NormalizeWord is the one spelling rule for a word a contract declares —
+// a type, a status, any other enum value. Every comparison against a declared
+// word goes through it: the contract's own values once as they are loaded, and
+// a note's value as it is judged. A word arrives decomposed from the filesystem
+// and composed from an editor and the search index, so the bytes are folded
+// before anything compares them. Case is deliberately not folded — two words
+// differing only in case are two declarations the contract meant.
+func NormalizeWord(s string) string {
 	return vault.NormalizeNFC(s)
 }
 
@@ -1598,7 +1632,8 @@ func (c *Contract) stage(noteType, status string) (Stage, bool) {
 	if c == nil {
 		return Stage{}, false
 	}
-	stage, ok := c.stageByTypeStatus[lifecycleKey{noteType: noteType, status: NormalizeStatus(status)}]
+	key := lifecycleKey{noteType: NormalizeWord(noteType), status: NormalizeWord(status)}
+	stage, ok := c.stageByTypeStatus[key]
 	return stage, ok
 }
 
@@ -1609,14 +1644,13 @@ func (c *Contract) stage(noteType, status string) (Stage, bool) {
 // every move as an unknown status.
 func (c *Contract) Transition(noteType, from, to string) error {
 	// The sources agree about the word without agreeing about its bytes.
-	from, to = NormalizeStatus(from), NormalizeStatus(to)
+	from, to = NormalizeWord(from), NormalizeWord(to)
 	st, ok := c.stage(noteType, to)
 	if !ok {
 		return fmt.Errorf("%w: %q for type %q", ErrUnknownStatus, to, noteType)
 	}
 	if from != "" {
-		group := c.statusGroupByType[noteType]
-		if !slices.Contains(c.statusesByGroup[group], from) {
+		if !slices.Contains(c.statusesByGroup[c.StatusGroup(noteType)], from) {
 			return fmt.Errorf("%w: current status %q for type %q", ErrUnknownStatus, from, noteType)
 		}
 	}

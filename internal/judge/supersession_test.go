@@ -340,7 +340,7 @@ func TestSupersessionFoldsTheNoteStatusSpelling(t *testing.T) {
 		archivedDecomposed = "\u4fdd\u7ba1\u3059\u3099\u307f"
 	)
 	for _, pair := range [][2]string{{liveComposed, liveDecomposed}, {archivedComposed, archivedDecomposed}} {
-		if pair[0] == pair[1] || schema.NormalizeStatus(pair[1]) != pair[0] {
+		if pair[0] == pair[1] || schema.NormalizeWord(pair[1]) != pair[0] {
 			t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", pair[0], pair[1])
 		}
 	}

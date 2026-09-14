@@ -923,7 +923,7 @@ func TestStatusEnumFoldsTheSpelling(t *testing.T) {
 	// followed by its combining mark.
 	composed := "\u9032\u884c\u4e2d\u304c"
 	decomposed := "\u9032\u884c\u4e2d\u304b\u3099"
-	if composed == decomposed || schema.NormalizeStatus(decomposed) != composed {
+	if composed == decomposed || schema.NormalizeWord(decomposed) != composed {
 		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
 	}
 
