@@ -41,8 +41,11 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
+		name string
+		// wantKind is the map the rail carries, named so that an absent rail
+		// step cannot stand in for a rail that never showed a book.
 		courses  map[string]string
+		wantKind string
 		wantRail string
 		wantFoot string
 	}{
@@ -52,6 +55,7 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 				"Maps/Primary path.md":   syllabus("Primary path", "golang", "Primary next"),
 				"Maps/Secondary path.md": syllabus("Secondary path", "japanese", "Other next"),
 			},
+			wantKind: "book",
 			wantRail: primaryNext,
 			wantFoot: primaryNext,
 		},
@@ -60,6 +64,7 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 			courses: map[string]string{
 				"Maps/Primary path.md": syllabus("Primary path", "golang", "Primary next"),
 			},
+			wantKind: "book",
 			wantRail: primaryNext,
 			wantFoot: primaryNext,
 		},
@@ -72,6 +77,7 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 				"Maps/Primary path.md":   syllabus("Primary path", "japanese", "Primary next"),
 				"Maps/Secondary path.md": syllabus("Secondary path", "meta", "Other next"),
 			},
+			wantKind: "folder",
 			wantRail: "",
 			wantFoot: folderNext,
 		},
@@ -87,6 +93,9 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 			code, page := get(t, srv.Client(), srv.URL+current)
 			if code != http.StatusOK {
 				t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
+			}
+			if kind := `data-reading-rail="` + tt.wantKind + `"`; !strings.Contains(page, kind) {
+				t.Fatalf("the page carries no %s rail, so its step onward proves nothing", tt.wantKind)
 			}
 			rail := railOnwardHref(t, page)
 			foot := footOnwardHref(t, page)
