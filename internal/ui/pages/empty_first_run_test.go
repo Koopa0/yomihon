@@ -235,6 +235,48 @@ func TestContractStateReadsTheFileOffTheScanThePageListsFrom(t *testing.T) {
 	}
 }
 
+// TestAContractStateNamesItself pins the word each state answers with. The
+// word reaches a diagnostic and a log line, and in both a number is a lookup
+// the reader has to perform against a constant block they do not have open.
+func TestAContractStateNamesItself(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		state ContractState
+		want  string
+	}{
+		{ContractGoverning, "governing"},
+		{ContractAbsent, "absent"},
+		{ContractUnloaded, "unloaded"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.state.String(); got != tc.want {
+				t.Errorf("ContractState.String() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAContractStateRefusesToNameAValueItDoesNotDeclare holds the answer for
+// the member somebody adds to the constant block later: a name borrowed from
+// one of the three would report a folder state the reader is not in, so the
+// value itself is all there is to say.
+func TestAContractStateRefusesToNameAValueItDoesNotDeclare(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		recovered := recover()
+		text, isText := recovered.(string)
+		if !isText || !strings.Contains(text, "99") {
+			t.Errorf("panic = %v, want a message naming the value 99", recovered)
+		}
+	}()
+	_ = ContractState(99).String()
+	t.Error("ContractState(99).String() returned instead of panicking")
+}
+
 // contractStateName names a state for a failure line, because a transcript
 // reading "= 1, want 2" says nothing about which folder the reader is in.
 func contractStateName(state ContractState) string {
