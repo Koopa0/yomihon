@@ -104,8 +104,25 @@ reporting `embed.section_missing` or `embed.block_missing`.
 
 ## Links that are not wikilinks
 
-A plain Markdown link to a path inside the vault is checked too: a path that is
-not there is `link.broken.path`. A remote destination is never fetched.
+A plain Markdown link to a Markdown file inside the vault is checked too, and so
+is a backticked `Notes/Some note.md` token. A path that is not there is
+`link.broken.path`; one that climbs out of the vault root is `info` instead,
+because it cannot be looked up the same way on every machine. A remote
+destination is never fetched.
+
+**Spaces in the destination decide whether it is checked at all,** which matters
+in a vault whose filenames have spaces in them. Three spellings of one dead
+link behave three different ways:
+
+| Written | On the page | What `check` says |
+|---|---|---|
+| `[label](Nothing here.md)` | **not a link** — the whole thing stays as literal text | nothing, because there is no link to judge |
+| `[label](<Nothing here.md>)` | a link | `link.broken.path` |
+| `[label](Nothing%20here.md)` | a link | **nothing** — a percent-encoded path is left out of this rule |
+
+So the checked spelling is the angle-bracketed one. The other two are the pair
+worth remembering: one is silent because it never became a link, the other is
+silent while looking exactly right on the page.
 
 ## Naming a link as owed rather than broken
 

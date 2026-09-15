@@ -168,7 +168,13 @@ It prints nothing and exits 0.
 
 ## What that bought
 
-Serving the vault and opening the path shows the projection the check cannot:
+The check cannot show you a projection. The server can:
+
+```sh
+yomihon serve --root /tmp/lab       # then http://127.0.0.1:9610/paths
+```
+
+Opening *Reading yomihon* there:
 
 - the course counts **7** lessons, up from 6 — four in *The idea*, three in
   *Doing it*;

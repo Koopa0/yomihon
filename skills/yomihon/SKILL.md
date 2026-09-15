@@ -157,11 +157,13 @@ success by accident:
 | `0` | it accepted `path.role_missing` as a real rule id and then found none on a branch that has to produce one |
 | anything else | it could not run — an unknown `--deny` value from a binary that has never heard of the rule, or a refusal — and has said nothing about itself either way |
 
-`--all` is load-bearing: without it, a knowledge layer that does not contain
-the probe's note would drop the finding and the probe would report *blind* on a
-healthy binary. Change any one part — drop `--all`, name a rule that cannot
-fire here, declare a `path_types` value the note does not carry — and the
-verdict stops being *proven*, which is how you know the check can fail.
+`--all` is what keeps that contract free to change: give it a
+`[scan] knowledge_dirs` naming any directory and, without `--all`, the finding
+is dropped for sitting outside the knowledge layer and a healthy binary reports
+*blind*. Change any one part — drop `--all` under such a contract, name a rule
+that cannot fire here, declare a `path_types` value the note does not carry —
+and the verdict stops being *proven*, which is how you know the check can fail
+rather than always reading green.
 
 ## Frontmatter: the contract decides, and you may not invent a field
 

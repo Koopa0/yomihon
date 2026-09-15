@@ -83,7 +83,7 @@ carries information:
 | `field` | a frontmatter key is at fault |
 | `target` | the original link or value text, kept structured so nothing has to parse the prose |
 | `resolved_to` | the target did resolve, and this is the path it reached — a fragment or listing fault rather than a dead name |
-| `collision_members` | every path involved in a name collision, so one finding describes the whole of it |
+| `collision_members` | every path involved in a name or alias collision, so one finding describes the whole of it |
 
 `source_rule` says which artifact the rule was read out of, and is worth
 reading before arguing with a finding:
@@ -109,7 +109,9 @@ Every `schema.` rule is an `error`; nothing else ever is. One rule is always
 `info` — `callout.title_markup`, a formatting observation. Everything else is a
 `warn`, except that three rules *drop* from `warn` to `info` when the vault has
 declared the name owed rather than missing: `link.broken`, `link.broken.path`
-and `map.disk_mismatch`.
+and `map.disk_mismatch`. `link.broken.path` has a second reason to sit at
+`info`: a path that climbs out of the vault root is reported rather than judged,
+because what is there depends on the machine.
 
 The consequence for gating: `--deny warn` catches a broken link and does not
 catch one marked as a planned gap. That is intended, and it is also the

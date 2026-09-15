@@ -115,9 +115,8 @@ skill itself calls the fault most worth fearing:
   one;
 - the branch the row sits on declares no `{sequence=…}`, so nothing is
   classified and nothing projects;
-- the row does not open with its `[[link]]` — a word, a number or a colon in
-  front of it and the row still reads perfectly while the course count silently
-  drops.
+- the row does not open with its `[[link]]` — put anything visible in front of
+  it and the row still reads perfectly while the course count silently drops.
 
 An agent that answers vaguely, or reaches for general Obsidian knowledge, has
 not loaded it.
