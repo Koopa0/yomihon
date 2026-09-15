@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/preference"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // newServer stands the preferences face up on its own. Nothing else is mounted
@@ -654,8 +655,12 @@ func TestThePageSpeaksTheStoredLanguage(t *testing.T) {
 	if !strings.Contains(body, `<html lang="en"`) {
 		t.Errorf("the page does not declare English; head = %q", body[:min(len(body), 200)])
 	}
-	if !strings.Contains(body, "Interface language") {
-		t.Errorf("the page is not written in English; body = %q", body[:min(len(body), 400)])
+	// Asked for through the phrase rather than by quoting one of its words:
+	// the page's words are revised from time to time, and a witness quoted here
+	// turns a copy change into a failure about language. This one still tells
+	// the languages apart, because the phrase reads differently in each.
+	if want := wording.PrefReset.In(wording.En); !strings.Contains(body, want) {
+		t.Errorf("the page is not written in English; want %q in body = %q", want, body[:min(len(body), 400)])
 	}
 }
 
