@@ -55,10 +55,11 @@ contract decides and the code never guesses.
 
 ## Installing it
 
-You will need a `yomihon` on your `PATH` as well as the skill: four of the
-five steps the skill asks for end in running it, and it has no `--version` to
-introduce itself with. The skill's own "Prove your instrument" section is how
-you find out whether the one you have is current.
+You will need a `yomihon` on your `PATH` as well as the skill: its closing
+checklist is mostly commands, and it has no `--version` to introduce itself
+with. The skill's "Prove your instrument" section is the substitute, and a
+narrow one — it asks a single rule whether this binary can see it, which tells
+you the course rules are alive and nothing about the other forty.
 
 To try the skill without placing anything, point Claude Code at the clone:
 

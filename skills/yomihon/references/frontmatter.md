@@ -12,6 +12,10 @@ you have not seen before and know what it is asking of you.
 `examples/vault/System/schemas/vault-schema.toml` in this repository is a small
 working one, written to be copied and then cut down.
 
+Before any table: the file's first line is `schema_version = "1"`, and it is
+required. A contract without it is refused whole, and `"1"` is the only value
+this yomihon accepts.
+
 ## The tables, and what each one costs you
 
 ### `[enums]` — the vocabulary
@@ -210,7 +214,8 @@ value renders like any other; it is set by hand.
 ## Keys the parser accepts that the example never shows
 
 `aligned_with` and `generated_at_must_match` are accepted at the top level so a
-contract carrying them decodes, and are read by nothing. The two
+contract carrying them decodes, and are read by nothing. `schema_version` is the
+opposite case: required, and named at the top of this file rather than here. The two
 `planned_*_marks` keys above are the ones that actually change behaviour, and
 the ones a reader of the example contract would never learn are configurable at
 all.

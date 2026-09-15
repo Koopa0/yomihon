@@ -75,7 +75,7 @@ A map's tree is read out of the body alone:
 |---|---|
 | A branch | a heading from H2 to H6. An H1 is treated as the note's title and opens nothing |
 | An entry | a `[[link]]` under the open heading that resolves to exactly one note under the vault's lifecycle — in a list row, a checkbox row, prose, a table cell, or the heading itself |
-| Never an entry | a link inside a code fence, a code span, an authored HTML block, or `%%…%%`; and a link written before the first heading, which no branch is open to hold |
+| Never an entry | a link inside a code fence, a code span, a block of raw HTML tags, or `%%…%%`; and a link written before the first heading, which no branch is open to hold. Raw HTML is the surprising one: a `[[link]]` between `<div>` tags still renders as a link and is still judged by `link.broken`, and is still not a map entry |
 | Dropped from the tree | a name that resolves to nothing, a name two files answer to, and a target inside a directory `[artifacts] non_instance_dirs` names |
 | Dropped from the page | a heading with no entry of its own and no descendant carrying one — a heading of pure prose never appears |
 
@@ -95,8 +95,8 @@ of branches left after that pruning, nested ones included. Run it against a map
 written to exercise every case and the number is the test:
 
 ```sh
-cp -R examples/vault /tmp/lab
-cat > "/tmp/lab/Maps/Map counting.md" <<'MD'
+cp -R examples/vault /tmp/maplab
+cat > "/tmp/maplab/Maps/Map counting.md" <<'MD'
 ---
 title: Map counting
 type: moc
@@ -117,7 +117,7 @@ Words with no links.
 
 - [[Two languages]]
 MD
-yomihon serve --root /tmp/lab
+yomihon serve --root /tmp/maplab       # runs until you stop it
 ```
 
 The index reads **2 branches** for that map: the unresolved name leaves its
@@ -149,7 +149,7 @@ The map written above has a heading with no links, a heading whose only link
 resolves to nothing, and a heading with no entry of its own, and
 
 ```sh
-yomihon check --root /tmp/lab --format json "Maps/Map counting.md"
+yomihon check --root /tmp/maplab --format json "Maps/Map counting.md"
 ```
 
 prints one line about none of them: the broken link. **So a map that projects
@@ -161,11 +161,17 @@ nothing is silent.** The way you find out is the index, where such a map reads
 `yomihon coverage` is the one command a map's contents move. It classifies
 every `concept` note by what reaches it:
 
-| State | Reached by |
-|---|---|
-| mounted | at least one note whose type is a declared map type |
-| pending-mount | only notes that are not maps |
-| orphan | nothing at all — the only real problem |
+| State | Reached by | JSON key |
+|---|---|---|
+| mounted | at least one note whose type is a declared map type | `mounted` |
+| pending-mount | only notes that are not maps | `pending_mount` |
+| orphan | nothing at all — the only real problem | `orphan` |
+
+The report's own keys use underscores where this prose uses a hyphen, which is
+worth knowing before you write a script against it. `unrouted`, the last key in
+the object, lists notes of a routable type that are not on the index they
+belong to; it is offered only to a vault that declares a `research-brief` type,
+so in most vaults it is permanently `[]`.
 
 ```sh
 yomihon coverage --root examples/vault --format json

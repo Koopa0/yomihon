@@ -23,13 +23,34 @@ yomihon check --root <vault> [--format json|human|md] [--all]
 | `[path...]` | narrows the judging to part of that vault. Written the way the vault spells it, relative to the root — `Notes`, or `Notes/topic.md`. An absolute path is not a second way to say `--root`, and is refused |
 | `--format` | `json` is one compact object per line, the machine format. `human` is a terminal summary grouped by domain. `md` is a fileable report body — it opens by saying whether this vault's contract would accept it as a note. Without the flag, a pipe gets `json` and a terminal gets `human` |
 | `--deny` | a severity (`error`, `warn`, `info`) or an exact rule id, repeatable. A severity is a **threshold**, not a match: `--deny warn` fails on warnings and on errors, and `--deny info` fails on anything at all. A value that is neither is refused rather than ignored |
-| `--all` | restores findings that touch nothing inside `[scan] knowledge_dirs`. The whole vault is scanned either way; this decides what is reported |
-| `--baseline` | a previous run's JSONL, subtracted by `fingerprint`, so only new findings are reported and gated. It is version-locked; see the refusals below |
+| `--all` | restores findings that touch nothing inside `[scan] knowledge_dirs`. It changes what is **reported**, never what is judged — see below |
+| `--baseline` | a previous run's JSONL, subtracted by `fingerprint`, so only new findings are reported and gated. You write one by keeping a `--format json` run: `yomihon check --root <vault> --format json > baseline.jsonl`. It is version-locked; see the refusals below |
 
 Exit codes: **0** nothing named by `--deny` was found · **1** a `--deny` gate
 hit · **2** the command could not run. Findings alone never fail it — without
 `--deny`, `check` reports and exits 0, which is why a green exit is not by
 itself evidence of a clean vault.
+
+### What `--all` does, and the thing it cannot do
+
+The knowledge layer cuts twice, and the two cuts are not the same:
+
+- **The frontmatter rules — every `schema.` rule — judge only files inside
+  `[scan] knowledge_dirs.`** A note outside it is never judged by them, and
+  `--all` restores nothing, because nothing ran. Put an invented key, a status
+  its type cannot hold and a missing `slug` on one lesson, file it under
+  `Archive/`, and `check` prints nothing about it with or without `--all`; move
+  the same bytes into `Notes/` and four errors appear. There is no flag for
+  this. The repair is to file the note where the rules reach.
+- **The link, collision and course rules run over the whole vault**, and it is
+  only their *reporting* that the layer gates. A dead `[[link]]` or an
+  undeclared branch in that same `Archive/` note is found either way, dropped
+  from the default report, and restored by `--all`.
+
+So `--all` on a gating run is worth passing — it is the difference between
+seeing a course fault outside the layer and not — but it is never a substitute
+for the note being somewhere the schema rules reach. Silence over a file
+outside the layer is not a pass, and no flag makes it one.
 
 Every way the command refuses rather than answers exits 2 and writes **nothing
 at all on stdout**, with the reason on stderr. A check that reads the output
@@ -178,7 +199,7 @@ included; [`study-paths.md`](study-paths.md) explains that naming. All `warn`.
 | `path.nesting_too_deep` | a side branch inside a side branch |
 | `path.local_orphan` | a side branch with nothing to hang from — it was not nested under a lesson |
 | `path.role_on_entry` | one row tries to be both a lesson and a branch heading. Give the branch its own row above the list it opens |
-| `path.role_misplaced` | a marker written somewhere it declares nothing — in a paragraph, say. It is read only on a heading or on a row that opens a list |
+| `path.role_misplaced` | a marker written somewhere it declares nothing — in a paragraph, say, or on an H1, which opens no branch. It is read only on a heading from H2 to H6, or on a row that opens a list |
 | `path.entry_noncanonical` | the row's `[[link]]` is not the first visible thing after the list marker. The row still reads and the link still works; it is simply no longer a lesson row, and the course count drops without anything looking broken |
 | `path.entry_multi_target` | one row names two notes, so it does not say which lesson it is |
 | `path.entry_outside_branch` | a lesson row sitting above every branch-opening heading, so it belongs to no part of the course |
@@ -200,8 +221,8 @@ gates: it exits 0 whatever it finds, and 2 only if it could not run. A map
 filed outside that layer does not count towards it.
 [`maps.md`](maps.md) owns what the three mount states mean and how to move one.
 
-`yomihon exists <name>` exits 0 when a note for the name exists and 1 when none
-does, so a write-if-absent can gate on the exit code — but on **0 against 1**,
+`yomihon exists [--root <vault>] [--format json|human|md] <name>` exits 0 when a
+note for the name exists and 1 when none does, so a write-if-absent can gate on the exit code — but on **0 against 1**,
 not on zero against everything else. `exists` refuses like the other two, and a
 refusal exits **2**:
 

@@ -181,7 +181,8 @@ The check cannot show you a projection. The server can:
 yomihon serve --root /tmp/lab       # then http://127.0.0.1:9610/paths
 ```
 
-Opening *Reading yomihon* there:
+That command does not return; stop it when you are done looking. Opening
+*Reading yomihon* there:
 
 - the course counts **7** lessons, up from 6 — four in *The idea*, three in
   *Doing it*;
@@ -290,9 +291,9 @@ yomihon check --root /tmp/lab --format json --deny warn --all \
   "Lessons/L04 Say which language a note is in.md" "Notes/Reading yomihon.md"
 ```
 
-`--all` is there because a path filter and the knowledge-layer filter are two
-different cuts: without it, a file outside `[scan] knowledge_dirs` has its
-findings dropped and the run exits 0 having judged nothing. Exit 1 means
+`--all` restores the link and course findings that touch nothing inside
+`[scan] knowledge_dirs`; [`diagnostics.md`](diagnostics.md) says what it
+restores and what no flag can. Exit 1 means
 something above is true of your change; exit 0 means the note is where you
 think it is, in the two files you named — a fault you introduced in a third
 file is a run you have not made. Run it before you say the note is written, not

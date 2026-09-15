@@ -80,6 +80,30 @@ The exact form matters, and the failures differ:
 A recognised marker is stripped from the displayed name and the source bytes
 are untouched. A child branch does not inherit its parent's role.
 
+### A side branch is three levels, not two
+
+This is where the grammar is most often misread, and the two findings that
+catch the misreading say so in words that only make sense once you have seen
+the shape. A side branch hanging off a lesson needs **its own row** between the
+lesson and the lessons in the branch:
+
+```markdown
+- [[L02 Add a contract]]                                 ← the lesson row
+    - If your notes are not all in English {sequence=local}   ← the branch's own row
+        - [[L03 Mark a paragraph to be read aloud]]      ← the branch's lessons
+```
+
+The marker goes on the middle row, which is "the row that opens" the list below
+it. Put it on the lesson row instead and you get `path.role_on_entry` — one row
+trying to be both a lesson and a branch heading — and the list under it is then
+`path.local_orphan`, hanging from nothing the grammar accepts. Leave the middle
+row out and the nested list declares nothing: `path.role_missing`, whose message
+asks you to "declare `{sequence=local}` on the row that opens it", meaning that
+middle row and not the lesson.
+
+The branch's own lessons need no further declaration; the list they sit in is
+the branch, and it was declared one line above.
+
 Indentation for a nested branch may be tabs or spaces; two spaces and four both
 nest as you would expect.
 
@@ -241,5 +265,6 @@ checkbox row, a noncanonical row or a multi-target row orphans it while the
 parent row still looks fine to a reader.
 
 To gate on course structure, run `check` with `--deny warn --all` on the path
-you touched — `--all` because a path filed outside `[scan] knowledge_dirs`
-would otherwise have its findings dropped and the run would exit 0.
+you touched. `--all` restores course findings that touch nothing inside
+`[scan] knowledge_dirs`, which the default report drops;
+[`diagnostics.md`](diagnostics.md) says what it does not do.
