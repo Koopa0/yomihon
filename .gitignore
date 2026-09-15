@@ -28,7 +28,6 @@ tests/
 /ENGINEERING_STANDARD.sha256
 /PROJECT_PROFILE.md
 /SECURITY.md
-/THIRD_PARTY_NOTICES.md
 /docs/*
 !/docs/judge-rules.md
 /.github/CODEOWNERS
