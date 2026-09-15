@@ -86,11 +86,11 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 			// The date is the one interface word in the file row with no class
 			// naming it, so the row is read out and asked directly. Nothing in
 			// it may still be announced in the note's language.
-			at := strings.Index(html, `<div class="y-metarow">`)
+			at := strings.Index(html, `<details class="y-metarow"`)
 			if at < 0 {
 				t.Fatalf("the reading page carries no file row; html = %q", html)
 			}
-			row, _, closed := strings.Cut(html[at:], "</div>")
+			row, _, closed := strings.Cut(html[at:], "</details>")
 			if !closed {
 				t.Fatalf("the file row never closes; html = %q", html)
 			}

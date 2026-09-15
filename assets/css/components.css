@@ -372,6 +372,18 @@ html, body { margin: 0; background: var(--bg); }
    a link rather than another piece of metadata. */
 .y-metarow__raw { color: var(--fg-muted); text-decoration: underline; text-underline-offset: 2px; }
 .y-metarow__raw:hover { color: var(--accent); }
+/* On a note the same row folds, so the reader meets the title and then the
+   prose. The element name qualifies it: the heads of a file yomihon cannot
+   read and of a study path keep the plain row above, and only the note's
+   disclosure needs its two halves stacked. Type, size and colour stay on the
+   row itself, where they are read by everything that asks what this line looks
+   like on a given medium. */
+details.y-metarow { display: block; }
+.y-metarow__summary, .y-metarow__detail {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px;
+}
+.y-metarow__detail { margin-top: 10px; }
+.y-metarow__detail > span { min-width: 0; overflow-wrap: anywhere; }
 
 /* kintsugi seam — the one signature: a parted hairline mended with a vermilion thread */
 .y-seam { position: relative; height: 1px; width: 100%; margin: 4px 0 8px;
