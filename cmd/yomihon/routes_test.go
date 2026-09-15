@@ -911,13 +911,28 @@ func TestAnEmptyDeskNamesTheDeclarationThatFillsIt(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name      string
-		pathType  string
-		mapTypes  []string
+		name     string
+		pathType string
+		mapTypes []string
+		// named is every map type the sentence must carry, in the order a
+		// reader meets them. Both vaults declare theirs jumbled, because a
+		// listing that echoed the order the file happened to use would
+		// rearrange a reader's sentence for an edit that changed no meaning.
+		named     []string
 		otherWord string
 	}{
-		{name: "one vocabulary", pathType: "trail-guide", mapTypes: []string{"atlas", "chart", "survey"}, otherWord: "walk-through"},
-		{name: "another vocabulary", pathType: "walk-through", mapTypes: []string{"gazetteer", "plan", "sketch"}, otherWord: "trail-guide"},
+		{
+			name: "one vocabulary", pathType: "trail-guide",
+			mapTypes:  []string{"survey", "atlas", "chart"},
+			named:     []string{"atlas", "chart", "survey"},
+			otherWord: "walk-through",
+		},
+		{
+			name: "another vocabulary", pathType: "walk-through",
+			mapTypes:  []string{"sketch", "plan", "gazetteer"},
+			named:     []string{"gazetteer", "plan", "sketch"},
+			otherWord: "trail-guide",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -935,11 +950,11 @@ func TestAnEmptyDeskNamesTheDeclarationThatFillsIt(t *testing.T) {
 			for _, desk := range []struct {
 				target string
 				// declared is the whole of what this desk is filled by, in the
-				// contract's order.
+				// order a reader is shown it.
 				declared []string
 			}{
 				{target: "/paths", declared: []string{tt.pathType}},
-				{target: "/maps", declared: tt.mapTypes},
+				{target: "/maps", declared: tt.named},
 			} {
 				said := make(map[wording.Lang]string, 2)
 				for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
@@ -1004,7 +1019,7 @@ func writeContractDeclaring(t *testing.T, root, pathType string, mapTypes []stri
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 		t.Fatalf("mkdir for the contract: %v", err)
 	}
-	if err := os.WriteFile(full, []byte(text), 0o600); err != nil {
+	if err := os.WriteFile(full, []byte(text), 0o600); err != nil { // #nosec G703 -- the contract's fixed relative path under this test's own t.TempDir
 		t.Fatalf("write contract: %v", err)
 	}
 }
@@ -1014,6 +1029,9 @@ func readingPageIn(t *testing.T, site http.Handler, target string, lang wording.
 	t.Helper()
 	recorder := httptest.NewRecorder()
 	request := siteRequest(t, http.MethodGet, target, nil)
+	// #nosec G124 -- the language cookie the server itself sets carries none of
+	// those attributes, and a request that added them would be asking the
+	// handler about a reader who does not exist.
 	request.AddCookie(&http.Cookie{Name: wording.CookieName, Value: string(lang)})
 	site.ServeHTTP(recorder, request)
 	response := recorder.Result()

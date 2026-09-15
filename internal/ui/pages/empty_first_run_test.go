@@ -28,7 +28,7 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 	// The words the declared shelves answer for are this test's, written into
 	// a contract and read back through it, so a word the interface spelled for
 	// itself cannot pass for one a vault declared.
-	declared := declaringContract(t, "trail-guide", "atlas", "chart")
+	declared := declaringContract(t, "trail-guide", "chart", "atlas")
 	folderGuide := guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext)
 	cases := []struct {
 		name     string
@@ -121,7 +121,9 @@ func guide(state, step wording.Phrase) func(wording.Lang) string {
 // declaredGuide is what a shelf filled by a declaration says while nothing has
 // been declared onto it. The words are the caller's, which is the half of this
 // expectation the page cannot supply to itself: they reach the page through a
-// contract file and reach this string directly.
+// contract file and reach this string directly. They are given here in the
+// order a reader meets them, which the fixture deliberately does not write
+// them in.
 func declaredGuide(types ...string) func(wording.Lang) string {
 	return func(lang wording.Lang) string {
 		format := wording.NoDeclaredTypeEmptyFmt
@@ -227,7 +229,7 @@ func assertEmptyGuide(t *testing.T, where, got, want string, lang wording.Lang) 
 func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 	t.Parallel()
 
-	declared := declaringContract(t, "trail-guide", "atlas", "chart")
+	declared := declaringContract(t, "trail-guide", "chart", "atlas")
 	for _, tt := range []struct {
 		name     string
 		contract ContractState
