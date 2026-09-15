@@ -23,7 +23,7 @@ var PreferencesLede = both(
 // The interface language, and the boundary a reader would otherwise have to
 // discover: the words yomihon writes change, the words an author wrote do not.
 var (
-	PrefLanguage     = both("介面語言", "Interface language")
+	PrefLanguage     = both("介面語言", "Language")
 	PrefLanguageNote = both(
 		"只換介面的字；筆記保留作者寫的語言。",
 		"Switches the interface only; a note keeps the language it was written in.",
@@ -51,27 +51,30 @@ var (
 )
 
 // The reading column's measure. The note draws the line the control does not:
-// the article grows, the chrome around it holds still.
+// the article grows, the header and rails around it hold still.
 var (
-	PrefTextSize     = both("字級", "Text size")
-	PrefTextSizeNote = both(
+	PrefTextSize           = both("字級", "Text size")
+	PrefTextSizeMedium     = both("中", "Medium")
+	PrefTextSizeLarge      = both("大", "Large")
+	PrefTextSizeExtraLarge = both("特大", "Extra large")
+	PrefTextSizeNote       = both(
 		"只放大內文，介面不變。",
-		"Enlarges the reading column only; the chrome around it keeps its size.",
+		"Enlarges the reading column only; the header and rails around it keep their size.",
 	)
 )
 
-// The face the reading is set in, and the three it may be set in. Each name
-// carries the characters it is known by, because a reader choosing a Chinese
-// face recognises 明體 faster than any translation of it.
+// The face the reading is set in, and the three it may be set in. Each side
+// names them as its own readers know them: the Chinese page by the characters,
+// the English page by the names those faces carry in English.
 var (
 	PrefTypeface     = both("字體", "Typeface")
 	PrefTypefaceNote = both(
 		"只換內文與課文練習的字體；標題、介面、程式碼不變。",
-		"Changes the reading column and the lesson exercises only; headings, chrome, and code keep theirs.",
+		"Changes the reading column and the lesson exercises only; headings, the interface, and code keep theirs.",
 	)
-	PrefTypefaceSerif = both("明體", "Serif (明體)")
-	PrefTypefaceSans  = both("黑體", "Sans (黑體)")
-	PrefTypefaceKai   = both("楷體", "Kai (楷體)")
+	PrefTypefaceSerif = both("明體", "Serif")
+	PrefTypefaceSans  = both("黑體", "Sans serif")
+	PrefTypefaceKai   = both("楷體", "Kaiti")
 )
 
 // The reading aids over Japanese text. The note says the switch is inert
@@ -109,8 +112,8 @@ var (
 var (
 	PrefReset     = both("回到預設", "Back to the defaults")
 	PrefResetNote = both(
-		"清掉下面六項（含介面語言，所以套用後介面回到繁體中文）；本次分頁的側欄狀態與篩選字不受影響。",
-		"Clears the six below — including the interface language, so the page comes back in 繁體中文; this tab's sidebar state and filter text are untouched.",
+		"清掉這一頁的每一項設定（含介面語言，所以套用後介面回到繁體中文）；本次分頁的側欄狀態與篩選字不受影響。",
+		"Clears every setting on this page — including the interface language, so the page comes back in Traditional Chinese; this tab's sidebar state and filter text are untouched.",
 	)
 )
 
@@ -124,16 +127,16 @@ var PrefApply = both("套用", "Apply")
 var (
 	PrefStorageTitle = both("這個瀏覽器記著什麼", "What this browser remembers")
 	PrefStorageNote  = both(
-		"六個 cookie 存在這個位址上，兩個只活到分頁關閉；沒有任何一項離開這台機器。",
-		"Six cookies on this address, two values that die with the tab; none of it leaves this machine.",
+		"設定存成這個位址上的 cookie，側欄的狀態只活到分頁關閉；沒有任何一項離開這台機器。",
+		"Settings are cookies on this address; the sidebar's own values die with the tab; none of it leaves this machine.",
 	)
 	PrefStorageCookies = both(
-		"六個 cookie：介面語言、外觀、字級、字體、振假名、單鍵快捷鍵",
-		"Six cookies: language, appearance, text size, typeface, furigana, single-key shortcuts",
+		"cookie 記著：介面語言、外觀、字級、字體、振假名、單鍵快捷鍵",
+		"Cookies: language, appearance, text size, typeface, furigana, single-key shortcuts",
 	)
 	PrefStorageSession = both(
-		"兩個分頁內的值：側欄展開狀態、側欄篩選字",
-		"Two per-tab values: sidebar expansion, sidebar filter text",
+		"分頁內的值：側欄展開狀態、側欄篩選字",
+		"Per-tab values: sidebar expansion, sidebar filter text",
 	)
 )
 
