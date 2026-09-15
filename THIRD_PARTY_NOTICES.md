@@ -1,9 +1,7 @@
 # Third-party notices
 
 This file records third-party source copied into the repository and embedded
-in yomihon. Go module dependencies remain identified by `go.mod` and `go.sum`;
-a future prebuilt-binary release must additionally ship a generated SBOM and
-the notices required by the exact linked module graph.
+in yomihon. Go module dependencies remain identified by `go.mod` and `go.sum`.
 
 ## Mermaid 11.15.0
 
