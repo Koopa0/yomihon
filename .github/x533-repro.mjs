@@ -24,6 +24,7 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/Glass%20Tide.md';
 const ROUNDS = Number(process.env.ROUNDS || 5);
 const LABEL = process.env.LABEL || 'unnamed';
+const PRESS_MS = Number(process.env.PRESS_MS || 20_000);
 
 // Read the arriving document's stylesheets for the opt-in, so a round can say
 // the rules reached the browser rather than assuming the build carried them.
@@ -127,13 +128,30 @@ try {
       has: page.locator('input[type=radio][name="lang"]'),
     });
     const other = form.locator('label:has(input[type=radio][name="lang"]:not(:checked))');
+    const started = Date.now();
     try {
-      await other.click({ timeout: 8_000 });
+      await other.click({ timeout: PRESS_MS });
       row.pressed = true;
     } catch (refused) {
       row.pressed = false;
       row.refused = String(refused.message).split('\n')[0];
     }
+    row.pressMs = Date.now() - started;
+
+    // A page that is merely slow catches up; a page that is held does not. The
+    // second reading is taken after the press has had its whole budget, so the
+    // two together separate a stall from a stop.
+    const late = await page.evaluate(() => new Promise((resolve) => {
+      let frames = 0;
+      const tick = () => { frames += 1; requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      setTimeout(() => resolve({
+        lateFrames: frames,
+        lateReveal: window.__arrival?.reveal ?? null,
+        lateTransition: window.__arrival?.transition ?? null,
+      }), 1000);
+    }));
+    Object.assign(row, late);
 
     rows.push(row);
     await page.close();
@@ -144,20 +162,29 @@ try {
 
 for (const row of rows) console.log(`X533 ${JSON.stringify(row)}`);
 
+// The validity gate is the declaration, not the event. A frozen arrival can
+// never report a transition — the reveal that would have announced it is the
+// signal the defect withholds — so gating on "this round came through a
+// transition" would file every freeze as an inconclusive run.
+const inForce = rows.filter((row) => row.declared > 0);
 const exercised = rows.filter((row) => row.transition === true);
-const frozen = rows.filter((row) => row.arrived === false || row.frames === 0 || row.pressed === false);
+const frozen = rows.filter((row) => row.arrived === false
+  || (row.frames === 0 && row.lateFrames === 0)
+  || row.pressed === false);
 console.log(`X533-SUMMARY ${JSON.stringify({
   label: LABEL,
   rounds: rows.length,
   arrived: rows.filter((row) => row.arrived).length,
-  declaredEverywhere: rows.every((row) => row.declared > 0),
+  inForce: inForce.length,
   exercised: exercised.length,
   frozen: frozen.length,
 })}`);
-if (exercised.length === 0) {
-  console.log('X533-VERDICT inconclusive: no round arrived through a transition, so the mechanism was never exercised');
+if (inForce.length === 0) {
+  console.log('X533-VERDICT inconclusive: no arriving document carried the opt-in, so nothing here was under the mechanism');
 } else if (frozen.length > 0) {
-  console.log(`X533-VERDICT reproduced: ${frozen.length} of ${rows.length} rounds arrived at a page that did not paint or would not take a press`);
+  console.log(`X533-VERDICT reproduced: ${frozen.length} of ${rows.length} rounds arrived at a page that never painted or would not take a press`);
+} else if (exercised.length === 0) {
+  console.log('X533-VERDICT inconclusive: the opt-in was in force but no round ever came through a transition, and none froze');
 } else {
   console.log(`X533-VERDICT not-reproduced: ${exercised.length} of ${rows.length} rounds arrived through a transition, painted, and took a press`);
 }

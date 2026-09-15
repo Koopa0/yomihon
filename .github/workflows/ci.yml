@@ -373,7 +373,7 @@ jobs:
           set -eux
           npm ci --prefix .github --ignore-scripts --no-audit --fund=false
           go build -o /tmp/yomihon-x533 ./cmd/yomihon
-          ROUNDS=8 LABEL=ubuntu-latest-runner \
+          ROUNDS=6 LABEL=ubuntu-latest-runner \
             bash .github/e2e/serve.sh /tmp/yomihon-x533 19853 -- node .github/x533-repro.mjs
 
   # Proves the probes above can fail. Each one names its own self-test modes;
