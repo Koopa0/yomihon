@@ -800,17 +800,25 @@ func TestTheRenderedFormSavesEveryChoiceWithoutScript(t *testing.T) {
 	}
 	form := choicesForm(t, body)
 
-	submits := 0
+	var submits []tag
 	for _, button := range elements(t, form, "button") {
 		if button.kind == "submit" {
-			submits++
+			submits = append(submits, button)
 		}
 	}
-	if submits != 1 {
-		t.Errorf("the form holding the choices carries %d submits, want the one that applies all of them", submits)
+	if len(submits) != 1 {
+		t.Fatalf("the form holding the choices carries %d submits, want the one that applies all of them", len(submits))
 	}
 
 	sent := url.Values{}
+	// A browser sends the pressed submit's own name and value along with the
+	// fields, so this does too. The one on this form carries neither, and that
+	// is the point: the control that clears everything reaches the endpoint
+	// under a name applying must never send, and a submission carrying both
+	// would be refused as two answers to what the reader wants kept.
+	if submits[0].name != "" {
+		sent.Set(submits[0].name, submits[0].value)
+	}
 	marked := map[string]string{}
 	offered := map[string][]string{}
 	for _, in := range elements(t, form, "input") {
