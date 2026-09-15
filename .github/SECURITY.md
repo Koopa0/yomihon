@@ -12,6 +12,11 @@ yomihon is a single-user local reader: it listens only on `127.0.0.1`, makes no
 outbound network call, and writes one frontmatter field, so anything that
 writes outside `status`, or leaves the machine, is worth reporting.
 
+The public instance at `yomihon.koopa0.dev` is a deliberate exception and needs
+no report. It serves the sample notes committed in this repository, its write
+face is open on purpose so a visitor can try the one verb yomihon has, and
+those notes are restored from git every hour.
+
 ## Verifying a downloaded binary
 
 A release binary carries a signed statement of where it came from. To check
