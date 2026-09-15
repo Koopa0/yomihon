@@ -361,13 +361,12 @@ link works, the page looks finished, and only a number somewhere else is wrong.
 Nothing here is loud.
 
 The last of the four deserves a warning of its own, because its name promises
-more than it delivers — and its name is a second trap: it begins with *map* and
-judges study paths, not maps. `map.disk_unlisted` is the one that would catch a
-lesson you wrote and forgot to list, but it only runs for a study path that
-itself declares a `domain`, only over lessons carrying that same domain, and
-never over a draft. A vault whose courses span subjects, which is the normal
-case, never sees it at all. **So an unlisted lesson is usually silent, and step
-3 of the checklist below is not something `check` will do for you.**
+more than it delivers. `map.disk_unlisted` is the one that would catch a lesson
+you wrote and forgot to list, and on most vaults it never runs: the conditions
+are narrow enough that `references/diagnostics.md` spends a paragraph on them,
+and a vault whose courses span subjects — the normal case — never sees it at
+all. **So an unlisted lesson is usually silent, and step 3 of the checklist
+below is not something `check` will do for you.**
 
 ## Before calling a note done
 

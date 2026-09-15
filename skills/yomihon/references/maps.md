@@ -49,7 +49,10 @@ maps=0`: the table is all-or-nothing, and a fault in either key closes both.
 
 A map usually spans subjects, so a map type normally belongs on
 `[fields] domain_exempt_types` — otherwise every map has to claim one domain.
-The example contract lists `["study-path", "moc"]` there for that reason.
+The example contract lists `["study-path", "moc"]` there for that reason, and
+you can watch the exemption do its work: `Maps/yomihon.md` carries no `domain`
+and `check` is quiet about it, but drop `moc` from that list and the same note
+reports `schema.required` saying `domain is required`.
 
 ## A map is not a study path
 
@@ -136,13 +139,9 @@ is what holds you to it.
 
 ## Nothing reports a map's shape
 
-The two rules whose names open with *map* are not about maps:
-
-- `map.disk_mismatch` is a **study path** listing an entry that resolves to
-  nothing.
-- `map.disk_unlisted` is a lesson no **study path** of its domain lists.
-
-A map has no rule of its own. Its links are judged like any other note's — a
+A map has no rule of its own. The two whose names open with *map* judge study
+paths instead, which [`study-paths.md`](study-paths.md) explains. Its links are
+judged like any other note's — a
 dead `[[link]]` in a map is an ordinary `link.broken`, reported at its line —
 and its structure is judged not at all. Put a heading with no links in it, a
 checkbox row, a link in a heading and a nested branch into one map and `check`

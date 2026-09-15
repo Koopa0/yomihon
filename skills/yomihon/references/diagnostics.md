@@ -161,15 +161,13 @@ that same note is judged here as usual.
 
 ## The course rules
 
-Every rule below judges a **study path**, including the two whose names open
-with *map*: those two are about a course's relationship with the files on disk,
-and no rule anywhere judges a map's own shape — see
-[`maps.md`](maps.md). The rest are the study-path grammar itself. All `warn`.
+Every rule below judges a **study path**, the two whose names open with *map*
+included; [`study-paths.md`](study-paths.md) explains that naming. All `warn`.
 
 | `rule_id` | What it means |
 |---|---|
 | `map.disk_mismatch` | a study path lists an entry that resolves to nothing — a course promising a note that is not there. Drops to `info` under a planned-gap heading, which is how you say "owed, not missing" |
-| `map.disk_unlisted` | a lesson exists on disk that no study path of its domain lists. Narrower than it sounds: it runs **only** for a study path that itself declares a `domain`, only over lessons carrying that same domain, and never over a lesson whose status is the draft one. A vault whose paths declare no domain — which is normal, since a course usually spans subjects — never sees this rule at all |
+| `map.disk_unlisted` | a lesson exists on disk that no study path of its domain lists. Narrower than it sounds: it runs **only** for a study path that itself declares a `domain`, only over lessons carrying that same domain, and never over a lesson whose status is the literal word `draft` — that word is yomihon's own, not read from your contract, so a vault whose first status is spelled anything else gets no exemption and every unwritten lesson is reported. A vault whose paths declare no domain — which is normal, since a course usually spans subjects — never sees this rule at all |
 | `path.role_missing` | a branch lists lessons, or a nested list exists, and neither says what part it plays. Undeclared is unclassified, and unclassified projects nothing. Two messages, one per shape: a heading's, and a nested list's |
 | `path.role_invalid` | the marker's value is none of `primary`, `local`, `none` |
 | `path.role_duplicate` | one line declares more than one role |
