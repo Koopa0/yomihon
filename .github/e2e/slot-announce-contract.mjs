@@ -18,6 +18,7 @@ const SPEAK = '[data-slot-action="speak"]';
 // The sentence is Japanese however the chrome around it is written, so this
 // site runs on its own pages, one per interface language.
 const VOICE_SITE = 'the-voice-follows-the-sentence';
+const PARAGRAPH = '[data-tts]';
 const SLOT_A = 'select[data-slot-key="A"]';
 
 // The fixture's second fill in each slot, which is what the stubbed shuffle
@@ -33,6 +34,7 @@ const SITES = [
   'shuffle-announces-the-sentence',
   'announced-gloss-declares-its-language',
   'second-press-stops-the-sentence',
+  'one-speaker-speaks-at-a-time',
   VOICE_SITE,
 ];
 
@@ -122,6 +124,20 @@ const MUTATIONS = {
   'speak-in-the-pages-language': {
     target: VOICE_SITE,
     apply: rewriteScript("        card.querySelector('.y-slotoutput'),\n", '', 'practice speech passage'),
+  },
+  // Stopping on a second press of the same button is kept; what goes is
+  // stopping the speaker already running when a different one is pressed, so
+  // the page marks two at once. Aimed here and nowhere else: taking the release
+  // out of stopSpeech itself would break the second press too, and the site
+  // that watches the second press would catch it first and say nothing about
+  // how many speakers the page believes are speaking.
+  'start-without-stopping-the-other': {
+    target: 'one-speaker-speaks-at-a-time',
+    apply: rewriteScript(
+      '    }\n    stopSpeech();\n    const generation = speechGeneration;',
+      '    }\n    const generation = speechGeneration;',
+      'stop the speaker already running',
+    ),
   },
   'drop-the-gloss-language': {
     target: 'announced-gloss-declares-its-language',
@@ -273,6 +289,25 @@ try {
     fail('second-press-stops-the-sentence', 'the speaker still holds the speaking state after the press that stopped it');
   }
 
+  // Two speakers now reach one voice, so the page has to say which of them is
+  // speaking -- and only one can be. Before the card was handed its button it
+  // could never hold the speaking state at all, so this could not be broken and
+  // nothing watched it; handing the button over is what made it breakable.
+  const speakingCount = () => page.evaluate(() => document.querySelectorAll('[data-speaking]').length);
+  if (await page.locator(PARAGRAPH).count() < 1) {
+    broken('the lesson marks no paragraph for reading aloud, so there is no second speaker to hand the voice to');
+  }
+  for (const [step, target] of [['the paragraph', PARAGRAPH], ['the card', SPEAK], ['the paragraph again', PARAGRAPH]]) {
+    await page.locator(target).first().click();
+    const marked = await speakingCount();
+    // Exactly one: two means the speaker that stopped never let go, and none
+    // means the one that started never took hold. Both read as a page that
+    // cannot say what is speaking.
+    if (marked !== 1) {
+      fail('one-speaker-speaks-at-a-time', `after pressing ${step} the page marks ${marked} speakers as speaking, want exactly 1`);
+    }
+  }
+
   // The voice is the sentence's, not the page's. Read in the language of the
   // chrome, a Japanese line comes out in a Chinese or English voice, which is
   // not a smaller version of reading it aloud.
@@ -311,7 +346,7 @@ try {
     await context.close();
   }
 
-  console.log('PASS slot-announce-contract: the card announces its shuffled sentence, stays quiet where the select already speaks, marks the gloss language, stops on the second press of its speaker, and asks for a Japanese voice in either interface language');
+  console.log('PASS slot-announce-contract: the card announces its shuffled sentence, stays quiet where the select already speaks, marks the gloss language, stops on the second press of its speaker, marks exactly one speaker at a time, and asks for a Japanese voice in either interface language');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
