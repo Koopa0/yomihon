@@ -119,12 +119,12 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 		{
 			name:  "plain CJK",
 			query: "試讀",
-			href:  notePath + "#:~:text=%E8%A9%A6%E8%AE%80",
+			href:  notePath + "#:~:text=%E9%80%99%E6%98%AF-,%E8%A9%A6%E8%AE%80",
 		},
 		{
 			name:  "same-paragraph phrase with a line break",
 			query: `"bright crimson"`,
-			href:  notePath + "#:~:text=bright%20crimson",
+			href:  notePath + "#:~:text=evidence%20records%20a-,bright%20crimson",
 		},
 		{
 			name:  "title",
@@ -134,7 +134,7 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 		{
 			name:   "cross-paragraph phrase",
 			query:  `"cobalt egret"`,
-			href:   notePath + "#:~:text=cobalt,egret",
+			href:   notePath + "#:~:text=calls%20this%20bird-,cobalt,egret",
 			blocks: true,
 		},
 	}
@@ -261,7 +261,7 @@ func TestEverySearchResultRowLocatesOrSaysSo(t *testing.T) {
 		{name: "empty first-block stretch still names the last", q: `"  ghi"`, href: "/notes/Notes/Unlocated.md#:~:text=ghi"},
 		{name: "both stretches empty", q: `"  xxx  "`, note: true},
 		{name: "three-block phrase", q: `"alpha beta gamma"`, href: "/notes/Notes/Three%20blocks.md#:~:text=alpha,gamma"},
-		{name: "cross-paragraph with a decoy", q: `"cobalt egret"`, href: notePath + "#:~:text=cobalt,egret"},
+		{name: "cross-paragraph with a decoy", q: `"cobalt egret"`, href: notePath + "#:~:text=calls%20this%20bird-,cobalt,egret"},
 		{name: "NFD note still lands on both blocks", q: `"bright crimson"`},
 	}
 	for _, tt := range tests {
@@ -285,7 +285,7 @@ func TestEverySearchResultRowLocatesOrSaysSo(t *testing.T) {
 				t.Errorf("the empty-landing row does not say the match could not be located; body = %q", body)
 			}
 			if tt.name == "NFD note still lands on both blocks" &&
-				!strings.Contains(body, "/notes/Notes/nfd.md#:~:text=bright,crimson") {
+				!strings.Contains(body, "/notes/Notes/nfd.md#:~:text=evidence%20records%20a-,bright,crimson") {
 				t.Errorf("the NFD note did not keep a crossing range directive; body = %q", body)
 			}
 		})

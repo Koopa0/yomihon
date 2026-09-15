@@ -1654,3 +1654,110 @@ func TestQuotedFilterValueStillFilters(t *testing.T) {
 		t.Errorf(`Search("topic:functional programming") mismatch (-want +got):`+"\n%s", diff)
 	}
 }
+
+// The words a match follows come out of the match's own block. A phrase that
+// opens on the last word of a paragraph gives the browser a one-word stretch
+// to find, and it finds the first copy anywhere on the page; the run ahead of
+// it is what tells that copy from this one. The run is cut at the block start,
+// because a browser reads a leading run as a prefix only where it sits in the
+// same block as the term it introduces.
+func TestLandingNamesTheWordsTheMatchFollowsInsideItsOwnBlock(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Prefix.md", []byte(""+
+			"# Prefix\n\n"+
+			"The decoy cobalt sits in the opening paragraph.\n\n"+
+			"The field notebook calls this bird cobalt\n\n"+
+			"egret beside the old lighthouse.\n\n"+
+			"alpha\n\n"+
+			"beta\n"))),
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		name   string
+		query  string
+		prefix string
+	}{
+		{
+			name:   "a crossing phrase names the last words of its first block",
+			query:  `"cobalt egret"`,
+			prefix: "calls this bird",
+		},
+		{
+			// The previous block ends "…paragraph." and none of it may be
+			// named: a run reaching back over the boundary is a directive the
+			// browser throws out, not a longer one.
+			name:  "a match that opens its block names nothing",
+			query: `"alpha beta"`,
+		},
+		{
+			name:   "an ordinary hit names them too",
+			query:  "lighthouse",
+			prefix: "beside the old",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := searchResults(t, idx, Parse(tt.query))
+			if len(got) != 1 {
+				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			}
+			if got[0].LandingPrefix != tt.prefix {
+				t.Errorf("LandingPrefix = %q, want %q", got[0].LandingPrefix, tt.prefix)
+			}
+		})
+	}
+}
+
+// The run is written for a browser to find again in rendered text, so it is
+// kept short. Words come off the front whole; only a script that parts no
+// words with spaces may be cut inside what strings.Fields calls one word,
+// because there every character opens a word of its own.
+func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		run  string
+		want string
+	}{
+		{name: "nothing ahead of the match", run: "", want: ""},
+		{name: "fewer words than the budget", run: "calls this", want: "calls this"},
+		{name: "the last words, not the first", run: "one two three four five", want: "three four five"},
+		{
+			name: "a paragraph written without spaces is cut to its tail",
+			run:  "第一段落的開頭寫得很長很長很長很長很長很長很長很長很長很長很長很長很長很長結尾",
+			want: "很長很長很長很長很長很長很長很長很長很長很長很長很長很長結尾",
+		},
+		{
+			// 30 characters exactly: the budget is a limit, not a trigger.
+			name: "a run at the budget is kept whole",
+			run:  "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十",
+			want: "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十",
+		},
+		{
+			// 51 characters over three words; dropping the first leaves 26,
+			// which is inside the budget, so the second is kept whole.
+			name: "words come off the front one at a time, and no further",
+			run:  "pneumonoultramicroscopic silicovolcanoconiosis tail",
+			want: "silicovolcanoconiosis tail",
+		},
+		{
+			// Halving it would name a run that opens inside a word, which
+			// matches nothing, so the row keeps its bare term instead.
+			name: "one over-long word is dropped rather than halved",
+			run:  "pneumonoultramicroscopicsilicovolcanoconiosis",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := landingPrefix(tt.run); got != tt.want {
+				t.Errorf("landingPrefix(%q) = %q, want %q", tt.run, got, tt.want)
+			}
+		})
+	}
+}

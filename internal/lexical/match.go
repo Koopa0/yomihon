@@ -49,6 +49,16 @@ type Result struct {
 	// land on an earlier copy of the same word.
 	LandingEnd string
 
+	// LandingPrefix is the run of words the match follows inside the block
+	// its first stretch opens, collapsed the way a snippet is and cut to a
+	// few words. A browser looks for the term it is given by walking the
+	// whole page in order, so a start stretch of one common word is answered
+	// by the first copy anywhere on it — the reader's own navigation is drawn
+	// before the article and spells some of those words too. Naming what the
+	// match follows tells the two apart. Empty where the match opens its
+	// block, which is where there is nothing to say.
+	LandingPrefix string
+
 	// BlockCrossing reports that the match continues past that first block,
 	// so a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
@@ -70,6 +80,14 @@ const (
 	// paid out by script, buying a reader of Chinese a third of the context.
 	snippetBefore = 40
 	snippetAfter  = 160
+
+	// landingPrefixWords and landingPrefixRunes bound the run of words named
+	// ahead of a match, in words and in characters the reader sees. The
+	// budget is small deliberately: the run is written for a browser to find
+	// again in rendered text, and every further word is another chance for
+	// the two spellings of the same sentence to part.
+	landingPrefixWords = 3
+	landingPrefixRunes = 30
 )
 
 // SearchN runs a parsed query against the index and returns results in the final
@@ -435,13 +453,13 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	if !metadataAvailable || !e.metadataCapable {
 		status, noteType = "", ""
 	}
-	var bodySnippet, landing, landingEnd string
+	var bodySnippet, prefix, landing, landingEnd string
 	var crossing, fromFence bool
 	if bodyEvidence {
 		var foldStart, foldEnd int
 		foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
 		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
-		landing, landingEnd, crossing = e.landingAt(foldStart, foldEnd)
+		prefix, landing, landingEnd, crossing = e.landingAt(foldStart, foldEnd)
 	}
 	return Result{
 		RelPath:       e.RelPath,
@@ -454,27 +472,34 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		File:          e.isFile,
 		Landing:       landing,
 		LandingEnd:    landingEnd,
+		LandingPrefix: prefix,
 		BlockCrossing: crossing,
 		FromFence:     fromFence,
 		Language:      e.language,
 	}
 }
 
-// landingAt is the first and last block of one folded body match, and whether
-// that match continues into a later block. The exclusive end is the last
-// matched rune plus its length: the next kept rune can sit in a later block
-// after a fold-dropped break, which is not itself a crossing. Without recorded
-// block ends there is nothing to tell a wrap from a paragraph, so the row
-// keeps the snippet's own words and does not claim a crossing.
-func (e *entry) landingAt(foldStart, foldEnd int) (first, last string, crossing bool) {
+// landingAt is the run of words before one folded body match, its first and
+// last block, and whether that match continues into a later block. The
+// exclusive end is the last matched rune plus its length: the next kept rune
+// can sit in a later block after a fold-dropped break, which is not itself a
+// crossing. Without recorded block ends there is nothing to tell a wrap from a
+// paragraph, so the row keeps the snippet's own words and does not claim a
+// crossing.
+//
+// The preceding run is cut at the start of the match's own block, because a
+// directive may only name one where it sits beside the term it introduces. A
+// match that opens its block is preceded by nothing and says so.
+func (e *entry) landingAt(foldStart, foldEnd int) (prefix, first, last string, crossing bool) {
 	if foldStart < 0 || foldEnd <= foldStart || len(e.blockEnds) == 0 {
-		return "", "", false
+		return "", "", "", false
 	}
 	start := sourceOffsetOfFold(e.PlainText, foldStart)
 	end := sourceEndOfFold(e.PlainText, foldEnd)
 	if start >= end || end > len(e.PlainText) {
-		return "", "", false
+		return "", "", "", false
 	}
+	prefix = landingPrefix(collapseFields(e.PlainText[e.blockStartContaining(start):start]))
 	firstEnd := e.blockEndAfter(start)
 	crossing = end > firstEnd
 	firstStop := end
@@ -483,10 +508,35 @@ func (e *entry) landingAt(foldStart, foldEnd int) (first, last string, crossing 
 	}
 	first = collapseFields(e.PlainText[start:firstStop])
 	if !crossing {
-		return first, "", false
+		return prefix, first, "", false
 	}
 	from := max(e.blockStartContaining(end-1), firstEnd)
-	return first, collapseFields(e.PlainText[from:end]), true
+	return prefix, first, collapseFields(e.PlainText[from:end]), true
+}
+
+// landingPrefix cuts a block's run of words before a match down to what one
+// term of a directive can carry. Whole words come off the front first. A
+// single word still over the budget is shortened only where the script parts
+// no words with spaces: there every character opens a word, so a tail of it
+// is still a run the browser can find, while a cut anywhere else would fall
+// inside a word and name none. Such a word is dropped rather than halved.
+func landingPrefix(run string) string {
+	words := strings.Fields(run)
+	if len(words) > landingPrefixWords {
+		words = words[len(words)-landingPrefixWords:]
+	}
+	for len(words) > 1 && utf8.RuneCountInString(strings.Join(words, " ")) > landingPrefixRunes {
+		words = words[1:]
+	}
+	prefix := strings.Join(words, " ")
+	if utf8.RuneCountInString(prefix) <= landingPrefixRunes {
+		return prefix
+	}
+	cut := runesBefore(prefix, len(prefix), landingPrefixRunes)
+	if writesWithoutSpaces(nextRune(prefix, cut)) {
+		return prefix[cut:]
+	}
+	return ""
 }
 
 func collapseFields(s string) string {
