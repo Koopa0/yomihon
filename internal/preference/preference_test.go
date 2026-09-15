@@ -448,11 +448,14 @@ func TestTheReturnAddressStaysOnThisSite(t *testing.T) {
 	}
 }
 
-// TestASubmissionCarriesExactlyOneChoice makes one-field-per-form a contract
-// rather than a habit of the markup. A body naming none of the choices asked
-// for nothing, and one naming two would have to be answered by deciding which
-// the reader meant; both are refused with nothing written.
-func TestASubmissionCarriesExactlyOneChoice(t *testing.T) {
+// TestNothingIsWrittenUnlessEveryFieldResolves is the all-or-nothing half of a
+// submission that carries the whole page. A body naming no choice asked for
+// nothing; a field carrying no answer or several has asked for two things at
+// once; and a value no choice offers is refused whether it arrives alone or
+// beside four a reader picked correctly. The last is what makes the rule worth
+// stating: a refusal that had already written the good fields would hand the
+// reader an error over a page that had half changed under it.
+func TestNothingIsWrittenUnlessEveryFieldResolves(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
@@ -461,11 +464,22 @@ func TestASubmissionCarriesExactlyOneChoice(t *testing.T) {
 		form url.Values
 	}{
 		{name: "no choice at all", form: url.Values{"next": {"/"}}},
-		{name: "two choices", form: url.Values{"theme": {"dark"}, "font": {"kai"}, "next": {"/"}}},
 		{name: "a choice and a reset", form: url.Values{"theme": {"dark"}, "reset": {"1"}, "next": {"/"}}},
 		{name: "a field this page does not offer", form: url.Values{"paper": {"cream"}, "next": {"/"}}},
 		{name: "one choice carrying two answers", form: url.Values{"theme": {"dark", "light"}, "next": {"/"}}},
 		{name: "a reset carrying two answers", form: url.Values{"reset": {"1", "1"}, "next": {"/"}}},
+		{
+			name: "a value no choice offers beside ones that are fine",
+			form: url.Values{"textsize": {"xl"}, "font": {"mincho"}, "theme": {"dark"}, "next": {"/"}},
+		},
+		{
+			name: "one choice carrying two answers beside ones that are fine",
+			form: url.Values{"textsize": {"xl"}, "font": {"sans", "kai"}, "next": {"/"}},
+		},
+		{
+			name: "an empty field beside ones that are fine",
+			form: url.Values{"textsize": {"xl"}, "font": {""}, "next": {"/"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -478,6 +492,94 @@ func TestASubmissionCarriesExactlyOneChoice(t *testing.T) {
 				t.Errorf("a refused submission still set %v", got.names())
 			}
 		})
+	}
+}
+
+// TestOneSubmissionSavesEveryChoiceItCarries is the page's promise: a reader
+// who sets the size and the typeface together, and applies once, gets both.
+// Applying used to take one field and redirect, so the second pick left the
+// page unsaved with nothing said about it.
+func TestOneSubmissionSavesEveryChoiceItCarries(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t)
+
+	tests := []struct {
+		name string
+		form url.Values
+		// want is what each cookie is left holding, with an empty string for
+		// one the answer deletes. Written out per case rather than derived from
+		// the body, so a handler that echoed the submission back would have to
+		// agree with a list written by hand.
+		want map[string]string
+	}{
+		{
+			name: "the size and the typeface, picked together",
+			form: url.Values{"textsize": {"xl"}, "font": {"sans"}, "next": {"/notes/A.md"}},
+			want: map[string]string{"yomihon_textsize": "xl", "yomihon_font": "sans"},
+		},
+		{
+			name: "every choice the page offers at once",
+			form: url.Values{
+				"lang": {"en"}, "theme": {"light"}, "textsize": {"l"},
+				"font": {"kai"}, "ruby": {"off"}, "shortcuts": {"off"},
+				"next": {"/notes/A.md"},
+			},
+			want: map[string]string{
+				"yomihon_lang": "en", "yomihon_theme": "light", "yomihon_textsize": "l",
+				"yomihon_font": "kai", "yomihon_ruby": "off", "yomihon_shortcuts": "off",
+			},
+		},
+		{
+			name: "a choice that stores nothing among ones that do",
+			form: url.Values{"theme": {"system"}, "textsize": {"l"}, "ruby": {"off"}, "next": {"/notes/A.md"}},
+			want: map[string]string{"yomihon_theme": "", "yomihon_textsize": "l", "yomihon_ruby": "off"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := postForm(t, srv.URL+"/preferences", tt.form)
+			if got.status != http.StatusSeeOther {
+				t.Fatalf("status = %d, want 303", got.status)
+			}
+			if got.location != "/notes/A.md" {
+				t.Errorf("Location = %q, want the page the form came from", got.location)
+			}
+			assertHolding(t, got, tt.want)
+		})
+	}
+}
+
+// assertHolding checks what one answer left every cookie holding, in both
+// directions: each cookie named here carries the value written beside it, a
+// cookie wanted empty was expired rather than emptied, and no cookie this
+// submission never named was touched.
+func assertHolding(t *testing.T, got answer, want map[string]string) {
+	t.Helper()
+	if len(got.cookies) != len(want) {
+		t.Fatalf("the answer set %d cookies (%v), want the %d this submission named", len(got.cookies), got.names(), len(want))
+	}
+	for _, name := range slices.Sorted(maps.Keys(want)) {
+		c, only := got.cookie(name)
+		if !only {
+			t.Errorf("no single %q cookie; the answer set %v", name, got.names())
+			continue
+		}
+		if c.Value != want[name] {
+			t.Errorf("%s = %q, want %q", name, c.Value, want[name])
+		}
+		if want[name] != "" {
+			continue
+		}
+		expired := false
+		for _, line := range got.setCookie {
+			if strings.HasPrefix(line, name+"=;") && strings.Contains(line, "Max-Age=0") {
+				expired = true
+			}
+		}
+		if !expired {
+			t.Errorf("%s was not expired; Set-Cookie = %v", name, got.setCookie)
+		}
 	}
 }
 
@@ -520,9 +622,10 @@ func TestAMethodThisAddressDoesNotServeIsRefused(t *testing.T) {
 	}
 }
 
-// TestASubmissionLargerThanAChoiceIsRefused keeps the body bound where two
-// short fields put it. Nothing a rendered form sends comes close, so a body
-// past the bound was built by hand.
+// TestASubmissionLargerThanAChoiceIsRefused keeps the body bound where the
+// page's own form puts it: six short enumerated values and one return address.
+// Nothing a rendered form sends comes close, so a body past the bound was built
+// by hand.
 func TestASubmissionLargerThanAChoiceIsRefused(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
@@ -637,9 +740,9 @@ func ownForms(t *testing.T, markup string) []string {
 func assertEveryReturnAddress(t *testing.T, markup, want string) {
 	t.Helper()
 	forms := ownForms(t, markup)
-	if len(forms) != len(storedChoices)+1 {
-		t.Fatalf("the page carries %d forms of its own, want one for each of the %d choices and one for the reset",
-			len(forms), len(storedChoices))
+	if len(forms) != 2 {
+		t.Fatalf("the page carries %d forms of its own, want one holding every choice and one for the reset",
+			len(forms))
 	}
 	for _, form := range forms {
 		carried := 0
@@ -654,6 +757,119 @@ func assertEveryReturnAddress(t *testing.T, markup, want string) {
 		}
 		if carried != 1 {
 			t.Errorf("a form carries %d return addresses, want exactly one", carried)
+		}
+	}
+}
+
+// choicesForm is the form on this page that holds the reading choices. It is
+// found by the radios inside it rather than by where it sits, because the page
+// has a second form of its own — the control that clears everything — and which
+// of them the markup writes first is not what is being tested.
+func choicesForm(t *testing.T, markup string) string {
+	t.Helper()
+	var holding []string
+	for _, form := range ownForms(t, markup) {
+		if strings.Contains(form, `type="radio"`) {
+			holding = append(holding, form)
+		}
+	}
+	if len(holding) != 1 {
+		t.Fatalf("the page carries %d forms holding reading choices, want the one that holds all of them", len(holding))
+	}
+	return holding[0]
+}
+
+// TestTheRenderedFormSavesEveryChoiceWithoutScript submits the page the way a
+// browser with scripting turned off does: the one form, with every field it
+// renders and nothing assembled by hand. The body is read out of the markup, so
+// a page that stopped submitting a choice would be caught here rather than
+// passing against a body this test wrote for it.
+//
+// Two of the marked options are moved before the submission goes out, which is
+// the reader the page is for: a size and a typeface set together, in one visit.
+func TestTheRenderedFormSavesEveryChoiceWithoutScript(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t)
+
+	// The theme arrives already stored, because following the system is the one
+	// marked option that stores nothing: left in force, the submission below
+	// would carry a deletion and could say nothing about a saved theme.
+	code, body := page(t, srv.URL+"/preferences?from=%2Fnotes%2FA.md", "yomihon_theme=dark")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	form := choicesForm(t, body)
+
+	var submits []tag
+	for _, button := range elements(t, form, "button") {
+		if button.kind == "submit" {
+			submits = append(submits, button)
+		}
+	}
+	if len(submits) != 1 {
+		t.Fatalf("the form holding the choices carries %d submits, want the one that applies all of them", len(submits))
+	}
+
+	sent := url.Values{}
+	// A browser sends the pressed submit's own name and value along with the
+	// fields, so this does too. The one on this form carries neither, and that
+	// is the point: the control that clears everything reaches the endpoint
+	// under a name applying must never send, and a submission carrying both
+	// would be refused as two answers to what the reader wants kept.
+	if submits[0].name != "" {
+		sent.Set(submits[0].name, submits[0].value)
+	}
+	marked := map[string]string{}
+	offered := map[string][]string{}
+	for _, in := range elements(t, form, "input") {
+		switch {
+		case in.kind == "radio":
+			offered[in.name] = append(offered[in.name], in.value)
+			if in.checked {
+				marked[in.name] = in.value
+				sent.Set(in.name, in.value)
+			}
+		case in.kind == "hidden" && in.name == "next":
+			sent.Set("next", in.value)
+		}
+	}
+	if len(marked) != len(storedChoices) {
+		t.Fatalf("the form submits %d choices (%v), want one for each of the %d the page offers",
+			len(marked), slices.Sorted(maps.Keys(marked)), len(storedChoices))
+	}
+	if sent.Get("next") != "/notes/A.md" {
+		t.Fatalf("the form returns to %q, want the page it was reached from", sent.Get("next"))
+	}
+
+	for _, field := range []string{"textsize", "font"} {
+		moved := ""
+		for _, value := range offered[field] {
+			if value != marked[field] {
+				moved = value
+				break
+			}
+		}
+		if moved == "" {
+			t.Fatalf("%s offers nothing but %q, so this submission would change nothing", field, marked[field])
+		}
+		sent.Set(field, moved)
+	}
+
+	got := postForm(t, srv.URL+"/preferences", sent)
+	if got.status != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", got.status)
+	}
+	if got.location != "/notes/A.md" {
+		t.Errorf("Location = %q, want the page the form came from", got.location)
+	}
+	want := make(map[string]string, len(storedChoices))
+	for field := range storedChoices {
+		want[cookieFor[field]] = sent.Get(field)
+	}
+	assertHolding(t, got, want)
+	for _, field := range []string{"textsize", "font"} {
+		if sent.Get(field) == marked[field] {
+			t.Errorf("%s was submitted as %q, the value already in force; this run moved nothing", field, marked[field])
 		}
 	}
 }

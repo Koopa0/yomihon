@@ -114,9 +114,9 @@ var (
 	)
 )
 
-// PrefApply is on every form. It stays visible when scripting is on, so the
-// keyboard reader arrowing through a group is not committing a choice with
-// every press.
+// PrefApply is on the one control that saves the page. It stays visible when
+// scripting is on, so the keyboard reader arrowing through a group is not
+// committing a choice with every press.
 var PrefApply = both("套用", "Apply")
 
 // What this browser is holding, said plainly and completely. A page that

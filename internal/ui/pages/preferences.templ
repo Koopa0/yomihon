@@ -7,7 +7,7 @@ import (
 
 // PreferencesView is the reading as this browser currently has it set: every
 // choice on offer, in the order the page shows them, and the address applying
-// one sends the reader back to.
+// them sends the reader back to.
 //
 // The values and their words are already resolved. This page decides how a
 // choice looks and nothing about what a choice is — which of them exist, what
@@ -49,18 +49,24 @@ type PreferenceOption struct {
 // applied. A rail down the side would invite a walk this page has no business
 // starting.
 //
-// Each choice is its own form with its own submit, so the page works with no
-// scripting at all — which is not a courtesy here but the mechanism: the words
-// on a page are written by the server, and the only honest way to change them
-// is to ask the server for the page again.
+// The choices are one form with one submit, so a reader who sets a size and a
+// typeface in the same visit gets both: nothing picked can be discarded,
+// because everything picked is sent. It is a plain post, so the page works with
+// no scripting at all — which is not a courtesy here but the mechanism: the
+// words on a page are written by the server, and the only honest way to change
+// them is to ask the server for the page again.
 templ Preferences(v PreferencesView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="main-content" tabindex="-1" class="y-prefs">
 			<h1 class="y-title">{ wording.PreferencesTitle.In(c.Lang) }</h1>
 			<p class="y-prefs__lede">{ wording.PreferencesLede.In(c.Lang) }</p>
-			for _, field := range v.Fields {
-				@preferenceField(field, v.ReturnTo, c.Lang)
-			}
+			<form method="post" action="/preferences">
+				for _, field := range v.Fields {
+					@preferenceField(field)
+				}
+				<input type="hidden" name="next" value={ v.ReturnTo }/>
+				<button class="y-prefs__apply" type="submit">{ wording.PrefApply.In(c.Lang) }</button>
+			</form>
 			@layouts.KeyboardKeys(c.Lang)
 			@preferenceReset(v.ReturnTo, c.Lang)
 			<footer class="y-prefs__storage">
@@ -75,40 +81,39 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 	}
 }
 
-// preferenceField is one choice and the form that applies it. The submit stays
-// visible even where scripting turns a pick into a submit on its own: a reader
-// arrowing through a radio group would otherwise be committing every option
-// they pass over on the way to the one they want.
-templ preferenceField(f PreferenceField, returnTo string, lang wording.Lang) {
-	<form class="y-preffield" method="post" action="/preferences">
-		<fieldset>
-			<legend>{ f.Legend }</legend>
-			<p class="y-preffield__note" id={ "pref-note-" + f.Name }>{ f.Note }</p>
-			<div class="y-preffield__options">
-				for _, option := range f.Options {
-					<label>
-						<input type="radio" name={ f.Name } value={ option.Value } checked?={ option.Checked } aria-describedby={ "pref-note-" + f.Name }/><span>{ option.Label }</span>
-					</label>
-				}
-			</div>
-			<input type="hidden" name="next" value={ returnTo }/>
-			<button class="y-preffield__apply" type="submit">{ wording.PrefApply.In(lang) }</button>
-		</fieldset>
-	</form>
+// preferenceField is one choice, grouped under the heading that names it. It
+// carries no submit of its own: the one at the foot of the form applies this
+// choice along with every other, so a reader arrowing through a group commits
+// nothing on the way to the option they want and loses nothing they picked
+// further up the page.
+templ preferenceField(f PreferenceField) {
+	<fieldset class="y-preffield">
+		<legend>{ f.Legend }</legend>
+		<p class="y-preffield__note" id={ "pref-note-" + f.Name }>{ f.Note }</p>
+		<div class="y-preffield__options">
+			for _, option := range f.Options {
+				<label>
+					<input type="radio" name={ f.Name } value={ option.Value } checked?={ option.Checked } aria-describedby={ "pref-note-" + f.Name }/><span>{ option.Label }</span>
+				</label>
+			}
+		</div>
+	</fieldset>
 }
 
-// preferenceReset clears everything the page above it can set. It is a single
-// button rather than a pair of options because there is no second state to
-// choose: the sentence beside it names what goes, including the one thing a
-// reader would not predict — the interface comes back speaking the language it
-// started in.
+// preferenceReset clears everything the page above it can set. It stays a form
+// of its own because it is the opposite act: the form above applies what a
+// reader picked, and this one throws all of it away, so pressing either must
+// never be able to mean the other. It is a single button rather than a pair of
+// options because there is no second state to choose: the sentence beside it
+// names what goes, including the one thing a reader would not predict — the
+// interface comes back speaking the language it started in.
 templ preferenceReset(returnTo string, lang wording.Lang) {
-	<form class="y-preffield" method="post" action="/preferences">
-		<fieldset>
+	<form method="post" action="/preferences">
+		<fieldset class="y-preffield">
 			<legend>{ wording.PrefReset.In(lang) }</legend>
 			<p class="y-preffield__note" id="pref-note-reset">{ wording.PrefResetNote.In(lang) }</p>
 			<input type="hidden" name="next" value={ returnTo }/>
-			<button class="y-preffield__apply" type="submit" name="reset" value="1" aria-describedby="pref-note-reset">{ wording.PrefReset.In(lang) }</button>
+			<button class="y-prefs__apply" type="submit" name="reset" value="1" aria-describedby="pref-note-reset">{ wording.PrefReset.In(lang) }</button>
 		</fieldset>
 	</form>
 }
