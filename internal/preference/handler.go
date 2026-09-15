@@ -65,27 +65,50 @@ func returnAddress(r *http.Request) string {
 // currently in force.
 func view(c *layouts.Chrome) pages.PreferencesView {
 	stored := honouredValues()
+	unset := unsetOptions()
 	fields := make([]pages.PreferenceField, 0, len(choices))
 	for i := range choices {
 		ch := &choices[i]
 		current := ch.inForce(c)
-		options := ch.options(stored[ch.cookie])
+		values := stored[ch.cookie]
+		options := ch.options(values)
+		// Which option a browser holding nothing here is looking at. The
+		// shell answers for five of them; where its answer is no value at
+		// all, the choice's own name for that state stands in.
+		unchosen := unset[ch.cookie]
+		if unchosen == "" {
+			unchosen = ch.whenUnset
+		}
 		offered := make([]pages.PreferenceOption, 0, len(options))
 		for _, option := range options {
 			offered = append(offered, pages.PreferenceOption{
 				Value:   option,
 				Label:   ch.labels[option].In(c.Lang),
 				Checked: ch.chosen(option, current),
+				Stores:  slices.Contains(values, option),
+				Unset:   option == unchosen,
 			})
 		}
 		fields = append(fields, pages.PreferenceField{
 			Name:    ch.name,
 			Legend:  ch.legend.In(c.Lang),
 			Note:    ch.note.In(c.Lang),
+			Refused: wording.PrefSaveRefused.In(c.Lang),
 			Options: offered,
 		})
 	}
-	return pages.PreferencesView{Fields: fields, ReturnTo: c.ReturnTo}
+	// A reader who opened this page directly has nothing to be sent back to,
+	// and a link to the page one is already on is worse than none.
+	reading := c.ReturnTo
+	if reading == address {
+		reading = ""
+	}
+	return pages.PreferencesView{
+		Fields:   fields,
+		ReturnTo: c.ReturnTo,
+		Settings: settingsAddress(c.ReturnTo),
+		Reading:  reading,
+	}
 }
 
 // store applies the submission, answering false when it carries no change this
