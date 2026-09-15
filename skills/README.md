@@ -38,9 +38,18 @@ contract decides and the code never guesses.
 
 ## Installing it
 
-Install it where the agent that writes your notes runs — beside the vault, not
-beside yomihon's source. Run these from that directory, with `YOMIHON` set to
-wherever you cloned this repository:
+To try it without placing anything, point Claude Code at the clone:
+
+```sh
+claude --plugin-dir ~/src/yomihon        # wherever the clone is
+```
+
+The repository root carries a plugin manifest beside this folder, so that loads
+the skill for one session and leaves nothing behind to undo.
+
+To have an agent carry it every session, install it where the agent that writes
+your notes runs — beside the vault, not beside yomihon's source. Run these from
+that directory, with `YOMIHON` set to wherever you cloned this repository:
 
 ```sh
 YOMIHON=~/src/yomihon        # wherever the clone is
