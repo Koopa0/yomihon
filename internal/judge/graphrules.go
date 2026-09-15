@@ -39,7 +39,7 @@ func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Fi
 		collisionAlias(aliases),
 		collisionName(idx, aliases, authority),
 		provenanceUnresolved(notes, idx, slugs, authority.contract),
-		mapDiskMismatch(notes, idx, authority.roles(), lessonType),
+		mapDiskMismatch(notes, idx, authority.roles(), authority.contract, lessonType),
 		pathFindings(notes, authority.roles()),
 		supersessionFindings(notes, idx, authority),
 	)
@@ -424,14 +424,22 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 
 // mapDiskMismatch reconciles study-paths against the lessons on disk. Its
 // first direction reports a syllabus link that resolves to nothing; its
-// second reports a non-draft lesson of a domain that no study path of that
-// domain lists. Listed is collected across every path of the domain before
-// that second walk, so a lesson another parallel path owns is not unlisted.
+// second reports a lesson of a domain that no study path of that domain
+// lists. Listed is collected across every path of the domain before that
+// second walk, so a lesson another parallel path owns is not unlisted.
 // The second walk emits one finding per such lesson, attached to the first
 // path of the domain in check order — the file the reader opens next to add
-// the lesson. A draft lesson is expected work-in-progress and is not
-// reported at all.
-func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRoles, lessonType string) []Finding {
+// the lesson. A lesson still carrying the status a lesson starts at is
+// expected work-in-progress and is not reported at all; which word that is
+// comes from the contract, so a vault that starts its lessons somewhere else
+// gets the same quiet.
+func mapDiskMismatch(
+	notes []note,
+	idx *graph.Index,
+	roles schema.NavigationRoles,
+	contract *schema.Contract,
+	lessonType string,
+) []Finding {
 	byDomain := lessonsByDomain(notes, lessonType)
 	listedByDomain := make(map[string]map[string]bool)
 	var out []Finding
@@ -462,7 +470,13 @@ func mapDiskMismatch(notes []note, idx *graph.Index, roles schema.NavigationRole
 			continue
 		}
 		seenDomain[syllabus.domain] = true
-		out = append(out, unlistedLessons(syllabus, byDomain[syllabus.domain], listedByDomain[syllabus.domain])...)
+		out = append(out, unlistedLessons(
+			syllabus,
+			byDomain[syllabus.domain],
+			listedByDomain[syllabus.domain],
+			contract,
+			lessonType,
+		)...)
 	}
 	return out
 }
@@ -506,14 +520,26 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Fin
 	return listed, out
 }
 
-// unlistedLessons reports each non-draft lesson of the syllabus's domain that
-// no study path of that domain lists. The listed set is the domain union,
-// already collected. The caller invokes this once per domain, against the
-// first path in check order, so one unlisted lesson is one finding.
-func unlistedLessons(syllabus *note, lessons []*note, listed map[string]bool) []Finding {
+// unlistedLessons reports each lesson of the syllabus's domain that no study
+// path of that domain lists and that has left the status a lesson is given
+// first. The listed set is the domain union, already collected. The caller
+// invokes this once per domain, against the first path in check order, so one
+// unlisted lesson is one finding.
+//
+// The contract decides which status a lesson starts at, so a vault spelling
+// that word its own way is read the way it wrote it. A lesson carrying a
+// status this vault never declared for a lesson has started nowhere and is
+// reported like any other.
+func unlistedLessons(
+	syllabus *note,
+	lessons []*note,
+	listed map[string]bool,
+	contract *schema.Contract,
+	lessonType string,
+) []Finding {
 	var out []Finding
 	for _, lesson := range lessons {
-		expected := lesson.status == schema.DraftStatus
+		expected := contract.StartsAt(lessonType, lesson.status)
 		if !listed[lesson.path] && !expected {
 			out = append(out, diskUnlisted(syllabus, lesson))
 		}
@@ -543,11 +569,12 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 	}
 }
 
-// diskUnlisted is a non-draft lesson on disk that no study path of its
-// domain lists. Writing a lesson before adding it to a syllabus is
-// normal, so it is reported at warning level and nothing here decides more than
-// that: whether a warning stops a run belongs to whoever starts it. Denying
-// warnings, or naming this rule, makes it gate like any other.
+// diskUnlisted is a lesson on disk, past the status a lesson starts at, that
+// no study path of its domain lists. Writing a lesson before adding it to a
+// syllabus is normal, so it is reported at warning level and nothing here
+// decides more than that: whether a warning stops a run belongs to whoever
+// starts it. Denying warnings, or naming this rule, makes it gate like any
+// other.
 func diskUnlisted(syllabus, lesson *note) Finding {
 	return Finding{
 		RuleID:          "map.disk_unlisted",

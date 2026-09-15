@@ -37,13 +37,6 @@ const (
 	// the write face refuses one; the value enters a note by hand.
 	PublishedStatus = "published"
 
-	// DraftStatus is the status a note carries before anyone has offered it to
-	// a reader. Like SealStatus it is pinned here rather than derived: a
-	// lifecycle table can start a type anywhere, and no field singles the value
-	// out, so the faces that reason about "not offered yet" ask for this
-	// instead of each writing the word down.
-	DraftStatus = "draft"
-
 	// SystemDocumentGroup is the status group holding a vault's own working
 	// documents rather than knowledge it wrote. Membership is the contract's
 	// answer under fields.status_group; only the group's name is pinned here,
@@ -1636,6 +1629,19 @@ func (c *Contract) stage(noteType, status string) (Stage, bool) {
 	key := lifecycleKey{noteType: NormalizeWord(noteType), status: NormalizeWord(status)}
 	stage, ok := c.stageByTypeStatus[key]
 	return stage, ok
+}
+
+// StartsAt reports whether a note of the given type may be given this status
+// as its first one, which is how a face asks "has anyone offered this yet"
+// without writing a word down. The lifecycle rows name those statuses: a
+// contract states it with the initial key, or has it read off a row naming no
+// predecessor. A status the contract does not declare for this type is not one
+// of them, and neither is any status in a vault no contract governs. Both
+// arguments are folded to the spelling the contract's own values carry, so a
+// caller may pass a note's value as the file spelled it.
+func (c *Contract) StartsAt(noteType, status string) bool {
+	stage, ok := c.stage(noteType, status)
+	return ok && stage.Initial
 }
 
 // Transition reports whether a note of the given type may move from one status
