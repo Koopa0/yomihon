@@ -257,9 +257,15 @@ func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
 // lesson receive the same bytes.
 func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang) Result {
 	page := &composition{base: region, lang: lang}
-	body, unclosedComment := stripObsidianComments(body)
-	body, titleAnchor := removeBodyFirstH1(title, body)
-	res := r.renderBody(body, embedsAllowed, page, region)
+	stripped, unclosedComment := stripBody(body)
+	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text)
+	address := stripped.address
+	if dropped >= 0 {
+		// The heading came out of the text, so it comes out of the geometry
+		// beside it: the two are read by line number together.
+		address = slices.Delete(slices.Clone(address), dropped, dropped+1)
+	}
+	res := r.renderBody(source, address, embedsAllowed, page, region)
 	res.Diagnostics = appendUnclosedComment(res.Diagnostics, unclosedComment)
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
@@ -420,10 +426,17 @@ func footnoteRegionPrefix(n ast.Node) []byte {
 // the note's own parse. The body arrives with its Obsidian %% comments already
 // removed, and a second pass could reopen a marker ruled literal.
 func (r *Pipeline) render(body string, allowEmbed embedPolicy, page *composition) Result {
-	return r.renderBody(body, allowEmbed, page, page.nextRegion())
+	// An excerpt arrives already cut from a body whose comments came off where
+	// that cut was made, so these lines are the geometry this render was handed.
+	return r.renderBody(body, strings.Split(body, "\n"), allowEmbed, page, page.nextRegion())
 }
 
-func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composition, region string) Result {
+// renderBody renders one body. address is that body's lines carrying the
+// blank-or-not shape its author wrote, which the block-address pass reads
+// instead of the lines this leaves: the neutralisation below can empty a line
+// that held nothing but placeholder runes, and a run edge there is one nobody
+// typed.
+func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPolicy, page *composition, region string) Result {
 	col := &collector{page: page}
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
 	// authored copy before placeholders exist prevents source from selecting or
@@ -435,7 +448,7 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composi
 		}
 		return r
 	}, body)
-	source, blocks, inline := r.preprocess(body, allowEmbed, col)
+	source, blocks, inline := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
 
 	// Parse and render as two steps rather than one Convert call, which is
 	// exactly what Convert does, so this region's id prefix can be attached to
@@ -464,19 +477,21 @@ func (r *Pipeline) renderBody(body string, allowEmbed embedPolicy, page *composi
 // shows that same text as its title. Only the very first non-blank line qualifies,
 // and a note displayed under its filename keeps its heading. The second return is
 // the anchor that heading would have been given, and only when one was removed:
-// the title is then the only thing on the page still saying those words.
-func removeBodyFirstH1(title, body string) (stripped, anchor string) {
+// the title is then the only thing on the page still saying those words. The
+// third return is the line the removal took out, or -1 when it took none, so
+// anything read alongside this body by line number can lose the same one.
+func removeBodyFirstH1(title, body string) (stripped, anchor string, dropped int) {
 	lines := strings.Split(body, "\n")
 	i := 0
 	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
 		i++
 	}
 	if i >= len(lines) || !strings.HasPrefix(lines[i], "# ") {
-		return body, ""
+		return body, "", -1
 	}
 	heading := strings.TrimSpace(strings.TrimPrefix(lines[i], "# "))
 	if heading != strings.TrimSpace(title) {
-		return body, ""
+		return body, "", -1
 	}
-	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), graph.SectionID(heading)
+	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), graph.SectionID(heading), i
 }

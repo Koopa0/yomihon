@@ -465,11 +465,12 @@ func looksRisky(line string) bool {
 // once across everything that note holds. At most one risky-fence diagnostic is
 // recorded per scan: a callout's body is scanned on its own, and a transcluded
 // embed is a call of its own, so each has its own budget.
-func (r *Pipeline) preprocess(body string, allowEmbed embedPolicy, col *collector) (out string, blocks, inline []string) {
+func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPolicy, col *collector) (out string, blocks, inline []string) {
 	st := &preprocessState{
-		lines:  strings.Split(body, "\n"),
-		quoted: r.indentedCodeLines(body),
-		marks:  &markers{},
+		lines:   strings.Split(body, "\n"),
+		address: address,
+		quoted:  r.indentedCodeLines(body),
+		marks:   &markers{},
 	}
 	r.scan(st, allowEmbed, col)
 	// Joined as scanned rather than through source: nothing follows a note's own
@@ -517,7 +518,7 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 			// the same kind of quoted text, asked of the author's own lines
 			// because a span can run past the end of one; the answer does not
 			// widen to indented code.
-			if !CodeSpanOwnsBlockAddress(st.lines, st.i) {
+			if !CodeSpanOwnsBlockAddress(st.address, st.i) {
 				line = markBlockAnchor(line, col.page, &st.marks.inline, allowEmbed == embedsAllowed)
 			}
 			st.kept = append(st.kept, line)
@@ -550,6 +551,12 @@ func (m *markers) plantBlock(markup string) int {
 type preprocessState struct {
 	lines []string
 	i     int
+
+	// address holds these same lines with the blank-or-not shape their author
+	// wrote, which is the only thing that bounds the run the block-address pass
+	// widens over. It is never rendered and never kept: the passes below read
+	// lines, and only that pass reads this.
+	address []string
 
 	// quoted holds the lines an indented code block shows as written. It is
 	// read once per body rather than per line, since answering it needs the
@@ -703,6 +710,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 	}
 
 	st.i++
+	opened := st.i
 	var bodyLines []string
 	for st.i < len(st.lines) && strings.HasPrefix(strings.TrimSpace(st.lines[st.i]), ">") {
 		if _, _, _, isNew := calloutStart(st.lines[st.i]); isNew {
@@ -723,9 +731,14 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 	openMark := st.marks.plantBlock(open)
 	bodySource := strings.Join(bodyLines, "\n")
 	body := &preprocessState{
-		lines:  bodyLines,
-		quoted: r.indentedCodeLines(bodySource),
-		marks:  st.marks,
+		lines: bodyLines,
+		// Taking the quote marker off a line that carried nothing else leaves
+		// it empty, and the author did write something there, so the body's
+		// geometry is the note's own for these lines rather than what the cut
+		// left.
+		address: BlockAddressLines(st.address[opened:st.i], bodySource),
+		quoted:  r.indentedCodeLines(bodySource),
+		marks:   st.marks,
 	}
 	r.scan(body, allowEmbed, col)
 	closeMark := st.marks.plantBlock(closing)
@@ -849,7 +862,7 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		}
 		// A probe into another note reports only on the address it came to
 		// check. Whatever that note's own markers do is its own page's news.
-		strippedTarget, _ := stripObsidianComments(body)
+		strippedTarget, _ := stripBody(body)
 		if _, found := blockSlice(strippedTarget, link.Block); !found {
 			col.report(&Diagnostic{
 				Kind:    DiagLinkFragmentMissing,
@@ -1037,7 +1050,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 // taken. This is the only place a transcluded body's Obsidian %% comments come
 // off, so no later pass can reopen a marker this one ruled literal.
 func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped string, matches int) {
-	stripped, unclosed := stripObsidianComments(body)
+	stripped, unclosed := stripBody(body)
 	if unclosed != 0 {
 		unclosedDiagnostic := unclosedCommentDiagnostic(unclosed)
 		col.report(&unclosedDiagnostic)
@@ -1208,7 +1221,7 @@ func (r *Pipeline) embedBringsHeading(body, heading string) bool {
 		if !ok {
 			continue
 		}
-		stripped, _ := stripObsidianComments(embedded)
+		stripped, _ := stripBody(embedded)
 		if headingBroughtBy(link, stripped, heading) {
 			return true
 		}
@@ -1221,7 +1234,7 @@ func (r *Pipeline) embedBringsHeading(body, heading string) bool {
 // outside it never reaches the page, and a fragment matching nothing withholds
 // the excerpt, so nothing of that body reaches the page at all. Both readings
 // are the ones embedScope applies for display, from the same cut.
-func headingBroughtBy(link graph.Wikilink, embedded, heading string) bool {
+func headingBroughtBy(link graph.Wikilink, embedded strippedBody, heading string) bool {
 	scoped, matches := excerptOf(embedded, fragmentOf(link))
 	if matches == 0 {
 		return false
