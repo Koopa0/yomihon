@@ -50,6 +50,8 @@ probes=(
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
   "theme-toggle-pressed.mjs|/notes/Notes/alpha.md"
   "preference-restore.mjs|/notes/Notes/alpha.md"
+  "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
+  "preference-persistence.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
