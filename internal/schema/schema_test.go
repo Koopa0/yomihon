@@ -2309,6 +2309,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"StartsAt": func() string {
+			if c.StartsAt("lesson", "draft") {
+				return "StartsAt() calls a status a starting point with no lifecycle behind it"
+			}
+			return ""
+		},
 		"Transition": func() string {
 			if err := c.Transition("lesson", "draft", "ready"); !errors.Is(err, schema.ErrUnknownStatus) {
 				return fmt.Sprintf("Transition() error = %v, want one wrapping ErrUnknownStatus", err)
