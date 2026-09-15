@@ -1,14 +1,16 @@
 # Skills
 
 A skill is a folder of Markdown an agent reads before it starts work. The
-folder's `SKILL.md` opens with a short frontmatter block — a name, a
-description of what the skill covers, and the conditions that should bring it
-to mind — and continues with a body the agent follows as instruction rather
-than reads as an article. Installing one adds no capability and changes no
-model. What it changes is what the agent reaches for, and when: an agent
-carrying the skill below settles a note's filename before its title, opens the
-vault's contract before choosing frontmatter, and runs a command to see whether
-the note landed where it meant it to, instead of assuming it did.
+folder's `SKILL.md` opens with a short frontmatter block — a name, and a
+description that says both what the skill covers and the conditions that should
+bring it to mind, because the description is the whole of what an agent weighs
+when it decides whether to open the folder at all — and continues with a body
+the agent follows as instruction rather than reads as an article. Installing
+one adds no capability and changes no model. What it changes is what the agent
+reaches for, and when: an agent carrying the skill below settles a note's
+filename before its title, opens the vault's contract before choosing
+frontmatter, and runs a command to see whether the note landed where it meant
+it to, instead of assuming it did.
 
 This folder holds one skill. It is written for the agent that writes notes
 *into* a vault yomihon reads — not for anyone changing yomihon itself. The
