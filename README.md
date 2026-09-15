@@ -18,8 +18,10 @@ on your machine and changes none of your words.
 ## Try it
 
 [yomihon.koopa0.dev](https://yomihon.koopa0.dev) is this reader over `examples/vault`,
-the sample notes in this repository. Your own vault never leaves your machine;
-that is what the install below is for.
+the sample notes in this repository. Those notes are shared: a status you move
+is the one the next reader finds, and every hour they are restored from this
+repository. Your own vault never leaves your machine; that is what the install
+below is for.
 
 ## Install
 

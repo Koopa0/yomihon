@@ -14,8 +14,7 @@ yomihon 把一個 Markdown 資料夾讀成一本書。學習路徑是一門課�
 
 ## 線上試讀
 
-[yomihon.koopa0.dev](https://yomihon.koopa0.dev) 就是這個 reader 在讀 `examples/vault`，
-也就是本 repo 附的範例筆記。你自己的筆記不會離開你的機器——那是下面這段安裝的用途。
+[yomihon.koopa0.dev](https://yomihon.koopa0.dev) 就是這個 reader 在讀 `examples/vault`，也就是本 repo 附的範例筆記。那些筆記是共用的：你改了哪一篇的狀態，下一位讀者就會看到；每個小時會從本 repo 還原一次。你自己的筆記不會離開你的機器——那是下面這段安裝的用途。
 
 ## 安裝
 
