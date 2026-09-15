@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"fmt"
 	"path"
 	"strconv"
 	"strings"
@@ -98,7 +99,7 @@ func NewStatusDistribution(statuses, unstated []LifecycleItem, scoped bool, lang
 // — how many lessons it lays out — and never how far anyone has got: a count
 // that described a status as progress ran backwards as the work was finished,
 // and does not return under another name.
-func NewPathIndex(paths []nav.Path, closure nav.Closure, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
+func NewPathIndex(paths []nav.Path, roles schema.NavigationRoles, closure nav.Closure, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
@@ -120,7 +121,7 @@ func NewPathIndex(paths []nav.Path, closure nav.Closure, contract ContractState,
 	}
 	view := listIndex(pathMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
-		"", emptySentence(contract, wording.PathIndexEmpty, lang), rows)
+		"", emptySentence(contract, declarationSentence(roles.PathTypes(), lang), lang), rows)
 	view.Fault = closure.Diagnostic()
 	withholdListing(&view, closure)
 	return view
@@ -182,15 +183,37 @@ func ContractStateFrom(governed bool, snap *snapshot.Generation) ContractState {
 // none" answers a question it was never asked; the other two sentences say what
 // is true of it instead, and they are two because the way out is two: one
 // reader has a contract to write, the other only has yomihon to start again.
-func emptySentence(contract ContractState, declared wording.Phrase, lang wording.Lang) string {
+// Under a contract that governs, what the listing is empty of is the mode's own
+// question, answered by the caller.
+func emptySentence(contract ContractState, governed string, lang wording.Lang) string {
 	switch contract {
 	case ContractUnloaded:
 		return wording.JoinGuide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext, lang)
 	case ContractAbsent:
 		return wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, lang)
 	default:
-		return wording.JoinGuide(declared, wording.IndexDeclaredEmptyNext, lang)
+		return governed
 	}
+}
+
+// declarationSentence is what a shelf filled by a declaration says while
+// nothing has been declared onto it: which type puts a note here, spelled the
+// way the contract spells it, and the one edit that follows. The words arrive
+// from the contract because they are the vault's; a listing of several is
+// joined the way this interface joins a list inside a sentence.
+//
+// A contract declaring no type at all for the shelf leaves the reader nothing
+// to complete, and this says nothing rather than name an edit that would not
+// fill it — the same silence a declaration that could not be read is left in.
+func declarationSentence(declaredTypes []string, lang wording.Lang) string {
+	if len(declaredTypes) == 0 {
+		return ""
+	}
+	sentence := wording.NoDeclaredTypeEmptyFmt
+	if len(declaredTypes) > 1 {
+		sentence = wording.NoDeclaredTypesEmptyFmt
+	}
+	return fmt.Sprintf(sentence.In(lang), strings.Join(declaredTypes, wording.ListSeparator.In(lang)))
 }
 
 // listIndex assembles a mode's page from the parts every one of them has. The
@@ -220,7 +243,7 @@ func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView
 // holds at every depth, which is the shape of the subject it draws. Those
 // branches are the same tree the rail lists, so a map whose only wikilinks
 // sit in prose or a table still has a count.
-func NewMapIndex(maps []nav.Map, closure nav.Closure, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
+func NewMapIndex(maps []nav.Map, roles schema.NavigationRoles, closure nav.Closure, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(maps))
 	for i := range maps {
 		rows = append(rows, Row{
@@ -232,7 +255,7 @@ func NewMapIndex(maps []nav.Map, closure nav.Closure, contract ContractState, la
 	}
 	view := listIndex(mapMode, wording.Maps.In(lang),
 		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
-		"", emptySentence(contract, wording.MapIndexEmpty, lang), rows)
+		"", emptySentence(contract, declarationSentence(roles.MapTypes(), lang), lang), rows)
 	view.Fault = closure.Diagnostic()
 	withholdListing(&view, closure)
 	return view
@@ -338,7 +361,8 @@ func NewFolderIndex(model *nav.Model, contract ContractState, lang wording.Lang,
 	folders := model.ShelfFolders()
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
-		wording.FolderIndexLede.In(lang), emptySentence(contract, wording.FolderIndexEmpty, lang),
+		wording.FolderIndexLede.In(lang),
+		emptySentence(contract, wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, lang), lang),
 		folderRows(rootNotes, folders, lang, true, articleLang))
 }
 
@@ -439,15 +463,15 @@ const deskBlockItems = 3
 // index pages list, so a block and the page its heading opens can never
 // disagree about what the vault holds. A withheld declaration leaves its block
 // empty; the reason is stated once for the whole desk, below the seam.
-func NewDeskBlocks(model *nav.Model, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) []DeskBlock {
+func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) []DeskBlock {
 	// The blocks are the mode pages narrowed, so they refuse what those pages
 	// refuse: each constructor is handed the same declaration closure the page
 	// is, and withhold then takes back only what a block would otherwise claim
 	// about how much it holds.
 	closure := model.DeclaredClosure()
 	withheld := closure.Closed()
-	pathIndex := NewPathIndex(model.Paths(), closure, contract, lang, articleLang)
-	mapIndex := NewMapIndex(model.Maps(), closure, contract, lang, articleLang)
+	pathIndex := NewPathIndex(model.Paths(), roles, closure, contract, lang, articleLang)
+	mapIndex := NewMapIndex(model.Maps(), roles, closure, contract, lang, articleLang)
 	reportIndex := NewReportIndex(model.Reports(), lang, articleLang)
 	folderIndex := NewFolderIndex(model, contract, lang, articleLang)
 	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))

@@ -28,18 +28,28 @@ var (
 	)
 )
 
-// What an empty path or map listing says, and the one step a first-time reader
-// can take next. The state sentence and the step are separate phrases so a
-// check can name each through wording.*.In without literals.
+// What an empty path or map listing says. Those two shelves are filled by a
+// declaration and by nothing else: a markdown file added to the folder is read,
+// listed and searchable without ever reaching either of them, so the sentence
+// names the declaration that does reach them and the edit that makes one. The
+// type word is the contract's, interpolated here rather than written, because a
+// word spelled in this package is a second copy of the vault's vocabulary and
+// goes on saying what that vault has since renamed.
 var (
-	PathIndexEmpty = both(
-		"這個書庫裡還沒有學習路徑。",
-		"This vault has no study paths yet.",
+	NoDeclaredTypeEmptyFmt = both(
+		"還沒有筆記帶著 type: %s。在一篇筆記的 frontmatter 裡寫上這一行，它就會出現在這裡。",
+		"No note declares type: %s yet. Give a note that type in its frontmatter and it appears here.",
 	)
-	MapIndexEmpty = both(
-		"這個書庫裡還沒有地圖。",
-		"This vault has no maps yet.",
+	// The same sentence where the contract declares more than one type for the
+	// shelf, which is one list and any of its words.
+	NoDeclaredTypesEmptyFmt = both(
+		"還沒有筆記帶著 type: %s。在一篇筆記的 frontmatter 裡寫上其中一個，它就會出現在這裡。",
+		"No note declares type: %s yet. Give a note one of those types in its frontmatter and it appears here.",
 	)
+	// What an empty folder listing says, and the one step its reader can take
+	// next: a file added to the folder is on that shelf, which is the promise
+	// only this desk can keep. The state sentence and the step are separate
+	// phrases so a check can name each through wording.*.In without literals.
 	IndexDeclaredEmptyNext = both(
 		"在 yomihon 正在讀的資料夾裡新增一個 .md 檔。",
 		"Add a .md file to the folder yomihon is reading.",

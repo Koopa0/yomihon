@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sync/atomic"
 
@@ -74,6 +75,37 @@ func (r NavigationRoles) IsMapType(noteType string) bool {
 	}
 	_, ok := r.mapTypes[NormalizeWord(noteType)]
 	return ok
+}
+
+// PathTypes returns every type the contract declares for ordered study paths,
+// and MapTypes the same for general maps. They are the words a surface names
+// when it has to tell a reader what puts a note on one of those two shelves:
+// nothing else can spell them, because a second copy of the vault's vocabulary
+// goes on saying a word the vault has since renamed. The words are the folded
+// spelling every comparison here uses.
+//
+// The answer is sorted rather than given in the order the contract listed it.
+// What the contract declares is membership, so reordering the same words is no
+// change at all, and a reader's sentence that rearranged itself for one would
+// be reporting something that did not happen.
+//
+// A declaration nothing made, or one that could not be honoured, names none —
+// the same answer IsPathType and IsMapType give about every note. The returned
+// slice is the caller's own.
+func (r NavigationRoles) PathTypes() []string {
+	if !r.Trustworthy() {
+		return nil
+	}
+	return slices.Sorted(maps.Keys(r.pathTypes))
+}
+
+// MapTypes returns the types the contract declares as general maps. See
+// PathTypes for what the answer means.
+func (r NavigationRoles) MapTypes() []string {
+	if !r.Trustworthy() {
+		return nil
+	}
+	return slices.Sorted(maps.Keys(r.mapTypes))
 }
 
 // ArtifactPolicy identifies vault directories whose files are readable
@@ -207,20 +239,20 @@ func deriveNavigationRoles(
 		}
 		paths[noteType] = struct{}{}
 	}
-	maps := make(map[string]struct{}, len(section.MapTypes))
+	mapTypes := make(map[string]struct{}, len(section.MapTypes))
 	for _, noteType := range section.MapTypes {
 		if _, ok := known[noteType]; !ok {
 			return invalidNavigationRoles("map type %q is not declared in enums.type", noteType)
 		}
-		if _, duplicate := maps[noteType]; duplicate {
+		if _, duplicate := mapTypes[noteType]; duplicate {
 			return invalidNavigationRoles("map type %q is declared more than once", noteType)
 		}
 		if _, pathType := paths[noteType]; pathType {
 			return invalidNavigationRoles("type %q is declared as both a path and a map", noteType)
 		}
-		maps[noteType] = struct{}{}
+		mapTypes[noteType] = struct{}{}
 	}
-	return NavigationRoles{pathTypes: paths, mapTypes: maps, claim: heldClaim()}
+	return NavigationRoles{pathTypes: paths, mapTypes: mapTypes, claim: heldClaim()}
 }
 
 func invalidNavigationRoles(format string, args ...any) NavigationRoles {

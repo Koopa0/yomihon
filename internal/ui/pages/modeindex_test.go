@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -25,7 +26,7 @@ func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 		{Title: "Go path", RelPath: "Maps/Go path.md", Planned: 4},
 		{Title: "Unread structure", RelPath: "Maps/Broken.md", Diagnostics: []sequence.Diagnostic{{}}},
 		{Title: "Plans nothing", RelPath: "Maps/Empty.md"},
-	}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
+	}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 
 	want := []Row{
 		{Text: "Go path", Href: "/syllabus/Maps/Go%20path.md", Mark: "4 課"},
@@ -50,7 +51,7 @@ func TestAMapRowCountsBranchesAtEveryDepth(t *testing.T) {
 		{Heading: "One", Subbranches: []nav.Branch{{Heading: "One a"}, {Heading: "One b"}}},
 		{Heading: "Two"},
 	}}
-	view := NewMapIndex([]nav.Map{deep}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
+	view := NewMapIndex([]nav.Map{deep}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	want := []Row{{Text: "Deep", Href: "/notes/Maps/Deep.md", Mark: "4 枝"}}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("map rows mismatch (-want +got):\n%s", diff)
@@ -70,7 +71,7 @@ func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
 		{Heading: "Places — [[Sputnik Sweetheart]]", Entries: []nav.MapEntry{{Text: "Sputnik Sweetheart"}}},
 		{Heading: "After", Entries: []nav.MapEntry{{Text: "Colorless Tsukuru Tazaki"}}},
 	}}
-	view := NewMapIndex([]nav.Map{prose}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
+	view := NewMapIndex([]nav.Map{prose}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	want := []Row{{Text: "A map written as prose", Href: "/notes/Maps/Prose%20map.md", Mark: "5 枝"}}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("prose map shelf mark mismatch (-want +got):\n%s", diff)
@@ -224,8 +225,8 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		mode      string
 		component templ.Component
 	}{
-		{pathMode, ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
-		{mapMode, ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
+		{pathMode, ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
+		{mapMode, ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
 		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant, nil), layouts.Chrome{})},
 		{folderMode, FolderIndex(NewFolderIndex(model, ContractGoverning, wording.ZhHant, nil), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
 	}

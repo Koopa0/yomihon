@@ -2,6 +2,7 @@ package pages
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,80 +17,176 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// TestEmptyPathAndMapGuideFirstRun holds the three empty signals and the one
-// completable step each carries on the path and map index pages and on the desk
-// blocks that narrow them.
+// TestEmptyPathAndMapGuideFirstRun holds the four empty signals the path, map
+// and folder shelves carry, and the one completable step each of them is: a
+// folder with no contract, a contract this process never read, a contract that
+// declares what fills the two declared shelves, and one that declares nothing
+// for them at all.
 func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 	t.Parallel()
 
+	// The words the declared shelves answer for are this test's, written into
+	// a contract and read back through it, so a word the interface spelled for
+	// itself cannot pass for one a vault declared.
+	declared := declaringContract(t, "trail-guide", "chart", "atlas")
+	folderGuide := guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext)
 	cases := []struct {
 		name     string
 		contract ContractState
-		path     wording.Phrase
-		mapState wording.Phrase
-		folder   wording.Phrase
-		step     wording.Phrase
+		roles    schema.NavigationRoles
+		path     func(lang wording.Lang) string
+		mapState func(lang wording.Lang) string
+		folder   func(lang wording.Lang) string
 	}{
 		{
 			name:     "folder with no contract",
 			contract: ContractAbsent,
-			path:     wording.IndexUngoverned,
-			mapState: wording.IndexUngoverned,
-			folder:   wording.IndexUngoverned,
-			step:     wording.IndexUngovernedNext,
+			roles:    declared,
+			path:     guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
+			mapState: guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
+			folder:   guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
 		},
 		{
 			name:     "contract that reached the folder after yomihon started",
 			contract: ContractUnloaded,
-			path:     wording.IndexContractUnloaded,
-			mapState: wording.IndexContractUnloaded,
-			folder:   wording.IndexContractUnloaded,
-			step:     wording.IndexContractUnloadedNext,
+			roles:    declared,
+			path:     guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
+			mapState: guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
+			folder:   guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
 		},
 		{
-			name:     "contract that declares none",
+			name:     "contract that declares what fills each shelf",
 			contract: ContractGoverning,
-			path:     wording.PathIndexEmpty,
-			mapState: wording.MapIndexEmpty,
-			folder:   wording.FolderIndexEmpty,
-			step:     wording.IndexDeclaredEmptyNext,
+			roles:    declared,
+			path:     declaredGuide("trail-guide"),
+			mapState: declaredGuide("atlas", "chart"),
+			folder:   folderGuide,
+		},
+		{
+			// Nothing can be declared onto these two shelves, so there is no
+			// edit to offer and the page says nothing rather than name one
+			// that would leave the reader where they started. The folder shelf
+			// is unaffected: a file added to it is on it.
+			name:     "contract that declares nothing for either shelf",
+			contract: ContractGoverning,
+			roles:    schema.NavigationRoles{},
+			path:     silent,
+			mapState: silent,
+			folder:   folderGuide,
 		},
 	}
 	for _, tt := range cases {
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 			t.Run(tt.name+"/"+string(lang), func(t *testing.T) {
 				t.Parallel()
-				pathView := NewPathIndex(nil, nav.Closure{}, tt.contract, lang, nil)
-				mapView := NewMapIndex(nil, nav.Closure{}, tt.contract, lang, nil)
+				pathView := NewPathIndex(nil, tt.roles, nav.Closure{}, tt.contract, lang, nil)
+				mapView := NewMapIndex(nil, tt.roles, nav.Closure{}, tt.contract, lang, nil)
 				folderView := NewFolderIndex(&nav.Model{}, tt.contract, lang, nil)
 				for _, view := range []struct {
-					name  string
-					state wording.Phrase
-					got   string
+					name string
+					want string
+					got  string
 				}{
-					{name: "paths", state: tt.path, got: pathView.Shelf.Empty},
-					{name: "maps", state: tt.mapState, got: mapView.Shelf.Empty},
-					{name: "folders", state: tt.folder, got: folderView.Shelf.Empty},
+					{name: "paths", want: tt.path(lang), got: pathView.Shelf.Empty},
+					{name: "maps", want: tt.mapState(lang), got: mapView.Shelf.Empty},
+					{name: "folders", want: tt.folder(lang), got: folderView.Shelf.Empty},
 				} {
-					assertEmptyGuide(t, view.name, view.got, view.state, tt.step, lang)
+					assertEmptyGuide(t, view.name, view.got, view.want, lang)
 				}
-				blocks := NewDeskBlocks(&nav.Model{}, tt.contract, lang, nil)
+				blocks := NewDeskBlocks(&nav.Model{}, tt.roles, tt.contract, lang, nil)
 				for _, block := range blocks {
 					if block.Mode != pathMode && block.Mode != mapMode && block.Mode != folderMode {
 						continue
 					}
-					state := tt.path
+					want := tt.path(lang)
 					switch block.Mode {
 					case mapMode:
-						state = tt.mapState
+						want = tt.mapState(lang)
 					case folderMode:
-						state = tt.folder
+						want = tt.folder(lang)
 					}
-					assertEmptyGuide(t, "desk/"+block.Mode, block.Shelf.Empty, state, tt.step, lang)
+					assertEmptyGuide(t, "desk/"+block.Mode, block.Shelf.Empty, want, lang)
 				}
 			})
 		}
 	}
+}
+
+// guide is what a shelf says in a contract state that has nothing to do with a
+// declaration: the state it is in, and the one step out of it.
+func guide(state, step wording.Phrase) func(wording.Lang) string {
+	return func(lang wording.Lang) string { return wording.JoinGuide(state, step, lang) }
+}
+
+// declaredGuide is what a shelf filled by a declaration says while nothing has
+// been declared onto it. The words are the caller's, which is the half of this
+// expectation the page cannot supply to itself: they reach the page through a
+// contract file and reach this string directly. They are given here in the
+// order a reader meets them, which the fixture deliberately does not write
+// them in.
+func declaredGuide(types ...string) func(wording.Lang) string {
+	return func(lang wording.Lang) string {
+		format := wording.NoDeclaredTypeEmptyFmt
+		if len(types) > 1 {
+			format = wording.NoDeclaredTypesEmptyFmt
+		}
+		return fmt.Sprintf(format.In(lang), strings.Join(types, wording.ListSeparator.In(lang)))
+	}
+}
+
+// silent is a shelf with nothing to say and no step to offer.
+func silent(wording.Lang) string { return "" }
+
+// declaringContract writes a contract declaring the given navigation
+// vocabulary and reads the roles back out of it, so every word under test
+// travels the way a vault's own words travel.
+func declaringContract(t *testing.T, pathType string, mapTypes ...string) schema.NavigationRoles {
+	t.Helper()
+	declared := append([]string{pathType}, mapTypes...)
+	quoted := func(words []string) string { return `"` + strings.Join(words, `", "`) + `"` }
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	text := `schema_version = "1"
+
+[enums]
+type = [` + quoted(declared) + `]
+
+[enums.status]
+note = ["draft"]
+
+[fields]
+required = ["title", "type"]
+known = ["title", "type"]
+
+[rules]
+
+[scan]
+knowledge_dirs = ["Notes"]
+
+[navigation]
+path_types = [` + quoted([]string{pathType}) + `]
+map_types = [` + quoted(mapTypes) + `]
+
+[artifacts]
+non_instance_dirs = ["System/templates"]
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = ["koopa"]
+`
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("schema.LoadFile = %v", err)
+	}
+	roles := contract.NavigationRoles()
+	if got := roles.PathTypes(); len(got) != 1 || got[0] != pathType {
+		t.Fatalf("the fixture contract declares path types %q, want %q", got, pathType)
+	}
+	return roles
 }
 
 // everyEmptyStep is every next step this slot can hold. Carrying the right one
@@ -102,26 +199,23 @@ var everyEmptyStep = []wording.Phrase{
 	wording.IndexDeclaredEmptyNext,
 }
 
-func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phrase, lang wording.Lang) {
+func assertEmptyGuide(t *testing.T, where, got, want string, lang wording.Lang) {
 	t.Helper()
-	stateText := state.In(lang)
-	stepText := step.In(lang)
-	var want string
-	if lang == wording.En {
-		want = stateText + " " + stepText
-	} else {
-		want = stateText + stepText
+	if want == "" {
+		if got != "" {
+			t.Errorf("%s spoke where it has no step to offer: %q", where, got)
+		}
+		return
 	}
 	if !strings.Contains(got, want) {
 		t.Errorf("%s empty guide want %q; got %q", where, want, got)
 	}
 	for _, other := range everyEmptyStep {
-		if other == step {
+		step := other.In(lang)
+		if strings.Contains(want, step) || !strings.Contains(got, step) {
 			continue
 		}
-		if strings.Contains(got, other.In(lang)) {
-			t.Errorf("%s empty guide also offers %q, which is another folder's way out: %q", where, other.In(lang), got)
-		}
+		t.Errorf("%s empty guide also offers %q, which is another shelf's way out: %q", where, step, got)
 	}
 	if strings.Contains(got, "宣告") {
 		t.Errorf("%s still uses 宣告 jargon: %q", where, got)
@@ -129,29 +223,40 @@ func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phras
 }
 
 // TestEmptyPathAndMapIndexPagesRenderTheGuide keeps the empty slot on the mode
-// index pages themselves, not only in the view the desk narrows from. Both
-// states a reader without a listing can be in are drawn, because the sentence
+// index pages themselves, not only in the view the desk narrows from. Every
+// state a reader without a listing can be in is drawn, because the sentence
 // that only the view carries is a sentence nobody reads.
 func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 	t.Parallel()
 
+	declared := declaringContract(t, "trail-guide", "chart", "atlas")
 	for _, tt := range []struct {
 		name     string
 		contract ContractState
-		state    wording.Phrase
-		step     wording.Phrase
+		path     func(lang wording.Lang) string
+		mapState func(lang wording.Lang) string
+		folder   func(lang wording.Lang) string
 	}{
 		{
 			name:     "no contract in the folder",
 			contract: ContractAbsent,
-			state:    wording.IndexUngoverned,
-			step:     wording.IndexUngovernedNext,
+			path:     guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
+			mapState: guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
+			folder:   guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
 		},
 		{
 			name:     "contract this process never loaded",
 			contract: ContractUnloaded,
-			state:    wording.IndexContractUnloaded,
-			step:     wording.IndexContractUnloadedNext,
+			path:     guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
+			mapState: guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
+			folder:   guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
+		},
+		{
+			name:     "contract that declares what fills each shelf",
+			contract: ContractGoverning,
+			path:     declaredGuide("trail-guide"),
+			mapState: declaredGuide("atlas", "chart"),
+			folder:   guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext),
 		},
 	} {
 		for _, mode := range []string{pathMode, mapMode, folderMode} {
@@ -159,7 +264,7 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 				t.Run(tt.name+"/"+mode+"/"+string(lang), func(t *testing.T) {
 					t.Parallel()
 					var buf bytes.Buffer
-					view := emptyIndexView(mode, tt.contract, lang)
+					view := emptyIndexView(mode, declared, tt.contract, lang)
 					if err := ListIndex(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
 						t.Fatalf("render: %v", err)
 					}
@@ -167,7 +272,14 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 					if !strings.Contains(html, `data-index-empty`) {
 						t.Fatalf("%s index did not render the empty slot: %q", mode, html)
 					}
-					assertEmptyGuide(t, mode, html, tt.state, tt.step, lang)
+					want := tt.path(lang)
+					switch mode {
+					case mapMode:
+						want = tt.mapState(lang)
+					case folderMode:
+						want = tt.folder(lang)
+					}
+					assertEmptyGuide(t, mode, html, want, lang)
 				})
 			}
 		}
@@ -176,14 +288,14 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 
 // emptyIndexView builds one mode's index over a vault holding nothing of that
 // kind, which is the only state in which the slot under test is drawn at all.
-func emptyIndexView(mode string, contract ContractState, lang wording.Lang) ListIndexView {
+func emptyIndexView(mode string, roles schema.NavigationRoles, contract ContractState, lang wording.Lang) ListIndexView {
 	switch mode {
 	case mapMode:
-		return NewMapIndex(nil, nav.Closure{}, contract, lang, nil)
+		return NewMapIndex(nil, roles, nav.Closure{}, contract, lang, nil)
 	case folderMode:
 		return NewFolderIndex(&nav.Model{}, contract, lang, nil)
 	default:
-		return NewPathIndex(nil, nav.Closure{}, contract, lang, nil)
+		return NewPathIndex(nil, roles, nav.Closure{}, contract, lang, nil)
 	}
 }
 
@@ -314,7 +426,7 @@ func TestWithheldNavigationLeavesTheEmptySlotSilent(t *testing.T) {
 	t.Parallel()
 
 	closure := nav.Close(schema.Rejected("contract declares no navigation roles; Paths and Maps disabled until it does"))
-	view := NewPathIndex(nil, closure, ContractGoverning, wording.ZhHant, nil)
+	view := NewPathIndex(nil, declaringContract(t, "trail-guide", "atlas"), closure, ContractGoverning, wording.ZhHant, nil)
 	if view.Shelf.Empty != "" {
 		t.Errorf("withheld path index spoke an empty sentence: %q", view.Shelf.Empty)
 	}

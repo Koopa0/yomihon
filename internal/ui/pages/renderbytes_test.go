@@ -115,8 +115,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(model, "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
 		{"preferences-page", Preferences(recordedPreferencesView(), recordedChrome())},
-		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
-		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
+		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
+		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
 		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
@@ -368,7 +368,7 @@ func recordedHomeView(model *nav.Model) HomeView {
 		PrivacyFault:   "the contract declares no privacy scope",
 		Degraded:       "有檔案讀不進來",
 		DegradedDetail: "permission denied",
-		Blocks:         NewDeskBlocks(model, ContractGoverning, recordedChrome().Lang, nil),
+		Blocks:         NewDeskBlocks(model, schema.NavigationRoles{}, ContractGoverning, recordedChrome().Lang, nil),
 		ReadmeMissing:  true,
 	}
 }
@@ -430,7 +430,7 @@ func recordedFaultedIndexView() ListIndexView {
 		Title:       "Unread Course",
 		RelPath:     "Maps/unread.md",
 		Diagnostics: []sequence.Diagnostic{{Rule: "path.nesting_too_deep", Line: 4, Message: "nested past one level"}},
-	}}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil)
+	}}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil)
 }
 
 // recordedSilentlyWithheldIndexView is the state a page can reach without a
@@ -439,11 +439,11 @@ func recordedFaultedIndexView() ListIndexView {
 // that it holds none — the same silence the desk keeps — and nothing recorded
 // that until this.
 func recordedSilentlyWithheldIndexView() ListIndexView {
-	return NewMapIndex(nil, nav.Close(schema.Rejected("")), ContractGoverning, recordedChrome().Lang, nil)
+	return NewMapIndex(nil, schema.NavigationRoles{}, nav.Close(schema.Rejected("")), ContractGoverning, recordedChrome().Lang, nil)
 }
 
 func recordedWithheldIndexView() ListIndexView {
-	return NewMapIndex(nil, nav.Close(schema.Rejected("the contract could not be read")), ContractGoverning, recordedChrome().Lang, nil)
+	return NewMapIndex(nil, schema.NavigationRoles{}, nav.Close(schema.Rejected("the contract could not be read")), ContractGoverning, recordedChrome().Lang, nil)
 }
 
 // recordedFaultedModeIndexView is a mode index whose fault is stated below an
