@@ -70,6 +70,22 @@ claude --plugin-dir ~/src/yomihon        # wherever the clone is
 The repository root carries a plugin manifest beside this folder, so that loads
 the skill for one session and leaves nothing behind to undo.
 
+Two commands install it for good, with no clone to keep and no path to get
+right:
+
+```sh
+claude plugin marketplace add Koopa0/yomihon
+claude plugin install yomihon@yomihon
+```
+
+The repository is its own marketplace: a second manifest beside the plugin one
+offers this single plugin, whose source is the repository root. `claude plugin
+list` then names it and the version it installed, and `claude plugin uninstall
+yomihon@yomihon` followed by `claude plugin marketplace remove yomihon` undoes
+both steps. This route fetches the skill itself, so it is the one to take when
+the machine that writes your notes holds no clone of this repository; the
+symlinks below are for when it does.
+
 To have an agent carry it every session, install it where the agent that writes
 your notes runs — beside the vault, not beside yomihon's source. Run these from
 that directory, with `YOMIHON` set to wherever you cloned this repository:

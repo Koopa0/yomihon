@@ -124,7 +124,11 @@ depends on your contract's spellings, scan directories or privacy policy, and a
 wrong answer is about the binary rather than about your notes. It reads the
 **exit code and the stderr line**, never stdout, because every refusal prints
 nothing at all on stdout and a check that reads stdout scores a refusal as a
-clean pass:
+clean pass. Naming a rule id rather than a severity is what turns an old
+binary's silence into an answer: one that has never heard of
+`path.role_missing` refuses the flag outright instead of running quietly, so
+the case this section exists to catch arrives as a message rather than as a
+clean report:
 
 ```bash
 probe=$(mktemp -d)
