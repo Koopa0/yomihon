@@ -117,9 +117,13 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 // readAloudAttrs carries the read-aloud bar's words to the page that will grow
 // one. The browser builds the bar, and a sentence built there would be in
 // whichever language the script was written in. They are withheld from a page
-// with nothing to read aloud, on the condition the script itself uses.
+// with nothing to read aloud, on the conditions the script itself uses: either
+// speaker the reader can press reaches the same speech owner, so a lesson that
+// offers only the second one needs these words as much as one that offers the
+// first.
 func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
-	if !strings.Contains(v.BodyHTML, speakButtonMarker) {
+	if !strings.Contains(v.BodyHTML, speakButtonMarker) &&
+		!strings.Contains(v.BodyHTML, practiceSpeakMarker) {
 		return nil
 	}
 	return templ.Attributes{
@@ -138,6 +142,13 @@ func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 // speakButtonMarker is the attribute the renderer writes and the script reads,
 // so asking for it asks the same question the script asks.
 const speakButtonMarker = `data-tts="`
+
+// practiceSpeakMarker is the sentence-practice card's own speaker. The card is
+// spliced into the body before these attributes are decided, so asking the body
+// for it asks the same question the script asks. Without it the card's button
+// takes the speaking state but keeps its idle label, which reads as a control
+// that half works.
+const practiceSpeakMarker = `data-slot-action="speak"`
 
 // diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
 // (0 or 1) plus every render diagnostic.

@@ -16,6 +16,22 @@ func TestTheReadAloudBarsWordsTravelWithThePage(t *testing.T) {
 
 	spoken := &NoteView{BodyHTML: `<div class="y-reading" lang="ja"><button data-tts="あさ。"></button></div>`}
 
+	// The sentence-practice card carries a speaker of its own and reaches the
+	// same speech owner. A lesson whose only speaker is that one needs these
+	// words as much as a lesson that marks a paragraph: without them the card's
+	// button takes the speaking state but keeps its idle label.
+	t.Run("a page whose only speaker is the practice card carries them", func(t *testing.T) {
+		t.Parallel()
+		card := &NoteView{BodyHTML: `<article class="y-slotcard"><button data-slot-action="speak"></button></article>`}
+		attrs := readAloudAttrs(card, wording.ZhHant)
+		if attrs == nil {
+			t.Fatal("readAloudAttrs() = nil, want the bar's words on a page whose practice card can speak")
+		}
+		if got, want := attrs["data-readaloud-stopthis"], wording.ReadAloudStopThis.In(wording.ZhHant); got != want {
+			t.Errorf("data-readaloud-stopthis = %v, want %q", got, want)
+		}
+	})
+
 	t.Run("a page with nothing to read aloud carries none of them", func(t *testing.T) {
 		t.Parallel()
 		if got := readAloudAttrs(&NoteView{BodyHTML: "<p>plain</p>"}, wording.ZhHant); got != nil {

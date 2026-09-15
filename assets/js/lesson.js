@@ -200,8 +200,16 @@ export function initLesson() {
         render();
       });
     });
-    card.querySelector('[data-slot-action="speak"]')?.addEventListener('click', () => {
-      speakJapanese(data.template.replace(/\{([A-Za-z0-9]+)\}/g, (_, key) => fill(key)?.jp || ''));
+    const speakButton = card.querySelector('[data-slot-action="speak"]');
+    // Handing the button over is what makes this the same control the reader
+    // already met further up the page: pressing it while it speaks stops,
+    // instead of cancelling and starting the same sentence over again, and it
+    // carries the speaking state and the stop label while it runs.
+    speakButton?.addEventListener('click', () => {
+      speakJapanese(
+        data.template.replace(/\{([A-Za-z0-9]+)\}/g, (_, key) => fill(key)?.jp || ''),
+        speakButton,
+      );
     });
     card.querySelector('[data-slot-action="shuffle"]')?.addEventListener('click', () => {
       keys.forEach((key) => {
