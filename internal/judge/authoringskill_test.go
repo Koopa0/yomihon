@@ -15,7 +15,7 @@ import (
 // same rule id, so nothing but this test forces the two to move together. The
 // path is relative to this package's own directory, the way go test always
 // runs regardless of where the test command itself was invoked from.
-const authoringSkillPath = "../../skills/yomihon-authoring/SKILL.md"
+const authoringSkillPath = "../../skills/yomihon/SKILL.md"
 
 // ruleIDToken matches one inline-code span shaped like a rule id: two or more
 // lowercase, underscore-only words joined by dots, and nothing else inside the

@@ -18,16 +18,15 @@ nothing here repeats it.
 
 ## What is in it
 
-- [`yomihon-authoring/SKILL.md`](yomihon-authoring/SKILL.md) — the entry point,
-  and enough on its own to write a correct note: what yomihon projects out of
-  Markdown, what has to be declared rather than inferred, the dialect the
-  renderer treats specially, the command that settles any disagreement, and one
-  worked example end to end.
-- [`yomihon-authoring/references/`](yomihon-authoring/references/) — five files
-  the entry point sends you to when you need the whole of one thing: the
-  frontmatter contract, how a name resolves, the study-path grammar, the
-  diagnostics, and the worked example at length. Each opens by saying which
-  question it answers.
+- [`yomihon/SKILL.md`](yomihon/SKILL.md) — the entry point, and enough on its
+  own to write a correct note: what yomihon projects out of Markdown, what has
+  to be declared rather than inferred, the dialect the renderer treats
+  specially, the command that settles any disagreement, and one worked example
+  end to end.
+- [`yomihon/references/`](yomihon/references/) — five files the entry point
+  sends you to when you need the whole of one thing: the frontmatter contract,
+  how a name resolves, the study-path grammar, the diagnostics, and the worked
+  example at length. Each opens by saying which question it answers.
 
 The skill describes yomihon's behaviour, which lives in the Go alongside this
 folder and is pinned by that code's own tests — two of which read `SKILL.md`
@@ -48,18 +47,18 @@ YOMIHON=~/src/yomihon        # wherever the clone is
 
 # Claude Code, for one project
 mkdir -p .claude/skills
-ln -s "$YOMIHON/skills/yomihon-authoring" .claude/skills/yomihon-authoring
+ln -s "$YOMIHON/skills/yomihon" .claude/skills/yomihon
 
 # the generic location other agents read
 mkdir -p .agents/skills
-ln -s "$YOMIHON/skills/yomihon-authoring" .agents/skills/yomihon-authoring
+ln -s "$YOMIHON/skills/yomihon" .agents/skills/yomihon
 ```
 
 The symlink target must be absolute, or it will resolve against the directory
 holding the link and dangle. Check before you trust it:
 
 ```sh
-ls .claude/skills/yomihon-authoring/SKILL.md
+ls .claude/skills/yomihon/SKILL.md
 ```
 
 A symlink keeps one copy, so a `git pull` that updates the skill updates what
@@ -93,4 +92,4 @@ The stronger check is the skill's own standard: given only this folder, an agent
 should be able to say what the skill is, when it applies, what it changes about
 how it writes, and walk one note from prose into a course. If it cannot do the
 last one, it did not read
-[`yomihon-authoring/references/worked-example.md`](yomihon-authoring/references/worked-example.md).
+[`yomihon/references/worked-example.md`](yomihon/references/worked-example.md).

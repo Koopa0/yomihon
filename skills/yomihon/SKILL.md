@@ -1,5 +1,5 @@
 ---
-name: yomihon-authoring
+name: yomihon
 description: >-
    How to write Markdown that yomihon reads as a course, a map and a searchable
    note: frontmatter, filenames, the study-path marker, the dialect.
