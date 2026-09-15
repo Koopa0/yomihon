@@ -2,10 +2,14 @@
 name: yomihon
 description: >-
    How to write Markdown that yomihon reads as a course, a map and a searchable
-   note: frontmatter, filenames, the study-path marker, the dialect. Read it
-   before writing or revising a note for a yomihon-read vault, and when a note
+   note: frontmatter, filenames, the study-path marker, the dialect.
+when_to_use: >-
+   Before writing or revising a note for a yomihon-read vault, and when a note
    reads fine in Obsidian but is missing from a course, a count, prev/next or
    search.
+metadata:
+   version: "1.0"
+   author: Koopa
 ---
 
 # Authoring for yomihon
