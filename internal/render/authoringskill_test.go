@@ -16,7 +16,7 @@ import (
 // so nothing but this test forces the two lists to move together. The path is
 // relative to this package's own directory, the way go test always runs
 // regardless of where the test command itself was invoked from.
-const authoringSkillPath = "../../skills/yomihon-authoring/SKILL.md"
+const authoringSkillPath = "../../skills/yomihon/SKILL.md"
 
 // calloutToken matches one inline-code span: the unit both the guide's list
 // and this test operate on.
