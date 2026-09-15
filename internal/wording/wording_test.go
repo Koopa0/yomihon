@@ -200,13 +200,6 @@ func TestJoinGuide(t *testing.T) {
 		want  string
 	}{
 		{
-			name:  "english governed path",
-			state: PathIndexEmpty,
-			step:  IndexDeclaredEmptyNext,
-			lang:  En,
-			want:  "This vault has no study paths yet. Add a .md file to the folder yomihon is reading.",
-		},
-		{
 			name:  "english governed folder",
 			state: FolderIndexEmpty,
 			step:  IndexDeclaredEmptyNext,
@@ -221,11 +214,11 @@ func TestJoinGuide(t *testing.T) {
 			want:  "This folder has no contract yet. Add System/schemas/vault-schema.toml.",
 		},
 		{
-			name:  "chinese governed path",
-			state: PathIndexEmpty,
+			name:  "chinese governed folder",
+			state: FolderIndexEmpty,
 			step:  IndexDeclaredEmptyNext,
 			lang:  ZhHant,
-			want:  "這個書庫裡還沒有學習路徑。在 yomihon 正在讀的資料夾裡新增一個 .md 檔。",
+			want:  "這裡沒有列出檔案。在 yomihon 正在讀的資料夾裡新增一個 .md 檔。",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -249,6 +242,8 @@ func TestTraditionalChineseUsesFullWidthPunctuation(t *testing.T) {
 
 	exempt := map[string]string{
 		"StatusFieldUnsupportedYAMLNext": "quotes YAML status: 值 syntax",
+		"NoDeclaredTypeEmptyFmt":         "quotes the YAML type: 值 line a reader would write",
+		"NoDeclaredTypesEmptyFmt":        "quotes the YAML type: 值 line a reader would write",
 	}
 	halfWidth := regexp.MustCompile(`[,;():]`)
 	for _, p := range writtenPhrases(t) {

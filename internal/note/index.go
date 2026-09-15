@@ -36,7 +36,7 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(authority, snap)
 	model := pageShell.Nav
-	view := pages.NewMapIndex(model.Maps(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
+	view := pages.NewMapIndex(model.Maps(), snap.NavigationRoles(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)
 	}

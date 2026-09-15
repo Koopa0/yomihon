@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -248,12 +249,12 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 	model := buildModel(t)
 	lang := wording.ZhHant
 	pages := map[string]ListIndexView{
-		pathMode:   NewPathIndex(model.Paths(), nav.Closure{}, ContractGoverning, lang, nil),
-		mapMode:    NewMapIndex(model.Maps(), nav.Closure{}, ContractGoverning, lang, nil),
+		pathMode:   NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
+		mapMode:    NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
 		reportMode: NewReportIndex(model.Reports(), lang, nil),
 		folderMode: NewFolderIndex(model, ContractGoverning, lang, nil),
 	}
-	blocks := NewDeskBlocks(model, ContractGoverning, lang, nil)
+	blocks := NewDeskBlocks(model, schema.NavigationRoles{}, ContractGoverning, lang, nil)
 	seen := 0
 	for _, block := range blocks {
 		page, ok := pages[block.Mode]

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"html"
 	"io"
 	"log/slog"
@@ -151,10 +152,7 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 	}{
 		{target: "/paths", absent: []string{"data-index-row", "data-index-empty"}},
 		{target: "/maps", absent: []string{"data-index-row", "data-index-empty"}},
-		{target: "/", absent: []string{
-			wording.PathIndexEmpty.In(wording.ZhHant),
-			wording.MapIndexEmpty.In(wording.ZhHant),
-		}, silent: []string{"paths", "maps"}},
+		{target: "/", silent: []string{"paths", "maps"}},
 	}
 	for _, tt := range tests {
 		target := tt.target
@@ -182,8 +180,15 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 				}
 			}
 			for _, mode := range tt.silent {
-				if block := deskBlockMarkup(t, page, mode); strings.Contains(block, "data-desk-item") {
+				block := deskBlockMarkup(t, page, mode)
+				if strings.Contains(block, "data-desk-item") {
 					t.Errorf("the %s block lists rows built from a declaration that could not be read: %q", mode, block)
+				}
+				// "no courses" and "no courses declared" are both answers this
+				// page does not have, so the slot that would carry either is
+				// the one that must not be drawn.
+				if strings.Contains(block, "y-homeempty") {
+					t.Errorf("the %s block says it holds none of something its declaration never described: %q", mode, block)
 				}
 			}
 			if len(tt.silent) > 0 && !strings.Contains(deskBlockMarkup(t, page, "folders"), "data-desk-item") {
@@ -207,31 +212,31 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 		t.Fatalf("read schema fixture: %v", err)
 	}
 
+	ungoverned := wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, wording.ZhHant)
 	for _, tt := range []struct {
 		name     string
 		files    map[string]string
-		path     wording.Phrase
-		mapState wording.Phrase
-		folder   wording.Phrase
-		step     wording.Phrase
+		path     string
+		mapState string
+		folder   string
 	}{
 		{
 			name:     "bare empty directory",
 			files:    nil,
-			path:     wording.IndexUngoverned,
-			mapState: wording.IndexUngoverned,
-			folder:   wording.IndexUngoverned,
-			step:     wording.IndexUngovernedNext,
+			path:     ungoverned,
+			mapState: ungoverned,
+			folder:   ungoverned,
 		},
 		{
 			name: "contract only",
 			files: map[string]string{
 				schema.ContractRelPath: string(contract),
 			},
-			path:     wording.PathIndexEmpty,
-			mapState: wording.MapIndexEmpty,
-			folder:   wording.FolderIndexEmpty,
-			step:     wording.IndexDeclaredEmptyNext,
+			// The words are the loader fixture's own navigation declaration,
+			// which is what this vault holds and all it holds.
+			path:     fmt.Sprintf(wording.NoDeclaredTypeEmptyFmt.In(wording.ZhHant), "study-path"),
+			mapState: fmt.Sprintf(wording.NoDeclaredTypesEmptyFmt.In(wording.ZhHant), "moc、source-map、topic-map"),
+			folder:   wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, wording.ZhHant),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -259,58 +264,56 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 			for _, surface := range []struct {
 				name  string
 				fetch func() string
-				state wording.Phrase
+				want  string
 			}{
 				{
 					name: "desk paths",
 					fetch: func() string {
 						return deskBlockMarkup(t, readingPage(t, site, "/"), "paths")
 					},
-					state: tt.path,
+					want: tt.path,
 				},
 				{
 					name: "desk maps",
 					fetch: func() string {
 						return deskBlockMarkup(t, readingPage(t, site, "/"), "maps")
 					},
-					state: tt.mapState,
+					want: tt.mapState,
 				},
 				{
 					name:  "path index",
 					fetch: func() string { return readingPage(t, site, "/paths") },
-					state: tt.path,
+					want:  tt.path,
 				},
 				{
 					name:  "map index",
 					fetch: func() string { return readingPage(t, site, "/maps") },
-					state: tt.mapState,
+					want:  tt.mapState,
 				},
 				{
 					name: "desk folders",
 					fetch: func() string {
 						return deskBlockMarkup(t, readingPage(t, site, "/"), "folders")
 					},
-					state: tt.folder,
+					want: tt.folder,
 				},
 				{
 					name:  "folder index",
 					fetch: func() string { return readingPage(t, site, "/folders") },
-					state: tt.folder,
+					want:  tt.folder,
 				},
 			} {
 				t.Run(surface.name, func(t *testing.T) {
 					t.Parallel()
-					assertEmptyGuide(t, surface.name, surface.fetch(), surface.state, tt.step)
+					assertEmptyGuide(t, surface.name, surface.fetch(), surface.want)
 				})
 			}
 		})
 	}
 }
 
-func assertEmptyGuide(t *testing.T, where, got string, state, step wording.Phrase) {
+func assertEmptyGuide(t *testing.T, where, got, want string) {
 	t.Helper()
-	lang := wording.ZhHant
-	want := state.In(lang) + step.In(lang)
 	if !strings.Contains(got, want) {
 		t.Errorf("%s empty guide want %q; got %q", where, want, got)
 	}
@@ -893,4 +896,154 @@ func shelfRowHrefs(t *testing.T, markup, marker string) []string {
 		}
 		hrefs = append(hrefs, html.UnescapeString(href))
 	}
+}
+
+// TestAnEmptyDeskNamesTheDeclarationThatFillsIt drives the two desks a
+// declaration fills, over a vault holding nothing but a contract, in both
+// languages the interface speaks. A note reaches Paths or Maps by carrying one
+// of the declared types and by no other route, so the sentence a reader meets
+// there has to name that type — and name the one this vault declared, which is
+// why the fixture's vocabulary is words no source file in this repository
+// spells. A word written into the interface would pass every check that
+// compared the page against the interface's own spelling; here it fails,
+// because the page is compared against the contract that was loaded.
+func TestAnEmptyDeskNamesTheDeclarationThatFillsIt(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		pathType  string
+		mapTypes  []string
+		otherWord string
+	}{
+		{name: "one vocabulary", pathType: "trail-guide", mapTypes: []string{"atlas", "chart", "survey"}, otherWord: "walk-through"},
+		{name: "another vocabulary", pathType: "walk-through", mapTypes: []string{"gazetteer", "plan", "sketch"}, otherWord: "trail-guide"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeContractDeclaring(t, root, tt.pathType, tt.mapTypes)
+			site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+			if err != nil {
+				t.Fatalf("newReadingSite: %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := site.close(); closeErr != nil {
+					t.Errorf("readingSite.close() error = %v", closeErr)
+				}
+			})
+			for _, desk := range []struct {
+				target string
+				// declared is the whole of what this desk is filled by, in the
+				// contract's order.
+				declared []string
+			}{
+				{target: "/paths", declared: []string{tt.pathType}},
+				{target: "/maps", declared: tt.mapTypes},
+			} {
+				said := make(map[wording.Lang]string, 2)
+				for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+					slot := emptySlot(t, readingPageIn(t, site, desk.target, lang))
+					said[lang] = slot
+					// The whole list, joined the way this interface joins one,
+					// so a sentence naming the first declared type and
+					// dropping the rest is not an answer.
+					want := "type: " + strings.Join(desk.declared, wording.ListSeparator.In(lang))
+					if !strings.Contains(slot, want) {
+						t.Errorf("GET %s in %s does not name the declaration that fills it: want %q in %q", desk.target, lang, want, slot)
+					}
+					// The step a reader cannot complete: this vault's own
+					// contract is what puts a note on these two desks, and a
+					// markdown file that declares none of these types never
+					// arrives however many are added.
+					if step := wording.IndexDeclaredEmptyNext.In(lang); strings.Contains(slot, step) {
+						t.Errorf("GET %s in %s still offers a step that leaves the desk empty: %q", desk.target, lang, slot)
+					}
+					// The vocabulary of this repository's own vault, and of the
+					// other fixture: either one on the page is a word taken
+					// from somewhere other than the contract that was loaded.
+					for _, foreign := range []string{"study-path", "moc", "source-map", "topic-map", tt.otherWord} {
+						if strings.Contains(slot, foreign) {
+							t.Errorf("GET %s in %s names %q, which this vault does not declare: %q", desk.target, lang, foreign, slot)
+						}
+					}
+				}
+				if said[wording.ZhHant] == said[wording.En] {
+					t.Errorf("GET %s says the same bytes to both readers, so one of them is reading the other's language: %q", desk.target, said[wording.En])
+				}
+			}
+		})
+	}
+}
+
+// writeContractDeclaring writes the loader fixture into root with its
+// navigation vocabulary replaced, so the declared words are this test's and the
+// rest of the contract stays the shape the product is exercised against.
+func writeContractDeclaring(t *testing.T, root, pathType string, mapTypes []string) {
+	t.Helper()
+	if len(mapTypes) != 3 {
+		t.Fatalf("the fixture declares three map types; got %d", len(mapTypes))
+	}
+	source, err := os.ReadFile(filepath.Join("..", "..", "internal", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema fixture: %v", err)
+	}
+	text := string(source)
+	for i, replaced := range []string{"study-path", "moc", "source-map", "topic-map"} {
+		with := pathType
+		if i > 0 {
+			with = mapTypes[i-1]
+		}
+		quoted := `"` + replaced + `"`
+		if !strings.Contains(text, quoted) {
+			t.Fatalf("the loader fixture no longer declares %s, so this fixture rewrites nothing", quoted)
+		}
+		text = strings.ReplaceAll(text, quoted, `"`+with+`"`)
+	}
+	full := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		t.Fatalf("mkdir for the contract: %v", err)
+	}
+	if err := os.WriteFile(full, []byte(text), 0o600); err != nil {
+		t.Fatalf("write contract: %v", err)
+	}
+}
+
+// readingPageIn asks for one page as a reader who has chosen lang.
+func readingPageIn(t *testing.T, site http.Handler, target string, lang wording.Lang) string {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	request := siteRequest(t, http.MethodGet, target, nil)
+	request.AddCookie(&http.Cookie{Name: wording.CookieName, Value: string(lang)})
+	site.ServeHTTP(recorder, request)
+	response := recorder.Result()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close %s response: %v", target, err)
+		}
+	}()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s in %s = %d, want 200", target, lang, response.StatusCode)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read %s response: %v", target, err)
+	}
+	return string(body)
+}
+
+// emptySlot is the sentence a mode index draws in place of a listing. Reading
+// the paragraph rather than the page keeps a word found anywhere else in the
+// chrome from answering for the one sentence under test.
+func emptySlot(t *testing.T, page string) string {
+	t.Helper()
+	_, rest, found := strings.Cut(page, "data-index-empty>")
+	if !found {
+		t.Fatal("the page draws no empty slot at all, so it says nothing to a reader whose shelf is empty")
+	}
+	slot, _, closed := strings.Cut(rest, "</p>")
+	if !closed {
+		t.Fatal("the empty slot is unclosed")
+	}
+	return html.UnescapeString(slot)
 }
