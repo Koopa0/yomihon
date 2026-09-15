@@ -14,10 +14,14 @@
 // to where the reader was. Everything picked in a visit goes together, because
 // a reader setting up their reading picks a size and a face in one sitting and
 // a submission that took one of them would be discarding the other in silence.
-// That path is the whole mechanism rather than a fallback: the interface
-// language cannot be changed by any script, because the words on a rendered
-// page are the server's, and a page that works without scripting for the
-// hardest of these choices may as well work without it for all of them.
+//
+// That post is the only way in. A browser with no scripting sends it from the
+// button under the choices; an enhanced one sends the same body the moment an
+// option is picked, so nothing has to be confirmed, and answers a refusal by
+// putting its controls back. Either way this side reads one shape of request
+// and the page keeps working with no scripting at all — which it has to, since
+// the interface language cannot be changed by any script: the words on a
+// rendered page are the server's.
 package preference
 
 import (

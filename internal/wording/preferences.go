@@ -117,10 +117,21 @@ var (
 	)
 )
 
-// PrefApply is on the one control that saves the page. It stays visible when
-// scripting is on, so the keyboard reader arrowing through a group is not
-// committing a choice with every press.
+// PrefApply is on the control that saves the page when nothing is enhancing
+// it. With the enhancement running, a choice is applied and stored the moment
+// it is picked and the control has nothing left to do, so it comes off the
+// page; without it, this button is the whole of how the page is answered.
 var PrefApply = both("套用", "Apply")
+
+// PrefSaveFailed is what the page says when a choice was picked and the
+// browser did not end up holding it. It names the undoing as well as the
+// failure, because the controls have just moved back on their own and a reader
+// watching a selection jump with nothing said would read it as the page
+// misbehaving rather than as the save being refused.
+var PrefSaveFailed = both(
+	"這個選擇沒有存起來，畫面已經退回上一次存下的設定。",
+	"That choice was not saved; the page has gone back to the settings this browser is holding.",
+)
 
 // What this browser is holding, said plainly and completely. A page that
 // stores things on a reader's machine should be the page that lists them.

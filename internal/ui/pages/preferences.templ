@@ -45,27 +45,35 @@ type PreferenceOption struct {
 //
 // It carries no folder tree. Every other page here is somewhere in the library
 // and needs the way onward; this one is reached from a control on whatever page
-// the reader was already holding, and returns them to it the moment a choice is
-// applied. A rail down the side would invite a walk this page has no business
-// starting.
+// the reader was already holding, and carries the way back to it. A rail down
+// the side would invite a walk this page has no business starting.
 //
-// The choices are one form with one submit, so a reader who sets a size and a
-// typeface in the same visit gets both: nothing picked can be discarded,
-// because everything picked is sent. It is a plain post, so the page works with
-// no scripting at all — which is not a courtesy here but the mechanism: the
-// words on a page are written by the server, and the only honest way to change
-// them is to ask the server for the page again.
+// The choices are one form carrying every field, so a submission of it can
+// discard nothing a reader picked. Submitting it by hand is what a browser
+// with no scripting does, and the button below the choices is that browser's
+// whole way of being heard; where the page is enhanced, picking an option
+// applies and stores it there and then, and the button goes because it would
+// then be a control with nothing left to do. The form underneath is the same
+// either way — which is why the interface language can be one of the choices
+// at all: the words on a page are written by the server, and the only honest
+// way to change them is to ask the server for the page again.
+//
+// The sentence above the choices is silent until a submission is refused. A
+// choice that did not reach this browser is the one thing the page cannot show
+// by simply being correct, because the controls would sit there looking
+// exactly as they do when it did.
 templ Preferences(v PreferencesView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="main-content" tabindex="-1" class="y-prefs">
 			<h1 class="y-title">{ wording.PreferencesTitle.In(c.Lang) }</h1>
 			<p class="y-prefs__lede">{ wording.PreferencesLede.In(c.Lang) }</p>
-			<form method="post" action="/preferences">
+			<form class="y-prefs__form" method="post" action="/preferences" data-preferences-form>
+				<p class="y-prefs__failed" data-preferences-failed role="alert" hidden>{ wording.PrefSaveFailed.In(c.Lang) }</p>
 				for _, field := range v.Fields {
 					@preferenceField(field)
 				}
 				<input type="hidden" name="next" value={ v.ReturnTo }/>
-				<button class="y-prefs__apply" type="submit">{ wording.PrefApply.In(c.Lang) }</button>
+				<button class="y-prefs__apply" type="submit" data-preference-apply>{ wording.PrefApply.In(c.Lang) }</button>
 			</form>
 			@layouts.KeyboardKeys(c.Lang)
 			@preferenceReset(v.ReturnTo, c.Lang)
@@ -82,10 +90,9 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 }
 
 // preferenceField is one choice, grouped under the heading that names it. It
-// carries no submit of its own: the one at the foot of the form applies this
-// choice along with every other, so a reader arrowing through a group commits
-// nothing on the way to the option they want and loses nothing they picked
-// further up the page.
+// carries no submit of its own: the form it sits in carries every field, so
+// however this page is answered — by hand, or by the enhancement the moment an
+// option is picked — nothing a reader chose further up the page is left behind.
 templ preferenceField(f PreferenceField) {
 	<fieldset class="y-preffield">
 		<legend>{ f.Legend }</legend>

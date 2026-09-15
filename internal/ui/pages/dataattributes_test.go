@@ -35,11 +35,18 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // a toolbar the client builds, and the label a speak button wore before the
 // client borrowed it — kept on the button so the client has one fewer copy of
 // a sentence the server already wrote there.
+//
+// The reading choices form carries one of them too: it is written the moment
+// the code that saves a choice as it is picked is running, and the stylesheet
+// takes the form's submit control away on it. The server cannot write it and
+// must not — a page whose enhancement never started would then have lost the
+// only control that answers it.
 var clientOwned = []string{
 	"data-freshness",
 	"data-js",
 	"data-mermaid-error",
 	"data-nav",
+	"data-preferences-live",
 	"data-preview-open",
 	"data-readaloud-idle",
 	"data-speaking",

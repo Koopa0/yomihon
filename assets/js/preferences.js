@@ -1,13 +1,21 @@
-// Persisted presentation preferences. The server renders the cookie-backed
-// state on first byte; this enhancement changes the root attributes, keeps the
-// controls' state current, and re-syncs both after a back/forward-cache
-// restore revives HTML older than the cookies.
+// Persisted presentation preferences, from both ends: the header's own
+// toggles, and the reading choices page where the same six are set out in
+// full. The server renders the cookie-backed state on first byte; this
+// enhancement changes the root attributes, keeps every control that reports
+// them current, and re-syncs all of it after a back/forward-cache restore
+// revives HTML older than the cookies.
 //
-// Language is not handled here: its words are the server's, so its control is
-// a plain form the server answers with a redirect. This module only checks,
-// after a cache restore, that the revived document still speaks the language
-// the cookie names — and asks for a fresh page when it does not, since no
-// script can retranslate a rendered document.
+// Nothing here writes the cookies the choices page owns. Its form is posted
+// and the server's own answer carries them, so a submission the server refuses
+// leaves this browser holding exactly what it held before — and the controls
+// are put back to match it.
+//
+// Language is the one choice no script can apply: its words are the server's,
+// so its control navigates. In the header that is a plain form; on the choices
+// page the same form is submitted and comes back to the page it was sent from.
+// A cache restore gets the same treatment from the other side — the revived
+// document is checked against the language the cookie names, and a fresh page
+// asked for when they differ, since no script can retranslate a rendered one.
 export function initPreferences() {
   const root = document.documentElement;
 
@@ -129,6 +137,184 @@ export function initPreferences() {
     setSingleKeyShortcuts(value);
   });
 
+  // The page a reader sets the reading on carries the same six choices as one
+  // form of radios, and that form is what a browser with no scripting submits
+  // by hand. What follows does not replace it: picking an option applies the
+  // five the root can answer and sends the whole form at once, so the button
+  // below the choices has nothing left to do and the stylesheet takes it off
+  // the page.
+  const settingsForm = document.querySelector('[data-preferences-form]');
+  const settingsFailure = document.querySelector('[data-preferences-failed]');
+
+  // What applying one choice means here, one entry per field the page names.
+  // The optimistic apply and the undoing after a refusal both go through this
+  // table, so a choice and its reversal can never move different things — the
+  // header's own controls, which report the same state from the other end of
+  // the page, included.
+  const applyChoice = {
+    theme(value) {
+      // Following the system is the absence of a stored answer, and the root
+      // holds that state by carrying no attribute at all.
+      writeTheme(value === 'system' ? null : value, false);
+    },
+    textsize(value) {
+      root.dataset.textsize = value;
+      // The header control reports the size in its accessible name, from the
+      // words the server wrote on it. The page's own words for the same three
+      // sizes are a separate set and stay where they are.
+      textsizeToggle?.setAttribute('aria-label', textsizeLabel(value));
+    },
+    font(value) {
+      // Every face the page offers is one a cookie may carry, and the
+      // stylesheet writes the base face out under its own name, so stamping
+      // the chosen face reads the same as leaving the root bare.
+      root.dataset.font = value;
+    },
+    ruby(value) {
+      root.dataset.ruby = value;
+      rubyToggle?.setAttribute('aria-pressed', String(value === 'on'));
+    },
+    shortcuts(value) {
+      root.dataset.singleKeyShortcuts = value;
+      if (shortcutsToggle) shortcutsToggle.checked = value === 'on';
+    },
+  };
+
+  // The fields this page actually rendered. Which choices exist is the
+  // server's answer and has been shortened before; reaching for one that is
+  // not there would throw during boot, and a throw here takes every other
+  // enhancement on the page down with it.
+  const settingsFields = settingsForm
+    ? Object.keys(applyChoice).filter((name) => settingsForm.elements[name])
+    : [];
+
+  // The answer the server last accepted for each field: what the page was
+  // rendered from, and what a refused submission puts back.
+  const accepted = {};
+
+  let sending = null; // the submission in flight, or null
+  let sendAgain = false; // a choice moved while that submission was running
+  let handedOver = false; // a language change is navigating; nothing else goes
+
+  // One submission at a time. Every one of them carries every field, so two in
+  // the air at once can be answered in either order and the older answer would
+  // put a field back where the reader had just moved it from. Waiting means
+  // the next submission is built after the last is answered, out of what the
+  // page shows by then — so the final submission carries every choice the
+  // reader has made and no answer can land after it.
+  function saveSettings() {
+    if (handedOver) return;
+    if (sending) {
+      sendAgain = true;
+      return;
+    }
+    void sendSettings();
+  }
+
+  async function sendSettings() {
+    sendAgain = false;
+    const sent = {};
+    for (const name of settingsFields) sent[name] = settingsForm.elements[name].value;
+    const body = new URLSearchParams(new FormData(settingsForm));
+    const attempt = new AbortController();
+    sending = attempt;
+    let stored = false;
+    try {
+      const response = await fetch(settingsForm.action, {
+        method: 'POST',
+        body,
+        credentials: 'same-origin',
+        // A stored submission is answered with a redirect back to the reading,
+        // which is what a form navigation wants and what this has no use for:
+        // the cookies ride on that answer's own headers. Declining to follow
+        // it keeps this to the one round trip, and the opaque answer that
+        // comes back is the server saying it stored them.
+        redirect: 'manual',
+        signal: attempt.signal,
+      });
+      stored = response.type === 'opaqueredirect' || response.ok;
+    } catch {
+      stored = false;
+    }
+    sending = null;
+    if (attempt.signal.aborted) return;
+    if (!stored) {
+      sendAgain = false;
+      refuseSettings(sent);
+      return;
+    }
+    Object.assign(accepted, sent);
+    showSettingsFailure(false);
+    if (sendAgain) void sendSettings();
+  }
+
+  // A submission that was not stored leaves the page showing choices this
+  // browser is not in fact set to. Every field it carried goes back to the
+  // answer the server last accepted — the controls and the reading together —
+  // and the page says so, because a choice left sitting there looking chosen
+  // is the one failure a reader has no way of noticing.
+  function refuseSettings(sent) {
+    for (const [name, value] of Object.entries(sent)) {
+      if (value === accepted[name]) continue;
+      settingsForm.elements[name].value = accepted[name];
+      applyChoice[name](accepted[name]);
+    }
+    showSettingsFailure(true);
+  }
+
+  function showSettingsFailure(shown) {
+    if (settingsFailure) settingsFailure.hidden = !shown;
+  }
+
+  // The interface language is the choice this page cannot answer: the words on
+  // a rendered page are the server's, so the form is submitted and a whole new
+  // page comes back. It comes back to this page rather than to the reading, so
+  // a reader setting several things up is not thrown out of the page by the
+  // first of them; the address they arrived from rides along in the query, so
+  // the way back to the reading is still the one they came by. Whatever was in
+  // flight is dropped: this submission carries every field, the newest values
+  // included, and an older answer landing after it would undo one of them.
+  function handOverForLanguage() {
+    handedOver = true;
+    sending?.abort();
+    const next = settingsForm.elements.next;
+    if (next) next.value = location.pathname + location.search;
+    settingsForm.requestSubmit();
+  }
+
+  // Put the page's own controls back on the answers this browser holds, and
+  // take those as the accepted ones. Called where a revived document's
+  // controls have gone stale against the cookies, so that a later refusal
+  // reverts to what is stored rather than to what the page was drawn with.
+  function syncSettings(values) {
+    if (!settingsForm) return;
+    for (const [name, value] of Object.entries(values)) {
+      if (!settingsFields.includes(name)) continue;
+      settingsForm.elements[name].value = value;
+      accepted[name] = value;
+    }
+    showSettingsFailure(false);
+  }
+
+  if (settingsForm) {
+    for (const name of settingsFields) accepted[name] = settingsForm.elements[name].value;
+    settingsForm.addEventListener('change', (event) => {
+      const name = event.target?.name;
+      if (name === 'lang') {
+        handOverForLanguage();
+        return;
+      }
+      if (!settingsFields.includes(name)) return;
+      applyChoice[name](event.target.value);
+      saveSettings();
+    });
+    // The button below the choices is a browser-without-scripting's whole way
+    // of being heard, and it goes only once the code that replaces it is
+    // running. Saying so on the form is what takes it away, so a page whose
+    // enhancement never started keeps it.
+    settingsForm.dataset.preferencesLive = 'on';
+  }
+
   // A back/forward-cache restore revives the document exactly as it left,
   // while the cookies may have moved on — a theme chosen on the next page
   // arrives back on a page still stamped with the old one. The cookies are
@@ -174,6 +360,21 @@ export function initPreferences() {
     if (root.lang !== lang) {
       location.reload();
     }
+    // The reading choices page shows these same answers as controls of its
+    // own, and a revived copy of it is still showing whatever was chosen
+    // before the reader left — a theme moved from the header two pages later
+    // leaves a radio here claiming the old one. The values are taken from the
+    // root this handler has just corrected rather than read from the cookies
+    // a second time, so there is one reading of them and the two surfaces
+    // cannot disagree. An unstamped root is the option that stores nothing,
+    // which is what each of those two choices offers in its place.
+    syncSettings({
+      theme: root.dataset.theme ?? 'system',
+      textsize: size,
+      font: root.dataset.font ?? 'serif',
+      ruby,
+      shortcuts,
+    });
   });
 
   // What the reader is looking at, and a way to be told when that changes.
