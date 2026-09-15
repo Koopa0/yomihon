@@ -68,17 +68,29 @@ func rawHref(p string) string { return VaultHref("/raw/", p) }
 // is the one the excerpt was cut around: the excerpt opens at the earliest
 // offset any of the query's words reach, so the first mark in it is the first
 // of them the note holds, and the browser goes to the first it finds.
+//
+// Going to the first it finds is also why a stretch that is one ordinary word
+// is not enough on its own. The browser reads the whole page in order, and the
+// reader's navigation is drawn before the article, so a rail label spelling
+// that word answers for the article's copy of it and the note opens with the
+// words the reader searched for still below the screen. Where the note has
+// words ahead of the match in the same block, the directive names them, and
+// the one the reader meant is the one it finds. A match that opens its block
+// has none, and the directive stays the bare term.
 func hitFragment(r *SearchResult) string {
 	if r.BlockCrossing {
 		start := strings.TrimSpace(r.Landing)
 		end := strings.TrimSpace(r.LandingEnd)
 		switch {
 		case start != "" && end != "":
-			return "#:~:text=" + escapeTextDirective(start) + "," + escapeTextDirective(end)
+			return textDirective(r.LandingPrefix, start, end)
 		case start != "":
-			return "#:~:text=" + escapeTextDirective(start)
+			return textDirective(r.LandingPrefix, start, "")
 		case end != "":
-			return "#:~:text=" + escapeTextDirective(end)
+			// Those words sit in the first block and this stretch in the
+			// last, and a prefix is only read as one beside a term from the
+			// same block, so this end travels alone.
+			return textDirective("", end, "")
 		default:
 			return ""
 		}
@@ -86,10 +98,39 @@ func hitFragment(r *SearchResult) string {
 	for _, run := range r.SnippetRuns {
 		text := strings.TrimSpace(run.Text)
 		if run.Hit && text != "" {
-			return "#:~:text=" + escapeTextDirective(text)
+			// The words ahead of the match run up to the match itself. An
+			// excerpt opens before it and can carry an earlier copy of one of
+			// the query's words, which is then the first thing marked; that
+			// copy is not what they lead to, so such a row keeps its bare
+			// term rather than pointing at a place the note never has.
+			prefix := ""
+			if text == strings.TrimSpace(r.Landing) {
+				prefix = r.LandingPrefix
+			}
+			return textDirective(prefix, text, "")
 		}
 	}
 	return ""
+}
+
+// textDirective assembles the fragment for one hit. The "-" that marks the
+// leading term as words to search ahead of the match is written after the
+// escaping rather than through it: escapeTextDirective spends that character
+// on the reader's own words, so a marker passed through it would come out
+// encoded and be read as part of the term.
+func textDirective(prefix, start, end string) string {
+	var b strings.Builder
+	b.WriteString("#:~:text=")
+	if prefix = strings.TrimSpace(prefix); prefix != "" {
+		b.WriteString(escapeTextDirective(prefix))
+		b.WriteString("-,")
+	}
+	b.WriteString(escapeTextDirective(start))
+	if end != "" {
+		b.WriteString(",")
+		b.WriteString(escapeTextDirective(end))
+	}
+	return b.String()
 }
 
 // escapeTextDirective percent-encodes one term of a text directive. Everything

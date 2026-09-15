@@ -7,12 +7,14 @@ package render
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"unicode"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	east "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -44,47 +46,107 @@ func PlainText(body string) string {
 	return plain
 }
 
-// PlainBlocks returns the searchable text of a note body, the exclusive end
-// offset of each block-level contribution in that text, and the half-open
-// byte ranges that came from a fenced code block. The text is byte-identical
-// to PlainText. A phrase whose match starts in one block and ends in another
-// is one the browser's text directive cannot find, because those words render
-// in different elements; a wrap inside one paragraph is not that case.
+// Block is one block-level contribution to a note's searchable text.
+type Block struct {
+	// End is the exclusive end offset of the block's text.
+	End int
+
+	// Verbatim reports that this block's characters reach the reading page in
+	// this order, with nothing between them that the page shows and this text
+	// does not carry. False is also the answer wherever the walk cannot tell,
+	// so a caller may act on a true and never on a false.
+	Verbatim bool
+}
+
+// PlainBlocks returns the searchable text of a note body, one Block per
+// block-level contribution to that text, and the half-open byte ranges that
+// came from a fenced code block. The text is byte-identical to PlainText. A
+// phrase whose match starts in one block and ends in another is one the
+// browser's text directive cannot find, because those words render in
+// different elements; a wrap inside one paragraph is not that case.
+//
+// Each block also says whether the page reproduces it as written. Naming a
+// run of words ahead of a match asks a browser to find that run and the match
+// side by side in what it is showing, so a caller with such a use has to know
+// the two are not merely present but adjacent — and this walk is the only
+// place that knows, because it is the one that moves a ruby reading out of the
+// sentence and leaves a footnote's mark out of the text altogether.
 //
 // Fence ranges sit in the same coordinate space as the text so a later match
 // can tell a hit that landed in source from one that landed in prose. The
 // bodies stay in the text: people search for code snippets. Eligibility of a
 // fence as the excerpt is a decision for the match, not this walk.
-func PlainBlocks(body string) (plain string, blockEnds []int, fenceRanges [][2]int) {
-	src := []byte(plainPreprocess(body))
+func PlainBlocks(body string) (plain string, blocks []Block, fenceRanges [][2]int) {
+	source, rewritten := plainPreprocess(body)
+	src := []byte(source)
 	doc := plainParser.Parse(text.NewReader(src))
 
-	var w plainWalk
+	w := plainWalk{blockVerbatim: true, rewritten: rewritten}
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
 		// Unreachable: walkPlain never returns a non-nil error. If a future
 		// goldmark change ever makes Walk itself fail, fall back to the raw
 		// body (whitespace-collapsed) so a note is never left unsearchable.
+		// Nothing about that text is vouched for against the page.
 		collapsed := strings.Join(strings.Fields(body), " ")
 		if collapsed == "" {
 			return "", nil, nil
 		}
-		return collapsed, []int{len(collapsed)}, nil
+		return collapsed, []Block{{End: len(collapsed)}}, nil
 	}
 	w.closeBlock()
 	w.flushReadings()
 	return w.result()
 }
 
+// reproducedByThePage reports that a node of this kind contributes the same
+// characters to this text that the reading page shows, in the same place.
+// Naming the kinds that do, rather than the kinds that do not, is what keeps
+// a construct nobody here has met yet out of the answer: the page has passes
+// of its own that take words off a heading and off a list row, spend the
+// marks around a highlight, put a superscript where this text has nothing,
+// and replace an embed with the note it names — and a kind this list has
+// never heard of is as likely to be one of those as not.
+func reproducedByThePage(kind ast.NodeKind) bool {
+	switch kind {
+	case ast.KindDocument, ast.KindParagraph, ast.KindTextBlock, ast.KindBlockquote,
+		ast.KindList, ast.KindThematicBreak,
+		ast.KindText, ast.KindEmphasis, ast.KindLink, ast.KindCodeSpan, ast.KindAutoLink,
+		east.KindTable, east.KindTableHeader, east.KindTableRow, east.KindTableCell,
+		east.KindTaskCheckBox:
+		return true
+	}
+	return false
+}
+
+// spentByPage reports that the text carries characters the page consumes
+// rather than shows. The two delimiter pairs are markup this walk's parser
+// has no concept of and so keeps as written, while the page turns them into
+// an element and shows only what was between them; the private-use runes are
+// the ones a body loses before it is rendered at all.
+func spentByPage(s string) bool {
+	if strings.Contains(s, "==") || strings.Contains(s, "~~") {
+		return true
+	}
+	return strings.ContainsAny(s, inlinePlaceholderRunes)
+}
+
 // plainWalk is the accumulator walkPlain writes. The text is what PlainText
-// always returned; blockEnds are the exclusive ends of each block before the
-// leading and trailing space are trimmed off. fenceRanges are the half-open
-// spans written from a fenced code block, in the same raw coordinates.
+// always returned; blocks end where each block ended before the leading and
+// trailing space are trimmed off. fenceRanges are the half-open spans written
+// from a fenced code block, in the same raw coordinates.
 type plainWalk struct {
 	b           strings.Builder
-	blockEnds   []int
+	blocks      []Block
 	fenceRanges [][2]int
+	// blockVerbatim is the verdict being accumulated for the block now open:
+	// it starts true at each block and any doubt takes it down, so closing a
+	// block is the only place that reads it and the only place that raises it
+	// again. rewritten is what the preprocess rewrote, which the text carries
+	// and the page does not.
+	blockVerbatim bool
+	rewritten     rewrittenLines
 	// readings holds <rt>/<rtc> text until the block's base text has been
 	// closed, so a visible phrase is not split by its furigana. ruby is the
 	// stack of open <ruby> elements, innermost last, each recording which of
@@ -125,36 +187,41 @@ func rubyRoute(open []rubyChild) rubyChild {
 	return route
 }
 
-func (w *plainWalk) result() (plain string, blockEnds []int, fenceRanges [][2]int) {
+func (w *plainWalk) result() (plain string, blocks []Block, fenceRanges [][2]int) {
 	raw := w.b.String()
 	plain = strings.TrimSpace(raw)
 	if plain == "" {
 		return "", nil, nil
 	}
 	lead := len(raw) - len(strings.TrimLeftFunc(raw, unicode.IsSpace))
-	blockEnds = shiftEnds(w.blockEnds, lead, len(plain))
-	if n := len(blockEnds); n == 0 || blockEnds[n-1] != len(plain) {
-		blockEnds = append(blockEnds, len(plain))
+	blocks = shiftBlocks(w.blocks, lead, len(plain))
+	if n := len(blocks); n == 0 || blocks[n-1].End != len(plain) {
+		// Text past the last block this walk named belongs to no block it
+		// saw, so there is nothing here that vouches for it.
+		blocks = append(blocks, Block{End: len(plain)})
 	}
-	return plain, blockEnds, shiftRanges(w.fenceRanges, lead, len(plain))
+	return plain, blocks, shiftRanges(w.fenceRanges, lead, len(plain))
 }
 
-// shiftEnds maps exclusive ends recorded in the raw builder onto the
-// trimmed text, dropping empties and keeping them strictly increasing.
-func shiftEnds(ends []int, lead, length int) []int {
-	var out []int
-	for _, end := range ends {
-		adj := end - lead
+// shiftBlocks maps blocks recorded in the raw builder onto the trimmed text,
+// dropping empties and keeping the ends strictly increasing. Two ends that
+// land on the same character are one block afterwards, and it is reproduced
+// as written only if both halves were.
+func shiftBlocks(blocks []Block, lead, length int) []Block {
+	var out []Block
+	for _, b := range blocks {
+		adj := b.End - lead
 		if adj <= 0 {
 			continue
 		}
 		if adj > length {
 			adj = length
 		}
-		if n := len(out); n > 0 && out[n-1] >= adj {
+		if n := len(out); n > 0 && out[n-1].End >= adj {
+			out[n-1].Verbatim = out[n-1].Verbatim && b.Verbatim
 			continue
 		}
-		out = append(out, adj)
+		out = append(out, Block{End: adj, Verbatim: b.Verbatim})
 	}
 	return out
 }
@@ -181,6 +248,13 @@ func shiftRanges(ranges [][2]int, lead, length int) [][2]int {
 	return out
 }
 
+// closeBlock records the block just written, and with it the verdict on
+// whether the page reproduces that block as written. The two doubts settled
+// here rather than earlier are the ones only the finished block can answer:
+// readings still held are readings this block's base text was parted from,
+// and the markup the page spends is visible only in the bytes that were
+// written. An early return means nothing new was written, so the block is
+// still open and its verdict still being accumulated.
 func (w *plainWalk) closeBlock() {
 	s := w.b.String()
 	end := len(s)
@@ -190,10 +264,16 @@ func (w *plainWalk) closeBlock() {
 	if end == 0 {
 		return
 	}
-	if n := len(w.blockEnds); n > 0 && w.blockEnds[n-1] >= end {
-		return
+	start := 0
+	if n := len(w.blocks); n > 0 {
+		if w.blocks[n-1].End >= end {
+			return
+		}
+		start = w.blocks[n-1].End
 	}
-	w.blockEnds = append(w.blockEnds, end)
+	verbatim := w.blockVerbatim && w.readings.Len() == 0 && !spentByPage(s[start:end])
+	w.blocks = append(w.blocks, Block{End: end, Verbatim: verbatim})
+	w.blockVerbatim = true
 }
 
 // recordFence notes the half-open span just written from a fenced code
@@ -211,16 +291,43 @@ func (w *plainWalk) recordFence(start int) {
 	w.fenceRanges = append(w.fenceRanges, [2]int{start, end})
 }
 
+// rewrittenLines names the lines plainPreprocess changed, by where each line
+// starts in the text it returned. Text drawn from one of them is not what the
+// page shows: the page reads the author's own construct and shows a link's
+// display words, a callout's title beside an icon, or a whole other note,
+// where this text carries what the rewrite left behind.
+type rewrittenLines struct {
+	starts  []int
+	changed []bool
+}
+
+// covers reports whether the line holding off was one of them.
+func (r rewrittenLines) covers(off int) bool {
+	i, exact := slices.BinarySearch(r.starts, off)
+	if !exact {
+		// The search answers with the first line starting past off, so the
+		// line holding it is the one before that.
+		i--
+	}
+	if i < 0 || i >= len(r.changed) {
+		return false
+	}
+	return r.changed[i]
+}
+
 // plainPreprocess rewrites the two Obsidian-dialect constructs goldmark has no
 // concept of into plain text before parsing: a wikilink or embed becomes "target
 // display", both, so a filename search hits through a display alias, and a
 // callout marker line loses its marker while keeping the title. It is
-// fence-aware, so a link written inside a code sample stays literal.
-func plainPreprocess(body string) string {
+// fence-aware, so a link written inside a code sample stays literal. Every
+// line it changed is named in the second return, because a rewrite is exactly
+// where this text and the page part company.
+func plainPreprocess(body string) (string, rewrittenLines) {
 	// The retrieval projections report nothing: a corpus entry is not a page,
 	// and a fault in a note is the reading page's news to break.
 	body, _ = stripObsidianComments(body)
 	lines := strings.Split(body, "\n")
+	rewritten := rewrittenLines{starts: make([]int, len(lines)), changed: make([]bool, len(lines))}
 	inFence := false
 	var fenceByte byte
 	var fenceLen int
@@ -235,10 +342,16 @@ func plainPreprocess(body string) string {
 				inFence, fenceByte, fenceLen = true, marker, n
 			} else {
 				lines[i] = plainLine(line)
+				rewritten.changed[i] = lines[i] != line
 			}
 		}
 	}
-	return strings.Join(lines, "\n")
+	off := 0
+	for i, line := range lines {
+		rewritten.starts[i] = off
+		off += len(line) + 1 // the newline the join puts back
+	}
+	return strings.Join(lines, "\n"), rewritten
 }
 
 // plainLine normalizes one non-fence line: it strips a callout marker (keeping
@@ -277,7 +390,20 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	if !entering {
 		return ast.WalkContinue, nil
 	}
-	switch n.Kind() {
+	kind := n.Kind()
+	// Separate block-level text so tokens from adjacent blocks (a heading then
+	// its paragraph) do not run together. An HTML block is the exception: it
+	// contributes nothing below, and closing a block for it would put a break
+	// in the text where there has never been one.
+	if n.Type() == ast.TypeBlock && kind != ast.KindHTMLBlock {
+		writeSeparator(w)
+	}
+	// After the separator, so the doubt lands on the block this node opens
+	// rather than the one it closed.
+	if !reproducedByThePage(kind) {
+		w.blockVerbatim = false
+	}
+	switch kind {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
 		// The tags are not content. Text between them arrives as separate text
 		// nodes rather than children, so skipping here drops only the tags.
@@ -291,10 +417,9 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		// searchable (people search for code snippets). A fenced block also
 		// records the span it wrote, so a later excerpt can decline it when
 		// the same words sit in prose. An indented code block is not a fence.
-		writeSeparator(w)
 		start := w.b.Len()
 		writeBlockLines(&w.b, n, source)
-		if n.Kind() == ast.KindFencedCodeBlock {
+		if kind == ast.KindFencedCodeBlock {
 			w.recordFence(start)
 		}
 		return ast.WalkSkipChildren, nil
@@ -307,12 +432,6 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	case ast.KindAutoLink:
 		if a, ok := n.(*ast.AutoLink); ok {
 			w.writeVisible(a.URL(source))
-		}
-	default:
-		if n.Type() == ast.TypeBlock {
-			// Separate block-level text so tokens from adjacent blocks (a
-			// heading then its paragraph) do not run together.
-			writeSeparator(w)
 		}
 	}
 	return ast.WalkContinue, nil
@@ -349,6 +468,9 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 	t, ok := n.(*ast.Text)
 	if !ok {
 		return
+	}
+	if w.rewritten.covers(t.Segment.Start) {
+		w.blockVerbatim = false
 	}
 	w.writeVisible(t.Value(source))
 	if t.SoftLineBreak() || t.HardLineBreak() {
@@ -458,6 +580,10 @@ func (w *plainWalk) leaveRubyChild(child rubyChild) {
 // flushReadings writes held ruby readings as their own block after the base
 // text they came from. A later match on the base phrase can then land on the
 // sentence the page shows, and a match on the reading still finds the note.
+//
+// That is the whole of the reordering, so it is also where the block it makes
+// is refused: the page shows these readings one at a time, each beside the
+// characters it belongs to, and never as the run of words written here.
 func (w *plainWalk) flushReadings() {
 	if w.readings.Len() == 0 {
 		return
@@ -470,6 +596,7 @@ func (w *plainWalk) flushReadings() {
 	}
 	w.b.WriteString(w.readings.String())
 	w.readings.Reset()
+	w.blockVerbatim = false
 	w.closeBlock()
 }
 

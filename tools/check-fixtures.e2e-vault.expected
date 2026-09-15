@@ -5,11 +5,13 @@ map.disk_mismatch	Maps/branches.md
 map.disk_mismatch	Maps/study.md
 schema.enum	Notes/out-of-contract.md
 schema.provenance	Concepts/japanese/は.md
+schema.provenance	Notes/Audit cross block.md
 schema.provenance	Notes/Glass Tide.md
 schema.provenance	Notes/alpha.md
 schema.provenance	Notes/beta.md
 schema.provenance	Notes/browser-boundary.md
 schema.provenance	Notes/reading-fidelity.md
+schema.required	Notes/Audit cross block.md
 schema.required	Notes/alpha.md
 schema.required	Notes/beta.md
 schema.required	Notes/browser-boundary.md

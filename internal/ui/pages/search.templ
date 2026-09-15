@@ -100,6 +100,13 @@ type SearchResult struct {
 	// directive can name a range instead of the first copy of a word.
 	LandingEnd string
 
+	// LandingPrefix is the run of words the match follows inside the block
+	// its first stretch opens, so the directive can say which copy of that
+	// stretch it means. A browser walks the whole page in order, and the
+	// rail is drawn before the article. Empty where the match opens its
+	// block.
+	LandingPrefix string
+
 	// BlockCrossing reports that the match continues into a later block, so
 	// a directive built from the whole phrase would find nothing.
 	BlockCrossing bool

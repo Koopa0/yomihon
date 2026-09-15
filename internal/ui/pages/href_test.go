@@ -233,6 +233,90 @@ func TestHitFragment(t *testing.T) {
 			},
 			want: "",
 		},
+		{
+			// A one-word opening stretch is the shape the reader's navigation
+			// answers for, so the words the match follows go out ahead of it.
+			name: "a crossing match names the words the match follows",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
+				Landing:       "cobalt",
+				LandingEnd:    "egret",
+				LandingPrefix: "calls this bird",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=calls%20this%20bird-,cobalt,egret",
+		},
+		{
+			// The "-" after the escaped run is the mark that makes it a
+			// prefix, so it stays a literal while every "-" the author wrote
+			// is encoded. Escaping the two together would hand the browser
+			// one more search term instead of a prefix, and it would find
+			// nothing.
+			name: "a hyphen among those words cannot pass for the prefix mark",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "cobalt", Hit: true}},
+				Landing:       "cobalt",
+				LandingEnd:    "egret",
+				LandingPrefix: "the read-aloud button",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=the%20read%2Daloud%20button-,cobalt,egret",
+		},
+		{
+			// A crossing whose first block holds nothing locatable names only
+			// its last block, and those words are in the first: a prefix is
+			// read as one only beside a term from its own block.
+			name: "words from the first block never travel with a last-block term",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "ghi", Hit: true}},
+				LandingEnd:    "ghi",
+				LandingPrefix: "abc def",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=ghi",
+		},
+		{
+			name: "an ordinary hit names the words its match follows too",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "…The evidence records a "}, {Text: "bright crimson", Hit: true}, {Text: " heron."}},
+				Landing:       "bright crimson",
+				LandingPrefix: "evidence records a",
+			},
+			want: "#:~:text=evidence%20records%20a-,bright%20crimson",
+		},
+		{
+			// An excerpt opens before the match, so an earlier copy of one of
+			// the query's words is marked first. Those words lead to the
+			// match, not to that copy, so the row keeps the bare term.
+			name: "an earlier copy of the word is not what those words lead to",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "The decoy "}, {Text: "cobalt", Hit: true}, {Text: " sits here. The notebook calls this bird "}, {Text: "cobalt egret", Hit: true}},
+				Landing:       "cobalt egret",
+				LandingPrefix: "calls this bird",
+			},
+			want: "#:~:text=cobalt",
+		},
+		{
+			name: "a match that opens its block carries the bare term",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "alpha", Hit: true}},
+				Landing:       "alpha",
+				LandingEnd:    "gamma",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=alpha,gamma",
+		},
+		{
+			name: "words that collapse to nothing are not written as an empty prefix",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "cobalt", Hit: true}},
+				Landing:       "cobalt",
+				LandingEnd:    "egret",
+				LandingPrefix: "   ",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=cobalt,egret",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

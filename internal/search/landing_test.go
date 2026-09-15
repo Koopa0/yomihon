@@ -66,7 +66,10 @@ func unlocatedCrossingDoc() lexical.Document {
 		RelPath:   "Notes/Unlocated.md",
 		Title:     "Unlocated",
 		PlainText: plain,
-		BlockEnds: []int{strings.Index(plain, "\n"), len(plain)},
+		Blocks: []render.Block{
+			{End: strings.Index(plain, "\n"), Verbatim: true},
+			{End: len(plain), Verbatim: true},
+		},
 	}
 }
 
@@ -78,7 +81,11 @@ func emptyLandingDoc() lexical.Document {
 		RelPath:   "Notes/Empty landing.md",
 		Title:     "Empty landing",
 		PlainText: plain,
-		BlockEnds: []int{3, 7, len(plain)},
+		Blocks: []render.Block{
+			{End: 3, Verbatim: true},
+			{End: 7, Verbatim: true},
+			{End: len(plain), Verbatim: true},
+		},
 	}
 }
 
@@ -89,7 +96,11 @@ func landingIndex(t *testing.T) *lexical.Index {
 
 func landingServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	idx := landingIndex(t)
+	return serverForIndex(t, landingIndex(t))
+}
+
+func serverForIndex(t *testing.T, idx *lexical.Index) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
 		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
@@ -119,12 +130,12 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 		{
 			name:  "plain CJK",
 			query: "試讀",
-			href:  notePath + "#:~:text=%E8%A9%A6%E8%AE%80",
+			href:  notePath + "#:~:text=%E9%80%99%E6%98%AF-,%E8%A9%A6%E8%AE%80",
 		},
 		{
 			name:  "same-paragraph phrase with a line break",
 			query: `"bright crimson"`,
-			href:  notePath + "#:~:text=bright%20crimson",
+			href:  notePath + "#:~:text=evidence%20records%20a-,bright%20crimson",
 		},
 		{
 			name:  "title",
@@ -134,7 +145,7 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 		{
 			name:   "cross-paragraph phrase",
 			query:  `"cobalt egret"`,
-			href:   notePath + "#:~:text=cobalt,egret",
+			href:   notePath + "#:~:text=calls%20this%20bird-,cobalt,egret",
 			blocks: true,
 		},
 	}
@@ -162,6 +173,71 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 			}
 			if sameBlock(html, "cobalt", "egret") {
 				t.Errorf("cobalt and egret rendered in one block, so this case is not the one the lock named; html = %q", html)
+			}
+		})
+	}
+}
+
+// renderedOrderBody puts one searchable word in each of three kinds of block:
+// an ordinary paragraph, a sentence a ruby reading was taken out of, and a
+// paragraph the page gives a footnote's mark. The words are distinct so each
+// row is answered by the block it was written for.
+const renderedOrderRel = "Notes/Rendered order.md"
+
+const renderedOrderBody = "" +
+	"The ledger entry closes with lanthanum here.\n\n" +
+	"<ruby>今日<rt>きょう</rt></ruby>は晴れ、cobaltine が続く。\n\n" +
+	"The survey recorded its own[^survey] zenithal reading.\n\n" +
+	"[^survey]: The reading the survey kept for itself.\n"
+
+// Naming the words a match follows asks a browser to find that run and the
+// match side by side in what it is showing. Two of this note's blocks are not
+// shown the way the searchable text carries them — the reading is written
+// after the sentence it is spoken inside, and the mark on the page is in no
+// text here — so on those the request would match nothing and the note would
+// open at the top, which is worse than the bare term, and they keep it. The
+// ordinary paragraph beside them is what shows the run is still being named
+// where it can be: a walk that had stopped vouching for anything would pass
+// the other two rows and fail this one.
+func TestOnlyABlockThePageReproducesNamesWhatAMatchFollows(t *testing.T) {
+	t.Parallel()
+
+	idx := lexical.NewIndex([]lexical.Document{
+		lexical.DocumentFromNote(vault.Parse(renderedOrderRel, []byte(renderedOrderBody))),
+	}, validArtifactPolicy(t))
+	srv := serverForIndex(t, idx)
+	notePath := "/notes/Notes/Rendered%20order.md"
+	tests := []struct {
+		name  string
+		query string
+		href  string
+	}{
+		{
+			name:  "an ordinary paragraph names what the match follows",
+			query: "lanthanum",
+			href:  notePath + "#:~:text=entry%20closes%20with-,lanthanum",
+		},
+		{
+			name:  "the sentence a ruby reading was taken out of keeps the bare term",
+			query: "cobaltine",
+			href:  notePath + "#:~:text=cobaltine",
+		},
+		{
+			name:  "the paragraph carrying a footnote reference keeps the bare term",
+			query: "zenithal",
+			href:  notePath + "#:~:text=zenithal",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			code, body := getBody(t, srv.Client(), srv.URL+"/search/results?"+url.Values{"q": {tt.query}}.Encode())
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if got := resultHref(t, body); got != tt.href {
+				t.Errorf("href = %q, want %q; body = %q", got, tt.href, body)
 			}
 		})
 	}
@@ -261,7 +337,7 @@ func TestEverySearchResultRowLocatesOrSaysSo(t *testing.T) {
 		{name: "empty first-block stretch still names the last", q: `"  ghi"`, href: "/notes/Notes/Unlocated.md#:~:text=ghi"},
 		{name: "both stretches empty", q: `"  xxx  "`, note: true},
 		{name: "three-block phrase", q: `"alpha beta gamma"`, href: "/notes/Notes/Three%20blocks.md#:~:text=alpha,gamma"},
-		{name: "cross-paragraph with a decoy", q: `"cobalt egret"`, href: notePath + "#:~:text=cobalt,egret"},
+		{name: "cross-paragraph with a decoy", q: `"cobalt egret"`, href: notePath + "#:~:text=calls%20this%20bird-,cobalt,egret"},
 		{name: "NFD note still lands on both blocks", q: `"bright crimson"`},
 	}
 	for _, tt := range tests {
@@ -285,7 +361,7 @@ func TestEverySearchResultRowLocatesOrSaysSo(t *testing.T) {
 				t.Errorf("the empty-landing row does not say the match could not be located; body = %q", body)
 			}
 			if tt.name == "NFD note still lands on both blocks" &&
-				!strings.Contains(body, "/notes/Notes/nfd.md#:~:text=bright,crimson") {
+				!strings.Contains(body, "/notes/Notes/nfd.md#:~:text=evidence%20records%20a-,bright,crimson") {
 				t.Errorf("the NFD note did not keep a crossing range directive; body = %q", body)
 			}
 		})
