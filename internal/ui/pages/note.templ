@@ -186,8 +186,8 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	}
 }
 
-// articleHead is the breadcrumb + title + type meta + the kintsugi seam above
-// the rendered body.
+// articleHead is the breadcrumb + title + the file row + the kintsugi seam
+// above the rendered body.
 //
 // The article around it speaks the note's own language, so the words here that
 // are yomihon's rather than the author's declare the interface language again.
@@ -212,33 +212,43 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	} else {
 		<h1 class="y-title">{ v.Title }</h1>
 	}
+	// The eye should land on the title and then on the prose, so the file row
+	// folds. What stays visible is what a reader wants at a glance and nothing
+	// else; the address and the two doors out of the page wait one click away
+	// inside the browser's own disclosure, with no script between them and the
+	// reader.
 	if v.Type != "" || v.Status != "" || v.RelPath != "" || v.Updated != "" {
-		<div class="y-metarow">
-			if v.Type != "" {
-				<span class="ui-type">{ v.Type }</span>
-			}
-			// The date is a fact about the note like its type, so it sits with
-			// the facts, before the links that act.
-			if v.Updated != "" {
-				<span lang={ lang.Tag() }>{ noteDateLabel(&v, lang) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
-			}
-			if v.RelPath != "" {
-				<span>{ v.RelPath }</span>
-				// The reading page is the surface where a reader is most likely
-				// to ask what the file actually says, so it carries the door to
-				// the bytes. The line count is load-bearing: templ emits a
-				// comment's newlines as whitespace between these two links.
-				<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(lang) }</a>
-			}
-			if v.ObsidianHref != "" {
-				// Every repair yomihon reports is a hand edit, so the page
-				// offers the way to where editing happens. The href is already
-				// built and escaped server-side, so it bypasses the sanitizer
-				// that would reject its custom scheme. The line count is
-				// load-bearing here too, for the whitespace before this link.
-				<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
-			}
-		</div>
+		<details class="y-metarow">
+			<summary class="y-metarow__summary">
+				@chevron()
+				if v.Type != "" {
+					<span class="ui-type">{ v.Type }</span>
+				}
+				// The date is a fact about the note like its type, so the two
+				// stand together on the line that stays.
+				if v.Updated != "" {
+					<span lang={ lang.Tag() }>{ noteDateLabel(&v, lang) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
+				}
+			</summary>
+			<div class="y-metarow__detail">
+				if v.RelPath != "" {
+					<span>{ v.RelPath }</span>
+					// The reading page is the surface where a reader is most likely
+					// to ask what the file actually says, so it carries the door to
+					// the bytes. The line count is load-bearing: templ emits a
+					// comment's newlines as whitespace between these two links.
+					<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(lang) }</a>
+				}
+				if v.ObsidianHref != "" {
+					// Every repair yomihon reports is a hand edit, so the page
+					// offers the way to where editing happens. The href is already
+					// built and escaped server-side, so it bypasses the sanitizer
+					// that would reject its custom scheme. The line count is
+					// load-bearing here too, for the whitespace before this link.
+					<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
+				}
+			</div>
+		</details>
 	}
 	if v.Stale {
 		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>

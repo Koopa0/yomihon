@@ -621,7 +621,7 @@ func TestNoteMetarowOmitsAMissingDate(t *testing.T) {
 		t.Fatalf("the page carries no metarow; html = %q", html)
 	}
 	metarow := html[at:]
-	if end := strings.Index(metarow, "</div>"); end >= 0 {
+	if end := strings.Index(metarow, "</details>"); end >= 0 {
 		metarow = metarow[:end]
 	}
 	if strings.Contains(metarow, "<time") {
@@ -630,6 +630,78 @@ func TestNoteMetarowOmitsAMissingDate(t *testing.T) {
 	for _, label := range []string{"更新於", "檔案變更於", "Updated", "File changed"} {
 		if strings.Contains(metarow, label) {
 			t.Errorf("a dateless view still carries the label %q; metarow = %q", label, metarow)
+		}
+	}
+}
+
+// TestNoteFileRowKeepsItsAddressBehindAClosedSummary holds the opening the
+// reading page is built to give: a title, one quiet line, then the prose. The
+// line is a native disclosure that starts closed and carries the two facts a
+// reader wants at a glance; the note's address and the two doors out of the
+// page wait inside it.
+//
+// A closed disclosure keeps its content in the document, so the doors are
+// asked for by the exact address each one resolves to. Nothing here depends on
+// a script: opening the line is the browser's own behaviour.
+func TestNoteFileRowKeepsItsAddressBehindAClosedSummary(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	view := NoteView{
+		Title:        "L01",
+		Type:         "lesson",
+		RelPath:      "Writing/lessons/go/L01.md",
+		Updated:      "2026-07-10",
+		UpdatedAt:    "2026-07-10",
+		ObsidianHref: "obsidian://open?path=/vault/Writing/lessons/go/L01.md",
+	}
+	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render note: %v", err)
+	}
+	html := buf.String()
+
+	at := strings.Index(html, `<details class="y-metarow"`)
+	if at < 0 {
+		t.Fatalf("the file row is not a disclosure; html = %q", html)
+	}
+	row, _, closed := strings.Cut(html[at:], "</details>")
+	if !closed {
+		t.Fatalf("the file row never closes; html = %q", html)
+	}
+	// Read the attribute out of the opening tag rather than matching a whole
+	// tag as a substring: open arrives wherever the serializer puts it, and a
+	// pattern that fixes its neighbours matches nothing in any regression.
+	tag, _, tagClosed := strings.Cut(row, ">")
+	if !tagClosed {
+		t.Fatalf("the disclosure's opening tag never closes; row = %q", row)
+	}
+	if strings.Contains(tag, " open") {
+		t.Errorf("the file row starts expanded, so the opening column is not calm; tag = %q", tag)
+	}
+
+	summary, body, split := strings.Cut(row, "</summary>")
+	if !split {
+		t.Fatalf("the file row has no summary, so nothing says what it holds; row = %q", row)
+	}
+	for _, want := range []string{
+		`<span class="ui-type">lesson</span>`,
+		`<time datetime="2026-07-10">2026-07-10</time>`,
+	} {
+		if !strings.Contains(summary, want) {
+			t.Errorf("the closed line is missing the fact %q; summary = %q", want, summary)
+		}
+	}
+	for _, want := range []string{
+		`<span>Writing/lessons/go/L01.md</span>`,
+		`href="/raw/Writing/lessons/go/L01.md"`,
+		`href="obsidian://open?path=/vault/Writing/lessons/go/L01.md"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("opening the file row would not reach %q; body = %q", want, body)
+		}
+	}
+	for _, moved := range []string{"/raw/", "obsidian://", "Writing/lessons/go/L01.md"} {
+		if strings.Contains(summary, moved) {
+			t.Errorf("%q is still on the closed line; summary = %q", moved, summary)
 		}
 	}
 }
