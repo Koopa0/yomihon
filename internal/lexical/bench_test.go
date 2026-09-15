@@ -31,14 +31,14 @@ func BenchmarkSearchResultMaterialization(b *testing.B) {
 	body := "```d2\nneedle in a fence first\n```\n\n" +
 		strings.Repeat("The filler paragraph stays out of the way.\n\n", 40) +
 		"needle sits here\n\nand more " + strings.Repeat("filler word ", 200)
-	text, ends, fences := render.PlainBlocks(body)
+	text, blocks, fences := render.PlainBlocks(body)
 	docs := make([]Document, notes)
 	for i := range docs {
 		docs[i] = Document{
 			RelPath:     fmt.Sprintf("Notes/n%03d.md", i),
 			Title:       fmt.Sprintf("Note %03d", i),
 			PlainText:   text,
-			BlockEnds:   ends,
+			Blocks:      blocks,
 			FenceRanges: fences,
 		}
 	}
@@ -98,14 +98,14 @@ func liveVaultSizedFenceDocs() []Document {
 	// short fixture cannot show that live-vault size.
 	body := fence + strings.Repeat("The filler paragraph stays out of the way.\n\n", 120) + prose +
 		strings.Repeat("and more filler word ", 200)
-	text, ends, fences := render.PlainBlocks(body)
+	text, blocks, fences := render.PlainBlocks(body)
 	docs := make([]Document, notes)
 	for i := range docs {
 		docs[i] = Document{
 			RelPath:     fmt.Sprintf("Notes/n%03d.md", i),
 			Title:       fmt.Sprintf("Note %03d", i),
 			PlainText:   text,
-			BlockEnds:   ends,
+			Blocks:      blocks,
 			FenceRanges: fences,
 		}
 	}
@@ -128,8 +128,8 @@ func repeatedASCIIFenceDocs() []Document {
 		fencedBody.WriteString("```\n\n")
 	}
 	fencedBody.WriteString(strings.Repeat("and more filler word ", 80))
-	fencedText, fencedEnds, fences := render.PlainBlocks(fencedBody.String())
-	proseText, proseEnds, _ := render.PlainBlocks(strings.Repeat(chunk, fencesPer) + strings.Repeat("and more filler word ", 80))
+	fencedText, fencedBlocks, fences := render.PlainBlocks(fencedBody.String())
+	proseText, proseBlocks, _ := render.PlainBlocks(strings.Repeat(chunk, fencesPer) + strings.Repeat("and more filler word ", 80))
 	docs := make([]Document, notes)
 	for i := range docs {
 		if i < fenced {
@@ -137,7 +137,7 @@ func repeatedASCIIFenceDocs() []Document {
 				RelPath:     fmt.Sprintf("Notes/n%03d.md", i),
 				Title:       fmt.Sprintf("Note %03d", i),
 				PlainText:   fencedText,
-				BlockEnds:   fencedEnds,
+				Blocks:      fencedBlocks,
 				FenceRanges: fences,
 			}
 			continue
@@ -146,7 +146,7 @@ func repeatedASCIIFenceDocs() []Document {
 			RelPath:   fmt.Sprintf("Notes/n%03d.md", i),
 			Title:     fmt.Sprintf("Note %03d", i),
 			PlainText: proseText,
-			BlockEnds: proseEnds,
+			Blocks:    proseBlocks,
 		}
 	}
 	return docs

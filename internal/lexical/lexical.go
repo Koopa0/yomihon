@@ -114,10 +114,11 @@ type Document struct {
 	Aliases   []string
 	PlainText string
 
-	// BlockEnds are the exclusive end offsets of each block-level contribution
-	// in PlainText, as render.PlainBlocks reports them. Empty when the caller
-	// built the document from already-extracted text and did not know.
-	BlockEnds []int
+	// Blocks are the block-level contributions to PlainText, as
+	// render.PlainBlocks reports them: where each one ends, and whether the
+	// reading page reproduces it as written. Empty when the caller built the
+	// document from already-extracted text and did not know.
+	Blocks []render.Block
 
 	// FenceRanges are the half-open [start, end) spans in PlainText that came
 	// from a fenced code block, as render.PlainBlocks reports them. Empty when
@@ -178,7 +179,7 @@ type entry struct {
 	TopicFolds       []string
 	PlainText        string
 	PlainFold        string
-	blockEnds        []int
+	blocks           []render.Block
 	fenceRanges      [][2]int
 	fenceFoldRanges  [][2]int
 	isFile           bool
@@ -277,7 +278,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	// Fold-space spans are recorded on the same foldRunes walk that
 	// builds PlainFold, so a query can classify a hit without walking
 	// the note once per fence occurrence.
-	blockEnds, fenceRanges := remapPlainOffsets(d.PlainText, d.BlockEnds, d.FenceRanges)
+	blocks, fenceRanges := remapPlainOffsets(d.PlainText, d.Blocks, d.FenceRanges)
 	plainFold, fenceFoldRanges := foldPlain(plain, fenceRanges)
 	noteType := vault.NormalizeNFC(d.NoteType)
 	domain := vault.NormalizeNFC(d.Domain)
@@ -314,7 +315,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		TopicFolds:       topicFolds,
 		PlainText:        plain,
 		PlainFold:        plainFold,
-		blockEnds:        blockEnds,
+		blocks:           blocks,
 		fenceRanges:      fenceRanges,
 		fenceFoldRanges:  fenceFoldRanges,
 		isFile:           d.File,
@@ -328,22 +329,23 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	}
 }
 
-// remapPlainOffsets maps exclusive block ends and half-open fence spans
-// from raw onto NFC(raw) in one left-to-right pass. Each slice is
-// normalised on its own and the lengths are accumulated; the caller
-// stores the NFC body, so these offsets name characters there.
-// Pairing reads the mapped fence slice in the same start/end order the
-// ranges were flattened, so a repeated bound must not be dropped.
-func remapPlainOffsets(raw string, ends []int, fences [][2]int) (blockEnds []int, fenceRanges [][2]int) {
-	if len(ends) == 0 && len(fences) == 0 {
+// remapPlainOffsets maps block ends and half-open fence spans from raw onto
+// NFC(raw) in one left-to-right pass. Each slice is normalised on its own and
+// the lengths are accumulated; the caller stores the NFC body, so these
+// offsets name characters there. Pairing reads the mapped fence slice in the
+// same start/end order the ranges were flattened, so a repeated bound must not
+// be dropped.
+func remapPlainOffsets(raw string, blocks []render.Block, fences [][2]int) (mapped []render.Block, fenceRanges [][2]int) {
+	if len(blocks) == 0 && len(fences) == 0 {
 		return nil, nil
 	}
 	cur := newNFCCursor(raw, sortedFenceBounds(raw, fences))
-	if len(ends) > 0 {
-		blockEnds = make([]int, 0, len(ends)+1)
+	if len(blocks) > 0 {
+		mapped = make([]render.Block, 0, len(blocks)+1)
 	}
 	prevRaw := 0
-	for _, end := range ends {
+	for _, b := range blocks {
+		end := b.End
 		if end < prevRaw {
 			continue
 		}
@@ -351,23 +353,25 @@ func remapPlainOffsets(raw string, ends []int, fences [][2]int) (blockEnds []int
 			end = len(raw)
 		}
 		cur.advanceTo(end)
-		blockEnds = appendUniqueEnd(blockEnds, cur.n)
+		mapped = appendUniqueBlock(mapped, cur.n, b.Verbatim)
 		prevRaw = end
 	}
-	if len(ends) == 0 || prevRaw < len(raw) {
+	if len(blocks) == 0 || prevRaw < len(raw) {
 		cur.advanceTo(len(raw))
-		if len(ends) > 0 {
-			blockEnds = appendUniqueEnd(blockEnds, cur.n)
+		if len(blocks) > 0 {
+			// Text past the last block named belongs to none of them, so
+			// nothing has said the page reproduces it.
+			mapped = appendUniqueBlock(mapped, cur.n, false)
 		}
 	}
 	cur.finish()
-	if len(blockEnds) == 0 {
-		blockEnds = nil
+	if len(mapped) == 0 {
+		mapped = nil
 	}
 	if len(fences) > 0 {
 		fenceRanges = pairedSpans(cur.mapped)
 	}
-	return blockEnds, fenceRanges
+	return mapped, fenceRanges
 }
 
 type rawBound struct {
@@ -445,11 +449,18 @@ func (c *nfcCursor) finish() {
 	}
 }
 
-func appendUniqueEnd(out []int, n int) []int {
-	if n > 0 && (len(out) == 0 || out[len(out)-1] != n) {
-		return append(out, n)
+// appendUniqueBlock adds one mapped block, keeping the ends strictly
+// increasing. Two blocks that normalise onto the same character are one block
+// afterwards, and it is reproduced as written only if both halves were.
+func appendUniqueBlock(out []render.Block, end int, verbatim bool) []render.Block {
+	if end <= 0 {
+		return out
 	}
-	return out
+	if n := len(out); n > 0 && out[n-1].End == end {
+		out[n-1].Verbatim = out[n-1].Verbatim && verbatim
+		return out
+	}
+	return append(out, render.Block{End: end, Verbatim: verbatim})
 }
 
 func clampOff(off, n int) int {
@@ -543,7 +554,7 @@ func pairedSpans(offs []int) [][2]int {
 // from frontmatter and PlainText from the render AST. A note with malformed
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
-	text, ends, fences := render.PlainBlocks(n.Body)
+	text, blocks, fences := render.PlainBlocks(n.Body)
 	return Document{
 		RelPath:     n.RelPath,
 		Title:       n.Title(),
@@ -554,7 +565,7 @@ func DocumentFromNote(n *vault.Note) Document {
 		Topics:      n.Strings("topics"),
 		Aliases:     n.Aliases(),
 		PlainText:   text,
-		BlockEnds:   ends,
+		Blocks:      blocks,
 		FenceRanges: fences,
 		// A diagnostic here means the block was present and did not parse. A
 		// note that simply carries no frontmatter has none, and is not this.

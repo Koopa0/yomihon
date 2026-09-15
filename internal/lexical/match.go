@@ -490,8 +490,15 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 // The preceding run is cut at the start of the match's own block, because a
 // directive may only name one where it sits beside the term it introduces. A
 // match that opens its block is preceded by nothing and says so.
+//
+// So is a match in a block the page does not reproduce as written. Naming what
+// a match follows asks a browser to find the two side by side in what it is
+// showing, and on those blocks they are not: a ruby reading is written here
+// after the sentence it is spoken inside, and a footnote's mark is on the page
+// and not in this text at all. Such a run would match nothing and the note
+// would open at the top, which is worse than the bare term it replaced.
 func (e *entry) landingAt(foldStart, foldEnd int) (prefix, first, last string, crossing bool) {
-	if foldStart < 0 || foldEnd <= foldStart || len(e.blockEnds) == 0 {
+	if foldStart < 0 || foldEnd <= foldStart || len(e.blocks) == 0 {
 		return "", "", "", false
 	}
 	start := sourceOffsetOfFold(e.PlainText, foldStart)
@@ -499,7 +506,9 @@ func (e *entry) landingAt(foldStart, foldEnd int) (prefix, first, last string, c
 	if start >= end || end > len(e.PlainText) {
 		return "", "", "", false
 	}
-	prefix = landingPrefix(collapseFields(e.PlainText[e.blockStartContaining(start):start]))
+	if blockStart, verbatim := e.blockAt(start); verbatim {
+		prefix = landingPrefix(collapseFields(e.PlainText[blockStart:start]))
+	}
 	firstEnd := e.blockEndAfter(start)
 	crossing = end > firstEnd
 	firstStop := end
@@ -510,7 +519,8 @@ func (e *entry) landingAt(foldStart, foldEnd int) (prefix, first, last string, c
 	if !crossing {
 		return prefix, first, "", false
 	}
-	from := max(e.blockStartContaining(end-1), firstEnd)
+	lastStart, _ := e.blockAt(end - 1)
+	from := max(lastStart, firstEnd)
 	return prefix, first, collapseFields(e.PlainText[from:end]), true
 }
 
@@ -544,23 +554,26 @@ func collapseFields(s string) string {
 }
 
 func (e *entry) blockEndAfter(off int) int {
-	for _, end := range e.blockEnds {
-		if end > off {
-			return end
+	for _, b := range e.blocks {
+		if b.End > off {
+			return b.End
 		}
 	}
 	return len(e.PlainText)
 }
 
-func (e *entry) blockStartContaining(off int) int {
+// blockAt is where the block holding off begins, and whether the reading page
+// reproduces that block as written. An offset past every block this entry
+// knows about is reproduced by nothing anyone here has looked at.
+func (e *entry) blockAt(off int) (start int, verbatim bool) {
 	prev := 0
-	for _, end := range e.blockEnds {
-		if end > off {
-			return prev
+	for _, b := range e.blocks {
+		if b.End > off {
+			return prev, b.Verbatim
 		}
-		prev = end
+		prev = b.End
 	}
-	return prev
+	return prev, false
 }
 
 // runesBefore returns the byte offset n characters back from off, and the start

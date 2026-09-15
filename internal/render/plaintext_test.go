@@ -160,18 +160,18 @@ func TestPlainBlocksTellAWrapFromAParagraphBoundary(t *testing.T) {
 		"The evidence records a bright\ncrimson heron near the tower.\n\n" +
 		"The field notebook calls this bird cobalt\n\n" +
 		"egret beside the old lighthouse.\n"
-	text, ends, _ := render.PlainBlocks(body)
+	text, blocks, _ := render.PlainBlocks(body)
 	if text != render.PlainText(body) {
 		t.Fatalf("PlainBlocks text = %q, want the same bytes PlainText returns", text)
 	}
-	if len(ends) != 3 {
-		t.Fatalf("block ends = %v, want three blocks", ends)
+	if len(blocks) != 3 {
+		t.Fatalf("blocks = %v, want three of them", blocks)
 	}
-	if !inOneBlock(text, ends, "bright", "crimson") {
-		t.Errorf("bright and crimson are not in one block; text = %q ends = %v", text, ends)
+	if !inOneBlock(text, blocks, "bright", "crimson") {
+		t.Errorf("bright and crimson are not in one block; text = %q blocks = %v", text, blocks)
 	}
-	if inOneBlock(text, ends, "cobalt", "egret") {
-		t.Errorf("cobalt and egret share a block, so the walk did not part the paragraphs; text = %q ends = %v", text, ends)
+	if inOneBlock(text, blocks, "cobalt", "egret") {
+		t.Errorf("cobalt and egret share a block, so the walk did not part the paragraphs; text = %q blocks = %v", text, blocks)
 	}
 }
 
@@ -340,9 +340,133 @@ func searchPaths(results []lexical.Result) []string {
 	return out
 }
 
-func inOneBlock(text string, ends []int, a, b string) bool {
+// A caller may name a run of words ahead of a match only where the page shows
+// that run and that match side by side, so each block has to say whether the
+// page reproduces it as written. The rows below are the constructs this vault
+// is built from, and the two that answer yes are as load-bearing as the rest:
+// without them a walk that had simply stopped vouching for anything would read
+// as a clean pass.
+func TestPlainBlocksSayWhatThePageReproduces(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		holding  string
+		verbatim bool
+	}{
+		{
+			name:     "an ordinary paragraph",
+			body:     "The ledger entry closes with lanthanum here.\n",
+			holding:  "lanthanum",
+			verbatim: true,
+		},
+		{
+			name:     "a table cell",
+			body:     "| head | other |\n| --- | --- |\n| lanthanum sits here | beside |\n",
+			holding:  "lanthanum",
+			verbatim: true,
+		},
+		{
+			name:     "an ordinary paragraph after a ruby sentence",
+			body:     "<ruby>今日<rt>きょう</rt></ruby>は晴れ。\n\nThe ledger closes with lanthanum here.\n",
+			holding:  "lanthanum",
+			verbatim: true,
+		},
+		{
+			name:    "the sentence a ruby reading was taken out of",
+			body:    "<ruby>今日<rt>きょう</rt></ruby>は晴れ、lanthanum。\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "the readings written after that sentence",
+			body:    "<ruby>今日<rt>きょう</rt></ruby>は晴れ。\n",
+			holding: "きょう",
+		},
+		{
+			name:    "a paragraph carrying a footnote reference",
+			body:    "The survey recorded its own[^s] lanthanum reading.\n\n[^s]: A reading.\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "a footnote definition, which the page gives a way back",
+			body:    "A sentence with a note[^s].\n\n[^s]: The lanthanum the survey kept.\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "a heading, which the page may take a declared role off",
+			body:    "## Chapter lanthanum {sequence=primary}\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "a fenced code block, which the page colours and may redraw",
+			body:    "```d2\nlanthanum: right\n```\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "a wikilink written under another name",
+			body:    "The note about [[Rare earths|lanthanum]] is elsewhere.\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "a wikilink under its own name, which may still degrade",
+			body:    "The note about [[lanthanum]] is elsewhere.\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "a callout title, which the page gives an icon",
+			body:    "> [!note] The lanthanum aside\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "a highlight, whose marks the page spends",
+			body:    "The ledger closes with ==lanthanum== here.\n",
+			holding: "lanthanum",
+		},
+		{
+			name:    "a list row, which the page may take a declared role off",
+			body:    "- The lanthanum row {sequence=primary}\n",
+			holding: "lanthanum",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			text, blocks, _ := render.PlainBlocks(tt.body)
+			block, ok := blockHolding(text, blocks, tt.holding)
+			if !ok {
+				t.Fatalf("no block holds %q; text = %q blocks = %v", tt.holding, text, blocks)
+			}
+			if block.Verbatim != tt.verbatim {
+				t.Errorf("Verbatim = %v, want %v; text = %q blocks = %v", block.Verbatim, tt.verbatim, text, blocks)
+			}
+		})
+	}
+}
+
+// blockHolding is the block whose own text carries word.
+func blockHolding(text string, blocks []render.Block, word string) (render.Block, bool) {
 	start := 0
-	for _, end := range ends {
+	for _, b := range blocks {
+		if b.End < start || b.End > len(text) {
+			return render.Block{}, false
+		}
+		if strings.Contains(text[start:b.End], word) {
+			return b, true
+		}
+		start = b.End
+		if start < len(text) && text[start] == '\n' {
+			start++
+		}
+	}
+	return render.Block{}, false
+}
+
+func inOneBlock(text string, blocks []render.Block, a, b string) bool {
+	start := 0
+	for _, b2 := range blocks {
+		end := b2.End
 		if end < start || end > len(text) {
 			return false
 		}
