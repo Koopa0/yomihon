@@ -31,9 +31,12 @@ nothing here repeats it.
   example at length. Each opens by saying which question it answers.
 
 The skill describes yomihon's behaviour, which lives in the Go alongside this
-folder and is pinned by that code's own tests — two of which read `SKILL.md`
-directly, so the rule names and the callout vocabulary it lists cannot drift
-from the product without a test going red. It does not describe any particular
+folder and is pinned by that code's own tests — two of which read these files
+directly. One holds the callout vocabulary `SKILL.md` lists to the one the
+renderer answers to; the other holds every rule id named anywhere in this
+folder to the set the checks emit, in both directions, so a rule cannot be
+renamed without the mention going stale, and cannot be added without a reader
+being left with nowhere to look it up. It does not describe any particular
 vault: the types, the statuses, the fields and the directory layout are declared
 per vault in a contract file, and the skill's steady refrain is that the
 contract decides and the code never guesses.
