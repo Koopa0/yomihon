@@ -28,10 +28,10 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// apply stores the one choice this submission carries and asks for the page the
-// reader was on again. The redirect is what makes the choice visible: the words
-// and the ground are decided while a page is built, so the honest answer to a
-// change is to build one.
+// apply stores every choice this submission carries and asks for the page the
+// reader was on again. The redirect is what makes the choices visible: the
+// words and the ground are decided while a page is built, so the honest answer
+// to a change is to build one.
 func (h *Handler) apply(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, formMaxBytes)
 	lang := origin.Language(r)
@@ -89,18 +89,23 @@ func view(c *layouts.Chrome) pages.PreferencesView {
 }
 
 // store applies the submission, answering false when it carries no change this
-// page offers: no field it knows, more than one of them, a field carrying more
-// than one answer, or a value the named choice does not honour.
+// page offers: no field it knows, a field carrying no answer or several, a
+// value the named choice does not honour, or the clearing control beside a
+// choice — which would be two answers to what the reader wants left.
 //
-// A false answer has written nothing at all. A refusal that had already set one
-// cookie would hand the reader a receipt for a change it then declined to make,
-// and leave them unable to tell which half happened.
+// A false answer has written nothing at all, however many of the fields beside
+// the refused one were fine. A refusal that had already set the good cookies
+// would hand the reader an error over a page that had half changed under them,
+// with nothing to say which half.
 func store(w http.ResponseWriter, form url.Values) bool {
 	named := submitted(form)
-	if len(named) != 1 {
+	if len(named) == 0 {
 		return false
 	}
-	if named[0] == resetField {
+	if slices.Contains(named, resetField) {
+		if len(named) != 1 {
+			return false
+		}
 		if value, sole := onlyValue(form, resetField); !sole || value != resetValue {
 			return false
 		}
@@ -112,32 +117,57 @@ func store(w http.ResponseWriter, form url.Values) bool {
 		}
 		return true
 	}
-	ch, known := choiceNamed(named[0])
-	if !known {
+	changes, ok := settled(form, named)
+	if !ok {
 		return false
 	}
-	value, sole := onlyValue(form, ch.name)
-	if !sole {
-		return false
+	for _, c := range changes {
+		if c.stored {
+			writeCookie(w, c.cookie, c.value)
+			continue
+		}
+		// The option that stores nothing. Deleting the cookie is how that state
+		// is held: the stylesheet answers an unstamped root with the system's
+		// own preference, and any stored value would be an answer of yomihon's
+		// own.
+		clearCookie(w, c.cookie)
 	}
-	values := honouredValues()[ch.cookie]
-	if !ch.honours(value, values) {
-		return false
-	}
-	if slices.Contains(values, value) {
-		writeCookie(w, ch.cookie, value)
-		return true
-	}
-	// The option that stores nothing. Deleting the cookie is how that state is
-	// held: the stylesheet answers an unstamped root with the system's own
-	// preference, and any stored value would be an answer of yomihon's own.
-	clearCookie(w, ch.cookie)
 	return true
 }
 
-// submitted names the fields of this form that mean something here, so a
-// submission carrying none of them, or more than one, is told apart from one
-// carrying exactly the change a rendered form sends.
+// settled reads every choice the body names down to the cookie it lands in and
+// the value it carries, answering false when any one of them cannot be applied.
+// It writes nothing: the reading is finished before the first cookie is set, so
+// one unreadable field refuses the whole submission rather than the part of it
+// that had not been reached yet.
+func settled(form url.Values, named []string) ([]change, bool) {
+	honoured := honouredValues()
+	changes := make([]change, 0, len(named))
+	for _, name := range named {
+		ch, known := choiceNamed(name)
+		if !known {
+			return nil, false
+		}
+		value, sole := onlyValue(form, name)
+		if !sole {
+			return nil, false
+		}
+		values := honoured[ch.cookie]
+		if !ch.honours(value, values) {
+			return nil, false
+		}
+		changes = append(changes, change{
+			cookie: ch.cookie,
+			value:  value,
+			stored: slices.Contains(values, value),
+		})
+	}
+	return changes, true
+}
+
+// submitted names the fields of this form that mean something here, in the
+// order the page offers them, so a submission carrying none of them is told
+// apart from one carrying the choices a rendered form sends.
 func submitted(form url.Values) []string {
 	named := make([]string, 0, len(choices)+1)
 	for i := range choices {
@@ -153,10 +183,9 @@ func submitted(form url.Values) []string {
 
 // onlyValue is the single answer a field carries, and false when it carries
 // none or several. A rendered form sends one value per field; a body naming one
-// field twice has asked for two changes at once, which is the question the
-// field count already refuses and which gets the same answer here — otherwise
-// the second answer would be dropped in silence and the reader would hold a
-// receipt naming only the first.
+// field twice has asked for two things of one choice, and there is no answer to
+// that — dropping the second would leave the reader holding a receipt naming
+// only the first.
 func onlyValue(form url.Values, field string) (string, bool) {
 	sent := form[field]
 	if len(sent) != 1 {

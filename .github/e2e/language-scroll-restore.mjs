@@ -345,7 +345,10 @@ try {
   await prefsPage.waitForSelector('html[data-js]');
   await waitSettled(prefsPage);
 
-  const languageForm = prefsPage.locator('form.y-preffield').filter({
+  // The reading choices are one form with one submit, so this is that form:
+  // the one of the page's own two that carries the language. The other clears
+  // everything and carries no radio at all.
+  const languageForm = prefsPage.locator('form[action="/preferences"]').filter({
     has: prefsPage.locator('input[type=radio][name="lang"]'),
   });
   // A reader picks a language by pressing its name, so that is what this
@@ -383,7 +386,7 @@ try {
       setTimeout(() => resolve(delivered ? 'alive' : 'none in 1s'), 1000);
     })).catch((unreadable) => `unreadable: ${unreadable}`);
     const page = await prefsPage.evaluate(() => {
-      const label = document.querySelector('form.y-preffield label:has(input[type=radio][name="lang"]:not(:checked))');
+      const label = document.querySelector('form[action="/preferences"] label:has(input[type=radio][name="lang"]:not(:checked))');
       const shape = (element) => {
         if (!element) return null;
         const style = getComputedStyle(element);

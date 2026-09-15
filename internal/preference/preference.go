@@ -6,15 +6,18 @@
 // next request so the first painted byte already carries it. What values a
 // cookie may hold, and what a cookie holding none of them means, is answered
 // by the table that shell keeps: this package adds the words for those values,
-// the form that submits one of them, and the answer to a request no rendered
-// form could have sent.
+// the form that submits them, and the answer to a request no rendered form
+// could have sent.
 //
-// Every choice is applied by an ordinary form post — one field, one value, a
-// stored cookie and a redirect back to where the reader was. That path is the
-// whole mechanism rather than a fallback: the interface language cannot be
-// changed by any script, because the words on a rendered page are the server's,
-// and a page that works without scripting for the hardest of these choices may
-// as well work without it for all of them.
+// The choices are applied by one ordinary form post — every field the page
+// renders, each with one value, the cookies they land in, and a redirect back
+// to where the reader was. Everything picked in a visit goes together, because
+// a reader setting up their reading picks a size and a face in one sitting and
+// a submission that took one of them would be discarding the other in silence.
+// That path is the whole mechanism rather than a fallback: the interface
+// language cannot be changed by any script, because the words on a rendered
+// page are the server's, and a page that works without scripting for the
+// hardest of these choices may as well work without it for all of them.
 package preference
 
 import (
@@ -28,9 +31,9 @@ import (
 )
 
 const (
-	// formMaxBytes bounds a submitted body. One enumerated value and one
-	// same-site path never need more than this, and one field per form is what
-	// keeps the bound this small.
+	// formMaxBytes bounds a submitted body. Six enumerated values and one
+	// same-site path never come near this; what the page renders is under a
+	// hundred bytes plus the address the reader is returning to.
 	formMaxBytes = 4096
 
 	// cookieMaxAgeSeconds keeps a stored choice for a year — the same span the
@@ -138,6 +141,16 @@ type choice struct {
 	// is rendered inside, so what the page shows as chosen and what the first
 	// paint carries cannot disagree.
 	inForce func(*layouts.Chrome) string
+}
+
+// change is one cookie a submission has settled on: where the value lands, what
+// it is, and whether it is a value the cookie may carry. The option that stands
+// for storing nothing is held here as the deletion it is, so the reading that
+// resolves a body and the writing that acts on it do not each have to decide.
+type change struct {
+	cookie string
+	value  string
+	stored bool
 }
 
 // choices is what the page offers, in the order it offers it. The language
