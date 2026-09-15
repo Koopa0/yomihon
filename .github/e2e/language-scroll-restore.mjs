@@ -126,6 +126,40 @@ const waitSettled = (page) => page.evaluate(() => new Promise((resolve) => {
   }, { once: true });
 }));
 
+// Whether an arrival came through a navigation transition is a moment, and the
+// browser is free to skip that moment even where the opt-in is declared: on
+// this host it does so now and then, and a run landing on the skip reads a
+// restored rule as a pass. The declaration itself can be read at any time, so
+// the arriving document is also asked what its stylesheets say. Runs inside
+// the page. Group rules and imported sheets are walked because the opt-in is
+// legal under a media condition and inside a sheet another sheet pulls in; a
+// sheet whose rules cannot be read is skipped, and the count of readable ones
+// comes back so a page with nothing to read is named rather than passed.
+const declaredNavigationTransitions = () => {
+  const found = [];
+  let readable = 0;
+  const ViewTransitionRule = globalThis.CSSViewTransitionRule;
+  const rulesOf = (owner) => {
+    try { return owner.cssRules; } catch { return null; }
+  };
+  const walk = (rules) => {
+    for (const rule of rules) {
+      const optIn = (ViewTransitionRule && rule instanceof ViewTransitionRule)
+        || rule.cssText.startsWith('@view-transition');
+      if (optIn && (rule.navigation === 'auto' || /navigation:\s*auto\b/.test(rule.cssText))) found.push(rule.cssText);
+      const nested = rulesOf(rule.styleSheet ?? rule);
+      if (nested) walk(nested);
+    }
+  };
+  for (const sheet of [...document.styleSheets, ...(document.adoptedStyleSheets ?? [])]) {
+    const rules = rulesOf(sheet);
+    if (!rules) continue;
+    readable += 1;
+    walk(rules);
+  }
+  return { readable, found };
+};
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
@@ -230,6 +264,21 @@ try {
       href: location.pathname,
     }), 1000);
   }));
+  // The stylesheet is what a navigation transition is declared in, and load
+  // does not fire until every stylesheet has arrived, so the reading below
+  // sees the sheets this document was given rather than the ones that had
+  // landed by the time it was asked.
+  await page.waitForLoadState('load');
+  const declared = await page.evaluate(declaredNavigationTransitions);
+  if (declared.readable === 0) {
+    broken(`the page reached by following a link at ${arrival.href} carries no stylesheet whose rules can be read, so nothing here can say whether it opts into navigation transitions`);
+  }
+  if (declared.found.length > 0) {
+    fail(
+      'an-arrival-paints',
+      `the page reached by following a link declares ${declared.found.join(' ')} at ${arrival.href}; want no stylesheet opting the document into a navigation transition, whether or not this arrival used one`,
+    );
+  }
   if (!arrival.painted || arrival.reveal !== true || arrival.transition !== false) {
     fail(
       'an-arrival-paints',
