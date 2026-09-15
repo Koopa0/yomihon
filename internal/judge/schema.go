@@ -308,8 +308,14 @@ func (r *lintRun) structural(n *note) []Finding {
 	var out []Finding
 	// A domain must equal the first folder under the configured roots, e.g.
 	// Concepts/<domain>/….
+	//
+	// A scan reports composed paths, so the folder already carries the one
+	// spelling every comparison uses and only the note's value is folded here;
+	// the finding still carries the word the file wrote, so a reader is shown
+	// their own bytes.
 	if d, ok := fmScalar(n.frontmatter, "domain"); ok {
-		if folder, found := schema.DomainFolder(r.definition.Rules.DomainEqualsFolderUnder, n.path); found && d != folder {
+		if folder, found := schema.DomainFolder(r.definition.Rules.DomainEqualsFolderUnder, n.path); found &&
+			schema.NormalizeWord(d) != folder {
 			out = append(out, schemaFinding(n, "schema.domain_folder", "domain", d, "does not match its folder "+folder))
 		}
 	}
