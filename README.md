@@ -15,6 +15,12 @@ chapters and the lesson you are on; every note has its sections and the notes
 that cite it beside the text; whatever is broken is said where it is. It runs
 on your machine and changes none of your words.
 
+## Try it
+
+[yomihon.koopa0.dev](https://yomihon.koopa0.dev) is this reader over `examples/vault`,
+the sample notes in this repository. Your own vault never leaves your machine;
+that is what the install below is for.
+
 ## Install
 
 ```sh
