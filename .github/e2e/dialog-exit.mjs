@@ -97,6 +97,20 @@ const rewritePreview = (needle, replacement) => async (page) => {
 };
 
 const MUTATIONS = {
+  // On screen but at the reader's feet. This is the mutation the upper-half
+  // bound exists for: it lands the section inside the box, so a lock that only
+  // asked "is it visible" would call it a pass.
+  'open-the-sheet-with-the-section-low': {
+    target: SHEET_SECTION,
+    apply: rewriteLesson(
+      `        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
+          : 0;`,
+      `        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - body.clientHeight * 0.8
+          : 0;`,
+    ),
+  },
   // The other way to miss: carrying the reader somewhere far from where they
   // asked. Landing anywhere is not the behavior; landing at the named section
   // is, so the lock has to reject an overshoot as firmly as a no-op.
@@ -371,10 +385,16 @@ try {
     if (!landing.found) {
       broken('the opened sheet holds no element with the id the link named');
     }
-    if (landing.fromTop < 0 || landing.fromTop > landing.height) {
+    // Anywhere on screen is not the behavior. Following a link to a section
+    // puts that section at the reader's eye, the way a browser jumping to an id
+    // does, so the landing has to be in the upper half of the box: a heading
+    // resting just inside the bottom edge means the reader still has to hunt
+    // for it, and a note long enough to scroll can always bring it higher.
+    const room = Math.round(landing.height / 2);
+    if (landing.fromTop < 0 || landing.fromTop > room) {
       fail(
         'sheet-opens-at-the-named-section',
-        `at ${width}px the sheet opened with the named section ${landing.fromTop}px from the top of a ${landing.height}px box, so the reader has to go looking for what they followed`,
+        `at ${width}px the sheet opened with the named section ${landing.fromTop}px from the top of a ${landing.height}px box, want it within the top ${room}px, so the reader has to go looking for what they followed`,
       );
     }
     await named.close();
