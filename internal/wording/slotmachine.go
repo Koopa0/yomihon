@@ -5,8 +5,8 @@ package wording
 var (
 	SlotMachineLabel = both("句型練習", "Sentence practice")
 	SlotMachineLede  = both(
-		"替換詞語，句子會重新組合並朗讀。",
-		"Swap a word and the sentence rebuilds and reads itself aloud.",
+		"替換詞語，句子會重新組合；朗讀鍵會唸出來。",
+		"Swap a word and the sentence rebuilds; the speaker button reads it aloud.",
 	)
 	SlotMachineSpeak   = both("朗讀這組句子", "Read this sentence aloud")
 	SlotMachineShuffle = both("隨機更換組合", "Shuffle the words")

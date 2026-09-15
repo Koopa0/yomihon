@@ -358,9 +358,11 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 
 // The passage's language belongs to the server, which stamps it from the
 // author's read-aloud marker. The runtime reads it from there rather than
-// carrying a second copy — and it looks above the button, because the button
-// carries its own lang for its Chinese label and asking it would speak
-// Japanese in a Chinese voice.
+// carrying a second copy, and never from the button: a button carries its own
+// lang for its Chinese label, so asking the button would speak Japanese in a
+// Chinese voice. A paragraph's passage is what encloses its button; a speaker
+// that sits beside its sentence instead hands that sentence over, which is why
+// the language is resolved from a passage and not from the trigger.
 func TestSpeechLanguageComesFromTheMarkedPassage(t *testing.T) {
 	t.Parallel()
 
@@ -372,7 +374,15 @@ func TestSpeechLanguageComesFromTheMarkedPassage(t *testing.T) {
 	if strings.Contains(js, "utterance.lang = 'ja-JP'") {
 		t.Error("speech language is hardcoded at the utterance rather than read from the passage")
 	}
-	if !strings.Contains(js, "trigger?.parentElement?.closest?.('[lang]')") {
-		t.Error("speech language does not start its search above the button, so the button's own label language can win")
+	// Named positively as well, because the three checks below all pass for an
+	// utterance whose language is decided somewhere else entirely.
+	if !strings.Contains(js, "utterance.lang = speechLanguage(passage)") {
+		t.Error("the utterance's language does not come from the passage the server marked")
+	}
+	if !strings.Contains(js, "passage = trigger?.parentElement") {
+		t.Error("a paragraph's passage does not start above its button, so the button's own label language can win")
+	}
+	if strings.Contains(js, "speechLanguage(trigger)") {
+		t.Error("speech language is resolved from the button, whose lang belongs to its label rather than to the words it speaks")
 	}
 }

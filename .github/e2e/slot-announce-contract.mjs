@@ -14,6 +14,11 @@ const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const LIVE = '.y-slotlive';
 const SHUFFLE = '[data-slot-action="shuffle"]';
+const SPEAK = '[data-slot-action="speak"]';
+// The sentence is Japanese however the chrome around it is written, so this
+// site runs on its own pages, one per interface language.
+const VOICE_SITE = 'the-voice-follows-the-sentence';
+const PARAGRAPH = '[data-tts]';
 const SLOT_A = 'select[data-slot-key="A"]';
 
 // The fixture's second fill in each slot, which is what the stubbed shuffle
@@ -28,6 +33,9 @@ const SITES = [
   'select-change-stays-quiet',
   'shuffle-announces-the-sentence',
   'announced-gloss-declares-its-language',
+  'second-press-stops-the-sentence',
+  'one-speaker-speaks-at-a-time',
+  VOICE_SITE,
 ];
 
 class LockFired extends Error {
@@ -103,6 +111,34 @@ const MUTATIONS = {
     target: 'shuffle-announces-the-sentence',
     apply: rewriteScript('      render();\n      announce();\n', '      render();\n', 'shuffle handler'),
   },
+  // The defect itself: the card called the shared speech owner without handing
+  // over its button, so the owner could not tell a second press from a first.
+  'speak-without-the-button': {
+    target: 'second-press-stops-the-sentence',
+    apply: rewriteScript('        speakButton,\n', '', 'practice speak trigger'),
+  },
+  // Handing the button over hands the voice over with it: resolved from the
+  // button, the nearest declared language is the card's own root, which carries
+  // the interface language. The sentence would then be read in a Chinese or
+  // English voice on every card.
+  'speak-in-the-pages-language': {
+    target: VOICE_SITE,
+    apply: rewriteScript("        card.querySelector('.y-slotoutput'),\n", '', 'practice speech passage'),
+  },
+  // Stopping on a second press of the same button is kept; what goes is
+  // stopping the speaker already running when a different one is pressed, so
+  // the page marks two at once. Aimed here and nowhere else: taking the release
+  // out of stopSpeech itself would break the second press too, and the site
+  // that watches the second press would catch it first and say nothing about
+  // how many speakers the page believes are speaking.
+  'start-without-stopping-the-other': {
+    target: 'one-speaker-speaks-at-a-time',
+    apply: rewriteScript(
+      '    }\n    stopSpeech();\n    const generation = speechGeneration;',
+      '    }\n    const generation = speechGeneration;',
+      'stop the speaker already running',
+    ),
+  },
   'drop-the-gloss-language': {
     target: 'announced-gloss-declares-its-language',
     apply: rewriteScript("      gloss.lang = 'zh-Hant';\n", '', 'announced gloss language'),
@@ -157,7 +193,23 @@ try {
   await page.addInitScript(() => {
     Math.random = () => 0.99;
   });
-  proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+  // Headless Chrome need not produce audio, and whether a voice is installed is
+  // not this lock's business. What the page decides is: the calls it makes at
+  // the speech boundary, recorded here, and a start event so the button holds
+  // the speaking state the way it would while a voice was running.
+  await page.addInitScript(() => {
+    window.__speechCalls = [];
+    speechSynthesis.speak = (utterance) => {
+      window.__speechCalls.push('speak');
+      setTimeout(() => utterance.dispatchEvent(new Event('start')), 0);
+    };
+    speechSynthesis.cancel = () => {
+      window.__speechCalls.push('cancel');
+    };
+  });
+  proof = MUTATE && MUTATIONS[MUTATE].target !== VOICE_SITE
+    ? await MUTATIONS[MUTATE].apply(page)
+    : null;
 
   const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) broken(`${PAGE} returned ${response?.status() ?? 'no response'}, want 200`);
@@ -201,7 +253,100 @@ try {
     fail('announced-gloss-declares-its-language', `the announced gloss declares ${JSON.stringify(glossSpan.language)}, want "zh-Hant"; the region around it is Japanese, so an undeclared gloss is read in a Japanese voice`);
   }
 
-  console.log('PASS slot-announce-contract: the card announces its shuffled sentence, stays quiet where the select already speaks, and marks the gloss language');
+  // The speaker beside the card is the one the reader already met further up
+  // the page, so pressing it while it speaks stops it. Cancelling and starting
+  // the same sentence again reads as a button that does nothing.
+  const readSpeech = () => page.evaluate((speak) => {
+    const button = document.querySelector(speak);
+    return {
+      calls: [...window.__speechCalls],
+      speaking: button.hasAttribute('data-speaking'),
+      label: button.getAttribute('aria-label'),
+    };
+  }, SPEAK);
+
+  if (await page.locator(SPEAK).count() !== 1) {
+    broken('the card shows no speaker button, so there is nothing to press twice');
+  }
+  const stopLabel = await page.evaluate(() => document.querySelector('[data-readaloud-controls]')?.dataset.readaloudStopthis ?? '');
+  if (!stopLabel) {
+    broken('the page carries no stop-this label, so the speaking button has no words to take');
+  }
+
+  await page.click(SPEAK);
+  const firstPress = await readSpeech();
+  if (!firstPress.speaking || firstPress.label !== stopLabel) {
+    fail('second-press-stops-the-sentence', `one press left the speaker speaking=${firstPress.speaking} labelled ${JSON.stringify(firstPress.label)}, want it holding the speaking state and the stop label ${JSON.stringify(stopLabel)} the paragraph speakers take`);
+  }
+
+  await page.click(SPEAK);
+  const secondPress = await readSpeech();
+  const spoken = secondPress.calls.filter((call) => call === 'speak').length;
+  if (spoken !== 1) {
+    fail('second-press-stops-the-sentence', `two presses asked the voice to speak ${spoken} times (${secondPress.calls.join(', ')}), want 1: the second press stops the sentence rather than starting it again`);
+  }
+  if (secondPress.speaking) {
+    fail('second-press-stops-the-sentence', 'the speaker still holds the speaking state after the press that stopped it');
+  }
+
+  // Two speakers now reach one voice, so the page has to say which of them is
+  // speaking -- and only one can be. Before the card was handed its button it
+  // could never hold the speaking state at all, so this could not be broken and
+  // nothing watched it; handing the button over is what made it breakable.
+  const speakingCount = () => page.evaluate(() => document.querySelectorAll('[data-speaking]').length);
+  if (await page.locator(PARAGRAPH).count() < 1) {
+    broken('the lesson marks no paragraph for reading aloud, so there is no second speaker to hand the voice to');
+  }
+  for (const [step, target] of [['the paragraph', PARAGRAPH], ['the card', SPEAK], ['the paragraph again', PARAGRAPH]]) {
+    await page.locator(target).first().click();
+    const marked = await speakingCount();
+    // Exactly one: two means the speaker that stopped never let go, and none
+    // means the one that started never took hold. Both read as a page that
+    // cannot say what is speaking.
+    if (marked !== 1) {
+      fail('one-speaker-speaks-at-a-time', `after pressing ${step} the page marks ${marked} speakers as speaking, want exactly 1`);
+    }
+  }
+
+  // The voice is the sentence's, not the page's. Read in the language of the
+  // chrome, a Japanese line comes out in a Chinese or English voice, which is
+  // not a smaller version of reading it aloud.
+  for (const interfaceLang of ['zh-Hant', 'en']) {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await context.addCookies([{ name: 'yomihon_lang', value: interfaceLang, url: BASE }]);
+    const voicePage = await context.newPage();
+    await voicePage.addInitScript(() => {
+      window.__spoken = [];
+      speechSynthesis.speak = (utterance) => {
+        window.__spoken.push(utterance.lang);
+        setTimeout(() => utterance.dispatchEvent(new Event('start')), 0);
+      };
+      speechSynthesis.cancel = () => {};
+    });
+    const voiceProof = MUTATE && MUTATIONS[MUTATE].target === VOICE_SITE
+      ? await MUTATIONS[MUTATE].apply(voicePage)
+      : null;
+    await voicePage.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await voicePage.waitForSelector(SPEAK, { state: 'attached', timeout: 2000 });
+    if (voiceProof) {
+      const issue = voiceProof();
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
+      mutationApplied = true;
+    }
+    await voicePage.click(SPEAK);
+    const spoken = await voicePage.evaluate(() => [...window.__spoken]);
+    if (spoken.length !== 1) {
+      broken(`pressing the speaker under ${interfaceLang} asked the voice to speak ${spoken.length} times, want exactly 1 to read its language from`);
+    }
+    // Written out rather than read back off the page: an expectation taken from
+    // the element the code reads would agree with the code whatever it says.
+    if (spoken[0] !== 'ja') {
+      fail(VOICE_SITE, `with the interface in ${interfaceLang} the card asked for a ${JSON.stringify(spoken[0])} voice, want "ja": the sentence is Japanese however the page around it is written`);
+    }
+    await context.close();
+  }
+
+  console.log('PASS slot-announce-contract: the card announces its shuffled sentence, stays quiet where the select already speaks, marks the gloss language, stops on the second press of its speaker, marks exactly one speaker at a time, and asks for a Japanese voice in either interface language');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

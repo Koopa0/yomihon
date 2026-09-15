@@ -2,12 +2,14 @@
 // practice, and native concept sheets. The authored lesson remains readable
 // when this module is absent or speech is unavailable.
 // speechLanguage reads the voice off the passage the server already marked,
-// rather than naming a language here that the server names too. The search
-// starts above the button because the button carries its own lang — its label
-// is interface Chinese wrapped around Japanese text — so asking the button
-// would speak the passage in the language of its own label.
-function speechLanguage(trigger) {
-  const declared = trigger?.parentElement?.closest?.('[lang]')?.getAttribute('lang');
+// rather than naming a language here that the server names too. It is given the
+// passage, never the button: a button's own lang belongs to its label, which is
+// interface Chinese wrapped around Japanese text, and a sentence spoken in the
+// language of the label around it is the wrong voice. A paragraph's passage is
+// what encloses its button; the practice card's is the line it rewrites, which
+// the server marks Japanese however the chrome around it is written.
+function speechLanguage(passage) {
+  const declared = passage?.closest?.('[lang]')?.getAttribute('lang');
   return declared && declared !== 'und' ? declared : 'ja-JP';
 }
 
@@ -55,7 +57,7 @@ export function initLesson() {
     announce(stoppedLabel);
   }
 
-  function speakJapanese(text, trigger = null) {
+  function speakJapanese(text, trigger = null, passage = trigger?.parentElement) {
     if (!text || !('speechSynthesis' in window)) return;
     if (trigger && trigger === activeSpeakButton) {
       stopSpeech();
@@ -67,7 +69,7 @@ export function initLesson() {
     // The note says what language it is in; reading it aloud in another one is
   // not a smaller version of the feature, it is the wrong words. A note that
   // declares nothing falls back to the passage's own marker.
-  utterance.lang = speechLanguage(trigger);
+  utterance.lang = speechLanguage(passage);
     utterance.rate = speechRate;
     if (trigger) {
       activeSpeakButton = trigger;
@@ -200,8 +202,17 @@ export function initLesson() {
         render();
       });
     });
-    card.querySelector('[data-slot-action="speak"]')?.addEventListener('click', () => {
-      speakJapanese(data.template.replace(/\{([A-Za-z0-9]+)\}/g, (_, key) => fill(key)?.jp || ''));
+    const speakButton = card.querySelector('[data-slot-action="speak"]');
+    // Handing the button over is what makes this the same control the reader
+    // already met further up the page: pressing it while it speaks stops,
+    // instead of cancelling and starting the same sentence over again, and it
+    // carries the speaking state and the stop label while it runs.
+    speakButton?.addEventListener('click', () => {
+      speakJapanese(
+        data.template.replace(/\{([A-Za-z0-9]+)\}/g, (_, key) => fill(key)?.jp || ''),
+        speakButton,
+        card.querySelector('.y-slotoutput'),
+      );
     });
     card.querySelector('[data-slot-action="shuffle"]')?.addEventListener('click', () => {
       keys.forEach((key) => {
