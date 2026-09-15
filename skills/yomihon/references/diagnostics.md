@@ -5,8 +5,10 @@ telling me, whose rule is it, and what is the repair?
 
 There is one authority for this and it is the command, not this page. Where the
 two disagree, believe the command. What this page adds is the whole set in one
-place: a finding you can look up is a finding you can fix, and a rule id you
-cannot find here is a rule this page has fallen behind on.
+place: a finding you can look up is a finding you can fix. A rule id the
+command emits that you cannot find here should be impossible — a test in the
+repository holds this folder's ids to the emitted set in both directions — so
+if it happens, this page is stale and the test is not running.
 
 ## Running it
 
@@ -135,7 +137,7 @@ verdict.
 | `schema.slug` | the slug does not match `[rules] slug_pattern` | `#rules` |
 | `schema.domain_folder` | the note's `domain` disagrees with the folder it sits in, under a root `[rules] domain_equals_folder_under` names | `#rules` |
 | `schema.legacy_tag` | a tag carrying a slash, under `[rules] forbid_tag_with_slash` — a property written in the wrong place | `#rules` |
-| `schema.provenance` | a note of the `concept` type carries none of the provenance fields `[rules] concept_requires_provenance` names. Its message is a frozen sentence naming `based_on` and `source_locator`; the fields actually demanded are whichever your contract lists, so read the contract rather than the message | `#rules` |
+| `schema.provenance` | a note of the `concept` type carries none of the provenance fields `[rules] concept_requires_provenance` names. Its message is a frozen sentence, `frontmatter concept has neither based_on nor source_locator`, and those two words are in the message rather than in your contract: the fields actually demanded are whichever your contract lists, and `source_locator` is not even a legal key in the vault this repository ships. Read the contract, not the message | `#rules` |
 | `schema.unmatched_knowledge_dir` | `[scan] knowledge_dirs` names a directory this vault does not have, so the frontmatter rules reach nothing there. The fault is in the contract, not in a note | `#scan` |
 
 ## The link and name rules
@@ -199,7 +201,21 @@ filed outside that layer does not count towards it.
 [`maps.md`](maps.md) owns what the three mount states mean and how to move one.
 
 `yomihon exists <name>` exits 0 when a note for the name exists and 1 when none
-does, so a write-if-absent can gate on the exit code alone.
+does, so a write-if-absent can gate on the exit code — but on **0 against 1**,
+not on zero against everything else. `exists` refuses like the other two, and a
+refusal exits **2**:
+
+```sh
+yomihon exists --root <vault> "$name"; case $? in
+  0) : ;;                       # it is there, write nothing
+  1) write_the_note ;;          # it is not there
+  *) exit 2 ;;                  # the command could not answer; do not decide
+esac
+```
+
+`exists "$name" || write_the_note` is the shape to avoid: it takes the write
+branch on a refusal, so a vault whose contract merely stopped loading grows a
+second note under a name that already exists.
 
 A note inside a `[privacy] never_egress_dirs` directory is the case to get
 right, and it is the one place a withheld note still answers. It is never

@@ -28,9 +28,19 @@ nothing here repeats it.
 - [`yomihon/references/`](yomihon/references/) — six files, one per subject,
   each the authority for what it covers: the frontmatter contract, how a name
   resolves, the study-path grammar, how a map works, the diagnostics, and the
-  worked example at length. The entry point links to them rather than
-  summarising them, so no fact in this folder has two homes to drift between.
-  Each opens by saying which question it answers.
+  worked example at length. Each opens by saying which question it answers.
+
+Every rule has exactly one file that states it in full, and the others point
+there instead of restating it. That is not the same as saying nothing appears
+twice — the entry point names a great deal in a sentence each, and has to. What
+it should never do is explain the same rule a second way; where you find two
+explanations of one rule, one of them is the bug.
+
+Some of what the skill quotes lives outside this folder and cannot be checked
+from inside it: `examples/vault` in the repository above, which every quoted
+count and JSON line comes from, and the two tests below. A reader who has only
+the skill can still act on every rule in it; they just cannot re-derive the
+figures.
 
 The skill describes yomihon's behaviour, which lives in the Go alongside this
 folder and is pinned by that code's own tests — two of which read these files
@@ -45,7 +55,12 @@ contract decides and the code never guesses.
 
 ## Installing it
 
-To try it without placing anything, point Claude Code at the clone:
+You will need a `yomihon` on your `PATH` as well as the skill: four of the
+five steps the skill asks for end in running it, and it has no `--version` to
+introduce itself with. The skill's own "Prove your instrument" section is how
+you find out whether the one you have is current.
+
+To try the skill without placing anything, point Claude Code at the clone:
 
 ```sh
 claude --plugin-dir ~/src/yomihon        # wherever the clone is

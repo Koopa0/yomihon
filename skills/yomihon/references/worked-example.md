@@ -188,7 +188,9 @@ Opening *Reading yomihon* there:
 ## Every way this goes wrong, and what check says
 
 Each block below is one change to the finished state above, and the finding is
-the real output of the command in step 5 against that change.
+the real output of `check` against that change. All but one use the command
+from step 5 unchanged; the exception says so, because its fault is in a third
+file and a path filter cannot report a file it was not given.
 
 **A status the type cannot hold.** `status: published` on the lesson:
 
@@ -233,9 +235,14 @@ table, so the pattern to satisfy is written in the vault, not in yomihon.
 
 This is the course rule speaking, not the link rule, and that is the general
 case rather than a quirk of this example: [`study-paths.md`](study-paths.md)
-owns it. The same mistake in ordinary prose reports differently — replace line
+owns it. The same mistake in ordinary prose reports differently. Replace line
 24 of `Notes/Wikilinks in this dialect.md` with a sentence carrying
-`[[Say which language a note is in]]` and you get:
+`[[Say which language a note is in]]`, and name that third file on the command
+line — the step-5 filter names two files and would report nothing about it:
+
+```sh
+yomihon check --root /tmp/lab --format json "Notes/Wikilinks in this dialect.md"
+```
 
 ```json
 {"rule_id":"link.title_not_alias","severity":"warn","path":"Notes/Wikilinks in this dialect.md","line":24,"message":"[[Say which language a note is in]] resolves to no filename or alias","evidence":"the target is the title of Lessons/L04 Say which language a note is in.md but not one of its aliases", ...}
@@ -268,13 +275,18 @@ flattened into the parent as a guess.
 
 ## The check that would have caught each of these
 
-All of them are `warn` or `error`, so one command is the whole gate:
+All of them are `warn` or `error`, so one command covers the two files you
+touched:
 
 ```sh
-yomihon check --root /tmp/lab --format json --deny warn \
+yomihon check --root /tmp/lab --format json --deny warn --all \
   "Lessons/L04 Say which language a note is in.md" "Notes/Reading yomihon.md"
 ```
 
-Exit 1 means something above is true of your change; exit 0 means the note is
-where you think it is. Run it before you say the note is written, not after
-someone notices the count is wrong.
+`--all` is there because a path filter and the knowledge-layer filter are two
+different cuts: without it, a file outside `[scan] knowledge_dirs` has its
+findings dropped and the run exits 0 having judged nothing. Exit 1 means
+something above is true of your change; exit 0 means the note is where you
+think it is, in the two files you named — a fault you introduced in a third
+file is a run you have not made. Run it before you say the note is written, not
+after someone notices the count is wrong.

@@ -9,8 +9,10 @@ down, so it is worth reading rather than assuming.
 ## See the keys for yourself
 
 The entry point states the rule. Here is the experiment that shows it, which
-you can run in a minute against `examples/vault`. Put these nine links in one
-note and run `check` over it:
+you can run in a minute against `examples/vault`. Put these nine links in a new
+note under `Notes/` **with no frontmatter block at all** — that vault's contract
+writes `no_frontmatter_is_legal = true`, so an unframed note draws nothing and
+the only findings left are about the links — and run `check` over it:
 
 ```markdown
 1. [[The vault contract]]
@@ -24,7 +26,9 @@ note and run `check` over it:
 9. [[The contract]]
 ```
 
-`check` prints exactly one finding, for line 9. Eight resolve: lines 1–4 are
+`check` prints exactly one finding, for the ninth link. (Give that note
+frontmatter instead and you will also collect a `schema.required` for each key
+`[fields] required` names, which is a true answer to a different question.) Eight resolve: lines 1–4 are
 the four forms of the note's location; 5–7 are the same key after the fold —
 trimmed, NFC, compared without regard to case; 8 is one of the two aliases that
 note declares in its frontmatter (`aliases: [contract, vault-schema]`). Only the

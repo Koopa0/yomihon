@@ -192,6 +192,11 @@ L04 follows L03, because the container is L03's child and L04 is its sibling.
 L07 has no next lesson, because L08 is unwritten. The routine block is absent
 from navigation and reads normally on the page.
 
+That example is deliberately not clean: `check` reports one
+`map.disk_mismatch` for L08, and `--deny warn` on it exits 1. The italic
+*(尚未撰寫)* is a note to a human and means nothing to yomihon. The next
+section is how you say it in a way the gate accepts.
+
 ## A lesson row is judged by the course rules, not the link rules
 
 A row that yomihon accepted as a lesson row is no longer an ordinary link as
@@ -235,5 +240,6 @@ it nests under has to be an accepted lesson row, so hanging one under a
 checkbox row, a noncanonical row or a multi-target row orphans it while the
 parent row still looks fine to a reader.
 
-To gate on course structure, run `check` with `--deny warn` on the path you
-touched.
+To gate on course structure, run `check` with `--deny warn --all` on the path
+you touched — `--all` because a path filed outside `[scan] knowledge_dirs`
+would otherwise have its findings dropped and the run would exit 0.

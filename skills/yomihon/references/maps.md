@@ -8,10 +8,12 @@ A study path says what to read *next*. A map says what belongs *together*. The
 two are different note types, declared separately, and a map reads none of the
 study-path grammar.
 
-The commands below are run against `examples/vault`, the small vault this
-repository ships, because its numbers can then be quoted exactly. Every one of
-them works the same against your own vault with `--root` pointed at it; only
-the figures change.
+The commands below are run against `examples/vault`, the small vault the
+yomihon repository ships, because its numbers can then be quoted exactly. If
+you have that repository, run along. If you do not — you installed this skill
+beside your own vault, which is where it belongs — every command works the same
+with `--root` pointed at your own vault, and only the figures change; read the
+quoted ones as the shape of the answer.
 
 ## A map is declared, not recognised
 
@@ -72,7 +74,7 @@ A map's tree is read out of the body alone:
 | | |
 |---|---|
 | A branch | a heading from H2 to H6. An H1 is treated as the note's title and opens nothing |
-| An entry | a `[[link]]` under the open heading that resolves to exactly one governed note — in a list row, a checkbox row, prose, a table cell, or the heading itself |
+| An entry | a `[[link]]` under the open heading that resolves to exactly one note under the vault's lifecycle — in a list row, a checkbox row, prose, a table cell, or the heading itself |
 | Never an entry | a link inside a code fence, a code span, an authored HTML block, or `%%…%%`; and a link written before the first heading, which no branch is open to hold |
 | Dropped from the tree | a name that resolves to nothing, a name two files answer to, and a target inside a directory `[artifacts] non_instance_dirs` names |
 | Dropped from the page | a heading with no entry of its own and no descendant carrying one — a heading of pure prose never appears |

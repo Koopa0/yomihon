@@ -41,10 +41,10 @@ message says which: `status "published" is not a valid lesson status`, not
 
 | Key | What it does to your note |
 |---|---|
-| `known` | the keys any note may carry. A key on neither this list nor `lesson_only` is `schema.unknown_key`, an error. There is no harmless extra key — including keys other yomihon capabilities read, like `topics` for the `topic:` filter or `domain` for `domain:`. Writing a field is not the same as opening the capability; the contract has to declare it too |
+| `known` | the keys any note may carry. A key on neither this list nor `lesson_only` is `schema.unknown_key`, an error. There is no harmless extra key — including keys other yomihon capabilities read, like `topics` for the `topic:` filter or `domain` for `domain:`. Writing a field is not the same as opening the capability; the contract has to declare it too. **Unlike the omitted lists elsewhere in this file, an omitted `known` is the empty set,** not permission: a contract with no `[fields]` table at all makes every key in every note an unknown key, `title` included |
 | `required` | every key here must be present. "Present" means a non-empty scalar or a non-empty list, so a required field written as a one-item list counts |
 | `lesson_only` | keys only a lesson **may** carry. This is permission, not obligation: nothing here becomes mandatory by being listed, and any non-lesson carrying one gets `schema.unknown_key` |
-| `required_inbox` | for a note whose type is `inbox`, this list **replaces** `required` entirely — it is not a delta on top of it |
+| `required_inbox` | for a note whose type is `inbox`, this list **replaces** `required` entirely — it is not a delta on top of it. `inbox` is one of three type names yomihon reserves the spelling of, with `lesson` and `concept`; your contract decides whether such a type exists, never what it is called, and a contract using `required_inbox` without `inbox` in `[enums] type` is refused |
 | `domain_exempt_types` | types excused from carrying `domain`, and only `domain`. A course and a map usually span subjects, which is what this is for |
 
 Three consequences worth holding on to.
@@ -141,9 +141,13 @@ level=WARN msg="vault contract policy unavailable" capability=artifact
   reason="contract declares no artifact policy; instance projections disabled until it does"
 ```
 
-and the projections it disables include the study paths and the maps — the same
-startup line that read `paths=2 maps=5` with the section present reads
-`paths=0 maps=0` without it, on an otherwise identical vault.
+What it closes is what the **server** projects: on `examples/vault` the line
+below it reads `paths=2 maps=2` with the section present and `paths=0 maps=0`
+without it, so the syllabus and map pages go with it. It does **not** silence
+`check`: run the course rules over a study path with an undeclared branch and
+`path.role_missing` comes back byte for byte the same either way. Writing
+`non_instance_dirs = []` is a declaration like any other and keeps the
+projections open, which is why a probe vault can carry it and mean it.
 
 ### `[privacy]` — the one omission that stops the tooling dead
 

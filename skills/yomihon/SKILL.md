@@ -18,8 +18,14 @@ searched or rendered.
 **Everything beyond that is declared, never inferred.** yomihon reads no
 structure, and no claim about a note's quality or status, out of heading
 wording, list punctuation, or indentation. When it cannot determine a
-projection it keeps the prose, stops, and reports. It never guesses, never
-flattens, and never edits your file.
+projection it keeps the prose, stops, and reports. It never guesses and never
+flattens, and the only byte of your file it ever writes is the value of one
+frontmatter field — `status`, and only when a person presses a control.
+
+Everything below assumes a `yomihon` on your `PATH`. There is no `--version`
+to ask; this page's probe is how you find out what the one you have can see.
+`yomihon serve` runs until you stop it, so the recipes that use it are two
+things to do, not one line to paste.
 
 The contract (`<vault>/System/schemas/vault-schema.toml`) owns types, fields,
 statuses, the scan and privacy boundaries, and which types form courses and
@@ -31,8 +37,9 @@ right.
 This file is the entry point: it names every decision a note has to make and
 sends you to the file that owns the whole of each subject. Beside it,
 `references/` holds one file per subject, and each is the authority for what it
-covers — where this page would otherwise repeat one, it links instead, so every
-fact has one home and cannot drift from a second copy.
+covers. This page names things in a sentence each; when a rule needs more than
+a sentence it links rather than explaining it a second way, because a second
+explanation is what drifts.
 
 ## What carrying this skill changes
 
@@ -63,10 +70,17 @@ without `--deny` is not evidence of a clean vault. A severity passed to
 `--deny` is a threshold, not a match: `--deny warn` fails on warnings and
 errors both.
 
-To gate on course structure, use `--deny warn` on the path you touched. It
-catches every course and link fault except the ones your vault has declared
-owed rather than missing, which sit at `info` on purpose — the severity model
-and the accident hiding in it are in `references/diagnostics.md`.
+To gate on course structure, use `--deny warn --all` on the path you touched.
+`--all` is not optional cosmetics: without it a finding that touches nothing
+inside `[scan] knowledge_dirs` is dropped and the run exits 0 over a file the
+rules never judged.
+
+That gate is not a completeness claim, and this page makes none. It misses at
+least three things by design: anything your vault has declared owed rather
+than missing, which sits at `info`; a side branch declared with headings
+rather than nested rows, which `references/study-paths.md` shows passing in
+silence; and a lesson you never listed, which `map.disk_unlisted` almost never
+catches. The severity model is in `references/diagnostics.md`.
 
 When the command cannot run at all it exits 2 with **empty stdout** and the
 reason on stderr. On a vault that otherwise looks healthy the cause is almost
@@ -115,9 +129,13 @@ schema_version = "1"
 type = ["probe"]
 [enums.status]
 note = ["draft"]
+[fields]
+known = ["title", "type", "status"]
 [navigation]
 path_types = ["probe"]
 map_types = []
+[artifacts]
+non_instance_dirs = []
 [privacy]
 never_egress_dirs = []
 [[lifecycle]]
@@ -144,7 +162,7 @@ rm -rf "$probe"
 case $verdict in
   1) echo "proven: this binary reports path.role_missing" ;;
   0) echo "blind: it knows the rule's name and did not report it — distrust its quiet course reports" ;;
-  *) echo "could not run: it refused the probe vault, so it has told you nothing" ;;
+  *) echo "could not run: no yomihon on PATH, a rule id it has never heard of, or a refusal — it has told you nothing" ;;
 esac
 ```
 
@@ -155,15 +173,22 @@ success by accident:
 |---|---|
 | `1` | the gate fired: this binary sees the course rules |
 | `0` | it accepted `path.role_missing` as a real rule id and then found none on a branch that has to produce one |
-| anything else | it could not run — an unknown `--deny` value from a binary that has never heard of the rule, or a refusal — and has said nothing about itself either way |
+| `2` | it could not run: an unknown `--deny` value from a binary that has never heard of the rule, or a refusal |
+| `127` | there is no `yomihon` on your `PATH` at all |
 
-`--all` is what keeps that contract free to change: give it a
-`[scan] knowledge_dirs` naming any directory and, without `--all`, the finding
-is dropped for sitting outside the knowledge layer and a healthy binary reports
-*blind*. Change any one part — drop `--all` under such a contract, name a rule
-that cannot fire here, declare a `path_types` value the note does not carry —
-and the verdict stops being *proven*, which is how you know the check can fail
-rather than always reading green.
+The last two share the `*)` branch because neither says anything about the
+binary's rules, and both are things to fix before the probe means anything.
+
+Prove to yourself that it can fail, rather than taking that on trust. Two
+mutations do it against the contract exactly as written: change
+`--deny path.role_missing` to `--deny collision.alias`, a real rule that
+nothing in this tree can produce, and the verdict turns *blind*; change
+`path_types = ["probe"]` to a type the note does not carry, and it turns
+*blind* again. A third needs one more edit: add
+`[scan]` with `knowledge_dirs = ["Elsewhere"]` and drop `--all`, and the
+finding is discarded for sitting outside the knowledge layer — which is why
+`--all` is in the command, and why dropping it alone changes nothing here,
+where no `[scan]` table exists.
 
 ## Frontmatter: the contract decides, and you may not invent a field
 
@@ -212,8 +237,10 @@ broken are in `references/names-and-links.md`.
 ## What the renderer treats specially
 
 CommonMark and GFM render — tables, task lists, strikethrough, bare-URL
-autolinks — plus footnotes, whose ids are prefixed per additional region so two
-bodies on one page never collide. Beyond that:
+autolinks — plus footnotes. A page that pulls a second body into itself with an
+embed prefixes that body's footnote ids (`fn:1` in the host, `y1-fn:1` in the
+embedded one), so two notes' footnotes on one page never collide. Beyond
+that:
 
 | Written | Renders as | Miss behaviour |
 |---|---|---|
@@ -289,7 +316,7 @@ case-sensitive, and exact about where they may be written:
 is a side branch, with its own order and its own count and no prev/next link to
 or from the main line. `none` leaves navigation entirely and still reads.
 Undeclared is unclassified, and unclassified projects nothing —
-`path.role_missing`, the second commonest fault there is.
+`path.role_missing`, the commonest fault there is.
 
 Four habits carry most of it: declare a role on every branch that lists
 lessons; open a lesson row with its `[[link]]` and put the commentary after it;
@@ -339,10 +366,12 @@ in this order, and only the last is about the course:
 Then `yomihon check --root <vault> --format json <the lesson> <the path>`, and
 it should print nothing at all.
 
-Step 5 has the fault most worth fearing in it. Put a word in front of the link
-— `- 第四課：[[L04 …]]` — and you get `path.entry_noncanonical`: the row still
-reads, the link still works, the page looks finished, and the course count
-silently drops back by one.
+Step 5 carries the fault most worth fearing **when you are adding a lesson**.
+Put a word in front of the link — `- 第四課：[[L04 …]]` — and you get
+`path.entry_noncanonical`: the row still reads, the link still works, the page
+looks finished, and the course count silently drops back by one. (The dialect's
+most expensive accident overall is a different one, and it belongs to broken
+links rather than to courses: `references/names-and-links.md` owns it.)
 
 `references/worked-example.md` is this walk done for real against the vault
 this repository ships — every contract table it draws on, the counts before and
@@ -372,9 +401,12 @@ below is not something `check` will do for you.**
 
 1. `yomihon check --root <vault> --format json <path>` is quiet for your file,
    run with a binary the probe above says is proven.
-2. `--deny warn` on the path you touched exits 0 — the threshold covers errors
-   too, so that one run says you invented no field, wrote no value the contract
-   does not declare, and left no branch undeclared.
+2. `--deny warn --all` on the path you touched exits 0 — the threshold covers
+   errors too, so that one run says you invented no field, wrote no value the
+   contract does not declare, and left no branch undeclared. Without `--all` a
+   note filed outside `[scan] knowledge_dirs` passes by being unjudged, which
+   step 3 of the walk above warns about and this command would otherwise
+   reintroduce.
 3. If the note is a lesson, a study path lists it — in the same change.
 4. If you added a branch, it carries a `{sequence=…}` declaration.
 5. Every `[[link]]` resolves, or is deliberately a planned gap under a gap
