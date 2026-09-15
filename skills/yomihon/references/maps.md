@@ -140,19 +140,18 @@ is what holds you to it.
 ## Nothing reports a map's shape
 
 A map has no rule of its own. The two whose names open with *map* judge study
-paths instead, which [`study-paths.md`](study-paths.md) explains. Its links are
-judged like any other note's — a
-dead `[[link]]` in a map is an ordinary `link.broken`, reported at its line —
-and its structure is judged not at all. Put a heading with no links in it, a
-checkbox row, a link in a heading and a nested branch into one map and `check`
-says nothing about any of them:
+paths instead, which [`study-paths.md`](study-paths.md) explains. A map's links
+are judged like any other note's — a dead `[[link]]` is an ordinary
+`link.broken`, reported at its line — and its structure is judged not at all.
+The map written above has a heading with no links, a heading whose only link
+resolves to nothing, and a heading with no entry of its own, and
 
 ```sh
 yomihon check --root /tmp/lab --format json "Maps/Map counting.md"
 ```
 
-prints one line, and it is the broken link. **So a map that projects nothing is
-silent.** The way you find out is the index, where such a map reads
+prints one line about none of them: the broken link. **So a map that projects
+nothing is silent.** The way you find out is the index, where such a map reads
 *0 branches*, and not a report.
 
 ## What listing a note on a map does change
@@ -181,10 +180,16 @@ mounted count drops to **0**: a map outside the knowledge layer cannot mount
 anything, and neither can a note the contract withholds.
 
 Two limits worth knowing before you read a number here. `concept` is yomihon's
-own spelling and cannot be renamed — your contract decides whether the type
-exists, not what it is called, and a vault that declares no `concept` type is
-told so rather than handed a tally of zero. And `coverage` never gates: it
-exits 0 whatever it finds, and 2 only when it could not run.
+own spelling and cannot be renamed: your contract decides whether the type
+exists, not what it is called. A vault that declares no `concept` type is told
+so rather than handed a tally of zero —
+
+```
+{"total_concepts":0,"domains":[], ... ,"not_applicable":"contract declares no \"concept\" type, so there is no concept corpus to judge"}
+```
+
+And `coverage` never gates: it exits 0 whatever it finds, and 2 only when it
+could not run.
 
 ## Before calling a map done
 
