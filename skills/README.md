@@ -20,15 +20,17 @@ nothing here repeats it.
 
 ## What is in it
 
-- [`yomihon/SKILL.md`](yomihon/SKILL.md) — the entry point, and enough on its
-  own to write a correct note: what yomihon projects out of Markdown, what has
-  to be declared rather than inferred, the dialect the renderer treats
-  specially, the command that settles any disagreement, and one worked example
-  end to end.
-- [`yomihon/references/`](yomihon/references/) — five files the entry point
-  sends you to when you need the whole of one thing: the frontmatter contract,
-  how a name resolves, the study-path grammar, the diagnostics, and the worked
-  example at length. Each opens by saying which question it answers.
+- [`yomihon/SKILL.md`](yomihon/SKILL.md) — the entry point: what yomihon
+  projects out of Markdown, what has to be declared rather than inferred, the
+  dialect the renderer treats specially, the command that settles any
+  disagreement, and the shape of taking one note from prose into a course. It
+  names every decision; it does not carry every subject.
+- [`yomihon/references/`](yomihon/references/) — six files, one per subject,
+  each the authority for what it covers: the frontmatter contract, how a name
+  resolves, the study-path grammar, how a map works, the diagnostics, and the
+  worked example at length. The entry point links to them rather than
+  summarising them, so no fact in this folder has two homes to drift between.
+  Each opens by saying which question it answers.
 
 The skill describes yomihon's behaviour, which lives in the Go alongside this
 folder and is pinned by that code's own tests — two of which read these files
@@ -69,11 +71,16 @@ ln -s "$YOMIHON/skills/yomihon" .agents/skills/yomihon
 ```
 
 The symlink target must be absolute, or it will resolve against the directory
-holding the link and dangle. Check before you trust it:
+holding the link and dangle. Check **both** links, in one command, so a second
+one that dangles cannot pass on the first one's success:
 
 ```sh
-ls .claude/skills/yomihon/SKILL.md
+ls .claude/skills/yomihon/SKILL.md .agents/skills/yomihon/SKILL.md
 ```
+
+Both paths have to print. `ls` exits non-zero and names the one that is missing
+if either link is broken, which is the whole point of listing them together —
+checking one and trusting two is how a dangling link survives an install.
 
 A symlink keeps one copy, so a `git pull` that updates the skill updates what
 the agent loads. Copy the directory instead when the agent runs somewhere the
@@ -96,11 +103,24 @@ pasted the answer:
 
 An agent that has loaded the skill answers the first with *primary, local and
 none*, read on a heading from H2 to H6 and on a list row that has a child list
-beneath it; the second with the note's filename and path forms plus any
-declared aliases, never the frontmatter title; and the third with at least the
-note's type not being listed under the contract's path types, and the branch
-carrying no sequence declaration. An agent that answers vaguely, or reaches for
-general Obsidian knowledge, has not loaded it.
+beneath it; and the second with the note's filename and path forms plus any
+declared aliases, never the frontmatter title.
+
+For the third, any two of these are right, and the third of them is the one the
+skill itself calls the fault most worth fearing:
+
+- **the study path's own type is not on `[navigation] path_types`** — note that
+  it is the *path's* type that has to be listed, never the lesson's, so "the
+  lesson's type is not on the list" is a wrong answer that sounds like a right
+  one;
+- the branch the row sits on declares no `{sequence=…}`, so nothing is
+  classified and nothing projects;
+- the row does not open with its `[[link]]` — a word, a number or a colon in
+  front of it and the row still reads perfectly while the course count silently
+  drops.
+
+An agent that answers vaguely, or reaches for general Obsidian knowledge, has
+not loaded it.
 
 The stronger check is the skill's own standard: given only this folder, an agent
 should be able to say what the skill is, when it applies, what it changes about
