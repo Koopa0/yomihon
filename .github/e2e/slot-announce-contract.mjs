@@ -15,6 +15,9 @@ const MUTATE = process.env.MUTATE || '';
 const LIVE = '.y-slotlive';
 const SHUFFLE = '[data-slot-action="shuffle"]';
 const SPEAK = '[data-slot-action="speak"]';
+// The sentence is Japanese however the chrome around it is written, so this
+// site runs on its own pages, one per interface language.
+const VOICE_SITE = 'the-voice-follows-the-sentence';
 const SLOT_A = 'select[data-slot-key="A"]';
 
 // The fixture's second fill in each slot, which is what the stubbed shuffle
@@ -30,6 +33,7 @@ const SITES = [
   'shuffle-announces-the-sentence',
   'announced-gloss-declares-its-language',
   'second-press-stops-the-sentence',
+  VOICE_SITE,
 ];
 
 class LockFired extends Error {
@@ -111,6 +115,14 @@ const MUTATIONS = {
     target: 'second-press-stops-the-sentence',
     apply: rewriteScript('        speakButton,\n', '', 'practice speak trigger'),
   },
+  // Handing the button over hands the voice over with it: resolved from the
+  // button, the nearest declared language is the card's own root, which carries
+  // the interface language. The sentence would then be read in a Chinese or
+  // English voice on every card.
+  'speak-in-the-pages-language': {
+    target: VOICE_SITE,
+    apply: rewriteScript("        card.querySelector('.y-slotoutput'),\n", '', 'practice speech passage'),
+  },
   'drop-the-gloss-language': {
     target: 'announced-gloss-declares-its-language',
     apply: rewriteScript("      gloss.lang = 'zh-Hant';\n", '', 'announced gloss language'),
@@ -179,7 +191,9 @@ try {
       window.__speechCalls.push('cancel');
     };
   });
-  proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+  proof = MUTATE && MUTATIONS[MUTATE].target !== VOICE_SITE
+    ? await MUTATIONS[MUTATE].apply(page)
+    : null;
 
   const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) broken(`${PAGE} returned ${response?.status() ?? 'no response'}, want 200`);
@@ -259,7 +273,45 @@ try {
     fail('second-press-stops-the-sentence', 'the speaker still holds the speaking state after the press that stopped it');
   }
 
-  console.log('PASS slot-announce-contract: the card announces its shuffled sentence, stays quiet where the select already speaks, marks the gloss language, and stops on the second press of its speaker');
+  // The voice is the sentence's, not the page's. Read in the language of the
+  // chrome, a Japanese line comes out in a Chinese or English voice, which is
+  // not a smaller version of reading it aloud.
+  for (const interfaceLang of ['zh-Hant', 'en']) {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await context.addCookies([{ name: 'yomihon_lang', value: interfaceLang, url: BASE }]);
+    const voicePage = await context.newPage();
+    await voicePage.addInitScript(() => {
+      window.__spoken = [];
+      speechSynthesis.speak = (utterance) => {
+        window.__spoken.push(utterance.lang);
+        setTimeout(() => utterance.dispatchEvent(new Event('start')), 0);
+      };
+      speechSynthesis.cancel = () => {};
+    });
+    const voiceProof = MUTATE && MUTATIONS[MUTATE].target === VOICE_SITE
+      ? await MUTATIONS[MUTATE].apply(voicePage)
+      : null;
+    await voicePage.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await voicePage.waitForSelector(SPEAK, { state: 'attached', timeout: 2000 });
+    if (voiceProof) {
+      const issue = voiceProof();
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
+      mutationApplied = true;
+    }
+    await voicePage.click(SPEAK);
+    const spoken = await voicePage.evaluate(() => [...window.__spoken]);
+    if (spoken.length !== 1) {
+      broken(`pressing the speaker under ${interfaceLang} asked the voice to speak ${spoken.length} times, want exactly 1 to read its language from`);
+    }
+    // Written out rather than read back off the page: an expectation taken from
+    // the element the code reads would agree with the code whatever it says.
+    if (spoken[0] !== 'ja') {
+      fail(VOICE_SITE, `with the interface in ${interfaceLang} the card asked for a ${JSON.stringify(spoken[0])} voice, want "ja": the sentence is Japanese however the page around it is written`);
+    }
+    await context.close();
+  }
+
+  console.log('PASS slot-announce-contract: the card announces its shuffled sentence, stays quiet where the select already speaks, marks the gloss language, stops on the second press of its speaker, and asks for a Japanese voice in either interface language');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
