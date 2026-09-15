@@ -216,6 +216,18 @@ export function initLesson() {
     });
   }
 
+  // The section a link names, if it names one. A link that carries no fragment,
+  // or one this browser cannot decode, names the note itself.
+  function fragmentOf(href) {
+    const hash = (href || '').split('#')[1];
+    if (!hash) return '';
+    try {
+      return decodeURIComponent(hash);
+    } catch {
+      return hash;
+    }
+  }
+
   function initConceptSheet() {
     const dialog = document.querySelector('[data-concept-sheet]');
     if (!dialog) return;
@@ -229,8 +241,18 @@ export function initLesson() {
         event.preventDefault();
         title.textContent = template.dataset.title || '';
         body.replaceChildren(template.content.cloneNode(true));
-        body.scrollTop = 0;
         if (!dialog.open) dialog.showModal();
+        // A link may name one section of the note rather than the note. The
+        // sheet is its own scrolling box, so the jump a page makes to an id
+        // cannot reach inside it, and a reader who asked for a section arrived
+        // at the top of the note with no sign of where they had asked to be.
+        // Measured after the sheet is shown, because a closed one has no
+        // layout to measure.
+        const section = fragmentOf(trigger.getAttribute('href'));
+        const target = section ? body.querySelector(`#${CSS.escape(section)}`) : null;
+        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
+          : 0;
         return;
       }
       if (event.target.closest('[data-concept-close]')) {

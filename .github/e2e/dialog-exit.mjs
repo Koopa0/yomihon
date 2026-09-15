@@ -18,6 +18,7 @@ const SEARCH_OPEN = '[data-search-open]';
 const SHEET = '[data-concept-sheet]';
 const CONCEPT = '[data-concept]';
 const PREVIEW = '[data-preview-card]';
+const SHEET_SECTION = 'sheet-opens-at-the-named-section';
 const PREVIEW_LINK = '.y-prose a.wikilink[href="/notes/Notes/Glass%20Tide.md"]:not(.concept-link)';
 const SITES = [
   'search-exit-has-frames',
@@ -25,6 +26,7 @@ const SITES = [
   'preview-exit-has-frames',
   'preview-exit-stays-put',
   'reduced-motion-cuts-through',
+  SHEET_SECTION,
 ];
 
 class LockFired extends Error {
@@ -67,6 +69,19 @@ const appendStylesheet = (rule) => async (page) => {
 // Rewrites the preview module. The replacement is counted, so a needle that
 // no longer matches the source reports itself rather than passing as a
 // mutation nobody noticed.
+// The same for the lesson module, which is where the sheet is opened.
+const rewriteLesson = (needle, replacement) => async (page) => {
+  let matched = -1;
+  await page.route('**/static/lesson.js', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    matched = original.split(needle).length - 1;
+    await route.fulfill({ response, body: original.split(needle).join(replacement) });
+  });
+  return () =>
+    matched === 1 ? '' : `the lesson needle matched ${matched} times, want exactly 1`;
+};
+
 const rewritePreview = (needle, replacement) => async (page) => {
   let matched = -1;
   await page.route('**/static/preview.js', async (route) => {
@@ -82,6 +97,43 @@ const rewritePreview = (needle, replacement) => async (page) => {
 };
 
 const MUTATIONS = {
+  // On screen but at the reader's feet. This is the mutation the upper-half
+  // bound exists for: it lands the section inside the box, so a lock that only
+  // asked "is it visible" would call it a pass.
+  'open-the-sheet-with-the-section-low': {
+    target: SHEET_SECTION,
+    apply: rewriteLesson(
+      `        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
+          : 0;`,
+      `        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - body.clientHeight * 0.8
+          : 0;`,
+    ),
+  },
+  // The other way to miss: carrying the reader somewhere far from where they
+  // asked. Landing anywhere is not the behavior; landing at the named section
+  // is, so the lock has to reject an overshoot as firmly as a no-op.
+  'open-the-sheet-past-the-section': {
+    target: SHEET_SECTION,
+    apply: rewriteLesson(
+      `        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
+          : 0;`,
+      '        body.scrollTop = body.scrollHeight;',
+    ),
+  },
+  // The defect itself: every opening lands at the top of the note, whatever
+  // the link named.
+  'open-the-sheet-at-the-top': {
+    target: SHEET_SECTION,
+    apply: rewriteLesson(
+      `        body.scrollTop = target
+          ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
+          : 0;`,
+      '        body.scrollTop = 0;',
+    ),
+  },
   // The original defect on the search dialog: the transition lives only while
   // [open] is set, so close() has nowhere for exit frames to run.
   'restore-search-open-only': {
@@ -216,7 +268,13 @@ let proof = null;
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
-  proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+  // Each mutation aims at one site, and the named-section site runs on its own
+  // pages below, so this page takes every mode except those. Arming on the aim
+  // rather than on a mode name keeps a newly added mutation from either missing
+  // the page it was written for or landing on one it was not.
+  proof = MUTATE && MUTATIONS[MUTATE].target !== SHEET_SECTION
+    ? await MUTATIONS[MUTATE].apply(page)
+    : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('load');
   if (proof) {
@@ -287,6 +345,59 @@ try {
       'reduced-motion-cuts-through',
       `search close under reduced motion lasted ${longest(reduced)}ms`,
     );
+  }
+
+  // A link may name a section of a concept rather than the concept. The sheet
+  // is its own scrolling box, so the jump a page makes to an id cannot reach
+  // inside it: the reader who asked for a section has to be carried there, or
+  // they arrive at the top of the note with nothing saying where they asked to
+  // be. Both widths, because the sheet is a side panel on one and a bottom
+  // sheet on the other, and the section sits at a different height in each.
+  for (const width of [390, 1600]) {
+    const named = await browser.newContext({ viewport: { width, height: 800 } });
+    const namedPage = await named.newPage();
+    const proof = MUTATE && MUTATIONS[MUTATE].target === SHEET_SECTION
+      ? await MUTATIONS[MUTATE].apply(namedPage)
+      : null;
+    await namedPage.goto(BASE + PAGE, { waitUntil: 'load' });
+    await namedPage.waitForSelector('html[data-js]');
+    const sectionLink = namedPage.locator(`${CONCEPT}[href*="#"]`).first();
+    if ((await sectionLink.count()) < 1) {
+      broken('the lesson carries no concept link naming a section, so this has nothing to open');
+    }
+    await sectionLink.click();
+    await namedPage.waitForFunction((sheet) => document.querySelector(sheet)?.open, SHEET, { timeout: 3000 });
+    if (proof) {
+      const issue = proof();
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
+    }
+    const landing = await namedPage.evaluate(() => {
+      const body = document.querySelector('[data-concept-body]');
+      const fragment = decodeURIComponent(
+        (document.querySelector('[data-concept][href*="#"]')?.getAttribute('href') || '').split('#')[1] || '',
+      );
+      const target = fragment ? body.querySelector(`#${CSS.escape(fragment)}`) : null;
+      if (!target) return { found: false };
+      const box = body.getBoundingClientRect();
+      const at = target.getBoundingClientRect();
+      return { found: true, fromTop: Math.round(at.top - box.top), height: Math.round(box.height) };
+    });
+    if (!landing.found) {
+      broken('the opened sheet holds no element with the id the link named');
+    }
+    // Anywhere on screen is not the behavior. Following a link to a section
+    // puts that section at the reader's eye, the way a browser jumping to an id
+    // does, so the landing has to be in the upper half of the box: a heading
+    // resting just inside the bottom edge means the reader still has to hunt
+    // for it, and a note long enough to scroll can always bring it higher.
+    const room = Math.round(landing.height / 2);
+    if (landing.fromTop < 0 || landing.fromTop > room) {
+      fail(
+        'sheet-opens-at-the-named-section',
+        `at ${width}px the sheet opened with the named section ${landing.fromTop}px from the top of a ${landing.height}px box, want it within the top ${room}px, so the reader has to go looking for what they followed`,
+      );
+    }
+    await named.close();
   }
 
   console.log('PASS dialog-exit: search, sheet, and preview close with frames; preview stays put; reduced motion cuts through');
