@@ -44,6 +44,34 @@ func UnanchorableLine(line string) bool {
 	return strings.HasPrefix(strings.TrimLeft(quotePrefix.ReplaceAllString(line, ""), " \t"), "|")
 }
 
+// blockAddressFiller stands on a line whose author filled it and whose text a
+// transformation then emptied. It carries no backtick and no block shape, so it
+// can neither open nor close a span nor end a run; its only job is to not be
+// blank. It is only ever put into the line slice the block-address pass reads,
+// which no reader and no parser sees.
+const blockAddressFiller = "\u200b"
+
+// BlockAddressLines is transformed's lines as the block-address pass has to
+// read them: a line its author filled and the transformation left empty is put
+// back as a line that is not blank. The run that pass widens over is bounded by
+// blank lines and by nothing else, so an emptied line would otherwise hand it a
+// run edge nobody typed — and the three readers of an address would answer
+// differently about it, because they do not all empty the same lines. The
+// comment strip empties a line whose every visible byte was inside a comment;
+// the placeholder neutralisation empties a line that held nothing else; cutting
+// a callout's body out of its quote empties a line that carried only the
+// marker. authored is the same body one step earlier, one entry per line, and
+// may itself already be a slice this made.
+func BlockAddressLines(authored []string, transformed string) []string {
+	lines := strings.Split(transformed, "\n")
+	for i := 0; i < len(lines) && i < len(authored); i++ {
+		if graph.BlankLine(lines[i]) && !graph.BlankLine(authored[i]) {
+			lines[i] = blockAddressFiller
+		}
+	}
+	return lines
+}
+
 // CodeSpanOwnsBlockAddress reports whether the caret lines[at] would take as a
 // block address sits inside a code span. A caret there is the author
 // showing an expression, not naming a block. The CommonMark spec lets a line
@@ -60,6 +88,15 @@ func UnanchorableLine(line string) bool {
 // marker, a quote or callout opener, a thematic break or a fence never pair
 // into a span goldmark would not draw, and the ordinary paragraph between them
 // keeps its address on all three faces.
+//
+// lines is what BlockAddressLines makes, not whatever a strip happened to
+// leave: the blank lines that bound the run have to be the author's own. The
+// three readers hide a comment with different scans, so a line one of them
+// empties another keeps, and a run edge taken from the emptying would be a
+// different edge at each door for text nobody wrote that way. Everything else
+// the run ends at — a heading, a list marker, a quote opener, a break, a fence
+// — is read from the line as it stands, because that shape is one goldmark will
+// see in the document this text becomes.
 func CodeSpanOwnsBlockAddress(lines []string, at int) bool {
 	trimmed := strings.TrimRight(lines[at], " \t")
 	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)

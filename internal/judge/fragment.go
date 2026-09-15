@@ -49,12 +49,17 @@ func anchorSurface(body string) (sections, excerptSections map[string]bool, bloc
 	collectGenerousHeadings(stripped, sections)
 	excerptSections = make(map[string]bool)
 	collectExcerptHeadings(stripped, excerptSections)
-	return sections, excerptSections, collectBlockLines(stripped)
+	return sections, excerptSections,
+		collectBlockLines(stripped, render.BlockAddressLines(strings.Split(body, "\n"), stripped))
 }
 
 // withoutCommentZones is the body with its comment spans cut out, located by
 // the same zones the link extraction skips, so the two readings of one note
-// hide the same text.
+// hide the same text. A comment the author wrapped over several lines leaves
+// those line endings behind: a note is read by line here and on the page, and
+// gluing the words on either side of a hidden passage into one line would make
+// a paragraph, a heading and the run a block address sits in out of text nobody
+// wrote that way.
 func withoutCommentZones(body string) string {
 	codeZones, _ := structure(body, nil)
 	zones := graph.CommentZones(body, codeZones)
@@ -65,6 +70,7 @@ func withoutCommentZones(body string) string {
 	last := 0
 	for _, z := range zones {
 		b.WriteString(body[last:z.Start])
+		b.WriteString(strings.Repeat("\n", strings.Count(body[z.Start:z.Stop], "\n")))
 		last = z.Stop
 	}
 	b.WriteString(body[last:])
@@ -151,8 +157,12 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 // uses. A line inside a fence is code, a recognised callout's opening line is
 // consumed as the title, a row opening with a pipe is table syntax whose tail
 // the renderer drops, and a caret a code span owns is quoted text.
-// Only lines carrying a caret are kept.
-func collectBlockLines(body string) []string {
+// Only lines carrying a caret are kept. address is these same lines carrying
+// the blank-or-not shape the author wrote, which is what the code-span question
+// is asked over: this face hides a comment with a different scan than the page
+// does, and a run edge read from either strip would be a different edge here
+// than there.
+func collectBlockLines(body string, address []string) []string {
 	var out []string
 	inFence, fenceByte, fenceLen := false, byte(0), 0
 	lines := strings.Split(body, "\n")
@@ -168,7 +178,7 @@ func collectBlockLines(body string) []string {
 			inFence, fenceByte, fenceLen = true, marker, n
 			continue
 		}
-		if render.UnanchorableLine(line) || render.CodeSpanOwnsBlockAddress(lines, i) {
+		if render.UnanchorableLine(line) || render.CodeSpanOwnsBlockAddress(address, i) {
 			continue
 		}
 		trimmed := strings.TrimRight(line, " \t")

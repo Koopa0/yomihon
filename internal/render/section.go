@@ -154,7 +154,7 @@ func ledeBeforeHeading(lines []string, first int) bool {
 // lede asks ExcerptPreview, so the two surfaces stay one cut for a named
 // fragment and two answers for an empty one.
 func Excerpt(body, fragment string) (slice string, found bool) {
-	stripped, _ := stripObsidianComments(body)
+	stripped, _ := stripBody(body)
 	slice, matches := excerptOf(stripped, fragment)
 	return slice, matches > 0
 }
@@ -167,9 +167,9 @@ func Excerpt(body, fragment string) (slice string, found bool) {
 // can say so with the sentence a byte-capped preview already uses. An embed
 // still asks Excerpt (or excerptOf) for the whole note; this cut is the card's.
 func ExcerptPreview(body, fragment string) (slice string, found, narrowed bool) {
-	stripped, _ := stripObsidianComments(body)
+	stripped, _ := stripBody(body)
 	if fragment == "" {
-		slice, narrowed = ledeSlice(stripped)
+		slice, narrowed = ledeSlice(stripped.text)
 		return slice, true, narrowed
 	}
 	slice, matches := excerptOf(stripped, fragment)
@@ -183,7 +183,7 @@ func ExcerptPreview(body, fragment string) (slice string, found, narrowed bool) 
 // name, of which the first is cut. Zero is an address the note does not answer
 // to, and then nothing is cut: there is no narrower answer than the one asked
 // for, and a wider one would be this renderer's rather than the author's.
-func excerptOf(stripped, fragment string) (slice string, matches int) {
+func excerptOf(stripped strippedBody, fragment string) (slice string, matches int) {
 	switch {
 	case strings.HasPrefix(fragment, "^"):
 		cut, ok := blockSlice(stripped, strings.TrimPrefix(fragment, "^"))
@@ -192,9 +192,9 @@ func excerptOf(stripped, fragment string) (slice string, matches int) {
 		}
 		return cut, 1
 	case fragment != "":
-		return headingSlice(stripped, fragment)
+		return headingSlice(stripped.text, fragment)
 	}
-	return stripped, 1
+	return stripped.text, 1
 }
 
 // fragmentOf is the address an embed carries, in the spelling Excerpt reads. A
@@ -260,9 +260,9 @@ func headingSourceText(raw string, level int) string {
 // the marked line is a continuation. The address matches through the fold both
 // fragment kinds share, so "^quote-1" and "^quote1" stay two names. Nothing rules
 // how wide a block reference reaches, so the narrow reading is taken.
-func blockSlice(body, block string) (string, bool) {
-	lines := strings.Split(body, "\n")
-	at := blockMarkerLine(lines, block)
+func blockSlice(body strippedBody, block string) (string, bool) {
+	lines := strings.Split(body.text, "\n")
+	at := blockMarkerLine(lines, body.address, block)
 	if at < 0 {
 		return "", false
 	}
@@ -281,8 +281,9 @@ func blockSlice(body, block string) (string, bool) {
 // when the note has no such marker. A marker written inside a fenced block is
 // code rather than an address, so the scan tracks fences as it walks. A caret
 // a code span owns is the same kind of quoted text, asked of the one predicate
-// the page and the check share.
-func blockMarkerLine(lines []string, block string) int {
+// the page and the check share, over the line geometry its author wrote rather
+// than over whatever the comment strip left.
+func blockMarkerLine(lines, address []string, block string) int {
 	want := graph.FoldFragment("^" + block)
 	inFence, fenceByte, fenceLen := false, byte(0), 0
 	for i, line := range lines {
@@ -300,7 +301,7 @@ func blockMarkerLine(lines []string, block string) int {
 			inFence, fenceByte, fenceLen = true, open, n
 			continue
 		}
-		if UnanchorableLine(line) || CodeSpanOwnsBlockAddress(lines, i) {
+		if UnanchorableLine(line) || CodeSpanOwnsBlockAddress(address, i) {
 			continue
 		}
 		trimmed := graph.FoldFragment(strings.TrimRight(line, " \t"))

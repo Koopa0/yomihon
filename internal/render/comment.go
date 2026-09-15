@@ -5,6 +5,26 @@ import (
 	"strings"
 )
 
+// strippedBody is one body with its Obsidian comments off: the text every cut,
+// parse and scan downstream reads, beside the line geometry its author wrote.
+// The two travel together because the strip empties a line whose every visible
+// byte was hidden, and the block-address pass has to widen its run over the
+// blank lines the author typed rather than over the ones a strip made.
+type strippedBody struct {
+	text    string
+	address []string
+}
+
+// stripBody hides body's comments and records what that cost the line geometry.
+// unclosedLine is stripObsidianComments's, unchanged.
+func stripBody(body string) (stripped strippedBody, unclosedLine int) {
+	text, unclosedLine := stripObsidianComments(body)
+	return strippedBody{
+		text:    text,
+		address: BlockAddressLines(strings.Split(body, "\n"), text),
+	}, unclosedLine
+}
+
 // stripObsidianComments removes Obsidian %% comment regions while preserving the
 // delimiters and contents of fenced code blocks. An unclosed comment runs to the
 // end of the body, as Obsidian hides it too. unclosedLine is the 1-based line the
