@@ -122,7 +122,7 @@ beneath it; and the second with the note's filename and path forms plus any
 declared aliases, never the frontmatter title.
 
 For the third, any two of these are right, and the third of them is the one the
-skill itself calls the fault most worth fearing:
+skill calls the fault most worth fearing when you are adding a lesson:
 
 - **the study path's own type is not on `[navigation] path_types`** — note that
   it is the *path's* type that has to be listed, never the lesson's, so "the
