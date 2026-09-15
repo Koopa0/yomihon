@@ -32,6 +32,29 @@ const fail = (site, message) => {
 // document loses its slack, and a key pressed with focus on the body has
 // nothing to move.
 const MUTATIONS = {
+  // A handler that takes the Space key and forgets to let the page have it:
+  // the shortcut reads the key, calls preventDefault, and the reader who moves
+  // by keyboard alone is stranded. It aims at the key rather than at the slack,
+  // because the document is left exactly as long as it was -- only the key
+  // stops working, which is the half a scroll-slack mutation cannot reach.
+  'swallow-the-space-key': {
+    target: 'space-moves-the-prose',
+    before: async (page) => {
+      await page.evaluate(() => {
+        addEventListener('keydown', (event) => {
+          if (event.code === 'Space') event.preventDefault();
+        }, true);
+      });
+      // Dispatching one proves the handler is live, rather than proving only
+      // that the script which installs it ran.
+      const intercepted = await page.evaluate(() => {
+        const probe = new KeyboardEvent('keydown', { code: 'Space', cancelable: true, bubbles: true });
+        document.body.dispatchEvent(probe);
+        return probe.defaultPrevented;
+      });
+      return () => (intercepted ? '' : 'the swallowing handler never intercepted a Space key');
+    },
+  },
   'reading-column-owns-the-scroll': {
     target: 'document-has-somewhere-to-scroll',
     before: async (page) => {
@@ -44,6 +67,22 @@ const MUTATIONS = {
     },
   },
 };
+
+// A mutation aimed at a site that does not exist never runs, and an assertion
+// no mutation aims at is a lock nothing has ever watched fail. Both are silent
+// while the suite stays green, so they are refused here instead.
+for (const [name, mutation] of Object.entries(MUTATIONS)) {
+  if (!SITES.includes(mutation.target)) {
+    console.error(`keyboard-scroll: mutation ${name} aims at unknown site ${mutation.target}`);
+    process.exit(2);
+  }
+}
+for (const site of SITES) {
+  if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
+    console.error(`keyboard-scroll: assertion site ${site} has no mutation`);
+    process.exit(2);
+  }
+}
 
 if (MUTATE === 'list') {
   console.log(Object.keys(MUTATIONS).join('\n'));

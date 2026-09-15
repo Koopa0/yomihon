@@ -82,6 +82,31 @@ const MUTATIONS = {
       'fixed sealbar',
     ),
   },
+  // The bar is met at the end of the reading; it does not ride along with it.
+  // Sticky is how that goes wrong while everything still looks right, because
+  // the bar returns to its own place once the reader reaches the end -- so the
+  // measurement taken before the scroll is the only one that tells them apart.
+  'stick-the-bar-to-the-fold': {
+    target: 'below-fold-while-reading',
+    apply: rewriteStylesheet(
+      '.y-sealbar{border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      '.y-sealbar{position:sticky;bottom:0;z-index:36;border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      'sticky sealbar',
+    ),
+  },
+  // The bar sits in the article's foot, a band deep enough to read as the end
+  // of the reading rather than as a strip tacked under the last line. Widening
+  // that foot strands the bar in the middle of empty paper. It aims here and
+  // not at the reading position because the padding is entirely below the bar:
+  // it lengthens the document without moving the bar on the first screen.
+  'widen-the-article-foot': {
+    target: 'follows-article-end',
+    apply: rewriteStylesheet(
+      'padding:44px var(--article-gutter)120px',
+      'padding:44px var(--article-gutter)300px',
+      'widened article foot',
+    ),
+  },
   'move-bar-outside-article': {
     target: 'inside-article',
     apply: rewriteDocument([
@@ -186,6 +211,22 @@ const runMutation = async (mode) => {
     await browser.close();
   }
 };
+
+// A mutation aimed at a site that does not exist never runs, and an assertion
+// no mutation aims at is a lock nothing has ever watched fail. Both are silent
+// while the suite stays green, so they are refused here instead.
+for (const [name, mutation] of Object.entries(MUTATIONS)) {
+  if (!SITES.includes(mutation.target)) {
+    console.error(`sealbar-flow-contract: mutation ${name} aims at unknown site ${mutation.target}`);
+    process.exit(2);
+  }
+}
+for (const site of SITES) {
+  if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
+    console.error(`sealbar-flow-contract: assertion site ${site} has no mutation`);
+    process.exit(2);
+  }
+}
 
 if (MUTATE === 'list') {
   console.log(Object.keys(MUTATIONS).join('\n'));
