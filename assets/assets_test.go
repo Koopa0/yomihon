@@ -374,6 +374,11 @@ func TestSpeechLanguageComesFromTheMarkedPassage(t *testing.T) {
 	if strings.Contains(js, "utterance.lang = 'ja-JP'") {
 		t.Error("speech language is hardcoded at the utterance rather than read from the passage")
 	}
+	// Named positively as well, because the three checks below all pass for an
+	// utterance whose language is decided somewhere else entirely.
+	if !strings.Contains(js, "utterance.lang = speechLanguage(passage)") {
+		t.Error("the utterance's language does not come from the passage the server marked")
+	}
 	if !strings.Contains(js, "passage = trigger?.parentElement") {
 		t.Error("a paragraph's passage does not start above its button, so the button's own label language can win")
 	}
