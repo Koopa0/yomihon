@@ -1289,6 +1289,53 @@ html {
 }
 @keyframes y-readline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
+/* ============================================================
+   Cross-document view transitions — navigation morphs, chrome holds
+   ------------------------------------------------------------
+   Naming a region makes it an independent transition group, not a
+   stable one: a named group whose pixels differ cross-fades into a
+   double exposure. So the chrome — header, left rail, status bar —
+   hard-cuts (its old/new snapshot animations turned off; near-identical
+   pixels read as perfect stillness, per-note differences as a crisp
+   update, never a ghost), while the reading column keeps the default
+   group morph so the width change between a railed and a rail-less page
+   glides instead of double-exposing two reflowed text blocks. The title
+   carries its own name, so moving between pages reads as the title
+   travelling. Form POSTs never fire navigation transitions, so a
+   status flip's redirect lands plainly — that is the write path's
+   contract, not a gap. Reduced motion turns navigation transitions off
+   entirely.
+   ============================================================ */
+@view-transition { navigation: auto; }
+
+.y-header { view-transition-name: y-header; }
+.y-rail-left { view-transition-name: y-rail-left; }
+.y-sealbar { view-transition-name: y-sealbar; }
+.y-main { view-transition-name: y-main; }
+.y-title { view-transition-name: y-title; }
+
+::view-transition-old(y-header), ::view-transition-new(y-header),
+::view-transition-old(y-rail-left), ::view-transition-new(y-rail-left),
+::view-transition-old(y-sealbar), ::view-transition-new(y-sealbar) {
+  animation: none;
+}
+
+/* Every group still animated runs on the house motion tokens instead of the
+   engine's 250ms default, which reads as sluggish between pages the reader
+   moves through constantly. The tokens have to stay on :root — a custom
+   property reaches this pseudo tree by inheriting from the document root, so
+   scoping them to a class would leave var() invalid here and collapse the
+   duration to zero, turning every morph into a cut. The hard-cuts above are
+   unaffected: they set the animation name to none, and a duration declared
+   later cannot revive a name that is not there. */
+::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
 
 /* ============================================================
    Responsive

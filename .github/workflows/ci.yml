@@ -368,8 +368,13 @@ jobs:
       - name: Record the browser build
         run: google-chrome --version
 
-      - name: Run the behavior probes against the fixture vault
-        run: make browser-check
+      - name: Reproduce the frozen arrival with the navigation opt-in restored
+        run: |
+          set -eux
+          npm ci --prefix .github --ignore-scripts --no-audit --fund=false
+          go build -o /tmp/yomihon-x533 ./cmd/yomihon
+          ROUNDS=8 LABEL=ubuntu-latest-runner \
+            bash .github/e2e/serve.sh /tmp/yomihon-x533 19853 -- node .github/x533-repro.mjs
 
   # Proves the probes above can fail. Each one names its own self-test modes;
   # every mode injects the regression that probe exists to catch, and the run is
