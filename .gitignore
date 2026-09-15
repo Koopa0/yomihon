@@ -27,7 +27,6 @@ tests/
 /ENGINEERING_STANDARD.md
 /ENGINEERING_STANDARD.sha256
 /PROJECT_PROFILE.md
-/SECURITY.md
 /docs/*
 !/docs/judge-rules.md
 /.github/CODEOWNERS
