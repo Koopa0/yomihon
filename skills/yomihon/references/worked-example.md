@@ -44,6 +44,13 @@ the same control — and which of the readings it would speak — is undecided.
 
 It has a reading page. It is in the search index. Its words are findable.
 It is in no course, and nothing about it is wrong: a capture is a capture.
+
+It carries no `domain`, and that is legal rather than an oversight —
+`[fields] required` names `domain`, but `[fields] required_inbox` **replaces**
+that list outright for a note whose type is `inbox`, and this vault's version
+of it asks for `title`, `type` and `status` only.
+[`frontmatter.md`](frontmatter.md) owns that table; the reason it matters here
+is that the note below, once it becomes a lesson, stops being excused.
 Turning it into the fourth lesson of the `Reading yomihon` study path is five
 decisions, and only the last one is about the course.
 
