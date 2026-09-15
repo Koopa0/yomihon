@@ -14,15 +14,24 @@
 // to where the reader was. Everything picked in a visit goes together, because
 // a reader setting up their reading picks a size and a face in one sitting and
 // a submission that took one of them would be discarding the other in silence.
-// That path is the whole mechanism rather than a fallback: the interface
-// language cannot be changed by any script, because the words on a rendered
-// page are the server's, and a page that works without scripting for the
-// hardest of these choices may as well work without it for all of them.
+//
+// That post answers a browser running nothing, which is why the page is built
+// to be usable by one: the interface language cannot be changed by any script,
+// because the words on a rendered page are the server's, and a page that works
+// without scripting for the hardest of these choices may as well work without
+// it for all of them. Where a script is running, five of the six choices reach
+// the same cookies as the reader picks them, without asking this side for
+// anything; the language still comes back here, because only this side can
+// rewrite the words. What the page marks on each option so the other side can
+// do that — which values a cookie may carry, and which option answers for a
+// cookie carrying none — is the same knowledge this file already had to hold
+// in order to refuse a submission, said out loud rather than copied.
 package preference
 
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -249,6 +258,35 @@ func honouredValues() map[string][]string {
 	}
 	out[wording.CookieName] = []string{string(wording.ZhHant), string(wording.En)}
 	return out
+}
+
+// unsetOptions answers, for every cookie this page writes, the option a
+// browser storing nothing here is shown as having chosen. Five of them come
+// from the shell's own table, which is where a stored value's absence is given
+// its meaning; the sixth is the interface language, whose absence reads as the
+// language the dictionary starts in.
+//
+// An empty answer means the shell falls back to no value at all, and the
+// choice's own whenUnset names what the reader is in fact looking at.
+func unsetOptions() map[string]string {
+	stored := layouts.Preferences()
+	out := make(map[string]string, len(stored)+1)
+	for _, p := range stored {
+		out[p.Cookie] = p.Fallback
+	}
+	out[wording.CookieName] = string(wording.ZhHant)
+	return out
+}
+
+// settingsAddress is this page, addressed so that arriving at it again carries
+// the same way back. A language change is the one choice the reader makes here
+// that the server has to answer, and answering it with the reader's own
+// article would end the visit at the first field.
+func settingsAddress(returnTo string) string {
+	if returnTo == "" || returnTo == address {
+		return address
+	}
+	return address + "?" + fromParam + "=" + url.QueryEscape(returnTo)
 }
 
 // options lists what this choice offers, in the order the page shows them: the

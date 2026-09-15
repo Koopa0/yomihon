@@ -117,10 +117,26 @@ var (
 	)
 )
 
-// PrefApply is on the one control that saves the page. It stays visible when
-// scripting is on, so the keyboard reader arrowing through a group is not
-// committing a choice with every press.
+// PrefApply is on the control that saves the page where nothing is running to
+// save it as the reader picks. It is drawn on every page and hidden where the
+// enhancement is live, so a browser without scripting sees the control it
+// needs and a browser with it never sees a control it does not.
 var PrefApply = both("套用", "Apply")
+
+// PrefReturn leads back to whatever the reader was holding when they came
+// here. It stands in for the apply control where choices are already stored as
+// they are picked: without it the page would be the one place that saves
+// everything and offers no way out of itself.
+var PrefReturn = both("回到剛才在讀的", "Back to what you were reading")
+
+// PrefSaveRefused is what a choice says for itself when the browser would not
+// keep it. The choice is put back to what it was, because a radio left sitting
+// on a value nothing stored is the page telling the reader something untrue —
+// and the likeliest cause is named, since it is one a reader can act on.
+var PrefSaveRefused = both(
+	"這個選擇沒有存下來，已經放回原本的值。這個瀏覽器可能不讓這個位址存 cookie。",
+	"That choice was not stored, and has been put back. This browser may be refusing cookies for this address.",
+)
 
 // What this browser is holding, said plainly and completely. A page that
 // stores things on a reader's machine should be the page that lists them.
