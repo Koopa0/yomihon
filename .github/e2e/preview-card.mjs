@@ -13,6 +13,7 @@
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (the note that
 // carries the links). MUTATE names one of the self-test modes below;
 // MUTATE=list prints them.
+import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -77,6 +78,12 @@ const SITES = [
 	'an-open-card-adds-no-second-place-with-one-name',
 	'the-excerpt-comes-from-this-origin',
 ];
+
+// Where the pointer was last taken, and what it had to travel to get there.
+// Written by the one helper below that moves the page, read by the assertions
+// that follow it and by a mutation that needs to know the link it aimed at was
+// out of sight to begin with.
+let approach = null;
 
 class LockFired extends Error {
 	constructor(site, message) {
@@ -148,7 +155,47 @@ const rewriteFragment = (needle, replacement) => async (context) => {
 			: `the fragment needle ${JSON.stringify(needle)} was rewritten in none of the ${fetched} fragments this run fetched`;
 };
 
+// Two mutations applied as one, so a mode can put a regression behind a layout
+// change and ask whether the site still catches it there.
+const both = (first, second) => async (context) => {
+	const proofs = [await first(context), await second(context)];
+	return () => {
+		for (const proof of proofs) {
+			const issue = proof();
+			if (issue) return issue;
+		}
+		return '';
+	};
+};
+
+// Stands a window's worth of empty room above every block of the prose, so
+// every link in it starts below the fold and none can be reached without moving
+// the page. The room goes above each block rather than above the prose, because
+// a single tall header only pushes the first link out of sight: the pointer's
+// own travelling brings the rest back on screen. What proves it applied is
+// where the link the pointer last travelled to started: a rule that has stopped
+// matching displaces nothing, and a run that displaced nothing has to say
+// not-applied rather than report a catch it did not earn.
+const displaceProse = both(
+	weakenStylesheet('main .y-prose > *{margin-block-start:900px}'),
+	async () => () =>
+		approach && approach.from > approach.window
+			? ''
+			: `the link the pointer last reached started ${approach ? Math.round(approach.from) : 0}px down a ${approach ? approach.window : 0}px window, so nothing stood above the prose`,
+);
+
 const MUTATIONS = {
+	// The two modes above, each behind the layout change that disarmed its site
+	// once already: a link pushed below the fold is one the probe has to travel
+	// to, and the travelling used to dismiss the card it went to look at.
+	'preview-every-wikilink-below-the-fold': {
+		target: 'a-link-that-cannot-be-previewed-opens-nothing',
+		apply: both(rewriteModule(':not(.wikilink-degraded)', ''), displaceProse),
+	},
+	'preview-every-vault-file-below-the-fold': {
+		target: 'a-vault-file-that-is-not-a-note-opens-nothing',
+		apply: both(rewriteModule("link.pathname.endsWith('.md')", 'true'), displaceProse),
+	},
 	// The defect itself: nothing listens for the pointer arriving.
 	'never-listen-for-the-pointer': {
 		target: 'card-opens-on-hover',
@@ -302,6 +349,22 @@ for (const site of SITES) {
 	}
 }
 
+// The helper below is the only place this file may take a pointer to a link. A
+// site that hovers for itself arrives at its assertion window having just moved
+// the page, and a card dismissed by that movement reads exactly like a product
+// that opened none — twice now, a lock has stopped discriminating that way with
+// nothing wrong in the product and nothing said about it. The count is read off
+// this file's own source before any of it runs, so a site added with a bare
+// hover cannot wait for a reviewer to notice.
+{
+	const source = await readFile(new URL(import.meta.url), 'utf8');
+	const bare = source.split('.' + 'hover(').length - 1;
+	if (bare !== 1) {
+		console.error(`preview-card: this file takes a pointer to a link ${bare} times, want 1 — the helper's own`);
+		process.exit(2);
+	}
+}
+
 if (MUTATE === 'list') {
 	for (const name of Object.keys(MUTATIONS)) console.log(name);
 	process.exit(0);
@@ -373,6 +436,72 @@ const only = async (page, label) => {
 	return found;
 };
 
+// The page has stopped moving, judged by the event the module itself listens
+// for. A scroll position that has come to rest cannot see a scroll event still
+// in flight, and it is the event that closes the card: one dispatched a frame
+// after the probe's own travelling arrives while the open it would have
+// cancelled is still only scheduled.
+// A scroll event needs one frame to arrive. This is that, with room for a page
+// busy enough to miss several, and it is waited out before the pointer moves
+// rather than raced against the module's own delay.
+const QUIET = 150;
+const stillness = async (page) => {
+	await page.evaluate(() => {
+		window.__probeScrolledAt = performance.now();
+		if (window.__probeWatchingScroll) return;
+		window.__probeWatchingScroll = true;
+		document.addEventListener(
+			'scroll',
+			() => {
+				window.__probeScrolledAt = performance.now();
+			},
+			{ capture: true, passive: true },
+		);
+	});
+	await page.waitForFunction((quiet) => performance.now() - window.__probeScrolledAt > quiet, QUIET, { timeout: 5000 });
+};
+
+// Brings a link to the pointer, or to the keyboard, with the page already
+// still — and says so out loud if it could not.
+//
+// Playwright scrolls a link into view before it can reach it, and the module
+// closes the card on any scroll outside the card, clearing the open it had
+// scheduled. So a link this probe has to travel to answers "no card" whichever
+// way the product behaves, and every assertion that reads an absent card reads
+// that silence as the product being right. All the travelling happens here,
+// before anything arrives; where the link started is kept, so a mutation that
+// pushed it out of sight can prove it did; and the page's resting place is
+// read back afterwards, so a journey that moved it anyway is a broken probe
+// rather than a verdict.
+const bring = async (page, link, arrive, how) => {
+	const from = await link.evaluate((el) => ({ top: el.getBoundingClientRect().top, window: window.innerHeight }));
+	await link.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+	await stillness(page);
+	await page.mouse.move(4, 4);
+	if (!(await settles(page, false, 2000))) {
+		// A card the product will not take back is a defect with three sites of
+		// its own further down, each of which asks for the dismissal it is about.
+		// Here it is only in the way, so the card is put away through the
+		// browser's own API rather than through an affordance one of those sites
+		// is about to test — the next link has to start from an empty screen, or
+		// what opens cannot be told from what stayed.
+		await page.evaluate(() => document.querySelector('[data-preview-card]')?.hidePopover());
+		if (!(await settles(page, false, 2000))) {
+			broken(`a card stayed open and would not be put away before the ${how} reached its link, so what opens next cannot be told from what stayed`);
+		}
+	}
+	const rest = await page.evaluate(() => Math.round(window.scrollY));
+	await arrive();
+	const landed = await page.evaluate(() => Math.round(window.scrollY));
+	if (landed !== rest) {
+		broken(`the page moved ${Math.abs(landed - rest)}px as the ${how} reached its link, so an absent card after it would be this probe's own doing rather than the product's answer`);
+	}
+	approach = { from: from.top, window: from.window };
+};
+
+const pointerOnto = (page, link) => bring(page, link, () => link.hover(), 'pointer');
+const focusOnto = (page, link) => bring(page, link, () => link.focus(), 'keyboard');
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
 	const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -405,7 +534,7 @@ try {
 	// Hover. The delay is what makes a card an answer to a question rather than
 	// a thing that happens while a pointer crosses a paragraph.
 	const section = await only(page, SECTION_LINK);
-	await section.hover();
+	await pointerOnto(page, section);
 	const opened = await settles(page, true, 4000);
 	proveApplied('card-opens-on-hover', proof);
 	if (!opened) {
@@ -492,22 +621,17 @@ try {
 	// A passing pointer. The excerpt is already held from the hover above, so
 	// what is being measured here is the wait and not a fetch. It is asked
 	// before the keyboard's own wait, because one constant governs both and
-	// whichever is asked first is the one that reports it. The pointer leaves
-	// the link first: it has been resting on it since the card above opened,
-	// and a pointer that never left never arrives again.
-	await page.mouse.move(4, 4);
-	await settles(page, false, 2000);
-	await section.hover();
+	// whichever is asked first is the one that reports it. The pointer has been
+	// resting on this link since the card above opened, and a pointer that never
+	// left never arrives again — so it leaves first, which the helper does.
+	await pointerOnto(page, section);
 	await page.waitForTimeout(120);
 	proveApplied('card-waits-out-a-passing-pointer', proof);
 	if ((await cardState(page)).open) {
 		fail('card-waits-out-a-passing-pointer', 'the card opened within 120ms of the pointer arriving, so crossing a paragraph of links flashes one for each');
 	}
-	await page.mouse.move(4, 4);
-	await settles(page, false, 2000);
-
 	// The keyboard. Reaching a link is already deliberate, so it opens at once.
-	await section.focus();
+	await focusOnto(page, section);
 	// The excerpt is already held from the hover above, so what is measured
 	// here is the wait and not a fetch.
 	await page.waitForTimeout(120);
@@ -525,7 +649,7 @@ try {
 	// The same question asked of a section whose name is not ASCII.
 	{
 		const cjk = await only(page, CJK_LINK);
-		await cjk.hover();
+		await pointerOnto(page, cjk);
 		if (!(await settles(page, true, 4000))) {
 			broken(`resting the pointer on ${JSON.stringify(CJK_LINK)} opened no card, so the section it names cannot be looked for`);
 		}
@@ -541,7 +665,7 @@ try {
 	// The whole-note link, whose destination is long enough that the card has
 	// to keep it inside itself.
 	const whole = await only(page, WHOLE_NOTE_LINK);
-	await whole.hover();
+	await pointerOnto(page, whole);
 	if (!(await settles(page, true, 4000))) {
 		broken(`resting the pointer on ${JSON.stringify(WHOLE_NOTE_LINK)} opened no card, so nothing below has a card to measure`);
 	}
@@ -570,9 +694,7 @@ try {
 	// the keyboard with the pointer parked in a corner: scrolling takes the link
 	// out from under a pointer resting on it, so a card dismissed by a hover
 	// that ended would otherwise be read as a card dismissed by the scroll.
-	await page.mouse.move(4, 4);
-	if (!(await settles(page, false, 2000))) broken('the card would not close before the scroll check, so that check has no starting state');
-	await whole.focus();
+	await focusOnto(page, whole);
 	if (!(await settles(page, true, 4000))) broken('the card did not reopen, so scrolling has nothing to dismiss');
 	await page.mouse.wheel(0, 400);
 	proveApplied('scrolling-dismisses-the-card', proof);
@@ -585,42 +707,23 @@ try {
 
 	// The two links that must open nothing: one the renderer marked as landing
 	// somewhere other than it says, and one that leaves this machine.
-	// Reading-column schema notices push these links down, so they are scrolled
-	// into view once before the loop. Scrolling inside the assertion window would
-	// dismiss a card the mutation opened, because preview.js closes on scroll.
-	const negativeLinks = [];
 	for (const label of [DEGRADED_LINK, EXTERNAL_LINK]) {
-		negativeLinks.push({ label, link: await only(page, label) });
-	}
-	for (const { link } of negativeLinks) {
-		await link.scrollIntoViewIfNeeded();
-	}
-	await page.waitForTimeout(300);
-	await page.mouse.move(4, 4);
-	await settles(page, false, 2000);
-	for (const { label, link } of negativeLinks) {
-		await link.hover();
+		const link = await only(page, label);
+		await pointerOnto(page, link);
 		await page.waitForTimeout(700);
 		proveApplied('a-link-that-cannot-be-previewed-opens-nothing', proof);
 		const state = await cardState(page);
 		if (state.open) {
 			fail('a-link-that-cannot-be-previewed-opens-nothing', `${JSON.stringify(label)} opened a card, and it reads ${JSON.stringify(state.text.slice(0, 160))} — a promise this link cannot keep`);
 		}
-		await page.mouse.move(4, 4);
 	}
 
 	// A wikilink to a vault file that is not a note. It resolved, it works, and
 	// clicking it opens that file's own page — so a card telling the reader
 	// there is nothing at the address would be contradicted by the link itself.
-	// The seal bar now sits after the prose, so this link sits lower; scroll it
-	// into view and settle before measuring, not inside the window.
 	{
 		const file = await only(page, NON_NOTE_LINK);
-		await file.scrollIntoViewIfNeeded();
-		await page.waitForTimeout(300);
-		await page.mouse.move(4, 4);
-		await settles(page, false, 2000);
-		await file.hover();
+		await pointerOnto(page, file);
 		await page.waitForTimeout(900);
 		proveApplied('a-vault-file-that-is-not-a-note-opens-nothing', proof);
 		const state = await cardState(page);
@@ -649,18 +752,11 @@ try {
 		}
 		// The page is proved able to open a card before it is asked not to.
 		const plain = await only(lesson, LESSON_PLAIN_LINK);
-		await plain.scrollIntoViewIfNeeded();
-		await lesson.waitForTimeout(300);
-		await plain.hover();
+		await pointerOnto(lesson, plain);
 		if (!(await settles(lesson, true, 4000))) {
 			broken(`the plain link ${JSON.stringify(LESSON_PLAIN_LINK)} opened no card on the lesson, so nothing there opens one and the check below would hold for the wrong reason`);
 		}
-		await lesson.mouse.move(4, 4);
-		if (!(await settles(lesson, false, 2000))) broken('the lesson card would not close before the concept term was tried');
-
-		await term.scrollIntoViewIfNeeded();
-		await lesson.waitForTimeout(300);
-		await term.hover();
+		await pointerOnto(lesson, term);
 		await lesson.waitForTimeout(900);
 		proveApplied('a-link-that-cannot-be-previewed-opens-nothing', proof);
 		const state = await cardState(lesson);
@@ -730,7 +826,7 @@ try {
 	const coarse = await tapping.evaluate(() => matchMedia('(pointer: coarse)').matches);
 	if (!coarse) broken('the touch context still reports a fine pointer, so this check would pass over an emulation that never happened');
 	const touchLink = tapping.locator(`main a:text-is("${SECTION_LINK}")`);
-	await touchLink.hover();
+	await pointerOnto(tapping, touchLink);
 	await tapping.waitForTimeout(900);
 	proveApplied('a-coarse-pointer-opens-no-card', proof);
 	{

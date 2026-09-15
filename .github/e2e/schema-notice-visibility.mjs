@@ -25,6 +25,7 @@ const fail = (site, message) => {
   throw new LockFired(site, `FAIL schema-notice-visibility: ${message}`);
 };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED schema-notice-visibility: ${message}`); };
+const broken = (message) => { throw new ProbeBroken(`BROKEN schema-notice-visibility: ${message}`); };
 
 const rewritePath = (path, needle, replacement, expected, label) => async (context) => {
   let requests = 0;
@@ -64,6 +65,16 @@ const MUTATIONS = {
       '<style>#schema-notices{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
       1,
       'schema-notice clip style',
+    ),
+  },
+  'hide-notice-at-phone-width': {
+    target: 'notice-painted',
+    apply: rewritePath(
+      PAGE,
+      '</head>',
+      '<style>@media (max-width:600px){#schema-notices{display:none!important}}</style></head>',
+      1,
+      'schema-notice phone-width hide style',
     ),
   },
   'drop-describedby': {
@@ -127,21 +138,24 @@ const painted = (locator) => locator.evaluate((element) => {
 const onScreen = (seen) => seen.width > 1 && seen.height > 1 && seen.inViewport
   && seen.visible && seen.inkAlpha > 0 && seen.hit;
 
-const assertNoticeVisible = async (page, site) => {
+// The width is carried into every sentence this can say, because one of the
+// two iterations is a phone and a failure that does not name which window it
+// was read in is a failure a reader has to reproduce to understand.
+const assertNoticeVisible = async (page, site, width) => {
   const block = page.locator('#schema-notices');
   if (await block.count() !== 1) {
-    fail(site, `the page carries ${await block.count()} #schema-notices blocks, want exactly 1`);
+    fail(site, `at ${width}px the page carries ${await block.count()} #schema-notices blocks, want exactly 1`);
   }
   const seen = await painted(block);
   if (!onScreen(seen)) {
-    fail(site, `the unknown-field notice is not on screen: ${JSON.stringify(seen)}`);
+    fail(site, `at ${width}px the unknown-field notice is not on screen: ${JSON.stringify(seen)}`);
   }
   if (!seen.text.includes('mystery_key') || !seen.text.includes('不是 schema 認得的欄位')) {
-    fail(site, `the notice does not name the unknown key in words: ${JSON.stringify(seen.text)}`);
+    fail(site, `at ${width}px the notice does not name the unknown key in words: ${JSON.stringify(seen.text)}`);
   }
   const rail = page.locator('aside.y-rail-right #schema-notices');
   if (await rail.count() !== 0) {
-    fail(site, 'the notice still renders inside the right rail');
+    fail(site, `at ${width}px the notice still renders inside the right rail`);
   }
 };
 
@@ -174,9 +188,19 @@ try {
   if (mutation) proof = await mutation.apply(context);
 
   for (const width of [390, 1280]) {
-    const page = await context.newPage({ viewport: { width, height: 800 } });
+    const page = await context.newPage();
+    // Sizing the window is the page's own call. newPage takes no viewport
+    // options, so a size handed to it is dropped without a word, and both
+    // iterations then run at the desktop default while one of them says phone.
+    // The width is read back from the page before anything is measured at it,
+    // because that silence is what a reader of this loop has to be shown.
+    await page.setViewportSize({ width, height: 800 });
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-    await assertNoticeVisible(page, 'notice-painted');
+    const reported = await page.evaluate(() => window.innerWidth);
+    if (reported !== width) {
+      broken(`this iteration asks about ${width}px and the page reports ${reported}px of window, so it is not the width it says it is`);
+    }
+    await assertNoticeVisible(page, 'notice-painted', width);
     proveApplied('notice-painted');
     if (width === 1280) {
       await assertDescribedBy(page);
