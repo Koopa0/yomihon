@@ -9,7 +9,7 @@ down, so it is worth reading rather than assuming.
 ## See the keys for yourself
 
 The entry point states the rule. Here is the experiment that shows it, which
-you can run in a minute against `examples/vault`. Put these eight links in one
+you can run in a minute against `examples/vault`. Put these nine links in one
 note and run `check` over it:
 
 ```markdown
@@ -24,10 +24,11 @@ note and run `check` over it:
 9. [[The contract]]
 ```
 
-Eight resolve. Only the ninth is reported, because it is a name no file answers
-to. Lines 1–4 are the four forms of the note's location; 5–7 are the same key
-after the fold — trimmed, NFC, compared without regard to case; 8 is one of the
-two aliases that note declares in its frontmatter.
+`check` prints exactly one finding, for line 9. Eight resolve: lines 1–4 are
+the four forms of the note's location; 5–7 are the same key after the fold —
+trimmed, NFC, compared without regard to case; 8 is one of the two aliases that
+note declares in its frontmatter (`aliases: [contract, vault-schema]`). Only the
+ninth is a name no file answers to.
 
 Two consequences are easy to miss. Because the fold happens before the
 comparison, two files whose names differ only in case collide with each other
@@ -72,8 +73,26 @@ That asymmetry is deliberate and is worth remembering, because the two failures
 look identical in the source and behave differently in the browser.
 
 A note's own headings become anchors with CJK intact; a repeated heading slug
-gets `-2`, `-3` appended until it is free. To make a line addressable, end it
-with `^my-id`.
+gets `-2`, `-3` appended until it is free.
+
+### What a block address is, exactly
+
+A block address is the caret **and** the word: you end a line with `^my-id`,
+and the id is `^my-id`, caret included. So the link is `[[Note#^my-id]]` — one
+caret, not two, and the `#^` is not a doubling. The three near-misses each fail
+in their own way, and one run tells them apart:
+
+| Written in the link | What happens |
+|---|---|
+| `[[Note#^my-id]]` | resolves to the line ending `^my-id` |
+| `[[Note#my-id]]` | read as a **section** name, not a block: `link.section_missing`, because no heading is called *my-id* |
+| `[[Note#^^my-id]]` | `link.block_missing` — the message names the address it looked for, `^^my-id` |
+
+A line ending in a bare `my-id` with no caret is not addressable at all. And
+the caret can only be written in some places: it works at the end of a heading,
+an ordinary paragraph, and a **callout's body line**; it is refused on a
+recognised callout's own opening line and on a table row, where `check` answers
+`link.block_missing` however the link is spelled.
 
 ## Embeds
 
@@ -117,9 +136,12 @@ Three things about this that a reader gets wrong:
   gap, and every broken link beneath it silently drops to `info` — which
   `--deny warn` does not catch. This is the most expensive accident in the
   dialect: the gate stays green and the links stay dead.
-- **It does not soften what a course promises.** A lesson a study path lists and
-  the vault does not have is still reported. A course is answered where the
-  course says it is.
+- **A course entry is softened by position and never by name.** Listing a name
+  under a gap heading marks it planned for every ordinary link in the vault —
+  but a study path that promises that same note still reports `warn`, because a
+  course is answered where the course made the promise. Putting the entry
+  *inside* a gap branch of the path itself does soften it, to `info`;
+  [`study-paths.md`](study-paths.md) owns how a course declares a gap.
 
 ## If a link is missing and you cannot see why
 

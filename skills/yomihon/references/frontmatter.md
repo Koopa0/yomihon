@@ -17,10 +17,12 @@ working one, written to be copied and then cut down.
 ### `[enums]` — the vocabulary
 
 Flat lists of legal values: `type`, `domain`, `source_kind`, `source_provider`,
-`level`, `map_kind`. A value outside the declared list is `schema.enum`, an
-error. An omitted or empty list constrains nothing at all — so a contract that
-declares no `domain` list accepts any domain, and silence there is permission
-rather than absence.
+`level`, `map_kind`. None of them has a built-in vocabulary — there is no scale
+`level` is measured against and no set of kinds a map has to be one of; the
+words your contract writes are the whole answer, and a value outside the
+declared list is `schema.enum`, an error. An omitted or empty list constrains
+nothing at all, so a contract that declares no `domain` list accepts any domain,
+and silence there is permission rather than absence.
 
 `[enums.status]` is different in shape: a map of *group name* to list of
 statuses. Every contract has to declare a group called `note`; a contract
@@ -39,20 +41,30 @@ message says which: `status "published" is not a valid lesson status`, not
 
 | Key | What it does to your note |
 |---|---|
-| `known` | the complete list of keys a note may carry. A key outside it is `schema.unknown_key`, an error. There is no harmless extra key — including keys other yomihon capabilities read, like `topics` for the `topic:` filter or `domain` for `domain:`. Writing a field is not the same as opening the capability; the contract has to declare it too |
+| `known` | the keys any note may carry. A key on neither this list nor `lesson_only` is `schema.unknown_key`, an error. There is no harmless extra key — including keys other yomihon capabilities read, like `topics` for the `topic:` filter or `domain` for `domain:`. Writing a field is not the same as opening the capability; the contract has to declare it too |
 | `required` | every key here must be present. "Present" means a non-empty scalar or a non-empty list, so a required field written as a one-item list counts |
 | `lesson_only` | keys only a lesson **may** carry. This is permission, not obligation: nothing here becomes mandatory by being listed, and any non-lesson carrying one gets `schema.unknown_key` |
 | `required_inbox` | for a note whose type is `inbox`, this list **replaces** `required` entirely — it is not a delta on top of it |
 | `domain_exempt_types` | types excused from carrying `domain`, and only `domain`. A course and a map usually span subjects, which is what this is for |
 
-Two consequences worth holding on to. First, `required` must be a subset of
-`known`, and `known` and `lesson_only` may not overlap — so a `lesson_only` key
-can never be required by `required`. Second, a lesson is required to carry
-`slug` regardless of any of this: that demand is yomihon's, not the contract's,
-and it fires as `schema.required` with the message `is required for a lesson`.
-A contract that forgets to list `slug` under `lesson_only` therefore makes
-every lesson wrong twice — missing it is an error, and writing it is an
-unknown key.
+Three consequences worth holding on to.
+
+First, **`known` is not the whole permitted vocabulary** — the keys a lesson may
+carry are `known` plus `lesson_only`. In `examples/vault`, `slug` and `level`
+appear only under `lesson_only`, and a lesson carrying both passes `check`
+cleanly.
+
+Second, `required` must be a subset of `known`, and `known` and `lesson_only`
+may not overlap. Both are enforced by refusing the contract outright, which is
+worth knowing because a refused contract does not say so in `check` — it
+reports the generic refusal [`diagnostics.md`](diagnostics.md) describes, and
+you get the real reason from `yomihon serve`.
+
+Third, a lesson is required to carry `slug` regardless of any of this: that
+demand is yomihon's, not the contract's, and it fires as `schema.required` with
+the message `slug is required for a lesson`. A contract that forgets to list
+`slug` under `lesson_only` therefore makes every lesson wrong twice — missing
+it is an error, and writing it is an unknown key.
 
 ### `[rules]` — the checks with their own rule ids
 
@@ -84,9 +96,11 @@ A directory named here that the vault does not actually have is
 against any note — the guard against a typo silently switching the rules off.
 
 `skip_basenames` names filenames that are never read as notes. The match is
-exact, and unlike almost everything else in this dialect it is not
-case-folded. Such a file is still reachable and still answers a link; it stays
-out of the shelf, the index and `exists`.
+exact, and unlike almost everything else in this dialect it is not case-folded.
+Such a file still has a page of its own — `/notes/<path>` and `/raw/<path>` both
+answer 200 — but it is not a note: it answers no `[[link]]` (`[[README]]` in a
+vault that skips `README.md` reports `link.broken`), it is not in the folder
+listing, its words are not in the search index, and `exists` does not know it.
 
 `no_frontmatter_is_legal` has a third state that matters. Omitted, a note
 without frontmatter is fine. Written `true`, fine. Only writing it `false`
@@ -98,10 +112,15 @@ note can be judged until it parses.
 
 `path_types` and `map_types` name the types that become study paths and maps.
 This is the declaration behind the first silent gate in front of the study-path
-grammar, which [`study-paths.md`](study-paths.md) explains: a type that is not
-listed here projects nothing and reports nothing. If the table is present, both
-keys are required, and a fault in either closes both — as does omitting the
-table, which leaves the vault with no study paths and no maps at all.
+grammar, which [`study-paths.md`](study-paths.md) explains, and in front of maps,
+which [`maps.md`](maps.md) does: a type that is not listed here projects nothing
+and reports nothing.
+
+If the table is present, both keys are required. A fault in either closes both,
+and so does naming a type on both lists, or naming a type `[enums] type` does
+not declare, or omitting the table. Each of those leaves the vault with no
+study paths and no maps at all, and the way to see it is the startup line
+reading `paths=0 maps=0`.
 
 `journal_dir` names a single directory whose files fill the sidebar's journal
 rail. It reads no frontmatter, so an untyped file below it is eligible.
@@ -110,30 +129,38 @@ rail. It reads no frontmatter, so an untyped file below it is eligible.
 
 `non_instance_dirs` names the directories holding templates — shapes to copy
 rather than notes under a lifecycle. A note there is rendered like any other,
-but it carries no status control and a `read-aloud` marker in it does nothing. A contract with no `[artifacts]`
-section still loads, but yomihon closes the whole capability and says so at
-startup — `contract declares no artifact policy; instance projections disabled
-until it does`.
+but where an ordinary note's page offers status buttons its page says it is
+outside lifecycle governance, a `read-aloud` marker in it does nothing, and a
+map entry pointing into one of these directories is dropped from the map.
+
+A contract with no `[artifacts]` section still loads, and this is the second
+omission that closes a capability rather than failing. It says so at startup:
+
+```
+level=WARN msg="vault contract policy unavailable" capability=artifact
+  reason="contract declares no artifact policy; instance projections disabled until it does"
+```
+
+and the projections it disables include the study paths and the maps — the same
+startup line that read `paths=2 maps=5` with the section present reads
+`paths=0 maps=0` without it, on an otherwise identical vault.
 
 ### `[privacy]` — the one omission that stops the tooling dead
 
 `never_egress_dirs` names directories nothing may quote back out. A note under
-one of them is never reported by `check`, `coverage` or `exists`, not even with
-`--all`, and naming a withheld path on the command line is refused rather than
-answered. It does not bind the reading pages: a person at this machine opens
-such a note the way they open any other.
+one of them is never reported by `check` or `coverage`, not even with `--all`,
+and naming a withheld path on the command line is refused rather than answered.
+`exists` is the exception and the one worth reading before you script against
+it — [`diagnostics.md`](diagnostics.md) owns exactly what it answers there. None
+of this binds the reading pages: a person at this machine opens such a note the
+way they open any other.
 
 The behaviour to know before you debug anything: **this section is fail-closed
 and it is not optional in practice.** A contract with no `[privacy]` section has
 granted no permission, so `check`, `coverage` and `exists` all refuse to run at
-all:
-
-```
-yomihon: privacy authority unavailable; agent-facing output disabled
-```
-
-and exit 2. If your commands are refusing on a vault that otherwise looks
-healthy, look here first.
+all, and exit 2. If your commands are refusing on a vault that otherwise looks
+healthy, look here first — and then at the rest of the contract, because every
+other way a contract can fail to load prints the same line.
 
 ### `[supersession]` — the replacement ledger
 

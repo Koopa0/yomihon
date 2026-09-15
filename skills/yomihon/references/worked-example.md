@@ -10,9 +10,8 @@ yomihon repository ships, with the real output of every command.
 If you have that repository, run along:
 
 ```sh
-go build -o ./yomihon ./cmd/yomihon
 cp -R examples/vault /tmp/lab
-./yomihon check --root /tmp/lab --format json
+yomihon check --root /tmp/lab --format json
 ```
 
 That last command prints three findings and exits 0. They are deliberate — the
@@ -97,10 +96,11 @@ Where each key comes from, in this vault's contract:
 |---|---|
 | `title` `type` `status` `domain` | `[fields] required` names all four |
 | `slug` `level` | `[fields] lesson_only` — a lesson may carry them, another type may not |
-| `created` `lang` | on `[fields] known`, so legal, and neither is required. That list is the whole permitted vocabulary — here `title`, `aliases`, `type`, `domain`, `topics`, `tags`, `status`, `created`, `updated`, `lang`, `map_kind`, `source_kind`, `source_provider`, `based_on`, `replaces` — which is also how you know the `aliases` repair for a missed link is available in this vault at all |
+| `created` `lang` | on `[fields] known`, so legal, and neither is required. That list — here `title`, `aliases`, `type`, `domain`, `topics`, `tags`, `status`, `created`, `updated`, `lang`, `map_kind`, `source_kind`, `source_provider`, `based_on`, `replaces` — is what *any* note may carry, and the `lesson_only` row above is what a lesson may carry on top of it. Between them they are the whole permitted vocabulary, which is also how you know the `aliases` repair for a missed link is available in this vault at all |
 | `status: draft` | `[enums.status] lesson` is `["draft", "ready", "archived"]`. `published` is not on it |
 | `slug: l04-note-language` | `[rules] slug_pattern` is `^[a-z0-9]+(-[a-z0-9]+)*$` |
 | `domain: yomihon` | `[enums] domain` offers `yomihon` and `japanese` |
+| `level: intermediate` | `[enums] level` offers `fundamental` and `intermediate`. There is no built-in scale — a vault that declares no `level` list accepts any word, and one that declares another list accepts only those |
 
 The title is deliberately not the filename here, which is realistic and is also
 the commonest way a link later misses. Nothing about it is wrong; it just means
@@ -160,7 +160,7 @@ One row, added to the branch that already declares itself the main line:
 Now check what you touched, rather than the whole vault:
 
 ```sh
-./yomihon check --root /tmp/lab --format json \
+yomihon check --root /tmp/lab --format json \
   "Lessons/L04 Say which language a note is in.md" "Notes/Reading yomihon.md"
 ```
 
@@ -225,11 +225,11 @@ table, so the pattern to satisfy is written in the vault, not in yomihon.
 {"rule_id":"map.disk_mismatch","severity":"warn","path":"Notes/Reading yomihon.md","line":26,"message":"syllabus links [[Say which language a note is in]] but it resolves to nothing", ...}
 ```
 
-This is the course rule speaking, not the link rule: a study-path entry that
-resolves to nothing is a promise the course cannot keep. The same mistake in
-ordinary prose reports differently — change a sentence in
-`Notes/Wikilinks in this dialect.md` to `[[Say which language a note is in]]`
-and you get:
+This is the course rule speaking, not the link rule, and that is the general
+case rather than a quirk of this example: [`study-paths.md`](study-paths.md)
+owns it. The same mistake in ordinary prose reports differently — replace line
+24 of `Notes/Wikilinks in this dialect.md` with a sentence carrying
+`[[Say which language a note is in]]` and you get:
 
 ```json
 {"rule_id":"link.title_not_alias","severity":"warn","path":"Notes/Wikilinks in this dialect.md","line":24,"message":"[[Say which language a note is in]] resolves to no filename or alias","evidence":"the target is the title of Lessons/L04 Say which language a note is in.md but not one of its aliases", ...}
@@ -254,7 +254,7 @@ belongs after the link, or in a paragraph below the item.
 the new row:
 
 ```json
-{"rule_id":"path.role_missing","severity":"warn","path":"Notes/Reading yomihon.md","line":28,"message":"this nested list never says what part it plays; declare {sequence=local} on the row that opens it, or unnest it","evidence":"a nested list carrying no declaration", ...}
+{"rule_id":"path.role_missing","severity":"warn","path":"Notes/Reading yomihon.md","line":27,"message":"this nested list never says what part it plays; declare {sequence=local} on the row that opens it, or unnest it","evidence":"a nested list carrying no declaration", ...}
 ```
 
 Undeclared is unclassified, and unclassified projects nothing. Nothing is
@@ -265,7 +265,7 @@ flattened into the parent as a guess.
 All of them are `warn` or `error`, so one command is the whole gate:
 
 ```sh
-./yomihon check --root /tmp/lab --format json --deny warn \
+yomihon check --root /tmp/lab --format json --deny warn \
   "Lessons/L04 Say which language a note is in.md" "Notes/Reading yomihon.md"
 ```
 

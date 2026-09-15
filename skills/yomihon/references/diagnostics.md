@@ -18,34 +18,54 @@ yomihon check --root <vault> [--format json|human|md] [--all]
 | | |
 |---|---|
 | `--root` | the vault to judge. Without it, the folder you are standing in is the vault |
-| `[path...]` | narrows the judging to part of that vault. Written the way the vault spells it, relative to the root — `Notes`, or `Notes/topic.md`. An absolute path is not a second way to say `--root`: it exits 2 with empty stdout |
+| `[path...]` | narrows the judging to part of that vault. Written the way the vault spells it, relative to the root — `Notes`, or `Notes/topic.md`. An absolute path is not a second way to say `--root`, and is refused |
 | `--format` | `json` is one compact object per line, the machine format. `human` is a terminal summary grouped by domain. `md` is a fileable report body — it opens by saying whether this vault's contract would accept it as a note. Without the flag, a pipe gets `json` and a terminal gets `human` |
-| `--deny` | a severity (`error`, `warn`, `info`) or an exact rule id, repeatable. A severity is a **threshold**, not a match: `--deny warn` fails on warnings and on errors, and `--deny info` fails on anything at all. A value that is neither a severity nor a real rule id exits 2 with `unknown --deny`, so a typo fails loudly instead of quietly disabling the gate |
+| `--deny` | a severity (`error`, `warn`, `info`) or an exact rule id, repeatable. A severity is a **threshold**, not a match: `--deny warn` fails on warnings and on errors, and `--deny info` fails on anything at all. A value that is neither is refused rather than ignored |
 | `--all` | restores findings that touch nothing inside `[scan] knowledge_dirs`. The whole vault is scanned either way; this decides what is reported |
-| `--baseline` | a previous run's JSONL, subtracted by `fingerprint`, so only new findings are reported and gated |
+| `--baseline` | a previous run's JSONL, subtracted by `fingerprint`, so only new findings are reported and gated. It is version-locked; see the refusals below |
 
 Exit codes: **0** nothing named by `--deny` was found · **1** a `--deny` gate
 hit · **2** the command could not run. Findings alone never fail it — without
 `--deny`, `check` reports and exits 0, which is why a green exit is not by
 itself evidence of a clean vault.
 
-Three ways the command refuses rather than answers, all exit 2 with empty
-stdout:
+Every way the command refuses rather than answers exits 2 and writes **nothing
+at all on stdout**, with the reason on stderr. A check that reads the output
+instead of the exit code therefore scores each of these as a clean pass, which
+is why the entry point's probe reads `$?`:
 
 | Refusal | Why |
 |---|---|
 | no `System/schemas/vault-schema.toml` | the folder has declared no vocabulary to judge against |
-| the contract has no `[privacy]` section | permission to report is positive authority, and an absent section grants none. This disables `check`, `coverage` and `exists` for the whole vault, and is the commonest cause of a refusal on a vault that otherwise looks healthy |
+| a contract yomihon could not use | permission to report is positive authority, and a contract it could not load has granted none. This disables `check`, `coverage` and `exists` for the whole vault |
 | a `[path...]` inside a `[privacy] never_egress_dirs` directory | that ground is scanned, but nothing from it may be reported, and an empty answer would read as a clean verdict |
+| a `[path...]` written as an absolute path | a filter names part of the vault from the vault's own root; the vault itself goes after `--root` |
+| a `--deny` value that is neither a severity nor a real rule id | a typo fails loudly instead of quietly disabling the gate |
+| a `--baseline` file written by another fingerprint version | a fingerprint carries its algorithm version as a prefix, currently `v1:`, and subtracting across versions would silently under-subtract. The message names the offending line |
 
-The middle one prints `privacy authority unavailable; agent-facing output
-disabled` and deliberately does not say more: the reason would quote the
-contract back out under exactly the policy that is missing. Run the server to
-read it.
+The second row is the one to expect on a vault that otherwise looks healthy,
+and it is wider than it looks. It prints
 
-`--baseline` is version-locked. A fingerprint carries its algorithm version as
-a prefix, currently `v1:`, and a baseline written by a different one stops the
-run at exit 2 naming the line rather than silently under-subtracting.
+```
+yomihon: privacy authority unavailable; agent-facing output disabled
+```
+
+for **any** contract that did not load — a missing `[privacy]` section is
+merely the commonest, and a `[fields] required` naming a key outside
+`[fields] known` reads exactly the same. It deliberately says no more, because
+the reason would quote the contract back out under the very policy that is
+missing. One command tells you which:
+
+```bash
+yomihon serve --root <vault>
+```
+
+The reason is on the page, and in a startup log line that names it outright:
+
+```
+level=WARN msg="vault contract unavailable; write face is closed (fail-closed)"
+  error="decode vault contract: fields.required: value \"nosuchkey\" is not listed in fields.known"
+```
 
 ## The shape of one finding
 
@@ -65,19 +85,23 @@ carries information:
 | `resolved_to` | the target did resolve, and this is the path it reached — a fragment or listing fault rather than a dead name |
 | `collision_members` | every path involved in a name collision, so one finding describes the whole of it |
 
-`source_rule` says where the rule's authority is written, and is worth reading
-before arguing with a finding:
+`source_rule` says which artifact the rule was read out of, and is worth
+reading before arguing with a finding:
 
 | Value | Meaning |
 |---|---|
-| `vault-schema.toml` | your contract's own type, field and status declarations |
+| `vault-schema.toml` | the finding came out of reading the contract's frontmatter declarations |
 | `vault-schema.toml#rules` | its `[rules]` table |
 | `vault-schema.toml#scan` | its `[scan]` table |
 | `vault-schema.toml#supersession` | its `[supersession]` table |
 | `yomihon` | the product's own dialect — link resolution, collisions, reference liveness, the study-path grammar. No vault artifact declares these |
 
-A finding whose `source_rule` names the contract is one you can change by
-editing the contract. One that says `yomihon` is not.
+A finding that says `yomihon` is never one you can argue with by editing the
+contract. The reverse does not hold as neatly, and two rules are the reason:
+`schema.frontmatter` and `schema.language` both carry `vault-schema.toml`, and
+neither is a value your contract chose — one says the YAML did not parse and
+the other that `lang` is not a well-formed BCP 47 tag. What they share with the
+rest of the table is where they were reached from, not who set the bar.
 
 ## Severity
 
@@ -103,7 +127,7 @@ verdict.
 | `schema.required` | a key `[fields] required` names is absent. `field` says which | contract |
 | `schema.unknown_key` | a key outside `[fields] known` | contract |
 | `schema.enum` | a value outside the list declared for this note's type. Read the message's own wording: it names the list it judged against | contract |
-| `schema.status_unreachable` | the status is in the type's enum, but no `[[lifecycle]]` row applies to that type, so nothing could ever move a note to it | contract |
+| `schema.status_unreachable` | this note's status is in its type's enum, but no `[[lifecycle]]` row carrying that status applies to its type, so nothing could ever have moved it there. It is a finding about the note that carries the value, not about the contract that declares it: a status no note uses is never reported | contract |
 | `schema.frontmatter` | the frontmatter is not valid YAML. Everything else about the note is unjudgeable until this is fixed | contract |
 | `schema.language` | `lang` is not a valid BCP 47 tag | contract |
 | `schema.slug` | the slug does not match `[rules] slug_pattern` | `#rules` |
@@ -114,7 +138,11 @@ verdict.
 
 ## The link and name rules
 
-All `warn` unless noted.
+All `warn` unless noted. One exception is worth knowing before you go looking
+for a finding that never comes: a `[[link]]` yomihon accepted as a **study
+path's lesson row** is judged by `map.disk_mismatch` below instead of by any of
+these, even when the target is exactly some note's title. Every other link in
+that same note is judged here as usual.
 
 | `rule_id` | What it means |
 |---|---|
@@ -129,10 +157,12 @@ All `warn` unless noted.
 | `collision.alias` | two notes declare the same alias. Give the alias one owner |
 | `provenance.unresolved` | a frontmatter reference field points at nothing — `based_on` or `related` (`source_rule` `yomihon`), or one of the fields `[supersession]` configures (`#supersession`). A lesson slug counts as resolving |
 
-## The course and map rules
+## The course rules
 
-`map.*` is about a course's relationship with the files on disk; `path.*` is
-the study-path grammar itself. All `warn`.
+Every rule below judges a **study path**, including the two whose names open
+with *map*: those two are about a course's relationship with the files on disk,
+and no rule anywhere judges a map's own shape — see
+[`maps.md`](maps.md). The rest are the study-path grammar itself. All `warn`.
 
 | `rule_id` | What it means |
 |---|---|
@@ -166,9 +196,26 @@ the study-path grammar itself. All `warn`.
 reachable from its maps, counting only inside the knowledge layer, and never
 gates: it exits 0 whatever it finds, and 2 only if it could not run. A map
 filed outside that layer does not count towards it.
+[`maps.md`](maps.md) owns what the three mount states mean and how to move one.
 
 `yomihon exists <name>` exits 0 when a note for the name exists and 1 when none
-does, so a write-if-absent can gate on the exit code alone. A note inside a
-withheld directory is never described — no path, no matched field — but the
-exit stays 0, so gating on it does not create a second note under a withheld
-note's own name.
+does, so a write-if-absent can gate on the exit code alone.
+
+A note inside a `[privacy] never_egress_dirs` directory is the case to get
+right, and it is the one place a withheld note still answers. It is never
+*described* — no path, no matched field — but the **exit stays 0** and the JSON
+carries `"withheld":true` instead of a match, so a script gated on the exit
+code does not go on to create a second note under a withheld note's own name:
+
+```
+$ yomihon exists --root <vault> --format json 2026-08-30
+{"query":"2026-08-30","matches":[],"withheld":true}
+$ echo $?
+0
+```
+
+Run that against a name under one of your own withheld directories before you
+write any script that depends on it. `check` and `coverage` make the opposite
+trade — they never report a withheld note at all, not even with `--all` — which
+is why this one command has to be described separately rather than lumped in
+with them.

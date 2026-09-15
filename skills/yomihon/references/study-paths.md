@@ -30,11 +30,18 @@ reports `paths=0 maps=0` at startup and `check` says nothing at all, because
 none of this is a fault in any note.
 
 **"Does not read it" does not mean "shows it".** Put `## A part
-{sequence=primary}` in a map and the page renders the heading *A part*. The
-marker is stripped from any heading or list row in any note, so it has not
-become plain text — it has vanished, which is a quieter failure than being
-visible would be, and it is why a marker in the wrong kind of note leaves no
-trace to notice.
+{sequence=primary}` in a map and the page renders the heading *A part*. This
+file owns where that stripping reaches, because it is not "everywhere": the
+marker is removed from every heading **H2 through H6** and from every list row,
+in any note, whether or not the note is a study path. It has not become plain
+text — it has vanished, which is a quieter failure than being visible would be,
+and it is why a marker in the wrong kind of note leaves no trace to notice.
+
+The one place it survives is an **H1**, which opens no branch in any note and
+so has no declaration to remove: `# Heading {sequence=primary}` renders with
+the marker sitting in the heading, braces and all. In a study path that also
+draws `path.role_misplaced`; in a map or an ordinary note it draws nothing, and
+the visible braces are the only sign.
 
 ## The marker
 
@@ -66,9 +73,9 @@ The exact form matters, and the failures differ:
 | `{sequence=primary}` + trailing spaces or a tab | the marker |
 | `{sequence=Primary}` | not a value: `path.role_invalid`, and the branch is then undeclared, so `path.role_missing` too |
 | `{ sequence=primary}` | not a marker at all — `path.role_missing` only, with no hint that you nearly wrote one |
-| `{sequence=primary} {sequence=local}` | `path.role_duplicate` |
-| the marker on the line *below* the heading | `path.role_misplaced` |
-| `# Heading {sequence=primary}` | H1 opens no branch: `path.role_misplaced`, and the marker stays visible in the title |
+| `{sequence=primary} {sequence=local}` | `path.role_duplicate`, and the branch is then undeclared, so `path.role_missing` too |
+| the marker on the line *below* the heading | `path.role_misplaced`, and `path.role_missing` for the heading it was meant for |
+| `# Heading {sequence=primary}` | H1 opens no branch: `path.role_misplaced`, and the marker is the one that stays visible — see above |
 
 A recognised marker is stripped from the displayed name and the source bytes
 are untouched. A child branch does not inherit its parent's role.
@@ -184,6 +191,19 @@ The course reads 8 lessons. The side branch shows as three, hanging under L03.
 L04 follows L03, because the container is L03's child and L04 is its sibling.
 L07 has no next lesson, because L08 is unwritten. The routine block is absent
 from navigation and reads normally on the page.
+
+## A lesson row is judged by the course rules, not the link rules
+
+A row that yomihon accepted as a lesson row is no longer an ordinary link as
+far as `check` is concerned. Point one at a name nothing answers to and the
+finding is `map.disk_mismatch` — *syllabus links [[…]] but it resolves to
+nothing* — and not `link.broken`, and not `link.title_not_alias` even when the
+name is exactly some note's frontmatter title. A study path that promises a
+note is answered where the course made the promise.
+
+That swap is only for the entry rows. A link in the same note's prose is judged
+the way it would be anywhere: write a dead `[[name]]` into a paragraph of a
+study path and you get `link.broken` at that line, in the same run.
 
 ## Listing a lesson you have not written yet
 

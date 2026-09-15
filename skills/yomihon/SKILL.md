@@ -28,9 +28,11 @@ small working one. The code owns the dialect, the study-path grammar, link
 resolution and search. Where this page and `yomihon check` disagree, `check` is
 right.
 
-This file is the entry point and is enough to write a correct note. Beside it,
-`references/` holds one file per subject for when you need the whole of one;
-each is named below where you would want it.
+This file is the entry point: it names every decision a note has to make and
+sends you to the file that owns the whole of each subject. Beside it,
+`references/` holds one file per subject, and each is the authority for what it
+covers — where this page would otherwise repeat one, it links instead, so every
+fact has one home and cannot drift from a second copy.
 
 ## What carrying this skill changes
 
@@ -52,11 +54,8 @@ Four habits, and they are the whole of it:
 yomihon check --root <vault> --format json [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]
 ```
 
-Every finding carries `rule_id`, `severity`, `path`, `message`, `evidence`,
-`suggested_action`, `source_rule` and `fingerprint`; `line`, `field`, `target`,
-`resolved_to` and `collision_members` appear only when the finding has them, so
-their absence tells you something too. Fix by `rule_id`, re-run, repeat until
-your file is quiet.
+Every finding carries a `rule_id`. Fix by rule id, re-run, repeat until your
+file is quiet.
 
 Exit codes: `0` nothing named by `--deny` was found · `1` a `--deny` gate hit ·
 `2` the command could not run. Findings alone never fail it, so a green exit
@@ -64,57 +63,116 @@ without `--deny` is not evidence of a clean vault. A severity passed to
 `--deny` is a threshold, not a match: `--deny warn` fails on warnings and
 errors both.
 
-Every `schema.` rule is an error. Everything else is a warning, except that
-three link rules drop to `info` when the vault has declared the name owed
-rather than missing — so `--deny warn` deliberately does not catch those. To
-gate on course structure, use `--deny warn` on the path you touched.
+To gate on course structure, use `--deny warn` on the path you touched. It
+catches every course and link fault except the ones your vault has declared
+owed rather than missing, which sit at `info` on purpose — the severity model
+and the accident hiding in it are in `references/diagnostics.md`.
 
-Three ways the command refuses instead of answering, all exit 2 with empty
-stdout: a folder with no contract; a `[path...]` inside a directory the
-contract withholds; and — the commonest, and the one that looks like a broken
-install — a contract carrying no privacy section at all, which disables this
-whole command surface for the vault.
+When the command cannot run at all it exits 2 with **empty stdout** and the
+reason on stderr. On a vault that otherwise looks healthy the cause is almost
+always a contract yomihon could not use — most often one carrying no
+`[privacy]` section, but any refused contract reads the same, because a
+contract it could not load has granted nothing. `check` will not say which:
+naming the reason would quote the contract back out under the very policy that
+is missing. Read it where reading is the point:
 
-The whole surface — every rule, every flag, the refusals, both other commands —
-is `references/diagnostics.md`.
+```bash
+yomihon serve --root <vault>       # then http://127.0.0.1:9610
+```
+
+The server states the cause on the page and logs it at startup. Two of the
+lines it logs there are worth knowing anyway, because a course or a map that
+projects nothing shows up in them as a number, and in `check` not at all:
+
+```
+level=INFO msg="vault snapshot built" files=36 ... paths=2 maps=2 ...
+level=INFO msg="yomihon serving" addr=127.0.0.1:9610 vault=…
+```
+
+The whole command surface — every rule, every flag, every refusal, both other
+commands — is `references/diagnostics.md`.
 
 ### Prove your instrument
 
-A stale `yomihon` reports zero `path.` findings rather than failing, so a clean
-report is not evidence until you have seen the binary report something. Prove
-it against a tree that *must* fail, never against the vault you are judging: a
-correct binary reports zero `path.` findings on a healthy vault, which is
-exactly what a stale one reports on any vault.
+A binary too old for a rule reports nothing rather than failing, so a quiet
+report is not evidence until you have watched this binary report *something*.
+Prove it against a tree built to fail, never against the vault you are judging:
+zero course findings on a healthy vault is exactly what a blind binary prints
+on any vault.
 
-Two files are enough — a copy of the contract, and a study path whose branch
-declares no role:
+The probe below writes its own vault — contract and all — so nothing it says
+depends on your contract's spellings, scan directories or privacy policy, and
+a wrong answer is about the binary rather than about your notes. It reads the
+**exit code** and never the output, because every refusal prints nothing at all
+on stdout and a check that reads stdout scores a refusal as a clean pass:
 
 ```bash
-go build -o ./yomihon ./cmd/yomihon
-mkdir -p /tmp/probe/System/schemas /tmp/probe/Notes
-cp <vault>/System/schemas/vault-schema.toml /tmp/probe/System/schemas/
-printf -- '---\ntitle: Probe\ntype: study-path\nstatus: draft\n---\n\n## Undeclared\n\n- [[Anything]]\n' \
-  > /tmp/probe/Notes/Probe.md
-./yomihon check --root /tmp/probe --format json | grep -c '"rule_id":"path\.'
+probe=$(mktemp -d) || exit 1
+mkdir -p "$probe/System/schemas"
+cat > "$probe/System/schemas/vault-schema.toml" <<'TOML'
+schema_version = "1"
+[enums]
+type = ["probe"]
+[enums.status]
+note = ["draft"]
+[navigation]
+path_types = ["probe"]
+map_types = []
+[privacy]
+never_egress_dirs = []
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+initial = true
+from = []
+owner = ["author"]
+TOML
+cat > "$probe/Probe.md" <<'MD'
+---
+title: Probe
+type: probe
+status: draft
+---
+
+## Undeclared
+
+- [[Anything]]
+MD
+yomihon check --root "$probe" --all --deny path.role_missing >/dev/null 2>&1
+verdict=$?
+rm -rf "$probe"
+case $verdict in
+  1) echo "proven: this binary reports path.role_missing" ;;
+  0) echo "blind: it knows the rule's name and did not report it — distrust its quiet course reports" ;;
+  *) echo "could not run: it refused the probe vault, so it has told you nothing" ;;
+esac
 ```
 
-That prints `1`. A `0` means the binary cannot see `path.` rules, and every
-quiet course report it has given you is worthless.
+Each of the three answers is a different fact, and none of them reads as
+success by accident:
 
-The `type` in that probe has to be one your contract lists under
-`[navigation] path_types` — `study-path` above is the example vault's spelling.
-Get that wrong and the probe prints `0` for the same reason a stale binary
-does, which is the trap this whole section exists to avoid.
+| Exit | Means |
+|---|---|
+| `1` | the gate fired: this binary sees the course rules |
+| `0` | it accepted `path.role_missing` as a real rule id and then found none on a branch that has to produce one |
+| anything else | it could not run — an unknown `--deny` value from a binary that has never heard of the rule, or a refusal — and has said nothing about itself either way |
+
+`--all` is load-bearing: without it, a knowledge layer that does not contain
+the probe's note would drop the finding and the probe would report *blind* on a
+healthy binary. Change any one part — drop `--all`, name a rule that cannot
+fire here, declare a `path_types` value the note does not carry — and the
+verdict stops being *proven*, which is how you know the check can fail.
 
 ## Frontmatter: the contract decides, and you may not invent a field
 
 Open the vault's contract before choosing a single key. There is no default
 field set, no key that is safe because it looks ordinary, and no value you can
-reason your way to: `[fields] known` is the complete list of keys a note may
-carry, and everything outside it is an error even when nothing would have read
-it. That rule catches people twice — once on a field they invented, and once on
-a field a yomihon capability really does read, which still has to be declared
-before writing it does anything.
+reason your way to: `[fields] known` lists the keys any note may carry and
+`[fields] lesson_only` the further ones only a lesson may, and a key on neither
+list is an error even when nothing would have read it. That rule catches people
+twice — once on a field they invented, and once on a field a yomihon capability
+really does read, which still has to be declared before writing it does
+anything.
 
 Three things about a contract you have not seen before are worth knowing in
 advance, because each makes a legal-looking note wrong:
@@ -163,7 +221,7 @@ bodies on one page never collide. Beyond that:
 | `[[Note#^id]]` | a link to that block | the fragment is **withdrawn**, the link leads to the whole note, `link.block_missing` |
 | `![[Note]]` | the note's body, inline | one level deep only: an embed inside an embed is not expanded |
 | `![[Note#Heading]]` | an excerpt | nothing is shown; the block names the address that failed and links the note |
-| `> [!warning] Title` | a tinted callout | a type outside the list below → plain blockquote with `[!type]` visible, plus a diagnostic |
+| `> [!warning] Title` | a tinted callout | a type outside the list below → a plain blockquote with `[!type]` visible. The note page names it under the page's own diagnostics; `check` has no rule for it |
 | `> [!tip]-` / `> [!tip]+` | a native `<details>`, closed / open | — |
 | `text. ^my-id` | a block address a link can reach | works on a heading, an ordinary paragraph and a callout's body line; refused on a recognised callout's opening line and on a table row; the caret stays in the id |
 | `==text==` | a highlight | exactly two `=` on each side. A single `=` is literal; surplus `=` also stay literal, outside the mark on the left and inside it on the right, so `===x===` gives `=<mark>x=</mark>` |
@@ -171,10 +229,10 @@ bodies on one page never collide. Beyond that:
 | `<!-- a remark -->` | **the comment, visible as text** | an ordinary HTML comment is escaped onto the page, not hidden. To hide a remark use `%%…%%` |
 | ` ```mermaid ` | a diagram | case-insensitive, and the whole info string must be that word; the source is carried twice so it still reads without JavaScript |
 | ` ```go ` | highlighted code | an unrecognised language falls back to plain text **silently, with no diagnostic** |
-| `<ruby>漢<rt>かん</rt></ruby>` | ruby text | `ruby`, `rt`, `rp`, `br` and a `lang=` attribute on the first three are the allowlist; any other tag is escaped and stays visible — except a `read-aloud` comment naming anything but `ja`, which is removed outright |
+| `<ruby>漢<rt>かん</rt></ruby>` | ruby text | `ruby`, `rt`, `rp`, `br` and a `lang=` attribute on the first three are the allowlist; any other tag is escaped and stays visible |
 | `![alt](pic.png)` | an image | a remote destination becomes an explicit link, never a request; a destination that is neither local nor http shows the alt text alone |
 | `## 標題` | a heading with an anchor | CJK letters and digits survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
-| `<!-- read-aloud: ja -->` | a speech control on the next paragraph | `ja` is the only value, and it acts on a `type: lesson` note only — not on one held by a directory the contract's `[artifacts] non_instance_dirs` names. Anywhere else the comment does nothing |
+| `<!-- read-aloud: ja -->` | a speech control on the next paragraph | `ja` is the only value: a comment naming any other language is **deleted from the page**, not escaped and not left visible, wherever it is written. Even `ja` raises a control only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; anywhere else it stays an invisible HTML comment and does nothing |
 | `[[#Section]]` | **plain text** | a same-file anchor is not implemented and draws no diagnostic. What is left is the display half — `[[#Section]]` leaves `#Section`, and `[[#Section\|see below]]` leaves only `see below` |
 | `> [!quote] [[Note]]` | **plain text** | a recognised callout's title is escaped, not parsed; a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image there draws `callout.title_markup` — move the markup into the body |
 
@@ -214,9 +272,11 @@ the body can be perfect and nothing projects.
    `/syllabus/<its path>` and enters no count, whatever it contains. Maps are
    gated the same way by `map_types`.
 2. **A map is not a study path.** Maps, reports and ordinary notes do not read
-   this syntax at all — and the marker does not show up on their pages either.
-   The renderer strips it from any heading or list row in any note, so it
-   vanishes while declaring nothing.
+   this syntax at all, and the marker does not show up on their pages either:
+   it is stripped wherever it could have declared something, so it vanishes
+   rather than turning into visible text. `references/study-paths.md` owns
+   where that stripping reaches and the one heading it does not; a map's own
+   grammar is `references/maps.md`.
 
 Past those gates, the grammar is three values on a branch — closed and
 case-sensitive, and exact about where they may be written:
@@ -240,56 +300,51 @@ lessons, how to mark a lesson you have not written yet, and the shapes `check`
 misses are all in `references/study-paths.md`. Read it before you build a
 course, not after the count comes out wrong.
 
+## Maps: grouping without ordering
+
+A map is the other declared collection: a note whose type is on
+`[navigation] map_types`, holding links grouped under headings rather than put
+in order. It has branches, not lessons — no count of lessons, no prev/next, and
+no sequence grammar.
+
+The thing to know before writing one is that **no rule judges a map's shape.**
+A heading whose links all point at nothing, or sit somewhere the scanner does
+not read, simply disappears from the map and is reported by nobody. You find
+that out by looking at `/maps`, where such a map reads *0 branches*, not by
+running `check`. What counts as a branch, what counts as an entry, what
+`map_kind` is for, and what listing a note on a map changes about
+`yomihon coverage` are in `references/maps.md`.
+
 ## One note into a course, end to end
 
-Take a capture in `examples/vault` — ordinary prose, `type: inbox`, no domain.
-It has a reading page and is in the search index. It is in no course. Four
-steps put it in one, and only the last is about the course:
+Writing a lesson is not joining a course, and a course is a note. Five steps,
+in this order, and only the last is about the course:
 
-**The filename first**, because it is the key: `Lessons/L04 Say which language
-a note is in.md`. **Then frontmatter, every key traced to the contract:**
+1. **The filename**, because it is the key a `[[link]]` will be typed against,
+   and the title is not.
+2. **The frontmatter**, every key traced to a table in the contract rather than
+   chosen — `[fields] required` for what must be there, `[fields] lesson_only`
+   for the extras a lesson may carry, `[enums.status]` for the value, `[rules]`
+   for the shape of it.
+3. **The directory**, one `[scan] knowledge_dirs` names — because outside it
+   the frontmatter rules judge nothing, and silence there is not a pass.
+4. **The study path's own type**, which has to be on `[navigation] path_types`.
+   This is the gate that fails most quietly: get it wrong and the note is fine,
+   the page renders, and the course simply does not exist.
+5. **One row on a branch that already declares its role**, opening with the
+   lesson's `[[link]]` and nothing before it.
 
-```yaml
----
-title: Say which language a note is in
-type: lesson
-status: draft
-domain: yomihon
-slug: l04-note-language
-level: intermediate
----
-```
+Then `yomihon check --root <vault> --format json <the lesson> <the path>`, and
+it should print nothing at all.
 
-`title` `type` `status` `domain` because `[fields] required` names them;
-`slug` and `level` because `[fields] lesson_only` permits them to a lesson;
-`draft` because `[enums.status]` gives a lesson `draft`, `ready`, `archived`
-and not `published`; the slug in that shape because `[rules] slug_pattern` says
-so. **Then the file goes under a directory `[scan] knowledge_dirs` names.**
-**Then one row in the path**, on a branch that already declares its role:
+Step 5 has the fault most worth fearing in it. Put a word in front of the link
+— `- 第四課：[[L04 …]]` — and you get `path.entry_noncanonical`: the row still
+reads, the link still works, the page looks finished, and the course count
+silently drops back by one.
 
-```markdown
-## Doing it {sequence=primary}
-
-- [[L01 Point yomihon at a folder]]
-- [[L02 Add a contract]]
-- [[L04 Say which language a note is in]]
-```
-
-Now `yomihon check --root <vault> --format json <the lesson> <the path>` is
-quiet, and the course counts one more.
-
-Get any of it wrong and the report is specific. `status: published` gives
-`schema.enum` saying *not a valid lesson status*. A missing `domain` gives
-`schema.required`. An invented key gives `schema.unknown_key`. Writing the row
-as `- 第四課：[[L04 Say which language a note is in]]` gives
-`path.entry_noncanonical` — and this is the one to fear, because the page still
-reads perfectly while the course count silently drops back.
-
-That is the short version. `references/worked-example.md` walks the same note
-at full length against the vault this repository ships: every contract table it
-draws on, the study path's own frontmatter and the gate hiding in it, the
-counts before and after, and the verbatim output of each way of getting it
-wrong.
+`references/worked-example.md` is this walk done for real against the vault
+this repository ships — every contract table it draws on, the counts before and
+after, and the verbatim output of each way of getting it wrong.
 
 ## What goes wrong most
 
@@ -304,20 +359,22 @@ link works, the page looks finished, and only a number somewhere else is wrong.
 Nothing here is loud.
 
 The last of the four deserves a warning of its own, because its name promises
-more than it delivers. `map.disk_unlisted` is the one that would catch a lesson
-you wrote and forgot to list — but it only runs for a study path that itself
-declares a `domain`, only over lessons carrying that same domain, and never
-over a draft. A vault whose courses span subjects, which is the normal case,
-never sees it at all. **So an unlisted lesson is usually silent, and step 3 of
-the checklist below is not something `check` will do for you.**
+more than it delivers — and its name is a second trap: it begins with *map* and
+judges study paths, not maps. `map.disk_unlisted` is the one that would catch a
+lesson you wrote and forgot to list, but it only runs for a study path that
+itself declares a `domain`, only over lessons carrying that same domain, and
+never over a draft. A vault whose courses span subjects, which is the normal
+case, never sees it at all. **So an unlisted lesson is usually silent, and step
+3 of the checklist below is not something `check` will do for you.**
 
 ## Before calling a note done
 
 1. `yomihon check --root <vault> --format json <path>` is quiet for your file,
-   run with a binary you have confirmed can see `path.` rules.
-2. `--deny error` on your path is quiet: you invented no field, and copied no
-   enum out of the contract into your prose.
-3. If the note is a lesson, a syllabus lists it — in the same change.
+   run with a binary the probe above says is proven.
+2. `--deny warn` on the path you touched exits 0 — the threshold covers errors
+   too, so that one run says you invented no field, wrote no value the contract
+   does not declare, and left no branch undeclared.
+3. If the note is a lesson, a study path lists it — in the same change.
 4. If you added a branch, it carries a `{sequence=…}` declaration.
 5. Every `[[link]]` resolves, or is deliberately a planned gap under a gap
    heading.
