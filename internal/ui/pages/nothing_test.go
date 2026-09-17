@@ -108,24 +108,44 @@ func TestEverySurfaceWithNothingToShowDrawsTheOneNotice(t *testing.T) {
 func TestTheNoticeIsDrawnInOnePlace(t *testing.T) {
 	t.Parallel()
 
-	sources, err := filepath.Glob("*.templ")
-	if err != nil {
-		t.Fatalf("Glob(*.templ): %v", err)
+	// Every hand-written source the interface is built from — both template
+	// packages and the Go beside them. Generated templ output is the templates
+	// again, and this test's own file names the class on purpose.
+	var sources []string
+	for _, pattern := range []string{"*.templ", "*.go", "../layouts/*.templ", "../layouts/*.go"} {
+		matched, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatalf("Glob(%s): %v", pattern, err)
+		}
+		for _, source := range matched {
+			if strings.HasSuffix(source, "_templ.go") || strings.HasSuffix(source, "_test.go") {
+				continue
+			}
+			sources = append(sources, source)
+		}
 	}
-	if len(sources) < 10 {
-		t.Fatalf("only %d templates were read, so this check looks at almost nothing", len(sources))
+	if len(sources) < 30 {
+		t.Fatalf("only %d sources were read, so this check looks at almost nothing", len(sources))
 	}
+	// The root class as an element writes it, and the marker that names the
+	// surface. The first is bounded so a child class of the same family — the
+	// advice line a search writes inside the notice — is not read as a second
+	// copy of the notice itself.
+	root := regexp.MustCompile(`class="y-nothing[ "]|data-nothing`)
 	var writers []string
 	for _, source := range sources {
-		text, err := os.ReadFile(source) // #nosec G304 -- a template beside this test, named by the glob above
+		text, err := os.ReadFile(source) // #nosec G304 -- a source beside this test, named by the globs above
 		if err != nil {
 			t.Fatalf("ReadFile(%s): %v", source, err)
 		}
-		if strings.Contains(string(text), "y-nothing\"") || strings.Contains(string(text), "data-nothing") {
-			writers = append(writers, source)
+		if root.Match(text) {
+			writers = append(writers, filepath.Base(source))
 		}
 	}
-	if diff := cmp.Diff([]string{"nothing.templ"}, writers); diff != "" {
+	// The component is two files: the template that writes the markup and the
+	// type whose doc says what the marker on it means. Anything else naming
+	// either is a second copy of the notice.
+	if diff := cmp.Diff([]string{"nothing.templ", "nothing.go"}, writers); diff != "" {
 		t.Errorf("the notice's markup is written outside its own component (-want +writing):\n%s", diff)
 	}
 }
