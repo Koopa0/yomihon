@@ -280,10 +280,13 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 				}
 			</ol>
 		} else if v.Query != "" {
-			<div class="y-searchpage__empty">
-				<p>{ fmt.Sprintf(wording.NoResultsFmt.In(lang), v.Query) }</p>
+			// The sentence naming what was not found is the heading of this
+			// moment, and the advice under it is what the reader can do next.
+			// No live region marks either: nothing here is arriving, and the
+			// count beside the field is already announced.
+			@nothingToShow(nothingNotice{Kind: "search", Title: fmt.Sprintf(wording.NoResultsFmt.In(lang), v.Query)}) {
 				if len(v.StepBacks) > 0 {
-					<p class="y-searchpage__hint">
+					<p class="y-nothing__hint">
 						{ wording.StepBackLabel.In(lang) }
 						for i, step := range v.StepBacks {
 							if i > 0 {
@@ -295,11 +298,11 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 					</p>
 				}
 				if v.Governed {
-					<p class="y-searchpage__hint">{ wording.SearchScopeHintWithStatus.In(lang) }<code>status:draft</code>{ wording.SearchScopeHintAfterCommand.In(lang) }</p>
+					<p class="y-nothing__hint">{ wording.SearchScopeHintWithStatus.In(lang) }<code>status:draft</code>{ wording.SearchScopeHintAfterCommand.In(lang) }</p>
 				} else {
-					<p class="y-searchpage__hint">{ wording.SearchScopeHint.In(lang) }</p>
+					<p class="y-nothing__hint">{ wording.SearchScopeHint.In(lang) }</p>
 				}
-			</div>
+			}
 		} else {
 			// Nothing has been asked yet, and a blank page is the one moment
 			// with room to say which constraints this field understands
