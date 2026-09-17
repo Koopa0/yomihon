@@ -58,12 +58,21 @@ const (
 // webStorageUse finds every mention of the two Web Storage areas. Each one has
 // to be a get, set or remove whose key the reader below can resolve; any other
 // shape — a clear, an index expression, an alias — fails rather than passing
-// unread.
+// unread. A mention inside a comment is counted and fails too, which is the
+// cheaper mistake: skipping what looks like a comment could skip a real use and
+// pass, while a failure naming a comment line says what it found.
 var webStorageUse = regexp.MustCompile(`\b(localStorage|sessionStorage)\b(\.(getItem|setItem|removeItem)\()?`)
 
-// cookieWrite finds an assignment to document.cookie and captures what follows
-// the opening quote up to the first "=", which is the name being written.
-var cookieWrite = regexp.MustCompile("document\\.cookie\\s*=\\s*[`'\"]([^=`'\"]*)")
+// cookieAssignment finds every write to document.cookie, and cookieWrite the
+// subset whose name this can read: the text between the opening quote and the
+// "=" that ends the name, both inside one quoted run. A name joined together
+// from pieces reaches its "=" in a later piece, so it matches the first and not
+// the second, and comparing the two counts is what keeps such a write from
+// going unnoticed with a truncated name read off its first piece.
+var (
+	cookieAssignment = regexp.MustCompile(`document\.cookie\s*=[^=]`)
+	cookieWrite      = regexp.MustCompile("document\\.cookie\\s*=\\s*[`'\"]([^=`'\"]*)=")
+)
 
 // jsIdentifier is a bare name standing where a key would be, which is resolved
 // to the literal it was declared with.
@@ -88,12 +97,8 @@ func TestBrowserStorageKeysAreDocumented(t *testing.T) {
 	rows := documentedStorageRows(t)
 
 	declared := make(map[string]string, len(cookies)+len(keys))
-	for name, where := range cookies {
-		declared[name] = where
-	}
-	for name, where := range keys {
-		declared[name] = where
-	}
+	maps.Copy(declared, cookies)
+	maps.Copy(declared, keys)
 
 	summary := fmt.Sprintf("examined %d cookies, %d Web Storage keys, %d documented rows",
 		len(cookies), len(keys), len(rows))
@@ -213,7 +218,11 @@ func webStorageKeys(t *testing.T) map[string]string {
 				found[key] = fmt.Sprintf("%s:%d", path, line)
 			}
 		}
-		for _, m := range cookieWrite.FindAllStringSubmatch(source, -1) {
+		writes := cookieWrite.FindAllStringSubmatch(source, -1)
+		if assignments := len(cookieAssignment.FindAllString(source, -1)); len(writes) != assignments {
+			t.Errorf("%s: %d of %d writes to document.cookie name a cookie this check can read; a name assembled at run time cannot be held against the privacy inventory", path, len(writes), assignments)
+		}
+		for _, m := range writes {
 			name := m[1]
 			if !strings.HasPrefix(name, cookiePrefix) {
 				t.Errorf("%s writes a cookie named %q, which is outside the %q namespace the Go declarations enumerate", path, name, cookiePrefix)
@@ -230,14 +239,15 @@ func webStorageKeys(t *testing.T) map[string]string {
 }
 
 // resolveStorageKey answers the key one call stores under. rest begins at the
-// call's opening parenthesis. A quoted first argument is the key; a bare name
-// is looked up among the declarations of the same file.
+// accessor, so the first parenthesis in it opens the call. A quoted first
+// argument is the key; a bare name is looked up among the declarations of the
+// same file.
 func resolveStorageKey(source, rest string) (string, bool) {
-	open := strings.Index(rest, "(")
-	if open < 0 {
+	_, call, found := strings.Cut(rest, "(")
+	if !found {
 		return "", false
 	}
-	arg, _, ok := strings.Cut(rest[open+1:], ")")
+	arg, _, ok := strings.Cut(call, ")")
 	if !ok {
 		return "", false
 	}
