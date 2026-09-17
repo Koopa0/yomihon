@@ -969,6 +969,24 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
   .y-conceptsheet { width: 100vw; height: auto; max-height: 82dvh; margin: auto 0 0; border-left: none; border-top: 1px solid var(--border); border-radius: var(--r-lg) var(--r-lg) 0 0; }
 }
 
+/* Arrival fade — an opening page rises the last part of the way to full
+   strength instead of cutting in. Following a link between notes, folders and
+   settings replaces the whole page at once, and that seam reads as a flash.
+   The hook is the id every page's main landmark carries: it is also the skip
+   link's target, so no page can quietly lose it, while the class beside it
+   differs from page to page (settings carries none of the reading column's).
+   Opacity alone, and the backwards fill is what makes the first painted frame
+   the animation's own start; without it that frame is the page at full
+   strength and the animation then dims it, which is the same flash with its
+   direction reversed. Nothing translates: holding a travelled end value for
+   the life of the page would leave the reading column with a transform, a
+   compositing layer and a containing block for anything fixed inside it, in
+   exchange for a tenth of a second of motion.
+   Reduced motion needs no declaration here — the blanket below collapses this
+   duration along with every other decorative one. */
+main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) backwards; }
+@keyframes y-page-in { from { opacity: .7 } to { opacity: 1 } }
+
 /* Reduced motion kills decorative animation/transition — but not the
    reading-position hairline: it is scroll state, not decoration (its
    scroll timeline is not driven by durations anyway, but the exemption
