@@ -582,7 +582,10 @@ func recordedSearchFacets(lang wording.Lang) []SearchFacet {
 		Key:     "domain",
 		Heading: wording.FacetHeading("domain", lang),
 		Rows: []SearchFacetRow{
-			{Label: `say "what"`, Count: 1},
+			// A value the grammar cannot write back: its quote closes a group
+			// early, so the query would read as a shorter constraint and a
+			// stray word. The row keeps its count and offers no link.
+			{Label: `a" b`, Count: 1},
 		},
 	}}
 }
