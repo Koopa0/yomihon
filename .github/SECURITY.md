@@ -11,6 +11,9 @@ Report privately through [GitHub's private advisory form](https://github.com/koo
 yomihon is a single-user local reader: it listens only on `127.0.0.1`, makes no
 outbound network call, and writes one frontmatter field, so anything that
 writes outside `status`, or leaves the machine, is worth reporting.
+[The data inventory](../docs/privacy/data-inventory.md) lists what it keeps, on
+disk and in your browser, and [the threat model](../docs/security/threat-model.md)
+says what the boundary is and is not meant to hold.
 
 The public instance at `yomihon.koopa0.dev` is a deliberate exception and needs
 no report. It serves the sample notes committed in this repository, its write
