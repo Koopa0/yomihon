@@ -22,6 +22,14 @@ const SHORTCUT_OFF = '.y-shortcutpref__off';
 const HELP_BUTTON = '[popovertarget="kbd-help"]';
 const HELP_PANEL = '#kbd-help';
 
+// The single-key control is pressed, never driven by a checked-state helper.
+// The page writes this control's state back from the value it kept, so a
+// regression that refuses the new value leaves the box exactly where it was —
+// and a helper that insists the box moved throws there, before the assertion
+// that would say which behaviour broke. Every call site reads the resulting
+// state and names it, which is the check the helper was making and more.
+const pressShortcutControl = (page) => page.locator(SHORTCUT_CONTROL).click();
+
 const SITES = [
   'modified-printables-stay-native',
   'plain-filter-opens',
@@ -491,7 +499,7 @@ try {
   }
 
   await openHelp();
-  await page.locator(SHORTCUT_CONTROL).uncheck();
+  await pressShortcutControl(page);
   after = await state(page);
   if (after.shortcuts !== 'off' || after.shortcutChecked !== false) {
     fail('disabled-printables-stay-native', `disabled state rendered shortcuts=${after.shortcuts}, checked=${after.shortcutChecked}`);
@@ -537,7 +545,7 @@ try {
   await secondPage.close();
 
   await openHelp();
-  await page.locator(SHORTCUT_CONTROL).check();
+  await pressShortcutControl(page);
   after = await state(page);
   if (after.shortcuts !== 'on' || after.shortcutChecked !== true) {
     fail('reenable-restores', `re-enabled state rendered shortcuts=${after.shortcuts}, checked=${after.shortcutChecked}`);

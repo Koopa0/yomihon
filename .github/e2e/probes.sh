@@ -51,11 +51,14 @@ probes=(
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
   "theme-toggle-pressed.mjs|/notes/Notes/alpha.md"
   "preference-restore.mjs|/notes/Notes/alpha.md"
+  "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
+  "preference-persistence.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
   "result-landing-visibility.mjs|/search?q=%22alpha%20beta%20gamma%22"
+  "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
 )
 

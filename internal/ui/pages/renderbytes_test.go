@@ -179,24 +179,32 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 func recordedPreferencesView() PreferencesView {
 	return PreferencesView{
 		ReturnTo: "/notes/Writing/lessons/go/L01.md",
+		Settings: "/preferences?from=%2Fnotes%2FWriting%2Flessons%2Fgo%2FL01.md",
+		Reading:  "/notes/Writing/lessons/go/L01.md",
 		Fields: []PreferenceField{
 			{
-				Name:   "theme",
-				Legend: "外觀",
-				Note:   "跟隨系統時，深淺由作業系統決定。",
+				Name:    "theme",
+				Legend:  "外觀",
+				Note:    "跟隨系統時，深淺由作業系統決定。",
+				Refused: "這個選擇沒有存下來，已經放回原本的值。",
+				// Following the system is the one option a cookie cannot
+				// carry, so the recording keeps a choice whose marks differ
+				// across its options — one that stores nothing beside two
+				// that do.
 				Options: []PreferenceOption{
-					{Value: "system", Label: "跟隨系統", Checked: true},
-					{Value: "light", Label: "亮色"},
-					{Value: "dark", Label: "暗色"},
+					{Value: "system", Label: "跟隨系統", Checked: true, Unset: true},
+					{Value: "light", Label: "亮色", Stores: true},
+					{Value: "dark", Label: "暗色", Stores: true},
 				},
 			},
 			{
-				Name:   "ruby",
-				Legend: "振假名",
-				Note:   "只影響有振假名的頁面。",
+				Name:    "ruby",
+				Legend:  "振假名",
+				Note:    "只影響有振假名的頁面。",
+				Refused: "這個選擇沒有存下來，已經放回原本的值。",
 				Options: []PreferenceOption{
-					{Value: "on", Label: "開啟", Checked: true},
-					{Value: "off", Label: "關閉"},
+					{Value: "on", Label: "開啟", Checked: true, Stores: true, Unset: true},
+					{Value: "off", Label: "關閉", Stores: true},
 				},
 			},
 		},
