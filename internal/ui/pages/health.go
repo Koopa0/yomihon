@@ -66,14 +66,20 @@ func (c HealthColumn) name(lang wording.Lang) string {
 func (c HealthColumn) href() string { return "?sort=" + string(c) }
 
 // direction is what a reader is told the active column is ordered by. The two
-// text columns read from the top down; the two numeric ones put the largest
-// first, because a page about what needs repair opens on the worst of it.
+// numeric columns put the largest first, because a page about what needs repair
+// opens on the worst of it; the file column reads from the top down. Grouping
+// by kind is neither: it is the order the kinds are declared in, which ascends
+// by nothing a reader could name, and the vocabulary's word for an order it
+// cannot describe is the honest answer rather than a direction that is not
+// true.
 func (c HealthColumn) direction() string {
 	switch c {
 	case HealthBySeverity, HealthByCount:
 		return "descending"
-	default:
+	case HealthByFile:
 		return "ascending"
+	default:
+		return "other"
 	}
 }
 

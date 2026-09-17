@@ -142,6 +142,38 @@ func TestEveryFindingReachesARow(t *testing.T) {
 	}
 }
 
+// TestNothingToTabulateDrawsNoTable is the other side of that enumeration. The
+// page has two things to say that are not findings — that citations could not
+// be evaluated, that the vocabulary could not be read — and a folder can reach
+// either with every link resolving and nothing else to report. The page then
+// has to say that and stop: a header row of four ordering links over no rows
+// offers four controls that each do nothing.
+func TestNothingToTabulateDrawsNoTable(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		view   HealthView
+		reason string
+	}{
+		{"citations could not be evaluated", HealthView{InstanceScopeUnknown: "the index was not built"}, "the index was not built"},
+		{"the vocabulary could not be read", HealthView{SchemaScopeUnknown: "the contract could not be read"}, "the contract could not be read"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.view.clean() {
+				t.Fatal("the view reads as clean, so this case never reaches the part of the page under test")
+			}
+			page := renderHealth(t, &tt.view)
+			if !strings.Contains(page, tt.reason) {
+				t.Fatalf("the page does not carry %q, so it is not the page this case is about", tt.reason)
+			}
+			if strings.Contains(page, "y-findings") {
+				t.Error("the page draws a findings table with no findings in it, so it offers four orderings that each do nothing")
+			}
+		})
+	}
+}
+
 // TestTheTableCountsEveryFindingTheViewHolds adds the table's own numbers up
 // against the lists behind it, counted a second time here rather than asked of
 // the code under test.

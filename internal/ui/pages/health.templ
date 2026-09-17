@@ -151,9 +151,15 @@ templ Health(v HealthView, c layouts.Chrome) {
 // one file — are both answers about the whole set, and neither can be read off
 // a page that has already split it. Ordering is a link per column and needs no
 // script: the server hands back the same table in the order that was asked for.
+// A page with nothing to tabulate draws no table. It is reachable: a contract
+// that cannot be read closes the schema checks and says so above, and a folder
+// whose links all resolve then has a page that has something to tell the reader
+// and no findings to tell it with. A header row of four ordering links over
+// nothing offers four controls that each do nothing.
 templ healthFindings(v HealthView, c layouts.Chrome) {
 	{{ rows := v.rows(c.Lang) }}
-	<table class="y-findings">
+	if len(rows) > 0 {
+		<table class="y-findings">
 		<thead>
 			<tr>
 				for _, col := range healthColumns {
@@ -195,8 +201,9 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 				</tr>
 			}
 		</tbody>
-	</table>
-	@healthGuide(v, healthTallies(rows), c)
+		</table>
+		@healthGuide(v, healthTallies(rows), c)
+	}
 }
 
 // healthEvidence shows one piece of a finding's evidence as the words whoever
