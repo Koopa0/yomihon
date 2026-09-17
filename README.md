@@ -62,7 +62,8 @@ skill to read first: [`skills/`](skills/).
 - **Two languages.** The interface speaks English or Traditional Chinese; every
   note keeps the language it was written in.
 - **Yours.** It binds to `127.0.0.1` only, makes no network call, and never
-  edits your prose.
+  edits your prose. [What it keeps](docs/privacy/data-inventory.md), and
+  [what it does not defend against](docs/security/threat-model.md).
 
 ## Status
 

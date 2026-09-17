@@ -9,11 +9,12 @@ dist/
 # The product build and Go package graph need no Node.
 node_modules/
 # A clean clone receives the code, its build inputs, the judge rule inventory,
-# and the documents a contributor needs to work here: how to build and test it,
-# what a pull request must contain, and what an agent opening one may and may
-# not touch. The maintainer's own process, authoring, and design notes stay on
-# the maintainer's machine, out of history. Each redistributed asset carries
-# its licence text beside it under assets/.
+# the record of what yomihon does to the person running it, and the documents a
+# contributor needs to work here: how to build and test it, what a pull request
+# must contain, and what an agent opening one may and may not touch. The
+# maintainer's own process, authoring, and design notes stay on the maintainer's
+# machine, out of history. Each redistributed asset carries its licence text
+# beside it under assets/.
 # tests/ holds local harness self-tests; yomihon's Go tests live in
 # internal/*_test.go.
 .claude/
@@ -29,4 +30,12 @@ tests/
 /PROJECT_PROFILE.md
 /docs/*
 !/docs/judge-rules.md
+# The privacy inventory and the threat model state the software's behaviour
+# toward the person running it, which is the claim a stranger checks the code
+# against; the rest of docs/ is the history of how the work was decided and
+# stays out. These are directories rather than files because git does not walk
+# into an excluded directory, so a file inside one cannot be re-included on its
+# own — which also means anything added under either directory ships.
+!/docs/privacy/
+!/docs/security/
 /.github/CODEOWNERS
