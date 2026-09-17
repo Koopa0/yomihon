@@ -50,10 +50,10 @@ type Result struct {
 	// word begins and where one ends, so a match opening or closing inside a
 	// word is asked for at a place the page has nowhere, and the note stays
 	// at the top. It equals Landing wherever the match already lies on those
-	// edges, which is most matches, and wherever the script parts no words
-	// with spaces: the edges are a segmentation nothing here can find, so
-	// that stretch is left exactly as it was rather than grown to the
-	// sentence around it.
+	// edges, which is most matches. Each edge is decided on its own, and one
+	// resting inside a script that parts no words with spaces stays where the
+	// match left it: the edges there are a segmentation nothing here can
+	// find, and the sentence around the match is not them.
 	LandingBare string
 
 	// LandingEnd is the last-block stretch of a crossing match. A directive
@@ -565,11 +565,11 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 // wordEdges grows [start, end) out to the edges of the words it lies inside,
 // never leaving [low, high). Only an end whose own character is one a word
 // joins can be inside a word at all; every other end already stands on a
-// boundary and is left alone. That one condition is what keeps a stretch of
-// white space from drawing in the word beside it, and what leaves a stretch of
-// a script that parts no words with spaces exactly as it was — the edges there
-// are a segmentation this vault has no way to find, and the sentence around
-// the match is not them.
+// boundary and is left alone. Each end is asked separately. That one condition
+// is what keeps a stretch of white space from drawing in the word beside it,
+// and what leaves an end resting inside a script that parts no words with
+// spaces exactly where it was — the edges there are a segmentation this vault
+// has no way to find, and the sentence around the match is not them.
 func wordEdges(s string, start, end, low, high int) (grownStart, grownEnd int) {
 	grownStart, grownEnd = start, end
 	if opening, _ := utf8.DecodeRuneInString(s[start:end]); joinsAWord(opening) {

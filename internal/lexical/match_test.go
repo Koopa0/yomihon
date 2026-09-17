@@ -1782,6 +1782,16 @@ func TestLandingGrowsAMatchToTheWordsAroundIt(t *testing.T) {
 			query: "れ、",
 			bare:  "れ、",
 		},
+		{
+			// Each end is asked on its own, so a match that opens in one
+			// script and closes inside a word of the other grows only at the
+			// end that can be grown. Nothing is owed here — a stretch opening
+			// mid-word in such a script is not found either way — but the two
+			// ends are decided separately and this is what that looks like.
+			name:  "an end that can grow does, whatever the other end is",
+			query: "れ、cobaltin",
+			bare:  "れ、cobaltine",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
