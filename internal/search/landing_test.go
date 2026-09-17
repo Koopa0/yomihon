@@ -336,6 +336,51 @@ func TestAThreeBlockPhraseServesAnEndTermInsideTheLastBlock(t *testing.T) {
 	}
 }
 
+// A reader reaches the middle of a word at the far end of a phrase as easily
+// as at its near end, and a browser holds that far end to both its edges
+// whichever of its two places it takes: closing a range, or travelling alone
+// where the first block held nothing locatable. A term cut inside a word is
+// looked for where the page has nothing, and the whole directive is dropped —
+// the reader arrives at the top of the note with nothing said. It is served
+// grown to the word instead.
+//
+// The two rows are those two places. The words already whole beside them, held
+// by the tests above, are what says the growth is only where the cut was.
+func TestACrossingEndTermIsServedAsItsWholeWord(t *testing.T) {
+	t.Parallel()
+
+	srv := landingServer(t)
+	tests := []struct {
+		name  string
+		query string
+		href  string
+	}{
+		{
+			name:  "a range whose far end stops inside a word",
+			query: `"alpha beta gamm"`,
+			href:  "/notes/Notes/Three%20blocks.md#:~:text=alpha,gamma",
+		},
+		{
+			name:  "a far end travelling alone, with no first-block stretch to relax it",
+			query: `"  gh"`,
+			href:  "/notes/Notes/Unlocated.md#:~:text=ghi",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			code, body := getBody(t, srv.Client(), srv.URL+"/search/results?"+url.Values{"q": {tt.query}}.Encode())
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if got := resultHref(t, body); got != tt.href {
+				t.Errorf("href = %q, want %q; body = %q", got, tt.href, body)
+			}
+		})
+	}
+}
+
 // A crossing match with nothing the page can name used to open the note at
 // the top and say nothing. The sentence has to be reachable through the
 // production mapping: BlockCrossing always arrives with a snippet, and the
