@@ -14,11 +14,8 @@
 // Where the row is narrowest the 開/關 word does not fit, and the label carries
 // the state by being struck through instead; that substitution is the whole
 // reason the narrow band is allowed to drop the word, so both halves are held
-// here. The floor is the width of the icon buttons the control sits among: the
-// English side is a single character and would otherwise leave a box narrower
-// than its neighbours and narrower than a finger, so the run ends by asking the
-// same three widths again in English — the one language the recorded pages say
-// nothing about, and the only one where that floor carries any weight.
+// here. The run ends by asking the same three widths again in English — the
+// one language the recorded pages say nothing about.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -31,12 +28,10 @@ const LONG_LABEL = '顯示讀音';
 const SHORT_LABEL = '讀音';
 const ON_WORD = '開';
 const OFF_WORD = '關';
-// The English side carries the mark at both lengths. It is held here because
-// the recorded pages are all in Traditional Chinese, so nothing else in the
-// tree can say what the English control reads.
-const ENGLISH_LABEL = '振';
-// The width every icon button in the header holds.
-const ICON_WIDTH = 32;
+// The English side carries the same word at both lengths, with no short form.
+// It is held here because the recorded pages are all in Traditional Chinese,
+// so nothing else in the tree can say what the English control reads.
+const ENGLISH_LABEL = 'Readings';
 
 // One width per band the stylesheet draws, named by what the reader gets there.
 const BANDS = [
@@ -51,7 +46,6 @@ const SITES = [
   'label-in-name',
   'state-word-placement',
   'state-by-strike',
-  'button-floor',
 ];
 
 class LockFired extends Error {
@@ -149,18 +143,6 @@ const MUTATIONS = {
     },
     proofWidth: 390,
   },
-  // The floor taken away, which is the whole of the regression: the Chinese
-  // label is wider than the floor on its own and never rests on it, so this
-  // only shows where the label is one character.
-  'button-floor-removed': {
-    target: 'button-floor',
-    apply: (page) => injectRule(page, '.y-rubybtn', 'min-width: 0 !important;', '(max-width: 720px)'),
-    proof: async (page) => {
-      const floor = await page.locator('.y-rubybtn').evaluate((element) => getComputedStyle(element).minWidth);
-      return floor === '0px' ? '' : `the control still holds a ${floor} floor`;
-    },
-    proofWidth: 390,
-  },
 };
 
 const visibleLabels = (page) => page.evaluate(() =>
@@ -173,8 +155,6 @@ const visibleStateWords = (page) => page.evaluate(() =>
     .filter((element) => getComputedStyle(element).display !== 'none')
     .map((element) => element.textContent));
 
-const buttonWidth = (page) => page.locator('.y-rubybtn').evaluate((element) => element.getBoundingClientRect().width);
-
 // The name the browser computes, not the attribute someone wrote: an attribute
 // that has been removed leaves a name assembled from the contents, and reading
 // the attribute would report nothing where a reader hears something.
@@ -184,6 +164,13 @@ const computedName = async (page) => {
   if (!quoted) broken(`the control did not read as a named button: ${JSON.stringify(snapshot)}`);
   return quoted[1].replaceAll('\\"', '"');
 };
+
+// A listener does not hear case, so a spoken name that carries the visible
+// word under different capitalization — the button label's title case against
+// the accessible name's sentence case — still names the control by the words
+// in front of the reader. The fold makes no difference for the Chinese labels,
+// which carry no case at all.
+const nameCarriesLabel = (name, label) => name.toLowerCase().includes(label.toLowerCase());
 
 const strikesThrough = (page) => page.evaluate(() =>
   [...document.querySelectorAll('.y-rubybtn__label')]
@@ -264,7 +251,7 @@ try {
         fail('label-for-width', `${where}: the control reads ${JSON.stringify(shown[0])}, want ${JSON.stringify(band.label)}`);
       }
       const name = await computedName(page);
-      if (!name.includes(shown[0])) {
+      if (!nameCarriesLabel(name, shown[0])) {
         fail('label-in-name', `${where}: the visible ${JSON.stringify(shown[0])} is not inside the spoken name ${JSON.stringify(name)}`);
       }
 
@@ -282,23 +269,13 @@ try {
           fail('state-by-strike', `${where}: the label is ${struck ? 'struck through' : 'plain'} with no state word beside it`);
         }
       }
-
-      const width = await buttonWidth(page);
-      if (width < ICON_WIDTH - 0.5) {
-        fail('button-floor', `${where}: the control is ${width}px wide, under the ${ICON_WIDTH}px its neighbours hold`);
-      }
     }
   }
 
   // The same control in the other language, which the recorded pages do not
-  // cover at all. The floor is held here rather than above because the Chinese
-  // label is wider than the floor unaided and never rests on it: a floor that
-  // had been deleted would leave every Chinese width still passing.
-  //
-  // The visible mark is deliberately not required to sit inside the spoken name
-  // here. In English the name is the term and the mark is not part of it, which
-  // is true of this control before and after this lock existed; holding it
-  // would be asserting a change nobody has made.
+  // cover at all. The visible word is required to sit inside the spoken name
+  // here too: a control read out as something other than what it visibly says
+  // cannot be asked for by name.
   await page.context().addCookies([{ name: 'yomihon_lang', value: 'en', url: new URL(BASE).origin }]);
   await page.reload({ waitUntil: 'load' });
   const switched = await page.evaluate(() => document.documentElement.lang);
@@ -317,9 +294,9 @@ try {
     if (shown[0] !== ENGLISH_LABEL) {
       fail('label-for-width', `${where}: the control reads ${JSON.stringify(shown[0])}, want ${JSON.stringify(ENGLISH_LABEL)}`);
     }
-    const width = await buttonWidth(page);
-    if (width < ICON_WIDTH - 0.5) {
-      fail('button-floor', `${where}: the control is ${width}px wide, under the ${ICON_WIDTH}px its neighbours hold`);
+    const name = await computedName(page);
+    if (!nameCarriesLabel(name, shown[0])) {
+      fail('label-in-name', `${where}: the visible ${JSON.stringify(shown[0])} is not inside the spoken name ${JSON.stringify(name)}`);
     }
   }
 

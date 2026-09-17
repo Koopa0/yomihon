@@ -24,12 +24,12 @@ var SearchNotes = both("搜尋書庫", "Search the library")
 var SearchNotesPrompt = both("搜尋書庫…", "Search the library…")
 
 // ToggleFurigana names the control for the reading aids over Japanese text.
-// The Traditional Chinese side says the plain thing rather than the term for
-// it: 振假名 names the aids to a reader who already knows what they are called,
-// and to everyone else it names nothing. The control shows and hides readings
+// Both sides say the plain thing rather than the term for it: 振假名 and
+// furigana name the aids to a reader who already knows what they are called,
+// and to everyone else they name nothing. The control shows and hides readings
 // a note already carries — it writes none, and it speaks none, which is what
 // keeps it apart from the read-aloud controls.
-var ToggleFurigana = both("顯示讀音", "Toggle furigana")
+var ToggleFurigana = both("顯示讀音", "Show readings")
 
 // FuriganaLabel is what the control shows where the header row has room for it,
 // and FuriganaLabelShort where it has room for two characters rather than four.
@@ -38,12 +38,12 @@ var ToggleFurigana = both("顯示讀音", "Toggle furigana")
 // a control that is read out as something other than what it visibly says is a
 // control a reader cannot ask for by name.
 //
-// The English side keeps the single character at both lengths. It is the mark a
-// reader of an interface that renders Japanese meets in the text as well, and
-// the question that prompted the Chinese wording was asked of the Chinese page.
+// The English side carries the same word at both lengths: unlike 讀音, "Readings"
+// has no shorter form worth inventing, and the narrow band already affords a
+// whole word rather than a glyph.
 var (
-	FuriganaLabel      = both("顯示讀音", "振")
-	FuriganaLabelShort = both("讀音", "振")
+	FuriganaLabel      = both("顯示讀音", "Readings")
+	FuriganaLabelShort = both("讀音", "Readings")
 )
 
 // The two words this interface uses for a switch's state, wherever one is shown
