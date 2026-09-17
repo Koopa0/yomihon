@@ -708,7 +708,8 @@ var envReadersPermittedIn = map[string]string{
 	"os.UserConfigDir": "cmd/yomihon/main.go",
 }
 
-// readAt reports whether filename is the repository-relative path where names.
+// readAt reports whether filename is the file that "where" names, given as a
+// repository-relative path.
 // The scan reports absolute paths, so the comparison is on the tail — bounded
 // at a separator, so a directory merely ending in those characters is not the
 // one being named.

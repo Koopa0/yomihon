@@ -121,7 +121,14 @@ type config struct {
 	// this is the second thing outside the arguments that decides where the
 	// binary looks — which is why it is resolved in one place, held in this
 	// struct like the port, and handed to the package that needs it.
+	//
+	// Empty where the environment names none. That is not a reason to refuse
+	// to start: reading is the product and a kept reading place is a
+	// convenience on top of it, so the room opens and the convenience is the
+	// thing that is missing.
 	configDir string
+	// noConfigDir is why none was resolved, for the one line that says so.
+	noConfigDir string
 }
 
 func loadConfig(root string) (config, error) {
@@ -129,11 +136,11 @@ func loadConfig(root string) (config, error) {
 	if cfg.port == "" {
 		cfg.port = defaultPort
 	}
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return config{}, fmt.Errorf("reader state directory: %w", err)
+	if configDir, dirErr := os.UserConfigDir(); dirErr != nil {
+		cfg.noConfigDir = dirErr.Error()
+	} else {
+		cfg.configDir = configDir
 	}
-	cfg.configDir = configDir
 	info, err := os.Stat(cfg.root) // #nosec G703 -- root is the operator's own vault path from local config
 	if err != nil {
 		return config{}, fmt.Errorf("vault root: %w", err)
@@ -148,6 +155,10 @@ func run(log *slog.Logger, root string) (resultErr error) {
 	cfg, err := loadConfig(root)
 	if err != nil {
 		return err
+	}
+	if cfg.noConfigDir != "" {
+		log.Warn("no configuration directory; reading is unaffected and no reading place can be kept",
+			"reason", cfg.noConfigDir)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

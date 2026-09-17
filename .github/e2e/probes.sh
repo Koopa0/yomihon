@@ -99,6 +99,16 @@ absent="$(comm -13 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${li
 [ -z "${undriven// /}" ] || fail "these probe files are driven by nothing: ${undriven}"
 [ -z "${absent// /}" ] || fail "the table names probes that are not here: ${absent}"
 
+# The comment beside it says this one has to be last; this is what holds it
+# there. From the moment it runs, a reading place is kept, and every desk the
+# rest of the run would draw carries a row offering that place back — a page
+# the fixture alone does not account for. Moving it up the table would make
+# some other probe fail on state this one left behind, which is a long way from
+# where the mistake was made.
+last="${listed[${#listed[@]} - 1]}"
+[ "$last" = "reader-mark.mjs" ] ||
+  fail "reader-mark.mjs has to be the last probe in the table because it leaves a kept reading place behind, but the table ends with ${last}"
+
 run_locks() {
   local entry
   for entry in "${probes[@]}"; do

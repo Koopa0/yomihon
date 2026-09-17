@@ -151,9 +151,24 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// actually taken on, which is the resolved absolute path rather than the
 	// one typed on the line: two spellings of one folder are one vault and
 	// must not be given two files.
-	marks, err := mark.New(configDir, source.Name())
-	if err != nil {
-		return nil, fmt.Errorf("name the reader's marks file: %w", err)
+	//
+	// With no configuration directory there is nowhere to keep one. The
+	// reading room opens anyway, without the route that would store a place
+	// and without the control that would offer to: a page inviting a reader to
+	// keep something this process cannot keep is worse than one that does not
+	// ask.
+	keptPlace := func() (mark.Continuation, bool) { return mark.Continuation{}, false }
+	markAddress := ""
+	var marks *mark.File
+	if configDir != "" {
+		if marks, err = mark.New(configDir, source.Name()); err != nil {
+			return nil, fmt.Errorf("name the reader's marks file: %w", err)
+		}
+		keptPlace = marks.Continuation
+		markAddress = mark.Address
+	} else {
+		log.Warn("no reading place can be kept; the reading room is unaffected",
+			"reason", "the environment named no configuration directory")
 	}
 
 	mux := http.NewServeMux()
@@ -163,11 +178,14 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   marks.Continuation,
+		Continuation:   keptPlace,
+		MarkAddress:    markAddress,
 		Log:            log,
 	}).Register(mux)
 	status.NewHandler(writer, shellProvider, log).Register(mux)
-	mark.NewHandler(marks, log).Register(mux)
+	if marks != nil {
+		mark.NewHandler(marks, log).Register(mux)
+	}
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(pathProvider, log).Register(mux)

@@ -163,9 +163,16 @@ func (v *NoteView) diagCount() int {
 // hasAids reports whether this note carries reading aids. With none, the right
 // rail's column is dropped and the write face moves to the bottom bar, so no
 // reader sits beside a tall gutter holding a lone status card.
+//
+// The control for keeping a reading place counts among them, because the rail
+// is where it lives and this predicate is what decides the rail exists at all.
+// Left out, it took the control with it on every note in a folder that has no
+// links yet — the cited-by block is what most notes earn their rail with, and
+// it appears only once some note cites another — which is the ordinary state of
+// a new folder rather than an edge of one.
 func (v *NoteView) hasAids() bool {
 	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 ||
-		v.citedByShown() || len(v.BasedOn) > 0
+		v.citedByShown() || len(v.BasedOn) > 0 || v.offersMark()
 }
 
 // offersMark reports whether this page can offer to keep the reader's place.
@@ -179,7 +186,7 @@ func (v *NoteView) hasAids() bool {
 // sit between the title and the first sentence, would be reached by scrolling
 // back to the top and would keep that place instead of the reader's.
 func (v *NoteView) offersMark() bool {
-	return v.RelPath != "" && v.ContentIdentity != ""
+	return v.RelPath != "" && v.ContentIdentity != "" && v.MarkAddress != ""
 }
 
 // citedByShown reports whether the answer about what links here means anything

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -71,6 +72,36 @@ var osWriteFamilies = []string{
 var methodWrites = []string{
 	"Chmod", "Chown", "Create", "Link", "Mkdir", "MkdirAll", "Remove",
 	"RemoveAll", "Rename", "Symlink", "WriteFile",
+}
+
+// unixPackage is the raw-syscall wrapper this repository writes its
+// platform-specific halves against, and lowLevelPackages are it and the
+// standard library's own. Both reach the filesystem underneath os, so a write
+// spelled through either is a write the check over os alone cannot see — and
+// the two calls that swap a note into place, unix.Renameat2 and
+// unix.RenameatxNp, are exactly that.
+const unixPackage = "golang.org/x/sys/unix"
+
+var lowLevelPackages = map[string]bool{unixPackage: true, "syscall": true}
+
+// lowLevelWriteFamilies are the prefixes of those wrappers that change a file
+// or a directory. Prefixes again, so the at-relative and f-prefixed variants of
+// each are covered by the name they are built from.
+//
+// Open is among them with no flag reading, unlike os.OpenFile above. The flag
+// argument sits in a different position in each of these and one of them takes
+// none at all, so a reader that tried to judge them would be guessing; counting
+// every raw open as a write over-reports in a place that has none today, which
+// is the direction to be wrong in.
+//
+// The errno and flag constants these files also name — ENOATTR, RENAME_SWAP,
+// SIGTERM — share no prefix with any of these, and the set equality is not what
+// keeps them out: they are screaming-case and these are not.
+var lowLevelWriteFamilies = []string{
+	"Chmod", "Chown", "Creat", "Fchmod", "Fchown", "Fremovexattr", "Fsetxattr",
+	"Ftruncate", "Lchown", "Link", "Lremovexattr", "Lsetxattr", "Mkdir", "Mkfifo",
+	"Mknod", "Open", "Removexattr", "Rename", "Rmdir", "Setxattr", "Symlink",
+	"Truncate", "Unlink", "Write",
 }
 
 // writeFlags are the os constants that make an OpenFile a write.
@@ -157,24 +188,29 @@ func openFileWrites(call *ast.CallExpr) (writes, resolved bool) {
 // gives: a file reaching os under another name writes calls no fixed spelling
 // would recognise, and one that dot-imports it hides them entirely.
 func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site, permitted int) {
-	osNames := map[string]bool{}
+	// Which local name binds to which of the packages that reach the
+	// filesystem. A file reaching one under another name writes calls no fixed
+	// spelling would recognise, and one that dot-imports it hides them
+	// entirely, which is reported rather than audited.
+	pkgOf := map[string]string{}
 	for _, imp := range file.Imports {
-		if imp.Path.Value != `"os"` {
+		canonical, err := strconv.Unquote(imp.Path.Value)
+		if err != nil || (canonical != "os" && !lowLevelPackages[canonical]) {
 			continue
 		}
 		switch {
 		case imp.Name == nil:
-			osNames["os"] = true
+			pkgOf[canonical[strings.LastIndexByte(canonical, '/')+1:]] = canonical
 		case imp.Name.Name == ".":
 			found = append(found, site{
 				path: path,
 				line: fset.Position(imp.Pos()).Line,
-				text: "os is imported into this file's own namespace, so what it writes cannot be read here",
+				text: canonical + " is imported into this file's own namespace, so what it writes cannot be read here",
 			})
 		case imp.Name.Name == "_":
 			// Imported for its initialisers; nothing here is callable through it.
 		default:
-			osNames[imp.Name.Name] = true
+			pkgOf[imp.Name.Name] = canonical
 		}
 	}
 
@@ -186,7 +222,20 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 		found = append(found, site{path: path, line: fset.Position(pos).Line, text: what})
 	}
 
+	// A write handed over as a value carries no call for the walk to read —
+	// var w = os.WriteFile, then w(name, data, perm) somewhere else entirely —
+	// so the name is judged where it is written, as the environment guard
+	// judges a reader referenced rather than called. Because the walk meets a
+	// call before the selector inside it, a selector already judged as a call
+	// is recognised when it comes round again.
+	judged := map[*ast.SelectorExpr]bool{}
 	ast.Inspect(file, func(n ast.Node) bool {
+		if selector, isSelector := n.(*ast.SelectorExpr); isSelector && !judged[selector] {
+			if pkg, name := selected(selector, pkgOf); writesByName(pkg, name) {
+				record(selector.Pos(), qualifierOf(selector)+"."+name+", referenced as a value")
+			}
+			return true
+		}
 		call, isCall := n.(*ast.CallExpr)
 		if !isCall {
 			return true
@@ -195,10 +244,21 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 		if !isSelector {
 			return true
 		}
+		judged[selector] = true
 		name := selector.Sel.Name
 		qualifier, isIdent := selector.X.(*ast.Ident)
-		throughOS := isIdent && osNames[qualifier.Name]
+		pkg := ""
+		if isIdent {
+			pkg = pkgOf[qualifier.Name]
+		}
+		throughOS := pkg == "os"
 
+		if lowLevelPackages[pkg] {
+			if hasPrefixIn(name, lowLevelWriteFamilies) {
+				record(selector.Pos(), qualifier.Name+"."+name)
+			}
+			return true
+		}
 		if name == "OpenFile" && len(call.Args) == openFileArity {
 			writes, resolved := openFileWrites(call)
 			if !writes {
@@ -220,6 +280,42 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 		return true
 	})
 	return found, permitted
+}
+
+// selected reports the canonical package and symbol a selector names, for a
+// selector whose qualifier is one of the imported filesystem packages.
+func selected(selector *ast.SelectorExpr, pkgOf map[string]string) (pkg, name string) {
+	qualifier, isIdent := selector.X.(*ast.Ident)
+	if !isIdent {
+		return "", ""
+	}
+	return pkgOf[qualifier.Name], selector.Sel.Name
+}
+
+func qualifierOf(selector *ast.SelectorExpr) string {
+	if qualifier, isIdent := selector.X.(*ast.Ident); isIdent {
+		return qualifier.Name
+	}
+	return "?"
+}
+
+// writesByName reports whether a symbol changes the filesystem judged by its
+// name alone, which is all a reference hands over.
+//
+// OpenFile is absent: whether it writes is decided by the flags a call passes,
+// and a reference carries none. What a bare reference to it could become is a
+// call this check does read, at whatever site supplies those flags — and where
+// that site is a variable it is already refused there as flags this cannot
+// resolve.
+func writesByName(pkg, name string) bool {
+	switch {
+	case pkg == "os":
+		return name != "OpenFile" && hasPrefixIn(name, osWriteFamilies)
+	case lowLevelPackages[pkg]:
+		return hasPrefixIn(name, lowLevelWriteFamilies)
+	default:
+		return false
+	}
 }
 
 func hasPrefixIn(name string, families []string) bool {
@@ -272,6 +368,49 @@ func TestTheOnlyPlacesProductionCodeWritesAreTheStatusFieldAndTheMarksFile(t *te
 	}
 	t.Logf("examined the shipped tree and found writes in %d permitted packages: %v", len(permitted), permitted)
 	report(t, "this changes the filesystem, and yomihon writes in exactly two places: a note's status field and the reader's own marks file", found)
+}
+
+// TestOnlyTheWritingPackagesReachTheRawSyscallWrappers is the structural half
+// of the check above, and it exists because the other half is a list of names.
+//
+// The prefix families are a good list and they are still a list: golang.org/x/
+// sys/unix is a few thousand symbols wide, it grows, and the one that mattered
+// here — RenameatxNp — is a name no general rule would have produced. What can
+// be held without a list is who may reach that package at all, which is the
+// same shape the layering check uses. A package that cannot import it cannot
+// call anything in it, whatever it is called.
+//
+// syscall is deliberately not held this way. The command reads a termination
+// signal from it and the request-shutdown path reads two errnos, neither of
+// which writes anything, so a ban would refuse honest code; those two are held
+// by the families instead.
+func TestOnlyTheWritingPackagesReachTheRawSyscallWrappers(t *testing.T) {
+	t.Parallel()
+
+	var found []site
+	reached := 0
+	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
+		for _, imp := range file.Imports {
+			canonical, err := strconv.Unquote(imp.Path.Value)
+			if err != nil || canonical != unixPackage {
+				continue
+			}
+			if mayWrite(path) {
+				reached++
+				continue
+			}
+			found = append(found, site{
+				path: path,
+				line: fset.Position(imp.Pos()).Line,
+				text: "imports " + canonical,
+			})
+		}
+	})
+	if reached == 0 {
+		t.Fatalf("no file was seen importing %s, so this walk never reached the package it is meant to permit", unixPackage)
+	}
+	t.Logf("examined the shipped tree and found %d permitted imports of %s", reached, unixPackage)
+	report(t, "only the two packages that write may reach the raw syscall wrappers, whose surface no list of names can cover", found)
 }
 
 // TestTheMarksFileIsNamedInThePrivacyInventory holds the second written place
@@ -387,6 +526,53 @@ type reader struct{}
 func (reader) OpenFile(ctx context.Context, entry string) error { return nil }
 func read(ctx context.Context, r reader, entry string) error { return r.OpenFile(ctx, entry) }`,
 		clean: true,
+	},
+	{
+		name: "the repository's own idiom for swapping a file into place",
+		path: "internal/report/report.go",
+		src: `package report
+import "golang.org/x/sys/unix"
+func swap(from, to string) error { return unix.Renameat2(0, from, 0, to, unix.RENAME_EXCHANGE) }`,
+		want: []string{"unix.Renameat2"},
+	},
+	{
+		name: "a raw syscall write under another name",
+		path: "internal/report/report.go",
+		src: `package report
+import sys "golang.org/x/sys/unix"
+func stamp(fd int, value []byte) error { return sys.Fsetxattr(fd, "user.x", value, 0) }`,
+		want: []string{"sys.Fsetxattr"},
+	},
+	{
+		name: "the errno and flag constants beside them are not writes",
+		path: "internal/report/report.go",
+		src: `package report
+import (
+	"syscall"
+	"golang.org/x/sys/unix"
+)
+func quiet(err error) bool { return err == unix.ENOATTR || err == syscall.EPIPE }
+const swap = unix.RENAME_SWAP
+var stop = syscall.SIGTERM`,
+		clean: true,
+	},
+	{
+		name: "a write handed over as a value",
+		path: "internal/report/report.go",
+		src: `package report
+import "os"
+var save = os.WriteFile
+func keep(name string, data []byte) error { return save(name, data, 0o600) }`,
+		want: []string{"os.WriteFile, referenced as a value"},
+	},
+	{
+		name: "a write passed to something else to call",
+		path: "internal/report/report.go",
+		src: `package report
+import "os"
+func keep(with func(string) error) error { return with("x") }
+func run() error { return keep(os.Remove) }`,
+		want: []string{"os.Remove, referenced as a value"},
 	},
 	{
 		name: "OpenFile for reading only",

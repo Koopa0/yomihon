@@ -2,12 +2,12 @@
 
 What yomihon holds, derives, and emits. The product is a single-user local
 process: it reads a vault, serves `127.0.0.1`, writes one frontmatter field
-into a note and one file of its own beside no vault at all, and makes no
-network call of any kind. There is no telemetry, analytics,
-metrics or trace exporter, crash reporter, account, or remote log sink, and no
-application-level encryption at rest, backup, or secure erasure. Host disk
-encryption, vault sync, and any repository remote are external, and must not be
-inferred from this document.
+into a note and one file of its own outside any vault, and makes no network
+call of any kind. There is no telemetry, analytics, metrics or trace exporter,
+crash reporter, account, or remote log sink, and no application-level
+encryption at rest, backup, or secure erasure. Host disk encryption, vault
+sync, and any repository remote are external, and must not be inferred from
+this document.
 
 | Data | Where it lives | How long | Who can reach it |
 |---|---|---|---|

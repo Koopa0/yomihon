@@ -15,9 +15,11 @@ import (
 // a digest never come near it.
 const maxFormBytes = 4096
 
-// Address is where a mark is kept. It is exported because the page that posts
-// to it and the route that answers are decided on two sides of a package
-// boundary, and an address written twice is one that drifts.
+// Address is where a mark is kept. It is exported because the route that
+// answers here and the address the reading page posts to are decided on two
+// sides of a package boundary: the command reads it from here and hands it to
+// the page, which renders it rather than spelling one of its own. An address
+// written twice is one that drifts.
 const Address = "/marks"
 
 // Handler serves the one route a mark reaches the process through.

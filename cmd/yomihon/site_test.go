@@ -372,7 +372,8 @@ func siteRequest(t *testing.T, method, target string, body io.Reader) *http.Requ
 }
 
 // TestTheSiteRefusesACrossSiteWrite locks the cross-origin middleware into the
-// served assembly. The status write is the one state-changing endpoint, and a
+// served assembly. Two endpoints change state — the status write into a note,
+// and the route a reader keeps a reading place through — and a
 // hostile page in the reader's own browser is the one party that can drive a
 // POST at the loopback listener from off this machine; the browser labels such
 // a request with Sec-Fetch-Site, and the assembly has to turn it away before
@@ -435,6 +436,32 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 	if got := postStatus(t, "same-origin"); got != http.StatusUnprocessableEntity {
 		t.Errorf("same-origin POST /status = %d, want %d from the status handler, never %d",
 			got, http.StatusUnprocessableEntity, http.StatusForbidden)
+	}
+
+	// The second write endpoint is behind the same wrapper rather than a guard
+	// of its own, which is exactly why it is driven here: the protection is a
+	// property of the assembly, and nothing in the mark package's own tests
+	// would notice it being unwired for that route alone.
+	postMark := func(t *testing.T, fetchSite string) int {
+		t.Helper()
+		form := url.Values{"path": {"Maps/study.md"}, "offset": {"0"}, "identity": {strings.Repeat("a", 64)}}
+		req := siteRequest(t, http.MethodPost, "/marks", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if fetchSite != "" {
+			req.Header.Set("Sec-Fetch-Site", fetchSite)
+		}
+		recorder := httptest.NewRecorder()
+		site.ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+	if got := postMark(t, "cross-site"); got != http.StatusForbidden {
+		t.Errorf("cross-site POST /marks = %d, want %d", got, http.StatusForbidden)
+	}
+	// And admitted from the reader's own page, so the refusal above is the
+	// middleware rather than the route being missing or broken.
+	if got := postMark(t, "same-origin"); got != http.StatusNoContent {
+		t.Errorf("same-origin POST /marks = %d, want %d, never %d",
+			got, http.StatusNoContent, http.StatusForbidden)
 	}
 
 	// A request with no Sec-Fetch-Site and no Origin is a non-browser caller

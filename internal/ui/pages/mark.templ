@@ -18,7 +18,7 @@ templ markControl(v NoteView, lang wording.Lang) {
 			data-mark-control
 			data-mark-path={ v.RelPath }
 			data-mark-identity={ v.ContentIdentity }
-			data-mark-endpoint="/marks"
+			data-mark-endpoint={ v.MarkAddress }
 			data-mark-saved={ wording.MarkSaved.In(lang) }
 			data-mark-failed={ wording.MarkNotStored.In(lang) }
 		>

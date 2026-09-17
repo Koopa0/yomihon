@@ -170,11 +170,11 @@ const checkProof = (proof) => {
 // to have something to offer rather than for a fixed delay.
 const keepThePlace = async (page, path, { tamperIdentity = false } = {}) => {
   await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
-  // The page draws the control twice — once in the right rail, once among the
-  // inline aids — and hides whichever one this width is not for. The reader
-  // presses the one they can see, so that is the one driven here; asking the
-  // first in document order would drive the hidden copy at any width below the
-  // rail's own.
+  // The control is drawn once, in the right rail, and this probe is driven at
+  // a width that has one. Asking for the visible one rather than the first in
+  // document order is what makes that a measurement instead of an assumption:
+  // a rail that stopped being drawn, or one hidden by its own width rule,
+  // reads here as zero rather than passing on a node nobody can press.
   const control = page.locator('[data-mark-control]:visible');
   if (await page.locator('[data-mark-control]').count() === 0) {
     broken(`${path} carries no mark control`);

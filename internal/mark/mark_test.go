@@ -268,8 +268,11 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 	}
 }
 
-// TestARefusalLeavesTheKeptPlaceAlone is the half above cannot see: a refusal
-// must not be a way to clear a place the reader meant to keep.
+// TestARefusalLeavesTheKeptPlaceAlone is the half the test above cannot see.
+// That one starts from an empty file, so "nothing was stored" is also what a
+// refusal that wiped the file would look like. A refusal must not be a way to
+// clear a place the reader meant to keep, and only a file that already holds
+// one can show it.
 func TestARefusalLeavesTheKeptPlaceAlone(t *testing.T) {
 	t.Parallel()
 
@@ -454,28 +457,64 @@ func TestTheRouteRefusesWhatItCannotKeep(t *testing.T) {
 	}
 }
 
-// TestTheRouteRefusesABodyBeyondItsCap holds the cap. A place is four short
-// fields; anything past the cap is not one.
+// TestTheRouteRefusesABodyBeyondItsCap holds the cap the threat model states
+// in public. A place is four short fields; a body past the cap is not one, and
+// the reader of that document is owed the number being true.
+//
+// The padding rides in a field validate never looks at, which is the whole
+// point: an oversized anchor is refused at 256 bytes by the shape check long
+// before the body is measured, so a test built on one passed with the cap
+// deleted from the handler. Both sides are asserted — over the cap and just
+// under it — because a cap that refuses everything is not a cap either.
 func TestTheRouteRefusesABodyBeyondItsCap(t *testing.T) {
 	t.Parallel()
 
-	file, handler := newHandler(t)
-	response := post(t, handler, url.Values{
-		"path":     {"Notes/alpha.md"},
-		"anchor":   {strings.Repeat("a", 8192)},
-		"offset":   {"0"},
-		"identity": {anIdentity},
-	})
-	defer func() {
-		if err := response.Body.Close(); err != nil {
-			t.Error(err)
-		}
-	}()
-	if response.StatusCode == http.StatusNoContent {
-		t.Error("a body past the cap was accepted")
+	// A field the handler reads nothing from, so what decides each case is the
+	// size of the body and nothing else.
+	const padField = "pad"
+
+	tests := []struct {
+		name    string
+		padding int
+		want    int
+	}{
+		{"past the cap", 8192, http.StatusBadRequest},
+		{"inside the cap", 3000, http.StatusNoContent},
 	}
-	if _, ok := file.Continuation(); ok {
-		t.Error("a body past the cap kept a place")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			file, handler := newHandler(t)
+			form := url.Values{
+				"path":     {"Notes/alpha.md"},
+				"anchor":   {"a-heading"},
+				"offset":   {"0"},
+				"identity": {anIdentity},
+				padField:   {strings.Repeat("a", tt.padding)},
+			}
+			// The case only means what it says if the body really is on the
+			// side of the cap the name claims.
+			size := len(form.Encode())
+			if tt.want == http.StatusBadRequest && size <= 4096 {
+				t.Fatalf("the %q body is %d bytes, which is not past the 4096-byte cap", tt.name, size)
+			}
+			if tt.want == http.StatusNoContent && size > 4096 {
+				t.Fatalf("the %q body is %d bytes, which is already past the 4096-byte cap", tt.name, size)
+			}
+			response := post(t, handler, form)
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			if response.StatusCode != tt.want {
+				t.Errorf("POST %s with a %d-byte body = %d, want %d", mark.Address, size, response.StatusCode, tt.want)
+			}
+			_, kept := file.Continuation()
+			if wantKept := tt.want == http.StatusNoContent; kept != wantKept {
+				t.Errorf("a %d-byte body kept a place = %t, want %t", size, kept, wantKept)
+			}
+		})
 	}
 }
 
