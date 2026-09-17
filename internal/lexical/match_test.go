@@ -1830,9 +1830,10 @@ func TestLandingGrowthStaysInsideTheBlockAndOutOfTheGaps(t *testing.T) {
 }
 
 // The run is written for a browser to find again in rendered text, so it is
-// kept short. Words come off the front whole; only a script that parts no
-// words with spaces may be cut inside what strings.Fields calls one word,
-// because there every character opens a word of its own.
+// kept short. Words come off the front whole, and nothing is ever cut inside
+// what strings.Fields calls one word: a browser looks for a leading run only
+// where the run begins at a word boundary, and in prose that parts no words
+// with spaces the boundaries are dictionary ones this index cannot see.
 func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 	t.Parallel()
 
@@ -1845,9 +1846,13 @@ func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 		{name: "fewer words than the budget", run: "calls this", want: "calls this"},
 		{name: "the last words, not the first", run: "one two three four five", want: "three four five"},
 		{
-			name: "a paragraph written without spaces is cut to its tail",
+			// A tail of it would open between two characters the reader's
+			// language reads as one word, which a browser looks for and never
+			// finds — and a leading run it cannot find costs it the term as
+			// well, so the note opens at the top instead of at the match.
+			name: "a paragraph written without spaces is dropped, not cut to its tail",
 			run:  "第一段落的開頭寫得很長很長很長很長很長很長很長很長很長很長很長很長很長很長結尾",
-			want: "很長很長很長很長很長很長很長很長很長很長很長很長很長很長結尾",
+			want: "",
 		},
 		{
 			// 30 characters exactly: the budget is a limit, not a trigger.
@@ -1875,6 +1880,61 @@ func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 			t.Parallel()
 			if got := landingPrefix(tt.run); got != tt.want {
 				t.Errorf("landingPrefix(%q) = %q, want %q", tt.run, got, tt.want)
+			}
+		})
+	}
+}
+
+// The reading interface is written in Traditional Chinese and so are the notes
+// it was built for, where a match is ordinarily reached after a long run of
+// characters nothing has parted into words. A run cut to the budget there
+// opens between two characters the reader's language reads as one word; a
+// browser looks for such a run, finds it nowhere, and throws away the term it
+// introduced along with it, so a note that used to open at its match opens at
+// the top. Checked on a real Chrome: 啡色…才輪到-,獨角獸 left the page at 0
+// where 獨角獸 alone reached 1560, and a run beginning where the paragraph
+// begins reached 1560 too.
+//
+// The second row is what keeps the first honest. A run inside the budget is
+// still named, and it is the one the block opens with, which is a boundary
+// any browser agrees with — so this test fails just as loudly on a change
+// that answers it by naming nothing at all.
+func TestLandingNamesNoRunItWouldHaveToCutInsideAWord(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Ledger.md", []byte(""+
+			"# 帳冊\n\n"+
+			"那本咖啡色封皮的舊冊子在星期四早晨被翻開來，接著在這一行裡面才輪到獨角獸三個字出現。\n\n"+
+			"灰布下面寫著飛馬兩個字。\n"))),
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		name   string
+		query  string
+		prefix string
+	}{
+		{
+			// Thirty-three characters ahead of the match, three over the
+			// budget: the cut would fall between 咖 and 啡.
+			name:  "a match reached after a long run of characters names none of it",
+			query: "獨角獸",
+		},
+		{
+			name:   "a run that fits is named, because the block opens where it opens",
+			query:  "飛馬",
+			prefix: "灰布下面寫著",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := searchResults(t, idx, Parse(tt.query))
+			if len(got) != 1 {
+				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			}
+			if got[0].LandingPrefix != tt.prefix {
+				t.Errorf("LandingPrefix = %q, want %q", got[0].LandingPrefix, tt.prefix)
 			}
 		})
 	}

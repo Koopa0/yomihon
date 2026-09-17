@@ -611,28 +611,26 @@ func joinsAWord(r rune) bool {
 }
 
 // landingPrefix cuts a block's run of words before a match down to what one
-// term of a directive can carry. Whole words come off the front first. A
-// single word still over the budget is shortened only where the script parts
-// no words with spaces: there every character opens a word, so a tail of it
-// is still a run the browser can find, while a cut anywhere else would fall
-// inside a word and name none. Such a word is dropped rather than halved.
+// term of a directive can carry. Only whole words come off the front, and a
+// last word still over the budget comes off with them, leaving nothing.
+//
+// A browser finds a leading run only where it begins at a word boundary, and
+// the one boundary this index can see is a space. A script that parts no
+// words with spaces divides them by dictionary, which nothing here has a
+// model of, so a cut made where the budget ran out falls inside a word almost
+// every time — and a run that begins inside a word is not merely weaker: it
+// is found nowhere, and the browser abandons the whole directive, leaving a
+// note that used to open at its match opening at the top. A run that fits is
+// the one the block opens with, which is a boundary the browser agrees with.
 func landingPrefix(run string) string {
 	words := strings.Fields(run)
 	if len(words) > landingPrefixWords {
 		words = words[len(words)-landingPrefixWords:]
 	}
-	for len(words) > 1 && utf8.RuneCountInString(strings.Join(words, " ")) > landingPrefixRunes {
+	for len(words) > 0 && utf8.RuneCountInString(strings.Join(words, " ")) > landingPrefixRunes {
 		words = words[1:]
 	}
-	prefix := strings.Join(words, " ")
-	if utf8.RuneCountInString(prefix) <= landingPrefixRunes {
-		return prefix
-	}
-	cut := runesBefore(prefix, len(prefix), landingPrefixRunes)
-	if writesWithoutSpaces(nextRune(prefix, cut)) {
-		return prefix[cut:]
-	}
-	return ""
+	return strings.Join(words, " ")
 }
 
 func collapseFields(s string) string {
