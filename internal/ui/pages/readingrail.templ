@@ -63,7 +63,7 @@ templ bookRail(rr ReadingRail, c layouts.Chrome) {
 	if rr.book != nil {
 		{{ view := rr.bookView() }}
 		<div class="y-railbook" data-book-path={ rr.book.RelPath }>
-			<a class="y-railbook__title" href={ templ.URL(syllabusHref(rr.book.RelPath)) }>{ rr.book.Title }</a>
+			<a class="y-railbook__title" href={ templ.URL(syllabusHrefFrom(rr.book.RelPath, rr.CurrentPath)) }>{ rr.book.Title }</a>
 			<p class="y-railbook__span">{ plural(view.Parts, wording.PartCountOne, wording.PartCountMany, c.Lang) } · { plural(view.Entries, wording.LessonCountOne, wording.LessonCountMany, c.Lang) }</p>
 			if rr.neighbors.Prev.RelPath != "" || rr.neighbors.Next.RelPath != "" {
 				<nav class="y-lessonsteps" aria-label={ rr.courseStepsLabel(c.Lang) }>
@@ -104,7 +104,7 @@ templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []st
 			@bookRailBranch(rr, c, pathRel, chain, *run.Branch)
 		} else {
 			for _, entry := range run.Entries {
-				@bookRailEntry(rr, c, entry)
+				@bookRailEntry(c, entry)
 			}
 		}
 	}
@@ -116,16 +116,19 @@ templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []st
 // resolution word beside it stay the interface's. Both branches of the row ask
 // the same way, so neither can be left behind; navigation reads a declaration
 // only off a target that resolved, so today the second branch has none to carry.
-templ bookRailEntry(rr ReadingRail, c layouts.Chrome, entry PathEntryView) {
+//
+// Which row the reader is on is decided where the view is built, so the rail
+// reads the answer rather than working it out a second time from the address.
+templ bookRailEntry(c layouts.Chrome, entry PathEntryView) {
 	if entry.Kind == nav.EntryResolved {
 		<a
-			class={ "ui-navitem", templ.KV("is-active", rr.currentHref(entry.Href)) }
+			class={ "ui-navitem", templ.KV("is-active", entry.Here) }
 			href={ templ.URL(entry.Href) }
-			{ currentAttr(rr.currentHref(entry.Href))... }
+			{ currentAttr(entry.Here)... }
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
-			if entry.Status != "" && !rr.currentHref(entry.Href) {
+			if entry.Status != "" && !entry.Here {
 				<span class="ui-navitem__count">{ entry.Status }</span>
 			}
 		</a>
