@@ -81,8 +81,9 @@ carry the rail.
   the table is a value yomihon offered and the reader picked; the filter box
   keeps what they typed, as they typed it, which is usually part of the name of
   a note or folder they were looking for. That is the only vault-shaped text in
-  browser storage: yomihon itself writes no note path, title, or body there,
-  and the browser's own controls clear all of it.
+  browser storage: yomihon itself writes no note path, title, or body there.
+  All of it clears — the settings page's return to defaults drops the six
+  cookies, and the browser's own controls drop all eight.
 
 No hosted reader exists for a user's own vault; a vault stays on the machine
 that reads it. One public instance exists over this repository's own sample

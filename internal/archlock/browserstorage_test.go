@@ -28,10 +28,10 @@ const inventoryPath = "docs/privacy/data-inventory.md"
 // table fails here rather than leaving the checks below reading nothing.
 const inventoryTableHeader = "| Kept in the browser | What it holds | How long |"
 
-// cookiePrefix is what every cookie yomihon writes is named with. The name is
-// a Go string literal in every case — the server writes all six, and the
-// browser only ever rewrites names the server already answers to — so the Go
-// declarations are the authority for the set and the JavaScript is not.
+// cookiePrefix is what every cookie yomihon writes is named with. The name is a
+// Go string literal in every case, because the server writes all six, so the Go
+// declarations are the authority for the set; a name the browser spells out for
+// itself is held against that set rather than trusted.
 const cookiePrefix = "yomihon_"
 
 // The two files that each carry a copy of the reading-preference set: one
@@ -90,8 +90,9 @@ var jsIdentifier = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 
 // TestBrowserStorageKeysAreDocumented holds the browser-storage table of the
 // privacy inventory equal to what the code stores. The cookie names come from
-// the Go declarations, the Web Storage keys from the client modules, and the
-// table has to name each one exactly once and name nothing else.
+// the Go declarations, the Web Storage keys from the client modules and the
+// templates, and the table has to name each one exactly once and name nothing
+// else.
 //
 // A build constraint such as yomihon_nodurable shares the cookie prefix and is
 // not a cookie. It cannot reach this check: a constraint is a comment, and what
@@ -268,7 +269,7 @@ func webStorageKeys(t *testing.T, cookies map[string]string) map[string]string {
 		t.Fatal("no client module or template was read, so every check over browser storage passes for the wrong reason")
 	}
 	if len(found) == 0 {
-		t.Fatal("no Web Storage key was found in any client module, so the check against the inventory compares nothing")
+		t.Fatal("no Web Storage key was found in any client module or template, so the check against the inventory compares nothing")
 	}
 	return found
 }

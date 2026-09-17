@@ -63,7 +63,7 @@ skill to read first: [`skills/`](skills/).
   note keeps the language it was written in.
 - **Yours.** It binds to `127.0.0.1` only, makes no network call, and never
   edits your prose. [What it keeps](docs/privacy/data-inventory.md), and
-  [what it does not defend against](docs/security/threat-model.md).
+  [what it does and does not defend](docs/security/threat-model.md).
 
 ## Status
 
