@@ -124,6 +124,44 @@ func unreadable(tb testing.TB, path string) bool {
 	return err != nil
 }
 
+// unreadableCause is the machine's own account of a file whose permissions
+// were taken away, as this package hands it to a reader. It is the tail of the
+// refusal below and the whole of the evidence a finding carries, so it is
+// frozen bytes on both faces and the constant lives in one place.
+//
+// The path in it names one component, because the read opens the file through
+// a handle on its parent directory rather than by its whole name.
+const unreadableCause = "openat bad.md: permission denied"
+
+// TestUnreadableCauseIsTheSameWordsWhereverTheGateRuns pins the sentence a
+// reader is given for a file that could not be opened. The words come from the
+// operating system through the standard library, not from this repository, and
+// they travel into output whose bytes are frozen — so the two systems this
+// repository's gate runs on have to produce the same ones, and a release that
+// reworded either reds here rather than moving a consumer's bytes quietly.
+//
+// The observation goes through coverage because a census over a corpus with a
+// hole in it is refused whole: the command keeps saying this sentence whatever
+// the check command does with the same file.
+func TestUnreadableCauseIsTheSameWordsWhereverTheGateRuns(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestContract(t, root, nil)
+	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
+	write(t, root, "Notes/bad.md", "---\ntitle: Unreadable\n---\n")
+	if !unreadable(t, filepath.Join(root, "Notes", "bad.md")) {
+		// Skipping would leave the sentence unpinned on the very system that
+		// could not hold it, which is the one worth hearing about.
+		t.Fatal("this process can still read a file it took every permission from, so the frozen cause cannot be observed here")
+	}
+
+	got := refuse(t.Context(), t, "coverage", root).Error()
+	if want := "vault scan failed: Notes/bad.md: " + unreadableCause; got != want {
+		t.Errorf("coverage refusal = %q, want %q", got, want)
+	}
+}
+
 // TestScanStoppedNamesOnlyAPathItCanAskAbout covers the failures a walk reports
 // without naming one file inside the vault. The refusal for a withheld file and
 // the refusal for a path the contract cannot be asked about are different
