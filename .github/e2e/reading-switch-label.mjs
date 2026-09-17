@@ -16,7 +16,9 @@
 // reason the narrow band is allowed to drop the word, so both halves are held
 // here. The floor is the width of the icon buttons the control sits among: the
 // English side is a single character and would otherwise leave a box narrower
-// than its neighbours and narrower than a finger.
+// than its neighbours and narrower than a finger, so the run ends by asking the
+// same three widths again in English — the one language the recorded pages say
+// nothing about, and the only one where that floor carries any weight.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -29,6 +31,10 @@ const LONG_LABEL = '顯示讀音';
 const SHORT_LABEL = '讀音';
 const ON_WORD = '開';
 const OFF_WORD = '關';
+// The English side carries the mark at both lengths. It is held here because
+// the recorded pages are all in Traditional Chinese, so nothing else in the
+// tree can say what the English control reads.
+const ENGLISH_LABEL = '振';
 // The width every icon button in the header holds.
 const ICON_WIDTH = 32;
 
@@ -143,15 +149,17 @@ const MUTATIONS = {
     },
     proofWidth: 390,
   },
-  // The box allowed below the width its neighbours hold.
-  'button-narrower-than-its-neighbours': {
+  // The floor taken away, which is the whole of the regression: the Chinese
+  // label is wider than the floor on its own and never rests on it, so this
+  // only shows where the label is one character.
+  'button-floor-removed': {
     target: 'button-floor',
-    apply: (page) => injectRule(page, '.y-rubybtn', 'min-width: 0 !important; padding: 0 !important;'),
+    apply: (page) => injectRule(page, '.y-rubybtn', 'min-width: 0 !important;', '(max-width: 720px)'),
     proof: async (page) => {
-      const width = await buttonWidth(page);
-      return width < ICON_WIDTH ? '' : `the button is still ${width}px wide`;
+      const floor = await page.locator('.y-rubybtn').evaluate((element) => getComputedStyle(element).minWidth);
+      return floor === '0px' ? '' : `the control still holds a ${floor} floor`;
     },
-    proofWidth: 620,
+    proofWidth: 390,
   },
 };
 
@@ -229,8 +237,12 @@ try {
   if (lang !== 'zh-Hant') broken(`the page is in ${lang}; this lock reads the Traditional Chinese labels`);
   if (await page.locator('.y-rubybtn').count() !== 1) broken('the readings control is not unique on this page');
 
+  // A navigation drops an injected rule, so installing the mutation is a step
+  // that runs again after each one rather than once at the top.
+  const installMutation = async () => { if (MUTATE) await MUTATIONS[MUTATE].apply(page); };
+
+  await installMutation();
   if (MUTATE) {
-    await MUTATIONS[MUTATE].apply(page);
     await page.setViewportSize({ width: MUTATIONS[MUTATE].proofWidth, height: 900 });
     await page.waitForTimeout(80);
     const issue = await MUTATIONS[MUTATE].proof(page);
@@ -275,6 +287,39 @@ try {
       if (width < ICON_WIDTH - 0.5) {
         fail('button-floor', `${where}: the control is ${width}px wide, under the ${ICON_WIDTH}px its neighbours hold`);
       }
+    }
+  }
+
+  // The same control in the other language, which the recorded pages do not
+  // cover at all. The floor is held here rather than above because the Chinese
+  // label is wider than the floor unaided and never rests on it: a floor that
+  // had been deleted would leave every Chinese width still passing.
+  //
+  // The visible mark is deliberately not required to sit inside the spoken name
+  // here. In English the name is the term and the mark is not part of it, which
+  // is true of this control before and after this lock existed; holding it
+  // would be asserting a change nobody has made.
+  await page.context().addCookies([{ name: 'yomihon_lang', value: 'en', url: new URL(BASE).origin }]);
+  await page.reload({ waitUntil: 'load' });
+  const switched = await page.evaluate(() => document.documentElement.lang);
+  if (switched !== 'en') broken(`the language cookie did not take: the page came back in ${switched}`);
+  await installMutation();
+  await setReadings(page, 'on');
+  for (const band of BANDS) {
+    await page.setViewportSize({ width: band.width, height: 900 });
+    await page.waitForTimeout(80);
+    const where = `${band.width}px in English`;
+
+    const shown = await visibleLabels(page);
+    if (shown.length !== 1) {
+      fail('one-label', `${where}: ${shown.length} labels are on screen (${JSON.stringify(shown)}), want exactly one`);
+    }
+    if (shown[0] !== ENGLISH_LABEL) {
+      fail('label-for-width', `${where}: the control reads ${JSON.stringify(shown[0])}, want ${JSON.stringify(ENGLISH_LABEL)}`);
+    }
+    const width = await buttonWidth(page);
+    if (width < ICON_WIDTH - 0.5) {
+      fail('button-floor', `${where}: the control is ${width}px wide, under the ${ICON_WIDTH}px its neighbours hold`);
     }
   }
 
