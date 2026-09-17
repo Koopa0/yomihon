@@ -78,8 +78,16 @@ templ header(c Chrome) {
 			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
 			<span class="ui-kbd">⌘K</span>
 		</a>
+		// Both lengths of the label are drawn and the stylesheet shows the one
+		// the row has room for, because which of them fits is a question about
+		// the window and the server answering it would have to guess. No single
+		// rule going missing can leave the control wordless — the worst an
+		// absent rule does is show both lengths at once, which is visibly
+		// wrong, where a control that had lost its words would say nothing at
+		// all and look deliberate.
 		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
-			<span class="y-rubybtn__glyph" aria-hidden="true">{ wording.FuriganaMark.In(c.Lang) }</span>
+			<span class="y-rubybtn__label y-rubybtn__label--long" aria-hidden="true">{ wording.FuriganaLabel.In(c.Lang) }</span>
+			<span class="y-rubybtn__label y-rubybtn__label--short" aria-hidden="true">{ wording.FuriganaLabelShort.In(c.Lang) }</span>
 			<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
 			<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
 		</button>

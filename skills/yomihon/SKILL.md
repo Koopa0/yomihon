@@ -301,6 +301,23 @@ and `tldr` fall through.
 · `example` · `quote` `cite` · `warning` `caution` `attention` · `danger`
 `error` `bug` `fail` `failure` `missing`
 
+## What a lesson asks its reader
+
+A lesson that explains and then demonstrates has left the thinking to the
+reader's discipline. So after a concept, give the reader one thing to do with
+it before you explain it — predict what will happen, explain why it is so, or
+decide between two courses — and write it in that order: the situation, then
+their own judgement, then the reasons and the case that breaks them (情境 →
+你的判斷 → 理由與反例). The prompt is open prose addressed to the reader; the
+explanation and the counter-example sit in a `[!question]-` fold beneath it, so
+the answer is a click away rather than a glance away. One real question per
+concept, not a quiz per paragraph — a question whose answer is the sentence
+above it teaches the reader to stop reading the questions.
+
+Not everything is asked. A term to look up, knowledge the lesson assumes the
+reader already brought, a table they will return to and read one row of: those
+are read, not answered, and folding one is a door in front of a reference.
+
 ## Being findable
 
 Six filter keys:
@@ -436,10 +453,13 @@ below is not something `check` will do for you.**
    reach**. If it is filed outside `[scan] knowledge_dirs` this proves none of
    that, and the repair is to move it, not to add a flag.
 3. If the note is a lesson, a study path lists it — in the same change.
-4. If you added a branch, it carries a `{sequence=…}` declaration.
-5. Every `[[link]]` resolves, or is deliberately a planned gap under a gap
+4. If the note is a lesson, it asks the reader something before it tells them —
+   a judgement about the lesson rather than a fault in it, which is why nothing
+   checks it and nothing will.
+5. If you added a branch, it carries a `{sequence=…}` declaration.
+6. Every `[[link]]` resolves, or is deliberately a planned gap under a gap
    heading.
-6. **Look at the projection, because no command reports it.** Open the course
+7. **Look at the projection, because no command reports it.** Open the course
    at `/syllabus/<the path's path>` and the count is what you meant; a map you
    wrote is at `/maps` with the branches you expected. A 404 or a number one
    short is the only sign of the quietest fault there is — a note whose type
