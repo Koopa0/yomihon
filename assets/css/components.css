@@ -1590,6 +1590,21 @@ html {
   .y-findings tbody tr { padding: 10px 0; border-top: 1px solid var(--border-faint); }
   .y-findings tbody td { display: grid; grid-template-columns: minmax(0, 5.5em) minmax(0, 1fr); gap: 2px 12px; padding: 3px 0; border-top: none; }
   .y-findings tbody td::before { content: attr(data-col); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+  /* The label owns the first column and everything the cell holds owns the
+     second, however many pieces that is. A cell with a name and evidence under
+     it would otherwise put the evidence back under the label, where it reads
+     as a second label and wraps into a fifth of the width it needs. */
+  .y-findings tbody td > * { grid-column: 2; }
+  /* A badge is as wide as the word in it. Laid out as a cell of a grid it
+     would stretch the full column, and a coloured block the width of the
+     screen is a banner rather than a mark beside a row. */
+  .y-findings__severity .y-severity { justify-self: start; }
+  /* A cell with nothing in it goes, label and all: a stacked row is a list of
+     what this finding has, and "weight" over a blank line says a weight is
+     missing rather than that none was ever assigned. Laid out as a table the
+     empty cell is just white space in its column, so this is the narrow
+     width's problem alone. */
+  .y-findings tbody td:empty { display: none; }
   .y-findings__count { text-align: left; }
 }
 

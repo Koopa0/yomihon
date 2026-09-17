@@ -106,8 +106,8 @@ func schemaFaultLists(snap *snapshot.Generation, articleLang pages.ArticleLangua
 // rather than the first or an average of them.
 func heaviest(findings []judge.Finding) judge.Severity {
 	worst := findings[0].Severity
-	for _, f := range findings[1:] {
-		worst = max(worst, f.Severity)
+	for i := 1; i < len(findings); i++ {
+		worst = max(worst, findings[i].Severity)
 	}
 	return worst
 }

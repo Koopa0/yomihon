@@ -201,7 +201,7 @@ type healthRow struct {
 
 // subject is the words the file column shows, which is also what ordering by
 // that column compares.
-func (r healthRow) subject() string {
+func (r *healthRow) subject() string {
 	if r.File.RelPath != "" {
 		return r.File.Name
 	}
@@ -210,7 +210,7 @@ func (r healthRow) subject() string {
 
 // weight orders a row against another by severity. A row no rule weighs sorts
 // after every row one does, rather than posing as the lightest kind of finding.
-func (r healthRow) weight() int {
+func (r *healthRow) weight() int {
 	if !r.Weighed {
 		return -1
 	}
@@ -245,26 +245,51 @@ func (v *HealthView) rows(lang wording.Lang) []healthRow {
 // gather builds the rows in the page's own order, which is the order the kinds
 // are declared in and, inside a kind, the order the vault reading produced.
 func (v *HealthView) gather(lang wording.Lang) []healthRow {
-	var out []healthRow
-	add := func(row healthRow) {
-		if rule, ok := healthRules[row.Kind]; ok {
-			row.Severity, row.Weighed = rule.severity, true
+	out := slices.Concat(
+		v.sourceRows(lang),
+		v.citationRows(lang),
+		v.schemaRows(),
+		v.statusRows(lang),
+		v.collisionRows(lang),
+	)
+	// The weight a kind carries is the same on every row of it, so it is put
+	// on once here rather than repeated at each place a row is made — where
+	// one of them would eventually be the one that forgot.
+	for i := range out {
+		if rule, ok := healthRules[out[i].Kind]; ok {
+			out[i].Severity, out[i].Weighed = rule.severity, true
 		}
-		out = append(out, row)
 	}
-	// A file that could not be read is one row each: nothing was read out of
-	// it, so there is nothing else to say about it than what the read returned.
+	return out
+}
+
+// sourceRows are the paths no note was read out of: one the reading could not
+// open, and one it saw and left out. Each is a row of its own, because nothing
+// was read out of it and the read's own account is all there is to say.
+func (v *HealthView) sourceRows(lang wording.Lang) []healthRow {
+	out := make([]healthRow, 0, len(v.Blocked)+len(v.Skipped))
 	for _, source := range v.Blocked {
-		add(healthRow{Kind: healthBlocked, FilePath: source.Path, Detail: machineDetail(source.Reason), Count: 1})
+		out = append(out, healthRow{Kind: healthBlocked, FilePath: source.Path, Detail: machineDetail(source.Reason), Count: 1})
 	}
 	for _, source := range v.Skipped {
-		detail := []healthDetail{}
+		var detail []healthDetail
 		if source.Size > 0 {
 			detail = append(detail, healthDetail{Text: humanSize(source.Size, lang)})
 		}
 		detail = append(detail, machineDetail(source.Reason)...)
-		add(healthRow{Kind: healthSkipped, FilePath: source.Path, Detail: detail, Count: 1})
+		out = append(out, healthRow{Kind: healthSkipped, FilePath: source.Path, Detail: detail, Count: 1})
 	}
+	return out
+}
+
+// citationRows are what the links say: targets nothing answers to, targets
+// naming a title rather than a name the vault resolves by, and notes no text
+// cites. The first two fold every citation of one note into that note's row —
+// the repair is opening that note once — while an uncited note is one row,
+// carrying the folder, because the shape of a folder full of them is what a
+// reader judges the group by and the file column names the note alone.
+func (v *HealthView) citationRows(lang wording.Lang) []healthRow {
+	var out []healthRow
 	unwrittenAt := make(map[string]int, len(v.Unwritten))
 	for _, link := range v.Unwritten {
 		detail := healthDetail{Text: fmt.Sprintf(wording.LinkedToFmt.In(lang), link.Target)}
@@ -274,7 +299,7 @@ func (v *HealthView) gather(lang wording.Lang) []healthRow {
 			continue
 		}
 		unwrittenAt[link.From.RelPath] = len(out)
-		add(healthRow{Kind: healthUnwritten, File: link.From, Detail: []healthDetail{detail}, Count: 1})
+		out = append(out, healthRow{Kind: healthUnwritten, File: link.From, Detail: []healthDetail{detail}, Count: 1})
 	}
 	titleOnlyAt := make(map[string]int, len(v.TitleOnly))
 	for _, link := range v.TitleOnly {
@@ -285,36 +310,55 @@ func (v *HealthView) gather(lang wording.Lang) []healthRow {
 			continue
 		}
 		titleOnlyAt[link.From.RelPath] = len(out)
-		add(healthRow{Kind: healthTitleOnly, File: link.From, Detail: []healthDetail{detail}, Count: 1})
+		out = append(out, healthRow{Kind: healthTitleOnly, File: link.From, Detail: []healthDetail{detail}, Count: 1})
 	}
-	// The folder travels with an uncited note because the shape of a folder
-	// full of them is what a reader judges the group by, and the file column
-	// names the note alone.
 	for _, group := range v.Islands {
 		for _, ref := range group.Notes {
-			add(healthRow{Kind: healthIsland, File: ref, Detail: []healthDetail{{Text: group.Name}}, Count: 1})
+			out = append(out, healthRow{Kind: healthIsland, File: ref, Detail: []healthDetail{{Text: group.Name}}, Count: 1})
 		}
 	}
+	return out
+}
+
+// schemaRows are the notes the schema had something to say about. What it said
+// stays on each note's own page — two accounts of one file in two places is how
+// the two start disagreeing — so the row carries how many things were said and
+// how heavy the heaviest was, and the reader opens the note to read them.
+func (v *HealthView) schemaRows() []healthRow {
+	out := make([]healthRow, 0, len(v.FrontmatterUnreadable)+len(v.SchemaFaults))
 	for _, found := range v.FrontmatterUnreadable {
-		add(healthRow{Kind: healthUnreadableFrontmatter, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count})
+		out = append(out, healthRow{Kind: healthUnreadableFrontmatter, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count})
 	}
-	// What the schema said stays on each note's own page. Two accounts of one
-	// file in two places is how the two start disagreeing, so the row carries
-	// how many things were said and how heavy the heaviest was, and the reader
-	// opens the note to read them.
 	for _, found := range v.SchemaFaults {
-		add(healthRow{Kind: healthSchemaFault, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count})
+		out = append(out, healthRow{Kind: healthSchemaFault, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count})
 	}
-	for _, found := range v.StatusOutsideEnum {
-		detail := healthDetail{Text: fmt.Sprintf(wording.StatusAndTypeFmt.In(lang), found.Status, found.Type)}
-		add(healthRow{Kind: healthStatusOutsideEnum, File: found.Note, Detail: []healthDetail{detail}, Count: 1})
+	return out
+}
+
+// statusRows are the notes carrying a status their type cannot be in. The value
+// and the type travel together: the value is the word the reader edits and the
+// type is why it failed.
+func (v *HealthView) statusRows(lang wording.Lang) []healthRow {
+	out := make([]healthRow, 0, len(v.StatusOutsideEnum)+len(v.StatusUnreachable))
+	for _, kind := range []struct {
+		kind  healthKind
+		found []HealthStatusNote
+	}{
+		{healthStatusOutsideEnum, v.StatusOutsideEnum},
+		{healthStatusUnreachable, v.StatusUnreachable},
+	} {
+		for _, found := range kind.found {
+			detail := healthDetail{Text: fmt.Sprintf(wording.StatusAndTypeFmt.In(lang), found.Status, found.Type)}
+			out = append(out, healthRow{Kind: kind.kind, File: found.Note, Detail: []healthDetail{detail}, Count: 1})
+		}
 	}
-	for _, found := range v.StatusUnreachable {
-		detail := healthDetail{Text: fmt.Sprintf(wording.StatusAndTypeFmt.In(lang), found.Status, found.Type)}
-		add(healthRow{Kind: healthStatusUnreachable, File: found.Note, Detail: []healthDetail{detail}, Count: 1})
-	}
+	return out
+}
+
+func (v *HealthView) collisionRows(lang wording.Lang) []healthRow {
+	out := make([]healthRow, 0, len(v.Collisions))
 	for _, collision := range v.Collisions {
-		add(healthCollisionRow(collision, lang))
+		out = append(out, healthCollisionRow(collision, lang))
 	}
 	return out
 }

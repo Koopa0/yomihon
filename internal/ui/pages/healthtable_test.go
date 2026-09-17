@@ -101,7 +101,7 @@ var healthTestNote = nav.NoteRef{Name: "L01", RelPath: "Writing/lessons/go/L01.m
 // never gathered it — the reader is told there is nothing there.
 func TestEveryFieldOfTheHealthViewIsAccountedFor(t *testing.T) {
 	t.Parallel()
-	for _, field := range reflect.VisibleFields(reflect.TypeOf(HealthView{})) {
+	for _, field := range reflect.VisibleFields(reflect.TypeFor[HealthView]()) {
 		_, shown := healthFindingFields[field.Name]
 		unfound := slices.Contains(healthUnfoundFields, field.Name)
 		switch {
@@ -112,7 +112,7 @@ func TestEveryFieldOfTheHealthViewIsAccountedFor(t *testing.T) {
 		}
 	}
 	for name := range healthFindingFields {
-		if _, ok := reflect.TypeOf(HealthView{}).FieldByName(name); !ok {
+		if _, ok := reflect.TypeFor[HealthView]().FieldByName(name); !ok {
 			t.Errorf("%q is checked as a field of HealthView and is not one", name)
 		}
 	}
@@ -131,7 +131,7 @@ func TestEveryFindingReachesARow(t *testing.T) {
 			if view.clean() {
 				t.Fatalf("a view holding %s reads as clean, so the page prints no table at all", name)
 			}
-			counts := healthRowCounts(t, view)
+			counts := healthRowCounts(t, &view)
 			if len(counts) != field.rows {
 				t.Errorf("%s drew %d rows, want %d", name, len(counts), field.rows)
 			}
@@ -153,7 +153,7 @@ func TestTheTableCountsEveryFindingTheViewHolds(t *testing.T) {
 	for _, found := range slices.Concat(view.FrontmatterUnreadable, view.SchemaFaults) {
 		held += found.Count
 	}
-	counts := healthRowCounts(t, view)
+	counts := healthRowCounts(t, &view)
 	if total := sum(counts); total != held {
 		t.Errorf("the table counts %d findings over %d rows; the view holds %d", total, len(counts), held)
 	}
@@ -211,10 +211,10 @@ func TestOrderingByAColumnReordersTheRows(t *testing.T) {
 	view := recordedHealthView(buildModel(t))
 
 	view.Sort = HealthByFinding
-	byFinding := healthRowFiles(t, view)
+	byFinding := healthRowFiles(t, &view)
 
 	view.Sort = HealthByFile
-	byFile := healthRowFiles(t, view)
+	byFile := healthRowFiles(t, &view)
 	if slices.Equal(byFinding, byFile) {
 		t.Errorf("ordering by file left the rows exactly as they were: %v", byFile)
 	}
@@ -223,8 +223,8 @@ func TestOrderingByAColumnReordersTheRows(t *testing.T) {
 	}
 
 	view.Sort = HealthBySeverity
-	weights := healthRowWeights(t, view)
-	if slices.Equal(weights, healthRowWeightsUnsorted(t, view)) {
+	weights := healthRowWeights(t, &view)
+	if slices.Equal(weights, healthRowWeightsUnsorted(t, &view)) {
 		t.Error("the fixture's rows are already in weight order, so ordering by weight proves nothing here")
 	}
 	if !slices.IsSortedFunc(weights, func(a, b int) int { return b - a }) {
@@ -232,7 +232,7 @@ func TestOrderingByAColumnReordersTheRows(t *testing.T) {
 	}
 
 	view.Sort = HealthByCount
-	counts := healthRowCounts(t, view)
+	counts := healthRowCounts(t, &view)
 	if !slices.IsSortedFunc(counts, func(a, b int) int { return b - a }) {
 		t.Errorf("ordering by count did not put the fullest first: %v", counts)
 	}
@@ -263,7 +263,7 @@ func TestJudgeSeverityMatchesWhatTheTableShows(t *testing.T) {
 }
 
 // healthRowCounts is the counted number on each row, in the order they print.
-func healthRowCounts(t *testing.T, view HealthView) []int {
+func healthRowCounts(t *testing.T, view *HealthView) []int {
 	t.Helper()
 	var out []int
 	for _, match := range countCell.FindAllStringSubmatch(renderHealth(t, view), -1) {
@@ -280,7 +280,7 @@ func healthRowCounts(t *testing.T, view HealthView) []int {
 }
 
 // healthRowFiles is what each row says it is about, in the order they print.
-func healthRowFiles(t *testing.T, view HealthView) []string {
+func healthRowFiles(t *testing.T, view *HealthView) []string {
 	t.Helper()
 	var out []string
 	for _, match := range fileCell.FindAllStringSubmatch(renderHealth(t, view), -1) {
@@ -295,7 +295,7 @@ func healthRowFiles(t *testing.T, view HealthView) []string {
 // healthRowWeights reads each row's weight back as a number, with a row
 // carrying none sorting below every row that does — which is where the table
 // puts them.
-func healthRowWeights(t *testing.T, view HealthView) []int {
+func healthRowWeights(t *testing.T, view *HealthView) []int {
 	t.Helper()
 	var out []int
 	for _, match := range severityCell.FindAllStringSubmatch(renderHealth(t, view), -1) {
@@ -320,10 +320,11 @@ func healthRowWeights(t *testing.T, view HealthView) []int {
 
 // healthRowWeightsUnsorted is the same list in the page's default order, which
 // is what ordering by weight has to be shown to have changed.
-func healthRowWeightsUnsorted(t *testing.T, view HealthView) []int {
+func healthRowWeightsUnsorted(t *testing.T, view *HealthView) []int {
 	t.Helper()
-	view.Sort = HealthByFinding
-	return healthRowWeights(t, view)
+	unordered := *view
+	unordered.Sort = HealthByFinding
+	return healthRowWeights(t, &unordered)
 }
 
 // readRecording is one recorded page, read back as text.
@@ -393,10 +394,10 @@ func severityNamed(word string) (judge.Severity, bool) {
 	return 0, false
 }
 
-func renderHealth(t *testing.T, view HealthView) string {
+func renderHealth(t *testing.T, view *HealthView) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := Health(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+	if err := Health(*view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render the health page: %v", err)
 	}
 	return buf.String()
