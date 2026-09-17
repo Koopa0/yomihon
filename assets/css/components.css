@@ -209,8 +209,12 @@ html, body { margin: 0; background: var(--bg); }
 }
 [data-single-key-shortcuts="on"] .y-shortcutpref__on { display: inline; color: var(--accent); font-weight: 500; }
 [data-single-key-shortcuts="off"] .y-shortcutpref__off { display: inline; color: var(--fg-faint); }
+/* The readings switch says what it does in words, and sits with the header's
+   other worded controls rather than with its icons: same face, same size as
+   the way into the reading choices beside it. */
 .y-rubybtn { width: auto; gap: 7px; padding: 0 11px; }
-.y-rubybtn__glyph { font-family: var(--font-kai); font-size: 15px; line-height: 1; }
+.y-rubybtn__label { font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: .04em; line-height: 1; }
+.y-rubybtn__label--short { display: none; }
 .y-rubybtn__on, .y-rubybtn__off { font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em; }
 .y-rubybtn__on { color: var(--accent); font-weight: 500; }
 .y-rubybtn__off { color: var(--fg-faint); }
@@ -218,6 +222,21 @@ html, body { margin: 0; background: var(--bg); }
 .y-rubybtn__on, .y-rubybtn__off { display: none; }
 [data-ruby="on"] .y-rubybtn__on { display: inline; }
 [data-ruby="off"] .y-rubybtn__off { display: inline; }
+/* The row's spare width runs out a little below this point, and further down it
+   is already shortening the wordmark to fit what is there; the longer label
+   would then be paid for out of the name of the thing the reader is looking at.
+   The switch happens here rather than at the last width that fits, so the
+   longer label is never the reason the wordmark gives. The short label is the
+   tail of the long one rather than a different word, which is what lets the
+   spoken name stay the same across the switch. */
+@media (max-width: 720px) {
+  /* The floor is the width of the icon buttons this control sits among: the
+     English side's single character would otherwise leave a box narrower than
+     its neighbours and narrower than a finger. */
+  .y-rubybtn { gap: 5px; padding: 0 6px; min-width: 32px; }
+  .y-rubybtn__label--long { display: none; }
+  .y-rubybtn__label--short { display: inline; }
+}
 .y-ico-moon { display: none; }
 [data-theme="dark"] .y-ico-sun { display: none; }
 [data-theme="dark"] .y-ico-moon { display: block; }
@@ -1334,14 +1353,15 @@ html {
   .y-header { gap: 5px; padding-inline: 8px; }
   .y-brand { gap: 7px; }
   .y-brand__tag { display: none; }
-  .y-rubybtn { width: 32px; gap: 0; padding: 0; }
-  /* The words do not fit at this width, so the glyph carries the state
-     instead of losing it. A control whose whole purpose is switching furigana
-     off has to say which way it is set, and the passage under it cannot answer
-     for it — a paragraph with no kanji looks identical either way. */
+  .y-rubybtn { gap: 0; }
+  /* The state word does not fit at this width, so the label carries the state
+     instead of losing it: struck through is the reading it is hiding. A control
+     whose whole purpose is switching readings off has to say which way it is
+     set, and the passage under it cannot answer for it — a paragraph with no
+     kanji looks identical either way. */
   .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
-  [data-ruby="on"] .y-rubybtn__glyph { color: var(--accent); }
-  [data-ruby="off"] .y-rubybtn__glyph { color: var(--fg-faint); text-decoration: line-through; }
+  [data-ruby="on"] .y-rubybtn__label { color: var(--accent); }
+  [data-ruby="off"] .y-rubybtn__label { color: var(--fg-faint); text-decoration: line-through; }
   .y-ttsbar__status { flex-basis: 100%; order: 2; margin-left: 0; }
   .y-ttsbar__stop { order: 3; }
 }
