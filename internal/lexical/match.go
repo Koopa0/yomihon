@@ -551,8 +551,8 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 		firstStop = firstEnd
 	}
 	terms.first = collapseFields(e.PlainText[start:firstStop])
-	bareStart, bareStop := wordEdges(e.PlainText, start, firstStop, blockStart, firstEnd)
-	terms.bare = collapseFields(e.PlainText[bareStart:bareStop])
+	bareStart, bareEnd := wordEdges(e.PlainText, start, firstStop, blockStart, firstEnd)
+	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
 	if !terms.crossing {
 		return terms
 	}
@@ -562,7 +562,7 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	return terms
 }
 
-// wordEdges grows [start, stop) out to the edges of the words it lies inside,
+// wordEdges grows [start, end) out to the edges of the words it lies inside,
 // never leaving [low, high). Only an end whose own character is one a word
 // joins can be inside a word at all; every other end already stands on a
 // boundary and is left alone. That one condition is what keeps a stretch of
@@ -570,26 +570,27 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 // a script that parts no words with spaces exactly as it was — the edges there
 // are a segmentation this vault has no way to find, and the sentence around
 // the match is not them.
-func wordEdges(s string, start, stop, low, high int) (int, int) {
-	if opening, _ := utf8.DecodeRuneInString(s[start:stop]); joinsAWord(opening) {
-		for start > low {
-			r, size := utf8.DecodeLastRuneInString(s[low:start])
+func wordEdges(s string, start, end, low, high int) (grownStart, grownEnd int) {
+	grownStart, grownEnd = start, end
+	if opening, _ := utf8.DecodeRuneInString(s[start:end]); joinsAWord(opening) {
+		for grownStart > low {
+			r, size := utf8.DecodeLastRuneInString(s[low:grownStart])
 			if !joinsAWord(r) {
 				break
 			}
-			start -= size
+			grownStart -= size
 		}
 	}
-	if closing, _ := utf8.DecodeLastRuneInString(s[:stop]); joinsAWord(closing) {
-		for stop < high {
-			r, size := utf8.DecodeRuneInString(s[stop:high])
+	if closing, _ := utf8.DecodeLastRuneInString(s[:end]); joinsAWord(closing) {
+		for grownEnd < high {
+			r, size := utf8.DecodeRuneInString(s[grownEnd:high])
 			if !joinsAWord(r) {
 				break
 			}
-			stop += size
+			grownEnd += size
 		}
 	}
-	return start, stop
+	return grownStart, grownEnd
 }
 
 // joinsAWord reports whether r is joined to the character beside it into one
