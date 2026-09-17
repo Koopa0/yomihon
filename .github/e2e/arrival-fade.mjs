@@ -1,6 +1,6 @@
 // Behavior lock for the arrival fade: an opening page rises the last part of
 // the way to full strength instead of cutting in, on every page surface, and
-// reduced motion removes it.
+// the reader who asks for less motion is never shown it.
 //
 // Four things have to hold together, and no one of them alone is the
 // experience. The fade has to be declared on every page the reader can land
@@ -67,7 +67,7 @@ const SURFACES = [
   { page: 'preferences', path: '/preferences', status: 200, mainClass: 'y-prefs', marker: '#main-content .y-prefs__lede' },
   { page: 'not found', path: '/no-such-page', status: 404, mainClass: 'y-main', marker: '#main-content #notfound-title' },
   // The recovery page answers a refused status submission and nothing else, so
-  // it is reached by submitting the note's own form with a field taken out.
+  // it is reached by submitting the lesson's own form with a field taken out.
   // The server refuses it before it reaches a file, which is why this probe
   // still belongs among the ones that only read.
   { page: 'status recovery', path: STATUS, status: 422, mainClass: 'y-main y-recoverymain', marker: '#main-content #recovery-title', viaRefusedPost: true },
