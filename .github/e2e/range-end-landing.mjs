@@ -11,7 +11,7 @@
 // match. The reader then lands at the top of a long note with nothing said.
 // The far end goes out grown to the word instead.
 //
-// This is the same fixture and the same two paragraphs the whole-word phrase
+// This is the same fixture and the same three paragraphs the whole-word phrase
 // is driven against; only the query differs, and that difference is the point.
 //
 // The assertion is geometry, not the href. A correct-looking address and any
