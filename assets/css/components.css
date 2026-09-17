@@ -1201,7 +1201,11 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
    pixel back from the centre puts the one-pixel edge across it rather than
    beside it. It is an edge and not a filled box because paper prints an edge
    and leaves a background behind. It never moves, so reduced motion and
-   forced colours have nothing of it to strip. */
+   forced colours have nothing of it to strip.
+
+   It carries the strongest of the hairline inks, one step above the rule
+   between two rows: the line is what the part is read along, and at the
+   weight of the row rules it was there to be found rather than seen. */
 .y-lesson {
   --lesson-gutter: 20px;
   --lesson-inset: 6px;
@@ -1215,7 +1219,7 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-lesson::before {
   content: ""; position: absolute;
   left: calc(var(--lesson-inset) + var(--lesson-gutter) / 2 - 0.5px);
-  top: 50%; bottom: 50%; width: 0; border-left: 1px solid var(--border);
+  top: 50%; bottom: 50%; width: 0; border-left: 1px solid var(--border-strong);
 }
 /* Up to meet the point above. An ordered run wraps each row in a list item, a
    run navigation never walks does not, and a bare row sits directly under the
@@ -1229,7 +1233,14 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-part-block > .y-lesson:has(+ .y-lesson)::before,
 .y-module > .y-lesson:has(+ .y-lesson)::before { bottom: -1px; }
 .y-lesson:hover { background: var(--overlay); }
-.y-lesson .y-navdot { justify-self: center; }
+/* Every mark sits on the line and none is drawn through: the rule is
+   positioned, so it paints above everything in the row's ordinary flow and
+   drew a pale stripe across the dark point until the marks were positioned
+   too, which puts them after it in the row. Centring them is what puts them
+   on the line at all — the warning mark filled its whole column and left its
+   glyph against the column's left edge, a finger's width off the line every
+   other row runs along. */
+.y-lesson .y-navdot, .y-lesson .y-navmark { position: relative; justify-self: center; }
 /* Where the reader is standing is the heavier point: larger, and in the
    reading ink rather than the quiet one the other points keep. A point the
    contract has already accented keeps that accent, because where the reader
