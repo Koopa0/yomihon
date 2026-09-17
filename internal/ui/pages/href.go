@@ -198,6 +198,29 @@ func ObsidianHref(root, rel string) string {
 // syllabusHref builds the study-path page URL for a vault-relative path.
 func syllabusHref(p string) string { return VaultHref("/syllabus/", p) }
 
+// SyllabusFromParam names the note a reader opened a course from. The link is
+// written here and read by the route that answers it, so the two ends share one
+// spelling rather than agreeing by hand.
+const SyllabusFromParam = "from"
+
+// syllabusHrefFrom is the way into a course from a note being read, naming that
+// note so the course can mark where in it the reader is standing. "from" is
+// already this interface's word for the value a reader arrived with, and the
+// note is named by its vault path rather than by its reading address: the page
+// compares it against the vault paths the course lists, and two spellings of
+// one address would have to be reconciled before they could be compared. An
+// empty note leaves the plain address, which marks nothing.
+//
+// Nothing follows the value: it is compared with what the course already holds
+// and is never rendered as a link or an address, so a value naming anything
+// else falls through to marking no row at all.
+func syllabusHrefFrom(pathRel, noteRel string) string {
+	if noteRel == "" {
+		return syllabusHref(pathRel)
+	}
+	return syllabusHref(pathRel) + "?" + url.Values{SyllabusFromParam: {noteRel}}.Encode()
+}
+
 // statusHref builds the search URL filtered to one status, with url.Values
 // escaping the colon: /search?q=status%3Adraft. The key comes from the package
 // that owns the filter grammar, so a link this page draws cannot outlive the

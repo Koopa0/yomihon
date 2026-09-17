@@ -109,21 +109,20 @@ func (r *ReadingRail) branchOpen(pathRel string, headings []string) bool {
 	return r.openBranches[branchKey(pathRel, headings)]
 }
 
-func (r *ReadingRail) currentHref(href string) bool {
-	return href != "" && notesHref(r.CurrentPath) == href
-}
-
 // CapabilityFaults lists closed navigation projections for the reading rail.
 func (r *ReadingRail) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 	return ModelCapabilityFaults(r.Model, lang)
 }
 
-// bookView draws the teaching path into the page view the rail reuses.
+// bookView draws the teaching path into the page view the rail reuses. The note
+// being read is handed over as the row to mark, so the rail and the course page
+// both learn which row that is from the one comparison, and neither keeps a
+// second answer that could disagree with the other.
 func (r *ReadingRail) bookView() PathView {
 	if r.book == nil {
 		return PathView{}
 	}
-	return BuildPathView(r.book, nil)
+	return BuildPathView(r.book, nil, r.CurrentPath)
 }
 
 // courseStepsLabel names the path's whole order for the book rail's step links.

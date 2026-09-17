@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -82,7 +83,7 @@ func TestBuildPathView(t *testing.T) {
 		"- [[Unwritten]]\n"
 	path := buildTestPath(t, body)
 
-	got := BuildPathView(&path, []nav.Path{path})
+	got := BuildPathView(&path, []nav.Path{path}, "")
 
 	want := PathView{
 		Title:      "Go path",
@@ -170,7 +171,7 @@ func TestLessonsAreAnOrderedList(t *testing.T) {
 	path := buildTestPath(t, body, map[string]string{
 		"Writing/Routine.md": "---\ntitle: Routine\ntype: lesson\nstatus: draft\n---\nbody\n",
 	})
-	view := BuildPathView(&path, []nav.Path{path})
+	view := BuildPathView(&path, []nav.Path{path}, "")
 
 	if view.Entries != 5 {
 		t.Errorf("BuildPathView() Entries = %d, want 5: a none block adds nothing and a planned row still counts", view.Entries)
@@ -240,7 +241,7 @@ func TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule(t *testing.T) {
 	}) {
 		t.Fatalf("the nested primary was not reported: %+v", path.Diagnostics)
 	}
-	view := BuildPathView(&path, []nav.Path{path})
+	view := BuildPathView(&path, []nav.Path{path}, "")
 	if view.Modules != 1 {
 		t.Errorf("Modules = %d, want 1: only the side branch, not the nested primary", view.Modules)
 	}
@@ -510,7 +511,7 @@ func TestSyllabusSeparatesNoMarkerFromUnreadableMarker(t *testing.T) {
 	render := func(t *testing.T, body string) string {
 		t.Helper()
 		path := buildTestPath(t, body)
-		view := BuildPathView(&path, []nav.Path{path})
+		view := BuildPathView(&path, []nav.Path{path}, "")
 		if len(view.Branches) != 0 {
 			t.Fatalf("the fixture grew a course; the empty-state page never renders")
 		}
@@ -666,7 +667,7 @@ func TestAnUnknownRuleDoesNotSilenceAWrittenMarker(t *testing.T) {
 			for _, rule := range tt.rules {
 				path.Diagnostics = append(path.Diagnostics, sequence.Diagnostic{Rule: rule})
 			}
-			if got := BuildPathView(&path, nil).NoCourse; got != tt.want {
+			if got := BuildPathView(&path, nil, "").NoCourse; got != tt.want {
 				t.Errorf("NoCourse = %d, want %d", got, tt.want)
 			}
 		})
@@ -751,5 +752,114 @@ func TestAnEmptyCourseLeadsWithItsDiagnosticAndNotAnInvitation(t *testing.T) {
 	// that lost both would be a title over nothing.
 	if html := render(t, base); !strings.Contains(html, `class="y-syl-nocourse"`) {
 		t.Errorf("the empty course page carries no explanation of why it is empty; html = %q", html)
+	}
+}
+
+// The course is entered from a lesson, and the page marks that lesson on the
+// line. It is matched against the rows the course itself lists, so what the
+// reader arrived with cannot put a mark anywhere the course does not already
+// teach, and a reader who arrived with nothing gets a course with no mark on it.
+func TestBuildPathViewMarksTheLessonTheReaderArrivedFrom(t *testing.T) {
+	t.Parallel()
+
+	body := "## Data {sequence=primary}\n\n" +
+		"- [[Slices]]\n" +
+		"- [[Arrays]]\n" +
+		"- [[Unwritten]]\n"
+	path := buildTestPath(t, body)
+
+	marked := func(v PathView) []string {
+		var names []string
+		for _, sec := range v.Branches {
+			for _, item := range sec.Items {
+				if item.Entry != nil && item.Entry.Here {
+					names = append(names, item.Entry.Text)
+				}
+			}
+		}
+		return names
+	}
+
+	for _, tt := range []struct {
+		name string
+		here string
+		want []string
+	}{
+		{"a lesson this course teaches", "Writing/Arrays.md", []string{"Arrays"}},
+		{"nothing at all", "", nil},
+		{"a note the course does not list", "Writing/Elsewhere.md", nil},
+		// A row the course plans but nobody has written reached no note, so
+		// there is no note anyone can have been reading it from.
+		{"a planned lesson's own name", "Unwritten", nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if diff := cmp.Diff(tt.want, marked(BuildPathView(&path, []nav.Path{path}, tt.here))); diff != "" {
+				t.Errorf("marked rows (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// finishedInWords is how the interface says a thing is over. A course page says
+// how long a course is and where the reader is standing in it; the words beside
+// a lesson are the contract's own, and the reviewed status is the author's
+// judgement of the material rather than a reader's progress through it, so
+// none of these belongs on this page in either language. The English ones are
+// matched whole, so a status spelling "archived" is not read as the word inside
+// it.
+var finishedInWords = regexp.MustCompile(`(?i)完成|完畢|讀完|學完|進度|\b(?:complete|completed|completion|finish|finished|done|mastered|progress)\b`)
+
+// TestSyllabusSaysNothingIsOver reads the whole course page in both languages
+// and finds none of those words on it.
+//
+// The vocabulary is calibrated first against phrases yomihon really does say
+// elsewhere, named by the variables that hold them: a vocabulary that had
+// drifted until it recognised none of the interface's own completion words
+// would walk past the same words on a page, and this scan would pass by
+// finding nothing rather than by there being nothing.
+func TestSyllabusSaysNothingIsOver(t *testing.T) {
+	t.Parallel()
+
+	for _, claim := range []struct {
+		name   string
+		phrase wording.Phrase
+	}{
+		{"ReadAloudFinished", wording.ReadAloudFinished},
+		{"DiagHighlightFailed", wording.DiagHighlightFailed},
+		{"WriteFailed", wording.WriteFailed},
+	} {
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			if !finishedInWords.MatchString(claim.phrase.In(lang)) {
+				t.Fatalf("wording.%s reads %q in %s, and this test's vocabulary does not recognise it as saying a thing is over — the scan below would walk past those same words on a page",
+					claim.name, claim.phrase.In(lang), lang)
+			}
+		}
+	}
+
+	body := "## Data {sequence=primary}\n\n" +
+		"- [[Slices]]\n" +
+		"- [[Arrays]]\n" +
+		"\t- 選修 {sequence=local}\n" +
+		"\t\t- [[Tuning]]\n" +
+		"- [[Template]]\n" +
+		"- [[Unwritten]]\n"
+	path := buildTestPath(t, body)
+	// Entered from a lesson, so the marked row is on the page too: the mark is
+	// the one thing here that could have grown words about being finished.
+	view := BuildPathView(&path, []nav.Path{path}, "Writing/Slices.md")
+
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		var out bytes.Buffer
+		if err := Syllabus(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &out); err != nil {
+			t.Fatalf("render syllabus in %s: %v", lang, err)
+		}
+		html := out.String()
+		if !strings.Contains(html, "y-lesson--here") {
+			t.Fatalf("the %s page carries no mark for where the reader is, so the words around one were never rendered; html = %q", lang, html)
+		}
+		if found := finishedInWords.FindAllString(html, -1); found != nil {
+			t.Errorf("the %s course page says %q, which reads as a claim that a lesson is behind the reader; html = %q", lang, found, html)
+		}
 	}
 }
