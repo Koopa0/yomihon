@@ -784,7 +784,12 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-searchpage__form input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
 .y-searchpage__form input:focus-visible { outline: none; }
 .y-searchpage__form .y-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
-.y-live-search__status { min-height: 1.4em; margin: 8px 4px 0; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-muted); }
+/* The count line prints the query back, and a query can be one run with
+   nowhere to break — the same thing that used to carry the notice below it off
+   the side of a phone. It takes the same last-resort break, or a reader on a
+   phone is told how many results they have by a line that runs past the edge
+   of the box. */
+.y-live-search__status { min-height: 1.4em; margin: 8px 4px 0; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-muted); }
 .y-live-search__status:empty { min-height: 0; margin-block: 0; }
 /* Live search keeps the last answer on screen while the next one loads.
    Fading the region would fade every word with it — already-compliant ink
