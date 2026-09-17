@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -1043,5 +1044,81 @@ func TestEveryStoredReadingChoiceReachesThePage(t *testing.T) {
 				t.Errorf("the chrome honours %s=%q and the page does not offer it; offered = %v", p.Cookie, value, offered)
 			}
 		}
+	}
+}
+
+// TestEachChoiceLandsInTheCookieItsFieldNameSpells holds a shape this page is
+// now read by from outside: the browser keeps a choice as the reader picks it,
+// and spells the cookie to read back from the field the choice is submitted
+// under. The shape was a coincidence between two tables while only this side
+// wrote cookies; it is a contract now, and a rename on one side alone would
+// leave every choice looking refused — the write would land somewhere the read
+// back never looks.
+//
+// The binding is taken from the answer the handler gives rather than from a
+// table beside it, so no name here can agree with itself.
+func TestEachChoiceLandsInTheCookieItsFieldNameSpells(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t)
+
+	checked := 0
+	for _, field := range slices.Sorted(maps.Keys(storedChoices)) {
+		value := storedChoices[field][len(storedChoices[field])-1]
+		got := postForm(t, srv.URL+"/preferences", url.Values{
+			field:  {value},
+			"next": {"/notes/A.md"},
+		})
+		if len(got.cookies) != 1 {
+			t.Fatalf("%s=%s set %d cookies (%v), want exactly one", field, value, len(got.cookies), got.names())
+		}
+		checked++
+		if want := "yomihon_" + field; got.cookies[0].Name != want {
+			t.Errorf("%s=%s landed in %q, want %q: the page's own reader spells the name from the field",
+				field, value, got.cookies[0].Name, want)
+		}
+	}
+	if checked != len(storedChoices) {
+		t.Errorf("%d of the page's %d choices were followed to a cookie", checked, len(storedChoices))
+	}
+
+	// The other half of the same contract. A reader of the page that stopped
+	// spelling the name this way would make the shape above pointless, and
+	// nothing else would say so.
+	const client = "../../assets/js/preferences.js"
+	source, err := os.ReadFile(client)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", client, err)
+	}
+	if !strings.Contains(string(source), "readCookie(`yomihon_${name}`)") {
+		t.Errorf("%s no longer spells a cookie name from the field name, so the shape above guards nothing", client)
+	}
+}
+
+// TestTheWayBackIsDrawnOnlyWhereThereIsOne covers the two arrivals this page
+// has. A reader sent here from what they were reading is given that back —
+// the control that used to return them applies choices that are already
+// applied, so it is taken off the page and the way back stands in its place.
+// A reader who opened the page on its own has nothing to be returned to, and a
+// link to the page one is already standing on is worse than no link at all.
+func TestTheWayBackIsDrawnOnlyWhereThereIsOne(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t)
+
+	_, sent := page(t, srv.URL+"/preferences?from=%2Fnotes%2FA.md")
+	if !strings.Contains(sent, `class="y-prefs__return" href="/notes/A.md"`) {
+		t.Errorf("a reader sent here from a note is given no way back to it; body = %q", sent[:min(len(sent), 400)])
+	}
+	// A choice only the server can make comes back here rather than ending the
+	// visit at the first field, and brings the way back with it.
+	if want := `data-prefs-settings="/preferences?from=%2Fnotes%2FA.md"`; !strings.Contains(sent, want) {
+		t.Errorf("the page does not carry %s, so a language change would not return to it", want)
+	}
+
+	_, alone := page(t, srv.URL+"/preferences")
+	if strings.Contains(alone, "y-prefs__return") {
+		t.Error("a reader who opened this page directly is offered a way back to the page they are on")
+	}
+	if want := `data-prefs-settings="/preferences"`; !strings.Contains(alone, want) {
+		t.Errorf("the page does not carry %s", want)
 	}
 }

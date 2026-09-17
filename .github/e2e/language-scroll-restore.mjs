@@ -345,9 +345,13 @@ try {
   await prefsPage.waitForSelector('html[data-js]');
   await waitSettled(prefsPage);
 
-  // The reading choices are one form with one submit, so this is that form:
-  // the one of the page's own two that carries the language. The other clears
-  // everything and carries no radio at all.
+  // The form on the reading choices that carries the language — the page's
+  // other one clears everything and carries no radio at all. Picking a
+  // language submits it on the spot: the words of a rendered page are the
+  // server's, so this is the one choice there that has to be asked for rather
+  // than made, and the answer comes back to the choices themselves so the
+  // reader can carry on. The way back out of them is what the position has to
+  // survive, and it is a walk further than it used to be.
   const languageForm = prefsPage.locator('form[action="/preferences"]').filter({
     has: prefsPage.locator('input[type=radio][name="lang"]'),
   });
@@ -419,16 +423,28 @@ try {
     }).catch((unreadable) => ({ unreadable: String(unreadable) }));
     broken(`the language could not be pressed: ${String(refused.message).split('\n')[0]}; frames=${frames}; boxes=${JSON.stringify(boxes)}; page=${JSON.stringify(page)}`);
   }
-  // The press has to have chosen it. A click that landed somewhere harmless
-  // would otherwise submit the language already in force, and the position
-  // would survive a round trip that changed nothing.
+  // The press carries the page away on its own, so the document that answers
+  // is the proof it landed: a click that reached nothing, or that chose the
+  // language already in force, leaves the words where they were.
+  await prefsPage.waitForFunction(
+    (was) => document.documentElement.getAttribute('lang') !== was,
+    leaving.lang,
+    { timeout: 10_000 },
+  );
+  await prefsPage.waitForSelector('html[data-js]');
+  await waitSettled(prefsPage);
   const picked = languageForm.locator('input[type=radio][name="lang"]:checked');
   if (await picked.getAttribute('value') === leaving.lang) {
     broken(`pressing the other language left ${JSON.stringify(leaving.lang)} chosen, so nothing was picked`);
   }
+  if (!new URL(prefsPage.url()).pathname.startsWith('/preferences')) {
+    broken(`choosing a language left the reading choices for ${prefsPage.url()}, so the reader cannot carry on setting them`);
+  }
+  // And out again, by the way back the page carries — which is where the
+  // address the reader arrived on, position and all, has had to survive to.
   await Promise.all([
     prefsPage.waitForURL(`**${PAGE}**`),
-    languageForm.locator('button[type=submit]').click(),
+    prefsPage.locator('.y-prefs__return').click(),
   ]);
   await prefsPage.waitForSelector('html[data-js]');
   await waitSettled(prefsPage);

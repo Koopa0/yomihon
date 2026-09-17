@@ -19,26 +19,43 @@ type PreferencesView struct {
 	// the reader back on what they were reading. It has already been checked
 	// as a path this site can return to.
 	ReturnTo string
+	// Settings is this page's own address with that same way back kept on it.
+	// A choice only the server can make sends the reader here rather than home
+	// to their article, so the visit survives the answer.
+	Settings string
+	// Reading is what the reader was holding when they came, and empty when
+	// that was this page.
+	Reading string
 }
 
 // PreferenceField is one choice: the form field it is submitted under, the
 // heading it sits behind, the sentence that says what it does and what it
-// leaves alone, and the options a reader picks between. Options is never
-// empty, and exactly one of them is marked.
+// leaves alone, the sentence it says when a choice cannot be kept, and the
+// options a reader picks between. Options is never empty, and exactly one of
+// them is marked.
 type PreferenceField struct {
 	Name    string
 	Legend  string
 	Note    string
+	Refused string
 	Options []PreferenceOption
 }
 
 // PreferenceOption is one answer a choice may be given: the value the form
-// sends, the word the reader picks it by, and whether it is the answer in force
-// for this request.
+// sends, the word the reader picks it by, whether it is the answer in force for
+// this request, whether picking it stores anything, and whether it is the
+// answer a browser storing nothing here is looking at.
+//
+// The last two are what let the page be read back correctly by something other
+// than the server. Exactly one option of a choice is Unset; an option that is
+// not Stores is held by the absence of a stored value, so choosing it removes
+// one rather than writing one.
 type PreferenceOption struct {
 	Value   string
 	Label   string
 	Checked bool
+	Stores  bool
+	Unset   bool
 }
 
 // Preferences is the page a reader sets the reading on.
@@ -55,18 +72,32 @@ type PreferenceOption struct {
 // no scripting at all — which is not a courtesy here but the mechanism: the
 // words on a page are written by the server, and the only honest way to change
 // them is to ask the server for the page again.
+//
+// Where scripting is running, that same form is the ground rather than the
+// path. Each option carries what a reader of the page other than the server
+// needs to keep a choice as it is picked — the address to come back to, what
+// the choice is called where it is stored, whether picking it stores anything,
+// and which option answers for storing nothing — and the submit that is then
+// not needed is taken off the page rather than left sitting there promising a
+// step that is already done. Nothing is marked here that the form did not
+// already have to say in order to be refused correctly.
 templ Preferences(v PreferencesView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="main-content" tabindex="-1" class="y-prefs">
 			<h1 class="y-title">{ wording.PreferencesTitle.In(c.Lang) }</h1>
 			<p class="y-prefs__lede">{ wording.PreferencesLede.In(c.Lang) }</p>
-			<form method="post" action="/preferences">
+			<form method="post" action="/preferences" data-prefs data-prefs-settings={ v.Settings }>
 				for _, field := range v.Fields {
 					@preferenceField(field)
 				}
 				<input type="hidden" name="next" value={ v.ReturnTo }/>
-				<button class="y-prefs__apply" type="submit">{ wording.PrefApply.In(c.Lang) }</button>
+				<button class="y-prefs__apply y-prefs__fallback" type="submit">{ wording.PrefApply.In(c.Lang) }</button>
 			</form>
+			if v.Reading != "" {
+				// The way back, for the reader whose choices are kept as they
+				// pick them and who therefore never presses the control above.
+				<a class="y-prefs__return" href={ templ.URL(v.Reading) }>{ wording.PrefReturn.In(c.Lang) }</a>
+			}
 			@layouts.KeyboardKeys(c.Lang)
 			@preferenceReset(v.ReturnTo, c.Lang)
 			<footer class="y-prefs__storage">
@@ -82,21 +113,26 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 }
 
 // preferenceField is one choice, grouped under the heading that names it. It
-// carries no submit of its own: the one at the foot of the form applies this
-// choice along with every other, so a reader arrowing through a group commits
-// nothing on the way to the option they want and loses nothing they picked
-// further up the page.
+// carries no submit of its own: the choice is kept the moment it is picked
+// where anything is running to keep it, and where nothing is, the one control
+// at the foot of the form sends this choice along with every other, so nothing
+// picked further up the page is lost.
+//
+// The line under the options is empty on arrival and stays empty for as long as
+// the choices are being kept. It is announced rather than merely drawn, because
+// a reader who cannot see the radio go back needs to be told that it did.
 templ preferenceField(f PreferenceField) {
-	<fieldset class="y-preffield">
+	<fieldset class="y-preffield" data-pref-field={ f.Name }>
 		<legend>{ f.Legend }</legend>
 		<p class="y-preffield__note" id={ "pref-note-" + f.Name }>{ f.Note }</p>
 		<div class="y-preffield__options">
 			for _, option := range f.Options {
 				<label>
-					<input type="radio" name={ f.Name } value={ option.Value } checked?={ option.Checked } aria-describedby={ "pref-note-" + f.Name }/><span>{ option.Label }</span>
+					<input type="radio" name={ f.Name } value={ option.Value } checked?={ option.Checked } data-pref-stores?={ option.Stores } data-pref-unset?={ option.Unset } aria-describedby={ "pref-note-" + f.Name }/><span>{ option.Label }</span>
 				</label>
 			}
 		</div>
+		<p class="y-preffield__status" data-pref-status data-pref-refused={ f.Refused } role="status" aria-live="polite" aria-atomic="true"></p>
 	</fieldset>
 }
 
