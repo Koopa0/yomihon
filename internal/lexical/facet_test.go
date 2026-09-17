@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -66,42 +67,50 @@ func TestEveryFacetCountIsItsNarrowedQuerysOwnAnswer(t *testing.T) {
 	t.Parallel()
 	idx := facetFixture(t)
 
+	// Both limits, because the two halves of this are only ever wrong
+	// together: a tally taken over the built results is right whenever nothing
+	// was cut, so checking counts against their own queries on a whole answer
+	// and checking truncation somewhere else leaves the one case that matters
+	// — a cut answer whose counts are each put to their own query — unasked.
 	checked := 0
-	for _, query := range facetQueries {
-		t.Run(query, func(t *testing.T) {
-			t.Parallel()
-			answer, err := idx.Search(Parse(query), -1)
-			if err != nil {
-				t.Fatalf("Search(%q) error = %v", query, err)
-			}
-			for _, division := range answer.Facets {
-				for _, value := range division.Values {
-					narrowed, ok := WithFilter(query, Filter{Key: division.Key, Value: value.Value})
-					if !ok {
-						// A value this grammar cannot spell is offered without a
-						// link, and its count is then a fact about the answer
-						// rather than a promise about another page.
-						continue
-					}
-					narrowedAnswer, err := idx.Search(Parse(narrowed), 0)
-					if err != nil {
-						t.Fatalf("Search(%q) error = %v", narrowed, err)
-					}
-					if narrowedAnswer.Total != value.Count {
-						t.Errorf("%s:%s said %d, but %q finds %d",
-							division.Key, value.Value, value.Count, narrowed, narrowedAnswer.Total)
-					}
-					checked++
+	for _, limit := range []int{-1, 2} {
+		for _, query := range facetQueries {
+			t.Run(fmt.Sprintf("%s/limit=%d", query, limit), func(t *testing.T) {
+				t.Parallel()
+				answer, err := idx.Search(Parse(query), limit)
+				if err != nil {
+					t.Fatalf("Search(%q) error = %v", query, err)
 				}
-			}
-		})
+				for _, division := range answer.Facets {
+					for _, value := range division.Values {
+						narrowed, ok := WithFilter(query, Filter{Key: division.Key, Value: value.Value})
+						if !ok {
+							// A value this grammar cannot spell is offered
+							// without a link, and its count is then a fact
+							// about the answer rather than a promise about
+							// another page.
+							continue
+						}
+						narrowedAnswer, err := idx.Search(Parse(narrowed), 0)
+						if err != nil {
+							t.Fatalf("Search(%q) error = %v", narrowed, err)
+						}
+						if narrowedAnswer.Total != value.Count {
+							t.Errorf("%s:%s said %d at limit %d, but %q finds %d",
+								division.Key, value.Value, value.Count, limit, narrowed, narrowedAnswer.Total)
+						}
+						checked++
+					}
+				}
+			})
+		}
 	}
 	t.Cleanup(func() {
 		// Subtests run in parallel, so this reads after they finish. Without it
 		// a division that stopped being produced at all would leave every loop
 		// above with nothing to iterate and this test would pass having
 		// compared nothing.
-		if checked < 20 {
+		if checked < 40 {
 			t.Errorf("only %d facet counts were put to their own query, so this check holds almost nothing", checked)
 		}
 	})
@@ -400,6 +409,11 @@ func TestNarrowingAQueryLeavesEveryOtherByteAlone(t *testing.T) {
 		{"removal at the head takes the space behind it", "status:draft b", Filter{StatusFilterKey, "draft"}, "", "b"},
 		{"removal is by the value matching does, not by spelling", "a status:DRAFT b", Filter{StatusFilterKey, "draft"}, "", "a b"},
 		{"a constraint written twice goes entirely", "status:draft x status:Draft", Filter{StatusFilterKey, "draft"}, "", "x"},
+		// Two of them with only one space between: both want that space, and
+		// the cut walked backwards into ground it had already taken.
+		{"two of them with nothing between", "status:draft status:Draft", Filter{StatusFilterKey, "draft"}, "", ""},
+		{"two of them with nothing between, inside a query", "a status:draft status:draft b", Filter{StatusFilterKey, "draft"}, "", "a b"},
+		{"two of them separated by a wider gap", "status:draft  x  status:Draft", Filter{StatusFilterKey, "draft"}, "", "x"},
 		{"another key is left standing", "type:lesson status:draft", Filter{StatusFilterKey, "draft"}, "", "type:lesson"},
 		{"a query not carrying it is unchanged", "kafka type:lesson", Filter{StatusFilterKey, "draft"}, "kafka type:lesson status:draft", "kafka type:lesson"},
 	}
@@ -481,4 +495,64 @@ func facetSummary(answer Answer) string {
 		parts = append(parts, division.Key+"["+strings.Join(values, " ")+"]")
 	}
 	return strings.Join(parts, " ")
+}
+
+// FuzzRewriteQuery keeps the two rewrites total over arbitrary query text. They
+// cut and splice at byte offsets a separate scan recorded, which is the kind of
+// arithmetic that goes out of range on an input nobody thought of rather than
+// on one anybody writes a case for: two constraints with a single space between
+// them each claimed that space, and the second cut walked backwards into ground
+// the first had taken.
+//
+// Beyond not crashing, each rewrite has to mean what it says: removal leaves a
+// query the parser no longer reads that constraint in, and addition either
+// yields a query carrying exactly it or admits it could not be written.
+func FuzzRewriteQuery(f *testing.F) {
+	f.Add("status:draft status:Draft", "status", "draft")
+	f.Add("a status:draft status:draft b", "status", "draft")
+	f.Add("深度 type:lesson 工作", "type", "lesson")
+	f.Add(`"owns jobs" domain:golang`, "domain", "golang")
+	f.Add("folder:Writing/ folder:Writing", "folder", "Writing")
+	f.Add("", "status", "")
+	f.Add("   ", "type", `a" b`)
+	f.Add("「深度 工作」 status:ready", "status", "ready")
+
+	f.Fuzz(func(t *testing.T, raw, key, value string) {
+		if !utf8.ValidString(raw) || !utf8.ValidString(value) {
+			t.Skip("the query surface rejects text that is not UTF-8 before it reaches here")
+		}
+		if _, known := classifyFilterKey(key); !known {
+			t.Skip("only a key the grammar accepts is ever offered as a division")
+		}
+		constraint := Filter{Key: key, Value: value}
+
+		dropped := WithoutFilter(raw, constraint)
+		if len(dropped) > len(raw) {
+			t.Fatalf("WithoutFilter(%q, %v) grew the query to %q", raw, constraint, dropped)
+		}
+		for _, remaining := range Parse(dropped).Filters() {
+			if remaining.Key == key && filterValuesEqual(key, remaining.Value, value) {
+				t.Errorf("WithoutFilter(%q, %v) = %q, which still carries that constraint", raw, constraint, dropped)
+			}
+		}
+		// Removing a constraint that was never there changes nothing at all,
+		// which is what lets a row decide it is active by removing it and
+		// seeing whether the query moved.
+		if !slices.ContainsFunc(Parse(raw).Filters(), func(f Filter) bool {
+			return f.Key == key && filterValuesEqual(key, f.Value, value)
+		}) && dropped != raw {
+			t.Errorf("WithoutFilter(%q, %v) = %q, but that query never carried it", raw, constraint, dropped)
+		}
+
+		added, ok := WithFilter(raw, constraint)
+		if !ok {
+			return
+		}
+		if !strings.HasPrefix(added, raw) {
+			t.Errorf("WithFilter(%q, %v) = %q, which does not open with the reader's own query", raw, constraint, added)
+		}
+		if len(Parse(added).Filters()) != len(Parse(raw).Filters())+1 {
+			t.Errorf("WithFilter(%q, %v) = %q, which reads back with the wrong number of constraints", raw, constraint, added)
+		}
+	})
 }

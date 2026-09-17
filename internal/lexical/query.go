@@ -360,6 +360,12 @@ func WithoutFilter(raw string, f Filter) string {
 		} else {
 			to += whitespaceRun(raw, to)
 		}
+		// Two constraints with nothing but one space between them both claim
+		// that space: the first takes it as the run behind it, having none in
+		// front, and the second then walks back into ground already cut. The
+		// second claim yields, so the space is removed once and the cut stays
+		// a forward walk.
+		from = max(from, kept)
 		out.WriteString(raw[kept:from])
 		kept = to
 	}
