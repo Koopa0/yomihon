@@ -160,47 +160,47 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 	{{ rows := v.rows(c.Lang) }}
 	if len(rows) > 0 {
 		<table class="y-findings">
-		<thead>
-			<tr>
-				for _, col := range healthColumns {
-					<th scope="col" class={ "y-findings__head", "y-findings__head--" + string(col) } { healthSortedAttrs(col, v.Sort)... }>
-						<a class="y-findings__sort" href={ templ.URL(col.href()) }>{ col.name(c.Lang) }</a>
-					</th>
-				}
-			</tr>
-		</thead>
-		<tbody>
-			for _, row := range rows {
+			<thead>
 				<tr>
-					<td class="y-findings__file" data-col={ wording.HealthColumnFile.In(c.Lang) }>
-						if row.File.RelPath != "" {
-							<a class="y-healthlink" href={ templ.URL(notesHref(row.File.RelPath)) }><span { authoredLanguageAttrs(row.File.Language)... }>{ row.File.Name }</span></a>
-						} else {
-							<span class="y-findings__path">{ row.FilePath }</span>
-						}
-					</td>
-					<td class="y-findings__finding" data-col={ wording.HealthColumnFinding.In(c.Lang) }>
-						<span class="y-findings__kind">{ row.Kind.title(c.Lang) }</span>
-						if len(row.Detail) > 0 {
-							<span class="y-findings__detail">
-								for i, detail := range row.Detail {
-									if i > 0 {
-										<span aria-hidden="true">・</span>
-									}
-									@healthEvidence(detail)
-								}
-							</span>
-						}
-					</td>
-					<td class="y-findings__severity" data-col={ wording.HealthColumnSeverity.In(c.Lang) }>
-						if row.Weighed {
-							<span class={ "y-severity", "y-severity--" + row.Severity.String() } lang="en">{ row.Severity.String() }</span>
-						}
-					</td>
-					<td class="y-findings__count" data-col={ wording.HealthColumnCount.In(c.Lang) }>{ strconv.Itoa(row.Count) }</td>
+					for _, col := range healthColumns {
+						<th scope="col" class={ "y-findings__head", "y-findings__head--" + string(col) } { healthSortedAttrs(col, v.Sort)... }>
+							<a class="y-findings__sort" href={ templ.URL(col.href()) }>{ col.name(c.Lang) }</a>
+						</th>
+					}
 				</tr>
-			}
-		</tbody>
+			</thead>
+			<tbody>
+				for _, row := range rows {
+					<tr>
+						<td class="y-findings__file" data-col={ wording.HealthColumnFile.In(c.Lang) }>
+							if row.File.RelPath != "" {
+								<a class="y-healthlink" href={ templ.URL(notesHref(row.File.RelPath)) }><span { authoredLanguageAttrs(row.File.Language)... }>{ row.File.Name }</span></a>
+							} else {
+								<span class="y-findings__path">{ row.FilePath }</span>
+							}
+						</td>
+						<td class="y-findings__finding" data-col={ wording.HealthColumnFinding.In(c.Lang) }>
+							<span class="y-findings__kind">{ row.Kind.title(c.Lang) }</span>
+							if len(row.Detail) > 0 {
+								<span class="y-findings__detail">
+									for i, detail := range row.Detail {
+										if i > 0 {
+											<span aria-hidden="true">・</span>
+										}
+										@healthEvidence(detail)
+									}
+								</span>
+							}
+						</td>
+						<td class="y-findings__severity" data-col={ wording.HealthColumnSeverity.In(c.Lang) }>
+							if row.Weighed {
+								<span class={ "y-severity", "y-severity--" + row.Severity.String() } lang="en">{ row.Severity.String() }</span>
+							}
+						</td>
+						<td class="y-findings__count" data-col={ wording.HealthColumnCount.In(c.Lang) }>{ strconv.Itoa(row.Count) }</td>
+					</tr>
+				}
+			</tbody>
 		</table>
 		@healthGuide(v, healthTallies(rows), c)
 	}
