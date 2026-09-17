@@ -361,6 +361,34 @@ func TestHitFragment(t *testing.T) {
 			want: "#:~:text=%E6%99%B4%E3%82%8C",
 		},
 		{
+			// The far end arrives already grown to the edges of the words it
+			// lies inside, because a browser holds it to both of them in
+			// either place it can take. Whichever place this row is, the
+			// stretch goes out as the row carries it: a path that named the
+			// match instead would ask the page for the fragment the reader
+			// typed, which it has nowhere, and the whole directive would be
+			// dropped.
+			name: "the far end of a range goes out as the row carries it",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "alpha beta gamm", Hit: true}},
+				Landing:       "alpha",
+				LandingBare:   "alpha",
+				LandingEnd:    "gamma",
+				LandingPrefix: "closes with",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=closes%20with-,alpha,gamma",
+		},
+		{
+			name: "and so does one travelling alone",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "gh", Hit: true}},
+				LandingEnd:    "ghi",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=ghi",
+		},
+		{
 			// A crossing whose first stretch cannot stand alone hands the
 			// directive to the far end, which opens its own block and so
 			// opens a word.

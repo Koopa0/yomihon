@@ -1582,6 +1582,124 @@ func TestAThreeBlockPhraseLandsOnTheLastBlockOnly(t *testing.T) {
 	}
 }
 
+// The far end of a crossing is looked for the way a term standing alone is:
+// only where a word begins and where one ends. A phrase that stops inside the
+// last block's word used to name that fragment, which the page has nowhere,
+// and the browser abandoned the whole directive — leaving a note that opens at
+// the top. The stretch goes out grown to the word instead.
+//
+// It opens where its block opens, so only the far end can move, and it moves
+// by one word rather than to the end of the block. A close resting inside a
+// script that parts no words with spaces stays where the match left it, for
+// the reason the standalone form does: the edges there are a segmentation
+// nothing here can find.
+func TestACrossingEndTermGrowsToItsWholeWord(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Far end.md", []byte(""+
+			"# Far end\n\n"+
+			"alpha\n\n"+
+			"beta\n\n"+
+			"gamma opens the column.\n\n"+
+			"delta\n\n"+
+			"<ruby>今日<rt>きょう</rt></ruby>は晴れ、cobaltine が続く。\n"))),
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		name  string
+		query string
+		last  string
+	}{
+		{name: "an end already on both edges is left alone", query: `"alpha beta gamma"`, last: "gamma"},
+		{name: "an end cut inside a word grows to the word", query: `"alpha beta gamm"`, last: "gamma"},
+		{name: "one whose match keeps a single letter grows too", query: `"alpha beta g"`, last: "gamma"},
+		{name: "the growth ends with the word, not with the block", query: `"alpha beta gamma op"`, last: "gamma opens"},
+		{name: "a script that parts no words with spaces is not grown", query: `"delta 今日"`, last: "今日"},
+		{
+			// The last block is one the page does not draw the way this text
+			// carries it: the reading is spoken over characters the page
+			// writes it in among, and this text keeps it aside. The growth
+			// cannot reach it — it stops at the first character a word does
+			// not join, and every character a reading is written over is one
+			// of those — so the far end is grown here as anywhere.
+			name:  "a block the page draws differently grows its far end all the same",
+			query: `"delta 今日は晴れ、cobaltin"`,
+			last:  "今日は晴れ、cobaltine",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := searchResults(t, idx, Parse(tt.query))
+			if len(got) != 1 {
+				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			}
+			if !got[0].BlockCrossing {
+				t.Fatalf("Search(%q) did not cross a block, so it has no far end to name", tt.query)
+			}
+			if got[0].LandingEnd != tt.last {
+				t.Errorf("LandingEnd = %q, want %q (Landing = %q)", got[0].LandingEnd, tt.last, got[0].Landing)
+			}
+		})
+	}
+}
+
+// A crossing whose first stretch collapses to nothing travels on its far end
+// alone, and a browser then holds that one stretch to both its edges with
+// nothing to relax the rule. The growth stays inside the block the match
+// closed in: a word cannot be assembled out of two blocks the page draws
+// apart, and a note whose blocks part inside a run of letters is what says so.
+func TestALoneFarEndGrowsInsideItsOwnBlock(t *testing.T) {
+	t.Parallel()
+
+	plain := "abc def    \nghi"
+	whole := []render.Block{
+		{End: strings.Index(plain, "\n"), Verbatim: true},
+		{End: len(plain), Verbatim: true},
+	}
+	// The same text read as three blocks, the second of which stops one
+	// letter short of the run's end. The ceiling is that block end, not the
+	// end of the text.
+	parted := []render.Block{
+		{End: strings.Index(plain, "\n"), Verbatim: true},
+		{End: len(plain) - 1, Verbatim: true},
+		{End: len(plain), Verbatim: true},
+	}
+
+	tests := []struct {
+		name   string
+		blocks []render.Block
+		last   string
+	}{
+		{name: "the far end grows to the word it was cut inside", blocks: whole, last: "ghi"},
+		{name: "and stops where its own block does", blocks: parted, last: "gh"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			idx := NewIndex([]Document{{
+				RelPath:   "Notes/Gaps.md",
+				Title:     "Gaps",
+				PlainText: plain,
+				Blocks:    tt.blocks,
+			}}, validArtifactPolicy(t))
+
+			got := searchResults(t, idx, Parse(`"  gh"`))
+			if len(got) != 1 {
+				t.Fatalf("Search = %+v, want one hit", got)
+			}
+			if got[0].Landing != "" || got[0].LandingBare != "" {
+				t.Fatalf("Landing = %q / LandingBare = %q, want both empty: the match opens in the gap after %q",
+					got[0].Landing, got[0].LandingBare, "def")
+			}
+			if got[0].LandingEnd != tt.last {
+				t.Errorf("LandingEnd = %q, want %q", got[0].LandingEnd, tt.last)
+			}
+		})
+	}
+}
+
 // A one-character CJK query at the end of a block used to report a crossing
 // because the fold drops the break and the next kept rune sits in the next
 // block. The match itself does not cross.
