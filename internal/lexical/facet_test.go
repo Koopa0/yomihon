@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"unicode/utf8"
 
@@ -72,7 +73,11 @@ func TestEveryFacetCountIsItsNarrowedQuerysOwnAnswer(t *testing.T) {
 	// was cut, so checking counts against their own queries on a whole answer
 	// and checking truncation somewhere else leaves the one case that matters
 	// — a cut answer whose counts are each put to their own query — unasked.
-	checked := 0
+	// The tally of what was checked is written from parallel subtests, so it
+	// is atomic: a plain counter here is a data race, and a race in an
+	// instrument is worse than one in the product — it turns every other test
+	// sharing the package red and says nothing about what is actually wrong.
+	var checked atomic.Int64
 	for _, limit := range []int{-1, 2} {
 		for _, query := range facetQueries {
 			t.Run(fmt.Sprintf("%s/limit=%d", query, limit), func(t *testing.T) {
@@ -99,7 +104,7 @@ func TestEveryFacetCountIsItsNarrowedQuerysOwnAnswer(t *testing.T) {
 							t.Errorf("%s:%s said %d at limit %d, but %q finds %d",
 								division.Key, value.Value, value.Count, limit, narrowed, narrowedAnswer.Total)
 						}
-						checked++
+						checked.Add(1)
 					}
 				}
 			})
@@ -110,8 +115,8 @@ func TestEveryFacetCountIsItsNarrowedQuerysOwnAnswer(t *testing.T) {
 		// a division that stopped being produced at all would leave every loop
 		// above with nothing to iterate and this test would pass having
 		// compared nothing.
-		if checked < 40 {
-			t.Errorf("only %d facet counts were put to their own query, so this check holds almost nothing", checked)
+		if total := checked.Load(); total < 40 {
+			t.Errorf("only %d facet counts were put to their own query, so this check holds almost nothing", total)
 		}
 	})
 }
