@@ -1144,7 +1144,7 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    side of a centred notice as if it belonged to a different page. The typed
    address keeps its own alignment: a path is read from its first character. */
 .y-recovery:has(> .y-nothing) { text-align: center; }
-.y-recovery:has(> .y-nothing) .y-recovery__detail, .y-recovery:has(> .y-nothing) .y-recovery__next { max-width: 46ch; margin-inline: auto; }
+.y-recovery:has(> .y-nothing) .y-recovery__detail, .y-recovery:has(> .y-nothing) .y-recovery__next { max-width: var(--measure-notice); margin-inline: auto; }
 .y-recovery:has(> .y-nothing) .y-recovery__detail pre { text-align: left; }
 .y-recovery:has(> .y-nothing) .y-recovery__actions { justify-content: center; }
 .y-recovery__kicker { margin: 0 0 10px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.08em; color: var(--fg-faint); }
@@ -1188,7 +1188,7 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
    difference between "there is nothing here" and "something could not be
    read". */
 .y-nothing {
-  max-width: 46ch;
+  max-width: var(--measure-notice);
   margin: 24px auto 0;
   font-family: var(--font-serif);
   font-size: var(--fs-14);
@@ -1222,7 +1222,11 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 /* A desk block is small and already has its own heading over it, so the notice
    inside it opens where the rows would have. */
 .y-modeblock .y-nothing { margin-top: 6px; }
-.y-homeblock--faults .y-nothing { margin-top: 4px; }
+/* The notice draws its own box, so the card that used to hold a bare
+   paragraph would put a second one around it and leave the notice floating in
+   the middle of an otherwise empty panel. */
+.y-homeblock--faults:has(> .y-nothing) { padding: 0; border: 0; background: none; }
+.y-homeblock--faults .y-nothing { margin-top: 18px; }
 /* The palette is a floating box rather than a page, and the notice sits inside
    its own padding. */
 .y-searchdialog .y-nothing { margin: 18px auto 8px; }
