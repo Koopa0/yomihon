@@ -1430,6 +1430,16 @@ html {
   .y-crumbs, .y-metarow, .y-steps:not(.y-steps--course) {
     display: none !important;
   }
+  /* A fold the author closed is an offer the reader takes by clicking: hold
+     the answer back, then give it. Paper takes no click, so on a sheet the
+     closed fold prints its one-line summary and drops everything under it —
+     an aside, or the explanation behind a question, gone with no way for the
+     person holding the page to ask for it. So a fold in the note's own prose
+     arrives open. The engine wraps a disclosure's body in ::details-content
+     and skips it while the element is closed, so naming that wrapper is the
+     whole of the change. The interface's own disclosures are already off the
+     sheet, which is why this is scoped to the prose. */
+  .y-prose details::details-content { content-visibility: visible; }
   .y-shell, .y-shell2 { display: block; }
   .y-main { min-width: 0; }
   /* Paper has edges the screen does not, and a block that runs across one
