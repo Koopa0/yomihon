@@ -104,6 +104,11 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
 		{"note-page", Note(recordedNoteView(t, model, current), recordedChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
+		// The course in the other language it is read in. The rows are the
+		// vault's own words either way; what changes is everything the page
+		// says around them, and the page's shape must survive the longer
+		// words rather than only the ones it was drawn with.
+		{"syllabus-page-english", Syllabus(recordedPathView(model), englishChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
@@ -255,6 +260,14 @@ func recordedChrome() layouts.Chrome {
 	}
 }
 
+// englishChrome is the same fixed request read in the other language the
+// interface speaks, so a surface recorded twice differs only by what it says.
+func englishChrome() layouts.Chrome {
+	c := recordedChrome()
+	c.Lang = wording.En
+	return c
+}
+
 // recordedNoteView is a reading page carrying one of everything the page can
 // draw — every aid, a diagnostic of each shape, a schema notice, a receipt, and
 // a live write face — so the recording covers branches a narrower fixture would
@@ -333,9 +346,14 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 // recordedPathView reads the fixture folder's own course through the same
 // builder the page uses, so the recording is of an interpretation rather than
 // of a tree typed out beside it.
+//
+// The course is entered from a lesson, so the recording holds the mark for
+// where the reader is standing. The fixture course lists that lesson twice, in
+// two different parts, which is the case a course reached from one of them has
+// to answer: both rows are that lesson and both are marked.
 func recordedPathView(model *nav.Model) PathView {
 	current := model.Path("Maps/Go path.md")
-	return BuildPathView(current, model.Paths())
+	return BuildPathView(current, model.Paths(), "Writing/lessons/go/L01.md")
 }
 
 // recordedStatusStates names every state the write face can be in. The two

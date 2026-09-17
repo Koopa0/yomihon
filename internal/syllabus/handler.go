@@ -68,7 +68,15 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := pages.BuildPathView(current, shell.Nav.Paths())
+	// Where the reader is in this course, as the note they opened it from. It
+	// is composed like the path above, because it names the same kind of thing
+	// and a query can carry either spelling too. Nothing is followed: the value
+	// is compared against the rows this course already lists, so a note the
+	// course does not teach — and a reader who arrived from the desk carrying
+	// nothing — marks no row.
+	here := vault.NormalizeNFC(r.URL.Query().Get(pages.SyllabusFromParam))
+
+	view := pages.BuildPathView(current, shell.Nav.Paths(), here)
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
 	}

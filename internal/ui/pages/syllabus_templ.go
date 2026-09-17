@@ -727,6 +727,12 @@ func moduleHeadingContent(sec PathBranchView, lang wording.Lang) templ.Component
 
 // entryRow links governed unique targets and leaves every warning reason visible
 // and non-interactive in its original sequence position.
+//
+// The row the reader is standing on says so twice: to the eye as the heavier
+// point on the line, and to a reader who is listening as the current location —
+// the location and not the page, because the page is the whole course. The
+// words beside the point are unchanged by it; where the reader stands is not a
+// claim about what they have finished.
 func entryRow(l PathEntryView, lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -749,42 +755,68 @@ func entryRow(l PathEntryView, lang wording.Lang) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if l.Kind == nav.EntryResolved {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<a class=\"y-lesson\" href=\"")
+			var templ_7745c5c3_Var32 = []any{"y-lesson", templ.KV("y-lesson--here", l.Here)}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var32...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var32 templ.SafeURL
-			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(l.Href))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 173, Col: 46}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<a class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var33 = []any{"y-navdot", templ.KV("y-navdot--ready", l.Sealed)}
-			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var33...)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<span class=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var34 string
-			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var33).String())
+			var templ_7745c5c3_Var33 string
+			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var32).String())
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 1, Col: 0}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" aria-hidden=\"true\"></span> <span class=\"y-lesson__title\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\" href=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var34 templ.SafeURL
+			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(l.Href))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 179, Col: 86}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, hereAttr(l.Here))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, ">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var35 = []any{"y-navdot", templ.KV("y-navdot--ready", l.Sealed)}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var35...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<span class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var36 string
+			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var35).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\" aria-hidden=\"true\"></span> <span class=\"y-lesson__title\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -792,92 +824,92 @@ func entryRow(l PathEntryView, lang wording.Lang) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, ">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, ">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var35 string
-			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(l.Text)
+			var templ_7745c5c3_Var37 string
+			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(l.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 175, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 181, Col: 82}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if l.Status != "" {
-				var templ_7745c5c3_Var36 = []any{"ui-status", "ui-status--" + l.Status}
-				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var36...)
+				var templ_7745c5c3_Var38 = []any{"ui-status", "ui-status--" + l.Status}
+				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var38...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<span class=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "<span class=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var37 string
-				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var36).String())
+				var templ_7745c5c3_Var39 string
+				templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var38).String())
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 1, Col: 0}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var38 string
-				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(l.Status)
+				var templ_7745c5c3_Var40 string
+				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(l.Status)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 177, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 183, Col: 68}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</a>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "<span class=\"y-lesson y-lesson--broken\" data-resolution=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "<span class=\"y-lesson y-lesson--broken\" data-resolution=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var39 string
-			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionCode(l.Kind))
+			var templ_7745c5c3_Var41 string
+			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionCode(l.Kind))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 183, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 189, Col: 48}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "\" title=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var40 string
-			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionTitle(l.Kind, lang))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 184, Col: 45}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "\" title=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "\"><span class=\"y-navmark y-navmark--warn\" aria-hidden=\"true\">!</span> <span class=\"y-lesson__title\"")
+			var templ_7745c5c3_Var42 string
+			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionTitle(l.Kind, lang))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 190, Col: 45}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\"><span class=\"y-navmark y-navmark--warn\" aria-hidden=\"true\">!</span> <span class=\"y-lesson__title\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -885,33 +917,33 @@ func entryRow(l PathEntryView, lang wording.Lang) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, ">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, ">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var41 string
-			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(l.Text)
+			var templ_7745c5c3_Var43 string
+			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(l.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 187, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 193, Col: 82}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "</span> <span class=\"y-navmark y-navmark--warn\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var42 string
-			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(entryResolutionLabel(l.Kind, lang))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 188, Col: 79}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</span> <span class=\"y-navmark y-navmark--warn\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</span></span>")
+			var templ_7745c5c3_Var44 string
+			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(entryResolutionLabel(l.Kind, lang))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 194, Col: 79}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</span></span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -941,38 +973,38 @@ func syllabusRail(v PathView, lang wording.Lang) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var43 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var43 == nil {
-			templ_7745c5c3_Var43 = templ.NopComponent
+		templ_7745c5c3_Var45 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var45 == nil {
+			templ_7745c5c3_Var45 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<aside class=\"y-rail-left\" id=\"nav-rail\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "<aside class=\"y-rail-left\" id=\"nav-rail\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var44 string
-		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.StudyPathNav.In(lang))
+		var templ_7745c5c3_Var46 string
+		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.StudyPathNav.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 199, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 205, Col: 84}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "\"><div class=\"ui-side__label y-syl-raillabel\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var45 string
-		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(wording.StudyPaths.In(lang))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 200, Col: 75}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "\"><div class=\"ui-side__label y-syl-raillabel\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</div>")
+		var templ_7745c5c3_Var47 string
+		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(wording.StudyPaths.In(lang))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 206, Col: 75}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -983,83 +1015,83 @@ func syllabusRail(v PathView, lang wording.Lang) templ.Component {
 			}
 		}
 		if len(v.Branches) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "<div class=\"ui-side__label y-syl-raillabel y-syl-raillabel--gap\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<div class=\"ui-side__label y-syl-raillabel y-syl-raillabel--gap\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var46 string
-			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ThisPath.In(lang))
+			var templ_7745c5c3_Var48 string
+			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ThisPath.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 205, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 211, Col: 95}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, sec := range v.Branches {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<a class=\"ui-navitem y-pathitem\" href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<a class=\"ui-navitem y-pathitem\" href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var47 templ.SafeURL
-				templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("#" + sec.Anchor))
+				var templ_7745c5c3_Var49 templ.SafeURL
+				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("#" + sec.Anchor))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 207, Col: 71}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\"><span class=\"y-pathitem__num\" aria-hidden=\"true\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var48 string
-				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(sec.Ordinal)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 208, Col: 67}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "</span> <span class=\"y-pathitem__name\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var49 string
-				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(sec.Heading)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 209, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 213, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "</span> <span class=\"y-pathcount\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\"><span class=\"y-pathitem__num\" aria-hidden=\"true\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var50 string
-				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang))
+				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(sec.Ordinal)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 210, Col: 105}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 214, Col: 67}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "</span></a>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "</span> <span class=\"y-pathitem__name\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var51 string
+				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(sec.Heading)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 215, Col: 49}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "</span> <span class=\"y-pathcount\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var52 string
+				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 216, Col: 105}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "</span></a>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "</aside>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "</aside>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1085,13 +1117,13 @@ func pathSwitch(p PathLink) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var51 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var51 == nil {
-			templ_7745c5c3_Var51 = templ.NopComponent
+		templ_7745c5c3_Var53 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var53 == nil {
+			templ_7745c5c3_Var53 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		if p.Active {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<span class=\"ui-navitem is-active\" aria-current=\"page\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<span class=\"ui-navitem is-active\" aria-current=\"page\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1099,51 +1131,51 @@ func pathSwitch(p PathLink) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<span class=\"y-pathitem__name\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<span class=\"y-pathitem__name\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var52 string
-			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
+			var templ_7745c5c3_Var54 string
+			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 223, Col: 43}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</span> <span class=\"ui-navitem__count\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var53 string
-			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(p.Entries))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 224, Col: 60}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</span></span>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<a class=\"ui-navitem\" href=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var54 templ.SafeURL
-			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(syllabusHref(p.RelPath)))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 227, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 229, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "</span> <span class=\"ui-navitem__count\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var55 string
+			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(p.Entries))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 230, Col: 60}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "</span></span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "<a class=\"ui-navitem\" href=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var56 templ.SafeURL
+			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(syllabusHref(p.RelPath)))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 233, Col: 65}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1151,33 +1183,33 @@ func pathSwitch(p PathLink) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "<span class=\"y-pathitem__name\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "<span class=\"y-pathitem__name\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var55 string
-			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
+			var templ_7745c5c3_Var57 string
+			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(p.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 229, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 235, Col: 43}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "</span> <span class=\"ui-navitem__count\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var56 string
-			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(p.Entries))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 230, Col: 60}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "</span> <span class=\"ui-navitem__count\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "</span></a>")
+			var templ_7745c5c3_Var58 string
+			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(p.Entries))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 236, Col: 60}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "</span></a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1202,12 +1234,12 @@ func pathIcon() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var57 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var57 == nil {
-			templ_7745c5c3_Var57 = templ.NopComponent
+		templ_7745c5c3_Var59 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var59 == nil {
+			templ_7745c5c3_Var59 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" aria-hidden=\"true\"><path d=\"M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z\"></path></svg>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" aria-hidden=\"true\"><path d=\"M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z\"></path></svg>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1250,47 +1282,21 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var58 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var58 == nil {
-			templ_7745c5c3_Var58 = templ.NopComponent
+		templ_7745c5c3_Var60 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var60 == nil {
+			templ_7745c5c3_Var60 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		switch verdict {
 		case markerWritten:
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<p class=\"y-syl-nocourse\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var59 string
-			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseMarkerFaultIntro.In(lang))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 261, Col: 72}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "<code>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var60 string
-			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.RolePrimary.String())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 261, Col: 111}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "</code>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<p class=\"y-syl-nocourse\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var61 string
-			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoin.In(lang))
+			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseMarkerFaultIntro.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 261, Col: 148}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 267, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 			if templ_7745c5c3_Err != nil {
@@ -1301,9 +1307,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var62 string
-			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.RoleLocal.String())
+			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.RolePrimary.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 261, Col: 185}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 267, Col: 111}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 			if templ_7745c5c3_Err != nil {
@@ -1314,9 +1320,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var63 string
-			templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoinLast.In(lang))
+			templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoin.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 261, Col: 226}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 267, Col: 148}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 			if templ_7745c5c3_Err != nil {
@@ -1327,9 +1333,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var64 string
-			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.RoleNone.String())
+			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.RoleLocal.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 261, Col: 262}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 267, Col: 185}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 			if templ_7745c5c3_Err != nil {
@@ -1340,29 +1346,37 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var65 string
-			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseMarkerFaultTail.In(lang))
+			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoinLast.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 261, Col: 313}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 267, Col: 226}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "</p>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		case markerUnknownRule:
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "<p class=\"y-syl-nocourse\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "<code>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var66 string
-			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseUnexplained.In(lang))
+			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.RoleNone.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 263, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 267, Col: 262}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "</code>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var67 string
+			templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseMarkerFaultTail.In(lang))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 267, Col: 313}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1370,41 +1384,33 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		default:
+		case markerUnknownRule:
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "<p class=\"y-syl-nocourse\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var67 string
-			templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseIntro.In(lang))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 265, Col: 61}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "<code>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
 			var templ_7745c5c3_Var68 string
-			templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RolePrimary))
+			templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseUnexplained.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 265, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 269, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "</code>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "</p>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		default:
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "<p class=\"y-syl-nocourse\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var69 string
-			templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoin.In(lang))
+			templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseIntro.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 265, Col: 145}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 271, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 			if templ_7745c5c3_Err != nil {
@@ -1415,9 +1421,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var70 string
-			templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RoleLocal))
+			templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RolePrimary))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 265, Col: 190}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 271, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 			if templ_7745c5c3_Err != nil {
@@ -1428,9 +1434,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var71 string
-			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoinLast.In(lang))
+			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoin.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 265, Col: 231}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 271, Col: 145}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 			if templ_7745c5c3_Err != nil {
@@ -1441,9 +1447,9 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var72 string
-			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RoleNone))
+			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RoleLocal))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 265, Col: 275}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 271, Col: 190}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 			if templ_7745c5c3_Err != nil {
@@ -1454,15 +1460,41 @@ func syllabusNoCourse(verdict markerVerdict, lang wording.Lang) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var73 string
-			templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseNoMarkerTail.In(lang))
+			templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ValueJoinLast.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 265, Col: 323}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 271, Col: 231}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "<code>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var74 string
+			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(sequence.Marker(sequence.RoleNone))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 271, Col: 275}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "</code>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var75 string
+			templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoCourseNoMarkerTail.In(lang))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 271, Col: 323}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
