@@ -232,6 +232,17 @@ func statusChipLabel(status string, lang wording.Lang) string {
 	return cmp.Or(status, wording.NoStatusStated.In(lang))
 }
 
+// facetRowLabel names what following the row does, since the row itself shows
+// only a value and a number: a value already in the query leads out of it, and
+// every other one leads further in. Which field is being narrowed is in the
+// heading above, which a reader moving link by link never hears.
+func facetRowLabel(heading string, row SearchFacetRow, lang wording.Lang) string {
+	if row.Active {
+		return fmt.Sprintf(wording.FacetRemoveFmt.In(lang), row.Label)
+	}
+	return fmt.Sprintf(wording.FacetNarrowFmt.In(lang), heading, row.Label)
+}
+
 // folderHref builds the browse URL for a folder. The vault root is not a folder
 // under the tree — it is the mode's own listing — and the route for one level
 // refuses an empty path, so the root answers at the mode index rather than at a

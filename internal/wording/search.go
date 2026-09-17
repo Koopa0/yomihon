@@ -1,5 +1,10 @@
 package wording
 
+import (
+	"maps"
+	"slices"
+)
+
 // The search face: the page, its live fragment, and what it says when it
 // found nothing.
 
@@ -142,3 +147,42 @@ var (
 var LiveSearchStaleFmt = both(
 	"下方結果回答的是先前的查詢「%s」。",
 	"The results below answer the earlier query \"%s\".")
+
+// The column beside the results that says what the current answer is made of.
+// A heading names one of the keys a reader can narrow by; the key itself stays
+// the contract's word, and only the name of the field is written here.
+var (
+	FacetsTitle    = both("篩選", "Filters")
+	FacetUnstated  = both("未指定", "Not stated")
+	FacetRemoveFmt = both("移除篩選：%s", "Remove filter: %s")
+	FacetNarrowFmt = both("只留下%s：%s", "Keep only %s: %s")
+	FacetCountFmt  = both("%d 筆", "%d")
+)
+
+// facetHeadings names each key a reader narrows by. It is a table rather than
+// a switch because the consumer's test reads the set back to compare it with
+// the grammar's, and it is unexported so the names cannot be rewritten from
+// outside the package that owns them.
+var facetHeadings = map[string]Phrase{
+	"status": both("狀態", "Status"),
+	"type":   both("類型", "Type"),
+	"domain": both("領域", "Domain"),
+}
+
+// FacetHeading names one of the keys a reader narrows by. A key with no name
+// here reads as empty rather than as its own spelling, so a column cannot
+// quietly print a grammar key at a reader; the consumer's test is what keeps
+// the two sets together.
+func FacetHeading(key string, lang Lang) string {
+	heading, ok := facetHeadings[key]
+	if !ok {
+		return ""
+	}
+	return heading.In(lang)
+}
+
+// FacetHeadingKeys names every key this package can write a heading for, so a
+// consumer can compare that set with the grammar's own.
+func FacetHeadingKeys() []string {
+	return slices.Sorted(maps.Keys(facetHeadings))
+}

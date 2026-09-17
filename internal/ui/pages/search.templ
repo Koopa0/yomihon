@@ -37,6 +37,12 @@ type SearchView struct {
 	// search it has made useless.
 	StepBacks []SearchStepBack
 
+	// Facets is the column beside the results: what the current answer is made
+	// of, and the narrower search each part of it leads to. It is empty on the
+	// live-search dialog, which asks the same endpoint for the same rows and
+	// has no column to put them in.
+	Facets []SearchFacet
+
 	// Governed says this generation has a lifecycle contract behind it, which
 	// gates the advice offered when nothing matched: a status filter is only
 	// worth suggesting where statuses exist.
@@ -138,6 +144,46 @@ type SearchStepBack struct {
 	Count int
 }
 
+// SearchFacet is one key the current answer divides along: the name of the
+// field in the reader's language, the key itself for a surface that needs to
+// say which division it is looking at, and one row per value.
+type SearchFacet struct {
+	Key     string
+	Heading string
+	Rows    []SearchFacetRow
+}
+
+// SearchFacetRow is one value of a division: what it is called, how many of
+// the current hits are at it, and the search that follows from it.
+type SearchFacetRow struct {
+	// Label is the value in the vault's own spelling, or the sentence standing
+	// for the hits that declared none.
+	Label string
+	Count int
+
+	// Query is the search this row leads to — the current query narrowed to
+	// this value, or, for a value already in it, the current query with that
+	// constraint taken out. It is empty where there is no search to offer: the
+	// hits that declared nothing cannot be asked for, since the grammar has no
+	// way to write "this field is absent", and neither can a value this
+	// grammar cannot spell. A row with no query is a cell rather than a link.
+	Query string
+
+	// Active marks a value the current query already names, whose row leads
+	// back out of it rather than further in.
+	Active bool
+
+	// OutsideEnum marks a value no note type carrying it declares, so a value
+	// nothing allows does not look exactly like one everything does. It is the
+	// same verdict the result rows wear, reached the same way.
+	OutsideEnum bool
+
+	// Unstated marks the row standing for the hits that declared no value for
+	// this key. It is kept off the values rather than sorted among them,
+	// because "no domain declared" is not a domain.
+	Unstated bool
+}
+
 // Search is the results page: a GET form and a flat list of hits in the shared
 // shell, mounted with no current note so every branch renders closed. The form
 // is the no-JavaScript path; the live-search data hooks let the shared script
@@ -154,7 +200,13 @@ templ Search(v SearchView, c layouts.Chrome) {
 				// what submitting would produce and a copied address reproduces
 				// the results. The command-palette dialog floats over pages it
 				// does not own and never carries the marker.
-				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results" data-live-search-sync-url>
+				// The endpoint carries the one difference between this page and
+				// the command palette, which asks the same route for the same
+				// rows: only a page with a column beside the results asks for
+				// the divisions that go in it. The script builds its request
+				// from this attribute and sets the query on top, so the marker
+				// rides along without the script knowing it is there.
+				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results?facets=1" data-live-search-sync-url>
 					// The page opens by saying which page it is, so arriving by
 					// ear lands on something other than an unexplained text
 					// field. The count is already stated above the hits, so this
@@ -187,136 +239,141 @@ templ Search(v SearchView, c layouts.Chrome) {
 // holds at most the handler's bounded opening stretch.
 templ SearchResults(v SearchView, lang wording.Lang) {
 	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(v.Total) } aria-busy="false">
-		if v.Query != "" {
-			// Which query these rows answer, carried with them and hidden. The
-			// live search shows it when a refresh fails and leaves them standing;
-			// with no script there is no such moment, and the page is unchanged.
-			<p class="y-live-search__status" data-live-search-stale={ v.Query } hidden>{ fmt.Sprintf(wording.LiveSearchStaleFmt.In(lang), v.Query) }</p>
+		if len(v.Facets) > 0 {
+			@searchFacets(v.Facets, lang)
 		}
-		if len(v.UnknownFilterKeys) > 0 {
-			// Said whatever the outcome: this is about how the query was read,
-			// not how many notes answered it, so a query that also found
-			// something still hears it.
-			<p class="y-searchpage__hint" data-unknown-filter>
-				{ fmt.Sprintf(wording.UnknownFilterFmt.In(lang), strings.Join(v.UnknownFilterKeys, wording.ListSeparator.In(lang))) }
-				for i, key := range v.FilterKeys {
-					if i > 0 {
-						{ wording.ListSeparator.In(lang) }
-					}
-					<code>{ key + ":" }</code>
-				}
-				{ wording.UnknownFilterEnd.In(lang) }
-			</p>
-		}
-		if v.Diagnostic != "" {
-			<div class="y-searchpage__empty" data-search-diagnostic>
-				<p>{ wording.MetadataSearchUnavailable.In(lang) }</p>
-				<p class="y-searchpage__hint">
-					@browserDiagnostic(wording.GovernanceUnavailable.In(lang), v.Diagnostic)
-				</p>
-			</div>
-		} else if len(v.Results) > 0 {
-			// Printed rather than left to the live region the client writes,
-			// so a reader without scripting still learns how many the query
-			// found, and a reader looking at the page sees a number at all.
-			<p class="y-results__count">{ resultCount(len(v.Results), v.Total, lang) }</p>
-			// The hits are one set, so they are marked as one: a listener is
-			// told where it starts, how many it holds, and where it ends. The
-			// role is written out because the style reset takes the markers
-			// off, and a list without markers loses its meaning outright in
-			// WebKit.
-			<ol class="y-results" role="list">
-				for _, r := range v.Results {
-					<li>
-						<a class="y-result" href={ templ.URL(notesHref(r.RelPath) + hitFragment(&r)) }>
-							<span class="y-result__title" { authoredLanguageAttrs(r.Language)... }>{ r.Title }</span>
-							<span class="y-result__meta">
-								if len(r.PathRuns) > 0 {
-									@hitRuns(r.PathRuns)
-								} else {
-									{ r.RelPath }
-								}
-								if r.Status != "" {
-									<span class="y-result__sep" aria-hidden="true">·</span>
-									{ r.Status }
-									if r.StatusOutsideEnum {
-										@statusOutsideEnumMark(lang)
-									}
-								}
-								if r.File {
-									<span class="y-result__sep" aria-hidden="true">·</span>
-									<span class="y-result__kind">{ wording.ResultKindFile.In(lang) }</span>
-								}
-								if r.FromFence {
-									<span class="y-result__sep" aria-hidden="true">·</span>
-									<span class="y-result__source">{ wording.ResultSourceLabel.In(lang) }</span>
-								}
-								if len(r.TopicRuns) > 0 {
-									<span class="y-result__sep" aria-hidden="true">·</span>
-									<span class="y-result__topic">
-										{ wording.ResultTopicLabel.In(lang) }
-										@hitRuns(r.TopicRuns)
-									</span>
-								}
-								if len(r.AliasRuns) > 0 {
-									<span class="y-result__sep" aria-hidden="true">·</span>
-									<span class="y-result__alias">
-										{ wording.ResultAliasLabel.In(lang) }
-										@hitRuns(r.AliasRuns)
-									</span>
-								}
-							</span>
-							if note := unlocatedNote(&r, lang); note != "" {
-								<span class="y-result__snippet">{ note }</span>
-							} else if len(r.SnippetRuns) > 0 {
-								<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>
-									@hitRuns(r.SnippetRuns)
-								</span>
-							} else if r.Snippet != "" {
-								<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>{ r.Snippet }</span>
-							}
-						</a>
-					</li>
-				}
-			</ol>
-		} else if v.Query != "" {
-			<div class="y-searchpage__empty">
-				<p>{ fmt.Sprintf(wording.NoResultsFmt.In(lang), v.Query) }</p>
-				if len(v.StepBacks) > 0 {
-					<p class="y-searchpage__hint">
-						{ wording.StepBackLabel.In(lang) }
-						for i, step := range v.StepBacks {
-							if i > 0 {
-								<span aria-hidden="true">・</span>
-							}
-							<a href={ templ.URL(searchHref(step.Query)) }>{ wording.StepBackOpen.In(lang) }{ step.Query }{ wording.StepBackClose.In(lang) }</a>
-							{ fmt.Sprintf(wording.StepBackCountFmt.In(lang), step.Count) }
-						}
-					</p>
-				}
-				if v.Governed {
-					<p class="y-searchpage__hint">{ wording.SearchScopeHintWithStatus.In(lang) }<code>status:draft</code>{ wording.SearchScopeHintAfterCommand.In(lang) }</p>
-				} else {
-					<p class="y-searchpage__hint">{ wording.SearchScopeHint.In(lang) }</p>
-				}
-			</div>
-		} else {
-			// Nothing has been asked yet, and a blank page is the one moment
-			// with room to say which constraints this field understands
-			// without standing between the reader and an answer.
-			<div class="y-searchpage__empty" data-search-filters>
-				<p class="y-searchpage__emptylede">{ wording.SearchEmptyLede.In(lang) }</p>
-				<p class="y-searchpage__hint">
-					{ wording.FilterKeysAvailable.In(lang) }
+		<div class="y-searchresults__body">
+			if v.Query != "" {
+				// Which query these rows answer, carried with them and hidden. The
+				// live search shows it when a refresh fails and leaves them standing;
+				// with no script there is no such moment, and the page is unchanged.
+				<p class="y-live-search__status" data-live-search-stale={ v.Query } hidden>{ fmt.Sprintf(wording.LiveSearchStaleFmt.In(lang), v.Query) }</p>
+			}
+			if len(v.UnknownFilterKeys) > 0 {
+				// Said whatever the outcome: this is about how the query was read,
+				// not how many notes answered it, so a query that also found
+				// something still hears it.
+				<p class="y-searchpage__hint" data-unknown-filter>
+					{ fmt.Sprintf(wording.UnknownFilterFmt.In(lang), strings.Join(v.UnknownFilterKeys, wording.ListSeparator.In(lang))) }
 					for i, key := range v.FilterKeys {
 						if i > 0 {
 							{ wording.ListSeparator.In(lang) }
 						}
 						<code>{ key + ":" }</code>
 					}
+					{ wording.UnknownFilterEnd.In(lang) }
 				</p>
-			</div>
-		}
+			}
+			if v.Diagnostic != "" {
+				<div class="y-searchpage__empty" data-search-diagnostic>
+					<p>{ wording.MetadataSearchUnavailable.In(lang) }</p>
+					<p class="y-searchpage__hint">
+						@browserDiagnostic(wording.GovernanceUnavailable.In(lang), v.Diagnostic)
+					</p>
+				</div>
+			} else if len(v.Results) > 0 {
+				// Printed rather than left to the live region the client writes,
+				// so a reader without scripting still learns how many the query
+				// found, and a reader looking at the page sees a number at all.
+				<p class="y-results__count">{ resultCount(len(v.Results), v.Total, lang) }</p>
+				// The hits are one set, so they are marked as one: a listener is
+				// told where it starts, how many it holds, and where it ends. The
+				// role is written out because the style reset takes the markers
+				// off, and a list without markers loses its meaning outright in
+				// WebKit.
+				<ol class="y-results" role="list">
+					for _, r := range v.Results {
+						<li>
+							<a class="y-result" href={ templ.URL(notesHref(r.RelPath) + hitFragment(&r)) }>
+								<span class="y-result__title" { authoredLanguageAttrs(r.Language)... }>{ r.Title }</span>
+								<span class="y-result__meta">
+									if len(r.PathRuns) > 0 {
+										@hitRuns(r.PathRuns)
+									} else {
+										{ r.RelPath }
+									}
+									if r.Status != "" {
+										<span class="y-result__sep" aria-hidden="true">·</span>
+										{ r.Status }
+										if r.StatusOutsideEnum {
+											@statusOutsideEnumMark(lang)
+										}
+									}
+									if r.File {
+										<span class="y-result__sep" aria-hidden="true">·</span>
+										<span class="y-result__kind">{ wording.ResultKindFile.In(lang) }</span>
+									}
+									if r.FromFence {
+										<span class="y-result__sep" aria-hidden="true">·</span>
+										<span class="y-result__source">{ wording.ResultSourceLabel.In(lang) }</span>
+									}
+									if len(r.TopicRuns) > 0 {
+										<span class="y-result__sep" aria-hidden="true">·</span>
+										<span class="y-result__topic">
+											{ wording.ResultTopicLabel.In(lang) }
+											@hitRuns(r.TopicRuns)
+										</span>
+									}
+									if len(r.AliasRuns) > 0 {
+										<span class="y-result__sep" aria-hidden="true">·</span>
+										<span class="y-result__alias">
+											{ wording.ResultAliasLabel.In(lang) }
+											@hitRuns(r.AliasRuns)
+										</span>
+									}
+								</span>
+								if note := unlocatedNote(&r, lang); note != "" {
+									<span class="y-result__snippet">{ note }</span>
+								} else if len(r.SnippetRuns) > 0 {
+									<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>
+										@hitRuns(r.SnippetRuns)
+									</span>
+								} else if r.Snippet != "" {
+									<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>{ r.Snippet }</span>
+								}
+							</a>
+						</li>
+					}
+				</ol>
+			} else if v.Query != "" {
+				<div class="y-searchpage__empty">
+					<p>{ fmt.Sprintf(wording.NoResultsFmt.In(lang), v.Query) }</p>
+					if len(v.StepBacks) > 0 {
+						<p class="y-searchpage__hint">
+							{ wording.StepBackLabel.In(lang) }
+							for i, step := range v.StepBacks {
+								if i > 0 {
+									<span aria-hidden="true">・</span>
+								}
+								<a href={ templ.URL(searchHref(step.Query)) }>{ wording.StepBackOpen.In(lang) }{ step.Query }{ wording.StepBackClose.In(lang) }</a>
+								{ fmt.Sprintf(wording.StepBackCountFmt.In(lang), step.Count) }
+							}
+						</p>
+					}
+					if v.Governed {
+						<p class="y-searchpage__hint">{ wording.SearchScopeHintWithStatus.In(lang) }<code>status:draft</code>{ wording.SearchScopeHintAfterCommand.In(lang) }</p>
+					} else {
+						<p class="y-searchpage__hint">{ wording.SearchScopeHint.In(lang) }</p>
+					}
+				</div>
+			} else {
+				// Nothing has been asked yet, and a blank page is the one moment
+				// with room to say which constraints this field understands
+				// without standing between the reader and an answer.
+				<div class="y-searchpage__empty" data-search-filters>
+					<p class="y-searchpage__emptylede">{ wording.SearchEmptyLede.In(lang) }</p>
+					<p class="y-searchpage__hint">
+						{ wording.FilterKeysAvailable.In(lang) }
+						for i, key := range v.FilterKeys {
+							if i > 0 {
+								{ wording.ListSeparator.In(lang) }
+							}
+							<code>{ key + ":" }</code>
+						}
+					</p>
+				</div>
+			}
+		</div>
 	</div>
 }
 
@@ -334,4 +391,63 @@ templ hitRuns(runs []SnippetRun) {
 			{ run.Text }
 		}
 	}
+}
+
+// searchFacets is the column beside the results: what the answer is made of,
+// each part of it a search. It is a fold in the markup and stays one at narrow
+// widths, where a list of values standing above the results would push them off
+// the first screen; the stylesheet holds it open where there is a column to put
+// it in, and hides the control that would otherwise be the only way to close
+// something that is not folded. Nothing here runs a script: every row is a link
+// the server already knows the answer to.
+//
+// The navigation landmark inside carries the name, because at the width where
+// the summary is hidden it is the only thing left to say what this region is.
+templ searchFacets(facets []SearchFacet, lang wording.Lang) {
+	<details class="y-facets" data-search-facets>
+		<summary class="y-facets__summary">
+			@chevron()
+			{ wording.FacetsTitle.In(lang) }
+		</summary>
+		<nav class="y-facets__body" aria-label={ wording.FacetsTitle.In(lang) }>
+			for _, facet := range facets {
+				<section class="y-facetgroup" data-facet-key={ facet.Key }>
+					<h2 class="y-facetgroup__head">{ facet.Heading }</h2>
+					<ul class="y-facetlist" role="list">
+						for _, row := range facet.Rows {
+							<li>
+								if row.Query != "" {
+									<a
+										class={ "y-facetrow", templ.KV("y-facetrow--active", row.Active) }
+										href={ templ.URL(searchHref(row.Query)) }
+										aria-label={ facetRowLabel(facet.Heading, row, lang) }
+										data-facet-row
+										data-facet-active?={ row.Active }
+									>
+										@facetRowBody(row, lang)
+									</a>
+								} else {
+									<span class="y-facetrow y-facetrow--quiet" data-facet-row>
+										@facetRowBody(row, lang)
+									</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+			}
+		</nav>
+	</details>
+}
+
+// facetRowBody is what one row shows whether or not it is a link, so the two
+// arms above cannot drift into showing different things.
+templ facetRowBody(row SearchFacetRow, lang wording.Lang) {
+	<span class="y-facetrow__label">{ row.Label }</span>
+	if row.OutsideEnum {
+		@statusOutsideEnumMark(lang)
+	}
+	<span class="y-facetrow__count" data-facet-count={ strconv.Itoa(row.Count) }>
+		{ fmt.Sprintf(wording.FacetCountFmt.In(lang), row.Count) }
+	</span>
 }

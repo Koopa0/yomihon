@@ -18,7 +18,7 @@ func BenchmarkSearch(b *testing.B) {
 	q := Parse("kafka concept")
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _, _ = idx.SearchN(q, -1) //nolint:errcheck // benchmark fixture is validated before timing; only ranking cost is measured
+		_, _ = idx.Search(q, -1) //nolint:errcheck // benchmark fixture is validated before timing; only ranking cost is measured
 	}
 }
 
@@ -46,8 +46,7 @@ func BenchmarkSearchResultMaterialization(b *testing.B) {
 	q := Parse("needle")
 	b.ReportAllocs()
 	for b.Loop() {
-		_, _, err := idx.SearchN(q, notes)
-		if err != nil {
+		if _, err := idx.Search(q, notes); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -63,8 +62,7 @@ func BenchmarkSearchLiveVaultSizedFences(b *testing.B) {
 			query := Parse(q)
 			b.ReportAllocs()
 			for b.Loop() {
-				_, _, err := idx.SearchN(query, 200)
-				if err != nil {
+				if _, err := idx.Search(query, 200); err != nil {
 					b.Fatal(err)
 				}
 			}

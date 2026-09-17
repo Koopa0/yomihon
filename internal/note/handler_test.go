@@ -3320,11 +3320,11 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 			if shown != f.wantText {
 				t.Errorf("GET /notes/%s renders its characters = %v, want %v", f.rel, shown, f.wantText)
 			}
-			results, _, err := store.Current().Search().SearchN(lexical.Parse(f.term), -1)
+			answer, err := store.Current().Search().Search(lexical.Parse(f.term), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error = %v", f.term, err)
 			}
-			found := len(results) == 1 && results[0].RelPath == f.rel
+			found := len(answer.Results) == 1 && answer.Results[0].RelPath == f.rel
 			if found != shown {
 				t.Errorf("/notes/%s shows its characters = %v but search finds it = %v; one face contradicts the other",
 					f.rel, shown, found)

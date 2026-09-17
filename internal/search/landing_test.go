@@ -345,11 +345,11 @@ func TestSearchResultSaysWhenACrossingMatchCannotBeLocated(t *testing.T) {
 
 	idx := lexical.NewIndex([]lexical.Document{emptyLandingDoc()}, validArtifactPolicy(t))
 	q := lexical.Parse(`"  xxx  "`)
-	results, _, err := idx.SearchN(q, -1)
+	answer, err := idx.Search(q, -1)
 	if err != nil {
-		t.Fatalf("SearchN: %v", err)
+		t.Fatalf("Search: %v", err)
 	}
-	view := viewResults(results, true, nil, q.Tokens())
+	view := viewResults(answer.Results, true, nil, q.Tokens())
 	if len(view) != 1 {
 		t.Fatalf("viewResults = %+v, want one row", view)
 	}

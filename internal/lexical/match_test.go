@@ -90,11 +90,11 @@ func paths(results []Result) []string {
 
 func searchResults(tb testing.TB, idx *Index, q *Query) []Result {
 	tb.Helper()
-	results, _, err := idx.SearchN(q, -1)
+	answer, err := idx.Search(q, -1)
 	if err != nil {
 		tb.Fatalf("Search() error: %v", err)
 	}
-	return results
+	return answer.Results
 }
 
 func TestSearchSnippetRequiresBodyEvidence(t *testing.T) {
@@ -148,14 +148,14 @@ func TestSearchNonInstanceCapability(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, err := idx.SearchN(Parse(tt.query), -1)
+			answer, err := idx.Search(Parse(tt.query), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error: %v", tt.query, err)
 			}
-			if diff := cmp.Diff(tt.wantPaths, paths(got)); diff != "" {
-				t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", tt.query, diff)
+			if diff := cmp.Diff(tt.wantPaths, paths(answer.Results)); diff != "" {
+				t.Errorf("Search(%q) paths mismatch (-want +results):\n%s", tt.query, diff)
 			}
-			for _, result := range got {
+			for _, result := range answer.Results {
 				if result.Status != tt.wantStatus {
 					t.Errorf("Search(%q) result status = %q, want %q", tt.query, result.Status, tt.wantStatus)
 				}
@@ -194,9 +194,9 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 			}}, policyTest.policy)
 
 			for _, query := range metadataQueries {
-				results, _, err := idx.SearchN(Parse(query), -1)
+				answer, err := idx.Search(Parse(query), -1)
 				if !errors.Is(err, ErrMetadataUnavailable) {
-					t.Errorf("Search(%q) = (%v, %v), want ErrMetadataUnavailable", query, results, err)
+					t.Errorf("Search(%q) = (%v, %v), want ErrMetadataUnavailable", query, answer.Results, err)
 					continue
 				}
 				if got, want := err.Error(), policyTest.policy.Diagnostic(); got != want {
@@ -205,16 +205,16 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 			}
 
 			for _, query := range plainQueries {
-				results, _, err := idx.SearchN(Parse(query), -1)
+				answer, err := idx.Search(Parse(query), -1)
 				if err != nil {
 					t.Errorf("Search(%q) error: %v", query, err)
 					continue
 				}
-				if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(results)); diff != "" {
+				if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(answer.Results)); diff != "" {
 					t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", query, diff)
 				}
-				if len(results) == 1 && results[0].Status != "" {
-					t.Errorf("Search(%q) status = %q, want no metadata badge", query, results[0].Status)
+				if len(answer.Results) == 1 && answer.Results[0].Status != "" {
+					t.Errorf("Search(%q) status = %q, want no metadata badge", query, answer.Results[0].Status)
 				}
 			}
 		})
@@ -232,24 +232,24 @@ func TestWithArtifactPolicyBindsIndependentMetadataAuthority(t *testing.T) {
 	}}, validArtifactPolicy(t))
 	closed := idx.WithArtifactPolicy(undeclaredArtifactPolicy(t))
 
-	openResults, _, err := idx.SearchN(Parse("Note"), -1)
+	openAnswer, err := idx.Search(Parse("Note"), -1)
 	if err != nil {
 		t.Fatalf("original Search(Note) error = %v", err)
 	}
-	if len(openResults) != 1 || openResults[0].Status != "draft" {
-		t.Fatalf("original Search(Note) = %+v, want draft metadata badge", openResults)
+	if len(openAnswer.Results) != 1 || openAnswer.Results[0].Status != "draft" {
+		t.Fatalf("original Search(Note) = %+v, want draft metadata badge", openAnswer.Results)
 	}
-	closedResults, _, err := closed.SearchN(Parse("Note"), -1)
+	closedAnswer, err := closed.Search(Parse("Note"), -1)
 	if err != nil {
 		t.Fatalf("closed Search(Note) error = %v", err)
 	}
-	if len(closedResults) != 1 || closedResults[0].Status != "" {
-		t.Errorf("closed Search(Note) = %+v, want lexical result without metadata badge", closedResults)
+	if len(closedAnswer.Results) != 1 || closedAnswer.Results[0].Status != "" {
+		t.Errorf("closed Search(Note) = %+v, want lexical result without metadata badge", closedAnswer.Results)
 	}
-	if _, _, err := closed.SearchN(Parse("status:draft"), -1); !errors.Is(err, ErrMetadataUnavailable) {
+	if _, err := closed.Search(Parse("status:draft"), -1); !errors.Is(err, ErrMetadataUnavailable) {
 		t.Errorf("closed Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
 	}
-	if _, _, err := idx.SearchN(Parse("status:draft"), -1); err != nil {
+	if _, err := idx.Search(Parse("status:draft"), -1); err != nil {
 		t.Errorf("original Search(status:draft) error = %v, want functional copy not to mutate original", err)
 	}
 }
@@ -262,12 +262,12 @@ func TestZeroValueIndexAnswersNothingWithoutInventingAFault(t *testing.T) {
 	t.Parallel()
 
 	idx := &Index{}
-	results, _, err := idx.SearchN(Parse("type:concept"), -1)
+	answer, err := idx.Search(Parse("type:concept"), -1)
 	if err != nil {
-		t.Errorf("zero Index.SearchN(type:concept, -1) error = %v, want nil", err)
+		t.Errorf("zero Index.Search(type:concept, -1) error = %v, want nil", err)
 	}
-	if len(results) != 0 {
-		t.Errorf("zero Index.SearchN(type:concept, -1) = %v, want no results", results)
+	if len(answer.Results) != 0 {
+		t.Errorf("zero Index.Search(type:concept, -1) = %v, want no results", answer.Results)
 	}
 	typeCounts, err := idx.CountByTypeStatus()
 	if err != nil || len(typeCounts) != 0 {
@@ -288,7 +288,7 @@ func TestWithheldCapabilitiesRefuseMetadataWithSomethingToSay(t *testing.T) {
 		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft"},
 	}, policy)
 
-	_, _, err := idx.SearchN(Parse("status:draft"), -1)
+	_, err := idx.Search(Parse("status:draft"), -1)
 	if !errors.Is(err, ErrMetadataUnavailable) {
 		t.Fatalf("Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
 	}
@@ -314,21 +314,21 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 		{RelPath: "System/templates/Card.md", Title: "Card", NoteType: "lesson", PlainText: "needle"},
 	}, schema.ArtifactPolicy{})
 
-	results, _, err := idx.SearchN(Parse("type:concept"), -1)
+	answer, err := idx.Search(Parse("type:concept"), -1)
 	if err != nil {
 		t.Fatalf("Search(type:concept) with an unclaimed policy error = %v, want an answer", err)
 	}
-	if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(results)); diff != "" {
+	if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(answer.Results)); diff != "" {
 		t.Errorf("Search(type:concept) paths mismatch (-want +got):\n%s", diff)
 	}
 	// Nothing declared System/templates as an artifact, so it is an ordinary
 	// note and a plain query reaches it.
-	plain, _, err := idx.SearchN(Parse("needle"), -1)
+	plainAnswer, err := idx.Search(Parse("needle"), -1)
 	if err != nil {
 		t.Fatalf("Search(needle) error = %v", err)
 	}
-	if len(plain) != 2 {
-		t.Errorf("Search(needle) = %v, want both notes: nothing was excluded", paths(plain))
+	if len(plainAnswer.Results) != 2 {
+		t.Errorf("Search(needle) = %v, want both notes: nothing was excluded", paths(plainAnswer.Results))
 	}
 	counts, err := idx.CountByTypeStatus()
 	if err != nil {
@@ -1207,12 +1207,12 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 		t.Errorf("CountByTypeStatus() error = %v, want %v", countErr, ErrMetadataUnavailable)
 	}
 	query := Parse("needle")
-	results, _, err := idx.SearchN(query, -1)
+	answer, err := idx.Search(query, -1)
 	if err != nil {
 		t.Fatalf("bare-text Search() error = %v", err)
 	}
-	if len(results) != 1 || results[0].RelPath != "Concepts/A.md" {
-		t.Errorf("bare-text Search() results = %v, want readable corpus preserved", results)
+	if len(answer.Results) != 1 || answer.Results[0].RelPath != "Concepts/A.md" {
+		t.Errorf("bare-text Search() results = %v, want readable corpus preserved", answer.Results)
 	}
 }
 
@@ -1241,12 +1241,12 @@ func TestSearchQuotedPhraseMatchesAdjacentText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			results, _, err := idx.SearchN(Parse(tt.query), -1)
+			answer, err := idx.Search(Parse(tt.query), -1)
 			if err != nil {
 				t.Fatalf("Search(%q) error = %v", tt.query, err)
 			}
-			paths := make([]string, 0, len(results))
-			for _, r := range results {
+			paths := make([]string, 0, len(answer.Results))
+			for _, r := range answer.Results {
 				paths = append(paths, r.RelPath)
 			}
 			if diff := cmp.Diff(tt.want, paths); diff != "" {
@@ -1278,27 +1278,27 @@ func TestBoundedSearchKeepsTheOpeningStretch(t *testing.T) {
 	docs = append(docs, Document{RelPath: "Notes/z-title.md", Title: "needle in the title", PlainText: "no match here"})
 	idx := NewIndex(docs, validArtifactPolicy(t))
 
-	all, _, err := idx.SearchN(Parse("needle"), -1)
+	answer, err := idx.Search(Parse("needle"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	if len(all) != 10 || all[0].RelPath != "Notes/z-title.md" {
-		t.Fatalf("unbounded answer = %d results opening with %q, want 10 opening with the title hit", len(all), all[0].RelPath)
+	if len(answer.Results) != 10 || answer.Results[0].RelPath != "Notes/z-title.md" {
+		t.Fatalf("unbounded answer = %d results opening with %q, want 10 opening with the title hit", len(answer.Results), answer.Results[0].RelPath)
 	}
 
-	bounded, total, err := idx.SearchN(Parse("needle"), 4)
+	bounded, err := idx.Search(Parse("needle"), 4)
 	if err != nil {
 		t.Fatalf("search() error = %v", err)
 	}
-	if total != 10 {
-		t.Errorf("total = %d, want 10", total)
+	if bounded.Total != 10 {
+		t.Errorf("total = %d, want 10", bounded.Total)
 	}
-	if diff := cmp.Diff(all[:4], bounded); diff != "" {
+	if diff := cmp.Diff(answer.Results[:4], bounded.Results); diff != "" {
 		t.Errorf("bounded results are not the opening stretch (-unbounded[:4] +bounded):\n%s", diff)
 	}
 
-	if _, countOnly, countErr := idx.SearchN(Parse("needle"), 0); countErr != nil || countOnly != 10 {
-		t.Errorf("count-only search = (total %d, %v), want (10, nil)", countOnly, countErr)
+	if countOnly, countErr := idx.Search(Parse("needle"), 0); countErr != nil || countOnly.Total != 10 {
+		t.Errorf("count-only search = (total %d, %v), want (10, nil)", countOnly.Total, countErr)
 	}
 }
 

@@ -3,7 +3,6 @@ package lexical
 import (
 	"slices"
 	"strings"
-	"unicode"
 )
 
 // StepBack is one looser query the empty page may offer: a real search this
@@ -69,12 +68,15 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		full := strings.Join(append(slices.Clip(filters), candidate), " ")
 		// A candidate is only offered for its count, so no result — and no
 		// snippet — is ever materialized for it, and the count is the true
-		// tally rather than the bounded page's opening stretch.
-		_, total, err := idx.SearchN(Parse(full), 0)
-		if err != nil || total == 0 {
+		// tally rather than the bounded page's opening stretch. The divisions
+		// the same walk tallies are read by nobody here: they cost a handful of
+		// map writes per hit, against the substring scans a second walk would
+		// have to pay all over again.
+		answer, err := idx.Search(Parse(full), 0)
+		if err != nil || answer.Total == 0 {
 			continue
 		}
-		out = append(out, StepBack{Query: full, Count: total})
+		out = append(out, StepBack{Query: full, Count: answer.Total})
 		if len(out) == 4 {
 			break
 		}
@@ -87,10 +89,7 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 // and the bare characters would read back as a filter plus a stray word.
 func respellFilter(field string) string {
 	key, value, _ := strings.Cut(field, ":")
-	if strings.IndexFunc(value, unicode.IsSpace) < 0 {
-		return field
-	}
-	return key + `:"` + value + `"`
+	return spellFilter(Filter{Key: key, Value: value})
 }
 
 // splitDigitLetterRuns rewrites the bare terms with a space wherever an ASCII
