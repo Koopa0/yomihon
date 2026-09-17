@@ -56,9 +56,18 @@ type Result struct {
 	// find, and the sentence around the match is not them.
 	LandingBare string
 
-	// LandingEnd is the last-block stretch of a crossing match. A directive
+	// LandingEnd is the last-block stretch of a crossing match, grown to the
+	// edges of the words it lies inside the way LandingBare is. A directive
 	// that names both ends can span blocks; a bare first-block term would
 	// land on an earlier copy of the same word.
+	//
+	// A browser holds this stretch to both edges whichever of its two places
+	// it takes — closing a range, or travelling alone because the first block
+	// had nothing locatable — so a match stopping inside a word is asked for
+	// at a place the page has nowhere, and the whole directive is abandoned.
+	// The stretch opens where its block does, which is already such an edge,
+	// so only the far end can move. An end resting inside a script that parts
+	// no words with spaces stays where the match left it, as in LandingBare.
 	LandingEnd string
 
 	// LandingPrefix is the run of words the match follows inside the block
@@ -496,10 +505,10 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 // landingTerms is everything one body match gives a browser text directive:
 // the stretch to arrive at, that same stretch grown to whole words for a
 // directive that names nothing ahead of it, the run of words the match
-// follows, the stretch its far end sits in, and whether it left its block to
-// reach that end. They travel together because a directive is assembled from
-// all of them at once, and four loose strings are four a caller can pair up
-// the wrong way round.
+// follows, the stretch its far end sits in grown the same way, and whether it
+// left its block to reach that end. They travel together because a directive
+// is assembled from all of them at once, and four loose strings are four a
+// caller can pair up the wrong way round.
 type landingTerms struct {
 	prefix   string
 	first    string
@@ -530,6 +539,11 @@ type landingTerms struct {
 // that offers no run of words ahead of the match has nothing else to offer.
 // The growth stays inside the block, so a word cannot be assembled out of two
 // paragraphs the page draws apart.
+//
+// A match that crossed has a second stretch in its last block, and that one is
+// grown with no condition at all: a run of words is read as one only beside a
+// term from its own block, and this stretch's block is not the one holding the
+// words the match follows, so it has only ever stood on its own.
 func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	if foldStart < 0 || foldEnd <= foldStart || len(e.blocks) == 0 {
 		return landingTerms{}
@@ -558,7 +572,13 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	}
 	lastStart, _ := e.blockAt(end - 1)
 	from := max(lastStart, firstEnd)
-	terms.last = collapseFields(e.PlainText[from:end])
+	// The far end is grown for the same reason the first stretch's standalone
+	// form is, and inside its own block for the same reason. Its opening is
+	// where that block opens, so it is offered as the floor as well: a word
+	// cannot reach across a boundary the page draws, and this end has nowhere
+	// to travel but outward.
+	_, lastStop := wordEdges(e.PlainText, from, end, from, e.blockEndAfter(end-1))
+	terms.last = collapseFields(e.PlainText[from:lastStop])
 	return terms
 }
 
