@@ -103,7 +103,7 @@ func TestBrowserStorageKeysAreDocumented(t *testing.T) {
 	t.Parallel()
 
 	cookies := declaredCookies(t)
-	keys := webStorageKeys(t)
+	keys := webStorageKeys(t, cookies)
 	rows := documentedStorageRows(t)
 
 	declared := make(map[string]string, len(cookies)+len(keys))
@@ -211,7 +211,7 @@ func declaredCookies(t *testing.T) map[string]string {
 // call; a key held in a name is resolved from the declaration of that name in
 // the same file. A call whose key is neither fails, because a key this cannot
 // read is a key the inventory cannot be checked against.
-func webStorageKeys(t *testing.T) map[string]string {
+func webStorageKeys(t *testing.T, cookies map[string]string) map[string]string {
 	t.Helper()
 
 	if info, err := os.Stat(filepath.Join(repoRoot, mermaidDir)); err != nil || !info.IsDir() {
@@ -250,8 +250,17 @@ func webStorageKeys(t *testing.T) map[string]string {
 		}
 		for _, m := range writes {
 			name := m[1]
-			if !strings.HasPrefix(name, cookiePrefix) {
+			switch {
+			case !strings.HasPrefix(name, cookiePrefix):
 				t.Errorf("%s writes a cookie named %q, which is outside the %q namespace the Go declarations enumerate", path, name, cookiePrefix)
+			case strings.Contains(name, "${"):
+				// The rest of the name is a value the server stamped on the
+				// document, so it is one the server declared; the declared set
+				// above is what covers it.
+			default:
+				if _, declared := cookies[name]; !declared {
+					t.Errorf("%s writes the cookie %q, which no Go declaration names, so nothing else holds it against the privacy inventory", path, name)
+				}
 			}
 		}
 	}
