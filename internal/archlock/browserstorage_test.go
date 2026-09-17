@@ -44,16 +44,26 @@ const (
 	languageCookieFile     = "internal/wording/wording.go"
 )
 
-// webStorageRoot is the only directory holding hand-written client modules, and
-// mermaidDir is the vendored diagram runtime inside it. Minified third-party
-// code is not something the key reader below can read a key out of, so it is
-// skipped — and the skip is checked against the directory existing, because a
-// skip aimed at a directory that moved would quietly stop skipping anything and
-// quietly stop failing.
+// webStorageRoot holds the hand-written client modules, and mermaidDir is the
+// vendored diagram runtime inside it. Minified third-party code is not
+// something the key reader below can read a key out of, so it is skipped — and
+// the skip is checked against the directory existing, because a skip aimed at a
+// directory that moved would quietly stop skipping anything and quietly stop
+// failing. Templates are read alongside the modules, because an inline script
+// reaches browser storage exactly as a module does and one already does.
 const (
 	webStorageRoot = "assets/js"
 	mermaidDir     = "assets/js/mermaid"
 )
+
+// cookieWritingFiles is every file that hands a cookie to the browser from Go.
+// The checks over cookie names rest on the shared prefix, which is a convention
+// no type holds; what can be held is where a cookie is written at all, so a
+// write from somewhere new fails and the name it carries gets looked at.
+var cookieWritingFiles = []string{
+	"internal/note/language.go",
+	"internal/preference/handler.go",
+}
 
 // webStorageUse finds every mention of the two Web Storage areas. Each one has
 // to be a get, set or remove whose key the reader below can resolve; any other
@@ -178,14 +188,29 @@ func declaredCookies(t *testing.T) map[string]string {
 	if got := slices.Sorted(maps.Keys(found)); !slices.Equal(got, want) {
 		t.Errorf("cookie names in Go source = %v, want exactly the declared set %v; a name outside it is a cookie nobody declared", got, want)
 	}
+
+	var writing []string
+	for _, path := range productionFiles(t, ".go") {
+		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if strings.Contains(string(data), "http.SetCookie(") {
+			writing = append(writing, path)
+		}
+	}
+	if !slices.Equal(sorted(writing), sorted(cookieWritingFiles)) {
+		t.Errorf("cookies are handed to the browser from %v, want %v; a write from somewhere new carries a name this check has not read, so name it here once its row exists",
+			sorted(writing), sorted(cookieWritingFiles))
+	}
 	return found
 }
 
 // webStorageKeys is every localStorage and sessionStorage key the client
-// modules use. A key written as a literal is read from the call; a key held in
-// a name is resolved from the declaration of that name in the same file. A call
-// whose key is neither fails, because a key this cannot read is a key the
-// inventory cannot be checked against.
+// modules and the templates use. A key written as a literal is read from the
+// call; a key held in a name is resolved from the declaration of that name in
+// the same file. A call whose key is neither fails, because a key this cannot
+// read is a key the inventory cannot be checked against.
 func webStorageKeys(t *testing.T) map[string]string {
 	t.Helper()
 
@@ -195,7 +220,8 @@ func webStorageKeys(t *testing.T) map[string]string {
 
 	found := make(map[string]string)
 	examined := 0
-	for _, path := range clientModules(t) {
+	sources := append(clientModules(t), productionFiles(t, ".templ")...)
+	for _, path := range sources {
 		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
@@ -230,7 +256,7 @@ func webStorageKeys(t *testing.T) map[string]string {
 		}
 	}
 	if examined == 0 {
-		t.Fatal("no client module was read, so every check over browser storage passes for the wrong reason")
+		t.Fatal("no client module or template was read, so every check over browser storage passes for the wrong reason")
 	}
 	if len(found) == 0 {
 		t.Fatal("no Web Storage key was found in any client module, so the check against the inventory compares nothing")
