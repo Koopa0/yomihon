@@ -14,6 +14,24 @@ Copy this vault's `System/schemas/vault-schema.toml` to the same path inside
 your own vault, then change it until it describes your notes. That path is the
 only one it is read from, and it is never written back.
 
+For a vault that already carries statuses, which section would you change
+first, and why?
+
+> [!question]- After you have decided
+> `[enums]` and `[fields]`, together — not `[[lifecycle]]`, which is where the
+> statuses you are already writing seem to point. A lifecycle names statuses,
+> and every status it names has to be a value `[enums]` declares, so moving the
+> lifecycle first means writing transitions between words the vocabulary
+> underneath them has not settled on yet. Each later cut to `[enums]` then
+> sends you back through the lifecycle to repair it. The order below is that
+> reasoning written down.
+>
+> Where it does not hold: a vault whose statuses you intend to keep exactly as
+> they are. Then the vocabulary has already stopped moving, nothing later
+> shifts under the lifecycle, and starting there costs nothing — but the way
+> you find that out is by opening `[enums]`, which is the first section either
+> way.
+
 Change it in this order:
 
 1. `[enums]` and `[fields]`, together. Start from the frontmatter your notes

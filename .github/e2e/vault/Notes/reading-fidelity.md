@@ -47,6 +47,10 @@ numbered separately because those definitions live in the note they came from.
 >
 > [^aside]: The callout's own footnote.
 
+> [!question]- A fold the author closed
+> The closed fold withholds this line on screen until the reader asks for it,
+> and hands it over on paper, where there is nobody to ask.
+
 ```go
 // countLamps reports how many lamps a listing says are lit.
 package tide

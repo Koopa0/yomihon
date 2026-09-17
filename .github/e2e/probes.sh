@@ -36,6 +36,7 @@ probes=(
   "arrival-fade.mjs|/notes/Notes/reading-fidelity.md"
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
   "print-librarian-chrome.mjs|/notes/Notes/reading-fidelity.md"
+  "print-fold-open.mjs|/notes/Notes/reading-fidelity.md"
   "heading-fragment.mjs|/notes/Notes/reading-fidelity.md"
   "preview-card.mjs|/notes/Notes/reading-fidelity.md"
   "task-list-marker.mjs|/notes/Notes/reading-fidelity.md"
