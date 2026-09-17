@@ -6,11 +6,11 @@
 // What makes it its own lock rather than a second width of the English one is
 // the shape of the text. Chinese parts no words with spaces, so the run a
 // match follows is one unbroken stretch of characters, and a browser looks
-// for a leading run only where the run begins at a word boundary — which
-// there is a dictionary boundary, not a space. A run that begins between two
-// characters of one word is found nowhere, and a leading run the browser
-// cannot find costs it the term as well: the note opens at the top with the
-// searched-for characters about fifteen hundred pixels below the screen.
+// for a leading run only where the run begins at a word boundary — which in
+// that script is a dictionary boundary, not a space. A run that begins
+// between two characters of one word is found nowhere, and a leading run the
+// browser cannot find costs it the term as well: the note opens at the top
+// with the searched-for characters two thousand pixels below the screen.
 //
 // So the assertion is geometry rather than the href: a plausible-looking
 // address and any nonzero scroll both pass while the evidence stays out of
