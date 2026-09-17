@@ -127,6 +127,16 @@ const MUTATIONS = {
       '0px',
     ),
   },
+  // Evens the marked point out with the rest, which leaves where the reader is
+  // said only to a reader who can hear the page.
+  'even-out-the-points': {
+    target: 'the-course-marks-the-lesson-it-was-reached-from',
+    apply: appendRule(
+      '.y-lesson--here .y-navdot{width:7px;height:7px}',
+      () => getComputedStyle(document.querySelector('.y-lesson--here .y-navdot')).width,
+      '7px',
+    ),
+  },
   // Widens the course past the phone it is being read on.
   'stretch-the-course-past-the-phone': {
     target: 'the-course-fits-the-phone',
@@ -171,6 +181,7 @@ const readCourse = (page) =>
       const box = row.getBoundingClientRect();
       const mark = row.querySelector('.y-navdot, .y-navmark');
       const markBox = mark ? mark.getBoundingClientRect() : null;
+      const isPoint = mark ? mark.classList.contains('y-navdot') : false;
       const top = box.top + parseFloat(style.top);
       return {
         text: row.querySelector('.y-lesson__title')?.textContent ?? '',
@@ -184,6 +195,7 @@ const readCourse = (page) =>
         markCentreX: markBox ? markBox.left + markBox.width / 2 : null,
         markCentreY: markBox ? markBox.top + markBox.height / 2 : null,
         markWidth: markBox ? markBox.width : null,
+        isPoint,
       };
     });
     // A box pinned to the viewport cannot be what is widening the document, so
@@ -239,9 +251,13 @@ try {
       `the marked row announces aria-current=${JSON.stringify(marked[0].current)}, so only a reader who can see it is told where they are`,
     );
   }
-  // The mark is the heavier point, which is what says so without words.
-  const others = reached.rows.filter((row) => !row.here && row.markWidth !== null && row.listed);
-  if (others.length === 0) broken('every row is the marked one, so nothing says it is heavier than the rest');
+  // The mark is the heavier point, which is what says so without words. It is
+  // weighed against the other points and not against the warning glyph beside
+  // a row that opens nothing: that glyph is smaller than any point, so a
+  // marked point that had lost its weight would still clear it.
+  const others = reached.rows.filter((row) => !row.here && row.isPoint && row.listed);
+  if (others.length === 0) broken('no other row draws a point, so nothing says the marked one is heavier');
+  if (!marked[0].isPoint) broken('the marked row draws no point of its own to weigh');
   const lightest = Math.min(...others.map((row) => row.markWidth));
   if (!(marked[0].markWidth > lightest)) {
     fail(
