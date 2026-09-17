@@ -1603,7 +1603,7 @@ func TestACrossingEndTermGrowsToItsWholeWord(t *testing.T) {
 			"beta\n\n"+
 			"gamma opens the column.\n\n"+
 			"delta\n\n"+
-			"今日は晴れ、cobaltine が続く。\n"))),
+			"<ruby>今日<rt>きょう</rt></ruby>は晴れ、cobaltine が続く。\n"))),
 	}, validArtifactPolicy(t))
 
 	tests := []struct {
@@ -1616,6 +1616,17 @@ func TestACrossingEndTermGrowsToItsWholeWord(t *testing.T) {
 		{name: "one whose match keeps a single letter grows too", query: `"alpha beta g"`, last: "gamma"},
 		{name: "the growth ends with the word, not with the block", query: `"alpha beta gamma op"`, last: "gamma opens"},
 		{name: "a script that parts no words with spaces is not grown", query: `"delta 今日"`, last: "今日"},
+		{
+			// The last block is one the page does not draw the way this text
+			// carries it: the reading is spoken over characters the page
+			// writes it in among, and this text keeps it aside. The growth
+			// cannot reach it — it stops at the first character a word does
+			// not join, and every character a reading is written over is one
+			// of those — so the far end is grown here as anywhere.
+			name:  "a block the page draws differently grows its far end all the same",
+			query: `"delta 今日は晴れ、cobaltin"`,
+			last:  "今日は晴れ、cobaltine",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
