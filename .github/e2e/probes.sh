@@ -55,6 +55,7 @@ probes=(
   "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
   "result-landing-visibility.mjs|/search?q=%22alpha%20beta%20gamma%22"
+  "midword-landing.mjs|/search?q=lybdenum"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
 )
 
