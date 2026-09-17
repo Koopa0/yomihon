@@ -277,8 +277,8 @@ func recordedPreferencesView() PreferencesView {
 			},
 			{
 				Name:    "ruby",
-				Legend:  "振假名",
-				Note:    "只影響有振假名的頁面。",
+				Legend:  "顯示讀音",
+				Note:    "只影響日文上方標了讀音的頁面。",
 				Refused: "這個選擇沒有存下來，已經放回原本的值。",
 				Options: []PreferenceOption{
 					{Value: "on", Label: "開啟", Checked: true, Stores: true, Unset: true},

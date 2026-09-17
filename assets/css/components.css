@@ -230,10 +230,7 @@ html, body { margin: 0; background: var(--bg); }
    tail of the long one rather than a different word, which is what lets the
    spoken name stay the same across the switch. */
 @media (max-width: 720px) {
-  /* The floor is the width of the icon buttons this control sits among: the
-     English side's single character would otherwise leave a box narrower than
-     its neighbours and narrower than a finger. */
-  .y-rubybtn { gap: 5px; padding: 0 6px; min-width: 32px; }
+  .y-rubybtn { gap: 5px; padding: 0 6px; }
   .y-rubybtn__label--long { display: none; }
   .y-rubybtn__label--short { display: inline; }
 }

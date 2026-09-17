@@ -80,10 +80,10 @@ var (
 // The reading aids over Japanese text. The note says the switch is inert
 // everywhere else, so a reader who turns it on and sees nothing knows why.
 var (
-	PrefFurigana     = both("振假名", "Furigana")
+	PrefFurigana     = both("顯示讀音", "Readings")
 	PrefFuriganaNote = both(
-		"只影響有振假名的頁面。",
-		"Applies to the pages that carry furigana.",
+		"只影響日文上方標了讀音的頁面。",
+		"Applies to the pages that carry readings above the Japanese text.",
 	)
 )
 
@@ -147,8 +147,8 @@ var (
 		"Settings are cookies on this address; the sidebar's own values die with the tab; none of it leaves this machine.",
 	)
 	PrefStorageCookies = both(
-		"cookie 記著：介面語言、外觀、字級、字體、振假名、單鍵快捷鍵",
-		"Cookies: language, appearance, text size, typeface, furigana, single-key shortcuts",
+		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵",
+		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts",
 	)
 	PrefStorageSession = both(
 		"分頁內的值：側欄展開狀態、側欄篩選字",

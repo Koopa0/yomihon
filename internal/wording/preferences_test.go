@@ -110,7 +110,7 @@ func TestSettingsSentencesCarryNoJargonAndNoCounting(t *testing.T) {
 		t.Errorf("the storage note reads %q, want it to still carry %q", got, want)
 	}
 	// The lists are what the counts were a second copy of, so they stay.
-	for _, item := range []string{"介面語言", "外觀", "字級", "字體", "振假名", "單鍵快捷鍵"} {
+	for _, item := range []string{"介面語言", "外觀", "字級", "字體", "顯示讀音", "單鍵快捷鍵"} {
 		if !strings.Contains(PrefStorageCookies.In(ZhHant), item) {
 			t.Errorf("the cookie list no longer names %q; the naming is the part that was never wrong", item)
 		}

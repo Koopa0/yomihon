@@ -105,7 +105,11 @@ type SearchResult struct {
 	LandingBare string
 
 	// LandingEnd is the last-block stretch of a crossing match, so the
-	// directive can name a range instead of the first copy of a word.
+	// directive can name a range instead of the first copy of a word. It
+	// arrives grown to the edges of the words it lies inside, because a
+	// browser holds it to both of them in either place it can take — closing
+	// a range, or travelling alone where the first block held nothing
+	// locatable — and spends the whole directive when it cannot find it.
 	LandingEnd string
 
 	// LandingPrefix is the run of words the match follows inside the block
