@@ -46,17 +46,21 @@ About those rows:
 The withholding applies to the agent-facing commands only: the HTTP reading room serves the owner every note, including those under `never_egress_dirs` (2026-09-04, #149; details in the threat model).
 
 The reader's browser holds the reading choices and where they had the left
-rail, and nothing else. Six cookies carry the choices — the server writes them
-at `/preferences` and at the language form, and the page's own script writes
-the same six names when a header control is used, so a choice made with script
-and one made without expire together. Two `sessionStorage` keys carry the rail.
+rail, and nothing else. Six cookies carry the choices, and the server writes
+every one of them — at `/preferences`, and at the language form. Four of the
+six also have a control in the header that the page's own script answers
+directly: the desk, the text size, the furigana and the shortcuts, written
+under the same names and for the same year, so a choice made with script and
+one made without expire together. The typeface and the language have no header
+control, and nothing but the server writes them. Two `sessionStorage` keys
+carry the rail.
 
 | Kept in the browser | What it holds | How long |
 |---|---|---|
 | `yomihon_lang` | Which language the interface speaks, `zh-Hant` or `en` | A year from the last write |
-| `yomihon_theme` | The desk, `light` or `dark`; no value means the stylesheet's own answer | A year from the last write |
+| `yomihon_theme` | The desk, `light` or `dark`; no value leaves the system's own setting deciding | A year from the last write |
 | `yomihon_textsize` | The text size, `m`, `l` or `xl` | A year from the last write |
-| `yomihon_font` | The typeface, `serif`, `sans` or `kai` | A year from the last write |
+| `yomihon_font` | The typeface, `serif`, `sans` or `kai`; no value is the serif face as well | A year from the last write |
 | `yomihon_ruby` | Whether furigana show, `on` or `off` | A year from the last write |
 | `yomihon_shortcuts` | Whether single-key shortcuts answer, `on` or `off` | A year from the last write |
 | `yomihon.nav` | Which folders of the left rail the reader opened or closed, one true-or-false each | Until the tab closes |
