@@ -164,7 +164,22 @@ func (v *NoteView) diagCount() int {
 // rail's column is dropped and the write face moves to the bottom bar, so no
 // reader sits beside a tall gutter holding a lone status card.
 func (v *NoteView) hasAids() bool {
-	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 || v.citedByShown() || len(v.BasedOn) > 0
+	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 ||
+		v.citedByShown() || len(v.BasedOn) > 0
+}
+
+// offersMark reports whether this page can offer to keep the reader's place.
+// It needs the note's own address and the identity of the bytes being shown,
+// because the mark is both of those and a page missing either would store a
+// place that points at nothing in particular.
+//
+// The control it gates is drawn in the right rail alone. The rail scrolls
+// separately from the article, so reaching the control does not move the page
+// out from under the position it is about; a copy among the inline aids, which
+// sit between the title and the first sentence, would be reached by scrolling
+// back to the top and would keep that place instead of the reader's.
+func (v *NoteView) offersMark() bool {
+	return v.RelPath != "" && v.ContentIdentity != ""
 }
 
 // citedByShown reports whether the answer about what links here means anything

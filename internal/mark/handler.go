@@ -63,7 +63,7 @@ func (h *Handler) set(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, wording.MarkRefused.In(lang), http.StatusUnprocessableEntity)
 		return
 	}
-	kept := Continuation{
+	kept := &Continuation{
 		RelPath:  r.PostFormValue("path"),
 		Anchor:   r.PostFormValue("anchor"),
 		Offset:   offset,

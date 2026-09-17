@@ -1,8 +1,6 @@
 package pages
 
-import (
-	"github.com/koopa0/yomihon/internal/wording"
-)
+import "github.com/koopa0/yomihon/internal/wording"
 
 // markControl is the reader's own verb on a reading page: keep this place, so
 // the desk can offer it back. It sits beside the status panel because both are
@@ -14,7 +12,7 @@ import (
 // no script has no such thing to send. Everything else on this page works
 // without one.
 templ markControl(v NoteView, lang wording.Lang) {
-	if v.RelPath != "" && v.ContentIdentity != "" {
+	if v.offersMark() {
 		<section
 			class="y-markset"
 			data-mark-control

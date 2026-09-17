@@ -22,8 +22,8 @@ import (
 // anIdentity is a content identity in the one spelling a reading page stamps.
 const anIdentity = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-func aPlace() mark.Continuation {
-	return mark.Continuation{
+func aPlace() *mark.Continuation {
+	return &mark.Continuation{
 		RelPath:  "Writing/lessons/japanese/L01.md",
 		Anchor:   "the-topic-particle",
 		Offset:   420,
@@ -90,7 +90,7 @@ func TestAKeptPlaceComesBack(t *testing.T) {
 	if !ok {
 		t.Fatal("the place that was just kept is not reported")
 	}
-	if diff := cmp.Diff(want, got); diff != "" {
+	if diff := cmp.Diff(*want, got); diff != "" {
 		t.Errorf("Continuation() mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -116,7 +116,7 @@ func TestKeepingAnotherPlaceReplacesTheFirst(t *testing.T) {
 	if !ok {
 		t.Fatal("no place is reported after two were kept")
 	}
-	if diff := cmp.Diff(second, got); diff != "" {
+	if diff := cmp.Diff(*second, got); diff != "" {
 		t.Errorf("the second place did not replace the first (-want +got):\n%s", diff)
 	}
 
@@ -253,7 +253,7 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 			t.Parallel()
 			file := newFile(t)
 			refused := aPlace()
-			tt.spoil(&refused)
+			tt.spoil(refused)
 			err := file.SetContinuation(refused)
 			if err == nil {
 				t.Fatalf("SetContinuation(%s) was accepted", tt.name)
@@ -287,7 +287,7 @@ func TestARefusalLeavesTheKeptPlaceAlone(t *testing.T) {
 	if !ok {
 		t.Fatal("the kept place is gone after a refusal")
 	}
-	if diff := cmp.Diff(want, got); diff != "" {
+	if diff := cmp.Diff(*want, got); diff != "" {
 		t.Errorf("a refusal changed the kept place (-want +got):\n%s", diff)
 	}
 }
@@ -383,7 +383,7 @@ func newHandler(t *testing.T) (*mark.File, http.Handler) {
 
 func post(t *testing.T, handler http.Handler, form url.Values) *http.Response {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, mark.Address, strings.NewReader(form.Encode()))
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, mark.Address, strings.NewReader(form.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
@@ -486,7 +486,7 @@ func TestOnlyPostReachesTheRoute(t *testing.T) {
 
 	_, handler := newHandler(t)
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, mark.Address, nil))
+	handler.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, mark.Address, http.NoBody))
 	response := recorder.Result()
 	defer func() {
 		if err := response.Body.Close(); err != nil {

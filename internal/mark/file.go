@@ -113,6 +113,7 @@ func (f *File) Continuation() (Continuation, bool) {
 }
 
 // SetContinuation replaces this file's mark with c, or refuses it unchanged.
+// It reads c and never writes through the pointer.
 //
 // The replacement is written beside the file and renamed over it, so a reader
 // whose machine stops mid-write finds either the old mark or the new one and
@@ -120,8 +121,8 @@ func (f *File) Continuation() (Continuation, bool) {
 // the status write buys there is for an author's own bytes surviving a power
 // cut, and what is lost here is one mark a reader sets again by pressing the
 // same control.
-func (f *File) SetContinuation(c Continuation) error {
-	if err := validate(&c); err != nil {
+func (f *File) SetContinuation(c *Continuation) error {
+	if err := validate(c); err != nil {
 		return err
 	}
 	doc := document{

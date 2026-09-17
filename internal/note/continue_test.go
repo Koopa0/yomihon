@@ -18,14 +18,14 @@ import (
 // deskWithMark serves a desk over a one-note vault, with the place the reader
 // kept already in hand. The mark never reaches a file here: what the row is
 // built from is the closure, which is the seam this exercises.
-func deskWithMark(t *testing.T, body string, kept mark.Continuation, has bool) string {
+func deskWithMark(t *testing.T, body string, kept *mark.Continuation, has bool) string {
 	t.Helper()
 	return deskOverNote(t, "alpha.md", body, kept, has)
 }
 
 // deskOverNote is deskWithMark with the note's own filename, for the one case
 // that is about what a name does to an address.
-func deskOverNote(t *testing.T, name, body string, kept mark.Continuation, has bool) string {
+func deskOverNote(t *testing.T, name, body string, kept *mark.Continuation, has bool) string {
 	t.Helper()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "Notes"), 0o750); err != nil {
@@ -35,7 +35,7 @@ func deskOverNote(t *testing.T, name, body string, kept mark.Continuation, has b
 		t.Fatal(err)
 	}
 	srv := newServerWithMark(t, root, nil, schema.Ungoverned(),
-		func() (mark.Continuation, bool) { return kept, has })
+		func() (mark.Continuation, bool) { return *kept, has })
 
 	response, err := http.Get(srv.URL + "/") //nolint:noctx // the test server is torn down by the helper
 	if err != nil {
@@ -58,8 +58,8 @@ func deskOverNote(t *testing.T, name, body string, kept mark.Continuation, has b
 
 const aNote = "---\ntitle: Alpha\n---\n\n# Alpha\n\nSome words.\n"
 
-func keptIn(path, anchor string, offset int, identity string) mark.Continuation {
-	return mark.Continuation{
+func keptIn(path, anchor string, offset int, identity string) *mark.Continuation {
+	return &mark.Continuation{
 		RelPath:  path,
 		Anchor:   anchor,
 		Offset:   offset,
@@ -74,7 +74,7 @@ func keptIn(path, anchor string, offset int, identity string) mark.Continuation 
 func TestADeskWithNoMarkSaysNothingAboutOne(t *testing.T) {
 	t.Parallel()
 
-	page := deskWithMark(t, aNote, mark.Continuation{}, false)
+	page := deskWithMark(t, aNote, &mark.Continuation{}, false)
 	if strings.Contains(page, "data-home-continue") {
 		t.Error("the desk draws a way back when the reader has kept no place")
 	}

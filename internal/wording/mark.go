@@ -16,7 +16,7 @@ var MarkSaved = both("已留下待續位置。", "Your place is kept.")
 // and nothing syncs. It is said in words rather than left for a reader to
 // discover on the second machine.
 var MarkPerDevice = both(
-	"待續位置只留在這台裝置上,不會同步。",
+	"待續位置只留在這台裝置上，不會同步。",
 	"Your place is kept on this device only, and nothing syncs.",
 )
 

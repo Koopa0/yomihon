@@ -20,6 +20,11 @@ const MUTATE = process.env.MUTATE || '';
 // enough that an anchor sits above the top of the window and that landing at
 // the top of the document would be an obvious miss.
 const SCROLL_TO = 900;
+// The probe drives a width where the reading page draws its right rail, which
+// is where the control lives. The rail is its own scroll container, so reaching
+// the control does not move the article out from under the position being kept
+// — at a width with no rail there is no control, and nothing here to drive.
+const VIEWPORT = { width: 1600, height: 900 };
 const LANDING_SLACK = 4;
 
 const SITES = [
@@ -47,17 +52,30 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED reader-mark:
 
 // rewriteModule injects a regression into the client module itself, which is
 // where two of these behaviours are decided. The needle has to match exactly
-// once: a mutation aimed at a line that has been rewritten proves nothing, and
-// saying so is the difference between a probe that died and one that passed.
+// once in every copy served: a mutation aimed at a line that has been rewritten
+// proves nothing, and saying so is the difference between a probe that died and
+// one that passed.
+//
+// The count is kept per load rather than added up, because a run that visits
+// the note, the desk and the note again is served the module three times. A
+// single total would have to be three, and would then be a number that changes
+// whenever a site navigates once more — which is a proof that stops proving
+// anything the day someone adds a step.
 const rewriteModule = (needle, replacement, label) => async (page) => {
-  let matches = 0;
+  const perLoad = [];
   await page.route('**/mark.js', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
-    matches += original.split(needle).length - 1;
+    perLoad.push(original.split(needle).length - 1);
     await route.fulfill({ response, body: original.replace(needle, replacement) });
   });
-  return () => (matches === 1 ? '' : `${label} needle matched ${matches} times, want exactly 1`);
+  return () => {
+    if (perLoad.length === 0) return `${label}: the module was never served, so nothing was rewritten`;
+    if (perLoad.some((hits) => hits !== 1)) {
+      return `${label} needle matched [${perLoad.join(', ')}] across ${perLoad.length} loads, want exactly 1 in each`;
+    }
+    return '';
+  };
 };
 
 // rewriteDesk injects a regression into the page the row is drawn on, for the
@@ -152,17 +170,23 @@ const checkProof = (proof) => {
 // to have something to offer rather than for a fixed delay.
 const keepThePlace = async (page, path, { tamperIdentity = false } = {}) => {
   await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
-  const control = page.locator('[data-mark-control]');
-  if (await control.count() === 0) broken(`${path} carries no mark control`);
-  if (!await control.first().isVisible()) {
-    broken(`${path} draws the mark control but the page keeps it hidden with a script running`);
+  // The page draws the control twice — once in the right rail, once among the
+  // inline aids — and hides whichever one this width is not for. The reader
+  // presses the one they can see, so that is the one driven here; asking the
+  // first in document order would drive the hidden copy at any width below the
+  // rail's own.
+  const control = page.locator('[data-mark-control]:visible');
+  if (await page.locator('[data-mark-control]').count() === 0) {
+    broken(`${path} carries no mark control`);
+  }
+  if (await control.count() !== 1) {
+    broken(`${path} shows ${await control.count()} mark controls at this width, want exactly 1`);
   }
   if (tamperIdentity) {
     // The stored identity is made to disagree with the note's own, which is
     // what an edit between keeping the place and coming back produces. No file
     // is touched: the disagreement is the whole of what the row reads.
-    await page.evaluate(() => {
-      const node = document.querySelector('[data-mark-control]');
+    await control.evaluate((node) => {
       node.dataset.markIdentity = 'f'.repeat(64);
     });
   }
@@ -171,12 +195,11 @@ const keepThePlace = async (page, path, { tamperIdentity = false } = {}) => {
     (response) => new URL(response.url()).pathname === '/marks',
     { timeout: 4000 },
   ).catch(() => null);
-  await page.locator('[data-mark-button]').first().click();
+  await control.locator('[data-mark-button]').click();
   await posted;
   // The confirmation is the page's own word that the round trip finished, so
   // the desk is not asked before the file exists.
-  await page.locator('[data-mark-said]').first()
-    .waitFor({ state: 'attached', timeout: 4000 });
+  await control.locator('[data-mark-said]').waitFor({ state: 'attached', timeout: 4000 });
 };
 
 const deskRow = async (page) => {
@@ -189,7 +212,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   // --- The kept place comes back on the desk ---------------------------
   {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const context = await browser.newContext({ viewport: VIEWPORT });
     const page = await context.newPage();
     const proof = await applyMutation(page, 'kept-place-is-offered-back');
     await keepThePlace(page, PAGE);
@@ -207,7 +230,7 @@ try {
 
   // --- Following it lands where the window was -------------------------
   {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const context = await browser.newContext({ viewport: VIEWPORT });
     const page = await context.newPage();
     const proof = await applyMutation(page, 'following-it-lands-where-the-window-was');
     await keepThePlace(page, PAGE);
@@ -240,7 +263,7 @@ try {
 
   // --- A note that changed says so -------------------------------------
   {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const context = await browser.newContext({ viewport: VIEWPORT });
     const page = await context.newPage();
     const proof = await applyMutation(page, 'a-changed-note-says-so');
     await keepThePlace(page, PAGE, { tamperIdentity: true });
@@ -262,7 +285,7 @@ try {
 
   // --- Keeping another place replaces the first ------------------------
   {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const context = await browser.newContext({ viewport: VIEWPORT });
     const page = await context.newPage();
     const proof = await applyMutation(page, 'keeping-another-replaces-it');
     await keepThePlace(page, PAGE);
