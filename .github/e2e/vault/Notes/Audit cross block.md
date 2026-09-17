@@ -6,6 +6,13 @@ type: concept
 A long note whose searched-for phrase sits well below the opening, so a
 result that does not scroll is visibly a result that did not arrive.
 
+The ruby sentence at the foot is the second case. The page draws its reading
+in among the characters it is spoken over, so that block never names the words
+a match follows and its term has to stand on its own — and a term standing
+alone is looked for only where a word begins and where one ends. Searching for
+the tail of the long word in it is therefore a search that used to arrive
+nowhere.
+
 The ledger opens on a quiet morning and nothing of consequence is written down.
 
 A second reading of the same column finds the totals agreeing with themselves.
@@ -75,3 +82,5 @@ gamma opens the column that the afternoon's correction belongs to.
 The volumes go back on the shelf and the grey cloth is dusted a second time.
 
 Friday opens on a quiet morning and nothing of consequence is written down.
+
+<ruby>今日<rt>きょう</rt></ruby>は晴れ、molybdenum が続く。

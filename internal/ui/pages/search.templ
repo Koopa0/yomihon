@@ -96,6 +96,14 @@ type SearchResult struct {
 	// crossing match has nothing locatable in its first block.
 	Landing string
 
+	// LandingBare is the stretch to name where no words go ahead of it in the
+	// directive: Landing grown out to the edges of the words it lies inside,
+	// because a browser looks for a run introduced by nothing only where a
+	// word begins and where one ends. It equals Landing for most matches, and
+	// a row that carries a landing carries this too — a row filled in without
+	// it offers the reader no directive at all.
+	LandingBare string
+
 	// LandingEnd is the last-block stretch of a crossing match, so the
 	// directive can name a range instead of the first copy of a word.
 	LandingEnd string

@@ -44,6 +44,18 @@ type Result struct {
 	// nothing locatable in its first block.
 	Landing string
 
+	// LandingBare is the stretch to name where the directive carries no words
+	// ahead of it: Landing grown out to the edges of the words it lies
+	// inside. A browser looks for a run introduced by nothing only where a
+	// word begins and where one ends, so a match opening or closing inside a
+	// word is asked for at a place the page has nowhere, and the note stays
+	// at the top. It equals Landing wherever the match already lies on those
+	// edges, which is most matches. Each edge is decided on its own, and one
+	// resting inside a script that parts no words with spaces stays where the
+	// match left it: the edges there are a segmentation nothing here can
+	// find, and the sentence around the match is not them.
+	LandingBare string
+
 	// LandingEnd is the last-block stretch of a crossing match. A directive
 	// that names both ends can span blocks; a bare first-block term would
 	// land on an earlier copy of the same word.
@@ -453,13 +465,14 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	if !metadataAvailable || !e.metadataCapable {
 		status, noteType = "", ""
 	}
-	var bodySnippet, prefix, landing, landingEnd string
-	var crossing, fromFence bool
+	var bodySnippet string
+	var terms landingTerms
+	var fromFence bool
 	if bodyEvidence {
 		var foldStart, foldEnd int
 		foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
 		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
-		prefix, landing, landingEnd, crossing = e.landingAt(foldStart, foldEnd)
+		terms = e.landingAt(foldStart, foldEnd)
 	}
 	return Result{
 		RelPath:       e.RelPath,
@@ -470,22 +483,36 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		Topic:         topic,
 		NoteType:      noteType,
 		File:          e.isFile,
-		Landing:       landing,
-		LandingEnd:    landingEnd,
-		LandingPrefix: prefix,
-		BlockCrossing: crossing,
+		Landing:       terms.first,
+		LandingBare:   terms.bare,
+		LandingEnd:    terms.last,
+		LandingPrefix: terms.prefix,
+		BlockCrossing: terms.crossing,
 		FromFence:     fromFence,
 		Language:      e.language,
 	}
 }
 
-// landingAt is the run of words before one folded body match, its first and
-// last block, and whether that match continues into a later block. The
-// exclusive end is the last matched rune plus its length: the next kept rune
-// can sit in a later block after a fold-dropped break, which is not itself a
-// crossing. Without recorded block ends there is nothing to tell a wrap from a
-// paragraph, so the row keeps the snippet's own words and does not claim a
-// crossing.
+// landingTerms is everything one body match gives a browser text directive:
+// the stretch to arrive at, that same stretch grown to whole words for a
+// directive that names nothing ahead of it, the run of words the match
+// follows, the stretch its far end sits in, and whether it left its block to
+// reach that end. They travel together because a directive is assembled from
+// all of them at once, and four loose strings are four a caller can pair up
+// the wrong way round.
+type landingTerms struct {
+	prefix   string
+	first    string
+	bare     string
+	last     string
+	crossing bool
+}
+
+// landingAt is the terms one folded body match offers. The exclusive end is
+// the last matched rune plus its length: the next kept rune can sit in a later
+// block after a fold-dropped break, which is not itself a crossing. Without
+// recorded block ends there is nothing to tell a wrap from a paragraph, so the
+// row keeps the snippet's own words and does not claim a crossing.
 //
 // The preceding run is cut at the start of the match's own block, because a
 // directive may only name one where it sits beside the term it introduces. A
@@ -497,31 +524,90 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 // after the sentence it is spoken inside, and a footnote's mark is on the page
 // and not in this text at all. Such a run would match nothing and the note
 // would open at the top, which is worse than the bare term it replaced.
-func (e *entry) landingAt(foldStart, foldEnd int) (prefix, first, last string, crossing bool) {
+//
+// Those are the blocks whose stretch has to stand on its own, which is why the
+// grown form is measured for every match rather than only for some: a block
+// that offers no run of words ahead of the match has nothing else to offer.
+// The growth stays inside the block, so a word cannot be assembled out of two
+// paragraphs the page draws apart.
+func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	if foldStart < 0 || foldEnd <= foldStart || len(e.blocks) == 0 {
-		return "", "", "", false
+		return landingTerms{}
 	}
 	start := sourceOffsetOfFold(e.PlainText, foldStart)
 	end := sourceEndOfFold(e.PlainText, foldEnd)
 	if start >= end || end > len(e.PlainText) {
-		return "", "", "", false
+		return landingTerms{}
 	}
-	if blockStart, verbatim := e.blockAt(start); verbatim {
-		prefix = landingPrefix(collapseFields(e.PlainText[blockStart:start]))
+	var terms landingTerms
+	blockStart, verbatim := e.blockAt(start)
+	if verbatim {
+		terms.prefix = landingPrefix(collapseFields(e.PlainText[blockStart:start]))
 	}
 	firstEnd := e.blockEndAfter(start)
-	crossing = end > firstEnd
+	terms.crossing = end > firstEnd
 	firstStop := end
-	if crossing {
+	if terms.crossing {
 		firstStop = firstEnd
 	}
-	first = collapseFields(e.PlainText[start:firstStop])
-	if !crossing {
-		return prefix, first, "", false
+	terms.first = collapseFields(e.PlainText[start:firstStop])
+	bareStart, bareEnd := wordEdges(e.PlainText, start, firstStop, blockStart, firstEnd)
+	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
+	if !terms.crossing {
+		return terms
 	}
 	lastStart, _ := e.blockAt(end - 1)
 	from := max(lastStart, firstEnd)
-	return prefix, first, collapseFields(e.PlainText[from:end]), true
+	terms.last = collapseFields(e.PlainText[from:end])
+	return terms
+}
+
+// wordEdges grows [start, end) out to the edges of the words it lies inside,
+// never leaving [low, high). Only an end whose own character is one a word
+// joins can be inside a word at all; every other end already stands on a
+// boundary and is left alone. Each end is asked separately. That one condition
+// is what keeps a stretch of white space from drawing in the word beside it,
+// and what leaves an end resting inside a script that parts no words with
+// spaces exactly where it was — the edges there are a segmentation this vault
+// has no way to find, and the sentence around the match is not them.
+func wordEdges(s string, start, end, low, high int) (grownStart, grownEnd int) {
+	grownStart, grownEnd = start, end
+	if opening, _ := utf8.DecodeRuneInString(s[start:end]); joinsAWord(opening) {
+		for grownStart > low {
+			r, size := utf8.DecodeLastRuneInString(s[low:grownStart])
+			if !joinsAWord(r) {
+				break
+			}
+			grownStart -= size
+		}
+	}
+	if closing, _ := utf8.DecodeLastRuneInString(s[:end]); joinsAWord(closing) {
+		for grownEnd < high {
+			r, size := utf8.DecodeRuneInString(s[grownEnd:high])
+			if !joinsAWord(r) {
+				break
+			}
+			grownEnd += size
+		}
+	}
+	return grownStart, grownEnd
+}
+
+// joinsAWord reports whether r is joined to the character beside it into one
+// word, the way Unicode text segmentation (UAX #29) joins them: a letter or a
+// digit, in a script that parts its words with spaces. Every other character
+// carries a boundary on both sides, so a stretch that begins or ends against
+// one begins or ends where a word does.
+//
+// It is neither of the two runs already measured in this file. wordRun is
+// bounded by white space alone, so in "今日は晴れ、cobaltine" it answers the
+// whole sentence, and a browser handed that sentence as one term finds nothing
+// — twice over, because the page draws a ruby reading in among the characters
+// it is spoken over, so a stretch reaching across one is not text the page
+// carries in one piece at all. isWordByte keeps a date or an identifier whole
+// for a reader and so holds on to the hyphen, which a browser breaks at.
+func joinsAWord(r rune) bool {
+	return (unicode.IsLetter(r) || unicode.IsDigit(r)) && !writesWithoutSpaces(r)
 }
 
 // landingPrefix cuts a block's run of words before a match down to what one

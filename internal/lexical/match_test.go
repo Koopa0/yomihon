@@ -1711,6 +1711,134 @@ func TestLandingNamesTheWordsTheMatchFollowsInsideItsOwnBlock(t *testing.T) {
 	}
 }
 
+// A reader who types the middle of a word matches the middle of it, and a
+// stretch handed to a browser with nothing ahead of it is looked for only
+// where a word begins and where one ends. So the stretch a directive can name
+// alone is the match grown out to the edges of the words it lies inside.
+//
+// Which characters a word is made of is the browser's question, not this
+// index's: it joins letters and digits and breaks at everything else, so a
+// comma ends a word and a hyphen does too. The run white space alone would
+// bound is a different thing and a longer one — in a sentence whose words are
+// not parted by spaces it is the whole sentence, and handing a browser that
+// finds nothing.
+func TestLandingGrowsAMatchToTheWordsAroundIt(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Bare.md", []byte(""+
+			"# Bare\n\n"+
+			"The ledger records molybdenum here.\n\n"+
+			"A read-aloud button sits below.\n\n"+
+			"今日は晴れ、cobaltine が続く。\n"))),
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		name  string
+		query string
+		bare  string
+	}{
+		{name: "a match already on both edges is left alone", query: "molybdenum", bare: "molybdenum"},
+		{name: "a tail grows back to the head of its word", query: "lybdenum", bare: "molybdenum"},
+		{name: "a head grows on to the end of its word", query: "molybden", bare: "molybdenum"},
+		{name: "a match inside a word grows at both ends", query: "olybden", bare: "molybdenum"},
+		{
+			// A browser breaks a word at the hyphen, so the second half of
+			// this one already opens where a word does and is not dragged
+			// back across it.
+			name:  "a hyphen is an edge, not something to grow across",
+			query: "aloud",
+			bare:  "aloud",
+		},
+		{
+			// The hyphen inside the stretch is not at either end of it, so it
+			// stops nothing: both ends still grow to the word they are in.
+			name:  "a hyphen inside the stretch stops neither end",
+			query: "ead-alo",
+			bare:  "read-aloud",
+		},
+		{
+			// White space parts no words here, so the run one would bound
+			// reaches back through the comma to the start of the sentence.
+			// The word ends at the comma, and so does the growth.
+			name:  "a comma bounds the word, not the sentence around it",
+			query: "baltine",
+			bare:  "cobaltine",
+		},
+		{
+			name:  "a word already whole inside such a sentence is left alone",
+			query: "cobaltine",
+			bare:  "cobaltine",
+		},
+		{
+			// The edges of a word are a segmentation nothing here can find,
+			// so the stretch is handed over exactly as the match left it.
+			name:  "a script that parts no words with spaces is not grown",
+			query: "晴れ",
+			bare:  "晴れ",
+		},
+		{
+			name:  "nor is one whose match ends against a comma",
+			query: "れ、",
+			bare:  "れ、",
+		},
+		{
+			// Each end is asked on its own, so a match that opens in one
+			// script and closes inside a word of the other grows only at the
+			// end that can be grown. Nothing is owed here — a stretch opening
+			// mid-word in such a script is not found either way — but the two
+			// ends are decided separately and this is what that looks like.
+			name:  "an end that can grow does, whatever the other end is",
+			query: "れ、cobaltin",
+			bare:  "れ、cobaltine",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := searchResults(t, idx, Parse(tt.query))
+			if len(got) != 1 {
+				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			}
+			if got[0].LandingBare != tt.bare {
+				t.Errorf("LandingBare = %q, want %q (Landing = %q)", got[0].LandingBare, tt.bare, got[0].Landing)
+			}
+		})
+	}
+}
+
+// The growth stays inside the block the match opened in, and a stretch that is
+// nothing but white space lies inside no word and so grows nowhere: it would
+// otherwise reach back and name a neighbouring word the reader never asked
+// about, and for a crossing match that word would take the directive over
+// from the far end that can actually be found.
+func TestLandingGrowthStaysInsideTheBlockAndOutOfTheGaps(t *testing.T) {
+	t.Parallel()
+
+	plain := "abc def    \nghi"
+	idx := NewIndex([]Document{{
+		RelPath:   "Notes/Gaps.md",
+		Title:     "Gaps",
+		PlainText: plain,
+		Blocks: []render.Block{
+			{End: strings.Index(plain, "\n"), Verbatim: true},
+			{End: len(plain), Verbatim: true},
+		},
+	}}, validArtifactPolicy(t))
+
+	got := searchResults(t, idx, Parse(`"  ghi"`))
+	if len(got) != 1 {
+		t.Fatalf("Search = %+v, want one hit", got)
+	}
+	if got[0].Landing != "" || got[0].LandingBare != "" {
+		t.Errorf("Landing = %q / LandingBare = %q, want both empty: the match opens in the gap after %q",
+			got[0].Landing, got[0].LandingBare, "def")
+	}
+	if got[0].LandingEnd != "ghi" {
+		t.Errorf("LandingEnd = %q, want ghi; the far end is what such a row has left to name", got[0].LandingEnd)
+	}
+}
+
 // The run is written for a browser to find again in rendered text, so it is
 // kept short. Words come off the front whole, and nothing is ever cut inside
 // what strings.Fields calls one word: a browser looks for a leading run only

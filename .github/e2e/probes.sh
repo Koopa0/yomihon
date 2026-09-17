@@ -33,6 +33,7 @@ probes=(
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"
   "right-rail-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "skip-link-contract.mjs|/notes/Notes/alpha.md"
+  "arrival-fade.mjs|/notes/Notes/reading-fidelity.md"
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
   "print-librarian-chrome.mjs|/notes/Notes/reading-fidelity.md"
   "heading-fragment.mjs|/notes/Notes/reading-fidelity.md"
@@ -59,6 +60,7 @@ probes=(
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
   "result-landing-visibility.mjs|/search?q=%22alpha%20beta%20gamma%22"
   "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
+  "midword-landing.mjs|/search?q=lybdenum"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
 )
 

@@ -77,15 +77,24 @@ func rawHref(p string) string { return VaultHref("/raw/", p) }
 // words ahead of the match in the same block, the directive names them, and
 // the one the reader meant is the one it finds. A match that opens its block
 // has none, and the directive stays the bare term.
+//
+// A bare term is looked for under a rule the introduced one is spared: with
+// nothing ahead of it the browser stops only where a word begins and where one
+// ends. A reader who types the middle of a word matches the middle of it, so
+// searching for the tail of "molybdenum" used to ask the page for a stretch it
+// has nowhere and the note opened at the top. Such a term goes out as the
+// whole word instead. The words the note has ahead of a match are the better
+// answer where the block offers them, so they still decide the shape, and this
+// grown form is what the rest fall back to.
 func hitFragment(r *SearchResult) string {
 	if r.BlockCrossing {
-		start := strings.TrimSpace(r.Landing)
+		prefix, start := landingTerm(r)
 		end := strings.TrimSpace(r.LandingEnd)
 		switch {
 		case start != "" && end != "":
-			return textDirective(r.LandingPrefix, start, end)
+			return textDirective(prefix, start, end)
 		case start != "":
-			return textDirective(r.LandingPrefix, start, "")
+			return textDirective(prefix, start, "")
 		case end != "":
 			// Those words sit in the first block and this stretch in the
 			// last, and a prefix is only read as one beside a term from the
@@ -101,16 +110,30 @@ func hitFragment(r *SearchResult) string {
 			// The words ahead of the match run up to the match itself. An
 			// excerpt opens before it and can carry an earlier copy of one of
 			// the query's words, which is then the first thing marked; that
-			// copy is not what they lead to, so such a row keeps its bare
-			// term rather than pointing at a place the note never has.
-			prefix := ""
-			if text == strings.TrimSpace(r.Landing) {
-				prefix = r.LandingPrefix
+			// copy is not what they lead to, so such a row points at it as it
+			// was marked rather than at a place the note never has.
+			if text != strings.TrimSpace(r.Landing) {
+				return textDirective("", text, "")
 			}
-			return textDirective(prefix, text, "")
+			prefix, start := landingTerm(r)
+			return textDirective(prefix, start, "")
 		}
 	}
 	return ""
+}
+
+// landingTerm is the opening of a directive that names the landing match: the
+// run of words it follows, and the stretch to arrive at. The two are chosen
+// together because the browser asks less of a stretch a run introduces — it
+// takes that one wherever the run leaves off, and the other only where a word
+// begins — so the stretch that can stand alone is wanted exactly where there
+// is no run to put in front of it. Both empty leaves the row with no term of
+// its own, which for a crossing match is what hands the far end the directive.
+func landingTerm(r *SearchResult) (prefix, start string) {
+	if prefix = strings.TrimSpace(r.LandingPrefix); prefix != "" {
+		return prefix, strings.TrimSpace(r.Landing)
+	}
+	return "", strings.TrimSpace(r.LandingBare)
 }
 
 // textDirective assembles the fragment for one hit. The "-" that marks the
