@@ -18,7 +18,7 @@ import (
 func TestHealthIsNotCleanWhileAnyListHasSomethingInIt(t *testing.T) {
 	t.Parallel()
 
-	ref := []nav.NoteRef{{RelPath: "Concepts/a.md", Name: "a"}}
+	found := []HealthNoteFindings{{Note: nav.NoteRef{RelPath: "Concepts/a.md", Name: "a"}, Count: 1}}
 	for _, tc := range []struct {
 		name string
 		view HealthView
@@ -31,8 +31,8 @@ func TestHealthIsNotCleanWhileAnyListHasSomethingInIt(t *testing.T) {
 		{"a path that is not a file", HealthView{Skipped: []HealthSkippedSource{{}}}},
 		{"a status outside its list", HealthView{StatusOutsideEnum: []HealthStatusNote{{}}}},
 		{"a status no lifecycle row reaches", HealthView{StatusUnreachable: []HealthStatusNote{{}}}},
-		{"frontmatter that cannot be read", HealthView{FrontmatterUnreadable: ref}},
-		{"frontmatter the schema rejects", HealthView{SchemaFaults: ref}},
+		{"frontmatter that cannot be read", HealthView{FrontmatterUnreadable: found}},
+		{"frontmatter the schema rejects", HealthView{SchemaFaults: found}},
 		{"a scope that could not be worked out", HealthView{InstanceScopeUnknown: "why"}},
 		{"a vocabulary that could not be read", HealthView{SchemaScopeUnknown: "why"}},
 	} {

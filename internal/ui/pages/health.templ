@@ -1,9 +1,9 @@
 package pages
 
 import (
-	"fmt"
 	"strconv"
 
+	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -20,10 +20,10 @@ type HealthView struct {
 	// repair is an alias rather than a new note.
 	TitleOnly []snapshot.HealthTitleLink
 	// Islands are notes nothing cites in the body, grouped by folder.
-	// A based_on declaration is not a citation here; the heading says so.
+	// A based_on declaration is not a citation here; the guide says so.
 	Islands []HealthIslandGroup
-	// IslandCount is every uncited note across the groups, so the heading can
-	// say the whole number the groups add up to.
+	// IslandCount is every uncited note across the groups, so the page can tell
+	// whether it has anything to report before it counts its own rows.
 	IslandCount int
 	// Collisions are names more than one file answers to.
 	Collisions []HealthCollision
@@ -37,18 +37,18 @@ type HealthView struct {
 	Skipped []HealthSkippedSource
 	// StatusOutsideEnum are the notes whose status value is outside their type's
 	// declared list. An empty list renders nothing, the unknowable case
-	// included, and the section's number is this list's own length.
+	// included.
 	StatusOutsideEnum []HealthStatusNote
 	// StatusUnreachable are the notes whose status is in its type's declared
 	// group while no lifecycle row with that status applies to its type.
 	StatusUnreachable []HealthStatusNote
 	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
 	// so nothing they declare could be judged at all.
-	FrontmatterUnreadable []nav.NoteRef
+	FrontmatterUnreadable []HealthNoteFindings
 	// SchemaFaults are the notes whose frontmatter reads and carries something
 	// the schema does not accept. The detail stays on each note's own page,
 	// two accounts of one file being how the two start disagreeing.
-	SchemaFaults []nav.NoteRef
+	SchemaFaults []HealthNoteFindings
 	// InstanceScopeUnknown and SchemaScopeUnknown are why a group of the lists
 	// above could not be worked out, empty where it could: an empty list under
 	// a silent heading reads as "nothing found", which is a different and here
@@ -63,7 +63,10 @@ type HealthView struct {
 	// when this page's generation was built: a reading that lost some sources
 	// carries the last copy of each. Empty means no whole read since startup.
 	LastComplete string
-	Sidebar      Sidebar
+	// Sort is the column the reader asked the table to be ordered by, already
+	// read against the closed set.
+	Sort    HealthColumn
+	Sidebar Sidebar
 }
 
 // HealthStatusNote is one note carrying a status its own type never declared,
@@ -73,6 +76,16 @@ type HealthStatusNote struct {
 	Note   nav.NoteRef
 	Type   string
 	Status string
+}
+
+// HealthNoteFindings is one note the schema had something to say about: how
+// many things it said, and how heavy the heaviest of them was. What it said
+// stays on that note's own page, because one file described twice in two
+// places is how two accounts of it start to disagree.
+type HealthNoteFindings struct {
+	Note     nav.NoteRef
+	Severity judge.Severity
+	Count    int
 }
 
 // HealthBlockedSource is one path the snapshot build could not read, with the
@@ -121,132 +134,9 @@ templ Health(v HealthView, c layouts.Chrome) {
 						<p class="y-homeempty">{ wording.HealthAllClear.In(c.Lang) }<code lang="en">yomihon check</code>{ wording.HealthAllClearAfterCommand.In(c.Lang) }</p>
 					} else {
 						<p class="y-healthlede">{ wording.HealthReportsOnly.In(c.Lang) }</p>
-						@healthSection(wording.BlockedTitle.In(c.Lang), len(v.Blocked), v.blockedLede(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, source := range v.Blocked {
-									<li>
-										<span class="y-healthlist__name">{ source.Path }</span>
-										if source.Reason != "" {
-											<span class="y-healthlist__detail"><code lang="en">{ source.Reason }</code></span>
-										}
-									</li>
-								}
-							</ul>
-						}
-						@healthSection(wording.SkippedTitle.In(c.Lang), len(v.Skipped), wording.SkippedLede.In(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, source := range v.Skipped {
-									<li>
-										<span class="y-healthlist__name">{ source.Path }</span>
-										if source.Size > 0 {
-											<span class="y-healthlist__detail">{ humanSize(source.Size, c.Lang) }</span>
-										}
-										if source.Reason != "" {
-											<span class="y-healthlist__detail"><code lang="en">{ source.Reason }</code></span>
-										}
-									</li>
-								}
-							</ul>
-						}
-						@healthSection(wording.UnwrittenTitle.In(c.Lang), len(v.Unwritten), wording.UnwrittenLede.In(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, link := range v.Unwritten {
-									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }><span { authoredLanguageAttrs(link.From.Language)... }>{ link.From.Name }</span></a>
-										<span class="y-healthlist__detail">{ fmt.Sprintf(wording.LinkedToFmt.In(c.Lang), link.Target) }</span>
-									</li>
-								}
-							</ul>
-						}
-						@healthSection(wording.TitleOnlyTitle.In(c.Lang), len(v.TitleOnly), wording.TitleOnlyLede.In(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, link := range v.TitleOnly {
-									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(link.From.RelPath)) }><span { authoredLanguageAttrs(link.From.Language)... }>{ link.From.Name }</span></a>
-										<span class="y-healthlist__detail">
-											{ fmt.Sprintf(wording.TitleOnlyMeansTo.In(c.Lang), link.Target) }
-											<a class="y-healthlink" href={ templ.URL(notesHref(link.Note.RelPath)) }><span { authoredLanguageAttrs(link.Note.Language)... }>{ link.Note.Name }</span></a>
-										</span>
-									</li>
-								}
-							</ul>
-						}
-						@healthSection(wording.IslandsTitle.In(c.Lang), v.IslandCount, wording.IslandsLede.In(c.Lang)) {
-							for _, group := range v.Islands {
-								<details class="y-islandgroup">
-									<summary class="y-islandgroup__head">
-										{ group.Name }
-										<span class="ui-navitem__count">{ strconv.Itoa(len(group.Notes)) }</span>
-									</summary>
-									<ul class="y-healthlist">
-										for _, ref := range group.Notes {
-											<li><a class="y-healthlink" href={ templ.URL(notesHref(ref.RelPath)) }><span { authoredLanguageAttrs(ref.Language)... }>{ ref.Name }</span></a></li>
-										}
-									</ul>
-								</details>
-							}
-						}
 						@healthUnknown(wording.HealthInstanceScopeUnknown.In(c.Lang), v.InstanceScopeUnknown)
 						@healthUnknown(wording.HealthSchemaScopeUnknown.In(c.Lang), v.SchemaScopeUnknown)
-						@healthSection(wording.HealthFrontmatterTitle.In(c.Lang), len(v.FrontmatterUnreadable), wording.HealthFrontmatterLede.In(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, found := range v.FrontmatterUnreadable {
-									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.RelPath)) }><span { authoredLanguageAttrs(found.Language)... }>{ found.Name }</span></a>
-									</li>
-								}
-							</ul>
-						}
-						@healthSection(wording.HealthSchemaTitle.In(c.Lang), len(v.SchemaFaults), wording.HealthSchemaLede.In(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, found := range v.SchemaFaults {
-									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.RelPath)) }><span { authoredLanguageAttrs(found.Language)... }>{ found.Name }</span></a>
-									</li>
-								}
-							</ul>
-						}
-						@healthSection(wording.StatusOutsideEnumTitle.In(c.Lang), len(v.StatusOutsideEnum), wording.StatusOutsideEnumLede.In(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, found := range v.StatusOutsideEnum {
-									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }><span { authoredLanguageAttrs(found.Note.Language)... }>{ found.Note.Name }</span></a>
-										<span class="y-healthlist__detail">
-											{ fmt.Sprintf(wording.StatusAndTypeFmt.In(c.Lang), found.Status, found.Type) }
-										</span>
-									</li>
-								}
-							</ul>
-						}
-						@healthSection(wording.StatusUnreachableTitle.In(c.Lang), len(v.StatusUnreachable), wording.StatusUnreachableLede.In(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, found := range v.StatusUnreachable {
-									<li>
-										<a class="y-healthlink" href={ templ.URL(notesHref(found.Note.RelPath)) }><span { authoredLanguageAttrs(found.Note.Language)... }>{ found.Note.Name }</span></a>
-										<span class="y-healthlist__detail">
-											{ fmt.Sprintf(wording.StatusAndTypeFmt.In(c.Lang), found.Status, found.Type) }
-										</span>
-									</li>
-								}
-							</ul>
-						}
-						@healthSection(wording.CollisionsTitle.In(c.Lang), len(v.Collisions), wording.CollisionsLede.In(c.Lang)) {
-							<ul class="y-healthlist">
-								for _, collision := range v.Collisions {
-									<li>
-										<span class="y-healthlist__name">{ collision.Name }</span>
-										<span class="y-healthlist__detail">
-											for i, candidate := range collision.Candidates {
-												if i > 0 {
-													<span aria-hidden="true">・</span>
-												}
-												<a class="y-healthlink" href={ templ.URL(notesHref(candidate.RelPath)) }><span { authoredLanguageAttrs(candidate.Language)... }>{ candidate.Name }</span></a>
-											}
-										</span>
-									</li>
-								}
-							</ul>
-						}
+						@healthFindings(v, c)
 					}
 				</article>
 			</main>
@@ -255,19 +145,93 @@ templ Health(v HealthView, c layouts.Chrome) {
 	}
 }
 
-// healthSection renders one finding group, and nothing where the group is
-// empty: a heading over an empty list on a page about problems reads as a
-// problem the reader cannot see.
-templ healthSection(title string, count int, lede string) {
-	if count > 0 {
-		<section class="y-healthsection">
-			<h2 class="y-healthsection__title">
-				{ title }
-				<span class="ui-navitem__count">{ strconv.Itoa(count) }</span>
-			</h2>
-			<p class="y-healthsection__lede">{ lede }</p>
-			{ children... }
-		</section>
+// healthFindings is every finding as one table, and under it what each kind of
+// finding means. One table rather than one per kind, because the two questions
+// a reader opens this page with — what is worst, and what is wrong with this
+// one file — are both answers about the whole set, and neither can be read off
+// a page that has already split it. Ordering is a link per column and needs no
+// script: the server hands back the same table in the order that was asked for.
+templ healthFindings(v HealthView, c layouts.Chrome) {
+	{{ rows := v.rows(c.Lang) }}
+	<table class="y-findings">
+		<thead>
+			<tr>
+				for _, col := range healthColumns {
+					<th scope="col" class={ "y-findings__head", "y-findings__head--" + string(col) } { healthSortedAttrs(col, v.Sort)... }>
+						<a class="y-findings__sort" href={ templ.URL(col.href()) }>{ col.name(c.Lang) }</a>
+					</th>
+				}
+			</tr>
+		</thead>
+		<tbody>
+			for _, row := range rows {
+				<tr>
+					<td class="y-findings__file" data-col={ wording.HealthColumnFile.In(c.Lang) }>
+						if row.File.RelPath != "" {
+							<a class="y-healthlink" href={ templ.URL(notesHref(row.File.RelPath)) }><span { authoredLanguageAttrs(row.File.Language)... }>{ row.File.Name }</span></a>
+						} else {
+							<span class="y-findings__path">{ row.FilePath }</span>
+						}
+					</td>
+					<td class="y-findings__finding" data-col={ wording.HealthColumnFinding.In(c.Lang) }>
+						<span class="y-findings__kind">{ row.Kind.title(c.Lang) }</span>
+						if len(row.Detail) > 0 {
+							<span class="y-findings__detail">
+								for i, detail := range row.Detail {
+									if i > 0 {
+										<span aria-hidden="true">・</span>
+									}
+									@healthEvidence(detail)
+								}
+							</span>
+						}
+					</td>
+					<td class="y-findings__severity" data-col={ wording.HealthColumnSeverity.In(c.Lang) }>
+						if row.Weighed {
+							<span class={ "y-severity", "y-severity--" + row.Severity.String() } lang="en">{ row.Severity.String() }</span>
+						}
+					</td>
+					<td class="y-findings__count" data-col={ wording.HealthColumnCount.In(c.Lang) }>{ strconv.Itoa(row.Count) }</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+	@healthGuide(v, healthTallies(rows), c)
+}
+
+// healthEvidence shows one piece of a finding's evidence as the words whoever
+// wrote them chose. A machine's words are set in the face the machinery uses
+// everywhere else, and a note the evidence names is reachable from it.
+templ healthEvidence(detail healthDetail) {
+	if detail.Text != "" {
+		if detail.Machine {
+			<code lang="en">{ detail.Text }</code>
+		} else {
+			<span>{ detail.Text }</span>
+		}
+	}
+	if detail.Link.RelPath != "" {
+		<a class="y-healthlink" href={ templ.URL(notesHref(detail.Link.RelPath)) }><span { authoredLanguageAttrs(detail.Link.Language)... }>{ detail.Link.Name }</span></a>
+	}
+}
+
+// healthGuide explains each kind of finding the table holds, and how many of it
+// there are. It is closed to begin with because a reader who already knows what
+// a row claims came for the rows.
+templ healthGuide(v HealthView, tallies []healthTally, c layouts.Chrome) {
+	if len(tallies) > 0 {
+		<details class="y-findingsguide">
+			<summary class="y-findingsguide__head">{ wording.HealthGuideTitle.In(c.Lang) }</summary>
+			<dl class="y-findingsguide__list">
+				for _, tally := range tallies {
+					<dt class="y-findingsguide__term">
+						{ tally.Kind.title(c.Lang) }
+						<span class="ui-navitem__count">{ strconv.Itoa(tally.Count) }</span>
+					</dt>
+					<dd class="y-findingsguide__meaning">{ v.kindLede(tally.Kind, c.Lang) }</dd>
+				}
+			</dl>
+		</details>
 	}
 }
 

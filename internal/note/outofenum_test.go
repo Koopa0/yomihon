@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -120,8 +119,8 @@ func TestMixedCarriersSplitTheChipAndTheCount(t *testing.T) {
 		t.Fatalf("health status = %d, want 200", code)
 	}
 	section := healthSectionBody(t, health, "狀態值不在允許清單的筆記")
-	if !strings.Contains(section, ">1</span>") {
-		t.Errorf("health does not count the one carrier whose type never declared the value; section = %q", section)
+	if got := healthKindCount(t, health, "狀態值不在允許清單的筆記"); got != 1 {
+		t.Errorf("health counts %d carriers whose type never declared the value, want 1; rows = %q", got, section)
 	}
 }
 
@@ -139,8 +138,8 @@ func TestHealthCountsStatusesOutsideTheEnum(t *testing.T) {
 		t.Fatalf("the health page carries no out-of-enum status line; body = %q", body)
 	}
 	section := healthSectionBody(t, body, "狀態值不在允許清單的筆記")
-	if !strings.Contains(section, ">2</span>") {
-		t.Errorf("the out-of-enum count is not 2; section = %q", section)
+	if got := healthKindCount(t, body, "狀態值不在允許清單的筆記"); got != 2 {
+		t.Errorf("the out-of-enum count is %d, want 2; rows = %q", got, section)
 	}
 }
 
@@ -208,10 +207,10 @@ func TestHealthReachesEveryOutOfEnumNote(t *testing.T) {
 		}
 	}
 
-	// One derivation: the heading counts the rows it renders.
-	rows := strings.Count(section, "<li>")
-	if !strings.Contains(section, ">"+strconv.Itoa(rows)+"</span>") {
-		t.Errorf("the heading's number is not the %d rows below it; section = %q", rows, section)
+	// One derivation: the number the page states is the rows it renders.
+	rows := strings.Count(section, "<tr>")
+	if got := healthKindCount(t, body, "狀態值不在允許清單的筆記"); got != rows {
+		t.Errorf("the page states %d out-of-enum notes and draws %d rows; section = %q", got, rows, section)
 	}
 }
 

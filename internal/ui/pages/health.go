@@ -1,10 +1,407 @@
 package pages
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 
+	"github.com/a-h/templ"
+
+	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
+
+// HealthColumn is one column of the findings table, and the closed set a reader
+// may order the table by. The word a link carries and the column it orders by
+// are the same string, so there is no second spelling to keep in step.
+type HealthColumn string
+
+const (
+	// HealthByFinding keeps each kind of finding together. It is the order the
+	// page has always listed findings in, and the one an unreadable request
+	// falls back to.
+	HealthByFinding HealthColumn = "finding"
+	// HealthByFile brings every finding about one file together, which is the
+	// question a reader deciding what to open next is asking.
+	HealthByFile HealthColumn = "file"
+	// HealthBySeverity puts the heaviest findings first. Rows the judge weighs
+	// nothing by follow them, in their own order.
+	HealthBySeverity HealthColumn = "severity"
+	// HealthByCount puts the files carrying the most of one kind first.
+	HealthByCount HealthColumn = "count"
+)
+
+// healthColumns is every column, in the order the header row prints them.
+var healthColumns = []HealthColumn{HealthByFile, HealthByFinding, HealthBySeverity, HealthByCount}
+
+// ParseHealthColumn reads the ordering a request asked for. The set is closed:
+// a word outside it leaves the table in its default order rather than in one
+// nobody can name, because a request that cannot be honoured is better answered
+// with the page than with an argument about it.
+func ParseHealthColumn(value string) HealthColumn {
+	if slices.Contains(healthColumns, HealthColumn(value)) {
+		return HealthColumn(value)
+	}
+	return HealthByFinding
+}
+
+// name is what the header row calls this column.
+func (c HealthColumn) name(lang wording.Lang) string {
+	switch c {
+	case HealthByFile:
+		return wording.HealthColumnFile.In(lang)
+	case HealthByFinding:
+		return wording.HealthColumnFinding.In(lang)
+	case HealthBySeverity:
+		return wording.HealthColumnSeverity.In(lang)
+	case HealthByCount:
+		return wording.HealthColumnCount.In(lang)
+	}
+	return string(c)
+}
+
+// href is the link the header carries. It names only the ordering, so following
+// one from any state of the page reaches the same table ordered that way.
+func (c HealthColumn) href() string { return "?sort=" + string(c) }
+
+// direction is what a reader is told the active column is ordered by. The two
+// text columns read from the top down; the two numeric ones put the largest
+// first, because a page about what needs repair opens on the worst of it.
+func (c HealthColumn) direction() string {
+	switch c {
+	case HealthBySeverity, HealthByCount:
+		return "descending"
+	default:
+		return "ascending"
+	}
+}
+
+// healthSortedAttrs marks the header of the column the table is actually
+// ordered by, and says which way, so the ordering is announced rather than left
+// to be inferred from the rows. Every other header carries nothing.
+func healthSortedAttrs(col, active HealthColumn) templ.Attributes {
+	if col != active {
+		return nil
+	}
+	return templ.Attributes{"aria-sort": col.direction()}
+}
+
+// healthKind is one sort of finding the page gathers. The order these are
+// declared in is the order the table lists them in when nothing reorders it,
+// and the order the guide under the table explains them in.
+type healthKind int
+
+const (
+	healthBlocked healthKind = iota
+	healthSkipped
+	healthUnwritten
+	healthTitleOnly
+	healthIsland
+	healthUnreadableFrontmatter
+	healthSchemaFault
+	healthStatusOutsideEnum
+	healthStatusUnreachable
+	healthCollision
+)
+
+// healthKinds is every kind, in that order.
+var healthKinds = []healthKind{
+	healthBlocked, healthSkipped, healthUnwritten, healthTitleOnly, healthIsland,
+	healthUnreadableFrontmatter, healthSchemaFault, healthStatusOutsideEnum,
+	healthStatusUnreachable, healthCollision,
+}
+
+// title is what the finding column calls this kind, and what the guide lists it
+// under.
+func (k healthKind) title(lang wording.Lang) string {
+	switch k {
+	case healthBlocked:
+		return wording.BlockedTitle.In(lang)
+	case healthSkipped:
+		return wording.SkippedTitle.In(lang)
+	case healthUnwritten:
+		return wording.UnwrittenTitle.In(lang)
+	case healthTitleOnly:
+		return wording.TitleOnlyTitle.In(lang)
+	case healthIsland:
+		return wording.IslandsTitle.In(lang)
+	case healthUnreadableFrontmatter:
+		return wording.HealthFrontmatterTitle.In(lang)
+	case healthSchemaFault:
+		return wording.HealthSchemaTitle.In(lang)
+	case healthStatusOutsideEnum:
+		return wording.StatusOutsideEnumTitle.In(lang)
+	case healthStatusUnreachable:
+		return wording.StatusUnreachableTitle.In(lang)
+	case healthCollision:
+		return wording.CollisionsTitle.In(lang)
+	}
+	return ""
+}
+
+// healthRule is the judging face's account of a kind of finding: the rule it
+// reports the same thing under, and the weight that rule gives it. The page
+// states the weight so a reader can sort by it, and names the rule so the two
+// faces can be put side by side and shown to agree.
+type healthRule struct {
+	id       judge.RuleID
+	severity judge.Severity
+}
+
+// healthRules is that account, for every kind of finding a rule covers. A kind
+// missing from this map has no rule behind it — a file the reading could not
+// open, a note nothing cites — and its rows carry no weight rather than one
+// this page invented for them.
+//
+// The broken-link entry is the weight that rule gives an untracked target. The
+// list this page gathers holds only those: a target under a gap heading or in
+// the planned ledger is tracked, is weighed lighter, and never reaches a row
+// here.
+var healthRules = map[healthKind]healthRule{
+	healthSkipped:           {"scan.skipped", judge.SeverityWarn},
+	healthUnwritten:         {"link.broken", judge.SeverityWarn},
+	healthTitleOnly:         {"link.title_not_alias", judge.SeverityWarn},
+	healthStatusOutsideEnum: {"schema.enum", judge.SeverityError},
+	healthStatusUnreachable: {"schema.status_unreachable", judge.SeverityError},
+	healthCollision:         {"collision.name", judge.SeverityWarn},
+}
+
+// healthDetail is one piece of a finding's evidence: words whose author wrote
+// them — a link target, a status value, the error a read returned — and the
+// note they point at where there is one.
+type healthDetail struct {
+	// Text is shown as written, in whatever language its author wrote it.
+	Text string
+	// Machine marks text a machine produced, which is set in the machinery's
+	// own face rather than in the reading one.
+	Machine bool
+	// Link is a note this piece of evidence names. A zero relative path means
+	// it names none.
+	Link nav.NoteRef
+}
+
+// healthRow is one line of the findings table: one kind of finding about one
+// file, however many of that kind the file carries.
+type healthRow struct {
+	Kind healthKind
+	// File is the note the finding is about. A zero relative path means the
+	// finding is about a path that is no note, and FilePath carries it.
+	File     nav.NoteRef
+	FilePath string
+	Detail   []healthDetail
+	// Severity is the weight the judging face gives a finding of this kind.
+	// Weighed is false where no rule covers it, and the cell is then empty.
+	Severity judge.Severity
+	Weighed  bool
+	// Count is how many findings of this kind the file carries, never less
+	// than one: a row exists because something was found.
+	Count int
+}
+
+// subject is the words the file column shows, which is also what ordering by
+// that column compares.
+func (r healthRow) subject() string {
+	if r.File.RelPath != "" {
+		return r.File.Name
+	}
+	return r.FilePath
+}
+
+// weight orders a row against another by severity. A row no rule weighs sorts
+// after every row one does, rather than posing as the lightest kind of finding.
+func (r healthRow) weight() int {
+	if !r.Weighed {
+		return -1
+	}
+	return int(r.Severity)
+}
+
+// healthTally is one kind of finding present on the page, with how many of it
+// there are. The guide under the table is made of these.
+type healthTally struct {
+	Kind  healthKind
+	Count int
+}
+
+// rows is the whole table: every finding the view holds, one row per file per
+// kind, ordered by what the request asked for. Several findings of one kind
+// about one file share a row and are counted there, so a file carrying twelve
+// broken links is one line a reader can act on rather than twelve.
+func (v *HealthView) rows(lang wording.Lang) []healthRow {
+	out := v.gather(lang)
+	switch v.Sort {
+	case HealthByFile:
+		slices.SortStableFunc(out, func(a, b healthRow) int { return cmp.Compare(a.subject(), b.subject()) })
+	case HealthBySeverity:
+		slices.SortStableFunc(out, func(a, b healthRow) int { return cmp.Compare(b.weight(), a.weight()) })
+	case HealthByCount:
+		slices.SortStableFunc(out, func(a, b healthRow) int { return cmp.Compare(b.Count, a.Count) })
+	case HealthByFinding:
+	}
+	return out
+}
+
+// gather builds the rows in the page's own order, which is the order the kinds
+// are declared in and, inside a kind, the order the vault reading produced.
+func (v *HealthView) gather(lang wording.Lang) []healthRow {
+	var out []healthRow
+	add := func(row healthRow) {
+		if rule, ok := healthRules[row.Kind]; ok {
+			row.Severity, row.Weighed = rule.severity, true
+		}
+		out = append(out, row)
+	}
+	// A file that could not be read is one row each: nothing was read out of
+	// it, so there is nothing else to say about it than what the read returned.
+	for _, source := range v.Blocked {
+		add(healthRow{Kind: healthBlocked, FilePath: source.Path, Detail: machineDetail(source.Reason), Count: 1})
+	}
+	for _, source := range v.Skipped {
+		detail := []healthDetail{}
+		if source.Size > 0 {
+			detail = append(detail, healthDetail{Text: humanSize(source.Size, lang)})
+		}
+		detail = append(detail, machineDetail(source.Reason)...)
+		add(healthRow{Kind: healthSkipped, FilePath: source.Path, Detail: detail, Count: 1})
+	}
+	unwrittenAt := make(map[string]int, len(v.Unwritten))
+	for _, link := range v.Unwritten {
+		detail := healthDetail{Text: fmt.Sprintf(wording.LinkedToFmt.In(lang), link.Target)}
+		if i, ok := unwrittenAt[link.From.RelPath]; ok {
+			out[i].Detail = append(out[i].Detail, detail)
+			out[i].Count++
+			continue
+		}
+		unwrittenAt[link.From.RelPath] = len(out)
+		add(healthRow{Kind: healthUnwritten, File: link.From, Detail: []healthDetail{detail}, Count: 1})
+	}
+	titleOnlyAt := make(map[string]int, len(v.TitleOnly))
+	for _, link := range v.TitleOnly {
+		detail := healthDetail{Text: fmt.Sprintf(wording.TitleOnlyMeansTo.In(lang), link.Target), Link: link.Note}
+		if i, ok := titleOnlyAt[link.From.RelPath]; ok {
+			out[i].Detail = append(out[i].Detail, detail)
+			out[i].Count++
+			continue
+		}
+		titleOnlyAt[link.From.RelPath] = len(out)
+		add(healthRow{Kind: healthTitleOnly, File: link.From, Detail: []healthDetail{detail}, Count: 1})
+	}
+	// The folder travels with an uncited note because the shape of a folder
+	// full of them is what a reader judges the group by, and the file column
+	// names the note alone.
+	for _, group := range v.Islands {
+		for _, ref := range group.Notes {
+			add(healthRow{Kind: healthIsland, File: ref, Detail: []healthDetail{{Text: group.Name}}, Count: 1})
+		}
+	}
+	for _, found := range v.FrontmatterUnreadable {
+		add(healthRow{Kind: healthUnreadableFrontmatter, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count})
+	}
+	// What the schema said stays on each note's own page. Two accounts of one
+	// file in two places is how the two start disagreeing, so the row carries
+	// how many things were said and how heavy the heaviest was, and the reader
+	// opens the note to read them.
+	for _, found := range v.SchemaFaults {
+		add(healthRow{Kind: healthSchemaFault, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count})
+	}
+	for _, found := range v.StatusOutsideEnum {
+		detail := healthDetail{Text: fmt.Sprintf(wording.StatusAndTypeFmt.In(lang), found.Status, found.Type)}
+		add(healthRow{Kind: healthStatusOutsideEnum, File: found.Note, Detail: []healthDetail{detail}, Count: 1})
+	}
+	for _, found := range v.StatusUnreachable {
+		detail := healthDetail{Text: fmt.Sprintf(wording.StatusAndTypeFmt.In(lang), found.Status, found.Type)}
+		add(healthRow{Kind: healthStatusUnreachable, File: found.Note, Detail: []healthDetail{detail}, Count: 1})
+	}
+	for _, collision := range v.Collisions {
+		add(healthCollisionRow(collision, lang))
+	}
+	return out
+}
+
+// healthCollisionRow is one shared name as a row. The file column names the
+// first claimant, which is the file the judging face reports the collision
+// against, and the rest of the claimants follow the name in the evidence — the
+// name alone is no file, and the column is files.
+func healthCollisionRow(collision HealthCollision, lang wording.Lang) healthRow {
+	row := healthRow{Kind: healthCollision, Count: 1}
+	shared := fmt.Sprintf(wording.CollisionSharedWith.In(lang), collision.Name)
+	if len(collision.Candidates) == 0 {
+		row.FilePath = collision.Name
+		row.Detail = []healthDetail{{Text: shared}}
+		return row
+	}
+	row.File = collision.Candidates[0]
+	// The sentence introducing the others travels with the first of them, so
+	// the separators between claimants fall between claimants.
+	for i, candidate := range collision.Candidates[1:] {
+		detail := healthDetail{Link: candidate}
+		if i == 0 {
+			detail.Text = shared
+		}
+		row.Detail = append(row.Detail, detail)
+	}
+	if len(row.Detail) == 0 {
+		row.Detail = []healthDetail{{Text: shared}}
+	}
+	return row
+}
+
+// machineDetail carries a machine's own words into the evidence, and nothing
+// where there were none.
+func machineDetail(text string) []healthDetail {
+	if text == "" {
+		return nil
+	}
+	return []healthDetail{{Text: text, Machine: true}}
+}
+
+// healthTallies is what the guide explains: every kind of finding present,
+// in the page's own order, with how many of it the table holds. The numbers
+// are counted off the rows rather than off the lists behind them, so the
+// heading a reader checks against and the lines they count cannot disagree.
+func healthTallies(rows []healthRow) []healthTally {
+	total := make(map[healthKind]int, len(healthKinds))
+	for _, row := range rows {
+		total[row.Kind] += row.Count
+	}
+	out := make([]healthTally, 0, len(healthKinds))
+	for _, kind := range healthKinds {
+		if count := total[kind]; count > 0 {
+			out = append(out, healthTally{Kind: kind, Count: count})
+		}
+	}
+	return out
+}
+
+// kindLede is what the guide says a kind of finding means. All but one are a
+// fixed sentence; the unreadable files also say how old the rest of the page
+// is, which only this view knows.
+func (v *HealthView) kindLede(kind healthKind, lang wording.Lang) string {
+	switch kind {
+	case healthBlocked:
+		return v.blockedLede(lang)
+	case healthSkipped:
+		return wording.SkippedLede.In(lang)
+	case healthUnwritten:
+		return wording.UnwrittenLede.In(lang)
+	case healthTitleOnly:
+		return wording.TitleOnlyLede.In(lang)
+	case healthIsland:
+		return wording.IslandsLede.In(lang)
+	case healthUnreadableFrontmatter:
+		return wording.HealthFrontmatterLede.In(lang)
+	case healthSchemaFault:
+		return wording.HealthSchemaLede.In(lang)
+	case healthStatusOutsideEnum:
+		return wording.StatusOutsideEnumLede.In(lang)
+	case healthStatusUnreachable:
+		return wording.StatusUnreachableLede.In(lang)
+	case healthCollision:
+		return wording.CollisionsLede.In(lang)
+	}
+	return ""
+}
 
 // clean reports whether the folder has nothing to answer for.
 func (v *HealthView) clean() bool {

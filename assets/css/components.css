@@ -1443,6 +1443,13 @@ html {
      whole of the change. The interface's own disclosures are already off the
      sheet, which is why this is scoped to the prose. */
   .y-prose details::details-content { content-visibility: visible; }
+  /* What each finding means goes on the sheet with the findings. A printed
+     table of faults whose words nobody can look up is a list of complaints,
+     and the person holding the paper cannot click the fold open. The arrows
+     that offer another ordering go, for the same reason the rest of the
+     pointer machinery does. */
+  .y-findingsguide::details-content { content-visibility: visible; }
+  .y-findings__sort::after { content: none; }
   .y-shell, .y-shell2 { display: block; }
   .y-main { min-width: 0; }
   /* Paper has edges the screen does not, and a block that runs across one
@@ -1463,7 +1470,7 @@ html {
   @page { margin: 18mm 16mm; }
   .y-prose pre, .y-prose blockquote, .y-prose .callout, .y-prose .embed,
   .y-prose .mermaid-diagram, .y-prose table, .y-prose tr,
-  .y-slotcard, .y-healthlist li { break-inside: avoid; }
+  .y-slotcard, .y-findings tr { break-inside: avoid; }
   .y-title, .y-prose [data-level="1"], .y-prose [data-level="2"], .y-prose [data-level="3"], .y-prose [data-level="4"] { break-after: avoid; }
   .y-prose [data-level="1"]:not(:first-child) { break-before: page; }
   .y-prose p, .y-prose li { orphans: 2; widows: 2; }
@@ -1505,19 +1512,86 @@ html {
 .y-citedby, .y-basedon { margin-top: 22px; }
 .y-citedby__none { margin: 4px 8px 0; font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.6; }
 
-/* Whole-folder health: a reading page, not a dashboard. The lists are prose
-   lists at reading size, because a person works down them one at a time
-   deciding what to open. */
+/* Whole-folder health: a reading page, not a dashboard. The file a finding is
+   about is set at reading size, because that name is what a person is deciding
+   whether to open; everything the machinery contributes beside it — the weight,
+   the count, a path, an error — stays in the monospace face at label size, so
+   one glance down the column reads as one thing. */
 .y-healthlede { font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-subtle); margin: 18px 0 0; }
 .y-healthsection { margin: 36px 0 0; }
 .y-healthsection__title { display: flex; align-items: center; gap: 10px; font-family: var(--font-kai); font-weight: var(--fw-regular); font-size: var(--fs-ed-24); color: var(--fg); margin: 0; }
 .y-healthsection__lede { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.7; margin: 6px 0 0; }
-.y-healthlist { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
-.y-healthlist li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: var(--fs-13); }
-.y-healthlist__name { font-family: var(--font-mono); color: var(--fg); }
-.y-healthlist__detail { color: var(--fg-subtle); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
 .y-healthlink { font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--accent); text-decoration: none; }
 .y-healthlink:hover { text-decoration: underline; }
+
+/* The findings, as one table. A hairline under the header and one between rows
+   is the whole frame: a box around a ledger adds a line for every line it
+   already has. */
+.y-findings { width: 100%; margin: 26px 0 0; border-collapse: collapse; text-align: left; }
+.y-findings__head {
+  padding: 0 12px 8px 0; border-bottom: 1px solid var(--border-strong);
+  font-family: var(--font-mono); font-size: var(--fs-11); font-weight: var(--fw-regular);
+  letter-spacing: 0.06em; color: var(--fg-faint); white-space: nowrap; vertical-align: bottom;
+}
+.y-findings__head--count { text-align: right; padding-right: 0; }
+/* Every heading is a link that asks the server for the same table in another
+   order, so the mark that says so belongs on all of them; the one the table is
+   actually in carries the reader's own ink. */
+.y-findings__sort { color: inherit; text-decoration: none; }
+.y-findings__sort::after { content: "↕"; margin-left: 5px; opacity: 0.45; }
+.y-findings__sort:hover { color: var(--fg); }
+.y-findings__head[aria-sort] .y-findings__sort { color: var(--fg); }
+.y-findings__head[aria-sort="ascending"] .y-findings__sort::after { content: "↑"; opacity: 1; }
+.y-findings__head[aria-sort="descending"] .y-findings__sort::after { content: "↓"; opacity: 1; }
+.y-findings tbody td { padding: 11px 12px 11px 0; border-top: 1px solid var(--border-faint); vertical-align: baseline; }
+.y-findings__path { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg); overflow-wrap: anywhere; }
+.y-findings__kind { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
+.y-findings__detail { display: block; margin-top: 3px; font-size: var(--fs-12); color: var(--fg-subtle); overflow-wrap: anywhere; }
+.y-findings__detail .y-healthlink { font-size: var(--fs-13); }
+.y-findings__count { padding-right: 0; text-align: right; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
+
+/* The weight the judging face gives a finding, in that face's own word. The two
+   that call for repair share the diagnostic ochre and are told apart by an
+   outline rather than by a second hue, because the word is already there and a
+   page about problems does not need a second colour shouting. */
+.y-severity {
+  display: inline-flex; align-items: center; gap: 6px; line-height: 1;
+  font-family: var(--font-mono); font-size: var(--fs-11); font-weight: var(--fw-medium);
+  padding: 3px 8px 3px 7px; border: 1px solid transparent; border-radius: var(--r-sm);
+  letter-spacing: 0.01em; color: var(--fg-subtle); background: var(--elevated);
+}
+.y-severity::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentcolor; }
+.y-severity--error { color: var(--warn); background: var(--warn-bg); border-color: var(--warn); }
+.y-severity--warn { color: var(--warn); background: var(--warn-bg); }
+.y-severity--info { color: var(--fg-faint); background: var(--panel); border-color: var(--border-faint); }
+
+/* What each kind of finding means, under the table rather than over it. A
+   reader who knows what a row claims came for the rows; the sentences are here
+   for the one who does not, and they are the same sentences the page used to
+   open every list with. */
+.y-findingsguide { margin: 30px 0 0; }
+.y-findingsguide__head { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); }
+.y-findingsguide__head:hover { color: var(--fg); }
+.y-findingsguide__list { margin: 14px 0 0; }
+.y-findingsguide__term { display: flex; align-items: baseline; gap: 10px; margin: 16px 0 0; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
+.y-findingsguide__meaning { margin: 4px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
+
+/* Narrow: the table stacks instead of scrolling sideways, because a sheet the
+   reader has to push left and right is one they read half of. Each cell then
+   carries its column's own name, so a stacked row still says what each value
+   is. The headings stay — they are the ordering controls, and losing them at
+   the width where the table is longest would take the ordering away exactly
+   where it helps most. */
+@media screen and (max-width: 720px) {
+  .y-findings, .y-findings thead, .y-findings tbody, .y-findings tr, .y-findings th, .y-findings td { display: block; }
+  .y-findings thead tr { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-strong); }
+  .y-findings__head { padding: 0; border-bottom: none; }
+  .y-findings__head--count { text-align: left; }
+  .y-findings tbody tr { padding: 10px 0; border-top: 1px solid var(--border-faint); }
+  .y-findings tbody td { display: grid; grid-template-columns: minmax(0, 5.5em) minmax(0, 1fr); gap: 2px 12px; padding: 3px 0; border-top: none; }
+  .y-findings tbody td::before { content: attr(data-col); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+  .y-findings__count { text-align: left; }
+}
 
 /* The whole-folder view's entrance. It sits with the reading preferences
    rather than beside the search, because it is somewhere to go when not
@@ -1614,13 +1688,6 @@ html {
 .y-crumbs__link { color: inherit; text-decoration: none; }
 .y-crumbs__link:hover { color: var(--fg); text-decoration: underline; }
 .y-foldercount { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); margin: 18px 0 0; }
-
-/* Islands by folder: the count is visible before the rows are, so a hundred
-   transcripts read as one line rather than a hundred. */
-.y-islandgroup { margin: 10px 0 0; }
-.y-islandgroup__head { display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); }
-.y-islandgroup__head:hover { color: var(--fg); }
-.y-islandgroup .y-healthlist { margin: 8px 0 0 14px; }
 
 /* The way onward, closing the article. The source line names the order the
    links walk — a course's declared order or the folder's file adjacency —

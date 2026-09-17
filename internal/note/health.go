@@ -27,8 +27,8 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	pageShell := shell.Project(authority, snap)
 	health := snap.Health()
 	fresh := snap.Freshness()
-	unreadableFrontmatter, schemaFaults := schemaFaultLists(snap)
 	articleLang := articleLanguageLookup(snap)
+	unreadableFrontmatter, schemaFaults := schemaFaultLists(snap, articleLang)
 	view := pages.HealthView{
 		Unwritten:             healthLinks(health.Unwritten, articleLang),
 		TitleOnly:             healthTitleLinks(health.TitleOnly, articleLang),
@@ -39,8 +39,8 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		Skipped:               healthSkipped(snap.Skipped()),
 		StatusOutsideEnum:     statusesOutsideEnum(authority, snap, articleLang),
 		StatusUnreachable:     statusesUnreachable(authority, snap, articleLang),
-		FrontmatterUnreadable: noteRefs(unreadableFrontmatter, articleLang),
-		SchemaFaults:          noteRefs(schemaFaults, articleLang),
+		FrontmatterUnreadable: unreadableFrontmatter,
+		SchemaFaults:          schemaFaults,
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
 		// A folder that declared no vocabulary has no schema findings to
 		// report, and that is an answer rather than a failure — the view says
@@ -50,7 +50,11 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		// folder its artifacts section may not name.
 		SchemaScopeUnknown: authority.Diagnostic(lang),
 		LastComplete:       lastCompleteBuild(&fresh),
-		Sidebar:            pages.NewSidebar(pageShell.Nav, ""),
+		// A word the table cannot order by leaves the page in its default
+		// order: the reader asked for this page, and the ordering is how it is
+		// laid out rather than what it is about.
+		Sort:    pages.ParseHealthColumn(r.URL.Query().Get("sort")),
+		Sidebar: pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write health page", "error", err)
@@ -65,10 +69,13 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 //
 // The split is on the rule that fired rather than on a guess about the note,
 // because one of these findings is the judge's own statement that it could
-// read nothing. The rows carry no detail: each note's own page says which
-// field and why, and one file described twice in two places is how two
-// accounts of it start to disagree.
-func schemaFaultLists(snap *snapshot.Generation) (unreadable, faults []nav.NoteRef) {
+// read nothing. The rows carry no words of their own: each note's own page says
+// which field and why, and one file described twice in two places is how two
+// accounts of it start to disagree. What they do carry is how many things were
+// said about the note and how heavy the heaviest was — a number and a weight
+// the note's own page never states, and the only way the table can tell one
+// note that drew a single complaint from one that drew nine.
+func schemaFaultLists(snap *snapshot.Generation, articleLang pages.ArticleLanguageFor) (unreadable, faults []pages.HealthNoteFindings) {
 	for _, entry := range snap.Files() {
 		rel := entry.Path()
 		findings := snap.SchemaFindings(rel)
@@ -79,14 +86,30 @@ func schemaFaultLists(snap *snapshot.Generation) (unreadable, faults []nav.NoteR
 		if !ok {
 			continue
 		}
-		ref := nav.NoteRef{RelPath: rel, Name: note.Title, Language: articleLanguageLookup(snap)(rel)}
+		found := pages.HealthNoteFindings{
+			Note:     noteRef(nav.NoteRef{RelPath: rel, Name: note.Title}, articleLang),
+			Severity: heaviest(findings),
+			Count:    len(findings),
+		}
 		if slices.ContainsFunc(findings, func(f judge.Finding) bool { return f.RuleID == "schema.frontmatter" }) {
-			unreadable = append(unreadable, ref)
+			unreadable = append(unreadable, found)
 			continue
 		}
-		faults = append(faults, ref)
+		faults = append(faults, found)
 	}
 	return unreadable, faults
+}
+
+// heaviest is the weight of the worst thing said about one note, which is what
+// a reader sorting by weight is choosing between. A lighter finding beside a
+// heavier one does not make the note lighter, so the row carries the heaviest
+// rather than the first or an average of them.
+func heaviest(findings []judge.Finding) judge.Severity {
+	worst := findings[0].Severity
+	for _, f := range findings[1:] {
+		worst = max(worst, f.Severity)
+	}
+	return worst
 }
 
 // statusesOutsideEnum names the notes whose status value is outside their
