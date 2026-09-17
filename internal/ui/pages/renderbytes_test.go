@@ -13,6 +13,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -111,6 +112,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
+		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
 		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
@@ -235,6 +237,17 @@ var drawsNothing = map[string]bool{
 
 // recordedChrome is one fixed request's chrome, so the recording says nothing
 // about the machine it was made on.
+// recordedEnglishChrome is the same chrome in the other interface language.
+// The findings table names each of its columns twice — once in the header a
+// reader clicks, once on every cell so a stacked row still says what it holds —
+// and both are drawn from the interface's words, so only a recording in both
+// languages can show that neither spelling was left behind in one of them.
+func recordedEnglishChrome() layouts.Chrome {
+	chrome := recordedChrome()
+	chrome.Lang = wording.En
+	return chrome
+}
+
 func recordedChrome() layouts.Chrome {
 	return layouts.Chrome{
 		Title:                     "L01",
@@ -482,21 +495,30 @@ func recordedFaultedModeIndexView(model *nav.Model) ListIndexView {
 	return view
 }
 
+// recordedHealthView holds one of every kind of finding, and two of one kind
+// about one file: the table folds those into a single counted row, so a
+// recording carrying only singletons would never show what that row looks like.
 func recordedHealthView(model *nav.Model) HealthView {
 	ref := nav.NoteRef{Name: "L01", RelPath: "Writing/lessons/go/L01.md"}
 	return HealthView{
-		Unwritten:             []snapshot.HealthLink{{From: ref, Target: "Ghost"}},
-		TitleOnly:             []snapshot.HealthTitleLink{{From: ref, Target: "L02"}},
-		Islands:               []HealthIslandGroup{{Dir: "Concepts/go", Notes: []nav.NoteRef{{Name: "C02", RelPath: "Concepts/go/C02.md"}}}},
+		Unwritten: []snapshot.HealthLink{
+			{From: ref, Target: "Ghost"},
+			{From: ref, Target: "Phantom"},
+		},
+		TitleOnly:             []snapshot.HealthTitleLink{{From: ref, Target: "L02", Note: nav.NoteRef{Name: "L02", RelPath: "Writing/lessons/go/L02.md"}}},
+		Islands:               []HealthIslandGroup{{Dir: "Concepts/go", Name: "Concepts/go", Notes: []nav.NoteRef{{Name: "C02", RelPath: "Concepts/go/C02.md"}}}},
 		IslandCount:           1,
-		Collisions:            []HealthCollision{{Name: "Repeat", Candidates: []nav.NoteRef{{Name: "Repeat", RelPath: "A/Repeat.md"}, {Name: "Repeat", RelPath: "B/Repeat.md"}}}},
+		Collisions:            []HealthCollision{{Name: "Repeat", Candidates: []nav.NoteRef{{Name: "A/Repeat.md", RelPath: "A/Repeat.md"}, {Name: "B/Repeat.md", RelPath: "B/Repeat.md"}}}},
 		Blocked:               []HealthBlockedSource{{Path: "Sources/articles/Raw.md", Reason: "permission denied"}},
 		Skipped:               []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
 		StatusOutsideEnum:     []HealthStatusNote{{Note: ref, Type: "lesson", Status: "seed"}},
 		StatusUnreachable:     []HealthStatusNote{{Note: ref, Type: "concept", Status: "published"}},
-		FrontmatterUnreadable: []nav.NoteRef{ref},
-		SchemaFaults:          []nav.NoteRef{ref},
-		Sidebar:               NewSidebar(model, ""),
+		FrontmatterUnreadable: []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 1}},
+		SchemaFaults:          []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 3}},
+		// The ordering a request that named none resolves to, which is what a
+		// reader arriving at the page is holding.
+		Sort:    HealthByFinding,
+		Sidebar: NewSidebar(model, ""),
 	}
 }
 

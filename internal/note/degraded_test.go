@@ -179,7 +179,7 @@ func TestDegradedSurfacesNameEveryFileTheFolderCouldNotRead(t *testing.T) {
 	}
 	blocked := healthBlockedSection(t, health)
 	for _, name := range []string{first, second} {
-		if !strings.Contains(blocked, `<span class="y-healthlist__name">`+name+`</span>`) {
+		if !strings.Contains(blocked, `<span class="y-findings__path">`+name+`</span>`) {
 			t.Errorf("health blocked-sources section does not list %s as a file of its own", name)
 		}
 	}
@@ -252,17 +252,9 @@ func degradedDetail(t *testing.T, page string) string {
 	return detail
 }
 
-// healthBlockedSection returns the blocked-sources section of the health page,
-// bounded by the section that follows it, so a name found in a later section
-// cannot stand in for one this section left out.
+// healthBlockedSection returns the findings-table rows for files the reading
+// could not open.
 func healthBlockedSection(t *testing.T, page string) string {
 	t.Helper()
-	_, section, ok := strings.Cut(page, "讀不進來的檔案")
-	if !ok {
-		t.Fatal("health page has no blocked-sources section")
-	}
-	if before, _, found := strings.Cut(section, "連到不存在的目標"); found {
-		section = before
-	}
-	return section
+	return healthSectionBody(t, page, "讀不進來的檔案")
 }
