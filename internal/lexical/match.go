@@ -541,9 +541,11 @@ type landingTerms struct {
 // paragraphs the page draws apart.
 //
 // A match that crossed has a second stretch in its last block, and that one is
-// grown with no condition at all: a run of words is read as one only beside a
-// term from its own block, and this stretch's block is not the one holding the
-// words the match follows, so it has only ever stood on its own.
+// grown whatever the first block offered: a run of words is read as one only
+// beside a term from its own block, and the run belongs to the block the match
+// opened in, so this stretch has only ever stood on its own. Its own edges are
+// still asked the same question, and one in a script that parts no words with
+// spaces is left where the match put it.
 func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	if foldStart < 0 || foldEnd <= foldStart || len(e.blocks) == 0 {
 		return landingTerms{}
@@ -572,11 +574,11 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	}
 	lastStart, _ := e.blockAt(end - 1)
 	from := max(lastStart, firstEnd)
-	// The far end is grown for the same reason the first stretch's standalone
-	// form is, and inside its own block for the same reason. Its opening is
-	// where that block opens, so it is offered as the floor as well: a word
-	// cannot reach across a boundary the page draws, and this end has nowhere
-	// to travel but outward.
+	// The far end is grown for the reason the first stretch's standalone form
+	// is, and inside its own block for the reason that one is: a word cannot
+	// be assembled out of two blocks the page draws apart. This stretch opens
+	// where that block opens, which is a word's edge already, so that same
+	// offset serves as the floor and the only growth is outward.
 	_, lastStop := wordEdges(e.PlainText, from, end, from, e.blockEndAfter(end-1))
 	terms.last = collapseFields(e.PlainText[from:lastStop])
 	return terms
