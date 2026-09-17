@@ -61,6 +61,10 @@ probes=(
   "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
   "midword-landing.mjs|/search?q=lybdenum"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
+  # Last, and it has to stay last: this one keeps a reading place, and from
+  # then on every desk the run draws carries a row offering it back. A probe
+  # that reads the desk would meet a page the fixture alone does not explain.
+  "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
 )
 
 fail() {

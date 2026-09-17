@@ -1,11 +1,16 @@
 package note
 
 import (
+	"cmp"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -49,6 +54,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		visibleNav.NavigationClosure().Diagnostic(),
 		visibleNav.ArtifactClosure().Diagnostic(),
 	)
+	kept, hasMark := h.sources.Continuation()
 	view := pages.HomeView{
 		Fault:          fault,
 		PrivacyFault:   snap.PrivacyPolicy().Diagnostic(),
@@ -56,11 +62,65 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		DegradedDetail: blockedDetail(fresh.Blocked),
 		Blocks:         blocks,
 		ReadmeMissing:  !hasReadme,
+		Continue:       continueRow(&kept, hasMark, snap, lang),
 	}
 	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)
 	}
 }
+
+// continueRow is the desk's way back to the place the reader kept.
+//
+// The note it names is resolved inside snap — the same generation the rest of
+// the page was built from — so the row's sentence about the note having
+// changed is decided against the version this desk is describing, rather than
+// against whatever the folder holds a moment later. An identity that no longer
+// matches still goes to the mark: it is the reader's own best pointer, and the
+// sentence says why the place may have moved rather than withholding it.
+func continueRow(kept *mark.Continuation, hasMark bool, snap *snapshot.Generation, lang wording.Lang) pages.ContinueRow {
+	if !hasMark {
+		return pages.ContinueRow{}
+	}
+	reading, found := snap.Note(kept.RelPath)
+	if !found {
+		// Nothing is cleared. The reader did not ask for that, and a note can
+		// be missing from one generation because the folder was mid-write.
+		return pages.ContinueRow{Show: true, Title: kept.RelPath, Notice: wording.MarkNoteGone.In(lang)}
+	}
+	row := pages.ContinueRow{
+		Show:  true,
+		Title: cmp.Or(reading.Title, kept.RelPath),
+		Href:  continueHref(kept),
+	}
+	if hex.EncodeToString(reading.ContentIdentity[:]) != kept.Identity {
+		row.Notice = wording.MarkNoteChanged.In(lang)
+	}
+	return row
+}
+
+// continueHref is where that row leads: the note, the anchor the mark named,
+// and how far below it the reader was.
+//
+// The anchor is the fragment, so a browser running nothing lands on the
+// heading or block the reader stopped under — which is the whole of the
+// promise a mark can keep without a script. The distance rides as a query the
+// reading page's own module spends and then removes from the address; a
+// fragment carrying it would name no element and drop the reader at the top.
+func continueHref(kept *mark.Continuation) string {
+	address := pages.VaultHref("/notes/", kept.RelPath)
+	if kept.Offset > 0 {
+		address += "?" + url.Values{continueOffsetParam: {strconv.Itoa(kept.Offset)}}.Encode()
+	}
+	if kept.Anchor != "" {
+		address += "#" + url.PathEscape(kept.Anchor)
+	}
+	return address
+}
+
+// continueOffsetParam carries the distance below the anchor. The page that
+// reads it back is drawn by this package, so the name is written once here and
+// stamped into the address the reading page receives.
+const continueOffsetParam = "at"
 
 // degradedNotice states, in the reader's language, that the snapshot behind
 // the page could not read everything, so the content may be incomplete or held

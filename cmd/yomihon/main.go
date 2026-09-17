@@ -115,6 +115,13 @@ const defaultPort = "9610"
 type config struct {
 	root string
 	port string
+	// configDir is where this platform keeps a program's own files, resolved
+	// once here because reading the environment is the process's business.
+	// The standard library reads HOME for it, and XDG_CONFIG_HOME on Linux, so
+	// this is the second thing outside the arguments that decides where the
+	// binary looks — which is why it is resolved in one place, held in this
+	// struct like the port, and handed to the package that needs it.
+	configDir string
 }
 
 func loadConfig(root string) (config, error) {
@@ -122,6 +129,11 @@ func loadConfig(root string) (config, error) {
 	if cfg.port == "" {
 		cfg.port = defaultPort
 	}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return config{}, fmt.Errorf("reader state directory: %w", err)
+	}
+	cfg.configDir = configDir
 	info, err := os.Stat(cfg.root) // #nosec G703 -- root is the operator's own vault path from local config
 	if err != nil {
 		return config{}, fmt.Errorf("vault root: %w", err)
@@ -140,7 +152,7 @@ func run(log *slog.Logger, root string) (resultErr error) {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	site, err := newReadingSite(ctx, cfg.root, log)
+	site, err := newReadingSite(ctx, cfg.root, cfg.configDir, log)
 	if err != nil {
 		return fmt.Errorf("build reading site: %w", err)
 	}

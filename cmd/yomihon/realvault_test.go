@@ -24,7 +24,7 @@ func TestEveryVaultFileOpensThroughProductionSite(t *testing.T) {
 	if root == "" {
 		t.Fatal("YOMIHON_ROOT is required")
 	}
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal("newReadingSite failed for configured real vault")
 	}

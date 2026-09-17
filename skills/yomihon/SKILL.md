@@ -23,8 +23,10 @@ searched or rendered.
 structure, and no claim about a note's quality or status, out of heading
 wording, list punctuation, or indentation. When it cannot determine a
 projection it keeps the prose, stops, and reports. It never guesses and never
-flattens, and the one field it ever writes is `status` — the section below says
-what that means and what it refuses.
+flattens, and the one field it ever writes into your vault is `status` — the
+section below says what that means and what it refuses. Where a reader keeps a
+reading place, that goes in a file of yomihon's own outside the vault, and no
+command-line face reads it.
 
 Everything below assumes a `yomihon` on your `PATH`. There is no `--version`
 to ask; this page's probe is how you find out what the one you have can see.

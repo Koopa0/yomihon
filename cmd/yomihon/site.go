@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/koopa0/yomihon/internal/asset"
+	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
@@ -69,7 +70,12 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 	}
 }
 
-func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *readingSite, resultErr error) {
+// newReadingSite composes the reading server. configDir is where this
+// platform keeps a program's own files: the marks a reader leaves live under
+// it, in a directory of this vault's own, and nowhere in the vault itself.
+// Only serving builds one — the adjudication commands answer about the vault,
+// never about the reader, and never open this.
+func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (_ *readingSite, resultErr error) {
 	source, err := vault.Open(root)
 	if err != nil {
 		return nil, fmt.Errorf("open vault source: %w", err)
@@ -141,6 +147,15 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		return shell.Project(writer.Authority(), snap), snap
 	}
 
+	// The marks a reader leaves are kept for the root the vault capability was
+	// actually taken on, which is the resolved absolute path rather than the
+	// one typed on the line: two spellings of one folder are one vault and
+	// must not be given two files.
+	marks, err := mark.New(configDir, source.Name())
+	if err != nil {
+		return nil, fmt.Errorf("name the reader's marks file: %w", err)
+	}
+
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
 		Source:         source,
@@ -148,9 +163,11 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   marks.Continuation,
 		Log:            log,
 	}).Register(mux)
 	status.NewHandler(writer, shellProvider, log).Register(mux)
+	mark.NewHandler(marks, log).Register(mux)
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(pathProvider, log).Register(mux)

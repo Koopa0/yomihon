@@ -26,7 +26,7 @@ func TestProductionStatusFailureUsesTheReadingShell(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestContractAbsenceIsNotReportedAsAFault(t *testing.T) {
 			}
 
 			var logged lockedBuffer
-			site, err := newReadingSite(t.Context(), root, slog.New(slog.NewTextHandler(&logged, nil)))
+			site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.NewTextHandler(&logged, nil)))
 			if err != nil {
 				t.Fatalf("newReadingSite: %v", err)
 			}
@@ -390,7 +390,7 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read fixture note: %v", err)
 	}
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -462,7 +462,7 @@ func TestTheSiteRefusesARequestAddressedElsewhere(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
