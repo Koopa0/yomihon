@@ -211,6 +211,7 @@ func TestHitFragment(t *testing.T) {
 			hit: SearchResult{
 				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
 				Landing:       "cobalt",
+				LandingBare:   "cobalt",
 				LandingEnd:    "egret",
 				BlockCrossing: true,
 			},
@@ -301,6 +302,7 @@ func TestHitFragment(t *testing.T) {
 			hit: SearchResult{
 				SnippetRuns:   []SnippetRun{{Text: "alpha", Hit: true}},
 				Landing:       "alpha",
+				LandingBare:   "alpha",
 				LandingEnd:    "gamma",
 				BlockCrossing: true,
 			},
@@ -311,11 +313,65 @@ func TestHitFragment(t *testing.T) {
 			hit: SearchResult{
 				SnippetRuns:   []SnippetRun{{Text: "cobalt", Hit: true}},
 				Landing:       "cobalt",
+				LandingBare:   "cobalt",
 				LandingEnd:    "egret",
 				LandingPrefix: "   ",
 				BlockCrossing: true,
 			},
 			want: "#:~:text=cobalt,egret",
+		},
+		{
+			// With nothing ahead of it the browser stops only where a word
+			// begins and where one ends, so the tail of a word is a request
+			// the page cannot answer and the note opens at the top. The whole
+			// word goes out in its place.
+			name: "a term standing alone is grown to the word the match opened inside",
+			hit: SearchResult{
+				SnippetRuns: []SnippetRun{{Text: "baltine", Hit: true}},
+				Landing:     "baltine",
+				LandingBare: "cobaltine",
+			},
+			want: "#:~:text=cobaltine",
+		},
+		{
+			// A run of words ahead of the term takes that rule off it: the
+			// browser reads on from where the run left off, wherever inside a
+			// word that is. So the match itself is named, and the directives
+			// this block already served are unchanged.
+			name: "words ahead of the term leave the match itself named",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "nthanum", Hit: true}},
+				Landing:       "nthanum",
+				LandingBare:   "lanthanum",
+				LandingPrefix: "closes with la",
+			},
+			want: "#:~:text=closes%20with%20la-,nthanum",
+		},
+		{
+			// Where the script parts no words with spaces the stretch is
+			// handed over as it stands, because the edges of a word there are
+			// a segmentation nothing here can find and the sentence around
+			// the match is not them.
+			name: "a stretch of a script without spaces between words is named as it stands",
+			hit: SearchResult{
+				SnippetRuns: []SnippetRun{{Text: "晴れ", Hit: true}},
+				Landing:     "晴れ",
+				LandingBare: "晴れ",
+			},
+			want: "#:~:text=%E6%99%B4%E3%82%8C",
+		},
+		{
+			// A crossing whose first stretch cannot stand alone hands the
+			// directive to the far end, which opens its own block and so
+			// opens a word.
+			name: "a first stretch with no standalone form leaves the far end to name it",
+			hit: SearchResult{
+				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
+				Landing:       "cobalt",
+				LandingEnd:    "egret",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=egret",
 		},
 	}
 	for _, tt := range tests {

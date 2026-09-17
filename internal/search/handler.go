@@ -244,6 +244,7 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 			TopicRuns:     snippetRuns(r.Topic, tokens),
 			File:          r.File,
 			Landing:       r.Landing,
+			LandingBare:   r.LandingBare,
 			LandingEnd:    r.LandingEnd,
 			LandingPrefix: r.LandingPrefix,
 			BlockCrossing: r.BlockCrossing,

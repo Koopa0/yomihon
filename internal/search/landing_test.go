@@ -243,6 +243,65 @@ func TestOnlyABlockThePageReproducesNamesWhatAMatchFollows(t *testing.T) {
 	}
 }
 
+// A reader who types part of a word matches part of it, and a term a
+// directive carries alone is looked for only where a word begins and where
+// one ends — so the tail of a word used to be a request the page could not
+// answer, and the note opened at the top with nothing said. The term goes out
+// grown to the whole word instead.
+//
+// The three rows are the three ways the block decides. Where the page shows
+// the block as the searchable text carries it, the run of words ahead of the
+// match takes that rule off the term and the match itself is still named, byte
+// for byte as before. Where it does not, the term stands alone and is grown.
+// Where the words are not parted by spaces, the edges of one are a
+// segmentation nothing here can find, so the stretch is served as it stands
+// rather than grown to the sentence around it — which is a string the page,
+// drawing a ruby reading in among the characters it is spoken over, does not
+// carry in one piece anyway.
+func TestAMatchOpeningInsideAWordIsServedAsTheWholeWord(t *testing.T) {
+	t.Parallel()
+
+	idx := lexical.NewIndex([]lexical.Document{
+		lexical.DocumentFromNote(vault.Parse(renderedOrderRel, []byte(renderedOrderBody))),
+	}, validArtifactPolicy(t))
+	srv := serverForIndex(t, idx)
+	notePath := "/notes/Notes/Rendered%20order.md"
+	tests := []struct {
+		name  string
+		query string
+		href  string
+	}{
+		{
+			name:  "a term standing alone is grown to its whole word",
+			query: "baltine",
+			href:  notePath + "#:~:text=cobaltine",
+		},
+		{
+			name:  "a term a run of words introduces still names the match itself",
+			query: "nthanum",
+			href:  notePath + "#:~:text=closes%20with%20la-,nthanum",
+		},
+		{
+			name:  "a script that parts no words with spaces is served as it stands",
+			query: "晴れ",
+			href:  notePath + "#:~:text=%E6%99%B4%E3%82%8C",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			code, body := getBody(t, srv.Client(), srv.URL+"/search/results?"+url.Values{"q": {tt.query}}.Encode())
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if got := resultHref(t, body); got != tt.href {
+				t.Errorf("href = %q, want %q; body = %q", got, tt.href, body)
+			}
+		})
+	}
+}
+
 // A phrase that occupies three blocks must hand the browser an end term
 // that lives inside the last block. If blockStartContaining always answers
 // the start of the note, the end term swallows the middle block and the
