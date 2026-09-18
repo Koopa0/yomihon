@@ -181,7 +181,14 @@ func statusNotes(lifecycle status.Authority, snap *snapshot.Generation, holds fu
 	if !lifecycle.Governed() || lifecycle.Closed() {
 		return nil
 	}
-	holders, err := snap.Search().StatusHolders()
+	// A generation that does not exist holds no notes to name. The search index
+	// is the only projection here that answers a question rather than a field,
+	// and it is the one an absent generation cannot stand in for.
+	index := snap.Search()
+	if index == nil {
+		return nil
+	}
+	holders, err := index.StatusHolders()
 	if err != nil {
 		return nil
 	}
