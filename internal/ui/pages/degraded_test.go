@@ -231,7 +231,7 @@ func TestAReportSaysWhatItCannotDraw(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			view := ReportView{Name: "daily-briefing.html", ReadingRail: NewReportReadingRail(&nav.Model{}, "System/reports/daily-briefing/daily-briefing.html"), NeedsScript: tt.needsScript}
+			view := ReportView{Name: "daily-briefing.html", ReadingRail: NewReportReadingRail(nav.Shell{Nav: &nav.Model{}}, "System/reports/daily-briefing/daily-briefing.html"), NeedsScript: tt.needsScript}
 			if err := Report(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render: %v", err)
 			}

@@ -46,6 +46,23 @@ type Chrome struct {
 	// back on the page they were reading. The server validates it as a local
 	// path before following it.
 	ReturnTo string
+	// Mark is the note this request is reading, where the reader can be
+	// offered to keep the place they stopped at. Nil on every page that is not
+	// such a note, and the header then draws no such control. The page decides
+	// it, because whether a note can be marked is the reading page's question
+	// and an answer worked out a second time here would be a second answer.
+	Mark *MarkOffer
+}
+
+// MarkOffer is the note a reading place would be kept in: its address, the
+// identity of the bytes the reader is looking at, and the route the control
+// posts to. The three travel together because the post needs all of them —
+// an address with no identity keeps a place in a note that may since have been
+// rewritten, and neither is worth anything without somewhere to send it.
+type MarkOffer struct {
+	Path     string
+	Identity string
+	Endpoint string
 }
 
 // The three answers the header's own controls need in words: the state a

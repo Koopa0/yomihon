@@ -7,6 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -66,6 +67,13 @@ func noteDateLabel(v *NoteView, lang wording.Lang) string {
 	return wording.UpdatedOn.In(lang)
 }
 
+// headFactsShown reports whether the head has any fact to draw as a
+// description list: the same five fields noteFacts gates row by row, so a
+// note with none of them draws neither the disclosure nor the open copy.
+func (v *NoteView) headFactsShown() bool {
+	return v.Type != "" || v.Status != "" || v.Updated != "" || v.Language != "" || v.RelPath != ""
+}
+
 // authoredLanguageAttrs states the language the note's author wrote in, only
 // where the note declared one and the contract gave that declaration authority.
 // It goes on every element whose text is the author's rather than the
@@ -121,9 +129,11 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 // speaker the reader can press reaches the same speech owner, so a lesson that
 // offers only the second one needs these words as much as one that offers the
 // first.
-func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
-	if !strings.Contains(v.BodyHTML, speakButtonMarker) &&
-		!strings.Contains(v.BodyHTML, practiceSpeakMarker) {
+// It takes the rendered body rather than the note, because the bar belongs to
+// any page that carries marked paragraphs and one of them is not a note.
+func readAloudAttrs(bodyHTML string, lang wording.Lang) templ.Attributes {
+	if !strings.Contains(bodyHTML, speakButtonMarker) &&
+		!strings.Contains(bodyHTML, practiceSpeakMarker) {
 		return nil
 	}
 	return templ.Attributes{
@@ -136,6 +146,10 @@ func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 		"data-readaloud-playing":     wording.ReadAloudPlaying.In(lang),
 		"data-readaloud-finished":    wording.ReadAloudFinished.In(lang),
 		"data-readaloud-unavailable": wording.ReadAloudUnavailable.In(lang),
+		"data-readaloud-playall":     wording.ReadAloudPlayAll.In(lang),
+		"data-readaloud-previous":    wording.ReadAloudPrevious.In(lang),
+		"data-readaloud-next":        wording.ReadAloudNext.In(lang),
+		"data-readaloud-progress":    wording.ReadAloudProgressFmt.In(lang),
 	}
 }
 
@@ -180,13 +194,29 @@ func (v *NoteView) hasAids() bool {
 // because the mark is both of those and a page missing either would store a
 // place that points at nothing in particular.
 //
-// The control it gates is drawn in the right rail alone. The rail scrolls
-// separately from the article, so reaching the control does not move the page
-// out from under the position it is about; a copy among the inline aids, which
-// sit between the title and the first sentence, would be reached by scrolling
-// back to the top and would keep that place instead of the reader's.
+// The control it gates has two faces, and neither of them moves the page on
+// the way to being reached: the right rail, which scrolls separately from the
+// article, and the header's folded panel at the widths that have no rail. A
+// copy among the inline aids, which sit between the title and the first
+// sentence, would be reached by scrolling back to the top and would keep that
+// place instead of the reader's.
 func (v *NoteView) offersMark() bool {
 	return v.RelPath != "" && v.ContentIdentity != "" && v.MarkAddress != ""
+}
+
+// markOffer is what the header needs to draw the second face: the note's
+// address, the identity of the bytes on the page, and where the control posts.
+// It answers from the predicate above rather than repeating its three tests, so
+// a page offers both faces or neither and nil is the whole of "neither".
+func (v *NoteView) markOffer() *layouts.MarkOffer {
+	if !v.offersMark() {
+		return nil
+	}
+	return &layouts.MarkOffer{
+		Path:     v.RelPath,
+		Identity: v.ContentIdentity,
+		Endpoint: v.MarkAddress,
+	}
 }
 
 // citedByShown reports whether the answer about what links here means anything

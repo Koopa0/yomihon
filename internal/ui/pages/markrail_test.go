@@ -58,6 +58,12 @@ func TestTheMarkControlSurvivesANoteWithNoOtherAids(t *testing.T) {
 	if !strings.Contains(page, "data-mark-control") {
 		t.Error("the page draws no control for keeping a reading place")
 	}
+	// The same offer reaches the header, which is the face the widths with no
+	// rail have. The reading page is the only surface that hands the chrome
+	// one, so this is where the two faces are answered together or not at all.
+	if !strings.Contains(page, "y-headermark") {
+		t.Error("the page offers the control in the rail and not in the header, so a reader below the rail's width can reach neither")
+	}
 }
 
 // TestANoteThatCannotOfferAMarkStillCollapsesItsRail holds the other side, so
@@ -85,5 +91,8 @@ func TestANoteThatCannotOfferAMarkStillCollapsesItsRail(t *testing.T) {
 	}
 	if strings.Contains(page, "data-mark-control") {
 		t.Error("the page offers to keep a place it has no identity to bind")
+	}
+	if strings.Contains(page, "y-headermark") {
+		t.Error("the header offers to keep a place the page has no identity to bind")
 	}
 }
