@@ -48,7 +48,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.ReportView{
 		Name:        rep.Name,
-		ReadingRail: pages.NewReportReadingRail(shell.Nav, rep.RelPath),
+		ReadingRail: pages.NewReportReadingRail(shell, rep.RelPath),
 		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
 	}
 	if err := pages.Report(view, layouts.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
@@ -94,7 +94,7 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 // showNotFound answers an unenumerated report name with the reading shell, so
 // a mistyped name still carries the folder tree, the search and a way home.
 func (h *Handler) showNotFound(w http.ResponseWriter, r *http.Request, lang wording.Lang, shell nav.Shell) {
-	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
+	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell, "")}
 	if err := pages.WriteNotFound(r.Context(), w, view, layouts.ChromeFromRequest(r, wording.NotFoundKicker.In(lang))); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write not-found page", "path", r.URL.Path, "error", err)
 	}

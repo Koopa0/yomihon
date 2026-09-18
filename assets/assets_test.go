@@ -356,6 +356,12 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 	})
 }
 
+// passageIsTheTrigger matches a passage that is the button itself, whichever
+// way it is written. The property below is about where the language is read
+// from, not about which expression reaches the element, so the button is named
+// and the way up out of it is left free to change.
+var passageIsTheTrigger = regexp.MustCompile(`passage\s*=\s*trigger\s*[,)]`)
+
 // The passage's language belongs to the server, which stamps it from the
 // author's read-aloud marker. The runtime reads it from there rather than
 // carrying a second copy, and never from the button: a button carries its own
@@ -363,6 +369,11 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 // Chinese voice. A paragraph's passage is what encloses its button; a speaker
 // that sits beside its sentence instead hands that sentence over, which is why
 // the language is resolved from a passage and not from the trigger.
+//
+// Reading a note through makes one more thing breakable. A note may carry
+// paragraphs in more than one language, so the voice has to be decided again
+// for each of them; decided once for the reading, the second paragraph would be
+// spoken in the first one's voice. That is the single-resolution-site check.
 func TestSpeechLanguageComesFromTheMarkedPassage(t *testing.T) {
 	t.Parallel()
 
@@ -379,10 +390,17 @@ func TestSpeechLanguageComesFromTheMarkedPassage(t *testing.T) {
 	if !strings.Contains(js, "utterance.lang = speechLanguage(passage)") {
 		t.Error("the utterance's language does not come from the passage the server marked")
 	}
-	if !strings.Contains(js, "passage = trigger?.parentElement") {
-		t.Error("a paragraph's passage does not start above its button, so the button's own label language can win")
+	if passageIsTheTrigger.MatchString(js) {
+		t.Error("a paragraph's passage is the button itself, so the button's own label language can win")
 	}
 	if strings.Contains(js, "speechLanguage(trigger)") {
 		t.Error("speech language is resolved from the button, whose lang belongs to its label rather than to the words it speaks")
+	}
+	// Two: the function and the one call inside the utterance's own
+	// construction. A third is a second place deciding the voice — and the one
+	// a reading through invites is a language resolved once above the walk and
+	// handed to every paragraph in it.
+	if got := strings.Count(js, "speechLanguage("); got != 2 {
+		t.Errorf("the runtime names speechLanguage( %d times, want 2: the function and the one call that makes an utterance, so a note read through resolves the voice once per paragraph", got)
 	}
 }

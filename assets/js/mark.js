@@ -10,6 +10,11 @@
 // until this file marks the document. What it sends is where the window is,
 // and a browser with no script has no such thing to send.
 //
+// A reading page draws it twice — in the rail, and in the header's folded
+// panel for the widths that have no rail — and never shows both at once. This
+// finds every one of them and reads each one's own words, so a face added to
+// some other part of the page needs nothing here.
+//
 // Every word this shows comes from the page, which is where the two languages
 // are decided.
 

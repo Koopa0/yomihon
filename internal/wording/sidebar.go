@@ -84,3 +84,14 @@ var (
 	FilterPartialMany = both("只篩了側欄列出的項目，另外 {count} 項沒搜到。", "Only what the rail listed was filtered; {count} more were not reached.")
 	FilterSearchAll   = both("搜尋全部 →", "Search everything →")
 )
+
+// The foot of the rail, where it says which folder the reader is in. A folder
+// whose path yields no name to show is still named — as the one the reader is
+// reading — because three blank lines at the end of the rail read as something
+// broken rather than as an answer.
+var (
+	ThisLibrary        = both("這個書庫", "This library")
+	LibraryFindingOne  = both("%d 項發現", "%d finding")
+	LibraryFindingMany = both("%d 項發現", "%d findings")
+	LibraryNoFindings  = both("沒有發現", "Nothing found")
+)
