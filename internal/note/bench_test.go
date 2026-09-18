@@ -114,6 +114,7 @@ func benchServer(b *testing.B) *httptest.Server {
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   noMark,
 		Log:            log,
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
