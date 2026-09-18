@@ -473,7 +473,12 @@ const stillness = async (page) => {
 // pushed it out of sight can prove it did; and the page's resting place is
 // read back afterwards, so a journey that moved it anyway is a broken probe
 // rather than a verdict.
-const bring = async (page, link, arrive, how) => {
+//
+// freeze is optional and runs immediately before arrive() reaches the link —
+// after scrollIntoView and the scroll-quiet wait have already settled in real
+// time, so a caller that freezes the page's clock there is not racing the
+// pointer's own travelling, only the delay the module schedules once it lands.
+const bring = async (page, link, arrive, how, freeze) => {
 	const from = await link.evaluate((el) => ({ top: el.getBoundingClientRect().top, window: window.innerHeight }));
 	await link.evaluate((el) => el.scrollIntoView({ block: 'center' }));
 	await stillness(page);
@@ -491,6 +496,7 @@ const bring = async (page, link, arrive, how) => {
 		}
 	}
 	const rest = await page.evaluate(() => Math.round(window.scrollY));
+	if (freeze) await freeze();
 	await arrive();
 	const landed = await page.evaluate(() => Math.round(window.scrollY));
 	if (landed !== rest) {
@@ -499,8 +505,38 @@ const bring = async (page, link, arrive, how) => {
 	approach = { from: from.top, window: from.window };
 };
 
-const pointerOnto = (page, link) => bring(page, link, () => link.hover(), 'pointer');
-const focusOnto = (page, link) => bring(page, link, () => link.focus(), 'keyboard');
+const pointerOnto = (page, link, freeze) => bring(page, link, () => link.hover(), 'pointer', freeze);
+const focusOnto = (page, link, freeze) => bring(page, link, () => link.focus(), 'keyboard', freeze);
+
+// A margin ahead of the read, not a wait. pauseAt takes effect only after a
+// real round trip to the browser, and on a loaded machine that round trip can
+// itself run longer than the gap between "now" and the module's own delay —
+// the same shape of race this whole fix exists to remove, reappearing one
+// layer down if the target were simply "now" as read. Nothing is scheduled
+// yet at the point freezeClock runs, so jumping this far past the read fires
+// no due timer, and the margin costs nothing beyond that: every assertion
+// that follows measures a span from the frozen instant, never against real
+// wall time, so where within that instant it sits does not matter.
+const PAUSE_MARGIN_MS = 60_000;
+
+// Freezes the page's own clock at the instant it is called, so a delay the
+// module schedules right after can only be reached by fast-forwarding it —
+// never by however long the surrounding awaits take on a loaded machine.
+// install() may run only once per page, so the second and later freeze in a
+// run just re-pins the already-installed clock at its own current instant.
+// Confirmed empirically, not from the API docs alone: hover() and focus()
+// both still resolve, and the module's own fetch for an excerpt still
+// completes, while the clock sits paused — none of this probe's other
+// timing depends on a page whose clock was never installed.
+let clockInstalled = false;
+const freezeClock = async (page) => {
+	if (!clockInstalled) {
+		await page.clock.install();
+		clockInstalled = true;
+	}
+	const now = await page.evaluate(() => Date.now());
+	await page.clock.pauseAt(now + PAUSE_MARGIN_MS);
+};
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -624,21 +660,35 @@ try {
 	// whichever is asked first is the one that reports it. The pointer has been
 	// resting on this link since the card above opened, and a pointer that never
 	// left never arrives again — so it leaves first, which the helper does.
-	await pointerOnto(page, section);
-	await page.waitForTimeout(120);
+	//
+	// The wait is the page's own clock fast-forwarded by exactly 120ms, not a
+	// real sleep: a real sleep only answers how long Node happened to yield the
+	// machine for, which on a loaded one can run well past the module's own
+	// 250ms delay and read a card that opened right on schedule as one that
+	// opened early. Freezing the clock the instant the pointer lands and
+	// advancing it by exactly 120ms of virtual time asks the question this site
+	// is actually about — has the module's own delay elapsed — without asking
+	// the machine to hold still for it.
+	await pointerOnto(page, section, () => freezeClock(page));
+	await page.clock.fastForward(120);
 	proveApplied('card-waits-out-a-passing-pointer', proof);
 	if ((await cardState(page)).open) {
 		fail('card-waits-out-a-passing-pointer', 'the card opened within 120ms of the pointer arriving, so crossing a paragraph of links flashes one for each');
 	}
 	// The keyboard. Reaching a link is already deliberate, so it opens at once.
-	await focusOnto(page, section);
-	// The excerpt is already held from the hover above, so what is measured
-	// here is the wait and not a fetch.
-	await page.waitForTimeout(120);
+	// Real time resumes first, so the arrival itself is not raced against a
+	// clock still frozen from the pointer above; the wait after it is frozen
+	// again the same way.
+	await page.clock.resume();
+	await focusOnto(page, section, () => freezeClock(page));
+	await page.clock.fastForward(120);
 	proveApplied('the-keyboard-waits-the-same-as-the-pointer', proof);
 	if ((await cardState(page)).open) {
 		fail('the-keyboard-waits-the-same-as-the-pointer', 'the card opened within 120ms of the link taking focus, so tabbing through a paragraph of links throws up one card per link on the way past');
 	}
+	// Real time resumes again so the module's own remaining delay can actually
+	// elapse; the card below never opens on its own while the clock is frozen.
+	await page.clock.resume();
 	proveApplied('card-opens-on-focus', proof);
 	if (!(await settles(page, true, 4000))) {
 		fail('card-opens-on-focus', `reaching ${JSON.stringify(SECTION_LINK)} by keyboard opened no card, so the feature is a pointer's alone`);
