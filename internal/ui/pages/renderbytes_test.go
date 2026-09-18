@@ -3,11 +3,13 @@ package pages
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
@@ -131,6 +133,21 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
 		{"folder-index-page", FolderIndex(NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), RecentBlock{}, StatusDistribution{}, recordedChrome())},
 		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
+		// The surfaces that have nothing to show, in both languages. Each of
+		// them is a branch the recordings above never reach — the search fixture
+		// finds notes, the health fixture has faults, and the desk fixture fills
+		// its shelves — so without these the one notice they share is written
+		// into a diff nobody can read back. Both languages, because the notice
+		// is one component for either of them and a sentence that fits in only
+		// one is a layout fault the Chinese recording alone cannot show.
+		{"search-page-empty", Search(recordedNothingFoundView(model), recordedChrome())},
+		{"search-page-empty-english", Search(recordedNothingFoundView(model), englishChrome())},
+		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, englishChrome())},
+		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewSidebar(model, "")}, recordedChrome())},
+		{"health-page-clear", Health(recordedClearHealthView(model), recordedChrome())},
+		{"health-page-clear-english", Health(recordedClearHealthView(model), englishChrome())},
+		{"home-page-empty", Home(recordedNothingHomeView(wording.ZhHant), recordedChrome())},
+		{"home-page-empty-english", Home(recordedNothingHomeView(wording.En), englishChrome())},
 	}
 	for _, state := range recordedStatusStates() {
 		cases = append(cases,
@@ -174,6 +191,62 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 				t.Errorf("%s bytes moved (-recorded +rendered):\n%s", tt.name, diff)
 			}
 		})
+	}
+}
+
+// recordedNothingFoundView is a search that matched nothing. It carries the
+// loosened searches and the lifecycle advice, which is everything the page has
+// to offer at that moment and the part a narrower fixture leaves unwritten.
+func recordedNothingFoundView(model *nav.Model) SearchView {
+	return SearchView{
+		Query:      "kafka",
+		FilterKeys: lexical.FilterKeys(),
+		StepBacks:  []SearchStepBack{{Query: "kaf", Count: 2}},
+		Governed:   true,
+		Sidebar:    NewSidebar(model, ""),
+	}
+}
+
+// recordedClearHealthView is the folder with nothing left to report. Every list
+// the page reads is empty, which is the one state the faulted recording beside
+// it can never reach.
+func recordedClearHealthView(model *nav.Model) HealthView {
+	return HealthView{Sidebar: NewSidebar(model, "")}
+}
+
+// recordedNothingHomeView is the desk with nothing in the two shelves a
+// declaration fills and both notices about a reading that came up short. The
+// shelves are written out here rather than built from a model: what this
+// recording holds is the markup an unfilled shelf turns into, and reaching
+// through the builders would put their own arithmetic under the recording too.
+//
+// The two sentences differ on purpose. A shelf whose contract declares one type
+// names it; a shelf with several names the list, and the two are separate
+// sentences in both languages.
+func recordedNothingHomeView(lang wording.Lang) HomeView {
+	unfilled := func(mode, title, href, count, lede, empty string) DeskBlock {
+		return DeskBlock{Mode: mode, Shelf: Shelf{Title: title, Href: href, Count: count, Lede: lede, Empty: empty}}
+	}
+	// The several-types sentence is given its list the way the page gives it
+	// one: the types the contract declared, joined by the separator this
+	// interface writes inside a sentence.
+	declaredTypes := []string{"concept", "map"}
+	return HomeView{
+		PrivacyFault:   `never_egress_dirs = ["/"]`,
+		Degraded:       fmt.Sprintf(wording.DegradedNoticeOne.In(lang), 1),
+		DegradedDetail: "Sources/articles/Raw.md: permission denied",
+		Blocks: []DeskBlock{
+			unfilled(pathMode, wording.Paths.In(lang), "/paths",
+				plural(0, wording.PathCountOne, wording.PathCountMany, lang),
+				wording.DeskPathsLede.In(lang),
+				fmt.Sprintf(wording.NoDeclaredTypeEmptyFmt.In(lang), "lesson")),
+			unfilled(mapMode, wording.Maps.In(lang), "/maps",
+				plural(0, wording.MapCountOne, wording.MapCountMany, lang),
+				wording.DeskMapsLede.In(lang),
+				fmt.Sprintf(wording.NoDeclaredTypesEmptyFmt.In(lang),
+					strings.Join(declaredTypes, wording.ListSeparator.In(lang)))),
+		},
+		ReadmeMissing: true,
 	}
 }
 
