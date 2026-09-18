@@ -195,6 +195,20 @@ func ObsidianHref(root, rel string) string {
 	return "obsidian://open?path=" + strings.Join(segments, "/")
 }
 
+// CompareWithParam names the second of the two notes a side-by-side address
+// holds. The link is written here and read by the route that answers it, so the
+// two ends share one spelling rather than agreeing by hand.
+const CompareWithParam = "with"
+
+// compareHref builds the address that opens two notes at once. The first note
+// is a path segment and the second a query value, so each is escaped by the
+// rule its own half of a URL follows: the segment through the one escaper every
+// vault address already uses, the value through the same encoder a search link
+// spends on a reader's query.
+func compareHref(a, b string) string {
+	return VaultHref("/compare/", a) + "?" + url.Values{CompareWithParam: {b}}.Encode()
+}
+
 // syllabusHref builds the study-path page URL for a vault-relative path.
 func syllabusHref(p string) string { return VaultHref("/syllabus/", p) }
 

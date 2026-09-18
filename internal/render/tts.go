@@ -30,6 +30,9 @@ var (
 	// the shape markBlockAnchor plants for a classified address. Nested markup
 	// is someone else's span and is left for the flatten.
 	trailingBlockAddressSpan = regexp.MustCompile(`<span(?:\s+[^>]*)?>[^<]*</span>\s*$`)
+	// footnoteReference is one citation mark as goldmark writes it: the mark's
+	// own id and a link down to the note's footnote list.
+	footnoteReference = regexp.MustCompile(`<sup id="[^"]*"><a href="#[^"]*" class="footnote-ref"[^>]*>([^<]*)</a></sup>`)
 )
 
 // ttsSpeaker is the speak button's inline speaker icon (stroke-only, matching
@@ -42,13 +45,32 @@ const ttsSpeaker = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 // control. Ruby is reading apparatus rather than a language declaration, so a
 // paragraph merely containing it stays untouched and the author opts in.
 func InjectTTS(htmlOut string, lang wording.Lang) string {
-	return injectMarkedParagraphTTS(htmlOut, lang)
+	return eachMarkedParagraph(htmlOut, func(inner, spoken string) string {
+		return readAloudBlock(inner, spoken, lang)
+	})
 }
 
-// injectMarkedParagraphTTS consumes the explicit author marker and wraps the
-// following paragraph whether or not it contains ruby. The paragraph gains
-// lang=ja for assistive technology.
-func injectMarkedParagraphTTS(htmlOut string, lang wording.Lang) string {
+// MarkedParagraphs returns every paragraph an author marked to be read aloud,
+// in document order, as the read-aloud elements a page renders for them. It is
+// for a page that gathers paragraphs from notes it does not otherwise show: the
+// bytes are the note's own page's, so one runtime drives both, except that a
+// footnote citation keeps its mark and loses its link — the list it pointed at
+// belongs to the note, which is not on this page.
+func MarkedParagraphs(htmlOut string, lang wording.Lang) []string {
+	var found []string
+	eachMarkedParagraph(htmlOut, func(inner, spoken string) string {
+		found = append(found, readAloudBlock(footnoteReference.ReplaceAllString(inner, "<sup>$1</sup>"), spoken, lang))
+		return ""
+	})
+	return found
+}
+
+// eachMarkedParagraph is the one reader of the read-aloud marker's grammar: it
+// consumes the explicit author marker and hands the following paragraph to
+// replace, whether or not the paragraph contains ruby. A paragraph the grammar
+// cannot claim is left as the author's own and never reaches replace — nothing
+// asks twice and gets two answers.
+func eachMarkedParagraph(htmlOut string, replace func(inner, spoken string) string) string {
 	return ttsMarkedParagraph.ReplaceAllStringFunc(htmlOut, func(marked string) string {
 		inner := ttsMarkedParagraph.FindStringSubmatch(marked)[1]
 		if nestedParaOpen.MatchString(inner) {
@@ -58,9 +80,15 @@ func injectMarkedParagraphTTS(htmlOut string, lang wording.Lang) string {
 		if spoken == "" {
 			return `<p lang="ja">` + inner + `</p>`
 		}
-		return `<div class="y-reading" lang="ja">` + speakButton(spoken, lang) +
-			`<p lang="ja">` + inner + `</p></div>`
+		return replace(inner, spoken)
 	})
+}
+
+// readAloudBlock is the element a marked paragraph becomes: the wrapper, the
+// speaker, and the paragraph, which gains lang=ja for assistive technology.
+func readAloudBlock(inner, spoken string, lang wording.Lang) string {
+	return `<div class="y-reading" lang="ja">` + speakButton(spoken, lang) +
+		`<p lang="ja">` + inner + `</p></div>`
 }
 
 // spokenText reduces a segment's inner HTML to its spoken form: a trailing

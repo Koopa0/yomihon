@@ -186,7 +186,7 @@ func (v *NoteView) diagCount() int {
 // a new folder rather than an edge of one.
 func (v *NoteView) hasAids() bool {
 	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 ||
-		v.citedByShown() || len(v.BasedOn) > 0 || v.offersMark()
+		v.citedByShown() || len(v.BasedOn) > 0 || v.Pair.RelPath != "" || v.offersMark()
 }
 
 // offersMark reports whether this page can offer to keep the reader's place.
@@ -326,10 +326,16 @@ func (v *NoteView) showsFlipReceipt() bool {
 	return v.Governed && v.FlippedFrom != "" && v.Status != "" && v.FlippedFrom != v.Status
 }
 
-// schemaNoticesID names the block of schema findings the transition controls
-// describe themselves by. One page renders at most one such block, which is what
-// lets the id be fixed.
-const schemaNoticesID = "schema-notices"
+// schemaNoticesName is what a note's block of schema findings is called. One
+// note renders at most one such block, so the name needs nothing to tell it
+// from a second.
+const schemaNoticesName = "schema-notices"
+
+// schemaNoticesID is where this note's block of findings answers: the fixed
+// name, inside the id space this article occupies. A page showing two notes
+// gives each article a space of its own, so the two blocks stay two elements
+// and each transition control describes itself by its own note's findings.
+func (v *NoteView) schemaNoticesID() string { return v.IDPrefix + schemaNoticesName }
 
 // schemaNoticesRef is the description a transition submit carries beside the
 // findings, so a control announced on its own still says what the amber notices
@@ -339,5 +345,5 @@ func schemaNoticesRef(v *NoteView) templ.Attributes {
 	if len(v.SchemaNotices) == 0 {
 		return nil
 	}
-	return templ.Attributes{"aria-describedby": schemaNoticesID}
+	return templ.Attributes{"aria-describedby": v.schemaNoticesID()}
 }
