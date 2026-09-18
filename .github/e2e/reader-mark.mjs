@@ -175,7 +175,7 @@ const MUTATIONS = {
       'the way back drawn on the desk',
     ),
   },
-  'land-without-the-offset-when-narrow': {
+  'narrow-landing-drops-the-offset': {
     target: 'a-narrow-reader-is-offered-the-place-back',
     apply: rewriteModule(
       'window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);',
