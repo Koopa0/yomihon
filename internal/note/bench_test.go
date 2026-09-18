@@ -31,7 +31,7 @@ func BenchmarkDesk(b *testing.B) {
 	client := srv.Client()
 	b.ReportAllocs()
 	for b.Loop() {
-		req, err := http.NewRequestWithContext(b.Context(), http.MethodGet, srv.URL+"/", nil)
+		req, err := http.NewRequestWithContext(b.Context(), http.MethodGet, srv.URL+"/", http.NoBody)
 		if err != nil {
 			b.Fatalf("build GET /: %v", err)
 		}

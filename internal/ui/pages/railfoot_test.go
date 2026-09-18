@@ -3,6 +3,7 @@ package pages
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -78,7 +79,7 @@ func TestTheFootAnswersInSentences(t *testing.T) {
 			if findings == 0 && strings.Contains(got, "0") {
 				t.Errorf("libraryFindings(0, %q) = %q, which states a number rather than saying there is nothing", lang, got)
 			}
-			if findings > 0 && !strings.Contains(got, string(rune('0'+findings))) {
+			if findings > 0 && !strings.Contains(got, strconv.Itoa(findings)) {
 				t.Errorf("libraryFindings(%d, %q) = %q and does not carry the number", findings, lang, got)
 			}
 		}
