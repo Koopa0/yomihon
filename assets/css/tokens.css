@@ -257,6 +257,15 @@
   --r-md: 6px;
   --r-lg: 12px;
 
+  /* Overlay mask — the wash behind a dialog, sheet or drawer. One value for
+     every kind of overlay rather than one per component: a reader dismissing
+     a palette, a concept sheet or the narrow nav drawer should feel the same
+     weight of dimming each time. Listed here rather than beside the colour
+     tokens above because it does not have a dark twin to keep in step: a
+     fixed-alpha black wash reads correctly over either theme's surfaces, the
+     same way the literals it replaces already did. */
+  --overlay-mask: oklch(0 0 0 / 0.45);
+
   /* Content measure */
   --measure-article: 680px;
   /* A notice, which is one heading and a sentence or two rather than an
