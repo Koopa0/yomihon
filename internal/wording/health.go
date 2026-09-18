@@ -75,12 +75,34 @@ var (
 	)
 )
 
-// The per-row details each section shows beside a note's name.
+// The per-row details each finding shows beside the file it is about.
 var (
 	LinkedToFmt      = both("連到「%s」", "links to %q")
 	TitleOnlyMeansTo = both("寫的是「%s」，指的是", "written as %q, meaning ")
 	StatusAndTypeFmt = both("狀態值「%s」，類型「%s」", "status %q, type %q")
+	// CollisionSharedWith opens the list of the other files answering to the
+	// same name. The file the row is about is the first of them, which is the
+	// file the check command reports the collision against, so a reader
+	// comparing the two faces meets the same path in both.
+	CollisionSharedWith = both("名字「%s」也屬於", "the name %q also belongs to")
 )
+
+// The findings table's header row. Each of these is a label a reader clicks to
+// reorder the table; the word the request carries is fixed in the code, so
+// translating a heading cannot change what a link asks for.
+var (
+	HealthColumnFile     = both("檔案", "File")
+	HealthColumnFinding  = both("發現", "Finding")
+	HealthColumnSeverity = both("嚴重度", "Severity")
+	HealthColumnCount    = both("次數", "Count")
+)
+
+// HealthGuideTitle opens what each kind of finding in the table means. The
+// explanations sit under the table rather than over it: a reader who came to
+// decide what to repair first wants the rows, and a reader who does not know
+// what a row is claiming wants the sentence — and only the second is reading
+// prose.
+var HealthGuideTitle = both("每一種發現是什麼意思", "What each kind of finding means")
 
 // ContractUnreadable is the one loud sentence for a vault whose contract file
 // exists and could not be loaded: without it, a folder with a broken contract

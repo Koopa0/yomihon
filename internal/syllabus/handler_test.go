@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/syllabus"
+	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -71,15 +73,15 @@ func loadModel(t *testing.T, root string) *nav.Model {
 	return model
 }
 
-func get(t *testing.T, client *http.Client, url string) (code int, body string) {
+func get(t *testing.T, client *http.Client, address string) (code int, body string) {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, address, http.NoBody)
 	if err != nil {
-		t.Fatalf("new request %s: %v", url, err)
+		t.Fatalf("new request %s: %v", address, err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("GET %s: %v", url, err)
+		t.Fatalf("GET %s: %v", address, err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -358,6 +360,115 @@ func TestShowResolvesADecomposedPath(t *testing.T) {
 			}
 			if !strings.Contains(page, "Cafe path") {
 				t.Errorf("page does not render the study-path; body = %q", page)
+			}
+		})
+	}
+}
+
+// marksHere counts the rows of a rendered course that say the reader is
+// standing on them. It reads both halves of the mark, because either one alone
+// would leave the other free to go: the class is what draws the heavier point,
+// and the current-location attribute is what says the same thing to a reader
+// who is listening.
+func marksHere(t *testing.T, body string) int {
+	t.Helper()
+	main := syllabusMain(t, body)
+	drawn := strings.Count(main, `class="y-lesson y-lesson--here"`)
+	said := strings.Count(main, `aria-current="location"`)
+	if drawn != said {
+		t.Errorf("the course draws %d marked rows and announces %d; body = %q", drawn, said, body)
+	}
+	return drawn
+}
+
+// A course reached from a lesson marks that lesson. The route learns which one
+// from the note named in the address the lesson page linked with, and nothing
+// else: a course opened from the desk carries no such name and marks nobody.
+func TestShowMarksTheLessonTheReaderCameFrom(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeVault(t, root)
+	srv := newServer(t, root)
+
+	for _, tc := range []struct {
+		name string
+		from string
+		want int
+	}{
+		{name: "from a lesson the course teaches", from: "Writing/lessons/golang/Slices.md", want: 1},
+		{name: "from the desk, carrying nothing", from: "", want: 0},
+		{name: "from a note this course does not list", from: "Writing/lessons/golang/Elsewhere.md", want: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			address := srv.URL + "/syllabus/Maps/Go path.md"
+			if tc.from != "" {
+				address += "?" + url.Values{pages.SyllabusFromParam: {tc.from}}.Encode()
+			}
+			code, body := get(t, srv.Client(), address)
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if got := marksHere(t, body); got != tc.want {
+				t.Errorf("%d rows marked, want %d; body = %q", got, tc.want, body)
+			}
+			// The words beside every point stay the contract's whatever the
+			// mark does, so arriving from a lesson cannot turn the author's
+			// judgement of the material into a reading of the reader.
+			word := `<span class="ui-status ui-status--` + schema.SealStatus + `">` + schema.SealStatus + `</span>`
+			if !strings.Contains(syllabusMain(t, body), word) {
+				t.Errorf("the course stopped printing the contract's own word beside a lesson; body = %q", body)
+			}
+		})
+	}
+}
+
+// The name a reader arrives with is composed before it is compared, for the
+// same reason the address of the course itself is: one letter has two
+// spellings, and a keyboard, a paste and a filesystem do not agree on which
+// one they emit. Without it a reader leaving a lesson whose name carries an
+// accent reaches the course and finds nothing marked.
+func TestShowComposesTheNameTheReaderCameFrom(t *testing.T) {
+	t.Parallel()
+
+	const (
+		// One name to a reader and two strings to a comparison: the accented
+		// letter as a single code point, and the same letter written as e plus
+		// a combining accent.
+		composedLesson   = "Café lesson"
+		decomposedLesson = "Café lesson"
+		lessonDir        = "Writing/lessons/golang/"
+	)
+
+	root := t.TempDir()
+	writeVault(t, root)
+	lesson := "---\ntitle: Cafe lesson\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(lessonDir), composedLesson+".md"), []byte(lesson), 0o600); err != nil {
+		t.Fatalf("write lesson: %v", err)
+	}
+	course := "---\ntitle: Cafe course\ntype: study-path\ndomain: golang\n---\n\n" +
+		"## data | Data | 資料\n\n### text | Text | 文字 {sequence=primary}\n\n- [[" + composedLesson + "]]\n"
+	if err := os.WriteFile(filepath.Join(root, "Maps", "Cafe course.md"), []byte(course), 0o600); err != nil {
+		t.Fatalf("write study-path: %v", err)
+	}
+	srv := newServer(t, root)
+
+	for _, tc := range []struct {
+		name string
+		rel  string
+	}{
+		{name: "composed", rel: lessonDir + composedLesson + ".md"},
+		{name: "decomposed", rel: lessonDir + decomposedLesson + ".md"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			address := srv.URL + "/syllabus/Maps/Cafe course.md?" + url.Values{pages.SyllabusFromParam: {tc.rel}}.Encode()
+			code, body := get(t, srv.Client(), address)
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if got := marksHere(t, body); got != 1 {
+				t.Errorf("%d rows marked, want 1; body = %q", got, body)
 			}
 		})
 	}

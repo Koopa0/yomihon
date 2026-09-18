@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -234,20 +236,45 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 	}
 }
 
-// healthSectionBody returns one section of the health page, failing when the
-// section is absent — a page that stopped rendering a section must not read as
-// a page whose section is correctly empty.
+// healthKindCount is the number the guide under the findings table gives for
+// one kind of finding. The guide is where the page states how much of a kind
+// there is, and it counts the table's own rows, so a number that disagrees
+// with the lines under it is the disagreement worth catching.
+func healthKindCount(t *testing.T, page, title string) int {
+	t.Helper()
+	stated := regexp.MustCompile(`<dt class="y-findingsguide__term">\s*` + regexp.QuoteMeta(title) +
+		`\s*<span class="ui-navitem__count">(\d+)</span>`)
+	match := stated.FindStringSubmatch(page)
+	if match == nil {
+		t.Fatalf("the findings guide states no number for %q", title)
+	}
+	count, err := strconv.Atoi(match[1])
+	if err != nil {
+		t.Fatalf("the findings guide states %q for %q, which is no number: %v", match[1], title, err)
+	}
+	return count
+}
+
+// healthSectionBody returns every row of the health page's findings table that
+// reports one kind of finding, failing when there are none — a page that
+// stopped reporting a kind must not read as a page whose rows are correctly
+// absent. The rows are bounded by their own cells, so a name appearing in
+// another kind's row cannot stand in for one this kind left out.
 func healthSectionBody(t *testing.T, body, title string) string {
 	t.Helper()
-	start := strings.Index(body, title)
-	if start < 0 {
-		t.Fatalf("the health page has no %q section", title)
+	if !strings.Contains(body, title) {
+		t.Fatalf("the health page says nothing at all about %q", title)
 	}
-	section, _, closed := strings.Cut(body[start:], "</section>")
-	if !closed {
-		t.Fatalf("the %q section is not closed", title)
+	var rows []string
+	for _, row := range findingsRow.FindAllString(body, -1) {
+		if strings.Contains(row, `<span class="y-findings__kind">`+title+`</span>`) {
+			rows = append(rows, row)
+		}
 	}
-	return section
+	if len(rows) == 0 {
+		t.Fatalf("the findings table has no row reporting %q", title)
+	}
+	return strings.Join(rows, "")
 }
 
 // Three trial readers clicked the breadcrumb before anything else — a teacher

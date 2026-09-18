@@ -111,7 +111,55 @@ const (
 	landingPrefixRunes = 30
 )
 
-// SearchN runs a parsed query against the index and returns results in the final
+// Answer is everything one pass over the index found for a query: the results
+// the caller asked to have built, how many hits there truly were, and how the
+// whole matching set — not the built stretch of it — divides along the keys a
+// reader can narrow by. The three arrive together because they are one walk of
+// the entries, and a division counted over the built stretch alone would be
+// wrong by exactly the tail the limit left out.
+type Answer struct {
+	Results []Result
+	Total   int
+
+	// Facets is one division per key, in the order a reader meets them, and is
+	// empty where nothing matched or where the artifact policy leaves metadata
+	// unavailable — there a narrowed query would refuse rather than answer, and
+	// an offer nothing can keep is not made.
+	Facets []Facet
+}
+
+// Facet is one key the answer divides along: the values the matching notes
+// carry, and how many of them carry none. Unstated is kept apart from the
+// values rather than counted as one of them, because "no domain declared" is
+// not a domain and markup handed both in one list would dress it as one. Its
+// count is what makes the division add up: every hit is either at one of the
+// values or in it.
+type Facet struct {
+	Key      string
+	Values   []FacetValue
+	Unstated int
+}
+
+// FacetValue is one value the matching notes carry, in the spelling the first
+// note to carry it gave it, with how many hits are at it. The spelling is the
+// note's own rather than the folded form the index compares, because it is
+// both what the reader reads and what a narrowed query is written with: the
+// parser folds a filter value on the way back in, so the two cannot disagree
+// about which notes the offer selects.
+type FacetValue struct {
+	Value string
+	Count int
+
+	// Carriers are the note types the hits at this value declared, sorted and
+	// without repeats. A status is legal per note type, so whether this value
+	// is one the contract declares is a question no tally keyed on the value
+	// alone can answer — the same reason the type and the status travel
+	// together in TypeStatus. A surface that rules on the value asks about
+	// each of these; one that only counts ignores them.
+	Carriers []string
+}
+
+// Search runs a parsed query against the index and returns results in the final
 // deterministic order, eight groups concatenated: a note's title hits, a note's
 // body hits, a note's topic hits, the same three over vault files that are not
 // notes, then the path-only hits, notes again before files. Each group keeps
@@ -123,17 +171,19 @@ const (
 // the title bucket. A metadata filter excludes non-instance artifacts, and
 // returns ErrMetadataUnavailable when the artifact policy was declared and could
 // not be honoured. At most limit results are materialized, a negative limit all
-// of them; total counts every hit, and the tail beyond limit is never built.
-func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err error) {
+// of them; Total counts every hit, the tail beyond limit is never built, and
+// the facets are tallied over every hit rather than over the built stretch.
+func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 	if len(q.tokens) == 0 && len(q.filters) == 0 {
-		return nil, 0, nil
+		return Answer{}, nil
 	}
 	metadataAvailable := idx.policy.Trustworthy()
 	requiresMetadata := q.RequiresMetadata()
 	if requiresMetadata && !metadataAvailable {
-		return nil, 0, idx.metadataUnavailableError()
+		return Answer{}, idx.metadataUnavailableError()
 	}
 	var answers resultBuckets
+	var divisions facetTally
 	for _, e := range idx.entries {
 		if requiresMetadata && !e.metadataCapable {
 			continue
@@ -141,20 +191,26 @@ func (idx *Index) SearchN(q *Query, limit int) (results []Result, total int, err
 		if !e.matchesFilters(q.filters) {
 			continue
 		}
-		answers.place(e, q.tokens)
+		// Tallied on the way past rather than from the hits afterwards, and
+		// only for an entry that was actually filed: passing every filter is
+		// not being a hit, since an entry whose words answer none of the terms
+		// leaves place with no bucket to sit in and is not counted in Total.
+		if answers.place(e, q.tokens) && metadataAvailable {
+			divisions.add(e)
+		}
 	}
 	answers.raiseKnowledge()
 	answers.raiseExactTitles(q.tokens)
 	hits := answers.ordered()
-	total = len(hits)
+	answer := Answer{Total: len(hits), Facets: divisions.facets()}
 	if limit >= 0 && len(hits) > limit {
 		hits = hits[:limit]
 	}
-	results = make([]Result, len(hits))
+	answer.Results = make([]Result, len(hits))
 	for i, h := range hits {
-		results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias, h.topic)
+		answer.Results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias, h.topic)
 	}
-	return results, total, nil
+	return answer, nil
 }
 
 // hit is one matched entry before its Result is built. Buckets hold hits
@@ -195,8 +251,11 @@ type resultBuckets struct {
 }
 
 // place files one filter-matching entry into its answer group by what the
-// tokens matched: the title, the body, a declared topic, or only the path.
-func (b *resultBuckets) place(e *entry, tokens []string) {
+// tokens matched: the title, the body, a declared topic, or only the path. It
+// reports whether the entry was filed at all — matching every filter and none
+// of the terms is not a hit, and a caller counting what the query found has to
+// be able to tell the two apart.
+func (b *resultBuckets) place(e *entry, tokens []string) bool {
 	switch {
 	case allContain(e.TitleFold, tokens):
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
@@ -215,7 +274,10 @@ func (b *resultBuckets) place(e *entry, tokens []string) {
 		b.add(topicNote, topicFile, hit{entry: e, topic: topicAnswering(e, tokens)})
 	case allContain(e.PathFold, tokens):
 		b.add(pathNote, pathFile, hit{entry: e})
+	default:
+		return false
 	}
+	return true
 }
 
 // add files one hit under the group its evidence and its kind put it in. The hit
