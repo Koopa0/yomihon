@@ -73,6 +73,12 @@ type PreferenceOption struct {
 // words on a page are written by the server, and the only honest way to change
 // them is to ask the server for the page again.
 //
+// Each choice is a column section named by a small heading, not a box cut by a
+// title — the rest of the interface separates a group of controls by space and
+// a label, never a frame, and this page is drawn the same way. The keyboard
+// shortcuts a reader can already open from the header popover get the same
+// treatment: a heading of their own rather than a list sitting under nothing.
+//
 // Where scripting is running, that same form is the ground rather than the
 // path. Each option carries what a reader of the page other than the server
 // needs to keep a choice as it is picked — the address to come back to, what
@@ -98,7 +104,10 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 				// pick them and who therefore never presses the control above.
 				<a class="y-prefs__return" href={ templ.URL(v.Reading) }>{ wording.PrefReturn.In(c.Lang) }</a>
 			}
-			@layouts.KeyboardKeys(c.Lang)
+			<section class="y-prefs__shortcuts">
+				<h2>{ wording.PrefKeyboardShortcutsTitle.In(c.Lang) }</h2>
+				@layouts.KeyboardKeys(c.Lang)
+			</section>
 			@preferenceReset(v.ReturnTo, c.Lang)
 			<footer class="y-prefs__storage">
 				<h2>{ wording.PrefStorageTitle.In(c.Lang) }</h2>
