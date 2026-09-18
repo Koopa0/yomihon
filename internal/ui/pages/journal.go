@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -275,18 +276,24 @@ func newMonthGrid(inMonth, all []nav.JournalEntry, month Month, lang wording.Lan
 		weekdays = append(weekdays, name.In(lang))
 	}
 
-	var weeks [][]DayCell
-	week := make([]DayCell, weekdayColumn(month.first().Weekday()))
+	// The month is laid out as one run of squares and then cut into weeks. The
+	// run opens with the squares of the week before the first falls in and
+	// closes with the ones after the last, so every week is a week wide and
+	// each column stays under its own weekday however the month begins.
+	cells := make([]DayCell, 0, weekColumns*6)
+	for range weekdayColumn(month.first().Weekday()) {
+		cells = append(cells, DayCell{})
+	}
 	for day := 1; day <= month.days(); day++ {
 		date := month.first().AddDate(0, 0, day-1).Format(time.DateOnly)
-		week = append(week, DayCell{Number: strconv.Itoa(day), Date: date, Entries: byDay[date]})
-		if len(week) == weekColumns {
-			weeks = append(weeks, week)
-			week = nil
-		}
+		cells = append(cells, DayCell{Number: strconv.Itoa(day), Date: date, Entries: byDay[date]})
 	}
-	if len(week) > 0 {
-		weeks = append(weeks, append(week, make([]DayCell, weekColumns-len(week))...))
+	for len(cells)%weekColumns != 0 {
+		cells = append(cells, DayCell{})
+	}
+	var weeks [][]DayCell
+	for week := range slices.Chunk(cells, weekColumns) {
+		weeks = append(weeks, week)
 	}
 
 	return MonthGrid{

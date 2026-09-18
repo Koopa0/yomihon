@@ -41,7 +41,7 @@ func julyMonth(t *testing.T) Month {
 
 // gridEntries is every entry link the calendar draws, in the order it draws
 // them, each paired with the square it was drawn in.
-func gridEntries(grid MonthGrid) map[string][]string {
+func gridEntries(grid *MonthGrid) map[string][]string {
 	drawn := make(map[string][]string)
 	for _, week := range grid.Weeks {
 		for _, cell := range week {
@@ -82,7 +82,7 @@ func TestJournalMonthDrawsEveryEntryOnceInTheGridAndOnceInTheRows(t *testing.T) 
 		"/notes/Diary/2026-07-01.md":             "2026-07-01",
 	}
 
-	drawn := gridEntries(view.Grid)
+	drawn := gridEntries(&view.Grid)
 	for href, squares := range drawn {
 		day, wanted := wantDays[href]
 		switch {
@@ -128,7 +128,7 @@ func TestJournalEntryWithNoDayIsGatheredUnderTheMonth(t *testing.T) {
 			view := NewJournalIndex(journalFixture(), month, nav.Closure{}, wording.ZhHant, nil)
 
 			const undated = "/notes/Diary/loose%20thoughts.md"
-			if _, drawn := gridEntries(view.Grid)[undated]; drawn {
+			if _, drawn := gridEntries(&view.Grid)[undated]; drawn {
 				t.Error("the entry that wrote no day was drawn in a square of a month it is not in")
 			}
 			if slices.ContainsFunc(view.Entries.Rows, func(r Row) bool { return r.Href == undated }) {

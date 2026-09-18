@@ -42,10 +42,10 @@ var (
 	JournalMonthsNav  = both("月份", "Months")
 )
 
-// What a journal entry that wrote no day is gathered under. It belongs to no
-// month, so it would fall off every page of a calendar; it is given a group of
-// its own instead, at the foot of whichever month is open, and the heading says
-// why it is there.
+// JournalUndatedTitle heads the entries that wrote no day. They belong to no
+// month, so they would fall off every page of a calendar; they are given a
+// group of their own instead, at the foot of whichever month is open, and the
+// heading says why they are there.
 var JournalUndatedTitle = both("沒有寫日期的日誌", "Journal entries with no date")
 
 // MonthFmt writes a calendar month with its year. Chinese counts the month and
