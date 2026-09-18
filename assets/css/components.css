@@ -367,6 +367,10 @@ html, body { margin: 0; background: var(--bg); }
    No box of its own: the rail's frame is the only frame here, and the hairline
    above it is the same separator that stands between every other group. */
 .y-railfoot {
+  /* The quiet ink is set on the block rather than on the link inside it: every
+     anchor in this interface inherits its colour, and a rule naming one class
+     is outranked by the rule that says so. */
+  color: var(--fg-faint);
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -383,13 +387,11 @@ html, body { margin: 0; background: var(--bg); }
   overflow-wrap: anywhere;
 }
 .y-railfoot__size {
-  color: var(--fg-faint);
   font-family: var(--font-mono);
   font-size: var(--fs-11);
 }
 .y-railfoot__health {
   align-items: center;
-  color: var(--fg-faint);
   display: flex;
   font-family: var(--font-mono);
   font-size: var(--fs-11);
