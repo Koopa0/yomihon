@@ -155,12 +155,10 @@ type healthRule struct {
 	severity judge.Severity
 }
 
-// healthRules is that account, for every kind of finding this page takes a
-// weight from. A kind missing from this map carries no weight rather than one
-// this page invented for it. A note nothing cites is missing because no rule
-// covers it. A file the reading could not open is missing for a different
-// reason: the judging face reports one now, and until this map reads it the
-// two faces still answer differently about the same file.
+// healthRules is that account, for every kind of finding a rule covers. A kind
+// missing from this map has no rule behind it — a file the reading could not
+// open, a note nothing cites — and its rows carry no weight rather than one
+// this page invented for them.
 //
 // The broken-link entry is the weight that rule gives an untracked target. The
 // list this page gathers holds only those: a target under a gap heading or in
