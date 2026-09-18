@@ -32,7 +32,7 @@ func (h *Handler) listen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := listenView(current, snap, lang)
+	view := listenView(current, &snap, lang)
 	if err := pages.Listen(view, layouts.ChromeFromRequest(r, view.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write listening page", "path", rel, "error", err)
 	}
@@ -42,7 +42,7 @@ func (h *Handler) listen(w http.ResponseWriter, r *http.Request) {
 // its author marked. The snapshot holds a note's markdown and no HTML, and the
 // marker survives only into rendered HTML, so each lesson is rendered here and
 // most of what comes back is dropped.
-func listenView(current *nav.Path, snap RequestSnapshot, lang wording.Lang) pages.ListenView {
+func listenView(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) pages.ListenView {
 	view := pages.ListenView{
 		Title:    fmt.Sprintf(wording.ListenTitleFmt.In(lang), current.Title),
 		PathHref: pages.VaultHref("/syllabus/", current.RelPath),
@@ -107,6 +107,6 @@ func taught(current *nav.Path) []*nav.PathEntry {
 // isLesson asks the contract whether a note's declared type is the one this
 // vault files course members as. A face reading a generation that carries no
 // status authority teaches nothing rather than guessing at the name.
-func (s RequestSnapshot) isLesson(noteType string) bool {
+func (s *RequestSnapshot) isLesson(noteType string) bool {
 	return s.Status != nil && s.Status.IsLessonType(noteType)
 }

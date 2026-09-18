@@ -83,7 +83,7 @@ func TestBuildPathView(t *testing.T) {
 		"- [[Unwritten]]\n"
 	path := buildTestPath(t, body)
 
-	got := BuildPathView(&path, []nav.Path{path}, CourseCover{})
+	got := BuildPathView(&path, []nav.Path{path}, &CourseCover{})
 
 	want := PathView{
 		Title:      "Go path",
@@ -174,7 +174,7 @@ func TestLessonsAreAnOrderedList(t *testing.T) {
 	path := buildTestPath(t, body, map[string]string{
 		"Writing/Routine.md": "---\ntitle: Routine\ntype: lesson\nstatus: draft\n---\nbody\n",
 	})
-	view := BuildPathView(&path, []nav.Path{path}, CourseCover{})
+	view := BuildPathView(&path, []nav.Path{path}, &CourseCover{})
 
 	if view.Entries != 5 {
 		t.Errorf("BuildPathView() Entries = %d, want 5: a none block adds nothing and a planned row still counts", view.Entries)
@@ -244,7 +244,7 @@ func TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule(t *testing.T) {
 	}) {
 		t.Fatalf("the nested primary was not reported: %+v", path.Diagnostics)
 	}
-	view := BuildPathView(&path, []nav.Path{path}, CourseCover{})
+	view := BuildPathView(&path, []nav.Path{path}, &CourseCover{})
 	if view.Modules != 1 {
 		t.Errorf("Modules = %d, want 1: only the side branch, not the nested primary", view.Modules)
 	}
@@ -514,7 +514,7 @@ func TestSyllabusSeparatesNoMarkerFromUnreadableMarker(t *testing.T) {
 	render := func(t *testing.T, body string) string {
 		t.Helper()
 		path := buildTestPath(t, body)
-		view := BuildPathView(&path, []nav.Path{path}, CourseCover{})
+		view := BuildPathView(&path, []nav.Path{path}, &CourseCover{})
 		if len(view.Branches) != 0 {
 			t.Fatalf("the fixture grew a course; the empty-state page never renders")
 		}
@@ -670,7 +670,7 @@ func TestAnUnknownRuleDoesNotSilenceAWrittenMarker(t *testing.T) {
 			for _, rule := range tt.rules {
 				path.Diagnostics = append(path.Diagnostics, sequence.Diagnostic{Rule: rule})
 			}
-			if got := BuildPathView(&path, nil, CourseCover{}).NoCourse; got != tt.want {
+			if got := BuildPathView(&path, nil, &CourseCover{}).NoCourse; got != tt.want {
 				t.Errorf("NoCourse = %d, want %d", got, tt.want)
 			}
 		})
@@ -797,7 +797,7 @@ func TestBuildPathViewMarksTheLessonTheReaderArrivedFrom(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tt.want, marked(BuildPathView(&path, []nav.Path{path}, CourseCover{Here: tt.here}))); diff != "" {
+			if diff := cmp.Diff(tt.want, marked(BuildPathView(&path, []nav.Path{path}, &CourseCover{Here: tt.here}))); diff != "" {
 				t.Errorf("marked rows (-want +got):\n%s", diff)
 			}
 		})
@@ -850,7 +850,7 @@ func TestSyllabusSaysNothingIsOver(t *testing.T) {
 	path := buildTestPath(t, body)
 	// Entered from a lesson, so the marked row is on the page too: the mark is
 	// the one thing here that could have grown words about being finished.
-	view := BuildPathView(&path, []nav.Path{path}, CourseCover{Here: "Writing/Slices.md"})
+	view := BuildPathView(&path, []nav.Path{path}, &CourseCover{Here: "Writing/Slices.md"})
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		var out bytes.Buffer
