@@ -252,6 +252,12 @@ export function initLesson() {
         event.preventDefault();
         title.textContent = template.dataset.title || '';
         body.replaceChildren(template.content.cloneNode(true));
+        // The markup cannot declare this one. The trigger is a link the
+        // renderer wrote into the note's prose, and the attributes naming an
+        // act belong to buttons — a button here would take away the plain
+        // navigation to the concept note that a reader with no script relies
+        // on. And the words in the sheet arrive on the line above, so a sheet
+        // the browser opened by itself would be an empty one.
         if (!dialog.open) dialog.showModal();
         // A link may name one section of the note rather than the note. The
         // sheet is its own scrolling box, so the jump a page makes to an id
@@ -264,13 +270,7 @@ export function initLesson() {
         body.scrollTop = target
           ? target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
           : 0;
-        return;
       }
-      if (event.target.closest('[data-concept-close]')) {
-        dialog.close();
-        return;
-      }
-      if (event.target === dialog) dialog.close();
     });
   }
 
