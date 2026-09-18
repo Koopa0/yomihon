@@ -105,6 +105,10 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"sidebar-no-note", sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"})},
 		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
 		{"note-page", Note(recordedNoteView(t, model, current), recordedChrome())},
+		// The head's dt/dd facts read in the other interface language too: the
+		// terms are the interface's own words and only a second recording shows
+		// neither language's spelling was left behind in the pair.
+		{"note-page-english", Note(recordedNoteView(t, model, current), recordedEnglishChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
 		// vault's own words either way; what changes is everything the page

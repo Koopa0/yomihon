@@ -66,6 +66,13 @@ func noteDateLabel(v *NoteView, lang wording.Lang) string {
 	return wording.UpdatedOn.In(lang)
 }
 
+// headFactsShown reports whether the head has any fact to draw as a
+// description list: the same five fields noteFacts gates row by row, so a
+// note with none of them draws neither the disclosure nor the open copy.
+func (v *NoteView) headFactsShown() bool {
+	return v.Type != "" || v.Status != "" || v.Updated != "" || v.Language != "" || v.RelPath != ""
+}
+
 // authoredLanguageAttrs states the language the note's author wrote in, only
 // where the note declared one and the contract gave that declaration authority.
 // It goes on every element whose text is the author's rather than the

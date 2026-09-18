@@ -45,6 +45,7 @@ probes=(
   "vault-sidebar.mjs|/search"
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
+  "note-head-facts.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-recovery-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
