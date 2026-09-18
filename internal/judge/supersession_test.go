@@ -91,7 +91,7 @@ func TestSupersessionCapabilityCrossProduct(t *testing.T) {
 			status:   "archived",
 		},
 	}
-	idx := buildIndex(notes, nil)
+	idx := buildIndex(notes, nil, nil)
 
 	tests := []struct {
 		name         string
@@ -236,7 +236,7 @@ func TestArchivedNavigationTargetResolutionDomain(t *testing.T) {
 			notes := append([]note{
 				courseNote("Maps/Path.md", "## 主線 {sequence=primary}\n\n- [["+tt.targetName+"]]\n"),
 			}, tt.targets...)
-			idx := buildIndex(notes, nil)
+			idx := buildIndex(notes, nil, nil)
 			findings := supersessionFindings(notes, idx, authority)
 			count := 0
 			for i := range findings {
@@ -414,7 +414,7 @@ func TestSupersessionFoldsTheNoteStatusSpelling(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			findings := supersessionFindings(tt.notes, buildIndex(tt.notes, nil), authority)
+			findings := supersessionFindings(tt.notes, buildIndex(tt.notes, nil, nil), authority)
 			var gotRules []string
 			for i := range findings {
 				gotRules = append(gotRules, string(findings[i].RuleID))

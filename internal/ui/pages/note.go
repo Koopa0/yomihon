@@ -163,9 +163,30 @@ func (v *NoteView) diagCount() int {
 // hasAids reports whether this note carries reading aids. With none, the right
 // rail's column is dropped and the write face moves to the bottom bar, so no
 // reader sits beside a tall gutter holding a lone status card.
+//
+// The control for keeping a reading place counts among them, because the rail
+// is where it lives and this predicate is what decides the rail exists at all.
+// Left out, it took the control with it on every note in a folder that has no
+// links yet — the cited-by block is what most notes earn their rail with, and
+// it appears only once some note cites another — which is the ordinary state of
+// a new folder rather than an edge of one.
 func (v *NoteView) hasAids() bool {
 	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 ||
-		v.citedByShown() || len(v.BasedOn) > 0 || v.Pair.RelPath != ""
+		v.citedByShown() || len(v.BasedOn) > 0 || v.Pair.RelPath != "" || v.offersMark()
+}
+
+// offersMark reports whether this page can offer to keep the reader's place.
+// It needs the note's own address and the identity of the bytes being shown,
+// because the mark is both of those and a page missing either would store a
+// place that points at nothing in particular.
+//
+// The control it gates is drawn in the right rail alone. The rail scrolls
+// separately from the article, so reaching the control does not move the page
+// out from under the position it is about; a copy among the inline aids, which
+// sit between the title and the first sentence, would be reached by scrolling
+// back to the top and would keep that place instead of the reader's.
+func (v *NoteView) offersMark() bool {
+	return v.RelPath != "" && v.ContentIdentity != "" && v.MarkAddress != ""
 }
 
 // citedByShown reports whether the answer about what links here means anything

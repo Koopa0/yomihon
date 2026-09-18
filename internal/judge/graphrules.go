@@ -27,7 +27,8 @@ func normalizeKey(name string) string {
 // runGraphRules runs the graph rules over the notes and the resolver, in the
 // order the wire format ties break on: link health, alias collisions, name
 // collisions, provenance, then map-vs-disk.
-func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Finding {
+func runGraphRules(a *action, idx *graph.Index) []Finding {
+	notes, authority := a.notes, a.authority
 	titles := titleIndex(notes, authority)
 	slugs := slugIndex(notes, authority)
 	planned := plannedNamesSet(notes, authority)
@@ -35,7 +36,7 @@ func runGraphRules(notes []note, idx *graph.Index, authority scanAuthority) []Fi
 	lessonType, _ := authority.lessonType()
 	return slices.Concat(
 		linkHealth(notes, idx, titles, planned, authority.roles()),
-		fragmentFindings(notes, idx),
+		fragmentFindings(notes, a.unreadable, idx),
 		collisionAlias(aliases),
 		collisionName(idx, aliases, authority),
 		provenanceUnresolved(notes, idx, slugs, authority.contract),

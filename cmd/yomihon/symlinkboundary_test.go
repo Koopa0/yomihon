@@ -41,7 +41,7 @@ func TestASymlinkOutOfTheVaultIsNeitherIndexedNorServed(t *testing.T) {
 		t.Skipf("this filesystem will not hold a symbolic link: %v", err)
 	}
 
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

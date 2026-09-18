@@ -411,7 +411,7 @@ details.y-metarow { display: block; }
    ============================================================ */
 .y-prose { font-family: var(--font-read); font-size: var(--fs-ed-17); line-height: var(--lh-cjk); color: var(--fg-muted); }
 .y-prose > :first-child { margin-top: 0; }
-.y-prose p { margin: 18px 0 0; }
+.y-prose p { margin: var(--sp-block) 0 0; }
 /* Size, the section bar and the fragment landing pad follow the authored
    level the renderer stamps, not the HTML tag. The tag is one step down so
    the chrome title stays the only h1; the look has to stay where the author
@@ -420,21 +420,49 @@ details.y-metarow { display: block; }
    note's title stays on the page. Preflight resets headings to inherited
    size, so a level given no size of its own here read at body size —
    smaller than its own subsections. The # step sits between the page title
-   (--fs-ed-38) and authored ##. */
-.y-prose [data-level="1"] { font-size: var(--fs-ed-30); margin: 48px 0 0; }
-.y-prose [data-level="2"] { font-size: var(--fs-ed-24); margin: 44px 0 0; display: flex; align-items: center; gap: 10px; }
+   (--fs-ed-38) and authored ##.
+   Every level takes its size from the editorial scale, which the reader's
+   size choice moves; a level set from the chrome scale instead stays where
+   it is while the prose under it grows past it. Line-height is declared per
+   level rather than in the shared rule below, because that rule ties these
+   on specificity and sits later, so a value written here would lose to it.
+   The gap above a heading says which heading it is before a word of it is
+   read: the two deepest share one step, and the top two share the largest. */
+.y-prose [data-level="1"] { font-size: var(--fs-ed-30); line-height: 1.4; margin: var(--sp-h2) 0 0; }
+.y-prose [data-level="2"] { font-size: var(--fs-ed-24); line-height: 1.4; margin: var(--sp-h2) 0 0; display: flex; align-items: center; gap: 10px; }
 .y-prose [data-level="2"]::before { content: ""; width: 4px; height: 20px; background: var(--fg-muted); border-radius: 1px; flex: none; }
-.y-prose [data-level="3"] { font-size: var(--fs-ed-20); margin: 32px 0 0; }
-.y-prose [data-level="4"] { font-size: var(--fs-18); margin: 26px 0 0; }
+.y-prose [data-level="3"] { font-size: var(--fs-ed-20); line-height: 1.4; margin: var(--sp-h3) 0 0; }
+.y-prose [data-level="4"] { font-size: var(--fs-ed-19); line-height: 1.5; margin: var(--sp-h4) 0 0; }
 .y-prose [data-level="1"], .y-prose [data-level="2"], .y-prose [data-level="3"], .y-prose [data-level="4"] {
   font-family: var(--font-display); font-weight: var(--fw-semibold); color: var(--fg);
-  letter-spacing: var(--track-snug); line-height: 1.4; scroll-margin-top: var(--header-clearance); text-wrap: balance;
+  letter-spacing: var(--track-snug); scroll-margin-top: var(--header-clearance); text-wrap: balance;
 }
 /* A link can name any heading, and a heading the header covers on arrival is
-   one the reader has to scroll back up to find. The deeper two are given the
-   same clearance as the rest; what they look like is deliberately left as it
-   is, which is the browser's own idea of an h5 and an h6. */
-.y-prose [data-level="5"], .y-prose [data-level="6"] { scroll-margin-top: var(--header-clearance); }
+   one the reader has to scroll back up to find, so the deeper two are given
+   the same clearance as the rest. They stop at the body's size instead of
+   shrinking a sixth time: read at the browser's own idea of an h5 and an h6
+   they were the size of the paragraph beside them, in the paragraph's face
+   and weight, with less room above them than the paragraph had. The two are
+   told apart by weight and letter-spacing rather than by size, which is what
+   keeps the topmost level from having to grow to a size CJK cannot carry. */
+.y-prose [data-level="5"], .y-prose [data-level="6"] {
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-ed-17);
+  line-height: var(--lh-read);
+  margin: var(--sp-h4) 0 0;
+  scroll-margin-top: var(--header-clearance);
+  text-wrap: balance;
+}
+
+.y-prose [data-level="5"] {
+  font-weight: var(--fw-semibold);
+}
+
+.y-prose [data-level="6"] {
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--track-wide);
+}
 
 /* The size rows share specificity with `.y-prose > :first-child` (0,2,0) and
    sit later, so an opening heading used to keep its top margin and drop the
@@ -442,7 +470,7 @@ details.y-metarow { display: block; }
    first-child paragraph still loses to the generic reset above. Print
    inherits the same margin. */
 .y-prose > [data-level]:first-child { margin-top: 0; }
-.y-prose ul, .y-prose ol { margin: 14px 0 0; padding-left: 1.5em; }
+.y-prose ul, .y-prose ol { margin: var(--sp-block) 0 0; padding-left: 1.5em; }
 .y-prose ul { list-style: disc; }
 .y-prose ol { list-style: decimal; }
 /* A GFM task item already carries a checkbox. Goldmark emits two
@@ -464,7 +492,7 @@ details.y-metarow { display: block; }
   vertical-align: middle;
 }
 .y-prose li { margin: 4px 0; }
-.y-prose blockquote { margin: 22px 0 0; padding: 2px 0 2px 16px; border-left: 2px solid var(--border-strong); color: var(--fg-subtle); }
+.y-prose blockquote { margin: var(--sp-block) 0 0; padding: 2px 0 2px 16px; border-left: 2px solid var(--border-strong); color: var(--fg-subtle); }
 .y-prose hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
 .y-prose img { max-width: 100%; height: auto; border-radius: var(--r-md); }
 /* A link must be findable without seeing color. Wikilinks already say so with
@@ -479,7 +507,7 @@ details.y-metarow { display: block; }
    anchors into the same page, so the jump down and every way back work with
    no script; all they need from here is somewhere to land that the sticky
    header is not sitting on top of, and a return arrow big enough to hit. */
-.y-prose .footnotes { margin: 44px 0 0; font-family: var(--font-sans); font-size: var(--fs-14); line-height: var(--lh-read); color: var(--fg-subtle); }
+.y-prose .footnotes { margin: var(--sp-h2) 0 0; font-family: var(--font-sans); font-size: var(--fs-14); line-height: var(--lh-read); color: var(--fg-subtle); }
 .y-prose .footnotes hr { margin: 0 0 18px; }
 .y-prose .footnotes ol { margin: 0; padding-left: 1.4em; }
 .y-prose .footnotes li { margin: 8px 0; scroll-margin-top: var(--header-clearance); }
@@ -497,14 +525,14 @@ details.y-metarow { display: block; }
 
 /* inline code + fenced code (chroma) */
 .y-prose code { font-family: var(--font-mono); font-size: 0.82em; background: var(--elevated); padding: 1px 5px; border-radius: var(--r-sm); color: var(--fg); }
-.y-prose pre { margin: 16px 0 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px 18px; overflow-x: auto; font-family: var(--font-mono); font-size: var(--fs-13); line-height: 1.75; }
+.y-prose pre { margin: var(--sp-block) 0 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px 18px; overflow-x: auto; font-family: var(--font-mono); font-size: var(--fs-13); line-height: 1.75; }
 .y-prose pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
 .y-prose pre.chroma { color: var(--fg); }
 
 /* tables — a table wider than the column scrolls inside its own box (the
    renderer wraps every table in .y-tablewrap) so the article never scrolls */
-.y-prose table { width: 100%; border-collapse: collapse; margin: 18px 0 0; font-size: var(--fs-14); }
-.y-prose .y-tablewrap { margin: 18px 0 0; overflow-x: auto; }
+.y-prose table { width: 100%; border-collapse: collapse; margin: var(--sp-block) 0 0; font-size: var(--fs-14); }
+.y-prose .y-tablewrap { margin: var(--sp-block) 0 0; overflow-x: auto; }
 .y-prose .y-tablewrap table { margin-top: 0; }
 .y-prose th { text-align: left; font-family: var(--font-sans); font-weight: var(--fw-semibold); font-size: var(--fs-13); color: var(--fg); padding: 9px 14px; border-bottom: 1.5px solid var(--border-strong); background: var(--elevated); }
 .y-prose td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--fg-muted); font-family: var(--font-serif); }
@@ -544,7 +572,7 @@ details.y-metarow { display: block; }
 .y-prose a.wikilink-degraded:hover { border-bottom-color: var(--fg-subtle); }
 
 /* embeds */
-.y-prose .embed { border-left: 3px solid var(--border-strong); margin: 18px 0 0; padding: 2px 16px; }
+.y-prose .embed { border-left: 3px solid var(--border-strong); margin: var(--sp-block) 0 0; padding: 2px 16px; }
 /* A machine detail is one unbroken identifier as often as not, and the places
    that show one are the narrowest columns on the page — the rail's status
    panel and the sidebar's navigation faults sit near 230px. Left unbreakable
@@ -596,7 +624,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-prose .embed-media { background: var(--elevated); border: 1px dashed var(--border); border-radius: var(--r-sm); padding: 10px 14px; color: var(--fg-muted); font-family: var(--font-mono); font-size: var(--fs-12); }
 
 /* callouts — renderer emits .callout / .callout-note / .callout-warning + title/icon/body */
-.y-prose .callout { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--fg-subtle); border-radius: 0 var(--r-md) var(--r-md) 0; padding: 14px 18px; margin: 24px 0 0; }
+.y-prose .callout { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--fg-subtle); border-radius: 0 var(--r-md) var(--r-md) 0; padding: 14px 18px; margin: var(--sp-block) 0 0; }
 .y-prose .callout-warning { border-left-color: var(--warn); }
 /* A quotation carries someone's words, so it takes the page's quotation
    vocabulary — the plain strong rule a blockquote draws, on a quieter ground —
@@ -631,7 +659,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 }
 
 /* mermaid placeholder / rendered svg */
-.y-prose .mermaid-diagram { margin: 18px 0 0; padding: 12px; overflow-x: auto; text-align: center; font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg-subtle); white-space: pre-wrap; background: var(--panel); border: 1px dashed var(--border); border-radius: var(--r-md); }
+.y-prose .mermaid-diagram { margin: var(--sp-block) 0 0; padding: 12px; overflow-x: auto; text-align: center; font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg-subtle); white-space: pre-wrap; background: var(--panel); border: 1px dashed var(--border); border-radius: var(--r-md); }
 .y-prose .mermaid-diagram svg { max-width: 100%; height: auto; }
 /* Shimmer while the client render is genuinely coming: gated on the boot
    signal so a page without the script keeps the plain source text, and
@@ -853,7 +881,12 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
 .y-searchpage__form input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
 .y-searchpage__form input:focus-visible { outline: none; }
 .y-searchpage__form .y-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
-.y-live-search__status { min-height: 1.4em; margin: 8px 4px 0; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-muted); }
+/* The count line prints the query back, and a query can be one run with
+   nowhere to break — the same thing that used to carry the notice below it off
+   the side of a phone. It takes the same last-resort break, or a reader on a
+   phone is told how many results they have by a line that runs past the edge
+   of the box. */
+.y-live-search__status { min-height: 1.4em; margin: 8px 4px 0; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-muted); }
 .y-live-search__status:empty { min-height: 0; margin-block: 0; }
 /* Live search keeps the last answer on screen while the next one loads.
    Fading the region would fade every word with it — already-compliant ink
@@ -889,7 +922,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
 .y-result { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: var(--r-sm); transition: background var(--dur-base); }
 .y-result:hover { background: var(--overlay); }
 .y-result__title { font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); }
-.y-result__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.y-result__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); overflow-wrap: anywhere; }
 .y-result__sep { margin: 0 6px; }
 .y-result__kind { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 /* a status the contract does not declare — worn by a search hit, a landing-page
@@ -899,7 +932,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    sits inline so it wraps with the line it belongs to rather than pushing the
    row wider than its neighbours. */
 .y-outofenum { display: inline-block; margin-left: 8px; padding: 0 6px; border-radius: 3px; font-family: var(--font-sans); font-size: var(--fs-11); line-height: 1.75; color: var(--warn); background: var(--warn-bg); white-space: nowrap; }
-.y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; }
+.y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; overflow-wrap: anywhere; }
 
 /* ============================================================
    Ruby (furigana) — rt hidden by visibility only → zero reflow
@@ -921,7 +954,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    confirms a Web Speech engine (root[data-speech]), so with no JS or no
    engine the sentence still reads and the affordance is simply absent.
    ============================================================ */
-.y-prose .y-reading { position: relative; margin: 18px 0 0; }
+.y-prose .y-reading { position: relative; margin: var(--sp-block) 0 0; }
 .y-prose .y-reading > p { margin: 0; }
 .y-tts {
   position: absolute; left: -30px; top: 0.35em;
@@ -1204,6 +1237,30 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    is deliberately not repeatable from this surface. */
 .y-recoverymain { padding: 42px 48px 120px; }
 .y-recovery { max-width: var(--measure-article); margin: 0 auto; }
+
+/* The page for an address that names nothing opens with the shared notice, and
+   what follows it — the address the reader typed, the step after, the ways out
+   — is the same column continued. Left where it was, it would have hung off the
+   side of a centred notice as if it belonged to a different page. The typed
+   address keeps its own alignment: a path is read from its first character. */
+.y-recovery:has(> .y-nothing) {
+  text-align: center;
+}
+
+.y-recovery:has(> .y-nothing) .y-recovery__detail,
+.y-recovery:has(> .y-nothing) .y-recovery__next {
+  margin-inline: auto;
+  max-width: var(--measure-notice);
+}
+
+.y-recovery:has(> .y-nothing) .y-recovery__detail pre {
+  text-align: left;
+}
+
+.y-recovery:has(> .y-nothing) .y-recovery__actions {
+  justify-content: center;
+}
+
 .y-recovery__kicker { margin: 0 0 10px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.08em; color: var(--fg-faint); }
 .y-recovery__state { margin: 24px 0 0; padding: 14px 16px; border-left: 3px solid var(--accent); background: var(--accent-muted); font-family: var(--font-sans); font-size: var(--fs-14); color: var(--fg); }
 .y-recovery__state[data-status-changed="false"] { border-left-color: var(--border-strong); background: var(--elevated); }
@@ -1231,6 +1288,118 @@ a.y-recovery__action { display: inline-flex; align-items: center; min-height: 38
 a.y-recovery__action:hover { background: var(--accent-muted); border-color: var(--accent-strong); color: var(--accent-strong); }
 a.y-recovery__action--quiet { border-color: var(--border); background: var(--panel); color: var(--fg); }
 a.y-recovery__action--quiet:hover { border-color: var(--border-strong); background: var(--elevated); }
+
+/* One notice for every surface that has nothing to show: a search that matched
+   no note, an address that names none, a folder with no fault left to report, a
+   shelf no declaration has filled, and the desk's notices about a reading that
+   came up short. It is one centred column at a reading measure, so the same
+   kind of news reads as the same thing wherever a reader meets it. Centring is
+   the measure plus auto inline margins, which holds at any width the window
+   takes; a fixed side margin would only be centred at one of them.
+
+   An absence stays quiet — the page's own ink, one step down. A fault says so
+   in the warning colour and in a hairline box, which is the whole visual
+   difference between "there is nothing here" and "something could not be
+   read". */
+.y-nothing {
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-14);
+  line-height: var(--lh-read);
+  margin: 24px auto 0;
+  max-width: var(--measure-notice);
+  /* A vault path, a filter key, or a diagnostic from the operating system is
+     one long run with nowhere to break, and at phone width it would otherwise
+     carry the whole column off the side of the screen. */
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+/* The word that stands where an icon would: the chrome draws none that means
+   "there is nothing here", so nothing is drawn. */
+.y-nothing__mark {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.08em;
+  margin: 0 0 10px;
+}
+
+.y-nothing__title {
+  color: var(--fg);
+  font-family: var(--font-kai);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+  margin: 0;
+}
+
+/* The one that is also the page's own title carries the page's own size. */
+.y-nothing__title--page {
+  font-size: var(--fs-ed-30);
+}
+
+.y-nothing__says {
+  margin-top: 10px;
+}
+
+.y-nothing__says p {
+  margin: 0;
+}
+
+.y-nothing__says p + p {
+  margin-top: 10px;
+}
+
+.y-nothing__says code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+/* What the reader can do next sits under the sentence, quieter than it. */
+.y-nothing__says .y-nothing__hint {
+  color: var(--fg-faint);
+  font-size: var(--fs-12);
+  line-height: var(--lh-normal);
+  margin-top: 14px;
+}
+
+.y-nothing--fault {
+  background: var(--warn-bg);
+  border: 1px solid color-mix(in oklch, var(--warn) 35%, transparent);
+  border-radius: var(--r-sm);
+  padding: 16px 18px;
+}
+
+.y-nothing--fault .y-nothing__mark,
+.y-nothing--fault .y-nothing__title {
+  color: var(--warn);
+}
+
+/* A desk block is small and already has its own heading over it, so the notice
+   inside it opens where the rows would have. */
+.y-modeblock .y-nothing {
+  margin-top: 6px;
+}
+
+/* The notice draws its own box, so the card that used to hold a bare
+   paragraph would put a second one around it and leave the notice floating in
+   the middle of an otherwise empty panel. */
+.y-homeblock--faults:has(> .y-nothing) {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.y-homeblock--faults .y-nothing {
+  margin-top: 18px;
+}
+
+/* The palette is a floating box rather than a page, and the notice sits inside
+   its own padding. */
+.y-searchdialog .y-nothing {
+  margin: 18px auto 8px;
+}
 
 .y-syl { max-width: 800px; margin: 0 auto; padding: 44px 56px 120px; }
 .y-syl-kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
@@ -1370,6 +1539,44 @@ html {
 
 /* paragraphs wrap with the last lines weighed; titles keep their balance */
 .y-prose p { text-wrap: pretty; }
+
+/* A run the browser has nowhere to break — a URL pasted mid-sentence, a vault
+   path, the escaped source of a tag the renderer shows as words — is as wide
+   as it is, and the paragraph holding it is at least that wide. Unbroken it
+   pushes the reading column past the phone, and what the reader then scrolls
+   sideways is the whole document: every line of the note pays for the one run
+   in it. So the run bends. `anywhere` rather than `break-word` because the two
+   break a line identically and only `anywhere` also takes the run out of the
+   column's own minimum width, which is what decides whether a box that sizes
+   to its content can shrink at all.
+
+   Japanese is untouched by this. CJK already breaks between characters, so an
+   emergency break adds no opportunity the line did not have, and the
+   phrase-aware rule below still chooses where an ordinary Japanese line ends.
+   Measured in the browser: a Japanese paragraph breaks after the same
+   characters with this rule and without it. */
+.y-prose { overflow-wrap: anywhere; }
+
+/* A ## is laid out as a flex row so it can carry its section bar, which makes a
+   ## naming an address two flex items — the words, and the link the renderer
+   made of the address. The two shrink together when the row will not fit, and
+   under `anywhere` each can shrink to a single character: "A heading naming
+   <address>" came back as "A / headi / ng / nami / ng". `break-word` breaks the
+   same run in the same place while leaving the intrinsic minimum alone, so the
+   words of a heading stay whole. The levels that are not flex rows are given it
+   too, so one line describes every heading. A ## whose own address is wider
+   than the column still runs past it, exactly as it does today: that is the
+   flex row's shape rather than this rule's, and it is left where it is. */
+.y-prose [data-level] { overflow-wrap: break-word; }
+
+/* Code and a diagram's source are written in lines, and a table is written in
+   columns; all three already answer an overflow by scrolling inside a box of
+   their own rather than by reflowing. A break invented inside them would be a
+   line the author did not write — with scripting off, `A[SomeLongNodeName]`
+   came back split across two lines of the diagram source — or a column crushed
+   to a few characters where .y-tablewrap would have scrolled. They keep their
+   own idea of a line. */
+.y-prose pre, .y-prose .mermaid-diagram, .y-prose table { overflow-wrap: normal; }
 
 /* CJK punctuation sets solid where full widths would double up, and only a
    paragraph's first line keeps its full-width opening bracket — the
@@ -1698,6 +1905,16 @@ html {
     --sage: #000; --sage-bg: transparent;
     --success: #000; --success-bg: transparent;
   }
+
+  /* A notice about a fault prints as its words. The box around it on screen
+     separates it from the page it interrupts; a sheet holding one notice has
+     nothing to be separated from, and the rule would print as an empty frame
+     around two lines. */
+  .y-nothing--fault {
+    border: 0;
+    padding: 0;
+  }
+
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
   .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview, .y-compare__tabs,
@@ -2085,3 +2302,64 @@ html {
 /* The two sentences the card says in its own voice: why it is empty, and where
    the rest of a note it cut short can be read. */
 .y-preview__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.6; }
+
+/* ============================ THE READER'S OWN MARK ============================ */
+/* The control is hidden until the document says a script is running. This is
+   the one control on a reading page with no version for a browser without
+   one, because what it sends is where the window is and there is no such
+   thing to send without a script. */
+.y-markset {
+  display: none;
+  margin: 28px 0 0;
+}
+
+[data-js] .y-markset {
+  display: block;
+}
+
+.y-markset__note,
+.y-markset__said {
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.y-markset__said:empty {
+  display: none;
+}
+
+/* The way back to the place the reader kept, ahead of the four ways in. */
+.y-continue {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  margin: 0 0 28px;
+  padding: 16px 18px;
+}
+
+.y-continue__note {
+  color: var(--fg);
+  display: block;
+  font-family: var(--font-serif);
+  font-size: var(--fs-15);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.y-continue__notice {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-13);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.y-continue__device {
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}

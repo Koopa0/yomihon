@@ -36,6 +36,7 @@ rules and does not define new behavior.
 | `provenance.unresolved` | `vault-schema.toml#supersession` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `provenance.unresolved` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `scan.skipped` | `yomihon` | [`internal/judge/skipped.go`](../internal/judge/skipped.go) |
+| `scan.unreadable` | `yomihon` | [`internal/judge/unreadable.go`](../internal/judge/unreadable.go) |
 | `schema.domain_folder` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.enum` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.frontmatter` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |

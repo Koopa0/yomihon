@@ -31,6 +31,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
@@ -69,7 +70,18 @@ type Sources struct {
 	// on that answer, so the page's sentence about a change is backed by the
 	// one component that performed it rather than by whatever a URL claims.
 	ConsumeReceipt func(rel, from string) bool
-	Log            *slog.Logger
+	// Continuation is a closure over the place the reader deliberately left
+	// off at, answering false when they have left none. The desk reads it once
+	// per request and resolves what it names inside the same generation the
+	// rest of that page was built from, so the row's sentence about the note
+	// having changed is decided against the version the page is showing.
+	Continuation func() (mark.Continuation, bool)
+	// MarkAddress is where a reading page posts a place to, and empty where
+	// this process keeps none — no configuration directory to hold the file.
+	// The page renders no control without it, so a reader is never invited to
+	// keep something that has nowhere to go.
+	MarkAddress string
+	Log         *slog.Logger
 }
 
 // Handler serves reading pages from one rooted vault capability and its
@@ -105,6 +117,9 @@ func New(d *Sources) *Handler {
 	}
 	if d.ConsumeReceipt == nil {
 		panic("note: New requires a non-nil ConsumeReceipt provider")
+	}
+	if d.Continuation == nil {
+		panic("note: New requires a non-nil Continuation provider")
 	}
 	if d.Log == nil {
 		panic("note: New requires a non-nil Log")
@@ -400,6 +415,7 @@ func (h *Handler) reading(
 		IDPrefix:          idPrefix,
 		Transitions:       state.transitions,
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
+		MarkAddress:       h.sources.MarkAddress,
 		// The identity above covers the note's own bytes; what the render
 		// pulled in from other notes is bound by its own stamp, so an edit to
 		// an embedded source can reach this page while it is open.
