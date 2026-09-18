@@ -74,7 +74,7 @@ func (c HealthColumn) href() string { return "?sort=" + string(c) }
 // in. It is relative, like the ordering links beside it, which leaves the
 // page's own route spelled where routes are spelled.
 func (c HealthColumn) pageHref(n PageNumber) string {
-	return "?" + url.Values{"sort": {string(c)}, "page": {n.param()}}.Encode()
+	return "?" + url.Values{"sort": {string(c)}, "page": {n.String()}}.Encode()
 }
 
 // direction is what a reader is told the active column is ordered by. The two

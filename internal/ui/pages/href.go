@@ -289,7 +289,7 @@ func searchHref(q string) string {
 // the strip — while how a search address is spelled stays here, beside the
 // address every other search link is written with.
 func SearchPageHref(q string, n PageNumber) string {
-	return "/search?" + url.Values{"q": {q}, "page": {n.param()}}.Encode()
+	return "/search?" + url.Values{"q": {q}, "page": {n.String()}}.Encode()
 }
 
 // reportHref builds the report shell URL for a briefing's bare filename, never a

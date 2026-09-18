@@ -48,8 +48,10 @@ func ParsePageNumber(value string) PageNumber {
 	return PageNumber(asked)
 }
 
-// param is how this page writes itself into a link.
-func (n PageNumber) param() string {
+// String is how a request spells this page, in a link and in the address bar
+// alike. There is one spelling, so a link and the parse that reads it back
+// cannot disagree about what a page is called.
+func (n PageNumber) String() string {
 	if n == AllPages {
 		return allPagesWord
 	}
