@@ -30,8 +30,9 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
-		"--measure-list": "880px",
-		"--measure-read": "640px",
+		"--measure-answer": "720px",
+		"--measure-list":   "880px",
+		"--measure-read":   "640px",
 	}
 
 	sheets := handWrittenStylesheets(t)
@@ -67,6 +68,7 @@ func TestEveryPageShellTakesItsOwnMeasure(t *testing.T) {
 		{class: ".y-home", measure: "var(--measure-list)"},
 		{class: ".y-prefs", measure: "var(--measure-read)"},
 		{class: ".y-recovery", measure: "var(--measure-read)"},
+		{class: ".y-searchpage", measure: "var(--measure-answer)"},
 		{class: ".y-syl", measure: "var(--measure-read)"},
 	}
 
@@ -105,7 +107,6 @@ func TestNoPageMeasureIsWrittenAsAPixelLiteral(t *testing.T) {
 		".y-home__head > p":          "the desk's opening line",
 		".y-kbdhelp":                 "the keyboard-help popover",
 		".y-searchdialog":            "the palette box",
-		".y-searchpage":              "the answer shell, until it is given a measure of its own",
 	}
 
 	for _, rule := range componentRules(t) {

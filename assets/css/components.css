@@ -1137,9 +1137,24 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 /* ============================================================
    Lexical search results — shared by the full page and ⌘K panel
    ============================================================ */
-.y-searchpage { max-width: 720px; margin: 0 auto; padding: 40px 24px 96px; }
+/* ============================================================
+   The answer shell
+   ============================================================ */
+/* What a search comes back as. The results are read as prose and take a
+   measure of their own, and at the widths where there is room the divisions
+   the answer is made of stand in a narrow column beside them rather than
+   above. The column and the space before it are named here once: the page's
+   own width is the measure plus both of them, so the two figures cannot be
+   stated in one place and forgotten in the other. */
+.y-searchpage {
+  --facet-column: 192px;
+  --facet-gap: 28px;
+  margin: 0 auto;
+  max-width: calc(var(--measure-answer) + 2 * var(--gutter-answer));
+  padding: 40px var(--gutter-answer) 96px;
+}
 
-/* The divisions beside the results. The page's own column is 720px of reading
+/* The divisions beside the results. The page's own column is a reading
    measure, so the answer and what it is made of are laid out as a pair rather
    than by squeezing one into the other: the results keep the measure and the
    divisions take a narrow column of their own.
@@ -1188,14 +1203,15 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    results keep the measure they have always had — the column is added beside
    the page rather than taken out of it, so the page grows by exactly the
    column and the gap and a line of prose is the same length it was. Below this
-   the page is its old self with a fold above the results, which is why the
-   width is named once here and derived everywhere else. */
+   the page is its old self with a fold above the results. */
 @media (width >= 1280px) {
-  .y-searchpage { max-width: calc(720px + 28px + 192px + 48px); }
+  .y-searchpage {
+    max-width: calc(var(--measure-answer) + var(--facet-gap) + var(--facet-column) + 2 * var(--gutter-answer));
+  }
   .y-searchpage .y-searchresults {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 192px;
-    gap: 28px;
+    grid-template-columns: minmax(0, 1fr) var(--facet-column);
+    gap: var(--facet-gap);
     align-items: start;
   }
   .y-searchpage .y-facets { order: 2; margin: 0; position: sticky; top: 24px; }
