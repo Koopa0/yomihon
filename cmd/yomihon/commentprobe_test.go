@@ -35,7 +35,7 @@ func TestPathsCountAgreesWithWhatThePageShows(t *testing.T) {
 
 	root := t.TempDir()
 	writeCommentProbeVault(t, root)
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
