@@ -1950,10 +1950,16 @@ html {
 .y-findings__detail .y-healthlink { font-size: var(--fs-13); }
 .y-findings__count { padding-right: 0; text-align: right; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
 
-/* The weight the judging face gives a finding, in that face's own word. The two
-   that call for repair share the diagnostic ochre and are told apart by an
-   outline rather than by a second hue, because the word is already there and a
-   page about problems does not need a second colour shouting. */
+/* The weight the judging face gives a finding, in that face's own word. Error
+   and warn used to share one ink and differ only by a border, which reads as
+   one colour at a glance. On screen they are pulled further apart by two more
+   channels: the marker's shape — squared for error, the same value
+   ui-status--ready uses for its heavier state, round for warn — and error's
+   ink, drawn from the correction tokens (訂正) rather than the warning ones,
+   never the same colour. Red stays ready's alone. The border is what a
+   printed page keeps no matter how a reader's printer treats background
+   colour: the marker's dot is a background fill, and a printer that drops
+   background graphics drops it with it. */
 .y-severity {
   display: inline-flex; align-items: center; gap: 6px; line-height: 1;
   font-family: var(--font-mono); font-size: var(--fs-11); font-weight: var(--fw-medium);
@@ -1961,7 +1967,8 @@ html {
   letter-spacing: 0.01em; color: var(--fg-subtle); background: var(--elevated);
 }
 .y-severity::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentcolor; }
-.y-severity--error { color: var(--warn); background: var(--warn-bg); border-color: var(--warn); }
+.y-severity--error { color: var(--gold-ink); background: color-mix(in oklch, var(--gold) 18%, transparent); border-color: var(--gold); }
+.y-severity--error::before { border-radius: 1px; }
 .y-severity--warn { color: var(--warn); background: var(--warn-bg); }
 .y-severity--info { color: var(--fg-faint); background: var(--panel); border-color: var(--border-faint); }
 
