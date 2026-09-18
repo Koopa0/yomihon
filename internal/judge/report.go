@@ -288,7 +288,7 @@ func humanReport(findings []Finding, roots domainRoots) string {
 	for _, sec := range p.sections {
 		fmt.Fprintf(&s, "\n▌ %s\n", sec.domain)
 		for _, i := range sec.items {
-			fmt.Fprintf(&s, "  [%s] %s%s  (%s)\n", i.severity.String(), blastPrefix(i.blast), i.message, i.samplePath)
+			fmt.Fprintf(&s, "  [%s] %s%s%s\n", i.severity.String(), blastPrefix(i.blast), i.message, humanWhere(i.samplePath))
 		}
 	}
 	return s.String()
@@ -326,7 +326,7 @@ func markdownReport(findings []Finding, roots domainRoots, contract *schema.Cont
 	for _, sec := range p.sections {
 		fmt.Fprintf(&s, "## %s\n\n", escapeMd(sec.domain))
 		for _, i := range sec.items {
-			fmt.Fprintf(&s, "- `%s` %s%s — %s\n", i.severity.String(), blastPrefix(i.blast), escapeMd(i.message), escapeMd(i.samplePath))
+			fmt.Fprintf(&s, "- `%s` %s%s%s\n", i.severity.String(), blastPrefix(i.blast), escapeMd(i.message), markdownWhere(i.samplePath))
 		}
 		s.WriteByte('\n')
 	}
@@ -408,6 +408,27 @@ func leverageTag(planned bool) string {
 		return "planned"
 	}
 	return "broken"
+}
+
+// humanWhere and markdownWhere are the trailing "where" a line carries, and
+// nothing at all when the finding has no path to give. A finding is normally
+// about a file, and the one that is not says a file under a withheld directory
+// could not be read — naming which would describe the ground the contract
+// closed. Written unconditionally, that line ended in an empty bracket or a
+// dangling dash, which reads as a path the report lost rather than one it is
+// declining to give.
+func humanWhere(path string) string {
+	if path == "" {
+		return ""
+	}
+	return "  (" + path + ")"
+}
+
+func markdownWhere(path string) string {
+	if path == "" {
+		return ""
+	}
+	return " — " + escapeMd(path)
 }
 
 // blastPrefix is the "×N " marker a folded group of more than one carries, and
