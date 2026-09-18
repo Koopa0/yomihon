@@ -19,7 +19,7 @@ templ Listen(v ListenView, c layouts.Chrome) {
 					<div class="y-syl-kicker">{ wording.SyllabusKicker.In(c.Lang) }</div>
 					<h1 class="y-title">{ v.Title }</h1>
 					<a class="y-syl-read" href={ templ.URL(v.PathHref) }>
-						{ v.Course }<span aria-hidden="true">→</span>
+						{ wording.ListenBackToCourse.In(c.Lang) }<span aria-hidden="true">→</span>
 					</a>
 					<div class="y-seam" aria-hidden="true"></div>
 					if len(v.Lessons) == 0 {

@@ -27,6 +27,7 @@ var ReadTheGuide = both("閱讀筆記本文 ", "Read the note itself ")
 var (
 	ListenTitleFmt      = both("朗讀《%s》", "Listen to %s")
 	ListenThisCourse    = both("聆聽這門課 ", "Listen to this course ")
+	ListenBackToCourse  = both("回到課程 ", "Back to the course ")
 	ListenNothingMarked = both(
 		"這門課沒有標記朗讀的段落。",
 		"No paragraph in this course is marked to be read aloud.")

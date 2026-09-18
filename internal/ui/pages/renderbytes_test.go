@@ -118,7 +118,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"listen-page", Listen(recordedListenView(), recordedChrome())},
 		{"listen-page-english", Listen(recordedListenView(), recordedEnglishChrome())},
 		// A course whose lessons mark nothing says so, and grows no bar.
-		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", Course: "Go path", PathHref: "/syllabus/Maps/Go%20path.md"}, recordedChrome())},
+		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/syllabus/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
@@ -439,7 +439,6 @@ func recordedListenView() ListenView {
 	}
 	return ListenView{
 		Title:    "朗讀《Go path》",
-		Course:   "Go path",
 		PathHref: "/syllabus/Maps/Go%20path.md",
 		Lessons: []ListenLesson{
 			{

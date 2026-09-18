@@ -85,14 +85,16 @@ const rewriteDocument = (needle, replacement, label) => async (page) => {
 };
 
 const MUTATIONS = {
-  // A lesson's paragraphs never reach the page. The collector itself is held to
-  // the same thing by the Go test beside it; what this proves is that a course
-  // gone short is something this probe can see.
+  // A lesson arrives with none of its paragraphs: its section is closed before
+  // its heading, and everything that was inside it is put somewhere this page
+  // does not read. The collector itself is held to the same thing by the Go
+  // test beside it; what this proves is that a course gone short is something
+  // this probe can see rather than walk past.
   'drop-a-lessons-paragraphs': {
     target: 'the-course-speaks-in-order',
     apply: rewriteDocument(
       '<section class="y-listen__lesson"><h2 class="y-listen__title"><a href="/notes/Writing/lessons/japanese/L02.md">',
-      '<section class="y-listen__lesson" hidden><h2 class="y-listen__title"><a href="/notes/">',
+      '<section class="y-listen__lesson"></section><aside hidden><h2 class="y-listen__title"><a href="/notes/Writing/lessons/japanese/L02.md">',
       "the second lesson's section",
     ),
   },

@@ -15,9 +15,6 @@ import (
 type ListenView struct {
 	// Title is the page's own heading, which names the course it reads.
 	Title string
-	// Course is the course's own title, which is also the words on the way
-	// back to it.
-	Course string
 	// PathHref is the course page this one was reached from.
 	PathHref string
 	// Lessons are the taught lessons that mark at least one paragraph, in
