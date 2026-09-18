@@ -49,6 +49,7 @@ probes=(
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
+  "course-line.mjs|/notes/Course/C01.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
   "theme-toggle-pressed.mjs|/notes/Notes/alpha.md"
   "reading-switch-label.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -56,6 +57,7 @@ probes=(
   "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "preference-persistence.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "health-table.mjs|/health"
   "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
@@ -64,6 +66,7 @@ probes=(
   "midword-landing.mjs|/search?q=lybdenum"
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
   "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
+  "search-facets.mjs|/search?q=a"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
 )
 

@@ -251,7 +251,7 @@ const bashoPlainBody = "古池や蛙飛びこむ水の音。"
 // page already keeps: a base phrase that hits on a note without ruby also
 // hits when the same sentence is written with furigana, and each reading
 // stays findable on its own. The lock goes through DocumentFromNote and
-// Index.SearchN so a walk that only concatenates text nodes cannot hide
+// Index.Search so a walk that only concatenates text nodes cannot hide
 // behind a substring table that never asked for 今日は or 古池や.
 func TestRubyReadingsDoNotSplitBasePhrases(t *testing.T) {
 	t.Parallel()
@@ -277,11 +277,11 @@ func TestRubyReadingsDoNotSplitBasePhrases(t *testing.T) {
 
 	queries := []string{"古池", "ふるいけ", "古池や", "古池や蛙飛びこむ水の音"}
 	for _, q := range queries {
-		results, _, err := idx.SearchN(lexical.Parse(q), -1)
+		answer, err := idx.Search(lexical.Parse(q), -1)
 		if err != nil {
-			t.Fatalf("SearchN(%q): %v", q, err)
+			t.Fatalf("Search(%q): %v", q, err)
 		}
-		gotHits := searchPaths(results)
+		gotHits := searchPaths(answer.Results)
 		if !slices.Contains(gotHits, rubyNote.RelPath) {
 			t.Errorf("query %q on the ruby note = %v, want a hit", q, gotHits)
 		}
@@ -292,11 +292,11 @@ func TestRubyReadingsDoNotSplitBasePhrases(t *testing.T) {
 
 	// A base-phrase hit must land on the sentence the page shows, not on a
 	// corpus that spliced readings through it.
-	baseHits, _, err := idx.SearchN(lexical.Parse("古池や"), -1)
+	answer, err := idx.Search(lexical.Parse("古池や"), -1)
 	if err != nil {
-		t.Fatalf("SearchN(古池や): %v", err)
+		t.Fatalf("Search(古池や): %v", err)
 	}
-	for _, hit := range baseHits {
+	for _, hit := range answer.Results {
 		if hit.RelPath != rubyNote.RelPath {
 			continue
 		}
@@ -322,12 +322,12 @@ func TestShippedHaikuBasePhraseIsSearchable(t *testing.T) {
 	note := vault.Parse("Notes/芭蕉の句.md", data)
 	idx := lexical.NewIndex([]lexical.Document{lexical.DocumentFromNote(note)}, schema.ArtifactPolicy{})
 	for _, q := range []string{"古池や", "ふるいけ"} {
-		results, _, err := idx.SearchN(lexical.Parse(q), -1)
+		answer, err := idx.Search(lexical.Parse(q), -1)
 		if err != nil {
-			t.Fatalf("SearchN(%q): %v", q, err)
+			t.Fatalf("Search(%q): %v", q, err)
 		}
-		if len(results) != 1 {
-			t.Errorf("shipped 芭蕉の句 query %q = %d hits, want 1", q, len(results))
+		if len(answer.Results) != 1 {
+			t.Errorf("shipped 芭蕉の句 query %q = %d hits, want 1", q, len(answer.Results))
 		}
 	}
 }

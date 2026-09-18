@@ -77,12 +77,12 @@ func TestConcurrentReadersCannotMutateAGeneration(t *testing.T) {
 					folders := request.Navigation().Folders()
 					folders[0].Name = "mutated"
 
-					results, _, err := request.Search().SearchN(lexical.Parse("Foo"), -1)
+					answer, err := request.Search().Search(lexical.Parse("Foo"), -1)
 					if err != nil {
 						t.Errorf("Search(Foo) error = %v", err)
 						continue
 					}
-					results[0].Title = "mutated"
+					answer.Results[0].Title = "mutated"
 					counts, err := request.Search().CountByTypeStatus()
 					if err != nil {
 						t.Errorf("CountByTypeStatus() error = %v", err)

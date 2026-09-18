@@ -126,15 +126,15 @@ func TestAnAliasHitRanksWithTheTitleItStandsFor(t *testing.T) {
 			Aliases: []string{"green thread"}, PlainText: "unrelated words"},
 	}, validArtifactPolicy(t))
 
-	results, _, err := idx.SearchN(lexical.Parse("green thread"), -1)
+	answer, err := idx.Search(lexical.Parse("green thread"), -1)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
-	if len(results) != 2 {
-		t.Fatalf("want both notes, got %d: %+v", len(results), results)
+	if len(answer.Results) != 2 {
+		t.Fatalf("want both notes, got %d: %+v", len(answer.Results), answer.Results)
 	}
-	if results[0].RelPath != "Concepts/Named.md" {
-		t.Errorf("the note that answers to the name ranked below one that mentions it: %+v", results)
+	if answer.Results[0].RelPath != "Concepts/Named.md" {
+		t.Errorf("the note that answers to the name ranked below one that mentions it: %+v", answer.Results)
 	}
 }
 

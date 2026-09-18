@@ -168,9 +168,15 @@ templ moduleHeadingContent(sec PathBranchView, lang wording.Lang) {
 
 // entryRow links governed unique targets and leaves every warning reason visible
 // and non-interactive in its original sequence position.
+//
+// The row the reader is standing on says so twice: to the eye as the heavier
+// point on the line, and to a reader who is listening as the current location —
+// the location and not the page, because the page is the whole course. The
+// words beside the point are unchanged by it; where the reader stands is not a
+// claim about what they have finished.
 templ entryRow(l PathEntryView, lang wording.Lang) {
 	if l.Kind == nav.EntryResolved {
-		<a class="y-lesson" href={ templ.URL(l.Href) }>
+		<a class={ "y-lesson", templ.KV("y-lesson--here", l.Here) } href={ templ.URL(l.Href) } { hereAttr(l.Here)... }>
 			<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Sealed) } aria-hidden="true"></span>
 			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Text }</span>
 			if l.Status != "" {
