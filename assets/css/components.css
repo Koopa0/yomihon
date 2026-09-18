@@ -101,9 +101,10 @@ html, body { margin: 0; background: var(--bg); }
 
 /* Where a listing is read by date, the day leads the row here as it does at
    full width, so the desk's corner of that shelf is scanned down the same
-   column as the shelf's own page. It is never allowed to squeeze the name
-   beside it: the day is a fixed ten characters and the name is what has to
-   give. */
+   column as the shelf's own page. The day and the kind at the far end are each
+   a few words that mean nothing cut in half, so both keep their own width and
+   the name is what gives — clipped with an ellipsis rather than pushing the
+   row off a phone or folding the kind beside it onto a second line. */
 .ui-navitem__when {
   color: var(--fg-faint);
   flex: none;
