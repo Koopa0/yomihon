@@ -70,6 +70,9 @@ probes=(
   "search-facets.mjs|/search?q=a"
   "search-overflow.mjs|/search?q=a"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
+  # A query broad enough that its answer runs past one page, which is what
+  # gives this one a way on to follow. It drives the findings table itself.
+  "pager-contract.mjs|/search?q=e"
   # Last, and it has to stay last: this one keeps a reading place, and from
   # then on every desk the run draws carries a row offering it back. A probe
   # that reads the desk would meet a page the fixture alone does not explain.

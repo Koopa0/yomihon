@@ -105,7 +105,7 @@ const revertErrorMarker = (page) => appendStyle(page, `.y-severity--error::befor
 const dropTheOrdering = (page) => {
   let requests = 0;
   let rewritten = 0;
-  return page.route(BASE + PAGE, async (route) => {
+  return page.route((url) => url.pathname === new URL(BASE + PAGE).pathname, async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
@@ -126,7 +126,7 @@ const dropTheOrdering = (page) => {
 const corruptShapeCount = (page) => {
   let requests = 0;
   let rewritten = 0;
-  return page.route(BASE + PAGE, async (route) => {
+  return page.route((url) => url.pathname === new URL(BASE + PAGE).pathname, async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
@@ -352,6 +352,18 @@ try {
   // The shape line's own numbers, held against a second count of the very
   // rows it sits above — the table's cells, not the line's own claim about
   // them.
+  //
+  // The line counts the whole report while the table under it holds one page
+  // of it, so the two can only be added up against each other where every row
+  // is on the page. That rendering is reached by the strip's own last link,
+  // which makes this also the proof that the link leads to the whole of it.
+  const undivided = await page.locator('.y-pager__whole').first();
+  if (await undivided.count() === 1) {
+    await page.goto(new URL(await undivided.getAttribute('href'), page.url()).toString(), { waitUntil: 'domcontentloaded' });
+    if (await page.locator('.y-pager').count() !== 0) {
+      broken('the undivided report still draws a strip, so it is not the whole of it');
+    }
+  }
   const shape = await readShape(page);
   if (!shape) broken('the fixture holds findings, so the shape line must be on the page');
   if (shape.weights.length === 0) broken('the fixture carries weighed findings, so the shape line must name at least one weight');
@@ -365,6 +377,8 @@ try {
   if (shape.filesText !== String(tableFiles.size) && !shape.filesText.startsWith(`${tableFiles.size} `)) {
     fail(SHAPE_SITE, `the shape line reads ${JSON.stringify(shape.filesText)}; the table's own file cells name ${tableFiles.size} distinct files`);
   }
+  // Back to the page this probe is driven at, which everything below measures.
+  await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
 
   // Error and warn used to share one colour and one marker shape, told apart
   // only by a border a glance can miss. The fixture has to carry one of each
