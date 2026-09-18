@@ -173,7 +173,7 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 		{{ window, strip := v.divide(rows) }}
 		@healthShapeLine(healthShapeOf(rows), c.Lang)
 		if strip.Number > 0 {
-			<p class="y-healthrange">{ healthRange(strip, c.Lang) }</p>
+			<p class="y-healthrange">{ healthRange(&strip, c.Lang) }</p>
 		}
 		<table class="y-findings">
 			<thead>

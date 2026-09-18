@@ -105,14 +105,22 @@ func TestTheReportsShapeIsTheReportNotThePage(t *testing.T) {
 		if match == nil {
 			t.Fatalf("page %v carries no shape line to read", asked)
 		}
-		if files, _ := strconv.Atoi(match[1]); files != pagedReport {
+		files, err := strconv.Atoi(match[1])
+		if err != nil {
+			t.Fatalf("page %v's shape line counts %q, which is no number: %v", asked, match[1], err)
+		}
+		if files != pagedReport {
 			t.Errorf("page %v says the report touches %d files, want %d", asked, files, pagedReport)
 		}
 		tallies := guideTally.FindAllStringSubmatch(page, -1)
 		if len(tallies) != 1 {
 			t.Fatalf("page %v explains %d kinds of finding, want the one the fixture holds", asked, len(tallies))
 		}
-		if counted, _ := strconv.Atoi(tallies[0][1]); counted != pagedReport {
+		counted, err := strconv.Atoi(tallies[0][1])
+		if err != nil {
+			t.Fatalf("page %v's guide counts %q, which is no number: %v", asked, tallies[0][1], err)
+		}
+		if counted != pagedReport {
 			t.Errorf("page %v's guide counts %d findings, want %d", asked, counted, pagedReport)
 		}
 	}

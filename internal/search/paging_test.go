@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestEveryHitIsOnExactlyOnePage(t *testing.T) {
 	lastPage := (pagedAnswer + searchPageSize - 1) / searchPageSize
 	var walked []string
 	for number := 1; number <= lastPage; number++ {
-		hits := pageHits(t, h, fmt.Sprint(number))
+		hits := pageHits(t, h, strconv.Itoa(number))
 		want := searchPageSize
 		if number == lastPage {
 			want = pagedAnswer - (lastPage-1)*searchPageSize
@@ -74,7 +75,7 @@ func TestTheLastPageNamesItsOwnRows(t *testing.T) {
 
 	h := pagedHandler(t, pagedAnswer)
 	lastPage := (pagedAnswer + searchPageSize - 1) / searchPageSize
-	body := searchPage(t, h, fmt.Sprint(lastPage))
+	body := searchPage(t, h, strconv.Itoa(lastPage))
 
 	first := (lastPage-1)*searchPageSize + 1
 	want := fmt.Sprintf("第 %d–%d 筆，共 %d 筆", first, pagedAnswer, pagedAnswer)

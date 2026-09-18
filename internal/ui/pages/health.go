@@ -286,8 +286,9 @@ func (v *HealthView) divide(rows []healthRow) ([]healthRow, Pager) {
 }
 
 // healthRange names which rows of the table are on this page, and how many
-// there are in all.
-func healthRange(strip Pager, lang wording.Lang) string {
+// there are in all. strip is read, never kept, so the parameter is a pointer
+// only to avoid copying the pager's own address list on every call.
+func healthRange(strip *Pager, lang wording.Lang) string {
 	return fmt.Sprintf(wording.HealthRangeFmt.In(lang), strip.First+1, strip.Last, strip.Total)
 }
 
