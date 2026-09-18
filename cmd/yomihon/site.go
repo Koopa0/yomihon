@@ -146,12 +146,6 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		snap := store.Current().Capture()
 		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(vaultName, writer.Authority(), snap)}
 	}
-	pathProvider := func() syllabus.RequestSnapshot {
-		snap := store.Current().Capture()
-		authority := writer.Authority()
-		return syllabus.RequestSnapshot{Shell: shell.Project(vaultName, authority, snap), Generation: snap, Status: authority}
-	}
-
 	// The marks a reader leaves are kept for the root the vault capability was
 	// actually taken on, which is the resolved absolute path rather than the
 	// one typed on the line: two spellings of one folder are one vault and
@@ -174,6 +168,22 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	} else {
 		log.Warn("no reading place can be kept; the reading room is unaffected",
 			"reason", "the environment named no configuration directory")
+	}
+
+	// The course face reads the kept place too — its cover opens at the lesson
+	// the reader left off in — so it is captured with the generation the rest of
+	// that page is drawn from rather than asked for separately.
+	pathProvider := func() syllabus.RequestSnapshot {
+		snap := store.Current().Capture()
+		authority := writer.Authority()
+		kept, marked := keptPlace()
+		return syllabus.RequestSnapshot{
+			Shell:      shell.Project(vaultName, authority, snap),
+			Generation: snap,
+			Status:     authority,
+			Kept:       kept,
+			Marked:     marked,
+		}
 	}
 
 	mux := http.NewServeMux()

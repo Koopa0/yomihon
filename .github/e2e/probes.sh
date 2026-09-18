@@ -81,10 +81,21 @@ probes=(
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
-  # Last, and it has to stay last: this one keeps a reading place, and from
-  # then on every desk the run draws carries a row offering it back. A probe
-  # that reads the desk would meet a page the fixture alone does not explain.
+  # Last, and they have to stay last: these keep a reading place, and from then
+  # on every desk the run draws carries a row offering it back, and the course
+  # holding the marked lesson offers to go back to it. A probe that reads
+  # either would meet a page the fixture alone does not explain.
+  "course-cover.mjs|/syllabus/Maps/branches.md"
   "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
+)
+
+# The probes above that leave a kept reading place behind, in the order the
+# table has to end with. Each of them sets its own place rather than assuming
+# the file is empty, so they may follow each other; nothing else may follow
+# them.
+leaves_a_place=(
+  "course-cover.mjs"
+  "reader-mark.mjs"
 )
 
 fail() {
@@ -117,15 +128,20 @@ absent="$(comm -13 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${li
 [ -z "${undriven// /}" ] || fail "these probe files are driven by nothing: ${undriven}"
 [ -z "${absent// /}" ] || fail "the table names probes that are not here: ${absent}"
 
-# The comment beside it says this one has to be last; this is what holds it
-# there. From the moment it runs, a reading place is kept, and every desk the
+# The comment beside them says these have to be last; this is what holds them
+# there. From the moment one runs, a reading place is kept, and every desk the
 # rest of the run would draw carries a row offering that place back — a page
-# the fixture alone does not account for. Moving it up the table would make
-# some other probe fail on state this one left behind, which is a long way from
-# where the mistake was made.
-last="${listed[${#listed[@]} - 1]}"
-[ "$last" = "reader-mark.mjs" ] ||
-  fail "reader-mark.mjs has to be the last probe in the table because it leaves a kept reading place behind, but the table ends with ${last}"
+# the fixture alone does not account for. Moving one up the table would make
+# some other probe fail on state it left behind, which is a long way from where
+# the mistake was made.
+tail_start=$((${#listed[@]} - ${#leaves_a_place[@]}))
+[ "$tail_start" -ge 0 ] ||
+  fail "the table lists fewer probes than the ${#leaves_a_place[@]} that leave a kept reading place"
+for i in "${!leaves_a_place[@]}"; do
+  at="${listed[$((tail_start + i))]}"
+  [ "$at" = "${leaves_a_place[$i]}" ] ||
+    fail "${leaves_a_place[$i]} leaves a kept reading place behind and has to sit among the last ${#leaves_a_place[@]} probes, but position $((tail_start + i + 1)) holds ${at}"
+done
 
 run_locks() {
   local entry

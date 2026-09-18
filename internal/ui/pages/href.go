@@ -49,6 +49,35 @@ func notesHref(p string) string {
 // "raw" would make ambiguous.
 func rawHref(p string) string { return VaultHref("/raw/", p) }
 
+// ResumeHref is where a reader goes back to the place they kept: the note, the
+// anchor the mark named, and how far below it they were.
+//
+// The anchor is the fragment, so a browser running nothing lands on the heading
+// or block the reader stopped under — which is the whole of the promise a kept
+// place can make without a script. The distance rides as a query the reading
+// page's own module spends and then removes from the address; a fragment
+// carrying it would name no element and drop the reader at the top.
+//
+// It takes the three values rather than the record holding them because two
+// surfaces send a reader back — the desk's row and a course's own verb — and
+// the address they send them to has to be one address. Neither of them has any
+// use for the rest of a kept place.
+func ResumeHref(relPath, anchor string, offset int) string {
+	address := VaultHref("/notes/", relPath)
+	if offset > 0 {
+		address += "?" + url.Values{resumeOffsetParam: {strconv.Itoa(offset)}}.Encode()
+	}
+	if anchor != "" {
+		address += "#" + url.PathEscape(anchor)
+	}
+	return address
+}
+
+// resumeOffsetParam carries the distance below the anchor. The reading page
+// that spends it is drawn by this package too, so the name is written once and
+// stamped into every address that carries one.
+const resumeOffsetParam = "at"
+
 // hitFragment is the text directive that opens a result where the words the
 // query found are, or "" for a row whose excerpt marked nothing — a note
 // reached through its path or one of its other names has no matched sentence to
