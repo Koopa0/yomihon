@@ -51,6 +51,7 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 		{"the report index", "/reports"},
 		{"the folder index", "/folders"},
 		{"one study path", "/syllabus/Maps/study.md"},
+		{"one study path to listen to", "/listen/Maps/study.md"},
 		{"one map", "/notes/Maps/reading.md"},
 		{"one briefing", "/reports/2026-09-03.html"},
 		{"one folder", "/folders/Concepts"},
@@ -548,6 +549,7 @@ func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
 		{"a note nobody wrote", "/notes/Concepts/nothing-here.md"},
 		{"a report never published", "/reports/1999-01-01.html"},
 		{"a study path that is not there", "/syllabus/Maps/nothing-here.md"},
+		{"a study path to listen to that is not there", "/listen/Maps/nothing-here.md"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
