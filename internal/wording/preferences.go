@@ -98,6 +98,14 @@ var (
 	)
 )
 
+// PrefKeyboardShortcutsTitle heads the list of every key this interface
+// answers to — the same list the header's own help popover carries under
+// KeyboardHelp. It is kept as a variable of its own rather than reused,
+// because a page heading and a popover title are free to part company later
+// without either being renamed by accident; today they happen to read the
+// same.
+var PrefKeyboardShortcutsTitle = both("鍵盤快捷鍵", "Keyboard shortcuts")
+
 // The two states every switch on this page is in. They are the words a reader
 // picks, so they are verbs' worth of plain rather than the glyphs the header
 // controls carry.
