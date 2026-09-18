@@ -101,9 +101,15 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"Writes one JSON object per line when the output is not a terminal, and a\n" +
 			"human summary when it is. --format decides instead of the terminal.\n" +
 			"\n" +
+			"A file the scan saw and the read could not open is reported as an error\n" +
+			"finding named scan.unreadable, and the rest of the vault is judged. The\n" +
+			"rules that conclude something is nowhere in the vault report nothing for\n" +
+			"that run, since the file nobody read may hold it, and the finding says so.\n" +
+			"\n" +
 			"Exits 0 when nothing named by --deny was found, 1 when something was, and\n" +
 			"2 when the command itself could not run. Findings alone do not fail the\n" +
-			"command: without --deny it reports and exits 0.\n",
+			"command: without --deny it reports and exits 0, an unreadable file\n" +
+			"included.\n",
 		"coverage": "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n" +
 			"\n" +
 			"Writes a compact JSON object when the output is not a terminal, and a\n" +
@@ -115,8 +121,12 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"state. When the list is omitted or empty, the whole vault is counted.\n" +
 			"A withheld path is never reported.\n" +
 			"\n" +
+			"A census is an answer about the whole vault, so a file the read could not\n" +
+			"open stops this command where it lets check report and go on: there is no\n" +
+			"count that means \"except for the part I could not read\".\n" +
+			"\n" +
 			"Exits 0 — coverage reports state, it never gates — and 2 when the\n" +
-			"command itself could not run.\n",
+			"command itself could not run, an unreadable file included.\n",
 		"exists": "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n" +
 			"\n" +
 			"Writes a compact JSON object when the output is not a terminal, and a\n" +
@@ -126,6 +136,11 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"Exits 0 when a note for the name exists and 1 when none does, so a\n" +
 			"caller can gate a write-if-absent on the exit code alone; 2 when the\n" +
 			"command itself could not run.\n" +
+			"\n" +
+			"A note that answers still answers when some other file could not be read.\n" +
+			"\"None does\" is the answer that needs the whole vault, so where a read\n" +
+			"failed it is refused with 2 rather than given, and nothing gates a write\n" +
+			"on an absence nobody could establish.\n" +
 			"\n" +
 			"A note inside a directory the contract withholds from agent-facing output\n" +
 			"is never described here — no path, no matched field. It still answers:\n" +

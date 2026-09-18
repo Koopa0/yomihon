@@ -54,7 +54,7 @@ func TestHomeSaysWhyTheAdjudicationCommandsAreClosed(t *testing.T) {
 	if !strings.Contains(body, "never_egress_dirs") {
 		t.Errorf("the page does not carry the reason the contract was refused:\n%s", body)
 	}
-	if !strings.Contains(body, "data-home-privacy") {
+	if !strings.Contains(body, `data-nothing="privacy"`) {
 		t.Errorf("the page has no block for a refused egress declaration:\n%s", body)
 	}
 
@@ -62,7 +62,7 @@ func TestHomeSaysWhyTheAdjudicationCommandsAreClosed(t *testing.T) {
 	// furniture rather than news.
 	usable := contractWithPrivacySection(t, "[privacy]\nnever_egress_dirs = [\"Private\"]\n")
 	fine := newServerWithContract(t, fragmentSplitVault(t), usable)
-	if _, body := get(t, fine.Client(), fine.URL+"/"); strings.Contains(body, "data-home-privacy") {
+	if _, body := get(t, fine.Client(), fine.URL+"/"); strings.Contains(body, `data-nothing="privacy"`) {
 		t.Errorf("a usable egress declaration was reported as a fault:\n%s", body)
 	}
 }

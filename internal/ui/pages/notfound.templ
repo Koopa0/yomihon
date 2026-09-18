@@ -26,14 +26,17 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main">
 				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="notfound-title">
+					// A file that exists and could not be read is a fault and
+					// takes the fault colour; an address that names nothing is
+					// an absence and stays quiet.
 					if v.Unreadable {
-						<p class="y-recovery__kicker">{ wording.NotReadableKicker.In(c.Lang) }</p>
-						<h1 id="notfound-title" class="y-title">{ wording.NotReadableTitle.In(c.Lang) }</h1>
-						<p class="y-recovery__summary">{ wording.NotReadableLede.In(c.Lang) }</p>
+						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.NotReadableKicker.In(c.Lang), Title: wording.NotReadableTitle.In(c.Lang), TitleID: "notfound-title", Page: true, Fault: true}) {
+							<p>{ wording.NotReadableLede.In(c.Lang) }</p>
+						}
 					} else {
-						<p class="y-recovery__kicker">{ wording.NotFoundKicker.In(c.Lang) }</p>
-						<h1 id="notfound-title" class="y-title">{ wording.NothingHere.In(c.Lang) }</h1>
-						<p class="y-recovery__summary">{ wording.NotFoundLede.In(c.Lang) }</p>
+						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.NotFoundKicker.In(c.Lang), Title: wording.NothingHere.In(c.Lang), TitleID: "notfound-title", Page: true}) {
+							<p>{ wording.NotFoundLede.In(c.Lang) }</p>
+						}
 					}
 					if v.Asked != "" {
 						<section class="y-recovery__detail" aria-labelledby="notfound-asked-title">
