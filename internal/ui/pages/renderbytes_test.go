@@ -103,6 +103,12 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"sidebar-no-note", sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"})},
 		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
 		{"note-page", Note(recordedNoteView(t, model, current), recordedChrome())},
+		// Two notes at once, in both languages the interface speaks: the words
+		// around the columns are the interface's and the words inside them are
+		// the notes' own, so the recording is where a change that moved one of
+		// those over the line shows up.
+		{"compare-page", Compare(recordedCompareView(), recordedChrome())},
+		{"compare-page-english", Compare(recordedCompareView(), englishChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
 		// vault's own words either way; what changes is everything the page
@@ -138,7 +144,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 			surface{"statusbar-" + state.name, statusBar(state.view, wording.ZhHant)},
 		)
 	}
-	if len(cases) < 30 {
+	if len(cases) < 32 {
 		t.Fatalf("only %d surfaces are recorded, so this test locks almost nothing", len(cases))
 	}
 
@@ -628,4 +634,21 @@ func recordedSearchFacets(lang wording.Lang) []SearchFacet {
 			{Label: `a" b`, Count: 1},
 		},
 	}}
+}
+
+// recordedCompareView is one page holding two notes, each carrying the id space
+// its column occupies. The two halves are deliberately not alike: one declares
+// a language and one does not, one carries a finding and one does not, and only
+// one offers a further pair — so the recording says what the page does with two
+// notes rather than with one note drawn twice.
+func recordedCompareView() CompareView {
+	return CompareView{
+		A: comparedNote("a-", "Cutover", "Writing/lessons/go/Cutover.md", "en"),
+		B: func() NoteView {
+			b := comparedNote("b-", "切換", "Writing/lessons/go/Cutoverzh.md", "")
+			b.SchemaNotices = nil
+			b.Pair = nav.NoteRef{}
+			return b
+		}(),
+	}
 }

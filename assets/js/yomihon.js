@@ -1,7 +1,7 @@
 // yomihon client-runtime entry. Every imported module is inert until this file
 // calls its initializer; this is the single owner of capability composition and
 // boot order. The server-rendered page remains usable when the graph is absent.
-import { initContents } from './contents.js';
+import { initCompareAlign, initContents } from './contents.js';
 import { initDiagrams } from './diagrams.js';
 import { initDrawer } from './drawer.js';
 import { initFreshness } from './freshness.js';
@@ -23,6 +23,7 @@ function init() {
   initLangForm();
   const preferences = initPreferences();
   initContents();
+  initCompareAlign();
   initFreshness();
   const search = initSearch();
   initShortcuts({ drawer, sidebar, search });
