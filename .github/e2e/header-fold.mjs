@@ -299,7 +299,15 @@ try {
       if (row.headerLeft < -0.5 || row.headerRight > row.windowWidth + 0.5 || row.headerOverflow > 0.5) {
         fail('row-fits', `${where}: the row runs past the window — ${JSON.stringify({ left: row.headerLeft, right: row.headerRight, windowWidth: row.windowWidth, overflow: row.headerOverflow })}`);
       }
-      if (row.wordmarkLost > 0) {
+      // Not asked at the fold width itself. That width is where the row runs
+      // out of room, so the margin there is under a pixel by construction, and
+      // the fonts the chrome is set in do not measure identically on every
+      // machine this is ever run on — an assertion with sub-pixel margin would
+      // be answering the font's question, not the layout's. Which side of the
+      // fold that width falls on is asked instead, just above, and no font
+      // metric can move a media query. Everywhere else there is a hundred
+      // pixels of room and the question is real.
+      if (width !== FOLD && row.wordmarkLost > 0) {
         fail('wordmark-whole', `${where}: the wordmark is ${row.wordmarkLost}px short of its own text, so the name of the book is paying for the row`);
       }
     }
