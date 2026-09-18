@@ -696,17 +696,6 @@ const measureFocusOutline = async (page, theme, field) => {
     const mean = (samples) => [0, 1, 2].map((channel) => (
       samples.reduce((sum, sample) => sum + sample[channel], 0) / samples.length
     ));
-    // Averaging down a column flattens the page's grain, which is why a run
-    // that still differs by this much is a painted line and not texture.
-    const APART = 24;
-    const ground = mean(columns.slice(8));
-    const differs = (sample) => Math.max(...sample.map((value, channel) => Math.abs(value - ground[channel]))) > APART;
-    let band = 0;
-    while (band < scan && differs(columns[band])) band += 1;
-    if (band >= 8) return { issue: `the edge differs from the ground for ${band}px, so the sample taken as the ground is inside it` };
-    // With no run found, the two columns the declaration puts the line in are
-    // read anyway, so the failure carries a ratio rather than only a shrug.
-    const indicator = mean(band > 0 ? columns.slice(0, band) : columns.slice(0, 2));
     const luminance = (channels) => {
       const linear = channels.map((channel) => {
         const value = channel / 255;
@@ -715,14 +704,54 @@ const measureFocusOutline = async (page, theme, field) => {
       return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
     };
     const hex = (channels) => `#${channels.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('')}`;
-    const a = luminance(indicator);
-    const b = luminance(ground);
-    return {
-      band,
-      ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
-      indicator: hex(indicator),
-      ground: hex(ground),
-    };
+    // Averaging down a column flattens the page's grain, which is why a column
+    // that still differs by this much is a painted line and not texture.
+    const APART = 24;
+    const ground = mean(columns.slice(8));
+    const groundIssue = columns.slice(8).findIndex((sample) => (
+      Math.max(...sample.map((value, channel) => Math.abs(value - ground[channel]))) > APART
+    ));
+    if (groundIssue !== -1) return { issue: `column ${8 + groundIssue} disagrees with the rest of the ground sample, so something is drawn across it` };
+    const differs = (sample) => Math.max(...sample.map((value, channel) => Math.abs(value - ground[channel]))) > APART;
+    // Where the line starts is not assumed. A field centred in its column can
+    // begin on half a pixel — which is what a scrollbar's own column does to
+    // it — and then the picture's first column is the page outside the field
+    // and the line has moved along by one. So the run is looked for rather
+    // than counted from the edge.
+    const inked = [];
+    for (let x = 0; x < 8; x += 1) if (differs(columns[x])) inked.push(x);
+    if (inked.length === 0) {
+      // Nothing is painted there. The two columns the declaration puts the
+      // line in are read anyway, so the failure carries a ratio rather than
+      // only a shrug.
+      const absent = mean(columns.slice(0, 2));
+      const a = luminance(absent);
+      const b = luminance(ground);
+      return {
+        band: 0,
+        ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+        indicator: hex(absent),
+        ground: hex(ground),
+      };
+    }
+    const first = inked[0];
+    const last = inked[inked.length - 1];
+    if (last - first + 1 !== inked.length) return { issue: `the ink at the field's edge is broken across columns ${inked.join(', ')}, which is not one line` };
+    // The line at full strength, not averaged with the columns a half-pixel
+    // offset has blended into the ground: what a reader has to make out is
+    // the line itself, and its width is asserted separately.
+    let strongest = columns[first];
+    let ratio = 0;
+    for (let x = first; x <= last; x += 1) {
+      const a = luminance(columns[x]);
+      const b = luminance(ground);
+      const reading = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      if (reading > ratio) {
+        ratio = reading;
+        strongest = columns[x];
+      }
+    }
+    return { band: last - first + 1, ratio, indicator: hex(strongest), ground: hex(ground) };
   }, `data:image/png;base64,${shot.toString('base64')}`);
 };
 
