@@ -122,6 +122,11 @@ export function initPreview() {
       exiting = null;
       anchored = link;
       link.setAttribute('data-preview-open', '');
+      // There is no press for the markup to declare. What opens this card is a
+      // pointer that has rested on a link for a quarter of a second and an
+      // excerpt that has since arrived, and no attribute says either of those
+      // — which is why the card is in the state the platform reserves for a
+      // surface only its own page opens.
       if (!card.matches(':popover-open')) card.showPopover();
       card.scrollTop = 0;
     } catch (error) {

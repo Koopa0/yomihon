@@ -162,6 +162,13 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// offer, so every other page's header has nothing to draw.
 	{{ c.Mark = v.markOffer() }}
 	@layouts.Base(c) {
+		// Ahead of the note, because the press that shuts the sheet names it
+		// by id and a name is answered by whichever element carries it first.
+		// The ids a note stamps on its own headings are folded from the words
+		// the author wrote, so a heading called "Concept sheet" folds to
+		// exactly this name, and a lesson that had one would leave the press
+		// shutting a heading.
+		@conceptSheet(v.Concepts, lang)
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@readingRail(v.ReadingRail, c)
@@ -173,7 +180,6 @@ templ Note(v NoteView, c layouts.Chrome) {
 			</main>
 			@rightRail(v, lang)
 		</div>
-		@conceptSheet(v.Concepts, lang)
 		@previewCard()
 	}
 }
@@ -204,6 +210,14 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 // conceptSheet is the grammar-concept drawer: one hidden <template> per concept
 // the lesson links to, plus a shared native <dialog> the client clones into.
 // With scripting off the triggers stay ordinary links to the concept notes.
+//
+// Opening it is the one overlay on this page that the markup cannot declare.
+// The trigger is a link the renderer writes into the note's own prose, and the
+// attributes that name an act belong to buttons; a button there would take
+// that navigation away from a reader with no script, and it would be an empty
+// sheet they opened, because the words in it are cloned from a template by the
+// same script. Closing is another matter: the press says what it closes, and
+// the browser closes it.
 templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
@@ -211,10 +225,10 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog class="y-conceptsheet" data-concept-sheet aria-label={ wording.GrammarNote.In(lang) } closedby="any">
+		<dialog id="concept-sheet" class="y-conceptsheet" data-concept-sheet aria-label={ wording.GrammarNote.In(lang) } closedby="any">
 			<div class="y-conceptsheet__head">
 				<span class="y-conceptsheet__title" data-concept-title></span>
-				<button type="button" class="y-iconbtn" data-concept-close aria-label={ wording.CloseControl.In(lang) }>
+				<button type="button" class="y-iconbtn" command="close" commandfor="concept-sheet" aria-label={ wording.CloseControl.In(lang) }>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
 			</div>

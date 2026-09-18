@@ -297,8 +297,33 @@ func TestHeaderSearchKeepsAccessibleNameWhenLabelIsVisuallyHidden(t *testing.T) 
 		t.Fatalf("render header: %v", err)
 	}
 	html := buf.String()
-	if !strings.Contains(html, `class="y-searchbtn" href="/search" data-search-open aria-label="`+wording.SearchNotes.In(wording.ZhHant)+`"`) {
-		t.Errorf("header search link has no stable accessible name; html = %q", html)
+	if !strings.Contains(html, `commandfor="search-dialog" data-search-open aria-label="`+wording.SearchNotes.In(wording.ZhHant)+`"`) {
+		t.Errorf("header search control has no stable accessible name; html = %q", html)
+	}
+}
+
+// TestTheHeaderPressNamesTheDialogItOpens is the markup half of opening the
+// palette: the press says what it opens and what to do with it, so the browser
+// does it and a page running no script still answers the press. The dialog has
+// to carry the id the press names, or the press names nothing.
+func TestTheHeaderPressNamesTheDialogItOpens(t *testing.T) {
+	t.Parallel()
+
+	var head bytes.Buffer
+	if err := header(Chrome{}).Render(t.Context(), &head); err != nil {
+		t.Fatalf("render header: %v", err)
+	}
+	html := head.String()
+	if !strings.Contains(html, `<button class="y-searchbtn" type="button" command="show-modal" commandfor="search-dialog"`) {
+		t.Errorf("the header press does not declare what it opens; html = %q", html)
+	}
+
+	var dialog bytes.Buffer
+	if err := searchDialog(wording.ZhHant).Render(t.Context(), &dialog); err != nil {
+		t.Fatalf("render search dialog: %v", err)
+	}
+	if !strings.Contains(dialog.String(), `<dialog id="search-dialog"`) {
+		t.Errorf("the palette does not carry the id the header press names; html = %q", dialog.String())
 	}
 }
 
