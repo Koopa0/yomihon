@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/lexical"
+	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
@@ -117,6 +118,23 @@ func newServerWithGovernance(
 	governance schema.Governance,
 ) *httptest.Server {
 	t.Helper()
+	return newServerWithMark(t, root, contract, governance, noMark)
+}
+
+// noMark is the reading state of a reader who has kept no place, which is
+// every test but the ones about the desk's row back to one.
+func noMark() (mark.Continuation, bool) { return mark.Continuation{}, false }
+
+// newServerWithMark is newServerWithGovernance with a place the reader kept,
+// so the desk's row back to it can be driven without a file on disk.
+func newServerWithMark(
+	t *testing.T,
+	root string,
+	contract *schema.Contract,
+	governance schema.Governance,
+	kept func() (mark.Continuation, bool),
+) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, governance)
@@ -128,6 +146,7 @@ func newServerWithGovernance(
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   kept,
 		Log:            log,
 	})
 	h.Register(mux)
@@ -249,6 +268,7 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 	handler := note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   noMark,
 		Source:         source,
 		Status:         statusProvider,
 		Snapshot:       store.Current,
@@ -343,6 +363,7 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
+				Continuation:   noMark,
 				Source:         source,
 				Status:         func() status.Authority { return authority },
 				Snapshot:       func() *snapshot.Generation { return captured },
@@ -439,6 +460,7 @@ func TestTheFolderIndexClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *
 			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
+				Continuation:   noMark,
 				Source:         source,
 				Status:         func() status.Authority { return authority },
 				Snapshot:       func() *snapshot.Generation { return captured },
@@ -516,6 +538,7 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   noMark,
 		Source:         source,
 		Status: func() status.Authority {
 			statusCaptures++
@@ -1549,6 +1572,7 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
+				Continuation:   noMark,
 				Source:         firstSource,
 				Status:         writer.Authority,
 				Snapshot: func() *snapshot.Generation {
@@ -1632,6 +1656,7 @@ func TestMissingPageKeepsCapturedGenerationWhenCurrentSwaps(t *testing.T) {
 			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
+				Continuation:   noMark,
 				Source:         firstSource,
 				Status:         writer.Authority,
 				Snapshot: func() *snapshot.Generation {
@@ -1692,6 +1717,7 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			note.New(&note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
+				Continuation:   noMark,
 				Source:         source,
 				Status:         writer.Authority,
 				Snapshot: func() *snapshot.Generation {
@@ -1938,6 +1964,7 @@ body
 	handler := note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   noMark,
 		Source:         source,
 		Status:         requestStatus,
 		Snapshot:       store.Current,
@@ -2969,6 +2996,11 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			want:  "note: New requires a non-nil ConsumeReceipt provider",
 		},
 		{
+			name:  "continuation provider",
+			clear: func(d *note.Sources) { d.Continuation = nil },
+			want:  "note: New requires a non-nil Continuation provider",
+		},
+		{
 			name:  "log",
 			clear: func(d *note.Sources) { d.Log = nil },
 			want:  "note: New requires a non-nil Log",
@@ -2995,6 +3027,7 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			deps := note.Sources{
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
+				Continuation:   noMark,
 				Source:         source,
 				Status:         writer.Authority,
 				Snapshot:       store.Current,
@@ -3019,6 +3052,7 @@ func TestNewCopiesItsSources(t *testing.T) {
 	deps := note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   noMark,
 		Source:         source,
 		Status:         writer.Authority,
 		Snapshot:       store.Current,
@@ -3306,6 +3340,7 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 		Snapshot:       store.Current,
 		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
 		ConsumeReceipt: func(string, string) bool { return false },
+		Continuation:   noMark,
 		Log:            slog.New(slog.DiscardHandler),
 	}).Register(mux)
 	srv := httptest.NewServer(mux)

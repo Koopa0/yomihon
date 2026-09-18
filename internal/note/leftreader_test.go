@@ -49,6 +49,7 @@ func TestAProbeThatLeavesIsNotLoggedAsAFault(t *testing.T) {
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   noMark,
 		Log:            log,
 	}).Register(mux)
 
