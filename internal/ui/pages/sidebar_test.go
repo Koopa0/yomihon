@@ -43,11 +43,23 @@ func TestHereLabel(t *testing.T) {
 // and builds the real graph and navigation projections from that generation.
 func buildModel(t *testing.T) *nav.Model {
 	t.Helper()
-	root := t.TempDir()
+	_, model := buildVault(t)
+	return model
+}
+
+// buildVault is buildModel with the folder it wrote kept, for the recordings
+// that read a note's own bytes as well as the shape navigation made of them.
+func buildVault(t *testing.T) (root string, model *nav.Model) {
+	t.Helper()
+	root = t.TempDir()
 	files := map[string]string{
 		// A study-path that lists L01 twice — once deep under Decode > Bytes, once
-		// directly under Review — so the reverse index yields two placements.
+		// directly under Review — so the reverse index yields two placements. Its
+		// opening is two paragraphs above the first heading: what the course is
+		// and who it is for, which is what a course page prints under its title.
 		"Maps/Go path.md": "---\ntype: study-path\n---\n" +
+			"這條路徑講的是 Go 的讀法：從位元開始，走到讀得懂一份原始碼。\n\n" +
+			"寫給已經會另一種語言、想把 Go 讀進去的人。\n\n" +
 			"## decode | Decode | 解碼\n\n" +
 			"### bytes | Bytes | 位元 {sequence=primary}\n\n" +
 			"- [[L01]]\n- [[L02]]\n- [[Template target]]\n- [[Unwritten Lesson]]\n- [[Repeat|Ambiguous Lesson]]\n\n" +
@@ -70,7 +82,15 @@ func buildModel(t *testing.T) *nav.Model {
 		// A Sources note with no frontmatter at all (a legal shape).
 		"Sources/articles/Other.md": "just prose, no frontmatter\n",
 		"Sources/articles/Raw.md":   "raw clipping, no frontmatter\n",
-		// Journal entries deliberately have no frontmatter.
+		// Journal entries deliberately have no frontmatter. There are more of
+		// them than the rail's drawer shows, so a recording of that drawer is a
+		// recording of it narrowing rather than of a journal that happens to be
+		// short.
+		"Diary/2026-07-02.md": "# Two\n",
+		"Diary/2026-07-03.md": "# Three\n",
+		"Diary/2026-07-04.md": "# Four\n",
+		"Diary/2026-07-05.md": "# Five\n",
+		"Diary/2026-07-06.md": "# Six\n",
 		"Diary/2026-07-09.md": "# Earlier\n",
 		"Diary/2026-07-10.md": "# Latest\n",
 		// A file at the vault root, belonging to no folder: the folder shelf
@@ -133,7 +153,7 @@ func buildModel(t *testing.T) *nav.Model {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(
+	return root, nav.New(
 		scan.Files(),
 		notes,
 		graph.New(noteList, resources),
@@ -143,7 +163,6 @@ func buildModel(t *testing.T) *nav.Model {
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
 	)
-	return model
 }
 
 // TestNewSidebarWayfinding checks the resolved navigation for a note that lives
@@ -356,6 +375,44 @@ func TestSidebarContentGrouping(t *testing.T) {
 				t.Errorf("detailsTagByKey(%q) = %q, want no open attribute", tt.key, tag)
 			}
 		})
+	}
+}
+
+// TestJournalDrawerShowsTheNewestFewAndOffersTheRest holds the rail to being a
+// way into the journal rather than the journal. The model carries every entry,
+// because the journal's own page reads a month of them at a time; the drawer
+// shows the newest few and ends by offering the rest, which is the same shape
+// every other shelf's corner has.
+func TestJournalDrawerShowsTheNewestFewAndOffersTheRest(t *testing.T) {
+	t.Parallel()
+
+	model := buildModel(t)
+	if model.JournalCount() <= journalRailEntries {
+		t.Fatalf("the fixture journal holds %d entries, which the drawer could show whole, so nothing here shows it narrowing", model.JournalCount())
+	}
+
+	var buf bytes.Buffer
+	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+
+	if got := strings.Count(html, "data-sidebar-journal-entry"); got != journalRailEntries {
+		t.Errorf("the drawer lists %d entries, want %d", got, journalRailEntries)
+	}
+	for _, want := range []string{
+		`data-sidebar-journal-entry>2026-07-10</a>`,
+		`data-sidebar-journal-entry>2026-07-04</a>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the drawer is missing one of its newest entries: %q", want)
+		}
+	}
+	if strings.Contains(html, `data-sidebar-journal-entry>2026-07-03</a>`) {
+		t.Error("the drawer lists past its own limit")
+	}
+	if !strings.Contains(html, `href="/journal" data-sidebar-journal-all>`) {
+		t.Error("the drawer lists a few entries and never offers the rest of the journal")
 	}
 }
 

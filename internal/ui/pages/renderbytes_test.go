@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
@@ -92,9 +93,10 @@ func TestRecordedNoteWikilinks(t *testing.T) {
 func TestRenderedBytesAreUnchanged(t *testing.T) {
 	t.Parallel()
 
-	model := buildModel(t)
+	root, model := buildVault(t)
 	current := "Writing/lessons/go/L01.md"
 	shelfIndex, shelfRecent, shelfStatuses := recordedShelfView(model)
+	course := newRecordedCourse(t, root, model)
 
 	type surface struct {
 		name      string
@@ -115,12 +117,18 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// those over the line shows up.
 		{"compare-page", Compare(recordedCompareView(), recordedChrome())},
 		{"compare-page-english", Compare(recordedCompareView(), recordedEnglishChrome())},
-		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
+		{"syllabus-page", Syllabus(course.view(recordedChrome().Lang, ""), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
 		// vault's own words either way; what changes is everything the page
 		// says around them, and the page's shape must survive the longer
 		// words rather than only the ones it was drawn with.
-		{"syllabus-page-english", Syllabus(recordedPathView(model), recordedEnglishChrome())},
+		{"syllabus-page-english", Syllabus(course.view(wording.En, ""), recordedEnglishChrome())},
+		// The same cover for a reader who kept a place inside this course. The
+		// verb changes and the lesson's own name comes to stand beside it, so
+		// both languages are recorded again: the word and the name sit on one
+		// line, and the line is where a longer word would show.
+		{"syllabus-page-continuing", Syllabus(course.view(recordedChrome().Lang, "Writing/lessons/go/L02.md"), recordedChrome())},
+		{"syllabus-page-continuing-english", Syllabus(course.view(wording.En, "Writing/lessons/go/L02.md"), recordedEnglishChrome())},
 		// The same course as something to be listened to, in both languages.
 		// Its paragraphs are the notes' own read-aloud elements, written out
 		// here rather than rendered, so what these files pin is the page and
@@ -142,6 +150,14 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
+		// An answer that runs past one page, in both languages: the sentence
+		// naming the rows on screen, the way back and on, the numbers near this
+		// one with the mark on the one being read, and the whole listing that
+		// is what prints.
+		{"search-page-paged", Search(recordedPagedSearchView(model, recordedChrome().Lang), recordedChrome())},
+		{"search-page-paged-english", Search(recordedPagedSearchView(model, wording.En), recordedEnglishChrome())},
+		{"health-page-paged", Health(recordedPagedHealthView(model), recordedChrome())},
+		{"health-page-paged-english", Health(recordedPagedHealthView(model), recordedEnglishChrome())},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(recordedShell(model), "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
 		{"preferences-page", Preferences(recordedPreferencesView(wording.ZhHant), recordedChrome())},
 		// The field legends are drawn in the label face now rather than sitting
@@ -158,6 +174,13 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// interface's words, and only a recording in both languages shows
 		// neither was left behind in one of them.
 		{"report-index-page-english", ListIndex(recordedReportIndexView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
+		// The journal at a month, in both languages it is read in. The days are
+		// the vault's own either way; the month's name, the weekday headings,
+		// the steps to the months on either side and what an entry that wrote
+		// no day is gathered under are all the interface's own words, and only
+		// a recording in both shows none of them was left behind in one.
+		{"journal-index-page", JournalIndex(recordedJournalView(recordedChrome().Lang), recordedChrome())},
+		{"journal-index-page-english", JournalIndex(recordedJournalView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
@@ -458,14 +481,18 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 	}
 }
 
-// recordedPathView reads the fixture folder's own course through the same
-// builder the page uses, so the recording is of an interpretation rather than
-// of a tree typed out beside it.
-//
-// The course is entered from a lesson, so the recording holds the mark for
-// where the reader is standing. The fixture course lists that lesson twice, in
-// two different parts, which is the case a course reached from one of them has
-// to answer: both rows are that lesson and both are marked.
+// recordedCourse is the fixture folder's own course, read through the same
+// builder and the same generation the page uses, so the recording is of an
+// interpretation rather than of a tree typed out beside it.
+type recordedCourse struct {
+	model *nav.Model
+	snap  *snapshot.Generation
+	// opening and language are the course note's own bytes, read once: the
+	// words above its first heading and the tag it declared them in.
+	opening  string
+	language string
+}
+
 // recordedListenView is a course of two lessons, the second marking one
 // paragraph and the first two, so the recording covers both a lesson boundary
 // and a lesson carrying more than one paragraph. The paragraphs are the bytes
@@ -497,12 +524,63 @@ func recordedListenView() ListenView {
 	}
 }
 
-func recordedPathView(model *nav.Model) PathView {
-	current := model.Path("Maps/Go path.md")
-	view := BuildPathView(current, model.Paths(), "Writing/lessons/go/L01.md")
-	view.Vault = recordedShell(model).Vault
-	return view
+// recordedCourse captures the fixture vault as a published generation beside
+// the navigation model already built from it. The cover prints the course
+// note's own opening, which is bytes rather than shape, so the recording needs
+// both readings of that folder.
+func newRecordedCourse(t *testing.T, root string, model *nav.Model) recordedCourse {
+	t.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("reader.Close: %v", closeErr)
+		}
+	})
+	store, err := snapshot.New(t.Context(), reader, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
+	snap := store.Current().Capture()
+	note, ok := snap.Note(courseRelPath)
+	if !ok {
+		t.Fatalf("the fixture holds no course note at %s", courseRelPath)
+	}
+	opening := render.Opening(note.Body)
+	if opening == "" {
+		t.Fatalf("the fixture's course note opens on a heading, so the recording below would pin an absent paragraph")
+	}
+	return recordedCourse{model: model, snap: snap, opening: opening, language: note.Language}
 }
+
+// view draws that course's page. The course is entered from a lesson, so the
+// recording holds the mark for where the reader is standing: the fixture course
+// lists that lesson twice, in two different parts, which is the case a course
+// reached from one of them has to answer — both rows are that lesson and both
+// are marked.
+//
+// kept is the note a reader left a place in, or empty for one who left none.
+// The place itself is spelled the way a reading page's own module writes it,
+// anchor and distance and all, so the recording holds the address a reader
+// actually follows rather than a bare note link.
+func (c recordedCourse) view(lang wording.Lang, kept string) PathView {
+	cover := CourseCover{
+		OpeningHTML:     render.StripAnchors(c.snap.RenderIn("c-", courseRelPath, c.opening, lang).HTML),
+		OpeningLanguage: c.language,
+		Here:            "Writing/lessons/go/L01.md",
+	}
+	if kept != "" {
+		cover.KeptNote = kept
+		cover.KeptHref = ResumeHref(kept, "a-second-look", 640)
+	}
+	return BuildPathView(c.model.Path(courseRelPath), c.model.Paths(), &cover)
+}
+
+// courseRelPath is the fixture's study path, named once so the model reading
+// and the bytes reading cannot be taken of two different notes.
+const courseRelPath = "Maps/Go path.md"
 
 // recordedStatusStates names every state the write face can be in. The two
 // faces draw the same set, which is the thing worth recording: a change that
@@ -618,6 +696,30 @@ func recordedReportIndexView(lang wording.Lang) ListIndexView {
 		{Name: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
 	}, lang, nil)
 }
+
+// recordedJournalView is the journal opened at a month written in unevenly:
+// days with an entry and days without, one day carrying two, and one entry
+// whose declared day disagrees with the name of its own file. Under the month
+// sits an entry that wrote no day at all, which belongs to no month and would
+// otherwise never be recorded anywhere. Both months either side hold something,
+// so both ways out are drawn.
+func recordedJournalView(lang wording.Lang) JournalView {
+	entries := []nav.JournalEntry{
+		{Title: "2026-08-03", RelPath: "Diary/2026-08-03.md", Date: "2026-08-03"},
+		{Title: "2026-07-20 夜", RelPath: "Diary/2026-07-20 夜.md", Date: "2026-07-20"},
+		{Title: "2026-07-20", RelPath: "Diary/2026-07-20.md", Date: "2026-07-20"},
+		{Title: "week in Kyoto", RelPath: "Diary/week in Kyoto.md", Date: "2026-07-13"},
+		{Title: "2026-07-01", RelPath: "Diary/2026-07-01.md", Date: "2026-07-01"},
+		{Title: "2026-06-28", RelPath: "Diary/2026-06-28.md", Date: "2026-06-28"},
+		{Title: "loose thoughts", RelPath: "Diary/loose thoughts.md"},
+	}
+	return NewJournalIndex(entries, recordedJournalMonth, nav.Closure{}, lang, nil)
+}
+
+// recordedJournalMonth is the month every recording, test and probe of the
+// journal names. It is written out rather than read from a clock, so what these
+// files lock says the same thing tomorrow.
+var recordedJournalMonth = MonthOf(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC))
 
 // recordedWithheldIndexView is a mode index whose declaration could not be
 // read: no rows, and the reason in place of the sentence about a vault that
@@ -831,6 +933,41 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		Facets:            recordedSearchFacets(lang),
 		Governed:          true,
 		Sidebar:           NewSidebar(nav.Shell{Nav: model}, ""),
+	}
+}
+
+// recordedPagedSearchView is that same answer divided. The strip is built for
+// a listing of five hits two to a page, which is not a size the running server
+// ever asks for: what the recording is of is the second page of three, and the
+// page size never reaches the markup.
+func recordedPagedSearchView(model *nav.Model, lang wording.Lang) SearchView {
+	view := recordedSearchView(model, lang)
+	view.Total = 5
+	view.Pager = NewPager(2, 2, view.Total, func(n PageNumber) string {
+		return SearchPageHref(view.Query, n)
+	})
+	return view
+}
+
+// recordedPagedHealthView is a report longer than one page: notes nothing
+// cites, which is the finding that draws one line per note, on the last page of
+// two. The shape line above and the guide below count the whole report while
+// the table holds the five rows this page is.
+func recordedPagedHealthView(model *nav.Model) HealthView {
+	const rows = healthPageSize + 5
+	notes := make([]nav.NoteRef, 0, rows)
+	for i := range rows {
+		notes = append(notes, nav.NoteRef{
+			Name:    fmt.Sprintf("Note %03d", i),
+			RelPath: fmt.Sprintf("Notes/n%03d.md", i),
+		})
+	}
+	return HealthView{
+		Islands:     []HealthIslandGroup{{Dir: "Notes", Name: "Notes", Notes: notes}},
+		IslandCount: rows,
+		Sort:        HealthByFinding,
+		Page:        2,
+		Sidebar:     NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 

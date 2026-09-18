@@ -12,24 +12,57 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// newServer builds a real nav.Model from a temp vault (real-first: no fakes)
-// and wires the study-path handler behind it.
+// newServer builds a real nav.Model and a real published generation from a temp
+// vault (real-first: no fakes) and wires the study-path handler behind them.
+// The generation is what the cover reads a course note's own opening out of, so
+// a page built without one would draw a course with no words above its counts.
 func newServer(t *testing.T, root string) *httptest.Server {
 	t.Helper()
+	return newServerWithMark(t, root, &mark.Continuation{}, false)
+}
+
+// newServerWithMark is newServer for a reader who left a place behind.
+func newServerWithMark(t *testing.T, root string, kept *mark.Continuation, marked bool) *httptest.Server {
+	t.Helper()
 	model := loadModel(t, root)
+	snap := publishedGeneration(t, root)
 	mux := http.NewServeMux()
-	syllabus.New(func() syllabus.RequestSnapshot { return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model}} }, slog.New(slog.DiscardHandler)).Register(mux)
+	syllabus.New(func() syllabus.RequestSnapshot {
+		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model}, Generation: snap, Kept: *kept, Marked: marked}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// publishedGeneration captures root once and never runs the watcher, so the
+// only reading in a test is the one the test takes.
+func publishedGeneration(t *testing.T, root string) *snapshot.Generation {
+	t.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open(%q) error = %v", root, err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("Reader.Close() error = %v", closeErr)
+		}
+	})
+	store, err := snapshot.New(t.Context(), reader, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
+	return store.Current().Capture()
 }
 
 func loadModel(t *testing.T, root string) *nav.Model {
@@ -217,9 +250,10 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	model := loadModel(t, root)
 	calls := 0
 	mux := http.NewServeMux()
+	snap := publishedGeneration(t, root)
 	syllabus.New(func() syllabus.RequestSnapshot {
 		calls++
-		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model, Governed: true}}
+		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model, Governed: true}, Generation: snap}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/syllabus/Maps/Go%20path.md", http.NoBody))

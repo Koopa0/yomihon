@@ -49,6 +49,35 @@ func notesHref(p string) string {
 // "raw" would make ambiguous.
 func rawHref(p string) string { return VaultHref("/raw/", p) }
 
+// ResumeHref is where a reader goes back to the place they kept: the note, the
+// anchor the mark named, and how far below it they were.
+//
+// The anchor is the fragment, so a browser running nothing lands on the heading
+// or block the reader stopped under — which is the whole of the promise a kept
+// place can make without a script. The distance rides as a query the reading
+// page's own module spends and then removes from the address; a fragment
+// carrying it would name no element and drop the reader at the top.
+//
+// It takes the three values rather than the record holding them because two
+// surfaces send a reader back — the desk's row and a course's own verb — and
+// the address they send them to has to be one address. Neither of them has any
+// use for the rest of a kept place.
+func ResumeHref(relPath, anchor string, offset int) string {
+	address := VaultHref("/notes/", relPath)
+	if offset > 0 {
+		address += "?" + url.Values{resumeOffsetParam: {strconv.Itoa(offset)}}.Encode()
+	}
+	if anchor != "" {
+		address += "#" + url.PathEscape(anchor)
+	}
+	return address
+}
+
+// resumeOffsetParam carries the distance below the anchor. The reading page
+// that spends it is drawn by this package too, so the name is written once and
+// stamped into every address that carries one.
+const resumeOffsetParam = "at"
+
 // hitFragment is the text directive that opens a result where the words the
 // query found are, or "" for a row whose excerpt marked nothing — a note
 // reached through its path or one of its other names has no matched sentence to
@@ -291,10 +320,31 @@ func folderHref(dir string) string {
 	return VaultHref("/folders/", dir)
 }
 
+// JournalMonthParam names the month a reader is reading the journal at. The
+// links this page draws and the request a reader arrives with have to agree
+// about that word, and a second spelling of it is how they stop agreeing.
+const JournalMonthParam = "month"
+
+// journalHref builds the journal's URL at one month. Every month is written
+// out, the current one included, so a link a reader copies stays pointing at
+// the month they were reading rather than at whichever month it is opened in.
+func journalHref(m Month) string {
+	return indexHref(journalMode) + "?" + url.Values{JournalMonthParam: {m.String()}}.Encode()
+}
+
 // searchHref builds the URL for one search query, escaping it as the form
 // submission would, so an offered search and a typed one land on the same page.
 func searchHref(q string) string {
 	return "/search?" + url.Values{"q": {q}}.Encode()
+}
+
+// SearchPageHref builds the URL for one stretch of a search answer. It is
+// exported because the face that puts the query to the index is the only one
+// that can say how many hits there were, and so the only one that can build
+// the strip — while how a search address is spelled stays here, beside the
+// address every other search link is written with.
+func SearchPageHref(q string, n PageNumber) string {
+	return "/search?" + url.Values{"q": {q}, "page": {n.String()}}.Encode()
 }
 
 // reportHref builds the report shell URL for a briefing's bare filename, never a

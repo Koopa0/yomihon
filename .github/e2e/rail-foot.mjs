@@ -174,16 +174,28 @@ const readFoot = (page) =>
     };
   });
 
-// The health page's own number: every row states how many findings of its kind
-// that file carries, so their sum is what the page holds. A page with nothing
-// to report draws no table, and the sum of no rows is zero.
-const readHealthTotal = (page) =>
-  page.evaluate(() =>
+// The health page's own number: every row states how many findings of its
+// kind that file carries, so their sum is what the page holds. A report that
+// runs past one page divides the table on screen but not the rows the sum is
+// answerable to, so this reads the undivided listing — reached the same way
+// health-table.mjs reaches it, by the strip's own whole-listing link — rather
+// than the stretch the request happened to ask for. A page with nothing to
+// report draws no table, and the sum of no rows is zero.
+const readHealthTotal = async (page) => {
+  const whole = page.locator('.y-pager__whole').first();
+  if (await whole.count() === 1) {
+    await page.goto(new URL(await whole.getAttribute('href'), page.url()).toString(), { waitUntil: 'domcontentloaded' });
+    if (await page.locator('.y-pager').count() !== 0) {
+      broken('the undivided report still draws a strip, so it is not the whole of it');
+    }
+  }
+  return page.evaluate(() =>
     [...document.querySelectorAll('.y-findings tbody .y-findings__count')].reduce(
       (total, cell) => total + Number(cell.textContent.trim()),
       0,
     ),
   );
+};
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;

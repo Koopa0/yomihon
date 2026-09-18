@@ -150,6 +150,22 @@ func (s *Sidebar) chainOpen(belongs func(relPath string) bool) bool {
 // journalOpen reports whether the page being read lives in the journal.
 func (s *Sidebar) journalOpen() bool { return s.Model.InJournal(s.CurrentPath) }
 
+// journalRailEntries is how many of the journal the rail has room for. It is
+// the rail's own figure rather than the projection's: the model holds the whole
+// journal, because the journal's page reads it a month at a time, and a rail
+// that listed every entry would be the journal rather than a way into it.
+const journalRailEntries = 5
+
+// recentJournal is the newest few entries, which is what the drawer shows. The
+// rest is one row away, at the page the drawer ends by offering.
+func (s *Sidebar) recentJournal() []nav.JournalEntry {
+	entries := s.Model.Journal()
+	if len(entries) > journalRailEntries {
+		return entries[:journalRailEntries]
+	}
+	return entries
+}
+
 // reportsOpen reports whether the page being read is one of the reports.
 func (s *Sidebar) reportsOpen() bool { return nav.InReports(s.CurrentPath) }
 

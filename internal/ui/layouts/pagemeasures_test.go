@@ -39,7 +39,7 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 	got := map[string]string{}
 	pattern := regexp.MustCompile(`(--measure-[a-z0-9-]*)\s*:\s*([^;}]+)`)
 	for _, sheet := range sheets {
-		source, err := os.ReadFile(sheet)
+		source, err := os.ReadFile(sheet) // #nosec G304 -- sheet came from walking the fixed stylesheetDir constant, not from any input outside this test
 		if err != nil {
 			t.Fatalf("ReadFile(%q) error = %v", sheet, err)
 		}
@@ -75,6 +75,7 @@ func TestEveryPageShellTakesItsOwnMeasure(t *testing.T) {
 	rules := componentRules(t)
 	for _, shell := range shells {
 		t.Run(shell.class, func(t *testing.T) {
+			t.Parallel()
 			found := false
 			for _, rule := range rules {
 				if !selectorNames(rule.selector, shell.class) {
@@ -187,7 +188,7 @@ func (r cssRule) values(property string) []string {
 // on its own, rather than to something inside or beside it. It matches the
 // class as a whole term, so .y-article answers and .y-article .y-title does not.
 func selectorNames(selector, class string) bool {
-	for _, part := range strings.Split(selector, ",") {
+	for part := range strings.SplitSeq(selector, ",") {
 		if strings.TrimSpace(part) == class {
 			return true
 		}
@@ -257,7 +258,7 @@ func parseRules(t *testing.T, block string, depth int) []cssRule {
 // opens in, counting the ones opened inside it.
 func closingBrace(block string) int {
 	open := 0
-	for i := 0; i < len(block); i++ {
+	for i := range len(block) {
 		switch block[i] {
 		case '{':
 			open++

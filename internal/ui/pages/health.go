@@ -3,6 +3,7 @@ package pages
 import (
 	"cmp"
 	"fmt"
+	"net/url"
 	"slices"
 
 	"github.com/a-h/templ"
@@ -62,8 +63,19 @@ func (c HealthColumn) name(lang wording.Lang) string {
 }
 
 // href is the link the header carries. It names only the ordering, so following
-// one from any state of the page reaches the same table ordered that way.
+// one from any state of the page reaches the same table ordered that way — the
+// first page of it, because reordering the table makes a page number name
+// different rows and carrying one over would leave the reader somewhere they
+// did not ask to be.
 func (c HealthColumn) href() string { return "?sort=" + string(c) }
+
+// pageHref is the address of one stretch of the table in the ordering in
+// force, so stepping through a long report keeps the order it was being read
+// in. It is relative, like the ordering links beside it, which leaves the
+// page's own route spelled where routes are spelled.
+func (c HealthColumn) pageHref(n PageNumber) string {
+	return "?" + url.Values{"sort": {string(c)}, "page": {n.String()}}.Encode()
+}
 
 // direction is what a reader is told the active column is ordered by. The two
 // numeric columns put the largest first, because a page about what needs repair
@@ -254,6 +266,30 @@ func (r *healthRow) fileKey() healthFileKey {
 type healthTally struct {
 	Kind  healthKind
 	Count int
+}
+
+// healthPageSize is how many findings one page of the table holds. A finding
+// row is one line at a desk and a stack of four on a phone, so twenty-five is
+// about two screen-heights either way: the strip under the table is reached in
+// one scroll, and a folder carrying a few hundred findings comes apart into
+// pages a reader can walk instead of one page nobody reaches the foot of.
+const healthPageSize = 25
+
+// divide is the stretch of the table this request asked for, and the strip
+// that leads to the rest of it. The rows are gathered and ordered whole before
+// they are divided, so every tally taken beside them — the shape line above,
+// the guide below — answers for the report rather than for the page, the way
+// the search page's divisions answer for the whole search.
+func (v *HealthView) divide(rows []healthRow) ([]healthRow, Pager) {
+	strip := NewPager(v.Page, healthPageSize, len(rows), v.Sort.pageHref)
+	return rows[strip.First:strip.Last], strip
+}
+
+// healthRange names which rows of the table are on this page, and how many
+// there are in all. strip is read, never kept, so the parameter is a pointer
+// only to avoid copying the pager's own address list on every call.
+func healthRange(strip *Pager, lang wording.Lang) string {
+	return fmt.Sprintf(wording.HealthRangeFmt.In(lang), strip.First+1, strip.Last, strip.Total)
 }
 
 // rows is the whole table: every finding the view holds, one row per file per

@@ -10,8 +10,10 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -19,15 +21,22 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// RequestSnapshot is everything a study-path page reads from one capture of an
-// atomic vault generation. They arrive as one answer because a page that took
-// them from two readings of the published pointer can state a course's names
-// from one version of the vault and its lessons' words from another. Deriving
-// the shell here instead is not open to this package: the projection also needs
-// the write authority, which the study-path face has no other reason to hold.
+// RequestSnapshot is everything one study-path request reads, captured
+// together. The shell and the generation it was projected from arrive as one
+// answer because a page that took them from two readings of the published
+// pointer can state a course's names from one version of the vault and its
+// declared languages from another. Deriving the shell here instead is not open
+// to this package: the projection also needs the write authority, which the
+// study-path face has no other reason to hold.
 type RequestSnapshot struct {
 	Shell      nav.Shell
 	Generation *snapshot.Generation
+	// Kept is the place the reader deliberately left off at and Marked whether
+	// they left one. A course compares the note it names against the rows it
+	// already lists and follows nothing: a place kept anywhere else changes
+	// nothing about the page.
+	Kept   mark.Continuation
+	Marked bool
 
 	// Status answers which note type this vault files its course members as.
 	// It may be absent, and the listening page then teaches nothing rather
@@ -78,10 +87,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// of the same letter, so the name is composed before it is looked up.
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 
-	shell := h.current().Shell
+	lang := origin.Language(r)
+	request := h.current()
+	shell := request.Shell
 	current := shell.Nav.Path(rel)
 	if current == nil {
-		lang := origin.Language(r)
 		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell, "")}
 		// The title names which route refused; the page below it is shared.
 		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
@@ -97,11 +107,47 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// is compared against the rows this course already lists, so a note the
 	// course does not teach — and a reader who arrived from the desk carrying
 	// nothing — marks no row.
-	here := vault.NormalizeNFC(r.URL.Query().Get(pages.SyllabusFromParam))
+	cover := pages.CourseCover{Here: vault.NormalizeNFC(r.URL.Query().Get(pages.SyllabusFromParam))}
+	cover.OpeningHTML, cover.OpeningLanguage = h.opening(request.Generation, rel, lang)
+	if request.Marked {
+		cover.KeptNote = request.Kept.RelPath
+		cover.KeptHref = pages.ResumeHref(request.Kept.RelPath, request.Kept.Anchor, request.Kept.Offset)
+	}
 
-	view := pages.BuildPathView(current, shell.Nav.Paths(), here)
+	view := pages.BuildPathView(current, shell.Nav.Paths(), &cover)
 	view.Vault = shell.Vault
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
 	}
 }
+
+// opening is the course note's own words above its first heading, rendered, and
+// the language that note declared them in.
+//
+// It is rendered through the generation the rest of the page was built from, so
+// a link the author wrote in those words resolves against the vault the page is
+// describing rather than against whatever the folder holds a moment later. The
+// places inside it come off afterwards: the opening shares a document with the
+// course below it, and every name it brought would be a second element
+// answering to one the page already has.
+//
+// A note this generation has no reading of — the file went missing between the
+// scan and this request — has no opening to print, and the page draws none. The
+// course itself is drawn from navigation and stands either way.
+func (h *Handler) opening(snap *snapshot.Generation, rel string, lang wording.Lang) (html, language string) {
+	note, ok := snap.Note(rel)
+	if !ok {
+		return "", ""
+	}
+	source := render.Opening(note.Body)
+	if source == "" {
+		return "", ""
+	}
+	return render.StripAnchors(snap.RenderIn(openingRegion, rel, source, lang).HTML), note.Language
+}
+
+// openingRegion names the cover's opening among the separately rendered bodies
+// one page can carry, so a footnote the author wrote in it cannot answer to an
+// id something else already claimed. It is fixed rather than counted: a course
+// prints one opening and every reader of the page receives the same bytes.
+const openingRegion = "c-"

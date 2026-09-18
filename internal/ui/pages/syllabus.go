@@ -44,6 +44,83 @@ type PathView struct {
 	// that a written sequence marker is among what the grammar reported, that
 	// none is, or that the report holds something this page cannot explain.
 	NoCourse markerVerdict
+
+	// OpeningHTML is the map note's own opening, already rendered: the words
+	// its author wrote above its first heading, saying what the course is and
+	// who it is for. Empty for a note that opens straight on a heading, and the
+	// page then prints nothing rather than an empty box — the course has no
+	// opening of its own and inventing one would put words in the author's
+	// mouth.
+	OpeningHTML string
+	// OpeningLanguage is the tag that note declared, carried so the opening is
+	// announced in the language it was written in rather than inheriting the
+	// page's. Empty is the note's own silence, never a guess.
+	OpeningLanguage string
+	// Action is the one verb the cover offers.
+	Action CourseAction
+}
+
+// CourseCover is what a request can tell the page about itself, beside the
+// course: the map note's own opening, where the reader is standing, and the
+// place they kept. It is three strings and a language rather than the records
+// they were read out of — a view has no business holding a reader's mark or a
+// generation — and each is compared against, or printed by, the course alone.
+type CourseCover struct {
+	// OpeningHTML and OpeningLanguage become the view's own fields of those
+	// names; the handler renders the opening through the generation the rest of
+	// the page was built from.
+	OpeningHTML     string
+	OpeningLanguage string
+	// Here is the vault-relative note the reader opened this course from, or
+	// empty. It marks the row they are standing on and nothing else.
+	Here string
+	// KeptNote is the vault-relative note the reader kept a place in, empty
+	// where they kept none. It is matched against the course's own rows the way
+	// Here is, so a place kept in a note this course does not teach leaves the
+	// verb where it was.
+	KeptNote string
+	// KeptHref is where that place is, already built. The course decides
+	// whether to offer it, never where it leads.
+	KeptHref string
+}
+
+// CourseAction is the one verb a course cover offers: open a lesson. Which
+// lesson, and which word, are the same decision — start at the course's first
+// stop, or go back to the place the reader kept inside it — so one value owns
+// both, and a course with nowhere to send anyone carries an empty Href and is
+// not drawn.
+//
+// It says nothing about how much of the course is behind the reader. There is
+// no such reading here: a kept place is a position, and a course that has never
+// been opened and one nearly finished offer the same single verb.
+type CourseAction struct {
+	// Href is where the verb leads: the first lesson, or the kept place.
+	Href string
+	// Continuing is whether that lesson is the one the reader kept a place in.
+	Continuing bool
+	// Lesson is that lesson's own words. It stands beside the verb only where
+	// the reader is being sent back into the middle of the course, because the
+	// first lesson is the next thing on the page and naming it twice says
+	// nothing; a lesson somewhere inside it cannot be found by looking.
+	Lesson string
+}
+
+// Token is the machine word the markup carries for which verb this is. It
+// stays English and is what a check reads, so a lock on the page's behaviour
+// does not turn on the reader's own language.
+func (a CourseAction) Token() string {
+	if a.Continuing {
+		return "continue"
+	}
+	return "start"
+}
+
+// Verb is the reader's own word for it.
+func (a CourseAction) Verb(lang wording.Lang) string {
+	if a.Continuing {
+		return wording.CourseContinueReading.In(lang)
+	}
+	return wording.CourseStartReading.In(lang)
 }
 
 // PathBranchView is one branch of the course as the page draws it. A top-level
@@ -77,10 +154,15 @@ type PathItemView struct {
 // walk, the one owner of sequence position, and zero means the walk never
 // reaches the row.
 type PathEntryView struct {
-	Text   string
-	Href   string
-	Status string
-	Sealed bool
+	Text string
+	// RelPath is the note this row reached, empty for a row that reached none.
+	// It is the row's own identity: the href and the two marks below are read
+	// off it, and the cover's verb asks which row is the note a reader kept a
+	// place in.
+	RelPath string
+	Href    string
+	Status  string
+	Sealed  bool
 	// Here marks the lesson the reader is at. It says where they are standing,
 	// never how far they have come: the words beside the row stay the
 	// contract's, and a course carries no reading of its own about which
@@ -180,21 +262,24 @@ type PathLink struct {
 // grammar lets navigation read and nothing else; a branch outside the course
 // keeps its prose on the note's own page.
 //
-// here is the vault-relative note the reader is at, or empty when nothing said.
-// It is matched against the course's own resolved rows, so a note this course
-// does not list marks nothing, and so does a reader who arrived from the desk.
-// A course that lists the same note twice marks it twice: both rows are that
-// note, and choosing between them would be a guess.
-func BuildPathView(current *nav.Path, all []nav.Path, here string) PathView {
+// cover is what the request brought with it. Its Here is the vault-relative
+// note the reader is at, or empty when nothing said; it is matched against the
+// course's own resolved rows, so a note this course does not list marks
+// nothing, and so does a reader who arrived from the desk. A course that lists
+// the same note twice marks it twice: both rows are that note, and choosing
+// between them would be a guess.
+func BuildPathView(current *nav.Path, all []nav.Path, cover *CourseCover) PathView {
 	v := PathView{
-		Title:      current.Title,
-		RelPath:    current.RelPath,
-		GuideHref:  notesHref(current.RelPath),
-		ListenHref: VaultHref("/listen/", current.RelPath),
-		SealTarget: schema.SealStatus,
-		Paths:      buildPaths(current.RelPath, all),
-		Entries:    current.Planned,
-		Ready:      current.Ready,
+		Title:           current.Title,
+		RelPath:         current.RelPath,
+		GuideHref:       notesHref(current.RelPath),
+		ListenHref:      VaultHref("/listen/", current.RelPath),
+		SealTarget:      schema.SealStatus,
+		Paths:           buildPaths(current.RelPath, all),
+		Entries:         current.Planned,
+		Ready:           current.Ready,
+		OpeningHTML:     cover.OpeningHTML,
+		OpeningLanguage: cover.OpeningLanguage,
 	}
 	// A written marker outranks the rest, and an unrecognised rule outranks
 	// the no-marker reading, which would otherwise put words in the author's
@@ -214,7 +299,7 @@ func BuildPathView(current *nav.Path, all []nav.Path, here string) PathView {
 		}
 	}
 	for _, g := range current.Groups {
-		sv, ok := buildPathBranch(g, 0, v.Parts+1, here)
+		sv, ok := buildPathBranch(g, 0, v.Parts+1, cover.Here)
 		if !ok {
 			continue
 		}
@@ -222,7 +307,72 @@ func BuildPathView(current *nav.Path, all []nav.Path, here string) PathView {
 		v.Parts++
 		v.Modules += countModules(&sv)
 	}
+	v.Action = courseAction(v.Branches, cover)
 	return v
+}
+
+// courseAction settles the cover's one verb against the course as drawn.
+//
+// Going back to a kept place wins wherever the course lists the note that place
+// is in — on any branch it draws, a side branch included, because a lesson this
+// course teaches is one of its lessons wherever the author hung it. Otherwise
+// the verb starts the course at its first stop: the first linked row on the
+// main line, in document order, which is the order the walk numbers it in. The
+// main line and not a side branch, because starting a course means its first
+// lesson and a branch hangs off the middle of one; a row that reached no note,
+// or one the walk never reaches, is not a stop anyone can be sent to.
+//
+// A course whose main line links nothing gets no verb at all, and the page
+// draws none: an offer to start something the page cannot open is worse than
+// the parts standing on their own.
+func courseAction(branches []PathBranchView, cover *CourseCover) CourseAction {
+	if cover.KeptNote != "" && cover.KeptHref != "" {
+		if kept := firstLesson(branches, false, func(entry *PathEntryView, _ bool) bool {
+			return entry.RelPath == cover.KeptNote
+		}); kept != nil {
+			return CourseAction{Href: cover.KeptHref, Continuing: true, Lesson: kept.Text}
+		}
+	}
+	first := firstLesson(branches, false, func(entry *PathEntryView, local bool) bool {
+		return !local && entry.Number > 0
+	})
+	if first == nil {
+		return CourseAction{}
+	}
+	return CourseAction{Href: first.Href}
+}
+
+// firstLesson walks the drawn course in document order and answers with the
+// first linked row want accepts, or nil. Only a linked row is put to want, so
+// no caller has to remember to ask again.
+func firstLesson(branches []PathBranchView, local bool, want func(entry *PathEntryView, local bool) bool) *PathEntryView {
+	for i := range branches {
+		if found := firstLessonIn(&branches[i], local, want); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// firstLessonIn is that walk inside one branch. local says whether this branch
+// hangs off the main line, and travels down: a branch nested under a side
+// branch is a side branch too, whatever its own marker says.
+func firstLessonIn(branch *PathBranchView, local bool, want func(entry *PathEntryView, local bool) bool) *PathEntryView {
+	aside := local || branch.Local
+	for i := range branch.Items {
+		item := &branch.Items[i]
+		switch {
+		case item.Entry != nil:
+			if item.Entry.Href != "" && want(item.Entry, aside) {
+				return item.Entry
+			}
+		case item.Branch != nil:
+			if found := firstLessonIn(item.Branch, aside, want); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
 }
 
 // buildPathBranch converts one projectable branch and its drawable subtree into
@@ -290,6 +440,7 @@ func buildPathEntry(entry *nav.PathEntry, here string) PathEntryView {
 	if entry.Kind != nav.EntryResolved {
 		return v
 	}
+	v.RelPath = entry.RelPath
 	v.Href = notesHref(entry.RelPath)
 	v.Status = entry.Status
 	v.Sealed = entry.Status == schema.SealStatus

@@ -539,6 +539,7 @@ html, body { margin: 0; background: var(--bg); }
    narrower window spent its reclaimed gutter on longer lines: the measure grew
    by a tenth exactly when the reader had less room, which is backwards. */
 .y-article,
+.y-listen,
 .y-prefs,
 .y-recovery,
 .y-syl {
@@ -1655,6 +1656,129 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
   }
 }
 
+/* The journal, read a month at a time. The two ways out of the month hold the
+   ends of one line above the calendar, each named for the month it leads to;
+   where there is nothing on one side the other keeps its end. */
+.y-months {
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.y-months__step {
+  color: var(--fg-faint);
+}
+
+.y-months__step:hover {
+  color: var(--fg);
+}
+
+.y-months__step--later {
+  margin-left: auto;
+}
+
+/* The month itself. Seven columns share the width between them whatever the
+   width is, so a phone is given a smaller calendar rather than one it has to
+   scroll sideways to reach the end of — which is why the columns are laid out
+   from the table rather than from what is written in them. */
+.y-month {
+  border-collapse: collapse;
+  margin-bottom: 28px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.y-month__caption {
+  caption-side: top;
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-20);
+  padding-bottom: 10px;
+  text-align: left;
+}
+
+.y-month__weekday {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-regular);
+  letter-spacing: 0.06em;
+  padding: 0 0 6px;
+  text-align: left;
+}
+
+.y-month__cell {
+  border: 1px solid var(--border-faint);
+  height: 62px;
+  overflow: hidden;
+  padding: 4px 5px;
+  vertical-align: top;
+}
+
+/* The squares before the month began and after it ended are the table's shape
+   rather than days, so they are drawn as the gap they are: no rule and no fill,
+   which is what leaves the month itself the only thing with edges. */
+.y-month__cell--outside {
+  border-color: transparent;
+}
+
+.y-month__cell--written {
+  background: var(--sage-bg);
+}
+
+.y-month__day {
+  color: var(--fg-faint);
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+}
+
+.y-month__cell--written .y-month__day {
+  color: var(--fg);
+}
+
+/* One link per entry written that day, because two entries on one day is where
+   a rule that made the square the link would have to choose between them. The
+   name is clipped to the square on screen and the row below carries it whole,
+   which is what keeps a busy week from growing down the page. */
+.y-month__entry {
+  color: var(--link);
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--fs-11);
+  min-height: 24px;
+  overflow: hidden;
+  padding-top: 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.y-month__entry:hover {
+  text-decoration: underline;
+}
+
+/* An entry named for nothing but its own day has no words to add to the number
+   above it, so it is drawn as the mark a calendar uses for one. */
+.y-month__entry--mark::before {
+  background: var(--accent);
+  border-radius: 50%;
+  content: '';
+  display: block;
+  height: 7px;
+  margin-top: 6px;
+  width: 7px;
+}
+
+/* The entries that wrote no day belong to no month, so they sit under whichever
+   month is open rather than falling off every one of them. */
+.y-journalundated {
+  margin-top: 34px;
+}
+
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from
    /reports/<name>/raw and sandboxed (allow-scripts, never allow-same-origin);
@@ -1859,11 +1983,6 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
    reading column's own rules carry them; what is here is the page around
    them and the place the browser-built bar lands.
    ============================================================ */
-.y-listen {
-  margin: 0 auto;
-  max-width: 800px;
-  padding: 44px 56px 120px;
-}
 .y-listen .y-title { margin-top: 12px; }
 .y-listen__none { margin-top: 24px; color: var(--fg-muted); }
 .y-listen__lesson { margin-top: 34px; }
@@ -1979,7 +2098,58 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-syl-raillabel--gap { padding-top: 20px; }
 
 
-.y-syl-read { display: inline-flex; align-items: center; margin: 22px 0 4px; color: var(--accent); font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium); }
+.y-syl-read { display: inline-flex; align-items: center; color: var(--accent); font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium); }
+
+/* The cover: what a course is, before what it contains. The author's own
+   opening reads as prose at the reading face, and the verb below the counts
+   is the one way in. */
+.y-cover__opening {
+  margin: 18px 0 0;
+}
+
+.y-cover__ways {
+  align-items: center;
+  column-gap: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  margin: 22px 0 4px;
+  row-gap: 10px;
+}
+
+/* The verb and the lesson beside it are one line that wraps rather than one
+   that clips: a lesson's name is the reader's only way of telling where they
+   are being sent back to, and a name cut short is no answer at all. */
+.y-cover__open {
+  align-items: baseline;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  column-gap: 10px;
+  display: inline-flex;
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px 14px;
+  row-gap: 2px;
+}
+
+.y-cover__open:hover {
+  background: var(--overlay);
+}
+
+.y-cover__verb {
+  flex: none;
+  font-weight: var(--fw-medium);
+}
+
+.y-cover__lesson {
+  color: var(--fg-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 /* ============================================================
    Reading smoothness — scroll feel, wrapping, arrival
@@ -2309,7 +2479,6 @@ html {
   .y-homeblock__head p { margin-left: 0; text-align: left; }
   .y-homenote { align-items: flex-start; }
   .y-homenote__meta { align-items: flex-end; flex-direction: column; }
-  .y-listen { padding: 32px 20px 120px; }
   .y-module { padding-left: 16px; }
   .y-lessons { padding-left: 24px; }
   .y-lesson { gap: 10px; }
@@ -2334,6 +2503,7 @@ html {
   /* The shell narrows as one: the gutter is redeclared and the box follows
      it, so the line length is still the measure and not what is left over. */
   .y-article,
+  .y-listen,
   .y-prefs,
   .y-recovery,
   .y-syl {
@@ -2409,7 +2579,8 @@ html {
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
   .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview, .y-compare__tabs,
-  .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions, .y-facets {
+  .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions, .y-facets, .y-pager,
+  .y-months {
     display: none !important;
   }
   /* Librarian chrome in the opening column is for repair on screen, not for
@@ -2423,10 +2594,32 @@ html {
   .y-crumbs, .y-metarow, .y-headmeta, .y-steps:not(.y-steps--course) {
     display: none !important;
   }
+  /* A course's own verb is pressed, and paper takes no press. What the author
+     wrote above the counts stays on the sheet: it is the course's own words,
+     which is what the sheet is for. */
+  .y-cover__open {
+    display: none !important;
+  }
   /* A listing row clips its document's opening to one line on screen so the
      shelf stays a shelf and the rest is one click away. Paper has the room and
      takes no click, so there the line wraps and is printed whole. */
   .y-row__opening {
+    overflow: visible;
+    white-space: normal;
+  }
+  /* A month printed on paper is a calendar somebody will write on: the squares
+     keep their rules, a week is never split across two sheets, and an entry's
+     name is set whole because the reader cannot click the row below to see the
+     rest of it. */
+  .y-month__cell {
+    border-color: var(--border);
+    height: auto;
+    overflow: visible;
+  }
+  .y-month tr {
+    break-inside: avoid;
+  }
+  .y-month__entry {
     overflow: visible;
     white-space: normal;
   }
@@ -2619,6 +2812,94 @@ html {
 .y-findingsguide__list { margin: 14px 0 0; }
 .y-findingsguide__term { display: flex; align-items: baseline; gap: 10px; margin: 16px 0 0; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
 .y-findingsguide__meaning { margin: 4px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
+
+/* Which rows of the report are on this page, set in the same label face as the
+   shape line it follows and quieter than it: the shape is what the folder owes,
+   this is only where in the list the reader is standing. */
+.y-healthrange {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+  margin: 6px 0 0;
+}
+
+/* ============================================================
+   The strip under a listing that runs past one page
+   ============================================================ */
+
+/* Shared by the search results and the findings table, because a reader who
+   has learned to step through one has learned to step through the other. It is
+   a row of plain links in the label face, wrapping rather than scrolling at a
+   phone's width, and each target is large enough to be hit with a thumb. */
+.y-pager {
+  align-items: center;
+  border-top: 1px solid var(--border-faint);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  gap: 4px 6px;
+  margin: 26px 0 0;
+  padding-top: 14px;
+}
+
+.y-pager__pages {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.y-pager__step,
+.y-pager__page,
+.y-pager__whole {
+  align-items: center;
+  border-radius: var(--r-sm);
+  color: var(--fg-subtle);
+  display: inline-flex;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.y-pager__page {
+  min-width: 32px;
+  padding: 0 6px;
+}
+
+.y-pager__step:hover,
+.y-pager__page:hover,
+.y-pager__whole:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+/* The page being read is marked by the attribute that says so, not by a class
+   beside it, so what a reader hears and what the stylesheet paints cannot come
+   apart. It is also the one item that is not a step to somewhere else, which is
+   why it is the only one with a ground of its own. */
+.y-pager__page[aria-current="page"] {
+  background: var(--accent-muted);
+  color: var(--fg);
+}
+
+/* The undivided listing sits apart from the numbers: it is not another page,
+   it is all of them, and it is what a reader follows before printing. */
+.y-pager__whole {
+  color: var(--fg-faint);
+  margin-left: auto;
+}
+
+@media (max-width: 520px) {
+  /* At a phone's width the strip has already wrapped, and a link pushed to the
+     far edge of a line of its own reads as unrelated to the numbers above it. */
+  .y-pager__whole { margin-left: 0; }
+}
 
 /* Narrow: the table stacks instead of scrolling sideways, because a sheet the
    reader has to push left and right is one they read half of. Each cell then
