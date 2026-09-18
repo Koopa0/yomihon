@@ -2282,6 +2282,15 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"AuthoredDate": func() string {
+			dated := c.AuthoredDate()
+			day, err := dated.Resolve(map[string]any{"created": "2026-08-31"})
+			if dated.Declared() || dated.Field() != "" || day != "" || err != nil {
+				return fmt.Sprintf("AuthoredDate() = %q and resolves (%q, %v), want no field and no day: no contract dates a note here",
+					dated.Field(), day, err)
+			}
+			return ""
+		},
 		"StatusGroup": func() string {
 			if got := c.StatusGroup("lesson"); got != "" {
 				return fmt.Sprintf("StatusGroup() = %q, want empty", got)
