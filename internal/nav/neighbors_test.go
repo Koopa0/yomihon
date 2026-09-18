@@ -248,6 +248,7 @@ func TestJournalOrdersByTheDayEachEntryIsFor(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	files := []capturedFile{
 		{path: "Diary/2025-08-04.md", modified: base.AddDate(0, 0, 3)},
+		{path: "Diary/2025-08-05 夜.md", modified: base.AddDate(0, 0, 1)},
 		{path: "Diary/2025-08-05.md", modified: base.AddDate(0, 0, 2)},
 		{path: "Diary/loose thoughts.md", modified: base.AddDate(0, 0, 4)},
 		{path: "Diary/2025-08-06.md", modified: base},
@@ -256,9 +257,13 @@ func TestJournalOrdersByTheDayEachEntryIsFor(t *testing.T) {
 
 	contract := testContract(t)
 	got := buildJournal(files, contract.JournalDir(), contract.AuthoredDate())
+	// The pair written on one day is here for the tie: the day cannot separate
+	// them, so their own names do, and a tie nothing settles would let two
+	// entries swap places between one reading and the next.
 	want := []string{
 		"Diary/2025-08-06.md",
 		"Diary/2025-08-05.md",
+		"Diary/2025-08-05 夜.md",
 		"Diary/2025-08-04.md",
 		"Diary/loose thoughts.md",
 	}
