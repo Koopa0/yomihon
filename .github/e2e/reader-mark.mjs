@@ -33,6 +33,7 @@ const LANDING_SLACK = 4;
 const SITES = [
   'kept-place-is-offered-back',
   'following-it-lands-where-the-window-was',
+  'a-missing-anchor-lands-at-the-top',
   'a-changed-note-says-so',
   'keeping-another-replaces-it',
   'a-narrow-reader-cannot-reach-the-control',
@@ -151,6 +152,14 @@ const MUTATIONS = {
       'the offset added on landing',
     ),
   },
+  'land-past-a-missing-anchor': {
+    target: 'a-missing-anchor-lands-at-the-top',
+    apply: rewriteModule(
+      '    if (!anchor) return;',
+      '    if (!anchor) { /* land anyway */ }',
+      'the guard on an anchor the note no longer carries',
+    ),
+  },
   'say-nothing-about-a-changed-note': {
     target: 'a-changed-note-says-so',
     apply: rewriteDesk('y-continue__notice', 'y-continue__silent', 'the row notice class'),
@@ -252,8 +261,10 @@ const keepThePlace = async (page, path, { tamperIdentity = false } = {}) => {
   await control.locator('[data-mark-button]').click();
   await posted;
   // The confirmation is the page's own word that the round trip finished, so
-  // the desk is not asked before the file exists.
-  await control.locator('[data-mark-said]').waitFor({ state: 'attached', timeout: 4000 });
+  // the desk is not asked before the file exists. The element itself is in
+  // every rendering of the control, so waiting for it to exist waits for
+  // nothing; what arrives only once the client is done is the text in it.
+  await control.locator('[data-mark-said]:not(:empty)').waitFor({ state: 'attached', timeout: 4000 });
 };
 
 const deskRow = async (page) => {
@@ -310,6 +321,37 @@ try {
       fail(
         'following-it-lands-where-the-window-was',
         `the address still carries at=${address.searchParams.get('at')} after landing`,
+      );
+    }
+    await context.close();
+  }
+
+  // --- An address naming an anchor the note lost lands at the top -------
+  //
+  // A mark is an anchor and a distance below it, so an anchor the note no
+  // longer carries leaves the distance measuring from nothing. The address is
+  // driven directly here rather than through a kept place, because what is
+  // being asked is what the page does with an address, and an edit that
+  // removes a heading produces exactly this one.
+  {
+    const context = await browser.newContext({ viewport: VIEWPORT });
+    const page = await context.newPage();
+    const proof = await applyMutation(page, 'a-missing-anchor-lands-at-the-top');
+    const missing = 'an-anchor-this-note-does-not-carry';
+    await page.goto(`${BASE}${PAGE}?at=${SCROLL_TO}#${missing}`, { waitUntil: 'domcontentloaded' });
+    if (await page.locator(`#${missing}`).count() !== 0) {
+      broken(`${PAGE} carries an id named ${missing}, so this says nothing about a missing one`);
+    }
+    await page.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 60)));
+    }));
+    const landed = await page.evaluate(() => Math.round(window.scrollY));
+    checkProof(proof);
+    if (landed !== 0) {
+      fail(
+        'a-missing-anchor-lands-at-the-top',
+        `an address naming an anchor the note no longer carries landed at ${landed}, want the top of the`
+        + ' document, which is where a browser running none of this leaves the same address',
       );
     }
     await context.close();
@@ -450,8 +492,9 @@ try {
 
   console.log(
     'PASS reader-mark: a kept place returns on the desk, lands where the window was,'
-    + ' says when the note changed, is replaced by the next one, and survives a'
-    + ' reflow onto a width whose reader cannot keep one',
+    + ' leaves a reader at the top when the anchor is gone, says when the note changed,'
+    + ' is replaced by the next one, and survives a reflow onto a width whose reader'
+    + ' cannot keep one',
   );
 } catch (err) {
   if (err instanceof NotApplied) {

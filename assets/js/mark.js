@@ -104,6 +104,11 @@ function land() {
       id = address.hash.slice(1);
     }
     anchor = document.getElementById(id);
+    // The note no longer carries the anchor this mark was taken against, so
+    // the distance below it measures from nothing and would drop the reader at
+    // an unrelated depth. A browser running none of this is left at the top of
+    // the document by the same address; this leaves them there too.
+    if (!anchor) return;
   }
   const apply = () => {
     window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
