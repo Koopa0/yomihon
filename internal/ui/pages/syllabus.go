@@ -20,6 +20,8 @@ type PathView struct {
 	Title      string
 	RelPath    string
 	GuideHref  string
+	// ListenHref is the same course as something to be listened to.
+	ListenHref string
 	SealTarget string
 	Paths      []PathLink
 	Branches   []PathBranchView
@@ -182,6 +184,7 @@ func BuildPathView(current *nav.Path, all []nav.Path, here string) PathView {
 		Title:      current.Title,
 		RelPath:    current.RelPath,
 		GuideHref:  notesHref(current.RelPath),
+		ListenHref: VaultHref("/listen/", current.RelPath),
 		SealTarget: schema.SealStatus,
 		Paths:      buildPaths(current.RelPath, all),
 		Entries:    current.Planned,

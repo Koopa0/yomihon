@@ -32,7 +32,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/judge"
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/report"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -367,9 +366,10 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		snap := store.Current().Capture()
 		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(authority, snap), Status: authority}
 	}
-	pathProvider := func() (nav.Shell, *snapshot.Generation) {
+	pathProvider := func() syllabus.RequestSnapshot {
 		snap := store.Current().Capture()
-		return shell.Project(writer.Authority(), snap), snap
+		authority := writer.Authority()
+		return syllabus.RequestSnapshot{Shell: shell.Project(authority, snap), Generation: snap, Status: authority}
 	}
 
 	mux := http.NewServeMux()

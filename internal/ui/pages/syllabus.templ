@@ -66,6 +66,10 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 	// different answers about whether this path has a course.
 	if len(v.Branches) > 0 {
 		<a class="y-syl-read" href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
+		// The same course as something to be listened to. It sits beside the
+		// way to the note for the same reason and on the same condition: a
+		// path with nothing to walk has nothing to read aloud either.
+		<a class="y-syl-read" href={ templ.URL(v.ListenHref) }>{ wording.ListenThisCourse.In(lang) }<span aria-hidden="true">→</span></a>
 	}
 }
 

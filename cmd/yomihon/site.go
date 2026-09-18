@@ -136,9 +136,10 @@ func newReadingSite(ctx context.Context, root string, log *slog.Logger) (_ *read
 		snap := store.Current().Capture()
 		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
 	}
-	pathProvider := func() (nav.Shell, *snapshot.Generation) {
+	pathProvider := func() syllabus.RequestSnapshot {
 		snap := store.Current().Capture()
-		return shell.Project(writer.Authority(), snap), snap
+		authority := writer.Authority()
+		return syllabus.RequestSnapshot{Shell: shell.Project(authority, snap), Generation: snap, Status: authority}
 	}
 
 	mux := http.NewServeMux()

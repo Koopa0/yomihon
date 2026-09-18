@@ -1,6 +1,9 @@
-// Package syllabus serves the study-path page: one study-path tree with a
-// switcher across every study-path in the vault. It reads paths the navigation
-// model already parsed, and parses no note itself.
+// Package syllabus serves a study path as a course: the study-path tree with a
+// switcher across every study path in the vault, and the same course read
+// aloud. The tree reads paths the navigation model already parsed; the
+// listening page renders each lesson the course teaches, because a note's
+// read-aloud markers survive only into rendered HTML and the snapshot keeps
+// none.
 package syllabus
 
 import (
@@ -16,22 +19,40 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// Handler serves the study-path page.
+// RequestSnapshot is everything a study-path page reads from one capture of an
+// atomic vault generation. They arrive as one answer because a page that took
+// them from two readings of the published pointer can state a course's names
+// from one version of the vault and its lessons' words from another. Deriving
+// the shell here instead is not open to this package: the projection also needs
+// the write authority, which the study-path face has no other reason to hold.
+type RequestSnapshot struct {
+	Shell      nav.Shell
+	Generation *snapshot.Generation
+
+	// Status answers which note type this vault files its course members as.
+	// It may be absent, and the listening page then teaches nothing rather
+	// than guessing at the name.
+	Status LessonTypes
+}
+
+// LessonTypes is the read-only sliver of the status projection this face
+// needs, declared at the consumer so a page that only reads does not put the
+// component able to change the vault inside its import closure.
+type LessonTypes interface {
+	// IsLessonType reports whether noteType is the type the vault files its
+	// course members as.
+	IsLessonType(noteType string) bool
+}
+
+// Handler serves the study-path page and the same course read aloud.
 type Handler struct {
-	// current answers with the navigation shell and the generation it was
-	// projected from, together. They arrive as one answer because a page that
-	// took them from two readings of the published pointer can state a course's
-	// names from one version of the vault and its declared languages from
-	// another. Deriving the shell here instead is not open to this package: the
-	// projection also needs the write authority, which the study-path face has
-	// no other reason to hold.
-	current func() (nav.Shell, *snapshot.Generation)
+	current func() RequestSnapshot
 	log     *slog.Logger
 }
 
 // New wires the syllabus feature. Every dependency must be non-nil: a nil
 // is a wiring bug that must fail here, not on the first request.
-func New(current func() (nav.Shell, *snapshot.Generation), log *slog.Logger) *Handler {
+func New(current func() RequestSnapshot, log *slog.Logger) *Handler {
 	if current == nil {
 		panic("syllabus: New requires a non-nil current-generation provider")
 	}
@@ -41,10 +62,12 @@ func New(current func() (nav.Shell, *snapshot.Generation), log *slog.Logger) *Ha
 	return &Handler{current: current, log: log}
 }
 
-// Register mounts the study-path index and one study path's own page.
+// Register mounts the study-path index, one study path's own page, and that
+// path read aloud.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /paths", h.index)
 	mux.HandleFunc("GET /syllabus/{path...}", h.show)
+	mux.HandleFunc("GET /listen/{path...}", h.listen)
 }
 
 // show renders the study-path whose vault path matches the request. An unknown
@@ -55,7 +78,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// of the same letter, so the name is composed before it is looked up.
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 
-	shell, _ := h.current()
+	shell := h.current().Shell
 	current := shell.Nav.Path(rel)
 	if current == nil {
 		lang := origin.Language(r)

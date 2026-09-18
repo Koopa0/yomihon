@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -27,7 +26,7 @@ func newServer(t *testing.T, root string) *httptest.Server {
 	t.Helper()
 	model := loadModel(t, root)
 	mux := http.NewServeMux()
-	syllabus.New(func() (nav.Shell, *snapshot.Generation) { return nav.Shell{Nav: model}, nil }, slog.New(slog.DiscardHandler)).Register(mux)
+	syllabus.New(func() syllabus.RequestSnapshot { return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model}} }, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -218,9 +217,9 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	model := loadModel(t, root)
 	calls := 0
 	mux := http.NewServeMux()
-	syllabus.New(func() (nav.Shell, *snapshot.Generation) {
+	syllabus.New(func() syllabus.RequestSnapshot {
 		calls++
-		return nav.Shell{Nav: model, Governed: true}, nil
+		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model, Governed: true}}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/syllabus/Maps/Go%20path.md", http.NoBody))

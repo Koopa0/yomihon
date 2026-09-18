@@ -1,0 +1,49 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// Listen is a course as something to be listened to: every paragraph its
+// lessons are marked to be read aloud in, under the lesson that carries it, in
+// the order the course is read. The paragraphs are the notes' own read-aloud
+// elements, so the runtime that reads one note through reads a whole course
+// through without knowing this page exists.
+templ Listen(v ListenView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			<main id="main-content" tabindex="-1" class="y-main" { listenAttrs(v, c.Lang)... }>
+				<div class="y-listen">
+					<div class="y-syl-kicker">{ wording.SyllabusKicker.In(c.Lang) }</div>
+					<h1 class="y-title">{ v.Title }</h1>
+					<a class="y-syl-read" href={ templ.URL(v.PathHref) }>
+						{ v.Course }<span aria-hidden="true">→</span>
+					</a>
+					<div class="y-seam" aria-hidden="true"></div>
+					if len(v.Lessons) == 0 {
+						<p class="y-listen__none">{ wording.ListenNothingMarked.In(c.Lang) }</p>
+					} else {
+						// The bar the browser builds lands here rather than
+						// above the first paragraph, so the reader meets the
+						// controls before the course instead of inside it.
+						<div class="y-listen__bar" data-readaloud-bar></div>
+						for _, lesson := range v.Lessons {
+							<section class="y-listen__lesson">
+								<h2 class="y-listen__title">
+									<a href={ templ.URL(lesson.Href) }>{ lesson.Title }</a>
+								</h2>
+								<div class="y-prose">
+									for _, paragraph := range lesson.Paragraphs {
+										@templ.Raw(paragraph)
+									}
+								</div>
+							</section>
+						}
+					}
+				</div>
+			</main>
+		</div>
+	}
+}
