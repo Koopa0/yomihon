@@ -17,11 +17,16 @@ type SearchView struct {
 	Query   string
 	Results []SearchResult
 
-	// Total is how many hits the query truly has. Results holds at most the
-	// handler's bounded opening stretch of them, and the count line says both
-	// numbers whenever the two differ.
+	// Total is how many hits the query truly has. Results holds one page of
+	// them, or — on a face with no strip under the rows — the bounded opening
+	// stretch, and the count line says which of the two it is looking at.
 	Total      int
 	Diagnostic string
+
+	// Pager is the way to the rest of a long answer, drawn under the rows. It
+	// is empty on the palette, which floats over a page it does not own and has
+	// nowhere to send a reader who follows a page number.
+	Pager Pager
 
 	// UnknownFilterKeys are the words this query wrote before a colon that the
 	// grammar does not accept. Their terms were searched for as text, and
@@ -279,7 +284,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 				// Printed rather than left to the live region the client writes,
 				// so a reader without scripting still learns how many the query
 				// found, and a reader looking at the page sees a number at all.
-				<p class="y-results__count">{ resultCount(len(v.Results), v.Total, lang) }</p>
+				<p class="y-results__count">{ searchCount(&v, lang) }</p>
 				// The hits are one set, so they are marked as one: a listener is
 				// told where it starts, how many it holds, and where it ends. The
 				// role is written out because the style reset takes the markers
@@ -339,6 +344,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 						</li>
 					}
 				</ol>
+				@pager(v.Pager, lang)
 			} else if v.Query != "" {
 				// The sentence naming what was not found is the heading of this
 				// moment, and the advice under it is what the reader can do next.

@@ -346,7 +346,7 @@ try {
   // rather than during it.
   await page.waitForTimeout(200);
   const marks = await page.evaluate(() => [...document.querySelectorAll('[data-note-column]')].map((column) => {
-    const marked = [...column.querySelectorAll('.y-toc__list a[aria-current="true"]')];
+    const marked = [...column.querySelectorAll('.y-toc__list a[aria-current="location"]')];
     return {
       id: column.id,
       lists: column.querySelectorAll('.y-toc__list').length,

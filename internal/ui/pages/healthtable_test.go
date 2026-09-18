@@ -88,9 +88,10 @@ var healthFindingFields = map[string]healthFindingField{
 // healthUnfoundFields are the fields of HealthView that carry no finding of
 // their own: a number the page counts its own rows against, two statements
 // that a group could not be worked out at all, the age of the reading, how the
-// table is ordered, and the navigation beside it.
+// table is ordered, which stretch of it is on screen, and the navigation
+// beside it.
 var healthUnfoundFields = []string{
-	"IslandCount", "InstanceScopeUnknown", "SchemaScopeUnknown", "LastComplete", "Sort", "Sidebar",
+	"IslandCount", "InstanceScopeUnknown", "SchemaScopeUnknown", "LastComplete", "Sort", "Page", "Sidebar",
 }
 
 var healthTestNote = nav.NoteRef{Name: "L01", RelPath: "Writing/lessons/go/L01.md"}

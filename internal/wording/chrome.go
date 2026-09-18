@@ -141,3 +141,18 @@ var ThemeToggle = both("切換主題", "Switch theme")
 // translated into the language being left — a reader looking for the way back
 // to their own language wants to recognise it, not to read it.
 var LanguageToggle = both("切換語言：中文 / English", "Switch language: 中文 / English")
+
+// The strip under a listing that runs past one page. It names itself, because
+// a run of bare numbers at the foot of a long page says nothing about what
+// following one of them does, and a reader arriving by ear meets the numbers
+// with no word in front of them.
+var (
+	PagerTitle    = both("頁次", "Pages")
+	PagerPrevious = both("上一頁", "Previous")
+	PagerNext     = both("下一頁", "Next")
+)
+
+// PagerWhole names the undivided listing. It is what a reader follows before
+// printing, since paper takes no click and one sheet of a divided listing is
+// not the listing.
+var PagerWhole = both("全部列在一頁", "All on one page")
