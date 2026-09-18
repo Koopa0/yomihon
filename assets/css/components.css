@@ -2088,17 +2088,19 @@ html {
 }
 .y-kbdhelp__prefs:hover { text-decoration: underline; }
 
-/* The reading choices, one page. It is a column of small panels rather than a
-   grid of switches: each choice is a panel of its own, and the sentence under
-   each heading — what the choice changes, and what it leaves alone — is the
-   part that earns it. The panels sit inside one form, which is what applies
-   them where nothing else can, so what a reader picks across the column is
-   applied together. No rail down the side, because the page is reached from
-   whatever was being read and gives it straight back. */
+/* The reading choices, one page: a column of sections named by a small
+   heading, not boxes cut by a title — the rest of the interface separates a
+   group of controls by space and a label, never a frame, and this page had
+   been the one place that drew one. The sentence under each heading — what
+   the choice changes, and what it leaves alone — is the part that earns a
+   heading of its own. The sections sit inside one form, which is what
+   applies them where nothing else can, so what a reader picks across the
+   column is applied together. No rail down the side, because the page is
+   reached from whatever was being read and gives it straight back. */
 .y-prefs { max-width: var(--measure-article); margin: 0 auto; padding: 42px 48px 120px; }
 .y-prefs__lede { margin: 18px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-subtle); }
-.y-preffield { margin: 28px 0 0; min-width: 0; padding: 16px 20px 18px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
-.y-preffield legend { padding: 0 6px; margin-inline-start: -6px; font-family: var(--font-sans); font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--fg); }
+.y-preffield { margin: 40px 0 0; min-width: 0; padding: 0; border: 0; }
+.y-preffield legend { padding: 0; margin: 0; font-family: var(--font-mono); font-size: var(--fs-11); font-weight: inherit; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em; }
 .y-preffield__note { margin: 2px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
 .y-preffield__options { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 0 0; }
 .y-preffield__options label { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: var(--fs-14); color: var(--fg); cursor: pointer; }
@@ -2130,7 +2132,29 @@ html {
 }
 [data-js] .y-prefs__return { display: inline-block; }
 .y-prefs__return:hover { background: var(--overlay); }
-.y-prefs .y-kbdhelp__list { margin: 28px 0 0; }
+
+/* The keys this interface answers to, named as a section like the choices
+   above it: a reader who reaches this page already asked how the interface
+   behaves, so the list the header's own help popover carries earns the same
+   heading here rather than sitting under nothing. */
+.y-prefs__shortcuts {
+  margin: 40px 0 0;
+}
+
+.y-prefs__shortcuts h2 {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: inherit;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.y-prefs__shortcuts .y-kbdhelp__list {
+  margin: 14px 0 0;
+}
+
 /* What this browser is holding, listed by the page that puts it there. */
 .y-prefs__storage { margin: 42px 0 0; padding-top: 20px; border-top: 1px solid var(--border); }
 .y-prefs__storage h2 { margin: 0; font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: 0.09em; text-transform: uppercase; font-weight: inherit; color: var(--fg-subtle); }
