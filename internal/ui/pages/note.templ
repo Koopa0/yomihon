@@ -68,7 +68,20 @@ type NoteView struct {
 	// author's own text, unlinked. An empty list hides the block — declaring
 	// nothing is the default, not a finding.
 	BasedOn []nav.NoteRef
-	TOC     []render.TOCEntry
+	// Pair is the one other note this one is offered to be read beside, or the
+	// zero value where none is. The offer says the same words whichever way the
+	// pair was found, so nothing here says which; two candidates at the same
+	// footing are no offer at all, this surface never picking one of them.
+	Pair nav.NoteRef
+	TOC  []render.TOCEntry
+
+	// IDPrefix is the id space this article occupies. It is empty on a page
+	// showing one note, where every name inside the article is the note's own,
+	// and names a column on a page showing two. The rendered body and the
+	// contents entries arrive already named under it; this is what the names
+	// the template writes go under, so one article's addresses and described
+	// controls never reach into the other's.
+	IDPrefix string
 
 	// ReadingRail is the one map this page carries in the left rail.
 	ReadingRail ReadingRail
@@ -154,22 +167,38 @@ templ Note(v NoteView, c layouts.Chrome) {
 			@readingRail(v.ReadingRail, c)
 			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
 				@flipReceipt(v, lang)
-				<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
-					@articleHead(v, lang)
-					@schemaNotices(v, lang)
-					@inlineAids(v, lang)
-					<div class="y-prose">
-						@templ.Raw(v.BodyHTML)
-					</div>
-					@sequenceSteps(v, lang)
+				@noteArticle(v, lang) {
 					@statusBar(v, lang)
-				</article>
+				}
 			</main>
 			@rightRail(v, lang)
 		</div>
 		@conceptSheet(v.Concepts, lang)
 		@previewCard()
 	}
+}
+
+// noteArticle is one note as it reads: its head, whatever the schema said about
+// it, the aids the narrow layout folds inline, the rendered body, and the way
+// onward. It is a component rather than markup inside the page because a page
+// showing two notes beside one another draws the same thing twice, and a second
+// copy of this would be free to drift from the one a reader sees on the note's
+// own page.
+//
+// The write face is what the two uses differ by, and they differ structurally:
+// the note's own page passes it in, a column beside another note passes nothing.
+// Nothing here asks which page it is on.
+templ noteArticle(v NoteView, lang wording.Lang) {
+	<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
+		@articleHead(v, lang)
+		@schemaNotices(v, lang)
+		@inlineAids(v, lang)
+		<div class="y-prose">
+			@templ.Raw(v.BodyHTML)
+		</div>
+		@sequenceSteps(v, lang)
+		{ children... }
+	</article>
 }
 
 // conceptSheet is the grammar-concept drawer: one hidden <template> per concept
@@ -329,12 +358,30 @@ templ rightRail(v NoteView, lang wording.Lang) {
 				@tocList(v)
 			</nav>
 		}
+		@pairOffer(v, lang)
 		@basedOn(v, lang)
 		@citedBy(v, lang)
 		@diagnostics(v, lang)
 		@markControl(v, lang)
 		@statusPanel(v, lang)
 	</aside>
+}
+
+// pairOffer is the way to the page that holds this note and one other at once.
+// It is absent where no other note belongs beside this one, which is the
+// ordinary case: a note with no translation and no declared source has no pair
+// to offer, and a block saying so on every page would be furniture.
+//
+// The link reads as what following it does. The partner's own name is the link
+// text and carries whatever language that note declared, since a translation's
+// title is written in the language it was translated into.
+templ pairOffer(v NoteView, lang wording.Lang) {
+	if v.Pair.RelPath != "" {
+		<nav class="y-pair" aria-label={ wording.CompareOfferNav.In(lang) }>
+			<div class="ui-side__label">{ wording.CompareOffer.In(lang) }</div>
+			<a class="ui-navitem" href={ templ.URL(compareHref(v.RelPath, v.Pair.RelPath)) } { authoredLanguageAttrs(v.Pair.Language)... }>{ v.Pair.Name }</a>
+		</nav>
+	}
 }
 
 // basedOn lists the sources this note declared in based_on. It is absent when
@@ -448,6 +495,9 @@ templ tocList(v NoteView) {
 templ inlineAids(v NoteView, lang wording.Lang) {
 	if v.hasAids() {
 		<div class="y-inlineaids" lang={ lang.Tag() }>
+			// The offer is one link, so it stands open rather than folding a
+			// disclosure over a single line.
+			@pairOffer(v, lang)
 			if len(v.TOC) > 0 {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
@@ -556,7 +606,7 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 // when a note has no reading aids.
 templ schemaNotices(v NoteView, lang wording.Lang) {
 	if len(v.SchemaNotices) > 0 {
-		<div id={ schemaNoticesID } lang={ lang.Tag() }>
+		<div id={ v.schemaNoticesID() } lang={ lang.Tag() }>
 			for _, notice := range v.SchemaNotices {
 				<p class="y-statuspanel__notice y-statusflag">
 					for _, part := range notice {

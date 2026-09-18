@@ -52,13 +52,14 @@ const CONTEXTS = ['motion', 'reduce'];
 // on all of them is the point: a rule written against the reading column's
 // class would leave settings untouched, and settings is one of the places this
 // was noticed. The status and marker are here so a run where every route
-// answered with the same page — the not-found one, say — cannot report twelve
+// answered with the same page — the not-found one, say — cannot report thirteen
 // passes over one document.
 const SURFACES = [
   { page: 'home', path: '/', status: 200, mainClass: 'y-main y-deskmain', marker: '#main-content [data-home-block="search"]' },
   { page: 'mode index', path: '/folders', status: 200, mainClass: 'y-main y-deskmain', marker: '#main-content[data-index="folders"]' },
   { page: 'folder', path: '/folders/Notes', status: 200, mainClass: 'y-main y-deskmain', marker: '#main-content .y-foldercount' },
   { page: 'note', path: '/notes/Notes/alpha.md', status: 200, mainClass: 'y-main', marker: '#main-content[data-preview-endpoint]' },
+  { page: 'side by side', path: '/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md', status: 200, mainClass: 'y-compare', marker: '#main-content #compare-b' },
   { page: 'file', path: '/notes/Notes/plain.txt', status: 200, mainClass: 'y-main', marker: '#main-content .y-prose.y-source' },
   { page: 'search', path: '/search', status: 200, mainClass: 'y-main', marker: '#main-content .y-searchpage' },
   { page: 'health', path: '/health', status: 200, mainClass: 'y-main', marker: '#main-content .y-healthlede' },
@@ -193,8 +194,8 @@ const MUTATIONS = {
 // The table has to name each page once. A row duplicated by a copy-paste would
 // otherwise let the walk report its full count over a page it read twice, and
 // a row lost to a bad edit would quietly shrink what "every surface" covers.
-if (SURFACES.length !== 12) {
-  console.error(`arrival-fade: the surface table names ${SURFACES.length} page templates, want the 12 that render a main landmark`);
+if (SURFACES.length !== 13) {
+  console.error(`arrival-fade: the surface table names ${SURFACES.length} page templates, want the 13 that render a main landmark`);
   process.exit(2);
 }
 for (const field of ['path', 'marker', 'page']) {
