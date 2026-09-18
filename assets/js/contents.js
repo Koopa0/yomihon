@@ -29,7 +29,7 @@ export function initContents() {
     links.forEach((link) => {
       const active = targetID(link) === id;
       link.classList.toggle('is-active', active);
-      if (active) link.setAttribute('aria-current', 'true');
+      if (active) link.setAttribute('aria-current', 'location');
       else link.removeAttribute('aria-current');
     });
   }
