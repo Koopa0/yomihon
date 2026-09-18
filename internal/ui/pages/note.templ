@@ -161,7 +161,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@readingRail(v.ReadingRail, c)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
+			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
 				@flipReceipt(v, lang)
 				@noteArticle(v, lang) {
 					@statusBar(v, lang)

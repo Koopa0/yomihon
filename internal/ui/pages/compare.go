@@ -11,8 +11,8 @@ import (
 // speech owner, so the first column with anything to read aloud supplies the
 // words and the other needs none of its own.
 func compareReadAloudAttrs(v *CompareView, lang wording.Lang) templ.Attributes {
-	if attrs := readAloudAttrs(&v.A, lang); attrs != nil {
+	if attrs := readAloudAttrs(v.A.BodyHTML, lang); attrs != nil {
 		return attrs
 	}
-	return readAloudAttrs(&v.B, lang)
+	return readAloudAttrs(v.B.BodyHTML, lang)
 }
