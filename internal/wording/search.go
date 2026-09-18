@@ -8,11 +8,9 @@ import (
 // The search face: the page, its live fragment, and what it says when it
 // found nothing.
 
-// SearchTitle is the page's own heading, and SearchNotesField labels its field.
-var (
-	SearchTitle      = both("搜尋", "Search")
-	SearchNotesField = both("搜尋筆記", "Search notes")
-)
+// SearchTitle is the page's own heading. Its field is named by the same pair
+// of words the desk field and the palette carry — one thing, said once.
+var SearchTitle = both("搜尋", "Search")
 
 // The counts over a result list. The second form is for a search that returned
 // everything it found, which is a different claim from one that was cut short.

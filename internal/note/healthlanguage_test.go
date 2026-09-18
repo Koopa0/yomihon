@@ -7,7 +7,9 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -15,8 +17,8 @@ const healthLanguageRel = "Writing/lessons/japanese/L01.md"
 
 // TestHealthCarriesDeclaredArticleLanguage locks every health carry site that
 // stamps a declared article language onto a note name: unwritten links,
-// title-only links, batched refs, and the inline ref schemaFaultLists builds
-// before the page lists frontmatter faults.
+// title-only links, batched refs, and the rows the page draws from the shared
+// gathering of what the schema said.
 func TestHealthCarriesDeclaredArticleLanguage(t *testing.T) {
 	t.Parallel()
 
@@ -69,15 +71,16 @@ func TestHealthCarriesDeclaredArticleLanguage(t *testing.T) {
 			},
 		},
 		{
-			name: "schemaFaultLists",
+			name: "healthNoteFindings",
 			got: func(t *testing.T) string {
 				t.Helper()
-				_, faults := schemaFaultLists(healthLanguageSchemaSnapshot(t), articleLang)
+				gathered := shell.GatherFindings(status.Authority{}, healthLanguageSchemaSnapshot(t))
+				faults := healthNoteFindings(gathered.SchemaFaults, articleLang)
 				if len(faults) != 1 {
-					t.Fatalf("schemaFaultLists() faults = %d, want 1", len(faults))
+					t.Fatalf("healthNoteFindings() faults = %d, want 1", len(faults))
 				}
 				if faults[0].Note.RelPath != healthLanguageRel {
-					t.Fatalf("schemaFaultLists() path = %q, want %q", faults[0].Note.RelPath, healthLanguageRel)
+					t.Fatalf("healthNoteFindings() path = %q, want %q", faults[0].Note.RelPath, healthLanguageRel)
 				}
 				return faults[0].Note.Language
 			},

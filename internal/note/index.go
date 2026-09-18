@@ -34,7 +34,7 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	// between them puts one note's title beside another version's language, and
 	// the row describes something the vault never held.
 	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(authority, snap)
+	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	model := pageShell.Nav
 	view := pages.NewMapIndex(model.Maps(), snap.NavigationRoles(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
@@ -54,7 +54,7 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	authority := h.sources.Status()
 	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(authority, snap)
+	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	model := pageShell.Nav
 	lifecycle, unstated, lifecycleClosed := h.lifecycle(authority, snap, lang)
 	// The distribution is derived from the write authority while the counts

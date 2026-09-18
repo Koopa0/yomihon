@@ -205,6 +205,10 @@ func readingRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 				}
 			}
 		}
+		templ_7745c5c3_Err = railFoot(rr.Vault, c.Lang).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</aside><script nonce=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -212,7 +216,7 @@ func readingRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Nonce)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 51, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 52, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
@@ -256,7 +260,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(rr.book.RelPath)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 65, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 66, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 			if templ_7745c5c3_Err != nil {
@@ -269,7 +273,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var14 templ.SafeURL
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(syllabusHrefFrom(rr.book.RelPath, rr.CurrentPath)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 66, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 67, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -282,7 +286,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(rr.book.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 66, Col: 117}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 67, Col: 117}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -295,7 +299,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(plural(view.Parts, wording.PartCountOne, wording.PartCountMany, c.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 67, Col: 104}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 68, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -308,7 +312,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(plural(view.Entries, wording.LessonCountOne, wording.LessonCountMany, c.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 67, Col: 189}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 68, Col: 189}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -326,7 +330,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(rr.courseStepsLabel(c.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 69, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 70, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 				if templ_7745c5c3_Err != nil {
@@ -344,7 +348,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var19 templ.SafeURL
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(rr.neighbors.Prev.RelPath)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 71, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 72, Col: 82}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -357,7 +361,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(wording.RailPreviousLesson.In(c.Lang))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 71, Col: 128}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 72, Col: 128}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -378,7 +382,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(rr.neighbors.Prev.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 71, Col: 217}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 72, Col: 217}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -397,7 +401,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var22 templ.SafeURL
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(rr.neighbors.Next.RelPath)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 74, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 75, Col: 82}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -410,7 +414,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var23 string
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(wording.RailNextLesson.In(c.Lang))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 74, Col: 120}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 75, Col: 120}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -431,7 +435,7 @@ func bookRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(rr.neighbors.Next.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 74, Col: 209}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 75, Col: 209}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -500,7 +504,7 @@ func bookRailBranch(rr ReadingRail, c layouts.Chrome, pathRel string, chain []st
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(branchKey(pathRel, childChain(chain, sec.Heading)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 88, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 89, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -525,7 +529,7 @@ func bookRailBranch(rr ReadingRail, c layouts.Chrome, pathRel string, chain []st
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(sec.Heading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 93, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 94, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -643,7 +647,7 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 			var templ_7745c5c3_Var32 templ.SafeURL
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(entry.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 126, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 127, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -672,7 +676,7 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 130, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 131, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -690,7 +694,7 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Status)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 132, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 133, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -713,7 +717,7 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionCode(entry.Kind))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 138, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 139, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 			if templ_7745c5c3_Err != nil {
@@ -726,7 +730,7 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue(entryResolutionTitle(entry.Kind, c.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 139, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 140, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 			if templ_7745c5c3_Err != nil {
@@ -747,7 +751,7 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 142, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 143, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -760,7 +764,7 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(entryResolutionLabel(entry.Kind, c.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 143, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 144, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -803,7 +807,7 @@ func reportsRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 		var templ_7745c5c3_Var40 string
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.Reports.In(c.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 149, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 150, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 		if templ_7745c5c3_Err != nil {
@@ -840,7 +844,7 @@ func reportsRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var43 templ.SafeURL
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(reportHref(rep.Name)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 154, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 155, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -861,7 +865,7 @@ func reportsRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var44 string
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(rep.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 157, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 158, Col: 15}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 				if templ_7745c5c3_Err != nil {
@@ -879,7 +883,7 @@ func reportsRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 					var templ_7745c5c3_Var45 string
 					templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(wording.Newest.In(c.Lang))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 159, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 160, Col: 57}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 					if templ_7745c5c3_Err != nil {
@@ -920,7 +924,7 @@ func reportsRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var48 templ.SafeURL
 				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(rep.RelPath)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 165, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 166, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 				if templ_7745c5c3_Err != nil {
@@ -941,7 +945,7 @@ func reportsRail(rr ReadingRail, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var49 string
 				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(rep.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 168, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 169, Col: 15}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 				if templ_7745c5c3_Err != nil {

@@ -66,6 +66,13 @@ func noteDateLabel(v *NoteView, lang wording.Lang) string {
 	return wording.UpdatedOn.In(lang)
 }
 
+// headFactsShown reports whether the head has any fact to draw as a
+// description list: the same five fields noteFacts gates row by row, so a
+// note with none of them draws neither the disclosure nor the open copy.
+func (v *NoteView) headFactsShown() bool {
+	return v.Type != "" || v.Status != "" || v.Updated != "" || v.Language != "" || v.RelPath != ""
+}
+
 // authoredLanguageAttrs states the language the note's author wrote in, only
 // where the note declared one and the contract gave that declaration authority.
 // It goes on every element whose text is the author's rather than the
@@ -121,9 +128,11 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 // speaker the reader can press reaches the same speech owner, so a lesson that
 // offers only the second one needs these words as much as one that offers the
 // first.
-func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
-	if !strings.Contains(v.BodyHTML, speakButtonMarker) &&
-		!strings.Contains(v.BodyHTML, practiceSpeakMarker) {
+// It takes the rendered body rather than the note, because the bar belongs to
+// any page that carries marked paragraphs and one of them is not a note.
+func readAloudAttrs(bodyHTML string, lang wording.Lang) templ.Attributes {
+	if !strings.Contains(bodyHTML, speakButtonMarker) &&
+		!strings.Contains(bodyHTML, practiceSpeakMarker) {
 		return nil
 	}
 	return templ.Attributes{
@@ -136,6 +145,10 @@ func readAloudAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 		"data-readaloud-playing":     wording.ReadAloudPlaying.In(lang),
 		"data-readaloud-finished":    wording.ReadAloudFinished.In(lang),
 		"data-readaloud-unavailable": wording.ReadAloudUnavailable.In(lang),
+		"data-readaloud-playall":     wording.ReadAloudPlayAll.In(lang),
+		"data-readaloud-previous":    wording.ReadAloudPrevious.In(lang),
+		"data-readaloud-next":        wording.ReadAloudNext.In(lang),
+		"data-readaloud-progress":    wording.ReadAloudProgressFmt.In(lang),
 	}
 }
 

@@ -6,53 +6,75 @@ import (
 )
 
 // TestSourceHTMLChoosesALexer pins the lexer selection: a taught alias for the
-// two vault kinds chroma does not know by name, chroma's own match for the kinds
-// it does, and plain escaped text for everything else. The token spans are the
-// observable proof that highlighting ran; plainSource emits none.
+// two vault kinds chroma does not know by name, chroma's own match for the
+// kinds it does, and the plain-text fallback for everything else.
+//
+// This asserts lexerFor's own return value rather than running the chosen
+// lexer through Format and looking for a coloured span. Which lexer a
+// filename picks is a fact about the filename alone and carries no wall
+// time; chroma hardcodes a 250ms match-timeout budget on every compiled rule
+// (see maybeCompile, and the recover path highlightCode added in 338943fe),
+// and that budget is a fact about how long the machine took to run a real
+// match, not about which lexer got chosen. A machine busy with other work
+// can make even a two-token JSON fixture read as though it had timed out,
+// which flipped this table's positive cases from highlighted to plain under
+// load — a false reading about lexer selection, since selection never
+// touched the timeout at all. The degraded output for a real timeout is
+// pinned separately and deterministically, by forcing one with a lexer whose
+// own rule regresses catastrophically (TestAHighlighterTimeoutLeavesTheFileView),
+// so this test does not need to touch that budget to prove selection worked.
 func TestSourceHTMLChoosesALexer(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name         string
-		filename     string
-		source       string
-		wantHighlaid bool // a <span class="..."> token appears (chroma ran)
+		name      string
+		filename  string
+		wantLexer string // lexerFor's own Config().Name, the literal chroma registers it under
 	}{
 		{
-			name:         "canvas is highlighted as JSON",
-			filename:     "board.canvas",
-			source:       `{"nodes":[{"id":"a"}]}`,
-			wantHighlaid: true,
+			name:      "canvas is highlighted as JSON",
+			filename:  "board.canvas",
+			wantLexer: "JSON",
 		},
 		{
-			name:         "base is highlighted as YAML",
-			filename:     "view.base",
-			source:       "filters:\n  and: []\n",
-			wantHighlaid: true,
+			name:      "base is highlighted as YAML",
+			filename:  "view.base",
+			wantLexer: "YAML",
 		},
 		{
-			name:         "a go file is matched by chroma itself",
-			filename:     "main.go",
-			source:       "package main\n",
-			wantHighlaid: true,
+			name:      "a go file is matched by chroma itself",
+			filename:  "main.go",
+			wantLexer: "Go",
 		},
 		{
-			name:         "an unknown kind falls back to plain escaped text",
-			filename:     "diagram.d2",
-			source:       "a -> b: label\n",
-			wantHighlaid: false,
+			name:      "an unknown kind falls back to plain text",
+			filename:  "diagram.d2",
+			wantLexer: "fallback",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := SourceHTML(tt.filename, tt.source)
-			if !strings.Contains(got, `class="chroma"`) {
-				t.Fatalf("SourceHTML(%q) produced no chroma block", tt.filename)
-			}
-			if hasTokenSpan(got) != tt.wantHighlaid {
-				t.Errorf("SourceHTML(%q) highlighted = %v, want %v", tt.filename, hasTokenSpan(got), tt.wantHighlaid)
+			if got := lexerFor(tt.filename).Config().Name; got != tt.wantLexer {
+				t.Errorf("lexerFor(%q).Config().Name = %q, want %q", tt.filename, got, tt.wantLexer)
 			}
 		})
+	}
+}
+
+// TestSourceHTMLDegradesUnknownKinds keeps one end-to-end check through the
+// real Format path, for the one shape a chroma match timeout cannot fake: no
+// token span can appear where the lexer is already the plain-text fallback,
+// because a timeout only ever degrades highlighted output toward plain,
+// never the other way. It is safe to run through SourceHTML, unlike the
+// positive cases TestSourceHTMLChoosesALexer moved off that path.
+func TestSourceHTMLDegradesUnknownKinds(t *testing.T) {
+	t.Parallel()
+	got := SourceHTML("diagram.d2", "a -> b: label\n")
+	if !strings.Contains(got, `class="chroma"`) {
+		t.Fatalf("SourceHTML(%q) produced no chroma block", "diagram.d2")
+	}
+	if hasTokenSpan(got) {
+		t.Errorf("SourceHTML(%q) coloured a token, want plain escaped text for a kind no lexer is registered for", "diagram.d2")
 	}
 }
 

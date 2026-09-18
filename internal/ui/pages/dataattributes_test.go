@@ -31,7 +31,8 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // whether the outline is mid-travel, what a freshness notice currently says,
 // which link the hover card is currently anchored to — a pointer's position,
 // which no server can know and only the stylesheet acts on —
-// whether a diagram failed to draw, which speaking rate a button stands for on
+// whether a diagram failed to draw, which paragraph the voice is on as a note
+// is read through, which speaking rate a button stands for on
 // a toolbar the client builds, and the label a speak button wore before the
 // client borrowed it — kept on the button so the client has one fewer copy of
 // a sentence the server already wrote there.
@@ -42,6 +43,7 @@ var clientOwned = []string{
 	"data-nav",
 	"data-preview-open",
 	"data-readaloud-idle",
+	"data-reading",
 	"data-speaking",
 	"data-speech",
 	"data-speech-rate",

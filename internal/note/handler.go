@@ -52,9 +52,13 @@ import (
 // view for the request. Source changes affect the next request; a write still
 // revalidates current authority under the lifecycle lock.
 type Sources struct {
-	Source   *vault.Reader
-	Status   func() status.Authority
-	Snapshot func() *snapshot.Generation
+	Source *vault.Reader
+	// VaultName is the folder's own name, taken once at start-up because the
+	// directory the server was pointed at cannot change under a running
+	// process. The rail's foot says it on every page.
+	VaultName string
+	Status    func() status.Authority
+	Snapshot  func() *snapshot.Generation
 	// ObservedStatus is a closure over the write package's read of the note's
 	// own status line. The rest of the page comes from a scan that lags the
 	// folder by a couple of seconds, which a body and a link graph can afford
@@ -194,11 +198,11 @@ func (h *Handler) showMissing(
 	authority status.Authority,
 	snap *snapshot.Generation,
 ) {
-	pageShell := shell.Project(authority, snap)
+	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
-		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
+		Sidebar:    pages.NewSidebar(pageShell, ""),
 	}
 	lang := origin.Language(r)
 	title := wording.NotFoundKicker.In(lang)
@@ -223,7 +227,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dir = vault.NormalizeNFC(dir)
-	pageShell := shell.Project(authority, snap)
+	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	notes, subfolders, ok := pageShell.Nav.Directory(dir)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path, authority, snap)
@@ -336,7 +340,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// One resolved rail answers both the navigation and the article's own way
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
-	readingRail := pages.NewReadingRail(state.shell.Nav, n.RelPath, n.Domain)
+	readingRail := pages.NewReadingRail(state.shell, n.RelPath, n.Domain)
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(&readingRail, lang)
 	flippedFrom := vouchedOrigin(authority, h.sources.ConsumeReceipt, rel, n.Type,
 		transition{from: r.URL.Query().Get("from"), to: noteStatus})
@@ -608,7 +612,7 @@ func (h *Handler) governance(
 ) governanceState {
 	policy := snap.ArtifactPolicy()
 	state := governanceState{
-		shell:           shell.Project(authority, snap),
+		shell:           shell.Project(h.sources.VaultName, authority, snap),
 		placement:       classifyGovernance(authority, policy, n.RelPath),
 		writeDiagnostic: authority.WriteDiagnostic(lang),
 	}

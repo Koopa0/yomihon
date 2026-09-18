@@ -74,7 +74,7 @@ templ header(c Chrome) {
 		</div>
 		<div class="y-header__spacer"></div>
 		<a class="y-searchbtn" href="/search" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
-			<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
 			<span class="ui-kbd">⌘K</span>
 		</a>
@@ -91,67 +91,94 @@ templ header(c Chrome) {
 			<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
 			<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
 		</button>
-		<a class="y-healthlinkbtn" href="/health">{ wording.HealthTitle.In(c.Lang) }</a>
-		// The way to the reading choices is a word rather than a gear, because
-		// a gear promises a machine and what is behind this one is seven
-		// sentences. It carries the page the reader is on, so applying a choice
-		// returns them to it.
-		<a class="y-prefslink" href={ templ.URL(preferencesHref(c.ReturnTo)) } data-carry-position>{ wording.PreferencesLink.In(c.Lang) }</a>
-		// The three size names ride on the control in the page's own language,
-		// so the script that moves the size — on a press, or re-syncing after a
-		// back/forward-cache restore — renames the control from the same
-		// dictionary the server used rather than from a second copy of the
-		// words.
-		<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label={ textSizeLabel(c.TextSize, c.Lang) } title={ wording.TextSizeCycle.In(c.Lang) } data-label-m={ wording.TextSizeMedium.In(c.Lang) } data-label-l={ wording.TextSizeLarge.In(c.Lang) } data-label-xl={ wording.TextSizeExtraLarge.In(c.Lang) }>
-			<span aria-hidden="true">{ wording.TextSizeMark.In(c.Lang) }</span>
+		// Six of the row's controls are somewhere to go or something to set
+		// rather than anything about the note in front of the reader. Below the
+		// width where the row can no longer hold everything — the stylesheet
+		// holds that width, measured — they gather behind this one button, so
+		// what gives way is a control nobody is looking at rather than the name
+		// of the thing being read.
+		//
+		// They are not drawn a second time for the panel. The same elements
+		// are in the row at wider windows, because there the box around them
+		// dissolves and its children become the row's own; here it is a
+		// popover and they are inside it. So each control has one accessible
+		// name, one pressed state, and one place a script can find it,
+		// whichever way the window is sized.
+		<button class="y-iconbtn y-foldbtn" type="button" popovertarget="header-fold" aria-label={ wording.InterfaceOptions.In(c.Lang) } title={ wording.InterfaceOptions.In(c.Lang) }>
+			<span aria-hidden="true">⋯</span>
 		</button>
-		<button class="y-iconbtn y-helpbtn" type="button" popovertarget="kbd-help" aria-label={ wording.KeyboardHelpControl.In(c.Lang) }>
-			<span aria-hidden="true">?</span>
-		</button>
-		<div id="kbd-help" popover class="y-kbdhelp" aria-label={ wording.KeyboardHelp.In(c.Lang) }>
-			<h2 class="y-kbdhelp__title">{ wording.KeyboardHelp.In(c.Lang) }</h2>
-			@KeyboardKeys(c.Lang)
-			// The preference belongs beside the keys it governs. In the header
-			// it was a permanent two-character control that named neither the
-			// keys it turns on nor what "on" applied to; here the reader is
-			// already asking about the keys, so the sentence can say which ones
-			// and the control can sit under that sentence in its current state.
-			<div class="y-kbdpref">
-				<label class="y-shortcutpref">
-					<input class="y-shortcutpref__input" type="checkbox" data-single-key-shortcuts-toggle aria-describedby="kbd-pref-note" checked?={ c.SingleKeyShortcutsEnabled }/>
-					<span class="y-shortcutpref__label">{ wording.SingleKeyShortcuts.In(c.Lang) }</span>
-					<span class="y-shortcutpref__on" aria-hidden="true">{ wording.CurrentlyOn.In(c.Lang) }</span>
-					<span class="y-shortcutpref__off" aria-hidden="true">{ wording.CurrentlyOff.In(c.Lang) }</span>
-				</label>
-				// The two keys that keep working either way are named as well,
-				// because "off" reads as "no keyboard" unless the sentence says
-				// otherwise.
-				<p class="y-kbdpref__note" id="kbd-pref-note">{ wording.SingleKeyShortcutsNote.In(c.Lang) }</p>
-			</div>
-			// A reader who opened this panel came looking for how the interface
-			// behaves, and the rest of that answer is one page away.
-			<a class="y-kbdhelp__prefs" href={ templ.URL(preferencesHref(c.ReturnTo)) } data-carry-position>{ wording.PreferencesLink.In(c.Lang) }</a>
-		</div>
-		// The language switch is a plain form, not a scripted button: the words
-		// on every page are the server's, so the choice is stored server-side
-		// and the same page asked for again — a redirect back to the address the
-		// form carries. It works with no script at all, which matters most for
-		// this control: a reader who cannot read the interface must still be
-		// able to leave it. Script, when it is there, rewrites the hidden next
-		// field with a reading-position fragment before submit so the reload
-		// can put the reader back where they were; an unmodified form still
-		// posts the bare path and lands at the top.
-		<form class="y-langform" method="post" action="/lang">
-			<input type="hidden" name="lang" value={ string(c.Lang.Other()) }/>
-			<input type="hidden" name="next" value={ c.ReturnTo }/>
-			<button class="y-iconbtn y-langbtn" type="submit" aria-label={ wording.LanguageToggle.In(c.Lang) } title={ wording.LanguageToggle.In(c.Lang) }>
-				<span aria-hidden="true">{ languageMark(c.Lang) }</span>
+		// What the panel holds is written as a plain sequence of controls
+		// rather than a fixed block, so a control that belongs with these is
+		// added by writing one more of them. They stand in the order the wide
+		// row draws them, because that order is the same list read two ways and
+		// a reader who learned one of them has learned the other.
+		<div id="header-fold" popover class="y-headerfold">
+			// The whole-folder view is a destination, like the reading choices
+			// under it: somewhere to go when not reading anything in particular.
+			// It used to disappear on a narrow window while the reading choices
+			// stayed, which made two answers out of one question; now both fold.
+			<a class="y-healthlinkbtn" href="/health">{ wording.HealthTitle.In(c.Lang) }</a>
+			// The way to the reading choices is a word rather than a gear, because
+			// a gear promises a machine and what is behind this one is seven
+			// sentences. It carries the page the reader is on, so applying a choice
+			// returns them to it.
+			<a class="y-prefslink" href={ templ.URL(preferencesHref(c.ReturnTo)) } data-carry-position>{ wording.PreferencesLink.In(c.Lang) }</a>
+			// The three size names ride on the control in the page's own language,
+			// so the script that moves the size — on a press, or re-syncing after a
+			// back/forward-cache restore — renames the control from the same
+			// dictionary the server used rather than from a second copy of the
+			// words.
+			<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label={ textSizeLabel(c.TextSize, c.Lang) } title={ wording.TextSizeCycle.In(c.Lang) } data-label-m={ wording.TextSizeMedium.In(c.Lang) } data-label-l={ wording.TextSizeLarge.In(c.Lang) } data-label-xl={ wording.TextSizeExtraLarge.In(c.Lang) }>
+				<span aria-hidden="true">{ wording.TextSizeMark.In(c.Lang) }</span>
 			</button>
-		</form>
-		<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label={ wording.ThemeToggle.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
-			<svg class="y-ico-sun" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
-			<svg class="y-ico-moon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
-		</button>
+			<button class="y-iconbtn y-helpbtn" type="button" popovertarget="kbd-help" aria-label={ wording.KeyboardHelpControl.In(c.Lang) }>
+				<span aria-hidden="true">?</span>
+			</button>
+			<div id="kbd-help" popover class="y-kbdhelp" aria-label={ wording.KeyboardHelp.In(c.Lang) }>
+				<h2 class="y-kbdhelp__title">{ wording.KeyboardHelp.In(c.Lang) }</h2>
+				@KeyboardKeys(c.Lang)
+				// The preference belongs beside the keys it governs. In the header
+				// it was a permanent two-character control that named neither the
+				// keys it turns on nor what "on" applied to; here the reader is
+				// already asking about the keys, so the sentence can say which ones
+				// and the control can sit under that sentence in its current state.
+				<div class="y-kbdpref">
+					<label class="y-shortcutpref">
+						<input class="y-shortcutpref__input" type="checkbox" data-single-key-shortcuts-toggle aria-describedby="kbd-pref-note" checked?={ c.SingleKeyShortcutsEnabled }/>
+						<span class="y-shortcutpref__label">{ wording.SingleKeyShortcuts.In(c.Lang) }</span>
+						<span class="y-shortcutpref__on" aria-hidden="true">{ wording.CurrentlyOn.In(c.Lang) }</span>
+						<span class="y-shortcutpref__off" aria-hidden="true">{ wording.CurrentlyOff.In(c.Lang) }</span>
+					</label>
+					// The two keys that keep working either way are named as well,
+					// because "off" reads as "no keyboard" unless the sentence says
+					// otherwise.
+					<p class="y-kbdpref__note" id="kbd-pref-note">{ wording.SingleKeyShortcutsNote.In(c.Lang) }</p>
+				</div>
+				// A reader who opened this panel came looking for how the interface
+				// behaves, and the rest of that answer is one page away.
+				<a class="y-kbdhelp__prefs" href={ templ.URL(preferencesHref(c.ReturnTo)) } data-carry-position>{ wording.PreferencesLink.In(c.Lang) }</a>
+			</div>
+			// The language switch is a plain form, not a scripted button: the words
+			// on every page are the server's, so the choice is stored server-side
+			// and the same page asked for again — a redirect back to the address the
+			// form carries. It works with no script at all, which matters most for
+			// this control: a reader who cannot read the interface must still be
+			// able to leave it. Script, when it is there, rewrites the hidden next
+			// field with a reading-position fragment before submit so the reload
+			// can put the reader back where they were; an unmodified form still
+			// posts the bare path and lands at the top.
+			<form class="y-langform" method="post" action="/lang">
+				<input type="hidden" name="lang" value={ string(c.Lang.Other()) }/>
+				<input type="hidden" name="next" value={ c.ReturnTo }/>
+				<button class="y-iconbtn y-langbtn" type="submit" aria-label={ wording.LanguageToggle.In(c.Lang) } title={ wording.LanguageToggle.In(c.Lang) }>
+					<span aria-hidden="true">{ languageMark(c.Lang) }</span>
+				</button>
+			</form>
+			<button class="y-iconbtn y-themebtn" type="button" data-theme-toggle aria-label={ wording.ThemeToggle.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Theme == "dark") }>
+				<svg class="y-ico-sun" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+				<svg class="y-ico-moon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+			</button>
+		</div>
 		<span class="y-readline" aria-hidden="true"></span>
 	</header>
 }
@@ -192,7 +219,7 @@ templ searchDialog(lang wording.Lang) {
 		// keep in step across the two surfaces.
 		<search>
 			<form class="y-searchdialog__form" method="get" action="/search" data-live-search-form>
-				<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+				<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 				<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
 				<span class="ui-kbd">esc</span>
 			</form>

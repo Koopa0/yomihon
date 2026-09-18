@@ -60,15 +60,6 @@ html, body { margin: 0; background: var(--bg); }
 .yomihon details > summary { list-style: none; cursor: pointer; }
 .yomihon summary::-webkit-details-marker { display: none; }
 .yomihon :focus-visible { outline: 2px solid var(--fg-subtle); outline-offset: 2px; border-radius: var(--r-sm); }
-/* The three search fields suppress that ring on purpose — they autofocus, and
-   a ring firing on every open is noise rather than news — and move the signal
-   to the field around them. Each already accented its own border on focus, but
-   a border is one pixel wide: enough to satisfy "something visible changed",
-   thin for a reader who has to find it. The wash widens that answer without
-   putting the ring back on the input. */
-.y-searchdialog__form:focus-within,
-.y-searchpage__form:focus-within,
-.y-homesearch:focus-within { box-shadow: 0 0 0 3px var(--accent-muted); }
 .yomihon ::selection { background: var(--accent-muted); }
 .yomihon *::-webkit-scrollbar { width: 11px; height: 11px; }
 .yomihon *::-webkit-scrollbar-thumb { background: var(--border-strong); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
@@ -165,7 +156,7 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ---- Scrim + dialog (⌘K) ---- */
-.ui-scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.5); z-index: 101; }
+.ui-scrim { position: fixed; inset: 0; background: var(--overlay-mask); z-index: 101; }
 .ui-dialog {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg);
   box-shadow: var(--shadow-2); width: 100%; box-sizing: border-box;
@@ -204,7 +195,6 @@ html, body { margin: 0; background: var(--bg); }
   background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
   color: var(--fg-subtle); font-family: var(--font-sans); font-size: var(--fs-13); cursor: pointer; min-width: 214px;
 }
-.y-searchbtn svg { width: 15px; height: 15px; flex: none; }
 .y-searchbtn__label { flex: 1; text-align: left; }
 
 .y-iconbtn {
@@ -241,7 +231,7 @@ html, body { margin: 0; background: var(--bg); }
 .y-rubybtn { width: auto; gap: 7px; padding: 0 11px; }
 .y-rubybtn__label { font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: .04em; line-height: 1; }
 .y-rubybtn__label--short { display: none; }
-.y-rubybtn__on, .y-rubybtn__off { font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em; }
+.y-rubybtn__on, .y-rubybtn__off { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: .05em; }
 .y-rubybtn__on { color: var(--accent); font-weight: 500; }
 .y-rubybtn__off { color: var(--fg-faint); }
 /* ruby/theme state is expressed by the root attribute — no JS needed for the glyph */
@@ -273,6 +263,83 @@ html, body { margin: 0; background: var(--bg); }
 
 .y-hamburger { display: none; }
 
+/* Six of the header's controls are somewhere to go or something to set rather
+   than anything about the note being read — the whole-folder view, the reading
+   choices, the text size, the keyboard explanation, the language and the theme
+   — and below 938px the row can no longer hold them all. 938px is measured,
+   not chosen: at 937 the English chrome, the wider of the two, has begun
+   shortening the wordmark to make room, and the name of the thing being read
+   is not what should pay for a control that is not about it. Under that width
+   the six sit inside a popover this button opens, which brings the browser's
+   own light dismiss, Escape, and focus return with it.
+
+   One width serves both languages, though the Traditional Chinese row holds
+   out until 617. One breakpoint is one layout; a width per language would be a
+   second layout to keep true, and a media query cannot see which language the
+   page is in to choose between them.
+
+   At 938px and above the box around them dissolves: display: contents leaves
+   its children as the row's own flex items, in the order they are written, so
+   the wide row is drawn from the same elements it always was and no control
+   is written twice.
+
+   A window dragged wider while the panel is open is the one case the width
+   alone cannot answer: an open popover is in the browser's top layer, which
+   gives it a box of its own whatever display it is asked for, so it stays a
+   panel until something dismisses it. The button therefore stays out on the
+   row for as long as the panel is open, at every width — an open panel whose
+   button had gone with the window's width would be a panel with nothing
+   pointing at it. Pressing it puts the panel away and the controls are back
+   in the row. */
+.y-foldbtn {
+  font-size: var(--fs-18);
+  line-height: 1;
+}
+
+/* A popover is given the system ink by the browser, and ink is inherited, so
+   without this the five controls would be drawn in the operating system's
+   black rather than this page's — including at the widths where they are
+   sitting in the row and the box around them is not visible at all. */
+.y-headerfold {
+  color: inherit;
+}
+
+.y-headerfold:popover-open {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  inset: calc(var(--header-height) + 4px) 8px auto auto;
+  margin: 0;
+  /* As wide as the window allows up to the width of the narrowest phone this
+     is read on, so on a phone the panel is only ever kept off the edges and a
+     wider window does not stretch it across the screen. A share of the window
+     rather than of 100vw: where the scrollbar keeps its own column, 100vw
+     counts that column too, and a panel sized from it would hang off the far
+     edge by exactly the scrollbar's width. */
+  max-width: min(360px, calc(100% - 16px));
+  padding: 10px;
+  position: fixed;
+}
+
+@media (min-width: 938px) {
+  .y-foldbtn {
+    display: none;
+  }
+
+  .y-header:has(.y-headerfold:popover-open) .y-foldbtn {
+    display: inline-flex;
+  }
+
+  .y-headerfold {
+    display: contents;
+  }
+}
+
 /* ============================================================
    Shell + rails
    ============================================================ */
@@ -283,7 +350,7 @@ html, body { margin: 0; background: var(--bg); }
    carries write controls wherever the rail is absent. */
 .y-shell--rail-empty { grid-template-columns: 264px minmax(0, 1fr); }
 .y-shell--rail-empty .y-rail-right { display: none; }
-.y-nav-scrim { display: none; position: fixed; inset: var(--header-height) 0 0 0; background: oklch(0 0 0 / .42); z-index: 44; }
+.y-nav-scrim { display: none; position: fixed; inset: var(--header-height) 0 0 0; background: var(--overlay-mask); z-index: 44; }
 
 /* The rails stay put while the prose moves under them: sticky to just below
    the header, each with its own overflow so a long tree scrolls without
@@ -357,7 +424,7 @@ html, body { margin: 0; background: var(--bg); }
 
 /* map tree — nested heading disclosures */
 .y-tree { padding-left: 12px; border-left: 1px solid var(--border); margin-left: 8px; }
-.y-navmark { font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); }
+.y-navmark { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 /* the row that closes a narrowed shelf and hands the reader its own page */
 .y-shelfall { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-navmark--warn { color: var(--warn); }
@@ -384,6 +451,78 @@ html, body { margin: 0; background: var(--bg); }
   display: block; padding: 4px 8px 6px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle);
 }
 .y-railitem__full:hover { color: var(--accent); }
+
+/* the foot of the rail — which folder this is, how large it is, and what the
+   health page has to say about it. It is the label face the rail's own headings
+   use, quieter still: it is where the reader lands when they have run out of
+   tree, not somewhere they are being sent. It flows last rather than pinning to
+   the viewport, so a long tree scrolls past it and the drawer ends the same way.
+   No box of its own: the rail's frame is the only frame here, and the hairline
+   above it is the same separator that stands between every other group. */
+.y-railfoot {
+  /* The quiet ink is set on the block rather than on the link inside it: every
+     anchor in this interface inherits its colour, and a rule naming one class
+     is outranked by the rule that says so. */
+  color: var(--fg-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 8px 4px;
+}
+.y-railfoot__name {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  letter-spacing: 0.04em;
+  /* A folder name is one word somebody chose and can be long. It wraps rather
+     than ellipsing, because a truncated name is the one thing this line exists
+     to say, and a rail that scrolls sideways has nothing to scroll back to. */
+  overflow-wrap: anywhere;
+}
+.y-railfoot__size {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+}
+.y-railfoot__health {
+  align-items: center;
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  gap: 6px;
+  margin-top: 2px;
+  min-width: 0;
+}
+.y-railfoot__health:hover {
+  color: var(--fg);
+}
+.y-railfoot__label {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.y-railfoot__count {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+.y-railfoot__dot {
+  background: var(--fg-faint);
+  border-radius: 50%;
+  flex: none;
+  height: 6px;
+  width: 6px;
+}
+/* The colour repeats what the count already says in words, so a reader who
+   cannot tell the two dots apart has lost nothing. The state is read off the
+   foot itself rather than off any element carrying the attribute, so nothing
+   else that ever states a health can reach in here. */
+.y-railfoot[data-health="clear"] .y-railfoot__dot {
+  background: var(--sage);
+}
+.y-railfoot[data-health="findings"] .y-railfoot__dot {
+  background: var(--warn);
+}
+.y-railfoot[data-health="findings"] .y-railfoot__count {
+  color: var(--warn);
+}
 
 /* ============================================================
    Center article
@@ -426,6 +565,64 @@ details.y-metarow { display: block; }
 }
 .y-metarow__detail { margin-top: 10px; }
 .y-metarow__detail > span { min-width: 0; overflow-wrap: anywhere; }
+/* The note's facts, read as a description list: dt/dd pairs wrapped one per
+   div (HTML5's dl content model allows it), laid out as a wrapping flex row.
+   That single rule is what gives "a quiet two-column row on wide screens and
+   stacked on narrow ones" for free — the row lays flat where its container is
+   wide (the open .y-headmeta copy below) and wraps to one pair per line where
+   it is narrow (inside .y-metarow's disclosure); no separate narrow/wide
+   variant of the list itself exists. */
+.y-notefacts {
+  color: var(--fg-faint);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  gap: 6px 22px;
+  margin: 0;
+}
+
+.y-notefacts > div {
+  align-items: baseline;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.y-notefacts dt {
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.y-notefacts dd {
+  color: var(--fg-muted);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.y-notefacts a {
+  color: var(--fg-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.y-notefacts a:hover {
+  color: var(--accent);
+}
+
+/* The wide-open placement: the same facts, undisclosed, beside the title.
+   Hidden by default and shown only past the 1280/1281 split .y-rail-right and
+   .y-inlineaids already use — the width where .y-metarow's own disclosure
+   hides in turn (Responsive, below). Nothing has to turn it back off under
+   that width: display: none is already its only rule outside that one query. */
+.y-headmeta {
+  align-items: center;
+  display: none;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 20px 0;
+}
 
 /* kintsugi seam — the one signature: a parted hairline mended with a vermilion thread */
 .y-seam { position: relative; height: 1px; width: 100%; margin: 4px 0 8px;
@@ -767,25 +964,25 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 
 /* diagnostics rail */
 .y-diaghead { display: flex; align-items: center; gap: 8px; }
-.y-diagcount { font-family: var(--font-mono); font-size: 10px; color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 0 5px; letter-spacing: 0; }
+.y-diagcount { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 0 5px; letter-spacing: 0; }
 .y-diaglist { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .y-diag { border: 1px solid var(--border); border-left: 2.5px solid var(--warn); border-radius: 0 var(--r-md) var(--r-md) 0; background: transparent; padding: 11px 13px; transition: background var(--dur-base); }
 .y-diag:hover { background: var(--warn-bg); }
-.y-diag__label { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; color: var(--warn); text-transform: uppercase; }
+.y-diag__label { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--warn); text-transform: uppercase; }
 .y-diag__label svg { width: 13px; height: 13px; flex: none; }
-.y-diag__body { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-muted); }
-.y-diag__body code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
+.y-diag__body { margin: 0; font-size: var(--fs-13); line-height: 1.55; color: var(--fg-muted); }
+.y-diag__body code { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg); }
 /* how a link naming a section was read, stated under the diagnostic it
    belongs to. It is a second paragraph rather than more of the first because
    the first says what failed and this says how the words were split, and a
    reader scanning for one should not have to read past the other. */
-.y-diag__split { margin: 7px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-muted); }
-.y-diag__split code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
-.y-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: 12px; line-height: 1.6; color: var(--fg-faint); }
+.y-diag__split { margin: 7px 0 0; font-size: var(--fs-13); line-height: 1.55; color: var(--fg-muted); }
+.y-diag__split code { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg); }
+.y-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: var(--fs-12); line-height: 1.6; color: var(--fg-faint); }
 /* out-of-enum status flag — the diagnostics rail's amber accent applied to a
    status-face notice, so the flag reads as a finding rather than as copy */
 .y-statusflag { border-left: 2.5px solid var(--warn); }
-.y-statusflag code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
+.y-statusflag code { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg); }
 
 /* ============================================================
    Status bar — the status face at the end of the article wherever the right
@@ -804,20 +1001,99 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
 
 /* ============================================================
+   The search field — one shape wherever it is asked for
+   ============================================================ */
+/* Three places ask a reader to type a search: the desk, the search page, and
+   the palette the keyboard opens. They are one field, so the height, the
+   corner, the type and the icon are written once here and each place adds
+   only the ground it sits on.
+
+   The resting line is an outline drawn inward rather than a border, so focus
+   can thicken it from one pixel to two and colour it without a single glyph
+   moving. That is the whole of the answer: the fields autofocus, and the
+   page-wide ring firing on every open is news the reader did not ask for, so
+   the ring stays off the input and the field around it carries the state —
+   the same outline every other control answers focus with, drawn where this
+   one already has a line. */
+.y-homesearch,
+.y-searchdialog__form,
+.y-searchpage__form {
+  align-items: center;
+  border-radius: var(--r-sm);
+  display: flex;
+  gap: 10px;
+  height: 44px;
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+  padding: 0 12px;
+}
+
+.y-homesearch:focus-within,
+.y-searchdialog__form:focus-within,
+.y-searchpage__form:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* A phone zooms the page when it focuses an input set below its own body
+   size, which moves the whole layout to read one word. Sixteen pixels is
+   where that stops, and it is the size the typed query deserves anyway. */
+.y-homesearch input,
+.y-searchdialog__input,
+.y-searchpage__form input {
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: var(--fs-16);
+  min-width: 0;
+  outline: 0;
+}
+
+.y-homesearch input:focus-visible,
+.y-searchdialog__input:focus-visible,
+.y-searchpage__form input:focus-visible {
+  outline: 0;
+}
+
+/* One glyph size for every way into search, the header's entry included. */
+.y-homesearch svg,
+.y-searchbtn svg,
+.y-searchdialog__form svg,
+.y-searchpage__form svg {
+  flex: none;
+  height: 16px;
+  width: 16px;
+}
+
+/* The header's entry takes its ink from the control around it, which is why
+   it is not in this list. */
+.y-homesearch svg,
+.y-searchdialog__form svg,
+.y-searchpage__form svg {
+  color: var(--fg-subtle);
+}
+
+.y-homesearch .y-xbtn,
+.y-searchpage__form .y-xbtn {
+  flex: none;
+  height: 32px;
+  padding: 0 16px;
+  width: auto;
+}
+
+/* ============================================================
    ⌘K search dialog (native <dialog>)
    ============================================================ */
 .y-searchdialog { border: none; padding: 0; max-width: 600px; width: min(600px, 92vw); margin: 12vh auto auto; }
-.y-searchdialog::backdrop { background: rgb(0 0 0 / 0.5); }
-/* The autofocused search fields stop lighting the page-wide focus ring on
-   every open. The focus signal moves to the enclosing field instead: the
-   palette form owns the divider above its footer and accents it, the search
-   page form accents its resting border — so a focus indicator is always
-   present without the ring flashing on the input itself. */
-.y-searchdialog__form { display: flex; align-items: center; gap: 11px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
-.y-searchdialog__form:focus-within { border-bottom-color: var(--accent); }
-.y-searchdialog__form svg { width: 17px; height: 17px; color: var(--fg-subtle); flex: none; }
-.y-searchdialog__input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
-.y-searchdialog__input:focus-visible { outline: none; }
+.y-searchdialog::backdrop { background: var(--overlay-mask); }
+/* The field sits inside the panel rather than spanning it, because a line
+   across the top would be a second thing to read as an edge now that the
+   field has one of its own. Six pixels of inset puts its box on the same
+   column as the rows below it and its first character on the same column as
+   the status line and the footer. */
+.y-searchdialog__form { margin: 12px 6px 0; }
 .y-searchdialog .y-live-search__status { margin-inline: 18px; }
 /* The fragment still prints a count so /search names how many it found without
    a script. The palette already announces that number in the live status, so
@@ -825,8 +1101,11 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-searchdialog .y-results__count { display: none; }
 .y-searchdialog .y-searchresults { max-height: min(52vh, 480px); padding: 0 6px 12px; overflow-y: auto; overscroll-behavior: contain; }
 .y-searchdialog .y-results { margin-top: 10px; }
+/* One step in from the page's row: the panel is a glance rather than a place
+   to read, and a shorter row puts more of the answer inside it. */
+.y-searchdialog .y-result { padding: 12px 4px; }
 .y-searchdialog .y-searchpage__empty { margin: 18px 12px 8px; }
-.y-searchdialog__foot { padding: 10px 18px; background: var(--elevated); font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-faint); display: flex; align-items: center; gap: 14px; }
+.y-searchdialog__foot { padding: 10px 18px; background: var(--elevated); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); display: flex; align-items: center; gap: 14px; }
 
 /* ============================================================
    Lexical search results — shared by the full page and ⌘K panel
@@ -901,12 +1180,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
 }
 /* The palette asks the same route for the same rows and has no column to put a
    division in, so it never asks for one; nothing here paints one out. */
-.y-searchpage__form { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
-.y-searchpage__form:focus-within { border-color: var(--accent); }
-.y-searchpage__form svg { color: var(--fg-subtle); flex: none; }
-.y-searchpage__form input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
-.y-searchpage__form input:focus-visible { outline: none; }
-.y-searchpage__form .y-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
+.y-searchpage__form { background: var(--panel); }
 /* The count line prints the query back, and a query can be one run with
    nowhere to break — the same thing that used to carry the notice below it off
    the side of a phone. It takes the same last-resort break, or a reader on a
@@ -944,10 +1218,18 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
 .y-searchpage__emptylede { margin-top: 6px; }
 /* The grammar sits under the sentence, quieter than it. */
 .y-searchpage__empty .y-searchpage__hint { margin-top: 14px; font-size: var(--fs-12); color: var(--fg-faint); }
-.y-results { display: flex; flex-direction: column; gap: 2px; margin: 20px 0 0; }
-.y-result { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: var(--r-sm); transition: background var(--dur-base); }
-.y-result:hover { background: var(--overlay); }
-.y-result__title { font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); }
+/* An answer is a shelf of its own, so its rows are the shelf's rows: a hairline
+   between them, the same inset, and nothing drawn around any one of them. What
+   a list of findings needs is a place for the eye to stop between one and the
+   next, and a line does that where two pixels of air did not — twenty-odd hits
+   ran together. The row is taller than a shelf row because it carries a
+   sentence under its title as well as a path. */
+.y-results { display: flex; flex-direction: column; margin: 20px 0 0; }
+.y-result { display: flex; flex-direction: column; gap: 4px; padding: 16px 4px; border-bottom: 1px solid var(--border-faint); }
+/* No surface under a pointer — a hit is a line in a list, not a card that
+   lifts. The title answers instead, which is what a shelf row's title does. */
+.y-result:hover .y-result__title { color: var(--link); }
+.y-result__title { font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); transition: color var(--dur-base); }
 .y-result__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); overflow-wrap: anywhere; }
 .y-result__sep { margin: 0 6px; }
 .y-result__kind { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
@@ -958,7 +1240,9 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    sits inline so it wraps with the line it belongs to rather than pushing the
    row wider than its neighbours. */
 .y-outofenum { display: inline-block; margin-left: 8px; padding: 0 6px; border-radius: 3px; font-family: var(--font-sans); font-size: var(--fs-11); line-height: 1.75; color: var(--warn); background: var(--warn-bg); white-space: nowrap; }
-.y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; overflow-wrap: anywhere; }
+/* Half the snippets on this page are Chinese, and Chinese prose needs the
+   reading leading rather than the interface's. */
+.y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: var(--lh-read); overflow-wrap: anywhere; }
 
 /* ============================================================
    Ruby (furigana) — rt hidden by visibility only → zero reflow
@@ -982,6 +1266,15 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    ============================================================ */
 .y-prose .y-reading { position: relative; margin: var(--sp-block) 0 0; }
 .y-prose .y-reading > p { margin: 0; }
+/* The paragraph the voice is on. A colour and nothing else: the blanket that
+   switches every transition and animation off for a reduced-motion reader must
+   leave this readable, and the spread shadow gives the colour room without
+   moving a single line of the note. */
+.y-prose .y-reading[data-reading] {
+  background: var(--accent-muted);
+  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 5px var(--accent-muted);
+}
 .y-tts {
   position: absolute; left: -30px; top: 0.35em;
   display: none; align-items: center; justify-content: center;
@@ -1015,8 +1308,15 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
   min-height: 30px; padding: 0 10px; border: 1px solid var(--border);
   border-radius: var(--r-sm); background: var(--panel); cursor: pointer;
 }
-.y-ttsbar button:hover { background: var(--overlay); color: var(--fg); }
+.y-ttsbar button:hover:not(:disabled) { background: var(--overlay); color: var(--fg); }
 .y-ttsbar button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+/* Previous on the first paragraph and next on the last: the move is not there,
+   and a control that looks live while refusing every press is worse than one
+   that says so. */
+.y-ttsbar button:disabled {
+  color: var(--fg-faint);
+  cursor: default;
+}
 .y-ttsbar__status { margin-left: auto; color: var(--fg-subtle); }
 
 /* ============================================================
@@ -1105,7 +1405,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    display would defeat the browser's own hiding of a closed dialog and
    paint the sheet over the right rail. */
 .y-conceptsheet[open] { display: flex; flex-direction: column; }
-.y-conceptsheet::backdrop { background: rgb(0 0 0 / 0.4); }
+.y-conceptsheet::backdrop { background: var(--overlay-mask); }
 .y-conceptsheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex: none; }
 .y-conceptsheet__title { font-family: var(--font-sans); font-size: var(--fs-ed-17); font-weight: var(--fw-semibold); color: var(--fg); }
 .y-conceptsheet__body { overflow-y: auto; padding: 18px 20px; }
@@ -1202,12 +1502,7 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 .y-homepath:first-child { border-top: 0; }
 .y-homepath__title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg); }
 .y-homepath__progress { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
-.y-homesearch { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--elevated); }
-.y-homesearch:focus-within { border-color: var(--accent); }
-.y-homesearch svg { flex: none; color: var(--fg-subtle); }
-.y-homesearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
-.y-homesearch input:focus-visible { outline: 0; }
-.y-homesearch .y-xbtn { width: auto; height: 30px; padding: 0 13px; flex: none; }
+.y-homesearch { background: var(--elevated); }
 .y-homereadme { max-width: var(--measure-article); margin: 58px auto 0; padding-top: 34px; border-top: 1px solid var(--border); }
 .y-homereadme__head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
 .y-homereadme__head h2 { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); font-weight: var(--fw-regular); color: var(--fg); }
@@ -1877,6 +2172,16 @@ html {
 /* ============================================================
    Responsive
    ============================================================ */
+@media (min-width: 1281px) {
+  /* The same split .y-rail-right and .y-inlineaids already use: past it the
+     facts stand open beside the title, so the disclosure that folds them at
+     narrower widths is not also drawn. The selector repeats the type
+     qualifier details.y-metarow carries at its own display: block rule above,
+     matching that rule's specificity instead of reaching for !important —
+     source order alone then decides it, this query being the later one. */
+  details.y-metarow { display: none; }
+  .y-headmeta { display: flex; }
+}
 @media (max-width: 1280px) {
   .y-shell { grid-template-columns: 248px minmax(0, 1fr); }
   .y-rail-right { display: none !important; }
@@ -1927,8 +2232,10 @@ html {
   .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
   [data-ruby="on"] .y-rubybtn__label { color: var(--accent); }
   [data-ruby="off"] .y-rubybtn__label { color: var(--fg-faint); text-decoration: line-through; }
+  /* The state word goes onto its own line so the controls keep one row each;
+     everything else stays in the order it is written, which keeps stop beside
+     the play, previous and next it belongs with. */
   .y-ttsbar__status { flex-basis: 100%; order: 2; margin-left: 0; }
-  .y-ttsbar__stop { order: 3; }
 }
 @media (forced-colors: active) {
   /* The fixed-colour mark is decorative. Keep the exact textual product name
@@ -1986,8 +2293,12 @@ html {
   /* Librarian chrome in the opening column is for repair on screen, not for
      paper. A printed page is the title and the body; path crumbs, type and
      Obsidian metarow, and folder previous/next stay off the sheet. Course
-     lesson-order prev/next may remain — it is part of the book. */
-  .y-crumbs, .y-metarow, .y-steps:not(.y-steps--course) {
+     lesson-order prev/next may remain — it is part of the book. .y-headmeta is
+     the same facts' wide-open copy, named here too: without it the width the
+     browser prints at (often past the 1280/1281 split) would show the facts
+     .y-metarow was just told to hide, doubling them on the sheet rather than
+     dropping them from it. */
+  .y-crumbs, .y-metarow, .y-headmeta, .y-steps:not(.y-steps--course) {
     display: none !important;
   }
   /* A listing row clips its document's opening to one line on screen so the
@@ -2058,8 +2369,10 @@ html {
 
 /* Keyboard help: a native popover the header's ? opens. It exists because the
    single-key shortcuts had no written trace anywhere on screen — a switch for
-   keys nobody can list is pressure, not a preference. Hidden at phone widths,
-   where there is no physical keyboard to explain. */
+   keys nobody can list is pressure, not a preference. At phone widths the
+   control that opens it is inside the folded group rather than gone: a phone
+   can have a keyboard attached, and a reader who has one was the only person
+   the panel was ever for. */
 .y-kbdhelp {
   inset: auto; position: fixed; top: 64px; right: 16px; margin: 0;
   max-width: 340px; padding: 16px 18px; background: var(--panel);
@@ -2079,10 +2392,6 @@ html {
   margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border-faint);
   font-size: var(--fs-12); color: var(--fg-subtle); line-height: 1.6;
 }
-@media (max-width: 520px) {
-  .y-helpbtn, .y-textsizebtn { display: none; }
-}
-
 /* Cited-by and declared sources share spacing: two lists of names in the
    rail, answering different questions. Cited-by keeps its heading when the
    list is empty, because a note nothing cites in the text is a finding
@@ -2222,34 +2531,31 @@ html {
   .y-findings__count { text-align: left; }
 }
 
-/* The whole-folder view's entrance. It sits with the reading preferences
-   rather than beside the search, because it is somewhere to go when not
-   reading anything in particular. */
+/* The whole-folder view's entrance. It is a destination rather than something
+   read from, so on a window too narrow for the whole row it folds away with
+   the other destinations instead of disappearing: a reader who cannot see it
+   can still reach it, which is not what the width it used to vanish at
+   offered. */
 .y-healthlinkbtn {
   padding: 5px 9px; border-radius: var(--r-sm); font-family: var(--font-mono);
   font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none;
   white-space: nowrap;
 }
 .y-healthlinkbtn:hover { background: var(--overlay); color: var(--fg); }
-@media (max-width: 900px) {
-  .y-healthlinkbtn { display: none; }
-}
 
 /* The reading choices, reached by a word rather than a gear, because a gear
    promises a machine and what is behind this one is seven sentences, so the
-   label says the thing and the panel behind it does the explaining. It keeps
-   its place at every width — a reader on a narrow window is the one most
-   likely to want the text larger, and an entry that hides there hides exactly
-   when it is needed. */
+   label says the thing and the panel behind it does the explaining. It is
+   reachable at every width — a reader on a narrow window is the one most
+   likely to want the text larger, and an entry that disappeared there would
+   disappear exactly when it is needed. On a narrow window it is the first
+   thing in the folded group rather than absent. */
 .y-prefslink {
   padding: 5px 9px; border-radius: var(--r-sm); font-family: var(--font-mono);
   font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none;
   white-space: nowrap;
 }
 .y-prefslink:hover { background: var(--overlay); color: var(--fg); }
-@media (max-width: 520px) {
-  .y-prefslink { padding: 5px 4px; }
-}
 /* The same page again, from the panel that explains how the interface behaves:
    a reader who opened this one was already asking that question. */
 .y-kbdhelp__prefs {
@@ -2259,17 +2565,19 @@ html {
 }
 .y-kbdhelp__prefs:hover { text-decoration: underline; }
 
-/* The reading choices, one page. It is a column of small panels rather than a
-   grid of switches: each choice is a panel of its own, and the sentence under
-   each heading — what the choice changes, and what it leaves alone — is the
-   part that earns it. The panels sit inside one form, which is what applies
-   them where nothing else can, so what a reader picks across the column is
-   applied together. No rail down the side, because the page is reached from
-   whatever was being read and gives it straight back. */
+/* The reading choices, one page: a column of sections named by a small
+   heading, not boxes cut by a title — the rest of the interface separates a
+   group of controls by space and a label, never a frame, and this page had
+   been the one place that drew one. The sentence under each heading — what
+   the choice changes, and what it leaves alone — is the part that earns a
+   heading of its own. The sections sit inside one form, which is what
+   applies them where nothing else can, so what a reader picks across the
+   column is applied together. No rail down the side, because the page is
+   reached from whatever was being read and gives it straight back. */
 .y-prefs { max-width: var(--measure-article); margin: 0 auto; padding: 42px 48px 120px; }
 .y-prefs__lede { margin: 18px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-subtle); }
-.y-preffield { margin: 28px 0 0; min-width: 0; padding: 16px 20px 18px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
-.y-preffield legend { padding: 0 6px; margin-inline-start: -6px; font-family: var(--font-sans); font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--fg); }
+.y-preffield { margin: 40px 0 0; min-width: 0; padding: 0; border: 0; }
+.y-preffield legend { padding: 0; margin: 0; font-family: var(--font-mono); font-size: var(--fs-11); font-weight: inherit; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em; }
 .y-preffield__note { margin: 2px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
 .y-preffield__options { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 0 0; }
 .y-preffield__options label { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: var(--fs-14); color: var(--fg); cursor: pointer; }
@@ -2301,7 +2609,29 @@ html {
 }
 [data-js] .y-prefs__return { display: inline-block; }
 .y-prefs__return:hover { background: var(--overlay); }
-.y-prefs .y-kbdhelp__list { margin: 28px 0 0; }
+
+/* The keys this interface answers to, named as a section like the choices
+   above it: a reader who reaches this page already asked how the interface
+   behaves, so the list the header's own help popover carries earns the same
+   heading here rather than sitting under nothing. */
+.y-prefs__shortcuts {
+  margin: 40px 0 0;
+}
+
+.y-prefs__shortcuts h2 {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: inherit;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.y-prefs__shortcuts .y-kbdhelp__list {
+  margin: 14px 0 0;
+}
+
 /* What this browser is holding, listed by the page that puts it there. */
 .y-prefs__storage { margin: 42px 0 0; padding-top: 20px; border-top: 1px solid var(--border); }
 .y-prefs__storage h2 { margin: 0; font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: 0.09em; text-transform: uppercase; font-weight: inherit; color: var(--fg-subtle); }
@@ -2357,7 +2687,7 @@ html {
   inline-size: min(38rem, calc(100vw - 2rem)); max-block-size: min(18rem, 60vh);
   overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px;
   background: var(--panel); color: var(--fg); border: 1px solid var(--border);
-  border-radius: var(--r-md); box-shadow: var(--shadow-2);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-2);
   opacity: 0;
   transition: display var(--dur-base) var(--ease-standard), overlay var(--dur-base) var(--ease-standard), opacity var(--dur-base) var(--ease-standard);
   transition-behavior: allow-discrete;

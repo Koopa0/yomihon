@@ -30,7 +30,7 @@ func (h *Handler) journal(w http.ResponseWriter, r *http.Request) {
 	// from this one reading of the published pointer. Taken twice, a rebuild
 	// between them puts one entry's title in another generation's month.
 	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(authority, snap)
+	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	model := pageShell.Nav
 	month, named := pages.ParseMonth(r.URL.Query().Get(pages.JournalMonthParam))
 	if !named {

@@ -382,7 +382,7 @@ func (h *Handler) respondRecovery(
 		NotePath:        notePath,
 		NoteIdentity:    failure.boundIdentity,
 		ObsidianHref:    door,
-		Sidebar:         pages.NewSidebar(shell.Nav, notePath),
+		Sidebar:         pages.NewSidebar(shell, notePath),
 	}
 	chrome := layouts.ChromeFromRequest(r, view.Title(lang))
 	// A better place to return to than the generic POST fallback: the note

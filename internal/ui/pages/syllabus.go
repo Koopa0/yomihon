@@ -32,6 +32,12 @@ type PathView struct {
 	Entries int
 	Ready   int
 
+	// Vault is the folder this course sits in, which the rail's foot states.
+	// The reading rail builds one of these views for its own book and states
+	// the folder from its own value, so this one is filled where the page is
+	// assembled rather than by the builder the two share.
+	Vault nav.Vault
+
 	// NoCourse is which explanation the empty-course page is entitled to give:
 	// that a written sequence marker is among what the grammar reported, that
 	// none is, or that the report holds something this page cannot explain.
