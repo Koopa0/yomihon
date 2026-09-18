@@ -19,6 +19,8 @@ import (
 // than re-walking the tree.
 type Sidebar struct {
 	Model *nav.Model
+	// Vault is the folder this rail is a rail of, which its foot states.
+	Vault nav.Vault
 
 	// CurrentPath is the note being read, empty on a page with no note.
 	CurrentPath string
@@ -42,11 +44,13 @@ type Sidebar struct {
 // is drawn beside the not-found page a reader reaches when the vault could not
 // be projected at all, and stopping there would take down the page that exists
 // to explain why.
-func NewSidebar(model *nav.Model, currentPath string) Sidebar {
+func NewSidebar(shell nav.Shell, currentPath string) Sidebar {
+	model := shell.Nav
 	// The model's indexes are keyed by NFC paths; a request URL is not.
 	currentPath = vault.NormalizeNFC(currentPath)
 	sb := Sidebar{
 		Model:        model,
+		Vault:        shell.Vault,
 		CurrentPath:  currentPath,
 		openMaps:     map[string]bool{},
 		openBranches: map[string]bool{},
