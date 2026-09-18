@@ -114,7 +114,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		cover.KeptHref = pages.ResumeHref(request.Kept.RelPath, request.Kept.Anchor, request.Kept.Offset)
 	}
 
-	view := pages.BuildPathView(current, shell.Nav.Paths(), cover)
+	view := pages.BuildPathView(current, shell.Nav.Paths(), &cover)
 	view.Vault = shell.Vault
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
