@@ -104,17 +104,17 @@ func attributeNames(source string) (names []struct {
 				break
 			}
 			rest = rest[open+1:]
-			close := strings.Index(rest, ">")
-			if close < 0 {
+			end := strings.Index(rest, ">")
+			if end < 0 {
 				break
 			}
-			tag := rest[:close]
-			rest = rest[close+1:]
+			tag := rest[:end]
+			rest = rest[end+1:]
 			if tag == "" || tag[0] == '/' || tag[0] == '!' {
 				continue
 			}
 			tagsRead++
-			for _, field := range strings.Fields(blankValues(tag)) {
+			for field := range strings.FieldsSeq(blankValues(tag)) {
 				name, _, ok := strings.Cut(field, "=")
 				if !ok || name == "" {
 					continue
@@ -138,9 +138,10 @@ func blankValues(tag string) string {
 	for i, b := range out {
 		switch {
 		case depth > 0:
-			if b == '}' {
+			switch b {
+			case '}':
 				depth--
-			} else if b == '{' {
+			case '{':
 				depth++
 			}
 			out[i] = ' '

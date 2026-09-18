@@ -86,7 +86,7 @@ func TestScriptedOpeningsNameWhyThePlatformCouldNotDoIt(t *testing.T) {
 
 	total := 0
 	for _, source := range sources {
-		b, err := os.ReadFile(source)
+		b, err := os.ReadFile(source) // #nosec G304 -- a client module name this package's own js directory produced
 		if err != nil {
 			t.Fatalf("read %s: %v", source, err)
 		}
@@ -206,7 +206,7 @@ func TestNoModuleLooksUpAControlTheMarkupNowCommands(t *testing.T) {
 		t.Fatal("no client modules were read, so this test asked nothing of anything")
 	}
 	for _, source := range sources {
-		b, err := os.ReadFile(source)
+		b, err := os.ReadFile(source) // #nosec G304 -- a client module name this package's own js directory produced
 		if err != nil {
 			t.Fatalf("read %s: %v", source, err)
 		}
