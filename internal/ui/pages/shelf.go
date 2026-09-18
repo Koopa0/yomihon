@@ -49,9 +49,19 @@ type Row struct {
 	// without being a stop: a lesson nobody has written yet is still part of
 	// the course, and saying so is not the same as offering to open it.
 	Href string
-	// Mark is the one thing this organisation measures a row by, already in
-	// words — a course's extent, a report's date. An organisation that needs
-	// two writes them as one.
+	// When is where the row sits in time, already in words, and is empty for an
+	// organisation that is not read by date. It leads the row, before the name,
+	// because a shelf ordered by date is scanned down that column and a reader
+	// looking for last week's report finds it there before reading a title.
+	When string
+	// Opening is the document's own first line, lent to the listing so a row
+	// says what is inside it without being opened. It is empty where the
+	// document has none to lend, and a width with no room for it leaves it out.
+	Opening string
+	// Mark is what this organisation measures a row by, already in words — a
+	// course's extent, a report's kind. An organisation that needs two writes
+	// them as one; where a row sits in time is not one of them, having a face
+	// of its own above.
 	Mark string
 	// Fault says this row is itself a hole in the shelf — a missing lesson, a
 	// source that could not be read. It does not describe the document the row

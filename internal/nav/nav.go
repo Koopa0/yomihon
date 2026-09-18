@@ -71,8 +71,9 @@ type Model struct {
 	// journalDir is the contract's journal capability, so InJournal asks the
 	// same declaration buildJournal did.
 	journalDir schema.JournalDir
-	// reports enumerates System/reports/ — the .md reports first, then the
-	// daily-briefing/ HTML briefings; contents are never parsed.
+	// reports enumerates System/reports/, newest first — the .md reports and the
+	// daily-briefing/ HTML briefings. A written report lends its first line of
+	// prose and nothing more; a briefing's bytes are never opened here.
 	reports []Report
 	// knowledgeNotes are markdown notes in vault path order, carrying the
 	// scanner's captured times so rendering never stats a note. It is plain
@@ -210,7 +211,7 @@ func (m *Model) Journal() []JournalEntry {
 	return slices.Clone(m.journalEntries)
 }
 
-// Reports returns the files captured below System/reports/.
+// Reports returns the files captured below System/reports/, newest first.
 func (m *Model) Reports() []Report {
 	if m == nil {
 		return nil
@@ -310,6 +311,14 @@ type Report struct {
 	RelPath  string
 	Briefing bool
 	Latest   bool
+	// Date is the day this report is for, as an ISO 8601 calendar date, and is
+	// empty where neither the field the contract dates a note by nor the
+	// filename carried one. A report is dated by nature, so this is what the
+	// shelf orders on.
+	Date string
+	// Opening is the report's own first line of prose, and is empty for a
+	// briefing and for a report that opens with nothing but its title.
+	Opening string
 }
 
 // lifecycleOrder is the reading order of the top-level folders. It is a
@@ -345,6 +354,7 @@ func New(
 	policy schema.ArtifactPolicy,
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
+	dated schema.AuthoredDate,
 ) *Model {
 	if resolver == nil {
 		panic("nav: New requires a non-nil *graph.Index")
@@ -369,7 +379,7 @@ func New(
 			note:     note,
 		})
 	}
-	return newModel(files, resolver, roles, scope, policy, journal, articleLang)
+	return newModel(files, resolver, roles, scope, policy, journal, articleLang, dated)
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
@@ -388,6 +398,7 @@ func newModel(
 	policy schema.ArtifactPolicy,
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
+	dated schema.AuthoredDate,
 ) *Model {
 	paths := make([]string, 0, len(files))
 	mtimes := make(map[string]time.Time, len(files))
@@ -396,7 +407,7 @@ func newModel(
 		mtimes[file.path] = file.modified
 	}
 	m := &Model{
-		reports:        buildReports(files),
+		reports:        buildReports(files, dated),
 		journalEntries: buildJournal(paths, mtimes, journal),
 		journalDir:     journal,
 		knowledgeScope: scope,
@@ -557,20 +568,21 @@ func buildJournal(paths []string, mtimes map[string]time.Time, journal schema.Jo
 }
 
 // buildReports enumerates System/reports/: the .md reports directly in that
-// folder (in path order), then the daily-briefing/ HTML briefings (marking
-// latest.html). Written reports take the parsed note title when one exists and
-// fall back to the filename without its extension. README.md files and any
-// non-.md/.html files fall out naturally.
-func buildReports(files []capturedFile) []Report {
-	var reports, briefings []Report
+// folder and the daily-briefing/ HTML briefings (marking latest.html), all on
+// one shelf ordered newest first. Written reports take the parsed note title
+// when one exists and fall back to the filename without its extension. README.md
+// files and any non-.md/.html files fall out naturally.
+func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
+	var reports []Report
 	for _, file := range files {
 		p := file.path
 		if name, ok := BriefingName(p); ok {
-			briefings = append(briefings, Report{
+			reports = append(reports, Report{
 				Name:     name,
 				RelPath:  p,
 				Briefing: true,
 				Latest:   name == "latest.html",
+				Date:     leadingDate(name),
 			})
 			continue
 		}
@@ -586,10 +598,100 @@ func buildReports(files []capturedFile) []Report {
 			reports = append(reports, Report{
 				Name:    name,
 				RelPath: p,
+				Date:    reportDate(file, dated),
+				Opening: openingLine(file),
 			})
 		}
 	}
-	return append(reports, briefings...)
+	slices.SortStableFunc(reports, byRecency)
+	return reports
+}
+
+// reportDate is the day one written report is for. The field the contract dates
+// a note by answers first, because a day its author declared is the vault's own
+// statement about the report. Failing that the filename answers, for the vault
+// that names a report by the day it covers; that shape is a naming habit and
+// nothing the contract declares, which is why it is asked second and never
+// contradicts a declared day. A frontmatter value of a shape no day reads from
+// leaves the report undated rather than falling through to the name, because
+// the author wrote a day there and the row should show that it did not read.
+func reportDate(file capturedFile, dated schema.AuthoredDate) string {
+	if file.note != nil {
+		day, err := dated.Resolve(file.note.Frontmatter)
+		if day != "" || err != nil {
+			return day
+		}
+	}
+	_, base := splitDir(file.path)
+	return leadingDate(base)
+}
+
+// leadingDate reads the day off the front of a filename written as one, and
+// answers with nothing for a name that does not start with one.
+func leadingDate(name string) string {
+	const iso = len("2026-09-03")
+	if len(name) < iso {
+		return ""
+	}
+	head := name[:iso]
+	for i, r := range head {
+		digit := r >= '0' && r <= '9'
+		switch i {
+		case 4, 7:
+			if r != '-' {
+				return ""
+			}
+		default:
+			if !digit {
+				return ""
+			}
+		}
+	}
+	return head
+}
+
+// openingLine is the report's own first line of prose: the first non-blank line
+// of the body that is not the heading repeating the name already shown beside
+// it. The line travels as its author wrote it — a listing that stripped
+// Markdown out of it would be a second renderer, and a shelf has no use for
+// one.
+func openingLine(file capturedFile) string {
+	if file.note == nil {
+		return ""
+	}
+	for line := range strings.Lines(file.note.Body) {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		return line
+	}
+	return ""
+}
+
+// byRecency orders the shelf the way a reader scans it: newest first.
+//
+// latest.html leads. The vault keeps that name pointing at the briefing it
+// generated last, so it is a copy of the newest rather than a report with a day
+// of its own, and nothing on the shelf can be newer than it.
+//
+// Everything else falls in order of the day it carries. ISO calendar dates
+// compare as text exactly as they compare as days, so the written form is the
+// sort key and no clock or zone enters.
+//
+// A report with no day sorts last, and no line here puts it there: no day is
+// the empty string, which is smaller than every written one, so latest-first
+// leaves it at the end. Two reports the comparison cannot separate — the same
+// day, or neither carrying one — keep the order the scan captured them in,
+// which is what makes the sort a stable one.
+func byRecency(a, b Report) int {
+	if a.Latest != b.Latest {
+		if a.Latest {
+			return -1
+		}
+		return 1
+	}
+	return strings.Compare(b.Date, a.Date)
 }
 
 // folderBuilder is the mutable tree node used only while assembling the
