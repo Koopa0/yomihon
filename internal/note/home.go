@@ -5,9 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/mark"
@@ -90,37 +88,13 @@ func continueRow(kept *mark.Continuation, hasMark bool, snap *snapshot.Generatio
 	row := pages.ContinueRow{
 		Show:  true,
 		Title: cmp.Or(reading.Title, kept.RelPath),
-		Href:  continueHref(kept),
+		Href:  pages.ResumeHref(kept.RelPath, kept.Anchor, kept.Offset),
 	}
 	if hex.EncodeToString(reading.ContentIdentity[:]) != kept.Identity {
 		row.Notice = wording.MarkNoteChanged.In(lang)
 	}
 	return row
 }
-
-// continueHref is where that row leads: the note, the anchor the mark named,
-// and how far below it the reader was.
-//
-// The anchor is the fragment, so a browser running nothing lands on the
-// heading or block the reader stopped under — which is the whole of the
-// promise a mark can keep without a script. The distance rides as a query the
-// reading page's own module spends and then removes from the address; a
-// fragment carrying it would name no element and drop the reader at the top.
-func continueHref(kept *mark.Continuation) string {
-	address := pages.VaultHref("/notes/", kept.RelPath)
-	if kept.Offset > 0 {
-		address += "?" + url.Values{continueOffsetParam: {strconv.Itoa(kept.Offset)}}.Encode()
-	}
-	if kept.Anchor != "" {
-		address += "#" + url.PathEscape(kept.Anchor)
-	}
-	return address
-}
-
-// continueOffsetParam carries the distance below the anchor. The page that
-// reads it back is drawn by this package, so the name is written once here and
-// stamped into the address the reading page receives.
-const continueOffsetParam = "at"
 
 // degradedNotice states, in the reader's language, that the snapshot behind
 // the page could not read everything, so the content may be incomplete or held

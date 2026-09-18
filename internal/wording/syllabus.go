@@ -19,6 +19,19 @@ var PathItemUnreadable = both(
 // text contains: the page has not read it.
 var ReadTheGuide = both("閱讀筆記本文 ", "Read the note itself ")
 
+// The one verb a course offers: open the first lesson, or go back to the
+// lesson the reader kept a place in. They are the same act said two ways, and
+// which is true is decided by the place, never by anything the course knows
+// about what the reader has finished — a course has no such reading and says
+// no word about completion.
+//
+// The desk's own heading over the way back is ContinueReading, and this is
+// deliberately not it: that titles a row, this is pressed.
+var (
+	CourseStartReading    = both("開始讀", "Start reading")
+	CourseContinueReading = both("繼續讀", "Continue reading")
+)
+
 // A branch's own label. Local branches carry their heading; the main line does
 // not need one. Either can resume an order already open above it, and the
 // reader needs to know which they are looking at.
