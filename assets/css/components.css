@@ -544,19 +544,32 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ============================================================
-   Center article
+   The reading shell
    ============================================================ */
-/* The line length is the constant and the gutter is what changes, so the box is
+/* Five pages are one shape: a note, a file, a study path, the reading choices,
+   and the two a reader only reaches by accident — an address that names
+   nothing, and a status write that was refused. A reader moving between them
+   is reading the same kind of prose, so they are given the same line, the same
+   space either side of it, and the same room above and below, in one place
+   where that can be read as one decision.
+
+   The line length is the constant and the gutter is what changes, so the box is
    derived from both rather than fixed on its own. Held the other way round, a
    narrower window spent its reclaimed gutter on longer lines: the measure grew
    by a tenth exactly when the reader had less room, which is backwards. */
-.y-article {
-  --article-measure: 640px;
-  --article-gutter: 56px;
-  max-width: calc(var(--article-measure) + 2 * var(--article-gutter));
+.y-article,
+.y-listen,
+.y-prefs,
+.y-recovery,
+.y-syl {
   margin: 0 auto;
-  padding: 44px var(--article-gutter) 120px;
+  max-width: calc(var(--measure-read) + 2 * var(--gutter-read));
+  padding: 44px var(--gutter-read) 120px;
 }
+
+/* ============================================================
+   Center article
+   ============================================================ */
 .y-crumbs { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--fg-faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .y-crumbs__sep { opacity: .5; }
 /* The title can be a link's destination — a note opening with a heading that
@@ -1530,7 +1543,11 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 .y-homepath__title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg); }
 .y-homepath__progress { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-homesearch { background: var(--elevated); }
-.y-homereadme { max-width: var(--measure-article); margin: 58px auto 0; padding-top: 34px; border-top: 1px solid var(--border); }
+/* The way to the folder's own README closes the desk. It is set in the reading
+   measure, and it begins where everything stacked above it begins: centred, its
+   rule and its one line both started a hundred pixels in from the shelves and
+   read as a block belonging to some other page. */
+.y-homereadme { max-width: var(--measure-read); margin: 58px 0 0; padding-top: 34px; border-top: 1px solid var(--border); }
 .y-homereadme__head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
 .y-homereadme__head h2 { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); font-weight: var(--fw-regular); color: var(--fg); }
 
@@ -1653,11 +1670,12 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 
 /* Status-write recovery — an ordinary reading-shell page whose visual weight
    follows the mutation boundary. Actions are GET links only; the failed POST
-   is deliberately not repeatable from this surface. */
-.y-recoverymain { padding: 42px 48px 120px; }
-.y-recovery { max-width: var(--measure-article); margin: 0 auto; }
+   is deliberately not repeatable from this surface. The column it is set in is
+   the reading shell's, declared with the other pages that share it, which is
+   also how the page for an unknown address came to have a gutter: it draws the
+   same column and used to run to both edges of a phone.
 
-/* The page for an address that names nothing opens with the shared notice, and
+   The page for an address that names nothing opens with the shared notice, and
    what follows it — the address the reader typed, the step after, the ways out
    — is the same column continued. Left where it was, it would have hung off the
    side of a centred notice as if it belonged to a different page. The typed
@@ -1669,7 +1687,7 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 .y-recovery:has(> .y-nothing) .y-recovery__detail,
 .y-recovery:has(> .y-nothing) .y-recovery__next {
   margin-inline: auto;
-  max-width: var(--measure-notice);
+  max-width: var(--notice-column);
 }
 
 .y-recovery:has(> .y-nothing) .y-recovery__detail pre {
@@ -1726,7 +1744,7 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
   font-size: var(--fs-14);
   line-height: var(--lh-read);
   margin: 24px auto 0;
-  max-width: var(--measure-notice);
+  max-width: var(--notice-column);
   /* A vault path, a filter key, or a diagnostic from the operating system is
      one long run with nowhere to break, and at phone width it would otherwise
      carry the whole column off the side of the screen. */
@@ -1820,7 +1838,6 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
   margin: 18px auto 8px;
 }
 
-.y-syl { max-width: 800px; margin: 0 auto; padding: 44px 56px 120px; }
 .y-syl-kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
 .y-syl .y-title { margin-top: 12px; }
 .y-syl-metaspacer { flex: 1; }
@@ -1832,11 +1849,6 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
    reading column's own rules carry them; what is here is the page around
    them and the place the browser-built bar lands.
    ============================================================ */
-.y-listen {
-  margin: 0 auto;
-  max-width: 800px;
-  padding: 44px 56px 120px;
-}
 .y-listen .y-title { margin-top: 12px; }
 .y-listen__none { margin-top: 24px; color: var(--fg-muted); }
 .y-listen__lesson { margin-top: 34px; }
@@ -2335,9 +2347,6 @@ html {
   .y-homeblock__head p { margin-left: 0; text-align: left; }
   .y-homenote { align-items: flex-start; }
   .y-homenote__meta { align-items: flex-end; flex-direction: column; }
-  .y-syl { padding: 32px 20px 120px; }
-  .y-listen { padding: 32px 20px 120px; }
-	.y-recoverymain { padding: 32px 20px 120px; }
   .y-module { padding-left: 16px; }
   .y-lessons { padding-left: 24px; }
   .y-lesson { gap: 10px; }
@@ -2359,7 +2368,16 @@ html {
   html[data-js][data-nav="open"] .y-main { overflow: hidden; }
   .y-searchbtn { min-width: 0; }
   .y-searchbtn__label, .y-searchbtn .ui-kbd { display: none; }
-  .y-article { --article-gutter: 24px; padding: 32px var(--article-gutter) 120px; }
+  /* The shell narrows as one: the gutter is redeclared and the box follows
+     it, so the line length is still the measure and not what is left over. */
+  .y-article,
+  .y-listen,
+  .y-prefs,
+  .y-recovery,
+  .y-syl {
+    --gutter-read: 24px;
+    padding: 32px var(--gutter-read) 120px;
+  }
 }
 @media (max-width: 520px) {
   .y-header { gap: 5px; padding-inline: 8px; }
@@ -2725,7 +2743,6 @@ html {
    applies them where nothing else can, so what a reader picks across the
    column is applied together. No rail down the side, because the page is
    reached from whatever was being read and gives it straight back. */
-.y-prefs { max-width: var(--measure-article); margin: 0 auto; padding: 42px 48px 120px; }
 .y-prefs__lede { margin: 18px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-subtle); }
 .y-preffield { margin: 40px 0 0; min-width: 0; padding: 0; border: 0; }
 .y-preffield legend { padding: 0; margin: 0; font-family: var(--font-mono); font-size: var(--fs-11); font-weight: inherit; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -2789,10 +2806,6 @@ html {
 .y-prefs__storage ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
 .y-prefs__storage li { font-family: var(--font-mono); font-size: var(--fs-12); line-height: 1.6; color: var(--fg-muted); overflow-wrap: anywhere; }
 .y-prefs__storage p { margin: 12px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
-@media (max-width: 900px) {
-  .y-prefs { padding: 32px 20px 120px; }
-}
-
 /* One folder seen whole. A reading page, not a file manager: no sizes, no
    dates, no sort controls — the captured order, which is the folder's own. */
 .y-crumbs__link { color: inherit; text-decoration: none; }
