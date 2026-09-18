@@ -67,6 +67,7 @@ probes=(
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
   "search-facets.mjs|/search?q=a"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
+  "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
 )
 
 fail() {
