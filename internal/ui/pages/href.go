@@ -320,6 +320,18 @@ func folderHref(dir string) string {
 	return VaultHref("/folders/", dir)
 }
 
+// JournalMonthParam names the month a reader is reading the journal at. The
+// links this page draws and the request a reader arrives with have to agree
+// about that word, and a second spelling of it is how they stop agreeing.
+const JournalMonthParam = "month"
+
+// journalHref builds the journal's URL at one month. Every month is written
+// out, the current one included, so a link a reader copies stays pointing at
+// the month they were reading rather than at whichever month it is opened in.
+func journalHref(m Month) string {
+	return indexHref(journalMode) + "?" + url.Values{JournalMonthParam: {m.String()}}.Encode()
+}
+
 // searchHref builds the URL for one search query, escaping it as the form
 // submission would, so an offered search and a typed one land on the same page.
 func searchHref(q string) string {
