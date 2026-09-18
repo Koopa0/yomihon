@@ -83,11 +83,14 @@ const MUTATIONS = {
   'open-as-if-the-body-link-held-focus': {
     target: 'header-open-returns-to-header',
     apply: rewriteSearch(
-      // Anchored on the header control's own two lines: showing the dialog
-      // moved behind one function that every way in goes through, and the
-      // bare call to it appears in each of them.
-      '    event.preventDefault();\n    open();',
-      '    event.preventDefault();\n    document.querySelector(\'.y-prose a.wikilink\')?.focus();\n    open();',
+      // The header press is performed by the browser now, so there is no line
+      // in this module between the press and the dialog for a regression to
+      // sit on. The browser announces the press on the dialog before it acts
+      // on it, which is the last moment focus can still be moved — so that is
+      // where a page that helpfully moved focus would do it, and where the
+      // element the platform remembers to return to gets replaced.
+      "  const dialog = document.querySelector('[data-search]');",
+      "  const dialog = document.querySelector('[data-search]');\n  dialog?.addEventListener('command', () => { document.querySelector('.y-prose a.wikilink')?.focus(); });",
     ),
   },
   // Keeps the Escape landing correct and steals the next Tab into the header,

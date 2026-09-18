@@ -178,20 +178,32 @@ export function initSearch() {
 
   const dialog = document.querySelector('[data-search]');
 
-  // Every way the dialog is shown comes through here, so a way added later
-  // cannot arrive without the region being asked whether what it is showing
-  // still belongs to what is in the box.
+  // The header's press opens this dialog from the markup and the keyboard
+  // opens it from here, so the question "what is it showing now" is asked of
+  // the dialog itself rather than of any one way in. The browser announces
+  // every opening the same way, whichever asked for it, so a way added later
+  // arrives already answered.
+  dialog?.addEventListener('toggle', (event) => {
+    if (event.newState === 'open') onReopen.get(dialog)?.();
+  });
+
   function open() {
     if (!dialog || dialog.open) return;
+    // The keyboard has no markup to declare this with: a chord is not a press
+    // on anything the page can name.
     dialog.showModal();
-    onReopen.get(dialog)?.();
   }
 
-  document.querySelector('[data-search-open]')?.addEventListener('click', (event) => {
-    if (!dialog) return;
-    event.preventDefault();
-    open();
-  });
+  // An engine that has not shipped the markup form of the press yet. The press
+  // is then done by hand, which is what this module did for every engine until
+  // the platform took it over. Nothing else is stood in for.
+  if (!('commandForElement' in HTMLButtonElement.prototype)) {
+    document.querySelector('[data-search-open]')?.addEventListener('click', (event) => {
+      if (!dialog) return;
+      event.preventDefault();
+      open();
+    });
+  }
 
   function toggle() {
     if (!dialog) return;
