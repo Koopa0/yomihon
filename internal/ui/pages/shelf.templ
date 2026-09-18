@@ -78,9 +78,14 @@ templ ShelfRail(s Shelf, limit int, dir, more string) {
 }
 
 // shelfRowLink is one row wherever a shelf shows rows as links, so a row cannot
-// come to look different for being on a different width.
+// come to look different for being on a different width. A row read by date
+// leads with its day here too; the line the document opens with is left to the
+// full width, a block being a corner of the shelf rather than a listing.
 templ shelfRowLink(row Row) {
 	<a class="ui-navitem" href={ templ.URL(row.Href) } data-desk-item>
+		if row.When != "" {
+			<span class="ui-navitem__when">{ row.When }</span>
+		}
 		<span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
 		if row.Mark != "" {
 			<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--warn", row.Fault) }>{ row.Mark }</span>
@@ -106,22 +111,33 @@ templ ShelfPage(s Shelf) {
 // shelfPageRow is one row at full width. A row that leads nowhere is still
 // listed — an unwritten lesson is part of its course — and is written as text
 // rather than as a link that goes to the page it is already on.
+//
+// A row that says where it sits in time is laid out around that column, which
+// is why the marker is on the row rather than on the face inside it: the day,
+// the name, the opening line and the kind are placed against each other, and a
+// shelf that is not read by date keeps the plain line it has always had.
 templ shelfPageRow(row Row) {
 	if row.Heading {
 		<h2 class="y-railsummary y-railsummary--label">{ row.Text }</h2>
 	} else if row.Href == "" {
-		<span class="y-row" data-index-row>
+		<span class={ "y-row", templ.KV("y-row--dated", row.When != "") } data-index-row>
 			@shelfRowBody(row)
 		</span>
 	} else {
-		<a class="y-row" href={ templ.URL(row.Href) } data-index-row>
+		<a class={ "y-row", templ.KV("y-row--dated", row.When != "") } href={ templ.URL(row.Href) } data-index-row>
 			@shelfRowBody(row)
 		</a>
 	}
 }
 
 templ shelfRowBody(row Row) {
+	if row.When != "" {
+		<span class="y-row__when">{ row.When }</span>
+	}
 	<span class="y-row__title" { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
+	if row.Opening != "" {
+		<span class="y-row__opening" { authoredLanguageAttrs(row.Language)... }>{ row.Opening }</span>
+	}
 	if row.Mark != "" {
 		<span class={ "y-row__measure", templ.KV("y-row__measure--warn", row.Fault) }>{ row.Mark }</span>
 	}

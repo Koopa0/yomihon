@@ -41,7 +41,7 @@ func capturedModel(
 	resolver *graph.Index,
 ) *Model {
 	t.Helper()
-	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir(), testContract(t).ArticleLanguage())
+	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir(), testContract(t).ArticleLanguage(), testContract(t).AuthoredDate())
 }
 
 func capturedModelWithJournal(
@@ -53,6 +53,7 @@ func capturedModelWithJournal(
 	resolver *graph.Index,
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
+	dated schema.AuthoredDate,
 ) *Model {
 	t.Helper()
 	reader, err := vault.Open(root)
@@ -88,7 +89,7 @@ func capturedModelWithJournal(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang)
+	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -190,6 +191,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		policy,
 		testContract(t).JournalDir(),
 		testContract(t).ArticleLanguage(),
+		testContract(t).AuthoredDate(),
 	)
 
 	modified := make(map[string]time.Time)
@@ -271,6 +273,7 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		policy,
 		testContract(t).JournalDir(),
 		testContract(t).ArticleLanguage(),
+		testContract(t).AuthoredDate(),
 	)
 	want := []NoteSummary{{
 		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
@@ -711,7 +714,7 @@ func TestJournalShelfFollowsTheDeclaredDirectory(t *testing.T) {
 
 	t.Run("undeclared", func(t *testing.T) {
 		t.Parallel()
-		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{}, schema.ArticleLanguage{})
+		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{}, schema.ArticleLanguage{}, schema.AuthoredDate{})
 		if len(model.Journal()) != 0 {
 			t.Errorf("undeclared Journal = %v, want empty", model.Journal())
 		}
@@ -1638,6 +1641,7 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 		policy,
 		schema.JournalDir{},
 		testContract(t).ArticleLanguage(),
+		testContract(t).AuthoredDate(),
 	)
 
 	gotRoot := fileRelPaths(model.RootNotes())
@@ -2102,34 +2106,176 @@ func TestModelConcurrentProjectionMutationDoesNotChangePublishedData(t *testing.
 	})
 }
 
-// TestBuildReports checks the .md reports (directly under System/reports/)
-// come first, then the daily-briefing/ HTML briefings with latest.html
-// marked, and that a daily-briefing README.md, a stray .txt, and files
+// TestBuildReports checks the shelf holds both kinds on one list, newest
+// first, with the briefing the vault keeps current leading and an undated
+// report last; and that a daily-briefing README.md, a stray .txt, and files
 // outside System/reports/ are all excluded.
+//
+// The captured order the files arrive in is the reverse of the order they are
+// wanted in, so a build that skipped the sort could not pass by accident.
 func TestBuildReports(t *testing.T) {
 	t.Parallel()
 
-	titled := vault.Parse("System/reports/Run-Report.md", []byte("---\ntitle: Run report\n---\nbody\n"))
+	titled := vault.Parse("System/reports/Run-Report.md", []byte("---\ntitle: Run report\ncreated: 2026-07-04\n---\nbody\n"))
 	files := []capturedFile{
 		{path: "Concepts/foo.md"},
 		{path: "System/reports/Run-Report.md", note: titled},
 		{path: "System/reports/daily-briefing/README.md"},
-		{path: "System/reports/daily-briefing/koopa0-briefing-2026-07-02.html"},
+		{path: "System/reports/daily-briefing/2026-07-02 briefing.html"},
 		{path: "System/reports/daily-briefing/latest.html"},
 		{path: "System/reports/vault-check.md"},
 		{path: "System/reports/notes.txt"},
 	}
 
 	want := []Report{
-		{Name: "Run report", RelPath: "System/reports/Run-Report.md"},
-		{Name: "vault-check", RelPath: "System/reports/vault-check.md"},
-		{Name: "koopa0-briefing-2026-07-02.html", RelPath: "System/reports/daily-briefing/koopa0-briefing-2026-07-02.html", Briefing: true},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
+		{Name: "Run report", RelPath: "System/reports/Run-Report.md", Date: "2026-07-04", Opening: "body"},
+		{Name: "2026-07-02 briefing.html", RelPath: "System/reports/daily-briefing/2026-07-02 briefing.html", Briefing: true, Date: "2026-07-02"},
+		{Name: "vault-check", RelPath: "System/reports/vault-check.md"},
 	}
 
-	got := buildReports(files)
+	got := buildReports(files, testContract(t).AuthoredDate())
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("buildReports mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestBuildReportsKeepsCapturedOrderAmongTheUndated pins what happens where
+// the sort has nothing to separate two rows by: they stay in the order the
+// scan captured them, rather than in whatever order the sort happened to leave
+// them in.
+func TestBuildReportsKeepsCapturedOrderAmongTheUndated(t *testing.T) {
+	t.Parallel()
+
+	files := []capturedFile{
+		{path: "System/reports/zebra.md"},
+		{path: "System/reports/apple.md"},
+		{path: "System/reports/mango.md"},
+	}
+	got := buildReports(files, testContract(t).AuthoredDate())
+	want := []string{"zebra", "apple", "mango"}
+	names := make([]string, 0, len(got))
+	for _, report := range got {
+		names = append(names, report.Name)
+	}
+	if diff := cmp.Diff(want, names); diff != "" {
+		t.Errorf("undated report order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestReportDate walks every way a report can come by a day, and the two ways
+// it can fail to. The field the contract dates a note by answers first; the
+// filename answers only where it did not; and a frontmatter value of a shape no
+// day reads from leaves the report undated rather than quietly falling through
+// to the name, because a row that showed a day there would hide that the
+// author's own value could not be read.
+func TestReportDate(t *testing.T) {
+	t.Parallel()
+
+	dated := testContract(t).AuthoredDate()
+	if dated.Field() != "created" {
+		t.Fatalf("test contract dates a note by %q, want created", dated.Field())
+	}
+
+	tests := []struct {
+		name string
+		path string
+		raw  string
+		want string
+	}{
+		{name: "declared field", path: "System/reports/weekly.md", raw: "---\ncreated: 2026-08-31\n---\n", want: "2026-08-31"},
+		{name: "declared field beats the filename", path: "System/reports/2026-01-01 weekly.md", raw: "---\ncreated: 2026-08-31\n---\n", want: "2026-08-31"},
+		{name: "quoted day", path: "System/reports/weekly.md", raw: "---\ncreated: \"2026-08-31\"\n---\n", want: "2026-08-31"},
+		{name: "a moment is still one day", path: "System/reports/weekly.md", raw: "---\ncreated: \"2026-08-31T09:30:00Z\"\n---\n", want: "2026-08-31"},
+		{name: "filename where the note declares none", path: "System/reports/2026-01-01 weekly.md", raw: "prose\n", want: "2026-01-01"},
+		{name: "a day the note cannot be read for", path: "System/reports/2026-01-01 weekly.md", raw: "---\ncreated: soon\n---\n", want: ""},
+		{name: "no day anywhere", path: "System/reports/weekly.md", raw: "prose\n", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			file := capturedFile{path: tt.path, note: vault.Parse(tt.path, []byte(tt.raw))}
+			if got := reportDate(file, dated); got != tt.want {
+				t.Errorf("reportDate(%q, %q) = %q, want %q", tt.path, tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestReportDateIgnoresFrontmatterTheContractDidNotDeclare keeps the date
+// inside the contract's authority: a vault whose contract names neither date
+// field has declared no day, and a created: line in a note there is a word the
+// vault never gave meaning to. The filename still answers, being the vault's
+// own naming and no claim about frontmatter.
+func TestReportDateIgnoresFrontmatterTheContractDidNotDeclare(t *testing.T) {
+	t.Parallel()
+
+	const path = "System/reports/2026-01-01 weekly.md"
+	file := capturedFile{path: path, note: vault.Parse(path, []byte("---\ncreated: 2026-08-31\n---\n"))}
+	if got := reportDate(file, schema.AuthoredDate{}); got != "2026-01-01" {
+		t.Errorf("reportDate under an undeclared contract = %q, want the filename's 2026-01-01", got)
+	}
+}
+
+// TestLeadingDateReadsOnlyAWholeDayAtTheFront keeps the naming convention out
+// of the business of guessing. A name that merely starts with digits is not a
+// day, and a row that showed one would be yomihon asserting something the
+// author never wrote.
+func TestLeadingDateReadsOnlyAWholeDayAtTheFront(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"2026-07-10.html", "2026-07-10"},
+		{"2026-07-10 vault audit.md", "2026-07-10"},
+		{"20260710.md", ""},
+		{"2026-07.md", ""},
+		{"v2026-07-10.md", ""},
+		{"notes.md", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := leadingDate(tt.name); got != tt.want {
+				t.Errorf("leadingDate(%q) = %q, want %q", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestOpeningLine takes the report's own first line of prose, stepping over
+// the heading that repeats the name already shown beside it.
+func TestOpeningLine(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "first prose line", body: "Four notes went to ready.\n\nMore below.\n", want: "Four notes went to ready."},
+		{name: "past the title heading", body: "# Week of 2026-08-31\n\nFour notes went to ready.\n", want: "Four notes went to ready."},
+		{name: "past several blank lines", body: "\n\n\nFour notes.\n", want: "Four notes."},
+		{name: "nothing but headings", body: "# One\n\n## Two\n", want: ""},
+		{name: "an empty body", body: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			file := capturedFile{path: "System/reports/r.md", note: vault.Parse("System/reports/r.md", []byte(tt.body))}
+			if got := openingLine(file); got != tt.want {
+				t.Errorf("openingLine(%q) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
+	}
+
+	if got := openingLine(capturedFile{path: "System/reports/daily-briefing/latest.html"}); got != "" {
+		t.Errorf("openingLine of a briefing = %q, want nothing: its bytes are never opened here", got)
 	}
 }
 
@@ -2141,8 +2287,8 @@ func TestBuildReportsUsesParsedNoteTitle(t *testing.T) {
 	files := []capturedFile{
 		{path: "System/reports/notes.md", note: vault.Parse("System/reports/notes.md", []byte("just prose\n"))},
 	}
-	got := buildReports(files)
-	want := []Report{{Name: "notes", RelPath: "System/reports/notes.md"}}
+	got := buildReports(files, testContract(t).AuthoredDate())
+	want := []Report{{Name: "notes", RelPath: "System/reports/notes.md", Opening: "just prose"}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("buildReports parsed-note title mismatch (-want +got):\n%s", diff)
 	}

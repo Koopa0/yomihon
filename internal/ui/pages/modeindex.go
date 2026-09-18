@@ -2,7 +2,6 @@ package pages
 
 import (
 	"fmt"
-	"path"
 	"strconv"
 	"strings"
 
@@ -270,11 +269,13 @@ func countBranches(branches []nav.Branch) int {
 	return total
 }
 
-// NewReportIndex builds the report index. The two kinds are named apart because
-// they are read apart: a briefing is a program's output, shown as bytes inside
-// an isolated frame, and a written report is a note like any other. The row
-// shows the note title and lifts the day from the vault basename when the
-// filename starts with one; nothing here opens a report to describe it.
+// NewReportIndex builds the report index. A report is dated by nature — a daily
+// briefing, an audit run — so the row leads with its day, then its name, then
+// the line the report opens with, then which of the two kinds it is. The two
+// kinds are named apart because they are read apart: a briefing is a program's
+// output, shown as bytes inside an isolated frame, and a written report is a
+// note like any other. The day and the opening arrive already read; nothing
+// here goes looking for either.
 func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(reports))
 	for _, report := range reports {
@@ -282,14 +283,12 @@ func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang Article
 		if report.Briefing {
 			href, kind = reportHref(report.Name), wording.DailyBriefing.In(lang)
 		}
-		newest := ""
-		if report.Latest {
-			newest = wording.Newest.In(lang)
-		}
 		rows = append(rows, Row{
+			When:     reportWhen(report, lang),
 			Text:     report.Name,
+			Opening:  report.Opening,
 			Href:     href,
-			Mark:     joinMarks(leadingDate(path.Base(report.RelPath)), kind, newest),
+			Mark:     kind,
 			Language: rowLanguage(articleLang, report.RelPath),
 		})
 	}
@@ -298,30 +297,21 @@ func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang Article
 		wording.ReportIndexLede.In(lang), wording.ReportIndexEmpty.In(lang), rows)
 }
 
-// leadingDate reads the day off the front of a filename written as one, and
-// answers with nothing for a name that does not start with one. It parses no
-// contents: what a report says is the author's, and this is only how the vault
-// named the file.
-func leadingDate(name string) string {
-	const iso = len("2026-09-03")
-	if len(name) < iso {
-		return ""
+// reportWhen is the one answer a report's date face gives, and it always gives
+// one. A report carrying a day shows it. The briefing the vault keeps current
+// is named for being the latest rather than for a day, so it says that instead
+// — which is also where the shelf puts it. A report with neither says it wrote
+// no day, because a row left blank in the column every other row answers reads
+// as something the page failed to look up.
+func reportWhen(report nav.Report, lang wording.Lang) string {
+	switch {
+	case report.Date != "":
+		return report.Date
+	case report.Latest:
+		return wording.Newest.In(lang)
+	default:
+		return wording.ReportUndated.In(lang)
 	}
-	head := name[:iso]
-	for i, r := range head {
-		digit := r >= '0' && r <= '9'
-		switch i {
-		case 4, 7:
-			if r != '-' {
-				return ""
-			}
-		default:
-			if !digit {
-				return ""
-			}
-		}
-	}
-	return head
 }
 
 // ArticleLanguageFor returns a note's declared article language by path, or

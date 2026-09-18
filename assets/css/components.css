@@ -99,6 +99,26 @@ html, body { margin: 0; background: var(--bg); }
 .ui-navitem__count { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .ui-navitem__count--warn { color: var(--warn); }
 
+/* Where a listing is read by date, the day leads the row here as it does at
+   full width, so the desk's corner of that shelf is scanned down the same
+   column as the shelf's own page. It is never allowed to squeeze the name
+   beside it: the day is a fixed ten characters and the name is what has to
+   give. */
+.ui-navitem__when {
+  color: var(--fg-faint);
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-navitem__when + span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---- Sidebar section label ---- */
 .ui-side__label {
   font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint);
@@ -1176,6 +1196,77 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    how a fault came to be drawn in the colour of an ordinary figure. */
 .y-row__measure--warn { color: var(--warn); }
 
+/* A row on a shelf that is read by date. A report is dated by nature, so the
+   row leads with its day, then its name, then the line the report opens with,
+   then which kind of report it is. The day and the kind hold the two edges of
+   the top line with the name between them; the opening runs under the name,
+   clipped to a single line, because a listing whose rows are two sentences
+   deep has stopped being a listing. The hairline, the padding and the hover
+   are the shelf's own and stay untouched. */
+.y-row--dated {
+  align-items: baseline;
+  column-gap: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  row-gap: 3px;
+}
+
+.y-row__when {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+  grid-column: 1;
+  grid-row: 1;
+  white-space: nowrap;
+}
+
+.y-row--dated .y-row__title {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.y-row--dated .y-row__measure {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.y-row__opening {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-13);
+  grid-column: 2;
+  grid-row: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A phone has no room for three columns. The day and the kind keep the top
+   line between them — the day still leads the row — and the name and the
+   opening take the full width beneath, where a title has the space to wrap
+   instead of being squeezed into a third of it. */
+@media (max-width: 720px) {
+  .y-row--dated {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .y-row--dated .y-row__title {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .y-row--dated .y-row__measure {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .y-row__opening {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from
    /reports/<name>/raw and sandboxed (allow-scripts, never allow-same-origin);
@@ -1552,6 +1643,13 @@ html {
      lesson-order prev/next may remain — it is part of the book. */
   .y-crumbs, .y-metarow, .y-steps:not(.y-steps--course) {
     display: none !important;
+  }
+  /* A listing row clips its document's opening to one line on screen so the
+     shelf stays a shelf and the rest is one click away. Paper has the room and
+     takes no click, so there the line wraps and is printed whole. */
+  .y-row__opening {
+    overflow: visible;
+    white-space: normal;
   }
   /* A fold the author closed is an offer the reader takes by clicking: hold
      the answer back, then give it. Paper takes no click, so on a sheet the
