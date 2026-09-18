@@ -1939,7 +1939,7 @@ html {
   margin: 8px 0 0;
 }
 
-.y-continue__note--device {
+.y-continue__device {
   color: var(--fg-subtle);
   font-family: var(--font-serif);
   font-size: var(--fs-12);

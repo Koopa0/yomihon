@@ -44,7 +44,7 @@ templ continueRow(row ContinueRow, lang wording.Lang) {
 			if row.Notice != "" {
 				<p class="y-continue__notice">{ row.Notice }</p>
 			}
-			<p class="y-continue__note--device">{ wording.MarkPerDevice.In(lang) }</p>
+			<p class="y-continue__device">{ wording.MarkPerDevice.In(lang) }</p>
 		</section>
 	}
 }
