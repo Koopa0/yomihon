@@ -148,3 +148,34 @@ func TestGenerationBasedOnReadsALoneString(t *testing.T) {
 		t.Errorf("BasedOn(Writing/Scalar.md) mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// TestGenerationBasedOnByInvertsTheDeclaration locks the direction a note
+// cannot state for itself. The original names nothing; what makes the pair is
+// the translation's own declaration, read the other way round.
+//
+// Only a value that placed one note inverts, so the ambiguous and unwritten
+// names below contribute nothing, and a note naming itself is not a pair.
+func TestGenerationBasedOnByInvertsTheDeclaration(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNote(t, root, "Sources/Book notes.md", "the notebook\n")
+	writeNote(t, root, "Writing/Zebra.md", "---\nbased_on: \"[[Book notes]]\"\n---\n\nno body link\n")
+	writeNote(t, root, "Writing/Apple.md", "---\nbased_on:\n  - Book notes\n---\n\nno body link\n")
+	writeNote(t, root, "Writing/Elsewhere.md", "---\nbased_on: \"[[nowhere]]\"\n---\n\nno body link\n")
+	writeNote(t, root, "Writing/Itself.md", "---\nbased_on: \"[[Itself]]\"\n---\n\nno body link\n")
+	store, _ := newTestStore(t, root, testContract(t, root))
+	gen := store.Current()
+
+	want := []nav.NoteRef{
+		{Name: "Apple", RelPath: "Writing/Apple.md"},
+		{Name: "Zebra", RelPath: "Writing/Zebra.md"},
+	}
+	if diff := cmp.Diff(want, gen.BasedOnBy("Sources/Book notes.md")); diff != "" {
+		t.Errorf("BasedOnBy(Sources/Book notes.md) mismatch (-want +got):\n%s", diff)
+	}
+	for _, rel := range []string{"Writing/Zebra.md", "Writing/Itself.md", "Writing/Elsewhere.md"} {
+		if got := gen.BasedOnBy(rel); got != nil {
+			t.Errorf("BasedOnBy(%q) = %+v, want nothing", rel, got)
+		}
+	}
+}

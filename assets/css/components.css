@@ -1330,6 +1330,13 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
   cursor: default;
 }
 .y-ttsbar__status { margin-left: auto; color: var(--fg-subtle); }
+/* What speech synthesis cannot be asked for, on its own line under the
+   controls it explains the absence of. */
+.y-ttsbar__limits {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--fg-subtle);
+}
 
 /* ============================================================
    Slot machine — interactive sentence-pattern practice.
@@ -1815,6 +1822,28 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-syl-metaspacer { flex: 1; }
 .y-syl-ready { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
 
+/* ============================================================
+   Listen — one course as the paragraphs its lessons are marked to be read
+   aloud in. The paragraphs are the notes' own read-aloud elements, so the
+   reading column's own rules carry them; what is here is the page around
+   them and the place the browser-built bar lands.
+   ============================================================ */
+.y-listen {
+  margin: 0 auto;
+  max-width: 800px;
+  padding: 44px 56px 120px;
+}
+.y-listen .y-title { margin-top: 12px; }
+.y-listen__none { margin-top: 24px; color: var(--fg-muted); }
+.y-listen__lesson { margin-top: 34px; }
+.y-listen__title {
+  font-family: var(--font-sans);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-medium);
+}
+.y-listen__title a { color: var(--fg); text-decoration: none; }
+.y-listen__title a:hover { color: var(--accent); }
+
 .y-part-block { margin-top: 30px; }
 .y-part { display: flex; align-items: baseline; gap: 14px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--border); scroll-margin-top: var(--header-clearance); }
 .y-part__num { flex: none; min-width: 24px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
@@ -2063,6 +2092,118 @@ html {
 
 
 /* ============================================================
+   Compare (two notes side by side)
+   ------------------------------------------------------------
+   Two reading columns need the width, so neither rail is drawn and each
+   column keeps its own scroller: the whole point of the page is moving
+   through one note while the other stays where the reader left it. Below the
+   width two columns fit in, the columns stack and the document scrolls, and
+   the strip above them carries a link to each so a reader can move between
+   them without scrolling past one whole note.
+   ============================================================ */
+.y-compare-shell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The strip holds nothing a reader can see while the columns are side by side
+   and no script is running, so its height comes from its children and it
+   collapses rather than leaving an empty bar over the reading. */
+.y-compare__tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.y-compare__tab {
+  display: none;
+}
+
+/* Keeping the columns level is the script's to do, so the control appears only
+   where a script marked the document. */
+.y-compare__align {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg-subtle);
+  cursor: pointer;
+  display: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+  margin: 8px 20px 0;
+  padding: 6px 12px;
+  text-transform: uppercase;
+}
+
+[data-js] .y-compare__align {
+  display: inline-flex;
+}
+
+.y-compare__align[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.y-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+/* minmax(0, 1fr) above and min-width here are the same guard written at both
+   ends: without it a long word, a wide table or a code block sets the column's
+   floor and the page grows sideways. */
+.y-compare__column {
+  max-height: calc(100dvh - var(--header-height));
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-margin-top: var(--header-clearance);
+}
+
+.y-compare__column + .y-compare__column {
+  border-left: 1px solid var(--border);
+}
+
+/* Half the page's width per note, so the reading measure gives back what the
+   note page spends on a gutter it no longer has room for. */
+.y-compare__column .y-article {
+  --article-gutter: 28px;
+}
+
+/* The aids fold inline inside every column at every width: the right rail that
+   would otherwise carry them is not drawn here, and one rail beside two notes
+   could not say which of them it spoke for. */
+.y-compare__column .y-inlineaids {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin: 26px 0 6px;
+}
+
+.y-compare__head {
+  align-items: center;
+  border-bottom: 1px solid var(--border-faint);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 12px 28px;
+}
+
+.y-compare__alone {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+
+/* ============================================================
    Responsive
    ============================================================ */
 @media (min-width: 1281px) {
@@ -2075,6 +2216,52 @@ html {
   details.y-metarow { display: none; }
   .y-headmeta { display: flex; }
 }
+/* One column at a time, the document scrolling, and the strip pinned under the
+   header so the other note is always one press away. Levelling two columns
+   that are no longer beside one another means nothing, so that control goes. */
+@media (max-width: 1100px) {
+  .y-compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .y-compare__column {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .y-compare__column + .y-compare__column {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .y-compare__tabs {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    justify-content: flex-start;
+    position: sticky;
+    top: var(--header-height);
+    z-index: 5;
+  }
+
+  .y-compare__tab {
+    color: var(--fg-subtle);
+    display: inline-flex;
+    font-family: var(--font-mono);
+    font-size: var(--fs-11);
+    letter-spacing: 0.06em;
+    max-width: 50%;
+    overflow: hidden;
+    padding: 12px 14px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  [data-js] .y-compare__align {
+    display: none;
+  }
+}
+
 @media (max-width: 1280px) {
   .y-shell { grid-template-columns: 248px minmax(0, 1fr); }
   .y-rail-right { display: none !important; }
@@ -2087,6 +2274,7 @@ html {
   .y-homeblock__head p { margin-left: 0; text-align: left; }
   .y-homenote { align-items: flex-start; }
   .y-homenote__meta { align-items: flex-end; flex-direction: column; }
+  .y-listen { padding: 32px 20px 120px; }
   .y-module { padding-left: 16px; }
   .y-lessons { padding-left: 24px; }
   .y-lesson { gap: 10px; }
@@ -2185,7 +2373,7 @@ html {
 
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
-  .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview,
+  .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview, .y-compare__tabs,
   .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions, .y-facets {
     display: none !important;
   }
@@ -2226,6 +2414,21 @@ html {
   .y-findings__sort::after { content: none; }
   .y-shell, .y-shell2 { display: block; }
   .y-main { min-width: 0; }
+  /* Two notes come off the press one after the other, each opening a sheet.
+     A scroll box cannot be paged, so what the reader would have scrolled to
+     would simply not be printed; and two columns of unequal length side by
+     side leave every sheet half empty from wherever the shorter one ends. */
+  .y-compare { display: block; }
+
+  .y-compare__column {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .y-compare__column + .y-compare__column {
+    border-left: 0;
+    break-before: page;
+  }
   /* Paper has edges the screen does not, and a block that runs across one
      comes back cut with no way to rejoin it: half a diagram, a listing whose
      indentation restarts, an excerpt separated from the line naming the note

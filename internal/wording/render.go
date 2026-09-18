@@ -75,6 +75,16 @@ var (
 	ReadAloudProgressFmt = both("第 {n} 段，共 {total} 段", "Paragraph {n} of {total}")
 )
 
+// ReadAloudLimits says what the platform cannot do, where the reader meets the
+// controls that would otherwise be missing. Speech synthesis reports no
+// reliable length for what it is about to say, so there is nothing to draw a
+// position against and nothing to drag; a control that pretended otherwise
+// would be lying about where the voice is. It is said on the page that reads a
+// whole course aloud, which is where a reader would look for a scrubber.
+var ReadAloudLimits = both(
+	"語音合成不會回報可靠的長度，所以這裡沒有進度條、沒有已播時間，也不能拖曳。段落就是移動的單位：連續朗讀、停止、上一段、下一段、速度。",
+	"Speech synthesis reports no reliable duration, so there is no seek bar, no elapsed time, and nothing to drag. A paragraph is the unit of navigation: play through, stop, previous, next, and rate.")
+
 // TitleOnlyTargetFmt is said where a citation names a note's declared title.
 // The note exists; the name it was written under is not one a link finds,
 // which is what the vault's own reader does with it too. Saying there is no
