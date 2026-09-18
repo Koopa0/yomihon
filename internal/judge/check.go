@@ -46,9 +46,9 @@ func runCheckAction(ctx context.Context, root string, paths []string, all bool) 
 }
 
 func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
-	idx := buildIndex(a.notes, a.resources)
+	idx := buildIndex(a.notes, a.unreadable, a.resources)
 
-	findings := runGraphRules(a.notes, idx, a.authority)
+	findings := runGraphRules(a, idx)
 	findings = append(findings, checkDiskRefs(a.notes, a.scan, a.authority)...)
 	schemaFindings, err := checkSchema(a.notes, a.authority.contract)
 	if err != nil {
@@ -59,6 +59,9 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	findings = append(findings, checkSkipped(a.scan)...)
 	findings = append(findings, calloutTitleFindings(a.notes)...)
 
+	if a.partialCorpus() {
+		findings = dropWithheldOnPartialCorpus(findings)
+	}
 	findings = dropEgressDenied(findings, a.authority)
 	if !all {
 		findings = dropOutsideKnowledgeScope(findings, a.authority.contract.KnowledgeScope())
@@ -70,16 +73,31 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 		}
 		findings = filtered
 	}
+	// Last, and so past every filter above. A scope names the ground a reader
+	// wants judged; it does not make the hole in the judgement somebody else's
+	// business, and a filter that kept the missing rules while removing the
+	// sentence explaining them would leave a report that reads complete.
+	findings = append(findings, checkUnreadable(a.unreadable, a.authority)...)
 	sortFindings(findings)
 	return findings, nil
 }
 
-// buildIndex builds the wikilink resolver from the collected notes and
-// resources, keying each note by its path forms and its genuine string aliases.
-func buildIndex(notes []note, resources []string) *graph.Index {
-	inputs := make([]graph.NoteInput, len(notes))
+// buildIndex builds the wikilink resolver from the collected notes, the files
+// that could not be read, and the resources, keying each note by its path forms
+// and its genuine string aliases.
+//
+// A file nothing was read from still answers to its own name, which the scan
+// gave and no read was needed for. Left out, a name two files share would
+// resolve to whichever of them opened, and the fragment rules would go on to
+// judge that note's headings against an address written for the other one.
+// Inside, the same name resolves to neither, which is the truth about it.
+func buildIndex(notes []note, unreadable []unreadableEntry, resources []string) *graph.Index {
+	inputs := make([]graph.NoteInput, 0, len(notes)+len(unreadable))
 	for i := range notes {
-		inputs[i] = graph.NoteInput{RelPath: notes[i].path, Aliases: notes[i].aliases}
+		inputs = append(inputs, graph.NoteInput{RelPath: notes[i].path, Aliases: notes[i].aliases})
+	}
+	for _, entry := range unreadable {
+		inputs = append(inputs, graph.NoteInput{RelPath: entry.path})
 	}
 	return graph.BuildFromNotes(inputs, resources)
 }

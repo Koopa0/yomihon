@@ -30,7 +30,9 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 		}
 		if len(s.Rows) == 0 {
 			if s.Empty != "" {
-				<p class="y-homeempty">{ s.Empty }</p>
+				@nothingToShow(nothingNotice{Kind: "shelf"}) {
+					<p>{ s.Empty }</p>
+				}
 			}
 		} else {
 			for _, row := range shelfRows(&s, limit) {
