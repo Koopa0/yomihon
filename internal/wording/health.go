@@ -97,6 +97,15 @@ var (
 	HealthColumnCount    = both("次數", "Count")
 )
 
+// HealthShapeFilesOne and HealthShapeFilesMany name the distinct files the
+// report's own line counts — the same word the header row uses for the
+// column, carrying the count the table's file column would total if a
+// reader counted it by hand.
+var (
+	HealthShapeFilesOne  = both("%d 個檔案", "%d file")
+	HealthShapeFilesMany = both("%d 個檔案", "%d files")
+)
+
 // HealthGuideTitle opens what each kind of finding in the table means. The
 // explanations sit under the table rather than over it: a reader who came to
 // decide what to repair first wants the rows, and a reader who does not know

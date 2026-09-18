@@ -159,6 +159,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 templ healthFindings(v HealthView, c layouts.Chrome) {
 	{{ rows := v.rows(c.Lang) }}
 	if len(rows) > 0 {
+		@healthShapeLine(healthShapeOf(rows), c.Lang)
 		<table class="y-findings">
 			<thead>
 				<tr>
@@ -194,7 +195,7 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 						</td>
 						<td class="y-findings__severity" data-col={ wording.HealthColumnSeverity.In(c.Lang) }>
 							if row.Weighed {
-								<span class={ "y-severity", "y-severity--" + row.Severity.String() } lang="en">{ row.Severity.String() }</span>
+								@healthSeverityBadge(row.Severity)
 							}
 						</td>
 						<td class="y-findings__count" data-col={ wording.HealthColumnCount.In(c.Lang) }>{ strconv.Itoa(row.Count) }</td>
@@ -203,6 +204,44 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 			</tbody>
 		</table>
 		@healthGuide(v, healthTallies(rows), c)
+	}
+}
+
+// healthSeverityBadge is the weight the judging face gives a finding, in that
+// face's own word. It is marked English because that vocabulary never
+// localises, and it is one component rather than two copies of the same
+// three classes so the table's rows and the shape line above them are always
+// drawn from the same mark.
+templ healthSeverityBadge(s judge.Severity) {
+	<span class={ "y-severity", "y-severity--" + s.String() } lang="en">{ s.String() }</span>
+}
+
+// healthShapeLine states the table's own shape before a reader scrolls it:
+// each weight the judge names among its findings, heaviest first, and how
+// many files the whole table touches. Every number is tallied off the same
+// rows the table draws below, so the two cannot disagree, and a weight is a
+// link to the table ordered by it — the ordering the header row already
+// answers, named once in HealthBySeverity rather than written out a second
+// time here. A kind no rule weighs still names a file, so Files can exceed
+// what the weights beside it add up to; the line does not pretend otherwise
+// by summing them into a total of its own.
+templ healthShapeLine(shape healthShape, lang wording.Lang) {
+	if shape.Files > 0 {
+		<p class="y-healthshape">
+			for i, weight := range shape.Weights {
+				if i > 0 {
+					<span aria-hidden="true">·</span>
+				}
+				<a class="y-healthshape__weight" href={ templ.URL(HealthBySeverity.href()) }>
+					@healthSeverityBadge(weight.Severity)
+					{ " " }{ strconv.Itoa(weight.Count) }
+				</a>
+			}
+			if len(shape.Weights) > 0 {
+				<span aria-hidden="true">·</span>
+			}
+			<span>{ plural(shape.Files, wording.HealthShapeFilesOne, wording.HealthShapeFilesMany, lang) }</span>
+		</p>
 	}
 }
 
