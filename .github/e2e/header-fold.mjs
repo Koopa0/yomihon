@@ -1,5 +1,6 @@
 // Browser lock for the header row at the widths where it cannot hold
-// everything. Five of its controls say nothing about the note being read — the
+// everything. Six of its controls are somewhere to go or something to set
+// rather than anything about the note being read — the whole-folder view, the
 // reading choices, the text size, the keyboard explanation, the language and
 // the theme — and below the width the stylesheet names they gather behind one
 // button that opens a popover. Above that width the box around them dissolves
@@ -7,7 +8,7 @@
 //
 // What is asked here is what a reader can see and reach, measured rather than
 // read off the stylesheet: at each width the row fits inside the window, the
-// wordmark keeps all of its letters, the five are either all in the row or all
+// wordmark keeps all of its letters, the six are either all in the row or all
 // behind the button and never half of each, and each of them exists exactly
 // once in the document — a control that had been copied into the panel would
 // pass every visibility question and still be two controls with one name. Then
@@ -21,7 +22,7 @@ const MUTATE = process.env.MUTATE || '';
 
 // The width the stylesheet folds at, and the widths the row is asked about.
 // FOLD is the first width that holds the whole row; one pixel under it the
-// five are behind the button. Naming both sides is what makes a breakpoint
+// six are behind the button. Naming both sides is what makes a breakpoint
 // that has moved in either direction show up here.
 const FOLD = 938;
 const WIDE = [1280, FOLD];
@@ -29,7 +30,10 @@ const NARROW = [FOLD - 1, 720, 521, 390, 375];
 
 // Each folded control, named by the hook that survives a restyling: the class
 // the stylesheet already dresses, or the attribute the runtime already finds.
+// Written in the order the wide row draws them, which is the order the panel
+// lists them in — the row and the panel are one list read two ways.
 const FOLDED = [
+  '.y-healthlinkbtn',
   '.y-prefslink',
   '[data-textsize-toggle]',
   '[popovertarget="kbd-help"]',
@@ -46,6 +50,7 @@ const SITES = [
   'wordmark-whole',
   'moved-not-copied',
   'names-intact',
+  'panel-draws-every-control',
   'panel-fits',
   'light-dismiss',
   'keyboard-reaches-and-closes',
@@ -140,6 +145,16 @@ const MUTATIONS = {
     target: 'names-intact',
     phase: 'after-row-names',
     apply: (page) => changeOne(page, '[data-theme-toggle]', { kind: 'attribute', name: 'aria-label', value: 'theme' }),
+  },
+  // The rule the whole-folder entrance used to answer a narrow row with, put
+  // back: it is in the panel's markup but drawn nowhere, so the reader has no
+  // way to that page at all.
+  'leave-the-health-entry-hidden': {
+    target: 'panel-draws-every-control',
+    apply: async (page) => {
+      if (await page.locator('.y-healthlinkbtn').count() !== 1) notApplied('there is no whole-folder entrance for the injected rule to hide');
+      await page.addStyleTag({ content: '@media (max-width: 900px) { .y-healthlinkbtn { display: none; } }' });
+    },
   },
   // The panel is wider than the window it opens over.
   'widen-the-panel-past-the-window': {
@@ -292,7 +307,7 @@ try {
       } else {
         const loose = Object.entries(row.folded).filter(([, seen]) => seen.shown).map(([selector]) => selector);
         if (loose.length > 0 || !(row.foldButton.shown && row.foldButton.inBand)) {
-          fail('row-folded-below', `${where}: the five belong behind the button here; still drawn = ${JSON.stringify(loose)}, fold button in the row = ${JSON.stringify(row.foldButton)}`);
+          fail('row-folded-below', `${where}: the folded controls belong behind the button here; still drawn = ${JSON.stringify(loose)}, fold button in the row = ${JSON.stringify(row.foldButton)}`);
         }
       }
 
@@ -349,6 +364,26 @@ try {
       }
     }
 
+    // Present in the panel's markup is not the same as offered to the reader.
+    // A control the stylesheet still hides at some width would keep its name
+    // and its single element and answer every question above, while the panel
+    // it is supposed to be in draws one fewer than it holds.
+    const drawn = await page.evaluate(({ folded, panelSelector }) => {
+      const box = document.querySelector(panelSelector).getBoundingClientRect();
+      return folded.filter((selector) => {
+        const element = document.querySelector(selector);
+        if (!element || !element.checkVisibility()) return true;
+        const rect = element.getBoundingClientRect();
+        // Inside the panel, not merely somewhere on the page: a control left
+        // out on the row would be visible and would not belong here.
+        return !(rect.left >= box.left - 1 && rect.right <= box.right + 1 &&
+                 rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1);
+      });
+    }, { folded: FOLDED, panelSelector: PANEL });
+    if (drawn.length > 0) {
+      fail('panel-draws-every-control', `${language}: the open panel does not draw ${JSON.stringify(drawn)} inside itself, so the reader is offered fewer controls than the panel holds`);
+    }
+
     const panel = await page.evaluate((selector) => {
       const ruler = document.createElement('div');
       ruler.style.cssText = 'position:fixed;inset:0;pointer-events:none;visibility:hidden';
@@ -371,7 +406,7 @@ try {
       fail('panel-fits', `${language}: the open panel is not wholly inside the window — ${JSON.stringify(panel)}`);
     }
 
-    // Tab walks into the panel rather than past it: every one of the five is
+    // Tab walks into the panel rather than past it: every one of them is
     // reachable while it is open, in the order they are written.
     const order = [];
     for (let press = 0; press < FOLDED.length; press += 1) {
@@ -379,7 +414,7 @@ try {
       order.push(await page.evaluate((selectors) => selectors.findIndex((selector) => document.activeElement?.matches(selector) ?? false), FOLDED));
     }
     if (order.join(',') !== FOLDED.map((_, index) => index).join(',')) {
-      fail('keyboard-reaches-and-closes', `${language}: tabbing through the open panel reached ${JSON.stringify(order)}, want each of the five in turn (-1 is somewhere else)`);
+      fail('keyboard-reaches-and-closes', `${language}: tabbing through the open panel reached ${JSON.stringify(order)}, want each of them in turn (-1 is somewhere else)`);
     }
 
     // A press beside the panel puts it away, which is the whole reason it is
@@ -429,7 +464,7 @@ try {
     await context.close();
   }
 
-  console.log('PASS header-fold: below the measured width the five interface controls are behind one button and above it they are the row itself, one of each, names and states intact, the row inside the window and the wordmark whole, and the panel answers the keyboard and a press beside it');
+  console.log('PASS header-fold: below the measured width the six folded controls are behind one button and above it they are the row itself, one of each, names and states intact, the row inside the window and the wordmark whole, and the panel answers the keyboard and a press beside it');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

@@ -247,14 +247,20 @@ html, body { margin: 0; background: var(--bg); }
 
 .y-hamburger { display: none; }
 
-/* Five of the header's controls say nothing about the note being read — the
-   reading choices, the text size, the keyboard explanation, the language and
-   the theme — and below 938px the row can no longer hold them all. 938px is
-   measured, not chosen: at 937 the English chrome, the wider of the two, has
-   begun shortening the wordmark to make room, and the name of the thing being
-   read is not what should pay for a control that is not about it. Under that
-   width the five sit inside a popover this button opens, which brings the
-   browser's own light dismiss, Escape, and focus return with it.
+/* Six of the header's controls are somewhere to go or something to set rather
+   than anything about the note being read — the whole-folder view, the reading
+   choices, the text size, the keyboard explanation, the language and the theme
+   — and below 938px the row can no longer hold them all. 938px is measured,
+   not chosen: at 937 the English chrome, the wider of the two, has begun
+   shortening the wordmark to make room, and the name of the thing being read
+   is not what should pay for a control that is not about it. Under that width
+   the six sit inside a popover this button opens, which brings the browser's
+   own light dismiss, Escape, and focus return with it.
+
+   One width serves both languages, though the Traditional Chinese row holds
+   out until 617. One breakpoint is one layout; a width per language would be a
+   second layout to keep true, and a media query cannot see which language the
+   page is in to choose between them.
 
    At 938px and above the box around them dissolves: display: contents leaves
    its children as the row's own flex items, in the order they are written, so
@@ -1821,19 +1827,17 @@ html {
   .y-findings__count { text-align: left; }
 }
 
-/* The whole-folder view's entrance. It stays out on the row at the widths
-   where it is drawn at all, with the search and the readings switch rather
-   than behind the folded group, because a reader reaches for it in the middle
-   of reading — it answers what is wrong with what is in front of them. */
+/* The whole-folder view's entrance. It is a destination rather than something
+   read from, so on a window too narrow for the whole row it folds away with
+   the other destinations instead of disappearing: a reader who cannot see it
+   can still reach it, which is not what the width it used to vanish at
+   offered. */
 .y-healthlinkbtn {
   padding: 5px 9px; border-radius: var(--r-sm); font-family: var(--font-mono);
   font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none;
   white-space: nowrap;
 }
 .y-healthlinkbtn:hover { background: var(--overlay); color: var(--fg); }
-@media (max-width: 900px) {
-  .y-healthlinkbtn { display: none; }
-}
 
 /* The reading choices, reached by a word rather than a gear, because a gear
    promises a machine and what is behind this one is seven sentences, so the

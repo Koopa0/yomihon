@@ -91,13 +91,12 @@ templ header(c Chrome) {
 			<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
 			<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
 		</button>
-		<a class="y-healthlinkbtn" href="/health">{ wording.HealthTitle.In(c.Lang) }</a>
-		// Five of the row's controls say nothing about the note in front of the
-		// reader: they set how the interface itself reads. Below the width
-		// where the row can no longer hold everything — the stylesheet holds
-		// that width, measured — they gather behind this one button, so what
-		// gives way is a control nobody is looking at rather than the name of
-		// the thing being read.
+		// Six of the row's controls are somewhere to go or something to set
+		// rather than anything about the note in front of the reader. Below the
+		// width where the row can no longer hold everything — the stylesheet
+		// holds that width, measured — they gather behind this one button, so
+		// what gives way is a control nobody is looking at rather than the name
+		// of the thing being read.
 		//
 		// They are not drawn a second time for the panel. The same elements
 		// are in the row at wider windows, because there the box around them
@@ -109,9 +108,16 @@ templ header(c Chrome) {
 			<span aria-hidden="true">⋯</span>
 		</button>
 		// What the panel holds is written as a plain sequence of controls
-		// rather than a fixed block of five, so a control that belongs with
-		// these is added by writing one more of them.
+		// rather than a fixed block, so a control that belongs with these is
+		// added by writing one more of them. They stand in the order the wide
+		// row draws them, because that order is the same list read two ways and
+		// a reader who learned one of them has learned the other.
 		<div id="header-fold" popover class="y-headerfold">
+			// The whole-folder view is a destination, like the reading choices
+			// under it: somewhere to go when not reading anything in particular.
+			// It used to disappear on a narrow window while the reading choices
+			// stayed, which made two answers out of one question; now both fold.
+			<a class="y-healthlinkbtn" href="/health">{ wording.HealthTitle.In(c.Lang) }</a>
 			// The way to the reading choices is a word rather than a gear, because
 			// a gear promises a machine and what is behind this one is seven
 			// sentences. It carries the page the reader is on, so applying a choice
