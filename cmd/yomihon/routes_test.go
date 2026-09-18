@@ -50,6 +50,11 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 		{"the map index", "/maps"},
 		{"the report index", "/reports"},
 		{"the folder index", "/folders"},
+		{"the journal at this month", "/journal"},
+		{"the journal at a named month", "/journal?month=2026-07"},
+		// A month that is not one falls back to the month the reader is in, so
+		// this answers rather than redirecting or refusing.
+		{"the journal at a month that is not one", "/journal?month=banana"},
 		{"one study path", "/syllabus/Maps/study.md"},
 		{"one map", "/notes/Maps/reading.md"},
 		{"one briefing", "/reports/2026-09-03.html"},
@@ -91,6 +96,7 @@ func writeDeskFixture(t *testing.T, root string) {
 		"Maps/study.md":                                 "---\ntitle: Study Path\ntype: study-path\n---\n\n# Study Path\n\n## Part One\n\n- [[alpha]]\n",
 		"Maps/reading.md":                               "---\ntitle: Reading Map\ntype: topic-map\n---\n\n# Reading Map\n\n## Branch\n\n- [[alpha]]\n",
 		"Concepts/alpha.md":                             "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\n\n# Alpha\n",
+		"Diary/2026-07-10.md":                           "# A journal entry\n",
 		"System/reports/2026-09-02.md":                  "# Written report\n",
 		"System/reports/daily-briefing/2026-09-03.html": "<p>briefing</p>\n",
 	}

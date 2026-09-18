@@ -237,29 +237,31 @@ func TestFolderStepFromANoteStepsOverAssets(t *testing.T) {
 
 // The journal drawer is the one projection that had not moved off file times,
 // and it is the one where they mean least: a clone stamps every entry with one
-// moment, and an entry edited today is not today's entry. It orders by the
-// entries' own names now — newest first — which is the same reading order the
-// folder tree beside it uses.
-func TestJournalOrdersByTheEntriesOwnNames(t *testing.T) {
+// moment, and an entry edited today is not today's entry. It orders by the day
+// each entry is for — newest first — and an entry that carries no day at all
+// falls to the end rather than sorting among the days it never named.
+func TestJournalOrdersByTheDayEachEntryIsFor(t *testing.T) {
 	t.Parallel()
 
-	paths := []string{
-		"Diary/2025-08-04.md",
-		"Diary/2025-08-05.md",
-		"Diary/2025-08-06.md",
-		"Concepts/not a journal.md",
-	}
 	// Times that would order them backwards if times still decided: the oldest
 	// entry touched most recently is exactly what a checkout or a typo fix does.
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	mtimes := map[string]time.Time{
-		"Diary/2025-08-04.md": base.AddDate(0, 0, 3),
-		"Diary/2025-08-05.md": base.AddDate(0, 0, 2),
-		"Diary/2025-08-06.md": base,
+	files := []capturedFile{
+		{path: "Diary/2025-08-04.md", modified: base.AddDate(0, 0, 3)},
+		{path: "Diary/2025-08-05.md", modified: base.AddDate(0, 0, 2)},
+		{path: "Diary/loose thoughts.md", modified: base.AddDate(0, 0, 4)},
+		{path: "Diary/2025-08-06.md", modified: base},
+		{path: "Concepts/not a journal.md", modified: base},
 	}
 
-	got := buildJournal(paths, mtimes, testContract(t).JournalDir())
-	want := []string{"Diary/2025-08-06.md", "Diary/2025-08-05.md", "Diary/2025-08-04.md"}
+	contract := testContract(t)
+	got := buildJournal(files, contract.JournalDir(), contract.AuthoredDate())
+	want := []string{
+		"Diary/2025-08-06.md",
+		"Diary/2025-08-05.md",
+		"Diary/2025-08-04.md",
+		"Diary/loose thoughts.md",
+	}
 	gotPaths := make([]string, 0, len(got))
 	for _, e := range got {
 		gotPaths = append(gotPaths, e.RelPath)

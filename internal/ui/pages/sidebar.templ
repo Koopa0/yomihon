@@ -90,7 +90,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 					</div>
 				</details>
 			}
-			if journal := sb.Model.JournalClosure(); journal.Closed() || len(sb.Model.Journal()) > 0 {
+			if journal := sb.Model.JournalClosure(); journal.Closed() || sb.Model.JournalCount() > 0 {
 				<div class="y-railsep" aria-hidden="true"></div>
 				<details open?={ sb.journalOpen() } data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
 					<summary class="y-railsummary">
@@ -103,8 +103,11 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 								@browserDiagnostic(wording.JournalUnavailable.In(c.Lang), journal.Diagnostic())
 							</p>
 						}
-						for _, entry := range sb.Model.Journal() {
+						for _, entry := range sb.recentJournal() {
 							<a class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) } href={ templ.URL(notesHref(entry.RelPath)) } data-sidebar-journal-entry { currentAttr(sb.current(entry.RelPath))... }>{ entry.Title }</a>
+						}
+						if sb.Model.JournalCount() > 0 {
+							<a class="ui-navitem y-shelfall" href={ templ.URL(indexHref(journalMode)) } data-sidebar-journal-all>{ wording.ShelfAll.In(c.Lang) }</a>
 						}
 					</div>
 				</details>

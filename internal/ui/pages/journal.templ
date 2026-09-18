@@ -1,0 +1,85 @@
+package pages
+
+import "github.com/koopa0/yomihon/internal/ui/layouts"
+
+// JournalIndex is the journal's own page, opened at one month. A journal is
+// read by date, so the month comes first as a month — a table a screen reader
+// announces as a calendar and paper prints as one — and the same rows every
+// other shelf draws follow underneath, so nothing the plain list gave is lost.
+//
+// It carries no left rail, as the other index pages do not: the rail is the
+// thing being read, and a list beside a copy of itself is a second
+// organisation of the same notes.
+templ JournalIndex(v JournalView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ journalMode }>
+			<div class="y-home">
+				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
+				if v.Fault != "" {
+					@indexFault(v.Fault, c)
+				} else {
+					@monthCalendar(v.Grid)
+					if len(v.Entries.Rows) == 0 && v.Entries.Empty != "" {
+						<p class="y-homeempty" data-index-empty>{ v.Entries.Empty }</p>
+					}
+					@ShelfPage(v.Entries)
+					if len(v.Undated.Rows) > 0 {
+						<section class="y-undated" aria-labelledby="journal-undated-title" data-journal-undated>
+							<h2 id="journal-undated-title" class="y-railsummary y-railsummary--label">{ v.Undated.Title }</h2>
+							@ShelfPage(v.Undated)
+						</section>
+					}
+				}
+			</div>
+		</main>
+	}
+}
+
+// monthCalendar is one month of the journal: the way out on either side, then
+// the month itself as a table. The caption names the month, the column headings
+// name the weekdays, and each day that was written on carries a link for every
+// entry written that day.
+templ monthCalendar(g MonthGrid) {
+	<nav class="y-months" aria-label={ g.NavLabel }>
+		if g.Earlier.Href != "" {
+			<a class="y-months__step" rel="prev" href={ templ.URL(g.Earlier.Href) }>{ g.Earlier.Text }</a>
+		}
+		if g.Later.Href != "" {
+			<a class="y-months__step y-months__step--later" rel="next" href={ templ.URL(g.Later.Href) }>{ g.Later.Text }</a>
+		}
+	</nav>
+	<table class="y-month">
+		<caption class="y-month__caption">{ g.Caption }</caption>
+		<thead>
+			<tr>
+				for _, name := range g.Weekdays {
+					<th class="y-month__weekday" scope="col">{ name }</th>
+				}
+			</tr>
+		</thead>
+		<tbody>
+			for _, week := range g.Weeks {
+				<tr>
+					for _, cell := range week {
+						@monthDay(cell)
+					}
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+// monthDay is one square. A square outside the month holds the table's shape
+// and nothing else, so it says so rather than carrying a day it does not have.
+templ monthDay(cell DayCell) {
+	if cell.Date == "" {
+		<td class="y-month__cell y-month__cell--outside"></td>
+	} else {
+		<td class={ "y-month__cell", templ.KV("y-month__cell--written", len(cell.Entries) > 0) } data-journal-day={ cell.Date }>
+			<time class="y-month__day" datetime={ cell.Date }>{ cell.Number }</time>
+			for _, entry := range cell.Entries {
+				<a class="y-month__entry" href={ templ.URL(entry.Href) } data-journal-entry { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</a>
+			}
+		</td>
+	}
+}

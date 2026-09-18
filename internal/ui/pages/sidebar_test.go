@@ -70,7 +70,15 @@ func buildModel(t *testing.T) *nav.Model {
 		// A Sources note with no frontmatter at all (a legal shape).
 		"Sources/articles/Other.md": "just prose, no frontmatter\n",
 		"Sources/articles/Raw.md":   "raw clipping, no frontmatter\n",
-		// Journal entries deliberately have no frontmatter.
+		// Journal entries deliberately have no frontmatter. There are more of
+		// them than the rail's drawer shows, so a recording of that drawer is a
+		// recording of it narrowing rather than of a journal that happens to be
+		// short.
+		"Diary/2026-07-02.md": "# Two\n",
+		"Diary/2026-07-03.md": "# Three\n",
+		"Diary/2026-07-04.md": "# Four\n",
+		"Diary/2026-07-05.md": "# Five\n",
+		"Diary/2026-07-06.md": "# Six\n",
 		"Diary/2026-07-09.md": "# Earlier\n",
 		"Diary/2026-07-10.md": "# Latest\n",
 		// A file at the vault root, belonging to no folder: the folder shelf
@@ -363,6 +371,44 @@ func TestSidebarContentGrouping(t *testing.T) {
 // reader gets outside Home: a note opened straight from the command palette
 // never renders Home, so a contract whose declarations could not be read has to
 // say so in the rail or nowhere.
+// TestJournalDrawerShowsTheNewestFewAndOffersTheRest holds the rail to being a
+// way into the journal rather than the journal. The model carries every entry,
+// because the journal's own page reads a month of them at a time; the drawer
+// shows the newest few and ends by offering the rest, which is the same shape
+// every other shelf's corner has.
+func TestJournalDrawerShowsTheNewestFewAndOffersTheRest(t *testing.T) {
+	t.Parallel()
+
+	model := buildModel(t)
+	if model.JournalCount() <= journalRailEntries {
+		t.Fatalf("the fixture journal holds %d entries, which the drawer could show whole, so nothing here shows it narrowing", model.JournalCount())
+	}
+
+	var buf bytes.Buffer
+	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+
+	if got := strings.Count(html, "data-sidebar-journal-entry"); got != journalRailEntries {
+		t.Errorf("the drawer lists %d entries, want %d", got, journalRailEntries)
+	}
+	for _, want := range []string{
+		`data-sidebar-journal-entry>2026-07-10</a>`,
+		`data-sidebar-journal-entry>2026-07-04</a>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the drawer is missing one of its newest entries: %q", want)
+		}
+	}
+	if strings.Contains(html, `data-sidebar-journal-entry>2026-07-03</a>`) {
+		t.Error("the drawer lists past its own limit")
+	}
+	if !strings.Contains(html, `href="/journal" data-sidebar-journal-all>`) {
+		t.Error("the drawer lists a few entries and never offers the rest of the journal")
+	}
+}
+
 func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	t.Parallel()
 

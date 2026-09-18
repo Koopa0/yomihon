@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
@@ -135,6 +136,13 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// interface's words, and only a recording in both languages shows
 		// neither was left behind in one of them.
 		{"report-index-page-english", ListIndex(recordedReportIndexView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
+		// The journal at a month, in both languages it is read in. The days are
+		// the vault's own either way; the month's name, the weekday headings,
+		// the steps to the months on either side and what an entry that wrote
+		// no day is gathered under are all the interface's own words, and only
+		// a recording in both shows none of them was left behind in one.
+		{"journal-index-page", JournalIndex(recordedJournalView(recordedChrome().Lang), recordedChrome())},
+		{"journal-index-page-english", JournalIndex(recordedJournalView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
@@ -544,6 +552,30 @@ func recordedReportIndexView(lang wording.Lang) ListIndexView {
 		{Name: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
 	}, lang, nil)
 }
+
+// recordedJournalView is the journal opened at a month written in unevenly:
+// days with an entry and days without, one day carrying two, and one entry
+// whose declared day disagrees with the name of its own file. Under the month
+// sits an entry that wrote no day at all, which belongs to no month and would
+// otherwise never be recorded anywhere. Both months either side hold something,
+// so both ways out are drawn.
+func recordedJournalView(lang wording.Lang) JournalView {
+	entries := []nav.JournalEntry{
+		{Title: "2026-08-03", RelPath: "Diary/2026-08-03.md", Date: "2026-08-03"},
+		{Title: "2026-07-20 夜", RelPath: "Diary/2026-07-20 夜.md", Date: "2026-07-20"},
+		{Title: "2026-07-20", RelPath: "Diary/2026-07-20.md", Date: "2026-07-20"},
+		{Title: "week in Kyoto", RelPath: "Diary/week in Kyoto.md", Date: "2026-07-13"},
+		{Title: "2026-07-01", RelPath: "Diary/2026-07-01.md", Date: "2026-07-01"},
+		{Title: "2026-06-28", RelPath: "Diary/2026-06-28.md", Date: "2026-06-28"},
+		{Title: "loose thoughts", RelPath: "Diary/loose thoughts.md"},
+	}
+	return NewJournalIndex(entries, recordedJournalMonth, nav.Closure{}, lang, nil)
+}
+
+// recordedJournalMonth is the month every recording, test and probe of the
+// journal names. It is written out rather than read from a clock, so what these
+// files lock says the same thing tomorrow.
+var recordedJournalMonth = MonthOf(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC))
 
 // recordedWithheldIndexView is a mode index whose declaration could not be
 // read: no rows, and the reason in place of the sentence about a vault that
