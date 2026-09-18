@@ -117,6 +117,7 @@ type Generation struct {
 	concepts       lesson.ConceptIndex
 	planned        judge.Planned
 	backlinks      *Backlinks
+	basedOnBy      *basedOnBy
 	health         Health
 	artifactPolicy schema.ArtifactPolicy
 	privacyPolicy  schema.PrivacyPolicy
@@ -206,6 +207,17 @@ func (g *Generation) BasedOn(relPath string) []nav.NoteRef {
 		return nil
 	}
 	return projectBasedOn(g.parsed[relPath], g.graph)
+}
+
+// BasedOnBy returns the notes that declared relPath in their own based_on, by
+// the name each shows. It is the same declaration read the other way round —
+// a translation names the original, and the original has no way to name the
+// translation — so both answers come from one projection of one generation.
+func (g *Generation) BasedOnBy(relPath string) []nav.NoteRef {
+	if g == nil {
+		return nil
+	}
+	return g.basedOnBy.of(relPath)
 }
 
 // Freshness reports how the generation this view holds relates to the folder on
@@ -823,6 +835,7 @@ func buildGeneration(
 
 	planned := judge.NewPlanned(noteBodies(g.ordered), contract)
 	backlinks := newBacklinks(g.ordered, graphIndex)
+	sources := newBasedOnBy(g.ordered, graphIndex)
 	gen := &Generation{
 		graph:          graphIndex,
 		navigation:     navigation,
@@ -831,6 +844,7 @@ func buildGeneration(
 		concepts:       concepts,
 		planned:        planned,
 		backlinks:      backlinks,
+		basedOnBy:      sources,
 		health:         newHealth(g.ordered, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
 		artifactPolicy: capabilities.Artifacts,
 		navRoles:       capabilities.Navigation,
