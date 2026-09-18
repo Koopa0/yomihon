@@ -70,7 +70,11 @@ const rewriteDocument = (replacements, label) => async (page) => {
   };
 };
 
-const SEALBAR_OPEN = '</div><section class="y-sealbar"';
+// The bar's own opening tag and nothing before it: what closes above it is
+// whatever the note happened to earn — a prose column, or the folder steps a
+// second note in the same folder gives it — and a needle that spelled one of
+// those stops matching the day the note gains the other.
+const SEALBAR_OPEN = '<section class="y-sealbar"';
 const SEALBAR_CLOSE = '</section></article></main>';
 
 const MUTATIONS = {
@@ -110,7 +114,7 @@ const MUTATIONS = {
   'move-bar-outside-article': {
     target: 'inside-article',
     apply: rewriteDocument([
-      [SEALBAR_OPEN, '</div></article><section class="y-sealbar"'],
+      [SEALBAR_OPEN, '</article><section class="y-sealbar"'],
       [SEALBAR_CLOSE, '</section></main>'],
     ], 'sealbar outside article'),
   },
