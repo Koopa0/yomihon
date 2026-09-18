@@ -398,6 +398,7 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		Governed:            true,
 		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",
+		MarkAddress:         "/marks",
 		TranscludedIdentity: "def456",
 		FlippedFrom:         "seed",
 		FlipNoReturn:        true,
@@ -429,7 +430,7 @@ func recordedStatusStates() []struct {
 	name string
 	view NoteView
 } {
-	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123"}
+	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123", MarkAddress: "/marks"}
 	with := func(mutate func(v *NoteView)) NoteView {
 		v := base
 		mutate(&v)

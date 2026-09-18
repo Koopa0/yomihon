@@ -215,7 +215,16 @@ trap cleanup EXIT
 # readiness is judged — stays the same for both.
 copy_fixture "${YOMIHON_FIXTURE:-$here/vault}" "$vault"
 
-YOMIHON_PORT="$port" "$bin" serve "$vault" >"$log" 2>&1 &
+# The server keeps the reader's own marks under the configuration directory
+# this platform gives it, which the standard library resolves from HOME (and
+# XDG_CONFIG_HOME where the platform has one). A probe run that inherited the
+# operator's own would write a mark into the directory they actually read
+# with, so the child is given a home of its own beneath the disposable work
+# directory and the run leaves nothing behind.
+home="$work/home"
+mkdir -p "$home"
+
+HOME="$home" XDG_CONFIG_HOME="$home/.config" YOMIHON_PORT="$port" "$bin" serve "$vault" >"$log" 2>&1 &
 server_pid=$!
 
 dump_log() {

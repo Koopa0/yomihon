@@ -37,6 +37,9 @@ type HomeView struct {
 	// Blocks are the four ways in, in the order a reader meets them.
 	Blocks        []DeskBlock
 	ReadmeMissing bool
+	// Continue is the way back to the place the reader kept, drawn ahead of
+	// the four ways in. A reader who kept none gets no row.
+	Continue ContinueRow
 }
 
 // HomeNote is one item in the recently-changed block. Modified is the compact
@@ -84,6 +87,10 @@ templ Home(v HomeView, c layouts.Chrome) {
 						<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
 					</form>
 				</search>
+				// Ahead of the four ways in, because a reader who left a place
+				// came back for it and the four are what they walk past when
+				// they did not.
+				@continueRow(v.Continue, c.Lang)
 				<div class="y-homegrid">
 					for _, block := range v.Blocks {
 						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
