@@ -87,3 +87,92 @@ func TestExcerptReadsTheSectionsTheFenceReallyLeaves(t *testing.T) {
 		t.Error("Excerpt() offers a section made of code text; the page has no such heading")
 	}
 }
+
+// A course prints its map note's own opening under the title, and a hover card
+// shows the same words when a link names no place inside the note. Both cuts
+// are Opening's, so the table below is the rule they share: the words above the
+// first heading, nothing where the note opens on one, and the whole of a note
+// that carries no heading at all.
+func TestOpeningIsTheWordsAboveTheFirstHeading(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "prose above the first heading",
+			body: "What this course is.\n\n## Part One\n\n- [[L01]]\n",
+			want: "What this course is.\n",
+		},
+		{
+			name: "several paragraphs, all of them",
+			body: "What this course is.\n\nWho it is for.\n\n## Part One\n",
+			want: "What this course is.\n\nWho it is for.\n",
+		},
+		{
+			name: "a note that opens on a heading",
+			body: "# Title\n\nUnder the title.\n\n## Part One\n",
+			want: "",
+		},
+		{
+			name: "blank lines before that heading are not an opening",
+			body: "\n\n## Part One\n\n- [[L01]]\n",
+			want: "",
+		},
+		{
+			name: "a note with no heading at all is all opening",
+			body: "Nothing here declares a course.\n",
+			want: "Nothing here declares a course.\n",
+		},
+		{
+			name: "an empty note opens with nothing",
+			body: "\n \n",
+			want: "",
+		},
+		{
+			name: "a comment in the opening comes off",
+			body: "Shown %%hidden%% and shown.\n\n## Part One\n",
+			want: "Shown  and shown.\n",
+		},
+		{
+			// A heading written inside a fence is code the author is showing,
+			// not the place the note's own structure begins.
+			name: "a heading inside a fence does not end the opening",
+			body: "Before.\n\n```\n## Not a heading\n```\n\nAfter.\n\n## Part One\n",
+			want: "Before.\n\n```\n## Not a heading\n```\n\nAfter.\n",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := Opening(tt.body); got != tt.want {
+				t.Errorf("Opening() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The hover card's lede and a course cover are one cut wherever the note has an
+// opening of its own. Two readings of that would drift, and a reader who saw
+// the card and then opened the course would be shown two different openings of
+// one note.
+func TestTheHoverCardsLedeIsTheSameOpening(t *testing.T) {
+	t.Parallel()
+
+	const body = "What this course is.\n\n## Part One\n\n- [[L01]]\n"
+	opening := Opening(body)
+	if opening == "" {
+		t.Fatalf("Opening() found nothing in %q, so the comparison below proves nothing", body)
+	}
+	lede, found, narrowed := ExcerptPreview(body, "")
+	if !found {
+		t.Fatalf("ExcerptPreview() found no lede")
+	}
+	if !narrowed {
+		t.Errorf("ExcerptPreview() reports nothing left behind, but the note goes on after its opening")
+	}
+	if lede != opening {
+		t.Errorf("the card cuts %q and the cover cuts %q; they are meant to be one cut", lede, opening)
+	}
+}
