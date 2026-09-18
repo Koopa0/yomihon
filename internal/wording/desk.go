@@ -113,3 +113,9 @@ var (
 	DailyBriefing = both("每日簡報", "Daily briefing")
 	WrittenReport = both("書庫筆記", "Vault note")
 )
+
+// ReportUndated is what leads a report that carries no day, where the others
+// lead with one. A shelf read by date needs an answer in that column from every
+// row: a blank there reads as a day nobody has looked up yet, and this says
+// instead that the report never wrote one.
+var ReportUndated = both("沒有寫日期", "No date")
