@@ -235,13 +235,21 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	}
 	snap := h.snapshot()
 	lang := origin.Language(r)
-	asked := pages.ParsePageNumber(r.URL.Query().Get("page"))
+	// A face with no strip under its rows has no page to ask for: a stretch
+	// nothing can step to or step back from would be an answer the reader has
+	// no way out of. The palette shows the opening of the answer and says how
+	// many there are, and Enter is the way to the rest.
+	onPage := wantsFacets(r)
+	asked := pages.PageNumber(1)
+	if onPage {
+		asked = pages.ParsePageNumber(r.URL.Query().Get("page"))
+	}
 	answered := h.query(snap.Index, q, lang, asked)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	view := answerView(snap, q, answered, lang, asked, wantsFacets(r))
+	view := answerView(snap, q, answered, lang, asked, onPage)
 	if err := pages.SearchResults(view, lang).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search results", q, err)
 	}

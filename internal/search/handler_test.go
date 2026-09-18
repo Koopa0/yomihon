@@ -240,10 +240,11 @@ func TestSearchHitStatusChipFollowsGovernance(t *testing.T) {
 
 // TestSearchResponseIsBounded pins the response cap. A term matching most of a
 // large vault used to ship every hit — a multi-megabyte fragment rebuilt on
-// each pause in typing — so the list holds one page while the count line and
-// the fragment's count marker keep the true tally. The page under the rows
-// leads to the rest; the palette, which has no strip to lead anywhere, says
-// instead how far the list it is showing was cut.
+// each pause in typing — so the list holds one page while the count marker on
+// the fragment keeps the true tally, which is the number the palette's live
+// status reads out. The page under the rows leads to the rest of the answer;
+// the palette has no strip, so it answers the opening of it and nothing else,
+// whatever page a hand-built request asks it for.
 func TestSearchResponseIsBounded(t *testing.T) {
 	t.Parallel()
 
@@ -275,6 +276,18 @@ func TestSearchResponseIsBounded(t *testing.T) {
 	}
 	if strings.Contains(body, "y-pager") {
 		t.Error("the palette carries a strip of page links, which lead out of the dialog they are drawn in")
+	}
+	// A face with no strip has no page to ask for, so a hand-built request for
+	// one is answered with the opening of the answer rather than with a stretch
+	// the reader could neither reach nor leave.
+	asked := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=needle&page=3", http.NoBody)
+	deep := httptest.NewRecorder()
+	h.results(deep, asked)
+	if got := strings.Count(deep.Body.String(), "<li>"); got != searchPageSize {
+		t.Errorf("the palette answers page=3 with %d rows, want the opening %d", got, searchPageSize)
+	}
+	if deep.Body.String() != body {
+		t.Error("the palette answers page=3 with something other than the opening of the answer")
 	}
 	if !strings.Contains(body, `data-result-count="207"`) {
 		t.Errorf("the count marker does not carry the true tally; body opens %q", body[:min(len(body), 400)])
