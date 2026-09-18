@@ -52,6 +52,7 @@ probes=(
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "motion-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "theme-toggle-pressed.mjs|/notes/Notes/alpha.md"
   "header-fold.mjs|/notes/Notes/alpha.md"
   "reading-switch-label.mjs|/notes/Writing/lessons/japanese/L01.md"
