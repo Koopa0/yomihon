@@ -247,6 +247,83 @@ html, body { margin: 0; background: var(--bg); }
 
 .y-hamburger { display: none; }
 
+/* Six of the header's controls are somewhere to go or something to set rather
+   than anything about the note being read — the whole-folder view, the reading
+   choices, the text size, the keyboard explanation, the language and the theme
+   — and below 938px the row can no longer hold them all. 938px is measured,
+   not chosen: at 937 the English chrome, the wider of the two, has begun
+   shortening the wordmark to make room, and the name of the thing being read
+   is not what should pay for a control that is not about it. Under that width
+   the six sit inside a popover this button opens, which brings the browser's
+   own light dismiss, Escape, and focus return with it.
+
+   One width serves both languages, though the Traditional Chinese row holds
+   out until 617. One breakpoint is one layout; a width per language would be a
+   second layout to keep true, and a media query cannot see which language the
+   page is in to choose between them.
+
+   At 938px and above the box around them dissolves: display: contents leaves
+   its children as the row's own flex items, in the order they are written, so
+   the wide row is drawn from the same elements it always was and no control
+   is written twice.
+
+   A window dragged wider while the panel is open is the one case the width
+   alone cannot answer: an open popover is in the browser's top layer, which
+   gives it a box of its own whatever display it is asked for, so it stays a
+   panel until something dismisses it. The button therefore stays out on the
+   row for as long as the panel is open, at every width — an open panel whose
+   button had gone with the window's width would be a panel with nothing
+   pointing at it. Pressing it puts the panel away and the controls are back
+   in the row. */
+.y-foldbtn {
+  font-size: var(--fs-18);
+  line-height: 1;
+}
+
+/* A popover is given the system ink by the browser, and ink is inherited, so
+   without this the five controls would be drawn in the operating system's
+   black rather than this page's — including at the widths where they are
+   sitting in the row and the box around them is not visible at all. */
+.y-headerfold {
+  color: inherit;
+}
+
+.y-headerfold:popover-open {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  inset: calc(var(--header-height) + 4px) 8px auto auto;
+  margin: 0;
+  /* As wide as the window allows up to the width of the narrowest phone this
+     is read on, so on a phone the panel is only ever kept off the edges and a
+     wider window does not stretch it across the screen. A share of the window
+     rather than of 100vw: where the scrollbar keeps its own column, 100vw
+     counts that column too, and a panel sized from it would hang off the far
+     edge by exactly the scrollbar's width. */
+  max-width: min(360px, calc(100% - 16px));
+  padding: 10px;
+  position: fixed;
+}
+
+@media (min-width: 938px) {
+  .y-foldbtn {
+    display: none;
+  }
+
+  .y-header:has(.y-headerfold:popover-open) .y-foldbtn {
+    display: inline-flex;
+  }
+
+  .y-headerfold {
+    display: contents;
+  }
+}
+
 /* ============================================================
    Shell + rails
    ============================================================ */
@@ -1887,8 +1964,10 @@ html {
 
 /* Keyboard help: a native popover the header's ? opens. It exists because the
    single-key shortcuts had no written trace anywhere on screen — a switch for
-   keys nobody can list is pressure, not a preference. Hidden at phone widths,
-   where there is no physical keyboard to explain. */
+   keys nobody can list is pressure, not a preference. At phone widths the
+   control that opens it is inside the folded group rather than gone: a phone
+   can have a keyboard attached, and a reader who has one was the only person
+   the panel was ever for. */
 .y-kbdhelp {
   inset: auto; position: fixed; top: 64px; right: 16px; margin: 0;
   max-width: 340px; padding: 16px 18px; background: var(--panel);
@@ -1908,10 +1987,6 @@ html {
   margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border-faint);
   font-size: var(--fs-12); color: var(--fg-subtle); line-height: 1.6;
 }
-@media (max-width: 520px) {
-  .y-helpbtn, .y-textsizebtn { display: none; }
-}
-
 /* Cited-by and declared sources share spacing: two lists of names in the
    rail, answering different questions. Cited-by keeps its heading when the
    list is empty, because a note nothing cites in the text is a finding
@@ -2051,34 +2126,31 @@ html {
   .y-findings__count { text-align: left; }
 }
 
-/* The whole-folder view's entrance. It sits with the reading preferences
-   rather than beside the search, because it is somewhere to go when not
-   reading anything in particular. */
+/* The whole-folder view's entrance. It is a destination rather than something
+   read from, so on a window too narrow for the whole row it folds away with
+   the other destinations instead of disappearing: a reader who cannot see it
+   can still reach it, which is not what the width it used to vanish at
+   offered. */
 .y-healthlinkbtn {
   padding: 5px 9px; border-radius: var(--r-sm); font-family: var(--font-mono);
   font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none;
   white-space: nowrap;
 }
 .y-healthlinkbtn:hover { background: var(--overlay); color: var(--fg); }
-@media (max-width: 900px) {
-  .y-healthlinkbtn { display: none; }
-}
 
 /* The reading choices, reached by a word rather than a gear, because a gear
    promises a machine and what is behind this one is seven sentences, so the
-   label says the thing and the panel behind it does the explaining. It keeps
-   its place at every width — a reader on a narrow window is the one most
-   likely to want the text larger, and an entry that hides there hides exactly
-   when it is needed. */
+   label says the thing and the panel behind it does the explaining. It is
+   reachable at every width — a reader on a narrow window is the one most
+   likely to want the text larger, and an entry that disappeared there would
+   disappear exactly when it is needed. On a narrow window it is the first
+   thing in the folded group rather than absent. */
 .y-prefslink {
   padding: 5px 9px; border-radius: var(--r-sm); font-family: var(--font-mono);
   font-size: var(--fs-12); color: var(--fg-subtle); text-decoration: none;
   white-space: nowrap;
 }
 .y-prefslink:hover { background: var(--overlay); color: var(--fg); }
-@media (max-width: 520px) {
-  .y-prefslink { padding: 5px 4px; }
-}
 /* The same page again, from the panel that explains how the interface behaves:
    a reader who opened this one was already asking that question. */
 .y-kbdhelp__prefs {
