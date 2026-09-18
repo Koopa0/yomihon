@@ -92,9 +92,10 @@ func TestRecordedNoteWikilinks(t *testing.T) {
 func TestRenderedBytesAreUnchanged(t *testing.T) {
 	t.Parallel()
 
-	model := buildModel(t)
+	root, model := buildVault(t)
 	current := "Writing/lessons/go/L01.md"
 	shelfIndex, shelfRecent, shelfStatuses := recordedShelfView(model)
+	course := newRecordedCourse(t, root, model)
 
 	type surface struct {
 		name      string
@@ -115,12 +116,18 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// those over the line shows up.
 		{"compare-page", Compare(recordedCompareView(), recordedChrome())},
 		{"compare-page-english", Compare(recordedCompareView(), recordedEnglishChrome())},
-		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
+		{"syllabus-page", Syllabus(course.view(recordedChrome().Lang, ""), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
 		// vault's own words either way; what changes is everything the page
 		// says around them, and the page's shape must survive the longer
 		// words rather than only the ones it was drawn with.
-		{"syllabus-page-english", Syllabus(recordedPathView(model), recordedEnglishChrome())},
+		{"syllabus-page-english", Syllabus(course.view(wording.En, ""), recordedEnglishChrome())},
+		// The same cover for a reader who kept a place inside this course. The
+		// verb changes and the lesson's own name comes to stand beside it, so
+		// both languages are recorded again: the word and the name sit on one
+		// line, and the line is where a longer word would show.
+		{"syllabus-page-continuing", Syllabus(course.view(recordedChrome().Lang, "Writing/lessons/go/L02.md"), recordedChrome())},
+		{"syllabus-page-continuing-english", Syllabus(course.view(wording.En, "Writing/lessons/go/L02.md"), recordedEnglishChrome())},
 		// The same course as something to be listened to, in both languages.
 		// Its paragraphs are the notes' own read-aloud elements, written out
 		// here rather than rendered, so what these files pin is the page and
@@ -466,14 +473,18 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 	}
 }
 
-// recordedPathView reads the fixture folder's own course through the same
-// builder the page uses, so the recording is of an interpretation rather than
-// of a tree typed out beside it.
-//
-// The course is entered from a lesson, so the recording holds the mark for
-// where the reader is standing. The fixture course lists that lesson twice, in
-// two different parts, which is the case a course reached from one of them has
-// to answer: both rows are that lesson and both are marked.
+// recordedCourse is the fixture folder's own course, read through the same
+// builder and the same generation the page uses, so the recording is of an
+// interpretation rather than of a tree typed out beside it.
+type recordedCourse struct {
+	model *nav.Model
+	snap  *snapshot.Generation
+	// opening and language are the course note's own bytes, read once: the
+	// words above its first heading and the tag it declared them in.
+	opening  string
+	language string
+}
+
 // recordedListenView is a course of two lessons, the second marking one
 // paragraph and the first two, so the recording covers both a lesson boundary
 // and a lesson carrying more than one paragraph. The paragraphs are the bytes
@@ -505,12 +516,63 @@ func recordedListenView() ListenView {
 	}
 }
 
-func recordedPathView(model *nav.Model) PathView {
-	current := model.Path("Maps/Go path.md")
-	view := BuildPathView(current, model.Paths(), "Writing/lessons/go/L01.md")
-	view.Vault = recordedShell(model).Vault
-	return view
+// recordedCourse captures the fixture vault as a published generation beside
+// the navigation model already built from it. The cover prints the course
+// note's own opening, which is bytes rather than shape, so the recording needs
+// both readings of that folder.
+func newRecordedCourse(t *testing.T, root string, model *nav.Model) recordedCourse {
+	t.Helper()
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("reader.Close: %v", closeErr)
+		}
+	})
+	store, err := snapshot.New(t.Context(), reader, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
+	snap := store.Current().Capture()
+	note, ok := snap.Note(courseRelPath)
+	if !ok {
+		t.Fatalf("the fixture holds no course note at %s", courseRelPath)
+	}
+	opening := render.Opening(note.Body)
+	if opening == "" {
+		t.Fatalf("the fixture's course note opens on a heading, so the recording below would pin an absent paragraph")
+	}
+	return recordedCourse{model: model, snap: snap, opening: opening, language: note.Language}
 }
+
+// view draws that course's page. The course is entered from a lesson, so the
+// recording holds the mark for where the reader is standing: the fixture course
+// lists that lesson twice, in two different parts, which is the case a course
+// reached from one of them has to answer — both rows are that lesson and both
+// are marked.
+//
+// kept is the note a reader left a place in, or empty for one who left none.
+// The place itself is spelled the way a reading page's own module writes it,
+// anchor and distance and all, so the recording holds the address a reader
+// actually follows rather than a bare note link.
+func (c recordedCourse) view(lang wording.Lang, kept string) PathView {
+	cover := CourseCover{
+		OpeningHTML:     render.StripAnchors(c.snap.RenderIn("c-", courseRelPath, c.opening, lang).HTML),
+		OpeningLanguage: c.language,
+		Here:            "Writing/lessons/go/L01.md",
+	}
+	if kept != "" {
+		cover.KeptNote = kept
+		cover.KeptHref = ResumeHref(kept, "a-second-look", 640)
+	}
+	return BuildPathView(c.model.Path(courseRelPath), c.model.Paths(), cover)
+}
+
+// courseRelPath is the fixture's study path, named once so the model reading
+// and the bytes reading cannot be taken of two different notes.
+const courseRelPath = "Maps/Go path.md"
 
 // recordedStatusStates names every state the write face can be in. The two
 // faces draw the same set, which is the thing worth recording: a change that

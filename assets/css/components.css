@@ -1932,7 +1932,58 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-syl-raillabel--gap { padding-top: 20px; }
 
 
-.y-syl-read { display: inline-flex; align-items: center; margin: 22px 0 4px; color: var(--accent); font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium); }
+.y-syl-read { display: inline-flex; align-items: center; color: var(--accent); font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-medium); }
+
+/* The cover: what a course is, before what it contains. The author's own
+   opening reads as prose at the reading face, and the verb below the counts
+   is the one way in. */
+.y-cover__opening {
+  margin: 18px 0 0;
+}
+
+.y-cover__ways {
+  align-items: center;
+  column-gap: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  margin: 22px 0 4px;
+  row-gap: 10px;
+}
+
+/* The verb and the lesson beside it are one line that wraps rather than one
+   that clips: a lesson's name is the reader's only way of telling where they
+   are being sent back to, and a name cut short is no answer at all. */
+.y-cover__open {
+  align-items: baseline;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  column-gap: 10px;
+  display: inline-flex;
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px 14px;
+  row-gap: 2px;
+}
+
+.y-cover__open:hover {
+  background: var(--overlay);
+}
+
+.y-cover__verb {
+  flex: none;
+  font-weight: var(--fw-medium);
+}
+
+.y-cover__lesson {
+  color: var(--fg-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 /* ============================================================
    Reading smoothness — scroll feel, wrapping, arrival
@@ -2364,6 +2415,12 @@ html {
      .y-metarow was just told to hide, doubling them on the sheet rather than
      dropping them from it. */
   .y-crumbs, .y-metarow, .y-headmeta, .y-steps:not(.y-steps--course) {
+    display: none !important;
+  }
+  /* A course's own verb is pressed, and paper takes no press. What the author
+     wrote above the counts stays on the sheet: it is the course's own words,
+     which is what the sheet is for. */
+  .y-cover__open {
     display: none !important;
   }
   /* A listing row clips its document's opening to one line on screen so the
