@@ -93,9 +93,9 @@ func TestRegenerateGoldens(t *testing.T) {
 	// checked-out tree cannot — so the permissions come off here exactly as
 	// the golden's own test takes them, and a rewrite that skipped the sealing
 	// would quietly write a golden with no hole in it and retire the lock.
-	sealedFindings, err := Check(t.Context(), sealedVault(t))
-	if err != nil {
-		t.Fatalf("Check(%q): %v", unreadableFixture, err)
+	sealedFindings, sealedErr := Check(t.Context(), sealedVault(t))
+	if sealedErr != nil {
+		t.Fatalf("Check(%q): %v", unreadableFixture, sealedErr)
 	}
 	var sealedBuf bytes.Buffer
 	if err := WriteJSONL(&sealedBuf, sealedFindings); err != nil {

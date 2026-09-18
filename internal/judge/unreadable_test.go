@@ -175,8 +175,8 @@ func TestABaselineNeverSilencesTheUnreadableNotice(t *testing.T) {
 		t.Fatalf("RunCheck(first run) error = %v", err)
 	}
 	baseline := filepath.Join(t.TempDir(), "baseline.jsonl")
-	if err := os.WriteFile(baseline, first, 0o600); err != nil {
-		t.Fatalf("write baseline: %v", err)
+	if writeErr := os.WriteFile(baseline, first, 0o600); writeErr != nil {
+		t.Fatalf("write baseline: %v", writeErr)
 	}
 
 	second, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Baseline: baseline, Format: FormatJSON})
@@ -287,6 +287,12 @@ func TestANameSharedWithAFileNobodyReadResolvesToNeither(t *testing.T) {
 func TestAFragmentPointedAtANoteNobodyReadIsNotJudged(t *testing.T) {
 	t.Parallel()
 
+	// The four rules that conclude a fragment is absent. A run over a note
+	// nobody read must reach none of them.
+	fragmentRules := []RuleID{
+		"link.section_missing", "link.block_missing",
+		"embed.section_missing", "embed.block_missing",
+	}
 	tests := []struct {
 		name string
 		body string
@@ -314,8 +320,7 @@ func TestAFragmentPointedAtANoteNobodyReadIsNotJudged(t *testing.T) {
 				t.Fatalf("Check() error = %v", err)
 			}
 			for i := range findings {
-				switch findings[i].RuleID {
-				case "link.section_missing", "link.block_missing", "embed.section_missing", "embed.block_missing":
+				if slices.Contains(fragmentRules, findings[i].RuleID) {
 					t.Errorf("a fragment was judged against a note nothing was read from: %+v", findings[i])
 				}
 			}
