@@ -359,6 +359,66 @@ html, body { margin: 0; background: var(--bg); }
 }
 .y-railitem__full:hover { color: var(--accent); }
 
+/* the foot of the rail — which folder this is, how large it is, and what the
+   health page has to say about it. It is the label face the rail's own headings
+   use, quieter still: it is where the reader lands when they have run out of
+   tree, not somewhere they are being sent. It flows last rather than pinning to
+   the viewport, so a long tree scrolls past it and the drawer ends the same way.
+   No box of its own: the rail's frame is the only frame here, and the hairline
+   above it is the same separator that stands between every other group. */
+.y-railfoot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 8px 4px;
+}
+.y-railfoot__name {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  letter-spacing: 0.04em;
+  /* A folder name is one word somebody chose and can be long. It wraps rather
+     than ellipsing, because a truncated name is the one thing this line exists
+     to say, and a rail that scrolls sideways has nothing to scroll back to. */
+  overflow-wrap: anywhere;
+}
+.y-railfoot__size {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+}
+.y-railfoot__health {
+  align-items: center;
+  color: var(--fg-faint);
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  gap: 6px;
+  margin-top: 2px;
+  min-width: 0;
+}
+.y-railfoot__health:hover { color: var(--fg); }
+.y-railfoot__label {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.y-railfoot__count {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+.y-railfoot__dot {
+  background: var(--fg-faint);
+  border-radius: 50%;
+  flex: none;
+  height: 6px;
+  width: 6px;
+}
+/* The colour repeats what the count already says in words, so a reader who
+   cannot tell the two dots apart has lost nothing. */
+[data-health="clear"] .y-railfoot__dot { background: var(--sage); }
+[data-health="findings"] .y-railfoot__dot { background: var(--warn); }
+[data-health="findings"] .y-railfoot__count { color: var(--warn); }
+
 /* ============================================================
    Center article
    ============================================================ */

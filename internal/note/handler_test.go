@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -122,6 +123,7 @@ func newServerWithGovernance(
 	writer := openStatusWriter(t, source, contract, governance)
 	h := note.New(&note.Sources{
 		Source:         source,
+		VaultName:      shell.VaultName(source.Name()),
 		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,

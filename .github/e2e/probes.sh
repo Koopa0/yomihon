@@ -26,6 +26,7 @@ probes=(
   "search-focus-restore.mjs|/notes/Notes/alpha.md"
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"
   "drawer-contract.mjs|/notes/Notes/alpha.md"
+  "rail-foot.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
   "report-frame-contract.mjs|/reports/browser-boundary.html"

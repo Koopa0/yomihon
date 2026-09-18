@@ -99,9 +99,9 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		component templ.Component
 	}
 	cases := []surface{
-		{"sidebar-current-note", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce"})},
-		{"sidebar-no-note", sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"})},
-		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
+		{"sidebar-current-note", sidebar(NewSidebar(recordedShell(model), current), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-no-note", sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-english", sidebar(NewSidebar(recordedShell(model), current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
 		{"note-page", Note(recordedNoteView(t, model, current), recordedChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
@@ -115,12 +115,12 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
-		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
+		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
 		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
-		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(model, "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
+		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(recordedShell(model), "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
 		{"preferences-page", Preferences(recordedPreferencesView(), recordedChrome())},
 		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
 		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
@@ -235,6 +235,18 @@ var drawsNothing = map[string]bool{
 	"statuspanel-frontmatter-diagnostic": true,
 }
 
+// recordedShell is the fixture folder handed over the way a request receives
+// it, carrying a stated vault so the recordings hold the foot of the rail with
+// its three lines filled. The zero shell is recorded too — the rail with no
+// current note keeps it — so both the stated and the unstated wording are
+// pinned, and neither can go blank without a recording moving.
+func recordedShell(model *nav.Model) nav.Shell {
+	return nav.Shell{
+		Nav:   model,
+		Vault: nav.Vault{Name: "example-vault", Notes: 12, Findings: 3},
+	}
+}
+
 // recordedChrome is one fixed request's chrome, so the recording says nothing
 // about the machine it was made on.
 // recordedEnglishChrome is the same chrome in the other interface language.
@@ -329,7 +341,7 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		CitedBy:             []nav.NoteRef{{Name: "C01", RelPath: "Concepts/go/C01.md"}},
 		BasedOn:             []nav.NoteRef{{Name: "Book notes", RelPath: "Book notes.md"}, {Name: "[[twin]]"}},
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
-		ReadingRail:         NewReadingRail(model, current, "golang"),
+		ReadingRail:         NewReadingRail(recordedShell(model), current, "golang"),
 		Governed:            true,
 		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",
@@ -353,7 +365,9 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 // to answer: both rows are that lesson and both are marked.
 func recordedPathView(model *nav.Model) PathView {
 	current := model.Path("Maps/Go path.md")
-	return BuildPathView(current, model.Paths(), "Writing/lessons/go/L01.md")
+	view := BuildPathView(current, model.Paths(), "Writing/lessons/go/L01.md")
+	view.Vault = recordedShell(model).Vault
+	return view
 }
 
 // recordedStatusStates names every state the write face can be in. The two
@@ -518,7 +532,7 @@ func recordedHealthView(model *nav.Model) HealthView {
 		// The ordering a request that named none resolves to, which is what a
 		// reader arriving at the page is holding.
 		Sort:    HealthByFinding,
-		Sidebar: NewSidebar(model, ""),
+		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -529,7 +543,7 @@ func recordedFileView(model *nav.Model) FileView {
 		RelPath:     "Sources/notes.csv",
 		Size:        1234567,
 		ContentType: "text/csv",
-		Sidebar:     NewSidebar(model, ""),
+		Sidebar:     NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -558,7 +572,7 @@ func recordedRecoveryView(model *nav.Model) StatusRecoveryView {
 		NotePath:        "Writing/lessons/go/L01.md",
 		NoteIdentity:    "abc123",
 		ObsidianHref:    ObsidianHref("/vault", "Writing/lessons/go/L01.md"),
-		Sidebar:         NewSidebar(model, "Writing/lessons/go/L01.md"),
+		Sidebar:         NewSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md"),
 	}
 }
 
@@ -593,7 +607,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
 		Facets:            recordedSearchFacets(lang),
 		Governed:          true,
-		Sidebar:           NewSidebar(model, ""),
+		Sidebar:           NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
