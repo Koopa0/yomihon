@@ -340,7 +340,7 @@ func (h *Handler) reading(
 	authority status.Authority,
 	lang wording.Lang,
 	idPrefix string,
-) (pages.NoteView, []string) {
+) (view pages.NoteView, conceptRefs []string) {
 	state := h.governance(r.Context(), n, snap, authority, lang)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
@@ -354,7 +354,6 @@ func (h *Handler) reading(
 	// and its concept wikilinks become in-app sheet triggers. This happens only
 	// after the request's captured authority has classified the note, so every
 	// projection in this response uses one coherent lifecycle view.
-	var conceptRefs []string
 	// The lesson type is the one type this page enriches with lesson-body
 	// interactions. What the contract layer supplies is the spelling, not yet a
 	// vault's own choice of word: it is still one fixed name, so a folder
@@ -372,7 +371,7 @@ func (h *Handler) reading(
 	}
 	// Last, so what a lesson's own controls were spliced in carrying is renamed
 	// with everything the render itself wrote.
-	result = render.Qualify(idPrefix, result)
+	render.Qualify(idPrefix, &result)
 
 	// The status face and the status shown beside the title are the same
 	// claim, so they come from the same read.
@@ -384,7 +383,7 @@ func (h *Handler) reading(
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(&readingRail, lang)
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
-	view := pages.NoteView{
+	view = pages.NoteView{
 		Title:             n.Title,
 		RelPath:           n.RelPath,
 		Language:          n.Language,

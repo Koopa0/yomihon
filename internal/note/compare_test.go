@@ -93,7 +93,7 @@ func TestNoAddressInsideAColumnLeavesIt(t *testing.T) {
 			}
 		}
 		for _, value := range captured(elementRef, column) {
-			for _, named := range strings.Fields(value) {
+			for named := range strings.FieldsSeq(value) {
 				if !slices.Contains(names, named) {
 					t.Errorf("%s describes an element by %q, which is not in it", where, named)
 				}
@@ -188,7 +188,11 @@ func TestComparingWithoutASecondNoteReadsTheFirstAlone(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			response, err := client.Get(srv.URL + tt.target)
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+tt.target, http.NoBody)
+			if err != nil {
+				t.Fatalf("build GET %s: %v", tt.target, err)
+			}
+			response, err := client.Do(request)
 			if err != nil {
 				t.Fatalf("GET %s: %v", tt.target, err)
 			}

@@ -76,6 +76,7 @@ const (
 // shown this second can be readable on the next reload.
 func (h *Handler) readAlone(w http.ResponseWriter, r *http.Request, rel string) {
 	w.Header().Set("Cache-Control", "no-store")
+	// #nosec G710 -- the destination is this route's own path segment, already refused by servable and escaped one segment at a time under a fixed prefix, so it names a page on this server and can name nothing else
 	http.Redirect(w, r, pages.VaultHref("/notes/", rel), http.StatusFound)
 }
 

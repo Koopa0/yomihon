@@ -61,7 +61,8 @@ func TestQualifyRenamesEveryPlaceAndEveryReferenceToOne(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := render.Qualify("b-", render.Result{HTML: tt.html})
+			got := render.Result{HTML: tt.html}
+			render.Qualify("b-", &got)
 			if diff := cmp.Diff(tt.want, got.HTML); diff != "" {
 				t.Errorf("Qualify HTML mismatch (-want +got):\n%s", diff)
 			}
@@ -74,12 +75,13 @@ func TestQualifyRenamesEveryPlaceAndEveryReferenceToOne(t *testing.T) {
 // in untouched: the entries are the caller's slice until this returns a new one.
 func TestQualifyRenamesTheContentsListWithTheHeadings(t *testing.T) {
 	t.Parallel()
-	before := render.Result{
+	entries := []render.TOCEntry{{Level: 1, Text: "Ledger", ID: "ledger"}}
+	got := render.Result{
 		HTML:        `<h2 id="ledger" data-level="1">Ledger</h2>`,
-		TOC:         []render.TOCEntry{{Level: 1, Text: "Ledger", ID: "ledger"}},
+		TOC:         entries,
 		TitleAnchor: "cutover",
 	}
-	got := render.Qualify("a-", before)
+	render.Qualify("a-", &got)
 
 	wantTOC := []render.TOCEntry{{Level: 1, Text: "Ledger", ID: "a-ledger"}}
 	if diff := cmp.Diff(wantTOC, got.TOC); diff != "" {
@@ -88,8 +90,10 @@ func TestQualifyRenamesTheContentsListWithTheHeadings(t *testing.T) {
 	if got.TitleAnchor != "a-cutover" {
 		t.Errorf("Qualify TitleAnchor = %q, want %q", got.TitleAnchor, "a-cutover")
 	}
-	if before.TOC[0].ID != "ledger" {
-		t.Errorf("Qualify renamed the caller's own entry: got %q, want %q", before.TOC[0].ID, "ledger")
+	// The entries the result arrived with, which anything else holding that
+	// slice still sees.
+	if entries[0].ID != "ledger" {
+		t.Errorf("Qualify renamed through the slice it was handed: got %q, want %q", entries[0].ID, "ledger")
 	}
 }
 
@@ -102,7 +106,9 @@ func TestQualifyUnderNoPrefixIsTheNoteShownAlone(t *testing.T) {
 		TOC:         []render.TOCEntry{{Level: 1, Text: "Ledger", ID: "ledger"}},
 		TitleAnchor: "cutover",
 	}
-	if diff := cmp.Diff(before, render.Qualify("", before)); diff != "" {
+	after := before
+	render.Qualify("", &after)
+	if diff := cmp.Diff(before, after); diff != "" {
 		t.Errorf("Qualify under no prefix moved something (-before +after):\n%s", diff)
 	}
 }
@@ -121,7 +127,9 @@ func TestQualifyLeavesMarkupThatIsOnlyBeingShown(t *testing.T) {
 	if !strings.Contains(res.HTML, "shown") {
 		t.Fatalf("the fence lost its words, so this test asks nothing: %s", res.HTML)
 	}
-	if diff := cmp.Diff(res.HTML, render.Qualify("b-", res).HTML); diff != "" {
+	renamed := res
+	render.Qualify("b-", &renamed)
+	if diff := cmp.Diff(res.HTML, renamed.HTML); diff != "" {
 		t.Errorf("Qualify rewrote markup a note was only printing (-shown +renamed):\n%s", diff)
 	}
 }

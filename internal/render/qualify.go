@@ -43,17 +43,22 @@ var idReference = regexp.MustCompile(
 // pass cover a heading, a footnote, a block address, a link written at a section
 // of the note's own text, and a control spliced into the body afterwards,
 // without any of them keeping a rule of its own.
-func Qualify(prefix string, res Result) Result {
-	if prefix == "" {
-		return res
+//
+// It renames the result it is given rather than handing back another: what a
+// render came to is one value a page holds once, and copying it to rename three
+// of its fields would leave the caller deciding which of the two is the page's.
+func Qualify(prefix string, res *Result) {
+	if prefix == "" || res == nil {
+		return
 	}
 	res.HTML = qualifyPlaces(prefix, res.HTML)
 	if res.TitleAnchor != "" {
 		res.TitleAnchor = prefix + res.TitleAnchor
 	}
 	// The contents list is built from the same headings the body carries, so it
-	// is renamed with them. The entries are copied rather than renamed in place:
-	// the caller still holds the slice this result arrived with.
+	// is renamed with them. The entries are copied first: the slice arrives from
+	// the pass that stamped the headings, and renaming through it would reach
+	// anything else already holding the same entries.
 	if len(res.TOC) > 0 {
 		toc := slices.Clone(res.TOC)
 		for i := range toc {
@@ -61,7 +66,6 @@ func Qualify(prefix string, res Result) Result {
 		}
 		res.TOC = toc
 	}
-	return res
 }
 
 // qualifyPlaces renames the places one body's HTML carries and the references
