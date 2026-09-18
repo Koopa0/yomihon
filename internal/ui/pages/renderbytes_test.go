@@ -133,7 +133,13 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"preferences-page-english", Preferences(recordedPreferencesView(wording.En), recordedEnglishChrome())},
 		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
 		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
-		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
+		{"report-index-page", ListIndex(recordedReportIndexView(recordedChrome().Lang), recordedChrome())},
+		// The same shelf in the other language it is read in. The day is the
+		// vault's own either way; the two answers that are not a day — the
+		// briefing kept current, and the report that wrote none — are the
+		// interface's words, and only a recording in both languages shows
+		// neither was left behind in one of them.
+		{"report-index-page-english", ListIndex(recordedReportIndexView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
@@ -525,14 +531,29 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 	)
 }
 
-// recordedReportIndexView carries both kinds of report the vault holds and the
-// newest mark, none of which the shared fixture vault has.
-func recordedReportIndexView() ListIndexView {
+// recordedReportIndexView carries every answer a report row can give in the
+// column a reader scans, none of which the shared fixture vault has: a written
+// report with a day of its own and the line it opens with, a briefing named
+// for the day it covers, the briefing the vault keeps current, and a report
+// that wrote no day at all. They are already in the order the shelf puts them,
+// newest first, so the recording shows the row and not the sort.
+func recordedReportIndexView(lang wording.Lang) ListIndexView {
 	return NewReportIndex([]nav.Report{
-		{Name: "Vault audit", RelPath: "System/reports/2026-07-10 vault audit.md"},
-		{Name: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
-	}, recordedChrome().Lang, nil)
+		{
+			Name:    "Vault audit",
+			RelPath: "System/reports/2026-07-10 vault audit.md",
+			Date:    "2026-07-10",
+			Opening: "Four notes went from draft to ready. Nothing was archived.",
+		},
+		{
+			Name:     "2026-07-02 briefing.html",
+			RelPath:  "System/reports/daily-briefing/2026-07-02 briefing.html",
+			Briefing: true,
+			Date:     "2026-07-02",
+		},
+		{Name: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
+	}, lang, nil)
 }
 
 // recordedWithheldIndexView is a mode index whose declaration could not be
