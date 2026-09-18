@@ -1,8 +1,5 @@
 ---
 title: 書庫稽核執行紀錄 — 連結、狀態與命名一致性的完整檢查
-type: system
-status: active
-domain: golang
 created: 2026-09-12
 ---
 
