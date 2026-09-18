@@ -49,6 +49,7 @@ probes=(
   "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
