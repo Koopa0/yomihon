@@ -64,9 +64,11 @@ type Model struct {
 	// It is open when the directory was read cleanly and open when no
 	// contract ever named one.
 	journal Closure
-	// journalEntries is the most recent captured journal entries, newest first,
-	// taken from the file listing rather than from any note type. It is empty
-	// when the contract declared no journal directory.
+	// journalEntries is every captured journal entry, newest first, taken from
+	// the file listing rather than from any note type. It is empty when the
+	// contract declared no journal directory. The whole journal is held here
+	// because a month of it is a page of its own; a width with room for only a
+	// few takes them where it draws them.
 	journalEntries []JournalEntry
 	// journalDir is the contract's journal capability, so InJournal asks the
 	// same declaration buildJournal did.
@@ -203,12 +205,22 @@ func (m *Model) Maps() []Map {
 	return cloneMaps(m.maps)
 }
 
-// Journal returns the most recent captured journal entries, newest first.
+// Journal returns every captured journal entry, newest first.
 func (m *Model) Journal() []JournalEntry {
 	if m == nil {
 		return nil
 	}
 	return slices.Clone(m.journalEntries)
+}
+
+// JournalCount reports how many journal entries the model holds, so asking
+// whether there is a journal to offer costs a length rather than a copy of
+// every entry.
+func (m *Model) JournalCount() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.journalEntries)
 }
 
 // Reports returns the files captured below System/reports/, newest first.
@@ -265,12 +277,17 @@ type NoteSummary struct {
 	Modified time.Time
 }
 
-// JournalEntry is one recent journal markdown file, carrying the scanner's
-// captured time rather than one read while rendering.
+// JournalEntry is one journal markdown file, carrying the scanner's captured
+// time rather than one read while rendering.
 type JournalEntry struct {
 	Title    string
 	RelPath  string
 	Modified time.Time
+	// Date is the day this entry is for, as an ISO 8601 calendar date, and is
+	// empty where neither the field the contract dates a note by nor the
+	// filename carried one. A journal is read by date, so this is what the
+	// shelf orders and groups on.
+	Date string
 }
 
 // Folder is one directory in the browse tree: its display name, its
@@ -401,14 +418,12 @@ func newModel(
 	dated schema.AuthoredDate,
 ) *Model {
 	paths := make([]string, 0, len(files))
-	mtimes := make(map[string]time.Time, len(files))
 	for _, file := range files {
 		paths = append(paths, file.path)
-		mtimes[file.path] = file.modified
 	}
 	m := &Model{
 		reports:        buildReports(files, dated),
-		journalEntries: buildJournal(paths, mtimes, journal),
+		journalEntries: buildJournal(files, journal, dated),
 		journalDir:     journal,
 		knowledgeScope: scope,
 	}
@@ -540,31 +555,49 @@ func BriefingName(relPath string) (name string, ok bool) {
 }
 
 // buildJournal selects markdown files below the declared journal directory
-// from the scanner's path and mtime captures. It does not parse frontmatter,
-// so an untyped entry remains eligible. Nothing here reads a timestamp: the
-// order is the entries' own names, for the reason the sort itself gives, and
-// the mtime each entry carries is a field no surface draws today — the rail
-// shows a journal entry's title and its address, and nothing else. An
-// undeclared journal is an empty projection.
-func buildJournal(paths []string, mtimes map[string]time.Time, journal schema.JournalDir) []JournalEntry {
-	const limit = 5
-	entries := make([]JournalEntry, 0, limit)
-	for _, p := range paths {
+// from the scanner's captures. Membership is by location alone, so an entry
+// carrying no frontmatter at all — which is what a journal entry usually is —
+// remains eligible. An undeclared journal is an empty projection.
+//
+// The whole journal is kept. A month of it is a page of its own, and a builder
+// that had already thrown the rest away would leave that page listing whatever
+// few entries happened to survive here.
+func buildJournal(files []capturedFile, journal schema.JournalDir, dated schema.AuthoredDate) []JournalEntry {
+	var entries []JournalEntry
+	for _, file := range files {
+		p := file.path
 		if !journal.Contains(p) || !vault.IsMarkdown(p) {
 			continue
 		}
 		_, base := splitDir(p)
-		entries = append(entries, JournalEntry{Title: displayName(base), RelPath: p, Modified: mtimes[p]})
+		entries = append(entries, JournalEntry{
+			Title:    displayName(base),
+			RelPath:  p,
+			Modified: file.modified,
+			Date:     noteDay(file, dated),
+		})
 	}
-	// Ordered by the entries' own names, not by file time: a clone stamps every
-	// entry with one moment, and an entry edited today is not today's entry.
-	slices.SortStableFunc(entries, func(a, b JournalEntry) int {
-		return vault.ComparePaths(b.RelPath, a.RelPath)
-	})
-	if len(entries) > limit {
-		entries = entries[:limit]
-	}
+	slices.SortStableFunc(entries, byJournalRecency)
 	return entries
+}
+
+// byJournalRecency orders the journal the way it is read: newest first.
+//
+// The day the entry is for is the key, never the file's time: a clone stamps
+// every entry with one moment, and an entry edited today is not today's entry.
+// ISO calendar dates compare as text exactly as they compare as days, so the
+// written form is the sort key and no clock or zone enters.
+//
+// An entry with no day sorts last, and no line here puts it there: no day is
+// the empty string, which is smaller than every written one, so latest-first
+// leaves it at the end. Entries the day cannot separate fall back on their own
+// names, descending, which is what keeps two entries written on one day in a
+// settled order rather than in whichever order the scan met them.
+func byJournalRecency(a, b JournalEntry) int {
+	if byDay := strings.Compare(b.Date, a.Date); byDay != 0 {
+		return byDay
+	}
+	return vault.ComparePaths(b.RelPath, a.RelPath)
 }
 
 // buildReports enumerates System/reports/: the .md reports directly in that
@@ -598,7 +631,7 @@ func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 			reports = append(reports, Report{
 				Name:    name,
 				RelPath: p,
-				Date:    reportDate(file, dated),
+				Date:    noteDay(file, dated),
 				Opening: openingLine(file),
 			})
 		}
@@ -607,15 +640,16 @@ func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 	return reports
 }
 
-// reportDate is the day one written report is for. The field the contract dates
-// a note by answers first, because a day its author declared is the vault's own
-// statement about the report. Failing that the filename answers, for the vault
-// that names a report by the day it covers; that shape is a naming habit and
-// nothing the contract declares, which is why it is asked second and never
-// contradicts a declared day. A frontmatter value of a shape no day reads from
-// leaves the report undated rather than falling through to the name, because
+// noteDay is the day one captured file is for, and it answers for every listing
+// read by date — the reports shelf and the journal both. The field the contract
+// dates a note by answers first, because a day its author declared is the
+// vault's own statement about the note. Failing that the filename answers, for
+// the vault that names a file by the day it covers; that shape is a naming
+// habit and nothing the contract declares, which is why it is asked second and
+// never contradicts a declared day. A frontmatter value of a shape no day reads
+// from leaves the file undated rather than falling through to the name, because
 // the author wrote a day there and the row should show that it did not read.
-func reportDate(file capturedFile, dated schema.AuthoredDate) string {
+func noteDay(file capturedFile, dated schema.AuthoredDate) string {
 	if file.note != nil {
 		day, err := dated.Resolve(file.note.Frontmatter)
 		if day != "" || err != nil {
