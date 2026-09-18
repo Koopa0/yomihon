@@ -1209,15 +1209,30 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    is deliberately not repeatable from this surface. */
 .y-recoverymain { padding: 42px 48px 120px; }
 .y-recovery { max-width: var(--measure-article); margin: 0 auto; }
+
 /* The page for an address that names nothing opens with the shared notice, and
    what follows it — the address the reader typed, the step after, the ways out
    — is the same column continued. Left where it was, it would have hung off the
    side of a centred notice as if it belonged to a different page. The typed
    address keeps its own alignment: a path is read from its first character. */
-.y-recovery:has(> .y-nothing) { text-align: center; }
-.y-recovery:has(> .y-nothing) .y-recovery__detail, .y-recovery:has(> .y-nothing) .y-recovery__next { max-width: var(--measure-notice); margin-inline: auto; }
-.y-recovery:has(> .y-nothing) .y-recovery__detail pre { text-align: left; }
-.y-recovery:has(> .y-nothing) .y-recovery__actions { justify-content: center; }
+.y-recovery:has(> .y-nothing) {
+  text-align: center;
+}
+
+.y-recovery:has(> .y-nothing) .y-recovery__detail,
+.y-recovery:has(> .y-nothing) .y-recovery__next {
+  margin-inline: auto;
+  max-width: var(--measure-notice);
+}
+
+.y-recovery:has(> .y-nothing) .y-recovery__detail pre {
+  text-align: left;
+}
+
+.y-recovery:has(> .y-nothing) .y-recovery__actions {
+  justify-content: center;
+}
+
 .y-recovery__kicker { margin: 0 0 10px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.08em; color: var(--fg-faint); }
 .y-recovery__state { margin: 24px 0 0; padding: 14px 16px; border-left: 3px solid var(--accent); background: var(--accent-muted); font-family: var(--font-sans); font-size: var(--fs-14); color: var(--fg); }
 .y-recovery__state[data-status-changed="false"] { border-left-color: var(--border-strong); background: var(--elevated); }
@@ -1259,48 +1274,104 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
    difference between "there is nothing here" and "something could not be
    read". */
 .y-nothing {
-  max-width: var(--measure-notice);
-  margin: 24px auto 0;
+  color: var(--fg-subtle);
   font-family: var(--font-serif);
   font-size: var(--fs-14);
   line-height: var(--lh-read);
-  color: var(--fg-subtle);
-  text-align: center;
+  margin: 24px auto 0;
+  max-width: var(--measure-notice);
   /* A vault path, a filter key, or a diagnostic from the operating system is
      one long run with nowhere to break, and at phone width it would otherwise
      carry the whole column off the side of the screen. */
   overflow-wrap: anywhere;
+  text-align: center;
 }
+
 /* The word that stands where an icon would: the chrome draws none that means
    "there is nothing here", so nothing is drawn. */
-.y-nothing__mark { margin: 0 0 10px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.08em; color: var(--fg-faint); }
-.y-nothing__title { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-20); font-weight: var(--fw-regular); line-height: var(--lh-tight); color: var(--fg); }
+.y-nothing__mark {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.08em;
+  margin: 0 0 10px;
+}
+
+.y-nothing__title {
+  color: var(--fg);
+  font-family: var(--font-kai);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+  margin: 0;
+}
+
 /* The one that is also the page's own title carries the page's own size. */
-.y-nothing__title--page { font-size: var(--fs-ed-30); }
-.y-nothing__says { margin-top: 10px; }
-.y-nothing__says p { margin: 0; }
-.y-nothing__says p + p { margin-top: 10px; }
-.y-nothing__says code { font-family: var(--font-mono); font-size: 0.92em; }
+.y-nothing__title--page {
+  font-size: var(--fs-ed-30);
+}
+
+.y-nothing__says {
+  margin-top: 10px;
+}
+
+.y-nothing__says p {
+  margin: 0;
+}
+
+.y-nothing__says p + p {
+  margin-top: 10px;
+}
+
+.y-nothing__says code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
 /* What the reader can do next sits under the sentence, quieter than it. */
-.y-nothing__says .y-nothing__hint { margin-top: 14px; font-size: var(--fs-12); line-height: var(--lh-normal); color: var(--fg-faint); }
+.y-nothing__says .y-nothing__hint {
+  color: var(--fg-faint);
+  font-size: var(--fs-12);
+  line-height: var(--lh-normal);
+  margin-top: 14px;
+}
+
 .y-nothing--fault {
-  padding: 16px 18px;
+  background: var(--warn-bg);
   border: 1px solid color-mix(in oklch, var(--warn) 35%, transparent);
   border-radius: var(--r-sm);
-  background: var(--warn-bg);
+  padding: 16px 18px;
 }
-.y-nothing--fault .y-nothing__mark, .y-nothing--fault .y-nothing__title { color: var(--warn); }
+
+.y-nothing--fault .y-nothing__mark,
+.y-nothing--fault .y-nothing__title {
+  color: var(--warn);
+}
+
 /* A desk block is small and already has its own heading over it, so the notice
    inside it opens where the rows would have. */
-.y-modeblock .y-nothing { margin-top: 6px; }
+.y-modeblock .y-nothing {
+  margin-top: 6px;
+}
+
 /* The notice draws its own box, so the card that used to hold a bare
    paragraph would put a second one around it and leave the notice floating in
    the middle of an otherwise empty panel. */
-.y-homeblock--faults:has(> .y-nothing) { padding: 0; border: 0; background: none; }
-.y-homeblock--faults .y-nothing { margin-top: 18px; }
+.y-homeblock--faults:has(> .y-nothing) {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.y-homeblock--faults .y-nothing {
+  margin-top: 18px;
+}
+
 /* The palette is a floating box rather than a page, and the notice sits inside
    its own padding. */
-.y-searchdialog .y-nothing { margin: 18px auto 8px; }
+.y-searchdialog .y-nothing {
+  margin: 18px auto 8px;
+}
 
 .y-syl { max-width: 800px; margin: 0 auto; padding: 44px 56px 120px; }
 .y-syl-kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); }
@@ -1610,11 +1681,16 @@ html {
     --sage: #000; --sage-bg: transparent;
     --success: #000; --success-bg: transparent;
   }
+
   /* A notice about a fault prints as its words. The box around it on screen
      separates it from the page it interrupts; a sheet holding one notice has
      nothing to be separated from, and the rule would print as an empty frame
      around two lines. */
-  .y-nothing--fault { padding: 0; border: 0; }
+  .y-nothing--fault {
+    border: 0;
+    padding: 0;
+  }
+
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
   .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview,
