@@ -54,6 +54,11 @@ var ReadAloud = both("朗讀這段日文", "Read this Japanese aloud")
 //
 // ReadAloudRateFmt takes the rate as the reader sees it on the button beside
 // it, so the announcement and the control agree.
+//
+// ReadAloudProgressFmt is said at every move — the start of a reading, each
+// paragraph the voice reaches on its own, and each press of previous or next —
+// so skipping and carrying on sound alike. Speech synthesis reports no reliable
+// duration, so a paragraph is the only honest unit to count in.
 var (
 	ReadAloudStop        = both("停止", "Stop")
 	ReadAloudStopThis    = both("停止朗讀", "Stop reading aloud")
@@ -64,6 +69,10 @@ var (
 	ReadAloudPlaying     = both("播放中", "Playing")
 	ReadAloudFinished    = both("播放完成", "Finished")
 	ReadAloudUnavailable = both("目前無法播放日語語音", "Japanese speech is unavailable right now")
+	ReadAloudPlayAll     = both("連續朗讀", "Play through")
+	ReadAloudPrevious    = both("上一段", "Previous")
+	ReadAloudNext        = both("下一段", "Next")
+	ReadAloudProgressFmt = both("第 {n} 段，共 {total} 段", "Paragraph {n} of {total}")
 )
 
 // TitleOnlyTargetFmt is said where a citation names a note's declared title.

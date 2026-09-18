@@ -692,8 +692,7 @@ func TestNoteFileRowKeepsItsAddressBehindAClosedSummary(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		`<span>Writing/lessons/go/L01.md</span>`,
-		`href="/raw/Writing/lessons/go/L01.md"`,
+		`<dd><a href="/raw/Writing/lessons/go/L01.md">Writing/lessons/go/L01.md</a></dd>`,
 		`href="obsidian://open?path=/vault/Writing/lessons/go/L01.md"`,
 	} {
 		if !strings.Contains(body, want) {

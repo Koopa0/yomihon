@@ -156,7 +156,7 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			resolved := NewReadingRail(model, tt.current, "")
+			resolved := NewReadingRail(nav.Shell{Nav: model}, tt.current, "")
 			prev, next, label, course := FooterSequence(&resolved, wording.ZhHant)
 			if prev.RelPath != tt.wantPrev {
 				t.Errorf("FooterSequence(%q) prev = %q, want %q", tt.current, prev.RelPath, tt.wantPrev)
@@ -246,7 +246,7 @@ func buildStepsModel(t *testing.T) *nav.Model {
 		scan.Files(), notes, graph.New(noteList, nil),
 		contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(),
+		contract.ArticleLanguage(), contract.AuthoredDate(),
 	)
 }
 
@@ -259,7 +259,7 @@ func TestStudyPathLandmarksDoNotShareAName(t *testing.T) {
 
 	model := buildStepsModel(t)
 	current := "Course/C02.md"
-	resolved := NewReadingRail(model, current, "golang")
+	resolved := NewReadingRail(nav.Shell{Nav: model}, current, "golang")
 	prev, next, label, course := FooterSequence(&resolved, wording.ZhHant)
 	if !course || label == "" {
 		t.Fatalf("FooterSequence(%q) did not choose a course foot: label=%q course=%v", current, label, course)

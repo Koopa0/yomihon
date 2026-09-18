@@ -101,10 +101,14 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		component templ.Component
 	}
 	cases := []surface{
-		{"sidebar-current-note", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce"})},
-		{"sidebar-no-note", sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"})},
-		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
+		{"sidebar-current-note", sidebar(NewSidebar(recordedShell(model), current), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-no-note", sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-english", sidebar(NewSidebar(recordedShell(model), current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
 		{"note-page", Note(recordedNoteView(t, model, current), recordedChrome())},
+		// The head's dt/dd facts read in the other interface language too: the
+		// terms are the interface's own words and only a second recording shows
+		// neither language's spelling was left behind in the pair.
+		{"note-page-english", Note(recordedNoteView(t, model, current), recordedEnglishChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
 		// vault's own words either way; what changes is everything the page
@@ -119,16 +123,27 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"health-page-unreadable-english", Health(recordedUnreadableHealthView(t, model), recordedEnglishChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
-		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
+		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
 		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
-		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(model, "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
-		{"preferences-page", Preferences(recordedPreferencesView(), recordedChrome())},
+		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(recordedShell(model), "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
+		{"preferences-page", Preferences(recordedPreferencesView(wording.ZhHant), recordedChrome())},
+		// The field legends are drawn in the label face now rather than sitting
+		// inside a bordered box, and that face is where an untranslated legend
+		// would be easiest to miss — recorded in English too so a fixture
+		// carrying the wrong language's words shows up as a byte, not a guess.
+		{"preferences-page-english", Preferences(recordedPreferencesView(wording.En), recordedEnglishChrome())},
 		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
 		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
-		{"report-index-page", ListIndex(recordedReportIndexView(), recordedChrome())},
+		{"report-index-page", ListIndex(recordedReportIndexView(recordedChrome().Lang), recordedChrome())},
+		// The same shelf in the other language it is read in. The day is the
+		// vault's own either way; the two answers that are not a day — the
+		// briefing kept current, and the report that wrote none — are the
+		// interface's words, and only a recording in both languages shows
+		// neither was left behind in one of them.
+		{"report-index-page-english", ListIndex(recordedReportIndexView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
@@ -144,8 +159,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// one is a layout fault the Chinese recording alone cannot show.
 		{"search-page-empty", Search(recordedNothingFoundView(model), recordedChrome())},
 		{"search-page-empty-english", Search(recordedNothingFoundView(model), recordedEnglishChrome())},
-		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedEnglishChrome())},
-		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewSidebar(model, "")}, recordedChrome())},
+		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedEnglishChrome())},
+		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
 		{"health-page-clear", Health(recordedClearHealthView(model), recordedChrome())},
 		{"health-page-clear-english", Health(recordedClearHealthView(model), recordedEnglishChrome())},
 		{"home-page-empty", Home(recordedNothingHomeView(wording.ZhHant), recordedChrome())},
@@ -205,7 +220,7 @@ func recordedNothingFoundView(model *nav.Model) SearchView {
 		FilterKeys: lexical.FilterKeys(),
 		StepBacks:  []SearchStepBack{{Query: "kaf", Count: 2}},
 		Governed:   true,
-		Sidebar:    NewSidebar(model, ""),
+		Sidebar:    NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -213,7 +228,7 @@ func recordedNothingFoundView(model *nav.Model) SearchView {
 // the page reads is empty, which is the one state the faulted recording beside
 // it can never reach.
 func recordedClearHealthView(model *nav.Model) HealthView {
-	return HealthView{Sidebar: NewSidebar(model, "")}
+	return HealthView{Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}
 }
 
 // recordedNothingHomeView is the desk with nothing in the two shelves a
@@ -258,7 +273,13 @@ func recordedNothingHomeView(lang wording.Lang) HomeView {
 // described note, the hidden return address, the visible submit — and reaching
 // through the endpoint to get it would put the assembly under the recording too,
 // where a moved label and a moved tag would look like one change.
-func recordedPreferencesView() PreferencesView {
+//
+// The legend and note text come from the wording package rather than sitting
+// here as literals, so the English recording carries the English words a
+// reader of that page actually sees — the uppercase mono legends are the part
+// a language switch could silently leave in Chinese, the way an untranslated
+// facet heading once did.
+func recordedPreferencesView(lang wording.Lang) PreferencesView {
 	return PreferencesView{
 		ReturnTo: "/notes/Writing/lessons/go/L01.md",
 		Settings: "/preferences?from=%2Fnotes%2FWriting%2Flessons%2Fgo%2FL01.md",
@@ -266,27 +287,27 @@ func recordedPreferencesView() PreferencesView {
 		Fields: []PreferenceField{
 			{
 				Name:    "theme",
-				Legend:  "外觀",
-				Note:    "跟隨系統時，深淺由作業系統決定。",
-				Refused: "這個選擇沒有存下來，已經放回原本的值。",
+				Legend:  wording.PrefAppearance.In(lang),
+				Note:    wording.PrefAppearanceNote.In(lang),
+				Refused: wording.PrefSaveRefused.In(lang),
 				// Following the system is the one option a cookie cannot
 				// carry, so the recording keeps a choice whose marks differ
 				// across its options — one that stores nothing beside two
 				// that do.
 				Options: []PreferenceOption{
-					{Value: "system", Label: "跟隨系統", Checked: true, Unset: true},
-					{Value: "light", Label: "亮色", Stores: true},
-					{Value: "dark", Label: "暗色", Stores: true},
+					{Value: "system", Label: wording.PrefAppearanceSystem.In(lang), Checked: true, Unset: true},
+					{Value: "light", Label: wording.PrefAppearanceLight.In(lang), Stores: true},
+					{Value: "dark", Label: wording.PrefAppearanceDark.In(lang), Stores: true},
 				},
 			},
 			{
 				Name:    "ruby",
-				Legend:  "顯示讀音",
-				Note:    "只影響日文上方標了讀音的頁面。",
-				Refused: "這個選擇沒有存下來，已經放回原本的值。",
+				Legend:  wording.PrefFurigana.In(lang),
+				Note:    wording.PrefFuriganaNote.In(lang),
+				Refused: wording.PrefSaveRefused.In(lang),
 				Options: []PreferenceOption{
-					{Value: "on", Label: "開啟", Checked: true, Stores: true, Unset: true},
-					{Value: "off", Label: "關閉", Stores: true},
+					{Value: "on", Label: wording.PrefOn.In(lang), Checked: true, Stores: true, Unset: true},
+					{Value: "off", Label: wording.PrefOff.In(lang), Stores: true},
 				},
 			},
 		},
@@ -308,6 +329,18 @@ var drawsNothing = map[string]bool{
 	"statusbar-frontmatter-diagnostic":   true,
 	"statuspanel-ungoverned":             true,
 	"statuspanel-frontmatter-diagnostic": true,
+}
+
+// recordedShell is the fixture folder handed over the way a request receives
+// it, carrying a stated vault so the recordings hold the foot of the rail with
+// its three lines filled. The zero shell is recorded too — the rail with no
+// current note keeps it — so both the stated and the unstated wording are
+// pinned, and neither can go blank without a recording moving.
+func recordedShell(model *nav.Model) nav.Shell {
+	return nav.Shell{
+		Nav:   model,
+		Vault: nav.Vault{Name: "example-vault", Notes: 12, Findings: 3},
+	}
 }
 
 // recordedChrome is one fixed request's chrome, so the recording says nothing
@@ -396,7 +429,7 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		CitedBy:             []nav.NoteRef{{Name: "C01", RelPath: "Concepts/go/C01.md"}},
 		BasedOn:             []nav.NoteRef{{Name: "Book notes", RelPath: "Book notes.md"}, {Name: "[[twin]]"}},
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
-		ReadingRail:         NewReadingRail(model, current, "golang"),
+		ReadingRail:         NewReadingRail(recordedShell(model), current, "golang"),
 		Governed:            true,
 		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",
@@ -421,7 +454,9 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 // to answer: both rows are that lesson and both are marked.
 func recordedPathView(model *nav.Model) PathView {
 	current := model.Path("Maps/Go path.md")
-	return BuildPathView(current, model.Paths(), "Writing/lessons/go/L01.md")
+	view := BuildPathView(current, model.Paths(), "Writing/lessons/go/L01.md")
+	view.Vault = recordedShell(model).Vault
+	return view
 }
 
 // recordedStatusStates names every state the write face can be in. The two
@@ -514,14 +549,29 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 	)
 }
 
-// recordedReportIndexView carries both kinds of report the vault holds and the
-// newest mark, none of which the shared fixture vault has.
-func recordedReportIndexView() ListIndexView {
+// recordedReportIndexView carries every answer a report row can give in the
+// column a reader scans, none of which the shared fixture vault has: a written
+// report with a day of its own and the line it opens with, a briefing named
+// for the day it covers, the briefing the vault keeps current, and a report
+// that wrote no day at all. They are already in the order the shelf puts them,
+// newest first, so the recording shows the row and not the sort.
+func recordedReportIndexView(lang wording.Lang) ListIndexView {
 	return NewReportIndex([]nav.Report{
-		{Name: "Vault audit", RelPath: "System/reports/2026-07-10 vault audit.md"},
-		{Name: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
-	}, recordedChrome().Lang, nil)
+		{
+			Name:    "Vault audit",
+			RelPath: "System/reports/2026-07-10 vault audit.md",
+			Date:    "2026-07-10",
+			Opening: "Four notes went from draft to ready. Nothing was archived.",
+		},
+		{
+			Name:     "2026-07-02 briefing.html",
+			RelPath:  "System/reports/daily-briefing/2026-07-02 briefing.html",
+			Briefing: true,
+			Date:     "2026-07-02",
+		},
+		{Name: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
+	}, lang, nil)
 }
 
 // recordedWithheldIndexView is a mode index whose declaration could not be
@@ -586,7 +636,7 @@ func recordedHealthView(model *nav.Model) HealthView {
 		// The ordering a request that named none resolves to, which is what a
 		// reader arriving at the page is holding.
 		Sort:    HealthByFinding,
-		Sidebar: NewSidebar(model, ""),
+		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -607,7 +657,7 @@ func recordedUnreadableHealthView(t *testing.T, model *nav.Model) HealthView {
 	return HealthView{
 		Blocked: sealedVaultBlocked(t),
 		Sort:    HealthByFinding,
-		Sidebar: NewSidebar(model, ""),
+		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -671,7 +721,7 @@ func recordedFileView(model *nav.Model) FileView {
 		RelPath:     "Sources/notes.csv",
 		Size:        1234567,
 		ContentType: "text/csv",
-		Sidebar:     NewSidebar(model, ""),
+		Sidebar:     NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -700,7 +750,7 @@ func recordedRecoveryView(model *nav.Model) StatusRecoveryView {
 		NotePath:        "Writing/lessons/go/L01.md",
 		NoteIdentity:    "abc123",
 		ObsidianHref:    ObsidianHref("/vault", "Writing/lessons/go/L01.md"),
-		Sidebar:         NewSidebar(model, "Writing/lessons/go/L01.md"),
+		Sidebar:         NewSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md"),
 	}
 }
 
@@ -735,7 +785,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
 		Facets:            recordedSearchFacets(lang),
 		Governed:          true,
-		Sidebar:           NewSidebar(model, ""),
+		Sidebar:           NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 

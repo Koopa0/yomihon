@@ -47,7 +47,7 @@ func TestARailRowReportsAResolutionItHasNoWordsFor(t *testing.T) {
 		}
 	})
 
-	sb := NewSidebar(nil, "")
+	sb := NewSidebar(nav.Shell{}, "")
 	chrome := layouts.Chrome{Lang: wording.ZhHant}
 	for name, component := range map[string]templ.Component{
 		"a course row": pathEntryLink(sb, chrome, &nav.PathEntry{Text: "Lesson", Kind: unnamedKind}),
