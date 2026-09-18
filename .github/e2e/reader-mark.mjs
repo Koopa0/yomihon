@@ -167,6 +167,10 @@ const MUTATIONS = {
       'the rule that drops the right rail below its width',
     ),
   },
+  // The needle is the rule's opening rather than the whole of it, because what
+  // is injected wins from anywhere inside the block and the rest of the rule is
+  // then free to be reordered without this going stale. An opening that stops
+  // matching is reported as a mutation that never applied, not as a pass.
   'hide-the-way-back-when-narrow': {
     target: 'a-narrow-reader-is-offered-the-place-back',
     apply: rewriteStylesheet(
