@@ -28,17 +28,17 @@ import (
 // a page built without one would draw a course with no words above its counts.
 func newServer(t *testing.T, root string) *httptest.Server {
 	t.Helper()
-	return newServerWithMark(t, root, mark.Continuation{}, false)
+	return newServerWithMark(t, root, &mark.Continuation{}, false)
 }
 
 // newServerWithMark is newServer for a reader who left a place behind.
-func newServerWithMark(t *testing.T, root string, kept mark.Continuation, marked bool) *httptest.Server {
+func newServerWithMark(t *testing.T, root string, kept *mark.Continuation, marked bool) *httptest.Server {
 	t.Helper()
 	model := loadModel(t, root)
 	snap := publishedGeneration(t, root)
 	mux := http.NewServeMux()
 	syllabus.New(func() syllabus.RequestSnapshot {
-		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model}, Generation: snap, Kept: kept, Marked: marked}
+		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model}, Generation: snap, Kept: *kept, Marked: marked}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

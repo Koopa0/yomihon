@@ -131,7 +131,7 @@ func (r *ReadingRail) bookView() PathView {
 	if r.book == nil {
 		return PathView{}
 	}
-	return BuildPathView(r.book, nil, CourseCover{Here: r.CurrentPath})
+	return BuildPathView(r.book, nil, &CourseCover{Here: r.CurrentPath})
 }
 
 // courseStepsLabel names the path's whole order for the book rail's step links.
