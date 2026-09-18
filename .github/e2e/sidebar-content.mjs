@@ -173,12 +173,16 @@ try {
 
   await page.goto(BASE + STUDY_PAGE, { waitUntil: 'domcontentloaded' });
   const syllabusPolicyWarning = page.locator('main .y-lesson--broken[data-resolution="non-instance"]', { hasText: 'Template-only lesson' });
-  const syllabusPolicyOrder = await page.locator('main a[href="/notes/Notes/alpha.md"], main [data-resolution="non-instance"], main [data-resolution="unresolved"], main a[href="/notes/Notes/beta.md"]').evaluateAll((rows) => rows.map((row) => row.dataset.resolution || row.getAttribute('href')));
+  // The course's own rows, not every link in the column: the page also carries
+  // the one verb that opens the course, which leads to the first lesson and is
+  // a second link to it. What is being read here is the order the author's list
+  // is drawn in, so it is asked of the list.
+  const syllabusPolicyOrder = await page.locator('main a.y-lesson[href="/notes/Notes/alpha.md"], main .y-lesson[data-resolution="non-instance"], main .y-lesson[data-resolution="unresolved"], main a.y-lesson[href="/notes/Notes/beta.md"]').evaluateAll((rows) => rows.map((row) => row.dataset.resolution || row.getAttribute('href')));
   if (await syllabusPolicyWarning.count() !== 1 || await syllabusPolicyWarning.locator('.y-navmark--warn').count() === 0 || await page.locator('main a', { hasText: 'Template-only lesson' }).count() !== 0 || syllabusPolicyOrder.join(',') !== '/notes/Notes/alpha.md,non-instance,unresolved,/notes/Notes/beta.md') {
     fail('path-page-noninstance-kept', 'the non-instance study-path row is not one ordered, non-link policy warning on the syllabus page');
   }
   const syllabusWarning = page.locator('main .y-lesson--broken[data-resolution="unresolved"]', { hasText: 'Unwritten Lesson' });
-  const syllabusPathOrder = await page.locator('main a[href="/notes/Notes/alpha.md"], main [data-resolution="unresolved"], main a[href="/notes/Notes/beta.md"]').evaluateAll((rows) => rows.map((row) => row.hasAttribute('data-resolution') ? 'warning' : row.getAttribute('href')));
+  const syllabusPathOrder = await page.locator('main a.y-lesson[href="/notes/Notes/alpha.md"], main .y-lesson[data-resolution="unresolved"], main a.y-lesson[href="/notes/Notes/beta.md"]').evaluateAll((rows) => rows.map((row) => row.hasAttribute('data-resolution') ? 'warning' : row.getAttribute('href')));
   if (await syllabusWarning.count() !== 1 || await syllabusWarning.locator('.y-navmark--warn').count() === 0 || await page.locator('main a', { hasText: 'Unwritten Lesson' }).count() !== 0 || syllabusPathOrder.join(',') !== '/notes/Notes/alpha.md,warning,/notes/Notes/beta.md') {
     fail('path-page-unresolved-kept', 'the unresolved study-path row is not one ordered, non-link warning on the syllabus page');
   }
