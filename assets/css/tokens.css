@@ -266,13 +266,22 @@
      same way the literals it replaces already did. */
   --overlay-mask: oklch(0 0 0 / 0.45);
 
-  /* Content measure */
-  --measure-article: 680px;
+  /* Page shells. A page is one of a few shapes, and each is a line length
+     together with the space either side of it. The two are named as a pair
+     because the box a shell takes is derived from both: hold the box fixed
+     instead and a narrower window spends its reclaimed gutter on longer lines,
+     so the measure grows by a tenth exactly when the reader has least room.
+     The reading shell is a note, a file, a study path, the reading choices,
+     and the two pages a reader only ever reaches by accident. */
+  --measure-read: 640px;
+  --gutter-read: 56px;
+
   /* A notice, which is one heading and a sentence or two rather than an
-     article. It is narrower than the article measure on purpose: a page whose
+     article. It is narrower than the reading measure on purpose: a page whose
      whole answer is two lines reads as a column, not as a band of text across
-     the window. */
-  --measure-notice: 480px;
+     the window. It is a column inside a shell and not a shell, which is what
+     keeps its name apart from the measures above. */
+  --notice-column: 480px;
 
   /* Motion */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
