@@ -76,10 +76,14 @@ type Continuation struct {
 	// RelPath is the note, as a vault-relative slash path in NFC — the same
 	// spelling every other face here uses, so a mark and a page name one note.
 	RelPath string
-	// Anchor is the id of the nearest heading or block anchor above where the
-	// reader stopped. It is empty where the position had none above it, which
-	// a short note ordinarily has; Offset is then measured from the top of the
-	// document, and the mark keeps the weaker promise a pixel can keep.
+	// Anchor is the id of the nearest anchor above where the reader stopped —
+	// any id the article carries, which is a heading or a block address on
+	// most notes and is a footnote reference or a container elsewhere. The
+	// nearest one is the most precise thing the page can name at that point,
+	// whatever kind of element carries it. It is empty where the position had
+	// none above it, which a short note ordinarily has; Offset is then
+	// measured from the top of the document, and the mark keeps the weaker
+	// promise a pixel can keep.
 	Anchor string
 	// Offset is how far below Anchor the reader was when they set the mark.
 	// Landing scrolls to Anchor and adds it.
