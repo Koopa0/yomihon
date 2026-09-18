@@ -30,9 +30,10 @@ Exit codes: **0** nothing named by `--deny` was found · **1** a `--deny` gate
 hit · **2** the command could not run. Findings alone never fail it — without
 `--deny`, `check` reports and exits 0, which is why a green exit is not by
 itself evidence of a clean vault. A file `check` could not read is one of those
-findings and not a reason it could not run, so it exits 0 too unless you name
-`scan.unreadable` or `error` to `--deny`; `coverage` and `exists` still refuse
-with 2, because their whole answer is a verdict about the vault entire.
+findings and not a reason it could not run, so it exits 0 too unless a `--deny`
+covers it — its own id, or any of the three severities, since it is an `error`.
+`coverage` and `exists` still refuse with 2, because their whole answer is a
+verdict about the vault entire.
 
 ### What `--all` does, and the thing it cannot do
 
@@ -68,6 +69,7 @@ is why the entry point's probe reads `$?`:
 | a `[path...]` written as an absolute path | a filter names part of the vault from the vault's own root; the vault itself goes after `--root` |
 | a `--deny` value that is neither a severity nor a real rule id | a typo fails loudly instead of quietly disabling the gate |
 | a `--baseline` file written by another fingerprint version | a fingerprint carries its algorithm version as a prefix, currently `v1:`, and subtracting across versions would silently under-subtract. The message names the offending line |
+| a vault no note at all could be read from | one unreadable file is reported and the rest judged, but where every read failed there is nothing in hand to judge, and a page whose every line said so under a passing exit code would read as a verdict. The refusal names the first file the reads stopped on |
 
 The second row is the one to expect on a vault that otherwise looks healthy,
 and it is wider than it looks. It prints
