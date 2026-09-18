@@ -2163,6 +2163,27 @@ func TestBuildReportsKeepsCapturedOrderAmongTheUndated(t *testing.T) {
 	}
 }
 
+// TestBuildReportsKeepsCapturedOrderWithinOneDay is the same question asked of
+// two reports written on the same day: a day is all the shelf orders on, and
+// where two share one it has nothing left to separate them by.
+func TestBuildReportsKeepsCapturedOrderWithinOneDay(t *testing.T) {
+	t.Parallel()
+
+	sameDay := func(path string) capturedFile {
+		return capturedFile{path: path, note: vault.Parse(path, []byte("---\ncreated: 2026-05-05\n---\n"))}
+	}
+	files := []capturedFile{sameDay("System/reports/zebra.md"), sameDay("System/reports/apple.md")}
+	got := buildReports(files, testContract(t).AuthoredDate())
+	want := []string{"zebra", "apple"}
+	names := make([]string, 0, len(got))
+	for _, report := range got {
+		names = append(names, report.Name)
+	}
+	if diff := cmp.Diff(want, names); diff != "" {
+		t.Errorf("same-day report order mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // TestReportDate walks every way a report can come by a day, and the two ways
 // it can fail to. The field the contract dates a note by answers first; the
 // filename answers only where it did not; and a frontmatter value of a shape no
@@ -2188,6 +2209,12 @@ func TestReportDate(t *testing.T) {
 		{name: "quoted day", path: "System/reports/weekly.md", raw: "---\ncreated: \"2026-08-31\"\n---\n", want: "2026-08-31"},
 		{name: "a moment is still one day", path: "System/reports/weekly.md", raw: "---\ncreated: \"2026-08-31T09:30:00Z\"\n---\n", want: "2026-08-31"},
 		{name: "filename where the note declares none", path: "System/reports/2026-01-01 weekly.md", raw: "prose\n", want: "2026-01-01"},
+		// "created:" with nothing after it wrote no day, so the filename
+		// answers as it does for a note that left the field out. A value that
+		// cannot be read is the other case: something was written there, and a
+		// row showing the filename's day instead would hide that it did not
+		// read.
+		{name: "the field written empty", path: "System/reports/2026-01-01 weekly.md", raw: "---\ncreated:\n---\n", want: "2026-01-01"},
 		{name: "a day the note cannot be read for", path: "System/reports/2026-01-01 weekly.md", raw: "---\ncreated: soon\n---\n", want: ""},
 		{name: "no day anywhere", path: "System/reports/weekly.md", raw: "prose\n", want: ""},
 	}

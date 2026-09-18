@@ -677,20 +677,19 @@ func openingLine(file capturedFile) string {
 //
 // Everything else falls in order of the day it carries. ISO calendar dates
 // compare as text exactly as they compare as days, so the written form is the
-// sort key and no clock or zone enters. A report with no day sorts last and
-// keeps the order the scan captured it in.
+// sort key and no clock or zone enters.
+//
+// A report with no day sorts last, and no line here puts it there: no day is
+// the empty string, which is smaller than every written one, so latest-first
+// leaves it at the end. Two reports the comparison cannot separate — the same
+// day, or neither carrying one — keep the order the scan captured them in,
+// which is what makes the sort a stable one.
 func byRecency(a, b Report) int {
 	if a.Latest != b.Latest {
 		if a.Latest {
 			return -1
 		}
 		return 1
-	}
-	if (a.Date == "") != (b.Date == "") {
-		if a.Date == "" {
-			return 1
-		}
-		return -1
 	}
 	return strings.Compare(b.Date, a.Date)
 }
