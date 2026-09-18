@@ -108,7 +108,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// vault's own words either way; what changes is everything the page
 		// says around them, and the page's shape must survive the longer
 		// words rather than only the ones it was drawn with.
-		{"syllabus-page-english", Syllabus(recordedPathView(model), englishChrome())},
+		{"syllabus-page-english", Syllabus(recordedPathView(model), recordedEnglishChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
@@ -237,17 +237,6 @@ var drawsNothing = map[string]bool{
 
 // recordedChrome is one fixed request's chrome, so the recording says nothing
 // about the machine it was made on.
-// recordedEnglishChrome is the same chrome in the other interface language.
-// The findings table names each of its columns twice — once in the header a
-// reader clicks, once on every cell so a stacked row still says what it holds —
-// and both are drawn from the interface's words, so only a recording in both
-// languages can show that neither spelling was left behind in one of them.
-func recordedEnglishChrome() layouts.Chrome {
-	chrome := recordedChrome()
-	chrome.Lang = wording.En
-	return chrome
-}
-
 func recordedChrome() layouts.Chrome {
 	return layouts.Chrome{
 		Title:                     "L01",
@@ -260,12 +249,15 @@ func recordedChrome() layouts.Chrome {
 	}
 }
 
-// englishChrome is the same fixed request read in the other language the
-// interface speaks, so a surface recorded twice differs only by what it says.
-func englishChrome() layouts.Chrome {
-	c := recordedChrome()
-	c.Lang = wording.En
-	return c
+// recordedEnglishChrome is the same chrome in the other interface language.
+// The findings table names each of its columns twice — once in the header a
+// reader clicks, once on every cell so a stacked row still says what it holds —
+// and both are drawn from the interface's words, so only a recording in both
+// languages can show that neither spelling was left behind in one of them.
+func recordedEnglishChrome() layouts.Chrome {
+	chrome := recordedChrome()
+	chrome.Lang = wording.En
+	return chrome
 }
 
 // recordedNoteView is a reading page carrying one of everything the page can
