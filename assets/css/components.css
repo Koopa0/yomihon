@@ -1795,6 +1795,33 @@ html {
 .y-healthlink { font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--accent); text-decoration: none; }
 .y-healthlink:hover { text-decoration: underline; }
 
+/* The report's own shape, in the same label face as the table's own headings
+   below it: monospace, small, and no colour of its own — a weight already
+   carries the table's badge colour, and everything else here stays neutral. */
+.y-healthshape {
+  align-items: center;
+  color: var(--fg-faint);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  gap: 6px 10px;
+  letter-spacing: 0.06em;
+  margin: 14px 0 0;
+}
+
+.y-healthshape__weight {
+  align-items: center;
+  color: inherit;
+  display: inline-flex;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.y-healthshape__weight:hover {
+  color: var(--fg);
+}
+
 /* The findings, as one table. A hairline under the header and one between rows
    is the whole frame: a box around a ledger adds a line for every line it
    already has. */
