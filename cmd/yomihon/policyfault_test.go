@@ -63,7 +63,7 @@ func siteWithPrivacySection(t *testing.T, privacySection string) *captureLogs {
 		t.Fatalf("write the contract: %v", err)
 	}
 	logs := &captureLogs{}
-	site, err := newReadingSite(t.Context(), root, slog.New(logs))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(logs))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
