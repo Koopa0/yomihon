@@ -6,7 +6,10 @@
 # The lifecycle entries carry one real edge — draft to ready — so the lesson
 # note offers a live status control for the write-face probes. The home block
 # counts the statuses notes actually carry: the seedling inbox note under
-# Notes/ and the drafts give it a real distribution to show.
+# Notes/ and the drafts give it a real distribution to show. fields.known
+# carries created so the reports shelf has a vault that dates a note by a
+# declared field, beside one it dates by the filename and one with no day at
+# all.
 schema_version = "1"
 [enums]
 type = ["concept", "guide", "inbox", "lesson", "moc", "source-map", "study-path", "system", "topic-map"]
@@ -22,7 +25,7 @@ lesson = ["draft", "ready"]
 [fields]
 required = ["title", "type", "domain"]
 required_inbox = ["title", "type"]
-known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags", "lang"]
+known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags", "created", "lang"]
 lesson_only = ["slug"]
 [fields.status_group]
 system = ["system", "guide"]

@@ -99,6 +99,32 @@ html, body { margin: 0; background: var(--bg); }
 .ui-navitem__count { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .ui-navitem__count--warn { color: var(--warn); }
 
+/* Where a listing is read by date, the day leads the row here as it does at
+   full width, so the desk's corner of that shelf is scanned down the same
+   column as the shelf's own page. The day and the kind at the far end are each
+   a few words that mean nothing cut in half, so both keep their own width and
+   the name is what gives — clipped with an ellipsis rather than pushing the
+   row off a phone or folding the kind beside it onto a second line. */
+.ui-navitem__when {
+  color: var(--fg-faint);
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-navitem__when + span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-navitem__when ~ .ui-navitem__count {
+  flex: none;
+  white-space: nowrap;
+}
+
 /* ---- Sidebar section label ---- */
 .ui-side__label {
   font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint);
@@ -139,7 +165,7 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ---- Scrim + dialog (⌘K) ---- */
-.ui-scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.5); z-index: 101; }
+.ui-scrim { position: fixed; inset: 0; background: var(--overlay-mask); z-index: 101; }
 .ui-dialog {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg);
   box-shadow: var(--shadow-2); width: 100%; box-sizing: border-box;
@@ -215,7 +241,7 @@ html, body { margin: 0; background: var(--bg); }
 .y-rubybtn { width: auto; gap: 7px; padding: 0 11px; }
 .y-rubybtn__label { font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: .04em; line-height: 1; }
 .y-rubybtn__label--short { display: none; }
-.y-rubybtn__on, .y-rubybtn__off { font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em; }
+.y-rubybtn__on, .y-rubybtn__off { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: .05em; }
 .y-rubybtn__on { color: var(--accent); font-weight: 500; }
 .y-rubybtn__off { color: var(--fg-faint); }
 /* ruby/theme state is expressed by the root attribute — no JS needed for the glyph */
@@ -334,7 +360,7 @@ html, body { margin: 0; background: var(--bg); }
    carries write controls wherever the rail is absent. */
 .y-shell--rail-empty { grid-template-columns: 264px minmax(0, 1fr); }
 .y-shell--rail-empty .y-rail-right { display: none; }
-.y-nav-scrim { display: none; position: fixed; inset: var(--header-height) 0 0 0; background: oklch(0 0 0 / .42); z-index: 44; }
+.y-nav-scrim { display: none; position: fixed; inset: var(--header-height) 0 0 0; background: var(--overlay-mask); z-index: 44; }
 
 /* The rails stay put while the prose moves under them: sticky to just below
    the header, each with its own overflow so a long tree scrolls without
@@ -408,7 +434,7 @@ html, body { margin: 0; background: var(--bg); }
 
 /* map tree — nested heading disclosures */
 .y-tree { padding-left: 12px; border-left: 1px solid var(--border); margin-left: 8px; }
-.y-navmark { font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); }
+.y-navmark { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 /* the row that closes a narrowed shelf and hands the reader its own page */
 .y-shelfall { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 .y-navmark--warn { color: var(--warn); }
@@ -818,25 +844,25 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 
 /* diagnostics rail */
 .y-diaghead { display: flex; align-items: center; gap: 8px; }
-.y-diagcount { font-family: var(--font-mono); font-size: 10px; color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 0 5px; letter-spacing: 0; }
+.y-diagcount { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 0 5px; letter-spacing: 0; }
 .y-diaglist { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .y-diag { border: 1px solid var(--border); border-left: 2.5px solid var(--warn); border-radius: 0 var(--r-md) var(--r-md) 0; background: transparent; padding: 11px 13px; transition: background var(--dur-base); }
 .y-diag:hover { background: var(--warn-bg); }
-.y-diag__label { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; color: var(--warn); text-transform: uppercase; }
+.y-diag__label { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--warn); text-transform: uppercase; }
 .y-diag__label svg { width: 13px; height: 13px; flex: none; }
-.y-diag__body { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-muted); }
-.y-diag__body code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
+.y-diag__body { margin: 0; font-size: var(--fs-13); line-height: 1.55; color: var(--fg-muted); }
+.y-diag__body code { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg); }
 /* how a link naming a section was read, stated under the diagnostic it
    belongs to. It is a second paragraph rather than more of the first because
    the first says what failed and this says how the words were split, and a
    reader scanning for one should not have to read past the other. */
-.y-diag__split { margin: 7px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-muted); }
-.y-diag__split code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
-.y-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: 12px; line-height: 1.6; color: var(--fg-faint); }
+.y-diag__split { margin: 7px 0 0; font-size: var(--fs-13); line-height: 1.55; color: var(--fg-muted); }
+.y-diag__split code { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg); }
+.y-diag__note { margin: 2px 0 0; font-family: var(--font-serif); font-style: italic; font-size: var(--fs-12); line-height: 1.6; color: var(--fg-faint); }
 /* out-of-enum status flag — the diagnostics rail's amber accent applied to a
    status-face notice, so the flag reads as a finding rather than as copy */
 .y-statusflag { border-left: 2.5px solid var(--warn); }
-.y-statusflag code { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg); }
+.y-statusflag code { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg); }
 
 /* ============================================================
    Status bar — the status face at the end of the article wherever the right
@@ -858,7 +884,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
    ⌘K search dialog (native <dialog>)
    ============================================================ */
 .y-searchdialog { border: none; padding: 0; max-width: 600px; width: min(600px, 92vw); margin: 12vh auto auto; }
-.y-searchdialog::backdrop { background: rgb(0 0 0 / 0.5); }
+.y-searchdialog::backdrop { background: var(--overlay-mask); }
 /* The autofocused search fields stop lighting the page-wide focus ring on
    every open. The focus signal moves to the enclosing field instead: the
    palette form owns the divider above its footer and accents it, the search
@@ -877,7 +903,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-searchdialog .y-searchresults { max-height: min(52vh, 480px); padding: 0 6px 12px; overflow-y: auto; overscroll-behavior: contain; }
 .y-searchdialog .y-results { margin-top: 10px; }
 .y-searchdialog .y-searchpage__empty { margin: 18px 12px 8px; }
-.y-searchdialog__foot { padding: 10px 18px; background: var(--elevated); font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-faint); display: flex; align-items: center; gap: 14px; }
+.y-searchdialog__foot { padding: 10px 18px; background: var(--elevated); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); display: flex; align-items: center; gap: 14px; }
 
 /* ============================================================
    Lexical search results — shared by the full page and ⌘K panel
@@ -1179,7 +1205,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    display would defeat the browser's own hiding of a closed dialog and
    paint the sheet over the right rail. */
 .y-conceptsheet[open] { display: flex; flex-direction: column; }
-.y-conceptsheet::backdrop { background: rgb(0 0 0 / 0.4); }
+.y-conceptsheet::backdrop { background: var(--overlay-mask); }
 .y-conceptsheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex: none; }
 .y-conceptsheet__title { font-family: var(--font-sans); font-size: var(--fs-ed-17); font-weight: var(--fw-semibold); color: var(--fg); }
 .y-conceptsheet__body { overflow-y: auto; padding: 18px 20px; }
@@ -1308,6 +1334,77 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    above this and would lose to the faint one on equal specificity, which is
    how a fault came to be drawn in the colour of an ordinary figure. */
 .y-row__measure--warn { color: var(--warn); }
+
+/* A row on a shelf that is read by date. A report is dated by nature, so the
+   row leads with its day, then its name, then the line the report opens with,
+   then which kind of report it is. The day and the kind hold the two edges of
+   the top line with the name between them; the opening runs under the name,
+   clipped to a single line, because a listing whose rows are two sentences
+   deep has stopped being a listing. The hairline, the padding and the hover
+   are the shelf's own and stay untouched. */
+.y-row--dated {
+  align-items: baseline;
+  column-gap: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  row-gap: 3px;
+}
+
+.y-row__when {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+  grid-column: 1;
+  grid-row: 1;
+  white-space: nowrap;
+}
+
+.y-row--dated .y-row__title {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.y-row--dated .y-row__measure {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.y-row__opening {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-13);
+  grid-column: 2;
+  grid-row: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A phone has no room for three columns. The day and the kind keep the top
+   line between them — the day still leads the row — and the name and the
+   opening take the full width beneath, where a title has the space to wrap
+   instead of being squeezed into a third of it. */
+@media (max-width: 720px) {
+  .y-row--dated {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .y-row--dated .y-row__title {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .y-row--dated .y-row__measure {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .y-row__opening {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
 
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from
@@ -1895,6 +1992,13 @@ html {
   .y-crumbs, .y-metarow, .y-steps:not(.y-steps--course) {
     display: none !important;
   }
+  /* A listing row clips its document's opening to one line on screen so the
+     shelf stays a shelf and the rest is one click away. Paper has the room and
+     takes no click, so there the line wraps and is printed whole. */
+  .y-row__opening {
+    overflow: visible;
+    white-space: normal;
+  }
   /* A fold the author closed is an offer the reader takes by clicking: hold
      the answer back, then give it. Paper takes no click, so on a sheet the
      closed fold prints its one-line summary and drops everything under it —
@@ -2136,17 +2240,19 @@ html {
 }
 .y-kbdhelp__prefs:hover { text-decoration: underline; }
 
-/* The reading choices, one page. It is a column of small panels rather than a
-   grid of switches: each choice is a panel of its own, and the sentence under
-   each heading — what the choice changes, and what it leaves alone — is the
-   part that earns it. The panels sit inside one form, which is what applies
-   them where nothing else can, so what a reader picks across the column is
-   applied together. No rail down the side, because the page is reached from
-   whatever was being read and gives it straight back. */
+/* The reading choices, one page: a column of sections named by a small
+   heading, not boxes cut by a title — the rest of the interface separates a
+   group of controls by space and a label, never a frame, and this page had
+   been the one place that drew one. The sentence under each heading — what
+   the choice changes, and what it leaves alone — is the part that earns a
+   heading of its own. The sections sit inside one form, which is what
+   applies them where nothing else can, so what a reader picks across the
+   column is applied together. No rail down the side, because the page is
+   reached from whatever was being read and gives it straight back. */
 .y-prefs { max-width: var(--measure-article); margin: 0 auto; padding: 42px 48px 120px; }
 .y-prefs__lede { margin: 18px 0 0; font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-subtle); }
-.y-preffield { margin: 28px 0 0; min-width: 0; padding: 16px 20px 18px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
-.y-preffield legend { padding: 0 6px; margin-inline-start: -6px; font-family: var(--font-sans); font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--fg); }
+.y-preffield { margin: 40px 0 0; min-width: 0; padding: 0; border: 0; }
+.y-preffield legend { padding: 0; margin: 0; font-family: var(--font-mono); font-size: var(--fs-11); font-weight: inherit; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em; }
 .y-preffield__note { margin: 2px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
 .y-preffield__options { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 0 0; }
 .y-preffield__options label { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: var(--fs-14); color: var(--fg); cursor: pointer; }
@@ -2178,7 +2284,29 @@ html {
 }
 [data-js] .y-prefs__return { display: inline-block; }
 .y-prefs__return:hover { background: var(--overlay); }
-.y-prefs .y-kbdhelp__list { margin: 28px 0 0; }
+
+/* The keys this interface answers to, named as a section like the choices
+   above it: a reader who reaches this page already asked how the interface
+   behaves, so the list the header's own help popover carries earns the same
+   heading here rather than sitting under nothing. */
+.y-prefs__shortcuts {
+  margin: 40px 0 0;
+}
+
+.y-prefs__shortcuts h2 {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: inherit;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.y-prefs__shortcuts .y-kbdhelp__list {
+  margin: 14px 0 0;
+}
+
 /* What this browser is holding, listed by the page that puts it there. */
 .y-prefs__storage { margin: 42px 0 0; padding-top: 20px; border-top: 1px solid var(--border); }
 .y-prefs__storage h2 { margin: 0; font-family: var(--font-mono); font-size: var(--fs-12); letter-spacing: 0.09em; text-transform: uppercase; font-weight: inherit; color: var(--fg-subtle); }
@@ -2234,7 +2362,7 @@ html {
   inline-size: min(38rem, calc(100vw - 2rem)); max-block-size: min(18rem, 60vh);
   overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px;
   background: var(--panel); color: var(--fg); border: 1px solid var(--border);
-  border-radius: var(--r-md); box-shadow: var(--shadow-2);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-2);
   opacity: 0;
   transition: display var(--dur-base) var(--ease-standard), overlay var(--dur-base) var(--ease-standard), opacity var(--dur-base) var(--ease-standard);
   transition-behavior: allow-discrete;

@@ -257,6 +257,15 @@
   --r-md: 6px;
   --r-lg: 12px;
 
+  /* Overlay mask — the wash behind a dialog, sheet or drawer. One value for
+     every kind of overlay rather than one per component: a reader dismissing
+     a palette, a concept sheet or the narrow nav drawer should feel the same
+     weight of dimming each time. Listed here rather than beside the colour
+     tokens above because it does not have a dark twin to keep in step: a
+     fixed-alpha black wash reads correctly over either theme's surfaces, the
+     same way the literals it replaces already did. */
+  --overlay-mask: oklch(0 0 0 / 0.45);
+
   /* Content measure */
   --measure-article: 680px;
   /* A notice, which is one heading and a sentence or two rather than an
@@ -320,15 +329,26 @@
    carries a 38px title as four or five characters a line, and the step below it
    arrives nearly as wide. Both come down; the rest of the scale is already
    small enough that narrowing it would cost legibility rather than buy any.
-   All three roots are named because a media query adds no specificity: a bare
-   :root here is one attribute weaker than the two blocks above and would leave
-   exactly the readers with the largest titles untouched. */
+   Each root gets its own pair rather than one shared behind a combined
+   selector list: the second heading (--fs-ed-24) is never clamped, so it keeps
+   climbing with the reader's size choice, and a single pair for the title and
+   the first heading eventually meets or passes it — tied at 大, above it at
+   特大. Every root is named because a media query adds no specificity: a rule
+   here keyed on one root alone ties the block above it on specificity and
+   wins only by sitting later in the file — which a bare :root cannot do for
+   the other two. */
 @media (max-width: 720px) {
-  :root,
-  :root[data-textsize="l"],
-  :root[data-textsize="xl"] {
+  :root {
     --fs-ed-30: 1.625rem;
     --fs-ed-38: 1.875rem;
+  }
+  :root[data-textsize="l"] {
+    --fs-ed-30: 1.75rem;
+    --fs-ed-38: 2rem;
+  }
+  :root[data-textsize="xl"] {
+    --fs-ed-30: 1.875rem;
+    --fs-ed-38: 2.125rem;
   }
 }
 

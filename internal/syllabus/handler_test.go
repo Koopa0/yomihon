@@ -68,7 +68,7 @@ func loadModel(t *testing.T, root string) *nav.Model {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage())
+	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate())
 	return model
 }
 
