@@ -57,6 +57,17 @@ var (
 // wording.HealthTitle, the heading that page prints, so the word a reader
 // follows and the word they arrive at cannot drift apart.
 
+// InterfaceOptions names the control that gathers the header's remaining
+// choices where the row is too narrow to show them all: the reading choices,
+// the text size, the keyboard explanation, the language and the theme. What
+// they have in common is that none of them is about the note being read, and
+// the name says that rather than saying "more" — a reader looking for the way
+// back to their own language has to recognise the button from the outside.
+// The word for the choices page itself stays with that page; this one names
+// the group the page is reached from, so the two do not answer to the same
+// word.
+var InterfaceOptions = both("介面選項", "Interface options")
+
 // TextSizeMark is the text-size control's glyph. The English side is a letter
 // rather than the character, because the control's whole job is to be legible
 // at a glance to whoever is reading the interface.

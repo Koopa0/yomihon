@@ -21,6 +21,9 @@ const SHORTCUT_ON = '.y-shortcutpref__on';
 const SHORTCUT_OFF = '.y-shortcutpref__off';
 const HELP_BUTTON = '[popovertarget="kbd-help"]';
 const HELP_PANEL = '#kbd-help';
+// Where the header keeps the control above, at the widths that have no room
+// for it out on the row.
+const FOLD_BUTTON = '[popovertarget="header-fold"]';
 
 // The single-key control is pressed, never driven by a checked-state helper.
 // The page writes this control's state back from the value it kept, so a
@@ -347,6 +350,16 @@ try {
   // absent for a reason that has nothing to do with the stylesheet.
   const openHelp = async () => {
     if (await page.locator(HELP_PANEL).evaluate((el) => el.matches(':popover-open')).catch(() => false)) return;
+    // At the widths where the header row cannot hold everything, the way to
+    // this panel is inside the folded group, so the group is opened first —
+    // from the keyboard for the same reason the panel itself is, and by asking
+    // whether the control is drawn rather than by naming a width, so this
+    // keeps working wherever the fold sits.
+    if (!(await page.locator(HELP_BUTTON).isVisible())) {
+      await page.locator(FOLD_BUTTON).focus();
+      await page.keyboard.press('Enter');
+      await page.locator(HELP_BUTTON).waitFor({ state: 'visible' });
+    }
     await page.locator(HELP_BUTTON).focus();
     await page.keyboard.press('Enter');
     await page.locator(HELP_PANEL).waitFor({ state: 'visible' });
