@@ -123,11 +123,15 @@ func (r *ReadingRail) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 // being read is handed over as the row to mark, so the rail and the course page
 // both learn which row that is from the one comparison, and neither keeps a
 // second answer that could disagree with the other.
+//
+// Nothing else of the cover reaches here: the rail is the book beside the note
+// being read, and the opening and the verb that opens a course belong to the
+// page that is the course.
 func (r *ReadingRail) bookView() PathView {
 	if r.book == nil {
 		return PathView{}
 	}
-	return BuildPathView(r.book, nil, r.CurrentPath)
+	return BuildPathView(r.book, nil, CourseCover{Here: r.CurrentPath})
 }
 
 // courseStepsLabel names the path's whole order for the book rail's step links.

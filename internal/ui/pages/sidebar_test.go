@@ -43,11 +43,23 @@ func TestHereLabel(t *testing.T) {
 // and builds the real graph and navigation projections from that generation.
 func buildModel(t *testing.T) *nav.Model {
 	t.Helper()
-	root := t.TempDir()
+	_, model := buildVault(t)
+	return model
+}
+
+// buildVault is buildModel with the folder it wrote kept, for the recordings
+// that read a note's own bytes as well as the shape navigation made of them.
+func buildVault(t *testing.T) (root string, model *nav.Model) {
+	t.Helper()
+	root = t.TempDir()
 	files := map[string]string{
 		// A study-path that lists L01 twice — once deep under Decode > Bytes, once
-		// directly under Review — so the reverse index yields two placements.
+		// directly under Review — so the reverse index yields two placements. Its
+		// opening is two paragraphs above the first heading: what the course is
+		// and who it is for, which is what a course page prints under its title.
 		"Maps/Go path.md": "---\ntype: study-path\n---\n" +
+			"這條路徑講的是 Go 的讀法：從位元開始，走到讀得懂一份原始碼。\n\n" +
+			"寫給已經會另一種語言、想把 Go 讀進去的人。\n\n" +
 			"## decode | Decode | 解碼\n\n" +
 			"### bytes | Bytes | 位元 {sequence=primary}\n\n" +
 			"- [[L01]]\n- [[L02]]\n- [[Template target]]\n- [[Unwritten Lesson]]\n- [[Repeat|Ambiguous Lesson]]\n\n" +
@@ -133,7 +145,7 @@ func buildModel(t *testing.T) *nav.Model {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(
+	return root, nav.New(
 		scan.Files(),
 		notes,
 		graph.New(noteList, resources),
@@ -143,7 +155,6 @@ func buildModel(t *testing.T) *nav.Model {
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
 	)
-	return model
 }
 
 // TestNewSidebarWayfinding checks the resolved navigation for a note that lives
