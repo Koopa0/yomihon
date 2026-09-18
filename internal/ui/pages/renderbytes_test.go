@@ -229,6 +229,10 @@ func recordedNothingHomeView(lang wording.Lang) HomeView {
 	unfilled := func(mode, title, href, count, lede, empty string) DeskBlock {
 		return DeskBlock{Mode: mode, Shelf: Shelf{Title: title, Href: href, Count: count, Lede: lede, Empty: empty}}
 	}
+	// The several-types sentence is given its list the way the page gives it
+	// one: the types the contract declared, joined by the separator this
+	// interface writes inside a sentence.
+	declaredTypes := []string{"concept", "map"}
 	return HomeView{
 		PrivacyFault:   `never_egress_dirs = ["/"]`,
 		Degraded:       fmt.Sprintf(wording.DegradedNoticeOne.In(lang), 1),
@@ -242,7 +246,7 @@ func recordedNothingHomeView(lang wording.Lang) HomeView {
 				plural(0, wording.MapCountOne, wording.MapCountMany, lang),
 				wording.DeskMapsLede.In(lang),
 				fmt.Sprintf(wording.NoDeclaredTypesEmptyFmt.In(lang),
-					strings.Join([]string{"concept", "map"}, wording.ListSeparator.In(lang)))),
+					strings.Join(declaredTypes, wording.ListSeparator.In(lang)))),
 		},
 		ReadmeMissing: true,
 	}
