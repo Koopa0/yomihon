@@ -460,11 +460,15 @@ const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
 
 // A mark's gold wash is translucent. Measuring the token pair without
 // compositing that wash over the surface is how a 4.26:1 path-line hit
-// shipped as a passing token. The wash lets the row's ground through, so
-// the idle page is the most favourable reading; a hovered row (--overlay)
-// and the busy container (--elevated) are darker — the grounds that
-// stayed under 4.5:1 when the idle page cleared it. 11px normal text
-// still owes 4.5:1 on each.
+// shipped as a passing token. The wash lets whatever is behind the row
+// through, so each state a row can be in is its own ground: the page, the
+// page again under a pointer — a hit is a line in a list now, and raises
+// no surface of its own — and the busy container (--elevated), which is
+// the darker one, and the ground that stayed under 4.5:1 when the idle
+// page cleared it. 11px normal text still owes 4.5:1 on each. The hover
+// state stays in the list although it currently reads as the page does,
+// because it is where a surface returning to a row would have to prove
+// itself legible.
 const SEARCH_MARK_HTML = '<ol class="y-results" role="list"><li><a class="y-result" href="#"><span class="y-result__title">Alpha</span><span class="y-result__meta"><mark>Goroutine</mark>s.md</span></a></li></ol>';
 const MARK_GROUNDS = [
   { name: 'hover', busy: false, hover: true },
@@ -523,11 +527,12 @@ const measurePlantedMark = (page, groundName) => page.evaluate((selectedGround) 
   const mark = fixture.querySelector('mark');
   if (!mark) return { issue: 'the fixture had no mark to measure' };
   if (selectedGround === 'hover') {
+    // The row itself is what has to be under the pointer; whether it paints
+    // anything of its own there is the stylesheet's business, and today it
+    // does not. The walk below then finds the page behind it.
     const row = mark.closest('.y-result');
     if (!row) return { issue: 'the hovered fixture had no result row' };
-    const rowBg = raster(getComputedStyle(row).backgroundColor);
-    if (rowBg.issue) return { issue: rowBg.issue };
-    if (rowBg.alpha !== 255) return { issue: 'the hovered result has no opaque overlay, so this reading is not a hover' };
+    if (!row.matches(':hover')) return { issue: 'the result row is not under the pointer, so this reading is not a hover' };
   }
   if (selectedGround === 'busy') {
     const regionBg = raster(getComputedStyle(fixture).backgroundColor);
@@ -573,21 +578,18 @@ const measureMark = async (page, theme, ground) => {
   const planted = await plantSearchFixture(page, theme, { busy: ground.busy });
   if (planted.issue) return planted;
   try {
+    // A hovered result row no longer raises a surface of its own, so what is
+    // waited for is the pointer landing, not a ground settling: the reading
+    // then walks out to whatever is painted behind the row, which is what a
+    // reader looking at a hovered hit actually sees. The state is kept in the
+    // list rather than dropped, because it is a real one and this is where a
+    // surface returning to it would have to prove itself legible.
     if (ground.hover) {
       await page.locator('#contrast-search-fixture .y-result').hover();
-      const hovered = await page.waitForFunction(() => {
-        const row = document.querySelector('#contrast-search-fixture .y-result');
-        if (!row || !row.matches(':hover')) return false;
-        const canvas = document.createElement('canvas');
-        canvas.width = 1;
-        canvas.height = 1;
-        const context = canvas.getContext('2d', { willReadFrequently: true });
-        if (!context) return false;
-        context.fillStyle = getComputedStyle(row).backgroundColor;
-        context.fillRect(0, 0, 1, 1);
-        return context.getImageData(0, 0, 1, 1).data[3] === 255;
-      }).then(() => true, () => false);
-      if (!hovered) return { issue: 'the hovered result never took an opaque overlay' };
+      const hovered = await page.waitForFunction(() => (
+        document.querySelector('#contrast-search-fixture .y-result')?.matches(':hover') === true
+      )).then(() => true, () => false);
+      if (!hovered) return { issue: 'the pointer never landed on the result row' };
     }
     return await measurePlantedMark(page, ground.name);
   } finally {
