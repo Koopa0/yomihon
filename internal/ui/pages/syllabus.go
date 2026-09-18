@@ -17,9 +17,9 @@ import (
 // figures the header metarow reads. Navigation has already classified every
 // entry, so the page never resolves a wikilink.
 type PathView struct {
-	Title      string
-	RelPath    string
-	GuideHref  string
+	Title     string
+	RelPath   string
+	GuideHref string
 	// ListenHref is the same course as something to be listened to.
 	ListenHref string
 	SealTarget string

@@ -31,7 +31,7 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 	if err := os.WriteFile(broken, []byte("this is not toml [[[\n"), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
 		t.Fatalf("break the contract: %v", err)
 	}
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 				// "no courses" and "no courses declared" are both answers this
 				// page does not have, so the slot that would carry either is
 				// the one that must not be drawn.
-				if strings.Contains(block, "y-homeempty") {
+				if strings.Contains(block, `data-nothing="shelf"`) {
 					t.Errorf("the %s block says it holds none of something its declaration never described: %q", mode, block)
 				}
 			}
@@ -252,7 +252,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 					t.Fatalf("write %s: %v", rel, err)
 				}
 			}
-			site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+			site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 			if err != nil {
 				t.Fatalf("newReadingSite: %v", err)
 			}
@@ -502,7 +502,7 @@ func siteOverAContract(t *testing.T, mutate func(string) string) *readingSite {
 	if err = os.WriteFile(contractPath, []byte(written), 0o600); err != nil { // #nosec G703 -- a fixture path under t.TempDir
 		t.Fatalf("write the contract: %v", err)
 	}
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -530,7 +530,7 @@ func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
 
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -687,7 +687,7 @@ func TestFolderShelfScope(t *testing.T) {
 				if want := "<p>" + tt.wantCount + "</p>"; !strings.Contains(block, want) {
 					t.Errorf("GET / folder preview count is missing %q", want)
 				}
-				if tt.wantPreview == nil && !strings.Contains(block, `class="y-homeempty"`) {
+				if tt.wantPreview == nil && !strings.Contains(block, `data-nothing="shelf"`) {
 					t.Error("GET / folder preview does not state the empty shelf")
 				}
 			})
@@ -837,7 +837,7 @@ func folderShelfSite(t *testing.T, contract string, rootFiles bool) *readingSite
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -940,7 +940,7 @@ func TestAnEmptyDeskNamesTheDeclarationThatFillsIt(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			writeContractDeclaring(t, root, tt.pathType, tt.mapTypes)
-			site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+			site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 			if err != nil {
 				t.Fatalf("newReadingSite: %v", err)
 			}

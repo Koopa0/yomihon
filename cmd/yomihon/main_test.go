@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/report"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -99,9 +100,15 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"Writes one JSON object per line when the output is not a terminal, and a\n" +
 			"human summary when it is. --format decides instead of the terminal.\n" +
 			"\n" +
+			"A file the scan saw and the read could not open is reported as an error\n" +
+			"finding named scan.unreadable, and the rest of the vault is judged. The\n" +
+			"rules that conclude something is nowhere in the vault report nothing for\n" +
+			"that run, since the file nobody read may hold it, and the finding says so.\n" +
+			"\n" +
 			"Exits 0 when nothing named by --deny was found, 1 when something was, and\n" +
 			"2 when the command itself could not run. Findings alone do not fail the\n" +
-			"command: without --deny it reports and exits 0.\n",
+			"command: without --deny it reports and exits 0, an unreadable file\n" +
+			"included.\n",
 		"coverage": "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n" +
 			"\n" +
 			"Writes a compact JSON object when the output is not a terminal, and a\n" +
@@ -113,8 +120,12 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"state. When the list is omitted or empty, the whole vault is counted.\n" +
 			"A withheld path is never reported.\n" +
 			"\n" +
+			"A census is an answer about the whole vault, so a file the read could not\n" +
+			"open stops this command where it lets check report and go on: there is no\n" +
+			"count that means \"except for the part I could not read\".\n" +
+			"\n" +
 			"Exits 0 — coverage reports state, it never gates — and 2 when the\n" +
-			"command itself could not run.\n",
+			"command itself could not run, an unreadable file included.\n",
 		"exists": "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n" +
 			"\n" +
 			"Writes a compact JSON object when the output is not a terminal, and a\n" +
@@ -124,6 +135,11 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"Exits 0 when a note for the name exists and 1 when none does, so a\n" +
 			"caller can gate a write-if-absent on the exit code alone; 2 when the\n" +
 			"command itself could not run.\n" +
+			"\n" +
+			"A note that answers still answers when some other file could not be read.\n" +
+			"\"None does\" is the answer that needs the whole vault, so where a read\n" +
+			"failed it is refused with 2 rather than given, and nothing gates a write\n" +
+			"on an absence nobody could establish.\n" +
 			"\n" +
 			"A note inside a directory the contract withholds from agent-facing output\n" +
 			"is never described here — no path, no matched field. It still answers:\n" +
@@ -376,6 +392,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	note.New(&note.Sources{
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   func() (mark.Continuation, bool) { return mark.Continuation{}, false },
 		Source:         reader,
 		Status:         writer.Authority,
 		Snapshot:       store.Current,
@@ -544,6 +561,19 @@ var envReaders = map[string]map[string]string{
 		"Environ":   "reads the whole environment",
 		"ExpandEnv": "reads every variable named in its argument",
 		"Expand":    "reads the environment through a mapping this guard cannot follow",
+		// The three directory readers name no key for this guard to check:
+		// each reads HOME, and the platform's own variable beside it, inside
+		// the standard library. UserConfigDir is here because the command does
+		// make that read — the reader's own marks are kept under the directory
+		// it returns — and a read the guard cannot see is a surface that
+		// widened while the guard stayed green. Its two siblings read the same
+		// variables and are here for that reason alone: an allowlist that
+		// admits one door and not the two beside it guards nothing.
+		// UserConfigDir is refused everywhere but the one file named below;
+		// the other two are refused everywhere.
+		"UserConfigDir": "reads HOME, and XDG_CONFIG_HOME where the platform has one, inside the standard library, so no key reaches this guard",
+		"UserHomeDir":   "reads HOME, and USERPROFILE where the platform has one, inside the standard library, so no key reaches this guard",
+		"UserCacheDir":  "reads HOME, and XDG_CACHE_HOME where the platform has one, inside the standard library, so no key reaches this guard",
 	},
 	"syscall": {
 		"Getenv":  "reads the environment beneath the os package",
@@ -688,13 +718,38 @@ func envReads(fset *token.FileSet, files []*ast.File, allowed map[string]bool) [
 	return reads
 }
 
+// envReadersPermittedIn names, for a reader that carries no key, the one file
+// that may make the read. Everywhere else it stays refused.
+//
+// Configuration is the process's own business: the command reads what it needs
+// once, validates it, and hands the result to the packages that use it. A
+// package reaching for the environment itself is the shape this forbids, and
+// it is forbidden by location because there is no key here to allow.
+var envReadersPermittedIn = map[string]string{
+	"os.UserConfigDir": "cmd/yomihon/main.go",
+}
+
+// readAt reports whether filename is the file that "where" names, given as a
+// repository-relative path.
+// The scan reports absolute paths, so the comparison is on the tail — bounded
+// at a separator, so a directory merely ending in those characters is not the
+// one being named.
+func readAt(filename, where string) bool {
+	slashed := filepath.ToSlash(filename)
+	return slashed == where || strings.HasSuffix(slashed, "/"+where)
+}
+
 // envOffenders keeps the reaches this command is not permitted to make.
 func envOffenders(reads []envRead) []envRead {
 	var offenders []envRead
 	for _, r := range reads {
-		if r.Why != "" {
-			offenders = append(offenders, r)
+		if r.Why == "" {
+			continue
 		}
+		if where, located := envReadersPermittedIn[r.Pkg+"."+r.Symbol]; located && readAt(r.Pos.Filename, where) {
+			continue
+		}
+		offenders = append(offenders, r)
 	}
 	return offenders
 }
@@ -894,6 +949,27 @@ func f() (string, bool) {
 	return v, ok
 }`,
 		want: nil,
+	},
+	{
+		name: "the configuration directory read from anywhere but the command",
+		src: `package thing
+import "os"
+func where() (string, error) { return os.UserConfigDir() }`,
+		want: []string{"os.UserConfigDir reads HOME, and XDG_CONFIG_HOME where the platform has one, inside the standard library, so no key reaches this guard"},
+	},
+	{
+		// The command is allowed the configuration directory and neither of
+		// the two beside it, so this fixture is the command's own package: the
+		// one file that may read a directory may not read these.
+		name: "the home and cache directories, which no file may read",
+		src: `package main
+import "os"
+func home() (string, error) { return os.UserHomeDir() }
+func cache() (string, error) { return os.UserCacheDir() }`,
+		want: []string{
+			"os.UserHomeDir reads HOME, and USERPROFILE where the platform has one, inside the standard library, so no key reaches this guard",
+			"os.UserCacheDir reads HOME, and XDG_CACHE_HOME where the platform has one, inside the standard library, so no key reaches this guard",
+		},
 	},
 	{
 		name: "the folder is no longer an environment question",

@@ -3,11 +3,13 @@ package pages
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
@@ -108,19 +110,21 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// vault's own words either way; what changes is everything the page
 		// says around them, and the page's shape must survive the longer
 		// words rather than only the ones it was drawn with.
-		{"syllabus-page-english", Syllabus(recordedPathView(model), englishChrome())},
+		{"syllabus-page-english", Syllabus(recordedPathView(model), recordedEnglishChrome())},
 		// The same course as something to be listened to, in both languages.
 		// Its paragraphs are the notes' own read-aloud elements, written out
 		// here rather than rendered, so what these files pin is the page and
 		// not a second copy of the renderer's bytes.
 		{"listen-page", Listen(recordedListenView(), recordedChrome())},
-		{"listen-page-english", Listen(recordedListenView(), englishChrome())},
+		{"listen-page-english", Listen(recordedListenView(), recordedEnglishChrome())},
 		// A course whose lessons mark nothing says so, and grows no bar.
 		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", Course: "Go path", PathHref: "/syllabus/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
 		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
+		{"health-page-unreadable", Health(recordedUnreadableHealthView(t, model), recordedChrome())},
+		{"health-page-unreadable-english", Health(recordedUnreadableHealthView(t, model), recordedEnglishChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
 		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
@@ -139,6 +143,21 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
 		{"folder-index-page", FolderIndex(NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), RecentBlock{}, StatusDistribution{}, recordedChrome())},
 		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
+		// The surfaces that have nothing to show, in both languages. Each of
+		// them is a branch the recordings above never reach — the search fixture
+		// finds notes, the health fixture has faults, and the desk fixture fills
+		// its shelves — so without these the one notice they share is written
+		// into a diff nobody can read back. Both languages, because the notice
+		// is one component for either of them and a sentence that fits in only
+		// one is a layout fault the Chinese recording alone cannot show.
+		{"search-page-empty", Search(recordedNothingFoundView(model), recordedChrome())},
+		{"search-page-empty-english", Search(recordedNothingFoundView(model), recordedEnglishChrome())},
+		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedEnglishChrome())},
+		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewSidebar(model, "")}, recordedChrome())},
+		{"health-page-clear", Health(recordedClearHealthView(model), recordedChrome())},
+		{"health-page-clear-english", Health(recordedClearHealthView(model), recordedEnglishChrome())},
+		{"home-page-empty", Home(recordedNothingHomeView(wording.ZhHant), recordedChrome())},
+		{"home-page-empty-english", Home(recordedNothingHomeView(wording.En), recordedEnglishChrome())},
 	}
 	for _, state := range recordedStatusStates() {
 		cases = append(cases,
@@ -182,6 +201,62 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 				t.Errorf("%s bytes moved (-recorded +rendered):\n%s", tt.name, diff)
 			}
 		})
+	}
+}
+
+// recordedNothingFoundView is a search that matched nothing. It carries the
+// loosened searches and the lifecycle advice, which is everything the page has
+// to offer at that moment and the part a narrower fixture leaves unwritten.
+func recordedNothingFoundView(model *nav.Model) SearchView {
+	return SearchView{
+		Query:      "kafka",
+		FilterKeys: lexical.FilterKeys(),
+		StepBacks:  []SearchStepBack{{Query: "kaf", Count: 2}},
+		Governed:   true,
+		Sidebar:    NewSidebar(model, ""),
+	}
+}
+
+// recordedClearHealthView is the folder with nothing left to report. Every list
+// the page reads is empty, which is the one state the faulted recording beside
+// it can never reach.
+func recordedClearHealthView(model *nav.Model) HealthView {
+	return HealthView{Sidebar: NewSidebar(model, "")}
+}
+
+// recordedNothingHomeView is the desk with nothing in the two shelves a
+// declaration fills and both notices about a reading that came up short. The
+// shelves are written out here rather than built from a model: what this
+// recording holds is the markup an unfilled shelf turns into, and reaching
+// through the builders would put their own arithmetic under the recording too.
+//
+// The two sentences differ on purpose. A shelf whose contract declares one type
+// names it; a shelf with several names the list, and the two are separate
+// sentences in both languages.
+func recordedNothingHomeView(lang wording.Lang) HomeView {
+	unfilled := func(mode, title, href, count, lede, empty string) DeskBlock {
+		return DeskBlock{Mode: mode, Shelf: Shelf{Title: title, Href: href, Count: count, Lede: lede, Empty: empty}}
+	}
+	// The several-types sentence is given its list the way the page gives it
+	// one: the types the contract declared, joined by the separator this
+	// interface writes inside a sentence.
+	declaredTypes := []string{"concept", "map"}
+	return HomeView{
+		PrivacyFault:   `never_egress_dirs = ["/"]`,
+		Degraded:       fmt.Sprintf(wording.DegradedNoticeOne.In(lang), 1),
+		DegradedDetail: "Sources/articles/Raw.md: permission denied",
+		Blocks: []DeskBlock{
+			unfilled(pathMode, wording.Paths.In(lang), "/paths",
+				plural(0, wording.PathCountOne, wording.PathCountMany, lang),
+				wording.DeskPathsLede.In(lang),
+				fmt.Sprintf(wording.NoDeclaredTypeEmptyFmt.In(lang), "lesson")),
+			unfilled(mapMode, wording.Maps.In(lang), "/maps",
+				plural(0, wording.MapCountOne, wording.MapCountMany, lang),
+				wording.DeskMapsLede.In(lang),
+				fmt.Sprintf(wording.NoDeclaredTypesEmptyFmt.In(lang),
+					strings.Join(declaredTypes, wording.ListSeparator.In(lang)))),
+		},
+		ReadmeMissing: true,
 	}
 }
 
@@ -245,17 +320,6 @@ var drawsNothing = map[string]bool{
 
 // recordedChrome is one fixed request's chrome, so the recording says nothing
 // about the machine it was made on.
-// recordedEnglishChrome is the same chrome in the other interface language.
-// The findings table names each of its columns twice — once in the header a
-// reader clicks, once on every cell so a stacked row still says what it holds —
-// and both are drawn from the interface's words, so only a recording in both
-// languages can show that neither spelling was left behind in one of them.
-func recordedEnglishChrome() layouts.Chrome {
-	chrome := recordedChrome()
-	chrome.Lang = wording.En
-	return chrome
-}
-
 func recordedChrome() layouts.Chrome {
 	return layouts.Chrome{
 		Title:                     "L01",
@@ -268,12 +332,15 @@ func recordedChrome() layouts.Chrome {
 	}
 }
 
-// englishChrome is the same fixed request read in the other language the
-// interface speaks, so a surface recorded twice differs only by what it says.
-func englishChrome() layouts.Chrome {
-	c := recordedChrome()
-	c.Lang = wording.En
-	return c
+// recordedEnglishChrome is the same chrome in the other interface language.
+// The findings table names each of its columns twice — once in the header a
+// reader clicks, once on every cell so a stacked row still says what it holds —
+// and both are drawn from the interface's words, so only a recording in both
+// languages can show that neither spelling was left behind in one of them.
+func recordedEnglishChrome() layouts.Chrome {
+	chrome := recordedChrome()
+	chrome.Lang = wording.En
+	return chrome
 }
 
 // recordedNoteView is a reading page carrying one of everything the page can
@@ -341,6 +408,7 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		Governed:            true,
 		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",
+		MarkAddress:         "/marks",
 		TranscludedIdentity: "def456",
 		FlippedFrom:         "seed",
 		FlipNoReturn:        true,
@@ -404,7 +472,7 @@ func recordedStatusStates() []struct {
 	name string
 	view NoteView
 } {
-	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123"}
+	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123", MarkAddress: "/marks"}
 	with := func(mutate func(v *NoteView)) NoteView {
 		v := base
 		mutate(&v)
@@ -560,6 +628,80 @@ func recordedHealthView(model *nav.Model) HealthView {
 		Sort:    HealthByFinding,
 		Sidebar: NewSidebar(model, ""),
 	}
+}
+
+// recordedUnreadableHealthView is the page a reading that could not open a file
+// draws. The blocked list is not typed out here: the fixture vault is copied,
+// one of its notes has every permission taken from it, and what the reading
+// then reports about that note is what the recording holds — the path it saw
+// and the machine's own words for why it could not be opened. A row invented
+// beside the reading would go on looking right the day the reading stopped
+// reporting such a file at all.
+//
+// Nothing else is set. The same sealed folder also has citations that land
+// nowhere and notes nothing cites, and gathering those would mean assembling a
+// view here the way the request handler assembles one — a second builder,
+// whose output is nobody's page. One of every kind is recorded beside this.
+func recordedUnreadableHealthView(t *testing.T, model *nav.Model) HealthView {
+	t.Helper()
+	return HealthView{
+		Blocked: sealedVaultBlocked(t),
+		Sort:    HealthByFinding,
+		Sidebar: NewSidebar(model, ""),
+	}
+}
+
+// sealedVaultBlocked copies the judging face's own sealed-file fixture, takes
+// every permission from the note that fixture exists for, and returns what a
+// reading of the copy could not open.
+//
+// Both ways this can quietly produce nothing are fatal rather than skipped. A
+// filesystem that ignores the permission — a container running as root, a
+// volume that carries none — leaves a vault with no hole in it, and a recording
+// made there would freeze a page about a file that was readable all along. A
+// seal the reading never noticed is the same recording by another route, so an
+// empty list is refused as well.
+func sealedVaultBlocked(t *testing.T) []HealthBlockedSource {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS(filepath.Join("..", "..", "judge", "testdata", "vault-unreadable"))); err != nil {
+		t.Fatalf("copy the sealed-file fixture: %v", err)
+	}
+	sealed := filepath.Join(root, filepath.FromSlash("Concepts/golang/Sealed.md"))
+	if err := os.Chmod(sealed, 0); err != nil {
+		t.Fatalf("Chmod(%q, 0): %v", sealed, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(sealed, 0o600); err != nil && !os.IsNotExist(err) {
+			t.Errorf("restore %q: %v", sealed, err)
+		}
+	})
+	if _, err := os.ReadFile(sealed); err == nil { // #nosec G304 -- this test's own copy of a fixture note
+		t.Fatal("this process can still read a file it took every permission from, so no reading here has a hole in it to report")
+	}
+
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("reader.Close: %v", closeErr)
+		}
+	})
+	store, err := snapshot.New(t.Context(), reader, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
+	blocked := store.Current().Freshness().Blocked
+	if len(blocked) == 0 {
+		t.Fatal("the reading opened every file of a vault with a sealed note, so there is no finding here to record")
+	}
+	out := make([]HealthBlockedSource, 0, len(blocked))
+	for _, source := range blocked {
+		out = append(out, HealthBlockedSource{Path: source.Path, Reason: source.Reason})
+	}
+	return out
 }
 
 func recordedFileView(model *nav.Model) FileView {

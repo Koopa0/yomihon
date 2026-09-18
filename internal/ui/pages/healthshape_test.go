@@ -120,14 +120,19 @@ func TestHealthShapeLineOrdersWeightsHeaviestFirst(t *testing.T) {
 }
 
 // TestHealthShapeLineCountsAFileNoWeightWeighs holds the file total open past
-// what the weights beside it add up to: a source the reading could not open
-// and a note nothing cites carry no rule and so no weight, and the line still
-// has to count them among the files the table names.
+// what the weights beside it add up to: a note nothing cites is the kind no
+// rule reports, so its rows carry no weight, and the line still has to count
+// them among the files the table names. Two of them, in two folders, because a
+// single row would leave the count agreeing with the number of rows by
+// accident.
 func TestHealthShapeLineCountsAFileNoWeightWeighs(t *testing.T) {
 	t.Parallel()
 	view := HealthView{
-		Blocked: []HealthBlockedSource{{Path: "Sources/Raw.md", Reason: "permission denied"}},
-		Islands: []HealthIslandGroup{{Dir: "Notes", Name: "Notes", Notes: []nav.NoteRef{{Name: "Alone", RelPath: "Notes/Alone.md"}}}},
+		Islands: []HealthIslandGroup{
+			{Dir: "Notes", Name: "Notes", Notes: []nav.NoteRef{{Name: "Alone", RelPath: "Notes/Alone.md"}}},
+			{Dir: "Drafts", Name: "Drafts", Notes: []nav.NoteRef{{Name: "Aside", RelPath: "Drafts/Aside.md"}}},
+		},
+		IslandCount: 2,
 	}
 	page := renderHealth(t, &view)
 	shapeMatch := healthShapeLineRe.FindStringSubmatch(page)
