@@ -1,12 +1,13 @@
 # Data inventory
 
 What yomihon holds, derives, and emits. The product is a single-user local
-process: it reads a vault, serves `127.0.0.1`, writes one frontmatter field,
-and makes no network call of any kind. There is no telemetry, analytics,
-metrics or trace exporter, crash reporter, account, or remote log sink, and no
-application-level encryption at rest, backup, or secure erasure. Host disk
-encryption, vault sync, and any repository remote are external, and must not be
-inferred from this document.
+process: it reads a vault, serves `127.0.0.1`, writes one frontmatter field
+into a note and one file of its own outside any vault, and makes no network
+call of any kind. There is no telemetry, analytics, metrics or trace exporter,
+crash reporter, account, or remote log sink, and no application-level
+encryption at rest, backup, or secure erasure. Host disk encryption, vault
+sync, and any repository remote are external, and must not be inferred from
+this document.
 
 | Data | Where it lives | How long | Who can reach it |
 |---|---|---|---|
@@ -15,7 +16,8 @@ inferred from this document.
 | Parsed notes, rendered HTML, diagnostics, graph, search index | Process memory, rebuilt from the vault | Until the snapshot is replaced or the process exits | The process and the request being served |
 | HTTP method, path, query, headers, status form; CLI flags and arguments | Request and output buffers | The request or action | The local caller |
 | A rewritten note and its adjacent `.yomihon-status-*.tmp` | The vault directory | Until the rename; a crash can strand the temporary file | The filesystem and the requester |
-| `slog` records: address, vault root, contract state, scan and render failures, selected status paths | stderr | Not persisted by yomihon | Whatever captures the terminal |
+| `slog` records: address, vault root, contract state, scan and render failures, selected status paths; the marks file's own absolute path when writing it fails, and the note path the caller submitted when a mark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
+| The reader's own marks — `reader.json` and its adjacent `.reader-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and one continuation point: a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash between the temporary file being created and renamed into place strands it beside the marks file, holding that same content, and nothing removes it | The same OS account |
 
 - **The hover card sends a link's own fragment to the server.** A browser never puts a
   URL fragment in a request; the preview endpoint takes it as a `?section=` query so the
@@ -24,6 +26,15 @@ inferred from this document.
 
 About those rows:
 
+- **The marks file is the only thing yomihon writes outside a note, and it
+  is outside the vault.** The directory naming it is a digest of the resolved
+  absolute vault root, so two vaults never share one file and the name spells
+  no path; the vault's own path is written inside the file instead, which is
+  how a person finds the right directory to delete. Nothing syncs it and
+  nothing expires it, so a place kept on one machine is invisible on the next
+  — the interface says so in words. `yomihon check` and every other
+  command-line face never read it. Deleting the file, or the directory above
+  it, removes every mark and nothing else.
 - **Nothing is request-logged.** Note bodies and raw search queries never reach
   a log. A failed query records its byte count and filter keys; a failed status
   write records its path, from, to, and error.

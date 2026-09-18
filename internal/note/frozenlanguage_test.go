@@ -129,6 +129,7 @@ func newServerWithObservedStatus(
 		Snapshot:       store.Current,
 		ObservedStatus: observed,
 		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   noMark,
 		Log:            log,
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
