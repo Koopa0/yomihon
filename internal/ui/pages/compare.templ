@@ -1,0 +1,86 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// CompareView is one page holding two notes at once. A and B are the two halves
+// of the address that opened it — the note the path names and the note its query
+// names — and they are drawn in that order at every width.
+//
+// Each half is the same view the note's own page is built from, so a column
+// cannot become a second idea of what a note looks like. What the two differ in
+// is the id space each occupies, which each carries itself.
+type CompareView struct {
+	A NoteView
+	B NoteView
+	// Concepts are the grammar-concept sheets both columns draw from. They are
+	// the page's rather than either column's: two lessons citing one concept
+	// name one document between them, and a second copy of it under the same
+	// name would be an element the page has twice.
+	Concepts []lesson.ConceptDoc
+}
+
+// CompareAnchorA and CompareAnchorB name the two columns so the strip of links
+// above them can move between the two where they are stacked. They are ids
+// because a link that travels inside a page is the one thing that needs one.
+const (
+	CompareAnchorA = "compare-a"
+	CompareAnchorB = "compare-b"
+)
+
+// Compare is two notes read beside one another: each column the ordinary
+// reading rendering of its note, with its status word shown and no control to
+// change it. Adjudication happens on a note's own page, which each column links
+// back to.
+//
+// Neither rail is drawn. Two reading columns need the width, and one rail
+// beside two notes could not say which of them it spoke for.
+templ Compare(v CompareView, c layouts.Chrome) {
+	{{ lang := c.Lang }}
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-compare-shell">
+			<nav class="y-compare__tabs" lang={ lang.Tag() } aria-label={ wording.CompareColumns.In(lang) }>
+				<a class="y-compare__tab" href={ templ.URL("#" + CompareAnchorA) } { authoredLanguageAttrs(v.A.Language)... }>{ v.A.Title }</a>
+				<a class="y-compare__tab" href={ templ.URL("#" + CompareAnchorB) } { authoredLanguageAttrs(v.B.Language)... }>{ v.B.Title }</a>
+				// Keeping the columns level while one is scrolled is the
+				// script's to do, so the page ships the control closed and
+				// hidden and the stylesheet reveals it only where a script ran.
+				<button type="button" class="y-compare__align" data-compare-align aria-pressed="false">{ wording.CompareAlign.In(lang) }</button>
+			</nav>
+			<main id="main-content" tabindex="-1" class="y-compare" { compareReadAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
+				@compareColumn(v.A, CompareAnchorA, lang)
+				@compareColumn(v.B, CompareAnchorB, lang)
+			</main>
+		</div>
+		@conceptSheet(v.Concepts, lang)
+		@previewCard()
+	}
+}
+
+// compareColumn is one note in its column: the way back to its own page and the
+// status it carries now, then the note exactly as its own page renders it.
+//
+// The head sits outside the article on purpose. Everything inside is the note's
+// own, so a reader can trust that what they are reading here is what they would
+// read alone; the two things this page adds are stated above it, where they
+// belong to the page rather than to the note.
+// data-note-column marks one of the notes a page holds more than one of. The
+// contents tracking inside a column then answers for that note's headings
+// alone, and the control that keeps the columns level moves one against the
+// other. A page showing one note marks nothing and both behaviours read the
+// whole document, as they always did.
+templ compareColumn(v NoteView, anchor string, lang wording.Lang) {
+	<section id={ anchor } class="y-compare__column" data-note-column>
+		<div class="y-compare__head" lang={ lang.Tag() }>
+			<a class="y-compare__alone" href={ templ.URL(notesHref(v.RelPath)) }>{ wording.CompareOpenAlone.In(lang) }</a>
+			if v.Status != "" {
+				<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+			}
+		</div>
+		@noteArticle(v, lang)
+	</section>
+}
