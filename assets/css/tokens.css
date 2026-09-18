@@ -218,6 +218,7 @@
 
   /* Editorial scale */
   --fs-ed-17: 1.0625rem;
+  --fs-ed-19: 1.1875rem;
   --fs-ed-20: 1.25rem;
   --fs-ed-24: 1.5rem;
   --fs-ed-30: 1.875rem;
@@ -235,6 +236,15 @@
   --lh-normal: 1.5;
   --lh-read: 1.8;   /* CJK prose floor (≥1.8) */
   --lh-cjk: 2;      /* ruby-safe reading measure */
+
+  /* Vertical rhythm in the reading column — four steps tied to the scale,
+     so the gap above a heading says which heading it is before the reader has
+     read a word of it. One value between sibling blocks, then one step for
+     each of the three depths the headings group into. */
+  --sp-block: 18px;
+  --sp-h4: 28px;
+  --sp-h3: 40px;
+  --sp-h2: 56px;
 
   /* Tracking */
   --track-tight: -0.02em;
@@ -291,6 +301,7 @@
    the reading, never the furniture around it. */
 :root[data-textsize="l"] {
   --fs-ed-17: 1.1875rem;
+  --fs-ed-19: 1.3125rem;
   --fs-ed-20: 1.375rem;
   --fs-ed-24: 1.625rem;
   --fs-ed-30: 2rem;
@@ -298,10 +309,27 @@
 }
 :root[data-textsize="xl"] {
   --fs-ed-17: 1.3125rem;
+  --fs-ed-19: 1.4375rem;
   --fs-ed-20: 1.5rem;
   --fs-ed-24: 1.75rem;
   --fs-ed-30: 2.1875rem;
   --fs-ed-38: 2.625rem;
+}
+
+/* The two largest steps at a phone's width. A reading column of about 340px
+   carries a 38px title as four or five characters a line, and the step below it
+   arrives nearly as wide. Both come down; the rest of the scale is already
+   small enough that narrowing it would cost legibility rather than buy any.
+   All three roots are named because a media query adds no specificity: a bare
+   :root here is one attribute weaker than the two blocks above and would leave
+   exactly the readers with the largest titles untouched. */
+@media (max-width: 720px) {
+  :root,
+  :root[data-textsize="l"],
+  :root[data-textsize="xl"] {
+    --fs-ed-30: 1.625rem;
+    --fs-ed-38: 1.875rem;
+  }
 }
 
 /* The reading face at the owner's chosen one. All three are written out, the

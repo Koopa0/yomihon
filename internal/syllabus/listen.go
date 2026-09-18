@@ -48,10 +48,10 @@ func listenView(current *nav.Path, snap RequestSnapshot, lang wording.Lang) page
 		PathHref: pages.VaultHref("/syllabus/", current.RelPath),
 	}
 	for _, entry := range taught(current) {
-		// The lookup is also where a lesson the course plans but nobody has
-		// written falls out: such a row carries no vault path, and asking the
-		// generation for it is the same question as asking whether it is
-		// written. A second predicate here would be a second way to be right.
+		// A lesson the course plans but nobody has written carries no vault
+		// path, so the generation answers for nothing and the row falls out
+		// here. Asking a second predicate whether the row was openable would be
+		// asking the same question twice and inviting the two to disagree.
 		note, ok := snap.Generation.Note(entry.RelPath)
 		if !ok || !snap.isLesson(note.Type) {
 			continue
