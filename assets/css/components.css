@@ -401,7 +401,13 @@ html, body { margin: 0; background: var(--bg); }
 .y-facets::details-content {
   height: 0;
   interpolate-size: allow-keywords;
-  overflow: hidden;
+  overflow: clip;
+  /* The body has to be cut off at the edge it is growing towards, or the whole
+     of it would show while the fold is still a few pixels tall. The cut is held
+     four pixels out so that it falls outside a focus ring rather than through
+     it: a row at the edge of a fold is reached by keyboard like any other, and
+     a ring with its sides missing is not the ring anyone learned to look for. */
+  overflow-clip-margin: 4px;
   transition: height var(--dur-base) var(--ease-standard), content-visibility var(--dur-base) var(--ease-standard);
   transition-behavior: allow-discrete;
 }

@@ -1,7 +1,7 @@
 // Behavior lock for the interface's tempo: motion exists so a state change can
 // be read, and a reader who asks for less of it gets none.
 //
-// Three things are asserted, and they are separate claims. A reader who asks
+// Four things are asserted, and they are separate claims. A reader who asks
 // for reduced motion has every transition inside the reading chrome collapsed —
 // the reading-position hairline excepted, because that is scroll state rather
 // than decoration. The blanket that does the collapsing reaches elements and
@@ -10,11 +10,16 @@
 // exactly the surface the blanket cannot see.
 //
 // With motion allowed, every fold the interface owns opens by growing. The
-// oracle is the height of ::details-content, sampled at the click and again
-// once it has settled: a declared duration is not the observable, because a
-// wrapper whose height cannot interpolate still reports one while snapping
-// open. And the concept sheet, which is held against an edge of the window,
-// arrives from that edge rather than materialising in place.
+// oracle is the height of ::details-content read frame by frame, because a
+// declared duration is not the observable: a wrapper whose height cannot
+// interpolate reports the same duration while jumping to its full height, and
+// only a reading that catches it part way up tells the two apart.
+//
+// The concept sheet, which is held against an edge of the window, arrives from
+// that edge rather than materialising in place. And a fold's cut — it has to
+// cut its body off at the edge it grows towards — stands far enough out to
+// fall outside the focus ring of a row at that edge, which nothing in the
+// row's own style would report, since the ring is still drawn either way.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a lesson carrying a folding metadata row, the
 // inline reading aids, a no-return confirm, and a concept term), and MUTATE.
@@ -35,10 +40,10 @@ const CONCEPT = '[data-concept]';
 // the search page holds it open and takes the control away where the results
 // have a column beside them.
 const FOLDS = [
-  { key: 'metadata row', path: null, width: 1280, selector: 'details.y-metarow' },
-  { key: 'inline reading aids', path: null, width: 1280, selector: 'details.y-toc-inline' },
-  { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm' },
-  { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets' },
+  { key: 'metadata row', path: null, width: 1280, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
+  { key: 'inline reading aids', path: null, width: 1280, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
+  { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm', wrapper: '.y-statusconfirm::details-content' },
+  { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
 
 // Where the reduced-motion walk runs. Three readings rather than one: the
@@ -55,6 +60,7 @@ const SITES = [
   'every-transition-collapses-under-reduce',
   'folds-open-by-growing',
   'sheet-enters-from-its-edge',
+  'a-focused-row-keeps-its-whole-ring',
 ];
 
 class LockFired extends Error {
@@ -120,42 +126,45 @@ const MUTATIONS = {
   // a pass, which is why the height is sampled instead.
   'snap-a-fold-open': {
     target: 'folds-open-by-growing',
-    apply: appendStylesheet(
-      '.y-metarow::details-content{interpolate-size:numeric-only !important}',
-      { selector: '.y-metarow::details-content', property: 'interpolate-size' },
-    ),
+    css: '.y-metarow::details-content{interpolate-size:numeric-only !important}',
+    wanted: { selector: '.y-metarow::details-content', property: 'interpolate-size' },
   },
   // One fold left out of the reduced-motion lines. The blanket cannot reach
   // ::details-content, so a fold missing from that list keeps its motion for
   // the reader who asked for none, and every other fold hides the omission.
   'leave-a-fold-out-of-reduced-motion': {
-    apply: appendStylesheet(
-      '@media (prefers-reduced-motion: reduce){.y-toc-inline::details-content{transition:height var(--dur-base) var(--ease-standard) !important}}',
-      { selector: '.y-toc-inline::details-content', property: 'transition' },
-    ),
     target: 'every-transition-collapses-under-reduce',
+    css: '@media (prefers-reduced-motion: reduce){.y-toc-inline::details-content{transition:height var(--dur-base) var(--ease-standard) !important}}',
+    wanted: { selector: '.y-toc-inline::details-content', property: 'transition' },
   },
   // The blanket itself weakened for an ordinary element, which is the other
   // half of the same claim: the walk has to read the elements, not only the
   // four pseudo-elements it was written for.
   'restore-a-hover-under-reduced-motion': {
-    apply: appendStylesheet(
-      '@media (prefers-reduced-motion: reduce){.yomihon .ui-navitem{transition-duration:var(--dur-slow) !important}}',
-      { selector: '.yomihon .ui-navitem', property: 'transition-duration' },
-    ),
     target: 'every-transition-collapses-under-reduce',
+    css: '@media (prefers-reduced-motion: reduce){.yomihon .ui-navitem{transition-duration:var(--dur-slow) !important}}',
+    wanted: { selector: '.yomihon .ui-navitem', property: 'transition-duration' },
   },
   // The sheet materialising in place: it still fades, so a lock reading only
   // the fade would call this a pass, and the panel would stop saying which
   // edge of the window it came from and will go back to.
   'slide-the-sheet-in-from-nowhere': {
     target: 'sheet-enters-from-its-edge',
-    apply: appendStylesheet(
-      '.y-conceptsheet{transform:none !important}\n.y-conceptsheet[open]{transform:none !important}\n@starting-style{.y-conceptsheet[open]{transform:none}}',
-      { selector: '.y-conceptsheet', property: 'transform' },
-    ),
+    css: '.y-conceptsheet{transform:none !important}\n.y-conceptsheet[open]{transform:none !important}\n@starting-style{.y-conceptsheet[open]{transform:none}}',
+    wanted: { selector: '.y-conceptsheet', property: 'transform' },
+  },
+  // The cut put back on the fold's own edge, written the way anyone would
+  // write it. The fold still grows and still hides its body, the margin beside
+  // it still computes to four pixels, and the ring around a row at that edge
+  // still reports itself as drawn — only its sides are gone.
+  'clip-a-focus-ring': {
+    target: 'a-focused-row-keeps-its-whole-ring',
+    css: '.y-toc-inline::details-content{overflow:hidden !important}',
+    wanted: { selector: '.y-toc-inline::details-content', property: 'overflow' },
   },
 };
+
+const applyMutation = (name) => appendStylesheet(MUTATIONS[name].css, MUTATIONS[name].wanted);
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
   if (!SITES.includes(mutation.target)) {
@@ -320,6 +329,43 @@ const openSheetAndMeasure = (page) => page.evaluate(async ({ concept, sheet }) =
   return { open: element.open, running, atStart };
 }, { concept: CONCEPT, sheet: SHEET });
 
+// How far a fold's cut stands from its edge, and how far the ring around a
+// focused row inside it reaches. A row at the fold's own edge is reached by
+// keyboard like any other, and where the cut falls short of the ring the ring
+// loses its sides — while every style the page reports still says the ring is
+// drawn, because it is, just not all of it.
+const cutAndRing = (page, { selector, wrapper }) => page.evaluate(async ({ sel, pseudo }) => {
+  const fold = [...document.querySelectorAll(sel)].filter((element) => element.checkVisibility())[0];
+  if (!fold) return { missing: true };
+  const summary = fold.querySelector(':scope > summary');
+  if (!fold.open && summary) {
+    summary.click();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  const row = fold.querySelector('a[href], button:not(summary), input');
+  if (!row) return { noRow: true };
+  row.focus();
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  if (document.activeElement !== row) return { notFocused: true };
+  const box = fold.getBoundingClientRect();
+  const rowBox = row.getBoundingClientRect();
+  const ring = getComputedStyle(row);
+  const body = getComputedStyle(fold, '::details-content');
+  return {
+    wrapper: pseudo,
+    overflow: body.overflow,
+    // A wrapper that does not cut reports no margin; so does one that cuts at
+    // its own edge, and the two are told apart by the overflow beside it.
+    cut: Number.parseFloat(body.overflowClipMargin) || 0,
+    outlineStyle: ring.outlineStyle,
+    reach: (Number.parseFloat(ring.outlineWidth) || 0) + (Number.parseFloat(ring.outlineOffset) || 0),
+    // How close that row stands to the fold's own edge. A row inset from it
+    // could not be cut whatever the margin, which would make the reading pass
+    // for a reason that has nothing to do with the rule under test.
+    inset: Math.min(rowBox.left - box.left, box.right - rowBox.right),
+  };
+}, { sel: selector, pseudo: wrapper });
+
 const translationX = (matrix) => {
   const numbers = (String(matrix).match(/-?\d*\.?\d+(?:e-?\d+)?/g) || []).map(Number);
   if (numbers.length === 6) return numbers[4];
@@ -337,8 +383,8 @@ try {
   // the product's own bytes.
   let proof = null;
   if (MUTATE) {
-    const quietProof = await MUTATIONS[MUTATE].apply(quiet);
-    const movingProof = await MUTATIONS[MUTATE].apply(moving);
+    const quietProof = await applyMutation(MUTATE)(quiet);
+    const movingProof = await applyMutation(MUTATE)(moving);
     proof = { quiet: quietProof, moving: movingProof };
   }
   let confirmed = false;
@@ -426,9 +472,44 @@ try {
     fail('sheet-enters-from-its-edge', `at its own time zero the sheet stands at ${JSON.stringify(arrival.atStart)}, which is ${startedAt}px from where it comes to rest — too little to read as arriving from an edge`);
   }
 
+  // 4 — a row at the edge of a fold keeps the whole of its focus ring. A fold
+  // has to cut its body off at the edge it is growing towards, and a cut drawn
+  // at that edge passes through the ring of a row standing there, taking its
+  // sides away. Nothing in the row's own style says so — the ring is still
+  // declared and still painted — so the two numbers that decide it are read
+  // instead: how far the cut stands out, and how far the ring reaches.
+  for (const fold of FOLDS) {
+    await page.setViewportSize({ width: fold.width, height: 900 });
+    const response = await page.goto(BASE + (fold.path ?? PAGE), { waitUntil: 'load' });
+    if (!response || response.status() !== 200) broken(`the page carrying the ${fold.key} answered ${response?.status() ?? 'nothing'}, want 200`);
+    await confirm(page, 'moving');
+    const reading = await cutAndRing(page, fold);
+    if (reading.missing) broken(`the ${fold.key} is not on the page at ${fold.width}px`);
+    if (reading.noRow) broken(`the ${fold.key} holds nothing a keyboard can reach, so it cannot say whether a ring survives`);
+    if (reading.notFocused) broken(`the ${fold.key}'s first row refused focus`);
+    if (reading.outlineStyle === 'none' || !(reading.reach > 0)) {
+      broken(`the ${fold.key}'s first row draws no ring when focused (${reading.outlineStyle}, reaching ${reading.reach}px), so this reading would compare the cut against nothing`);
+    }
+    if (!(reading.inset < reading.reach)) {
+      broken(`the ${fold.key}'s first row stands ${reading.inset}px inside the fold, further than its ring reaches, so no cut at the fold's edge could touch it and this reading proves nothing`);
+    }
+    if (reading.overflow !== 'visible') {
+      // Only a clip is held out by a margin. hidden and the scrolling values
+      // cut at the edge itself, and the margin beside them still computes to
+      // whatever it says — which is why the value is read and not only the
+      // number.
+      if (reading.overflow !== 'clip') {
+        fail('a-focused-row-keeps-its-whole-ring', `${reading.wrapper} cuts its body off with overflow: ${reading.overflow}, which cuts at the fold's own edge whatever margin is written beside it, so the ring around the first row in the ${fold.key} loses its sides`);
+      }
+      if (reading.cut < reading.reach) {
+        fail('a-focused-row-keeps-its-whole-ring', `${reading.wrapper} holds its cut ${reading.cut}px out while the ring around the first row in the ${fold.key} reaches ${reading.reach}px, so the ring loses its sides where the row meets the fold's edge`);
+      }
+    }
+  }
+
   if (proof && !confirmed) broken(`${MUTATE} was never confirmed, so this run proves nothing about it`);
 
-  console.log(`PASS motion-contract: ${QUIET_STOPS.length} readings collapse every transition for the reduced-motion reader, ${FOLDS.length} folds open by growing over --dur-base, and the sheet arrives ${Math.round(Math.abs(startedAt))}px from its edge`);
+  console.log(`PASS motion-contract: ${QUIET_STOPS.length} readings collapse every transition for the reduced-motion reader, ${FOLDS.length} folds open by growing over --dur-base and keep a focused row's whole ring, and the sheet arrives ${Math.round(Math.abs(startedAt))}px from its edge`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
