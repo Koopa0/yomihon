@@ -1371,6 +1371,44 @@ html {
 /* paragraphs wrap with the last lines weighed; titles keep their balance */
 .y-prose p { text-wrap: pretty; }
 
+/* A run the browser has nowhere to break — a URL pasted mid-sentence, a vault
+   path, the escaped source of a tag the renderer shows as words — is as wide
+   as it is, and the paragraph holding it is at least that wide. Unbroken it
+   pushes the reading column past the phone, and what the reader then scrolls
+   sideways is the whole document: every line of the note pays for the one run
+   in it. So the run bends. `anywhere` rather than `break-word` because the two
+   break a line identically and only `anywhere` also takes the run out of the
+   column's own minimum width, which is what decides whether a box that sizes
+   to its content can shrink at all.
+
+   Japanese is untouched by this. CJK already breaks between characters, so an
+   emergency break adds no opportunity the line did not have, and the
+   phrase-aware rule below still chooses where an ordinary Japanese line ends.
+   Measured in the browser: a Japanese paragraph breaks after the same
+   characters with this rule and without it. */
+.y-prose { overflow-wrap: anywhere; }
+
+/* A ## is laid out as a flex row so it can carry its section bar, which makes a
+   ## naming an address two flex items — the words, and the link the renderer
+   made of the address. The two shrink together when the row will not fit, and
+   under `anywhere` each can shrink to a single character: "A heading naming
+   <address>" came back as "A / headi / ng / nami / ng". `break-word` breaks the
+   same run in the same place while leaving the intrinsic minimum alone, so the
+   words of a heading stay whole. The levels that are not flex rows are given it
+   too, so one line describes every heading. A ## whose own address is wider
+   than the column still runs past it, exactly as it does today: that is the
+   flex row's shape rather than this rule's, and it is left where it is. */
+.y-prose [data-level] { overflow-wrap: break-word; }
+
+/* Code and a diagram's source are written in lines, and a table is written in
+   columns; all three already answer an overflow by scrolling inside a box of
+   their own rather than by reflowing. A break invented inside them would be a
+   line the author did not write — with scripting off, `A[SomeLongNodeName]`
+   came back split across two lines of the diagram source — or a column crushed
+   to a few characters where .y-tablewrap would have scrolled. They keep their
+   own idea of a line. */
+.y-prose pre, .y-prose .mermaid-diagram, .y-prose table { overflow-wrap: normal; }
+
 /* CJK punctuation sets solid where full widths would double up, and only a
    paragraph's first line keeps its full-width opening bracket — the
    classical book convention. Adjacent-pair trimming largely rides the
