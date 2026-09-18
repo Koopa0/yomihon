@@ -130,21 +130,25 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// reads from the current generation, captured together. Two calls could
 	// straddle a rebuild, and a page assembled from two generations states
 	// things about a vault that never existed at once.
+	// The folder the server was pointed at cannot change under a running
+	// process, so the name every rail's foot shows is taken once here rather
+	// than derived again at each surface that states it.
+	vaultName := shell.VaultName(source.Name())
 	shellProvider := func() nav.Shell {
-		return shell.Project(writer.Authority(), store.Current().Capture())
+		return shell.Project(vaultName, writer.Authority(), store.Current().Capture())
 	}
 	searchProvider := func() search.RequestSnapshot {
 		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(authority, snap), Status: authority}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority, snap), Status: authority}
 	}
 	reportProvider := func() report.RequestSnapshot {
 		snap := store.Current().Capture()
-		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
+		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(vaultName, writer.Authority(), snap)}
 	}
 	pathProvider := func() (nav.Shell, *snapshot.Generation) {
 		snap := store.Current().Capture()
-		return shell.Project(writer.Authority(), snap), snap
+		return shell.Project(vaultName, writer.Authority(), snap), snap
 	}
 
 	// The marks a reader leaves are kept for the root the vault capability was
@@ -174,6 +178,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
 		Source:         source,
+		VaultName:      vaultName,
 		Status:         writer.Authority,
 		Snapshot:       store.Current,
 		ObservedStatus: writer.ObservedStatus,

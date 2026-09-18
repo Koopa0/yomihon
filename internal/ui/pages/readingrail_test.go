@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -15,7 +16,7 @@ func TestReadingRailBookShowsOnePath(t *testing.T) {
 	current := "Writing/lessons/go/L01.md"
 
 	var buf bytes.Buffer
-	if err := readingRail(NewReadingRail(model, current, "golang"), layouts.Chrome{Nonce: "n", Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
+	if err := readingRail(NewReadingRail(nav.Shell{Nav: model}, current, "golang"), layouts.Chrome{Nonce: "n", Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -49,7 +50,7 @@ func TestReadingRailFolderShowsSiblings(t *testing.T) {
 	current := "Concepts/go/C01.md"
 
 	var buf bytes.Buffer
-	if err := readingRail(NewReadingRail(model, current, "golang"), layouts.Chrome{Nonce: "n", Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
+	if err := readingRail(NewReadingRail(nav.Shell{Nav: model}, current, "golang"), layouts.Chrome{Nonce: "n", Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -73,7 +74,7 @@ func TestReadingRailReportsListsReports(t *testing.T) {
 	current := "System/reports/2026-07-10 vault audit.md"
 
 	var buf bytes.Buffer
-	if err := readingRail(NewReadingRail(model, current, ""), layouts.Chrome{Nonce: "n", Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
+	if err := readingRail(NewReadingRail(nav.Shell{Nav: model}, current, ""), layouts.Chrome{Nonce: "n", Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()

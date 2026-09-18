@@ -38,6 +38,80 @@ type Health struct {
 	// Collisions are names more than one file answers to, where a citation
 	// resolves to none of them because the vault refuses to guess.
 	Collisions []HealthCollision
+
+	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
+	// so nothing they declare could be judged at all; SchemaFaults are the ones
+	// whose frontmatter reads and carries something the schema does not accept.
+	// They are gathered while the folder is read, with everything else here,
+	// because the rail's foot states how many findings stand against the folder
+	// and a walk over every note is not a thing to do on every page.
+	FrontmatterUnreadable []HealthNoteFindings
+	SchemaFaults          []HealthNoteFindings
+}
+
+// HealthNoteFindings is one note the schema had something to say about: how
+// many things it said and how heavy the heaviest of them was. What it said
+// stays on that note's own page, because one file described twice in two places
+// is how two accounts of it start to disagree. What travels is the number and
+// the weight, which the note's own page never states and which are the only way
+// a table can tell a note that drew one complaint from one that drew nine.
+type HealthNoteFindings struct {
+	Note     nav.NoteRef
+	Severity judge.Severity
+	Count    int
+}
+
+// schemaFaultRows splits what the schema said about the whole folder into the
+// two things somebody does differently about them: frontmatter that cannot be
+// read at all, which has to be repaired before anything else about the note can
+// be judged, and frontmatter that reads and carries something the schema does
+// not accept, which has a named field to change.
+//
+// The split is on the rule that fired rather than on a guess about the note,
+// because one of these findings is the judge's own statement that it could read
+// nothing. Both lists arrive in the order the folder was read, which is the
+// order every other list here is in.
+func schemaFaultRows(
+	notes []*vault.Note,
+	findings map[string][]judge.Finding,
+	readings map[string]Reading,
+) (unreadable, faults []HealthNoteFindings) {
+	for _, n := range notes {
+		if n == nil {
+			continue
+		}
+		found := findings[n.RelPath]
+		if len(found) == 0 {
+			continue
+		}
+		reading, ok := readings[n.RelPath]
+		if !ok {
+			continue
+		}
+		row := HealthNoteFindings{
+			Note:     nav.NoteRef{RelPath: n.RelPath, Name: reading.Title},
+			Severity: heaviestFinding(found),
+			Count:    len(found),
+		}
+		if slices.ContainsFunc(found, func(f judge.Finding) bool { return f.RuleID == "schema.frontmatter" }) {
+			unreadable = append(unreadable, row)
+			continue
+		}
+		faults = append(faults, row)
+	}
+	return unreadable, faults
+}
+
+// heaviestFinding is the weight of the worst thing said about one note, which
+// is what somebody sorting by weight is choosing between. A lighter finding
+// beside a heavier one does not make the note lighter, so the row carries the
+// heaviest rather than the first or an average of them.
+func heaviestFinding(found []judge.Finding) judge.Severity {
+	worst := found[0].Severity
+	for i := 1; i < len(found); i++ {
+		worst = max(worst, found[i].Severity)
+	}
+	return worst
 }
 
 // HealthLink is one citation with nowhere to land, and the note making it.
