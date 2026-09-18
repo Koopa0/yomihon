@@ -204,15 +204,26 @@ func TestABaselineNeverSilencesTheUnreadableNotice(t *testing.T) {
 func TestTheUnreadableNoticeOutlastsEveryFilter(t *testing.T) {
 	t.Parallel()
 
-	root := sealedVault(t)
+	// The sealed note is outside the declared knowledge layer and outside every
+	// path filter below, so each cut has something to remove and the notice
+	// surviving is the append's position rather than the filter's mercy.
+	root := t.TempDir()
+	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\nA link to [[Ghost]].\n")
+	writeTestContract(t, root, nil)
+	write(t, root, "Outside/sealed.md", "---\ntitle: Outside\n---\n")
+	if !unreadable(t, filepath.Join(root, "Outside", "sealed.md")) {
+		t.Fatal("this process can still read a file it took every permission from")
+	}
+
 	tests := []struct {
 		name  string
 		paths []string
 		all   bool
 	}{
+		{name: "the default scope, which the sealed note is outside of"},
 		{name: "the whole vault", all: true},
-		{name: "one folder, which is not the sealed note's", paths: []string{"Maps"}},
-		{name: "one file", paths: []string{"Concepts/golang/A.md"}},
+		{name: "one folder, which is not the sealed note's", paths: []string{"Notes"}},
+		{name: "one file", paths: []string{"Notes/ok.md"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -345,6 +356,87 @@ func TestAWithheldFileThatCouldNotBeReadIsNamedByNothing(t *testing.T) {
 	// account the reader gets of why the link to nothing went unreported.
 	if bytes.Contains(stdout, []byte(`"rule_id":"link.broken"`)) {
 		t.Errorf("link.broken answered over a vault one file of which was never read:\n%s", stdout)
+	}
+}
+
+// TestAVaultNothingCouldBeReadFromIsRefusedRatherThanReported holds the floor
+// under "the run continues". A judgement is of something, and where every read
+// failed there is nothing in hand to judge: what the caller would get is a page
+// whose every line says the same thing, under an exit code that reads as
+// success. The refusal is the answer that folder has earned.
+func TestAVaultNothingCouldBeReadFromIsRefusedRatherThanReported(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestContract(t, root, nil)
+	write(t, root, "Notes/One.md", "---\ntitle: One\n---\n")
+	write(t, root, "Notes/Two.md", "---\ntitle: Two\n---\n")
+	for _, name := range []string{"One.md", "Two.md"} {
+		if !unreadable(t, filepath.Join(root, "Notes", name)) {
+			t.Fatal("this process can still read a file it took every permission from")
+		}
+	}
+
+	got := refuse(t.Context(), t, "check", root).Error()
+	if !strings.HasPrefix(got, "vault scan failed: Notes/One.md: ") {
+		t.Errorf("check error = %q, want the refusal naming the first file the reads stopped on", got)
+	}
+}
+
+// TestEveryWithheldFileThatCouldNotBeReadIsOneSentence is the arithmetic the
+// fixed sentence exists to withhold. How many files are in a closed folder, and
+// how many of them have a permission wrong, are both description of it — so one
+// sentence stands for all of them however many there are, and two runs over
+// folders holding different numbers of them read the same.
+func TestEveryWithheldFileThatCouldNotBeReadIsOneSentence(t *testing.T) {
+	t.Parallel()
+
+	sealed := func(t *testing.T, count int) []byte {
+		t.Helper()
+		root := t.TempDir()
+		write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
+		for i := range count {
+			name := "Diary/2026-08-0" + string(rune('1'+i)) + ".md"
+			write(t, root, name, "---\ntitle: Private\n---\n")
+			writeTestContract(t, root, []string{"Diary"})
+			if !unreadable(t, filepath.Join(root, filepath.FromSlash(name))) {
+				t.Fatal("this process can still read a file it took every permission from")
+			}
+		}
+		stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+		if err != nil {
+			t.Fatalf("RunCheck(%d withheld files) error = %v", count, err)
+		}
+		return stdout
+	}
+
+	one, three := sealed(t, 1), sealed(t, 3)
+	if !bytes.Equal(one, three) {
+		t.Errorf("a folder with three unreadable withheld files reads differently from one with a single file, which counts them:\none:\n%s\nthree:\n%s", one, three)
+	}
+	if got := bytes.Count(one, []byte(`"rule_id":"`+unreadableRule+`"`)); got != 1 {
+		t.Errorf("withheld notice lines = %d, want exactly 1", got)
+	}
+}
+
+// TestTheUnreadableFingerprintCarriesThePathAndNotTheCause pins what a baseline
+// keys on. A file that cannot be opened is one finding whichever way the
+// operating system words the reason, and a release that reworded it would
+// otherwise move every consumer's baseline on a vault nothing had changed in.
+func TestTheUnreadableFingerprintCarriesThePathAndNotTheCause(t *testing.T) {
+	t.Parallel()
+
+	same := unreadableFinding("Notes/bad.md", "openat bad.md: permission denied")
+	reworded := unreadableFinding("Notes/bad.md", "openat bad.md: operation not permitted")
+	elsewhere := unreadableFinding("Notes/other.md", "openat bad.md: permission denied")
+	if same.Fingerprint != reworded.Fingerprint {
+		t.Errorf("one file reworded by the machine changes fingerprint: %q vs %q", same.Fingerprint, reworded.Fingerprint)
+	}
+	if same.Fingerprint == elsewhere.Fingerprint {
+		t.Errorf("two files share one fingerprint: %q", same.Fingerprint)
+	}
+	if same.Evidence == reworded.Evidence {
+		t.Errorf("the cause is not carried into the evidence a reader is given: %q", same.Evidence)
 	}
 }
 
