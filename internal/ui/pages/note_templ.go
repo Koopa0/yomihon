@@ -223,7 +223,7 @@ func Note(v NoteView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, readAloudAttrs(&v, lang))
+			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, readAloudAttrs(v.BodyHTML, lang))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
