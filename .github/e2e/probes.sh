@@ -29,6 +29,7 @@ probes=(
   "rail-foot.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
+  "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "report-frame-contract.mjs|/reports/browser-boundary.html"
   "article-language-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"
@@ -66,7 +67,9 @@ probes=(
   "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
   "midword-landing.mjs|/search?q=lybdenum"
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
+  "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
   "search-facets.mjs|/search?q=a"
+  "search-overflow.mjs|/search?q=a"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
 )
 

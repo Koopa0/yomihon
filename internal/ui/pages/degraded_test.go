@@ -183,7 +183,7 @@ func TestHomeNamesTheGenerationItCouldNotFinish(t *testing.T) {
 				t.Fatalf("render: %v", err)
 			}
 			html := buf.String()
-			if got := strings.Contains(html, "data-home-degraded"); got != tt.degraded {
+			if got := strings.Contains(html, `data-nothing="degraded"`); got != tt.degraded {
 				t.Errorf("Home's degraded notice present = %t, want %t", got, tt.degraded)
 			}
 			if tt.degraded && !strings.Contains(html, "permission denied") {

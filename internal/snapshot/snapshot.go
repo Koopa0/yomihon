@@ -788,7 +788,7 @@ func buildGeneration(
 	blocked := blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
-	noteCount := 0
+	noteCount := markdownCount(entries)
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -796,9 +796,6 @@ func buildGeneration(
 		}
 		relPath := entry.Path()
 		note := vault.IsMarkdown(relPath)
-		if note {
-			noteCount++
-		}
 		want := wantedBytes(entry, note)
 		if !note {
 			// A wikilink may point at any vault file, read or not.
@@ -878,6 +875,20 @@ func buildGeneration(
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen)
 	return gen, blocked, nil
+}
+
+// markdownCount is how many of these entries are notes rather than the other
+// files a folder holds. It is counted here, while the folder is being read,
+// because every page's rail states how large the folder is and asking that
+// question later would mean a copy of the file list on every one of them.
+func markdownCount(entries []vault.Entry) int {
+	total := 0
+	for _, entry := range entries {
+		if vault.IsMarkdown(entry.Path()) {
+			total++
+		}
+	}
+	return total
 }
 
 // generation is the set of collections one reading of the folder fills, owned

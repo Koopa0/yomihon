@@ -2,6 +2,7 @@ package note_test
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -30,14 +31,20 @@ func BenchmarkDesk(b *testing.B) {
 	client := srv.Client()
 	b.ReportAllocs()
 	for b.Loop() {
-		resp, err := client.Get(srv.URL + "/")
+		req, err := http.NewRequestWithContext(b.Context(), http.MethodGet, srv.URL+"/", nil)
+		if err != nil {
+			b.Fatalf("build GET /: %v", err)
+		}
+		resp, err := client.Do(req)
 		if err != nil {
 			b.Fatalf("GET /: %v", err)
 		}
 		if resp.StatusCode != http.StatusOK {
 			b.Fatalf("GET / = %d, want 200", resp.StatusCode)
 		}
-		if _, err := resp.Body.Read(make([]byte, 1)); err != nil && err.Error() != "EOF" {
+		// The page is read to the end, because a benchmark that measured only
+		// the headers would leave the rendering it is about out of the number.
+		if _, err := io.Copy(io.Discard, resp.Body); err != nil {
 			b.Fatalf("read body: %v", err)
 		}
 		if err := resp.Body.Close(); err != nil {

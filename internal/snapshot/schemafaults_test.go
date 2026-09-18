@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -31,9 +32,9 @@ func TestSchemaFaultsArriveInVaultPathOrder(t *testing.T) {
 	}
 	// Written back to front, so nothing downstream can be reading the order
 	// they were laid down in and passing for the order the folder is in.
-	for i := len(names) - 1; i >= 0; i-- {
-		writeBenchNote(t, root, "Writing/"+names[i]+".md",
-			"---\ntitle: "+names[i]+"\ntype: lesson\ndomain: japanese\nstatus: draft\nnot_a_field: 1\n---\n\nbody\n")
+	for _, name := range slices.Backward(names) {
+		writeBenchNote(t, root, "Writing/"+name+".md",
+			"---\ntitle: "+name+"\ntype: lesson\ndomain: japanese\nstatus: draft\nnot_a_field: 1\n---\n\nbody\n")
 	}
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)

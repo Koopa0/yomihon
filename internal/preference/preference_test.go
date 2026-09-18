@@ -68,26 +68,39 @@ func (a answer) names() []string {
 // postForm submits one form the way a browser with no script would: a single
 // POST with redirects unfollowed, so the answer's own status, Location and
 // cookies stay observable.
-func postForm(t *testing.T, target string, form url.Values) answer {
+func postForm(t *testing.T, srv *httptest.Server, form url.Values) answer {
 	t.Helper()
-	return postBody(t, target, form.Encode())
+	return postBody(t, srv, form.Encode())
 }
 
-func postBody(t *testing.T, target, body string) answer {
+func postBody(t *testing.T, srv *httptest.Server, body string) answer {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, target, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/preferences", strings.NewReader(body))
 	if err != nil {
-		t.Fatalf("build POST %s: %v", target, err)
+		t.Fatalf("build POST /preferences: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return send(t, req)
+	return send(t, srv, req)
 }
 
-func send(t *testing.T, req *http.Request) answer {
+// send carries one request over the client of the server it was addressed to,
+// as every request in this file does. Whose client it is decides whose
+// connection pool it draws from, and that is the point: a client built here
+// with no transport of its own would pool into http.DefaultTransport, which
+// httptest.Server.Close empties for the whole process as a courtesy to tests
+// that use the default client. This package stands a server up per test and
+// closes each on cleanup, so with the tests parallel that courtesy arrives
+// while other tests are mid-request, and a connection is shut under a request
+// already written onto it — "transport connection broken: http:
+// CloseIdleConnections called", on whichever request was passing. A server's
+// own client holds its own pool, which only that server's own Close reaches,
+// and by then the test that used it is finished.
+func send(t *testing.T, srv *httptest.Server, req *http.Request) answer {
 	t.Helper()
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+	client := *srv.Client()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
-	}}
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("%s %s: %v", req.Method, req.URL, err)
@@ -104,22 +117,23 @@ func send(t *testing.T, req *http.Request) answer {
 	return got
 }
 
-// page fetches the rendered page, optionally carrying stored choices with it.
+// page fetches the rendered page, optionally carrying stored choices with it,
+// over the server's own client for the reason send gives.
 // The choices go over as the header a browser would send — the bytes the
 // endpoint actually reads — rather than as parsed cookie values, which would
 // let the test and the endpoint agree through a shared parser.
-func page(t *testing.T, target string, cookies ...string) (status int, body string) {
+func page(t *testing.T, srv *httptest.Server, path string, cookies ...string) (status int, body string) {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+path, http.NoBody)
 	if err != nil {
-		t.Fatalf("build GET %s: %v", target, err)
+		t.Fatalf("build GET %s: %v", path, err)
 	}
 	if len(cookies) > 0 {
 		req.Header.Set("Cookie", strings.Join(cookies, "; "))
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := srv.Client().Do(req)
 	if err != nil {
-		t.Fatalf("GET %s: %v", target, err)
+		t.Fatalf("GET %s: %v", path, err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -128,7 +142,7 @@ func page(t *testing.T, target string, cookies ...string) (status int, body stri
 	}()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("read %s: %v", target, err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 	return resp.StatusCode, string(raw)
 }
@@ -254,7 +268,7 @@ func TestApplyingAChoiceStoresItAndReturnsTheReader(t *testing.T) {
 			stored++
 			t.Run(field+"="+value, func(t *testing.T) {
 				t.Parallel()
-				got := postForm(t, srv.URL+"/preferences", url.Values{
+				got := postForm(t, srv, url.Values{
 					field:  {value},
 					"next": {"/notes/A.md"},
 				})
@@ -319,7 +333,7 @@ func TestAValueNoChoiceOffersIsRefusedWithNothingStored(t *testing.T) {
 		for _, value := range refused[field] {
 			t.Run(field+"="+value, func(t *testing.T) {
 				t.Parallel()
-				got := postForm(t, srv.URL+"/preferences", url.Values{field: {value}, "next": {"/"}})
+				got := postForm(t, srv, url.Values{field: {value}, "next": {"/"}})
 				if got.status != http.StatusUnprocessableEntity {
 					t.Fatalf("status = %d, want 422", got.status)
 				}
@@ -339,7 +353,7 @@ func TestFollowingTheSystemDeletesTheStoredTheme(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	got := postForm(t, srv.URL+"/preferences", url.Values{"theme": {"system"}, "next": {"/notes/A.md"}})
+	got := postForm(t, srv, url.Values{"theme": {"system"}, "next": {"/notes/A.md"}})
 	if got.status != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303", got.status)
 	}
@@ -367,7 +381,7 @@ func TestResetClearsEveryStoredChoice(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	got := postForm(t, srv.URL+"/preferences", url.Values{"reset": {"1"}, "next": {"/notes/A.md"}})
+	got := postForm(t, srv, url.Values{"reset": {"1"}, "next": {"/notes/A.md"}})
 	if got.status != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303", got.status)
 	}
@@ -404,7 +418,7 @@ func TestResetRefusesAnyOtherValue(t *testing.T) {
 	for _, value := range []string{"", "0", "yes", "true"} {
 		t.Run("reset="+value, func(t *testing.T) {
 			t.Parallel()
-			got := postForm(t, srv.URL+"/preferences", url.Values{"reset": {value}, "next": {"/"}})
+			got := postForm(t, srv, url.Values{"reset": {value}, "next": {"/"}})
 			if got.status != http.StatusUnprocessableEntity {
 				t.Fatalf("status = %d, want 422", got.status)
 			}
@@ -439,7 +453,7 @@ func TestTheReturnAddressStaysOnThisSite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := postForm(t, srv.URL+"/preferences", url.Values{"lang": {"en"}, "next": {tt.next}})
+			got := postForm(t, srv, url.Values{"lang": {"en"}, "next": {tt.next}})
 			if got.status != http.StatusSeeOther {
 				t.Fatalf("status = %d, want 303", got.status)
 			}
@@ -486,7 +500,7 @@ func TestNothingIsWrittenUnlessEveryFieldResolves(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := postForm(t, srv.URL+"/preferences", tt.form)
+			got := postForm(t, srv, tt.form)
 			if got.status != http.StatusUnprocessableEntity {
 				t.Fatalf("status = %d, want 422", got.status)
 			}
@@ -540,7 +554,7 @@ func TestOneSubmissionSavesEveryChoiceItCarries(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := postForm(t, srv.URL+"/preferences", tt.form)
+			got := postForm(t, srv, tt.form)
 			if got.status != http.StatusSeeOther {
 				t.Fatalf("status = %d, want 303", got.status)
 			}
@@ -602,7 +616,7 @@ func TestAMethodThisAddressDoesNotServeIsRefused(t *testing.T) {
 			if err != nil {
 				t.Fatalf("build %s: %v", method, err)
 			}
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := srv.Client().Do(req)
 			if err != nil {
 				t.Fatalf("%s /preferences: %v", method, err)
 			}
@@ -633,7 +647,7 @@ func TestASubmissionLargerThanAChoiceIsRefused(t *testing.T) {
 	srv := newServer(t)
 
 	body := "theme=dark&next=%2F&padding=" + strings.Repeat("x", 5000)
-	got := postBody(t, srv.URL+"/preferences", body)
+	got := postBody(t, srv, body)
 	if got.status != http.StatusBadRequest {
 		t.Fatalf("status = %d for a %d-byte body, want 400", got.status, len(body))
 	}
@@ -649,7 +663,7 @@ func TestThePageSpeaksTheStoredLanguage(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	code, body := page(t, srv.URL+"/preferences", "yomihon_lang=en")
+	code, body := page(t, srv, "/preferences", "yomihon_lang=en")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -672,7 +686,7 @@ func TestThePageCarriesTheAddressItWasReachedFrom(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	code, body := page(t, srv.URL+"/preferences?from=%2Fsearch%3Fq%3Dx")
+	code, body := page(t, srv, "/preferences?from=%2Fsearch%3Fq%3Dx")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -690,7 +704,7 @@ func TestAnAddressOffThisSiteNeverReachesTheForms(t *testing.T) {
 	for _, from := range []string{"//evil.example", `/\evil.example`, "https://evil.example/"} {
 		t.Run(from, func(t *testing.T) {
 			t.Parallel()
-			code, body := page(t, srv.URL+"/preferences?from="+url.QueryEscape(from))
+			code, body := page(t, srv, "/preferences?from="+url.QueryEscape(from))
 			if code != http.StatusOK {
 				t.Fatalf("status = %d, want 200", code)
 			}
@@ -706,7 +720,7 @@ func TestThePageOpenedDirectlyReturnsToItself(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	code, body := page(t, srv.URL+"/preferences")
+	code, body := page(t, srv, "/preferences")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -800,7 +814,7 @@ func TestTheRenderedFormSavesEveryChoiceWithoutScript(t *testing.T) {
 	// The theme arrives already stored, because following the system is the one
 	// marked option that stores nothing: left in force, the submission below
 	// would carry a deletion and could say nothing about a saved theme.
-	code, body := page(t, srv.URL+"/preferences?from=%2Fnotes%2FA.md", "yomihon_theme=dark")
+	code, body := page(t, srv, "/preferences?from=%2Fnotes%2FA.md", "yomihon_theme=dark")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -861,7 +875,7 @@ func TestTheRenderedFormSavesEveryChoiceWithoutScript(t *testing.T) {
 		sent.Set(field, moved)
 	}
 
-	got := postForm(t, srv.URL+"/preferences", sent)
+	got := postForm(t, srv, sent)
 	if got.status != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303", got.status)
 	}
@@ -889,7 +903,7 @@ func TestThePageOffersExactlyTheseChoices(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	code, body := page(t, srv.URL+"/preferences")
+	code, body := page(t, srv, "/preferences")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -921,13 +935,13 @@ func TestThePageOffersExactlyTheseChoices(t *testing.T) {
 	// be one the endpoint honours, and a value outside the list must not be.
 	for _, field := range slices.Sorted(maps.Keys(storedChoices)) {
 		for _, value := range storedChoices[field] {
-			got := postForm(t, srv.URL+"/preferences", url.Values{field: {value}, "next": {"/"}})
+			got := postForm(t, srv, url.Values{field: {value}, "next": {"/"}})
 			if got.status != http.StatusSeeOther {
 				t.Errorf("%s=%s answered %d, want the 303 an offered value gets", field, value, got.status)
 			}
 		}
 		for _, value := range []string{"paper", "listed-nowhere"} {
-			outside := postForm(t, srv.URL+"/preferences", url.Values{field: {value}, "next": {"/"}})
+			outside := postForm(t, srv, url.Values{field: {value}, "next": {"/"}})
 			if outside.status != http.StatusUnprocessableEntity {
 				t.Errorf("%s=%s answered %d, want the 422 a value the page does not offer gets",
 					field, value, outside.status)
@@ -988,7 +1002,7 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			code, body := page(t, srv.URL+"/preferences", tt.cookies...)
+			code, body := page(t, srv, "/preferences", tt.cookies...)
 			if code != http.StatusOK {
 				t.Fatalf("status = %d, want 200", code)
 			}
@@ -1020,7 +1034,7 @@ func TestEveryStoredReadingChoiceReachesThePage(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	_, body := page(t, srv.URL+"/preferences")
+	_, body := page(t, srv, "/preferences")
 	found := radios(t, body)
 
 	kept := layouts.Preferences()
@@ -1064,7 +1078,7 @@ func TestEachChoiceLandsInTheCookieItsFieldNameSpells(t *testing.T) {
 	checked := 0
 	for _, field := range slices.Sorted(maps.Keys(storedChoices)) {
 		value := storedChoices[field][len(storedChoices[field])-1]
-		got := postForm(t, srv.URL+"/preferences", url.Values{
+		got := postForm(t, srv, url.Values{
 			field:  {value},
 			"next": {"/notes/A.md"},
 		})
@@ -1104,7 +1118,7 @@ func TestTheWayBackIsDrawnOnlyWhereThereIsOne(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	_, sent := page(t, srv.URL+"/preferences?from=%2Fnotes%2FA.md")
+	_, sent := page(t, srv, "/preferences?from=%2Fnotes%2FA.md")
 	if !strings.Contains(sent, `class="y-prefs__return" href="/notes/A.md"`) {
 		t.Errorf("a reader sent here from a note is given no way back to it; body = %q", sent[:min(len(sent), 400)])
 	}
@@ -1114,7 +1128,7 @@ func TestTheWayBackIsDrawnOnlyWhereThereIsOne(t *testing.T) {
 		t.Errorf("the page does not carry %s, so a language change would not return to it", want)
 	}
 
-	_, alone := page(t, srv.URL+"/preferences")
+	_, alone := page(t, srv, "/preferences")
 	if strings.Contains(alone, "y-prefs__return") {
 		t.Error("a reader who opened this page directly is offered a way back to the page they are on")
 	}

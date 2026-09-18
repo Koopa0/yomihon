@@ -4463,7 +4463,7 @@ func TestTheFolderBlockDoesNotDenyTheFilesItCounts(t *testing.T) {
 	if !strings.Contains(block, "2") {
 		t.Errorf("the folders block does not count the two files at the root: %q", block)
 	}
-	if strings.Contains(block, "y-homeempty") {
+	if strings.Contains(block, `data-nothing="shelf"`) {
 		t.Errorf("the folders block counts files and calls itself empty in the same breath: %q", block)
 	}
 }
