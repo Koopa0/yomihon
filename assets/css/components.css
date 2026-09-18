@@ -119,6 +119,11 @@ html, body { margin: 0; background: var(--bg); }
   white-space: nowrap;
 }
 
+.ui-navitem__when ~ .ui-navitem__count {
+  flex: none;
+  white-space: nowrap;
+}
+
 /* ---- Sidebar section label ---- */
 .ui-side__label {
   font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint);
