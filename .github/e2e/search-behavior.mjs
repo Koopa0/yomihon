@@ -255,7 +255,11 @@ const MUTATIONS = {
     target: 'page-live-results',
     before: rewriteSearchPage([
       {
-        needle: 'class="y-searchpage" data-live-search data-live-search-endpoint="/search/results"',
+        // The page's endpoint carries the marker that asks for the divisions
+        // beside the results; the palette's, rewritten below, does not. The
+        // needle names the whole attribute so this mutation cannot half-apply
+        // if one of the two ever changes without the other.
+        needle: 'class="y-searchpage" data-live-search data-live-search-endpoint="/search/results?facets=1"',
         replacement: 'class="y-searchpage" data-live-search data-live-search-endpoint="/missing"',
       },
     ], 'search-page endpoint'),

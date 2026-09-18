@@ -82,39 +82,124 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	}
 	snap := h.snapshot()
 	lang := origin.Language(r)
-	view := answerView(snap, q, h.query(snap.Index, q, lang))
+	// The page itself always has the column, so the first render never depends
+	// on the marker the live refreshes carry.
+	view := answerView(snap, q, h.query(snap.Index, q, lang), lang, true)
 	view.Sidebar = pages.NewSidebar(snap.Shell.Nav, "")
 	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search page", q, err)
 	}
 }
 
-// answer is what one query came to: how it was read, the hits the page shows,
-// the true tally behind them, the sentence to show in their place when the
-// index could not answer, and the terms the hits matched. It belongs to one
-// request — query builds it, answerView reads it, and nothing keeps it. It
-// travels by pointer for its size, not so anyone can change it.
+// answer is what one query came to: how it was read, what the index found,
+// the sentence to show in its place when the index could not answer, and the
+// terms the hits matched. It belongs to one request — query builds it,
+// answerView reads it, and nothing keeps it. It travels by pointer for its
+// size, not so anyone can change it.
 type answer struct {
 	parsed     *lexical.Query
-	results    []lexical.Result
-	total      int
+	found      lexical.Answer
 	diagnostic string
 	tokens     []string
 }
 
 // answerView is everything both faces say about one query, built once so the
-// full page and the live region cannot drift apart.
-func answerView(snap RequestSnapshot, q string, a *answer) pages.SearchView {
-	return pages.SearchView{
+// full page and the live region cannot drift apart. divided says whether this
+// face has a column to put the answer's divisions in; the rows themselves are
+// the same either way.
+func answerView(snap RequestSnapshot, q string, a *answer, lang wording.Lang, divided bool) pages.SearchView {
+	view := pages.SearchView{
 		Query:             q,
-		Results:           viewResults(a.results, snap.Shell.Governed, snap.Status, a.tokens),
-		Total:             a.total,
+		Results:           viewResults(a.found.Results, snap.Shell.Governed, snap.Status, a.tokens),
+		Total:             a.found.Total,
 		Diagnostic:        a.diagnostic,
 		Governed:          snap.Shell.Governed,
-		StepBacks:         stepBackViews(snap.Index, q, a.results, a.diagnostic),
+		StepBacks:         stepBackViews(snap.Index, q, a.found.Results, a.diagnostic),
 		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
 	}
+	if divided && a.diagnostic == "" && snap.Shell.Governed {
+		view.Facets = facetViews(q, a.found.Facets, snap.Status, lang)
+	}
+	return view
+}
+
+// facetViews maps the index's divisions onto the column the page draws, and
+// builds each row's search by asking the grammar to write it. Removal and
+// addition both go through the parser's own rewriting, so a row can only offer
+// a query this grammar reads back as the one the row's count was taken from —
+// and the reader's own spelling, spacing and quoting survive untouched on
+// every part of the query the row is not about.
+//
+// A division no hit stated a value for draws nothing: a column reading "not
+// stated: 12" and offering nothing else narrows no search.
+func facetViews(q string, divisions []lexical.Facet, vocabulary StatusVocabulary, lang wording.Lang) []pages.SearchFacet {
+	// Asked of the vocabulary rather than inferred from the shell, for the same
+	// reason the result rows ask: a view that knows none would otherwise mark
+	// every value a fault.
+	rules := vocabulary != nil && !vocabulary.Closed()
+	out := make([]pages.SearchFacet, 0, len(divisions))
+	for _, division := range divisions {
+		if len(division.Values) == 0 {
+			continue
+		}
+		facet := pages.SearchFacet{
+			Key:     division.Key,
+			Heading: wording.FacetHeading(division.Key, lang),
+			Rows:    make([]pages.SearchFacetRow, 0, len(division.Values)+1),
+		}
+		for _, value := range division.Values {
+			facet.Rows = append(facet.Rows, facetRow(q, division.Key, value, rules, vocabulary))
+		}
+		if division.Unstated > 0 {
+			facet.Rows = append(facet.Rows, pages.SearchFacetRow{
+				Label:    wording.FacetUnstated.In(lang),
+				Count:    division.Unstated,
+				Unstated: true,
+			})
+		}
+		out = append(out, facet)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// facetRow writes one value's row. Whether the query already names the value is
+// decided by removing it and seeing whether anything changed, rather than by a
+// second comparison of folded values kept here: the grammar decides what names
+// what, and the answer and the link the row offers then cannot disagree.
+func facetRow(q, key string, value lexical.FacetValue, rules bool, vocabulary StatusVocabulary) pages.SearchFacetRow {
+	row := pages.SearchFacetRow{Label: value.Value, Count: value.Count}
+	if rules && key == lexical.StatusFilterKey {
+		row.OutsideEnum = !declaredByACarrier(vocabulary, value)
+	}
+	constraint := lexical.Filter{Key: key, Value: value.Value}
+	if without := lexical.WithoutFilter(q, constraint); without != q {
+		row.Query, row.Active = without, true
+		return row
+	}
+	// A value this grammar cannot spell back — one carrying a quote character —
+	// leaves the row a cell with its count and no offer, the way a lifecycle
+	// square with nothing to query stops being a link.
+	if narrowed, ok := lexical.WithFilter(q, constraint); ok {
+		row.Query = narrowed
+	}
+	return row
+}
+
+// declaredByACarrier reports whether any note type holding this status declares
+// it. A status is declared per type, so the value alone cannot be ruled on: the
+// same value is vocabulary under one type and outside every enum under another,
+// and a verdict reached without the types would contradict the rows beneath it.
+func declaredByACarrier(vocabulary StatusVocabulary, value lexical.FacetValue) bool {
+	for _, noteType := range value.Carriers {
+		if vocabulary.KnownStatus(noteType, value.Value) {
+			return true
+		}
+	}
+	return false
 }
 
 // results renders only the lexical-results region used by progressive search.
@@ -125,13 +210,14 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	answered := h.query(snap.Index, q, origin.Language(r))
+	lang := origin.Language(r)
+	answered := h.query(snap.Index, q, lang)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	view := answerView(snap, q, answered)
-	if err := pages.SearchResults(view, origin.Language(r)).Render(r.Context(), w); err != nil {
+	view := answerView(snap, q, answered, lang, wantsFacets(r))
+	if err := pages.SearchResults(view, lang).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search results", q, err)
 	}
 }
@@ -143,7 +229,7 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 // saves.
 func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang) *answer {
 	parsed := lexical.Parse(q)
-	results, total, err := idx.SearchN(parsed, maxRenderedResults)
+	found, err := idx.Search(parsed, maxRenderedResults)
 	if errors.Is(err, lexical.ErrMetadataUnavailable) {
 		return &answer{parsed: parsed, diagnostic: unavailableSentence(err, lang)}
 	}
@@ -151,7 +237,7 @@ func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang) *answer
 		h.logQueryError("search query", q, err)
 		return &answer{parsed: parsed, diagnostic: wording.SearchUnavailable.In(lang)}
 	}
-	return &answer{parsed: parsed, results: results, total: total, tokens: parsed.Tokens()}
+	return &answer{parsed: parsed, found: found, tokens: parsed.Tokens()}
 }
 
 // unavailableSentence says why a metadata query could not be answered, in this
@@ -206,6 +292,24 @@ func queryFacts(rawQuery string, err error) []any {
 		"query_bytes", len(rawQuery),
 		"filter_keys", filterKeys,
 	}
+}
+
+// facetsParam is the request's name for the one difference between the two
+// faces that ask this endpoint for the same rows. The search page's live region
+// carries it on the endpoint it names; the command palette's does not, because
+// it floats over a page and has no column to put a division in.
+//
+// It is what keeps the palette's answer exactly what it was: without it the
+// only way to serve one fragment to two faces would be to send the column to
+// both and paint it out of one, which is markup a reader's browser is handed
+// and told to ignore. A handler test holds the difference, because two routes
+// that look alike are what a later tidying merges.
+const facetsParam = "facets"
+
+// wantsFacets reads that marker off the request. It is a query parameter and
+// not an environment read: the process still has exactly one variable.
+func wantsFacets(r *http.Request) bool {
+	return r.URL.Query().Get(facetsParam) == "1"
 }
 
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {

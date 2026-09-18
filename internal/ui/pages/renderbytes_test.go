@@ -117,9 +117,9 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
 		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
 		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
-		{"search-page", Search(recordedSearchView(model), recordedChrome())},
+		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
-		{"search-results-english", SearchResults(recordedSearchView(model), wording.En)},
+		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(model, "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
 		{"preferences-page", Preferences(recordedPreferencesView(), recordedChrome())},
 		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
@@ -562,7 +562,12 @@ func recordedRecoveryView(model *nav.Model) StatusRecoveryView {
 	}
 }
 
-func recordedSearchView(model *nav.Model) SearchView {
+// recordedSearchView takes the language because the column's headings and
+// its not-stated cell are written before the view leaves the handler, the
+// way a result's own status is: everything else on this page is translated
+// inside the template, so without this the English recording would show a
+// Traditional Chinese column.
+func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 	return SearchView{
 		Query: "kafka",
 		Results: []SearchResult{{
@@ -586,7 +591,41 @@ func recordedSearchView(model *nav.Model) SearchView {
 		UnknownFilterKeys: []string{"tag", "kind"},
 		FilterKeys:        lexical.FilterKeys(),
 		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
+		Facets:            recordedSearchFacets(lang),
 		Governed:          true,
 		Sidebar:           NewSidebar(model, ""),
 	}
+}
+
+// recordedSearchFacets is one of each row the column can draw: a plain value,
+// a value already in the query whose row leads back out of it, a value no
+// carrier declares, a value the grammar cannot spell and so cannot offer, and
+// the cell standing for the hits that declared nothing. A recording that held
+// only the first would leave the other four unrecorded and free to change.
+func recordedSearchFacets(lang wording.Lang) []SearchFacet {
+	return []SearchFacet{{
+		Key:     "status",
+		Heading: wording.FacetHeading("status", lang),
+		Rows: []SearchFacetRow{
+			{Label: "draft", Count: 2, Query: "kafka", Active: true},
+			{Label: "ready", Count: 1, Query: "kafka status:ready"},
+			{Label: "seedling", Count: 1, Query: "kafka status:seedling", OutsideEnum: true},
+		},
+	}, {
+		Key:     "type",
+		Heading: wording.FacetHeading("type", lang),
+		Rows: []SearchFacetRow{
+			{Label: "lesson", Count: 2, Query: "kafka type:lesson"},
+			{Label: wording.FacetUnstated.In(lang), Count: 1, Unstated: true},
+		},
+	}, {
+		Key:     "domain",
+		Heading: wording.FacetHeading("domain", lang),
+		Rows: []SearchFacetRow{
+			// A value the grammar cannot write back: its quote closes a group
+			// early, so the query would read as a shorter constraint and a
+			// stray word. The row keeps its count and offers no link.
+			{Label: `a" b`, Count: 1},
+		},
+	}}
 }

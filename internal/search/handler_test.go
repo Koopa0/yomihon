@@ -55,7 +55,9 @@ func TestSearchHandler(t *testing.T) {
 		}
 		searchPage := searchPageHTML(t, body)
 		for _, want := range []string{
-			`data-live-search-endpoint="/search/results"`,
+			// The page asks for the divisions; the command palette, whose own
+			// assertion names this route without the marker, does not.
+			`data-live-search-endpoint="/search/results?facets=1"`,
 			`data-live-search-form`,
 			`data-live-search-input`,
 			`data-live-search-status`,
