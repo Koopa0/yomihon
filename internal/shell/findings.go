@@ -1,10 +1,9 @@
 package shell
 
 import (
-	"slices"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
@@ -40,9 +39,10 @@ type Findings struct {
 	StatusUnreachable []StatusNote
 	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
 	// so nothing they declare could be judged; SchemaFaults are the ones whose
-	// frontmatter reads and carries something the schema does not accept.
-	FrontmatterUnreadable []NoteFindings
-	SchemaFaults          []NoteFindings
+	// frontmatter reads and carries something the schema does not accept. Both
+	// are the generation's own, gathered once while the folder was read.
+	FrontmatterUnreadable []snapshot.HealthNoteFindings
+	SchemaFaults          []snapshot.HealthNoteFindings
 	// InstanceScopeUnknown is why the citation and island lists could not be
 	// worked out, empty where they could.
 	InstanceScopeUnknown string
@@ -58,16 +58,6 @@ type StatusNote struct {
 	Note   nav.NoteRef
 	Type   string
 	Status string
-}
-
-// NoteFindings is one note the schema had something to say about: how many
-// things it said and how heavy the heaviest of them was. What it said stays on
-// that note's own page, because one file described twice in two places is how
-// two accounts of it start to disagree.
-type NoteFindings struct {
-	Note     nav.NoteRef
-	Severity judge.Severity
-	Count    int
 }
 
 // Total is how many findings this folder has against it, counted the way the
@@ -101,107 +91,95 @@ func (f *Findings) Total() int {
 func GatherFindings(lifecycle status.Authority, snap *snapshot.Generation) Findings {
 	health := snap.Health()
 	fresh := snap.Freshness()
-	unreadable, faults := schemaFaults(snap)
+	outsideEnum, unreachable := statusFaults(lifecycle, snap)
 	return Findings{
-		Unwritten:  health.Unwritten,
-		TitleOnly:  health.TitleOnly,
-		Islands:    health.Islands,
-		Collisions: health.Collisions,
-		Blocked:    fresh.Blocked,
-		Skipped:    snap.Skipped(),
-		// A value the type never declared, and a declared value no lifecycle
-		// row with it applies to that type: the first is a word nobody can act
-		// on, the second a state nothing can put a note into.
-		StatusOutsideEnum: statusNotes(lifecycle, snap, func(noteType, value string) bool {
-			return !lifecycle.KnownStatus(noteType, value)
-		}),
-		StatusUnreachable: statusNotes(lifecycle, snap, func(noteType, value string) bool {
-			return lifecycle.KnownStatus(noteType, value) && !lifecycle.ReachableStatus(noteType, value)
-		}),
-		FrontmatterUnreadable: unreadable,
-		SchemaFaults:          faults,
+		Unwritten:             health.Unwritten,
+		TitleOnly:             health.TitleOnly,
+		Islands:               health.Islands,
+		Collisions:            health.Collisions,
+		Blocked:               fresh.Blocked,
+		Skipped:               snap.Skipped(),
+		StatusOutsideEnum:     outsideEnum,
+		StatusUnreachable:     unreachable,
+		FrontmatterUnreadable: health.FrontmatterUnreadable,
+		SchemaFaults:          health.SchemaFaults,
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
 		LastComplete:          fresh.LastComplete,
 	}
 }
 
-// schemaFaults splits what the schema said about the whole folder into the two
-// things somebody does differently about them: frontmatter that cannot be read
-// at all, which has to be repaired before anything else about the note can be
-// judged, and frontmatter that reads and carries something the schema does not
-// accept, which has a named field to change.
+// statusFaults names the notes carrying a status their own type cannot be in:
+// one the type never declared, and one it declared while no lifecycle row with
+// it applies to that type. The first is a word nobody can act on, the second a
+// state nothing can put a note into.
 //
-// The split is on the rule that fired rather than on a guess about the note,
-// because one of these findings is the judge's own statement that it could read
-// nothing.
-func schemaFaults(snap *snapshot.Generation) (unreadable, faults []NoteFindings) {
-	for _, entry := range snap.Files() {
-		rel := entry.Path()
-		found := snap.SchemaFindings(rel)
-		if len(found) == 0 {
-			continue
-		}
-		note, ok := snap.Note(rel)
-		if !ok {
-			continue
-		}
-		row := NoteFindings{
-			Note:     nav.NoteRef{RelPath: rel, Name: note.Title},
-			Severity: heaviest(found),
-			Count:    len(found),
-		}
-		if slices.ContainsFunc(found, func(f judge.Finding) bool { return f.RuleID == "schema.frontmatter" }) {
-			unreadable = append(unreadable, row)
-			continue
-		}
-		faults = append(faults, row)
-	}
-	return unreadable, faults
-}
-
-// heaviest is the weight of the worst thing said about one note, which is what
-// somebody sorting by weight is choosing between. A lighter finding beside a
-// heavier one does not make the note lighter, so the row carries the heaviest
-// rather than the first or an average of them.
-func heaviest(found []judge.Finding) judge.Severity {
-	worst := found[0].Severity
-	for i := 1; i < len(found); i++ {
-		worst = max(worst, found[i].Severity)
-	}
-	return worst
-}
-
-// statusNotes names the notes whose status answers holds — the whole-folder
-// gathering of the flag each note page already shows one at a time. Both
-// gatherings walk the same holder list, so the faces they feed cannot disagree
-// about which notes exist. An authority that is closed or ungoverned names
-// none and the surfaces above say nothing: an unknowable finding must not pose
-// as one.
-func statusNotes(lifecycle status.Authority, snap *snapshot.Generation, holds func(noteType, value string) bool) []StatusNote {
+// Both answers come from one walk of the folder's lifecycle, because they are
+// asked of the same notes and this runs on every page: the walk keeps nothing
+// it is not reporting, so a folder of thousands of notes with nothing wrong in
+// it costs a scan and no memory at all. An authority that is closed or
+// ungoverned names none and the surfaces above say nothing: an unknowable
+// finding must not pose as one.
+func statusFaults(lifecycle status.Authority, snap *snapshot.Generation) (outsideEnum, unreachable []StatusNote) {
 	if !lifecycle.Governed() || lifecycle.Closed() {
-		return nil
+		return nil, nil
 	}
 	// A generation that does not exist holds no notes to name. The search index
 	// is the only projection here that answers a question rather than a field,
 	// and it is the one an absent generation cannot stand in for.
 	index := snap.Search()
 	if index == nil {
-		return nil
+		return nil, nil
 	}
-	holders, err := index.StatusHolders()
+	holders, err := index.EachStatusHolder()
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	var out []StatusNote
-	for _, h := range holders {
-		if !holds(h.Type, h.Status) {
-			continue
+	// Thousands of notes carry a handful of distinct type-and-status pairs
+	// between them, and the contract's answer about a pair is the same for
+	// every note holding it. Asking once per pair rather than once per note is
+	// what keeps this walk off a page's cost: the answer for one pair copies
+	// the type's whole declared list to compare against.
+	verdicts := map[statusPair]statusVerdict{}
+	for h := range holders {
+		pair := statusPair{noteType: h.Type, status: h.Status}
+		verdict, asked := verdicts[pair]
+		if !asked {
+			verdict = statusVerdict{
+				known:     lifecycle.KnownStatus(h.Type, h.Status),
+				reachable: lifecycle.ReachableStatus(h.Type, h.Status),
+			}
+			verdicts[pair] = verdict
 		}
-		out = append(out, StatusNote{
-			Note:   nav.NoteRef{Name: nav.Label(h.RelPath), RelPath: h.RelPath},
-			Type:   h.Type,
-			Status: h.Status,
-		})
+		switch {
+		case !verdict.known:
+			outsideEnum = append(outsideEnum, statusNote(h))
+		case !verdict.reachable:
+			unreachable = append(unreachable, statusNote(h))
+		}
 	}
-	return out
+	return outsideEnum, unreachable
+}
+
+// statusPair is the type and status a note declares, which is everything the
+// contract is asked about it.
+type statusPair struct {
+	noteType string
+	status   string
+}
+
+// statusVerdict is what the contract says about one such pair: two booleans
+// that decide which of the two lists a note holding that pair joins, and
+// neither of which varies between notes holding it.
+type statusVerdict struct {
+	known     bool
+	reachable bool
+}
+
+// statusNote names one holder the way every other list here names a note.
+func statusNote(h lexical.StatusHolder) StatusNote {
+	return StatusNote{
+		Note:   nav.NoteRef{Name: nav.Label(h.RelPath), RelPath: h.RelPath},
+		Type:   h.Type,
+		Status: h.Status,
+	}
 }

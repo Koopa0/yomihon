@@ -83,7 +83,7 @@ func healthStatusNotes(found []shell.StatusNote, articleLang pages.ArticleLangua
 // things were said about the note and how heavy the heaviest was — a number and
 // a weight the note's own page never states, and the only way the table can
 // tell one note that drew a single complaint from one that drew nine.
-func healthNoteFindings(found []shell.NoteFindings, articleLang pages.ArticleLanguageFor) []pages.HealthNoteFindings {
+func healthNoteFindings(found []snapshot.HealthNoteFindings, articleLang pages.ArticleLanguageFor) []pages.HealthNoteFindings {
 	out := make([]pages.HealthNoteFindings, 0, len(found))
 	for _, row := range found {
 		out = append(out, pages.HealthNoteFindings{

@@ -847,6 +847,12 @@ func buildGeneration(
 
 	planned := judge.NewPlanned(noteBodies(g.ordered), contract)
 	backlinks := newBacklinks(g.ordered, graphIndex)
+	// What the schema said is gathered here, with the rest of the whole-folder
+	// view, because every page's rail now states how many findings stand
+	// against the folder and a walk over every note is not a thing to do on
+	// every page.
+	health := newHealth(g.ordered, graphIndex, planned, backlinks, capabilities.Artifacts, titles)
+	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
 	gen := &Generation{
 		graph:          graphIndex,
 		navigation:     navigation,
@@ -855,7 +861,7 @@ func buildGeneration(
 		concepts:       concepts,
 		planned:        planned,
 		backlinks:      backlinks,
-		health:         newHealth(g.ordered, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
+		health:         health,
 		artifactPolicy: capabilities.Artifacts,
 		navRoles:       capabilities.Navigation,
 		privacyPolicy:  contract.PrivacyPolicy(),
