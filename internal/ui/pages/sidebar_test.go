@@ -141,7 +141,7 @@ func buildModel(t *testing.T) *nav.Model {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(),
+		contract.ArticleLanguage(), contract.AuthoredDate(),
 	)
 	return model
 }
@@ -373,7 +373,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(),
+		contract.ArticleLanguage(), contract.AuthoredDate(),
 	)
 	if model.NavigationClosure().Diagnostic() == "" || model.ArtifactClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no capability fault: navigation %q artifact %q",
@@ -415,7 +415,7 @@ func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(),
+		contract.ArticleLanguage(), contract.AuthoredDate(),
 	)
 	if !model.JournalClosure().Closed() || model.JournalClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no journal fault: closed=%t diagnostic=%q",
@@ -450,6 +450,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		schema.ArtifactPolicy{},
 		schema.JournalDir{},
 		schema.ArticleLanguage{},
+		schema.AuthoredDate{},
 	)
 	var buf bytes.Buffer
 	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -711,7 +712,7 @@ func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage())
+	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate())
 
 	view := NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	if len(view.Shelf.Rows) != 1 || view.Shelf.Rows[0].Mark != "5 枝" {

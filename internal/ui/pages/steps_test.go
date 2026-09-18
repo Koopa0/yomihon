@@ -246,7 +246,7 @@ func buildStepsModel(t *testing.T) *nav.Model {
 		scan.Files(), notes, graph.New(noteList, nil),
 		contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(),
+		contract.ArticleLanguage(), contract.AuthoredDate(),
 	)
 }
 

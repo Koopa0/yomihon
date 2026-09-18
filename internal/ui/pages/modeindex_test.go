@@ -78,60 +78,60 @@ func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
 	}
 }
 
-// TestAReportRowNamesItsKindAndItsDay keeps the two kinds of report apart and
-// lifts the day out of a filename written as one. The kinds open differently —
-// a briefing's bytes are shown inside an isolated frame, a written report is a
-// note — so a row that named neither would leave the reader guessing which link
-// they were about to follow.
-func TestAReportRowNamesItsKindAndItsDay(t *testing.T) {
+// TestAReportRowLeadsWithItsDayThenNamesItsKind pins the four faces a report
+// row shows and which face each thing lands on. The day leads, because that is
+// what a reader scans a shelf of reports for. The kinds open differently — a
+// briefing's bytes are shown inside an isolated frame, a written report is a
+// note — so the kind is named on every row, and a reader knows which link they
+// are about to follow.
+func TestAReportRowLeadsWithItsDayThenNamesItsKind(t *testing.T) {
 	t.Parallel()
 
 	view := NewReportIndex([]nav.Report{
-		{Name: "Vault audit", RelPath: "System/reports/2026-07-10 vault audit.md"},
+		{
+			Name:    "Vault audit",
+			RelPath: "System/reports/2026-07-10 vault audit.md",
+			Date:    "2026-07-10",
+			Opening: "Four notes went from draft to ready.",
+		},
 		{Name: "notes", RelPath: "System/reports/notes.md"},
 		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 	}, wording.ZhHant, nil)
 
 	want := []Row{
 		{
-			Text: "Vault audit",
-			Href: "/notes/System/reports/2026-07-10%20vault%20audit.md",
-			Mark: "2026-07-10 · 書庫筆記",
+			When:    "2026-07-10",
+			Text:    "Vault audit",
+			Opening: "Four notes went from draft to ready.",
+			Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
+			Mark:    "書庫筆記",
 		},
-		{Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "書庫筆記"},
-		{Text: "latest.html", Href: "/reports/latest.html", Mark: "每日簡報 · 最新"},
+		{When: "沒有寫日期", Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "書庫筆記"},
+		{When: "最新", Text: "latest.html", Href: "/reports/latest.html", Mark: "每日簡報"},
 	}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("report rows mismatch (-want +got):\n%s", diff)
 	}
 }
 
-// TestLeadingDateReadsOnlyAWholeDayAtTheFront keeps the date cell out of the
-// business of guessing. A name that merely starts with digits is not a day, and
-// a row that showed one would be yomihon asserting something the author never
-// wrote.
-func TestLeadingDateReadsOnlyAWholeDayAtTheFront(t *testing.T) {
+// TestEveryReportRowAnswersInTheDateColumn keeps the column a reader scans
+// whole. A row left blank there reads as a day the page failed to look up,
+// which is a different claim from the one the shelf is making — that this
+// report never wrote one.
+func TestEveryReportRowAnswersInTheDateColumn(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-		want string
-	}{
-		{"2026-07-10.html", "2026-07-10"},
-		{"2026-07-10 vault audit.md", "2026-07-10"},
-		{"20260710.md", ""},
-		{"2026-07.md", ""},
-		{"v2026-07-10.md", ""},
-		{"notes.md", ""},
-		{"", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := leadingDate(tt.name); got != tt.want {
-				t.Errorf("leadingDate(%q) = %q, want %q", tt.name, got, tt.want)
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		view := NewReportIndex([]nav.Report{
+			{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
+			{Name: "Vault audit", RelPath: "System/reports/a.md", Date: "2026-07-10"},
+			{Name: "notes", RelPath: "System/reports/notes.md"},
+		}, lang, nil)
+		for i, row := range view.Shelf.Rows {
+			if row.When == "" {
+				t.Errorf("row %d (%q) in %v says nothing in the date column", i, row.Text, lang)
 			}
-		})
+		}
 	}
 }
 
