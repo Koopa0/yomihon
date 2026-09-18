@@ -131,7 +131,10 @@ templ Health(v HealthView, c layouts.Chrome) {
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c)
 			<main id="main-content" tabindex="-1" class="y-main">
-				<article class="y-article">
+				// A sheet of findings, each a row of four things read across, so
+				// this page is laid out on the shelf the other listing pages take
+				// rather than in the column a note is read in.
+				<article class="y-healthpage">
 					<h1 class="y-title">{ wording.HealthTitle.In(c.Lang) }</h1>
 					<div class="y-seam" aria-hidden="true"></div>
 					if v.clean() {

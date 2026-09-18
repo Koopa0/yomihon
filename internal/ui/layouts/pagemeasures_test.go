@@ -30,6 +30,7 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
+		"--measure-list": "880px",
 		"--measure-read": "640px",
 	}
 
@@ -62,6 +63,8 @@ func TestEveryPageShellTakesItsOwnMeasure(t *testing.T) {
 		measure string
 	}{
 		{class: ".y-article", measure: "var(--measure-read)"},
+		{class: ".y-healthpage", measure: "var(--measure-list)"},
+		{class: ".y-home", measure: "var(--measure-list)"},
 		{class: ".y-prefs", measure: "var(--measure-read)"},
 		{class: ".y-recovery", measure: "var(--measure-read)"},
 		{class: ".y-syl", measure: "var(--measure-read)"},
@@ -100,7 +103,6 @@ func TestNoPageMeasureIsWrittenAsAPixelLiteral(t *testing.T) {
 
 	allowed := map[string]string{
 		".y-headerfold:popover-open": "the header's folded panel, kept off a phone's edges",
-		".y-home":                    "the shelf shell, until it is given a measure of its own",
 		".y-home__head > p":          "the desk's opening line",
 		".y-kbdhelp":                 "the keyboard-help popover",
 		".y-searchdialog":            "the palette box",
