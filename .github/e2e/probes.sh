@@ -65,6 +65,9 @@ probes=(
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "health-table.mjs|/health"
   "reports-shelf.mjs|/reports"
+  # A month named outright rather than whichever one it is today, so what this
+  # probe measures is the same measurement next month.
+  "journal-month.mjs|/journal?month=2026-07"
   "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"

@@ -654,7 +654,7 @@ func TestNewKeepsZeroEntryMap(t *testing.T) {
 func TestNewBuildsJournalFromCapturedMtimes(t *testing.T) {
 	t.Parallel()
 
-	t.Run("newest five without frontmatter", func(t *testing.T) {
+	t.Run("the whole journal, newest first, without frontmatter", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		mtimes := make(map[string]time.Time)
@@ -669,15 +669,20 @@ func TestNewBuildsJournalFromCapturedMtimes(t *testing.T) {
 		}
 		roles, policy := testCapabilities(t)
 		model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
-		want := []JournalEntry{
-			{Title: "2026-07-07", RelPath: "Diary/2026-07-07.md", Modified: mtimes["Diary/2026-07-07.md"]},
-			{Title: "2026-07-06", RelPath: "Diary/2026-07-06.md", Modified: mtimes["Diary/2026-07-06.md"]},
-			{Title: "2026-07-05", RelPath: "Diary/2026-07-05.md", Modified: mtimes["Diary/2026-07-05.md"]},
-			{Title: "2026-07-04", RelPath: "Diary/2026-07-04.md", Modified: mtimes["Diary/2026-07-04.md"]},
-			{Title: "2026-07-03", RelPath: "Diary/2026-07-03.md", Modified: mtimes["Diary/2026-07-03.md"]},
+		// Every entry, not a window of them: the month page reads the whole
+		// journal, so a builder that kept only the newest few would leave it
+		// drawing whichever days happened to survive.
+		want := make([]JournalEntry, 0, 7)
+		for day := 7; day >= 1; day-- {
+			rel := fmt.Sprintf("Diary/2026-07-%02d.md", day)
+			name := fmt.Sprintf("2026-07-%02d", day)
+			want = append(want, JournalEntry{Title: name, RelPath: rel, Modified: mtimes[rel], Date: name})
 		}
 		if diff := cmp.Diff(want, model.Journal()); diff != "" {
 			t.Errorf("New Journal mismatch (-want +got):\n%s", diff)
+		}
+		if model.JournalCount() != len(want) {
+			t.Errorf("JournalCount() = %d, want %d", model.JournalCount(), len(want))
 		}
 	})
 
@@ -739,6 +744,44 @@ func TestJournalShelfFollowsTheDeclaredDirectory(t *testing.T) {
 			t.Error("InJournal is false for the declared journal_dir")
 		}
 	})
+}
+
+// TestJournalEntryTakesTheDayItsAuthorDeclared keeps the journal's day inside
+// the contract's authority, as the reports shelf's is. A journal entry is
+// usually named for the day it is for, and that naming is a habit rather than
+// something the contract declares — so where an author wrote the day in the
+// field the contract dates a note by, that is the day the entry is for, and the
+// filename does not get to contradict it.
+func TestJournalEntryTakesTheDayItsAuthorDeclared(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Diary/2026-07-10.md", "# Today\n")
+	writeNavFixture(t, root, "Diary/2026-01-01 backfilled.md", "---\ncreated: 2026-08-31\n---\n\nwritten up later\n")
+	writeNavFixture(t, root, "Diary/loose thoughts.md", "no day anywhere\n")
+	roles, policy := testCapabilities(t)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+
+	want := map[string]string{
+		"Diary/2026-07-10.md":            "2026-07-10",
+		"Diary/2026-01-01 backfilled.md": "2026-08-31",
+		"Diary/loose thoughts.md":        "",
+	}
+	got := make(map[string]string, len(want))
+	var order []string
+	for _, entry := range model.Journal() {
+		got[entry.RelPath] = entry.Date
+		order = append(order, entry.RelPath)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("journal days mismatch (-want +got):\n%s", diff)
+	}
+	// The declared day also decides where the entry sits: a shelf that read the
+	// day one way and ordered on another would list 31 August under 1 January.
+	wantOrder := []string{"Diary/2026-01-01 backfilled.md", "Diary/2026-07-10.md", "Diary/loose thoughts.md"}
+	if diff := cmp.Diff(wantOrder, order); diff != "" {
+		t.Errorf("journal order mismatch (-want +got):\n%s", diff)
+	}
 }
 
 // TestNewCarriesScannerMtimes proves Home's freshness data comes from the
@@ -2184,13 +2227,14 @@ func TestBuildReportsKeepsCapturedOrderWithinOneDay(t *testing.T) {
 	}
 }
 
-// TestReportDate walks every way a report can come by a day, and the two ways
-// it can fail to. The field the contract dates a note by answers first; the
-// filename answers only where it did not; and a frontmatter value of a shape no
-// day reads from leaves the report undated rather than quietly falling through
-// to the name, because a row that showed a day there would hide that the
-// author's own value could not be read.
-func TestReportDate(t *testing.T) {
+// TestNoteDay walks every way a file can come by a day, and the two ways it can
+// fail to. The field the contract dates a note by answers first; the filename
+// answers only where it did not; and a frontmatter value of a shape no day
+// reads from leaves the file undated rather than quietly falling through to the
+// name, because a row that showed a day there would hide that the author's own
+// value could not be read. The fixtures are reports; the same reading dates a
+// journal entry, which is why one function answers for both.
+func TestNoteDay(t *testing.T) {
 	t.Parallel()
 
 	dated := testContract(t).AuthoredDate()
@@ -2223,25 +2267,25 @@ func TestReportDate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			file := capturedFile{path: tt.path, note: vault.Parse(tt.path, []byte(tt.raw))}
-			if got := reportDate(file, dated); got != tt.want {
-				t.Errorf("reportDate(%q, %q) = %q, want %q", tt.path, tt.raw, got, tt.want)
+			if got := noteDay(file, dated); got != tt.want {
+				t.Errorf("noteDay(%q, %q) = %q, want %q", tt.path, tt.raw, got, tt.want)
 			}
 		})
 	}
 }
 
-// TestReportDateIgnoresFrontmatterTheContractDidNotDeclare keeps the date
+// TestNoteDayIgnoresFrontmatterTheContractDidNotDeclare keeps the date
 // inside the contract's authority: a vault whose contract names neither date
 // field has declared no day, and a created: line in a note there is a word the
 // vault never gave meaning to. The filename still answers, being the vault's
 // own naming and no claim about frontmatter.
-func TestReportDateIgnoresFrontmatterTheContractDidNotDeclare(t *testing.T) {
+func TestNoteDayIgnoresFrontmatterTheContractDidNotDeclare(t *testing.T) {
 	t.Parallel()
 
 	const path = "System/reports/2026-01-01 weekly.md"
 	file := capturedFile{path: path, note: vault.Parse(path, []byte("---\ncreated: 2026-08-31\n---\n"))}
-	if got := reportDate(file, schema.AuthoredDate{}); got != "2026-01-01" {
-		t.Errorf("reportDate under an undeclared contract = %q, want the filename's 2026-01-01", got)
+	if got := noteDay(file, schema.AuthoredDate{}); got != "2026-01-01" {
+		t.Errorf("noteDay under an undeclared contract = %q, want the filename's 2026-01-01", got)
 	}
 }
 
