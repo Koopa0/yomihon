@@ -259,6 +259,11 @@
 
   /* Content measure */
   --measure-article: 680px;
+  /* A notice, which is one heading and a sentence or two rather than an
+     article. It is narrower than the article measure on purpose: a page whose
+     whole answer is two lines reads as a column, not as a band of text across
+     the window. */
+  --measure-notice: 480px;
 
   /* Motion */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);

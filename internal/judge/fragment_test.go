@@ -31,7 +31,7 @@ func fragmentRun(t *testing.T, files map[string]string) []Finding {
 			resources = append(resources, path)
 		}
 	}
-	return fragmentFindings(notes, buildIndex(notes, resources))
+	return fragmentFindings(notes, nil, buildIndex(notes, nil, resources))
 }
 
 // ruleTargets reduces findings to "rule rule-target" strings, the identity the
