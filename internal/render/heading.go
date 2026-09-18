@@ -58,10 +58,12 @@ func HeadingWords(raw string) string {
 // The two halves of a place inside a document, as this package writes them:
 // every attribute value is double-quoted and every quote an author wrote inside
 // one arrived escaped. Deliberately not general HTML rules — they read bytes
-// this package wrote.
+// this package wrote. Each holds the name itself apart from the attribute
+// around it, so a pass can drop the whole attribute or rename only what it
+// carries.
 var (
-	anchorAttribute = regexp.MustCompile(` id="[^"]*"`)
-	anchorAddress   = regexp.MustCompile(` href="#[^"]*"`)
+	anchorAttribute = regexp.MustCompile(` id="([^"]*)"`)
+	anchorAddress   = regexp.MustCompile(` href="#([^"]*)"`)
 )
 
 // StripAnchors returns rendered HTML with every place inside it removed: the

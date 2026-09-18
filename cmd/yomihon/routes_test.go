@@ -56,10 +56,12 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 		// this answers rather than redirecting or refusing.
 		{"the journal at a month that is not one", "/journal?month=banana"},
 		{"one study path", "/syllabus/Maps/study.md"},
+		{"one study path to listen to", "/listen/Maps/study.md"},
 		{"one map", "/notes/Maps/reading.md"},
 		{"one briefing", "/reports/2026-09-03.html"},
 		{"one folder", "/folders/Concepts"},
 		{"one note", "/notes/Concepts/alpha.md"},
+		{"two notes side by side", "/compare/Concepts/alpha.md?with=Concepts/beta.md"},
 		{"the health page", "/health"},
 		{"search", "/search"},
 	}
@@ -96,6 +98,7 @@ func writeDeskFixture(t *testing.T, root string) {
 		"Maps/study.md":                                 "---\ntitle: Study Path\ntype: study-path\n---\n\n# Study Path\n\n## Part One\n\n- [[alpha]]\n",
 		"Maps/reading.md":                               "---\ntitle: Reading Map\ntype: topic-map\n---\n\n# Reading Map\n\n## Branch\n\n- [[alpha]]\n",
 		"Concepts/alpha.md":                             "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\n\n# Alpha\n",
+		"Concepts/beta.md":                              "---\ntitle: Beta\ntype: concept\nstatus: draft\n---\n\n# Beta\n",
 		"Diary/2026-07-10.md":                           "# A journal entry\n",
 		"System/reports/2026-09-02.md":                  "# Written report\n",
 		"System/reports/daily-briefing/2026-09-03.html": "<p>briefing</p>\n",
@@ -552,6 +555,7 @@ func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
 		{"a note nobody wrote", "/notes/Concepts/nothing-here.md"},
 		{"a report never published", "/reports/1999-01-01.html"},
 		{"a study path that is not there", "/syllabus/Maps/nothing-here.md"},
+		{"a study path to listen to that is not there", "/listen/Maps/nothing-here.md"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

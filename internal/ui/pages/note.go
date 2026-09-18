@@ -7,6 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -185,7 +186,7 @@ func (v *NoteView) diagCount() int {
 // a new folder rather than an edge of one.
 func (v *NoteView) hasAids() bool {
 	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 ||
-		v.citedByShown() || len(v.BasedOn) > 0 || v.offersMark()
+		v.citedByShown() || len(v.BasedOn) > 0 || v.Pair.RelPath != "" || v.offersMark()
 }
 
 // offersMark reports whether this page can offer to keep the reader's place.
@@ -193,13 +194,29 @@ func (v *NoteView) hasAids() bool {
 // because the mark is both of those and a page missing either would store a
 // place that points at nothing in particular.
 //
-// The control it gates is drawn in the right rail alone. The rail scrolls
-// separately from the article, so reaching the control does not move the page
-// out from under the position it is about; a copy among the inline aids, which
-// sit between the title and the first sentence, would be reached by scrolling
-// back to the top and would keep that place instead of the reader's.
+// The control it gates has two faces, and neither of them moves the page on
+// the way to being reached: the right rail, which scrolls separately from the
+// article, and the header's folded panel at the widths that have no rail. A
+// copy among the inline aids, which sit between the title and the first
+// sentence, would be reached by scrolling back to the top and would keep that
+// place instead of the reader's.
 func (v *NoteView) offersMark() bool {
 	return v.RelPath != "" && v.ContentIdentity != "" && v.MarkAddress != ""
+}
+
+// markOffer is what the header needs to draw the second face: the note's
+// address, the identity of the bytes on the page, and where the control posts.
+// It answers from the predicate above rather than repeating its three tests, so
+// a page offers both faces or neither and nil is the whole of "neither".
+func (v *NoteView) markOffer() *layouts.MarkOffer {
+	if !v.offersMark() {
+		return nil
+	}
+	return &layouts.MarkOffer{
+		Path:     v.RelPath,
+		Identity: v.ContentIdentity,
+		Endpoint: v.MarkAddress,
+	}
 }
 
 // citedByShown reports whether the answer about what links here means anything
@@ -309,10 +326,16 @@ func (v *NoteView) showsFlipReceipt() bool {
 	return v.Governed && v.FlippedFrom != "" && v.Status != "" && v.FlippedFrom != v.Status
 }
 
-// schemaNoticesID names the block of schema findings the transition controls
-// describe themselves by. One page renders at most one such block, which is what
-// lets the id be fixed.
-const schemaNoticesID = "schema-notices"
+// schemaNoticesName is what a note's block of schema findings is called. One
+// note renders at most one such block, so the name needs nothing to tell it
+// from a second.
+const schemaNoticesName = "schema-notices"
+
+// schemaNoticesID is where this note's block of findings answers: the fixed
+// name, inside the id space this article occupies. A page showing two notes
+// gives each article a space of its own, so the two blocks stay two elements
+// and each transition control describes itself by its own note's findings.
+func (v *NoteView) schemaNoticesID() string { return v.IDPrefix + schemaNoticesName }
 
 // schemaNoticesRef is the description a transition submit carries beside the
 // findings, so a control announced on its own still says what the amber notices
@@ -322,5 +345,5 @@ func schemaNoticesRef(v *NoteView) templ.Attributes {
 	if len(v.SchemaNotices) == 0 {
 		return nil
 	}
-	return templ.Attributes{"aria-describedby": schemaNoticesID}
+	return templ.Attributes{"aria-describedby": v.schemaNoticesID()}
 }

@@ -52,6 +52,7 @@ probes=(
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
+  "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -78,6 +79,8 @@ probes=(
   "search-facets.mjs|/search?q=a"
   "search-overflow.mjs|/search?q=a"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
+  "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
+  "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
   # Last, and it has to stay last: this one keeps a reading place, and from
   # then on every desk the run draws carries a row offering it back. A probe
   # that reads the desk would meet a page the fixture alone does not explain.

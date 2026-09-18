@@ -110,12 +110,26 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// terms are the interface's own words and only a second recording shows
 		// neither language's spelling was left behind in the pair.
 		{"note-page-english", Note(recordedNoteView(t, model, current), recordedEnglishChrome())},
+		// Two notes at once, in both languages the interface speaks: the words
+		// around the columns are the interface's and the words inside them are
+		// the notes' own, so the recording is where a change that moved one of
+		// those over the line shows up.
+		{"compare-page", Compare(recordedCompareView(), recordedChrome())},
+		{"compare-page-english", Compare(recordedCompareView(), recordedEnglishChrome())},
 		{"syllabus-page", Syllabus(recordedPathView(model), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
 		// vault's own words either way; what changes is everything the page
 		// says around them, and the page's shape must survive the longer
 		// words rather than only the ones it was drawn with.
 		{"syllabus-page-english", Syllabus(recordedPathView(model), recordedEnglishChrome())},
+		// The same course as something to be listened to, in both languages.
+		// Its paragraphs are the notes' own read-aloud elements, written out
+		// here rather than rendered, so what these files pin is the page and
+		// not a second copy of the renderer's bytes.
+		{"listen-page", Listen(recordedListenView(), recordedChrome())},
+		{"listen-page-english", Listen(recordedListenView(), recordedEnglishChrome())},
+		// A course whose lessons mark nothing says so, and grows no bar.
+		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/syllabus/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
@@ -180,7 +194,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 			surface{"statusbar-" + state.name, statusBar(state.view, wording.ZhHant)},
 		)
 	}
-	if len(cases) < 30 {
+	if len(cases) < 32 {
 		t.Fatalf("only %d surfaces are recorded, so this test locks almost nothing", len(cases))
 	}
 
@@ -460,6 +474,37 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 // where the reader is standing. The fixture course lists that lesson twice, in
 // two different parts, which is the case a course reached from one of them has
 // to answer: both rows are that lesson and both are marked.
+// recordedListenView is a course of two lessons, the second marking one
+// paragraph and the first two, so the recording covers both a lesson boundary
+// and a lesson carrying more than one paragraph. The paragraphs are the bytes
+// render.InjectTTS produces, written out rather than produced here: this file
+// records what the page does with them.
+func recordedListenView() ListenView {
+	reading := func(spoken, inner string) string {
+		return `<div class="y-reading" lang="ja"><button class="y-tts" type="button" data-tts="` + spoken +
+			`" lang="zh-Hant" aria-label="朗讀這段日文"><svg aria-hidden="true"></svg></button><p lang="ja">` + inner + `</p></div>`
+	}
+	return ListenView{
+		Title:    "朗讀《Go path》",
+		PathHref: "/syllabus/Maps/Go%20path.md",
+		Lessons: []ListenLesson{
+			{
+				Title: "L01 わたしは学生です",
+				Href:  "/notes/Writing/lessons/go/L01.md",
+				Paragraphs: []string{
+					reading("一つ目の段落です。", "一つ目の段落です。"),
+					reading("二つ目の段落です。", "二つ目の段落です。"),
+				},
+			},
+			{
+				Title:      "L02 三つの段落",
+				Href:       "/notes/Writing/lessons/go/L02.md",
+				Paragraphs: []string{reading("三つ目の段落です。", "三つ目の段落です。")},
+			},
+		},
+	}
+}
+
 func recordedPathView(model *nav.Model) PathView {
 	current := model.Path("Maps/Go path.md")
 	view := BuildPathView(current, model.Paths(), "Writing/lessons/go/L01.md")
@@ -852,4 +897,21 @@ func recordedSearchFacets(lang wording.Lang) []SearchFacet {
 			{Label: `a" b`, Count: 1},
 		},
 	}}
+}
+
+// recordedCompareView is one page holding two notes, each carrying the id space
+// its column occupies. The two halves are deliberately not alike: one declares
+// a language and one does not, one carries a finding and one does not, and only
+// one offers a further pair — so the recording says what the page does with two
+// notes rather than with one note drawn twice.
+func recordedCompareView() CompareView {
+	return CompareView{
+		A: comparedNote("a-", "Cutover", "Writing/lessons/go/Cutover.md", "en"),
+		B: func() NoteView {
+			b := comparedNote("b-", "切換", "Writing/lessons/go/Cutoverzh.md", "")
+			b.SchemaNotices = nil
+			b.Pair = nav.NoteRef{}
+			return b
+		}(),
+	}
 }
