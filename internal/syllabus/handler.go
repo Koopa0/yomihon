@@ -82,7 +82,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	current := shell.Nav.Path(rel)
 	if current == nil {
 		lang := origin.Language(r)
-		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
+		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell, "")}
 		// The title names which route refused; the page below it is shared.
 		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
 		if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {
@@ -100,6 +100,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	here := vault.NormalizeNFC(r.URL.Query().Get(pages.SyllabusFromParam))
 
 	view := pages.BuildPathView(current, shell.Nav.Paths(), here)
+	view.Vault = shell.Vault
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
 	}

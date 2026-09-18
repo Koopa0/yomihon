@@ -24,7 +24,7 @@ func (h *Handler) listen(w http.ResponseWriter, r *http.Request) {
 	snap := h.current()
 	current := snap.Shell.Nav.Path(rel)
 	if current == nil {
-		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(snap.Shell.Nav, "")}
+		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(snap.Shell, "")}
 		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
 		if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {
 			h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write listening not-found page", "path", rel, "error", err)

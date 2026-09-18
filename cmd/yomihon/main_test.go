@@ -373,19 +373,20 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 			t.Errorf("Writer.Close() error = %v", closeErr)
 		}
 	})
+	vaultName := shell.VaultName(reader.Name())
 	reportProvider := func() report.RequestSnapshot {
 		snap := store.Current().Capture()
-		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(writer.Authority(), snap)}
+		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(vaultName, writer.Authority(), snap)}
 	}
 	searchProvider := func() search.RequestSnapshot {
 		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(authority, snap), Status: authority}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority, snap), Status: authority}
 	}
 	pathProvider := func() syllabus.RequestSnapshot {
 		snap := store.Current().Capture()
 		authority := writer.Authority()
-		return syllabus.RequestSnapshot{Shell: shell.Project(authority, snap), Generation: snap, Status: authority}
+		return syllabus.RequestSnapshot{Shell: shell.Project(vaultName, authority, snap), Generation: snap, Status: authority}
 	}
 
 	mux := http.NewServeMux()
