@@ -131,7 +131,9 @@ templ Health(v HealthView, c layouts.Chrome) {
 					<h1 class="y-title">{ wording.HealthTitle.In(c.Lang) }</h1>
 					<div class="y-seam" aria-hidden="true"></div>
 					if v.clean() {
-						<p class="y-homeempty">{ wording.HealthAllClear.In(c.Lang) }<code lang="en">yomihon check</code>{ wording.HealthAllClearAfterCommand.In(c.Lang) }</p>
+						@nothingToShow(nothingNotice{Kind: "health"}) {
+							<p>{ wording.HealthAllClear.In(c.Lang) }<code lang="en">yomihon check</code>{ wording.HealthAllClearAfterCommand.In(c.Lang) }</p>
+						}
 					} else {
 						<p class="y-healthlede">{ wording.HealthReportsOnly.In(c.Lang) }</p>
 						@healthUnknown(wording.HealthInstanceScopeUnknown.In(c.Lang), v.InstanceScopeUnknown)

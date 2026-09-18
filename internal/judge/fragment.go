@@ -208,17 +208,21 @@ func blockAddressed(lines []string, want string) bool {
 // nothing or to several files already carries its own finding, and a non-note
 // has no sections or blocks to address. A bare same-file fragment never
 // reaches here.
-func fragmentFindings(notes []note, idx *graph.Index) []Finding {
+func fragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Index) []Finding {
 	byPath := make(map[string]*note, len(notes))
 	for i := range notes {
 		byPath[notes[i].path] = &notes[i]
+	}
+	unread := make(map[string]bool, len(unreadable))
+	for _, entry := range unreadable {
+		unread[entry.path] = true
 	}
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
 		for l := range n.wikilinks {
 			link := &n.wikilinks[l]
-			if f, reported := fragmentFinding(n, link, idx, byPath); reported {
+			if f, reported := fragmentFinding(n, link, idx, byPath, unread); reported {
 				out = append(out, f)
 			}
 		}
@@ -234,7 +238,13 @@ func fragmentFindings(notes []note, idx *graph.Index) []Finding {
 // two ways: a transclusion's by the excerpt scan alone, since that is all the
 // page cuts with, and a link's by the wider reading the page gives an address
 // it only has to land somewhere on.
-func fragmentFinding(n *note, link *wikiLink, idx *graph.Index, byPath map[string]*note) (Finding, bool) {
+func fragmentFinding(
+	n *note,
+	link *wikiLink,
+	idx *graph.Index,
+	byPath map[string]*note,
+	unread map[string]bool,
+) (Finding, bool) {
 	if link.heading == "" && link.block == "" {
 		return Finding{}, false
 	}
@@ -259,18 +269,31 @@ func fragmentFinding(n *note, link *wikiLink, idx *graph.Index, byPath map[strin
 		}
 		return sectionMissing(n, link, res.RelPath), true
 	}
-	if target.sectionAnchors[want] || transclusionBringsSection(target, idx, byPath, want) {
+	if target.sectionAnchors[want] || transclusionMayBringSection(target, idx, byPath, unread, want) {
 		return Finding{}, false
 	}
 	return sectionMissing(n, link, res.RelPath), true
 }
 
-// transclusionBringsSection reports whether a section absent from a note's own
-// body arrives through a note it transcludes. The page expands a transclusion
-// one level, so the walk stops at that level too. It skips the narrowing the
-// transclusion's own fragment applies, which can only keep it quieter than the
-// page, never louder.
-func transclusionBringsSection(target *note, idx *graph.Index, byPath map[string]*note, want string) bool {
+// transclusionMayBringSection reports whether a section absent from a note's
+// own body arrives through a note it transcludes, or might. The page expands a
+// transclusion one level, so the walk stops at that level too. It skips the
+// narrowing the transclusion's own fragment applies, which can only keep it
+// quieter than the page, never louder.
+//
+// A transclusion of a file nothing could be read from answers "might", and this
+// one link says nothing, while every other link in the run is still judged.
+// That is narrower than withholding the rule, and it can be: the rules that go
+// silent over a run conclude that something is nowhere in the vault, which no
+// single link can be asked about, whereas here exactly one address has exactly
+// one place left to look and that place could not be opened.
+func transclusionMayBringSection(
+	target *note,
+	idx *graph.Index,
+	byPath map[string]*note,
+	unread map[string]bool,
+	want string,
+) bool {
 	for _, link := range target.wikilinks {
 		if !link.embed {
 			continue
@@ -278,6 +301,9 @@ func transclusionBringsSection(target *note, idx *graph.Index, byPath map[string
 		res := idx.Resolve(link.target)
 		if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) {
 			continue
+		}
+		if unread[res.RelPath] {
+			return true
 		}
 		if embedded := byPath[res.RelPath]; embedded != nil && embedded.sectionAnchors[want] {
 			return true

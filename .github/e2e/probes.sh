@@ -28,6 +28,7 @@ probes=(
   "drawer-contract.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
+  "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "report-frame-contract.mjs|/reports/browser-boundary.html"
   "article-language-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"
@@ -66,8 +67,14 @@ probes=(
   "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
   "midword-landing.mjs|/search?q=lybdenum"
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
+  "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
   "search-facets.mjs|/search?q=a"
+  "search-overflow.mjs|/search?q=a"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
+  # Last, and it has to stay last: this one keeps a reading place, and from
+  # then on every desk the run draws carries a row offering it back. A probe
+  # that reads the desk would meet a page the fixture alone does not explain.
+  "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
 )
 
 fail() {
@@ -99,6 +106,16 @@ undriven="$(comm -23 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${
 absent="$(comm -13 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${listed[@]}" | sort) | tr '\n' ' ')"
 [ -z "${undriven// /}" ] || fail "these probe files are driven by nothing: ${undriven}"
 [ -z "${absent// /}" ] || fail "the table names probes that are not here: ${absent}"
+
+# The comment beside it says this one has to be last; this is what holds it
+# there. From the moment it runs, a reading place is kept, and every desk the
+# rest of the run would draw carries a row offering that place back — a page
+# the fixture alone does not account for. Moving it up the table would make
+# some other probe fail on state this one left behind, which is a long way from
+# where the mistake was made.
+last="${listed[${#listed[@]} - 1]}"
+[ "$last" = "reader-mark.mjs" ] ||
+  fail "reader-mark.mjs has to be the last probe in the table because it leaves a kept reading place behind, but the table ends with ${last}"
 
 run_locks() {
   local entry

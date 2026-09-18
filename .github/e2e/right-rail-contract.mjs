@@ -170,7 +170,7 @@ try {
         flexShrink: getComputedStyle(child).flexShrink,
       })),
     }));
-    if (shape.children.length !== 5) broken(`the fixture has ${shape.children.length} rail children, want the outline, declared sources, cited-by, diagnostics, and the status panel`);
+    if (shape.children.length !== 6) broken(`the fixture has ${shape.children.length} rail children, want the outline, declared sources, cited-by, diagnostics, the mark control, and the status panel`);
     if (shape.overflowY !== 'auto' || shape.scrollHeight <= shape.clientHeight) {
       broken(`the fixture does not exercise one overflowing rail at 1600×${height}: ${JSON.stringify(shape)}`);
     }
@@ -198,6 +198,7 @@ try {
     // than the answer being empty.
     if (await rail.locator('.y-citedby').count() !== 1) broken('the fixture has no cited-by block');
     if (await rail.locator('.y-basedon').count() !== 1) broken('the fixture has no declared-source block');
+    if (await rail.locator('.y-markset').count() !== 1) broken('the fixture has no control for keeping a reading place');
     if (await tocLinks.count() !== 24) broken(`the fixture has ${await tocLinks.count()} TOC links, want 24`);
     if (await statusControls.count() === 0) broken('the fixture has no status control');
     if (await diagnostics.count() === 0) broken('the fixture has no diagnostic card');
