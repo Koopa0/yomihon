@@ -155,14 +155,18 @@ html, body { margin: 0; background: var(--bg); }
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
 }
 .y-header__spacer { flex: 1; }
-/* The name is what gives when the row runs out of room, and only then. A flex
-   item refuses by default to become narrower than its own text, so on a window
-   too narrow for the whole row the last control was pushed past the edge
-   instead — a reading page at 360 with a scrollbar keeping its own column has
-   345 to lay out in and wants 354. Letting the name shorten costs a few of its
-   letters at widths no reader spends time at, and costs nothing at every width
-   where the row already fits, which is where the narrow lock now watches: the
-   name being shortened at all at 360 means something else grew. */
+/* The name is the last thing in the row that gives, and reaching it means the
+   row has already given up everything else. That ordering is the whole of the
+   arrangement below: the tag, the two controls the reading choices page also
+   carries, the palette control, the longer readings label, the health entry
+   and the search invitation each return only at the width where the row
+   holding them still fits, measured in English, whose words for these controls
+   are the longer pair. So above the narrowest window this interface is drawn
+   for the row fits without touching the name, and the shortening here is what
+   remains for the cases no width can be written down for — a window narrower
+   than any phone, or a reader whose browser is set to a much larger base type.
+   Losing letters there beats the alternative, which is the way out of a
+   language you cannot read sitting past an edge that does not scroll. */
 .y-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .y-brand__name {
   display: inline-flex; align-items: center; gap: 8px; min-width: 0;
@@ -172,14 +176,29 @@ html, body { margin: 0; background: var(--bg); }
 .y-brand__name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .y-brand__mark { display: block; width: 24px; height: 24px; flex: none; }
 .y-brand__tag { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); letter-spacing: 0.11em; }
+/* The tag explains the name rather than being part of it, so it is the first
+   thing the row gives up and the last it takes back. */
+@media (max-width: 760px) {
+  .y-brand__tag { display: none; }
+}
 
 .y-searchbtn {
   display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px 0 11px;
   background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
   color: var(--fg-subtle); font-family: var(--font-sans); font-size: var(--fs-13); cursor: pointer; min-width: 214px;
+  /* Nothing in the row is allowed to be squeezed under its own content except
+     the name, which gives last of all. Without this the entry was the second
+     thing to pay, and what it paid with was the room around its glyph. */
+  flex: none;
 }
 .y-searchbtn svg { width: 15px; height: 15px; flex: none; }
 .y-searchbtn__label { flex: 1; text-align: left; }
+/* Below the width that holds the invitation and its key, the entry is the
+   glyph alone. */
+@media (max-width: 960px) {
+  .y-searchbtn { min-width: 0; }
+  .y-searchbtn__label, .y-searchbtn .ui-kbd { display: none; }
+}
 
 .y-iconbtn {
   display: inline-flex; align-items: center; justify-content: center; height: 32px; width: 32px;
@@ -222,14 +241,12 @@ html, body { margin: 0; background: var(--bg); }
 .y-rubybtn__on, .y-rubybtn__off { display: none; }
 [data-ruby="on"] .y-rubybtn__on { display: inline; }
 [data-ruby="off"] .y-rubybtn__off { display: inline; }
-/* The row's spare width runs out a little below this point, and further down it
-   is already shortening the wordmark to fit what is there; the longer label
-   would then be paid for out of the name of the thing the reader is looking at.
-   The switch happens here rather than at the last width that fits, so the
-   longer label is never the reason the wordmark gives. The short label is the
-   tail of the long one rather than a different word, which is what lets the
-   spoken name stay the same across the switch. */
-@media (max-width: 720px) {
+/* The longer label returns only where the row holding it still fits, measured
+   in English, whose word for this control is the same at both lengths and so
+   costs the row the most. Below that the short label stands: it is the tail of
+   the long one rather than a different word, which is what lets the spoken
+   name stay the same across the switch. */
+@media (max-width: 760px) {
   .y-rubybtn { gap: 5px; padding: 0 6px; }
   .y-rubybtn__label--long { display: none; }
   .y-rubybtn__label--short { display: inline; }
@@ -1662,15 +1679,12 @@ html {
   html[data-js][data-nav="open"] .y-rail-left { transform: none; }
   html[data-js][data-nav="open"] .y-nav-scrim { display: block; }
   html[data-js][data-nav="open"] .y-main { overflow: hidden; }
-  .y-searchbtn { min-width: 0; }
-  .y-searchbtn__label, .y-searchbtn .ui-kbd { display: none; }
   .y-article { --article-gutter: 24px; padding: 32px var(--article-gutter) 120px; }
 }
-@media (max-width: 520px) {
-  .y-header { gap: 5px; padding-inline: 8px; }
+@media (max-width: 560px) {
+  .y-header { gap: 4px; padding-inline: 6px; }
   .y-brand { gap: 7px; }
-  .y-brand__tag { display: none; }
-  .y-rubybtn { gap: 0; }
+  .y-rubybtn { gap: 0; padding: 0 4px; }
   /* The state word does not fit at this width, so the label carries the state
      instead of losing it: struck through is the reading it is hiding. A control
      whose whole purpose is switching readings off has to say which way it is
@@ -1679,6 +1693,24 @@ html {
   .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
   [data-ruby="on"] .y-rubybtn__label { color: var(--accent); }
   [data-ruby="off"] .y-rubybtn__label { color: var(--fg-faint); text-decoration: line-through; }
+  /* With its words and its key gone this is an icon control, so it takes the
+     size of the icon controls beside it rather than a wider box around the
+     same glyph. */
+  .y-searchbtn {
+    justify-content: center;
+    padding: 0;
+    width: 32px;
+  }
+  /* The palette is the one choice here the reader can leave alone and still
+     have answered: with nothing chosen it follows what their system asks for.
+     What it does is also one of the choices on the reading choices page, and
+     the way there keeps its place in this row at every width — so this is the
+     control the row can spend, and spending it is what keeps the name whole. */
+  .y-themebtn { display: none; }
+}
+/* The read-aloud bar wraps its status onto a line of its own once the row it
+   sits in is narrower than its three parts. */
+@media (max-width: 520px) {
   .y-ttsbar__status { flex-basis: 100%; order: 2; margin-left: 0; }
   .y-ttsbar__stop { order: 3; }
 }
@@ -1808,7 +1840,11 @@ html {
   margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border-faint);
   font-size: var(--fs-12); color: var(--fg-subtle); line-height: 1.6;
 }
-@media (max-width: 520px) {
+/* Both of these ask a question the reading choices page asks again, and the
+   way to that page keeps its place in the row at every width. So they wait
+   until the row has room for them rather than being carried at a width where
+   something else would have to pay for them. */
+@media (max-width: 760px) {
   .y-helpbtn, .y-textsizebtn { display: none; }
 }
 
@@ -1953,7 +1989,7 @@ html {
   white-space: nowrap;
 }
 .y-healthlinkbtn:hover { background: var(--overlay); color: var(--fg); }
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .y-healthlinkbtn { display: none; }
 }
 
@@ -1969,7 +2005,7 @@ html {
   white-space: nowrap;
 }
 .y-prefslink:hover { background: var(--overlay); color: var(--fg); }
-@media (max-width: 520px) {
+@media (max-width: 560px) {
   .y-prefslink { padding: 5px 4px; }
 }
 /* The same page again, from the panel that explains how the interface behaves:

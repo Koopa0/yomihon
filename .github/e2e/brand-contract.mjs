@@ -4,12 +4,36 @@
 // paper stays one unbroken face, four separate stitches run down the bound
 // edge — the binding the book is named for — and the title slip is pasted on
 // the paper, never off it.
+//
+// The other half of the identity is the name beside the mark, and what it is
+// held against is the row it sits in. A control returned to that row at a
+// width the row cannot hold it at does not overflow the window: the name
+// shrinks instead, silently, one letter at a time, so the only place such a
+// change is visible is a measurement of the name's own box.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
 const BRAND_PATH = '/static/yomihon-mark.svg';
+// The row is tightest on a page that also carries the control opening the
+// rail, so the fit is asked there rather than on the page this probe is
+// otherwise driven against, where that control is absent and the row has
+// thirty-odd pixels it does not have in front of a note.
+const FIT_PAGE = '/notes/Notes/alpha.md';
+// Both widths the interface is accepted at, and both sides of every width at
+// which a control returns to the row. The pairs are what make a returned
+// control fail here: a lock that asked only the accepted widths would stay
+// green while the row broke between them, which is how the row broke before.
+const FIT_WIDTHS = [390, 560, 561, 760, 761, 901, 960, 961, 1280];
+// English is asked beside the default because its words for these controls are
+// the longer pair — the row is at its tightest under them, and the recorded
+// pages are all in Traditional Chinese, so nothing else can say what the
+// English row does.
+const FIT_LANGUAGES = [
+  ['zh-Hant', []],
+  ['en', [{ name: 'yomihon_lang', value: 'en', url: BASE }]],
+];
 const APP_ORIGIN = new URL(BASE).origin;
 const SITES = [
   'projection-source',
@@ -24,6 +48,7 @@ const SITES = [
   'slip-sits-on-the-paper',
   'theme-mark',
   'forced-colors-name',
+  'name-fit',
   'header-fit',
 ];
 
@@ -157,6 +182,37 @@ const MUTATIONS = {
   'overflow-header': {
     target: 'header-fit',
     after: (page) => injectRule(page, '.y-header', 'min-width: 500px !important;'),
+  },
+  // Each of these hands one control back to a width the row has no room for
+  // it at. That is the shape of the fault itself rather than a stand-in for
+  // it: every one of these controls was once revealed at a width where the
+  // row did not fit, and the name paid for all three.
+  'return-the-palette-early': {
+    target: 'name-fit',
+    fitSelector: '.y-themebtn',
+    fitStyle: '.y-themebtn { display: inline-flex !important; }',
+  },
+  'return-the-tag-early': {
+    target: 'name-fit',
+    fitSelector: '.y-brand__tag',
+    fitStyle: '.y-brand__tag { display: inline !important; }',
+  },
+  'return-the-spare-controls-early': {
+    target: 'name-fit',
+    fitSelector: '.y-helpbtn',
+    fitStyle: '.y-helpbtn, .y-textsizebtn { display: inline-flex !important; }',
+  },
+  // These two came back together a few pixels before the English row could
+  // hold them, so the window they broke was narrow enough to step over. The
+  // rule is written back the way it was, above the width it used to name.
+  'return-the-health-entry-early': {
+    target: 'name-fit',
+    fitSelector: '.y-healthlinkbtn',
+    fitStyle: `@media (min-width: 901px) {
+      .y-healthlinkbtn { display: inline !important; }
+      .y-searchbtn { min-width: 214px !important; }
+      .y-searchbtn__label, .y-searchbtn .ui-kbd { display: inline !important; }
+    }`,
   },
 };
 
@@ -446,6 +502,95 @@ try {
   }
   await page.emulateMedia({ forcedColors: 'none' });
 
+  // The row holds its controls in an order: the tag, the two controls the
+  // reading choices page also carries, the palette control, the longer
+  // readings label, the health entry and the search invitation each return
+  // only at the width where the row holding them still fits, so the name is
+  // never what pays. Asked here at both sides of every one of those widths,
+  // because a width lowered back under what the row needs takes the letters
+  // of the name and says nothing.
+  const fitFailures = [];
+  for (const [language, cookies] of FIT_LANGUAGES) {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 844 } });
+    if (cookies.length > 0) await context.addCookies(cookies);
+    const fitPage = await context.newPage();
+    const arrival = await fitPage.goto(BASE + FIT_PAGE, { waitUntil: 'load' });
+    if (!arrival || arrival.status() !== 200) {
+      broken(`${FIT_PAGE} returned ${arrival?.status() ?? 'no response'} in ${language}, want 200`);
+    }
+    if (MUTATE && MUTATIONS[MUTATE].fitStyle) {
+      const { fitSelector, fitStyle } = MUTATIONS[MUTATE];
+      if (await fitPage.locator(fitSelector).count() === 0) {
+        notApplied(`${MUTATE}: no element matches ${fitSelector}, so the rule returns nothing to the row`);
+      }
+      await fitPage.addStyleTag({ content: fitStyle });
+    }
+    // The chrome is set in a face this repository serves itself. A width taken
+    // before that face arrives is a width of the fallback, which is a
+    // different measurement wearing the same number.
+    await fitPage.evaluate(() => document.fonts.ready.then(() => true));
+    for (const width of FIT_WIDTHS) {
+      await fitPage.setViewportSize({ width, height: 844 });
+      // A width has to reach the page as that many pixels of room to lay out
+      // in. Where the scrollbar keeps a column of its own, a window this wide
+      // leaves the page less, and the row would be judged at a width no phone
+      // has — which is how a row that fits everywhere a reader goes turns red
+      // on a machine whose scrollbars take room. The column is measured the
+      // way the layout sees it, from an element fixed to the edges, and given
+      // back.
+      const gutter = await fitPage.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
+        document.body.append(probe);
+        const room = probe.getBoundingClientRect().width;
+        probe.remove();
+        return window.innerWidth - room;
+      });
+      if (gutter > 0) await fitPage.setViewportSize({ width: width + gutter, height: 844 });
+      const row = await fitPage.evaluate(() => {
+        const span = document.querySelector('.y-brand__name > span');
+        const drawerControl = document.querySelector('.y-hamburger');
+        const doc = document.documentElement;
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
+        document.body.append(probe);
+        const room = probe.getBoundingClientRect().width;
+        probe.remove();
+        return {
+          room,
+          name: span && { scroll: span.scrollWidth, client: span.clientWidth, text: span.textContent },
+          drawerControl: drawerControl && getComputedStyle(drawerControl).display !== 'none',
+          overflow: doc.scrollWidth - doc.clientWidth,
+        };
+      });
+      // Reading the room back is what keeps the line above from being a
+      // decoration: a column that was measured wrong would otherwise judge the
+      // row at some other width and report the verdict under this one.
+      if (Math.abs(row.room - width) > 1) {
+        broken(`asking for ${width}px of room left the page ${row.room}`);
+      }
+      if (!row.name) broken('the header carries no wordmark span to measure');
+      // Where the rail folds into a drawer the row also carries the control
+      // that opens it, and that is the row this site exists for. A page that
+      // had quietly stopped carrying a rail would be measured as a fit while
+      // the row in front of a reader was a control wider.
+      const wantsDrawerControl = width <= 900;
+      if (row.drawerControl !== wantsDrawerControl) {
+        broken(`at ${width}px the drawer control is ${row.drawerControl ? 'in' : 'absent from'} the row, want the opposite — ${FIT_PAGE} is meant to carry a rail`);
+      }
+      if (row.name.scroll > row.name.client + 1) {
+        fitFailures.push(`${language} at ${width}px gives "${row.name.text}" ${row.name.client} of the ${row.name.scroll} it needs`);
+      }
+      if (row.overflow > 1) {
+        fitFailures.push(`${language} at ${width}px reaches ${row.overflow} past the window`);
+      }
+    }
+    await context.close();
+  }
+  if (fitFailures.length > 0) {
+    fail('name-fit', `the row spends the name on its controls: ${fitFailures.join('; ')}`);
+  }
+
   await page.setViewportSize({ width: 360, height: 800 });
   const fit = await page.evaluate(() => {
     const header = document.querySelector('.y-header')?.getBoundingClientRect();
@@ -466,7 +611,7 @@ try {
     fail('header-fit', `360px header geometry = ${JSON.stringify(fit)}`);
   }
 
-  console.log(`PASS brand-contract: one canonical mark keeps its paper whole, its four stitches apart, and its slip on the paper, with an accessible projection, both themes, and a 360px fit`);
+  console.log(`PASS brand-contract: one canonical mark keeps its paper whole, its four stitches apart, and its slip on the paper, with an accessible projection, both themes, a whole name in both languages at every width the row changes shape at, and a 360px fit`);
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

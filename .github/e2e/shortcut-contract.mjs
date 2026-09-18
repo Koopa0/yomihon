@@ -604,8 +604,8 @@ try {
   }
   // Escape is also how the browser dismisses an open popover, so those presses
   // shut the keyboard help. It is reopened here, at a width where its button
-  // still has a face: below 520 the button is deliberately absent, and the
-  // measurement that follows needs the panel already open.
+  // still has a face: on a narrow row the button is deliberately absent, and
+  // the measurement that follows needs the panel already open.
   await openHelp();
 
   // 360 has to reach the page as 360 pixels of room to lay out in. Where the
