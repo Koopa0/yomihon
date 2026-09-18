@@ -464,7 +464,6 @@ details.y-metarow { display: block; }
   letter-spacing: var(--track-wide);
 }
 
-
 /* The size rows share specificity with `.y-prose > :first-child` (0,2,0) and
    sit later, so an opening heading used to keep its top margin and drop the
    whole prose block. This reset is (0,3,0) and only names headings; a
