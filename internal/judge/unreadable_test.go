@@ -396,9 +396,11 @@ func TestEveryWithheldFileThatCouldNotBeReadIsOneSentence(t *testing.T) {
 		root := t.TempDir()
 		write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
 		for i := range count {
+			write(t, root, "Diary/2026-08-0"+string(rune('1'+i))+".md", "---\ntitle: Private\n---\n")
+		}
+		writeTestContract(t, root, []string{"Diary"})
+		for i := range count {
 			name := "Diary/2026-08-0" + string(rune('1'+i)) + ".md"
-			write(t, root, name, "---\ntitle: Private\n---\n")
-			writeTestContract(t, root, []string{"Diary"})
 			if !unreadable(t, filepath.Join(root, filepath.FromSlash(name))) {
 				t.Fatal("this process can still read a file it took every permission from")
 			}
@@ -455,5 +457,63 @@ func TestUnreadableGolden(t *testing.T) {
 	if !bytes.Equal(got, want) {
 		t.Errorf("check findings differ from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
 			unreadableGolden, got, want, hex.Dump(got), hex.Dump(want))
+	}
+}
+
+// TestAReportLineWithNoPathEndsAtItsSentence covers what the two faces a person
+// reads had never been asked to render: a finding with no file behind it. Every
+// other finding names one, so both lines appended the path unconditionally, and
+// this one ended in an empty bracket or a dangling dash — which reads as a path
+// the report lost rather than one it is declining to give.
+//
+// The wording is left to whoever writes it; what is asserted is that the line
+// stops where its sentence does, and that a finding which does have a file
+// still shows it.
+func TestAReportLineWithNoPathEndsAtItsSentence(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
+	write(t, root, "Diary/2026-08-27.md", "---\ntitle: Private\n---\n")
+	writeTestContract(t, root, []string{"Diary"})
+	if !unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md")) {
+		t.Fatal("this process can still read a file it took every permission from")
+	}
+
+	tests := []struct {
+		name    string
+		format  Format
+		emptied string
+		named   string
+	}{
+		{name: "human", format: FormatHuman, emptied: "()", named: "(Notes/ok.md)"},
+		{name: "markdown", format: FormatMarkdown, emptied: "—", named: "— Notes/ok.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: tt.format})
+			if err != nil {
+				t.Fatalf("RunCheck() error = %v", err)
+			}
+			var notice string
+			for line := range strings.SplitSeq(string(stdout), "\n") {
+				if strings.Contains(line, "withholds from agent-facing output") {
+					notice = line
+				}
+			}
+			if notice == "" {
+				t.Fatalf("the %s report carries no line for the withheld file:\n%s", tt.name, stdout)
+			}
+			if strings.HasSuffix(strings.TrimRight(notice, " "), tt.emptied) {
+				t.Errorf("the %s line for a finding with no path trails off: %q", tt.name, notice)
+			}
+			// The control: a finding that does have a file still names it, so
+			// the line above is short for the right reason.
+			if !strings.Contains(string(stdout), tt.named) {
+				t.Errorf("the %s report no longer names the file a finding is about:\n%s", tt.name, stdout)
+			}
+		})
 	}
 }

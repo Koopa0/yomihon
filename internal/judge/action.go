@@ -123,11 +123,11 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		}
 		a.notes = append(a.notes, parseNoteWithMarks(relPath, data, marks))
 	}
-	// A judgement needs something to be about. Where nothing at all could be
-	// read, this is not a vault with a hole in it but a folder that is no
-	// longer there to judge — a root removed under the run reports every one of
-	// its files that way — and the caller is owed the refusal rather than a
-	// page of findings that are all the same sentence.
+	// A judgement needs something to be about. Where every read failed there is
+	// nothing in hand to judge, and the caller is owed the refusal rather than a
+	// page whose every line says the same thing under an exit code that reads as
+	// success. A root taken away under the run arrives here too, since a read
+	// through it then fails for every file at once.
 	if len(a.notes) == 0 && a.partialCorpus() {
 		return nil, a.abort(a.unreadableRefusal())
 	}
@@ -152,11 +152,14 @@ func readVoidsTheObservation(ctx context.Context, readErr error) bool {
 }
 
 // entryUnreadable names a file a read stopped on and the reason the machine
-// gave. It is the refusal for the two commands whose whole answer is a verdict
-// about something being absent — a census of what nothing points at, and an
-// answer that no note carries a name — neither of which a corpus with a hole
-// in it can support. The check command reports such a file instead, at the
-// weight of the gravest thing it has, and goes on judging what it did read.
+// gave. It is what every command says when it has no answer to give about the
+// file: the two whose whole answer is a verdict about something being absent —
+// a census of what nothing points at, and an answer that no note carries a
+// name — because a corpus with a hole in it supports neither; all three when
+// the read failure ended the observation rather than holing it, or when nothing
+// at all could be read. The check command otherwise reports such a file at the
+// weight of the gravest thing it has and goes on judging what it did read.
+//
 // The path comes from the scan entry, not from the error, whose own path names
 // one component.
 func entryUnreadable(relPath string, cause error, authority scanAuthority) error {

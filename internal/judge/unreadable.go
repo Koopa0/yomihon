@@ -34,9 +34,14 @@ const unreadableRule RuleID = "scan.unreadable"
 //   - map.disk_unlisted concludes that no course of a domain lists a lesson,
 //     and the unread file may be the course that lists it.
 //
-// Every other rule reads either one note this run holds whole, or the scan,
-// which completed: a read that fails takes nothing out of the file membership,
-// so a path reference resolved against it stays as true as it ever was.
+// Every other rule concludes only from material this run holds: a note it read
+// whole, or the file membership, which the scan completed before any read was
+// attempted. A failed read can leave such a rule with less to report — two
+// notes sharing an alias go unnoticed when one of them did not open — but never
+// with a wrong verdict, and an under-report is what an unread file is. The
+// rules that ask what another note says answer for no note they could not read:
+// a live course linking an archived lesson, and a fragment addressing a section
+// or a block, each decline that one target rather than guess at it.
 var withheldOnPartialCorpus = []RuleID{
 	"link.broken",
 	"link.title_not_alias",

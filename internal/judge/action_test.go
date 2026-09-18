@@ -230,7 +230,7 @@ func TestJudgeNamesTheFileItCouldNotRead(t *testing.T) {
 			write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
 			write(t, root, "Notes/bad.md", "---\ntitle: Unreadable\n---\n")
 			if !unreadable(t, filepath.Join(root, "Notes", "bad.md")) {
-				t.Skip("filesystem permissions do not make the note unreadable for this process")
+				t.Fatal("this process can still read a file it took every permission from, so the refusal under test cannot be observed here")
 			}
 
 			got := refuse(t.Context(), t, command, root).Error()
@@ -264,7 +264,7 @@ func TestJudgeWithholdsAnUnreadableFileUnderAPrivateDirectory(t *testing.T) {
 			write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
 			write(t, root, "Diary/2026-08-27.md", "---\ntitle: Private\n---\n")
 			if !unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md")) {
-				t.Skip("filesystem permissions do not make the note unreadable for this process")
+				t.Fatal("this process can still read a file it took every permission from, so the refusal under test cannot be observed here")
 			}
 
 			got := refuse(t.Context(), t, command, root).Error()
