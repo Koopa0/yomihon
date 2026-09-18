@@ -559,7 +559,7 @@ func (c recordedCourse) view(lang wording.Lang, kept string) PathView {
 		cover.KeptNote = kept
 		cover.KeptHref = ResumeHref(kept, "a-second-look", 640)
 	}
-	return BuildPathView(c.model.Path(courseRelPath), c.model.Paths(), cover)
+	return BuildPathView(c.model.Path(courseRelPath), c.model.Paths(), &cover)
 }
 
 // courseRelPath is the fixture's study path, named once so the model reading
