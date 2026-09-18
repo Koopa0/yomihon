@@ -548,6 +548,21 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ============================================================
+   The shelf shell
+   ============================================================ */
+/* A page that lists what the folder holds rather than setting one thing to be
+   read: the desk, the four ways in, a folder seen whole, and the page naming
+   what the folder owes. A list is read across as well as down — a row carries a
+   title, a figure and a status — so it is laid out wider than a paragraph, and
+   the width is stated once for all of them rather than found again per page. */
+.y-healthpage,
+.y-home {
+  margin: 0 auto;
+  max-width: calc(var(--measure-list) + 2 * var(--gutter-list));
+  padding: 42px var(--gutter-list) 120px;
+}
+
+/* ============================================================
    Center article
    ============================================================ */
 .y-crumbs { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--fg-faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1462,8 +1477,8 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    same shell dresses the four mode index pages, and the blocks here are what
    the folder index fills with its recent list and status distribution. The
    block markers live in markup for the HTTP probe; layout may move without
-   changing their identity. */
-.y-home { max-width: 980px; margin: 0 auto; padding: 42px 48px 120px; }
+   changing their identity. Its column is the shelf shell's, declared with the
+   other pages that list rather than read. */
 .y-home__head { margin-bottom: 26px; }
 .y-home__kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.09em; color: var(--fg-faint); }
 .y-home__head .y-title { margin-top: 10px; }
@@ -2082,7 +2097,11 @@ html {
 }
 @media (max-width: 900px) {
   .y-shell, .y-shell2 { grid-template-columns: 1fr; }
-  .y-home { padding: 32px 20px 120px; }
+  .y-healthpage,
+  .y-home {
+    --gutter-list: 20px;
+    padding: 32px var(--gutter-list) 120px;
+  }
   .y-homeblock__head { align-items: flex-start; flex-direction: column; gap: 3px; }
   .y-homeblock__head p { margin-left: 0; text-align: left; }
   .y-homenote { align-items: flex-start; }
