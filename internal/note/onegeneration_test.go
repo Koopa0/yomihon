@@ -102,6 +102,7 @@ func TestTheMapIndexReadsOneGeneration(t *testing.T) {
 				Snapshot:       tt.published(),
 				ObservedStatus: writer.ObservedStatus,
 				ConsumeReceipt: writer.ConsumeReceipt,
+				Continuation:   noMark,
 				Log:            log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)

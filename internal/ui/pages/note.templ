@@ -83,6 +83,10 @@ type NoteView struct {
 	// rendered, carried in every transition form so the write face can refuse
 	// a ruling that was read against content the disk no longer holds.
 	ContentIdentity string
+	// MarkAddress is where the control for keeping a reading place posts to.
+	// Empty where this process keeps no marks, and the control is then absent
+	// rather than offering a reader something with nowhere to go.
+	MarkAddress string
 	// TranscludedIdentity is the render's digest over what every embed here came
 	// to — the excerpt pulled in, or the absence shown in its place — and is
 	// empty where the page carries none. It rides the freshness watch alone: a
@@ -274,6 +278,7 @@ templ rightRail(v NoteView, lang wording.Lang) {
 		@basedOn(v, lang)
 		@citedBy(v, lang)
 		@diagnostics(v, lang)
+		@markControl(v, lang)
 		@statusPanel(v, lang)
 	</aside>
 }

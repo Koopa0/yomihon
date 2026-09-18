@@ -115,6 +115,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
 		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
+		{"health-page-unreadable", Health(recordedUnreadableHealthView(t, model), recordedChrome())},
+		{"health-page-unreadable-english", Health(recordedUnreadableHealthView(t, model), recordedEnglishChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
 		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
@@ -398,6 +400,7 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		Governed:            true,
 		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",
+		MarkAddress:         "/marks",
 		TranscludedIdentity: "def456",
 		FlippedFrom:         "seed",
 		FlipNoReturn:        true,
@@ -429,7 +432,7 @@ func recordedStatusStates() []struct {
 	name string
 	view NoteView
 } {
-	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123"}
+	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123", MarkAddress: "/marks"}
 	with := func(mutate func(v *NoteView)) NoteView {
 		v := base
 		mutate(&v)
@@ -585,6 +588,80 @@ func recordedHealthView(model *nav.Model) HealthView {
 		Sort:    HealthByFinding,
 		Sidebar: NewSidebar(model, ""),
 	}
+}
+
+// recordedUnreadableHealthView is the page a reading that could not open a file
+// draws. The blocked list is not typed out here: the fixture vault is copied,
+// one of its notes has every permission taken from it, and what the reading
+// then reports about that note is what the recording holds — the path it saw
+// and the machine's own words for why it could not be opened. A row invented
+// beside the reading would go on looking right the day the reading stopped
+// reporting such a file at all.
+//
+// Nothing else is set. The same sealed folder also has citations that land
+// nowhere and notes nothing cites, and gathering those would mean assembling a
+// view here the way the request handler assembles one — a second builder,
+// whose output is nobody's page. One of every kind is recorded beside this.
+func recordedUnreadableHealthView(t *testing.T, model *nav.Model) HealthView {
+	t.Helper()
+	return HealthView{
+		Blocked: sealedVaultBlocked(t),
+		Sort:    HealthByFinding,
+		Sidebar: NewSidebar(model, ""),
+	}
+}
+
+// sealedVaultBlocked copies the judging face's own sealed-file fixture, takes
+// every permission from the note that fixture exists for, and returns what a
+// reading of the copy could not open.
+//
+// Both ways this can quietly produce nothing are fatal rather than skipped. A
+// filesystem that ignores the permission — a container running as root, a
+// volume that carries none — leaves a vault with no hole in it, and a recording
+// made there would freeze a page about a file that was readable all along. A
+// seal the reading never noticed is the same recording by another route, so an
+// empty list is refused as well.
+func sealedVaultBlocked(t *testing.T) []HealthBlockedSource {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS(filepath.Join("..", "..", "judge", "testdata", "vault-unreadable"))); err != nil {
+		t.Fatalf("copy the sealed-file fixture: %v", err)
+	}
+	sealed := filepath.Join(root, filepath.FromSlash("Concepts/golang/Sealed.md"))
+	if err := os.Chmod(sealed, 0); err != nil {
+		t.Fatalf("Chmod(%q, 0): %v", sealed, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(sealed, 0o600); err != nil && !os.IsNotExist(err) {
+			t.Errorf("restore %q: %v", sealed, err)
+		}
+	})
+	if _, err := os.ReadFile(sealed); err == nil { // #nosec G304 -- this test's own copy of a fixture note
+		t.Fatal("this process can still read a file it took every permission from, so no reading here has a hole in it to report")
+	}
+
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("reader.Close: %v", closeErr)
+		}
+	})
+	store, err := snapshot.New(t.Context(), reader, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
+	}
+	blocked := store.Current().Freshness().Blocked
+	if len(blocked) == 0 {
+		t.Fatal("the reading opened every file of a vault with a sealed note, so there is no finding here to record")
+	}
+	out := make([]HealthBlockedSource, 0, len(blocked))
+	for _, source := range blocked {
+		out = append(out, HealthBlockedSource{Path: source.Path, Reason: source.Reason})
+	}
+	return out
 }
 
 func recordedFileView(model *nav.Model) FileView {

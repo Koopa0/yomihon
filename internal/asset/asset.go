@@ -96,6 +96,7 @@ func buildRegistry() map[string]entry {
 		"shortcuts.js",
 		"diagrams.js",
 		"lesson.js",
+		"mark.js",
 		"preview.js",
 	} {
 		embedFile(reg, name, "js/"+name, jsContentType)
