@@ -7,6 +7,7 @@ import { initDrawer } from './drawer.js';
 import { initFreshness } from './freshness.js';
 import { initLangForm } from './langform.js';
 import { initLesson } from './lesson.js';
+import { initMark } from './mark.js';
 import { initPreferences } from './preferences.js';
 import { initPreview } from './preview.js';
 import { initSearch } from './search.js';
@@ -27,6 +28,7 @@ function init() {
   const search = initSearch();
   initShortcuts({ drawer, sidebar, search });
   initLesson();
+  initMark();
   initPreview();
   initDiagrams(preferences).catch((error) => {
     root.setAttribute('data-mermaid-error', '');

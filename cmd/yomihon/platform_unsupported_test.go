@@ -22,7 +22,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

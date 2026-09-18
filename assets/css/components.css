@@ -2129,3 +2129,64 @@ html {
 /* The two sentences the card says in its own voice: why it is empty, and where
    the rest of a note it cut short can be read. */
 .y-preview__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.6; }
+
+/* ============================ THE READER'S OWN MARK ============================ */
+/* The control is hidden until the document says a script is running. This is
+   the one control on a reading page with no version for a browser without
+   one, because what it sends is where the window is and there is no such
+   thing to send without a script. */
+.y-markset {
+  display: none;
+  margin: 28px 0 0;
+}
+
+[data-js] .y-markset {
+  display: block;
+}
+
+.y-markset__note,
+.y-markset__said {
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.y-markset__said:empty {
+  display: none;
+}
+
+/* The way back to the place the reader kept, ahead of the four ways in. */
+.y-continue {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  margin: 0 0 28px;
+  padding: 16px 18px;
+}
+
+.y-continue__note {
+  color: var(--fg);
+  display: block;
+  font-family: var(--font-serif);
+  font-size: var(--fs-15);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.y-continue__notice {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-13);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.y-continue__device {
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
