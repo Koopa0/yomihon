@@ -1,12 +1,62 @@
 package snapshot
 
 import (
+	"cmp"
+	"slices"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/vault"
 )
+
+// basedOnBy answers the other direction of a based_on declaration for one
+// generation: which notes named this one as the source they came from. The
+// forward answer is read per request from the note's own frontmatter, and a
+// reverse answer cannot be, so it is inverted once when the generation is
+// built.
+type basedOnBy struct {
+	bySource map[string][]nav.NoteRef
+}
+
+// newBasedOnBy inverts every based_on declaration this generation captured,
+// reading them through the same projection the forward answer uses, so the two
+// directions can never disagree about which note a value named. Only a value
+// that placed exactly one note is inverted: one left as the author's own text
+// names nothing to hang a reverse answer on, and a note naming itself is not a
+// pair.
+func newBasedOnBy(notes []*vault.Note, idx *graph.Index) *basedOnBy {
+	b := &basedOnBy{bySource: make(map[string][]nav.NoteRef)}
+	for _, n := range notes {
+		if n == nil {
+			continue
+		}
+		for _, ref := range projectBasedOn(n, idx) {
+			if ref.RelPath == "" || ref.RelPath == n.RelPath {
+				continue
+			}
+			b.bySource[ref.RelPath] = append(b.bySource[ref.RelPath], nav.NoteRef{
+				Name:    nav.Label(n.RelPath),
+				RelPath: n.RelPath,
+			})
+		}
+	}
+	for source := range b.bySource {
+		slices.SortFunc(b.bySource[source], func(a, c nav.NoteRef) int {
+			return cmp.Or(vault.ComparePaths(a.Name, c.Name), vault.ComparePaths(a.RelPath, c.RelPath))
+		})
+	}
+	return b
+}
+
+// of returns the notes declaring relPath as their source, sorted by the name
+// each shows, and nil when none does. The caller receives its own copy.
+func (b *basedOnBy) of(relPath string) []nav.NoteRef {
+	if b == nil {
+		return nil
+	}
+	return slices.Clone(b.bySource[relPath])
+}
 
 // projectBasedOn lists one note's based_on values as a reader can walk them.
 // A unique resolution is a name and a path; anything else keeps the author's

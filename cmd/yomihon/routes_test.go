@@ -56,6 +56,7 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 		{"one briefing", "/reports/2026-09-03.html"},
 		{"one folder", "/folders/Concepts"},
 		{"one note", "/notes/Concepts/alpha.md"},
+		{"two notes side by side", "/compare/Concepts/alpha.md?with=Concepts/beta.md"},
 		{"the health page", "/health"},
 		{"search", "/search"},
 	}
@@ -92,6 +93,7 @@ func writeDeskFixture(t *testing.T, root string) {
 		"Maps/study.md":                                 "---\ntitle: Study Path\ntype: study-path\n---\n\n# Study Path\n\n## Part One\n\n- [[alpha]]\n",
 		"Maps/reading.md":                               "---\ntitle: Reading Map\ntype: topic-map\n---\n\n# Reading Map\n\n## Branch\n\n- [[alpha]]\n",
 		"Concepts/alpha.md":                             "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\n\n# Alpha\n",
+		"Concepts/beta.md":                              "---\ntitle: Beta\ntype: concept\nstatus: draft\n---\n\n# Beta\n",
 		"System/reports/2026-09-02.md":                  "# Written report\n",
 		"System/reports/daily-briefing/2026-09-03.html": "<p>briefing</p>\n",
 	}
