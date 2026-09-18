@@ -187,7 +187,7 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 				// "no courses" and "no courses declared" are both answers this
 				// page does not have, so the slot that would carry either is
 				// the one that must not be drawn.
-				if strings.Contains(block, "y-homeempty") {
+				if strings.Contains(block, `data-nothing="shelf"`) {
 					t.Errorf("the %s block says it holds none of something its declaration never described: %q", mode, block)
 				}
 			}
@@ -685,7 +685,7 @@ func TestFolderShelfScope(t *testing.T) {
 				if want := "<p>" + tt.wantCount + "</p>"; !strings.Contains(block, want) {
 					t.Errorf("GET / folder preview count is missing %q", want)
 				}
-				if tt.wantPreview == nil && !strings.Contains(block, `class="y-homeempty"`) {
+				if tt.wantPreview == nil && !strings.Contains(block, `data-nothing="shelf"`) {
 					t.Error("GET / folder preview does not state the empty shelf")
 				}
 			})

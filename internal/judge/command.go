@@ -53,6 +53,7 @@ func allRuleIDs() []RuleID {
 		"schema.unmatched_knowledge_dir",
 		"schema.status_unreachable",
 		"scan.skipped",
+		unreadableRule,
 		"collision.name",
 		calloutTitleMarkupRule,
 		predecessorNotArchivedRule,
@@ -253,7 +254,15 @@ func prepareCoverageWithHooks(ctx context.Context, o *CoverageOptions, hooks act
 	if err != nil {
 		return preparedCommand{}, err
 	}
-	cov := computeCoverage(a.notes, buildIndex(a.notes, a.resources), a.authority)
+	// A coverage report is a census: how many concepts there are, and which of
+	// them nothing points at. Both are answers about the whole corpus, and the
+	// payload has no field that could hold "except for the part I could not
+	// read" — so a folder with a hole in it gets the refusal rather than a
+	// number nobody can read correctly.
+	if a.partialCorpus() {
+		return preparedCommand{}, a.abort(a.unreadableRefusal())
+	}
+	cov := computeCoverage(a.notes, buildIndex(a.notes, a.unreadable, a.resources), a.authority)
 	var stdout []byte
 	if o.Format == FormatJSON {
 		out, err := marshalWire(cov)
@@ -300,6 +309,14 @@ func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionH
 		return preparedCommand{}, err
 	}
 	report := existsLookup(a.notes, o.Name, a.authority)
+	// "A note answers to this name" survives a folder with a hole in it: the
+	// note that answers was read. "No note does" is the same conclusion the
+	// whole-vault rules make, and it is the one a caller writes a new note on
+	// the strength of — so where a file could not be read, the absence is
+	// refused rather than answered, and nothing gates a write on it.
+	if !report.found() && a.partialCorpus() {
+		return preparedCommand{}, a.abort(a.unreadableRefusal())
+	}
 	var stdout []byte
 	if o.Format == FormatJSON {
 		out, err := marshalWire(report)
@@ -409,8 +426,14 @@ func parseBaseline(jsonl string) (map[string]bool, error) {
 
 // retainNew drops findings whose fingerprint is already in the baseline,
 // leaving only what this run newly introduced.
+//
+// A file this run could not read is not subtracted, however old it is. It is
+// not one of the findings a baseline is for — it is this run's account of where
+// its own judgement has a hole, and the rules it silenced are silent in this
+// output whether or not the last run saw the same file. Subtracted, it would
+// leave a report that is short of those rules and says nothing about why.
 func retainNew(findings []Finding, baseline map[string]bool) []Finding {
 	return slices.DeleteFunc(findings, func(f Finding) bool {
-		return baseline[f.Fingerprint]
+		return f.RuleID != unreadableRule && baseline[f.Fingerprint]
 	})
 }

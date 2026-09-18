@@ -89,6 +89,23 @@ func TestRegenerateGoldens(t *testing.T) {
 		t.Logf("rewrote %s (%d bytes)", tt.golden, buf.Len())
 	}
 
+	// The vault with a hole in it. Its fixture carries no unreadable file — a
+	// checked-out tree cannot — so the permissions come off here exactly as
+	// the golden's own test takes them, and a rewrite that skipped the sealing
+	// would quietly write a golden with no hole in it and retire the lock.
+	sealedFindings, sealedErr := Check(t.Context(), sealedVault(t))
+	if sealedErr != nil {
+		t.Fatalf("Check(%q): %v", unreadableFixture, sealedErr)
+	}
+	var sealedBuf bytes.Buffer
+	if err := WriteJSONL(&sealedBuf, sealedFindings); err != nil {
+		t.Fatalf("WriteJSONL(%q): %v", unreadableFixture, err)
+	}
+	if err := os.WriteFile(unreadableGolden, sealedBuf.Bytes(), 0o600); err != nil {
+		t.Fatalf("write %s: %v", unreadableGolden, err)
+	}
+	t.Logf("rewrote %s (%d bytes)", unreadableGolden, sealedBuf.Len())
+
 	schemaOnly := []struct {
 		fixture string
 		golden  string

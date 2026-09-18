@@ -102,18 +102,21 @@ templ Home(v HomeView, c layouts.Chrome) {
 				}
 				if v.PrivacyFault != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="privacy" aria-labelledby="home-privacy-title">
-						@homeBlockHead("home-privacy-title", wording.HomePrivacyTitle.In(c.Lang), wording.HomePrivacyLede.In(c.Lang))
-						<p class="y-homeempty" data-home-privacy>
-							@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
-						</p>
+						@nothingToShow(nothingNotice{Kind: "privacy", Title: wording.HomePrivacyTitle.In(c.Lang), TitleID: "home-privacy-title", Fault: true}) {
+							<p>{ wording.HomePrivacyLede.In(c.Lang) }</p>
+							<p>
+								@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
+							</p>
+						}
 					</section>
 				}
 				if v.Degraded != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="degraded" aria-labelledby="home-degraded-title">
-						@homeBlockHead("home-degraded-title", wording.HomeDegradedTitle.In(c.Lang), "")
-						<p class="y-homeempty" data-home-degraded>
-							@browserDiagnostic(v.Degraded, v.DegradedDetail)
-						</p>
+						@nothingToShow(nothingNotice{Kind: "degraded", Title: wording.HomeDegradedTitle.In(c.Lang), TitleID: "home-degraded-title", Fault: true}) {
+							<p>
+								@browserDiagnostic(v.Degraded, v.DegradedDetail)
+							</p>
+						}
 					</section>
 				}
 				if !v.ReadmeMissing {
