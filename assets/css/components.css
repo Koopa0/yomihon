@@ -923,6 +923,15 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    ============================================================ */
 .y-prose .y-reading { position: relative; margin: 18px 0 0; }
 .y-prose .y-reading > p { margin: 0; }
+/* The paragraph the voice is on. A colour and nothing else: the blanket that
+   switches every transition and animation off for a reduced-motion reader must
+   leave this readable, and the spread shadow gives the colour room without
+   moving a single line of the note. */
+.y-prose .y-reading[data-reading] {
+  background: var(--accent-muted);
+  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 5px var(--accent-muted);
+}
 .y-tts {
   position: absolute; left: -30px; top: 0.35em;
   display: none; align-items: center; justify-content: center;
@@ -956,8 +965,15 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
   min-height: 30px; padding: 0 10px; border: 1px solid var(--border);
   border-radius: var(--r-sm); background: var(--panel); cursor: pointer;
 }
-.y-ttsbar button:hover { background: var(--overlay); color: var(--fg); }
+.y-ttsbar button:hover:not(:disabled) { background: var(--overlay); color: var(--fg); }
 .y-ttsbar button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+/* Previous on the first paragraph and next on the last: the move is not there,
+   and a control that looks live while refusing every press is worse than one
+   that says so. */
+.y-ttsbar button:disabled {
+  color: var(--fg-faint);
+  cursor: default;
+}
 .y-ttsbar__status { margin-left: auto; color: var(--fg-subtle); }
 
 /* ============================================================
@@ -1500,8 +1516,10 @@ html {
   .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
   [data-ruby="on"] .y-rubybtn__label { color: var(--accent); }
   [data-ruby="off"] .y-rubybtn__label { color: var(--fg-faint); text-decoration: line-through; }
+  /* The state word goes onto its own line so the controls keep one row each;
+     everything else stays in the order it is written, which keeps stop beside
+     the play, previous and next it belongs with. */
   .y-ttsbar__status { flex-basis: 100%; order: 2; margin-left: 0; }
-  .y-ttsbar__stop { order: 3; }
 }
 @media (forced-colors: active) {
   /* The fixed-colour mark is decorative. Keep the exact textual product name
