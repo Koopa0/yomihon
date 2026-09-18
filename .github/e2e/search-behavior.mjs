@@ -1316,6 +1316,12 @@ try {
     }
   };
 
+  // The palette is drawn on the search page too, and it carries its own copy of
+  // every hook read below. The page's own form is what this case is about, so
+  // each lookup names it the way the rest of this file does. An unscoped one
+  // answers with whichever copy the document happens to carry first, which is a
+  // fact about the order the chrome is assembled in rather than about search.
+  const PAGE_SCOPE = '.y-searchpage[data-live-search]';
   for (const [language, cookies] of [['zh-Hant', null], ['en', [{ name: 'yomihon_lang', value: 'en', url: BASE }]]]) {
     const spoken = await start(browser, 'announcement-quotes-the-query', { path: '/search', cookies });
     for (const query of ['$&', '$$', '$`', "$'", 'a{count}b']) {
@@ -1326,26 +1332,27 @@ try {
       // last one's; the five queries are chosen so that no two of them can be
       // announced identically.
       const saidBefore = await spoken.page.evaluate(
-        () => document.querySelector('[data-live-search-status]').textContent,
+        (scope) => document.querySelector(`${scope} [data-live-search-status]`).textContent,
+        PAGE_SCOPE,
       );
-      await spoken.page.fill('[data-live-search-input]', query);
+      await spoken.page.fill(`${PAGE_SCOPE} [data-live-search-input]`, query);
       await waitFor(
         spoken.page,
         'announcement-quotes-the-query',
-        (previous) => (document.querySelector('[data-live-search-status]')?.textContent ?? '') !== previous,
-        saidBefore,
+        ({ scope, previous }) => (document.querySelector(`${scope} [data-live-search-status]`)?.textContent ?? '') !== previous,
+        { scope: PAGE_SCOPE, previous: saidBefore },
         `the announcement for ${JSON.stringify(query)} in ${language} never replaced the one before it`,
       );
-      const spokenNow = await spoken.page.evaluate(() => {
-        const status = document.querySelector('[data-live-search-status]');
-        const results = document.querySelector('[data-live-search-results]');
+      const spokenNow = await spoken.page.evaluate((scope) => {
+        const status = document.querySelector(`${scope} [data-live-search-status]`);
+        const results = document.querySelector(`${scope} [data-live-search-results]`);
         return {
           said: status.textContent,
           countone: status.dataset.liveSearchCountone,
           countmany: status.dataset.liveSearchCountmany,
           count: Number(results.dataset.resultCount),
         };
-      });
+      }, PAGE_SCOPE);
       const template = spokenNow.count === 1 ? spokenNow.countone : spokenNow.countmany;
       if (!template) {
         throw new ProbeBroken('BROKEN search-behavior: the status carries no sentence to fill in');
