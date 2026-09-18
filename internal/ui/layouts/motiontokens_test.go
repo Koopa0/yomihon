@@ -236,7 +236,7 @@ func blankComments(css string) string {
 		} else {
 			end += i + 4
 		}
-		copy(out[i:end], []byte(blank(string(out[i:end]))))
+		copy(out[i:end], blank(string(out[i:end])))
 		i = end
 	}
 	return string(out)
