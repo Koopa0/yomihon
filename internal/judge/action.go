@@ -18,7 +18,7 @@ import (
 var errVaultScan = errors.New("vault scan failed")
 
 // errWithheldUnreadable is the whole answer about a file the contract keeps out
-// of agent-facing output. The caller is told the judgement stopped; which file
+// of agent-facing output. The caller is told the command has none; which file
 // and what the machine said about it would describe ground the contract closed.
 // The sentence is fixed, so every such file and cause reads the same.
 var errWithheldUnreadable = errors.New(
@@ -44,6 +44,35 @@ type action struct {
 	authority scanAuthority
 	notes     []note
 	resources []string
+	// unreadable are the files the scan listed and the read could not open.
+	// They are the observation's own account of where it has a hole, which
+	// decides both what may still be concluded from it and what each command
+	// is willing to answer at all.
+	unreadable []unreadableEntry
+}
+
+// unreadableEntry is one file the scan listed and the read could not open: the
+// path the scan gave it, and the machine's own account of what stopped. The
+// cause is kept as the error rather than as its text so the refusal a command
+// builds from it wraps the same value it always did.
+type unreadableEntry struct {
+	path  string
+	cause error
+}
+
+// partialCorpus reports whether this observation has a hole in it. A rule whose
+// verdict rests on something being absent cannot be reached over one, and a
+// command whose whole answer is such a verdict cannot be given at all.
+func (a *action) partialCorpus() bool {
+	return len(a.unreadable) > 0
+}
+
+// unreadableRefusal is the refusal a command gives instead of an answer it
+// cannot stand behind. It names the first file the reads stopped on, in scan
+// order, which is the one a run used to end at.
+func (a *action) unreadableRefusal() error {
+	first := a.unreadable[0]
+	return entryUnreadable(first.path, first.cause, a.authority)
 }
 
 func openAction(ctx context.Context, root string, hooks actionHooks) (*action, error) {
@@ -83,20 +112,53 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		}
 		data, readErr := reader.ReadFile(ctx, entry)
 		if readErr != nil {
-			return nil, a.abort(entryUnreadable(relPath, readErr, a.authority))
+			if readVoidsTheObservation(ctx, readErr) {
+				return nil, a.abort(entryUnreadable(relPath, readErr, a.authority))
+			}
+			a.unreadable = append(a.unreadable, unreadableEntry{path: relPath, cause: readErr})
+			continue
 		}
 		if hooks.afterNoteRead != nil {
 			hooks.afterNoteRead(relPath)
 		}
 		a.notes = append(a.notes, parseNoteWithMarks(relPath, data, marks))
 	}
+	// A judgement needs something to be about. Where nothing at all could be
+	// read, this is not a vault with a hole in it but a folder that is no
+	// longer there to judge — a root removed under the run reports every one of
+	// its files that way — and the caller is owed the refusal rather than a
+	// page of findings that are all the same sentence.
+	if len(a.notes) == 0 && a.partialCorpus() {
+		return nil, a.abort(a.unreadableRefusal())
+	}
 	return a, nil
 }
 
-// entryUnreadable names the file a read stopped on and the reason the machine
-// gave. One unreadable file ends the whole judgement, because a report built on
-// a partial corpus would answer about ground it never read. The path comes from
-// the scan entry, not from the error, whose own path names one component.
+// readVoidsTheObservation reports whether a failed read ended the observation
+// rather than holed it. Two do. A cancelled run is over, and every read left in
+// the walk would fail the same way, so reporting them would turn a caller
+// hanging up into a report. A path that no longer names what the scan observed
+// says the folder changed identity underneath this run — a note deleted,
+// replaced, or moved out from under its parent all arrive this way — which
+// makes every finding already collected a statement about a vault that is not
+// there; the pinned root exists to catch exactly that, and downgrading it to a
+// note about one file would spend it.
+//
+// Everything else the machine reports is about one file that is still the file
+// the scan saw — a permission taken away, a device that would not answer — and
+// the rest of the vault is there to be judged.
+func readVoidsTheObservation(ctx context.Context, readErr error) bool {
+	return ctx.Err() != nil || errors.Is(readErr, vault.ErrSourceChanged)
+}
+
+// entryUnreadable names a file a read stopped on and the reason the machine
+// gave. It is the refusal for the two commands whose whole answer is a verdict
+// about something being absent — a census of what nothing points at, and an
+// answer that no note carries a name — neither of which a corpus with a hole
+// in it can support. The check command reports such a file instead, at the
+// weight of the gravest thing it has, and goes on judging what it did read.
+// The path comes from the scan entry, not from the error, whose own path names
+// one component.
 func entryUnreadable(relPath string, cause error, authority scanAuthority) error {
 	if !authority.egressAllowed(relPath) {
 		return errWithheldUnreadable

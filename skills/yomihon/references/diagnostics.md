@@ -29,7 +29,10 @@ yomihon check --root <vault> [--format json|human|md] [--all]
 Exit codes: **0** nothing named by `--deny` was found · **1** a `--deny` gate
 hit · **2** the command could not run. Findings alone never fail it — without
 `--deny`, `check` reports and exits 0, which is why a green exit is not by
-itself evidence of a clean vault.
+itself evidence of a clean vault. A file `check` could not read is one of those
+findings and not a reason it could not run, so it exits 0 too unless you name
+`scan.unreadable` or `error` to `--deny`; `coverage` and `exists` still refuse
+with 2, because their whole answer is a verdict about the vault entire.
 
 ### What `--all` does, and the thing it cannot do
 
@@ -211,7 +214,26 @@ included; [`study-paths.md`](study-paths.md) explains that naming. All `warn`.
 | `supersession.predecessor_not_archived` | warn | the successor ledger says this note was replaced, but its status is not the archived one. Archive it, or clear the field until the replacement is authoritative |
 | `supersession.archived_navigation_target` | warn | a live path or map links a note whose status is archived |
 | `scan.skipped` | warn | the scan saw a path and read nothing from it, because a note is read only out of a regular file. A symbolic link is the usual cause: it holds no note, answers no link, and appears in no listing |
+| `scan.unreadable` | error | the scan saw the file and the read could not open it — a permission taken away is the usual cause — so nothing was judged from it. The rest of the vault is still judged, but the five rules that conclude something is *nowhere* say nothing for that run: see below. Restore read access and judge again. A file under a `[privacy] never_egress_dirs` directory carries no path here and one fixed sentence in place of the reason, because both would describe ground the contract closed |
 | `callout.title_markup` | info | a recognised callout's title carries markup — a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image. Titles are escaped, not parsed, so it would render as visible text. Move it into the body |
+
+### What a file nobody could read takes with it
+
+A finding about one note stays true when another note could not be opened. A
+finding about something being **absent** does not: the file nobody read may hold
+the name, the alias or the listing. So a run carrying `scan.unreadable` reports
+none of these five, and the notice is the only account you get of why:
+
+`link.broken` · `link.title_not_alias` · `provenance.unresolved` ·
+`map.disk_mismatch` · `map.disk_unlisted`
+
+One link is narrowed rather than silenced: an address whose `#section` or
+`#^block` lands in the file that could not be opened says nothing, while every
+other fragment in the run is still judged.
+
+A run over a healthy vault is unaffected — there is no notice, so nothing is
+withheld. What this costs is the run you make **while** a permission is wrong:
+fix the permission before trusting a clean answer about dead links.
 
 ## Two other commands, for completeness
 
