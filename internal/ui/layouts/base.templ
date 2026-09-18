@@ -74,7 +74,7 @@ templ header(c Chrome) {
 		</div>
 		<div class="y-header__spacer"></div>
 		<a class="y-searchbtn" href="/search" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
-			<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
 			<span class="ui-kbd">⌘K</span>
 		</a>
@@ -192,7 +192,7 @@ templ searchDialog(lang wording.Lang) {
 		// keep in step across the two surfaces.
 		<search>
 			<form class="y-searchdialog__form" method="get" action="/search" data-live-search-form>
-				<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+				<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 				<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
 				<span class="ui-kbd">esc</span>
 			</form>

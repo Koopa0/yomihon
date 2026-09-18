@@ -60,15 +60,6 @@ html, body { margin: 0; background: var(--bg); }
 .yomihon details > summary { list-style: none; cursor: pointer; }
 .yomihon summary::-webkit-details-marker { display: none; }
 .yomihon :focus-visible { outline: 2px solid var(--fg-subtle); outline-offset: 2px; border-radius: var(--r-sm); }
-/* The three search fields suppress that ring on purpose — they autofocus, and
-   a ring firing on every open is noise rather than news — and move the signal
-   to the field around them. Each already accented its own border on focus, but
-   a border is one pixel wide: enough to satisfy "something visible changed",
-   thin for a reader who has to find it. The wash widens that answer without
-   putting the ring back on the input. */
-.y-searchdialog__form:focus-within,
-.y-searchpage__form:focus-within,
-.y-homesearch:focus-within { box-shadow: 0 0 0 3px var(--accent-muted); }
 .yomihon ::selection { background: var(--accent-muted); }
 .yomihon *::-webkit-scrollbar { width: 11px; height: 11px; }
 .yomihon *::-webkit-scrollbar-thumb { background: var(--border-strong); border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
@@ -178,7 +169,6 @@ html, body { margin: 0; background: var(--bg); }
   background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
   color: var(--fg-subtle); font-family: var(--font-sans); font-size: var(--fs-13); cursor: pointer; min-width: 214px;
 }
-.y-searchbtn svg { width: 15px; height: 15px; flex: none; }
 .y-searchbtn__label { flex: 1; text-align: left; }
 
 .y-iconbtn {
@@ -778,20 +768,99 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-sealbar__notice { margin: 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-subtle); }
 
 /* ============================================================
+   The search field — one shape wherever it is asked for
+   ============================================================ */
+/* Three places ask a reader to type a search: the desk, the search page, and
+   the palette the keyboard opens. They are one field, so the height, the
+   corner, the type and the icon are written once here and each place adds
+   only the ground it sits on.
+
+   The resting line is an outline drawn inward rather than a border, so focus
+   can thicken it from one pixel to two and colour it without a single glyph
+   moving. That is the whole of the answer: the fields autofocus, and the
+   page-wide ring firing on every open is news the reader did not ask for, so
+   the ring stays off the input and the field around it carries the state —
+   the same outline every other control answers focus with, drawn where this
+   one already has a line. */
+.y-homesearch,
+.y-searchdialog__form,
+.y-searchpage__form {
+  align-items: center;
+  border-radius: var(--r-sm);
+  display: flex;
+  gap: 10px;
+  height: 44px;
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+  padding: 0 12px;
+}
+
+.y-homesearch:focus-within,
+.y-searchdialog__form:focus-within,
+.y-searchpage__form:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* A phone zooms the page when it focuses an input set below its own body
+   size, which moves the whole layout to read one word. Sixteen pixels is
+   where that stops, and it is the size the typed query deserves anyway. */
+.y-homesearch input,
+.y-searchdialog__input,
+.y-searchpage__form input {
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: var(--fs-16);
+  min-width: 0;
+  outline: 0;
+}
+
+.y-homesearch input:focus-visible,
+.y-searchdialog__input:focus-visible,
+.y-searchpage__form input:focus-visible {
+  outline: 0;
+}
+
+/* One glyph size for every way into search, the header's entry included. */
+.y-homesearch svg,
+.y-searchbtn svg,
+.y-searchdialog__form svg,
+.y-searchpage__form svg {
+  flex: none;
+  height: 16px;
+  width: 16px;
+}
+
+/* The header's entry takes its ink from the control around it, which is why
+   it is not in this list. */
+.y-homesearch svg,
+.y-searchdialog__form svg,
+.y-searchpage__form svg {
+  color: var(--fg-subtle);
+}
+
+.y-homesearch .y-xbtn,
+.y-searchpage__form .y-xbtn {
+  flex: none;
+  height: 32px;
+  padding: 0 16px;
+  width: auto;
+}
+
+/* ============================================================
    ⌘K search dialog (native <dialog>)
    ============================================================ */
 .y-searchdialog { border: none; padding: 0; max-width: 600px; width: min(600px, 92vw); margin: 12vh auto auto; }
 .y-searchdialog::backdrop { background: rgb(0 0 0 / 0.5); }
-/* The autofocused search fields stop lighting the page-wide focus ring on
-   every open. The focus signal moves to the enclosing field instead: the
-   palette form owns the divider above its footer and accents it, the search
-   page form accents its resting border — so a focus indicator is always
-   present without the ring flashing on the input itself. */
-.y-searchdialog__form { display: flex; align-items: center; gap: 11px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
-.y-searchdialog__form:focus-within { border-bottom-color: var(--accent); }
-.y-searchdialog__form svg { width: 17px; height: 17px; color: var(--fg-subtle); flex: none; }
-.y-searchdialog__input { flex: 1; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
-.y-searchdialog__input:focus-visible { outline: none; }
+/* The field sits inside the panel rather than spanning it, because a line
+   across the top would be a second thing to read as an edge now that the
+   field has one of its own. Six pixels of inset puts its box on the same
+   column as the rows below it and its first character on the same column as
+   the status line and the footer. */
+.y-searchdialog__form { margin: 12px 6px 0; }
 .y-searchdialog .y-live-search__status { margin-inline: 18px; }
 /* The fragment still prints a count so /search names how many it found without
    a script. The palette already announces that number in the live status, so
@@ -875,12 +944,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
 }
 /* The palette asks the same route for the same rows and has no column to put a
    division in, so it never asks for one; nothing here paints one out. */
-.y-searchpage__form { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
-.y-searchpage__form:focus-within { border-color: var(--accent); }
-.y-searchpage__form svg { color: var(--fg-subtle); flex: none; }
-.y-searchpage__form input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: var(--fs-16); color: var(--fg); }
-.y-searchpage__form input:focus-visible { outline: none; }
-.y-searchpage__form .y-xbtn { width: auto; padding: 0 16px; flex: none; height: 32px; }
+.y-searchpage__form { background: var(--panel); }
 /* The count line prints the query back, and a query can be one run with
    nowhere to break — the same thing that used to carry the notice below it off
    the side of a phone. It takes the same last-resort break, or a reader on a
@@ -1176,12 +1240,7 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 .y-homepath:first-child { border-top: 0; }
 .y-homepath__title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: var(--fs-14); color: var(--fg); }
 .y-homepath__progress { flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
-.y-homesearch { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--elevated); }
-.y-homesearch:focus-within { border-color: var(--accent); }
-.y-homesearch svg { flex: none; color: var(--fg-subtle); }
-.y-homesearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
-.y-homesearch input:focus-visible { outline: 0; }
-.y-homesearch .y-xbtn { width: auto; height: 30px; padding: 0 13px; flex: none; }
+.y-homesearch { background: var(--elevated); }
 .y-homereadme { max-width: var(--measure-article); margin: 58px auto 0; padding-top: 34px; border-top: 1px solid var(--border); }
 .y-homereadme__head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
 .y-homereadme__head h2 { margin: 0; font-family: var(--font-kai); font-size: var(--fs-ed-24); font-weight: var(--fw-regular); color: var(--fg); }
