@@ -1318,6 +1318,13 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
   cursor: default;
 }
 .y-ttsbar__status { margin-left: auto; color: var(--fg-subtle); }
+/* What speech synthesis cannot be asked for, on its own line under the
+   controls it explains the absence of. */
+.y-ttsbar__limits {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--fg-subtle);
+}
 
 /* ============================================================
    Slot machine — interactive sentence-pattern practice.
@@ -1799,6 +1806,28 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
 .y-syl-metaspacer { flex: 1; }
 .y-syl-ready { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
 
+/* ============================================================
+   Listen — one course as the paragraphs its lessons are marked to be read
+   aloud in. The paragraphs are the notes' own read-aloud elements, so the
+   reading column's own rules carry them; what is here is the page around
+   them and the place the browser-built bar lands.
+   ============================================================ */
+.y-listen {
+  margin: 0 auto;
+  max-width: 800px;
+  padding: 44px 56px 120px;
+}
+.y-listen .y-title { margin-top: 12px; }
+.y-listen__none { margin-top: 24px; color: var(--fg-muted); }
+.y-listen__lesson { margin-top: 34px; }
+.y-listen__title {
+  font-family: var(--font-sans);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-medium);
+}
+.y-listen__title a { color: var(--fg); text-decoration: none; }
+.y-listen__title a:hover { color: var(--accent); }
+
 .y-part-block { margin-top: 30px; }
 .y-part { display: flex; align-items: baseline; gap: 14px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--border); scroll-margin-top: var(--header-clearance); }
 .y-part__num { flex: none; min-width: 24px; font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-faint); }
@@ -2072,6 +2101,7 @@ html {
   .y-homenote { align-items: flex-start; }
   .y-homenote__meta { align-items: flex-end; flex-direction: column; }
   .y-syl { padding: 32px 20px 120px; }
+  .y-listen { padding: 32px 20px 120px; }
 	.y-recoverymain { padding: 32px 20px 120px; }
   .y-module { padding-left: 16px; }
   .y-lessons { padding-left: 24px; }

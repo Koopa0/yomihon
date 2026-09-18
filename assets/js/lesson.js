@@ -37,6 +37,7 @@ export function initLesson() {
   const previousLabel = column?.dataset.readaloudPrevious ?? '';
   const nextLabel = column?.dataset.readaloudNext ?? '';
   const progressTemplate = column?.dataset.readaloudProgress ?? '';
+  const limitsLabel = column?.dataset.readaloudLimits ?? '';
 
   // Reading a note through: every marked paragraph in document order, the
   // cursor on the one the voice last took, and whether the walk is still live.
@@ -286,7 +287,20 @@ export function initLesson() {
     speechStatus.className = 'y-ttsbar__status';
     speechStatus.setAttribute('aria-live', 'polite');
     toolbar.append(speechStatus);
-    readingButtons[0].closest('.y-reading')?.before(toolbar);
+    // What the voice cannot be asked for, said where a reader would look for
+    // the controls that are missing. Only a page that offers it carries the
+    // words, so a note's reading column gains no line of chrome.
+    if (limitsLabel) {
+      const limits = document.createElement('p');
+      limits.className = 'y-ttsbar__limits';
+      limits.textContent = limitsLabel;
+      toolbar.append(limits);
+    }
+    // A page whose whole subject is listening says where the bar goes; a note
+    // has no such place, and the bar opens the first paragraph that speaks.
+    const anchor = document.querySelector('[data-readaloud-bar]');
+    if (anchor) anchor.append(toolbar);
+    else readingButtons[0].closest('.y-reading')?.before(toolbar);
     refreshRunControls();
 
     readingButtons.forEach((button) => {

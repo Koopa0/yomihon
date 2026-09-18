@@ -146,9 +146,10 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		snap := store.Current().Capture()
 		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(vaultName, writer.Authority(), snap)}
 	}
-	pathProvider := func() (nav.Shell, *snapshot.Generation) {
+	pathProvider := func() syllabus.RequestSnapshot {
 		snap := store.Current().Capture()
-		return shell.Project(vaultName, writer.Authority(), snap), snap
+		authority := writer.Authority()
+		return syllabus.RequestSnapshot{Shell: shell.Project(vaultName, authority, snap), Generation: snap, Status: authority}
 	}
 
 	// The marks a reader leaves are kept for the root the vault capability was

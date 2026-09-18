@@ -97,23 +97,23 @@ func TestThePathIndexReadsOneGeneration(t *testing.T) {
 	}
 	storeA := newGenerationStore(t, pathVault(t, "Japanese title", "ja"), contract)
 	storeB := newGenerationStore(t, pathVault(t, "English title", "en"), contract)
-	answer := func(store *snapshot.Store) (nav.Shell, *snapshot.Generation) {
+	answer := func(store *snapshot.Store) syllabus.RequestSnapshot {
 		snap := store.Current().Capture()
-		return nav.Shell{Nav: snap.Navigation(), Governed: true}, snap
+		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: snap.Navigation(), Governed: true}, Generation: snap}
 	}
 
 	for _, tt := range []struct {
 		name string
 		// published answers each reading of the pointer the request makes.
-		published func() func() (nav.Shell, *snapshot.Generation)
+		published func() func() syllabus.RequestSnapshot
 	}{
 		{
 			// The rebuild lands between the first reading and any second one,
 			// which is the moment the page has to survive.
 			name: "a rebuild between readings",
-			published: func() func() (nav.Shell, *snapshot.Generation) {
+			published: func() func() syllabus.RequestSnapshot {
 				readings := 0
-				return func() (nav.Shell, *snapshot.Generation) {
+				return func() syllabus.RequestSnapshot {
 					readings++
 					if readings > 1 {
 						return answer(storeB)
@@ -127,8 +127,8 @@ func TestThePathIndexReadsOneGeneration(t *testing.T) {
 			// the row below is what the listing draws when no rebuild can
 			// confuse it.
 			name: "no rebuild at all",
-			published: func() func() (nav.Shell, *snapshot.Generation) {
-				return func() (nav.Shell, *snapshot.Generation) { return answer(storeA) }
+			published: func() func() syllabus.RequestSnapshot {
+				return func() syllabus.RequestSnapshot { return answer(storeA) }
 			},
 		},
 	} {
