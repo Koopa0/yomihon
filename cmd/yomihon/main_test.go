@@ -546,13 +546,19 @@ var envReaders = map[string]map[string]string{
 		"Environ":   "reads the whole environment",
 		"ExpandEnv": "reads every variable named in its argument",
 		"Expand":    "reads the environment through a mapping this guard cannot follow",
-		// UserConfigDir names no key for this guard to check: it reads HOME,
-		// and XDG_CONFIG_HOME where the platform has one, inside the standard
-		// library. It is here because the command does make that read — the
-		// reader's own marks are kept under the directory it returns — and a
-		// read the guard cannot see is a surface that widened while the guard
-		// stayed green. Refused everywhere but the one file named below.
+		// The three directory readers name no key for this guard to check:
+		// each reads HOME, and the platform's own variable beside it, inside
+		// the standard library. UserConfigDir is here because the command does
+		// make that read — the reader's own marks are kept under the directory
+		// it returns — and a read the guard cannot see is a surface that
+		// widened while the guard stayed green. Its two siblings read the same
+		// variables and are here for that reason alone: an allowlist that
+		// admits one door and not the two beside it guards nothing.
+		// UserConfigDir is refused everywhere but the one file named below;
+		// the other two are refused everywhere.
 		"UserConfigDir": "reads HOME, and XDG_CONFIG_HOME where the platform has one, inside the standard library, so no key reaches this guard",
+		"UserHomeDir":   "reads HOME, and USERPROFILE where the platform has one, inside the standard library, so no key reaches this guard",
+		"UserCacheDir":  "reads HOME, and XDG_CACHE_HOME where the platform has one, inside the standard library, so no key reaches this guard",
 	},
 	"syscall": {
 		"Getenv":  "reads the environment beneath the os package",
@@ -935,6 +941,20 @@ func f() (string, bool) {
 import "os"
 func where() (string, error) { return os.UserConfigDir() }`,
 		want: []string{"os.UserConfigDir reads HOME, and XDG_CONFIG_HOME where the platform has one, inside the standard library, so no key reaches this guard"},
+	},
+	{
+		// The command is allowed the configuration directory and neither of
+		// the two beside it, so this fixture is the command's own package: the
+		// one file that may read a directory may not read these.
+		name: "the home and cache directories, which no file may read",
+		src: `package main
+import "os"
+func home() (string, error) { return os.UserHomeDir() }
+func cache() (string, error) { return os.UserCacheDir() }`,
+		want: []string{
+			"os.UserHomeDir reads HOME, and USERPROFILE where the platform has one, inside the standard library, so no key reaches this guard",
+			"os.UserCacheDir reads HOME, and XDG_CACHE_HOME where the platform has one, inside the standard library, so no key reaches this guard",
+		},
 	},
 	{
 		name: "the folder is no longer an environment question",

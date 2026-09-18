@@ -2994,6 +2994,11 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			want:  "note: New requires a non-nil ConsumeReceipt provider",
 		},
 		{
+			name:  "continuation provider",
+			clear: func(d *note.Sources) { d.Continuation = nil },
+			want:  "note: New requires a non-nil Continuation provider",
+		},
+		{
 			name:  "log",
 			clear: func(d *note.Sources) { d.Log = nil },
 			want:  "note: New requires a non-nil Log",

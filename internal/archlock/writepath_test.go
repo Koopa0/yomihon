@@ -193,9 +193,23 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 	// spelling would recognise, and one that dot-imports it hides them
 	// entirely, which is reported rather than audited.
 	pkgOf := map[string]string{}
+	// Every local import name, filesystem or not. A method taken as a value is
+	// judged on its name alone below, and the names in that list are ordinary
+	// English words that are also types elsewhere — ast.Link, sequence.Link.
+	// A type is always reached through a package name and a bound method never
+	// is, so knowing which qualifiers are packages is what tells them apart.
+	packageName := map[string]bool{}
 	for _, imp := range file.Imports {
 		canonical, err := strconv.Unquote(imp.Path.Value)
-		if err != nil || (canonical != "os" && !lowLevelPackages[canonical]) {
+		if err != nil {
+			continue
+		}
+		if imp.Name != nil {
+			packageName[imp.Name.Name] = true
+		} else {
+			packageName[canonical[strings.LastIndexByte(canonical, '/')+1:]] = true
+		}
+		if canonical != "os" && !lowLevelPackages[canonical] {
 			continue
 		}
 		switch {
@@ -228,11 +242,21 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 	// judges a reader referenced rather than called. Because the walk meets a
 	// call before the selector inside it, a selector already judged as a call
 	// is recognised when it comes round again.
+	//
+	// A confined write goes the same way round: swap := root.Rename hands over
+	// a method whose receiver is already bound, and the call that follows names
+	// no filesystem at all. So a method write is judged as a reference on the
+	// name alone, which is the policy its call site already follows, and it
+	// over-reports for the same reason and to the same end.
 	judged := map[*ast.SelectorExpr]bool{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		if selector, isSelector := n.(*ast.SelectorExpr); isSelector && !judged[selector] {
-			if pkg, name := selected(selector, pkgOf); writesByName(pkg, name) {
+			pkg, name := selected(selector, pkgOf)
+			switch {
+			case writesByName(pkg, name):
 				record(selector.Pos(), qualifierOf(selector)+"."+name+", referenced as a value")
+			case !qualifierIsPackage(selector, packageName) && slices.Contains(methodWrites, selector.Sel.Name):
+				record(selector.Pos(), "a reference to "+selector.Sel.Name+", which changes what it is called on")
 			}
 			return true
 		}
@@ -290,6 +314,15 @@ func selected(selector *ast.SelectorExpr, pkgOf map[string]string) (pkg, name st
 		return "", ""
 	}
 	return pkgOf[qualifier.Name], selector.Sel.Name
+}
+
+// qualifierIsPackage reports whether the selector is reached through an
+// imported package name rather than through a value. A package qualifier means
+// the selector names a function or a type, both of which are judged elsewhere;
+// what is left is a method bound to a receiver.
+func qualifierIsPackage(selector *ast.SelectorExpr, packageName map[string]bool) bool {
+	qualifier, isIdent := selector.X.(*ast.Ident)
+	return isIdent && packageName[qualifier.Name]
 }
 
 func qualifierOf(selector *ast.SelectorExpr) string {
@@ -525,6 +558,40 @@ import "context"
 type reader struct{}
 func (reader) OpenFile(ctx context.Context, entry string) error { return nil }
 func read(ctx context.Context, r reader, entry string) error { return r.OpenFile(ctx, entry) }`,
+		clean: true,
+	},
+	{
+		// The receiver is bound where the method is named and the call that
+		// follows mentions no filesystem, so the line below is the only one a
+		// reader of this file would ever see it on.
+		name: "a confined write handed over as a method value",
+		path: "internal/report/report.go",
+		src: `package report
+import "os"
+func swap(root *os.Root, name string) error {
+	rename := root.Rename
+	return rename(name, name+".old")
+}`,
+		want: []string{"a reference to Rename, which changes what it is called on"},
+	},
+	{
+		// A type reached through a package name shares these names — this
+		// repository's own graph has a Link and so does the markdown parser it
+		// reads — and naming a type is not writing anything.
+		name: "types whose names are also the names of writes",
+		path: "internal/nav/nav.go",
+		src: `package nav
+import (
+	"github.com/koopa0/yomihon/internal/sequence"
+	"github.com/yuin/goldmark/ast"
+)
+func count(links []sequence.Link, node ast.Node) int {
+	switch node.(type) {
+	case *ast.Link:
+		return len(links)
+	}
+	return 0
+}`,
 		clean: true,
 	},
 	{
