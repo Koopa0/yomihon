@@ -1,0 +1,46 @@
+package pages
+
+import (
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// pager is the way to the rest of a listing that runs past one page: the page
+// either side of this one, the numbers near it, and the whole listing on one
+// page. Every item is a link the server already knows the answer to, so a
+// keyboard reaches the strip exactly as a pointer does and nothing here runs a
+// script.
+//
+// It is handed links and draws them; which listing they lead into is not
+// something it can tell, which is what lets the search page and the findings
+// table share one strip. An undivided listing gets no strip at all: a single
+// number with nothing either side of it is a control that cannot be used.
+//
+// The page being read is marked by the attribute that means it rather than by
+// a class, so the mark a reader hears and the mark the stylesheet paints are
+// the same one.
+templ pager(p Pager, lang wording.Lang) {
+	if p.Number > 0 {
+		<nav class="y-pager" aria-label={ wording.PagerTitle.In(lang) }>
+			if p.Previous != "" {
+				<a class="y-pager__step" href={ templ.URL(p.Previous) }>{ wording.PagerPrevious.In(lang) }</a>
+			}
+			<ol class="y-pager__pages" role="list">
+				for _, near := range p.Numbers {
+					<li>
+						if near.Current {
+							<a class="y-pager__page" href={ templ.URL(near.Href) } aria-current="page">{ strconv.Itoa(near.Number) }</a>
+						} else {
+							<a class="y-pager__page" href={ templ.URL(near.Href) }>{ strconv.Itoa(near.Number) }</a>
+						}
+					</li>
+				}
+			</ol>
+			if p.Next != "" {
+				<a class="y-pager__step" href={ templ.URL(p.Next) }>{ wording.PagerNext.In(lang) }</a>
+			}
+			<a class="y-pager__whole" href={ templ.URL(p.Whole) }>{ wording.PagerWhole.In(lang) }</a>
+		</nav>
+	}
+}

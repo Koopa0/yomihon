@@ -18,6 +18,21 @@ func unlocatedNote(r *SearchResult, lang wording.Lang) string {
 	return wording.SearchHitUnlocated.In(lang)
 }
 
+// searchCount is the one sentence a list of hits says about its own extent. A
+// divided answer names which of the hits are on this page and how many there
+// are in all: the tally alone would be true and useless on the second page,
+// and "the first twenty" would be false there.
+//
+// Every other face says the tally, and says how far the list was cut where
+// something cut it — the palette floats over a page with no strip under its
+// rows, so nothing else there would say the list stops short of the answer.
+func searchCount(v *SearchView, lang wording.Lang) string {
+	if v.Pager.Number > 0 {
+		return fmt.Sprintf(wording.ResultRangeFmt.In(lang), v.Pager.First+1, v.Pager.Last, v.Pager.Total)
+	}
+	return resultCount(len(v.Results), v.Total, lang)
+}
+
 // resultCount names how many hits a search returned. Where the list holds only
 // the opening stretch of a larger answer it says both numbers, so the count
 // never claims the page shows more than it does.

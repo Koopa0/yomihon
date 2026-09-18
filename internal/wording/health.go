@@ -132,3 +132,9 @@ var (
 		"schema 相關的檢查無法評估",
 		"The schema checks could not be evaluated")
 )
+
+// HealthRangeFmt is what a divided findings table says under its own shape:
+// which rows of it are on this page. The weights and the file count above it
+// are the whole report's and stay so, which is why this line is separate from
+// them rather than folded in.
+var HealthRangeFmt = both("第 %d–%d 列，共 %d 列", "Rows %d–%d of %d")
