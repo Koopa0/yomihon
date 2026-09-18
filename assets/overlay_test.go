@@ -184,3 +184,46 @@ func TestTheHeaderPressKeepsItsFallbackForAnEngineWithoutCommands(t *testing.T) 
 		t.Errorf("the press the module performs by hand is not nested inside the question about this engine; want\n%s\nin search.js", behindTheQuestion)
 	}
 }
+
+// retiredHooks are the markup hooks a module used to find an overlay's trigger
+// by, for acts the browser now performs because the press names the surface and
+// the act. The templates no longer carry them, so a module that still looked one
+// up would find nothing — and a reader would take the lookup for the wiring and
+// leave the press alone.
+var retiredHooks = []string{"data-concept-close"}
+
+// TestNoModuleLooksUpAControlTheMarkupNowCommands reads the modules rather than
+// a list of them, so one added later is asked the same question on the day it
+// arrives.
+func TestNoModuleLooksUpAControlTheMarkupNowCommands(t *testing.T) {
+	t.Parallel()
+
+	sources, err := filepath.Glob("js/*.js")
+	if err != nil {
+		t.Fatalf("list client modules: %v", err)
+	}
+	if len(sources) == 0 {
+		t.Fatal("no client modules were read, so this test asked nothing of anything")
+	}
+	for _, source := range sources {
+		b, err := os.ReadFile(source)
+		if err != nil {
+			t.Fatalf("read %s: %v", source, err)
+		}
+		for _, hook := range retiredHooks {
+			if strings.Contains(string(b), hook) {
+				t.Errorf("%s still finds a trigger by %s, which no template carries any more; the press names what it acts on and the browser performs it", source, hook)
+			}
+		}
+	}
+	// The needle has to be one the tree could carry. A hook misspelled here
+	// would read as every module being clean.
+	if len(retiredHooks) == 0 {
+		t.Fatal("no hook was looked for, so every module read clean for want of a question")
+	}
+	for _, hook := range retiredHooks {
+		if !strings.Contains(hook, "-") {
+			t.Errorf("%q is not the shape of a markup hook, so it would match nothing wherever it were written", hook)
+		}
+	}
+}
