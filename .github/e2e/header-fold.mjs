@@ -49,6 +49,7 @@ const SITES = [
   'panel-fits',
   'light-dismiss',
   'keyboard-reaches-and-closes',
+  'open-panel-keeps-its-button',
 ];
 
 class LockFired extends Error {
@@ -162,6 +163,17 @@ const MUTATIONS = {
   'take-the-button-out-of-tab-order': {
     target: 'keyboard-reaches-and-closes',
     apply: (page) => changeOne(page, FOLD_BUTTON, { kind: 'attribute', name: 'tabindex', value: '-1' }),
+  },
+  // The button goes away the moment the window is wide, leaving a panel open
+  // over the reading with nothing pointing at it.
+  'hide-the-button-under-an-open-panel': {
+    target: 'open-panel-keeps-its-button',
+    apply: async (page) => {
+      if (await page.locator(FOLD_BUTTON).count() !== 1) notApplied('there is no fold button for the injected rule to hide');
+      await page.addStyleTag({
+        content: `@media (min-width: ${FOLD}px) { .y-header:has(${PANEL}:popover-open) ${FOLD_BUTTON} { display: none; } }`,
+      });
+    },
   },
 };
 
@@ -386,6 +398,25 @@ try {
     if (!returned) {
       fail('keyboard-reaches-and-closes', `${language}: closing the panel left focus off the button it hangs from`);
     }
+
+    // A window dragged wider while the panel is open. An open popover keeps a
+    // box of its own whatever width the window reaches, so the panel is still
+    // a panel — and the button it hangs from has to still be there, because a
+    // panel open over the reading with nothing pointing at it is a panel the
+    // reader has to guess their way out of.
+    await page.locator(FOLD_BUTTON).click();
+    if (!(await isOpen(page))) broken('the panel did not open for the widening question');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(80);
+    const widened = await page.evaluate((selector) => {
+      const button = document.querySelector(selector);
+      return { shown: Boolean(button?.checkVisibility()), open: document.querySelector('.y-headerfold').matches(':popover-open') };
+    }, FOLD_BUTTON);
+    if (!widened.open) broken('widening the window closed the panel by itself, so what follows asks nothing');
+    if (!widened.shown) {
+      fail('open-panel-keeps-its-button', `${language}: widening the window past the fold took the button away from under an open panel`);
+    }
+    await page.keyboard.press('Escape');
 
     await context.close();
   }
