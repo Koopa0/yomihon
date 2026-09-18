@@ -199,7 +199,10 @@ const MUTATIONS = {
   },
   'drop-folder-listing-lang': {
     target: 'listing-folder-declared-language',
-    apply: rewritePath(FOLDERS, '<span class="y-row__title" lang="ja">', '<span class="y-row__title">', 'folder listing title language'),
+    // Two, because the folder lists two lessons and both titles have to lose
+    // their declaration: a listing where one row still declares its language
+    // would leave this site passing for the row that kept it.
+    apply: rewritePath(FOLDERS, '<span class="y-row__title" lang="ja">', '<span class="y-row__title">', 'folder listing title language', 2),
   },
   'stamp-search-undeclared-lang': {
     target: 'listing-search-undeclared-language',

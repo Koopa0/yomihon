@@ -71,7 +71,12 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 			for _, want := range []string{
 				`<article class="y-article" lang="ja">`,
 				`<div id="schema-notices" lang="` + tt.tag + `">`,
-				`<a class="y-metarow__raw" lang="` + tt.tag + `" href="/raw/Writing/lessons/japanese/L01.md">`,
+				// The head's dt is yomihon's own word for the fact and declares
+				// the interface language; the dd right after it is the note's own
+				// path and carries none — the literal string between them is the
+				// proof, since a lang attribute sneaking onto the <a> would break
+				// this exact match.
+				`<dt lang="` + tt.tag + `">` + wording.RawFile.In(tt.lang) + `</dt><dd><a href="/raw/Writing/lessons/japanese/L01.md">`,
 				`<a class="y-metarow__raw" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
 				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
 				`<nav class="y-steps y-steps--course" lang="` + tt.tag + `" aria-label="Japanese course">`,

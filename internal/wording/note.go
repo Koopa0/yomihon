@@ -15,6 +15,11 @@ var (
 	OpenInObsidian = both("在 Obsidian 開啟", "Open in Obsidian")
 )
 
+// NoteLanguage labels the head's language row: the BCP 47 tag a note declares
+// for its own authored content, distinct from PrefLanguage, which names the
+// interface's own language preference.
+var NoteLanguage = both("語言", "Language")
+
 // The label on the metarow's date. The two are two different claims: the
 // first is the author's own declared update, the second the file's recorded
 // change time, shown when the note declares no readable update date. They are
