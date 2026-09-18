@@ -894,7 +894,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
 .y-result { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: var(--r-sm); transition: background var(--dur-base); }
 .y-result:hover { background: var(--overlay); }
 .y-result__title { font-family: var(--font-serif); font-size: var(--fs-ed-17); color: var(--fg); }
-.y-result__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.y-result__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); overflow-wrap: anywhere; }
 .y-result__sep { margin: 0 6px; }
 .y-result__kind { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
 /* a status the contract does not declare — worn by a search hit, a landing-page
@@ -904,7 +904,7 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    sits inline so it wraps with the line it belongs to rather than pushing the
    row wider than its neighbours. */
 .y-outofenum { display: inline-block; margin-left: 8px; padding: 0 6px; border-radius: 3px; font-family: var(--font-sans); font-size: var(--fs-11); line-height: 1.75; color: var(--warn); background: var(--warn-bg); white-space: nowrap; }
-.y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; }
+.y-result__snippet { font-family: var(--font-serif); font-size: var(--fs-13); color: var(--fg-subtle); line-height: 1.5; overflow-wrap: anywhere; }
 
 /* ============================================================
    Ruby (furigana) — rt hidden by visibility only → zero reflow
