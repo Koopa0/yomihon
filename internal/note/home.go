@@ -34,7 +34,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// the sentence would then be answered by a different set of files than the
 	// technical detail beside it lists.
 	fresh := snap.Freshness()
-	visible := shell.Project(authority, snap)
+	visible := shell.Project(h.sources.VaultName, authority, snap)
 	visibleNav := visible.Nav
 	blocks := pages.NewDeskBlocks(visibleNav, snap.NavigationRoles(), pages.ContractStateFrom(visible.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
 	// The reason a way in is empty, stated once at the foot of the page. The

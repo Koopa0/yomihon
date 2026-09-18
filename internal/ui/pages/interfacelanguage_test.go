@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -70,7 +71,7 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 				t.Errorf("the reading page is not speaking %q: want %q", lang, wording.RawFile.In(lang))
 			}
 			var rail bytes.Buffer
-			if err := sidebar(NewSidebar(nil, ""), chrome).Render(t.Context(), &rail); err != nil {
+			if err := sidebar(NewSidebar(nav.Shell{}, ""), chrome).Render(t.Context(), &rail); err != nil {
 				t.Fatalf("render rail: %v", err)
 			}
 			if !strings.Contains(rail.String(), wording.FilterNavigation.In(lang)) {

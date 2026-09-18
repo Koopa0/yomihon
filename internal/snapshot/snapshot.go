@@ -163,6 +163,13 @@ type Generation struct {
 	// source bound. The scan still lists them as files; Skipped() is the
 	// face that says they were not indexed.
 	sizeSkipped []Skipped
+
+	// noteCount is how many markdown files this reading saw, at every depth and
+	// whatever became of each one: a note whose bytes could not be read is
+	// still a note in the folder. It is counted while the folder is read
+	// because the surfaces that state how large the folder is are asking on
+	// every page, and the answer must not cost a copy of the file list.
+	noteCount int
 }
 
 // Capture returns a request-local Generation bound to one point-in-time artifact
@@ -335,6 +342,19 @@ func (g *Generation) Files() []vault.Entry {
 		return nil
 	}
 	return g.scan.Files()
+}
+
+// NoteCount reports how many markdown files this generation's reading saw, at
+// every depth and outside any declared knowledge layer: the question it answers
+// is how large the folder is, not how much of it a shelf lists. A basename the
+// contract told the scan to pass over is a file rather than a note and is not
+// counted; a note the reading could not open, or refused for size, is counted,
+// because it is still a note somebody wrote.
+func (g *Generation) NoteCount() int {
+	if g == nil {
+		return 0
+	}
+	return g.noteCount
 }
 
 // Skipped is one path this generation saw and did not index. A scan skip
@@ -768,6 +788,7 @@ func buildGeneration(
 	blocked := blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
+	noteCount := markdownCount(entries)
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -823,6 +844,12 @@ func buildGeneration(
 
 	planned := judge.NewPlanned(noteBodies(g.ordered), contract)
 	backlinks := newBacklinks(g.ordered, graphIndex)
+	// What the schema said is gathered here, with the rest of the whole-folder
+	// view, because every page's rail now states how many findings stand
+	// against the folder and a walk over every note is not a thing to do on
+	// every page.
+	health := newHealth(g.ordered, graphIndex, planned, backlinks, capabilities.Artifacts, titles)
+	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
 	gen := &Generation{
 		graph:          graphIndex,
 		navigation:     navigation,
@@ -831,7 +858,7 @@ func buildGeneration(
 		concepts:       concepts,
 		planned:        planned,
 		backlinks:      backlinks,
-		health:         newHealth(g.ordered, graphIndex, planned, backlinks, capabilities.Artifacts, titles),
+		health:         health,
 		artifactPolicy: capabilities.Artifacts,
 		navRoles:       capabilities.Navigation,
 		privacyPolicy:  contract.PrivacyPolicy(),
@@ -844,9 +871,24 @@ func buildGeneration(
 		sidecars:       g.sidecars,
 		skippedNotes:   g.skippedNotes,
 		sizeSkipped:    slices.Clone(g.sizeSkipped),
+		noteCount:      noteCount,
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen)
 	return gen, blocked, nil
+}
+
+// markdownCount is how many of these entries are notes rather than the other
+// files a folder holds. It is counted here, while the folder is being read,
+// because every page's rail states how large the folder is and asking that
+// question later would mean a copy of the file list on every one of them.
+func markdownCount(entries []vault.Entry) int {
+	total := 0
+	for _, entry := range entries {
+		if vault.IsMarkdown(entry.Path()) {
+			total++
+		}
+	}
+	return total
 }
 
 // generation is the set of collections one reading of the folder fills, owned
