@@ -146,22 +146,38 @@ templ Note(v NoteView, c layouts.Chrome) {
 			@readingRail(v.ReadingRail, c)
 			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
 				@flipReceipt(v, lang)
-				<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
-					@articleHead(v, lang)
-					@schemaNotices(v, lang)
-					@inlineAids(v, lang)
-					<div class="y-prose">
-						@templ.Raw(v.BodyHTML)
-					</div>
-					@sequenceSteps(v, lang)
+				@noteArticle(v, lang) {
 					@statusBar(v, lang)
-				</article>
+				}
 			</main>
 			@rightRail(v, lang)
 		</div>
 		@conceptSheet(v.Concepts, lang)
 		@previewCard()
 	}
+}
+
+// noteArticle is one note as it reads: its head, whatever the schema said about
+// it, the aids the narrow layout folds inline, the rendered body, and the way
+// onward. It is a component rather than markup inside the page because a page
+// showing two notes beside one another draws the same thing twice, and a second
+// copy of this would be free to drift from the one a reader sees on the note's
+// own page.
+//
+// The write face is what the two uses differ by, and they differ structurally:
+// the note's own page passes it in, a column beside another note passes nothing.
+// Nothing here asks which page it is on.
+templ noteArticle(v NoteView, lang wording.Lang) {
+	<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
+		@articleHead(v, lang)
+		@schemaNotices(v, lang)
+		@inlineAids(v, lang)
+		<div class="y-prose">
+			@templ.Raw(v.BodyHTML)
+		</div>
+		@sequenceSteps(v, lang)
+		{ children... }
+	</article>
 }
 
 // conceptSheet is the grammar-concept drawer: one hidden <template> per concept
