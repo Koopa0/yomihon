@@ -170,7 +170,7 @@ try {
         flexShrink: getComputedStyle(child).flexShrink,
       })),
     }));
-    if (shape.children.length !== 6) broken(`the fixture has ${shape.children.length} rail children, want the outline, declared sources, cited-by, diagnostics, the mark control, and the status panel`);
+    if (shape.children.length !== 7) broken(`the fixture has ${shape.children.length} rail children, want the outline, the note that belongs beside this one, declared sources, cited-by, diagnostics, the mark control, and the status panel`);
     if (shape.overflowY !== 'auto' || shape.scrollHeight <= shape.clientHeight) {
       broken(`the fixture does not exercise one overflowing rail at 1600×${height}: ${JSON.stringify(shape)}`);
     }
@@ -198,6 +198,7 @@ try {
     // than the answer being empty.
     if (await rail.locator('.y-citedby').count() !== 1) broken('the fixture has no cited-by block');
     if (await rail.locator('.y-basedon').count() !== 1) broken('the fixture has no declared-source block');
+    if (await rail.locator('.y-pair').count() !== 1) broken('the fixture is offered no note to read beside this one');
     if (await rail.locator('.y-markset').count() !== 1) broken('the fixture has no control for keeping a reading place');
     if (await tocLinks.count() !== 24) broken(`the fixture has ${await tocLinks.count()} TOC links, want 24`);
     if (await statusControls.count() === 0) broken('the fixture has no status control');
@@ -220,13 +221,16 @@ try {
         const found = element.querySelector(selector);
         return found ? found.getBoundingClientRect().top + element.scrollTop : null;
       };
-      return { outline: top('nav .y-toc__list'), based: top('.y-basedon'), cited: top('.y-citedby'), ruling: top('.y-statuspanel') };
+      return { outline: top('nav .y-toc__list'), pair: top('.y-pair'), based: top('.y-basedon'), cited: top('.y-citedby'), ruling: top('.y-statuspanel') };
     });
     for (const [name, value] of Object.entries(tops)) {
       if (value === null) broken(`the fixture has no ${name} block, so the order it stands in proves nothing`);
     }
-    if (!(tops.outline < tops.based)) {
-      failOrder(`declared sources are painted above the note's own shape at 1600×${height}: ${JSON.stringify(tops)}`);
+    if (!(tops.outline < tops.pair)) {
+      failOrder(`the note that belongs beside this one is painted above this note's own shape at 1600×${height}: ${JSON.stringify(tops)}`);
+    }
+    if (!(tops.pair < tops.based)) {
+      failOrder(`declared sources are painted above the offer to read this note beside another at 1600×${height}: ${JSON.stringify(tops)}`);
     }
     if (!(tops.based < tops.cited)) {
       failOrder(`what leads to this note is painted above the sources it declared at 1600×${height}: ${JSON.stringify(tops)}`);
