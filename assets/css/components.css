@@ -1891,27 +1891,58 @@ html {
    the one control on a reading page with no version for a browser without
    one, because what it sends is where the window is and there is no such
    thing to send without a script. */
-.y-markset { display: none; margin: 28px 0 0; }
-[data-js] .y-markset { display: block; }
-.y-markset__note, .y-markset__said {
-  margin: 8px 0 0; font-family: var(--font-serif); font-size: var(--fs-12);
-  line-height: 1.6; color: var(--fg-subtle);
+.y-markset {
+  display: none;
+  margin: 28px 0 0;
 }
-.y-markset__said:empty { display: none; }
+
+[data-js] .y-markset {
+  display: block;
+}
+
+.y-markset__note,
+.y-markset__said {
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.y-markset__said:empty {
+  display: none;
+}
+
 /* The way back to the place the reader kept, ahead of the four ways in. */
 .y-continue {
-  margin: 0 0 28px; padding: 16px 18px; border: 1px solid var(--border);
-  border-radius: var(--r-sm); background: var(--elevated);
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  margin: 0 0 28px;
+  padding: 16px 18px;
 }
+
 .y-continue__note {
-  display: block; margin: 8px 0 0; font-family: var(--font-serif);
-  font-size: var(--fs-15); line-height: 1.5; color: var(--fg);
+  color: var(--fg);
+  display: block;
+  font-family: var(--font-serif);
+  font-size: var(--fs-15);
+  line-height: 1.5;
+  margin: 8px 0 0;
 }
+
 .y-continue__notice {
-  margin: 8px 0 0; font-family: var(--font-serif); font-size: var(--fs-13);
-  line-height: 1.6; color: var(--fg-muted);
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-13);
+  line-height: 1.6;
+  margin: 8px 0 0;
 }
+
 .y-continue__note--device {
-  margin: 8px 0 0; font-family: var(--font-serif); font-size: var(--fs-12);
-  line-height: 1.6; color: var(--fg-subtle);
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  margin: 8px 0 0;
 }
