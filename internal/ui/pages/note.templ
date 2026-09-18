@@ -149,6 +149,13 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// offer, so every other page's header has nothing to draw.
 	{{ c.Mark = v.markOffer() }}
 	@layouts.Base(c) {
+		// Ahead of the note, because the press that shuts the sheet names it
+		// by id and a name is answered by whichever element carries it first.
+		// The ids a note stamps on its own headings are folded from the words
+		// the author wrote, so a heading called "Concept sheet" folds to
+		// exactly this name, and a lesson that had one would leave the press
+		// shutting a heading.
+		@conceptSheet(v.Concepts, lang)
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@readingRail(v.ReadingRail, c)
@@ -167,7 +174,6 @@ templ Note(v NoteView, c layouts.Chrome) {
 			</main>
 			@rightRail(v, lang)
 		</div>
-		@conceptSheet(v.Concepts, lang)
 		@previewCard()
 	}
 }

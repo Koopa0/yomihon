@@ -37,8 +37,16 @@ templ Base(c Chrome) {
 			<a class="y-skiplink" href="#main-content">{ wording.SkipToContent.In(c.Lang) }</a>
 			<div class="yomihon">
 				@header(c)
-				{ children... }
+				// Ahead of the page, and that is load-bearing. A press names
+				// the palette by id, and a name is answered by whichever
+				// element carries it first. The ids a note stamps on its own
+				// headings are folded from the words the author wrote, so a
+				// heading called "Search dialog" folds to exactly this name —
+				// and would answer the press if it came first. The skip link's
+				// target and the two header panels are ahead of the page for
+				// the same reason.
 				@searchDialog(c.Lang)
+				{ children... }
 			</div>
 			<script nonce={ c.Nonce } type="module" src="/static/yomihon.js"></script>
 		</body>

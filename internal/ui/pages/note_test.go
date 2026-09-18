@@ -2,6 +2,7 @@ package pages
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -730,5 +731,45 @@ func TestTheConceptSheetCloseNamesWhatItCloses(t *testing.T) {
 	// the press above is the third and the least reachable of them.
 	if !strings.Contains(html, `closedby="any"`) {
 		t.Errorf("the sheet no longer closes on Escape or a press beside it; html = %q", html)
+	}
+}
+
+// TestAPressNamesAnOverlayThePageAnswersFirst holds the one thing that decides
+// whether a press declared in the markup reaches the surface it names. A name
+// is answered by whichever element in the page carries it first, and the ids a
+// note stamps on its own headings are folded from the words the author wrote —
+// so a heading called "Search dialog" or "Concept sheet" folds to exactly the
+// name one of these presses uses. Every surface a press names is therefore
+// drawn ahead of the note's own words, where no heading can come before it.
+func TestAPressNamesAnOverlayThePageAnswersFirst(t *testing.T) {
+	t.Parallel()
+
+	model := buildModel(t)
+	var buf bytes.Buffer
+	page := Note(recordedNoteView(t, model, "Writing/lessons/go/L01.md"), recordedChrome())
+	if err := page.Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render note page: %v", err)
+	}
+	html := buf.String()
+
+	body := strings.Index(html, "<main")
+	if body < 0 {
+		t.Fatal("the page has no reading region, so there is nothing for an overlay to be ahead of")
+	}
+	named := regexp.MustCompile(`(?:commandfor|popovertarget)="([^"]+)"`).FindAllStringSubmatch(html, -1)
+	if len(named) == 0 {
+		t.Fatal("no press on this page names a surface, so this test read a page it cannot ask anything of")
+	}
+	for _, match := range named {
+		id := `id="` + match[1] + `"`
+		first := strings.Index(html, id)
+		switch {
+		case first < 0:
+			t.Errorf("a press names %q and the page carries no surface by that name", match[1])
+		case strings.Count(html, id) != 1:
+			t.Errorf("the page carries %d surfaces named %q, and a press reaches whichever comes first", strings.Count(html, id), match[1])
+		case first > body:
+			t.Errorf("the surface named %q is drawn after the note's own words, where a heading folding to that name would answer the press before it does", match[1])
+		}
 	}
 }
