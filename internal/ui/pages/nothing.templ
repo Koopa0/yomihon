@@ -1,0 +1,27 @@
+package pages
+
+// nothingToShow draws the notice every surface with nothing to show uses. Its
+// parts are the same wherever it appears and in the same order: the mark, the
+// heading, and what the surface has to say, which arrives as children so a
+// sentence can carry the command, the link or the diagnostic its own surface
+// owes the reader.
+//
+// It offers no control and nothing that waits. None of these surfaces fetches
+// anything, so a spinner or a retry would be a promise the page cannot keep.
+templ nothingToShow(n nothingNotice) {
+	<div class={ "y-nothing", templ.KV("y-nothing--fault", n.Fault) } data-nothing={ n.Kind }>
+		if n.Mark != "" {
+			<p class="y-nothing__mark">{ n.Mark }</p>
+		}
+		if n.Title != "" {
+			if n.Page {
+				<h1 class="y-nothing__title y-nothing__title--page" { n.titleAttrs()... }>{ n.Title }</h1>
+			} else {
+				<h2 class="y-nothing__title" { n.titleAttrs()... }>{ n.Title }</h2>
+			}
+		}
+		<div class="y-nothing__says">
+			{ children... }
+		</div>
+	</div>
+}
