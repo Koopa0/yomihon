@@ -134,7 +134,11 @@ const announceThroughAReplacementTemplate = (page) => rewriteResponse(
 const reopenWithoutAsking = (page) => rewriteResponse(
   page,
   '**/search.js',
-  [{ needle: '    onReopen.get(dialog)?.();', replacement: '' }],
+  // The check now hangs off the dialog's own announcement that it has opened,
+  // which is the one thing every way in has in common — a press the browser
+  // performed from the markup, the chord, or the module's own fallback. So the
+  // needle is that line rather than the bare call it used to be.
+  [{ needle: "    if (event.newState === 'open') onReopen.get(dialog)?.();", replacement: '' }],
   'the reopen check',
 );
 

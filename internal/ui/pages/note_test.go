@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -703,5 +704,32 @@ func TestNoteFileRowKeepsItsAddressBehindAClosedSummary(t *testing.T) {
 		if strings.Contains(summary, moved) {
 			t.Errorf("%q is still on the closed line; summary = %q", moved, summary)
 		}
+	}
+}
+
+// TestTheConceptSheetCloseNamesWhatItCloses holds the one half of this drawer
+// the markup can carry. Opening it stays with the script — the trigger is a
+// link the renderer wrote into the note's prose, and the words in the sheet
+// are cloned there by that same script — but the press that shuts it says what
+// it shuts, so the browser does it and the module keeps no listener for it.
+func TestTheConceptSheetCloseNamesWhatItCloses(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	concepts := []lesson.ConceptDoc{{ID: "c1", Title: "は", HTML: "<p>concept</p>"}}
+	if err := conceptSheet(concepts, wording.ZhHant).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render concept sheet: %v", err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, `<dialog id="concept-sheet"`) {
+		t.Errorf("the sheet carries no id for a press to name; html = %q", html)
+	}
+	if !strings.Contains(html, `command="close" commandfor="concept-sheet"`) {
+		t.Errorf("the close press does not declare what it closes; html = %q", html)
+	}
+	// The sheet is also asked to keep the platform's own two ways out, because
+	// the press above is the third and the least reachable of them.
+	if !strings.Contains(html, `closedby="any"`) {
+		t.Errorf("the sheet no longer closes on Escape or a press beside it; html = %q", html)
 	}
 }
