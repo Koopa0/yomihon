@@ -24,7 +24,7 @@ templ JournalIndex(v JournalView, c layouts.Chrome) {
 					}
 					@ShelfPage(v.Entries)
 					if len(v.Undated.Rows) > 0 {
-						<section class="y-undated" aria-labelledby="journal-undated-title" data-journal-undated>
+						<section class="y-journalundated" aria-labelledby="journal-undated-title" data-journal-undated>
 							<h2 id="journal-undated-title" class="y-railsummary y-railsummary--label">{ v.Undated.Title }</h2>
 							@ShelfPage(v.Undated)
 						</section>

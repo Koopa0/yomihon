@@ -118,7 +118,7 @@ func JournalIndex(v JournalView, c layouts.Chrome) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if len(v.Undated.Rows) > 0 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<section class=\"y-undated\" aria-labelledby=\"journal-undated-title\" data-journal-undated><h2 id=\"journal-undated-title\" class=\"y-railsummary y-railsummary--label\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<section class=\"y-journalundated\" aria-labelledby=\"journal-undated-title\" data-journal-undated><h2 id=\"journal-undated-title\" class=\"y-railsummary y-railsummary--label\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

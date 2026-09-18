@@ -1425,7 +1425,7 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 
 /* The entries that wrote no day belong to no month, so they sit under whichever
    month is open rather than falling off every one of them. */
-.y-undated {
+.y-journalundated {
   margin-top: 34px;
 }
 
