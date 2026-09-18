@@ -103,11 +103,15 @@ const MUTATIONS = {
   // that foot strands the bar in the middle of empty paper. It aims here and
   // not at the reading position because the padding is entirely below the bar:
   // it lengthens the document without moving the bar on the first screen.
+  //
+  // The foot is declared once for every page that shares the reading column, so
+  // the needle names that declaration; the bar is drawn on a note, which is the
+  // page this is measured on.
   'widen-the-article-foot': {
     target: 'follows-article-end',
     apply: rewriteStylesheet(
-      'padding:44px var(--article-gutter)120px',
-      'padding:44px var(--article-gutter)300px',
+      'padding:44px var(--gutter-read)120px',
+      'padding:44px var(--gutter-read)300px',
       'widened article foot',
     ),
   },
