@@ -267,14 +267,14 @@ func TestSnippetGivesEveryScriptTheSameWindow(t *testing.T) {
 
 func snippetFor(t *testing.T, idx *Index, query string) string {
 	t.Helper()
-	results, _, err := idx.SearchN(Parse(query), -1)
+	answer, err := idx.Search(Parse(query), -1)
 	if err != nil {
 		t.Fatalf("Search(%q) error = %v", query, err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("Search(%q) returned %d results, want exactly 1 to measure", query, len(results))
+	if len(answer.Results) != 1 {
+		t.Fatalf("Search(%q) returned %d results, want exactly 1 to measure", query, len(answer.Results))
 	}
-	return results[0].Snippet
+	return answer.Results[0].Snippet
 }
 
 // MarkHits locates matches on a lowercased copy of the snippet, and
@@ -722,21 +722,21 @@ func TestExcerptPrefersProseWhenTheSameWordsSitInAFence(t *testing.T) {
 			"The source owns jobs after the workers close.\n"))),
 	}, validArtifactPolicy(t))
 
-	results, _, err := idx.SearchN(Parse(`"owns jobs"`), -1)
+	answer, err := idx.Search(Parse(`"owns jobs"`), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("Search() returned %d results, want 1", len(results))
+	if len(answer.Results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(answer.Results))
 	}
-	got := results[0].Snippet
+	got := answer.Results[0].Snippet
 	if strings.Contains(got, "direction: right") || strings.Contains(got, `source\n`) {
 		t.Errorf("snippet() = %q, spent the excerpt on the fence that sits first", got)
 	}
 	if !strings.Contains(got, "The source owns jobs after the workers close.") {
 		t.Errorf("snippet() = %q, want the prose window that holds the same words", got)
 	}
-	if results[0].FromFence {
+	if answer.Results[0].FromFence {
 		t.Error("FromFence = true; the prose window answered, so the row is not a fence hit")
 	}
 }
@@ -758,21 +758,21 @@ func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
 			"```\n"))),
 	}, validArtifactPolicy(t))
 
-	results, _, err := idx.SearchN(Parse(`"owns jobs"`), -1)
+	answer, err := idx.Search(Parse(`"owns jobs"`), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("Search() returned %d results, want 1", len(results))
+	if len(answer.Results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(answer.Results))
 	}
-	got := results[0].Snippet
+	got := answer.Results[0].Snippet
 	if got == "" {
 		t.Fatal("snippet() is empty; a fence-only hit must still produce an excerpt")
 	}
 	if !strings.Contains(got, "owns jobs") {
 		t.Errorf("snippet() = %q, dropped the fence words the query asked for", got)
 	}
-	if !results[0].FromFence {
+	if !answer.Results[0].FromFence {
 		t.Error("FromFence = false; a fence-only hit must name the excerpt as source")
 	}
 	body := strings.TrimPrefix(got, "…")
@@ -782,7 +782,7 @@ func TestExcerptKeepsAFenceWhenTheWordsLiveOnlyThere(t *testing.T) {
 	if strings.Contains(got, "something else entirely") {
 		t.Errorf("snippet() = %q, opened as the preceding paragraph", got)
 	}
-	if results[0].Landing == "" {
+	if answer.Results[0].Landing == "" {
 		t.Error("Landing is empty; a fence-only hit must still name where it matched")
 	}
 }
@@ -825,21 +825,21 @@ func TestFenceRangeRemapSurvivesAnNFDCharacter(t *testing.T) {
 			"The workers close after the source.\n"))),
 	}, validArtifactPolicy(t))
 
-	results, _, err := idx.SearchN(Parse(needle), -1)
+	answer, err := idx.Search(Parse(needle), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("Search() returned %d results, want 1", len(results))
+	if len(answer.Results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(answer.Results))
 	}
-	if !results[0].FromFence {
+	if !answer.Results[0].FromFence {
 		t.Fatal("FromFence = false; the phrase lives only in the fence")
 	}
-	if strings.Contains(results[0].Snippet, "workers") {
-		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)
+	if strings.Contains(answer.Results[0].Snippet, "workers") {
+		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", answer.Results[0].Snippet)
 	}
-	if !strings.Contains(results[0].Snippet, needle) {
-		t.Fatalf("snippet() = %q, dropped the fence phrase", results[0].Snippet)
+	if !strings.Contains(answer.Results[0].Snippet, needle) {
+		t.Fatalf("snippet() = %q, dropped the fence phrase", answer.Results[0].Snippet)
 	}
 }
 
@@ -860,21 +860,21 @@ func TestFenceExcerptDoesNotWalkToThePreviousSentence(t *testing.T) {
 			"```\n"))),
 	}, validArtifactPolicy(t))
 
-	results, _, err := idx.SearchN(Parse(`"`+token+`"`), -1)
+	answer, err := idx.Search(Parse(`"`+token+`"`), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("Search() returned %d results, want 1", len(results))
+	if len(answer.Results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(answer.Results))
 	}
-	if !results[0].FromFence {
+	if !answer.Results[0].FromFence {
 		t.Fatal("FromFence = false; the token lives only in the fence")
 	}
-	if strings.Contains(results[0].Snippet, "UNIQUE_FENCE_HEAD") {
-		t.Fatalf("snippet() = %q, walked back to the previous sentence inside the fence", results[0].Snippet)
+	if strings.Contains(answer.Results[0].Snippet, "UNIQUE_FENCE_HEAD") {
+		t.Fatalf("snippet() = %q, walked back to the previous sentence inside the fence", answer.Results[0].Snippet)
 	}
-	if !strings.Contains(results[0].Snippet, token) {
-		t.Fatalf("snippet() = %q, dropped the fence words the query asked for", results[0].Snippet)
+	if !strings.Contains(answer.Results[0].Snippet, token) {
+		t.Fatalf("snippet() = %q, dropped the fence words the query asked for", answer.Results[0].Snippet)
 	}
 }
 
@@ -898,21 +898,21 @@ func TestFenceHitIsClassifiedAfterAFoldThatShrinksThePrefix(t *testing.T) {
 			"The workers close after the source.\n"))),
 	}, validArtifactPolicy(t))
 
-	results, _, err := idx.SearchN(Parse(needle), -1)
+	answer, err := idx.Search(Parse(needle), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("Search() returned %d results, want 1", len(results))
+	if len(answer.Results) != 1 {
+		t.Fatalf("Search() returned %d results, want 1", len(answer.Results))
 	}
-	if !results[0].FromFence {
+	if !answer.Results[0].FromFence {
 		t.Fatal("FromFence = false; the phrase lives only in the fence")
 	}
-	if strings.Contains(results[0].Snippet, "workers") {
-		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", results[0].Snippet)
+	if strings.Contains(answer.Results[0].Snippet, "workers") {
+		t.Fatalf("excerpt swallowed the following prose because the fence was not remapped: %q", answer.Results[0].Snippet)
 	}
-	if !strings.Contains(results[0].Snippet, needle) {
-		t.Fatalf("snippet() = %q, dropped the fence phrase", results[0].Snippet)
+	if !strings.Contains(answer.Results[0].Snippet, needle) {
+		t.Fatalf("snippet() = %q, dropped the fence phrase", answer.Results[0].Snippet)
 	}
 }
 

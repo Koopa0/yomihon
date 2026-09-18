@@ -216,7 +216,7 @@ func TestBookRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := bookRailEntry(ReadingRail{}, chrome, tt.entry).Render(t.Context(), &buf); err != nil {
+			if err := bookRailEntry(chrome, tt.entry).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render book rail row: %v", err)
 			}
 			html := buf.String()

@@ -72,14 +72,14 @@ func TestHealthCarriesDeclaredArticleLanguage(t *testing.T) {
 			name: "schemaFaultLists",
 			got: func(t *testing.T) string {
 				t.Helper()
-				_, faults := schemaFaultLists(healthLanguageSchemaSnapshot(t))
+				_, faults := schemaFaultLists(healthLanguageSchemaSnapshot(t), articleLang)
 				if len(faults) != 1 {
 					t.Fatalf("schemaFaultLists() faults = %d, want 1", len(faults))
 				}
-				if faults[0].RelPath != healthLanguageRel {
-					t.Fatalf("schemaFaultLists() path = %q, want %q", faults[0].RelPath, healthLanguageRel)
+				if faults[0].Note.RelPath != healthLanguageRel {
+					t.Fatalf("schemaFaultLists() path = %q, want %q", faults[0].Note.RelPath, healthLanguageRel)
 				}
-				return faults[0].Language
+				return faults[0].Note.Language
 			},
 		},
 	} {

@@ -4,11 +4,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/wording"
+	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // PathView is everything the study-path page needs: the current path's branches
@@ -72,6 +73,11 @@ type PathEntryView struct {
 	Href   string
 	Status string
 	Sealed bool
+	// Here marks the lesson the reader is at. It says where they are standing,
+	// never how far they have come: the words beside the row stay the
+	// contract's, and a course carries no reading of its own about which
+	// lessons are behind the reader.
+	Here   bool
 	Kind   nav.EntryKind
 	Number int
 	// Language is the tag the note this row reached declared, carried so a
@@ -165,7 +171,13 @@ type PathLink struct {
 // builds the switcher from every study path in the vault. It draws what the
 // grammar lets navigation read and nothing else; a branch outside the course
 // keeps its prose on the note's own page.
-func BuildPathView(current *nav.Path, all []nav.Path) PathView {
+//
+// here is the vault-relative note the reader is at, or empty when nothing said.
+// It is matched against the course's own resolved rows, so a note this course
+// does not list marks nothing, and so does a reader who arrived from the desk.
+// A course that lists the same note twice marks it twice: both rows are that
+// note, and choosing between them would be a guess.
+func BuildPathView(current *nav.Path, all []nav.Path, here string) PathView {
 	v := PathView{
 		Title:      current.Title,
 		RelPath:    current.RelPath,
@@ -193,7 +205,7 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 		}
 	}
 	for _, g := range current.Groups {
-		sv, ok := buildPathBranch(g, 0, v.Parts+1)
+		sv, ok := buildPathBranch(g, 0, v.Parts+1, here)
 		if !ok {
 			continue
 		}
@@ -208,7 +220,7 @@ func BuildPathView(current *nav.Path, all []nav.Path) PathView {
 // a view. ok is false for a branch the course excludes that carries no declared
 // branch beneath it; a structural heading still draws, since dropping it would
 // orphan its parts. Sequence position is copied from navigation's walk.
-func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
+func buildPathBranch(g *nav.PathGroup, depth, num int, here string) (PathBranchView, bool) {
 	if !g.Drawn() {
 		return PathBranchView{}, false
 	}
@@ -230,11 +242,11 @@ func buildPathBranch(g *nav.PathGroup, depth, num int) (PathBranchView, bool) {
 			if !g.Teaches(item.Entry) {
 				continue
 			}
-			entry := buildPathEntry(item.Entry)
+			entry := buildPathEntry(item.Entry, here)
 			sv.Items = append(sv.Items, PathItemView{Entry: &entry})
 		case item.Group != nil:
 			children++
-			child, ok := buildPathBranch(item.Group, depth+1, children)
+			child, ok := buildPathBranch(item.Group, depth+1, children, here)
 			if !ok {
 				children--
 				continue
@@ -261,7 +273,10 @@ func countModules(sv *PathBranchView) int {
 // number is copied for every row, so a planned lesson keeps its place; the
 // language travels with the rest of what a resolved target answered, because a
 // row that resolved to nothing read no note and so carries no declaration.
-func buildPathEntry(entry *nav.PathEntry) PathEntryView {
+//
+// Only a resolved row can be the one the reader is at: a row that reached no
+// note is not a note anyone can have been reading.
+func buildPathEntry(entry *nav.PathEntry, here string) PathEntryView {
 	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
 	if entry.Kind != nav.EntryResolved {
 		return v
@@ -269,7 +284,19 @@ func buildPathEntry(entry *nav.PathEntry) PathEntryView {
 	v.Href = notesHref(entry.RelPath)
 	v.Status = entry.Status
 	v.Sealed = entry.Status == schema.SealStatus
+	v.Here = here != "" && entry.RelPath == here
 	return v
+}
+
+// hereAttr marks the row the reader is standing on. The value is "location"
+// rather than "page": the page is the whole course, and the row is where the
+// reader is inside it, which is what a link to somewhere else can truthfully
+// claim. A row that is not the one contributes nothing.
+func hereAttr(here bool) templ.Attributes {
+	if here {
+		return templ.Attributes{"aria-current": "location"}
+	}
+	return nil
 }
 
 // A row says three things about how its target resolved: the words a reader

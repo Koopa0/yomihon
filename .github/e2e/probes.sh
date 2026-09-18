@@ -49,6 +49,7 @@ probes=(
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
+  "course-line.mjs|/notes/Course/C01.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
   "theme-toggle-pressed.mjs|/notes/Notes/alpha.md"
   "reading-switch-label.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -56,6 +57,7 @@ probes=(
   "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "preference-persistence.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "health-table.mjs|/health"
   "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
@@ -63,6 +65,7 @@ probes=(
   "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
   "midword-landing.mjs|/search?q=lybdenum"
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
+  "search-facets.mjs|/search?q=a"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   # Last, and it has to stay last: this one keeps a reading place, and from
   # then on every desk the run draws carries a row offering it back. A probe

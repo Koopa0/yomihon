@@ -28,11 +28,11 @@ func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 func snapshotSearch(tb testing.TB, idx *lexical.Index, query string) []lexical.Result {
 	tb.Helper()
-	results, _, err := idx.SearchN(lexical.Parse(query), -1)
+	answer, err := idx.Search(lexical.Parse(query), -1)
 	if err != nil {
 		tb.Fatalf("Search(%q) error: %v", query, err)
 	}
-	return results
+	return answer.Results
 }
 
 func assertSearchArtifactPolicy(tb testing.TB, snap *Generation) {
@@ -644,7 +644,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if result := snapshotSearch(t, got.Search(), "Card"); len(result) != 1 || result[0].RelPath != "System/templates/Card.md" {
 		t.Errorf("plain lexical search after artifact drift = %+v, want locally readable template", result)
 	}
-	if _, _, err := got.Search().SearchN(lexical.Parse("status:ready"), -1); err == nil {
+	if _, err := got.Search().Search(lexical.Parse("status:ready"), -1); err == nil {
 		t.Error("metadata search succeeded under source-stale artifact policy")
 	}
 
@@ -1884,11 +1884,11 @@ func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, _, err := store.Current().Search().SearchN(lexical.Parse("rarespelunker"), -1)
+	answer, err := store.Current().Search().Search(lexical.Parse("rarespelunker"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	for _, r := range results {
+	for _, r := range answer.Results {
 		if strings.HasSuffix(r.RelPath, ".yaml") {
 			t.Errorf("a sidecar past the size its page will show is in the index: %s", r.RelPath)
 		}
@@ -1916,11 +1916,11 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, _, err := store.Current().Search().SearchN(lexical.Parse("rarespelunker"), -1)
+	answer, err := store.Current().Search().Search(lexical.Parse("rarespelunker"), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	for _, r := range results {
+	for _, r := range answer.Results {
 		if strings.HasSuffix(r.RelPath, ".pdf") {
 			t.Errorf("a PDF is in the text index: %s — its page shows a viewer, not these words", r.RelPath)
 		}
@@ -1979,12 +1979,12 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 		t.Fatal("the under-cap note is absent from the generation")
 	}
 
-	results, _, err := gen.Search().SearchN(lexical.Parse(needle), -1)
+	answer, err := gen.Search().Search(lexical.Parse(needle), -1)
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
 	var paths []string
-	for _, r := range results {
+	for _, r := range answer.Results {
 		paths = append(paths, r.RelPath)
 	}
 	if !slices.Contains(paths, "small.md") {

@@ -85,6 +85,16 @@ var filterKeys = map[string]filterKind{
 	"folder":        filterPath,
 }
 
+// facetKeys are the keys an answer is divided along, in the order a reader
+// meets them. It stands beside the grammar table because a key can only be
+// offered as a division of an answer if the grammar accepts it as a filter,
+// and because what keeps the list this short is size rather than any property
+// of the vocabulary: a note declares one type, one status and one domain,
+// while it may declare many topics and lives at one of hundreds of addresses,
+// and a column of two hundred subjects narrows nothing. A test holds this set
+// inside the grammar's own.
+var facetKeys = []string{StatusFilterKey, "type", "domain"}
+
 // classifyFilterKey is the shared grammar and capability classification for
 // structured filters. Every recognized key receives a capability kind here.
 func classifyFilterKey(key string) (filterKind, bool) {
@@ -140,9 +150,17 @@ func Parse(q string) *Query {
 // queryField is one whitespace-delimited unit of a raw query. quotedFrom is where
 // quoting first began, or -1, and it decides how the field reads: quoting the key
 // or its colon makes the field text, quoting only the value leaves a filter.
+//
+// from and to bound the field in the raw query it was read out of, quotes
+// included. text is not that stretch: quotes are stripped out of it and a
+// grouped span holds whitespace the splitter would otherwise have cut at. A
+// caller rewriting the query works from the offsets, because rejoining the
+// fields it kept would spell the reader's own words back at them with the
+// quoting and the spacing this splitter chose rather than the ones they typed.
 type queryField struct {
 	text       string
 	quotedFrom int
+	from, to   int
 }
 
 // quotePairs maps each opening quote character to its closing partner. ASCII
@@ -159,29 +177,35 @@ func quoteFields(q string) []queryField {
 	var fields []queryField
 	var b strings.Builder
 	quotedFrom := -1
-	flush := func() {
+	from := -1
+	flush := func(to int) {
 		if strings.TrimSpace(b.String()) != "" {
-			fields = append(fields, queryField{text: b.String(), quotedFrom: quotedFrom})
+			fields = append(fields, queryField{text: b.String(), quotedFrom: quotedFrom, from: from, to: to})
 		}
 		b.Reset()
 		quotedFrom = -1
+		from = -1
 	}
 	for i := 0; i < len(q); {
-		r, size := utf8.DecodeRuneInString(q[i:])
-		if closer, ok := quotePairs[r]; ok && quoteMayGroup(b.String()) {
-			if j := groupCloser(q[i+size:], closer); j >= 0 {
-				if quotedFrom < 0 {
-					quotedFrom = b.Len()
-				}
-				b.WriteString(q[i+size : i+size+j])
-				i += size + j + utf8.RuneLen(closer)
-				continue
+		if inner, next, ok := groupAt(q, i, b.String()); ok {
+			if quotedFrom < 0 {
+				quotedFrom = b.Len()
 			}
+			if from < 0 {
+				from = i
+			}
+			b.WriteString(inner)
+			i = next
+			continue
 		}
+		r, size := utf8.DecodeRuneInString(q[i:])
 		if unicode.IsSpace(r) {
-			flush()
+			flush(i)
 			i += size
 			continue
+		}
+		if from < 0 {
+			from = i
 		}
 		// The original bytes pass through untouched — folding is the token's
 		// business, not the splitter's — so a byte that is not valid UTF-8
@@ -189,8 +213,26 @@ func quoteFields(q string) []queryField {
 		b.WriteString(q[i : i+size])
 		i += size
 	}
-	flush()
+	flush(len(q))
 	return fields
+}
+
+// groupAt reports the quoted span opening at i: the characters inside it, where
+// scanning resumes after its closing partner, and whether there was one at all.
+// A quote that opens no group — one standing mid-field, or one whose partner
+// never arrives at a field boundary — is an ordinary character, and the caller
+// writes it through.
+func groupAt(q string, i int, fieldSoFar string) (inner string, next int, ok bool) {
+	r, size := utf8.DecodeRuneInString(q[i:])
+	closer, quoted := quotePairs[r]
+	if !quoted || !quoteMayGroup(fieldSoFar) {
+		return "", 0, false
+	}
+	j := groupCloser(q[i+size:], closer)
+	if j < 0 {
+		return "", 0, false
+	}
+	return q[i+size : i+size+j], i + size + j + utf8.RuneLen(closer), true
 }
 
 // quoteMayGroup reports whether a quote appearing after the field text so far
@@ -266,3 +308,107 @@ const (
 	readAsUnknownFilter
 	readAsFilter
 )
+
+// WithFilter returns raw with f written on the end of it, and reports whether
+// the result reads back as the same query plus exactly that one constraint.
+//
+// Every byte the reader typed stays where it stood, because the constraint is
+// appended rather than spliced in. The report is not a formality: a value whose
+// own quoting closes a group early comes back as a shorter constraint and a
+// stray word, and a surface offering the link anyway would send the reader to
+// an answer that is not the one the offer counted. The check runs the candidate
+// back through the parser instead of reasoning about which characters are safe,
+// so it cannot disagree with the grammar it is protecting.
+func WithFilter(raw string, f Filter) (string, bool) {
+	written := spellFilter(f)
+	out := written
+	if raw != "" {
+		out = raw + written
+		if last, _ := utf8.DecodeLastRuneInString(raw); !unicode.IsSpace(last) {
+			out = raw + " " + written
+		}
+	}
+	before, after := Parse(raw), Parse(out)
+	if !slices.Equal(before.tokens, after.tokens) || !slices.Equal(before.unknownKeys, after.unknownKeys) {
+		return "", false
+	}
+	want := append(slices.Clip(before.filters), Parse(written).filters...)
+	if len(want) != len(before.filters)+1 || !slices.Equal(want, after.filters) {
+		return "", false
+	}
+	return out, true
+}
+
+// WithoutFilter returns raw with every field that reads as f cut out of it. The
+// bytes on either side are the reader's own: their spacing, their quoting and
+// their capitalisation all stand, because the cut is made at the offsets the
+// splitter recorded rather than by taking the query apart and writing it out
+// again. Whitespace goes with the field it separated — the run in front of it,
+// or the run behind it where the field opened the query — so removing a
+// constraint from the middle of a query does not weld its neighbours together.
+func WithoutFilter(raw string, f Filter) string {
+	var out strings.Builder
+	kept := 0
+	for _, field := range quoteFields(raw) {
+		key, value, reading := splitFilter(field.text, field.quotedFrom)
+		if reading != readAsFilter || key != f.Key || !filterValuesEqual(key, value, f.Value) {
+			continue
+		}
+		from, to := field.from, field.to
+		if start := whitespaceRunEndingAt(raw, from); start < from {
+			from = start
+		} else {
+			to += whitespaceRun(raw, to)
+		}
+		// Two constraints with nothing but one space between them both claim
+		// that space: the first takes it as the run behind it, having none in
+		// front, and the second then walks back into ground already cut. The
+		// second claim yields, so the space is removed once and the cut stays
+		// a forward walk.
+		from = max(from, kept)
+		out.WriteString(raw[kept:from])
+		kept = to
+	}
+	if kept == 0 {
+		return raw
+	}
+	out.WriteString(raw[kept:])
+	return out.String()
+}
+
+// filterValuesEqual reports whether two values written for the same key name
+// the same constraint. The comparison is the one matching makes, so a link
+// removing "status:Draft" removes the "status:draft" a reader typed: both were
+// asking the index the same question. A folder value is the exception the
+// matcher already carries — it is compared a directory name at a time, so the
+// as-written spellings are what stand here.
+func filterValuesEqual(key, left, right string) bool {
+	if key == "folder" {
+		return vault.NormalizeNFC(left) == vault.NormalizeNFC(right)
+	}
+	return fold(left) == fold(right)
+}
+
+// spellFilter writes one constraint the way a reader would have to type it for
+// this grammar to read it back: a value holding whitespace is quoted, because
+// the bare characters would read as a filter plus a stray word.
+func spellFilter(f Filter) string {
+	if strings.IndexFunc(f.Value, unicode.IsSpace) < 0 {
+		return f.Key + ":" + f.Value
+	}
+	return f.Key + `:"` + f.Value + `"`
+}
+
+// whitespaceRunEndingAt returns the offset where the run of whitespace ending
+// at pos begins, or pos itself when the character in front of it is not
+// whitespace.
+func whitespaceRunEndingAt(s string, pos int) int {
+	for pos > 0 {
+		r, size := utf8.DecodeLastRuneInString(s[:pos])
+		if !unicode.IsSpace(r) {
+			break
+		}
+		pos -= size
+	}
+	return pos
+}
