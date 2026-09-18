@@ -149,6 +149,61 @@ func TestJournalEntryWithNoDayIsGatheredUnderTheMonth(t *testing.T) {
 	}
 }
 
+// TestAJournalNameIsShownOnlyWhereItAddsToTheDay keeps the page from saying one
+// thing twice. A vault names its journal entries for the days they are for, so
+// beside the day a square already shows, most names add nothing at all; an
+// entry named for half a day adds that half, and one named for what it is about
+// keeps its name whole. The row under the calendar answers the same way, and a
+// square with nothing to add draws a mark that still carries the entry's whole
+// name for a reader who cannot see which square it is in.
+func TestAJournalNameIsShownOnlyWhereItAddsToTheDay(t *testing.T) {
+	t.Parallel()
+
+	view := NewJournalIndex(journalFixture(), julyMonth(t), nav.Closure{}, wording.ZhHant, nil)
+
+	want := map[string]string{
+		"/notes/Diary/2026-07-31.md":             "",
+		"/notes/Diary/2026-07-20.md":             "",
+		"/notes/Diary/2026-07-20%20%E5%A4%9C.md": "夜",
+		"/notes/Diary/week%20in%20Kyoto.md":      "week in Kyoto",
+		"/notes/Diary/2026-07-01.md":             "",
+	}
+	inSquares := make(map[string]string, len(want))
+	names := make(map[string]string, len(want))
+	for _, week := range view.Grid.Weeks {
+		for _, cell := range week {
+			for _, entry := range cell.Entries {
+				inSquares[entry.Href] = entry.Text
+				names[entry.Href] = entry.Name
+			}
+		}
+	}
+	if diff := cmp.Diff(want, inSquares); diff != "" {
+		t.Errorf("the names drawn in the squares mismatch (-want +got):\n%s", diff)
+	}
+	// A mark has no words of its own, so the name it carries is the whole of
+	// what a reader who cannot see the square is told.
+	if got := names["/notes/Diary/2026-07-01.md"]; got != "2026-07-01" {
+		t.Errorf("the mark for 2026-07-01 carries the name %q, want the entry's own", got)
+	}
+
+	inRows := make(map[string]string, len(want))
+	for _, row := range view.Entries.Rows {
+		inRows[row.Href] = row.Text
+	}
+	if diff := cmp.Diff(want, inRows); diff != "" {
+		t.Errorf("the names drawn in the rows mismatch (-want +got):\n%s", diff)
+	}
+
+	// The entry whose declared day disagrees with the day its own file is named
+	// for keeps that name whole: the two disagreeing is the author's to see.
+	quarrel := []nav.JournalEntry{{Title: "2026-01-01 backfilled", RelPath: "Diary/2026-01-01 backfilled.md", Date: "2026-07-04"}}
+	rows := NewJournalIndex(quarrel, julyMonth(t), nav.Closure{}, wording.ZhHant, nil).Entries.Rows
+	if len(rows) != 1 || rows[0].Text != "2026-01-01 backfilled" {
+		t.Errorf("the row for an entry whose name names another day = %v, want its name kept whole", rows)
+	}
+}
+
 // TestJournalWeeksStartOnMondayAndHoldEveryDayOnce walks the table's own shape.
 // The vault writes every day as an ISO 8601 calendar date and that standard's
 // week starts on Monday, so the first column is a Monday; the squares before

@@ -71,6 +71,12 @@ templ monthCalendar(g MonthGrid) {
 
 // monthDay is one square. A square outside the month holds the table's shape
 // and nothing else, so it says so rather than carrying a day it does not have.
+//
+// An entry named for nothing but the day its square already shows is drawn as a
+// mark: repeating the date beside the number would say one thing twice, and a
+// link with nothing in it at all could be neither seen nor announced. Its whole
+// name travels off-screen, so what a reader hears is the entry rather than the
+// mark.
 templ monthDay(cell DayCell) {
 	if cell.Date == "" {
 		<td class="y-month__cell y-month__cell--outside"></td>
@@ -78,7 +84,11 @@ templ monthDay(cell DayCell) {
 		<td class={ "y-month__cell", templ.KV("y-month__cell--written", len(cell.Entries) > 0) } data-journal-day={ cell.Date }>
 			<time class="y-month__day" datetime={ cell.Date }>{ cell.Number }</time>
 			for _, entry := range cell.Entries {
-				<a class="y-month__entry" href={ templ.URL(entry.Href) } data-journal-entry { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</a>
+				if entry.Text == "" {
+					<a class="y-month__entry y-month__entry--mark" href={ templ.URL(entry.Href) } data-journal-entry><span class="y-offscreen">{ entry.Name }</span></a>
+				} else {
+					<a class="y-month__entry" href={ templ.URL(entry.Href) } data-journal-entry { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</a>
+				}
 			}
 		</td>
 	}

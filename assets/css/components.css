@@ -1369,9 +1369,9 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 }
 
 /* The squares before the month began and after it ended are the table's shape
-   rather than days, so they are drawn as the gap they are. */
+   rather than days, so they are drawn as the gap they are: no rule and no fill,
+   which is what leaves the month itself the only thing with edges. */
 .y-month__cell--outside {
-  background: var(--panel);
   border-color: transparent;
 }
 
@@ -1409,6 +1409,18 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 
 .y-month__entry:hover {
   text-decoration: underline;
+}
+
+/* An entry named for nothing but its own day has no words to add to the number
+   above it, so it is drawn as the mark a calendar uses for one. */
+.y-month__entry--mark::before {
+  background: var(--accent);
+  border-radius: 50%;
+  content: '';
+  display: block;
+  height: 7px;
+  margin-top: 6px;
+  width: 7px;
 }
 
 /* The entries that wrote no day belong to no month, so they sit under whichever

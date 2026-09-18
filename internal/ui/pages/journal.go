@@ -115,10 +115,14 @@ type MonthLink struct {
 	Href string
 }
 
-// DayEntry is one journal entry inside a day's square: what its author called
-// it, where it opens, and the language they wrote it in.
+// DayEntry is one journal entry inside a day's square: what its name adds to
+// the day the square already shows, its whole name for anyone who cannot see
+// the square it is in, where it opens, and the language it was written in. Text
+// is empty for an entry named for nothing but its own day, which is what most
+// journal entries are named for.
 type DayEntry struct {
 	Text     string
+	Name     string
 	Href     string
 	Language string
 }
@@ -209,6 +213,11 @@ func monthEmptySentence(entries []nav.JournalEntry, lang wording.Lang) string {
 // the day it is for. An entry that wrote none says so in that column rather
 // than leaving it blank, because a blank in the column the rest of the shelf
 // answers in reads as a day the page failed to look up.
+//
+// The name beside the day is what the name adds to it. Journal entries are
+// mostly named for the day they are for, and a row reading "2026-07-23
+// 2026-07-23" says one thing twice; the entries named for something else keep
+// their names, which is the whole of what the name column is for here.
 func journalRows(entries []nav.JournalEntry, lang wording.Lang, articleLang ArticleLanguageFor) []Row {
 	rows := make([]Row, 0, len(entries))
 	for _, entry := range entries {
@@ -218,12 +227,23 @@ func journalRows(entries []nav.JournalEntry, lang wording.Lang, articleLang Arti
 		}
 		rows = append(rows, Row{
 			When:     when,
-			Text:     entry.Title,
+			Text:     nameBeyondTheDay(entry),
 			Href:     notesHref(entry.RelPath),
 			Language: rowLanguage(articleLang, entry.RelPath),
 		})
 	}
 	return rows
+}
+
+// nameBeyondTheDay is what an entry's name says that the day beside it does not
+// already. A vault names its journal entries for the days they are for, so most
+// of them add nothing and the face they are drawn on shows the day alone; one
+// named "2026-07-10 夜" adds the half of the day it was written in, and one
+// named for what it is about keeps its name whole. A name that leads with some
+// other day than the one the entry is for is not trimmed, because the two
+// disagreeing is the author's to see rather than yomihon's to tidy away.
+func nameBeyondTheDay(entry nav.JournalEntry) string {
+	return strings.TrimSpace(strings.TrimPrefix(entry.Title, entry.Date))
 }
 
 // newMonthGrid lays the month out as the weeks it falls into. Every square of
@@ -234,11 +254,17 @@ func journalRows(entries []nav.JournalEntry, lang wording.Lang, articleLang Arti
 // carry them. Two entries on one day is exactly where a rule that made the
 // square itself the link would have to pick one of them, and picking is what
 // this vault's reading never does.
+//
+// Each link is named by what the entry's name adds to the day its square
+// already shows. An entry named for nothing but that day adds nothing and is
+// drawn as a mark instead, carrying its whole name for a reader who cannot see
+// which square it is in.
 func newMonthGrid(inMonth, all []nav.JournalEntry, month Month, lang wording.Lang, articleLang ArticleLanguageFor) MonthGrid {
 	byDay := make(map[string][]DayEntry, len(inMonth))
 	for _, entry := range inMonth {
 		byDay[entry.Date] = append(byDay[entry.Date], DayEntry{
-			Text:     entry.Title,
+			Text:     nameBeyondTheDay(entry),
+			Name:     entry.Title,
 			Href:     notesHref(entry.RelPath),
 			Language: rowLanguage(articleLang, entry.RelPath),
 		})
