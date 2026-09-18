@@ -539,6 +539,7 @@ html, body { margin: 0; background: var(--bg); }
    narrower window spent its reclaimed gutter on longer lines: the measure grew
    by a tenth exactly when the reader had less room, which is backwards. */
 .y-article,
+.y-listen,
 .y-prefs,
 .y-recovery,
 .y-syl {
@@ -1828,11 +1829,6 @@ a.y-recovery__action--quiet:hover { border-color: var(--border-strong); backgrou
    reading column's own rules carry them; what is here is the page around
    them and the place the browser-built bar lands.
    ============================================================ */
-.y-listen {
-  margin: 0 auto;
-  max-width: 800px;
-  padding: 44px 56px 120px;
-}
 .y-listen .y-title { margin-top: 12px; }
 .y-listen__none { margin-top: 24px; color: var(--fg-muted); }
 .y-listen__lesson { margin-top: 34px; }
@@ -2274,7 +2270,6 @@ html {
   .y-homeblock__head p { margin-left: 0; text-align: left; }
   .y-homenote { align-items: flex-start; }
   .y-homenote__meta { align-items: flex-end; flex-direction: column; }
-  .y-listen { padding: 32px 20px 120px; }
   .y-module { padding-left: 16px; }
   .y-lessons { padding-left: 24px; }
   .y-lesson { gap: 10px; }
@@ -2299,6 +2294,7 @@ html {
   /* The shell narrows as one: the gutter is redeclared and the box follows
      it, so the line length is still the measure and not what is left over. */
   .y-article,
+  .y-listen,
   .y-prefs,
   .y-recovery,
   .y-syl {
