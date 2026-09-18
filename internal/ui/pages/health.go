@@ -155,16 +155,26 @@ type healthRule struct {
 	severity judge.Severity
 }
 
-// healthRules is that account, for every kind of finding a rule covers. A kind
-// missing from this map has no rule behind it — a file the reading could not
-// open, a note nothing cites — and its rows carry no weight rather than one
-// this page invented for them.
+// healthRules is that account, for the kinds whose every row weighs the same.
+// What it records is the rule a kind of finding is reported under and the
+// weight that rule gives it, not a claim that the two faces list the same
+// files: the reading gathers what it could not open or would not index over
+// the whole folder, and the judging face reads a narrower corpus.
+//
+// Two kinds are weighed without being here. Frontmatter that cannot be read and
+// frontmatter the schema rejects both carry the weight the judging face gave
+// that note, which differs from note to note, so it is set where the row is
+// made instead.
+//
+// One kind carries no weight at all: the note nothing cites. No rule reports
+// it, so its rows say nothing rather than a weight this page invented for them.
 //
 // The broken-link entry is the weight that rule gives an untracked target. The
 // list this page gathers holds only those: a target under a gap heading or in
 // the planned ledger is tracked, is weighed lighter, and never reaches a row
 // here.
 var healthRules = map[healthKind]healthRule{
+	healthBlocked:           {"scan.unreadable", judge.SeverityError},
 	healthSkipped:           {"scan.skipped", judge.SeverityWarn},
 	healthUnwritten:         {"link.broken", judge.SeverityWarn},
 	healthTitleOnly:         {"link.title_not_alias", judge.SeverityWarn},

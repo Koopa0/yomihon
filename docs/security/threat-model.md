@@ -4,7 +4,9 @@ A design and test-selection input, not proof of a deployment. The boundary is a
 single-user local process with an unauthenticated HTTP listener hard-coded to
 `127.0.0.1`; exposing it through a proxy, tunnel, container port, or
 non-loopback bind is unsupported. The four walls hold: one written field,
-loopback only, one schema source, report and never repair.
+loopback only, one schema source, report and never repair. The reader's own
+marks are kept in one file outside the vault, which leaves the first of those
+literally true of the vault directory.
 
 ## What is protected
 
@@ -13,6 +15,7 @@ loopback only, one schema source, report and never repair.
 | Vault files, contract-private paths included | Confidential outside the local reader; never silently repaired. |
 | `System/schemas/vault-schema.toml` | Sole machine authority for lifecycle, instance, artifact and privacy capability; missing, invalid or stale authority fails closed. |
 | The status write | Exactly one legal `status` line changes, the source is not stale, and the replacement is durable before the success response. |
+| The reader's own marks | Kept outside the vault, replaced whole or not at all, and read by no command-line face. Losing one costs a press of the control, so it is not held to the status write's durability. |
 | Agent-facing results | Contract-private paths neither appear in nor influence results, with one exception: `exists` answers whether a caller-supplied exact name is taken, disclosing that bit and nothing else. |
 | Browser authority | Authored vault bytes stay display input, never first-party script, navigation, form, frame, or automatic remote-resource authority. |
 
@@ -36,10 +39,17 @@ process that can already read the vault. OS, browser and filesystem are trusted.
 | Process to vault | `vault.Reader` and `os.Root` pin the selected root. Paths are vault-relative and normalized before privileged use; the write path refuses symlinked traversal and rechecks file and parent identity. |
 | Contract to privileged action | `internal/schema` derives capability from the exact contract source. Agent output and status writes both fail closed without valid authority. |
 | Status mutation | `internal/status` alone writes. `POST /status` is capped at 4 KiB; it writes a synchronized sibling temporary file, revalidates, renames atomically, then synchronizes the directory. macOS and Linux only. |
+| Marking a reading place | `internal/mark` alone writes, to one file under the platform's configuration directory and never into the vault. `POST /marks` is capped at 4 KiB and refuses any path, anchor, offset or identity outside the shape a reading page stamps; the file is written to a sibling temporary name and renamed over. It is deliberately not synchronized to durable storage: what a crash costs is one place a reader keeps again. Like the status write, it is the reader's — an agent never calls it. |
 
-`YOMIHON_PORT` is the only environment value read, held to a mechanically
-tested allowlist; the bind host is not configurable, and the vault root comes
-from an argument or the working directory. Search queries are capped at 4,096
+`YOMIHON_PORT` is the only environment value this program names, held to a
+mechanically tested allowlist; the bind host is not configurable, and the vault
+root comes from an argument or the working directory. One more value reaches it
+without being named: `os.UserConfigDir` reads `HOME`, and `XDG_CONFIG_HOME`
+where the platform has one, inside the standard library, so the allowlist
+cannot see the key. That call decides where the reader's marks are kept, and
+the same test refuses it anywhere but the one file in `cmd/yomihon` that
+resolves it at startup — a guard that stayed green over a widened surface would
+be worse than none. Search queries are capped at 4,096
 bytes and reject control characters. Go dependencies are pinned by
 `go.mod`/`go.sum`; redistributed assets carry their LICENSE files inside `assets/` (fonts/LICENSE.txt, js/mermaid/LICENSE).
 

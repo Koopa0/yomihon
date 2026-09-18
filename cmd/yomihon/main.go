@@ -115,12 +115,31 @@ const defaultPort = "9610"
 type config struct {
 	root string
 	port string
+	// configDir is where this platform keeps a program's own files, resolved
+	// once here because reading the environment is the process's business.
+	// The standard library reads HOME for it, and XDG_CONFIG_HOME on Linux, so
+	// this is the second thing outside the arguments that decides where the
+	// binary looks — which is why it is resolved in one place, held in this
+	// struct like the port, and handed to the package that needs it.
+	//
+	// Empty where the environment names none. That is not a reason to refuse
+	// to start: reading is the product and a kept reading place is a
+	// convenience on top of it, so the room opens and the convenience is the
+	// thing that is missing.
+	configDir string
+	// noConfigDir is why none was resolved, for the one line that says so.
+	noConfigDir string
 }
 
 func loadConfig(root string) (config, error) {
 	cfg := config{root: root, port: os.Getenv("YOMIHON_PORT")}
 	if cfg.port == "" {
 		cfg.port = defaultPort
+	}
+	if configDir, dirErr := os.UserConfigDir(); dirErr != nil {
+		cfg.noConfigDir = dirErr.Error()
+	} else {
+		cfg.configDir = configDir
 	}
 	info, err := os.Stat(cfg.root) // #nosec G703 -- root is the operator's own vault path from local config
 	if err != nil {
@@ -137,10 +156,14 @@ func run(log *slog.Logger, root string) (resultErr error) {
 	if err != nil {
 		return err
 	}
+	if cfg.noConfigDir != "" {
+		log.Warn("no configuration directory; reading is unaffected and no reading place can be kept",
+			"reason", cfg.noConfigDir)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	site, err := newReadingSite(ctx, cfg.root, log)
+	site, err := newReadingSite(ctx, cfg.root, cfg.configDir, log)
 	if err != nil {
 		return fmt.Errorf("build reading site: %w", err)
 	}
