@@ -452,6 +452,78 @@ html, body { margin: 0; background: var(--bg); }
 }
 .y-railitem__full:hover { color: var(--accent); }
 
+/* the foot of the rail — which folder this is, how large it is, and what the
+   health page has to say about it. It is the label face the rail's own headings
+   use, quieter still: it is where the reader lands when they have run out of
+   tree, not somewhere they are being sent. It flows last rather than pinning to
+   the viewport, so a long tree scrolls past it and the drawer ends the same way.
+   No box of its own: the rail's frame is the only frame here, and the hairline
+   above it is the same separator that stands between every other group. */
+.y-railfoot {
+  /* The quiet ink is set on the block rather than on the link inside it: every
+     anchor in this interface inherits its colour, and a rule naming one class
+     is outranked by the rule that says so. */
+  color: var(--fg-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 8px 4px;
+}
+.y-railfoot__name {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  letter-spacing: 0.04em;
+  /* A folder name is one word somebody chose and can be long. It wraps rather
+     than ellipsing, because a truncated name is the one thing this line exists
+     to say, and a rail that scrolls sideways has nothing to scroll back to. */
+  overflow-wrap: anywhere;
+}
+.y-railfoot__size {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+}
+.y-railfoot__health {
+  align-items: center;
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  gap: 6px;
+  margin-top: 2px;
+  min-width: 0;
+}
+.y-railfoot__health:hover {
+  color: var(--fg);
+}
+.y-railfoot__label {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.y-railfoot__count {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+.y-railfoot__dot {
+  background: var(--fg-faint);
+  border-radius: 50%;
+  flex: none;
+  height: 6px;
+  width: 6px;
+}
+/* The colour repeats what the count already says in words, so a reader who
+   cannot tell the two dots apart has lost nothing. The state is read off the
+   foot itself rather than off any element carrying the attribute, so nothing
+   else that ever states a health can reach in here. */
+.y-railfoot[data-health="clear"] .y-railfoot__dot {
+  background: var(--sage);
+}
+.y-railfoot[data-health="findings"] .y-railfoot__dot {
+  background: var(--warn);
+}
+.y-railfoot[data-health="findings"] .y-railfoot__count {
+  color: var(--warn);
+}
+
 /* ============================================================
    Center article
    ============================================================ */
@@ -493,6 +565,64 @@ details.y-metarow { display: block; }
 }
 .y-metarow__detail { margin-top: 10px; }
 .y-metarow__detail > span { min-width: 0; overflow-wrap: anywhere; }
+/* The note's facts, read as a description list: dt/dd pairs wrapped one per
+   div (HTML5's dl content model allows it), laid out as a wrapping flex row.
+   That single rule is what gives "a quiet two-column row on wide screens and
+   stacked on narrow ones" for free — the row lays flat where its container is
+   wide (the open .y-headmeta copy below) and wraps to one pair per line where
+   it is narrow (inside .y-metarow's disclosure); no separate narrow/wide
+   variant of the list itself exists. */
+.y-notefacts {
+  color: var(--fg-faint);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  gap: 6px 22px;
+  margin: 0;
+}
+
+.y-notefacts > div {
+  align-items: baseline;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.y-notefacts dt {
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.y-notefacts dd {
+  color: var(--fg-muted);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.y-notefacts a {
+  color: var(--fg-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.y-notefacts a:hover {
+  color: var(--accent);
+}
+
+/* The wide-open placement: the same facts, undisclosed, beside the title.
+   Hidden by default and shown only past the 1280/1281 split .y-rail-right and
+   .y-inlineaids already use — the width where .y-metarow's own disclosure
+   hides in turn (Responsive, below). Nothing has to turn it back off under
+   that width: display: none is already its only rule outside that one query. */
+.y-headmeta {
+  align-items: center;
+  display: none;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 20px 0;
+}
 
 /* kintsugi seam — the one signature: a parted hairline mended with a vermilion thread */
 .y-seam { position: relative; height: 1px; width: 100%; margin: 4px 0 8px;
@@ -1906,6 +2036,16 @@ html {
 /* ============================================================
    Responsive
    ============================================================ */
+@media (min-width: 1281px) {
+  /* The same split .y-rail-right and .y-inlineaids already use: past it the
+     facts stand open beside the title, so the disclosure that folds them at
+     narrower widths is not also drawn. The selector repeats the type
+     qualifier details.y-metarow carries at its own display: block rule above,
+     matching that rule's specificity instead of reaching for !important —
+     source order alone then decides it, this query being the later one. */
+  details.y-metarow { display: none; }
+  .y-headmeta { display: flex; }
+}
 @media (max-width: 1280px) {
   .y-shell { grid-template-columns: 248px minmax(0, 1fr); }
   .y-rail-right { display: none !important; }
@@ -2017,8 +2157,12 @@ html {
   /* Librarian chrome in the opening column is for repair on screen, not for
      paper. A printed page is the title and the body; path crumbs, type and
      Obsidian metarow, and folder previous/next stay off the sheet. Course
-     lesson-order prev/next may remain — it is part of the book. */
-  .y-crumbs, .y-metarow, .y-steps:not(.y-steps--course) {
+     lesson-order prev/next may remain — it is part of the book. .y-headmeta is
+     the same facts' wide-open copy, named here too: without it the width the
+     browser prints at (often past the 1280/1281 split) would show the facts
+     .y-metarow was just told to hide, doubling them on the sheet rather than
+     dropping them from it. */
+  .y-crumbs, .y-metarow, .y-headmeta, .y-steps:not(.y-steps--course) {
     display: none !important;
   }
   /* A listing row clips its document's opening to one line on screen so the

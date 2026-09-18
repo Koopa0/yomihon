@@ -7,6 +7,7 @@ package lexical
 
 import (
 	"errors"
+	"iter"
 	"path"
 	"slices"
 	"strings"
@@ -646,19 +647,36 @@ type StatusHolder struct {
 // index's own reading order. It returns exactly the notes CountByTypeStatus
 // tallies, so a page showing both cannot state a number its list does not fill.
 func (idx *Index) StatusHolders() ([]StatusHolder, error) {
+	holders, err := idx.EachStatusHolder()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]StatusHolder, 0, len(idx.entries))
+	for holder := range holders {
+		out = append(out, holder)
+	}
+	return out, nil
+}
+
+// EachStatusHolder walks the same notes StatusHolders lists, in the same order,
+// without building a list of them. A caller that only asks a question of each
+// note — is this status one the vault declared, is it one anything can reach —
+// keeps nothing, and on a folder of thousands of notes that is the difference
+// between a page that allocates a copy of the folder's lifecycle and one that
+// does not. The list form is built from this walk, so the two cannot come to
+// disagree about which notes hold a status.
+func (idx *Index) EachStatusHolder() (iter.Seq[StatusHolder], error) {
 	if !idx.policy.Trustworthy() {
 		return nil, idx.metadataUnavailableError()
 	}
-	out := make([]StatusHolder, 0, len(idx.entries))
-	for _, e := range idx.entries {
-		if !e.metadataCapable || e.Status == "" {
-			continue
+	return func(yield func(StatusHolder) bool) {
+		for _, e := range idx.entries {
+			if !e.metadataCapable || e.Status == "" {
+				continue
+			}
+			if !yield(StatusHolder{RelPath: e.RelPath, Type: e.NoteType, Status: e.Status}) {
+				return
+			}
 		}
-		out = append(out, StatusHolder{
-			RelPath: e.RelPath,
-			Type:    e.NoteType,
-			Status:  e.Status,
-		})
-	}
-	return out, nil
+	}, nil
 }

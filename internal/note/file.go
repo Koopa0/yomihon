@@ -107,12 +107,12 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 	}
 
 	name := path.Base(rel)
-	pageShell := shell.Project(authority, snap)
+	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	view := pages.FileView{
 		Title:   name,
 		RelPath: rel,
 		Size:    entry.Size(),
-		Sidebar: pages.NewSidebar(pageShell.Nav, rel),
+		Sidebar: pages.NewSidebar(pageShell, rel),
 	}
 
 	switch {
