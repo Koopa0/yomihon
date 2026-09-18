@@ -143,6 +143,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", h.home)
 	mux.HandleFunc("GET /health", h.health)
 	mux.HandleFunc("GET /maps", h.maps)
+	mux.HandleFunc("GET /journal", h.journal)
 	// The mode index sits beside the subtree pattern that serves one folder.
 	// Without a pattern of its own the bare address redirects into that
 	// subtree, where an empty path is not a folder, and the desk's own link
