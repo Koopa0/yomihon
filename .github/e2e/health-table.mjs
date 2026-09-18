@@ -88,8 +88,8 @@ const showTheEmptyCells = (page) => appendStyle(page, `@media screen and (max-wi
 }`);
 
 // revertErrorInk undoes the correction ink error moved onto, painting it back
-// with warn's own colour — the pre-#593 shape, where the two weights read as
-// one.
+// with warn's own colour — the shape this replaced, where the two weights
+// read as one.
 const revertErrorInk = (page) => appendStyle(page, `.y-severity--error{color:var(--warn)}`);
 
 // revertErrorMarker undoes the squared dot, rounding error's marker back to
