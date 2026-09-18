@@ -223,6 +223,22 @@ func (r *healthRow) weight() int {
 	return int(r.Severity)
 }
 
+// healthFileKey identifies the file a row is about, for counting distinct
+// files rather than for display. A note keeps its vault-relative path; a path
+// that is no note keeps the string the row already carries. The two live in
+// separate fields rather than one shared string so a source path can never be
+// counted as the same file as a note whose relative path happens to read the
+// same.
+type healthFileKey struct {
+	relPath  string
+	filePath string
+}
+
+// fileKey is this row's identity for that count.
+func (r *healthRow) fileKey() healthFileKey {
+	return healthFileKey{relPath: r.File.RelPath, filePath: r.FilePath}
+}
+
 // healthTally is one kind of finding present on the page, with how many of it
 // there are. The guide under the table is made of these.
 type healthTally struct {
@@ -422,6 +438,46 @@ func healthTallies(rows []healthRow) []healthTally {
 		}
 	}
 	return out
+}
+
+// healthWeightTally is one weight the judge names, and how many findings in
+// the table carry it — the same number a reader summing the count column by
+// hand over every row of that weight would reach.
+type healthWeightTally struct {
+	Severity judge.Severity
+	Count    int
+}
+
+// healthShape is the report's own shape, stated before a reader scrolls the
+// table it is counted from: the findings gathered by the weight the judge
+// gives them, heaviest first, and how many distinct files any row of the
+// table names. A kind no rule weighs contributes no entry to Weights — it has
+// no word in the judge's vocabulary to be counted under — and its file still
+// counts toward Files, because the table still lists it.
+type healthShape struct {
+	Weights []healthWeightTally
+	Files   int
+}
+
+// healthShapeOf tallies the table's own rows rather than the lists behind
+// them, so this line and what a reader counts down the table can never
+// disagree.
+func healthShapeOf(rows []healthRow) healthShape {
+	var byWeight [judge.SeverityError + 1]int
+	files := make(map[healthFileKey]struct{}, len(rows))
+	for _, row := range rows {
+		if row.Weighed {
+			byWeight[row.Severity] += row.Count
+		}
+		files[row.fileKey()] = struct{}{}
+	}
+	weights := make([]healthWeightTally, 0, len(byWeight))
+	for s := judge.SeverityError; s >= judge.SeverityInfo; s-- {
+		if count := byWeight[s]; count > 0 {
+			weights = append(weights, healthWeightTally{Severity: s, Count: count})
+		}
+	}
+	return healthShape{Weights: weights, Files: len(files)}
 }
 
 // kindLede is what the guide says a kind of finding means. All but one are a

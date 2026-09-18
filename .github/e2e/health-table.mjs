@@ -1,11 +1,13 @@
-// Behaviour lock for the whole-folder findings table. Claims a rendering test
-// cannot reach, because they are settled by the browser rather than by the
-// bytes: on a phone the rows stack and each cell says which column it is,
-// instead of the sheet running off the side where half of it cannot be read;
-// a heading is a link that really comes back with the rows in another order;
-// and error and warn, which used to differ only by a border, paint different
-// inks and draw different marker shapes — with no script involved in any of
-// it.
+// Behaviour lock for the whole-folder findings table and the shape line above
+// it. Claims a rendering test cannot reach, because each is settled by the
+// browser rather than by the bytes: on a phone the rows stack and each cell
+// says which column it is, instead of the sheet running off the side where
+// half of it cannot be read; a heading is a link that really comes back with
+// the rows in another order; the shape line's own numbers hold against a
+// second count of the table it sits above, taken from the rendered page
+// rather than from what the line claims; and error and warn, which used to
+// differ only by a border, paint different inks and draw different marker
+// shapes — with no script involved in any of it.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the whole-folder page), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -19,9 +21,10 @@ const BADGE_SITE = 'the-weight-is-a-badge-not-a-banner';
 const EMPTY_SITE = 'no-label-over-an-empty-cell';
 const WIDTH_SITE = 'no-sideways-scroll';
 const ORDER_SITE = 'a-heading-reorders-the-rows';
+const SHAPE_SITE = 'the-shape-line-counts-what-the-table-shows';
 const INK_SITE = 'error-and-warn-paint-different-inks';
 const MARKER_SITE = 'error-and-warn-draw-different-markers';
-const SITES = [LABEL_SITE, DETAIL_SITE, BADGE_SITE, EMPTY_SITE, WIDTH_SITE, ORDER_SITE, INK_SITE, MARKER_SITE];
+const SITES = [LABEL_SITE, DETAIL_SITE, BADGE_SITE, EMPTY_SITE, WIDTH_SITE, ORDER_SITE, SHAPE_SITE, INK_SITE, MARKER_SITE];
 
 // The width a phone gives the page. Narrow enough that a four-column table
 // laid out as a table cannot hold its columns.
@@ -116,6 +119,32 @@ const dropTheOrdering = (page) => {
   });
 };
 
+// corruptShapeCount rewrites the number the shape line shows beside its
+// "error" weight, one higher than what the page actually served — the kind of
+// drift a hand-written second tally invites and a line derived from the same
+// rows the table draws cannot produce.
+const corruptShapeCount = (page) => {
+  let requests = 0;
+  let rewritten = 0;
+  return page.route(BASE + PAGE, async (route) => {
+    requests += 1;
+    const response = await route.fetch();
+    const original = await response.text();
+    const body = original.replace(
+      /(y-severity y-severity--error" lang="en">error<\/span> )(\d+)/,
+      (_whole, prefix, digits) => {
+        rewritten += 1;
+        return `${prefix}${Number(digits) + 1}`;
+      },
+    );
+    await route.fulfill({ response, body });
+  }).then(() => () => {
+    if (requests < 1) return 'the page was never requested, so nothing was rewritten';
+    if (rewritten < 1) return 'the shape line carries no "error" weight to corrupt';
+    return '';
+  });
+};
+
 const MUTATIONS = {
   'restore-table-layout': { target: LABEL_SITE, apply: restoreTableLayout },
   'unpin-the-evidence-column': { target: DETAIL_SITE, apply: unpinTheEvidenceColumn },
@@ -123,6 +152,7 @@ const MUTATIONS = {
   'show-the-empty-cells': { target: EMPTY_SITE, apply: showTheEmptyCells },
   'widen-the-cells': { target: WIDTH_SITE, apply: widenTheCells },
   'drop-the-ordering': { target: ORDER_SITE, apply: dropTheOrdering },
+  'corrupt-shape-count': { target: SHAPE_SITE, apply: corruptShapeCount },
   'revert-error-ink': { target: INK_SITE, apply: revertErrorInk },
   'revert-error-marker': { target: MARKER_SITE, apply: revertErrorMarker },
 };
@@ -199,6 +229,46 @@ const readRows = (page) => page.evaluate(() => [...document.querySelectorAll('.y
   subject: row.querySelector('.y-findings__file')?.textContent.trim() ?? '',
   weight: row.querySelector('.y-findings__severity')?.textContent.trim() ?? '',
 })));
+
+// readShape reports the shape line as it stands: each weight it names, with
+// the word and the count beside it, and the plain text the line closes with.
+// null where the line draws nothing at all.
+const readShape = (page) => page.evaluate(() => {
+  const shape = document.querySelector('.y-healthshape');
+  if (!shape) return null;
+  const weights = [...shape.querySelectorAll('.y-healthshape__weight')].map((link) => ({
+    href: link.getAttribute('href'),
+    word: link.querySelector('.y-severity')?.textContent.trim() ?? '',
+    count: Number(link.textContent.replace(/\D+/g, '')),
+  }));
+  const files = shape.querySelector(':scope > span:not([aria-hidden])');
+  return { weights, filesText: files ? files.textContent.trim() : '' };
+});
+
+// readSeverityTally counts the table's own rows a second time, summing the
+// counted column under whatever weight each row's own cell carries — the
+// figure the shape line is answerable to.
+const readSeverityTally = (page) => page.evaluate(() => {
+  const tally = {};
+  document.querySelectorAll('.y-findings tbody tr').forEach((row) => {
+    const badge = row.querySelector('.y-findings__severity .y-severity');
+    if (!badge) return;
+    const word = badge.textContent.trim();
+    const count = Number(row.querySelector('.y-findings__count')?.textContent.trim() ?? '0');
+    tally[word] = (tally[word] ?? 0) + count;
+  });
+  return tally;
+});
+
+// readFileIdentities is what each row of the table names as its file, read as
+// an identity rather than as display text: a note's own link carries its
+// address, and a path with no note keeps the path.
+const readFileIdentities = (page) => page.evaluate(() => [...document.querySelectorAll('.y-findings__file')].map((cell) => {
+  const link = cell.querySelector('a.y-healthlink');
+  if (link) return `note:${link.getAttribute('href')}`;
+  const path = cell.querySelector('.y-findings__path');
+  return `path:${(path ?? cell).textContent.trim()}`;
+}));
 
 // badgeStyle reads one severity badge's computed ink and its marker's
 // computed shape — the two channels error and warn are asked to disagree on,
@@ -279,6 +349,23 @@ try {
     fail(WIDTH_SITE, `a cell reaches ${widest}px past the ${table.viewportRight}px edge of the viewport`);
   }
 
+  // The shape line's own numbers, held against a second count of the very
+  // rows it sits above — the table's cells, not the line's own claim about
+  // them.
+  const shape = await readShape(page);
+  if (!shape) broken('the fixture holds findings, so the shape line must be on the page');
+  if (shape.weights.length === 0) broken('the fixture carries weighed findings, so the shape line must name at least one weight');
+  const severityTally = await readSeverityTally(page);
+  for (const weight of shape.weights) {
+    if (severityTally[weight.word] !== weight.count) {
+      fail(SHAPE_SITE, `the shape line counts ${weight.word} as ${weight.count}; the table's own cells add up to ${severityTally[weight.word]}`);
+    }
+  }
+  const tableFiles = new Set(await readFileIdentities(page));
+  if (shape.filesText !== String(tableFiles.size) && !shape.filesText.startsWith(`${tableFiles.size} `)) {
+    fail(SHAPE_SITE, `the shape line reads ${JSON.stringify(shape.filesText)}; the table's own file cells name ${tableFiles.size} distinct files`);
+  }
+
   // Error and warn used to share one colour and one marker shape, told apart
   // only by a border a glance can miss. The fixture has to carry one of each
   // or neither channel is exercised at all.
@@ -327,8 +414,33 @@ try {
     fail(ORDER_SITE, `the reordered page marks ${JSON.stringify(sorted)} as the ordering in force, want the weight heading alone`);
   }
 
+  // A weight in the shape line is a live link to that same reordering, proven
+  // by following it — from a fresh, unsorted visit, so the click has an order
+  // to actually change.
+  await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  const beforeShape = await readRows(page);
+  const shapeLink = page.locator('.y-healthshape__weight').first();
+  if (await shapeLink.count() === 0) broken('the fixture carries a weight, so the shape line must offer a weight link to follow');
+  const askedShape = page.url();
+  await shapeLink.click();
+  await page.waitForURL((url) => url.toString() !== askedShape, { timeout: 15000 });
+  await page.waitForLoadState('domcontentloaded');
+  const afterShape = await readRows(page);
+  if (afterShape.length !== beforeShape.length) broken(`the reordered page holds ${afterShape.length} findings, was ${beforeShape.length}`);
+  if (afterShape.every((row, i) => row.subject === beforeShape[i].subject)) {
+    fail(SHAPE_SITE, 'following a weight link from the shape line returned the rows in exactly the order they were already in');
+  }
+  for (let i = 1; i < afterShape.length; i += 1) {
+    const heavier = WEIGHTS[afterShape[i - 1].weight];
+    const lighter = WEIGHTS[afterShape[i].weight];
+    if (heavier === undefined || lighter === undefined) broken(`a row weighs ${JSON.stringify(afterShape[i])}, which is no weight this page uses`);
+    if (heavier < lighter) {
+      fail(SHAPE_SITE, `following the shape line's weight link, row ${i} (${afterShape[i].weight}) is heavier than the row above it (${afterShape[i - 1].weight})`);
+    }
+  }
+
   await page.close();
-  console.log(`PASS health-table: ${table.rows} findings stack and name their columns at ${PHONE.width}px with no sideways scroll, and a heading really reorders them`);
+  console.log(`PASS health-table: ${table.rows} findings stack and name their columns at ${PHONE.width}px with no sideways scroll, a heading really reorders them, the shape line's own numbers hold, and error reads heavier than warn`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
