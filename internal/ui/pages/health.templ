@@ -65,7 +65,11 @@ type HealthView struct {
 	LastComplete string
 	// Sort is the column the reader asked the table to be ordered by, already
 	// read against the closed set.
-	Sort    HealthColumn
+	Sort HealthColumn
+	// Page is the stretch of the table the reader asked for, already read
+	// against its own closed set. The zero value is the first page, so a
+	// request that named none still gets one.
+	Page    PageNumber
 	Sidebar Sidebar
 }
 
@@ -158,10 +162,19 @@ templ Health(v HealthView, c layouts.Chrome) {
 // whose links all resolve then has a page that has something to tell the reader
 // and no findings to tell it with. A header row of four ordering links over
 // nothing offers four controls that each do nothing.
+//
+// A long report is divided rather than scrolled: the rows are gathered and
+// ordered whole, the shape line above and the guide below are counted from all
+// of them, and only the body of the table is cut to the stretch this request
+// asked for.
 templ healthFindings(v HealthView, c layouts.Chrome) {
 	{{ rows := v.rows(c.Lang) }}
 	if len(rows) > 0 {
+		{{ window, strip := v.divide(rows) }}
 		@healthShapeLine(healthShapeOf(rows), c.Lang)
+		if strip.Number > 0 {
+			<p class="y-healthrange">{ healthRange(strip, c.Lang) }</p>
+		}
 		<table class="y-findings">
 			<thead>
 				<tr>
@@ -173,7 +186,7 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 				</tr>
 			</thead>
 			<tbody>
-				for _, row := range rows {
+				for _, row := range window {
 					<tr>
 						<td class="y-findings__file" data-col={ wording.HealthColumnFile.In(c.Lang) }>
 							if row.File.RelPath != "" {
@@ -205,6 +218,7 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 				}
 			</tbody>
 		</table>
+		@pager(strip, c.Lang)
 		@healthGuide(v, healthTallies(rows), c)
 	}
 }

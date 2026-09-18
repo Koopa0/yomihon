@@ -22,6 +22,12 @@ var (
 	ResultCountMany     = both("共 %d 筆", "%d results")
 )
 
+// ResultRangeFmt is what a divided answer says in place of the tally: which of
+// the hits are on this page, and how many there are in all. The tally alone
+// would be true and useless on the second page, and "the first twenty" would
+// be false there.
+var ResultRangeFmt = both("第 %d–%d 筆，共 %d 筆", "Results %d–%d of %d")
+
 // What the results say about their own limits.
 var (
 	MetadataSearchUnavailable = both("依欄位篩選目前無法使用。", "Filtering by field is unavailable right now.")

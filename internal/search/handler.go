@@ -21,9 +21,18 @@ import (
 
 const maxQueryBytes = 4096
 
-// maxRenderedResults bounds how many hits one response renders. The tally
-// stays exact; only the list is cut.
-const maxRenderedResults = 200
+// searchPageSize is how many hits one page of the answer holds. A result row
+// is three lines — the title, the address, the excerpt — so twenty is about
+// two screen-heights at a desk and the strip under them is reached in one
+// scroll; higher and the strip is never seen, lower and an ordinary one-word
+// query becomes a stack of pages.
+//
+// The index takes a bound and no offset, so a later page is asked for as
+// everything up to its end and the pages walked past are materialized on the
+// way. That is the price of leaving one way to ask the index rather than two;
+// the divisions beside the rows are unaffected, being tallied over every hit
+// before the bound cuts the list.
+const searchPageSize = 20
 
 // RequestSnapshot is the search index and shell state bound to one request
 // capture of an atomic vault generation and its artifact authority.
@@ -82,9 +91,10 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	}
 	snap := h.snapshot()
 	lang := origin.Language(r)
-	// The page itself always has the column, so the first render never depends
-	// on the marker the live refreshes carry.
-	view := answerView(snap, q, h.query(snap.Index, q, lang), lang, true)
+	asked := pages.ParsePageNumber(r.URL.Query().Get("page"))
+	// The page itself always has the column and the strip, so the first render
+	// never depends on the marker the live refreshes carry.
+	view := answerView(snap, q, h.query(snap.Index, q, lang, asked), lang, asked, true)
 	view.Sidebar = pages.NewSidebar(snap.Shell.Nav, "")
 	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search page", q, err)
@@ -104,13 +114,27 @@ type answer struct {
 }
 
 // answerView is everything both faces say about one query, built once so the
-// full page and the live region cannot drift apart. divided says whether this
-// face has a column to put the answer's divisions in; the rows themselves are
-// the same either way.
-func answerView(snap RequestSnapshot, q string, a *answer, lang wording.Lang, divided bool) pages.SearchView {
+// full page and the live region cannot drift apart. onPage says whether this
+// face is the search page itself rather than the palette floating over another
+// one: only the page has a column to put the answer's divisions in, and only
+// the page has room under the rows for the way to the rest of them.
+//
+// The hits the index built run from the answer's start to the end of the page
+// asked for, so the stretch this page shows is the tail of them. A face with
+// no strip keeps what it was given and says how far the list was cut.
+func answerView(snap RequestSnapshot, q string, a *answer, lang wording.Lang, asked pages.PageNumber, onPage bool) pages.SearchView {
+	found := a.found.Results
+	var strip pages.Pager
+	if onPage {
+		strip = pages.NewPager(asked, searchPageSize, a.found.Total, func(n pages.PageNumber) string {
+			return pages.SearchPageHref(q, n)
+		})
+		found = found[strip.First:strip.Last]
+	}
 	view := pages.SearchView{
 		Query:             q,
-		Results:           viewResults(a.found.Results, snap.Shell.Governed, snap.Status, a.tokens),
+		Results:           viewResults(found, snap.Shell.Governed, snap.Status, a.tokens),
+		Pager:             strip,
 		Total:             a.found.Total,
 		Diagnostic:        a.diagnostic,
 		Governed:          snap.Shell.Governed,
@@ -118,7 +142,7 @@ func answerView(snap RequestSnapshot, q string, a *answer, lang wording.Lang, di
 		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
 	}
-	if divided && a.diagnostic == "" && snap.Shell.Governed {
+	if onPage && a.diagnostic == "" && snap.Shell.Governed {
 		view.Facets = facetViews(q, a.found.Facets, snap.Status, lang)
 	}
 	return view
@@ -211,25 +235,27 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	}
 	snap := h.snapshot()
 	lang := origin.Language(r)
-	answered := h.query(snap.Index, q, lang)
+	asked := pages.ParsePageNumber(r.URL.Query().Get("page"))
+	answered := h.query(snap.Index, q, lang, asked)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	view := answerView(snap, q, answered, lang, wantsFacets(r))
+	view := answerView(snap, q, answered, lang, asked, wantsFacets(r))
 	if err := pages.SearchResults(view, lang).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search results", q, err)
 	}
 }
 
-// query reads one query and answers it. The hits are bounded by
-// maxRenderedResults; the tally is not, so the page can stay honest about what
-// the bounded list leaves out. The parse travels in the answer because the view
-// needs it too, and reading the same text twice per request is the cost this
-// saves.
-func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang) *answer {
+// query reads one query and answers it. The hits are built as far as the end
+// of the page asked for, and the whole listing where that is what was asked;
+// the tally and the divisions are taken over every hit either way, so a page
+// can state what the whole answer holds while showing one stretch of it. The
+// parse travels in the answer because the view needs it too, and reading the
+// same text twice per request is the cost this saves.
+func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang, asked pages.PageNumber) *answer {
 	parsed := lexical.Parse(q)
-	found, err := idx.Search(parsed, maxRenderedResults)
+	found, err := idx.Search(parsed, searchLimit(asked))
 	if errors.Is(err, lexical.ErrMetadataUnavailable) {
 		return &answer{parsed: parsed, diagnostic: unavailableSentence(err, lang)}
 	}
@@ -238,6 +264,16 @@ func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang) *answer
 		return &answer{parsed: parsed, diagnostic: wording.SearchUnavailable.In(lang)}
 	}
 	return &answer{parsed: parsed, found: found, tokens: parsed.Tokens()}
+}
+
+// searchLimit is how far into the answer the index is asked to build. A page
+// is everything up to its end, because the index takes a bound and no offset;
+// the undivided listing is asked for whole.
+func searchLimit(asked pages.PageNumber) int {
+	if asked == pages.AllPages {
+		return -1
+	}
+	return int(asked) * searchPageSize
 }
 
 // unavailableSentence says why a metadata query could not be answered, in this

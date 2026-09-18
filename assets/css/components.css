@@ -1760,7 +1760,7 @@ html {
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
   .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview,
-  .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions, .y-facets {
+  .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions, .y-facets, .y-pager {
     display: none !important;
   }
   /* Librarian chrome in the opening column is for repair on screen, not for
@@ -1946,6 +1946,94 @@ html {
 .y-findingsguide__list { margin: 14px 0 0; }
 .y-findingsguide__term { display: flex; align-items: baseline; gap: 10px; margin: 16px 0 0; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
 .y-findingsguide__meaning { margin: 4px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
+
+/* Which rows of the report are on this page, set in the same label face as the
+   shape line it follows and quieter than it: the shape is what the folder owes,
+   this is only where in the list the reader is standing. */
+.y-healthrange {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+  margin: 6px 0 0;
+}
+
+/* ============================================================
+   The strip under a listing that runs past one page
+   ============================================================ */
+
+/* Shared by the search results and the findings table, because a reader who
+   has learned to step through one has learned to step through the other. It is
+   a row of plain links in the label face, wrapping rather than scrolling at a
+   phone's width, and each target is large enough to be hit with a thumb. */
+.y-pager {
+  align-items: center;
+  border-top: 1px solid var(--border-faint);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  gap: 4px 6px;
+  margin: 26px 0 0;
+  padding-top: 14px;
+}
+
+.y-pager__pages {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.y-pager__step,
+.y-pager__page,
+.y-pager__whole {
+  align-items: center;
+  border-radius: var(--r-sm);
+  color: var(--fg-subtle);
+  display: inline-flex;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.y-pager__page {
+  min-width: 32px;
+  padding: 0 6px;
+}
+
+.y-pager__step:hover,
+.y-pager__page:hover,
+.y-pager__whole:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+/* The page being read is marked by the attribute that says so, not by a class
+   beside it, so what a reader hears and what the stylesheet paints cannot come
+   apart. It is also the one item that is not a step to somewhere else, which is
+   why it is the only one with a ground of its own. */
+.y-pager__page[aria-current="page"] {
+  background: var(--accent-muted);
+  color: var(--fg);
+}
+
+/* The undivided listing sits apart from the numbers: it is not another page,
+   it is all of them, and it is what a reader follows before printing. */
+.y-pager__whole {
+  color: var(--fg-faint);
+  margin-left: auto;
+}
+
+@media (max-width: 520px) {
+  /* At a phone's width the strip has already wrapped, and a link pushed to the
+     far edge of a line of its own reads as unrelated to the numbers above it. */
+  .y-pager__whole { margin-left: 0; }
+}
 
 /* Narrow: the table stacks instead of scrolling sideways, because a sheet the
    reader has to push left and right is one they read half of. Each cell then

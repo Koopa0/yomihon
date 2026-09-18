@@ -53,7 +53,11 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		// A word the table cannot order by leaves the page in its default
 		// order: the reader asked for this page, and the ordering is how it is
 		// laid out rather than what it is about.
-		Sort:    pages.ParseHealthColumn(r.URL.Query().Get("sort")),
+		Sort: pages.ParseHealthColumn(r.URL.Query().Get("sort")),
+		// A stretch of the table the report does not have leaves the reader on
+		// its first page, for the same reason: which rows are on screen is how
+		// the page is laid out.
+		Page:    pages.ParsePageNumber(r.URL.Query().Get("page")),
 		Sidebar: pages.NewSidebar(pageShell.Nav, ""),
 	}
 	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(lang))).Render(r.Context(), w); err != nil {

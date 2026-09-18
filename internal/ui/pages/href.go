@@ -283,6 +283,15 @@ func searchHref(q string) string {
 	return "/search?" + url.Values{"q": {q}}.Encode()
 }
 
+// SearchPageHref builds the URL for one stretch of a search answer. It is
+// exported because the face that puts the query to the index is the only one
+// that can say how many hits there were, and so the only one that can build
+// the strip — while how a search address is spelled stays here, beside the
+// address every other search link is written with.
+func SearchPageHref(q string, n PageNumber) string {
+	return "/search?" + url.Values{"q": {q}, "page": {n.param()}}.Encode()
+}
+
 // reportHref builds the report shell URL for a briefing's bare filename, never a
 // vault path: the handler resolves the name against the snapshot's report
 // allowlist, so request input never reaches a filesystem join.

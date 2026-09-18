@@ -124,6 +124,14 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
+		// An answer that runs past one page, in both languages: the sentence
+		// naming the rows on screen, the way back and on, the numbers near this
+		// one with the mark on the one being read, and the whole listing that
+		// is what prints.
+		{"search-page-paged", Search(recordedPagedSearchView(model, recordedChrome().Lang), recordedChrome())},
+		{"search-page-paged-english", Search(recordedPagedSearchView(model, wording.En), recordedEnglishChrome())},
+		{"health-page-paged", Health(recordedPagedHealthView(model), recordedChrome())},
+		{"health-page-paged-english", Health(recordedPagedHealthView(model), recordedEnglishChrome())},
 		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(model, "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
 		{"preferences-page", Preferences(recordedPreferencesView(), recordedChrome())},
 		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
@@ -736,6 +744,41 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		Facets:            recordedSearchFacets(lang),
 		Governed:          true,
 		Sidebar:           NewSidebar(model, ""),
+	}
+}
+
+// recordedPagedSearchView is that same answer divided. The strip is built for
+// a listing of five hits two to a page, which is not a size the running server
+// ever asks for: what the recording is of is the second page of three, and the
+// page size never reaches the markup.
+func recordedPagedSearchView(model *nav.Model, lang wording.Lang) SearchView {
+	view := recordedSearchView(model, lang)
+	view.Total = 5
+	view.Pager = NewPager(2, 2, view.Total, func(n PageNumber) string {
+		return SearchPageHref(view.Query, n)
+	})
+	return view
+}
+
+// recordedPagedHealthView is a report longer than one page: notes nothing
+// cites, which is the finding that draws one line per note, on the last page of
+// two. The shape line above and the guide below count the whole report while
+// the table holds the five rows this page is.
+func recordedPagedHealthView(model *nav.Model) HealthView {
+	const rows = healthPageSize + 5
+	notes := make([]nav.NoteRef, 0, rows)
+	for i := range rows {
+		notes = append(notes, nav.NoteRef{
+			Name:    fmt.Sprintf("Note %03d", i),
+			RelPath: fmt.Sprintf("Notes/n%03d.md", i),
+		})
+	}
+	return HealthView{
+		Islands:     []HealthIslandGroup{{Dir: "Notes", Name: "Notes", Notes: notes}},
+		IslandCount: rows,
+		Sort:        HealthByFinding,
+		Page:        2,
+		Sidebar:     NewSidebar(model, ""),
 	}
 }
 

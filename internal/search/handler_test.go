@@ -240,8 +240,10 @@ func TestSearchHitStatusChipFollowsGovernance(t *testing.T) {
 
 // TestSearchResponseIsBounded pins the response cap. A term matching most of a
 // large vault used to ship every hit — a multi-megabyte fragment rebuilt on
-// each pause in typing — so the list holds only the opening two hundred while
-// the count line and the fragment's count marker keep the true tally.
+// each pause in typing — so the list holds one page while the count line and
+// the fragment's count marker keep the true tally. The page under the rows
+// leads to the rest; the palette, which has no strip to lead anywhere, says
+// instead how far the list it is showing was cut.
 func TestSearchResponseIsBounded(t *testing.T) {
 	t.Parallel()
 
@@ -265,11 +267,14 @@ func TestSearchResponseIsBounded(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rr.Code)
 	}
 	body := rr.Body.String()
-	if got := strings.Count(body, "<li>"); got != 200 {
-		t.Errorf("rendered result rows = %d, want 200", got)
+	if got := strings.Count(body, "<li>"); got != searchPageSize {
+		t.Errorf("rendered result rows = %d, want %d", got, searchPageSize)
 	}
-	if !strings.Contains(body, "共 207 筆，顯示前 200 筆") {
-		t.Errorf("the capped list does not say both numbers; body opens %q", body[:min(len(body), 400)])
+	if want := fmt.Sprintf("共 207 筆，顯示前 %d 筆", searchPageSize); !strings.Contains(body, want) {
+		t.Errorf("the palette's capped list does not say both numbers; body opens %q", body[:min(len(body), 400)])
+	}
+	if strings.Contains(body, "y-pager") {
+		t.Error("the palette carries a strip of page links, which lead out of the dialog they are drawn in")
 	}
 	if !strings.Contains(body, `data-result-count="207"`) {
 		t.Errorf("the count marker does not carry the true tally; body opens %q", body[:min(len(body), 400)])
@@ -281,8 +286,15 @@ func TestSearchResponseIsBounded(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("full page status = %d, want 200", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "共 207 筆，顯示前 200 筆") {
-		t.Error("the full page does not say both numbers")
+	page := rr.Body.String()
+	if got := strings.Count(page, `class="y-result"`); got != searchPageSize {
+		t.Errorf("the full page renders %d result rows, want %d", got, searchPageSize)
+	}
+	if want := fmt.Sprintf("第 1–%d 筆，共 207 筆", searchPageSize); !strings.Contains(page, want) {
+		t.Errorf("the full page does not name the rows it is showing; want %q", want)
+	}
+	if !strings.Contains(page, `href="/search?page=2&amp;q=needle"`) {
+		t.Error("the full page offers no way to the rest of the answer")
 	}
 }
 
