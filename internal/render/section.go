@@ -113,8 +113,8 @@ func ledeSlice(body string) (slice string, narrowed bool) {
 		return body, false
 	}
 	first := headings[0]
-	if ledeBeforeHeading(lines, first.Line) {
-		return strings.Join(lines[:first.Line], "\n"), true
+	if opening := openingBefore(lines, first.Line); opening != "" {
+		return opening, true
 	}
 	end := len(lines)
 	if len(headings) > 1 {
@@ -124,6 +124,39 @@ func ledeSlice(body string) (slice string, narrowed bool) {
 		return body, false
 	}
 	return strings.Join(lines[first.Line:end], "\n"), true
+}
+
+// Opening is what a note's author wrote before its first heading: the words
+// that say what the note is, ahead of whatever it goes on to list. A note that
+// opens on a heading has none and the answer is empty, which a surface renders
+// as nothing rather than as an empty box; a note carrying no heading at all is
+// all opening.
+//
+// Obsidian's %% comments come off first, as they do before any other cut, so a
+// marker cannot arrive visible in the words a course prints under its title.
+//
+// It is the same cut the hover card makes over the same lines, and both ask
+// openingBefore for it. The card goes on to a second answer where this one is
+// empty — it has to show something of the note under the pointer — and that
+// fallback is the card's, not this.
+func Opening(body string) string {
+	stripped, _ := stripBody(body)
+	lines := strings.Split(stripped.text, "\n")
+	headings := graph.Headings(stripped.text, graph.LineSkipZones(stripped.text))
+	if len(headings) == 0 {
+		return openingBefore(lines, len(lines))
+	}
+	return openingBefore(lines, headings[0].Line)
+}
+
+// openingBefore is the lines up to first, or empty where they hold nothing but
+// blanks. A run of blanks is not an opening: the note opens on the heading
+// below them, and a surface asking for words it has none of must be told so.
+func openingBefore(lines []string, first int) string {
+	if !ledeBeforeHeading(lines, first) {
+		return ""
+	}
+	return strings.Join(lines[:first], "\n")
 }
 
 // ledeBeforeHeading reports whether the lines before the first heading hold
