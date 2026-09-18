@@ -54,20 +54,29 @@ const notApplied = (message) => {
 
 // Rewrites one served page (or module). needle must be found, so a self-test
 // that quietly died against rewritten source turns red here rather than
-// passing as a regression that walked through.
-const rewrite = (match, needle, replacement) => async (page) => {
+// passing as a regression that walked through. exact demands the needle
+// match exactly once: two copies of the on-page contents list repeat the
+// same link markup, so a needle drawn from that markup is deliberately left
+// free to match twice, but a needle drawn from contents.js itself names one
+// place in the module and a second match would mean it stopped doing that.
+const rewrite = (match, needle, replacement, { exact = false } = {}) => async (page) => {
   let hits = 0;
   await page.route(match, async (route) => {
     const response = await route.fetch();
     const body = await response.text();
-    if (!body.includes(needle)) {
+    const count = body.split(needle).length - 1;
+    hits += count;
+    if (count === 0) {
       await route.fulfill({ response, body });
       return;
     }
-    hits += 1;
-    await route.fulfill({ response, body: body.replace(needle, replacement) });
+    await route.fulfill({ response, body: body.replaceAll(needle, replacement) });
   });
-  return async () => (hits === 0 ? `nothing served carried ${JSON.stringify(needle.slice(0, 80))}` : '');
+  return async () => {
+    if (hits === 0) return `nothing served carried ${JSON.stringify(needle.slice(0, 80))}`;
+    if (exact && hits !== 1) return `${JSON.stringify(needle.slice(0, 80))} matched ${hits} times, want exactly 1`;
+    return '';
+  };
 };
 
 const MUTATIONS = {
@@ -80,43 +89,34 @@ const MUTATIONS = {
       (url) => url.pathname === '/static/contents.js',
       "      if (active) link.setAttribute('aria-current', 'location');\n      else link.removeAttribute('aria-current');",
       "      if (active) link.setAttribute('aria-current', 'location');",
+      { exact: true },
     ),
   },
-  // recompute() freezes the first time the mark actually moves away from the
-  // first heading, so the reader's first scroll still lands correctly and
-  // every scroll after that — including scrolling back — changes nothing.
+  // recompute() freezes itself the first time the mark actually moves away
+  // from the first heading, so the reader's first scroll still lands
+  // correctly and every scroll after that — including scrolling back —
+  // changes nothing. The flag sits on the function itself rather than a
+  // separate local so this rewrite needs to touch only the one line that
+  // calls mark, not the lines around it that a change to how the walk is
+  // measured could otherwise reword out from under a needle written against
+  // them.
   'never-move-the-mark': {
     target: 'scrolling-back-moves-the-mark',
     apply: rewrite(
       (url) => url.pathname === '/static/contents.js',
-      `  function recompute() {
-    if (locked) return;
-    // The document scrolls, so a heading's own viewport coordinate answers
-    // directly; measuring against the article box made the comparison move
-    // with the page, which is why the mark used to stay on the first entry.
-    let current = headings[0].id;
-    for (const heading of headings) {
-      if (heading.getBoundingClientRect().top <= readingLine) current = heading.id;
-      else break;
-    }
+      `    mark(current);
+  }`,
+      `    if (recompute.frozen) return;
+    if (current !== headings[0].id) recompute.frozen = true;
     mark(current);
   }`,
-      `  let frozen = false;
-  function recompute() {
-    if (locked || frozen) return;
-    let current = headings[0].id;
-    for (const heading of headings) {
-      if (heading.getBoundingClientRect().top <= readingLine) current = heading.id;
-      else break;
-    }
-    if (current !== headings[0].id) frozen = true;
-    mark(current);
-  }`,
+      { exact: true },
     ),
   },
   // Takes one heading's link out of the page the no-script reader is served,
   // which is the plain list failing to survive rather than merely failing to
-  // move.
+  // move. Both copies of the list repeat the same markup, so this needle is
+  // deliberately left free to remove it from either or both.
   'drop-a-link-with-no-script': {
     target: 'the-plain-list-survives-with-no-script',
     at: 'plain',
@@ -135,6 +135,7 @@ const MUTATIONS = {
       (url) => url.pathname === PAGE,
       `class="ui-navitem is-active" href="${PAGE}" aria-current="page"`,
       `class="ui-navitem is-active" href="${PAGE}"`,
+      { exact: true },
     ),
   },
 };
