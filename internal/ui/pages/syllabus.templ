@@ -35,13 +35,23 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 	}
 }
 
-// syllabusHead is the path kicker, title, and the derived metarow (parts /
-// modules / entries / ready). No path dek (subtitle) is rendered: there is no
+// syllabusHead is the cover: the path kicker, the title, the map note's own
+// opening, the derived metarow (parts / modules / entries / ready), and the one
+// verb that opens the course. No path dek (subtitle) is rendered: there is no
 // backing field for it, and no data means no render — the same treatment the
 // reading page gives a note's subtitle.
 templ syllabusHead(v PathView, lang wording.Lang) {
 	<div class="y-syl-kicker">{ wording.SyllabusKicker.In(lang) }</div>
 	<h1 class="y-title">{ v.Title }</h1>
+	// The author's own words about the course, taken from above the first
+	// heading of the note that declares it and printed unchanged. A note that
+	// opens straight on a heading has none, and nothing is drawn: the reader
+	// meets the counts one line sooner rather than an empty box.
+	if v.OpeningHTML != "" {
+		<div class="y-cover__opening y-prose" { authoredLanguageAttrs(v.OpeningLanguage)... }>
+			@templ.Raw(v.OpeningHTML)
+		</div>
+	}
 	<div class="y-metarow">
 		<span>{ plural(v.Parts, wording.PartCountOne, wording.PartCountMany, lang) }</span>
 		if v.Modules > 0 {
@@ -65,11 +75,31 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 	// before it explains itself, so the two halves of the page cannot give
 	// different answers about whether this path has a course.
 	if len(v.Branches) > 0 {
-		<a class="y-syl-read" href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
-		// The same course as something to be listened to. It sits beside the
-		// way to the note for the same reason and on the same condition: a
-		// path with nothing to walk has nothing to read aloud either.
-		<a class="y-syl-read" href={ templ.URL(v.ListenHref) }>{ wording.ListenThisCourse.In(lang) }<span aria-hidden="true">→</span></a>
+		<div class="y-cover__ways">
+			// One verb, and it is the course's: open the first lesson, or go
+			// back to the place the reader kept inside it. The token beside it
+			// says which without asking what language the page is in. The way
+			// to the note stays a plain link next to it — the reader has just
+			// read the note's opening, and that is where the rest of it is.
+			if v.Action.Href != "" {
+				<a
+					class="y-cover__open"
+					data-course-action={ v.Action.Token() }
+					href={ templ.URL(v.Action.Href) }
+				>
+					<span class="y-cover__verb">{ v.Action.Verb(lang) }</span>
+					if v.Action.Lesson != "" {
+						<span class="y-cover__lesson">{ v.Action.Lesson }</span>
+					}
+				</a>
+			}
+			<a class="y-syl-read" href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
+			// The same course as something to be listened to. It sits beside
+			// the way to the note for the same reason and on the same
+			// condition: a path with nothing to walk has nothing to read
+			// aloud either.
+			<a class="y-syl-read" href={ templ.URL(v.ListenHref) }>{ wording.ListenThisCourse.In(lang) }<span aria-hidden="true">→</span></a>
+		</div>
 	}
 }
 
