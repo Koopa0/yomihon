@@ -89,6 +89,7 @@ func TestBuildPathView(t *testing.T) {
 		Title:      "Go path",
 		RelPath:    "Maps/Go path.md",
 		GuideHref:  "/notes/Maps/Go%20path.md",
+		ListenHref: "/listen/Maps/Go%20path.md",
 		SealTarget: schema.SealStatus,
 		Paths: []PathLink{
 			// The side branch is not part of the main line, so the planned

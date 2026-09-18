@@ -33,6 +33,65 @@ export function initLesson() {
   const playingLabel = column?.dataset.readaloudPlaying ?? '';
   const finishedLabel = column?.dataset.readaloudFinished ?? '';
   const unavailableLabel = column?.dataset.readaloudUnavailable ?? '';
+  const playAllLabel = column?.dataset.readaloudPlayall ?? '';
+  const previousLabel = column?.dataset.readaloudPrevious ?? '';
+  const nextLabel = column?.dataset.readaloudNext ?? '';
+  const progressTemplate = column?.dataset.readaloudProgress ?? '';
+  const limitsLabel = column?.dataset.readaloudLimits ?? '';
+
+  // Reading a note through: every marked paragraph in document order, the
+  // cursor on the one the voice last took, and whether the walk is still live.
+  // The cursor outlives the walk, so previous and next carry on from wherever
+  // the reader was left rather than from the top of the note.
+  let readingButtons = [];
+  let cursor = -1;
+  let running = false;
+  let readingMark = null;
+  let playAllButton = null;
+  let previousButton = null;
+  let nextButton = null;
+
+  // The paragraph the voice is on, which the stylesheet colours. It is state
+  // about a moment rather than a fact about the note, so no server can know it
+  // and the page is never served carrying one.
+  function markReading(wrapper) {
+    if (readingMark === wrapper) return;
+    readingMark?.removeAttribute('data-reading');
+    readingMark = wrapper ?? null;
+    readingMark?.setAttribute('data-reading', '');
+  }
+
+  // Giving the walk up. The cursor stays where it is: a reader who stops and
+  // then asks for the next paragraph means the one after what they just heard.
+  function endRun() {
+    running = false;
+    refreshRunControls();
+  }
+
+  function refreshRunControls() {
+    playAllButton?.setAttribute('aria-pressed', String(running));
+    // Refused at the ends rather than wrapping: a note read in order has a
+    // first paragraph with nothing before it and a last with nothing after.
+    setStep(previousButton, cursor <= 0);
+    setStep(nextButton, cursor >= readingButtons.length - 1);
+  }
+
+  // Pressing previous back to the first paragraph is what switches previous
+  // off, and a control that goes dead under the reader's finger takes their
+  // place in the page with it: focus falls to the document and the next Tab
+  // starts again from the top. Play through is the control beside it and is
+  // never off, so the reader is left standing in the bar they were using.
+  function setStep(button, off) {
+    if (!button) return;
+    if (off && document.activeElement === button) playAllButton?.focus();
+    button.disabled = off;
+  }
+
+  function announceProgress(index) {
+    announce(progressTemplate
+      .replace('{n}', String(index + 1))
+      .replace('{total}', String(readingButtons.length)));
+  }
 
   function resetSpeakButton() {
     if (!activeSpeakButton) return;
@@ -42,6 +101,10 @@ export function initLesson() {
     if (activeSpeakButton.dataset.readaloudIdle) {
       activeSpeakButton.setAttribute('aria-label', activeSpeakButton.dataset.readaloudIdle);
     }
+    // The colour stands for the voice this button started, so the two are let
+    // go in the same breath. Left behind, it points at a paragraph nothing is
+    // reading and the reader follows it.
+    markReading(null);
     activeSpeakButton = null;
   }
 
@@ -57,69 +120,165 @@ export function initLesson() {
     announce(stoppedLabel);
   }
 
-  function speakJapanese(text, trigger = null, passage = trigger?.parentElement) {
+  // fromBar says the bar asked for this paragraph — the walk's own advance, or
+  // a press on play through, previous or next. Every other press is a reader
+  // asking for one paragraph and not for the ones after it, so it gives the
+  // walk up and hears the voice announce itself; the bar has already said which
+  // paragraph this is, and the voice starting is not news on top of that. The
+  // giving up is the default, so a speaker added later has to say it belongs to
+  // the walk before it can keep one alive.
+  function speakJapanese(text, trigger = null, passage = trigger?.parentElement, fromBar = false) {
     if (!text || !('speechSynthesis' in window)) return;
-    if (trigger && trigger === activeSpeakButton) {
-      stopSpeech();
-      return;
+    if (!fromBar) {
+      endRun();
+      if (trigger && trigger === activeSpeakButton) {
+        stopSpeech();
+        return;
+      }
     }
     stopSpeech();
     const generation = speechGeneration;
     const utterance = new SpeechSynthesisUtterance(text);
     // The note says what language it is in; reading it aloud in another one is
-  // not a smaller version of the feature, it is the wrong words. A note that
-  // declares nothing falls back to the passage's own marker.
-  utterance.lang = speechLanguage(passage);
+    // not a smaller version of the feature, it is the wrong words. A note that
+    // declares nothing falls back to the passage's own marker.
+    utterance.lang = speechLanguage(passage);
     utterance.rate = speechRate;
     if (trigger) {
       activeSpeakButton = trigger;
       trigger.setAttribute('data-speaking', '');
       trigger.dataset.readaloudIdle ??= trigger.getAttribute('aria-label') ?? '';
       if (stopThisLabel) trigger.setAttribute('aria-label', stopThisLabel);
+      markReading(trigger.closest('.y-reading'));
     }
     utterance.addEventListener('start', () => {
-      if (generation === speechGeneration) announce(playingLabel);
+      if (generation === speechGeneration && !fromBar) announce(playingLabel);
     }, { once: true });
     utterance.addEventListener('end', () => {
-      if (generation === speechGeneration) {
-        announce(finishedLabel);
-        resetSpeakButton();
+      if (generation !== speechGeneration) return;
+      if (running) {
+        advance();
+        return;
       }
+      announce(finishedLabel);
+      resetSpeakButton();
     }, { once: true });
     utterance.addEventListener('error', () => {
-      if (generation === speechGeneration) {
-        announce(unavailableLabel);
-        resetSpeakButton();
-      }
+      if (generation !== speechGeneration) return;
+      // The walk gives up here, so the sentence about the missing voice is said
+      // once rather than once for every paragraph still ahead.
+      endRun();
+      announce(unavailableLabel);
+      resetSpeakButton();
     }, { once: true });
     speechSynthesis.speak(utterance);
   }
 
+  // One paragraph of the walk. Whether the walk goes on afterwards is the
+  // caller's to say: an advance and play through keep it, previous and next
+  // keep whatever the reader already had, and a press on a paragraph's own
+  // speaker never comes through here at all.
+  function speakAt(index, keepRunning) {
+    const button = readingButtons[index];
+    if (!button) return;
+    cursor = index;
+    running = keepRunning;
+    // The passage is left to the default — the element enclosing this
+    // paragraph's own speaker — so a note read through resolves the voice once
+    // for each paragraph rather than once for the note.
+    speakJapanese(button.getAttribute('data-tts'), button, undefined, true);
+    announceProgress(index);
+    refreshRunControls();
+  }
+
+  // The walk moves on when an utterance ends of its own accord.
+  function advance() {
+    if (cursor + 1 >= readingButtons.length) {
+      endRun();
+      announce(finishedLabel);
+      resetSpeakButton();
+      return;
+    }
+    speakAt(cursor + 1, true);
+  }
+
+  // Previous and next move the reader whether a walk is live or not: mid-walk
+  // they skip and the walk carries on from the new paragraph, at rest they read
+  // one paragraph and stop there. Either way the same sentence says where the
+  // reader now is, so skipping and advancing sound alike.
+  function step(delta) {
+    const target = cursor + delta;
+    if (target < 0 || target >= readingButtons.length) return;
+    speakAt(target, running);
+  }
+
+  function barButton(text, className) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.textContent = text;
+    return button;
+  }
+
   function initTextToSpeech() {
     if (!('speechSynthesis' in window)) return;
-    const buttons = [...document.querySelectorAll('[data-tts]')];
-    if (buttons.length === 0) return;
+    // Above the test for marked paragraphs, because the practice card can be
+    // speaking on a note that marks none. Speech outlives the page it was
+    // started on, so a reader who leaves mid-sentence is otherwise followed by
+    // the voice onto whatever they opened next.
+    window.addEventListener('pagehide', () => {
+      endRun();
+      speechGeneration += 1;
+      speechSynthesis.cancel();
+    });
+    readingButtons = [...document.querySelectorAll('[data-tts]')];
+    if (readingButtons.length === 0) return;
 
     const toolbar = document.createElement('div');
     toolbar.className = 'y-ttsbar';
     toolbar.setAttribute('role', 'group');
     toolbar.setAttribute('aria-label', controlsLabel);
+    playAllButton = barButton(playAllLabel, 'y-ttsbar__play');
+    playAllButton.addEventListener('click', () => {
+      if (running) {
+        endRun();
+        stopSpeech();
+        return;
+      }
+      // Play through picks the reader up where they are: the paragraph the
+      // voice last took, or the first when they have not started yet or are
+      // standing on the last one with nothing after it.
+      speakAt(cursor >= 0 && cursor < readingButtons.length - 1 ? cursor : 0, true);
+    });
+    previousButton = barButton(previousLabel, 'y-ttsbar__prev');
+    previousButton.addEventListener('click', () => step(-1));
+    nextButton = barButton(nextLabel, 'y-ttsbar__next');
+    nextButton.addEventListener('click', () => step(1));
+    const stopButton = barButton(stopLabel, 'y-ttsbar__stop');
+    stopButton.addEventListener('click', () => {
+      endRun();
+      stopSpeech();
+    });
+    toolbar.append(playAllButton, previousButton, nextButton, stopButton);
     const label = document.createElement('span');
     label.className = 'y-ttsbar__label';
     label.textContent = speedLabel;
     toolbar.append(label);
-    [0.8, 1].forEach((rate) => {
+    [0.8, 1, 1.25, 1.5].forEach((rate) => {
       const rateButton = document.createElement('button');
       rateButton.type = 'button';
-      rateButton.textContent = `${rate.toFixed(1)}×`;
+      // The number as it is, not rounded to a fixed place: one decimal turns
+      // 1.25 into a button reading 1.3× that sets a speed of 1.25.
+      rateButton.textContent = `${rate}×`;
       rateButton.setAttribute('aria-pressed', String(rate === speechRate));
       rateButton.addEventListener('click', () => {
         speechRate = rate;
         toolbar.querySelectorAll('button[data-speech-rate]').forEach((candidate) => {
           candidate.setAttribute('aria-pressed', String(candidate === rateButton));
         });
+        endRun();
         stopSpeech();
-        announce(rateTemplate.replace('{rate}', rate.toFixed(1)));
+        announce(rateTemplate.replace('{rate}', String(rate)));
       });
       rateButton.dataset.speechRate = String(rate);
       toolbar.append(rateButton);
@@ -128,16 +287,30 @@ export function initLesson() {
     speechStatus.className = 'y-ttsbar__status';
     speechStatus.setAttribute('aria-live', 'polite');
     toolbar.append(speechStatus);
-    const stopButton = document.createElement('button');
-    stopButton.type = 'button';
-    stopButton.className = 'y-ttsbar__stop';
-    stopButton.textContent = stopLabel;
-    stopButton.addEventListener('click', stopSpeech);
-    toolbar.append(stopButton);
-    buttons[0].closest('.y-reading')?.before(toolbar);
+    // What the voice cannot be asked for, said where a reader would look for
+    // the controls that are missing. Only a page that offers it carries the
+    // words, so a note's reading column gains no line of chrome.
+    if (limitsLabel) {
+      const limits = document.createElement('p');
+      limits.className = 'y-ttsbar__limits';
+      limits.textContent = limitsLabel;
+      toolbar.append(limits);
+    }
+    // A page whose whole subject is listening says where the bar goes; a note
+    // has no such place, and the bar opens the first paragraph that speaks.
+    const anchor = document.querySelector('[data-readaloud-bar]');
+    if (anchor) anchor.append(toolbar);
+    else readingButtons[0].closest('.y-reading')?.before(toolbar);
+    refreshRunControls();
 
-    buttons.forEach((button) => {
-      button.addEventListener('click', () => speakJapanese(button.getAttribute('data-tts'), button));
+    readingButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        // The cursor follows a reader who presses a paragraph's own speaker, so
+        // next afterwards means the paragraph after that one.
+        cursor = readingButtons.indexOf(button);
+        speakJapanese(button.getAttribute('data-tts'), button);
+        refreshRunControls();
+      });
     });
   }
 

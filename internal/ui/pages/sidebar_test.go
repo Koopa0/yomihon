@@ -170,7 +170,7 @@ func TestNewSidebarWayfinding(t *testing.T) {
 		current = "Writing/lessons/go/L01.md"
 		sibling = "Writing/lessons/go/L02.md"
 	)
-	sb := NewSidebar(model, current)
+	sb := NewSidebar(nav.Shell{Nav: model}, current)
 
 	if !sb.mapOpen(goPath) {
 		t.Errorf("mapOpen(%q) = false, want true", goPath)
@@ -199,7 +199,7 @@ func TestNewSidebarWayfinding(t *testing.T) {
 
 	// A note listed only under Decode > Bytes must not open the Review section:
 	// the open set is per note, not per study-path.
-	sb2 := NewSidebar(model, sibling)
+	sb2 := NewSidebar(nav.Shell{Nav: model}, sibling)
 	if sb2.branchOpen(goPath, []string{"Review"}) {
 		t.Errorf("branchOpen(%q, [Review]) = true for a note absent from Review, want false", goPath)
 	}
@@ -246,7 +246,7 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			sb := NewSidebar(model, tt.current)
+			sb := NewSidebar(nav.Shell{Nav: model}, tt.current)
 			if sb.mapOpen("Maps/Go path.md") {
 				t.Error("mapOpen = true for a note no study-path lists, want false")
 			}
@@ -279,7 +279,7 @@ func TestNewSidebarNonLessonFixtures(t *testing.T) {
 func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 	t.Parallel()
 	model := buildModel(t)
-	sb := NewSidebar(model, "Writing/lessons/go/L01.md")
+	sb := NewSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md")
 
 	var buf bytes.Buffer
 	if err := sidebar(sb, layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -308,7 +308,7 @@ func TestSidebarContentGrouping(t *testing.T) {
 	model := buildModel(t)
 
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -391,7 +391,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 			model.NavigationClosure().Diagnostic(), model.ArtifactClosure().Diagnostic())
 	}
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -433,7 +433,7 @@ func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
 			model.JournalClosure().Closed(), model.JournalClosure().Diagnostic())
 	}
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -464,7 +464,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		schema.AuthoredDate{},
 	)
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -589,7 +589,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 
 	model := buildModel(t)
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -614,7 +614,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 	// longer lists the whole vault, so the place that offers it is the folder
 	// it sits in, which a reader inside that folder has beside them.
 	var inFolder bytes.Buffer
-	if err := sidebar(NewSidebar(model, "System/templates/Template map.md"), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &inFolder); err != nil {
+	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, "System/templates/Template map.md"), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &inFolder); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	_, here, found := strings.Cut(inFolder.String(), `<nav class="y-here"`)
@@ -642,7 +642,7 @@ func TestSidebarZeroEntryMapKeepsDisclosureAndOpenLink(t *testing.T) {
 
 	model := nav.Map{Title: "Empty map", RelPath: "Maps/Empty.md"}
 	var buf bytes.Buffer
-	if err := mapTree(NewSidebar(nil, ""), layouts.Chrome{}, model, notesHref(model.RelPath)).Render(t.Context(), &buf); err != nil {
+	if err := mapTree(NewSidebar(nav.Shell{}, ""), layouts.Chrome{}, model, notesHref(model.RelPath)).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -731,7 +731,7 @@ func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -777,7 +777,7 @@ func detailsTagByKey(t *testing.T, html, key string) string {
 func TestNewSidebarNoCurrentNote(t *testing.T) {
 	t.Parallel()
 	model := buildModel(t)
-	sb := NewSidebar(model, "")
+	sb := NewSidebar(nav.Shell{Nav: model}, "")
 
 	if sb.mapOpen("Maps/Go path.md") {
 		t.Error("mapOpen = true with no current note, want false")

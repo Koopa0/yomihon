@@ -26,6 +26,7 @@ probes=(
   "search-focus-restore.mjs|/notes/Notes/alpha.md"
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"
   "drawer-contract.mjs|/notes/Notes/alpha.md"
+  "rail-foot.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
@@ -45,10 +46,13 @@ probes=(
   "vault-sidebar.mjs|/search"
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
+  "note-head-facts.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-recovery-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
+  "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -72,6 +76,8 @@ probes=(
   "search-facets.mjs|/search?q=a"
   "search-overflow.mjs|/search?q=a"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
+  "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
+  "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads

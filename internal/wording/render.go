@@ -54,6 +54,11 @@ var ReadAloud = both("朗讀這段日文", "Read this Japanese aloud")
 //
 // ReadAloudRateFmt takes the rate as the reader sees it on the button beside
 // it, so the announcement and the control agree.
+//
+// ReadAloudProgressFmt is said at every move — the start of a reading, each
+// paragraph the voice reaches on its own, and each press of previous or next —
+// so skipping and carrying on sound alike. Speech synthesis reports no reliable
+// duration, so a paragraph is the only honest unit to count in.
 var (
 	ReadAloudStop        = both("停止", "Stop")
 	ReadAloudStopThis    = both("停止朗讀", "Stop reading aloud")
@@ -64,7 +69,21 @@ var (
 	ReadAloudPlaying     = both("播放中", "Playing")
 	ReadAloudFinished    = both("播放完成", "Finished")
 	ReadAloudUnavailable = both("目前無法播放日語語音", "Japanese speech is unavailable right now")
+	ReadAloudPlayAll     = both("連續朗讀", "Play through")
+	ReadAloudPrevious    = both("上一段", "Previous")
+	ReadAloudNext        = both("下一段", "Next")
+	ReadAloudProgressFmt = both("第 {n} 段，共 {total} 段", "Paragraph {n} of {total}")
 )
+
+// ReadAloudLimits says what the platform cannot do, where the reader meets the
+// controls that would otherwise be missing. Speech synthesis reports no
+// reliable length for what it is about to say, so there is nothing to draw a
+// position against and nothing to drag; a control that pretended otherwise
+// would be lying about where the voice is. It is said on the page that reads a
+// whole course aloud, which is where a reader would look for a scrubber.
+var ReadAloudLimits = both(
+	"語音合成不會回報可靠的長度，所以這裡沒有進度條、沒有已播時間，也不能拖曳。段落就是移動的單位：連續朗讀、停止、上一段、下一段、速度。",
+	"Speech synthesis reports no reliable duration, so there is no seek bar, no elapsed time, and nothing to drag. A paragraph is the unit of navigation: play through, stop, previous, next, and rate.")
 
 // TitleOnlyTargetFmt is said where a citation names a note's declared title.
 // The note exists; the name it was written under is not one a link finds,

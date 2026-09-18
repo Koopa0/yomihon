@@ -17,9 +17,11 @@ import (
 // figures the header metarow reads. Navigation has already classified every
 // entry, so the page never resolves a wikilink.
 type PathView struct {
-	Title      string
-	RelPath    string
-	GuideHref  string
+	Title     string
+	RelPath   string
+	GuideHref string
+	// ListenHref is the same course as something to be listened to.
+	ListenHref string
 	SealTarget string
 	Paths      []PathLink
 	Branches   []PathBranchView
@@ -31,6 +33,12 @@ type PathView struct {
 	Modules int
 	Entries int
 	Ready   int
+
+	// Vault is the folder this course sits in, which the rail's foot states.
+	// The reading rail builds one of these views for its own book and states
+	// the folder from its own value, so this one is filled where the page is
+	// assembled rather than by the builder the two share.
+	Vault nav.Vault
 
 	// NoCourse is which explanation the empty-course page is entitled to give:
 	// that a written sequence marker is among what the grammar reported, that
@@ -265,6 +273,7 @@ func BuildPathView(current *nav.Path, all []nav.Path, cover CourseCover) PathVie
 		Title:           current.Title,
 		RelPath:         current.RelPath,
 		GuideHref:       notesHref(current.RelPath),
+		ListenHref:      VaultHref("/listen/", current.RelPath),
 		SealTarget:      schema.SealStatus,
 		Paths:           buildPaths(current.RelPath, all),
 		Entries:         current.Planned,

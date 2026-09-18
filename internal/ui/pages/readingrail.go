@@ -24,6 +24,8 @@ type ReadingRail struct {
 	Model       *nav.Model
 	CurrentPath string
 	Kind        ReadingRailKind
+	// Vault is the folder this rail is a rail of, which its foot states.
+	Vault nav.Vault
 
 	book         *nav.Path
 	neighbors    nav.Neighbors
@@ -35,11 +37,13 @@ type ReadingRail struct {
 // NewReadingRail resolves the one map a note page should show. noteDomain is
 // the declared domain of the note being read, used only to break a tie among
 // several study paths.
-func NewReadingRail(model *nav.Model, currentPath, noteDomain string) ReadingRail {
+func NewReadingRail(shell nav.Shell, currentPath, noteDomain string) ReadingRail {
+	model := shell.Nav
 	currentPath = vault.NormalizeNFC(currentPath)
 	rr := ReadingRail{
 		Model:       model,
 		CurrentPath: currentPath,
+		Vault:       shell.Vault,
 	}
 	if model == nil || currentPath == "" {
 		rr.Kind = ReadingRailFolder
@@ -78,11 +82,12 @@ func NewReadingRail(model *nav.Model, currentPath, noteDomain string) ReadingRai
 }
 
 // NewReportReadingRail resolves the reports list for a sandboxed briefing page.
-func NewReportReadingRail(model *nav.Model, briefingRelPath string) ReadingRail {
+func NewReportReadingRail(shell nav.Shell, briefingRelPath string) ReadingRail {
 	return ReadingRail{
-		Model:       model,
+		Model:       shell.Nav,
 		CurrentPath: vault.NormalizeNFC(briefingRelPath),
 		Kind:        ReadingRailReports,
+		Vault:       shell.Vault,
 	}
 }
 

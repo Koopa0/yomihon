@@ -102,10 +102,20 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		component templ.Component
 	}
 	cases := []surface{
-		{"sidebar-current-note", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce"})},
-		{"sidebar-no-note", sidebar(NewSidebar(model, ""), layouts.Chrome{Nonce: "response-nonce"})},
-		{"sidebar-english", sidebar(NewSidebar(model, current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
+		{"sidebar-current-note", sidebar(NewSidebar(recordedShell(model), current), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-no-note", sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-english", sidebar(NewSidebar(recordedShell(model), current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
 		{"note-page", Note(recordedNoteView(t, model, current), recordedChrome())},
+		// The head's dt/dd facts read in the other interface language too: the
+		// terms are the interface's own words and only a second recording shows
+		// neither language's spelling was left behind in the pair.
+		{"note-page-english", Note(recordedNoteView(t, model, current), recordedEnglishChrome())},
+		// Two notes at once, in both languages the interface speaks: the words
+		// around the columns are the interface's and the words inside them are
+		// the notes' own, so the recording is where a change that moved one of
+		// those over the line shows up.
+		{"compare-page", Compare(recordedCompareView(), recordedChrome())},
+		{"compare-page-english", Compare(recordedCompareView(), recordedEnglishChrome())},
 		{"syllabus-page", Syllabus(course.view(recordedChrome().Lang, ""), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
 		// vault's own words either way; what changes is everything the page
@@ -118,6 +128,14 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// line, and the line is where a longer word would show.
 		{"syllabus-page-continuing", Syllabus(course.view(recordedChrome().Lang, "Writing/lessons/go/L02.md"), recordedChrome())},
 		{"syllabus-page-continuing-english", Syllabus(course.view(wording.En, "Writing/lessons/go/L02.md"), recordedEnglishChrome())},
+		// The same course as something to be listened to, in both languages.
+		// Its paragraphs are the notes' own read-aloud elements, written out
+		// here rather than rendered, so what these files pin is the page and
+		// not a second copy of the renderer's bytes.
+		{"listen-page", Listen(recordedListenView(), recordedChrome())},
+		{"listen-page-english", Listen(recordedListenView(), recordedEnglishChrome())},
+		// A course whose lessons mark nothing says so, and grows no bar.
+		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/syllabus/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
@@ -126,12 +144,12 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"health-page-unreadable-english", Health(recordedUnreadableHealthView(t, model), recordedEnglishChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
-		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedChrome())},
+		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
 		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
-		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(model, "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
+		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(recordedShell(model), "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
 		{"preferences-page", Preferences(recordedPreferencesView(wording.ZhHant), recordedChrome())},
 		// The field legends are drawn in the label face now rather than sitting
 		// inside a bordered box, and that face is where an untranslated legend
@@ -162,8 +180,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// one is a layout fault the Chinese recording alone cannot show.
 		{"search-page-empty", Search(recordedNothingFoundView(model), recordedChrome())},
 		{"search-page-empty-english", Search(recordedNothingFoundView(model), recordedEnglishChrome())},
-		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(model, "")}, recordedEnglishChrome())},
-		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewSidebar(model, "")}, recordedChrome())},
+		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedEnglishChrome())},
+		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
 		{"health-page-clear", Health(recordedClearHealthView(model), recordedChrome())},
 		{"health-page-clear-english", Health(recordedClearHealthView(model), recordedEnglishChrome())},
 		{"home-page-empty", Home(recordedNothingHomeView(wording.ZhHant), recordedChrome())},
@@ -175,7 +193,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 			surface{"statusbar-" + state.name, statusBar(state.view, wording.ZhHant)},
 		)
 	}
-	if len(cases) < 30 {
+	if len(cases) < 32 {
 		t.Fatalf("only %d surfaces are recorded, so this test locks almost nothing", len(cases))
 	}
 
@@ -223,7 +241,7 @@ func recordedNothingFoundView(model *nav.Model) SearchView {
 		FilterKeys: lexical.FilterKeys(),
 		StepBacks:  []SearchStepBack{{Query: "kaf", Count: 2}},
 		Governed:   true,
-		Sidebar:    NewSidebar(model, ""),
+		Sidebar:    NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -231,7 +249,7 @@ func recordedNothingFoundView(model *nav.Model) SearchView {
 // the page reads is empty, which is the one state the faulted recording beside
 // it can never reach.
 func recordedClearHealthView(model *nav.Model) HealthView {
-	return HealthView{Sidebar: NewSidebar(model, "")}
+	return HealthView{Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}
 }
 
 // recordedNothingHomeView is the desk with nothing in the two shelves a
@@ -334,6 +352,18 @@ var drawsNothing = map[string]bool{
 	"statuspanel-frontmatter-diagnostic": true,
 }
 
+// recordedShell is the fixture folder handed over the way a request receives
+// it, carrying a stated vault so the recordings hold the foot of the rail with
+// its three lines filled. The zero shell is recorded too — the rail with no
+// current note keeps it — so both the stated and the unstated wording are
+// pinned, and neither can go blank without a recording moving.
+func recordedShell(model *nav.Model) nav.Shell {
+	return nav.Shell{
+		Nav:   model,
+		Vault: nav.Vault{Name: "example-vault", Notes: 12, Findings: 3},
+	}
+}
+
 // recordedChrome is one fixed request's chrome, so the recording says nothing
 // about the machine it was made on.
 func recordedChrome() layouts.Chrome {
@@ -420,7 +450,7 @@ func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 		CitedBy:             []nav.NoteRef{{Name: "C01", RelPath: "Concepts/go/C01.md"}},
 		BasedOn:             []nav.NoteRef{{Name: "Book notes", RelPath: "Book notes.md"}, {Name: "[[twin]]"}},
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
-		ReadingRail:         NewReadingRail(model, current, "golang"),
+		ReadingRail:         NewReadingRail(recordedShell(model), current, "golang"),
 		Governed:            true,
 		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",
@@ -445,6 +475,37 @@ type recordedCourse struct {
 	// words above its first heading and the tag it declared them in.
 	opening  string
 	language string
+}
+
+// recordedListenView is a course of two lessons, the second marking one
+// paragraph and the first two, so the recording covers both a lesson boundary
+// and a lesson carrying more than one paragraph. The paragraphs are the bytes
+// render.InjectTTS produces, written out rather than produced here: this file
+// records what the page does with them.
+func recordedListenView() ListenView {
+	reading := func(spoken, inner string) string {
+		return `<div class="y-reading" lang="ja"><button class="y-tts" type="button" data-tts="` + spoken +
+			`" lang="zh-Hant" aria-label="朗讀這段日文"><svg aria-hidden="true"></svg></button><p lang="ja">` + inner + `</p></div>`
+	}
+	return ListenView{
+		Title:    "朗讀《Go path》",
+		PathHref: "/syllabus/Maps/Go%20path.md",
+		Lessons: []ListenLesson{
+			{
+				Title: "L01 わたしは学生です",
+				Href:  "/notes/Writing/lessons/go/L01.md",
+				Paragraphs: []string{
+					reading("一つ目の段落です。", "一つ目の段落です。"),
+					reading("二つ目の段落です。", "二つ目の段落です。"),
+				},
+			},
+			{
+				Title:      "L02 三つの段落",
+				Href:       "/notes/Writing/lessons/go/L02.md",
+				Paragraphs: []string{reading("三つ目の段落です。", "三つ目の段落です。")},
+			},
+		},
+	}
 }
 
 // recordedCourse captures the fixture vault as a published generation beside
@@ -682,7 +743,7 @@ func recordedHealthView(model *nav.Model) HealthView {
 		// The ordering a request that named none resolves to, which is what a
 		// reader arriving at the page is holding.
 		Sort:    HealthByFinding,
-		Sidebar: NewSidebar(model, ""),
+		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -703,7 +764,7 @@ func recordedUnreadableHealthView(t *testing.T, model *nav.Model) HealthView {
 	return HealthView{
 		Blocked: sealedVaultBlocked(t),
 		Sort:    HealthByFinding,
-		Sidebar: NewSidebar(model, ""),
+		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -767,7 +828,7 @@ func recordedFileView(model *nav.Model) FileView {
 		RelPath:     "Sources/notes.csv",
 		Size:        1234567,
 		ContentType: "text/csv",
-		Sidebar:     NewSidebar(model, ""),
+		Sidebar:     NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -796,7 +857,7 @@ func recordedRecoveryView(model *nav.Model) StatusRecoveryView {
 		NotePath:        "Writing/lessons/go/L01.md",
 		NoteIdentity:    "abc123",
 		ObsidianHref:    ObsidianHref("/vault", "Writing/lessons/go/L01.md"),
-		Sidebar:         NewSidebar(model, "Writing/lessons/go/L01.md"),
+		Sidebar:         NewSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md"),
 	}
 }
 
@@ -831,7 +892,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
 		Facets:            recordedSearchFacets(lang),
 		Governed:          true,
-		Sidebar:           NewSidebar(model, ""),
+		Sidebar:           NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
@@ -866,4 +927,21 @@ func recordedSearchFacets(lang wording.Lang) []SearchFacet {
 			{Label: `a" b`, Count: 1},
 		},
 	}}
+}
+
+// recordedCompareView is one page holding two notes, each carrying the id space
+// its column occupies. The two halves are deliberately not alike: one declares
+// a language and one does not, one carries a finding and one does not, and only
+// one offers a further pair — so the recording says what the page does with two
+// notes rather than with one note drawn twice.
+func recordedCompareView() CompareView {
+	return CompareView{
+		A: comparedNote("a-", "Cutover", "Writing/lessons/go/Cutover.md", "en"),
+		B: func() NoteView {
+			b := comparedNote("b-", "切換", "Writing/lessons/go/Cutoverzh.md", "")
+			b.SchemaNotices = nil
+			b.Pair = nav.NoteRef{}
+			return b
+		}(),
+	}
 }

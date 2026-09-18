@@ -1,6 +1,9 @@
-// Package syllabus serves the study-path page: one study-path tree with a
-// switcher across every study-path in the vault. It reads paths the navigation
-// model already parsed, and parses no note itself.
+// Package syllabus serves a study path as a course: the study-path tree with a
+// switcher across every study path in the vault, and the same course read
+// aloud. The tree reads paths the navigation model already parsed; the
+// listening page renders each lesson the course teaches, because a note's
+// read-aloud markers survive only into rendered HTML and the snapshot keeps
+// none.
 package syllabus
 
 import (
@@ -34,9 +37,23 @@ type RequestSnapshot struct {
 	// nothing about the page.
 	Kept   mark.Continuation
 	Marked bool
+
+	// Status answers which note type this vault files its course members as.
+	// It may be absent, and the listening page then teaches nothing rather
+	// than guessing at the name.
+	Status LessonTypes
 }
 
-// Handler serves the study-path page.
+// LessonTypes is the read-only sliver of the status projection this face
+// needs, declared at the consumer so a page that only reads does not put the
+// component able to change the vault inside its import closure.
+type LessonTypes interface {
+	// IsLessonType reports whether noteType is the type the vault files its
+	// course members as.
+	IsLessonType(noteType string) bool
+}
+
+// Handler serves the study-path page and the same course read aloud.
 type Handler struct {
 	current func() RequestSnapshot
 	log     *slog.Logger
@@ -54,10 +71,12 @@ func New(current func() RequestSnapshot, log *slog.Logger) *Handler {
 	return &Handler{current: current, log: log}
 }
 
-// Register mounts the study-path index and one study path's own page.
+// Register mounts the study-path index, one study path's own page, and that
+// path read aloud.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /paths", h.index)
 	mux.HandleFunc("GET /syllabus/{path...}", h.show)
+	mux.HandleFunc("GET /listen/{path...}", h.listen)
 }
 
 // show renders the study-path whose vault path matches the request. An unknown
@@ -73,7 +92,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	shell := request.Shell
 	current := shell.Nav.Path(rel)
 	if current == nil {
-		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell.Nav, "")}
+		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell, "")}
 		// The title names which route refused; the page below it is shared.
 		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
 		if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {
@@ -96,6 +115,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := pages.BuildPathView(current, shell.Nav.Paths(), cover)
+	view.Vault = shell.Vault
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
 	}

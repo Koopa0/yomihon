@@ -68,7 +68,20 @@ type NoteView struct {
 	// author's own text, unlinked. An empty list hides the block — declaring
 	// nothing is the default, not a finding.
 	BasedOn []nav.NoteRef
-	TOC     []render.TOCEntry
+	// Pair is the one other note this one is offered to be read beside, or the
+	// zero value where none is. The offer says the same words whichever way the
+	// pair was found, so nothing here says which; two candidates at the same
+	// footing are no offer at all, this surface never picking one of them.
+	Pair nav.NoteRef
+	TOC  []render.TOCEntry
+
+	// IDPrefix is the id space this article occupies. It is empty on a page
+	// showing one note, where every name inside the article is the note's own,
+	// and names a column on a page showing two. The rendered body and the
+	// contents entries arrive already named under it; this is what the names
+	// the template writes go under, so one article's addresses and described
+	// controls never reach into the other's.
+	IDPrefix string
 
 	// ReadingRail is the one map this page carries in the left rail.
 	ReadingRail ReadingRail
@@ -144,28 +157,48 @@ type Transition struct {
 // or a diagnostic about them; it repairs nothing.
 templ Note(v NoteView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
+	// The header carries the same control at the widths that have no rail, and
+	// this is where it learns it may: only a reading page hands the chrome an
+	// offer, so every other page's header has nothing to draw.
+	{{ c.Mark = v.markOffer() }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@readingRail(v.ReadingRail, c)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
+			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
 				@flipReceipt(v, lang)
-				<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
-					@articleHead(v, lang)
-					@schemaNotices(v, lang)
-					@inlineAids(v, lang)
-					<div class="y-prose">
-						@templ.Raw(v.BodyHTML)
-					</div>
-					@sequenceSteps(v, lang)
+				@noteArticle(v, lang) {
 					@statusBar(v, lang)
-				</article>
+				}
 			</main>
 			@rightRail(v, lang)
 		</div>
 		@conceptSheet(v.Concepts, lang)
 		@previewCard()
 	}
+}
+
+// noteArticle is one note as it reads: its head, whatever the schema said about
+// it, the aids the narrow layout folds inline, the rendered body, and the way
+// onward. It is a component rather than markup inside the page because a page
+// showing two notes beside one another draws the same thing twice, and a second
+// copy of this would be free to drift from the one a reader sees on the note's
+// own page.
+//
+// The write face is what the two uses differ by, and they differ structurally:
+// the note's own page passes it in, a column beside another note passes nothing.
+// Nothing here asks which page it is on.
+templ noteArticle(v NoteView, lang wording.Lang) {
+	<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
+		@articleHead(v, lang)
+		@schemaNotices(v, lang)
+		@inlineAids(v, lang)
+		<div class="y-prose">
+			@templ.Raw(v.BodyHTML)
+		</div>
+		@sequenceSteps(v, lang)
+		{ children... }
+	</article>
 }
 
 // conceptSheet is the grammar-concept drawer: one hidden <template> per concept
@@ -216,12 +249,14 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	} else {
 		<h1 class="y-title">{ v.Title }</h1>
 	}
-	// The eye should land on the title and then on the prose, so the file row
-	// folds. What stays visible is what a reader wants at a glance and nothing
-	// else; the address and the two doors out of the page wait one click away
-	// inside the browser's own disclosure, with no script between them and the
-	// reader.
-	if v.Type != "" || v.Status != "" || v.RelPath != "" || v.Updated != "" {
+	// The eye should land on the title and then on the prose, so on a narrow
+	// screen the facts fold: what stays visible at a glance is the type and the
+	// date, and the rest waits one click away inside the browser's own
+	// disclosure, with no script between it and the reader. A wide screen has
+	// the width a page heading with a meta row is for, so the same facts stand
+	// open beside the title instead — one dl, drawn twice, CSS choosing which
+	// copy a given width shows (never both: see the print rule beside .y-metarow).
+	if v.headFactsShown() {
 		<details class="y-metarow">
 			<summary class="y-metarow__summary">
 				@chevron()
@@ -235,29 +270,77 @@ templ articleHead(v NoteView, lang wording.Lang) {
 				}
 			</summary>
 			<div class="y-metarow__detail">
-				if v.RelPath != "" {
-					<span>{ v.RelPath }</span>
-					// The reading page is the surface where a reader is most likely
-					// to ask what the file actually says, so it carries the door to
-					// the bytes. The line count is load-bearing: templ emits a
-					// comment's newlines as whitespace between these two links.
-					<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(lang) }</a>
-				}
-				if v.ObsidianHref != "" {
-					// Every repair yomihon reports is a hand edit, so the page
-					// offers the way to where editing happens. The href is already
-					// built and escaped server-side, so it bypasses the sanitizer
-					// that would reject its custom scheme. The line count is
-					// load-bearing here too, for the whitespace before this link.
-					<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
-				}
+				@noteFacts(v, lang)
+				@obsidianDoor(v, lang)
 			</div>
 		</details>
+		<div class="y-headmeta">
+			@noteFacts(v, lang)
+			@obsidianDoor(v, lang)
+		</div>
 	}
 	if v.Stale {
 		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}
 	<div class="y-seam" aria-hidden="true"></div>
+}
+
+// noteFacts is the note's own facts, read as a description list: one dt/dd
+// pair per fact the note declared, in the same order every time. It is one
+// component rendered from two places — the narrow disclosure and the wide-open
+// placement beside the title — so the two can never drift into naming a fact
+// differently. Every term carries the interface's language and every value the
+// note's own: a status word, a type, a BCP 47 tag and a path are the contract's
+// own spelling, never translated, so only the label beside each is.
+templ noteFacts(v NoteView, lang wording.Lang) {
+	<dl class="y-notefacts">
+		if v.Type != "" {
+			<div>
+				<dt lang={ lang.Tag() }>{ wording.FileType.In(lang) }</dt>
+				<dd>{ v.Type }</dd>
+			</div>
+		}
+		// The status word is read-only here: it repeats what the live control
+		// says elsewhere on the page and opens no second way to change it.
+		if v.Status != "" {
+			<div>
+				<dt lang={ lang.Tag() }>{ wording.StatusLabel.In(lang) }</dt>
+				<dd>{ v.Status }</dd>
+			</div>
+		}
+		if v.Updated != "" {
+			<div>
+				<dt lang={ lang.Tag() }>{ noteDateLabel(&v, lang) }</dt>
+				<dd><time datetime={ v.UpdatedAt }>{ v.Updated }</time></dd>
+			</div>
+		}
+		// A note that declared no lang shows no row for one: the absence is the
+		// answer, not a blank waiting to be filled in.
+		if v.Language != "" {
+			<div>
+				<dt lang={ lang.Tag() }>{ wording.NoteLanguage.In(lang) }</dt>
+				<dd>{ v.Language }</dd>
+			</div>
+		}
+		if v.RelPath != "" {
+			<div>
+				<dt lang={ lang.Tag() }>{ wording.RawFile.In(lang) }</dt>
+				<dd><a href={ templ.URL(rawHref(v.RelPath)) }>{ v.RelPath }</a></dd>
+			</div>
+		}
+	</dl>
+}
+
+// obsidianDoor is the way to where a repair actually happens. It is not a fact
+// about the note, so it sits beside the dl rather than inside it: every
+// repair yomihon's diagnostics report is a hand edit, and this is the page's
+// one door to where that edit is made. The href is already built and escaped
+// server-side, so it bypasses the sanitizer that would reject its custom
+// scheme.
+templ obsidianDoor(v NoteView, lang wording.Lang) {
+	if v.ObsidianHref != "" {
+		<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
+	}
 }
 
 // ============================ RIGHT RAIL ============================
@@ -275,12 +358,30 @@ templ rightRail(v NoteView, lang wording.Lang) {
 				@tocList(v)
 			</nav>
 		}
+		@pairOffer(v, lang)
 		@basedOn(v, lang)
 		@citedBy(v, lang)
 		@diagnostics(v, lang)
 		@markControl(v, lang)
 		@statusPanel(v, lang)
 	</aside>
+}
+
+// pairOffer is the way to the page that holds this note and one other at once.
+// It is absent where no other note belongs beside this one, which is the
+// ordinary case: a note with no translation and no declared source has no pair
+// to offer, and a block saying so on every page would be furniture.
+//
+// The link reads as what following it does. The partner's own name is the link
+// text and carries whatever language that note declared, since a translation's
+// title is written in the language it was translated into.
+templ pairOffer(v NoteView, lang wording.Lang) {
+	if v.Pair.RelPath != "" {
+		<nav class="y-pair" aria-label={ wording.CompareOfferNav.In(lang) }>
+			<div class="ui-side__label">{ wording.CompareOffer.In(lang) }</div>
+			<a class="ui-navitem" href={ templ.URL(compareHref(v.RelPath, v.Pair.RelPath)) } { authoredLanguageAttrs(v.Pair.Language)... }>{ v.Pair.Name }</a>
+		</nav>
+	}
 }
 
 // basedOn lists the sources this note declared in based_on. It is absent when
@@ -394,6 +495,9 @@ templ tocList(v NoteView) {
 templ inlineAids(v NoteView, lang wording.Lang) {
 	if v.hasAids() {
 		<div class="y-inlineaids" lang={ lang.Tag() }>
+			// The offer is one link, so it stands open rather than folding a
+			// disclosure over a single line.
+			@pairOffer(v, lang)
 			if len(v.TOC) > 0 {
 				<details class="y-toc-inline">
 					<summary class="y-toc-inline__summary">
@@ -502,7 +606,7 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 // when a note has no reading aids.
 templ schemaNotices(v NoteView, lang wording.Lang) {
 	if len(v.SchemaNotices) > 0 {
-		<div id={ schemaNoticesID } lang={ lang.Tag() }>
+		<div id={ v.schemaNoticesID() } lang={ lang.Tag() }>
 			for _, notice := range v.SchemaNotices {
 				<p class="y-statuspanel__notice y-statusflag">
 					for _, part := range notice {

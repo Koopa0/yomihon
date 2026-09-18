@@ -32,6 +32,20 @@ var (
 	CourseContinueReading = both("繼續讀", "Continue reading")
 )
 
+// Listening to a course: the same lessons, as the paragraphs their authors
+// marked to be read aloud, one after the next. ListenTitleFmt takes the
+// course's own title. ListenNothingMarked is the whole page for a course whose
+// lessons mark nothing — a listening page with no paragraphs would otherwise
+// look like a page that failed to load.
+var (
+	ListenTitleFmt      = both("朗讀《%s》", "Listen to %s")
+	ListenThisCourse    = both("聆聽這門課 ", "Listen to this course ")
+	ListenBackToCourse  = both("回到課程 ", "Back to the course ")
+	ListenNothingMarked = both(
+		"這門課沒有標記朗讀的段落。",
+		"No paragraph in this course is marked to be read aloud.")
+)
+
 // A branch's own label. Local branches carry their heading; the main line does
 // not need one. Either can resume an order already open above it, and the
 // reader needs to know which they are looking at.

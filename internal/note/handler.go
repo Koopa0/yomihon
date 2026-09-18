@@ -1,11 +1,11 @@
 // Package note owns the general reading surface — every route a reader
-// reaches that is not one of the dedicated faces. Register mounts eleven of
-// them: Home, one rendered note, one folder, the maps mode page, the folders
-// mode page, the whole-vault health page, a vault file's raw bytes, the
-// freshness poll a page keeps open on the note it is showing, the excerpt a
-// hover card shows of the note under the reader's pointer, the language switch
-// every page's footer posts to, and the catch-all that answers a path the
-// vault has nothing at. The last is
+// reaches that is not one of the dedicated faces. Register mounts twelve of
+// them: Home, one rendered note, two notes read side by side, one folder, the
+// maps mode page, the folders mode page, the whole-vault health page, a vault
+// file's raw bytes, the freshness poll a page keeps open on the note it is
+// showing, the excerpt a hover card shows of the note under the reader's
+// pointer, the language switch every page's footer posts to, and the catch-all
+// that answers a path the vault has nothing at. The last is
 // deliberately last: it exists so no request reaches the router's own
 // fallback, which answers in English and offers nowhere to go.
 //
@@ -52,9 +52,13 @@ import (
 // view for the request. Source changes affect the next request; a write still
 // revalidates current authority under the lifecycle lock.
 type Sources struct {
-	Source   *vault.Reader
-	Status   func() status.Authority
-	Snapshot func() *snapshot.Generation
+	Source *vault.Reader
+	// VaultName is the folder's own name, taken once at start-up because the
+	// directory the server was pointed at cannot change under a running
+	// process. The rail's foot says it on every page.
+	VaultName string
+	Status    func() status.Authority
+	Snapshot  func() *snapshot.Generation
 	// ObservedStatus is a closure over the write package's read of the note's
 	// own status line. The rest of the page comes from a scan that lags the
 	// folder by a couple of seconds, which a body and a link graph can afford
@@ -132,6 +136,7 @@ func New(d *Sources) *Handler {
 // router's own fallback, which answers in English and offers nowhere to go.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
+	mux.HandleFunc("GET /compare/{path...}", h.compare)
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
 	mux.HandleFunc("GET /freshness/{path...}", h.freshness)
 	mux.HandleFunc("GET /preview/{path...}", h.preview)
@@ -193,11 +198,11 @@ func (h *Handler) showMissing(
 	authority status.Authority,
 	snap *snapshot.Generation,
 ) {
-	pageShell := shell.Project(authority, snap)
+	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
-		Sidebar:    pages.NewSidebar(pageShell.Nav, ""),
+		Sidebar:    pages.NewSidebar(pageShell, ""),
 	}
 	lang := origin.Language(r)
 	title := wording.NotFoundKicker.In(lang)
@@ -222,7 +227,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dir = vault.NormalizeNFC(dir)
-	pageShell := shell.Project(authority, snap)
+	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	notes, subfolders, ok := pageShell.Nav.Directory(dir)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path, authority, snap)
@@ -297,7 +302,50 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state := h.governance(r.Context(), &n, snap, authority, lang)
+	view, conceptRefs := h.reading(r, rel, &n, snap, authority, lang, "")
+	view.Concepts = loadConcepts(snap, conceptRefs, lang)
+	// The receipt is spent by the page that states it, so it is read here
+	// rather than wherever a note's view is assembled: a column beside another
+	// note shows no such sentence and must not consume the one attestation the
+	// note's own page would have shown.
+	view.FlippedFrom = vouchedOrigin(authority, h.sources.ConsumeReceipt, rel, n.Type,
+		transition{from: r.URL.Query().Get("from"), to: view.Status})
+	// The receipt for a change the face cannot walk back carries the recovery
+	// sentence; a reversible one leaves undoing to the controls already on the
+	// page.
+	view.FlipNoReturn = view.FlippedFrom != "" && !authority.CanReturn(n.Type, view.FlippedFrom, view.Status)
+
+	pageChrome := layouts.ChromeFromRequest(r, n.Title)
+	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
+		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write note page", "path", rel, "error", err)
+	}
+}
+
+// reading is one note as a page shows it. The note's own page assembles one of
+// these and the page holding two notes assembles two, so a column beside
+// another note can never become a second idea of what a note looks like.
+//
+// idPrefix is the id space the article will occupy: empty where the page shows
+// one note and every place inside it is the note's own, and a column's own name
+// where two notes share a document. Every place the rendered body carries and
+// every address reaching one is renamed under it, so a contents entry, a
+// footnote marker, or an address an author wrote at one of their own sections
+// stays inside the column it was written in.
+//
+// The concept references the body turned out to hold come back rather than the
+// sheets themselves. One page assembles one set of sheets: two columns citing
+// one concept share it instead of putting the same document into the page twice
+// under one name.
+func (h *Handler) reading(
+	r *http.Request,
+	rel string,
+	n *snapshot.Reading,
+	snap *snapshot.Generation,
+	authority status.Authority,
+	lang wording.Lang,
+	idPrefix string,
+) (view pages.NoteView, conceptRefs []string) {
+	state := h.governance(r.Context(), n, snap, authority, lang)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body, lang)
@@ -310,7 +358,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// and its concept wikilinks become in-app sheet triggers. This happens only
 	// after the request's captured authority has classified the note, so every
 	// projection in this response uses one coherent lifecycle view.
-	var concepts []lesson.ConceptDoc
 	// The lesson type is the one type this page enriches with lesson-body
 	// interactions. What the contract layer supplies is the spelling, not yet a
 	// vault's own choice of word: it is still one fixed name, so a folder
@@ -321,13 +368,14 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		result.HTML = render.InjectTTS(result.HTML, lang)
 		pageChrome := layouts.ChromeFromRequest(r, n.Title)
 		result.HTML = h.injectSlotMachine(r.Context(), snap.Slots(), rel, n.Slug, result.HTML, pageChrome.Nonce, lang)
-		var refs []string
-		result.HTML, refs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
-		concepts = loadConcepts(snap, refs, lang)
+		result.HTML, conceptRefs = render.InjectConceptTriggers(result.HTML, snap.Concepts().IDForPath)
 	}
 	if n.LanguageDiagnostic != "" {
 		h.sources.Log.Warn("invalid article language; the article carries no language of its own", "path", rel, "error", n.LanguageDiagnostic)
 	}
+	// Last, so what a lesson's own controls were spliced in carrying is renamed
+	// with everything the render itself wrote.
+	render.Qualify(idPrefix, &result)
 
 	// The status face and the status shown beside the title are the same
 	// claim, so they come from the same read.
@@ -335,13 +383,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// One resolved rail answers both the navigation and the article's own way
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
-	readingRail := pages.NewReadingRail(state.shell.Nav, n.RelPath, n.Domain)
+	readingRail := pages.NewReadingRail(state.shell, n.RelPath, n.Domain)
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(&readingRail, lang)
-	flippedFrom := vouchedOrigin(authority, h.sources.ConsumeReceipt, rel, n.Type,
-		transition{from: r.URL.Query().Get("from"), to: noteStatus})
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
-	view := pages.NoteView{
+	view = pages.NoteView{
 		Title:             n.Title,
 		RelPath:           n.RelPath,
 		Language:          n.Language,
@@ -356,6 +402,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
 		CitedBy:           snap.CitedBy(rel),
 		BasedOn:           snap.BasedOn(rel),
+		Pair:              pairOffer(snap, state.shell.Nav, n),
 		VaultHasLinks:     snap.AnyCitations(),
 		Prev:              footPrev,
 		Next:              footNext,
@@ -368,7 +415,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Governed:          state.shell.Governed,
 		NonInstance:       state.nonInstance(),
 		WriteDiagnostic:   state.writeDiagnostic,
-		Concepts:          concepts,
+		IDPrefix:          idPrefix,
 		Transitions:       state.transitions,
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
 		MarkAddress:       h.sources.MarkAddress,
@@ -380,20 +427,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		StatusUnknown:       state.statusUnknown,
 		StatusNotText:       state.statusNotText,
 		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n.Type, lang),
-		FlippedFrom:         flippedFrom,
 		// The layer that withheld the transition set, when that is why it is
 		// empty, so the page names it instead of the schema.
 		OutsideKnowledgeScope: state.outsideLayer(),
-		// The receipt for a change the face cannot walk back carries the
-		// recovery sentence; a reversible one leaves undoing to the controls
-		// already on the page.
-		FlipNoReturn: flippedFrom != "" && !authority.CanReturn(n.Type, flippedFrom, noteStatus),
 	}
-
-	pageChrome := layouts.ChromeFromRequest(r, n.Title)
-	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
-		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write note page", "path", rel, "error", err)
-	}
+	return view, conceptRefs
 }
 
 // metarowDate picks the one date the reading page shows and the strings the
@@ -607,7 +645,7 @@ func (h *Handler) governance(
 ) governanceState {
 	policy := snap.ArtifactPolicy()
 	state := governanceState{
-		shell:           shell.Project(authority, snap),
+		shell:           shell.Project(h.sources.VaultName, authority, snap),
 		placement:       classifyGovernance(authority, policy, n.RelPath),
 		writeDiagnostic: authority.WriteDiagnostic(lang),
 	}
