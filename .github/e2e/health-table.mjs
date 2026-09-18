@@ -1,9 +1,11 @@
-// Behaviour lock for the whole-folder findings table. Two claims a rendering
-// test cannot reach, because both are settled by the browser rather than by the
+// Behaviour lock for the whole-folder findings table. Claims a rendering test
+// cannot reach, because they are settled by the browser rather than by the
 // bytes: on a phone the rows stack and each cell says which column it is,
 // instead of the sheet running off the side where half of it cannot be read;
-// and a heading is a link that really comes back with the rows in another
-// order, with no script involved in either.
+// a heading is a link that really comes back with the rows in another order;
+// and error and warn, which used to differ only by a border, paint different
+// inks and draw different marker shapes — with no script involved in any of
+// it.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the whole-folder page), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -17,7 +19,9 @@ const BADGE_SITE = 'the-weight-is-a-badge-not-a-banner';
 const EMPTY_SITE = 'no-label-over-an-empty-cell';
 const WIDTH_SITE = 'no-sideways-scroll';
 const ORDER_SITE = 'a-heading-reorders-the-rows';
-const SITES = [LABEL_SITE, DETAIL_SITE, BADGE_SITE, EMPTY_SITE, WIDTH_SITE, ORDER_SITE];
+const INK_SITE = 'error-and-warn-paint-different-inks';
+const MARKER_SITE = 'error-and-warn-draw-different-markers';
+const SITES = [LABEL_SITE, DETAIL_SITE, BADGE_SITE, EMPTY_SITE, WIDTH_SITE, ORDER_SITE, INK_SITE, MARKER_SITE];
 
 // The width a phone gives the page. Narrow enough that a four-column table
 // laid out as a table cannot hold its columns.
@@ -83,6 +87,15 @@ const showTheEmptyCells = (page) => appendStyle(page, `@media screen and (max-wi
   .y-findings tbody td:empty{display:grid}
 }`);
 
+// revertErrorInk undoes the correction ink error moved onto, painting it back
+// with warn's own colour — the pre-#593 shape, where the two weights read as
+// one.
+const revertErrorInk = (page) => appendStyle(page, `.y-severity--error{color:var(--warn)}`);
+
+// revertErrorMarker undoes the squared dot, rounding error's marker back to
+// warn's shape.
+const revertErrorMarker = (page) => appendStyle(page, `.y-severity--error::before{border-radius:50%}`);
+
 // dropTheOrdering leaves the headings looking exactly as they do and makes them
 // ask for nothing the page reads, which is how a link that has quietly stopped
 // being a control behaves.
@@ -110,6 +123,8 @@ const MUTATIONS = {
   'show-the-empty-cells': { target: EMPTY_SITE, apply: showTheEmptyCells },
   'widen-the-cells': { target: WIDTH_SITE, apply: widenTheCells },
   'drop-the-ordering': { target: ORDER_SITE, apply: dropTheOrdering },
+  'revert-error-ink': { target: INK_SITE, apply: revertErrorInk },
+  'revert-error-marker': { target: MARKER_SITE, apply: revertErrorMarker },
 };
 
 for (const [name, mode] of Object.entries(MUTATIONS)) {
@@ -185,6 +200,18 @@ const readRows = (page) => page.evaluate(() => [...document.querySelectorAll('.y
   weight: row.querySelector('.y-findings__severity')?.textContent.trim() ?? '',
 })));
 
+// badgeStyle reads one severity badge's computed ink and its marker's
+// computed shape — the two channels error and warn are asked to disagree on,
+// read the same way a reader's own browser resolves them rather than from the
+// stylesheet's source text.
+const badgeStyle = (page, selector) => page.evaluate((sel) => {
+  const badge = document.querySelector(sel);
+  if (!badge) return null;
+  const style = getComputedStyle(badge);
+  const marker = getComputedStyle(badge, '::before');
+  return { color: style.color, markerRadius: marker.borderRadius };
+}, selector);
+
 const WEIGHTS = { error: 3, warn: 2, info: 1, '': 0 };
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -250,6 +277,19 @@ try {
   const widest = Math.max(...shown.map((cell) => cell.box.right));
   if (widest > table.viewportRight + 1) {
     fail(WIDTH_SITE, `a cell reaches ${widest}px past the ${table.viewportRight}px edge of the viewport`);
+  }
+
+  // Error and warn used to share one colour and one marker shape, told apart
+  // only by a border a glance can miss. The fixture has to carry one of each
+  // or neither channel is exercised at all.
+  const errorBadge = await badgeStyle(page, '.y-severity--error');
+  const warnBadge = await badgeStyle(page, '.y-severity--warn');
+  if (!errorBadge || !warnBadge) broken('the fixture carries no error/warn severity pair to compare ink and marker shape on');
+  if (errorBadge.color === warnBadge.color) {
+    fail(INK_SITE, `error and warn severity badges both paint ${errorBadge.color}, so the two weights read as the same ink`);
+  }
+  if (errorBadge.markerRadius === warnBadge.markerRadius) {
+    fail(MARKER_SITE, `error and warn severity badges both draw a ${errorBadge.markerRadius} marker, so the two weights read as the same shape`);
   }
 
   const before = await readRows(page);
