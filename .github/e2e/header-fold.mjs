@@ -14,6 +14,12 @@
 // pass every visibility question and still be two controls with one name. Then
 // the panel is opened and the same names come back out of it, and it answers
 // the keyboard and a click beside it the way the browser's own popover does.
+//
+// One thing in the panel is not one of the six and never joins the row: the
+// control for keeping a reading place, which the reading rail carries at the
+// widths that have a rail. It is asked the opposite question — drawn nowhere
+// while the panel is closed, at every width, and drawn inside the panel once
+// it is open.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -43,6 +49,16 @@ const FOLDED = [
 const FOLD_BUTTON = '[popovertarget="header-fold"]';
 const PANEL = '.y-headerfold';
 
+// What the panel holds that the row never does. The six above move between the
+// two; this one has only the panel, because at the fold width the row has no
+// pixels left and a seventh item there is paid for by the wordmark. The rule
+// that keeps it in is its own, and the wide row's display: contents would
+// otherwise make a row item of it like everything else inside the panel — so
+// this is the seam that needs watching, not a seventh copy of the questions
+// above. The page this probe is driven against has to be a note that offers to
+// keep a reading place, which is where the item exists at all.
+const PANEL_ONLY = ['.y-headermark'];
+
 const SITES = [
   'row-unfolded-above',
   'row-folded-below',
@@ -51,6 +67,7 @@ const SITES = [
   'moved-not-copied',
   'names-intact',
   'panel-draws-every-control',
+  'panel-only-item-keeps-to-the-panel',
   'panel-fits',
   'light-dismiss',
   'keyboard-reaches-and-closes',
@@ -156,6 +173,33 @@ const MUTATIONS = {
       await page.addStyleTag({ content: '@media (max-width: 900px) { .y-healthlinkbtn { display: none; } }' });
     },
   },
+  // The rule that keeps the panel's own item out of the row is gone, so the
+  // wide row's display: contents makes a row item of it at every width — which
+  // at the fold width is a seventh control the row has no room for.
+  'let-the-panel-item-onto-the-row': {
+    target: 'panel-only-item-keeps-to-the-panel',
+    apply: async (page) => {
+      for (const selector of PANEL_ONLY) {
+        if (await page.locator(selector).count() !== 1) notApplied(`there is no ${selector} for the injected rule to draw`);
+        await page.addStyleTag({ content: `${selector} { display: inline-flex; }` });
+      }
+    },
+  },
+  // The item is in the panel's markup and drawn nowhere inside it, which is the
+  // half of the seam a visibility question alone would call correct.
+  'leave-the-panel-item-undrawn': {
+    target: 'panel-only-item-keeps-to-the-panel',
+    // Guarded on the item rather than on the open panel around it, for the
+    // reason the panel's own width mutation below is: nothing has opened it
+    // yet. The selector repeats the one the stylesheet uses so the injected
+    // rule can win it on source order rather than on weight.
+    apply: async (page) => {
+      for (const selector of PANEL_ONLY) {
+        if (await page.locator(selector).count() !== 1) notApplied(`there is no ${selector} for the injected rule to hide`);
+        await page.addStyleTag({ content: `[data-js] ${PANEL}:popover-open ${selector} { display: none; }` });
+      }
+    },
+  },
   // The panel is wider than the window it opens over.
   'widen-the-panel-past-the-window': {
     target: 'panel-fits',
@@ -217,7 +261,7 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 // What one width looks like. The window's own width comes from an element
 // pinned to the viewport rather than from the document, because a document
 // narrowed by its own scrollbar reports a width the header was never given.
-const readRow = (page, selectors) => page.evaluate((folded) => {
+const readRow = (page, selectors) => page.evaluate(({ folded, panelOnly }) => {
   const ruler = document.createElement('div');
   ruler.style.cssText = 'position:fixed;inset:0;pointer-events:none;visibility:hidden';
   document.body.append(ruler);
@@ -251,6 +295,7 @@ const readRow = (page, selectors) => page.evaluate((folded) => {
     wordmarkLost: name.scrollWidth - name.clientWidth,
     foldButton: inRow('[popovertarget="header-fold"]'),
     folded: Object.fromEntries(folded.map((selector) => [selector, inRow(selector)])),
+    panelOnly: Object.fromEntries(panelOnly.map((selector) => [selector, inRow(selector)])),
   };
 }, selectors);
 
@@ -273,6 +318,23 @@ const isOpen = (page) => page.evaluate((selector) => {
   return Boolean(panel && panel.matches(':popover-open'));
 }, PANEL);
 
+// Which of the named controls the open panel is not drawing inside itself.
+// Present in the panel's markup is not the same as offered to the reader: one
+// the stylesheet still hides would keep its name and its single element and
+// answer every visibility question, while the panel draws one fewer than it
+// holds. Inside the panel's own box, not merely somewhere on the page, because
+// a control left out on the row would be visible and would not belong here.
+const notDrawnInPanel = (page, selectors) => page.evaluate(({ wanted, panelSelector }) => {
+  const box = document.querySelector(panelSelector).getBoundingClientRect();
+  return wanted.filter((selector) => {
+    const element = document.querySelector(selector);
+    if (!element || !element.checkVisibility()) return true;
+    const rect = element.getBoundingClientRect();
+    return !(rect.left >= box.left - 1 && rect.right <= box.right + 1 &&
+             rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1);
+  });
+}, { wanted: selectors, panelSelector: PANEL });
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   for (const language of ['zh-Hant', 'en']) {
@@ -282,17 +344,36 @@ try {
     const response = await page.goto(BASE + PAGE, { waitUntil: 'load' });
     if (!response || response.status() !== 200) broken(`navigation returned ${response?.status() ?? 'no response'}, want 200`);
     if (await page.locator(PANEL).count() !== 1) broken('the header carries no single folded group');
+    for (const selector of PANEL_ONLY) {
+      if (await page.locator(selector).count() !== 1) {
+        broken(`${PAGE} carries no single ${selector}; this probe has to be driven against a note that offers to keep a reading place`);
+      }
+    }
     if (MUTATE && !MUTATIONS[MUTATE].phase) await MUTATIONS[MUTATE].apply(page);
 
     for (const width of [...WIDE, ...NARROW]) {
       await page.setViewportSize({ width, height: 800 });
-      const row = await readRow(page, FOLDED);
+      const row = await readRow(page, { folded: FOLDED, panelOnly: PANEL_ONLY });
       if (row.issue) broken(row.issue);
       const where = `${language} at ${width}px`;
 
       for (const [selector, seen] of Object.entries(row.folded)) {
         if (seen.count !== 1) {
           fail('moved-not-copied', `${where}: ${selector} matches ${seen.count} elements, want exactly 1 — a folded control is drawn in one place or the other, never both`);
+        }
+      }
+      // The panel's own item is nowhere while the panel is closed, at every
+      // width. Above the fold width that is a rule holding against the box
+      // dissolving around it; below it, against the panel being closed. The
+      // widths where the row is measured for room are the same ones asked
+      // here, which is what makes this the seam's question rather than a
+      // second visibility check.
+      for (const [selector, seen] of Object.entries(row.panelOnly)) {
+        if (seen.count !== 1) {
+          fail('panel-only-item-keeps-to-the-panel', `${where}: ${selector} matches ${seen.count} elements, want exactly 1`);
+        }
+        if (seen.shown) {
+          fail('panel-only-item-keeps-to-the-panel', `${where}: ${selector} is drawn with the panel closed, and the row is not its home at any width`);
         }
       }
       if (row.foldButton.count !== 1) {
@@ -364,24 +445,16 @@ try {
       }
     }
 
-    // Present in the panel's markup is not the same as offered to the reader.
-    // A control the stylesheet still hides at some width would keep its name
-    // and its single element and answer every question above, while the panel
-    // it is supposed to be in draws one fewer than it holds.
-    const drawn = await page.evaluate(({ folded, panelSelector }) => {
-      const box = document.querySelector(panelSelector).getBoundingClientRect();
-      return folded.filter((selector) => {
-        const element = document.querySelector(selector);
-        if (!element || !element.checkVisibility()) return true;
-        const rect = element.getBoundingClientRect();
-        // Inside the panel, not merely somewhere on the page: a control left
-        // out on the row would be visible and would not belong here.
-        return !(rect.left >= box.left - 1 && rect.right <= box.right + 1 &&
-                 rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1);
-      });
-    }, { folded: FOLDED, panelSelector: PANEL });
+    const drawn = await notDrawnInPanel(page, FOLDED);
     if (drawn.length > 0) {
       fail('panel-draws-every-control', `${language}: the open panel does not draw ${JSON.stringify(drawn)} inside itself, so the reader is offered fewer controls than the panel holds`);
+    }
+    // The other half of the seam: the item that has nowhere but this panel is
+    // drawn in it once it is open. Kept out of the row and out of the panel
+    // too, it would answer every question above and be reachable nowhere.
+    const panelOnlyMissing = await notDrawnInPanel(page, PANEL_ONLY);
+    if (panelOnlyMissing.length > 0) {
+      fail('panel-only-item-keeps-to-the-panel', `${language}: the open panel does not draw ${JSON.stringify(panelOnlyMissing)} inside itself, and the panel is the only place that item has`);
     }
 
     const panel = await page.evaluate((selector) => {
@@ -464,7 +537,7 @@ try {
     await context.close();
   }
 
-  console.log('PASS header-fold: below the measured width the six folded controls are behind one button and above it they are the row itself, one of each, names and states intact, the row inside the window and the wordmark whole, and the panel answers the keyboard and a press beside it');
+  console.log('PASS header-fold: below the measured width the six folded controls are behind one button and above it they are the row itself, one of each, names and states intact, the panel keeps its own item out of the row at every width and draws it once open, the row stays inside the window with the wordmark whole, and the panel answers the keyboard and a press beside it');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

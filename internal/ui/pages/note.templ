@@ -144,6 +144,10 @@ type Transition struct {
 // or a diagnostic about them; it repairs nothing.
 templ Note(v NoteView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
+	// The header carries the same control at the widths that have no rail, and
+	// this is where it learns it may: only a reading page hands the chrome an
+	// offer, so every other page's header has nothing to draw.
+	{{ c.Mark = v.markOffer() }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>

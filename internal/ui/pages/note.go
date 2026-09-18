@@ -7,6 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -180,13 +181,29 @@ func (v *NoteView) hasAids() bool {
 // because the mark is both of those and a page missing either would store a
 // place that points at nothing in particular.
 //
-// The control it gates is drawn in the right rail alone. The rail scrolls
-// separately from the article, so reaching the control does not move the page
-// out from under the position it is about; a copy among the inline aids, which
-// sit between the title and the first sentence, would be reached by scrolling
-// back to the top and would keep that place instead of the reader's.
+// The control it gates has two faces, and neither of them moves the page on
+// the way to being reached: the right rail, which scrolls separately from the
+// article, and the header's folded panel at the widths that have no rail. A
+// copy among the inline aids, which sit between the title and the first
+// sentence, would be reached by scrolling back to the top and would keep that
+// place instead of the reader's.
 func (v *NoteView) offersMark() bool {
 	return v.RelPath != "" && v.ContentIdentity != "" && v.MarkAddress != ""
+}
+
+// markOffer is what the header needs to draw the second face: the note's
+// address, the identity of the bytes on the page, and where the control posts.
+// It answers from the predicate above rather than repeating its three tests, so
+// a page offers both faces or neither and nil is the whole of "neither".
+func (v *NoteView) markOffer() *layouts.MarkOffer {
+	if !v.offersMark() {
+		return nil
+	}
+	return &layouts.MarkOffer{
+		Path:     v.RelPath,
+		Identity: v.ContentIdentity,
+		Endpoint: v.MarkAddress,
+	}
 }
 
 // citedByShown reports whether the answer about what links here means anything
