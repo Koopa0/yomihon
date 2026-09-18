@@ -268,7 +268,7 @@ type PathLink struct {
 // nothing, and so does a reader who arrived from the desk. A course that lists
 // the same note twice marks it twice: both rows are that note, and choosing
 // between them would be a guess.
-func BuildPathView(current *nav.Path, all []nav.Path, cover CourseCover) PathView {
+func BuildPathView(current *nav.Path, all []nav.Path, cover *CourseCover) PathView {
 	v := PathView{
 		Title:           current.Title,
 		RelPath:         current.RelPath,
@@ -325,7 +325,7 @@ func BuildPathView(current *nav.Path, all []nav.Path, cover CourseCover) PathVie
 // A course whose main line links nothing gets no verb at all, and the page
 // draws none: an offer to start something the page cannot open is worse than
 // the parts standing on their own.
-func courseAction(branches []PathBranchView, cover CourseCover) CourseAction {
+func courseAction(branches []PathBranchView, cover *CourseCover) CourseAction {
 	if cover.KeptNote != "" && cover.KeptHref != "" {
 		if kept := firstLesson(branches, false, func(entry *PathEntryView, _ bool) bool {
 			return entry.RelPath == cover.KeptNote

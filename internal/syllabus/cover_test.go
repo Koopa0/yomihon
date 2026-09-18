@@ -153,7 +153,7 @@ func TestTheCoverOpensWhereTheReaderLeftOff(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			writeCourse(t, root, "\nAn opening.\n\n", "- [[First]]", "- [[Second]]", "- [[Third]]")
-			srv := newServerWithMark(t, root, tt.kept, tt.marked)
+			srv := newServerWithMark(t, root, &tt.kept, tt.marked)
 
 			code, body := get(t, srv.Client(), srv.URL+coursePage)
 			if code != http.StatusOK {
