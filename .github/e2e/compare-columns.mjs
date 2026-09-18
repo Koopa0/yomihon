@@ -6,7 +6,8 @@
 // never scrolls sideways, and the strip above them reaches the other note by
 // keyboard alone. And whichever the width, a column is the note's own article:
 // what a reader sees here is what they would see opening that note, under the
-// names that column's places answer to.
+// names that column's places answer to — its contents list included, which
+// marks where its own note is being read and never where the other one is.
 //
 // The measurements are of laid-out boxes rather than of declared rules: a
 // grid that stacks, a column that stopped being its own scroller, and a page
@@ -33,6 +34,7 @@ const SITES = [
   'narrow-no-sideways-scroll',
   'column-is-the-note',
   'align-levels-the-columns',
+  'contents-mark-stays-in-its-column',
 ];
 
 class LockFired extends Error {
@@ -141,6 +143,18 @@ const MUTATIONS = {
   'never-level-the-columns': {
     target: 'align-levels-the-columns',
     apply: rewriteScript('follow(1);', ';', 'the levelling the press asks for'),
+  },
+  // Both contents lists computed against one reading position again, which is
+  // what the module did before a page could hold two notes: the mark lands in
+  // whichever column the position was read from, and the other note's list is
+  // left with none.
+  'let-one-mark-answer-for-both': {
+    target: 'contents-mark-stays-in-its-column',
+    apply: rewriteScript(
+      "list.closest('[data-note-column]') ?? document",
+      'document',
+      'the column a contents list answers for',
+    ),
   },
 };
 
@@ -309,6 +323,52 @@ try {
     fail('align-levels-the-columns', 'pressing the levelling control left the second column where it was, so the two are still apart');
   }
 
+  // Each note's contents list marks where that note is being read. The columns
+  // are put back on their own and taken to different places first, because a
+  // mark computed across both would still look right while they are level.
+  await toggle.click();
+  const released = await page.evaluate(() => document.querySelector('[data-compare-align]').getAttribute('aria-pressed'));
+  if (released !== 'false') {
+    fail('align-levels-the-columns', `the levelling control reports aria-pressed=${released} after a second press, so it cannot be let go of`);
+  }
+  const reading = await page.evaluate(() => {
+    const a = document.getElementById('compare-a');
+    const b = document.getElementById('compare-b');
+    b.scrollTop = 0;
+    const headings = [...a.querySelectorAll('.y-prose [data-level]')];
+    a.scrollTop += headings[headings.length - 1].getBoundingClientRect().top - 72;
+    return { a: a.scrollTop, b: b.scrollTop };
+  });
+  if (reading.a === reading.b) {
+    broken(`both columns are at ${reading.a}px, so a mark taken from the wrong one would read as right`);
+  }
+  // The mark is recomputed from an observer, which answers after the scroll
+  // rather than during it.
+  await page.waitForTimeout(200);
+  const marks = await page.evaluate(() => [...document.querySelectorAll('[data-note-column]')].map((column) => {
+    const marked = [...column.querySelectorAll('.y-toc__list a[aria-current="true"]')];
+    return {
+      id: column.id,
+      lists: column.querySelectorAll('.y-toc__list').length,
+      marked: marked.length,
+      strayed: marked.filter((link) => {
+        const heading = document.getElementById(decodeURIComponent(link.getAttribute('href').slice(1)));
+        return !heading || heading.closest('[data-note-column]') !== column;
+      }).length,
+    };
+  }));
+  for (const column of marks) {
+    if (column.lists === 0) {
+      broken(`${column.id} draws no contents list, so there is no mark to judge`);
+    }
+    if (column.marked === 0) {
+      fail('contents-mark-stays-in-its-column', `nothing is marked as being read in ${column.id}, so the one mark this page holds is answering for the other note`);
+    }
+    if (column.strayed > 0) {
+      fail('contents-mark-stays-in-its-column', `${column.strayed} marked entries in ${column.id} name a heading outside it`);
+    }
+  }
+
   // One note in view at a time, the page moving only downwards, and the other
   // note one keyboard press away.
   await page.setViewportSize({ width: 390, height: 780 });
@@ -348,7 +408,7 @@ try {
   }
 
   await context.close();
-  console.log('PASS compare-columns: two columns beside one another each move alone, the second is the note itself, levelling answers the press, and at 390px one note is in view with the other a keyboard press away');
+  console.log('PASS compare-columns: two columns beside one another each move alone, the second is the note itself, levelling answers the press, each contents list marks its own note, and at 390px one note is in view with the other a keyboard press away');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
