@@ -50,16 +50,15 @@ const FOLDS = [
 // renders at. The ring-and-cut check below cannot assume any one of these
 // keeps a focusable row close enough to its own edge for a cut to ever reach
 // it — the metadata row's own first row moved inward once the note head
-// became a dl (#627) — so it reads every kind in turn and checks the first
-// whose row still stands within its ring's own reach. The reading aids lead
-// the order: several folds tie for a row flush with the edge, and this is the
-// one clip-a-focus-ring below mutates, so the check has to land on it rather
-// than on a tied fold the mutation never touches.
+// became a dl (#627) — so every kind is measured, and the clip check runs on
+// each one whose row still stands within its own ring's reach, not only the
+// first: a clip on any fold that qualifies is a real regression, and a fold
+// this run skips over would let one walk past unseen.
 const RING_CANDIDATES = [
-  { key: 'inline reading aids', path: null, width: 1280, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
   { key: 'rail groups', path: null, width: 1280, selector: '.y-rail-left details', wrapper: '.y-rail-left details::details-content' },
-  { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm', wrapper: '.y-statusconfirm::details-content' },
   { key: 'metadata row', path: null, width: 1280, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
+  { key: 'inline reading aids', path: null, width: 1280, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
+  { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm', wrapper: '.y-statusconfirm::details-content' },
   { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
 
@@ -495,11 +494,10 @@ try {
   // sides away. Nothing in the row's own style says so — the ring is still
   // declared and still painted — so the two numbers that decide it are read
   // instead: how far the cut stands out, and how far the ring reaches. Every
-  // insets entry records a candidate that did carry a ring, so a run that
-  // finds none close enough says which folds it tried and how far each one
-  // stood.
-  let ringFold = null;
-  let ringReading = null;
+  // fold whose row stands close enough to matter is checked, not only the
+  // first, so a clip on any one of them is caught rather than walked past
+  // because an earlier candidate happened to still hold its ring.
+  const checked = [];
   const insets = [];
   for (const fold of RING_CANDIDATES) {
     await page.setViewportSize({ width: fold.width, height: 900 });
@@ -514,31 +512,28 @@ try {
       broken(`the ${fold.key}'s first row draws no ring when focused (${reading.outlineStyle}, reaching ${reading.reach}px), so this reading would compare the cut against nothing`);
     }
     insets.push(`${fold.key} stands ${reading.inset}px inside a ${reading.reach}px ring`);
-    if (reading.inset < reading.reach) {
-      ringFold = fold;
-      ringReading = reading;
-      break;
+    if (!(reading.inset < reading.reach)) continue;
+    checked.push(fold.key);
+    if (reading.overflow !== 'visible') {
+      // Only a clip is held out by a margin. hidden and the scrolling values
+      // cut at the edge itself, and the margin beside them still computes to
+      // whatever it says — which is why the value is read and not only the
+      // number.
+      if (reading.overflow !== 'clip') {
+        fail('a-focused-row-keeps-its-whole-ring', `${reading.wrapper} cuts its body off with overflow: ${reading.overflow}, which cuts at the fold's own edge whatever margin is written beside it, so the ring around the first row in the ${fold.key} loses its sides`);
+      }
+      if (reading.cut < reading.reach) {
+        fail('a-focused-row-keeps-its-whole-ring', `${reading.wrapper} holds its cut ${reading.cut}px out while the ring around the first row in the ${fold.key} reaches ${reading.reach}px, so the ring loses its sides where the row meets the fold's edge`);
+      }
     }
   }
-  if (!ringFold) {
+  if (checked.length === 0) {
     broken(`no fold's first row stands close enough to its own edge for a cut to ever touch it, so this reading proves nothing (${insets.join('; ')})`);
-  }
-  if (ringReading.overflow !== 'visible') {
-    // Only a clip is held out by a margin. hidden and the scrolling values
-    // cut at the edge itself, and the margin beside them still computes to
-    // whatever it says — which is why the value is read and not only the
-    // number.
-    if (ringReading.overflow !== 'clip') {
-      fail('a-focused-row-keeps-its-whole-ring', `${ringReading.wrapper} cuts its body off with overflow: ${ringReading.overflow}, which cuts at the fold's own edge whatever margin is written beside it, so the ring around the first row in the ${ringFold.key} loses its sides`);
-    }
-    if (ringReading.cut < ringReading.reach) {
-      fail('a-focused-row-keeps-its-whole-ring', `${ringReading.wrapper} holds its cut ${ringReading.cut}px out while the ring around the first row in the ${ringFold.key} reaches ${ringReading.reach}px, so the ring loses its sides where the row meets the fold's edge`);
-    }
   }
 
   if (proof && !confirmed) broken(`${MUTATE} was never confirmed, so this run proves nothing about it`);
 
-  console.log(`PASS motion-contract: ${QUIET_STOPS.length} readings collapse every transition for the reduced-motion reader, ${FOLDS.length} folds open by growing over --dur-base, the ${ringFold.key} keeps a focused row's whole ring, and the sheet arrives ${Math.round(Math.abs(startedAt))}px from its edge`);
+  console.log(`PASS motion-contract: ${QUIET_STOPS.length} readings collapse every transition for the reduced-motion reader, ${FOLDS.length} folds open by growing over --dur-base, ${checked.length} of ${RING_CANDIDATES.length} folds (${checked.join(', ')}) keep a focused row's whole ring, and the sheet arrives ${Math.round(Math.abs(startedAt))}px from its edge`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
