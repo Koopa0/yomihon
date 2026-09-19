@@ -16,46 +16,46 @@
    ============================================================ */
 
 :root,
-[data-theme="light"] {
+[data-theme='light'] {
   /* ---- Surfaces (warm oatmeal paper) ---- */
-  --bg:            oklch(0.966 0.005 106);
-  --panel:         oklch(0.988 0.003 106);
-  --elevated:      oklch(0.945 0.006 107);
-  --overlay:       oklch(0.915 0.008 107);
+  --bg: oklch(0.966 0.005 106);
+  --panel: oklch(0.988 0.003 106);
+  --elevated: oklch(0.945 0.006 107);
+  --overlay: oklch(0.915 0.008 107);
 
   /* ---- Text (sumi inks, 4 tiers) ---- */
-  --fg:            oklch(0.220 0.012 107);
-  --fg-muted:      oklch(0.400 0.020 107);
-  --fg-subtle:     oklch(0.470 0.022 107);
-  --fg-faint:      oklch(0.500 0.018 107); /* least-prominent text still clears 4.5:1 on the darkest interactive surface */
+  --fg: oklch(0.220 0.012 107);
+  --fg-muted: oklch(0.400 0.020 107);
+  --fg-subtle: oklch(0.470 0.022 107);
+  --fg-faint: oklch(0.500 0.018 107); /* least-prominent text still clears 4.5:1 on the darkest interactive surface */
 
   /* ---- Lines ---- */
-  --border:        oklch(0.880 0.008 106);
+  --border: oklch(0.880 0.008 106);
   --border-strong: oklch(0.800 0.010 106);
-  --border-faint:  oklch(0.930 0.006 106);
+  --border-faint: oklch(0.930 0.006 106);
 
   /* ---- The one interface accent — 朱 seal-ink vermilion, reserved for
      `ready`. The official mark's fixed publication obi carries
      the same scarce semantic but does not consume this theme token. ---- */
-  --accent:        oklch(0.470 0.175 33);
+  --accent: oklch(0.470 0.175 33);
   --accent-strong: oklch(0.400 0.165 33);
-  --accent-muted:  oklch(0.550 0.180 33 / 0.12);
-  --accent-faint:  oklch(0.550 0.180 33 / 0.06);
-  --on-accent:     oklch(0.985 0.003 106);
-  --link:          oklch(0.470 0.150 33);
+  --accent-muted: oklch(0.550 0.180 33 / 0.12);
+  --accent-faint: oklch(0.550 0.180 33 / 0.06);
+  --on-accent: oklch(0.985 0.003 106);
+  --link: oklch(0.470 0.150 33);
 
   /* ---- Honest diagnostics — muted ochre, never angry red (金繼ぎ) ---- */
-  --warn:          oklch(0.470 0.125 70);
-  --warn-bg:       oklch(0.560 0.120 70 / 0.10);
-  --gold:          oklch(0.660 0.098 82);   /* kintsugi seam thread */
-  --gold-ink:      oklch(0.461 0.100 82);   /* corrections (訂正) carry this, never 朱 */
+  --warn: oklch(0.470 0.125 70);
+  --warn-bg: oklch(0.560 0.120 70 / 0.10);
+  --gold: oklch(0.660 0.098 82);   /* kintsugi seam thread */
+  --gold-ink: oklch(0.461 0.100 82);   /* corrections (訂正) carry this, never 朱 */
 
   /* ---- Growth track — muted sage (never out-shouts the accent) ---- */
-  --sage:          oklch(0.450 0.060 145);
-  --sage-bg:       oklch(0.560 0.055 145 / 0.11);
+  --sage: oklch(0.450 0.060 145);
+  --sage-bg: oklch(0.560 0.055 145 / 0.11);
 
-  --success:       oklch(0.520 0.130 155);
-  --success-bg:    oklch(0.520 0.130 155 / 0.10);
+  --success: oklch(0.520 0.130 155);
+  --success-bg: oklch(0.520 0.130 155 / 0.10);
 
   /* ---- Slot-machine colours — the 8 grammatical roles. Each coloured
      element reads --c; the .y-slot-<token> class only assigns it, so one token
@@ -64,13 +64,13 @@
      the accent's red-orange (reserved for `ready` and echoed only by the
      official mark's fixed publication obi). ---- */
   --slot-topic: oklch(0.500 0.125 250);
-  --slot-pred:  oklch(0.560 0.120 65);
-  --slot-poss:  oklch(0.615 0.070 250);
-  --slot-obj:   oklch(0.530 0.100 185);
+  --slot-pred: oklch(0.560 0.120 65);
+  --slot-poss: oklch(0.615 0.070 250);
+  --slot-obj: oklch(0.530 0.100 185);
   --slot-place: oklch(0.510 0.115 305);
-  --slot-time:  oklch(0.560 0.095 45);
-  --slot-verb:  oklch(0.505 0.095 150);
-  --slot-num:   oklch(0.520 0.120 350);
+  --slot-time: oklch(0.560 0.095 45);
+  --slot-verb: oklch(0.505 0.095 150);
+  --slot-num: oklch(0.520 0.120 350);
 
   --shadow-1: 0 2px 8px -2px oklch(0.30 0.02 107 / 0.10), 0 1px 2px oklch(0.30 0.02 107 / 0.07);
   --shadow-2: 0 18px 40px -12px oklch(0.28 0.02 107 / 0.18), 0 4px 12px oklch(0.28 0.02 107 / 0.10);
@@ -79,48 +79,48 @@
 }
 
 /* ---- Dark twin — warm charcoal ink-stone ---- */
-[data-theme="dark"] {
-  --bg:            oklch(0.153 0.006 107);
-  --panel:         oklch(0.210 0.011 107);
-  --elevated:      oklch(0.262 0.013 107);
-  --overlay:       oklch(0.305 0.014 107);
+[data-theme='dark'] {
+  --bg: oklch(0.153 0.006 107);
+  --panel: oklch(0.210 0.011 107);
+  --elevated: oklch(0.262 0.013 107);
+  --overlay: oklch(0.305 0.014 107);
 
-  --fg:            oklch(0.962 0.004 106);
-  --fg-muted:      oklch(0.760 0.010 106);
-  --fg-subtle:     oklch(0.720 0.014 107);
-  --fg-faint:      oklch(0.680 0.012 72);
+  --fg: oklch(0.962 0.004 106);
+  --fg-muted: oklch(0.760 0.010 106);
+  --fg-subtle: oklch(0.720 0.014 107);
+  --fg-faint: oklch(0.680 0.012 72);
 
-  --border:        oklch(0.300 0.012 107);
+  --border: oklch(0.300 0.012 107);
   --border-strong: oklch(0.400 0.014 107);
-  --border-faint:  oklch(0.235 0.010 107);
+  --border-faint: oklch(0.235 0.010 107);
 
-  --accent:        oklch(0.820 0.150 34);
+  --accent: oklch(0.820 0.150 34);
   --accent-strong: oklch(0.880 0.130 34);
-  --accent-muted:  oklch(0.660 0.170 34 / 0.16);
-  --accent-faint:  oklch(0.660 0.170 34 / 0.07);
-  --on-accent:     oklch(0.150 0.010 60);
-  --link:          oklch(0.740 0.150 34);
+  --accent-muted: oklch(0.660 0.170 34 / 0.16);
+  --accent-faint: oklch(0.660 0.170 34 / 0.07);
+  --on-accent: oklch(0.150 0.010 60);
+  --link: oklch(0.740 0.150 34);
 
-  --warn:          oklch(0.860 0.120 82);
-  --warn-bg:       oklch(0.800 0.130 80 / 0.14);
-  --gold:          oklch(0.735 0.098 84);
-  --gold-ink:      oklch(0.810 0.098 84);
+  --warn: oklch(0.860 0.120 82);
+  --warn-bg: oklch(0.800 0.130 80 / 0.14);
+  --gold: oklch(0.735 0.098 84);
+  --gold-ink: oklch(0.810 0.098 84);
 
-  --sage:          oklch(0.820 0.065 148);
-  --sage-bg:       oklch(0.680 0.060 148 / 0.13);
+  --sage: oklch(0.820 0.065 148);
+  --sage-bg: oklch(0.680 0.060 148 / 0.13);
 
-  --success:       oklch(0.740 0.120 155);
-  --success-bg:    oklch(0.740 0.120 155 / 0.14);
+  --success: oklch(0.740 0.120 155);
+  --success-bg: oklch(0.740 0.120 155 / 0.14);
 
   /* Slot roles, brightened for the dark ink-stone (same hues as light). */
   --slot-topic: oklch(0.780 0.120 250);
-  --slot-pred:  oklch(0.800 0.115 65);
-  --slot-poss:  oklch(0.820 0.065 250);
-  --slot-obj:   oklch(0.790 0.095 185);
+  --slot-pred: oklch(0.800 0.115 65);
+  --slot-poss: oklch(0.820 0.065 250);
+  --slot-obj: oklch(0.790 0.095 185);
   --slot-place: oklch(0.790 0.110 305);
-  --slot-time:  oklch(0.810 0.090 45);
-  --slot-verb:  oklch(0.795 0.090 150);
-  --slot-num:   oklch(0.790 0.115 350);
+  --slot-time: oklch(0.810 0.090 45);
+  --slot-verb: oklch(0.795 0.090 150);
+  --slot-num: oklch(0.790 0.115 350);
 
   --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
   --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
@@ -136,48 +136,48 @@
    [data-theme="dark"] above; a Go test compares the two and names any token
    that drifts. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg:            oklch(0.153 0.006 107);
-    --panel:         oklch(0.210 0.011 107);
-    --elevated:      oklch(0.262 0.013 107);
-    --overlay:       oklch(0.305 0.014 107);
+  :root:not([data-theme='light']) {
+    --bg: oklch(0.153 0.006 107);
+    --panel: oklch(0.210 0.011 107);
+    --elevated: oklch(0.262 0.013 107);
+    --overlay: oklch(0.305 0.014 107);
 
-    --fg:            oklch(0.962 0.004 106);
-    --fg-muted:      oklch(0.760 0.010 106);
-    --fg-subtle:     oklch(0.720 0.014 107);
-    --fg-faint:      oklch(0.680 0.012 72);
+    --fg: oklch(0.962 0.004 106);
+    --fg-muted: oklch(0.760 0.010 106);
+    --fg-subtle: oklch(0.720 0.014 107);
+    --fg-faint: oklch(0.680 0.012 72);
 
-    --border:        oklch(0.300 0.012 107);
+    --border: oklch(0.300 0.012 107);
     --border-strong: oklch(0.400 0.014 107);
-    --border-faint:  oklch(0.235 0.010 107);
+    --border-faint: oklch(0.235 0.010 107);
 
-    --accent:        oklch(0.820 0.150 34);
+    --accent: oklch(0.820 0.150 34);
     --accent-strong: oklch(0.880 0.130 34);
-    --accent-muted:  oklch(0.660 0.170 34 / 0.16);
-    --accent-faint:  oklch(0.660 0.170 34 / 0.07);
-    --on-accent:     oklch(0.150 0.010 60);
-    --link:          oklch(0.740 0.150 34);
+    --accent-muted: oklch(0.660 0.170 34 / 0.16);
+    --accent-faint: oklch(0.660 0.170 34 / 0.07);
+    --on-accent: oklch(0.150 0.010 60);
+    --link: oklch(0.740 0.150 34);
 
-    --warn:          oklch(0.860 0.120 82);
-    --warn-bg:       oklch(0.800 0.130 80 / 0.14);
-    --gold:          oklch(0.735 0.098 84);
-    --gold-ink:      oklch(0.810 0.098 84);
+    --warn: oklch(0.860 0.120 82);
+    --warn-bg: oklch(0.800 0.130 80 / 0.14);
+    --gold: oklch(0.735 0.098 84);
+    --gold-ink: oklch(0.810 0.098 84);
 
-    --sage:          oklch(0.820 0.065 148);
-    --sage-bg:       oklch(0.680 0.060 148 / 0.13);
+    --sage: oklch(0.820 0.065 148);
+    --sage-bg: oklch(0.680 0.060 148 / 0.13);
 
-    --success:       oklch(0.740 0.120 155);
-    --success-bg:    oklch(0.740 0.120 155 / 0.14);
+    --success: oklch(0.740 0.120 155);
+    --success-bg: oklch(0.740 0.120 155 / 0.14);
 
     /* Slot roles, brightened for the dark ink-stone (same hues as light). */
     --slot-topic: oklch(0.780 0.120 250);
-    --slot-pred:  oklch(0.800 0.115 65);
-    --slot-poss:  oklch(0.820 0.065 250);
-    --slot-obj:   oklch(0.790 0.095 185);
+    --slot-pred: oklch(0.800 0.115 65);
+    --slot-poss: oklch(0.820 0.065 250);
+    --slot-obj: oklch(0.790 0.095 185);
     --slot-place: oklch(0.790 0.110 305);
-    --slot-time:  oklch(0.810 0.090 45);
-    --slot-verb:  oklch(0.795 0.090 150);
-    --slot-num:   oklch(0.790 0.115 350);
+    --slot-time: oklch(0.810 0.090 45);
+    --slot-verb: oklch(0.795 0.090 150);
+    --slot-num: oklch(0.790 0.115 350);
 
     --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
     --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
@@ -196,11 +196,11 @@
      with review/*.png. So the serif/kai stacks name macOS Mincho/Kai
      explicitly before the generic serif, and the sans/display stacks name a
      system Gothic. Zero bytes, no @font-face, no request. */
-  --font-display: "Geist", "Noto Sans TC", "PingFang TC", "Hiragino Sans", system-ui, sans-serif;
-  --font-serif:   "Newsreader", "Noto Serif TC", "Noto Serif JP", "Songti TC", "Hiragino Mincho ProN", Georgia, serif;
-  --font-sans:    "Geist", "Noto Sans TC", "PingFang TC", "Hiragino Sans", system-ui, sans-serif;
-  --font-mono:    "Geist Mono", ui-monospace, "Noto Sans TC", monospace;
-  --font-kai:     "LXGW WenKai TC", "Kaiti TC", "Kaiti SC", "Noto Serif TC", "Songti TC", "Hiragino Mincho ProN", serif;
+  --font-display: 'Geist', 'Noto Sans TC', 'PingFang TC', 'Hiragino Sans', system-ui, sans-serif;
+  --font-serif: 'Newsreader', 'Noto Serif TC', 'Noto Serif JP', 'Songti TC', 'Hiragino Mincho ProN', Georgia, serif;
+  --font-sans: 'Geist', 'Noto Sans TC', 'PingFang TC', 'Hiragino Sans', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'Noto Sans TC', monospace;
+  --font-kai: 'LXGW WenKai TC', 'Kaiti TC', 'Kaiti SC', 'Noto Serif TC', 'Songti TC', 'Hiragino Mincho ProN', serif;
 
   /* The face a reader's own choice sets their reading in. Having chosen
      nothing leaves the root without data-font and this base value answers: the
@@ -249,7 +249,7 @@
   /* Tracking */
   --track-tight: -0.02em;
   --track-snug: -0.01em;
-  --track-normal: 0em;
+  --track-normal: 0;
   --track-wide: 0.08em;
 
   /* Radii — bookish, not SaaS */
@@ -336,7 +336,7 @@
 /* The reading column's editorial scale at the owner's chosen size. Only the
    ed tokens move: the chrome keeps its own type, because the preference tunes
    the reading, never the furniture around it. */
-:root[data-textsize="l"] {
+:root[data-textsize='l'] {
   --fs-ed-17: 1.1875rem;
   --fs-ed-19: 1.3125rem;
   --fs-ed-20: 1.375rem;
@@ -344,7 +344,8 @@
   --fs-ed-30: 2rem;
   --fs-ed-38: 2.5rem;
 }
-:root[data-textsize="xl"] {
+
+:root[data-textsize='xl'] {
   --fs-ed-17: 1.3125rem;
   --fs-ed-19: 1.4375rem;
   --fs-ed-20: 1.5rem;
@@ -370,11 +371,13 @@
     --fs-ed-30: 1.625rem;
     --fs-ed-38: 1.875rem;
   }
-  :root[data-textsize="l"] {
+
+  :root[data-textsize='l'] {
     --fs-ed-30: 1.75rem;
     --fs-ed-38: 2rem;
   }
-  :root[data-textsize="xl"] {
+
+  :root[data-textsize='xl'] {
     --fs-ed-30: 1.875rem;
     --fs-ed-38: 2.125rem;
   }
@@ -385,12 +388,14 @@
    faces this sheet knows can be compared as two lists rather than trusted to
    have stayed in step. Only this one value moves: the stacks the chrome, the
    headings and the code are set from are untouched. */
-:root[data-font="serif"] {
+:root[data-font='serif'] {
   --font-read: var(--font-serif);
 }
-:root[data-font="sans"] {
+
+:root[data-font='sans'] {
   --font-read: var(--font-sans);
 }
-:root[data-font="kai"] {
+
+:root[data-font='kai'] {
   --font-read: var(--font-kai);
 }
