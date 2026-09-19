@@ -191,6 +191,36 @@ const painted = (locator) => locator.evaluate((element) => {
 const onScreen = (seen) => seen.width > 1 && seen.height > 1 && seen.inViewport
   && seen.visible && seen.inkAlpha > 0 && seen.hit;
 
+// foldSettled waits for a disclosure that was just opened to finish opening.
+// The engine wraps a fold's body in ::details-content, which grows from no
+// height to the body's height and stops being hidden as that growth starts.
+// Until it ends the body is cut off at the fold's edge, so a point in the
+// middle of a line inside it lands on whatever is drawn there instead — the
+// summary above it — and the reading describes the fold opening rather than
+// the opened fold a reader is looking at.
+//
+// The engine offers no animation for that growth through getAnimations() and
+// fires no transitionend for it, on the fold or anywhere else, so what is
+// watched is the wrapper's own computed height: once the body is no longer
+// hidden and that height has held still across two frames, the fold is as open
+// as it is going to get. A fold that opens instantly — reduced motion, or no
+// transition declared — settles on the first comparison, and one that never
+// opens runs out the deadline and falls through to the assertion below, which
+// is what has to answer for it.
+const foldSettled = (locator) => locator.evaluate((details) => new Promise((resolve) => {
+  const deadline = performance.now() + 2000;
+  let previous = null;
+  let held = 0;
+  const read = () => {
+    const style = getComputedStyle(details, '::details-content');
+    held = style.contentVisibility !== 'hidden' && style.height === previous ? held + 1 : 0;
+    previous = style.height;
+    if (held >= 2 || performance.now() > deadline) resolve();
+    else requestAnimationFrame(read);
+  };
+  requestAnimationFrame(read);
+}));
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
@@ -233,6 +263,7 @@ try {
   if (await disclosure.count() !== 1) broken('the note page offers no 筆記狀況 disclosure to open');
   await disclosure.locator('summary').first().click();
   if (await disclosure.evaluate((d) => !d.open)) broken('the 筆記狀況 disclosure did not open');
+  await foldSettled(disclosure);
 
   const splits = disclosure.locator('.y-diag__split');
   if (await splits.count() === 0) {
