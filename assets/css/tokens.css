@@ -291,11 +291,22 @@
      keeps its name apart from the measures above. */
   --notice-column: 480px;
 
-  /* Motion */
+  /* Motion — two durations and one curve, because motion here exists so a
+     state change can be read. --dur-base is what the pointer and the keyboard
+     touch: a hover, a focus ring, a chevron turning, a fold opening.
+     --dur-slow is for a surface the reader summoned and will send away again —
+     the palette, the concept sheet, the navigation drawer — where the longer
+     arrival says where the surface came from and where it will go back to.
+     The hover preview card looks like the second group and belongs to the
+     first: it is born of a pointer resting on a link rather than of a press,
+     so it takes --dur-base, and at the slow one it would still be arriving
+     after the pointer had moved on. --dur-dwell is not a third tempo but a
+     dwell — how long the wash on a jumped-to heading stays legible before it
+     leaves — which is a reading time rather than an interface one. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --dur-fast: 60ms;
   --dur-base: 120ms;
   --dur-slow: 200ms;
+  --dur-dwell: 1100ms;
 }
 
 /* ---- Tailwind @theme contract (inline: utilities resolve to the aliases
