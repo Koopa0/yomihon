@@ -46,6 +46,23 @@ const FOLDS = [
   { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
 
+// Every fold kind the cut is declared for, each with the page and width it
+// renders at. The ring-and-cut check below cannot assume any one of these
+// keeps a focusable row close enough to its own edge for a cut to ever reach
+// it — the metadata row's own first row moved inward once the note head
+// became a dl (#627) — so it reads every kind in turn and checks the first
+// whose row still stands within its ring's own reach. The reading aids lead
+// the order: several folds tie for a row flush with the edge, and this is the
+// one clip-a-focus-ring below mutates, so the check has to land on it rather
+// than on a tied fold the mutation never touches.
+const RING_CANDIDATES = [
+  { key: 'inline reading aids', path: null, width: 1280, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
+  { key: 'rail groups', path: null, width: 1280, selector: '.y-rail-left details', wrapper: '.y-rail-left details::details-content' },
+  { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm', wrapper: '.y-statusconfirm::details-content' },
+  { key: 'metadata row', path: null, width: 1280, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
+  { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
+];
+
 // Where the reduced-motion walk runs. Three readings rather than one: the
 // note carries three of the folds, the value column lives on the search page,
 // and the narrow width swaps the rail for a drawer and the reading aids for an
@@ -477,8 +494,14 @@ try {
   // at that edge passes through the ring of a row standing there, taking its
   // sides away. Nothing in the row's own style says so — the ring is still
   // declared and still painted — so the two numbers that decide it are read
-  // instead: how far the cut stands out, and how far the ring reaches.
-  for (const fold of FOLDS) {
+  // instead: how far the cut stands out, and how far the ring reaches. Every
+  // insets entry records a candidate that did carry a ring, so a run that
+  // finds none close enough says which folds it tried and how far each one
+  // stood.
+  let ringFold = null;
+  let ringReading = null;
+  const insets = [];
+  for (const fold of RING_CANDIDATES) {
     await page.setViewportSize({ width: fold.width, height: 900 });
     const response = await page.goto(BASE + (fold.path ?? PAGE), { waitUntil: 'load' });
     if (!response || response.status() !== 200) broken(`the page carrying the ${fold.key} answered ${response?.status() ?? 'nothing'}, want 200`);
@@ -490,26 +513,32 @@ try {
     if (reading.outlineStyle === 'none' || !(reading.reach > 0)) {
       broken(`the ${fold.key}'s first row draws no ring when focused (${reading.outlineStyle}, reaching ${reading.reach}px), so this reading would compare the cut against nothing`);
     }
-    if (!(reading.inset < reading.reach)) {
-      broken(`the ${fold.key}'s first row stands ${reading.inset}px inside the fold, further than its ring reaches, so no cut at the fold's edge could touch it and this reading proves nothing`);
+    insets.push(`${fold.key} stands ${reading.inset}px inside a ${reading.reach}px ring`);
+    if (reading.inset < reading.reach) {
+      ringFold = fold;
+      ringReading = reading;
+      break;
     }
-    if (reading.overflow !== 'visible') {
-      // Only a clip is held out by a margin. hidden and the scrolling values
-      // cut at the edge itself, and the margin beside them still computes to
-      // whatever it says — which is why the value is read and not only the
-      // number.
-      if (reading.overflow !== 'clip') {
-        fail('a-focused-row-keeps-its-whole-ring', `${reading.wrapper} cuts its body off with overflow: ${reading.overflow}, which cuts at the fold's own edge whatever margin is written beside it, so the ring around the first row in the ${fold.key} loses its sides`);
-      }
-      if (reading.cut < reading.reach) {
-        fail('a-focused-row-keeps-its-whole-ring', `${reading.wrapper} holds its cut ${reading.cut}px out while the ring around the first row in the ${fold.key} reaches ${reading.reach}px, so the ring loses its sides where the row meets the fold's edge`);
-      }
+  }
+  if (!ringFold) {
+    broken(`no fold's first row stands close enough to its own edge for a cut to ever touch it, so this reading proves nothing (${insets.join('; ')})`);
+  }
+  if (ringReading.overflow !== 'visible') {
+    // Only a clip is held out by a margin. hidden and the scrolling values
+    // cut at the edge itself, and the margin beside them still computes to
+    // whatever it says — which is why the value is read and not only the
+    // number.
+    if (ringReading.overflow !== 'clip') {
+      fail('a-focused-row-keeps-its-whole-ring', `${ringReading.wrapper} cuts its body off with overflow: ${ringReading.overflow}, which cuts at the fold's own edge whatever margin is written beside it, so the ring around the first row in the ${ringFold.key} loses its sides`);
+    }
+    if (ringReading.cut < ringReading.reach) {
+      fail('a-focused-row-keeps-its-whole-ring', `${ringReading.wrapper} holds its cut ${ringReading.cut}px out while the ring around the first row in the ${ringFold.key} reaches ${ringReading.reach}px, so the ring loses its sides where the row meets the fold's edge`);
     }
   }
 
   if (proof && !confirmed) broken(`${MUTATE} was never confirmed, so this run proves nothing about it`);
 
-  console.log(`PASS motion-contract: ${QUIET_STOPS.length} readings collapse every transition for the reduced-motion reader, ${FOLDS.length} folds open by growing over --dur-base and keep a focused row's whole ring, and the sheet arrives ${Math.round(Math.abs(startedAt))}px from its edge`);
+  console.log(`PASS motion-contract: ${QUIET_STOPS.length} readings collapse every transition for the reduced-motion reader, ${FOLDS.length} folds open by growing over --dur-base, the ${ringFold.key} keeps a focused row's whole ring, and the sheet arrives ${Math.round(Math.abs(startedAt))}px from its edge`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
