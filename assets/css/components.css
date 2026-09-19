@@ -1191,7 +1191,10 @@ body {
    disclosure needs its two halves stacked. Type, size and colour stay on the
    row itself, where they are read by everything that asks what this line looks
    like on a given medium. */
-.y-metarow {
+/* stylelint-disable-next-line selector-no-qualifying-type -- the same class
+   marks a plain row on the file and study-path pages; only the note's
+   disclosure is meant here. */
+details.y-metarow {
   display: block;
 }
 
@@ -4880,11 +4883,15 @@ html {
 @media (min-width: 1281px) {
   /* The same split .y-rail-right and .y-inlineaids already use: past it the
      facts stand open beside the title, so the disclosure that folds them at
-     narrower widths is not also drawn. This selector already matches
-     .y-metarow's own display: block rule above at equal specificity and sits
-     later in the source, so nothing more than that is needed — source order
-     alone decides it, this query being the later one. */
-  .y-metarow {
+     narrower widths is not also drawn. The selector repeats the type
+     qualifier details.y-metarow carries at its own display: block rule
+     above, matching that rule's specificity instead of reaching for
+     !important — source order alone then decides it, this query being the
+     later one. */
+  /* stylelint-disable-next-line selector-no-qualifying-type -- the same class
+     marks a plain row on the file and study-path pages; only the note's
+     disclosure is meant here. */
+  details.y-metarow {
     display: none;
   }
 
