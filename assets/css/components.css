@@ -606,7 +606,7 @@ html, body { margin: 0; background: var(--bg); }
    disclosure needs its two halves stacked. Type, size and colour stay on the
    row itself, where they are read by everything that asks what this line looks
    like on a given medium. */
-details.y-metarow { display: block; }
+.y-metarow { display: block; }
 .y-metarow__summary, .y-metarow__detail {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px;
 }
@@ -769,6 +769,10 @@ details.y-metarow { display: block; }
    a bottom border, so the underline goes to every other prose link, drawn at
    the same weight so the two read as one family. */
 .y-prose a { color: var(--link); }
+/* stylelint-disable-next-line selector-no-qualifying-type -- the type is not
+   disambiguating two tagged elements here, it is bounding the rule to links:
+   .wikilink only ever sits on an anchor, so an unqualified :not(.wikilink)
+   would match every other element in the prose that lacks that class. */
 .y-prose a:not(.wikilink) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
 /* Footnotes — apparatus, not body. A reference is a small mark inside the
@@ -797,7 +801,7 @@ details.y-metarow { display: block; }
 .y-prose code { font-family: var(--font-mono); font-size: 0.82em; background: var(--elevated); padding: 1px 5px; border-radius: var(--r-sm); color: var(--fg); }
 .y-prose pre { margin: var(--sp-block) 0 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px 18px; overflow-x: auto; font-family: var(--font-mono); font-size: var(--fs-13); line-height: 1.75; }
 .y-prose pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
-.y-prose pre.chroma { color: var(--fg); }
+.y-prose .chroma { color: var(--fg); }
 
 /* tables — a table wider than the column scrolls inside its own box (the
    renderer wraps every table in .y-tablewrap) so the article never scrolls */
@@ -823,8 +827,8 @@ details.y-metarow { display: block; }
 .yomihon mark { background: color-mix(in oklch, var(--gold) 26%, transparent); color: var(--gold-ink); border-radius: 2px; }
 
 /* wikilinks — the renderer's real classes (a.wikilink / .wikilink-broken / .wikilink-ambiguous) */
-.y-prose a.wikilink { color: var(--link); border-bottom: 1px solid var(--accent-muted); }
-.y-prose a.wikilink:hover { border-bottom-color: var(--accent); }
+.y-prose .wikilink { color: var(--link); border-bottom: 1px solid var(--accent-muted); }
+.y-prose .wikilink:hover { border-bottom-color: var(--accent); }
 .y-prose .wikilink-broken { color: var(--fg-muted); border-bottom: 1px dashed var(--warn); text-underline-offset: 2px; cursor: help; }
 .y-prose .wikilink-ambiguous { color: var(--fg-muted); border-bottom: 1px dotted var(--accent); cursor: help; }
 /* A picture whose file the vault does not hold. The browser draws its own
@@ -838,8 +842,8 @@ details.y-metarow { display: block; }
    on an ambiguous name — resolved, but not precisely — and the muted colour
    says this is the smaller of the two faults. The dashed warn line stays
    reserved for a name with no target at all. */
-.y-prose a.wikilink-degraded { border-bottom: 1px dotted var(--fg-muted); }
-.y-prose a.wikilink-degraded:hover { border-bottom-color: var(--fg-subtle); }
+.y-prose .wikilink-degraded { border-bottom: 1px dotted var(--fg-muted); }
+.y-prose .wikilink-degraded:hover { border-bottom-color: var(--fg-subtle); }
 
 /* embeds */
 .y-prose .embed { border-left: 3px solid var(--border-strong); margin: var(--sp-block) 0 0; padding: 2px 16px; }
@@ -877,6 +881,9 @@ details.y-metarow { display: block; }
   background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--border-faint);
 }
 .y-freshness__action { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+/* stylelint-disable-next-line selector-no-qualifying-type -- the class sits on
+   both a button (the reload control) and an anchor (the search link); native
+   button chrome needs stripping only on the former, so the type stays. */
 button.y-freshness__action { padding: 0; border: 0; background: none; cursor: pointer; }
 .y-syl-nocourse { color: var(--fg-muted); max-width: 60ch; margin: 18px 0 0; }
 /* An embed whose address the note does not answer to leaves a block with no
@@ -906,6 +913,9 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
    uppercase-plus-letterspacing dressed them as machine labels while doing
    nothing at all to CJK. */
 .y-prose .callout-title { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-family: var(--font-serif); font-weight: var(--fw-semibold); font-size: var(--fs-14); color: var(--fg-subtle); cursor: default; }
+/* stylelint-disable-next-line selector-no-qualifying-type -- a callout renders
+   as either a details (foldable, clickable summary) or a div (plain, nothing
+   to click); the type picks out only the former's title for the pointer cursor. */
 .y-prose details.callout > .callout-title { cursor: pointer; }
 .y-prose .callout-warning .callout-title { color: var(--warn); }
 .y-prose .callout-icon { font-style: normal; }
@@ -982,7 +992,7 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 .y-toc__list a { padding: 5px 12px; margin-left: -1px; border-left: 2px solid transparent; color: var(--fg-subtle); font-size: var(--fs-13); }
 .y-toc__list a:hover { color: var(--fg); }
 /* the scroll-spy's active entry (set by the enhancement script) */
-.y-toc__list a.is-active { color: var(--fg); border-left-color: var(--accent); }
+.y-toc__list .is-active { color: var(--fg); border-left-color: var(--accent); }
 /* Indent follows the authored level the renderer stamps on each row, so a
    #### stays the deepest indent even though the shell writes it as h5. */
 .y-toc__list a[data-level="3"] { padding-left: 22px; }
@@ -1204,6 +1214,9 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
   padding: 4px 6px; border-radius: var(--r-sm);
   font-size: var(--fs-13); color: var(--fg-muted);
 }
+/* stylelint-disable-next-line selector-no-qualifying-type -- an empty facet
+   query renders this class on a span, not an anchor, so it has nothing to
+   hover; the type keeps the highlight on the row that is actually clickable. */
 a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
 .y-facetrow__label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 /* The count is machinery, so it is set in the machinery's face, and it is
@@ -1458,8 +1471,8 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
 /* A concept-link is a real wikilink that also opens the sheet; mark it with a
    dotted underline so the reader knows a grammar note is one click away. With
    JS off it is still the plain wikilink that navigates to the note. */
-.y-prose a.concept-link { border-bottom: 1px dashed var(--accent-muted); text-underline-offset: 2px; cursor: help; }
-.y-prose a.concept-link:hover { border-bottom-color: var(--accent); }
+.y-prose .concept-link { border-bottom: 1px dashed var(--accent-muted); text-underline-offset: 2px; cursor: help; }
+.y-prose .concept-link:hover { border-bottom-color: var(--accent); }
 
 /* ============================================================
    Concept sheet — a grammar note in a native <dialog> drawer.
@@ -1499,6 +1512,10 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    exchange for a tenth of a second of motion.
    Reduced motion needs no declaration here — the blanket below collapses this
    duration along with every other decorative one. */
+/* stylelint-disable-next-line selector-max-id, selector-no-qualifying-type --
+   the skip link's target is the one id every page keeps, and naming it with
+   its type says plainly that the id is what is being relied on here, not
+   whatever class happens to sit beside it on a given page. */
 main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) backwards; }
 @keyframes y-page-in { from { opacity: .7 } to { opacity: 1 } }
 
@@ -1506,6 +1523,10 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    reading-position hairline: it is scroll state, not decoration (its
    scroll timeline is not driven by durations anyway, but the exemption
    is explicit — WCAG exempts motion that conveys essential state). */
+/* stylelint-disable-next-line declaration-no-important -- this rule answers a
+   reader's own platform preference against every duration and easing already
+   set, wherever it was set and at whatever specificity; !important is the
+   only way it can be sure it wins against all of them at once. */
 @media (prefers-reduced-motion: reduce) { .yomihon *:not(.y-readline), .yomihon *::before, .yomihon *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
 /* ============================================================
@@ -1812,7 +1833,7 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
 /* File views — a vault file that is not a note. Source and pictures borrow the
    reading column's own type and code styling, so only the document frame and
    the information page need rules of their own. */
-.y-source pre.chroma { margin-top: 22px; }
+.y-source .chroma { margin-top: 22px; }
 .y-fileframe { display: block; width: 100%; height: min(78vh, 900px); margin: 22px 0 0; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
 .y-fileinfo { margin: 26px 0 0; padding: 20px 22px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); }
 .y-fileinfo__lead { margin: 0 0 16px; font-family: var(--font-serif); font-style: italic; color: var(--fg-subtle); }
@@ -1875,10 +1896,10 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    specific than a class alone. The colour written here before was therefore
    never painted — the label took the article's ink onto the seal-ink fill and
    sat there at 2.3:1, which is the real reason the slab read as wrong. */
-a.y-recovery__action { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border: 1px solid var(--accent); border-radius: var(--r-sm); background: var(--accent-faint); font-family: var(--font-sans); font-size: var(--fs-13); color: var(--accent); text-decoration: none; transition: background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard); }
-a.y-recovery__action:hover { background: var(--accent-muted); border-color: var(--accent-strong); color: var(--accent-strong); }
-a.y-recovery__action--quiet { border-color: var(--border); background: var(--panel); color: var(--fg); }
-a.y-recovery__action--quiet:hover { border-color: var(--border-strong); background: var(--elevated); }
+.y-recovery__action { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border: 1px solid var(--accent); border-radius: var(--r-sm); background: var(--accent-faint); font-family: var(--font-sans); font-size: var(--fs-13); color: var(--accent); text-decoration: none; transition: background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard); }
+.y-recovery__action:hover { background: var(--accent-muted); border-color: var(--accent-strong); color: var(--accent-strong); }
+.y-recovery__action--quiet { border-color: var(--border); background: var(--panel); color: var(--fg); }
+.y-recovery__action--quiet:hover { border-color: var(--border-strong); background: var(--elevated); }
 
 /* One notice for every surface that has nothing to show: a search that matched
    no note, an address that names none, a folder with no fault left to report, a
@@ -2436,11 +2457,11 @@ html {
 @media (min-width: 1281px) {
   /* The same split .y-rail-right and .y-inlineaids already use: past it the
      facts stand open beside the title, so the disclosure that folds them at
-     narrower widths is not also drawn. The selector repeats the type
-     qualifier details.y-metarow carries at its own display: block rule above,
-     matching that rule's specificity instead of reaching for !important —
-     source order alone then decides it, this query being the later one. */
-  details.y-metarow { display: none; }
+     narrower widths is not also drawn. This selector already matches
+     .y-metarow's own display: block rule above at equal specificity and sits
+     later in the source, so nothing more than that is needed — source order
+     alone decides it, this query being the later one. */
+  .y-metarow { display: none; }
   .y-headmeta { display: flex; }
 }
 /* One column at a time, the document scrolling, and the strip pinned under the
@@ -2491,7 +2512,7 @@ html {
 
 @media (max-width: 1280px) {
   .y-shell { grid-template-columns: 248px minmax(0, 1fr); }
-  .y-rail-right { display: none !important; }
+  .y-rail-right { display: none; }
   .y-inlineaids { display: flex; flex-direction: column; gap: 22px; margin: 26px 0 6px; }
 }
 @media (max-width: 900px) {
@@ -2547,7 +2568,7 @@ html {
      whose whole purpose is switching readings off has to say which way it is
      set, and the passage under it cannot answer for it — a paragraph with no
      kanji looks identical either way. */
-  .y-rubybtn__on, .y-rubybtn__off { display: none !important; }
+  [data-ruby="on"] .y-rubybtn__on, [data-ruby="off"] .y-rubybtn__off { display: none; }
   [data-ruby="on"] .y-rubybtn__label { color: var(--accent); }
   [data-ruby="off"] .y-rubybtn__label { color: var(--fg-faint); text-decoration: line-through; }
   /* The state word goes onto its own line so the controls keep one row each;
@@ -2606,6 +2627,10 @@ html {
     padding: 0;
   }
 
+  /* stylelint-disable declaration-no-important -- print has no later stylesheet
+     to out-order and no script to toggle a class instead; !important is the
+     only way these rules can be sure they win against whatever screen-only
+     rule came before them, regardless of its own specificity. */
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
   .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview, .y-compare__tabs,
@@ -2630,6 +2655,7 @@ html {
   .y-cover__open {
     display: none !important;
   }
+  /* stylelint-enable declaration-no-important */
   /* A listing row clips its document's opening to one line on screen so the
      shelf stays a shelf and the rest is one click away. Paper has the room and
      takes no click, so there the line wraps and is printed whole. */
@@ -3106,7 +3132,7 @@ html {
    the link under the pointer and nothing else about geometry — and the
    fallbacks are what keeps a card opened near an edge of the window on screen.
    The excerpt scrolls inside the card without taking the page with it. */
-.y-prose a.wikilink[data-preview-open] { anchor-name: --y-preview-anchor; border-bottom-color: var(--accent); }
+.y-prose .wikilink[data-preview-open] { anchor-name: --y-preview-anchor; border-bottom-color: var(--accent); }
 .y-preview {
   inset: auto; position: fixed; margin: 0; position-anchor: --y-preview-anchor;
   position-area: block-end span-inline-end;

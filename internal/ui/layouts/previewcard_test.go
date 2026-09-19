@@ -91,8 +91,8 @@ func TestTheHoverCardIsShortEnoughToReadWithoutScrollingIt(t *testing.T) {
 func TestTheLinkAnOpenCardBelongsToIsStillMarked(t *testing.T) {
 	t.Parallel()
 	css := previewStylesheet(t)
-	open := cssDeclarations(t, ruleBody(t, css, ".y-prose a.wikilink[data-preview-open] {"))
-	hover := cssDeclarations(t, ruleBody(t, css, ".y-prose a.wikilink:hover {"))
+	open := cssDeclarations(t, ruleBody(t, css, ".y-prose .wikilink[data-preview-open] {"))
+	hover := cssDeclarations(t, ruleBody(t, css, ".y-prose .wikilink:hover {"))
 	if hover["border-bottom-color"] == "" {
 		t.Fatal("a hovered wikilink no longer marks itself, so there is nothing for the open card's link to keep")
 	}
