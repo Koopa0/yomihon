@@ -272,9 +272,17 @@
      instead and a narrower window spends its reclaimed gutter on longer lines,
      so the measure grows by a tenth exactly when the reader has least room.
      The reading shell is a note, a file, a study path, the reading choices,
-     and the two pages a reader only ever reaches by accident. */
+     and the two pages a reader only ever reaches by accident. The shelf shell
+     is every page that lists what the folder holds instead of setting one
+     thing to be read, where a row is read across as well as down. The answer
+     shell is what a search comes back as, which takes a narrow column of its
+     own beside the results wherever there is room for one. */
   --measure-read: 640px;
   --gutter-read: 56px;
+  --measure-list: 880px;
+  --gutter-list: 48px;
+  --measure-answer: 720px;
+  --gutter-answer: 24px;
 
   /* A notice, which is one heading and a sentence or two rather than an
      article. It is narrower than the reading measure on purpose: a page whose

@@ -535,13 +535,18 @@ try {
 				`module boot/filter reveal failed: data-js=${await page.evaluate(() => document.documentElement.dataset.js)}, hidden=${filterHidden}`,
 			);
 		}
-		await page.locator("[data-search-open]").click();
+		// The chord, not the header control. Pressing that control opens the
+		// palette because the markup says so, which a browser does whether or
+		// not a single line of ours ran — so it would answer here for the wrong
+		// reason. A chord is not a press on anything the markup can name, so it
+		// reaches the palette only through the module this case is about.
+		await page.keyboard.press("ControlOrMeta+k");
 		if (
 			!(await page.locator("[data-search]").evaluate((dialog) => dialog.open))
 		) {
 			fail(
 				"application-runtime-survives",
-				"the nonce-authorized module did not upgrade the search link into a dialog",
+				"the nonce-authorized module did not answer the palette chord",
 			);
 		}
 		await context.close();

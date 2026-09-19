@@ -568,6 +568,21 @@ html, body { margin: 0; background: var(--bg); }
 }
 
 /* ============================================================
+   The shelf shell
+   ============================================================ */
+/* A page that lists what the folder holds rather than setting one thing to be
+   read: the desk, the four ways in, a folder seen whole, and the page naming
+   what the folder owes. A list is read across as well as down — a row carries a
+   title, a figure and a status — so it is laid out wider than a paragraph, and
+   the width is stated once for all of them rather than found again per page. */
+.y-healthpage,
+.y-home {
+  margin: 0 auto;
+  max-width: calc(var(--measure-list) + 2 * var(--gutter-list));
+  padding: 42px var(--gutter-list) 120px;
+}
+
+/* ============================================================
    Center article
    ============================================================ */
 .y-crumbs { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.06em; color: var(--fg-faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1142,9 +1157,24 @@ button.y-freshness__action { padding: 0; border: 0; background: none; cursor: po
 /* ============================================================
    Lexical search results — shared by the full page and ⌘K panel
    ============================================================ */
-.y-searchpage { max-width: 720px; margin: 0 auto; padding: 40px 24px 96px; }
+/* ============================================================
+   The answer shell
+   ============================================================ */
+/* What a search comes back as. The results are read as prose and take a
+   measure of their own, and at the widths where there is room the divisions
+   the answer is made of stand in a narrow column beside them rather than
+   above. The column and the space before it are named here once: the page's
+   own width is the measure plus both of them, so the two figures cannot be
+   stated in one place and forgotten in the other. */
+.y-searchpage {
+  --facet-column: 192px;
+  --facet-gap: 28px;
+  margin: 0 auto;
+  max-width: calc(var(--measure-answer) + 2 * var(--gutter-answer));
+  padding: 40px var(--gutter-answer) 96px;
+}
 
-/* The divisions beside the results. The page's own column is 720px of reading
+/* The divisions beside the results. The page's own column is a reading
    measure, so the answer and what it is made of are laid out as a pair rather
    than by squeezing one into the other: the results keep the measure and the
    divisions take a narrow column of their own.
@@ -1193,14 +1223,15 @@ a.y-facetrow:hover { background: var(--overlay); color: var(--fg); }
    results keep the measure they have always had — the column is added beside
    the page rather than taken out of it, so the page grows by exactly the
    column and the gap and a line of prose is the same length it was. Below this
-   the page is its old self with a fold above the results, which is why the
-   width is named once here and derived everywhere else. */
+   the page is its old self with a fold above the results. */
 @media (width >= 1280px) {
-  .y-searchpage { max-width: calc(720px + 28px + 192px + 48px); }
+  .y-searchpage {
+    max-width: calc(var(--measure-answer) + var(--facet-gap) + var(--facet-column) + 2 * var(--gutter-answer));
+  }
   .y-searchpage .y-searchresults {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 192px;
-    gap: 28px;
+    grid-template-columns: minmax(0, 1fr) var(--facet-column);
+    gap: var(--facet-gap);
     align-items: start;
   }
   .y-searchpage .y-facets { order: 2; margin: 0; position: sticky; top: 24px; }
@@ -1490,8 +1521,8 @@ main#main-content { animation: y-page-in var(--dur-base) var(--ease-standard) ba
    same shell dresses the four mode index pages, and the blocks here are what
    the folder index fills with its recent list and status distribution. The
    block markers live in markup for the HTTP probe; layout may move without
-   changing their identity. */
-.y-home { max-width: 980px; margin: 0 auto; padding: 42px 48px 120px; }
+   changing their identity. Its column is the shelf shell's, declared with the
+   other pages that list rather than read. */
 .y-home__head { margin-bottom: 26px; }
 .y-home__kicker { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.09em; color: var(--fg-faint); }
 .y-home__head .y-title { margin-top: 10px; }
@@ -2465,7 +2496,11 @@ html {
 }
 @media (max-width: 900px) {
   .y-shell, .y-shell2 { grid-template-columns: 1fr; }
-  .y-home { padding: 32px 20px 120px; }
+  .y-healthpage,
+  .y-home {
+    --gutter-list: 20px;
+    padding: 32px var(--gutter-list) 120px;
+  }
   .y-homeblock__head { align-items: flex-start; flex-direction: column; gap: 3px; }
   .y-homeblock__head p { margin-left: 0; text-align: left; }
   .y-homenote { align-items: flex-start; }
@@ -2574,7 +2609,8 @@ html {
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-header, .y-rail-left, .y-rail-right, .y-inlineaids, .y-searchdialog,
   .y-nav-scrim, .y-skiplink, .y-sealbar, .y-preview, .y-compare__tabs,
-  .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions, .y-facets, .y-months {
+  .y-tts, .y-ttsbar, .y-slotcontrols, .y-slotactions, .y-facets, .y-pager,
+  .y-months {
     display: none !important;
   }
   /* Librarian chrome in the opening column is for repair on screen, not for
@@ -2806,6 +2842,94 @@ html {
 .y-findingsguide__list { margin: 14px 0 0; }
 .y-findingsguide__term { display: flex; align-items: baseline; gap: 10px; margin: 16px 0 0; font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
 .y-findingsguide__meaning { margin: 4px 0 0; font-family: var(--font-serif); font-size: var(--fs-13); line-height: 1.7; color: var(--fg-subtle); }
+
+/* Which rows of the report are on this page, set in the same label face as the
+   shape line it follows and quieter than it: the shape is what the folder owes,
+   this is only where in the list the reader is standing. */
+.y-healthrange {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.06em;
+  margin: 6px 0 0;
+}
+
+/* ============================================================
+   The strip under a listing that runs past one page
+   ============================================================ */
+
+/* Shared by the search results and the findings table, because a reader who
+   has learned to step through one has learned to step through the other. It is
+   a row of plain links in the label face, wrapping rather than scrolling at a
+   phone's width, and each target is large enough to be hit with a thumb. */
+.y-pager {
+  align-items: center;
+  border-top: 1px solid var(--border-faint);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  gap: 4px 6px;
+  margin: 26px 0 0;
+  padding-top: 14px;
+}
+
+.y-pager__pages {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.y-pager__step,
+.y-pager__page,
+.y-pager__whole {
+  align-items: center;
+  border-radius: var(--r-sm);
+  color: var(--fg-subtle);
+  display: inline-flex;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.y-pager__page {
+  min-width: 32px;
+  padding: 0 6px;
+}
+
+.y-pager__step:hover,
+.y-pager__page:hover,
+.y-pager__whole:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+/* The page being read is marked by the attribute that says so, not by a class
+   beside it, so what a reader hears and what the stylesheet paints cannot come
+   apart. It is also the one item that is not a step to somewhere else, which is
+   why it is the only one with a ground of its own. */
+.y-pager__page[aria-current="page"] {
+  background: var(--accent-muted);
+  color: var(--fg);
+}
+
+/* The undivided listing sits apart from the numbers: it is not another page,
+   it is all of them, and it is what a reader follows before printing. */
+.y-pager__whole {
+  color: var(--fg-faint);
+  margin-left: auto;
+}
+
+@media (max-width: 520px) {
+  /* At a phone's width the strip has already wrapped, and a link pushed to the
+     far edge of a line of its own reads as unrelated to the numbers above it. */
+  .y-pager__whole { margin-left: 0; }
+}
 
 /* Narrow: the table stacks instead of scrolling sideways, because a sheet the
    reader has to push left and right is one they read half of. Each cell then

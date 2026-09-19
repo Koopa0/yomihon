@@ -57,6 +57,7 @@ probes=(
   "course-line.mjs|/notes/Course/C01.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
   "motion-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "overlay-commands.mjs|/notes/Writing/lessons/japanese/L01.md"
   "theme-toggle-pressed.mjs|/notes/Notes/alpha.md"
   "header-fold.mjs|/notes/Notes/alpha.md"
   "reading-switch-label.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -82,6 +83,9 @@ probes=(
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
+  # A query broad enough that its answer runs past one page, which is what
+  # gives this one a way on to follow. It drives the findings table itself.
+  "pager-contract.mjs|/search?q=e"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads
