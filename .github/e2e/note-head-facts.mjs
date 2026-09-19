@@ -1,12 +1,12 @@
 // Behavior lock for the note head's facts (#581): a phone-width reading with
-// them stacked inside the closed disclosure fits the viewport, and the
-// disclosure that holds them is the browser's own — a plain click opens it
-// with no script running at all, and the dt/dd pairs are the content that
-// arrives.
+// them stacked inside the disclosure fits — both the fold that holds them and
+// the viewport the fold sits in — and the disclosure is the browser's own, so
+// a plain click opens it with no script running at all and the dt/dd pairs are
+// the content that arrives.
 //
-// Neither half is reachable from a Go test. Fitting the viewport is a number
-// only a laid-out page has, and "no script running" is a browser context Go
-// never drives at all.
+// Neither half is reachable from a Go test. Fitting is a number only a
+// laid-out page has, and "no script running" is a browser context Go never
+// drives at all.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note whose head carries every fact — type,
 // status, updated, language, raw path), and MUTATE. MUTATE=list prints every
@@ -121,9 +121,14 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  // Case 1: the phone reading, script running, measured for overflow. A box
-  // pinned to the viewport cannot be what is widening the document, so its
-  // width is the gauge the document's own scrollWidth is judged against.
+  // Case 1: the phone reading, script running, measured for overflow in the
+  // two places it can land. The fold that holds the facts cuts its body off at
+  // its own edge, so a fact list wider than the fold is truncated where a
+  // reader can see it while the document stays exactly as wide as the phone;
+  // that is asked of the list against the fold's box. Everything else that
+  // reaches past the phone still widens the document, and a box pinned to the
+  // viewport cannot be what widened it, so its width is the gauge the
+  // document's own scrollWidth is judged against.
   {
     const context = await browser.newContext({ viewport: { width: WIDTH, height: 844 } });
     const page = await context.newPage();
@@ -146,25 +151,55 @@ try {
     // report visible rather than assuming a fixed number of frames is enough;
     // a fold that never opens still falls through to the check below.
     await page
-      .waitForFunction(() => document.querySelector('.y-notefacts dt')?.checkVisibility() ?? false, { timeout: 2000 })
+      .waitForFunction(() => document.querySelector('.y-metarow .y-notefacts dt')?.checkVisibility() ?? false, { timeout: 2000 })
       .catch(() => {});
     if (proof) {
       const issue = await proof();
       if (issue) notApplied(`stretch-the-facts-past-the-phone: ${issue}`);
     }
-    const { docWidth, viewport, factsVisible } = await page.evaluate(() => {
+    const { docWidth, viewport, factsVisible, factsCount, factsWidth, foldWidth, clipMargin } = await page.evaluate(() => {
       const gauge = document.createElement('div');
       gauge.style.cssText = 'position:fixed;inset:0;pointer-events:none';
       document.body.append(gauge);
       const viewport = gauge.getBoundingClientRect().width;
       gauge.remove();
+      // The same facts are drawn twice: once inside this fold, and once beside
+      // the title for a window wide enough to hold them. The second copy is
+      // not laid out at a phone's width, so it measures nothing and would
+      // answer nothing; the copy inside the fold is the one a phone reads.
+      const facts = document.querySelectorAll('.y-metarow .y-notefacts');
+      const fold = facts.length === 1 ? facts[0].closest('details') : null;
+      const content = fold && getComputedStyle(fold, '::details-content');
       return {
         docWidth: document.documentElement.scrollWidth,
         viewport,
-        factsVisible: document.querySelector('.y-notefacts dt')?.checkVisibility() ?? false,
+        factsVisible: document.querySelector('.y-metarow .y-notefacts dt')?.checkVisibility() ?? false,
+        factsCount: facts.length,
+        // What the list needs, against what the fold gives it. The fold's body
+        // is cut off at its own edge, so a list wider than that box loses the
+        // end of every fact without widening anything the document can be
+        // measured by.
+        factsWidth: facts.length === 1 ? facts[0].scrollWidth : 0,
+        foldWidth: content ? parseFloat(content.width) : 0,
+        // Content is still drawn this far past the cut, so it is the margin
+        // within which nothing is actually lost.
+        clipMargin: content ? parseFloat(content.overflowClipMargin) || 0 : 0,
       };
     });
+    if (factsCount !== 1) broken(`${PAGE} draws ${factsCount} fact lists inside the head's fold, want exactly 1 to measure`);
     if (!factsVisible) broken(`${PAGE}'s facts are not visible after opening the fold, so there is nothing here to measure`);
+    if (!(factsWidth > 0) || !(foldWidth > 0)) {
+      broken(`the facts measure ${factsWidth}px inside a fold measuring ${foldWidth}px, so neither number is a width anything can be judged against`);
+    }
+    if (factsWidth > foldWidth + clipMargin) {
+      fail(
+        'the-head-fits-the-phone-viewport',
+        `at ${viewport}px the note's facts need ${factsWidth}px inside a fold ${foldWidth}px wide, so the end of every fact is cut off where the fold stops`,
+      );
+    }
+    // The fold cuts off only what is inside it. Anything else on the page that
+    // reaches past the phone still widens the document, and that is what this
+    // second reading answers for.
     if (docWidth > viewport) {
       fail(
         'the-head-fits-the-phone-viewport',
