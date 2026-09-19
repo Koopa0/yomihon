@@ -136,6 +136,18 @@ try {
     // is what a reader who taps the fold does, and it is the only state in
     // which the facts row can overflow anything.
     await page.locator('details.y-metarow summary').first().click();
+    // The fold opens by transitioning content-visibility (hidden to visible)
+    // alongside height, with transition-behavior: allow-discrete — the flip to
+    // visible lands at the start of that transition, but only once the browser
+    // has actually started that transition, which needs a style-and-paint
+    // cycle since the click's attribute change and can take more than one
+    // frame under load. Reading computed style in the same script turn as the
+    // click still sees the closed value, so this waits for the fact list to
+    // report visible rather than assuming a fixed number of frames is enough;
+    // a fold that never opens still falls through to the check below.
+    await page
+      .waitForFunction(() => document.querySelector('.y-notefacts dt')?.checkVisibility() ?? false, { timeout: 2000 })
+      .catch(() => {});
     if (proof) {
       const issue = await proof();
       if (issue) notApplied(`stretch-the-facts-past-the-phone: ${issue}`);
@@ -195,6 +207,17 @@ try {
       await summary.first().click({ timeout: 3000 });
     } catch {
       clickFailed = true;
+    }
+    // Same fold, same content-visibility transition as case 1 above — the
+    // flip to visible still needs a style-and-paint cycle after the click's
+    // attribute change, script or no script running the click itself, so
+    // this waits for the fact list rather than a fixed number of frames. A
+    // disclosure the mutation broke never opens, so the wait times out and
+    // the check below reports it, same as before.
+    if (!clickFailed) {
+      await page
+        .waitForFunction(() => document.querySelector('details.y-metarow .y-notefacts dt')?.checkVisibility() ?? false, { timeout: 2000 })
+        .catch(() => {});
     }
 
     // Whether the mutation reached the page is asked before either of its two
