@@ -253,7 +253,10 @@ func TestCSSCarriesTheMotionGuarantees(t *testing.T) {
 
 	// The blanket kill is the reduced-motion rule that crushes animation and
 	// transition durations; its element selector must carry the exemption.
-	kill := regexp.MustCompile(`prefers-reduced-motion: reduce\) \{ ([^{]+)\{[^}]*animation-duration: 0\.001ms !important`)
+	// Whitespace between tokens is not the property under test — the guide's
+	// reformat may put the selector list and the opening braces on their own
+	// lines — so it matches any run of whitespace, not a literal single space.
+	kill := regexp.MustCompile(`(?s)prefers-reduced-motion:\s*reduce\)\s*\{\s*([^{]+)\{[^}]*animation-duration:\s*0\.001ms\s*!important`)
 	m := kill.FindStringSubmatch(css)
 	if m == nil {
 		t.Fatal("the reduced-motion blanket kill rule is missing from css/components.css")

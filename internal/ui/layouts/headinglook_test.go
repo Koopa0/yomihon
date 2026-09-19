@@ -24,7 +24,10 @@ func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
 	}
 	css := cssComments.ReplaceAllString(string(source), "")
 
-	shared := cssDeclarations(t, ruleBody(t, css, `.y-prose [data-level="1"], .y-prose [data-level="2"], .y-prose [data-level="3"], .y-prose [data-level="4"] {`))
+	shared := cssDeclarations(t, ruleBody(t, css, `.y-prose [data-level='1'],
+.y-prose [data-level='2'],
+.y-prose [data-level='3'],
+.y-prose [data-level='4'] {`))
 	if shared["scroll-margin-top"] != "var(--header-clearance)" {
 		t.Errorf("authored levels 1–4 declare scroll-margin-top %q, want var(--header-clearance) so a demoted h5 still clears the sticky header", shared["scroll-margin-top"])
 	}
@@ -42,24 +45,30 @@ func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
 		value    string
 		why      string
 	}{
-		{`.y-prose [data-level="1"] {`, "font-size", "var(--fs-ed-30)", "an authored # is the size it was when the tag was h1"},
-		{`.y-prose [data-level="2"] {`, "font-size", "var(--fs-ed-24)", "an authored ## is the size it was when the tag was h2"},
-		{`.y-prose [data-level="2"]::before {`, "content", `""`, "the section bar belongs to authored ##, not to whichever tag the shell emits"},
-		{`.y-prose [data-level="3"] {`, "font-size", "var(--fs-ed-20)", "an authored ### is the size it was when the tag was h3"},
-		{`.y-prose [data-level="4"] {`, "font-size", "var(--fs-ed-19)", "an authored #### is a step of the reading scale, so a reader who enlarges the prose enlarges it too and it never ends up smaller than its own paragraphs"},
-		{`.y-prose [data-level="4"] {`, "line-height", "1.5", "the smallest heading sits closest to the prose and takes the loosest measure of the four"},
-		{`.y-prose [data-level="5"], .y-prose [data-level="6"] {`, "font-size", "var(--fs-ed-17)", "the deepest two stop at the body's size instead of shrinking below it"},
-		{`.y-prose [data-level="5"], .y-prose [data-level="6"] {`, "font-family", "var(--font-display)", "the deepest two are headings, not the paragraph's face"},
-		{`.y-prose [data-level="5"], .y-prose [data-level="6"] {`, "margin", "var(--sp-h4) 0 0", "a heading with no room above it has less air than the paragraph it introduces"},
-		{`.y-prose [data-level="5"], .y-prose [data-level="6"] {`, "scroll-margin-top", "var(--header-clearance)", "a link may name any heading, and these two land under the sticky header without it"},
-		// The openers of the last two start at a line, because the rule the two
-		// share ends in the sixth level's own selector and a search for it
-		// would answer with the shared body.
-		{"\n" + `.y-prose [data-level="5"] {`, "font-weight", "var(--fw-semibold)", "the fifth level is told from the sixth by weight, because both stop at the same size"},
-		{"\n" + `.y-prose [data-level="6"] {`, "font-weight", "var(--fw-medium)", "the sixth level is the lighter of the two that share a size"},
-		{"\n" + `.y-prose [data-level="6"] {`, "letter-spacing", "var(--track-wide)", "the sixth level is told from the fifth by its spacing, because both stop at the same size"},
-		{`.y-toc__list a[data-level="3"] {`, "padding-left", "22px", "contents indent follows the authored level, so ### stays one step in"},
-		{`.y-toc__list a[data-level="4"] {`, "padding-left", "32px", "contents indent follows the authored level, so #### stays the deepest step"},
+		{`.y-prose [data-level='1'] {`, "font-size", "var(--fs-ed-30)", "an authored # is the size it was when the tag was h1"},
+		{`.y-prose [data-level='2'] {`, "font-size", "var(--fs-ed-24)", "an authored ## is the size it was when the tag was h2"},
+		{`.y-prose [data-level='2']::before {`, "content", `''`, "the section bar belongs to authored ##, not to whichever tag the shell emits"},
+		{`.y-prose [data-level='3'] {`, "font-size", "var(--fs-ed-20)", "an authored ### is the size it was when the tag was h3"},
+		{`.y-prose [data-level='4'] {`, "font-size", "var(--fs-ed-19)", "an authored #### is a step of the reading scale, so a reader who enlarges the prose enlarges it too and it never ends up smaller than its own paragraphs"},
+		{`.y-prose [data-level='4'] {`, "line-height", "1.5", "the smallest heading sits closest to the prose and takes the loosest measure of the four"},
+		{`.y-prose [data-level='5'],
+.y-prose [data-level='6'] {`, "font-size", "var(--fs-ed-17)", "the deepest two stop at the body's size instead of shrinking below it"},
+		{`.y-prose [data-level='5'],
+.y-prose [data-level='6'] {`, "font-family", "var(--font-display)", "the deepest two are headings, not the paragraph's face"},
+		{`.y-prose [data-level='5'],
+.y-prose [data-level='6'] {`, "margin", "var(--sp-h4) 0 0", "a heading with no room above it has less air than the paragraph it introduces"},
+		{`.y-prose [data-level='5'],
+.y-prose [data-level='6'] {`, "scroll-margin-top", "var(--header-clearance)", "a link may name any heading, and these two land under the sticky header without it"},
+		// The openers of the last two start at a blank line, because the compound
+		// rule the two share now also breaks its own selector list onto its own
+		// lines, so a single newline before the sixth level's selector no longer
+		// tells that rule's own line apart from the shared one; the blank line
+		// before a standalone rule does.
+		{"\n\n" + `.y-prose [data-level='5'] {`, "font-weight", "var(--fw-semibold)", "the fifth level is told from the sixth by weight, because both stop at the same size"},
+		{"\n\n" + `.y-prose [data-level='6'] {`, "font-weight", "var(--fw-medium)", "the sixth level is the lighter of the two that share a size"},
+		{"\n\n" + `.y-prose [data-level='6'] {`, "letter-spacing", "var(--track-wide)", "the sixth level is told from the fifth by its spacing, because both stop at the same size"},
+		{`.y-toc__list a[data-level='3'] {`, "padding-left", "22px", "contents indent follows the authored level, so ### stays one step in"},
+		{`.y-toc__list a[data-level='4'] {`, "padding-left", "32px", "contents indent follows the authored level, so #### stays the deepest step"},
 	} {
 		got := cssDeclarations(t, ruleBody(t, css, want.opener))
 		if got[want.property] != want.value {
@@ -81,7 +90,7 @@ func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
 	if opening["margin-top"] != "0" {
 		t.Errorf("%s declares margin-top %q, want 0, so a note that opens with a heading stays flush with the chrome title", openingReset, opening["margin-top"])
 	}
-	if strings.Index(css, openingReset) < strings.Index(css, `.y-prose [data-level="1"] {`) {
+	if strings.Index(css, openingReset) < strings.Index(css, `.y-prose [data-level='1'] {`) {
 		t.Error("the opening-heading margin reset is written before the size rows it has to beat, so a first-child heading keeps its 48px")
 	}
 

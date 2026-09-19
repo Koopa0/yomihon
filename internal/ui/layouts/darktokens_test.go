@@ -30,14 +30,14 @@ func TestSystemDarkPreferenceGetsTheWholeDarkPalette(t *testing.T) {
 	}
 	css := string(source)
 
-	chosen := cssDeclarations(t, ruleBody(t, css, `[data-theme="dark"] {`))
+	chosen := cssDeclarations(t, ruleBody(t, css, `[data-theme='dark'] {`))
 
 	mediaAt := strings.Index(css, "@media (prefers-color-scheme: dark)")
 	if mediaAt < 0 {
 		t.Fatalf("%s has no prefers-color-scheme dark block; a reader who chose nothing gets light on a dark system", path)
 	}
 	media := css[mediaAt:]
-	const guard = `:root:not([data-theme="light"]) {`
+	const guard = `:root:not([data-theme='light']) {`
 	if !strings.Contains(media[:strings.Index(media, "{")+200], guard) {
 		t.Fatalf("the media block does not guard on %q; an explicit light choice must escape it", guard)
 	}
