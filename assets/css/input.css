@@ -12,10 +12,10 @@
    Preflight's @layer base), not utility soup — Tailwind is here for
    the reset, the @theme contract, and future utilities.
    ============================================================ */
-@import "tailwindcss" source(none);
-@import "./fonts.css";
-@import "./tokens.css";
-@import "./components.css";
+@import 'tailwindcss' source(none);
+@import './fonts.css';
+@import './tokens.css';
+@import './components.css';
 
 /* Scope the class scan to the two places that actually author classes: the
    templates that render markup and the flat progressive-enhancement modules.
@@ -26,5 +26,5 @@
    makes output.css a function of the templates and owned modules alone. The scan
    directives follow the imports so the stylesheet keeps every @import at the
    top, where the cascade requires them. */
-@source "../../internal/ui/**/*.templ";
-@source "../js/*.js";
+@source '../../internal/ui/**/*.templ';
+@source '../js/*.js';

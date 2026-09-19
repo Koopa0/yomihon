@@ -109,8 +109,8 @@ func TestThemeIconFollowsSystemDarkPreference(t *testing.T) {
 	}
 	css := cssComments.ReplaceAllString(string(source), "")
 
-	chosenSun := ruleBody(t, css, `[data-theme="dark"] .y-ico-sun {`)
-	chosenMoon := ruleBody(t, css, `[data-theme="dark"] .y-ico-moon {`)
+	chosenSun := ruleBody(t, css, `[data-theme='dark'] .y-ico-sun {`)
+	chosenMoon := ruleBody(t, css, `[data-theme='dark'] .y-ico-moon {`)
 	if !strings.Contains(chosenSun, "display: none") {
 		t.Fatalf("the chosen-dark sun rule does not hide the sun: %q", chosenSun)
 	}
@@ -123,11 +123,11 @@ func TestThemeIconFollowsSystemDarkPreference(t *testing.T) {
 		t.Fatalf("%s has no prefers-color-scheme dark block; a reader who chose nothing keeps the sun on a dark system", path)
 	}
 	media := css[mediaAt:]
-	if !strings.Contains(media[:strings.Index(media, "{")+200], `:root:not([data-theme="light"])`) {
-		t.Fatalf("the media block does not guard on :root:not([data-theme=\"light\"]); an explicit light choice must escape it")
+	if !strings.Contains(media[:strings.Index(media, "{")+200], `:root:not([data-theme='light'])`) {
+		t.Fatalf("the media block does not guard on :root:not([data-theme='light']); an explicit light choice must escape it")
 	}
-	systemSun := ruleBody(t, media, `:root:not([data-theme="light"]) .y-ico-sun {`)
-	systemMoon := ruleBody(t, media, `:root:not([data-theme="light"]) .y-ico-moon {`)
+	systemSun := ruleBody(t, media, `:root:not([data-theme='light']) .y-ico-sun {`)
+	systemMoon := ruleBody(t, media, `:root:not([data-theme='light']) .y-ico-moon {`)
 	if !strings.Contains(systemSun, "display: none") {
 		t.Fatalf("the system-dark sun rule does not hide the sun: %q", systemSun)
 	}

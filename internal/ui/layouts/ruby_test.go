@@ -64,7 +64,7 @@ func TestFuriganaIsNeverFainterOrSmallerThanTheProseAllows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", stepSheet, err)
 	}
-	steps := regexp.MustCompile(`(?s):root\[data-textsize="[a-z]+"\][^{]*\{[^}]*\}`).
+	steps := regexp.MustCompile(`(?s):root\[data-textsize='[a-z]+'\][^{]*\{[^}]*\}`).
 		FindAllString(cssComments.ReplaceAllString(string(stepSource), ""), -1)
 	if len(steps) < 2 {
 		t.Fatalf("found %d type steps in %s, want at least the two that move the body away from the default; this scan is looking in the wrong place", len(steps), stepSheet)

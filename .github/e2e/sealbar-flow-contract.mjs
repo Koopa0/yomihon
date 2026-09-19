@@ -81,8 +81,8 @@ const MUTATIONS = {
   'restore-fixed-bar': {
     target: 'not-fixed-position',
     apply: rewriteStylesheet(
-      '.y-sealbar{border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
-      '.y-sealbar{position:fixed;left:0;right:0;bottom:0;z-index:36;border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      '.y-sealbar{background:var(--panel);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      '.y-sealbar{position:fixed;left:0;right:0;bottom:0;z-index:36;background:var(--panel);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
       'fixed sealbar',
     ),
   },
@@ -93,8 +93,8 @@ const MUTATIONS = {
   'stick-the-bar-to-the-fold': {
     target: 'below-fold-while-reading',
     apply: rewriteStylesheet(
-      '.y-sealbar{border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
-      '.y-sealbar{position:sticky;bottom:0;z-index:36;border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      '.y-sealbar{background:var(--panel);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      '.y-sealbar{position:sticky;bottom:0;z-index:36;background:var(--panel);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
       'sticky sealbar',
     ),
   },

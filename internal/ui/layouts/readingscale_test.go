@@ -28,8 +28,8 @@ var readingScaleSteps = []string{
 // that narrows the two largest steps on a phone.
 const (
 	baseRoot       = ":root {"
-	largeRoot      = `:root[data-textsize="l"] {`
-	extraLargeRoot = `:root[data-textsize="xl"] {`
+	largeRoot      = `:root[data-textsize='l'] {`
+	extraLargeRoot = `:root[data-textsize='xl'] {`
 	narrowQuery    = "@media (max-width: 720px)"
 )
 
