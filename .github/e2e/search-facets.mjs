@@ -98,10 +98,16 @@ const MUTATIONS = {
     ),
   },
   // A column too wide for the screen, which on a phone is a row of counts the
-  // reader has to scroll sideways to read.
+  // reader has to scroll sideways to read. It is held below the width at which
+  // the column moves beside the results, because the fold cuts its body off at
+  // its own edge: a body widened there reaches past the window without
+  // widening the document, so nothing scrolls to it and the first row lands
+  // off screen — a true finding, but about the wide layout rather than about
+  // the phone this mutation is named for, and a finding at the wrong site is
+  // not the catch this mode owes.
   'let-the-column-run-off-the-phone': {
     target: 'folds-when-narrow',
-    apply: styleInto('.y-facets__body{min-width:520px!important}', 'wide column style'),
+    apply: styleInto('@media (width < 1280px){.y-facets__body{min-width:520px!important}}', 'wide column style'),
   },
   // Onto the sheet, where it is a list of links nobody can follow.
   'print-the-column-on-paper': {
@@ -155,6 +161,36 @@ const onScreen = (locator) => locator.evaluate((element) => {
 });
 
 const shown = (seen) => seen.width > 1 && seen.height > 1 && seen.visible && seen.hit;
+
+// foldSettled waits for a disclosure that was just opened to finish opening.
+// The engine wraps a fold's body in ::details-content, which grows from no
+// height to the body's height and stops being hidden as that growth starts.
+// Until it ends the body is cut off at the fold's edge, so a point in the
+// middle of a row inside it lands on whatever is drawn there instead — the
+// summary above, the results underneath — and the reading describes the fold
+// opening rather than the opened fold a reader is looking at.
+//
+// The engine offers no animation for that growth through getAnimations() and
+// fires no transitionend for it, on the fold or anywhere else, so what is
+// watched is the wrapper's own computed height: once the body is no longer
+// hidden and that height has held still across two frames, the fold is as open
+// as it is going to get. A fold that opens instantly — reduced motion, or no
+// transition declared — settles on the first comparison, and one that never
+// opens runs out the deadline and falls through to the assertion below, which
+// is what has to answer for it.
+const foldSettled = (locator) => locator.evaluate((details) => new Promise((resolve) => {
+  const deadline = performance.now() + 2000;
+  let previous = null;
+  let held = 0;
+  const read = () => {
+    const style = getComputedStyle(details, '::details-content');
+    held = style.contentVisibility !== 'hidden' && style.height === previous ? held + 1 : 0;
+    previous = style.height;
+    if (held >= 2 || performance.now() > deadline) resolve();
+    else requestAnimationFrame(read);
+  };
+  requestAnimationFrame(read);
+}));
 
 const resultCount = (page) => page.locator('.y-searchpage [data-live-search-results]')
   .evaluate((region) => Number(region.dataset.resultCount));
@@ -269,6 +305,7 @@ try {
   }
   await summary.click();
   if (await column.evaluate((details) => !details.open)) broken('the column did not open when its summary was clicked');
+  await foldSettled(column);
   const openedRow = await onScreen(page.locator('.y-searchpage a[data-facet-row]').first());
   if (!shown(openedRow)) fail('folds-when-narrow', `an opened row is not on screen at 390: ${JSON.stringify(openedRow)}`);
   // The claim is about the column, not about the page: this search page
