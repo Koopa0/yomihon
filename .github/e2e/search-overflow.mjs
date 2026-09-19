@@ -5,13 +5,20 @@
 // results column and the reader has to scroll the whole page sideways to read
 // anything in it.
 //
-// Env: YOMIHON_BASE, PAGE_PATH (a search results page whose fixture carries an
-// unbreakable path or URL — the browser fixture vault's /search?q=a does), and
-// MUTATE. MUTATE=list prints every watched regression.
+// A query answers with whichever page the ranking and the pager put a given
+// result on, so the page this probe drives has to be one whose first page
+// still holds a snippet carrying such a run — a query that pages the run onto
+// a later screen would leave the mutation nothing to catch, and the run below
+// checks for exactly that before it trusts either measurement.
+//
+// Env: YOMIHON_BASE, PAGE_PATH (a search results page whose first screen holds
+// a snippet with an unbreakable path or URL — the browser fixture vault's
+// /search?q=BROWSER_BOUNDARY_ATTACKER does), and MUTATE. MUTATE=list prints
+// every watched regression.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/search?q=a';
+const PAGE = process.env.PAGE_PATH || '/search?q=BROWSER_BOUNDARY_ATTACKER';
 const MUTATE = process.env.MUTATE || '';
 const WIDTHS = [390, 375];
 const SITES = ['results-list-fits-the-phone-viewport'];
@@ -97,6 +104,30 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
+// Toggles the very rule under test on each snippet in turn, live, rather than
+// on a copy: a clone laid out off the flex row it belongs to would not answer
+// for the same width. The toggle is reverted before anything reads the
+// snippet again, so this changes nothing the assertions below see.
+const widestSnippetRun = (page) =>
+  page.evaluate(() => {
+    const results = document.querySelector('ol.y-results');
+    if (!results) return null;
+    const snippets = [...document.querySelectorAll('.y-result__snippet')];
+    let unwrapped = 0;
+    let ownWidth = 0;
+    for (const el of snippets) {
+      const before = el.style.overflowWrap;
+      el.style.overflowWrap = 'normal';
+      const width = el.scrollWidth;
+      el.style.overflowWrap = before;
+      if (width > unwrapped) {
+        unwrapped = width;
+        ownWidth = el.clientWidth;
+      }
+    }
+    return { count: snippets.length, unwrapped, ownWidth };
+  });
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   for (const width of WIDTHS) {
@@ -108,6 +139,21 @@ try {
     if (proof) {
       const issue = await proof();
       if (issue) notApplied(`${MUTATE} at ${width}px: ${issue}`);
+    }
+
+    // A page whose first screen holds no snippet wider than its own box,
+    // unbroken, carries nothing this lock is about: it would pass with the
+    // rule under test on or off, so a green run on it proves nothing. This
+    // runs whether or not MUTATE is set, so pagination or fixture drift that
+    // moves the carrying result off this page reports itself here instead of
+    // the assertions below going quiet.
+    const widest = await widestSnippetRun(page);
+    if (widest === null) broken(`the page at ${width}px carries no ol.y-results to measure`);
+    if (widest.count === 0) broken(`${PAGE} at ${width}px draws no .y-result__snippet, so nothing here could carry an unbreakable run`);
+    if (widest.unwrapped <= widest.ownWidth) {
+      broken(
+        `no .y-result__snippet on ${PAGE} at ${width}px is wider unbroken (${widest.unwrapped}px) than its own ${widest.ownWidth}px box — this page carries no run this lock is about, so pick one whose first screen still holds a snippet with an unbreakable path or URL`,
+      );
     }
 
     const measured = await page.evaluate(() => {

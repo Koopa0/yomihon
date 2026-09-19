@@ -79,7 +79,7 @@ probes=(
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
   "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
   "search-facets.mjs|/search?q=a"
-  "search-overflow.mjs|/search?q=a"
+  "search-overflow.mjs|/search?q=BROWSER_BOUNDARY_ATTACKER"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
