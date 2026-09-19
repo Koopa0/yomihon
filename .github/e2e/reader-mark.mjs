@@ -322,6 +322,21 @@ try {
     const proof = await applyMutation(page, 'kept-place-is-offered-back');
     await keepThePlace(page, PAGE);
     checkProof(proof);
+    // The control's own word for this press is read before anything about the
+    // desk, and against the word the page itself carries for a kept place: a
+    // place another reading session already left behind sits on the desk
+    // either way, so only what the control just said tells this press apart
+    // from one that reached nowhere.
+    const control = page.locator('[data-mark-control]:visible');
+    const said = await control.locator('[data-mark-said]').textContent();
+    const savedWord = await control.getAttribute('data-mark-saved');
+    if (said !== savedWord) {
+      fail(
+        'kept-place-is-offered-back',
+        `the control said ${JSON.stringify(said)} after being pressed, want the word for a kept place `
+        + `(${JSON.stringify(savedWord)})`,
+      );
+    }
     const { row, present } = await deskRow(page);
     if (!present) {
       fail('kept-place-is-offered-back', 'the desk offers no way back after a place was kept');
