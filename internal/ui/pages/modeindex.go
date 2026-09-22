@@ -349,10 +349,14 @@ func ArticleLanguageFromSnapshot(snap *snapshot.Generation) ArticleLanguageFor {
 func NewFolderIndex(model *nav.Model, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rootNotes := model.RootNotes()
 	folders := model.ShelfFolders()
+	empty := emptySentence(contract, wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, lang), lang)
+	if contract == ContractAbsent {
+		empty = wording.JoinGuide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext, lang)
+	}
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
 		wording.FolderIndexLede.In(lang),
-		emptySentence(contract, wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, lang), lang),
+		empty,
 		folderRows(rootNotes, folders, lang, true, articleLang))
 }
 
@@ -470,12 +474,15 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 		withhold(&pathBlock.Shelf)
 		withhold(&mapBlock.Shelf)
 	}
-	return []DeskBlock{
-		pathBlock,
-		mapBlock,
-		deskBlock(&reportIndex, wording.DeskReportsLede.In(lang)),
-		deskBlock(&folderIndex, wording.DeskFoldersLede.In(lang)),
+	reportBlock := deskBlock(&reportIndex, wording.DeskReportsLede.In(lang))
+	folderBlock := deskBlock(&folderIndex, wording.DeskFoldersLede.In(lang))
+	// A plain folder already has a way to read. Put it before the modes whose
+	// organisation the reader has not declared; a present contract keeps its
+	// own order and diagnostics even when it could not be loaded.
+	if contract == ContractAbsent {
+		return []DeskBlock{folderBlock, pathBlock, mapBlock, reportBlock}
 	}
+	return []DeskBlock{pathBlock, mapBlock, reportBlock, folderBlock}
 }
 
 // withholdListing takes back what a page may not claim about a declaration that

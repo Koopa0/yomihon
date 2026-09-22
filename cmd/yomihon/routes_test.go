@@ -234,7 +234,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 			files:    nil,
 			path:     ungoverned,
 			mapState: ungoverned,
-			folder:   ungoverned,
+			folder:   wording.JoinGuide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext, wording.ZhHant),
 		},
 		{
 			name: "contract only",
