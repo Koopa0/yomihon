@@ -5434,7 +5434,7 @@ html {
   overflow-wrap: anywhere;
 }
 
-.y-basedon span.ui-navitem {
+.y-basedon .ui-navitem:not([href]) {
   cursor: default;
 }
 

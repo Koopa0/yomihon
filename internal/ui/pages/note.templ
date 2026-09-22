@@ -427,8 +427,9 @@ templ basedOnBlock(v NoteView, lang wording.Lang) {
 						if len(ref.Locations) > 0 {
 							<ul class="y-basedon__locations">
 								for _, location := range ref.Locations {
-									<li>@sourceLocation(ref.RelPath, "", location)
-</li>
+									<li>
+										@sourceLocation(ref.RelPath, "", location)
+									</li>
 								}
 							</ul>
 						}
