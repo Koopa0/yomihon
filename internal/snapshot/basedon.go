@@ -7,8 +7,78 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
 )
+
+// DeclaredSource groups one file's authored locations in declaration order.
+// WholeFile records a bare declaration, which keeps the file row visible even
+// when there is only one location. An unresolved name has no path or locations.
+type DeclaredSource struct {
+	Name      string
+	RelPath   string
+	WholeFile bool
+	Locations []render.SourceLocation
+}
+
+// DeclaredSources is the reading projection of based_on. File identity is the
+// same as BasedOn; location identity additionally includes the authored address.
+// All resolution and destination rendering use this immutable generation.
+func (g *Generation) DeclaredSources(relPath string, lang wording.Lang) ([]DeclaredSource, []render.Diagnostic) {
+	if g == nil {
+		return nil, nil
+	}
+	var groups []DeclaredSource
+	var diagnostics []render.Diagnostic
+	positions := make(map[string]int)
+	seen := make(map[string]bool)
+	rendered := make(map[string]render.Result)
+	for _, value := range basedOnValues(g.parsed[relPath]) {
+		ref, ok := declaredSource(g.graph, value)
+		if !ok {
+			continue
+		}
+		key := declaredSourceKey(ref)
+		at, exists := positions[key]
+		if !exists {
+			at = len(groups)
+			positions[key] = at
+			groups = append(groups, DeclaredSource{Name: ref.Name, RelPath: ref.RelPath})
+		}
+		if ref.RelPath == "" {
+			continue
+		}
+		inner := basedOnInner(strings.TrimSpace(value))
+		link, _ := graph.ParseWikilink(inner)
+		if link.Heading == "" && link.Block == "" {
+			groups[at].WholeFile = true
+			continue
+		}
+		address := graph.SectionID(link.Heading)
+		if link.Block != "" {
+			address = graph.FoldFragment("^" + link.Block)
+		}
+		locationKey := key + "\x00" + address
+		if seen[locationKey] {
+			continue
+		}
+		seen[locationKey] = true
+		result, cached := rendered[key]
+		if !cached {
+			note := g.notes[ref.RelPath]
+			result = g.Render(ref.RelPath, note.Body, lang)
+			rendered[key] = result
+		}
+		_, display, _ := strings.Cut(inner, "|")
+		location := render.DeclaredLocation(&result, g.notes[ref.RelPath].Title, link, strings.TrimSpace(display), lang)
+		groups[at].Locations = append(groups[at].Locations, location)
+		if location.Diagnostic != nil {
+			diagnostics = append(diagnostics, *location.Diagnostic)
+		}
+	}
+	return groups, diagnostics
+}
 
 // basedOnBy answers the other direction of a based_on declaration for one
 // generation: which notes named this one as the source they came from. The
@@ -118,14 +188,17 @@ func declaredSource(idx *graph.Index, value string) (nav.NoteRef, bool) {
 // [[…]] wrapping, then |display, #heading, and ^block. A value that strips to
 // nothing is not a name.
 func basedOnTarget(value string) (string, bool) {
-	inner := value
+	link, ok := graph.ParseWikilink(basedOnInner(value))
+	return link.Target, ok
+}
+
+func basedOnInner(value string) string {
 	if rest, ok := strings.CutPrefix(value, "[["); ok {
-		if stripped, ok := strings.CutSuffix(rest, "]]"); ok {
-			inner = stripped
+		if inner, closed := strings.CutSuffix(rest, "]]"); closed {
+			return inner
 		}
 	}
-	link, ok := graph.ParseWikilink(inner)
-	return link.Target, ok
+	return value
 }
 
 func declaredSourceKey(ref nav.NoteRef) string {

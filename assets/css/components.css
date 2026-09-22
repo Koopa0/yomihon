@@ -5419,6 +5419,37 @@ html {
   margin-top: 22px;
 }
 
+.y-basedon__groups,
+.y-basedon__locations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.y-basedon__locations {
+  margin-inline-start: 14px;
+}
+
+.y-basedon .ui-navitem {
+  overflow-wrap: anywhere;
+}
+
+.y-basedon span.ui-navitem {
+  cursor: default;
+}
+
+.y-basedon__reason {
+  color: var(--fg-subtle);
+  display: block;
+  font-size: var(--fs-12);
+  margin-top: 3px;
+}
+
+.y-basedon .wikilink-degraded {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
 .y-citedby__none {
   color: var(--fg-subtle);
   font-size: var(--fs-13);
