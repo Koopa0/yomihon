@@ -261,3 +261,46 @@ func healthRowFileIdentities(t *testing.T, page string) []string {
 	}
 	return out
 }
+
+// The findings unit counts every occurrence, including unweighed rows and
+// multiple findings folded into one row, across the whole paginated report.
+func TestHealthShapeStatesCompleteFindingsTotal(t *testing.T) {
+	t.Parallel()
+	mixed := pagedHealthView(57)
+	mixed.SchemaFaults = []HealthNoteFindings{{
+		Note:     nav.NoteRef{Name: "n000", RelPath: "Notes/n000.md"},
+		Severity: judge.SeverityError, Count: 5,
+	}}
+	for _, tt := range []struct {
+		name string
+		view HealthView
+		en   string
+		zh   string
+	}{
+		{"mixed", mixed, "62 findings", "62 項發現"},
+		{"unweighed only", pagedHealthView(2), "2 findings", "2 項發現"},
+		{"single", pagedHealthView(1), "1 finding", "1 項發現"},
+	} {
+		for _, lang := range []wording.Lang{wording.En, wording.ZhHant} {
+			for _, number := range []PageNumber{0, 2, AllPages} {
+				t.Run(tt.name+"/"+string(lang)+"/"+strconv.Itoa(int(number)), func(t *testing.T) {
+					t.Parallel()
+					view := tt.view
+					view.Page = number
+					var buf strings.Builder
+					if err := Health(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+						t.Fatalf("render health: %v", err)
+					}
+					want := tt.en
+					if lang == wording.ZhHant {
+						want = tt.zh
+					}
+					shape := healthShapeLineRe.FindStringSubmatch(buf.String())
+					if len(shape) != 2 || !strings.Contains(shape[1], `<span class="y-healthshape__total">`+want+`</span>`) {
+						t.Fatalf("health shape must state the complete total %q; got %v", want, shape)
+					}
+				})
+			}
+		}
+	}
+}
