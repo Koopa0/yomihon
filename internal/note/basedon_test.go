@@ -242,6 +242,7 @@ based_on:
 The claim.
 `,
 		"Single.md": "---\nbased_on: \"[[Source#methods]]\"\n---\nSingle claim.\n",
+		"Mixed.md":  "---\nbased_on: [Source, \"[[Source#methods]]\"]\n---\nMixed claim.\n",
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 	code, body := get(t, srv.Client(), srv.URL+"/notes/Claim.md")
@@ -256,6 +257,8 @@ The claim.
 		`href="/notes/Source.md#%5Equote-1"`,
 		`href="/notes/Source.md"`,
 		`Other › Observation`,
+		`Study limitations`,
+		`Method evidence`,
 		`wikilink-broken wikilink-degraded`,
 		`找不到「Missing」這個小節，連結會落在筆記最上方`,
 		`找不到這個區塊，連結已改為指向整篇筆記`,
@@ -279,6 +282,9 @@ The claim.
 	if strings.Count(body, block) != 2 {
 		t.Error("wide and narrow placements differ")
 	}
+	if !strings.Contains(body, `<div class="y-diaglist">`) {
+		t.Fatal("note health omits all source-location diagnostics")
+	}
 	conditions := noteConditions(t, body)
 	for _, want := range []string{"Missing", "absent"} {
 		if !strings.Contains(conditions, want) {
@@ -292,5 +298,13 @@ The claim.
 	singleBlock := basedOnBlock(t, single)
 	if !strings.Contains(singleBlock, "Source › Methods") || strings.Count(singleBlock, "<a ") != 1 || strings.Contains(singleBlock, `href="/notes/Source.md"`) {
 		t.Errorf("single location did not collapse: %s", singleBlock)
+	}
+	code, mixed := get(t, srv.Client(), srv.URL+"/notes/Mixed.md")
+	if code != http.StatusOK {
+		t.Fatalf("mixed status = %d", code)
+	}
+	mixedBlock := basedOnBlock(t, mixed)
+	if !strings.Contains(mixedBlock, `href="/notes/Source.md"`) || !strings.Contains(mixedBlock, `href="/notes/Source.md#methods"`) || strings.Count(mixedBlock, "<a ") != 2 {
+		t.Errorf("bare source disappeared beside its one location: %s", mixedBlock)
 	}
 }

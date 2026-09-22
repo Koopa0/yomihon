@@ -371,6 +371,48 @@ jobs:
       - name: Run the behavior probes against the fixture vault
         run: make browser-check
 
+  # This journey owns its disposable vault and compiled-production mutations.
+  # It cannot share the general browser fixture: changing its note inventory
+  # would alter the unrelated sidebar and health probes.
+  source-location-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GOMAXPROCS: '2'
+      GOFLAGS: -p=2
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: .github/package-lock.json
+
+      - name: Install locked browser driver
+        run: npm ci --prefix .github
+
+      - name: Build the reader and walk the declared-source journeys
+        run: |
+          go build -o "${RUNNER_TEMP}/yomihon-source-locations" ./cmd/yomihon
+          node .github/source-location-acceptance.mjs "${RUNNER_TEMP}/yomihon-source-locations" "${RUNNER_TEMP}/source-location-evidence"
+
+      - name: Observe compiled production regressions fail their locks
+        run: python3 tools/check-source-location-mutations.py --output-dir "${RUNNER_TEMP}/source-location-evidence/mutations"
+
+      - name: Retain source-location journey and cost evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: source-location-evidence
+          path: ${{ runner.temp }}/source-location-evidence
+          if-no-files-found: error
+          retention-days: 14
+
   # Proves the probes above can fail. Each one names its own self-test modes;
   # every mode injects the regression that probe exists to catch, and the run is
   # required to exit 1 and print the marker naming the mode it caught. Exit 0
