@@ -797,11 +797,11 @@ templ statusBar(v NoteView, lang wording.Lang) {
 // appears once, and reaching the same address again states nothing.
 templ flipReceipt(v NoteView, lang wording.Lang) {
 	if v.showsFlipReceipt() {
-		<p class="y-flipreceipt" role="status">
+		@layouts.Reply("y-flipreceipt", templ.Attributes{"data-reply-tone": "kept"}) {
 			{ wording.FlipReceiptBefore.In(lang) }<code lang="en">{ v.FlippedFrom }</code>{ wording.FlipReceiptBetween.In(lang) }<code lang="en">{ v.Status }</code>{ wording.FlipReceiptAfter.In(lang) }
 			if v.FlipNoReturn {
 				{ frontmatterDoorLine(&v, lang) }
 			}
-		</p>
+		}
 	}
 }

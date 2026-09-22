@@ -72,6 +72,7 @@ probes=(
   # probe measures is the same measurement next month.
   "journal-month.mjs|/journal?month=2026-07"
   "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "reply-contract.mjs|/notes/Notes/reading-fidelity.md"
   "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
   "result-landing-visibility.mjs|/search?q=%22alpha%20beta%20gamma%22"

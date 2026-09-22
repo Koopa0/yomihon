@@ -1708,13 +1708,33 @@ details.y-metarow {
   overflow-wrap: anywhere;
 }
 
-.y-flipreceipt {
-  animation: y-flipreceipt-in var(--dur-slow) var(--ease-standard);
+/* One sentence beside the action that earned it. Empty regions stay available
+   to assistive technology; filling one starts the same entrance as an arrival
+   receipt. Caller classes only decide where the sentence sits. */
+.y-reply {
   color: var(--fg-muted);
+  font-family: var(--font-serif);
   font-size: var(--fs-13);
+  line-height: 1.7;
+}
+
+.y-reply:not(:empty) {
+  animation: y-reply-in var(--dur-slow) var(--ease-standard);
+}
+
+.y-reply[data-reply-tone="refused"] {
+  color: var(--warn);
+}
+
+.y-reply:empty {
+  margin: 0;
+}
+
+.y-flipreceipt {
   margin: 0 0 12px;
 }
-@keyframes y-flipreceipt-in {
+
+@keyframes y-reply-in {
   from {
     transform: translateY(4px);
   }
@@ -6013,15 +6033,7 @@ html {
    up no room on a page where nothing has gone wrong — an empty block box is
    zero-height, so only its margin has to go. */
 .y-preffield__status {
-  color: var(--warn);
-  font-family: var(--font-serif);
-  font-size: var(--fs-13);
-  line-height: 1.7;
   margin: 12px 0 0;
-}
-
-.y-preffield__status:empty {
-  margin: 0;
 }
 /* The submit sits below the panels it applies rather than inside any one of
    them, because it belongs to all of them: a button inside a panel would read
@@ -6354,8 +6366,7 @@ html {
   display: block;
 }
 
-.y-markset__note,
-.y-markset__said {
+.y-markset__note {
   color: var(--fg-subtle);
   font-family: var(--font-serif);
   font-size: var(--fs-12);
@@ -6363,8 +6374,8 @@ html {
   margin: 8px 0 0;
 }
 
-.y-markset__said:empty {
-  display: none;
+.y-markset__said {
+  margin: 8px 0 0;
 }
 
 /* The same verb again in the header's folded panel, which is the only home a
@@ -6391,15 +6402,7 @@ html {
 }
 
 .y-headermark__said {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
-  font-size: var(--fs-12);
-  line-height: 1.6;
   margin: 8px 0 0;
-}
-
-.y-headermark__said:empty {
-  display: none;
 }
 
 /* The way back to the place the reader kept, ahead of the four ways in. */
