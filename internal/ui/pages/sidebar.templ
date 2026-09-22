@@ -140,38 +140,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 		}
 		@railFoot(sb.Vault, c.Lang)
 	</aside>
-	// The pre-paint settle reveals the filter box and reapplies the reader's
-	// persisted disclosure toggles before the sidebar first paints, so nothing
-	// pops in late or replays its opening animation. The wayfinding chain wins
-	// over a stored value, and the enhancement script owns every later change.
-	<script nonce={ c.Nonce }>
-		(() => {
-			"use strict";
-			const filter = document.querySelector(".y-rail-left [data-nav-filter]");
-			if (filter) {
-				filter.hidden = false;
-			}
-			let stored = {};
-			try {
-				stored =
-					JSON.parse(sessionStorage.getItem("yomihon.nav") || "{}") || {};
-			} catch {
-				stored = {};
-			}
-			document
-				.querySelectorAll(".y-rail-left details[data-key]")
-				.forEach((d) => {
-					if (d.hasAttribute("data-chain")) {
-						d.open = true;
-						return;
-					}
-					const want = stored[d.dataset.key];
-					if (typeof want === "boolean") {
-						d.open = want;
-					}
-				});
-		})();
-	</script>
+	@settleRail(c)
 }
 
 templ chevron() {
