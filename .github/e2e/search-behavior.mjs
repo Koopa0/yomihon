@@ -26,6 +26,7 @@ const HIT_DIRECTIVE = `${HIT_NOTE}#:~:text=${HIT_QUERY}`;
 const SITES = [
   'search-form-fits-the-narrowest-phone',
   'reopening-answers-the-query-in-the-box',
+  'late-close-keeps-the-reopened-request',
   'announcement-quotes-the-query',
   'home-starts-at-top',
   'home-does-not-take-focus',
@@ -157,7 +158,7 @@ const MUTATIONS = {
   // announcement, which arrives after the reopening, cancels the search the
   // reopening asked for.
   'cancel-on-a-late-close': {
-    target: 'reopening-answers-the-query-in-the-box',
+    target: 'late-close-keeps-the-reopened-request',
     before: rewriteScript([
       {
         needle: "      region.addEventListener('close', () => {\n        if (!region.open) cancelPending();\n      });",
@@ -1396,12 +1397,11 @@ try {
     );
     // Typed and closed inside the wait before the request goes out.
     await palette.page.fill('[data-search] [data-live-search-input]', 'beta');
-    // Closing and reopening in one task, which is what makes this a lock
-    // rather than a coin toss. Closing clears the open attribute at once and
-    // queues the announcement; pressing both keys in the same task puts the
-    // reopening in front of that announcement every time, instead of whenever
-    // the machine happens to be slow enough. Driven as key presses, so it is
-    // the product's own shortcut path being exercised and not the dialog.
+    // Exercise the product's shortcut path through a close and reopen. The
+    // open attribute changes in this task, but the native close and toggle
+    // notifications use different task sources. This journey checks that the
+    // query is eventually answered; the controlled case below separately
+    // places a late close after the replacement request has started.
     await palette.page.evaluate(() => {
       const press = (key, ctrl) => window.dispatchEvent(
         new KeyboardEvent('keydown', { key, ctrlKey: ctrl, bubbles: true, cancelable: true }),
@@ -1434,7 +1434,90 @@ try {
     await palette.context.close();
   }
 
-  console.log('PASS search-behavior: a reopened palette answers its own box; a query is announced as typed; the form fits 320px in both languages; Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
+  // Model the late notification explicitly, after observing a real request.
+  // A native close/reopen does not order close against toggle: their task
+  // sources differ, and toggle now owns reopening work. Hold the replacement
+  // fetch after its network response arrives so the close cannot accidentally
+  // land before scheduling or after completion. This is controlled event-order
+  // coverage, not a claim that a human reproduced this timing.
+  {
+    const site = 'late-close-keeps-the-reopened-request';
+    const { context, page } = await start(browser, site, {
+      initScript: () => {
+        const nativeFetch = window.fetch.bind(window);
+        let release;
+        const gate = new Promise((resolve) => { release = resolve; });
+        window.__lateCloseState = { started: 0, aborted: false, hasSignal: false };
+        window.__releaseLateCloseResponse = () => release();
+        window.fetch = async (resource, options = {}) => {
+          const url = new URL(resource instanceof Request ? resource.url : String(resource), location.href);
+          const response = await nativeFetch(resource, options);
+          if (url.pathname === '/search/results' && url.searchParams.get('q') === 'beta') {
+            const state = window.__lateCloseState;
+            state.started += 1;
+            state.hasSignal = options.signal instanceof AbortSignal;
+            state.aborted = Boolean(options.signal?.aborted);
+            options.signal?.addEventListener('abort', () => { state.aborted = true; }, { once: true });
+            await gate;
+          }
+          return response;
+        };
+      },
+    });
+    try {
+      await page.keyboard.press('ControlOrMeta+k');
+      await page.fill('[data-search] [data-live-search-input]', 'alpha');
+      // Setup failures are ordinary probe errors, never mutation catches.
+      await page.waitForFunction(
+        () => document.querySelector('[data-search] [data-live-search-stale]')?.dataset.liveSearchStale?.trim() === 'alpha',
+        null, { timeout: 3000 },
+      );
+      // Consume the actual close before reopening, so it cannot accidentally
+      // cancel setup in the mutant. Typing and closing share a task; only the
+      // reopening can start beta. The late notification is delivered below.
+      await withDeadline(page.evaluate(() => new Promise((resolve) => {
+        const dialog = document.querySelector('[data-search]');
+        dialog.addEventListener('close', () => resolve(), { once: true });
+        const input = dialog.querySelector('[data-live-search-input]');
+        input.value = 'beta';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      })), 'the setup close notification never arrived');
+      await page.keyboard.press('ControlOrMeta+k');
+      await page.waitForFunction(() => window.__lateCloseState?.started > 0, null, { timeout: 3000 });
+      const state = await page.evaluate(() => {
+        const dialog = document.querySelector('[data-search]');
+        const results = dialog.querySelector('[data-live-search-results]');
+        const before = {
+          ...window.__lateCloseState,
+          open: dialog.open,
+          busy: results.getAttribute('aria-busy'),
+          answer: results.querySelector('[data-live-search-stale]')?.dataset.liveSearchStale?.trim(),
+        };
+        // Reproduce delivery of a queued close while the dialog is open again.
+        // Do not close it here: its current open state is the guard's input.
+        dialog.dispatchEvent(new Event('close'));
+        return { before, after: { ...window.__lateCloseState, open: dialog.open, busy: results.getAttribute('aria-busy') } };
+      });
+      if (state.before.started !== 1 || !state.before.hasSignal || state.before.aborted || !state.before.open || state.before.busy !== 'true' || state.before.answer !== 'alpha') {
+        throw new ProbeBroken(`BROKEN search-behavior: late-close setup was not one open, pending beta request over alpha: ${JSON.stringify(state.before)}`);
+      }
+      if (state.after.aborted || !state.after.open || state.after.busy !== 'true') {
+        fail(site, `the late close cancelled the reopened request: ${JSON.stringify(state.after)}`);
+      }
+      await page.evaluate(() => window.__releaseLateCloseResponse());
+      await waitFor(
+        page, site,
+        () => document.querySelector('[data-search] [data-live-search-stale]')?.dataset.liveSearchStale?.trim() === 'beta',
+        null, 'the request survived the late close but never delivered beta',
+      );
+    } finally {
+      await page.evaluate(() => window.__releaseLateCloseResponse?.()).catch(() => {});
+      await context.close();
+    }
+  }
+
+  console.log('PASS search-behavior: a reopened palette answers its own box; a controlled late close preserves its pending request; a query is announced as typed; the form fits 320px in both languages; Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
