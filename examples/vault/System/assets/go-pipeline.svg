@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380" role="img" aria-labelledby="title desc">
+  <title id="title">Go pipeline 的資料流與取消通知</title>
+  <desc id="desc">producer 經由 channel 傳值給 consumer。consumer 不再接收時呼叫 cancel，producer 的 select 收到 ctx.Done 後返回，再由 defer close(out) 關閉輸出。取消通知不會強制終止 goroutine。</desc>
+  <style>
+    svg { background: #f5f2e9; color: #273c38; font-family: system-ui, sans-serif; }
+    text { fill: currentColor; }
+    .box { fill: #fffdf6; stroke: #85988a; stroke-width: 1.5; }
+    .control { fill: #e8edde; stroke: #617e71; stroke-width: 1.5; }
+    .flow { fill: none; stroke: #365d49; stroke-width: 2.5; }
+    .cancel { fill: none; stroke: #795039; stroke-width: 2.5; stroke-dasharray: 7 5; }
+    .arrow { fill: #365d49; }
+    .cancel-arrow { fill: #795039; }
+    .label { font-size: 21px; font-weight: 650; }
+    .small { font-size: 17px; }
+    .mono { font-family: ui-monospace, monospace; font-size: 16px; }
+    @media (prefers-color-scheme: dark) {
+      svg { background: #1d2826; color: #ebe9dd; }
+      .box { fill: #263531; stroke: #8a9b8e; }
+      .control { fill: #303d2d; stroke: #a1b4a1; }
+      .flow { stroke: #b2cf9f; }
+      .arrow { fill: #b2cf9f; }
+      .cancel { stroke: #dfb693; }
+      .cancel-arrow { fill: #dfb693; }
+    }
+  </style>
+  <text x="32" y="40" class="label">資料向前，取消通知回到工作端</text>
+  <rect class="box" x="32" y="88" width="202" height="102" rx="8"/>
+  <text x="54" y="124" class="label">producer</text>
+  <text x="54" y="157" class="mono">select / send</text>
+  <rect class="box" x="306" y="88" width="188" height="102" rx="8"/>
+  <text x="328" y="124" class="label">channel</text>
+  <text x="328" y="157" class="mono">out</text>
+  <rect class="box" x="566" y="88" width="202" height="102" rx="8"/>
+  <text x="588" y="124" class="label">consumer</text>
+  <text x="588" y="157" class="mono">&lt;-out</text>
+  <path class="flow" d="M234 139H294"/>
+  <path class="arrow" d="M294 133l10 6-10 6z"/>
+  <path class="flow" d="M494 139H554"/>
+  <path class="arrow" d="M554 133l10 6-10 6z"/>
+  <text x="239" y="118" class="small">值</text>
+  <text x="499" y="118" class="small">值</text>
+  <path class="cancel" d="M667 190V244"/>
+  <path class="cancel-arrow" d="M661 244l6 10 6-10z"/>
+  <rect class="control" x="566" y="256" width="202" height="64" rx="8"/>
+  <text x="588" y="282" class="small">不再需要結果</text>
+  <text x="588" y="306" class="mono">cancel()</text>
+  <path class="cancel" d="M566 288H133V202"/>
+  <path class="cancel-arrow" d="M127 202l6-10 6 10z"/>
+  <text x="273" y="272" class="mono">ctx.Done()</text>
+  <text x="32" y="352" class="small">producer 返回時執行 defer close(out)；cancel 只通知，不強制中斷。</text>
+</svg>

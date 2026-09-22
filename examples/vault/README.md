@@ -1,26 +1,9 @@
-# An example vault
+# 範例書庫
 
-A small vault with a contract. Point yomihon at it to see what a contract adds:
+從 repository 根目錄執行 `yomihon examples/vault`，開啟終端顯示的本機位址。
 
-```sh
-yomihon examples/vault
-```
+- [Go 並行入門](Notes/Books/Go%20並行入門.md)：goroutine、channel、取消與 worker pool。五課主線，一課逾時選讀。
+- [在圖書館讀日文](Notes/Books/在圖書館讀日文.md)：兩段對話，練習找書與安排閱讀場所。
+- [繁中手冊](Notes/中文/讀懂%20yomihon.md)／[English companion](Notes/Reading%20yomihon.md)：yomihon 的契約、診斷與啟動方式。
 
-`Notes/中文` holds a shorter path over the same ideas in Traditional Chinese.
-Nothing is translated: each note declares the language it was written in and
-keeps it.
-
-`System/schemas/vault-schema.toml` is the contract. Copy it into your own vault
-and change it: the directories, the enums, the privacy boundary and the
-transitions are decisions about your notes, not defaults.
-
-`yomihon check --root examples/vault` reports three findings, and all three are
-written on purpose: a status outside the list, in
-`Notes/A note with a fault in its frontmatter.md`; a link with no target and a
-section that is not there, both in `Notes/Wikilinks in this dialect.md`. Each of
-those notes says in its own words why the fault is there. So `--deny warn` and
-`--deny error` both exit 1 on this vault, and a copy of it starts out failing
-that gate until you take the three out.
-
-This file is listed in the contract's `scan.skip_basenames`, so it carries no
-frontmatter and the checks skip it.
+日記與報告是 9/22 的教學範例。三項刻意保留的診斷及功能對照，見[維護說明](../README.md)。

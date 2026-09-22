@@ -3,20 +3,20 @@ title: Privacy and egress
 type: note
 status: ready
 domain: yomihon
-created: 2026-02-16
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-yomihon makes no network call. It opens your files and a loopback socket, and holds no client and no credential with which to do anything else.
+yomihon serves local files on `127.0.0.1` and makes no outbound network calls.
 
-An address pointing off the machine is shown, never fetched. This one is written as a picture and arrives as a link:
+Remote Markdown images become links, so opening a note does not fetch them:
 
 ![a photograph on somebody else's server](https://example.invalid/moonrise.jpg)
 
-`[privacy] never_egress_dirs` in the contract names directories an agent's output may not draw from. `Diary` is named there, so `check`, `coverage` and `exists` leave those notes out of what they report.
+The contract's `[privacy] never_egress_dirs` excludes directory trees from command-line reports. This vault lists `Diary`: `check` and `coverage` omit its notes. If `exists` matches a private note, it returns exit 0 with `"withheld": true`, without the note's path, matched field or value.
 
-The reading pages are not bound by it. Open `Diary` in the sidebar and the note is there, the same as in Obsidian. What the declaration governs is what yomihon tells a program about this vault, not what you can read on your own machine.
+The privacy list does not restrict local reading. Notes under `Diary` remain available in the sidebar and reading pages.
 
 > [!warning] Naming a directory is the whole protection
-> A directory left off `never_egress_dirs` is one an agent's output may draw from. The list is not a judgement about what looks private — it is the list, and a directory added tomorrow is outside it until somebody puts it in.
+> Only listed directory trees are withheld. A new folder outside those trees remains eligible for command-line output until added to the list.

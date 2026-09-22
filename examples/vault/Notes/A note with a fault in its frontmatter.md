@@ -3,7 +3,7 @@ title: A note with a fault in its frontmatter
 type: note
 status: nearly-ready
 domain: yomihon
-created: 2026-06-01
+created: 2026-09-22
 lang: en
 ---
 

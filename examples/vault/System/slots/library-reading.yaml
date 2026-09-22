@@ -1,0 +1,33 @@
+lesson: J02
+slug: jp-library-choose-where-to-read
+title: 決定在哪裡讀
+note: 先組出今天的閱讀安排。每次只換一個詞，再讀一次；這組練習的動作固定是「讀」。
+patterns:
+  - id: reading-place
+    template: "{A}で{B}を読みます。"
+    gloss_zh: "在{A}讀{B}。"
+    note: 地點由「で」接到閱讀的動作。
+    slots:
+      A:
+        label_zh: 閱讀的場所
+        color: place
+        fills:
+          - jp: 図書館
+            reading: としょかん
+            zh: 圖書館
+          - jp: 家
+            reading: いえ
+            zh: 家
+      B:
+        label_zh: 要讀的東西
+        color: obj
+        fills:
+          - jp: 雑誌
+            reading: ざっし
+            zh: 雜誌
+          - jp: 本
+            reading: ほん
+            zh: 書
+          - jp: 新聞
+            reading: しんぶん
+            zh: 報紙

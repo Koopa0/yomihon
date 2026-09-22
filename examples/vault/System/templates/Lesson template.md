@@ -2,20 +2,36 @@
 title: Lesson template
 type: lesson
 status: draft
-domain: yomihon
+domain: go
 level: fundamental
 slug: lesson-template
 lang: en
 ---
 
-A shape to copy for a lesson, which carries two fields a note does not: a slug,
-checked against the contract's `slug_pattern`, and the level it assumes.
-
 ## What this lesson covers
+
+A buffered channel has finite capacity.
 
 ## What to do
 
+What does this program print?
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    ch := make(chan int, 1)
+    ch <- 42
+    fmt.Println(<-ch)
+}
+```
+
+> [!question]- Result
+> `42`. The buffer holds the value until the receive removes it. A second
+> send before that receive would block.
+
 ## What it assumes
 
-Like the note template beside it, this file lives under a directory the contract
-names in `[artifacts]`, so it is rendered and carries no status control.
+Functions and variables. See [[channel 的交接]] for send and receive rules.
