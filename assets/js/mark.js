@@ -56,9 +56,10 @@ function positionNow() {
   return { anchor, offset: Math.max(0, top - anchorTop) };
 }
 
-function say(control, words) {
+function say(control, words, kept) {
   const said = control.querySelector('[data-mark-said]');
   if (!said) return;
+  said.dataset.replyTone = kept ? 'kept' : 'refused';
   said.textContent = words ?? '';
 }
 
@@ -81,7 +82,7 @@ async function keep(control) {
   } catch {
     kept = false;
   }
-  say(control, kept ? control.dataset.markSaved : control.dataset.markFailed);
+  say(control, kept ? control.dataset.markSaved : control.dataset.markFailed, kept);
 }
 
 // land finishes an arrival the address asked for. The browser has already gone

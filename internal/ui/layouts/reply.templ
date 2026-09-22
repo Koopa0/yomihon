@@ -1,0 +1,9 @@
+package layouts
+
+// Reply is the sentence a reader's action earns, kept beside that action.
+// Callers supply their own words and update hooks; this owns the live region
+// and its presentation. Children keep authored status tokens language-tagged.
+// An empty reply keeps its region in the document without taking up space.
+templ Reply(class string, attrs templ.Attributes) {
+	<p class={ "y-reply " + class } role="status" aria-live="polite" aria-atomic="true" { attrs... }>{ children... }</p>
+}
