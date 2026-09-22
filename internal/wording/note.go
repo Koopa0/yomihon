@@ -132,7 +132,7 @@ var (
 	ConfirmSetAfter      = both("", "")
 )
 
-// The visible action prefix shared by ordinary and no-return controls.
+// NoReturnSummaryBefore is the visible action prefix for both control shapes.
 var NoReturnSummaryBefore = both("設為 ", "Set to ")
 
 // How a link that named a section was read, for a link whose base name resolved

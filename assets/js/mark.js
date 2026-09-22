@@ -45,6 +45,8 @@ function positionNow() {
   let anchorTop = Number.NEGATIVE_INFINITY;
   if (article) {
     for (const element of article.querySelectorAll('[id]')) {
+      // Hidden reading controls have IDs but no position in the document.
+      if (element.getClientRects().length === 0) continue;
       const elementTop = documentTop(element);
       if (elementTop <= top && elementTop > anchorTop) {
         anchor = element.id;

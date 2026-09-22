@@ -148,6 +148,14 @@ const MUTATIONS = {
       'the post that keeps the place',
     ),
   },
+  'keep-a-hidden-anchor': {
+    target: 'following-it-lands-where-the-window-was',
+    apply: rewriteModule(
+      '      if (element.getClientRects().length === 0) continue;',
+      '      /* keep hidden anchors too */',
+      'the guard on anchors without a layout box',
+    ),
+  },
   'land-without-the-offset': {
     target: 'following-it-lands-where-the-window-was',
     apply: rewriteModule(
