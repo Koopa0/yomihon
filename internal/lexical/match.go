@@ -805,7 +805,7 @@ func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
 }
 
 // snippetBounds keeps the excerpt's source span available for landing selection.
-func snippetBounds(plain string, foldStart, foldEnd int, fences [][2]int) (int, int) {
+func snippetBounds(plain string, foldStart, foldEnd int, fences [][2]int) (start, end int) {
 	if foldStart < 0 {
 		foldStart, foldEnd = 0, 0
 	}
@@ -827,8 +827,8 @@ func snippetBounds(plain string, foldStart, foldEnd int, fences [][2]int) (int, 
 	if !inFence {
 		opening = sentenceStart(plain, opening, off)
 	}
-	start := min(wholeWordStart(plain, opening), off)
-	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
+	start = min(wholeWordStart(plain, opening), off)
+	end = max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
 	if inFence {
 		start = max(start, fence[0])
 		end = min(end, fence[1])
