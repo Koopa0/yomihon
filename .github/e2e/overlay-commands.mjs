@@ -106,6 +106,24 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
   };
 };
 
+// Each CSS regression also removes the native search target, so geometry is
+// measured on the same scriptless capability pair as the destination check.
+const distortScriptlessHeader = (selector, css) => async (page) => {
+  const nativeProof = await rewriteMarkup(
+    'commandfor="_y-search-dialog"', 'data-unsupported-commandfor="_y-search-dialog"',
+    'the disabled native search invoker',
+  )(page);
+  const perLoad = [];
+  await page.route('**/app.css', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    perLoad.push((body.match(selector) || []).length);
+    await route.fulfill({ response, body: body + '\n' + css });
+  });
+  return () => nativeProof() || (perLoad.length === 0 || perLoad.some((hits) => hits !== 1)
+    ? `scriptless header rule matched [${perLoad}]` : '');
+};
+
 const MUTATIONS = {
   'remove-the-scriptless-search-destination': {
     target: 'search-remains-reachable-with-neither-feature',
@@ -118,21 +136,17 @@ const MUTATIONS = {
   },
   'widen-the-scriptless-search-link': {
     target: 'search-remains-reachable-with-neither-feature',
-    apply: async (page) => {
-      const nativeProof = await rewriteMarkup(
-        'commandfor="_y-search-dialog"', 'data-unsupported-commandfor="_y-search-dialog"',
-        'the disabled native search invoker',
-      )(page);
-      const perLoad = [];
-      await page.route('**/app.css', async (route) => {
-        const response = await route.fetch();
-        const body = await response.text();
-        perLoad.push((body.match(/\.y-searchfallback\s*\{/g) || []).length);
-        await route.fulfill({ response, body: body + '\n.y-searchfallback { display: inline-block; min-width: 1500px; }' });
-      });
-      return () => nativeProof() || (perLoad.length === 0 || perLoad.some((hits) => hits !== 1)
-        ? `scriptless link rule matched [${perLoad}]` : '');
-    },
+    apply: distortScriptlessHeader(
+      /\.y-searchfallback\s*\{/g,
+      '.y-searchfallback { display: inline-block; min-width: 1500px; }',
+    ),
+  },
+  'truncate-the-scriptless-wordmark': {
+    target: 'search-remains-reachable-with-neither-feature',
+    apply: distortScriptlessHeader(
+      /\.y-brand__name\s*>\s*span\s*\{/g,
+      '.y-brand__name > span { max-width: 1px; }',
+    ),
   },
   // The press stops naming the palette, so opening it is back to being the
   // script's job — and with scripting off there is no job.
@@ -270,7 +284,7 @@ try {
       await page.setViewportSize({ width, height: 800 });
       const row = await page.evaluate(() => {
         const header = document.querySelector('header');
-        const name = document.querySelector('.y-brand__name');
+        const name = document.querySelector('.y-brand__name > span');
         const link = document.querySelector('.y-searchfallback').getBoundingClientRect();
         return {
           overflow: header.scrollWidth - header.clientWidth,
