@@ -568,3 +568,31 @@ func (landingTitles) TitledBy(string) []string { return nil }
 type landingFiles struct{}
 
 func (landingFiles) MissingFile(string) bool { return false }
+
+// The destination belongs to a source interval, not to an equality comparison
+// between a highlighted excerpt and a separately trimmed directive term.
+func TestSearchSelectsBoundarySafeExcerptDestinations(t *testing.T) {
+	t.Parallel()
+	idx := lexical.NewIndex([]lexical.Document{
+		lexical.DocumentFromNote(vault.Parse("Notes/Edges.md", []byte(
+			"The ledger entry closes with lanthanum here.\n\n"))),
+	}, validArtifactPolicy(t))
+	srv := serverForIndex(t, idx)
+	for _, tt := range []struct{ query, term string }{
+		{"nthanu", "nthanum"},
+		{"nthanu nthanum", "nthanum"},
+		{`nthanu "nthanum here"`, "nthanum%20here"},
+	} {
+		t.Run(tt.query, func(t *testing.T) {
+			t.Parallel()
+			code, body := getBody(t, srv.Client(), srv.URL+"/search/results?"+url.Values{"q": {tt.query}}.Encode())
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			want := "/notes/Notes/Edges.md#:~:text=closes%20with%20la-," + tt.term
+			if got := resultHref(t, body); got != want {
+				t.Errorf("href = %q, want %q", got, want)
+			}
+		})
+	}
+}

@@ -1352,10 +1352,12 @@ func TestSearchFindsAFileByItsText(t *testing.T) {
 
 	results := searchResults(t, widened, Parse("passport"))
 	want := []Result{{
-		RelPath: "Notes/todo.txt",
-		Title:   "todo.txt",
-		Snippet: "renew the passport before flamingo season",
-		File:    true,
+		RelPath:     "Notes/todo.txt",
+		Title:       "todo.txt",
+		Snippet:     "renew the passport before flamingo season",
+		Landing:     "passport",
+		LandingBare: "passport",
+		File:        true,
 	}}
 	if diff := cmp.Diff(want, results); diff != "" {
 		t.Errorf("Search(passport) mismatch (-want +got):\n%s", diff)

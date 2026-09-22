@@ -76,6 +76,7 @@ probes=(
   "result-landing-visibility.mjs|/search?q=%22alpha%20beta%20gamma%22"
   "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
   "midword-landing.mjs|/search?q=lybdenum"
+  "directive-edges.mjs|/search?q=nthanu"
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
   "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
   "search-facets.mjs|/search?q=a"
