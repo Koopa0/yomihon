@@ -44,7 +44,7 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 			roles:    declared,
 			path:     guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
 			mapState: guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
-			folder:   guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
+			folder:   guide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext),
 		},
 		{
 			name:     "contract that reached the folder after yomihon started",
@@ -94,6 +94,17 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 					assertEmptyGuide(t, view.name, view.got, view.want, lang)
 				}
 				blocks := NewDeskBlocks(&nav.Model{}, tt.roles, tt.contract, lang, nil)
+				var modes []string
+				for _, block := range blocks {
+					modes = append(modes, block.Mode)
+				}
+				wantOrder := "paths,maps,reports,folders"
+				if tt.contract == ContractAbsent {
+					wantOrder = "folders,paths,maps,reports"
+				}
+				if got := strings.Join(modes, ","); got != wantOrder {
+					t.Errorf("desk mode order = %q, want %q", got, wantOrder)
+				}
 				for _, block := range blocks {
 					if block.Mode != pathMode && block.Mode != mapMode && block.Mode != folderMode {
 						continue
@@ -191,9 +202,9 @@ owner = ["koopa"]
 
 // everyEmptyStep is every next step this slot can hold. Carrying the right one
 // is only half the claim: a slot that also carried another would hand the
-// reader a recovery that is not theirs, and each of these three costs something
-// different to follow.
+// reader a recovery that is not theirs.
 var everyEmptyStep = []wording.Phrase{
+	wording.FolderIndexUngovernedNext,
 	wording.IndexUngovernedNext,
 	wording.IndexContractUnloadedNext,
 	wording.IndexDeclaredEmptyNext,
@@ -242,7 +253,7 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 			contract: ContractAbsent,
 			path:     guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
 			mapState: guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
-			folder:   guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
+			folder:   guide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext),
 		},
 		{
 			name:     "contract this process never loaded",

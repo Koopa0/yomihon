@@ -54,8 +54,12 @@ var (
 		"在 yomihon 正在讀的資料夾裡新增一個 .md 檔。",
 		"Add a .md file to the folder yomihon is reading.",
 	)
-	// What a folder with no contract is told instead. It names what is missing
-	// without speaking as if the folder had declared an empty set.
+	FolderIndexUngovernedNext = both(
+		"用你的編輯器在這個資料夾裡新增 .md 檔，就能開始閱讀；不需要契約。",
+		"Use your editor to add a .md file to this folder and start reading; no contract is needed.",
+	)
+	// What an empty path or map listing without a contract says. Those modes
+	// need a declaration; browsing files does not.
 	IndexUngoverned = both(
 		"這個資料夾還沒有契約。",
 		"This folder has no contract yet.",
