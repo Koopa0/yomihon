@@ -19,11 +19,11 @@ const SHORTCUT_CONTROL = '[data-single-key-shortcuts-toggle]';
 const SHORTCUT_LABEL = '.y-shortcutpref';
 const SHORTCUT_ON = '.y-shortcutpref__on';
 const SHORTCUT_OFF = '.y-shortcutpref__off';
-const HELP_BUTTON = '[popovertarget="kbd-help"]';
-const HELP_PANEL = '#kbd-help';
+const HELP_BUTTON = '[popovertarget="_y-kbd-help"]';
+const HELP_PANEL = '#_y-kbd-help';
 // Where the header keeps the control above, at the widths that have no room
 // for it out on the row.
-const FOLD_BUTTON = '[popovertarget="header-fold"]';
+const FOLD_BUTTON = '[popovertarget="_y-header-fold"]';
 
 // The single-key control is pressed, never driven by a checked-state helper.
 // The page writes this control's state back from the value it kept, so a

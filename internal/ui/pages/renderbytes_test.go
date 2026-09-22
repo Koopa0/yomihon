@@ -411,8 +411,12 @@ func recordedEnglishChrome() layouts.Chrome {
 // leave unwritten.
 func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 	t.Helper()
+	return renderedNoteView(t, model, current, "body with [[C01]] and [[C02#Missing|C02]]\n")
+}
+
+func renderedNoteView(t *testing.T, model *nav.Model, current, body string) NoteView {
+	t.Helper()
 	root := t.TempDir()
-	const body = "body with [[C01]] and [[C02#Missing|C02]]\n"
 	for rel, content := range map[string]string{
 		current:              body,
 		"Concepts/go/C01.md": "# C01\n",

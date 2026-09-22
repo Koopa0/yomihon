@@ -281,7 +281,7 @@ func TestKeyboardKeysNamesTheFourKeysTheInterfaceAnswers(t *testing.T) {
 			if err := header(Chrome{Lang: lang}).Render(t.Context(), &head); err != nil {
 				t.Fatalf("render header: %v", err)
 			}
-			panel := elementSubtree(t, head.String(), `id="kbd-help"`)
+			panel := elementSubtree(t, head.String(), `id="_y-kbd-help"`)
 			if !strings.Contains(panel, list) {
 				t.Errorf("the help panel does not show this key list; panel = %q", panel)
 			}
