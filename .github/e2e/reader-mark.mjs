@@ -156,6 +156,30 @@ const MUTATIONS = {
       'the guard on anchors without a layout box',
     ),
   },
+  'keep-a-hidden-anchor-when-narrow': {
+    target: 'a-narrow-reader-can-keep-a-place',
+    apply: rewriteModule(
+      '      if (element.getClientRects().length === 0) continue;',
+      '      /* keep hidden anchors too */',
+      'the guard on anchors without a layout box',
+    ),
+  },
+  'keep-a-ui-anchor': {
+    target: 'following-it-lands-where-the-window-was',
+    apply: rewriteModule(
+      "article.querySelectorAll('.y-prose [id]')",
+      "article.querySelectorAll('[id]')",
+      'the authored-body anchor scope',
+    ),
+  },
+  'keep-a-ui-anchor-when-narrow': {
+    target: 'a-narrow-reader-can-keep-a-place',
+    apply: rewriteModule(
+      "article.querySelectorAll('.y-prose [id]')",
+      "article.querySelectorAll('[id]')",
+      'the authored-body anchor scope',
+    ),
+  },
   'land-without-the-offset': {
     target: 'following-it-lands-where-the-window-was',
     apply: rewriteModule(
@@ -256,13 +280,31 @@ const checkProof = (proof) => {
 // to have something to offer rather than for a fixed delay. It returns where
 // the window was on either side of opening the panel, which is nothing at the
 // wide width and the whole question at the narrow one.
-const keepThePlace = async (page, path, { tamperIdentity = false, fold = null } = {}) => {
+const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, anchorDecoys = false } = {}) => {
   await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
   if (await page.locator('[data-mark-control]').count() === 0) {
     broken(`${path} carries no mark control`);
   }
   await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
   const reached = {};
+  if (anchorDecoys) {
+    await page.evaluate(() => {
+      const article = document.querySelector('.y-article');
+      const prose = article.querySelector('.y-prose');
+      const ui = document.createElement('span');
+      ui.id = 'probe-reading-ui';
+      ui.textContent = 'UI';
+      ui.style.position = 'fixed';
+      ui.style.top = '0';
+      ui.style.right = '0';
+      ui.style.pointerEvents = 'none';
+      article.append(ui);
+      const hidden = document.createElement('span');
+      hidden.id = 'probe-hidden-reading-anchor';
+      hidden.hidden = true;
+      prose.append(hidden);
+    });
+  }
   if (fold) {
     // Below the rail's width the face the reader can press is inside the
     // header's folded panel, and a closed panel draws nothing it holds. It is
@@ -306,13 +348,31 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null } 
     { timeout: 4000 },
   ).catch(() => null);
   await control.locator('[data-mark-button]').click();
-  await posted;
+  const response = await posted;
+  reached.anchor = new URLSearchParams(response?.request().postData() ?? '').get('anchor');
   // The confirmation is the page's own word that the round trip finished, so
   // the desk is not asked before the file exists. The element itself is in
   // every rendering of the control, so waiting for it to exist waits for
   // nothing; what arrives only once the client is done is the text in it.
   await control.locator('[data-mark-said]:not(:empty)').waitFor({ state: 'attached', timeout: 4000 });
   return reached;
+};
+
+// Read the actual posted anchor, rather than inferring it from a successful
+// landing that could have reached the same pixel through a chrome element.
+const assertReadingAnchor = async (page, anchor, site) => {
+  const valid = await page.evaluate((id) => {
+    const element = id ? document.getElementById(id) : null;
+    return Boolean(element?.closest('.y-prose') && element.getClientRects().length > 0);
+  }, anchor);
+  if (!valid) fail(site, `the saved anchor ${JSON.stringify(anchor)} is not rendered authored content`);
+};
+
+const assertSavedAnchor = async (row, anchor, site) => {
+  const href = await row.locator('[data-continue-link]').first().getAttribute('href');
+  if (!href) broken('the kept place carries no address');
+  const saved = decodeURIComponent(new URL(href, BASE).hash.slice(1));
+  if (saved !== anchor) fail(site, `the saved anchor is ${JSON.stringify(saved)}, posted ${JSON.stringify(anchor)}`);
 };
 
 const deskRow = async (page) => {
@@ -361,9 +421,12 @@ try {
     const context = await browser.newContext({ viewport: VIEWPORT });
     const page = await context.newPage();
     const proof = await applyMutation(page, 'following-it-lands-where-the-window-was');
-    await keepThePlace(page, PAGE);
+    const reached = await keepThePlace(page, PAGE, { anchorDecoys: true });
+    checkProof(proof);
+    await assertReadingAnchor(page, reached.anchor, 'following-it-lands-where-the-window-was');
     const { row, present } = await deskRow(page);
     if (!present) broken('no row to follow, so landing proves nothing');
+    await assertSavedAnchor(row, reached.anchor, 'following-it-lands-where-the-window-was');
     await row.locator('[data-continue-link]').first().click();
     await page.waitForLoadState('domcontentloaded');
     checkProof(proof);
@@ -483,8 +546,9 @@ try {
     const page = await context.newPage();
     const site = 'a-narrow-reader-can-keep-a-place';
     const proof = await applyMutation(page, site);
-    const reached = await keepThePlace(page, PAGE, { fold: { site } });
+    const reached = await keepThePlace(page, PAGE, { fold: { site }, anchorDecoys: true });
     checkProof(proof);
+    await assertReadingAnchor(page, reached.anchor, site);
     if (reached.before !== SCROLL_TO || reached.after !== SCROLL_TO) {
       fail(
         site,
@@ -496,6 +560,7 @@ try {
     if (!present) {
       fail(site, `a place kept at ${NARROW.width}px is not offered back on the desk`);
     }
+    await assertSavedAnchor(row, reached.anchor, site);
     await row.locator('[data-continue-link]').first().click();
     await page.waitForLoadState('domcontentloaded');
     await page.evaluate(() => new Promise((resolve) => {
