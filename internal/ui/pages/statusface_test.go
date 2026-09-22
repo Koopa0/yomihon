@@ -97,20 +97,34 @@ func TestBothStatusFacesDrawEveryWriteFaceState(t *testing.T) {
 		if got := state.token(); got != tt.token {
 			t.Errorf("state %d stamps data-status-state=%q, want %q", state, got, tt.token)
 		}
-		for faceName, component := range map[string]templ.Component{
-			"the rail panel": statusPanel(view, wording.ZhHant),
-			"the foot bar":   statusBar(view, wording.ZhHant),
-		} {
-			var buf bytes.Buffer
-			if err := component.Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render %s: %v", faceName, err)
-			}
-			html := buf.String()
-			if !strings.Contains(html, `data-status-state="`+tt.token+`"`) {
-				t.Errorf("%s does not stamp data-status-state=%q for state %d; html = %q", faceName, tt.token, state, html)
-			}
-			if !strings.Contains(html, tt.mark) {
-				t.Errorf("%s does not draw state %d — %q is missing; html = %q", faceName, state, tt.mark, html)
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			for faceName, component := range map[string]templ.Component{
+				"status-panel-label": statusPanel(view, lang),
+				"status-bar-label":   statusBar(view, lang),
+			} {
+				var buf bytes.Buffer
+				if err := component.Render(t.Context(), &buf); err != nil {
+					t.Fatalf("render %s: %v", faceName, err)
+				}
+				html := buf.String()
+				if !strings.Contains(html, `data-status-state="`+tt.token+`"`) {
+					t.Errorf("%s does not stamp data-status-state=%q for state %d", faceName, tt.token, state)
+				}
+				if lang == wording.ZhHant && !strings.Contains(html, tt.mark) {
+					t.Errorf("%s does not draw state %d: %q is missing", faceName, state, tt.mark)
+				}
+				label := "Status and write"
+				if lang == wording.ZhHant {
+					label = "狀態與寫入"
+				}
+				for _, want := range []string{
+					`aria-labelledby="` + faceName + `"`,
+					`id="` + faceName + `">` + label + `</span>`,
+				} {
+					if !strings.Contains(html, want) {
+						t.Errorf("%s state %d language %s lacks visible region label: %s", faceName, state, lang.Tag(), want)
+					}
+				}
 			}
 		}
 	}
@@ -225,6 +239,42 @@ func TestTheUngovernedNoticesSpeakTheReadersLanguage(t *testing.T) {
 					}
 				}
 			})
+		}
+	}
+}
+
+// TestStatusActionsNameTheirTarget visibly distinguishes writing from reading
+// the current state, in both layouts and interface languages.
+func TestStatusActionsNameTheirTarget(t *testing.T) {
+	t.Parallel()
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		for _, prefix := range []string{"", "compare-a-", "compare-b-"} {
+			view := NoteView{Governed: true, Status: "ready", IDPrefix: prefix,
+				Transitions: []Transition{{To: "draft"}, {To: "archived", NoReturn: true}}}
+			for labelID, component := range map[string]templ.Component{
+				"status-panel-label": statusPanel(view, lang),
+				"status-bar-label":   statusBar(view, lang),
+			} {
+				var buf bytes.Buffer
+				if err := component.Render(t.Context(), &buf); err != nil {
+					t.Fatal(err)
+				}
+				html := buf.String()
+				verb := "Set to "
+				if lang == wording.ZhHant {
+					verb = "設為 "
+				}
+				for _, want := range []string{
+					`aria-labelledby="` + prefix + labelID + `"`,
+					`id="` + prefix + labelID + `"`,
+					`<button class="y-xbtn" type="submit">` + verb + `draft</button>`,
+					`<summary class="y-xbtn y-statusconfirm__summary">` + verb + `archived</summary>`,
+				} {
+					if !strings.Contains(html, want) {
+						t.Errorf("%s language %s missing %s", labelID, lang.Tag(), want)
+					}
+				}
+			}
 		}
 	}
 }
