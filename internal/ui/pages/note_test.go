@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/lesson"
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -259,7 +259,7 @@ func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
 			view: NoteView{
 				Title:   "T",
 				RelPath: "a.md",
-				BasedOn: []nav.NoteRef{{Name: "Book notes", RelPath: "Book notes.md"}},
+				BasedOn: []snapshot.DeclaredSource{{Name: "Book notes", RelPath: "Book notes.md"}},
 			},
 			wantAids: true,
 			wantPresent: []string{

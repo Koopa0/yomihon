@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -64,10 +65,10 @@ type NoteView struct {
 	// the note is an island — so the block states that rather than vanishing.
 	CitedBy []nav.NoteRef
 	// BasedOn are the sources this note declared in based_on, in declaration
-	// order. A unique resolution is a title and a link; anything else is the
-	// author's own text, unlinked. An empty list hides the block — declaring
+	// order, grouped by file with the authored locations retained. An unresolved
+	// name stays unlinked. An empty list hides the block — declaring
 	// nothing is the default, not a finding.
-	BasedOn []nav.NoteRef
+	BasedOn []snapshot.DeclaredSource
 	// Pair is the one other note this one is offered to be read beside, or the
 	// zero value where none is. The offer says the same words whichever way the
 	// pair was found, so nothing here says which; two candidates at the same
@@ -414,14 +415,41 @@ templ basedOnBlock(v NoteView, lang wording.Lang) {
 			{ wording.BasedOn.In(lang) }
 			<span class="ui-navitem__count">{ strconv.Itoa(len(v.BasedOn)) }</span>
 		</div>
-		for _, ref := range v.BasedOn {
-			if ref.RelPath != "" {
-				<a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a>
-			} else {
-				<span class="ui-navitem">{ ref.Name }</span>
+		<ul class="y-basedon__groups">
+			for _, ref := range v.BasedOn {
+				<li>
+					if ref.RelPath == "" {
+						<span class="ui-navitem">{ ref.Name }</span>
+					} else if len(ref.Locations) == 1 && !ref.WholeFile {
+						@sourceLocation(ref.RelPath, ref.Name+" › ", ref.Locations[0])
+					} else {
+						<a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a>
+						if len(ref.Locations) > 0 {
+							<ul class="y-basedon__locations">
+								for _, location := range ref.Locations {
+									<li>
+										@sourceLocation(ref.RelPath, "", location)
+									</li>
+								}
+							</ul>
+						}
+					}
+				</li>
 			}
-		}
+		</ul>
 	</nav>
+}
+
+// sourceLocation keeps missing-place information visible at the point of choice.
+templ sourceLocation(relPath, prefix string, location render.SourceLocation) {
+	<a class={ "ui-navitem", templ.KV("wikilink-broken wikilink-degraded", location.Reason != "") } href={ templ.URL(sourceLocationHref(relPath, location.Fragment)) } title={ location.Reason }>
+		<span>
+			{ prefix + location.Label }
+			if location.Reason != "" {
+				<span class="y-basedon__reason">{ location.Reason }</span>
+			}
+		</span>
+	</a>
 }
 
 // citedBy lists the notes whose text links to this one. Nothing is a real
