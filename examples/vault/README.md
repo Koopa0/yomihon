@@ -1,26 +1,19 @@
-# An example vault
+# 先選一本書
 
-A small vault with a contract. Point yomihon at it to see what a contract adds:
+從 repository 根目錄執行：
 
 ```sh
 yomihon examples/vault
 ```
 
-`Notes/中文` holds a shorter path over the same ideas in Traditional Chinese.
-Nothing is translated: each note declares the language it was written in and
-keeps it.
+在終端印出的本機位址開啟首頁，選擇課程：
 
-`System/schemas/vault-schema.toml` is the contract. Copy it into your own vault
-and change it: the directories, the enums, the privacy boundary and the
-transitions are decisions about your notes, not defaults.
+- [把問題讀清楚](Notes/Books/把問題讀清楚.md)：五課繁中主線，從一個過度概括的說法開始，查證、找反例，再改寫解釋。一課 Go 支線可選讀。
+- [在圖書館讀日文](Notes/Books/在圖書館讀日文.md)：兩段原創對話，練習物品的位置與閱讀安排；有讀音、朗讀與句型替換。
+- [讀懂 yomihon](Notes/中文/讀懂%20yomihon.md)與 [Reading yomihon](Notes/Reading%20yomihon.md)：繁中與英文查閱手冊，解釋契約與啟動方式。
 
-`yomihon check --root examples/vault` reports three findings, and all three are
-written on purpose: a status outside the list, in
-`Notes/A note with a fault in its frontmatter.md`; a link with no target and a
-section that is not there, both in `Notes/Wikilinks in this dialect.md`. Each of
-those notes says in its own words why the fault is there. So `--deny warn` and
-`--deny error` both exit 1 on this vault, and a copy of it starts out failing
-that gate until you take the three out.
+[作者實驗室](Notes/作者實驗室.md)提供副本練習。不要在共用 demo 留下個人閱讀紀錄；日記和報告中的人物、日期都是教學情境。
 
-This file is listed in the contract's `scan.skip_basenames`, so it carries no
-frontmatter and the checks skip it.
+這份範例刻意保留三項 CLI 診斷：故障 frontmatter 的 `schema.enum`，以及 Wikilinks in this dialect 中的 `link.broken`、`link.section_missing`。`check --deny warn` 和 `--deny error` 都會退出 1。它們位於查閱案例，不在新書的必讀主線。
+
+維護教材時，請看書庫外的[功能與驗收對照](../README.md)。契約位於 `System/schemas/vault-schema.toml`；複製到自己的書庫前，逐項決定目錄、欄位、隱私與狀態規則。這份 README 依契約的 `scan.skip_basenames` 略過，供 repository 讀者查閱。

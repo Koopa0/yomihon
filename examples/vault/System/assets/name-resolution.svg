@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" role="img" aria-labelledby="title desc">
+  <title id="title">名稱如何成為查找結果</title>
+  <desc id="desc">檔名、相對路徑與 aliases 經過同一套正規化加入名稱索引。title 用於顯示。查找依候選數分成零個、一個或多個。</desc>
+  <style>
+    svg { background: #f5f2e9; color: #273c38; font-family: sans-serif; }
+    text { fill: currentColor; }
+    .box { fill: #fffdf6; stroke: #8a9b8e; stroke-width: 1.5; }
+    .line { fill: none; stroke: #617e71; stroke-width: 2; }
+    .small { font-size: 16px; }
+    .label { font-size: 20px; font-weight: 600; }
+    @media (prefers-color-scheme: dark) {
+      svg { background: #1d2826; color: #ebe9dd; }
+      .box { fill: #263531; stroke: #8a9b8e; }
+      .line { stroke: #a1b4a1; }
+    }
+  </style>
+  <text x="32" y="42" class="label">同一篇筆記，兩種用途</text>
+  <rect class="box" x="32" y="66" width="210" height="108" rx="10"/>
+  <text x="50" y="98" class="label">檔名／相對路徑</text>
+  <text x="50" y="130" class="label">aliases</text>
+  <text x="50" y="156" class="small">明確提供的名稱</text>
+  <path class="line" d="M242 120H288m-8-6 8 6-8 6"/>
+  <rect class="box" x="292" y="82" width="180" height="76" rx="10"/>
+  <text x="318" y="113" class="label">名稱索引</text>
+  <text x="312" y="140" class="small">新增與查找同樣折疊</text>
+  <path class="line" d="M472 120H514m-8-6 8 6-8 6"/>
+  <rect class="box" x="520" y="66" width="208" height="168" rx="10"/>
+  <text x="542" y="101" class="label">候選數決定結果</text>
+  <text x="542" y="138" class="small">0　沒有目標</text>
+  <text x="542" y="172" class="small">1　唯一目標</text>
+  <text x="542" y="206" class="small">2+　列出歧義</text>
+  <rect class="box" x="32" y="220" width="210" height="64" rx="10"/>
+  <text x="50" y="260" class="label">title</text>
+  <path class="line" d="M242 252H288m-8-6 8 6-8 6"/>
+  <text x="302" y="260" class="label">頁面顯示的標題</text>
+  <text x="32" y="327" class="small">較長的名稱仍需唯一；程式不從候選裡猜一篇。</text>
+</svg>

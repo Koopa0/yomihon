@@ -50,7 +50,9 @@ skill to read first: [`skills/`](skills/).
 - **Learn.** A study path is a course: chapter counts, previous and next, and
   the lesson you are on. Furigana switches on and off; a passage marked for
   reading aloud is spoken in its own language. The example vault carries
-  [a study path to copy](examples/vault/Notes/Reading%20yomihon.md).
+  [a reading workshop in Traditional Chinese](examples/vault/Notes/Books/把問題讀清楚.md),
+  [two Japanese dialogue lessons](examples/vault/Notes/Books/在圖書館讀日文.md), and an
+  [English authoring companion](examples/vault/Notes/Reading%20yomihon.md).
 - **Find.** Full-text search with folder filters; backlinks and the note's own
   sections stay beside the text. A result opens the note at the words it
   found, not at the top.
@@ -66,6 +68,9 @@ skill to read first: [`skills/`](skills/).
   [what it does and does not defend](docs/security/threat-model.md).
 
 ## Status
+
+The [example library guide](examples/README.md) describes the books,
+the deliberate diagnostic examples and the features each reading task uses.
 
 Under development; expect the interface to change before the first stable
 release. Defects go to [Issues](https://github.com/koopa0/yomihon/issues),

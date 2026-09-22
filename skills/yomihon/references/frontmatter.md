@@ -146,7 +146,7 @@ level=WARN msg="vault contract policy unavailable" capability=artifact
 ```
 
 What it closes is what the **server** projects: on `examples/vault` the line
-below it reads `paths=2 maps=2` with the section present and `paths=0 maps=0`
+below it reads `paths=4 maps=3` with the section present and `paths=0 maps=0`
 without it, so the syllabus and map pages go with it. It does **not** silence
 `check`: run the course rules over a study path with an undeclared branch and
 `path.role_missing` comes back byte for byte the same either way. Writing

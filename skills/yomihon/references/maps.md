@@ -41,7 +41,7 @@ The first lines it logs name the counts, and the maps are listed at
 <http://127.0.0.1:9610/maps>:
 
 ```
-level=INFO msg="vault snapshot built" files=36 ... paths=2 maps=2 ...
+level=INFO msg="vault snapshot built" files=58 ... paths=4 maps=3 ...
 level=INFO msg="yomihon serving" addr=127.0.0.1:9610 vault=…
 ```
 
@@ -95,8 +95,9 @@ of branches left after that pruning, nested ones included. Run it against a map
 written to exercise every case and the number is the test:
 
 ```sh
-cp -R examples/vault /tmp/maplab
-cat > "/tmp/maplab/Maps/Map counting.md" <<'MD'
+maplab=$(mktemp -d)
+cp -R examples/vault/. "$maplab/"
+cat > "$maplab/Maps/Map counting.md" <<'MD'
 ---
 title: Map counting
 type: moc
@@ -117,7 +118,7 @@ Words with no links.
 
 - [[Two languages]]
 MD
-yomihon serve --root /tmp/maplab       # runs until you stop it
+yomihon serve --root "$maplab"       # runs until you stop it
 ```
 
 The index reads **2 branches** for that map: the unresolved name leaves its
@@ -127,12 +128,14 @@ parent survives only because its child carries one.
 ## `map_kind` buys exactly one thing
 
 `[enums] map_kind` declares the legal values, and a note writing one outside
-that list gets `schema.enum`, an error, the same as any other enum. Add
-`map_kind: shelf` to the map above and check it:
+that list gets `schema.enum`, an error, the same as any other enum. Temporarily
+add `map_kind: shelf` to the map above and check it:
 
 ```
 {"rule_id":"schema.enum","severity":"error","path":"Maps/Map counting.md","field":"map_kind","message":"map_kind \"shelf\" is not an allowed value","source_rule":"vault-schema.toml","target":"shelf", ...}
 ```
+
+Remove that line before continuing with the map below.
 
 That is the whole of it. Nothing else in yomihon reads the value — no page, no
 count, no command behaves differently for `map_kind: topic` than for any other
@@ -149,7 +152,7 @@ The map written above has a heading with no links, a heading whose only link
 resolves to nothing, and a heading with no entry of its own, and
 
 ```sh
-yomihon check --root /tmp/maplab --format json "Maps/Map counting.md"
+yomihon check --root "$maplab" --format json "Maps/Map counting.md"
 ```
 
 prints one line about none of them: the broken link. **So a map that projects
@@ -178,14 +181,31 @@ yomihon coverage --root examples/vault --format json
 ```
 
 ```
-{"total_concepts":1,"domains":[{"domain":"yomihon","concepts":1,"mounted":1,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[],"unrouted":[]}
+{"total_concepts":5,"domains":[{"domain":"japanese","concepts":1,"mounted":1,"pending_mount":0,"orphan":0},{"domain":"yomihon","concepts":4,"mounted":4,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[],"unrouted":[]}
 ```
 
-Add a second concept nothing links, and it appears under `orphans` with the
-domain row reading `2 concepts: 1 mounted, 0 pending-mount, 1 orphan`. Move
-`Maps/yomihon.md` to a directory `[scan] knowledge_dirs` does not name and the
-mounted count drops to **0**: a map outside the knowledge layer cannot mount
-anything, and neither can a note the contract withholds.
+Add an unlinked concept under `Concepts/yomihon/` in a copy of the vault and it
+appears under `orphans`: the total becomes **6**, and the `yomihon` row reads
+`5 concepts: 4 mounted, 0 pending-mount, 1 orphan`.
+
+Moving only `Maps/yomihon.md` outside the knowledge layer leaves coverage
+unchanged: `Maps/閱讀的工具箱.md` also lists Frontmatter. To see the boundary,
+move both maps in a fresh copy:
+
+```sh
+coverage_lab=$(mktemp -d)
+cp -R examples/vault/. "$coverage_lab/"
+mkdir -p "$coverage_lab/System/maplab"
+mv "$coverage_lab/Maps/yomihon.md" "$coverage_lab/Maps/閱讀的工具箱.md" \
+  "$coverage_lab/System/maplab/"
+yomihon coverage --root "$coverage_lab" --format json
+```
+
+The `yomihon` row now has **0 mounted and 4 pending-mount**: its concepts still
+have incoming links from lessons and notes, but no map inside the declared
+knowledge layer reaches them. The Japanese concept stays mounted through
+`Maps/Japanese here.md`. A map outside `[scan] knowledge_dirs` cannot mount a
+concept, and neither can a note the privacy contract withholds.
 
 Two limits worth knowing before you read a number here. `concept` is yomihon's
 own spelling and cannot be renamed: your contract decides whether the type
