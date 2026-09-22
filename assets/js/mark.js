@@ -35,8 +35,8 @@ function documentTop(element) {
 }
 
 // positionNow is the place to keep: the last anchor at or above the top of the
-// window, and the distance from it down to that top. A position with no anchor
-// above it — the opening of a short note — keeps the distance alone, which is
+// window in the rendered body, and the distance from it down to that top. A
+// position with no anchor above it keeps the distance alone, which is
 // the weaker promise a pixel can make and the only one available there.
 function positionNow() {
   const top = Math.max(0, Math.round(window.scrollY));
@@ -44,7 +44,9 @@ function positionNow() {
   let anchor = '';
   let anchorTop = Number.NEGATIVE_INFINITY;
   if (article) {
-    for (const element of article.querySelectorAll('[id]')) {
+    for (const element of article.querySelectorAll('.y-prose [id]')) {
+      // A closed part of the note has IDs but no position in the document.
+      if (element.getClientRects().length === 0) continue;
       const elementTop = documentTop(element);
       if (elementTop <= top && elementTop > anchorTop) {
         anchor = element.id;

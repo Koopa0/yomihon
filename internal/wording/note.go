@@ -60,9 +60,7 @@ var (
 )
 
 // The status face: its label, and what it says in each state that offers no
-// control. StatusBar names the fixed-bottom face so landmark navigation
-// reaches the status, the frontmatter diagnostics, and the only write control
-// at the widths where the right rail is absent.
+// control. StatusBar visibly names both the rail and article-end regions.
 var (
 	StatusLabel          = both("狀態", "Status")
 	StatusBar            = both("狀態與寫入", "Status and write")
@@ -134,17 +132,8 @@ var (
 	ConfirmSetAfter      = both("", "")
 )
 
-// The name the two-step control answers to. It shows the same word the quiet
-// one-press control shows — the status it leads to — so a reader who cannot
-// see the disclosure mark has nothing to tell a reversible press from one with
-// no way back, and the shape cue a collapsed disclosure gives is a cue about
-// shape rather than about stakes. The word on screen stays inside the name, so
-// what is heard still contains what is shown. Split around the value for the
-// same reason as the pair above.
-var (
-	NoReturnSummaryBefore = both("設為 ", "Set ")
-	NoReturnSummaryAfter  = both("，這一步不能回頭，需要再確認一次。", " — this step has no way back and asks to be confirmed.")
-)
+// NoReturnSummaryBefore is the visible action prefix for both control shapes.
+var NoReturnSummaryBefore = both("設為 ", "Set to ")
 
 // How a link that named a section was read, for a link whose base name resolved
 // to nothing. Both carry the two halves, so both are formats.
