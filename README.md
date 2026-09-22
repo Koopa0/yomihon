@@ -50,7 +50,7 @@ skill to read first: [`skills/`](skills/).
 - **Learn.** A study path is a course: chapter counts, previous and next, and
   the lesson you are on. Furigana switches on and off; a passage marked for
   reading aloud is spoken in its own language. The example vault carries
-  [a reading workshop in Traditional Chinese](examples/vault/Notes/Books/把問題讀清楚.md),
+  [a Go concurrency course in Traditional Chinese](examples/vault/Notes/Books/Go%20並行入門.md),
   [two Japanese dialogue lessons](examples/vault/Notes/Books/在圖書館讀日文.md), and an
   [English authoring companion](examples/vault/Notes/Reading%20yomihon.md).
 - **Find.** Full-text search with folder filters; backlinks and the note's own

@@ -6,27 +6,26 @@ domain: yomihon
 slug: l01-point-at-a-folder
 level: fundamental
 supersedes: ["Building yomihon from source"]
-created: 2026-01-06
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-Run it against any folder of Markdown. Nothing is written or created, and the
-folder is not changed.
+Start the reader with a Markdown folder:
 
 ```sh
 yomihon /path/to/notes
 ```
 
-Open `http://127.0.0.1:9610`: the reading page, navigation built from the
-folders, search, and the links between your notes resolved.
+Open `http://127.0.0.1:9610` to read, browse folders and search. Starting the
+server leaves the notes unchanged. Keep the command running while you read;
+press `Ctrl+C` in the terminal to stop it.
 
-What is not there yet is anything that needs to know what your notes mean: no
-status control, no study paths, no type-aware diagnostics. Those need
-[[The vault contract]], which is [[L02 Add a contract]].
+[[The vault contract]] enables features that depend on declared types and
+rules. [[L02 Add a contract]] shows the setup.
 
 | What works with no contract | What needs one |
 | --- | --- |
 | Reading, rendering, folders | Status control |
 | Wikilinks and backlinks | Study paths and maps |
-| Lexical search | Statuses outside the list |
+| Full-text search | Contract-based diagnostics and CLI reports |

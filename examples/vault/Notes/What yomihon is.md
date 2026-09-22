@@ -3,17 +3,17 @@ title: What yomihon is
 type: note
 status: ready
 domain: yomihon
-created: 2026-01-04
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-yomihon reads a folder of Markdown as one book. A study path is a course; every note has its sections and the notes that cite it beside the text; whatever is broken is said where it is. None of your words are changed.
+yomihon opens a Markdown folder as a local reading library. Pages show section navigation, backlinks and diagnostics. Study paths arrange lessons into courses; search opens notes at the matching text.
 
-Navigation, search, diagnostics, study paths: all of it is there so that what you organised can be read back.
+Use [[The vault contract]] to declare note types, status transitions, courses and maps.
 
 ## What it does not do
 
-It does not organise your notes, suggest what to write, or repair anything. When it finds a fault it says so and leaves the file alone — see [[Diagnostics are reports]]. The one thing it writes is a note's status line, and only when you ask.
+It does not organise or repair files. [[Diagnostics are reports]] describes how it presents problems. Within a note, the status control changes only the `status` value, on request; the body and other fields stay unchanged.
 
-It is local and single-user: the server binds `127.0.0.1` and has no remote mode; see [[Privacy and egress]]. The status control and the study paths need to know what a note means, so they need [[The vault contract]].
+The server listens only on `127.0.0.1`. See [[Privacy and egress]] for network and command-line privacy boundaries.

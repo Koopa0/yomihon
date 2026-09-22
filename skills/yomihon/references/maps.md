@@ -41,7 +41,7 @@ The first lines it logs name the counts, and the maps are listed at
 <http://127.0.0.1:9610/maps>:
 
 ```
-level=INFO msg="vault snapshot built" files=58 ... paths=4 maps=3 ...
+level=INFO msg="vault snapshot built" files=56 ... paths=4 maps=3 ...
 level=INFO msg="yomihon serving" addr=127.0.0.1:9610 vault=…
 ```
 
@@ -181,31 +181,29 @@ yomihon coverage --root examples/vault --format json
 ```
 
 ```
-{"total_concepts":5,"domains":[{"domain":"japanese","concepts":1,"mounted":1,"pending_mount":0,"orphan":0},{"domain":"yomihon","concepts":4,"mounted":4,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[],"unrouted":[]}
+{"total_concepts":5,"domains":[{"domain":"go","concepts":3,"mounted":3,"pending_mount":0,"orphan":0},{"domain":"japanese","concepts":1,"mounted":1,"pending_mount":0,"orphan":0},{"domain":"yomihon","concepts":1,"mounted":1,"pending_mount":0,"orphan":0}],"pending_mount":[],"orphans":[],"unrouted":[]}
 ```
 
 Add an unlinked concept under `Concepts/yomihon/` in a copy of the vault and it
 appears under `orphans`: the total becomes **6**, and the `yomihon` row reads
-`5 concepts: 4 mounted, 0 pending-mount, 1 orphan`.
+`2 concepts: 1 mounted, 0 pending-mount, 1 orphan`.
 
-Moving only `Maps/yomihon.md` outside the knowledge layer leaves coverage
-unchanged: `Maps/閱讀的工具箱.md` also lists Frontmatter. To see the boundary,
-move both maps in a fresh copy:
+Moving `Maps/yomihon.md` outside the knowledge layer removes Frontmatter's
+map membership. Try it in a fresh copy:
 
 ```sh
 coverage_lab=$(mktemp -d)
 cp -R examples/vault/. "$coverage_lab/"
 mkdir -p "$coverage_lab/System/maplab"
-mv "$coverage_lab/Maps/yomihon.md" "$coverage_lab/Maps/閱讀的工具箱.md" \
-  "$coverage_lab/System/maplab/"
+mv "$coverage_lab/Maps/yomihon.md" "$coverage_lab/System/maplab/"
 yomihon coverage --root "$coverage_lab" --format json
 ```
 
-The `yomihon` row now has **0 mounted and 4 pending-mount**: its concepts still
-have incoming links from lessons and notes, but no map inside the declared
-knowledge layer reaches them. The Japanese concept stays mounted through
-`Maps/Japanese here.md`. A map outside `[scan] knowledge_dirs` cannot mount a
-concept, and neither can a note the privacy contract withholds.
+The `yomihon` row now has **0 mounted and 1 pending-mount**: Frontmatter still
+has incoming links, but no map inside the knowledge layer reaches it. The Go
+and Japanese concepts stay mounted through their own maps. A map outside
+`[scan] knowledge_dirs` cannot mount a concept, and neither can a note the
+privacy contract withholds.
 
 Two limits worth knowing before you read a number here. `concept` is yomihon's
 own spelling and cannot be renamed: your contract decides whether the type

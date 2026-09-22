@@ -3,18 +3,18 @@ title: yomihon
 type: moc
 status: ready
 map_kind: topic
-created: 2026-01-04
+created: 2026-09-22
 updated: 2026-09-22
 lang: en
 ---
 
-Choose a book for a reading task, or a companion when you need to check the reader's rules.
+Courses and references in this library.
 
 ## Start with a book
 
-- [[把問題讀清楚]] — five lessons in Traditional Chinese: question a claim, find evidence, revise an explanation; Go is an optional branch
+- [[Go 並行入門]] — goroutines, channels, cancellation and a worker pool
 - [[在圖書館讀日文]] — two short Japanese dialogues with Traditional Chinese guidance, listening and sentence practice
-- [[閱讀的工具箱]] — the reading book's concepts and sources
+- [[Go 並行地圖]] — Go concepts and complete examples
 
 ## What it is
 
@@ -35,7 +35,6 @@ Choose a book for a reading task, or a companion when you need to check the read
 - [[Reading yomihon]]
 - [[L01 Point yomihon at a folder]]
 - [[L02 Add a contract]]
-- [[作者實驗室]] — contract and diagnostic exercises in a disposable copy
 - [[Reading preferences]] — set up a passage for comfortable reading
 
 ## In another language
@@ -48,4 +47,4 @@ Choose a book for a reading task, or a companion when you need to check the read
 
 - [[A published note]] — a status yomihon will not set
 - [[A note with a fault in its frontmatter]] — a status outside the list
-- [[Week of 2026-08-31]] — an illustrative reading review with evidence and a next question
+- [[Go 並行回顧 2026-09-22]] — waiting, cancellation and bounded work

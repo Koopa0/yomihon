@@ -10,7 +10,7 @@ schema_version = "1"
 type = ["note", "lesson", "study-path", "moc", "concept", "inbox"]
 # A domain is what a note is about. Keep the list short enough that every value
 # is one you would really file under.
-domain = ["yomihon", "japanese"]
+domain = ["yomihon", "japanese", "go"]
 # Where a note's words came from, when they came from somewhere else.
 source_kind = ["book"]
 source_provider = ["personal"]

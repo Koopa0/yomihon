@@ -18,9 +18,8 @@ import (
 
 const readingLibraryRoot = "../../examples/vault"
 
-// The dialect test protects individual constructs. This protects the books a
-// reader can finish: every promised chapter resolves, and the Go detour does
-// not take the next-chapter control away from the reading course's main line.
+// The dialect test protects individual constructs. This protects both courses:
+// every chapter resolves, and the timeout detour stays off the Go main line.
 func TestShippedReadingLibraryCourseOrder(t *testing.T) {
 	t.Parallel()
 	contract := readingLibraryContract(t)
@@ -33,22 +32,22 @@ func TestShippedReadingLibraryCourseOrder(t *testing.T) {
 		rows    []string
 	}{
 		{
-			path: "Notes/Books/把問題讀清楚.md",
+			path: "Notes/Books/Go 並行入門.md",
 			primary: []string{
-				"Lessons/reading/R01 先把問題寫小.md",
-				"Lessons/reading/R02 追到宣告的地方.md",
-				"Lessons/reading/R03 用反例檢查理解.md",
-				"Lessons/reading/R04 把筆記接成路徑.md",
-				"Lessons/reading/R05 留下能接續的解釋.md",
+				"Lessons/go/G01 goroutine 與等待.md",
+				"Lessons/go/G02 channel 的交接.md",
+				"Lessons/go/G03 關閉 channel.md",
+				"Lessons/go/G04 取消不再需要的工作.md",
+				"Lessons/go/G05 固定數量的 worker.md",
 			},
-			local: "Lessons/reading/R06 讀一段 Go 的分支.md",
+			local: "Lessons/go/G06 select 與逾時.md",
 			rows: []string{
-				"Lessons/reading/R01 先把問題寫小.md",
-				"Lessons/reading/R02 追到宣告的地方.md",
-				"Lessons/reading/R06 讀一段 Go 的分支.md",
-				"Lessons/reading/R03 用反例檢查理解.md",
-				"Lessons/reading/R04 把筆記接成路徑.md",
-				"Lessons/reading/R05 留下能接續的解釋.md",
+				"Lessons/go/G01 goroutine 與等待.md",
+				"Lessons/go/G02 channel 的交接.md",
+				"Lessons/go/G03 關閉 channel.md",
+				"Lessons/go/G04 取消不再需要的工作.md",
+				"Lessons/go/G06 select 與逾時.md",
+				"Lessons/go/G05 固定數量的 worker.md",
 			},
 		},
 		{

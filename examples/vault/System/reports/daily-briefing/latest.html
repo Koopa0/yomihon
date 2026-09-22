@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>把「全部」改成條件 — 閱讀回顧</title>
+  <title>接收者離開後 — Go 並行回顧</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -58,41 +58,23 @@
     .muted, .eyebrow, .meta, figcaption { color: var(--muted); }
     .eyebrow { margin: 30px 0 0; font-size: .8rem; letter-spacing: .1em; }
     .deck { max-width: 37em; font-size: 1.12rem; }
-    .sample {
-      margin: 24px 0 38px;
-      padding: 12px 16px;
-      border-left: 3px solid var(--accent);
-      background: var(--wash);
-      font-size: .88rem;
-    }
     .section-head { display: flex; align-items: baseline; gap: 14px; margin: 34px 0 20px; }
     .section-no { color: var(--accent); font-family: ui-monospace, monospace; font-size: .85rem; }
     .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .claim { padding: 24px; border: 1px solid var(--line); border-radius: 3px; background: var(--card); }
+    .claim { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 3px; background: var(--card); }
     .claim.before { border-top: 3px solid var(--old); background: var(--old-wash); }
     .claim.after { border-top: 3px solid var(--accent); background: var(--wash); }
     .label { display: block; margin-bottom: 16px; font-size: .8rem; font-weight: 650; letter-spacing: .06em; }
-    blockquote { margin: 0 0 18px; font-size: 1.22rem; line-height: 1.7; }
     .claim p { margin: 0; font-size: .9rem; }
-    figure { margin: 0; }
+    pre { margin: 0 0 20px; overflow-x: auto; line-height: 1.6; tab-size: 2; }
+    pre code { font-size: .8rem; }
     .case { margin: 0; padding: 24px; background: var(--card); border: 1px solid var(--line); }
     .case p:last-child { margin-bottom: 0; }
-    .files { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }
-    .file { padding: 12px 14px; border: 1px solid var(--line); border-radius: 3px; font-size: .9rem; }
-    .file small { display: block; margin-bottom: 4px; color: var(--muted); }
     .outcomes { padding: 0; margin: 0; list-style: none; }
     .outcomes li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
     .outcomes strong { font-weight: 650; }
     .outcomes span { font-size: .9rem; }
-    figcaption { margin: 12px 0 0; font-size: .83rem; }
     .takeaway { margin: 22px 0 0; padding: 0 0 0 18px; border-left: 3px solid var(--accent); }
-    .next { display: grid; grid-template-columns: .8fr 1.2fr; gap: 30px; padding: 26px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .next h2 { margin-bottom: 12px; }
-    .next p { margin: 0; }
-    details { padding: 16px 18px; background: var(--card); border: 1px solid var(--line); }
-    summary { cursor: pointer; color: var(--accent); font-weight: 650; }
-    summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
-    details p { margin: 16px 0 0 !important; font-size: .93rem; }
     .sources { margin: 0; padding-left: 1.5em; font-size: .88rem; }
     .sources li { padding: 4px 0 8px 8px; }
     .sources small { display: block; color: var(--muted); }
@@ -100,8 +82,7 @@
     footer p { margin: 0; }
     @media (max-width: 620px) {
       main { padding-top: 24px; }
-      .comparison, .files, .next { grid-template-columns: 1fr; }
-      .next { gap: 20px; }
+      .comparison { grid-template-columns: 1fr; }
       .claim, .case { padding: 20px; }
       .outcomes li { grid-template-columns: 1fr; gap: 4px; }
     }
@@ -123,13 +104,9 @@
       body { font-size: 10pt; }
       main { max-width: none; padding: 0; }
       h1 { font-size: 30pt; }
-      .sample { margin-bottom: 20px; }
       .section-head { margin-top: 22px; break-after: avoid; }
-      .claim, .case, .next, .sources li { break-inside: avoid; }
-      details > * { display: block; }
-      details::details-content { content-visibility: visible; }
-      summary { list-style: none; }
-      summary::marker { content: ""; }
+      .claim, .case, .sources li { break-inside: avoid; }
+      pre { overflow: visible; white-space: pre-wrap; }
       footer { margin-top: 20px; }
     }
   </style>
@@ -138,79 +115,93 @@
   <main>
     <header>
       <div class="masthead">
-        <p class="brand">yomihon / 閱讀回顧</p>
-        <p class="meta">範例情境 · <time datetime="2026-09-04">2026 年 9 月 4 日</time></p>
+        <p class="brand">Go / 並行回顧</p>
+        <p class="meta"><time datetime="2026-09-22">2026 年 9 月 22 日</time></p>
       </div>
-      <p class="eyebrow">讀懂一段規則，從修正一句話開始</p>
-      <h1>把「全部」<br>改成條件。</h1>
-      <p class="deck">一個名稱有歧義，是否代表整篇筆記不能連結？這次回顧只追一個問題：原先的解釋，能不能容得下一個反例。</p>
-      <p class="sample"><strong>這是一份編寫的範例。</strong>閱讀者與日期皆為教學情境；內容不是使用紀錄，也沒有完成率、閱讀時數或自動判定的學習成果。</p>
+      <p class="eyebrow">GOROUTINE · CHANNEL · CONTEXT</p>
+      <h1>接收者離開後，<br>誰還在等待？</h1>
+      <p class="deck">只需要第一個結果，卻啟動了會送出三個值的 producer。第一個值取到了，後面的 send 怎麼結束？</p>
     </header>
 
+    <section aria-labelledby="case-title">
+      <div class="section-head"><span class="section-no" aria-hidden="true">01</span><h2 id="case-title">一次沒完成的傳送</h2></div>
+      <div class="case">
+        <ul class="outcomes">
+          <li><strong>producer 送出 2</strong><span>consumer 接收；無緩衝 channel 的這次傳送完成。</span></li>
+          <li><strong>consumer 返回</strong><span>它已取得結果，不再接收。</span></li>
+          <li><strong>producer 嘗試送出 4</strong><span>沒有接收者，send 阻塞，goroutine 無法返回。</span></li>
+        </ul>
+      </div>
+      <p class="takeaway">假設外層程式仍在運行。接收函式返回，不會替另一個 goroutine 執行 return。</p>
+    </section>
+
     <section aria-labelledby="revision-title">
-      <div class="section-head"><span class="section-no" aria-hidden="true">01</span><h2 id="revision-title">一句話的前後</h2></div>
+      <div class="section-head"><span class="section-no" aria-hidden="true">02</span><h2 id="revision-title">讓等待有另一個出口</h2></div>
+      <p class="muted">兩個版本都取第一個值。修正版使用標準庫 <code>context</code>。</p>
       <div class="comparison">
         <article class="claim before">
-          <h3 class="label">初讀時的解釋</h3>
-          <blockquote>「同名筆記完全無法連結。」</blockquote>
-          <p>把「這個名稱無法唯一指定目標」，放大成「這些檔案都不能用了」。這是等待檢查的猜想。</p>
+          <h3 class="label">只有 send：等待接收者</h3>
+          <pre><code>func first() int {
+  out := make(chan int)
+  go func() {
+    defer close(out)
+    for _, v := range []int{2, 4, 6} {
+      out &lt;- v
+    }
+  }()
+  return &lt;-out
+}</code></pre>
+          <p><code>defer close(out)</code> 要等 goroutine 返回才會執行。它無法解除前面卡住的 send。</p>
         </article>
         <article class="claim after">
-          <h3 class="label">看過反例後</h3>
-          <blockquote>「名稱對應到多個檔案時不選；換成唯一的名稱，就能連結。」</blockquote>
-          <p>判斷單位是這次寫下的名稱。完整相對路徑也能當名稱，但仍須只有一個目標。</p>
+          <h3 class="label">select：也能收到取消通知</h3>
+          <pre><code>func first() int {
+  ctx, cancel := context.WithCancel(
+    context.Background(),
+  )
+  defer cancel()
+  out := make(chan int)
+  go func() {
+    defer close(out)
+    for _, v := range []int{2, 4, 6} {
+      select {
+      case out &lt;- v:
+      case &lt;-ctx.Done():
+        return
+      }
+    }
+  }()
+  return &lt;-out
+}</code></pre>
+          <p><code>first</code> 返回時呼叫 cancel。producer 可從 Done 分支返回，再關閉輸出。</p>
         </article>
       </div>
     </section>
 
-    <section aria-labelledby="evidence-title">
-      <div class="section-head"><span class="section-no" aria-hidden="true">02</span><h2 id="evidence-title">用最小的例子，拆開兩件事</h2></div>
-      <figure>
-        <div class="case">
-          <p>假設練習 vault 只有以下兩篇同名筆記，且沒有其他檔案或別名占用這些完整路徑：</p>
-          <div class="files">
-            <div class="file"><small>第一篇</small><code>Notes/alpha/Plan.md</code></div>
-            <div class="file"><small>第二篇</small><code>Notes/beta/Plan.md</code></div>
-          </div>
-          <ul class="outcomes">
-            <li><code>[[Plan]]</code><span><strong>多個目標。</strong>短名無法區分兩篇，yomihon 不代選。</span></li>
-            <li><code>[[Notes/alpha/Plan]]</code><span><strong>一個目標。</strong>完整相對路徑指定 alpha 裡的那篇。</span></li>
-            <li><code>[[Notes/beta/Plan]]</code><span><strong>一個目標。</strong>另一個完整相對路徑指定 beta 裡的那篇。</span></li>
-          </ul>
-        </div>
-        <figcaption>這是依名稱解析規則推演的示例，並非目前 vault 的檔案清單或一次實際執行的輸出。</figcaption>
-      </figure>
-      <p class="takeaway"><strong>反例只推翻過大的結論。</strong>兩篇同名筆記仍能被各自的唯一名稱連到，因此「完全無法連結」不成立。這還沒有證明所有帶路徑的名稱都一定唯一。</p>
-    </section>
-
-    <section aria-labelledby="next-title">
-      <div class="section-head"><span class="section-no" aria-hidden="true">03</span><h2 id="next-title">把修正過的說法再試一次</h2></div>
-      <div class="next">
-        <div>
-          <h3>先留下你的判斷</h3>
-          <p>若第三篇筆記把 <code>Notes/alpha/Plan</code> 宣告成自己的別名，原本那個完整路徑名稱還會只有一個目標嗎？</p>
-        </div>
-        <details>
-          <summary>寫下理由後，再看解析</summary>
-          <p>不會。相同的名稱現在同時指向 alpha 裡的檔案與第三篇筆記。「長得像路徑」不會讓它跳過名稱的歧義檢查。</p>
-          <p>保留下來的條件是「只對應一個檔案」。讀規則時，找出條件，比記住某一次成功的寫法更可靠。</p>
-        </details>
+    <section aria-labelledby="limits-title">
+      <div class="section-head"><span class="section-no" aria-hidden="true">03</span><h2 id="limits-title">通知、關閉、等待，各有責任</h2></div>
+      <div class="case">
+        <ul class="outcomes">
+          <li><strong>consumer 呼叫 cancel</strong><span>表示不再需要結果。cancel 不會強制終止 goroutine，也不等待它結束。</span></li>
+          <li><strong>唯一 producer 關閉 out</strong><span>只有它知道自己不會再送值。consumer 不應用 close 中止 sender；向已關閉 channel 傳送會 panic。</span></li>
+          <li><strong>工作自行處理取消</strong><span>select 才是退出路徑。換成不檢查 Done 的運算或阻塞 I/O，cancel 無法替它中斷。</span></li>
+        </ul>
       </div>
+      <p class="takeaway">若其他程式碼需要確認 producer 已退出，另用 WaitGroup 等待。若 send 與 Done 同時就緒，select 沒有「取消優先」保證。</p>
     </section>
 
     <section aria-labelledby="sources-title">
-      <div class="section-head"><span class="section-no" aria-hidden="true">04</span><h2 id="sources-title">回到材料</h2></div>
-      <p class="muted">以下是可在筆記列表中查找的檔案與段落。這份回顧保留文字來源，即使單獨開啟也能閱讀。</p>
+      <div class="section-head"><span class="section-no" aria-hidden="true">04</span><h2 id="sources-title">Go 官方依據</h2></div>
       <ol class="sources">
-        <li><strong>我的第一版解釋</strong><small><code>Notes/reading/我的第一版解釋.md</code> — 留下待驗證的最初主張。</small></li>
-        <li><strong>名稱解析的三種結果</strong><small><code>Notes/reading/名稱解析的三種結果.md</code> —「同名不等於所有名稱都失效」；核對完整路徑反例與適用條件。</small></li>
-        <li><strong>R03 用反例檢查理解</strong><small><code>Lessons/reading/R03 用反例檢查理解.md</code> — 從自己的預測開始，再與理由對照。</small></li>
+        <li><strong>Pipelines and cancellation</strong><small><code>go.dev/blog/pipelines</code> — Stopping short、Explicit cancellation。</small></li>
+        <li><strong>context：WithCancel、CancelFunc</strong><small><code>pkg.go.dev/context</code> — 取消通知與工作結束是兩回事。</small></li>
+        <li><strong>語言規格：Send、Select、Close</strong><small><code>go.dev/ref/spec</code> — 傳送的阻塞條件、就緒分支選擇及關閉行為。</small></li>
       </ol>
     </section>
 
     <footer>
-      <p>留下一句更準確的解釋，作為下次閱讀的起點。</p>
-      <p>可離線閱讀與列印</p>
+      <p>Go 並行範例</p>
+      <p>2026.09.22</p>
     </footer>
   </main>
 </body>

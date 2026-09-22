@@ -2,13 +2,13 @@
 title: 讀懂 yomihon
 type: study-path
 status: ready
-created: 2026-09-02
+created: 2026-09-22
 lang: zh-Hant
 ---
 
 # 讀懂 yomihon
 
-這是查閱 yomihon 設計與啟動方式的繁中手冊：四篇觀念，接著啟動自己的書庫。想先完成一個閱讀任務，請從 [[把問題讀清楚]] 開始；它有完整的繁中練習，不需要先讀這份手冊。
+yomihon 的契約、狀態與啟動方式。主題教材另見 [[Go 並行入門]]與[[在圖書館讀日文]]。
 
 ## 基本觀念 {sequence=primary}
 
@@ -24,5 +24,4 @@ lang: zh-Hant
 ## 不分先後 {sequence=none}
 
 - [[芭蕉の句]]
-- [[作者實驗室]] — 契約與診斷的副本實驗
 - [[在圖書館讀日文]] — 兩課短對話，練習讀音、聆聽與換詞

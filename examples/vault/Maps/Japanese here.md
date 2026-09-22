@@ -3,7 +3,7 @@ title: 日文閱讀
 type: moc
 status: ready
 map_kind: topic
-created: 2026-04-20
+created: 2026-09-22
 updated: 2026-09-22
 lang: zh-Hant
 ---

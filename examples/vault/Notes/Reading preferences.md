@@ -3,12 +3,12 @@ title: Reading preferences
 type: note
 status: ready
 domain: yomihon
-created: 2026-03-01
+created: 2026-09-22
 updated: 2026-09-22
 lang: en
 ---
 
-Open Settings while reading a passage you want to keep on screen. Change one thing, return to the passage, and read it again before changing another.
+Settings adjusts the reading page without changing the note.
 
 ## Choose for the passage
 
@@ -21,18 +21,14 @@ Open Settings while reading a passage you want to keep on screen. Change one thi
 | Single-key shortcuts | Turn them off if `/` or `[` interrupts your use of the page. Command-K and Escape keep working. |
 | Language | Change the interface between English and Traditional Chinese. The authored lesson keeps its language. |
 
-Changes save as you choose. With scripting disabled, use Apply. The settings can still be saved without scripting; a keyboard shortcut itself needs scripting to act.
+Changes save as you choose. With scripting disabled, use Apply; keyboard shortcuts require scripting.
 
-## Keep a preference separate from a conclusion
+## A comfortable page
 
-~~A larger typeface means I understood more.~~ It may make the passage easier to see. Understanding still needs a question you can answer from it.
+- [ ] Text fits the window without horizontal scrolling.
+- [ ] Code remains readable at the chosen size.
+- [ ] Furigana is visible when needed.
 
-After trying a setting:
+%% These boxes belong to the note; they are not saved preference controls. %%
 
-- [ ] Return to the paragraph and check that it is easier to read.
-- [ ] Say what it claims without looking at the text.
-- [ ] Find the sentence that supports your account.
-
-%% This is a reading checklist, not stored completion state. %%
-
-These choices stay in this browser at this address. They do not edit the note, set its status or travel with the vault. A continuation mark is a separate record; [[內容狀態與閱讀位置]] explains what it keeps.
+These choices stay in this browser at this address. They do not edit the note or travel with the vault. The continuation mark separately keeps one reading position per vault on this machine.

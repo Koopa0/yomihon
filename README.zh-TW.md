@@ -35,7 +35,7 @@ yomihon ~/notes
 ## 它做什麼
 
 - **讀。** wikilink、callout、註腳、表格、Mermaid、程式碼、ruby，照作者寫的呈現。版面為長篇閱讀而設，中日文優先；亮暗兩種桌面，三段字級。
-- **學。** 學習路徑是一門課：課數、上一課與下一課、你在哪一課。振假名可開可關；標了朗讀的段落，用它自己的語言唸。範例知識庫的[《把問題讀清楚》](examples/vault/Notes/Books/把問題讀清楚.md)用五課練習查證與改寫解釋，另有[兩課日文短對話](examples/vault/Notes/Books/在圖書館讀日文.md)及[繁中使用手冊](examples/vault/Notes/中文/讀懂%20yomihon.md)。
+- **學。** 學習路徑是一門課：課數、上一課與下一課、你在哪一課。振假名可開可關；標了朗讀的段落，用它自己的語言唸。範例知識庫的[《Go 並行入門》](examples/vault/Notes/Books/Go%20並行入門.md)用五課講解 goroutine、channel、取消與 worker pool，另有[兩課日文短對話](examples/vault/Notes/Books/在圖書館讀日文.md)及[繁中使用手冊](examples/vault/Notes/中文/讀懂%20yomihon.md)。
 - **找。** 全文搜尋，可按資料夾篩選；反向連結與本頁章節就在正文旁邊。點一筆結果，筆記開在找到的那句話上，不是從頭開始。
 - **檢查。** 整體狀況頁列出沒有目標的連結、沒有人引用的筆記、兩個檔案共用的名字；每篇筆記帶著自己的診斷；命令列是 `yomihon check`。它只回報，不替你修。
 - **報告。** 放在 `System/reports/daily-briefing/` 的簡報，在同一個閱讀室裡隔離打開。

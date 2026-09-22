@@ -5,10 +5,11 @@ status: ready
 domain: yomihon
 topics: [contract, metadata]
 based_on: ["The vault contract"]
-created: 2026-02-20
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-The block between two `---` lines at the top of a note, written in YAML. It is where a note says what it is: its type, its status, what it is about, when it was written.
+Frontmatter is the YAML block between two `---` lines at the start of a note. It holds fields such as `title`, `type`, `status` and `domain`.
 
-yomihon reads all of it and writes one line of it. A key the contract does not list is reported rather than ignored, so a mistyped key name is visible instead of silent.
+The contract declares permitted fields and values. Within its knowledge scope, an undeclared field is a diagnostic. The status control rewrites only the `status` value, preserving the rest of the file.
