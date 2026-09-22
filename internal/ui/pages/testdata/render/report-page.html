@@ -5,5 +5,24 @@
 			if (filter) {
 				filter.hidden = false;
 			}
+			let stored = {};
+			try {
+				stored =
+					JSON.parse(sessionStorage.getItem("yomihon.nav") || "{}") || {};
+			} catch {
+				stored = {};
+			}
+			document
+				.querySelectorAll(".y-rail-left details[data-key]")
+				.forEach((d) => {
+					if (d.hasAttribute("data-chain")) {
+						d.open = true;
+						return;
+					}
+					const want = stored[d.dataset.key];
+					if (typeof want === "boolean") {
+						d.open = want;
+					}
+				});
 		})();
 	</script><main id="main-content" tabindex="-1" class="y-main y-reportmain"><div class="y-reporthead"><h1 class="y-reporttitle">2026-07-10.html</h1><a class="y-reportraw" href="/reports/2026-07-10.html/raw">以原樣開啟</a></div><p class="y-homeempty" data-report-inert>有一部分要靠程式繪製，這裡不執行程式，那些部分不會出現。</p><iframe class="y-reportframe" src="/reports/2026-07-10.html/raw" sandbox="" title="2026-07-10.html"></iframe></main></div></div><script nonce="response-nonce" type="module" src="/static/yomihon.js"></script></body></html>
