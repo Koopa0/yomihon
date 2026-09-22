@@ -499,8 +499,10 @@ type healthWeightTally struct {
 // gives them, heaviest first, and how many distinct files any row of the
 // table names. A kind no rule weighs contributes no entry to Weights — it has
 // no word in the judge's vocabulary to be counted under — and its file still
-// counts toward Files, because the table still lists it.
+// counts toward Files, because the table still lists it. Total includes every
+// finding, whether or not a rule weighs it.
 type healthShape struct {
+	Total   int
 	Weights []healthWeightTally
 	Files   int
 }
@@ -509,9 +511,11 @@ type healthShape struct {
 // them, so this line and what a reader counts down the table can never
 // disagree.
 func healthShapeOf(rows []healthRow) healthShape {
+	var total int
 	var byWeight [judge.SeverityError + 1]int
 	files := make(map[healthFileKey]struct{}, len(rows))
 	for _, row := range rows {
+		total += row.Count
 		if row.Weighed {
 			byWeight[row.Severity] += row.Count
 		}
@@ -523,7 +527,7 @@ func healthShapeOf(rows []healthRow) healthShape {
 			weights = append(weights, healthWeightTally{Severity: s, Count: count})
 		}
 	}
-	return healthShape{Weights: weights, Files: len(files)}
+	return healthShape{Total: total, Weights: weights, Files: len(files)}
 }
 
 // kindLede is what the guide says a kind of finding means. All but one are a
