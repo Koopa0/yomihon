@@ -27,7 +27,9 @@ Every row says whether a note can begin at that status. Writing `initial` on one
 
 ## published is declared and never set
 
-The contract allows `ready → published` and yomihon still does not make that move. The value records a publication that happened somewhere else, and a reading surface cannot attest to one. [[A published note]] carries it, written by hand, and its status panel offers nothing onward.
+The diagram shows transitions the contract allows, including `ready → published`. Yomihon never sets a note **to** `published`, even when the contract permits that target: the value records a publication that happened somewhere else, and a reading surface cannot attest to one.
+
+This restriction concerns the target, not a note already marked `published`. [[A published note]] carries that value, written by hand. Its status panel offers `archived` because this example contract allows `published → archived`, as the diagram shows. Other vaults offer the onward transitions their own contracts permit.
 
 ## What a write is
 
