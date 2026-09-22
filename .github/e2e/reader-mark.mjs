@@ -31,7 +31,7 @@ const NARROW = { width: 390, height: 844 };
 const LANDING_SLACK = 4;
 // The button the folded panel hangs from, and the panel itself: how a reader at
 // the narrow width reaches anything that is in it.
-const FOLD_BUTTON = '[popovertarget="header-fold"]';
+const FOLD_BUTTON = '[popovertarget="_y-header-fold"]';
 const FOLD_PANEL = '.y-headerfold';
 
 const SITES = [

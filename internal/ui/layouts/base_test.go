@@ -231,7 +231,7 @@ func TestShortcutPreferenceLivesWithTheKeysItGoverns(t *testing.T) {
 		t.Fatalf("render header: %v", err)
 	}
 	html := buf.String()
-	panel := elementSubtree(t, html, `id="kbd-help"`)
+	panel := elementSubtree(t, html, `id="_y-kbd-help"`)
 	if !strings.Contains(panel, "data-single-key-shortcuts-toggle") {
 		t.Errorf("the preference is not inside the keyboard help panel; panel = %q", panel)
 	}
@@ -264,7 +264,7 @@ func TestKeyboardHelpSaysWhereTheSidebarKeyActs(t *testing.T) {
 			if err := header(Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render header: %v", err)
 			}
-			panel := elementSubtree(t, buf.String(), `id="kbd-help"`)
+			panel := elementSubtree(t, buf.String(), `id="_y-kbd-help"`)
 			row := shortcutRow(t, panel, "[")
 			if want := wording.ShortcutSidebarNarrowOnly.In(lang); !strings.Contains(row, want) {
 				t.Errorf("the sidebar key's row does not say where it acts; want %q; row = %q", want, row)
@@ -297,7 +297,7 @@ func TestHeaderSearchKeepsAccessibleNameWhenLabelIsVisuallyHidden(t *testing.T) 
 		t.Fatalf("render header: %v", err)
 	}
 	html := buf.String()
-	if !strings.Contains(html, `commandfor="search-dialog" data-search-open aria-label="`+wording.SearchNotes.In(wording.ZhHant)+`"`) {
+	if !strings.Contains(html, `commandfor="_y-search-dialog" data-search-open aria-label="`+wording.SearchNotes.In(wording.ZhHant)+`"`) {
 		t.Errorf("header search control has no stable accessible name; html = %q", html)
 	}
 }
@@ -314,7 +314,7 @@ func TestTheHeaderPressNamesTheDialogItOpens(t *testing.T) {
 		t.Fatalf("render header: %v", err)
 	}
 	html := head.String()
-	if !strings.Contains(html, `<button class="y-searchbtn" type="button" command="show-modal" commandfor="search-dialog"`) {
+	if !strings.Contains(html, `<button class="y-searchbtn" type="button" command="show-modal" commandfor="_y-search-dialog"`) {
 		t.Errorf("the header press does not declare what it opens; html = %q", html)
 	}
 
@@ -322,7 +322,7 @@ func TestTheHeaderPressNamesTheDialogItOpens(t *testing.T) {
 	if err := searchDialog(wording.ZhHant).Render(t.Context(), &dialog); err != nil {
 		t.Fatalf("render search dialog: %v", err)
 	}
-	if !strings.Contains(dialog.String(), `<dialog id="search-dialog"`) {
+	if !strings.Contains(dialog.String(), `<dialog id="_y-search-dialog"`) {
 		t.Errorf("the palette does not carry the id the header press names; html = %q", dialog.String())
 	}
 }

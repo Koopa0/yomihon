@@ -233,7 +233,7 @@ func TestAttributeScanSeesBothAnswers(t *testing.T) {
 	}{
 		{
 			name:   "a press that names the surface and the act",
-			source: `<button type="button" command="show-modal" commandfor="search-dialog">`,
+			source: `<button type="button" command="show-modal" commandfor="_y-search-dialog">`,
 			tags:   1,
 		},
 		{

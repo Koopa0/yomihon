@@ -42,11 +42,11 @@ const FOLDED = [
   '.y-healthlinkbtn',
   '.y-prefslink',
   '[data-textsize-toggle]',
-  '[popovertarget="kbd-help"]',
+  '[popovertarget="_y-kbd-help"]',
   '.y-langbtn',
   '[data-theme-toggle]',
 ];
-const FOLD_BUTTON = '[popovertarget="header-fold"]';
+const FOLD_BUTTON = '[popovertarget="_y-header-fold"]';
 const PANEL = '.y-headerfold';
 
 // What the panel holds that the row never does. The six above move between the
@@ -293,7 +293,7 @@ const readRow = (page, selectors) => page.evaluate(({ folded, panelOnly }) => {
     headerRight: box.right,
     headerOverflow: header.scrollWidth - header.clientWidth,
     wordmarkLost: name.scrollWidth - name.clientWidth,
-    foldButton: inRow('[popovertarget="header-fold"]'),
+    foldButton: inRow('[popovertarget="_y-header-fold"]'),
     folded: Object.fromEntries(folded.map((selector) => [selector, inRow(selector)])),
     panelOnly: Object.fromEntries(panelOnly.map((selector) => [selector, inRow(selector)])),
   };

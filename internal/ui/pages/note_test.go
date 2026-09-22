@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
@@ -721,10 +722,10 @@ func TestTheConceptSheetCloseNamesWhatItCloses(t *testing.T) {
 		t.Fatalf("render concept sheet: %v", err)
 	}
 	html := buf.String()
-	if !strings.Contains(html, `<dialog id="concept-sheet"`) {
+	if !strings.Contains(html, `<dialog id="_y-concept-sheet"`) {
 		t.Errorf("the sheet carries no id for a press to name; html = %q", html)
 	}
-	if !strings.Contains(html, `command="close" commandfor="concept-sheet"`) {
+	if !strings.Contains(html, `command="close" commandfor="_y-concept-sheet"`) {
 		t.Errorf("the close press does not declare what it closes; html = %q", html)
 	}
 	// The sheet is also asked to keep the platform's own two ways out, because
@@ -734,19 +735,22 @@ func TestTheConceptSheetCloseNamesWhatItCloses(t *testing.T) {
 	}
 }
 
-// TestAPressNamesAnOverlayThePageAnswersFirst holds the one thing that decides
-// whether a press declared in the markup reaches the surface it names. A name
-// is answered by whichever element in the page carries it first, and the ids a
-// note stamps on its own headings are folded from the words the author wrote —
-// so a heading called "Search dialog" or "Concept sheet" folds to exactly the
-// name one of these presses uses. Every surface a press names is therefore
-// drawn ahead of the note's own words, where no heading can come before it.
+// TestAPressNamesAnOverlayThePageAnswersFirst keeps every invoker target
+// unique even when authored headings use the old chrome names. The chrome owns
+// its own namespace; rendering must preserve the author's section addresses.
 func TestAPressNamesAnOverlayThePageAnswersFirst(t *testing.T) {
 	t.Parallel()
 
 	model := buildModel(t)
 	var buf bytes.Buffer
-	page := Note(recordedNoteView(t, model, "Writing/lessons/go/L01.md"), recordedChrome())
+	const headings = "## Search dialog\n\n## Concept sheet\n\n## Header fold\n\n## Kbd help\n"
+	view := renderedNoteView(t, model, "Writing/lessons/go/L01.md", headings)
+	for _, id := range []string{"search-dialog", "concept-sheet", "header-fold", "kbd-help"} {
+		if !strings.Contains(view.BodyHTML, `id="`+id+`"`) {
+			t.Errorf("authored section address %q was changed or omitted", id)
+		}
+	}
+	page := Note(view, recordedChrome())
 	if err := page.Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render note page: %v", err)
 	}
@@ -761,6 +765,9 @@ func TestAPressNamesAnOverlayThePageAnswersFirst(t *testing.T) {
 		t.Fatal("no press on this page names a surface, so this test read a page it cannot ask anything of")
 	}
 	for _, match := range named {
+		if graph.SectionID(match[1]) == match[1] {
+			t.Errorf("overlay target %q is inside the authored section namespace", match[1])
+		}
 		id := `id="` + match[1] + `"`
 		first := strings.Index(html, id)
 		switch {
