@@ -135,7 +135,7 @@ func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
 	const (
 		declared = `ui-side__label">聲明的來源`
 		cited    = `ui-side__label">正文連到這篇`
-		islands  = "沒有正文連過來的筆記"
+		islands  = "沒有正文 [[…]] 連結連過來的筆記"
 	)
 	if declared == cited {
 		t.Fatal("the declared-source label and the text-citation label are the same words")
