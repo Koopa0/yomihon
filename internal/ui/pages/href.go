@@ -78,43 +78,9 @@ func ResumeHref(relPath, anchor string, offset int) string {
 // stamped into every address that carries one.
 const resumeOffsetParam = "at"
 
-// hitFragment is the text directive that opens a result where the words the
-// query found are, or "" for a row whose excerpt marked nothing — a note
-// reached through its path or one of its other names has no matched sentence to
-// arrive at.
-//
-// A phrase the index accepts across two blocks is not something the browser
-// can find as one term: those words render in different elements, and a
-// directive built from the whole phrase fails silently and leaves the note at
-// the top. Each end of that match still sits inside one block, so the
-// directive names both — the range between them may span blocks, and a bare
-// first-block term would land on an earlier copy of the same word. When even
-// the first stretch is empty the last block is still a term the page has, so
-// that is what the directive names. When both stretches are empty the row
-// carries no directive, and the page says the match could not be located.
-//
-// Every other body hit still points at the first marked stretch because that
-// is the one the excerpt was cut around: the excerpt opens at the earliest
-// offset any of the query's words reach, so the first mark in it is the first
-// of them the note holds, and the browser goes to the first it finds.
-//
-// Going to the first it finds is also why a stretch that is one ordinary word
-// is not enough on its own. The browser reads the whole page in order, and the
-// reader's navigation is drawn before the article, so a rail label spelling
-// that word answers for the article's copy of it and the note opens with the
-// words the reader searched for still below the screen. Where the note has
-// words ahead of the match in the same block, the directive names them, and
-// the one the reader meant is the one it finds. A match that opens its block
-// has none, and the directive stays the bare term.
-//
-// A bare term is looked for under a rule the introduced one is spared: with
-// nothing ahead of it the browser stops only where a word begins and where one
-// ends. A reader who types the middle of a word matches the middle of it, so
-// searching for the tail of "molybdenum" used to ask the page for a stretch it
-// has nowhere and the note opened at the top. Such a term goes out as the
-// whole word instead. The words the note has ahead of a match are the better
-// answer where the block offers them, so they still decide the shape, and this
-// grown form is what the rest fall back to.
+// hitFragment encodes the destination selected by the search layer. A crossing
+// match names one term in each end block; a normal hit names the first marked
+// excerpt span, whose source context and word edges are known by the index.
 func hitFragment(r *SearchResult) string {
 	if r.BlockCrossing {
 		prefix, start := landingTerm(r)
@@ -133,22 +99,11 @@ func hitFragment(r *SearchResult) string {
 			return ""
 		}
 	}
-	for _, run := range r.SnippetRuns {
-		text := strings.TrimSpace(run.Text)
-		if run.Hit && text != "" {
-			// The words ahead of the match run up to the match itself. An
-			// excerpt opens before it and can carry an earlier copy of one of
-			// the query's words, which is then the first thing marked; that
-			// copy is not what they lead to, so such a row points at it as it
-			// was marked rather than at a place the note never has.
-			if text != strings.TrimSpace(r.Landing) {
-				return textDirective("", text, "")
-			}
-			prefix, start := landingTerm(r)
-			return textDirective(prefix, start, "")
-		}
+	prefix, start := landingTerm(r)
+	if start == "" {
+		return ""
 	}
-	return ""
+	return textDirective(prefix, start, "")
 }
 
 // landingTerm is the opening of a directive that names the landing match: the

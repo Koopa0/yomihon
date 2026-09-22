@@ -84,3 +84,43 @@ The volumes go back on the shelf and the grey cloth is dusted a second time.
 Friday opens on a quiet morning and nothing of consequence is written down.
 
 <ruby>今日<rt>きょう</rt></ruby>は晴れ、molybdenum が続く。
+
+The ledger entry closes with lanthanum here.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+The later pages carry a quiet entry with nothing unusual to report.
+
+A later ledger also records lanthanum here.

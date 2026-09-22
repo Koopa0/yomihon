@@ -38,8 +38,8 @@ type Result struct {
 	// hit in note furniture can tell the two apart.
 	File bool
 
-	// Landing is the first-block stretch a browser text directive can find
-	// for a body hit, whitespace-collapsed the way a snippet is. Empty when
+	// Landing is the selected first-block stretch, with its tail grown to
+	// a word boundary and whitespace collapsed the way a snippet is. Empty when
 	// the row has no body match to point at, or when a crossing match has
 	// nothing locatable in its first block.
 	Landing string
@@ -544,6 +544,12 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
 		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
 		terms = e.landingAt(foldStart, foldEnd)
+		if !terms.crossing {
+			start, end := snippetBounds(e.PlainText, foldStart, foldEnd, e.fenceRanges)
+			if first, last, ok := firstSnippetMatch(e.PlainText[start:end], tokens); ok {
+				terms = e.landingAtSource(start+first, start+last)
+			}
+		}
 	}
 	return Result{
 		RelPath:       e.RelPath,
@@ -617,6 +623,11 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	if start >= end || end > len(e.PlainText) {
 		return landingTerms{}
 	}
+	return e.landingAtSource(start, end)
+}
+
+// landingAtSource places a selected source span on the directive's word edges.
+func (e *entry) landingAtSource(start, end int) landingTerms {
 	var terms landingTerms
 	blockStart, verbatim := e.blockAt(start)
 	if verbatim {
@@ -628,8 +639,8 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 	if terms.crossing {
 		firstStop = firstEnd
 	}
-	terms.first = collapseFields(e.PlainText[start:firstStop])
 	bareStart, bareEnd := wordEdges(e.PlainText, start, firstStop, blockStart, firstEnd)
+	terms.first = collapseFields(e.PlainText[start:bareEnd])
 	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
 	if !terms.crossing {
 		return terms
@@ -782,6 +793,19 @@ func runesAfter(s string, off, n int) int {
 // fold's own mapping: used directly they drift until the window slides clear
 // of the term it was placed around.
 func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
+	start, end := snippetBounds(plain, foldStart, foldEnd, fences)
+	s := collapseFields(plain[start:end])
+	if start > 0 {
+		s = "…" + s
+	}
+	if end < len(plain) {
+		s += "…"
+	}
+	return s
+}
+
+// snippetBounds keeps the excerpt's source span available for landing selection.
+func snippetBounds(plain string, foldStart, foldEnd int, fences [][2]int) (start, end int) {
 	if foldStart < 0 {
 		foldStart, foldEnd = 0, 0
 	}
@@ -803,8 +827,8 @@ func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
 	if !inFence {
 		opening = sentenceStart(plain, opening, off)
 	}
-	start := min(wholeWordStart(plain, opening), off)
-	end := max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
+	start = min(wholeWordStart(plain, opening), off)
+	end = max(wholeWordEnd(plain, runesAfter(plain, off, snippetAfter)), matchEnd)
 	if inFence {
 		start = max(start, fence[0])
 		end = min(end, fence[1])
@@ -815,14 +839,41 @@ func snippetAt(plain string, foldStart, foldEnd int, fences [][2]int) string {
 	}
 	start = clipLeadingRun(plain, start, end, off)
 
-	s := collapseFields(plain[start:end])
-	if start > 0 {
-		s = "…" + s
+	return start, end
+}
+
+// firstSnippetMatch maps the first merged excerpt mark back to source bytes.
+// The mapping keeps collapsed whitespace separate from authored text and never
+// treats the excerpt's added ellipses as part of a note.
+func firstSnippetMatch(plain string, tokens []string) (start, end int, found bool) {
+	var collapsed strings.Builder
+	var offsets []int
+	for at := 0; at < len(plain); {
+		at += whitespaceRun(plain, at)
+		if at == len(plain) {
+			break
+		}
+		if collapsed.Len() > 0 {
+			collapsed.WriteByte(' ')
+			offsets = append(offsets, at-1)
+		}
+		n := wordRun(plain, at)
+		collapsed.WriteString(plain[at : at+n])
+		for i := range n {
+			offsets = append(offsets, at+i)
+		}
+		at += n
 	}
-	if end < len(plain) {
-		s += "…"
+	at := 0
+	for _, run := range MarkHits(collapsed.String(), tokens) {
+		stop := at + len(run.Text)
+		if text := strings.TrimSpace(run.Text); run.Hit && text != "" {
+			at += strings.Index(run.Text, text)
+			return offsets[at], offsets[at+len(text)-1] + 1, true
+		}
+		at = stop
 	}
-	return s
+	return 0, 0, false
 }
 
 func snippet(plain, plainFold string, tokens []string) string {
