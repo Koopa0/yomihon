@@ -296,7 +296,7 @@ func TestHealthShapeStatesCompleteFindingsTotal(t *testing.T) {
 						want = tt.zh
 					}
 					shape := healthShapeLineRe.FindStringSubmatch(buf.String())
-					if shape == nil || !strings.Contains(shape[1], `<span class="y-healthshape__total">`+want+`</span>`) {
+					if len(shape) != 2 || !strings.Contains(shape[1], `<span class="y-healthshape__total">`+want+`</span>`) {
 						t.Fatalf("health shape must state the complete total %q; got %v", want, shape)
 					}
 				})
