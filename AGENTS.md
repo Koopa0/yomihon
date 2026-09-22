@@ -4,7 +4,7 @@ This file governs any agent that opens a pull request here.
 
 ## What you may work on
 
-- Work from an issue that carries the `grok` label. An issue labeled
+- Work from an issue; no dispatch label is required. An issue labeled
   `needs-owner`, `needs-repro`, or `blocked` is not yours until that label
   changes.
 - An issue that an open pull request already references is taken. Stop
