@@ -51,7 +51,7 @@ func TestARailRowReportsAResolutionItHasNoWordsFor(t *testing.T) {
 	chrome := layouts.Chrome{Lang: wording.ZhHant}
 	for name, component := range map[string]templ.Component{
 		"a course row": pathEntryLink(sb, chrome, &nav.PathEntry{Name: "Lesson", Kind: unnamedKind}),
-		"a map row":    entryLink(sb, chrome, nav.MapEntry{Text: "Entry", Kind: unnamedKind}),
+		"a map row":    entryLink(sb, chrome, nav.MapEntry{Name: "Entry", Kind: unnamedKind}),
 	} {
 		t.Run(name+" still draws", func(t *testing.T) {
 			t.Parallel()

@@ -65,11 +65,11 @@ func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
 	t.Parallel()
 
 	prose := nav.Map{Title: "A map written as prose", RelPath: "Maps/Prose map.md", Branches: []nav.Branch{
-		{Heading: "Authors", Entries: []nav.MapEntry{{Text: "Norwegian Wood"}, {Text: "Kafka on the Shore"}}},
-		{Heading: "Forms", Entries: []nav.MapEntry{{Text: "The Wind-Up Bird Chronicle"}}},
-		{Heading: "Editions", Entries: []nav.MapEntry{{Text: "《挪威的森林》"}, {Text: "海辺のカフカ"}}},
-		{Heading: "Places — [[Sputnik Sweetheart]]", Entries: []nav.MapEntry{{Text: "Sputnik Sweetheart"}}},
-		{Heading: "After", Entries: []nav.MapEntry{{Text: "Colorless Tsukuru Tazaki"}}},
+		{Heading: "Authors", Entries: []nav.MapEntry{{Name: "Norwegian Wood"}, {Name: "Kafka on the Shore"}}},
+		{Heading: "Forms", Entries: []nav.MapEntry{{Name: "The Wind-Up Bird Chronicle"}}},
+		{Heading: "Editions", Entries: []nav.MapEntry{{Name: "《挪威的森林》"}, {Name: "海辺のカフカ"}}},
+		{Heading: "Places — [[Sputnik Sweetheart]]", Entries: []nav.MapEntry{{Name: "Sputnik Sweetheart"}}},
+		{Heading: "After", Entries: []nav.MapEntry{{Name: "Colorless Tsukuru Tazaki"}}},
 	}}
 	view := NewMapIndex([]nav.Map{prose}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	want := []Row{{Text: "A map written as prose", Href: "/notes/Maps/Prose%20map.md", Mark: "5 枝"}}

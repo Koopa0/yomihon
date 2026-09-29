@@ -61,3 +61,50 @@ func TestACourseNamesAResolvedRowByAliasThenTitleThenLinkText(t *testing.T) {
 		t.Errorf("steps beside the untitled lesson (-want +got):\n%s", diff)
 	}
 }
+
+// TestAMapNamesAResolvedRowByTheSameRuleAsACourse holds that a map row is named
+// by the rule a course row is: alias, then the note's declared title, then the
+// link text, with a heading or block link keeping its link text and an empty
+// display falling back to the target. The name carries the language the note
+// declared. A row that resolves to nothing is not drawn.
+func TestAMapNamesAResolvedRowByTheSameRuleAsACourse(t *testing.T) {
+	t.Parallel()
+
+	idx := resolver(t, "Writing/aliased.md", "Writing/titled.md", "Writing/untitled.md")
+	body := "## Notes\n\n" +
+		"- [[aliased|My words]]\n" +
+		"- [[titled]]\n" +
+		"- [[Writing/untitled]]\n" +
+		"- [[not written]]\n" +
+		"- [[titled#Part A]]\n" +
+		"- [[titled#^block-b]]\n" +
+		"- [[titled|]]\n" +
+		"- [[Writing/untitled|]]\n" +
+		"- [[titled|titled]]\n"
+	facts := map[string]noteFacts{
+		"Writing/aliased.md": {title: "Aliased: the title"},
+		"Writing/titled.md":  {title: "Titled: the title", language: "ja"},
+	}
+	branches := parseBranches(body, idx, facts, testArtifactPolicy(t))
+	if len(branches) != 1 {
+		t.Fatalf("branches = %d, want 1", len(branches))
+	}
+	type row struct{ Name, Language string }
+	var got []row
+	for _, e := range branches[0].Entries {
+		got = append(got, row{e.Name, e.Language})
+	}
+	want := []row{
+		{"My words", ""},
+		{"Titled: the title", "ja"},
+		{"Writing/untitled", ""},
+		{"titled#Part A", "ja"},
+		{"titled#^block-b", "ja"},
+		{"Titled: the title", "ja"},
+		{"Writing/untitled", ""},
+		{"titled", "ja"},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("map row names (-want +got):\n%s", diff)
+	}
+}

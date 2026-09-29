@@ -6,18 +6,20 @@ status: ready
 domain: yomihon
 topics: [contract]
 replaces: ["An older approach"]
-created: 2026-01-11
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-A folder of Markdown is readable with no contract. The contract tells yomihon what your notes mean: which types exist, which statuses each type may carry, which directories hold knowledge, and which never leave the machine.
+A Markdown folder is readable without a contract. The contract declares note types, permitted fields and statuses, course and map types, scan scope, and command-line privacy boundaries.
 
-It lives at `System/schemas/vault-schema.toml`, and it is the only place these things are defined. Start from this vault's copy. ^single-source
+These declarations belong in `System/schemas/vault-schema.toml`. Use this vault's file as a starting point. ^single-source
 
-Before it there was [[An older approach]], where the folder a note sat in decided what it was.
+It replaces [[An older approach]], which inferred types from folders.
 
 ## The shape of it
+
+This excerpt declares types and the default status vocabulary:
 
 ```toml
 [enums]
@@ -27,8 +29,8 @@ type = ["note", "lesson", "study-path", "moc", "concept", "inbox"]
 note = ["draft", "ready", "published", "archived"]
 ```
 
-The `[[lifecycle]]` rows are the part that matters; see [[The status lifecycle]].
+`[[lifecycle]]` rows define allowed status transitions; see [[The status lifecycle]]. The excerpt is not a complete contract.
 
 ## When it cannot be read
 
-A contract that cannot be parsed is not the same as no contract. yomihon says so on every page and switches the status control off rather than guess.
+An unreadable or invalid contract produces a page notice and disables the status control, courses and maps. Reading, folder navigation and search remain available. The `check`, `coverage` and `exists` commands refuse to run without a usable contract and privacy declaration.
