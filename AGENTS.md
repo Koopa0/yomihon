@@ -60,6 +60,7 @@ Never merge a pull request; opening it ends your work.
 - `make verify` passes on the exact commit you push, not on an earlier one.
 - Never weaken a gate, a golden file, or a test oracle to reach green. If you
   believe a gate is wrong, leave it red and say so under "Needs a ruling".
+- New verification goes into a Go test or a registered `.github/e2e` probe with MUTATE modes; do not add standalone acceptance scripts, CI jobs, or anything that rewrites source files on disk.
 - `make verify` needs more than a Go toolchain. `make tools` installs the Go
   analysis tools; the `Makefile` header pins the three that are not
   go-installable — the Tailwind standalone command-line interface, ShellCheck,
