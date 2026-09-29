@@ -56,6 +56,7 @@ probes=(
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
+  "book-rail-head.mjs|/notes/Course/C02.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
   "motion-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "overlay-commands.mjs|/notes/Writing/lessons/japanese/L01.md"

@@ -24,7 +24,7 @@ func TestAPartShowsTheLessonsItCarries(t *testing.T) {
 		"\t\t- [[S01]]\n" +
 		"\n### 日常 {sequence=none}\n\n- [[R01]]\n" +
 		"\n### 忘了宣告\n\n- [[U01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
 
 	if p.Planned != 2 {
 		t.Fatalf("Planned = %d, want 2", p.Planned)
@@ -75,7 +75,7 @@ func TestPathsHandsOutNoWayBackIntoTheModel(t *testing.T) {
 	// prove it was copied.
 	idx := resolver(t, "Writing/L01.md", "Writing/S01.md", "A/Dup.md", "B/Dup.md")
 	body := "## 主線 {sequence=primary}\n\n- [[L01]]\n- [[Dup]]\n\t- 支線 {sequence=local}\n\t\t- [[S01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
 	m := &Model{paths: []Path{p}}
 
 	if !holdsCandidates(m.Paths()) {
@@ -92,7 +92,7 @@ func TestPathsHandsOutNoWayBackIntoTheModel(t *testing.T) {
 		g.Projectable = false
 		for _, item := range g.Items {
 			if item.Entry != nil {
-				item.Entry.Text = "mutated"
+				item.Entry.Name = "mutated"
 				item.Entry.RelPath = "mutated"
 				if len(item.Entry.Candidates) > 0 {
 					item.Entry.Candidates[0] = "mutated"
@@ -138,7 +138,7 @@ func describeGroups(b *strings.Builder, groups []*PathGroup, indent string) {
 			switch {
 			case item.Entry != nil:
 				e := item.Entry
-				fmt.Fprintf(b, "%s e:%s|%s|%s|%s\n", indent, e.Text, e.Target, e.RelPath, e.Status)
+				fmt.Fprintf(b, "%s e:%s|%s|%s|%s\n", indent, e.Name, e.Target, e.RelPath, e.Status)
 				for _, c := range e.Candidates {
 					fmt.Fprintf(b, "%s  c:%s\n", indent, c)
 				}
@@ -161,7 +161,7 @@ func TestASideBranchCountsOnlyItsOwnLessons(t *testing.T) {
 		"- [[S01]]\n" +
 		"\n### 子群 {sequence=primary}\n\n" +
 		"- [[L01]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
 
 	if len(p.Groups) != 1 {
 		t.Fatalf("top-level branches = %d, want 1", len(p.Groups))
@@ -192,7 +192,7 @@ func TestAnInvalidBranchCountsNothing(t *testing.T) {
 	body := "## 日常 {sequence=none}\n\n" +
 		"### 主線 {sequence=primary}\n\n" +
 		"- [[L01]]\n- [[L02]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
 
 	if p.Planned != 0 {
 		t.Errorf("Planned = %d, want 0; a branch the author has still to repair is not part of the course", p.Planned)

@@ -50,8 +50,7 @@ type NoteView struct {
 	RenderDiagnostics []render.Diagnostic
 	// Prev and Next are the notes either side of this one in the sequence the
 	// foot of the article offers. StepsLabel names that sequence, printed and
-	// spoken alike — a course's step onward, or folder adjacency — so the rail
-	// can keep the path's whole order under a different landmark name.
+	// spoken alike — a course's step onward, or folder adjacency.
 	// StepsCourse says which order arrived, which picks the step words.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
@@ -217,13 +216,13 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
-			<template id={ "concept-" + c.ID } data-title={ c.Title }>
+			<template id={ "concept-" + c.ID } data-title={ conceptSheetTitle(c.Title, lang) }>
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog id="_y-concept-sheet" class="y-conceptsheet" data-concept-sheet aria-label={ wording.GrammarNote.In(lang) } closedby="any">
+		<dialog id="_y-concept-sheet" class="y-conceptsheet" data-concept-sheet aria-labelledby="_y-concept-title" closedby="any">
 			<div class="y-conceptsheet__head">
-				<span class="y-conceptsheet__title" data-concept-title></span>
+				<h2 id="_y-concept-title" class="y-conceptsheet__title" data-concept-title></h2>
 				<button type="button" class="y-iconbtn" command="close" commandfor="_y-concept-sheet" aria-label={ wording.CloseControl.In(lang) }>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
@@ -593,18 +592,18 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 templ statusPanel(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
-		<section class="y-statuspanel" data-status-state={ face.token() }>
+		<section class="y-statuspanel" aria-labelledby={ v.IDPrefix + "status-panel-label" } data-status-state={ face.token() }>
+			<div class="y-statuspanel__head">
+				<div class="y-statuspanel__row">
+					<span class="ui-side__label" id={ v.IDPrefix + "status-panel-label" }>{ wording.StatusBar.In(lang) }</span>
+				</div>
+				if face != faceNonInstance && v.Status != "" {
+					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+				}
+			</div>
 			if face == faceNonInstance {
 				<p class="y-statuspanel__notice">{ wording.NonInstanceReason.In(lang) }</p>
 			} else {
-				<div class="y-statuspanel__head">
-					<div class="y-statuspanel__row">
-						<span class="ui-side__label">{ wording.StatusLabel.In(lang) }</span>
-					</div>
-					if v.Status != "" {
-						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
-					}
-				</div>
 				switch face {
 					case faceWriteUnavailable:
 						<p class="y-statuspanel__notice">
@@ -699,12 +698,12 @@ templ transitionForm(v NoteView, t Transition, lang wording.Lang) {
 		<input type="hidden" name="content_identity" value={ v.ContentIdentity }/>
 		if t.NoReturn {
 			<details class="y-statusconfirm">
-				<summary class="y-xbtn y-statusconfirm__summary" aria-label={ wording.NoReturnSummaryBefore.In(lang) + t.To + wording.NoReturnSummaryAfter.In(lang) }>{ t.To }</summary>
+				<summary class="y-xbtn y-statusconfirm__summary">{ wording.NoReturnSummaryBefore.In(lang) }{ t.To }</summary>
 				<p class="y-statusconfirm__note">{ wording.NoReturnTargetBefore.In(lang) }{ t.To }{ wording.NoReturnTargetAfter.In(lang) }</p>
 				<button class="y-xbtn y-statusconfirm__submit" type="submit" { schemaNoticesRef(&v)... }>{ wording.ConfirmSetBefore.In(lang) }{ t.To }{ wording.ConfirmSetAfter.In(lang) }</button>
 			</details>
 		} else {
-			<button class="y-xbtn" type="submit" { schemaNoticesRef(&v)... }>{ t.To }</button>
+			<button class="y-xbtn" type="submit" { schemaNoticesRef(&v)... }>{ wording.NoReturnSummaryBefore.In(lang) }{ t.To }</button>
 		}
 	</form>
 }
@@ -778,7 +777,8 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 templ statusBar(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
-		<section class="y-sealbar" lang={ lang.Tag() } aria-label={ wording.StatusBar.In(lang) } data-status-state={ face.token() }>
+		<section class="y-sealbar" lang={ lang.Tag() } aria-labelledby={ v.IDPrefix + "status-bar-label" } data-status-state={ face.token() }>
+			<span class="ui-side__label" id={ v.IDPrefix + "status-bar-label" }>{ wording.StatusBar.In(lang) }</span>
 			switch face {
 				case faceNonInstance:
 					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(lang) }</p>

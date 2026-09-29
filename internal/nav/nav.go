@@ -436,7 +436,12 @@ func newModel(
 	// The recent-notes summary is collected in every contract state; paths and
 	// maps exist only as a contract's own classification, so either closed
 	// declaration ends the build with none of them.
-	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
+	facts, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
+	for p, tag := range langs {
+		known := facts[p]
+		known.language = tag
+		facts[p] = known
+	}
 	m.knowledgeNotes = knowledgeNotes
 	m.knowledgeScoped = scope.Available()
 	if m.artifact.Closed() || m.navigation.Closed() {
@@ -447,10 +452,10 @@ func newModel(
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
-			m.paths = append(m.paths, buildPath(n, resolver, statusByPath, langs, policy))
+			m.paths = append(m.paths, buildPath(n, resolver, facts, policy))
 			continue
 		}
-		m.maps = append(m.maps, parseMap(n, resolver, statusByPath, langs, policy))
+		m.maps = append(m.maps, parseMap(n, resolver, facts, policy))
 	}
 	slices.SortStableFunc(m.maps, func(a, b Map) int {
 		if byDomain := cmp.Compare(a.Domain, b.Domain); byDomain != 0 {
@@ -471,18 +476,26 @@ func newModel(
 	return m
 }
 
-// collectNavigationNotes projects already parsed notes into entry badges, Home
-// summaries, and the map notes parsed by newModel. An absent note is skipped
-// without affecting its neighbors.
+// noteFacts is what a row that resolves to a note reads off it: the status
+// badge, the declared article language, and the declared title a course names
+// the lesson by. Each is empty when the note declares none. They travel as one
+// value so a builder cannot be handed one of them in place of another.
+type noteFacts struct {
+	status   string
+	language string
+	title    string
+}
+
+// collectNavigationNotes projects already parsed notes into entry badges and
+// declared titles, Home summaries, and the map notes parsed by newModel. An
+// absent note is skipped without affecting its neighbors.
 func collectNavigationNotes(
 	files []capturedFile,
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
-) (map[string]string, []*vault.Note, []NoteSummary) {
-	statusByPath := make(map[string]string)
-	var mapNotes []*vault.Note
-	var knowledgeNotes []NoteSummary
+) (facts map[string]noteFacts, mapNotes []*vault.Note, knowledgeNotes []NoteSummary) {
+	facts = make(map[string]noteFacts)
 	for _, file := range files {
 		p := file.path
 		if !vault.IsMarkdown(p) || policy.IsNonInstance(p) {
@@ -492,9 +505,10 @@ func collectNavigationNotes(
 		if n == nil {
 			continue
 		}
-		if status := n.Status(); status != "" {
-			statusByPath[p] = status
-		}
+		// The declared title only: Note.Title falls back to the file stem,
+		// which would name a course row by its file again.
+		title, _ := n.Text("title")
+		facts[p] = noteFacts{status: n.Status(), title: title}
 		// Membership is the vault's own declaration, not whether a note happens
 		// to carry a type: a note without frontmatter is still one its author
 		// wrote and still the newest thing they changed.
@@ -511,7 +525,7 @@ func collectNavigationNotes(
 			mapNotes = append(mapNotes, n)
 		}
 	}
-	return statusByPath, mapNotes, knowledgeNotes
+	return facts, mapNotes, knowledgeNotes
 }
 
 // The report projection selects by location alone, and the sidebar drawer asks

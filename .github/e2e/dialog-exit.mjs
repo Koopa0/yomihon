@@ -20,6 +20,7 @@ const CONCEPT = '[data-concept]';
 const PREVIEW = '[data-preview-card]';
 const SHEET_SECTION = 'sheet-opens-at-the-named-section';
 const PREVIEW_LINK = '.y-prose a.wikilink[href="/notes/Notes/Glass%20Tide.md"]:not(.concept-link)';
+const SHEET_NAME = 'sheet-name-follows-title';
 const SITES = [
   'search-exit-has-frames',
   'sheet-exit-has-frames',
@@ -27,6 +28,7 @@ const SITES = [
   'preview-exit-stays-put',
   'reduced-motion-cuts-through',
   SHEET_SECTION,
+  SHEET_NAME,
 ];
 
 class LockFired extends Error {
@@ -82,6 +84,19 @@ const rewriteLesson = (needle, replacement) => async (page) => {
     matched === 1 ? '' : `the lesson needle matched ${matched} times, want exactly 1`;
 };
 
+// The same for the page itself, which is where the sheet's own attributes are.
+const rewriteDocument = (needle, replacement) => async (page) => {
+  let matched = -1;
+  await page.route(`**${PAGE}`, async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    matched = original.split(needle).length - 1;
+    await route.fulfill({ response, body: original.split(needle).join(replacement) });
+  });
+  return () =>
+    matched === 1 ? '' : `the document needle matched ${matched} times, want exactly 1`;
+};
+
 const rewritePreview = (needle, replacement) => async (page) => {
   let matched = -1;
   await page.route('**/static/preview.js', async (route) => {
@@ -133,6 +148,12 @@ const MUTATIONS = {
           : 0;`,
       '        body.scrollTop = 0;',
     ),
+  },
+  // The defect the naming lock exists for: a fixed word names the sheet, so the
+  // accessible name stops being what the reader sees in its title.
+  'restore-fixed-sheet-label': {
+    target: SHEET_NAME,
+    apply: rewriteDocument('aria-labelledby="_y-concept-title"', 'aria-label="Grammar note"'),
   },
   // The original defect on the search dialog: the transition lives only while
   // [open] is set, so close() has nowhere for exit frames to run.
@@ -272,7 +293,7 @@ try {
   // pages below, so this page takes every mode except those. Arming on the aim
   // rather than on a mode name keeps a newly added mutation from either missing
   // the page it was written for or landing on one it was not.
-  proof = MUTATE && MUTATIONS[MUTATE].target !== SHEET_SECTION
+  proof = MUTATE && ![SHEET_SECTION, SHEET_NAME].includes(MUTATIONS[MUTATE].target)
     ? await MUTATIONS[MUTATE].apply(page)
     : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
@@ -400,7 +421,40 @@ try {
     await named.close();
   }
 
-  console.log('PASS dialog-exit: search, sheet, and preview close with frames; preview stays put; reduced motion cuts through');
+  // The sheet is named by the title the reader sees, not by a fixed word, so
+  // it stays right for whatever concept it holds. The name is read from the
+  // browser's accessibility tree, the thing a screen reader is given, in both
+  // interface languages.
+  for (const language of ['zh-Hant', 'en']) {
+    const named = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    if (language === 'en') await named.addCookies([{ name: 'yomihon_lang', value: 'en', url: BASE }]);
+    const namedPage = await named.newPage();
+    const proof = MUTATE && MUTATIONS[MUTATE].target === SHEET_NAME
+      ? await MUTATIONS[MUTATE].apply(namedPage)
+      : null;
+    await namedPage.goto(BASE + PAGE, { waitUntil: 'load' });
+    await namedPage.waitForSelector('html[data-js]');
+    if (proof) {
+      const issue = proof();
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
+    }
+    await namedPage.locator(CONCEPT).first().click();
+    await namedPage.locator(`${SHEET}[open]`).waitFor();
+    const heading = (await namedPage.locator('[data-concept-title]').innerText()).trim();
+    if (heading === '') broken(`the opened sheet shows no title in ${language}, so its name has nothing to equal`);
+    const snapshot = await namedPage.locator(SHEET).ariaSnapshot();
+    const match = /^- dialog "((?:[^"\\]|\\.)*)"/.exec(snapshot);
+    const name = match ? match[1].replace(/\\(.)/g, '$1') : null;
+    if (name !== heading) {
+      fail(
+        SHEET_NAME,
+        `in ${language} the sheet's accessible name is ${JSON.stringify(name)}, want the visible title ${JSON.stringify(heading)}; snapshot = ${JSON.stringify(snapshot.slice(0, 120))}`,
+      );
+    }
+    await named.close();
+  }
+
+  console.log('PASS dialog-exit: search, sheet, and preview close with frames; preview stays put; reduced motion cuts through; the sheet is named by its title');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
