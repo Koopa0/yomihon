@@ -306,3 +306,18 @@ func stepWordNext(course bool, lang wording.Lang) string {
 	}
 	return wording.NextFile.In(lang)
 }
+
+// railToggleTitle is the tooltip the rail's fold control carries on the first
+// byte: the action it will take from the state the cookie says the column is
+// in, with the key that takes it when single keys are on. The script keeps it
+// in step afterwards from the same phrases, which the control carries beside it.
+func railToggleTitle(rail string, lang wording.Lang, keys bool) string {
+	title := wording.HideRail.In(lang)
+	if rail == "collapsed" {
+		title = wording.ShowRail.In(lang)
+	}
+	if keys {
+		title += wording.RailKeyHint.In(lang)
+	}
+	return title
+}

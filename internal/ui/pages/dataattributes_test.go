@@ -35,13 +35,18 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // is read through, which speaking rate a button stands for on
 // a toolbar the client builds, and the label a speak button wore before the
 // client borrowed it — kept on the button so the client has one fewer copy of
-// a sentence the server already wrote there.
+// a sentence the server already wrote there, and the moment a page restored
+// from the back/forward cache is being put in the state its cookie names, which
+// the stylesheet reads to hold its transitions still for that one write, and
+// the length of a fold, for which the stylesheet holds the panel's width.
 var clientOwned = []string{
 	"data-freshness",
 	"data-js",
 	"data-mermaid-error",
 	"data-nav",
 	"data-preview-open",
+	"data-rail-moving",
+	"data-rail-settling",
 	"data-readaloud-idle",
 	"data-reading",
 	"data-speaking",
