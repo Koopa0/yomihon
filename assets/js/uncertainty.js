@@ -17,7 +17,16 @@ export function initUncertainty() {
     .catch(() => {});
 
   function addControl(container, article, path, anchor) {
-    const words = article.dataset;
+    const words = {
+      uncertaintyLang: article.dataset.uncertaintyLang,
+      uncertaintyLabel: article.dataset.uncertaintyLabel,
+      uncertaintyClearLabel: article.dataset.uncertaintyClearLabel,
+      uncertaintyScope: article.dataset.uncertaintyScope,
+      uncertaintyUnavailable: article.dataset.uncertaintyUnavailable,
+      uncertaintySaved: article.dataset.uncertaintySaved,
+      uncertaintyCleared: article.dataset.uncertaintyCleared,
+      uncertaintyFailed: article.dataset.uncertaintyFailed,
+    };
     const key = keyOf(path, anchor);
     const group = document.createElement('div');
     group.dataset.uncertaintyControl = '';

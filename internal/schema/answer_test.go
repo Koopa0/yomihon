@@ -87,16 +87,16 @@ func TestAnswerTypeHasNoFabricatedAuthority(t *testing.T) {
 	}
 }
 
-func TestAnswerTypeFoldsDeclaredWord(t *testing.T) {
+func TestAnswerTypeAcceptsDeclaredUnicodeWord(t *testing.T) {
 	t.Parallel()
-	data := strings.ReplaceAll(validContractV1, "lesson", "r\u00e9ponse")
-	data = strings.Replace(data, "[navigation]\n", "[navigation]\nanswer_type = \"re\u0301ponse\"\n", 1)
+	data := strings.Replace(validContractV1, `type = ["lesson", "study-path", "moc"]`, `type = ["lesson", "study-path", "moc", "réponse"]`, 1)
+	data = strings.Replace(data, "[navigation]\n", "[navigation]\nanswer_type = \"réponse\"\n", 1)
 	contract, err := loadContractBytes(t, []byte(data))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := contract.AnswerType(); got != "r\u00e9ponse" {
-		t.Errorf("AnswerType() = %q, want NFC enum member", got)
+		t.Errorf("AnswerType() = %q, want declared enum member", got)
 	}
 }
 

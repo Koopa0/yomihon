@@ -2248,6 +2248,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"AnswerType": func() string {
+			if got := c.AnswerType(); got != "" {
+				return fmt.Sprintf("AnswerType() = %q, want no declared answer role", got)
+			}
+			return ""
+		},
 		"KnowledgeScope": func() string {
 			if c.KnowledgeScope().Available() {
 				return "KnowledgeScope() claims a declared knowledge layer"

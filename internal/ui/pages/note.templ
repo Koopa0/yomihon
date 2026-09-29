@@ -504,11 +504,15 @@ templ tocList(v NoteView, lang wording.Lang) {
 	<div class="y-toc__list" { authoredLanguageAttrs(v.Language)... }>
 		for _, h := range v.TOC {
 			<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
-			if v.ThoughtDoor {
-				<a href={ templ.URL(thoughtHref(v.RelPath, strings.TrimPrefix(h.ID, v.IDPrefix))) } data-level={ strconv.Itoa(h.Level) } lang={ lang.Tag() } aria-label={ wording.ThoughtSection.In(lang) + ": " + h.Text }>{ wording.ThoughtSection.In(lang) }</a>
-			}
+			@thoughtSectionLink(v, h, lang)
 		}
 	</div>
+}
+
+templ thoughtSectionLink(v NoteView, h render.TOCEntry, lang wording.Lang) {
+	if v.ThoughtDoor {
+		<a href={ templ.URL(thoughtHref(v.RelPath, strings.TrimPrefix(h.ID, v.IDPrefix))) } data-level={ strconv.Itoa(h.Level) } lang={ lang.Tag() } aria-label={ wording.ThoughtSection.In(lang) + ": " + h.Text }>{ wording.ThoughtSection.In(lang) }</a>
+	}
 }
 
 // inlineAids keeps the reading aids reachable at widths where the right rail is
@@ -550,16 +554,7 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 					@basedOnBlock(v, lang)
 				</details>
 			}
-			if len(v.DeclaredBy) > 0 {
-				<details class="y-toc-inline">
-					<summary class="y-toc-inline__summary">
-						@chevron()
-						{ wording.DeclaredBy.In(lang) }
-						<span class="y-diagcount">{ strconv.Itoa(len(v.DeclaredBy)) }</span>
-					</summary>
-					@declaredByBlock(v, lang)
-				</details>
-			}
+			@inlineDeclaredBy(v, lang)
 			// A fact about the library rather than a decoration the narrow
 			// layout can drop, so it folds like the two above it.
 			if v.citedByShown() {

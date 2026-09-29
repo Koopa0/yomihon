@@ -30,6 +30,7 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // whether the voice is available or speaking, whether the drawer is open,
 // whether the outline is mid-travel, what a freshness notice currently says,
 // which link the hover card is currently anchored to — a pointer's position,
+// which uncertainty control the client has added to an authored card or sheet,
 // which no server can know and only the stylesheet acts on —
 // whether a diagram failed to draw, which paragraph the voice is on as a note
 // is read through, which speaking rate a button stands for on
@@ -48,6 +49,7 @@ var clientOwned = []string{
 	"data-speech",
 	"data-speech-rate",
 	"data-traveling",
+	"data-uncertainty-control",
 }
 
 // TestEveryDataAttributeCrossesTheGapWithAReaderOnTheOtherSide holds the
