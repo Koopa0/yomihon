@@ -114,8 +114,9 @@ func serverForIndex(t *testing.T, idx *lexical.Index) *httptest.Server {
 // two blocks must not hand the browser a text directive those blocks cannot
 // satisfy: that directive fails silently and leaves the reader at the top.
 // The first and last block of the match are still on the page, so that is
-// what the href names. The other three rows keep the directive they already
-// had.
+// what the href names. The plain CJK row also names the characters that
+// follow the match up to its full stop, so the match may end inside a word;
+// the other three rows keep the directive they already had.
 func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 	t.Parallel()
 
@@ -130,7 +131,7 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 		{
 			name:  "plain CJK",
 			query: "試讀",
-			href:  notePath + "#:~:text=%E9%80%99%E6%98%AF-,%E8%A9%A6%E8%AE%80",
+			href:  notePath + "#:~:text=%E9%80%99%E6%98%AF-,%E8%A9%A6%E8%AE%80,-%E7%94%A8%E7%9A%84%E5%B0%8E%E8%A8%80",
 		},
 		{
 			name:  "same-paragraph phrase with a line break",

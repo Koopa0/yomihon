@@ -79,6 +79,7 @@ probes=(
   "midword-landing.mjs|/search?q=lybdenum"
   "directive-edges.mjs|/search?q=nthanu"
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
+  "result-landing-suffix.mjs|/search?q=%E3%82%8C%E3%80%81"
   "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
   "search-facets.mjs|/search?q=a"
   "search-overflow.mjs|/search?q=BROWSER_BOUNDARY_ATTACKER"
