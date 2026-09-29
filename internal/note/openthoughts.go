@@ -39,6 +39,7 @@ func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
 // whose declared status is confirmed against the file only if the row is shown.
 type openThoughtCandidate struct {
 	openThoughtRow
+
 	rel string
 }
 
@@ -66,49 +67,13 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 		shelf.Lede = fmt.Sprintf(wording.OpenThoughtsLedeFmt.In(lang), role, stages)
 		shelf.Empty = fmt.Sprintf(wording.OpenThoughtsEmptyFmt.In(lang), role, stages)
 	}
-	fault := ""
-	var candidates []openThoughtCandidate
-	for _, reading := range snap.NotesOfType(role) {
-		if contract.DeclaresInitial(role, reading.Status) {
-			candidates = append(candidates, openThoughtCandidate{openThoughtRow: openNoteRow(&reading, snap), rel: reading.RelPath})
-		}
-	}
-	if h.sources.Uncertainties != nil {
-		marks, err := h.sources.Uncertainties()
-		if err != nil {
-			fault = statedOnce(fault, wording.UncertaintyUnavailable.In(lang))
-		} else {
-			for _, kept := range marks {
-				// A mark whose note this snapshot does not hold is never shown:
-				// its path is text nothing in the vault vouches for.
-				if row, ok := openMarkRow(&kept, snap, lang); ok {
-					candidates = append(candidates, openThoughtCandidate{openThoughtRow: row})
-				}
-			}
-		}
-	}
+	candidates, fault := h.openCandidates(snap, role, lang)
 	slices.SortStableFunc(candidates, func(a, b openThoughtCandidate) int {
 		return cmp.Or(b.at.Compare(a.at), vault.ComparePaths(a.row.Href, b.row.Href), strings.Compare(a.row.Text, b.row.Text))
 	})
-	total := len(candidates)
-	for _, item := range candidates {
-		if limit > 0 && len(shelf.Rows) >= limit {
-			break
-		}
-		if item.rel != "" {
-			status, err := h.sources.ObservedStatus(ctx, item.rel)
-			if err != nil {
-				fault = wording.OpenThoughtsReadFailed.In(lang)
-				total--
-				continue
-			}
-			if !contract.DeclaresInitial(role, status) {
-				total--
-				continue
-			}
-		}
-		shelf.Rows = append(shelf.Rows, item.row)
-	}
+	rows, total, readFault := h.confirmOpenRows(ctx, candidates, role, limit, lang)
+	shelf.Rows = rows
+	fault = cmp.Or(readFault, fault)
 	if fault == "" {
 		count := wording.OpenThoughtsCount
 		if total == 1 {
@@ -120,6 +85,59 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 		shelf.Empty = ""
 	}
 	return shelf, fault
+}
+
+// openCandidates reads the snapshot's notes of the role in an initial status
+// and the kept marks whose notes the snapshot holds. A mark whose note is not
+// in the snapshot is never a candidate: its path is text nothing in the vault
+// vouches for. The fault is set when the mark file cannot be read.
+func (h *Handler) openCandidates(snap *snapshot.Generation, role string, lang wording.Lang) (candidates []openThoughtCandidate, fault string) {
+	notes := snap.NotesOfType(role)
+	for i := range notes {
+		if h.sources.Contract.DeclaresInitial(role, notes[i].Status) {
+			candidates = append(candidates, openThoughtCandidate{openThoughtRow: openNoteRow(&notes[i], snap), rel: notes[i].RelPath})
+		}
+	}
+	if h.sources.Uncertainties == nil {
+		return candidates, ""
+	}
+	marks, err := h.sources.Uncertainties()
+	if err != nil {
+		return candidates, wording.UncertaintyUnavailable.In(lang)
+	}
+	for i := range marks {
+		if row, ok := openMarkRow(&marks[i], snap, lang); ok {
+			candidates = append(candidates, openThoughtCandidate{openThoughtRow: row})
+		}
+	}
+	return candidates, ""
+}
+
+// confirmOpenRows walks the sorted candidates and returns up to limit rows
+// (all when limit is zero), reading the live status of each note row it is
+// about to show. total is the candidate count less any note the live read
+// removed or could not read; a candidate past the limit is counted as it stands.
+func (h *Handler) confirmOpenRows(ctx context.Context, candidates []openThoughtCandidate, role string, limit int, lang wording.Lang) (rows []pages.Row, total int, fault string) {
+	total = len(candidates)
+	for i := range candidates {
+		if limit > 0 && len(rows) >= limit {
+			break
+		}
+		if rel := candidates[i].rel; rel != "" {
+			status, err := h.sources.ObservedStatus(ctx, rel)
+			if err != nil {
+				fault = wording.OpenThoughtsReadFailed.In(lang)
+				total--
+				continue
+			}
+			if !h.sources.Contract.DeclaresInitial(role, status) {
+				total--
+				continue
+			}
+		}
+		rows = append(rows, candidates[i].row)
+	}
+	return rows, total, fault
 }
 
 func openNoteRow(reading *snapshot.Reading, snap *snapshot.Generation) openThoughtRow {

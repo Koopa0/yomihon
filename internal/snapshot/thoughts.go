@@ -17,7 +17,8 @@ func (g *Generation) NotesOfType(noteType string) []Reading {
 	}
 	var notes []Reading
 	policy := g.ArtifactPolicy()
-	for _, reading := range g.notes {
+	for rel := range g.notes {
+		reading := g.notes[rel]
 		if schema.NormalizeWord(reading.Type) == noteType && !policy.IsNonInstance(reading.RelPath) {
 			notes = append(notes, reading)
 		}

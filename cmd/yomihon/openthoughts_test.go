@@ -74,6 +74,7 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 	}
 	for _, lang := range []string{"en", "zh-Hant"} {
 		t.Run(lang, func(t *testing.T) {
+			t.Parallel()
 			home := openThoughtPage(t, site, "/", lang)
 			block := openThoughtBlock(t, home)
 			if got := strings.Count(block, "data-desk-item"); got != 5 {
@@ -120,7 +121,7 @@ func TestOpenThoughtsRechecksStatusBeforeTheNextScan(t *testing.T) {
 		t.Fatal("initial thought is absent")
 	}
 	for _, change := range []struct{ from, to string }{{"started", "revisit"}, {"revisit", "settled"}} {
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- a path under this test's TempDir
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -319,8 +320,8 @@ func openThoughtSite(t *testing.T, root string) (*readingSite, *mark.File) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := site.close(); err != nil {
-			t.Error(err)
+		if closeErr := site.close(); closeErr != nil {
+			t.Error(closeErr)
 		}
 	})
 	// Keep one generation so the live-status assertion cannot pass because a
@@ -337,7 +338,7 @@ func openThoughtSite(t *testing.T, root string) (*readingSite, *mark.File) {
 func openThoughtPage(t *testing.T, site *readingSite, address, lang string) string {
 	t.Helper()
 	req := siteRequest(t, http.MethodGet, address, http.NoBody)
-	req.AddCookie(&http.Cookie{Name: "yomihon_lang", Value: lang})
+	req.AddCookie(&http.Cookie{Name: "yomihon_lang", Value: lang, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	recorder := httptest.NewRecorder()
 	site.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
