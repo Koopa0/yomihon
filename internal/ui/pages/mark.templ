@@ -1,6 +1,9 @@
 package pages
 
-import "github.com/koopa0/yomihon/internal/wording"
+import (
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
 
 // markControl is the reader's own verb on a reading page: keep this place, so
 // the desk can offer it back. It sits beside the status panel because both are
@@ -24,7 +27,7 @@ templ markControl(v NoteView, lang wording.Lang) {
 		>
 			<button type="button" class="y-xbtn" data-mark-button>{ wording.MarkSetControl.In(lang) }</button>
 			<p class="y-markset__note">{ wording.MarkPerDevice.In(lang) }</p>
-			<p class="y-markset__said" data-mark-said role="status" aria-live="polite" aria-atomic="true"></p>
+			@layouts.Reply("y-markset__said", templ.Attributes{"data-mark-said": true})
 		</section>
 	}
 }

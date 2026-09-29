@@ -11,7 +11,7 @@ const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const RAW = '/raw/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 
-const SITES = ['entrance-fade', 'address-cleanup'];
+const SITES = ['entrance-fade', 'reduced-motion', 'address-cleanup'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -30,19 +30,16 @@ const broken = (message) => { throw new ProbeBroken(`BROKEN flip-receipt-contrac
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED flip-receipt-contract: ${message}`); };
 
 const rewriteFetched = (pattern, needle, replacement, label) => async (page) => {
-  let matches = 0;
-  let counted = false;
+  const counts = [];
   await page.route(pattern, async (route) => {
     const response = await route.fetch();
     const original = await response.text();
-    if (!counted) {
-      matches = original.split(needle).length - 1;
-      counted = true;
-    }
-    await route.fulfill({ response, body: original.replace(needle, replacement) });
+    const matches = typeof needle === 'string' ? original.split(needle).length - 1 : [...original.matchAll(needle)].length;
+    counts.push(matches);
+    await route.fulfill({ response, body: matches === 1 ? original.replace(needle, replacement) : original });
   });
   return () => {
-    if (matches !== 1) return `${label} needle matched ${matches} times, want exactly 1`;
+    if (counts.length === 0 || counts.some((count) => count !== 1)) return `${label} needle matched [${counts.join(', ')}], want exactly 1 in every response`;
     return '';
   };
 };
@@ -52,9 +49,18 @@ const MUTATIONS = {
     target: 'entrance-fade',
     apply: rewriteFetched(
       '**/app.css',
-      'animation:y-flipreceipt-in',
+      /animation\s*:\s*y-reply-in\b/g,
       'animation:none',
       'flip receipt entrance animation',
+    ),
+  },
+  'keep-motion-under-reduce': {
+    target: 'reduced-motion',
+    apply: rewriteFetched(
+      '**/app.css',
+      /\.y-reply:not\(:empty\)\s*\{/g,
+      '.y-reply.y-reply:not(:empty){animation-duration:1s!important;',
+      'the shared reply entrance duration',
     ),
   },
   'drop-address-cleanup': {
@@ -126,10 +132,12 @@ const injectReceipt = async (page) => {
     }
     const response = await route.fetch();
     const original = await response.text();
-    const receipt = '<p class="y-flipreceipt" role="status">fixture receipt</p>';
-    const body = original.includes('class="y-flipreceipt"')
+    const receipt = '<p class="y-reply y-flipreceipt" role="status" aria-live="polite" aria-atomic="true" data-reply-tone="kept">fixture receipt</p>';
+    const main = /<main\b[^>]*\bid="main-content"[^>]*>/g;
+    if ([...original.matchAll(main)].length !== 1) broken('the receipt fixture needs exactly one main landmark');
+    const body = /class="[^"]*\by-flipreceipt\b/.test(original)
       ? original
-      : original.replace('<main id="main-content"', `${receipt}<main id="main-content"`);
+      : original.replace(main, `$&${receipt}`);
     await route.fulfill({ response, body });
   });
   const noteResponse = await page.goto(arrival, { waitUntil: 'domcontentloaded' });
@@ -171,8 +179,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 
-  const flipped = MUTATE !== 'drop-address-cleanup';
-  if (MUTATE === 'drop-address-cleanup') await injectReceipt(page);
+  // The mutation driver shares one fixture server across modes. Only the
+  // existing entrance mode consumes its draft-to-ready transition; later
+  // client/CSS modes use a receipt fixture and never need a second write.
+  const flipped = !['drop-address-cleanup', 'keep-motion-under-reduce'].includes(MUTATE);
+  if (!flipped) await injectReceipt(page);
   else await flipToReceipt(page);
 
   const receipt = page.locator('.y-flipreceipt');
@@ -186,11 +197,26 @@ try {
   }
 
   const entrance = await readEntranceDeclaration(receipt);
-  if (entrance.name !== 'y-flipreceipt-in') {
-    fail('entrance-fade', `entrance animation is ${JSON.stringify(entrance.name)}, want "y-flipreceipt-in"`);
+  if (entrance.name !== 'y-reply-in') {
+    fail('entrance-fade', `entrance animation is ${JSON.stringify(entrance.name)}, want "y-reply-in"`);
   }
   if (parseFloat(entrance.duration) <= 0) {
     fail('entrance-fade', `entrance duration is ${JSON.stringify(entrance.duration)}, want a non-zero duration`);
+  }
+
+  const kept = await receipt.evaluate((element) => element.classList.contains('y-reply')
+    && element.dataset.replyTone === 'kept'
+    && element.getAttribute('role') === 'status'
+    && element.getAttribute('aria-live') === 'polite'
+    && element.getAttribute('aria-atomic') === 'true');
+  // A preservation control, not an additional mutation-proof claim. The
+  // normal run reads the server's real receipt; client-only modes inject it.
+  if (!kept) broken('the flip receipt lost its shared kept-reply semantics');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const reduced = await readEntranceDeclaration(receipt);
+  if (parseFloat(reduced.duration) > 0.001) {
+    fail('reduced-motion', `the shared receipt entrance lasts ${reduced.duration} under reduced motion`);
   }
 
   await page.waitForFunction(() => !new URL(location.href).searchParams.has('from'), null, { timeout: 2000 }).catch(() => {});

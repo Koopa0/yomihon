@@ -4,12 +4,12 @@ type: note
 status: ready
 domain: yomihon
 topics: [links, resolution]
-created: 2026-02-02
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-`[[Name]]` resolves by filename and by alias, never by title. A note whose title differs from its filename is reached by the filename or by an alias it declares. Writing the title into the link is the commonest way a link misses; the health page has a section for it.
+`[[Name]]` resolves by filename, vault-relative path or alias, never by title. Each must identify exactly one file.
 
 `[[Name|other words]]` keeps that target and shows the other words instead: [[The vault contract|the contract]] goes where its filename would have gone.
 
@@ -18,7 +18,7 @@ lang: en
 A name resolves to one file, to several, or to none.
 
 - One file: an ordinary link.
-- Several: nothing is linked, and the name is marked ambiguous. yomihon does not pick, because ==the vault gave it no way to know which one you meant==.
+- Several: nothing is linked, and the name is marked ambiguous. yomihon does not pick, because ==the name identifies more than one file==.
 - None: the link is marked where it sits, with the reason.
 
 [[A name nobody has written]] is the third case, live, in this sentence.

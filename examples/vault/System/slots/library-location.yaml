@@ -1,0 +1,36 @@
+lesson: J01
+slug: jp-library-find-a-book
+title: 找到書的位置
+note: 先組出「辭典在書架」，再組出「雜誌在桌上」。這組練習只放物品，不放人物。
+patterns:
+  - id: object-location
+    template: "{A}は{B}にあります。"
+    gloss_zh: "{A}在{B}。"
+    note: 物品和場所各自替換；句尾保持「にあります」。
+    slots:
+      A:
+        label_zh: 要找的物品
+        color: topic
+        fills:
+          - jp: 辞書
+            reading: じしょ
+            zh: 辭典
+          - jp: 雑誌
+            reading: ざっし
+            zh: 雜誌
+          - jp: 本
+            reading: ほん
+            zh: 書
+      B:
+        label_zh: 物品的位置
+        color: place
+        fills:
+          - jp: 本棚
+            reading: ほんだな
+            zh: 書架
+          - jp: 机の上
+            reading: つくえのうえ
+            zh: 桌上
+          - jp: かばんの中
+            reading: かばんのなか
+            zh: 包包裡

@@ -5,46 +5,28 @@ status: ready
 domain: yomihon
 slug: l02-add-a-contract
 level: fundamental
-created: 2026-01-09
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-Copy this vault's `System/schemas/vault-schema.toml` to the same path inside
-your own vault, then change it until it describes your notes. That path is the
-only one it is read from, and it is never written back.
+Copy `System/schemas/vault-schema.toml` into the same path in your vault.
+Adapt its vocabulary and directories to your files. yomihon reads this file
+but never writes it.
 
-For a vault that already carries statuses, which section would you change
-first, and why?
+If your notes already carry statuses, which section should you check first?
 
 > [!question]- After you have decided
-> `[enums]` and `[fields]`, together — not `[[lifecycle]]`, which is where the
-> statuses you are already writing seem to point. A lifecycle names statuses,
-> and every status it names has to be a value `[enums]` declares, so moving the
-> lifecycle first means writing transitions between words the vocabulary
-> underneath them has not settled on yet. Each later cut to `[enums]` then
-> sends you back through the lifecycle to repair it. The order below is that
-> reasoning written down.
+> 1. `[enums]` and `[fields]`: the keys and values in your notes. See [[Frontmatter]].
+> 2. `[scan]`: the directories to check.
+> 3. `[[lifecycle]]`: transitions among the declared statuses. See [[The status lifecycle]].
 >
-> Where it does not hold: a vault whose statuses you intend to keep exactly as
-> they are. Then the vocabulary has already stopped moving, nothing later
-> shifts under the lifecycle, and starting there costs nothing — but the way
-> you find that out is by opening `[enums]`, which is the first section either
-> way.
->
-> Change it in this order:
->
-> 1. `[enums]` and `[fields]`, together. Start from the frontmatter your notes
->    already carry — [[Frontmatter]] says where to look — and cut both down to
->    the keys and the values you really write.
-> 2. `[scan]`, naming the directories that hold knowledge rather than machinery.
-> 3. `[[lifecycle]]` last. It is the part that needs the most thought, and it is
->    easier to judge once the vocabulary above it has stopped moving:
->    [[The status lifecycle]].
+> The lifecycle depends on the status vocabulary. Changing that vocabulary
+> first avoids revisiting transitions after each edit. If you are keeping the
+> existing vocabulary, you can work on the lifecycle immediately.
 
-It is validated whole, so a half-finished edit closes the status control until
-the edit is finished. Reading, folders and search do not depend on any of it
-and carry on.
+An invalid contract disables status changes. Reading, folders and search
+remain available.
 
 ## What each section opens
 
@@ -55,9 +37,9 @@ and carry on.
 | `[scan]` | Which directories hold knowledge. What lies outside them is still read, and is not judged. |
 | `[navigation]` | Study paths and maps. |
 | `[artifacts]` | The directories holding shapes to copy rather than notes under a lifecycle. Leave it out and no note anywhere gets a status control. |
-| `[privacy]` | The directories nothing may quote back out — and with them the command line, which refuses to report at all until the section is there. |
+| `[privacy]` | Directories withheld from agent-facing output. The command line refuses to report until this section exists. |
 | `[rules]` | The checks on a slug, on a domain against its folder, and on a tag. |
-| `[supersession]` | The two fields that record which note replaced which. |
+| `[supersession]` | Fields recording which note replaced which. |
 
 One declaration can require another. Put `lesson` in `enums.type` and
 `rules.slug_pattern` becomes required, because a lesson carries a slug and

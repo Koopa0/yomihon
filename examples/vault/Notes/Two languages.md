@@ -3,13 +3,13 @@ title: Two languages
 type: note
 status: ready
 domain: yomihon
-created: 2026-08-29
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-Everything yomihon says in its own voice exists in English and Traditional Chinese; the control in the header switches between them.
+The header switches the interface between English and Traditional Chinese.
 
-Your notes do not switch. This sentence stays as written whichever language the interface is speaking; [[芭蕉の句]] declares its own language[^tag] and keeps it while the frame around it changes.
+Note text is not translated. A note can declare its language[^tag]: [[芭蕉の句]] remains Japanese under either interface.
 
-[^tag]: In the `lang` field, written as a BCP 47 tag — `ja`, `zh-Hant`, `en`. A note that leaves it out inherits whatever the page is speaking.
+[^tag]: The `lang` field takes a BCP 47 tag such as `ja`, `zh-Hant` or `en`. The contract must permit the field. Without a declared note language, the content inherits the page language.

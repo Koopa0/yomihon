@@ -3,11 +3,11 @@ title: An older approach
 type: note
 status: archived
 domain: yomihon
-created: 2026-01-02
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-Before the contract, types and statuses were guessed from directory names. A folder rename silently changed what every note in it meant, and nothing could report that. [[The vault contract]] replaced it.
+Archived design: infer types and statuses from directory names. Renaming a folder would then change those classifications. [[The vault contract]] replaces inference with explicit declarations.
 
-The maps stopped listing this note once it was archived. The note that took its place says so in `replaces` instead, so the relationship survives without a live map pointing at a dead end.
+Current maps omit this archived example. Its replacement names it in `replaces`, preserving the relationship while this page remains readable.

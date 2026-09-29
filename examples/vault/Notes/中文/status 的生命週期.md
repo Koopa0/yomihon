@@ -3,8 +3,8 @@ title: status 的生命週期
 type: note
 status: ready
 domain: yomihon
-created: 2026-01-18
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: zh-Hant
 ---
 
