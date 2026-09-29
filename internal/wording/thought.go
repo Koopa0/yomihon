@@ -21,8 +21,9 @@ var ThoughtCopyFailed = both("請選取上方文字，手動複製。", "Select 
 // ThoughtObsidian names the optional external editor action.
 var ThoughtObsidian = both("在 Obsidian 建立筆記", "Create in Obsidian")
 
-// ThoughtSection labels a section-specific handoff in the contents list.
-var ThoughtSection = both("留想法", "Leave a thought")
+// ThoughtSectionFmt names the section-specific handoff in the contents list
+// for the one section it belongs to; the argument is the heading's own text.
+var ThoughtSectionFmt = both("留想法：%s", "Leave a thought: %s")
 
 // DeclaredBy labels reverse source declarations, distinct from body backlinks.
 var DeclaredBy = both("以這篇為來源的筆記", "Notes based on this")

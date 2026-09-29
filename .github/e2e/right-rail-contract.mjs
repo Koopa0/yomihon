@@ -14,7 +14,8 @@ const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const SITE = 'rail-content-reachable';
 const ORDER_SITE = 'reading-precedes-the-ruling';
-const SITES = [SITE, ORDER_SITE];
+const DOOR_SITE = 'contents-door-shares-its-row';
+const SITES = [SITE, ORDER_SITE, DOOR_SITE];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -27,6 +28,7 @@ class NotApplied extends Error {}
 
 const fail = (message) => { throw new LockFired(SITE, `FAIL right-rail-contract: ${message}`); };
 const failOrder = (message) => { throw new LockFired(ORDER_SITE, `FAIL right-rail-contract: ${message}`); };
+const failDoor = (message) => { throw new LockFired(DOOR_SITE, `FAIL right-rail-contract: ${message}`); };
 const broken = (message) => { throw new ProbeBroken(`BROKEN right-rail-contract: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED right-rail-contract: ${message}`); };
 
@@ -65,7 +67,40 @@ const rulingFirst = async (page) => {
   return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page');
 };
 
+// Restores the door as a row of its own: a row that stacks its children puts
+// the door under the heading link, which is the doubled list the door was
+// folded into the row to end.
+const separateDoorRow = async (page) => {
+  let seen = 0;
+  await page.route('**/static/app.css', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    seen += 1;
+    await route.fulfill({ response, body: `${original}\n.y-toc__row:has(.y-toc__door){display:block}\n` });
+  });
+  return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page');
+};
+
+// The fixture's contract names no answer type, so its pages draw no thought
+// doors, and naming one would change the outline every other probe counts and
+// walks. The rows are the product's own, one per heading; each is given the
+// door the template would write into it, so what is measured is the product's
+// stylesheet against a row that holds a door. The door's markup is locked by
+// the render test in internal/ui/pages.
+const standUpDoors = (page) => page.evaluate(() => {
+  const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+  const rows = document.querySelectorAll('.y-toc__row');
+  for (const row of rows) {
+    row.insertAdjacentHTML('beforeend', `<a class="y-toc__door" href="/thought/probe" aria-label="Leave a thought: ${row.firstElementChild.textContent}">${icon}</a>`);
+  }
+  return rows.length;
+});
+
 const MUTATIONS = {
+  'restore-the-separate-door-row': {
+    target: DOOR_SITE,
+    apply: separateDoorRow,
+  },
   'restore-child-shrink': {
     target: SITE,
     apply: restoreChildShrink,
@@ -276,7 +311,76 @@ try {
     await page.close();
   }
 
-  console.log('PASS right-rail-contract: the reading leads and the ruling closes the rail, and every block stays reachable at 1600×768 and 1600×900');
+  // Case: the section doors. One heading stays one row with its door trailing
+  // inside it; the door is drawn on hover and on focus, and always where there
+  // is no hover, without widening the phone.
+  {
+    const wide = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await wide.newPage();
+    const proof = MUTATE === 'restore-the-separate-door-row' ? await MUTATIONS[MUTATE].apply(page) : null;
+    await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => document.fonts.ready);
+    if (proof) {
+      const issue = proof();
+      if (issue) notApplied(`restore-the-separate-door-row: ${issue}`);
+    }
+    if (await standUpDoors(page) < 2) broken(`${PAGE} has fewer than two headings, so there is no row to measure`);
+    const railRows = page.locator('.y-rail-right .y-toc__row');
+    const rowCount = await railRows.count();
+    if (rowCount < 2) broken('the rail draws fewer than two contents rows');
+    for (let i = 0; i < rowCount; i += 1) {
+      const shape = await railRows.nth(i).evaluate((row) => {
+        const box = (element) => element.getBoundingClientRect();
+        const link = row.firstElementChild;
+        const door = row.querySelector('.y-toc__door');
+        return { row: box(row), link: box(link), door: box(door), opacity: getComputedStyle(door).opacity, doors: row.querySelectorAll('.y-toc__door').length };
+      });
+      if (shape.doors !== 1) broken(`contents row ${i + 1} holds ${shape.doors} doors, want 1`);
+      if (shape.row.height > shape.link.height + 1) {
+        failDoor(`contents row ${i + 1} is ${shape.row.height}px tall around a ${shape.link.height}px heading link, so its door is a row of its own`);
+      }
+      if (!(shape.door.left >= shape.link.right - 1 && shape.door.right <= shape.row.right + 1 && shape.door.top >= shape.row.top - 1 && shape.door.bottom <= shape.row.bottom + 1)) {
+        failDoor(`contents row ${i + 1} does not hold its door trailing the heading: ${JSON.stringify(shape)}`);
+      }
+      if (shape.opacity !== '0') failDoor(`contents row ${i + 1} draws its door (opacity ${shape.opacity}) with no pointer on the row and no focus in it`);
+    }
+    const door = page.locator('.y-rail-right .y-toc__door').first();
+    await railRows.first().hover();
+    if (await door.evaluate((element) => getComputedStyle(element).opacity) !== '1') failDoor('hovering a contents row does not draw its door');
+    await page.mouse.move(700, 500);
+    if (await door.evaluate((element) => getComputedStyle(element).opacity) !== '0') failDoor('the door stays drawn after the pointer leaves its row');
+    await door.focus();
+    if (await door.evaluate((element) => getComputedStyle(element).opacity) !== '1') failDoor('focus inside a contents row does not draw its door');
+    await wide.close();
+
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    const narrow = await phone.newPage();
+    await narrow.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await narrow.evaluate(() => document.fonts.ready);
+    await standUpDoors(narrow);
+    await narrow.locator('details.y-toc-inline summary').first().click();
+    const inline = narrow.locator('.y-toc-inline .y-toc__door').first();
+    await inline.waitFor({ state: 'visible' });
+    // A box pinned to the viewport is the gauge the document's own width is
+    // judged against: nothing that widens the page can be what widened it.
+    const coarse = await narrow.evaluate(() => {
+      const gauge = document.createElement('div');
+      gauge.style.cssText = 'position:fixed;inset:0;pointer-events:none';
+      document.body.append(gauge);
+      const viewport = gauge.getBoundingClientRect().width;
+      gauge.remove();
+      // The fold cuts off what is inside it, so a door pushed past the phone is
+      // lost without the document growing; its own edge is measured too.
+      const door = document.querySelector('.y-toc-inline .y-toc__door').getBoundingClientRect();
+      return { coarse: matchMedia('(pointer: coarse)').matches, overflow: Math.max(document.documentElement.scrollWidth - viewport, door.right - viewport) };
+    });
+    if (!coarse.coarse) broken('the phone context does not report a coarse pointer');
+    if (await inline.evaluate((element) => getComputedStyle(element).opacity) !== '1') failDoor('under a coarse pointer the door is not drawn without a hover');
+    if (coarse.overflow > 0) failDoor(`the doors widen the phone by ${coarse.overflow}px`);
+    await phone.close();
+  }
+
+  console.log('PASS right-rail-contract: the reading leads and the ruling closes the rail, every block stays reachable at 1600×768 and 1600×900, and each contents row holds its own door');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
