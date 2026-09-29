@@ -40,7 +40,10 @@ type Branch struct {
 // because their order is a curriculum. The shelf's branch count is how many
 // headings this list keeps alive, so the rail and the shelf name the same tree.
 type MapEntry struct {
-	Text       string
+	// Name is what the map prints for the row: the alias its author wrote,
+	// else the resolved note's own title, else the link text. A row that
+	// addresses a heading or block keeps its link text unless it wrote an alias.
+	Name       string
 	Target     string
 	RelPath    string
 	Status     string
@@ -147,7 +150,7 @@ func attachLiveLinks(
 		if len(stack) == 0 {
 			continue
 		}
-		entry := resolveEntry(link.Target, link.Display, idx, facts, policy)
+		entry := resolveEntry(link, idx, facts, policy)
 		if entry.Kind != EntryResolved {
 			continue
 		}
@@ -220,14 +223,15 @@ func headingLabel(text string) string {
 // Unresolved, ambiguous and non-instance targets get distinct warning kinds
 // and are dropped by parseBranches; only a uniquely resolved governed row
 // becomes an entry the rail can follow.
-func resolveEntry(target, display string, idx *graph.Index, facts map[string]noteFacts, policy schema.ArtifactPolicy) MapEntry {
-	res := idx.Resolve(target)
-	entry := MapEntry{Text: display, Target: target, Kind: entryKindOf(res, policy)}
+func resolveEntry(link sequence.Link, idx *graph.Index, facts map[string]noteFacts, policy schema.ArtifactPolicy) MapEntry {
+	res := idx.Resolve(link.Target)
+	entry := MapEntry{Name: linkText(link.Display, link.Target), Target: link.Target, Kind: entryKindOf(res, policy)}
 	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
 		known := facts[res.RelPath]
 		entry.Status = known.status
 		entry.Language = known.language
+		entry.Name = rowName(link.Display, link.Target, link.Aliased, link.Fragment, known.title)
 	}
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)

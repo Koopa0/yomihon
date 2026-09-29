@@ -259,7 +259,7 @@ func buildPathEntry(
 	policy schema.ArtifactPolicy,
 ) *PathEntry {
 	entry := &PathEntry{
-		Name:   linkText(c),
+		Name:   linkText(c.Text, c.Target),
 		Target: c.Target,
 		Line:   c.Line,
 		Span:   c.Span,
@@ -275,7 +275,7 @@ func buildPathEntry(
 		known := facts[res.RelPath]
 		entry.Status = known.status
 		entry.Language = known.language
-		entry.Name = courseRowName(c, known.title)
+		entry.Name = rowName(c.Text, c.Target, c.Aliased, c.Fragment, known.title)
 	}
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)
@@ -283,27 +283,27 @@ func buildPathEntry(
 	return entry
 }
 
-// courseRowName is what a course prints for a row whose target resolved: the
-// author's alias when the row wrote one, otherwise the note's own title, and
-// the link text only for a note that declares no title. The alias is read from
-// the link as a fact, never inferred by comparing display text with the target.
-// A link that addresses a heading or block names a place inside the note, so
-// its title would give two different destinations one name: it keeps its link
-// text unless it wrote an alias. A link whose display came out empty prints
-// its target.
-func courseRowName(c *sequence.Candidate, title string) string {
-	if c.Aliased || c.Fragment || title == "" {
-		return linkText(c)
+// rowName is what a course or a map prints for a row whose target resolved:
+// the author's alias when the row wrote one, otherwise the note's own title,
+// and the link text only for a note that declares no title. The alias is read
+// from the link as a fact, never inferred by comparing display text with the
+// target. A link that addresses a heading or block names a place inside the
+// note, so its title would give two different destinations one name: it keeps
+// its link text unless it wrote an alias. A link whose display came out empty
+// prints its target.
+func rowName(display, target string, aliased, fragment bool, title string) string {
+	if aliased || fragment || title == "" {
+		return linkText(display, target)
 	}
 	return title
 }
 
-// linkText is the words the row's link shows, the target when it shows none.
-func linkText(c *sequence.Candidate) string {
-	if c.Text == "" {
-		return c.Target
+// linkText is the words a row's link shows, the target when it shows none.
+func linkText(display, target string) string {
+	if display == "" {
+		return target
 	}
-	return c.Text
+	return display
 }
 
 // mainLine is the primary walk's result: how many lessons the course plans,
