@@ -735,6 +735,65 @@ func TestTheConceptSheetCloseNamesWhatItCloses(t *testing.T) {
 	}
 }
 
+// TestTheConceptSheetIsNamedByItsTitle holds the sheet's accessible name to
+// the words the reader sees in its head: the dialog points at the heading the
+// script fills, rather than carrying a fixed word that would drift from it. A
+// concept that arrives untitled still gets a name, because the heading is what
+// names the sheet and an empty one would leave it unnamed.
+func TestTheConceptSheetIsNamedByItsTitle(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		lang wording.Lang
+		want string
+	}{
+		{"zh-Hant", wording.ZhHant, "概念筆記"},
+		{"en", wording.En, "Concept note"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			concepts := []lesson.ConceptDoc{
+				{ID: "c1", Title: "は", HTML: "<p>concept</p>"},
+				{ID: "c2", Title: "  ", HTML: "<p>untitled</p>"},
+			}
+			if err := conceptSheet(concepts, tc.lang).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render concept sheet: %v", err)
+			}
+			html := buf.String()
+
+			dialog := regexp.MustCompile(`<dialog [^>]*>`).FindString(html)
+			if dialog == "" {
+				t.Fatalf("no dialog rendered; html = %q", html)
+			}
+			match := regexp.MustCompile(`aria-labelledby="([^"]+)"`).FindStringSubmatch(dialog)
+			if match == nil {
+				t.Fatalf("the sheet is not named by a title; dialog = %q", dialog)
+			}
+			if strings.Contains(dialog, "aria-label=") {
+				t.Errorf("a fixed aria-label still names the sheet; dialog = %q", dialog)
+			}
+			heading := regexp.MustCompile(`<h2 [^>]*id="` + regexp.QuoteMeta(match[1]) + `"[^>]*>`).FindString(html)
+			if heading == "" {
+				t.Fatalf("the sheet names id %q and no heading carries it; html = %q", match[1], html)
+			}
+			if strings.Count(html, `id="`+match[1]+`"`) != 1 {
+				t.Errorf("id %q is not unique on the sheet; html = %q", match[1], html)
+			}
+			if graph.SectionID(match[1]) == match[1] {
+				t.Errorf("title id %q is inside the authored section namespace", match[1])
+			}
+			if !strings.Contains(html, `data-title="は"`) {
+				t.Errorf("a titled concept lost its title; html = %q", html)
+			}
+			if !strings.Contains(html, `data-title="`+tc.want+`"`) {
+				t.Errorf("an untitled concept has no neutral name %q; html = %q", tc.want, html)
+			}
+		})
+	}
+}
+
 // TestAPressNamesAnOverlayThePageAnswersFirst keeps every invoker target
 // unique even when authored headings use the old chrome names. The chrome owns
 // its own namespace; rendering must preserve the author's section addresses.

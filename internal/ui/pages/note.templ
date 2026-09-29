@@ -216,13 +216,13 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
-			<template id={ "concept-" + c.ID } data-title={ c.Title }>
+			<template id={ "concept-" + c.ID } data-title={ conceptSheetTitle(c.Title, lang) }>
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog id="_y-concept-sheet" class="y-conceptsheet" data-concept-sheet aria-label={ wording.GrammarNote.In(lang) } closedby="any">
+		<dialog id="_y-concept-sheet" class="y-conceptsheet" data-concept-sheet aria-labelledby="_y-concept-title" closedby="any">
 			<div class="y-conceptsheet__head">
-				<span class="y-conceptsheet__title" data-concept-title></span>
+				<h2 id="_y-concept-title" class="y-conceptsheet__title" data-concept-title></h2>
 				<button type="button" class="y-iconbtn" command="close" commandfor="_y-concept-sheet" aria-label={ wording.CloseControl.In(lang) }>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
