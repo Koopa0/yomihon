@@ -2,6 +2,7 @@ package pages
 
 import (
 	"github.com/a-h/templ"
+
 	"github.com/koopa0/yomihon/internal/wording"
 )
 

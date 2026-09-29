@@ -72,6 +72,14 @@ MODES = {
         "test": "TestCorruptUncertaintiesAreNeverReplaced",
         "assertion": "toggle damaged file = <nil>; want unreadable",
     },
+    "compare-mark-prefix": {
+        "file": "internal/ui/pages/uncertainty.go",
+        "before": '"data-uncertainty-prefix":      v.IDPrefix,',
+        "after": '"data-uncertainty-prefix":      "",',
+        "package": "internal/ui/pages",
+        "test": "TestACompareColumnMarkUsesItsQualifiedIDSpace",
+        "assertion": 'compare column mark prefix "b-" occurs 0 times',
+    },
 }
 
 
