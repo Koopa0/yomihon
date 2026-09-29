@@ -82,7 +82,7 @@ func TestLiveRegionOwnershipInventory(t *testing.T) {
 func liveRegionSourceFiles(t *testing.T) []string {
 	t.Helper()
 	paths := clientModules(t)
-	root := filepath.Join(repoRoot, "internal/ui")
+	root := filepath.Join(repoRoot, "internal", "ui")
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
