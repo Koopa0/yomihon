@@ -44,7 +44,7 @@ yomihon ~/notes
 
 ## 目前狀態
 
-[範例書庫導讀](examples/README.md)整理了各本書、刻意保留的診斷案例，以及每個閱讀任務用到的功能。
+[範例書庫導讀](examples/README.zh-TW.md)整理了各本書、刻意保留的診斷案例，以及每個閱讀任務用到的功能。
 
 開發中；第一個穩定版之前，介面還會變。缺陷請開 [Issues](https://github.com/koopa0/yomihon/issues)，安全性問題請走 [GitHub 私密漏洞回報](https://github.com/koopa0/yomihon/security/advisories/new)。
 
