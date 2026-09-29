@@ -157,7 +157,7 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			if strings.Contains(openThoughtPage(t, site, "/", "en"), `data-home-block="open-thoughts"`) {
 				t.Error("an empty marks-only block displaced the ordinary folder entry")
 			}
-			for lang, sentence := range map[string]string{"en": "No locations marked “Not sure yet”.", "zh-Hant": "尚無「還不確定」的位置標記。"} {
+			for lang, sentence := range map[string]string{"en": `No locations marked "Not sure yet".`, "zh-Hant": "尚無「還不確定」的位置標記。"} {
 				if !strings.Contains(openThoughtPage(t, site, "/open-thoughts", lang), sentence) {
 					t.Errorf("marks-only empty state is missing %q", sentence)
 				}
