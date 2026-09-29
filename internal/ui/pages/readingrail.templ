@@ -103,7 +103,7 @@ templ bookRailEntry(c layouts.Chrome, entry PathEntryView) {
 			{ currentAttr(entry.Here)... }
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
-			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
+			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
 			if entry.Status != "" && !entry.Here {
 				<span class="ui-navitem__count">{ entry.Status }</span>
 			}
@@ -115,7 +115,7 @@ templ bookRailEntry(c layouts.Chrome, entry PathEntryView) {
 			title={ entryResolutionTitle(entry.Kind, c.Lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Text }</span>
+			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
 			<span class="ui-navitem__count">{ entryResolutionLabel(entry.Kind, c.Lang) }</span>
 		</span>
 	}

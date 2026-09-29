@@ -376,7 +376,7 @@ func TestParseWikilink(t *testing.T) {
 		{
 			name:  "display text replaces the label and leaves the heading intact",
 			inner: "玻璃潮初稿#第三節：失約的燈|回到那一段", ok: true,
-			want: graph.Wikilink{Target: "玻璃潮初稿", Display: "回到那一段", Heading: "第三節：失約的燈"},
+			want: graph.Wikilink{Target: "玻璃潮初稿", Display: "回到那一段", Aliased: true, Heading: "第三節：失約的燈"},
 		},
 		{
 			name:  "a block address is its own kind of fragment",
@@ -399,12 +399,12 @@ func TestParseWikilink(t *testing.T) {
 		{
 			name:  "an escaped table-cell pipe still separates the display text",
 			inner: `Go Slice#Internals\|see`, ok: true,
-			want: graph.Wikilink{Target: "Go Slice", Display: "see", Heading: "Internals"},
+			want: graph.Wikilink{Target: "Go Slice", Display: "see", Aliased: true, Heading: "Internals"},
 		},
 		{
 			name:  "the display separator is the first pipe, so a second pipe belongs to the display text",
 			inner: "Note|a|b", ok: true,
-			want: graph.Wikilink{Target: "Note", Display: "a|b"},
+			want: graph.Wikilink{Target: "Note", Display: "a|b", Aliased: true},
 		},
 		{
 			// A cell can stack escapes; every trailing backslash comes off the
@@ -412,12 +412,25 @@ func TestParseWikilink(t *testing.T) {
 			// the same target as no escape at all.
 			name:  "every trailing backslash ahead of the pipe is stripped",
 			inner: `Go Slice\\\|see`, ok: true,
-			want: graph.Wikilink{Target: "Go Slice", Display: "see"},
+			want: graph.Wikilink{Target: "Go Slice", Display: "see", Aliased: true},
 		},
 		{
 			name:  "surrounding space belongs to neither the name nor the heading",
 			inner: "  Go Slice #  Internals  ", ok: true,
 			want: graph.Wikilink{Target: "Go Slice", Display: "Go Slice #  Internals", Heading: "Internals"},
+		},
+		{
+			// The alias is a fact about what was written, not a comparison of
+			// the display text with the target: an author who repeats the name
+			// after the pipe still wrote one.
+			name:  "an alias equal to the name is still an alias",
+			inner: "Note|Note", ok: true,
+			want: graph.Wikilink{Target: "Note", Display: "Note", Aliased: true},
+		},
+		{
+			name:  "a separator with nothing after it wrote no alias",
+			inner: "Note|", ok: true,
+			want: graph.Wikilink{Target: "Note"},
 		},
 		{
 			name:  "a bare heading names no other file",
