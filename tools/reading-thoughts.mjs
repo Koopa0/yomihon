@@ -122,6 +122,7 @@ async function uncertaintyRoundTrip(page, base, words) {
   const anchor = await page.locator('.y-slotcard__abstract[id]').getAttribute('id');
   await page.locator(slot).click();
   await pressed(page, slot, true);
+  assert.equal(await page.locator(slot).textContent(), words.clear, 'saved state has a visible removal action');
   let held = await records(page, base);
   assert.equal(held.length, 1);
   assert.equal(held[0].path, lessonRel);
@@ -131,9 +132,11 @@ async function uncertaintyRoundTrip(page, base, words) {
   const savedTime = held[0].time;
   await page.reload({ waitUntil: 'load' });
   await pressed(page, slot, true);
+  assert.equal(await page.locator(slot).textContent(), words.clear, 'reloaded state remains visible');
   assert.equal((await records(page, base))[0].time, savedTime, 'reload reads the saved record instead of adding another');
   await page.locator(slot).click();
   await pressed(page, slot, false);
+  assert.equal(await page.locator(slot).textContent(), words.mark, 'cleared state returns to the original action');
   assert.deepEqual(await records(page, base), [], 'unmark removes the persisted slot location');
 
   const trigger = page.locator('[data-concept][href*="#"]').first();
@@ -143,6 +146,7 @@ async function uncertaintyRoundTrip(page, base, words) {
   assert.equal(await page.locator(concept).textContent(), words.mark, 'concept control is translated');
   await page.locator(concept).click();
   await pressed(page, concept, true);
+  assert.equal(await page.locator(concept).textContent(), words.clear, 'concept state is visible');
   held = await records(page, base);
   assert.equal(held.length, 1);
   assert.equal(held[0].path, conceptRel, 'concept mark names the concept source, not the enclosing lesson');
@@ -150,6 +154,7 @@ async function uncertaintyRoundTrip(page, base, words) {
   await page.reload({ waitUntil: 'load' });
   await page.locator('[data-concept][href*="#"]').first().click();
   await pressed(page, concept, true);
+  assert.equal(await page.locator(concept).textContent(), words.clear, 'reloaded concept state is visible');
   await page.locator(concept).click();
   await pressed(page, concept, false);
   assert.deepEqual(await records(page, base), [], 'concept unmark survives the next server read');
@@ -161,8 +166,8 @@ async function probe() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     for (const words of [
-      { lang: 'en', door: 'Leave a thought', mark: 'Not sure yet' },
-      { lang: 'zh-Hant', door: '留下自己的想法', mark: '還不確定' },
+      { lang: 'en', door: 'Leave a thought', mark: 'Not sure yet', clear: 'Remove mark' },
+      { lang: 'zh-Hant', door: '留下自己的想法', mark: '還不確定', clear: '移除標記' },
     ]) {
       await copyableWithoutScript(browser, base, words);
       const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
