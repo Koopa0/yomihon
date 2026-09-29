@@ -241,7 +241,7 @@ const readShape = (page) => page.evaluate(() => {
     word: link.querySelector('.y-severity')?.textContent.trim() ?? '',
     count: Number(link.textContent.replace(/\D+/g, '')),
   }));
-  const files = shape.querySelector(':scope > span:not([aria-hidden])');
+  const files = shape.querySelector(':scope > span:last-child');
   return { weights, filesText: files ? files.textContent.trim() : '' };
 });
 
