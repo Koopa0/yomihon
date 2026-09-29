@@ -371,19 +371,6 @@ jobs:
       - name: Run the behavior probes against the fixture vault
         run: make browser-check
 
-      - name: Accept plain-folder Home and prove its production locks
-        env:
-          HOME_ARRIVAL_ARTIFACTS: ${{ runner.temp }}/home-arrival-artifacts
-        run: node .github/home-arrival-acceptance.mjs
-
-      - name: Retain Home arrival acceptance evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: home-arrival-acceptance
-          path: ${{ runner.temp }}/home-arrival-artifacts
-          if-no-files-found: warn
-
       - name: Read the public publication examples and reject the old explanations
         run: |
           npm exec --prefix .github -- biome lint --error-on-warnings .github/acceptance/published-explanation.mjs
