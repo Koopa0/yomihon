@@ -141,7 +141,7 @@ templ preferenceField(f PreferenceField) {
 				</label>
 			}
 		</div>
-		<p class="y-preffield__status" data-pref-status data-pref-refused={ f.Refused } role="status" aria-live="polite" aria-atomic="true"></p>
+		@layouts.Reply("y-preffield__status", templ.Attributes{"data-pref-status": true, "data-pref-refused": f.Refused, "data-reply-tone": "refused"})
 	</fieldset>
 }
 
