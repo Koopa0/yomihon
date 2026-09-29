@@ -3342,6 +3342,12 @@ main#main-content {
   grid-template-columns: repeat(12, minmax(0, 1fr));
 }
 
+/* The reader's return shelf precedes the four navigation modes as one row;
+   those four keep their existing two-by-two organisation beneath it. */
+.y-homegrid > [data-home-block='open-thoughts'] {
+  grid-column: 1 / -1;
+}
+
 .y-homeblock {
   background: var(--panel);
   border: 1px solid var(--border);

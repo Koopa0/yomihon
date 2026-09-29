@@ -72,8 +72,8 @@ async function ready(page, selector, value) {
   }, { selector, value });
 }
 
-async function nativeShelf(browser, base, copy) {
-  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
+async function nativeShelf(browser, base, copy, width) {
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width, height: 900 } });
   try {
     await context.addCookies([{ name: 'yomihon_lang', value: copy.lang, url: base }]);
     const page = await context.newPage();
@@ -90,10 +90,13 @@ async function nativeShelf(browser, base, copy) {
       }), 'Home source location stays visibly readable instead of clipped');
     }
     assert.equal(await block.locator('..').getAttribute('class'), 'y-homegrid', 'existing grid supplies spacing between shelves');
+    const bounds = await block.boundingBox();
+    const grid = await block.locator('..').boundingBox();
+    assert(Math.abs(bounds.width - grid.width) <= 1, 'return shelf spans the grid above the four navigation modes');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'narrow Home has no horizontal overflow');
     const screenshots = join(process.env.RUNNER_TEMP || '/tmp', 'open-thoughts-screenshots');
     await mkdir(screenshots, { recursive: true });
-    await page.screenshot({ path: join(screenshots, `home-${copy.lang}-390.png`), fullPage: true });
+    await page.screenshot({ path: join(screenshots, `home-${copy.lang}-${width}.png`), fullPage: true });
     await block.locator('a.y-shelfall').click();
     assert.equal(new URL(page.url()).pathname, '/open-thoughts');
     const rows = page.locator('[data-index-row]');
@@ -102,7 +105,7 @@ async function nativeShelf(browser, base, copy) {
       '/notes/Outside/Open7.md', ...[6, 5, 4, 3, 2, 1].map((i) => `/notes/Notes/Open${i}.md`),
     ], 'whole ordered answer set');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'narrow full shelf has no horizontal overflow');
-    await page.screenshot({ path: join(screenshots, `all-${copy.lang}-390.png`), fullPage: true });
+    await page.screenshot({ path: join(screenshots, `all-${copy.lang}-${width}.png`), fullPage: true });
     await rows.last().click();
     assert.equal(new URL(page.url()).pathname, '/notes/Notes/Open1.md', 'oldest thought remains reachable');
     assert(await page.locator('.y-article').isVisible());
@@ -189,7 +192,7 @@ async function probe() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     for (const copy of words) {
-      await nativeShelf(browser, base, copy);
+      for (const width of [390, 1600]) await nativeShelf(browser, base, copy, width);
       await marksFromShelf(browser, base, copy);
       console.log(`PASS open-thoughts ${copy.lang}: five/all native shelf, exact ordered set, authored section, slot and concept source return/clear`);
     }
