@@ -3,12 +3,15 @@ package archlock
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // These are declarations, not files allowed to contain arbitrary live regions.
@@ -16,10 +19,12 @@ import (
 // it creates, identify each owner. Search counts, Japanese practice, speech
 // controls and freshness have their own contracts; only action replies share
 // Reply. Missing declarations fail just as added ones do.
-var liveRegionOwners = []struct {
+type liveRegionOwner struct {
 	path, owner string
 	attributes  []string
-}{
+}
+
+var liveRegionOwners = []liveRegionOwner{
 	{"internal/ui/layouts/reply.templ", "Reply/p.y-reply", []string{"role=status", "aria-live=polite"}},
 	{"internal/ui/layouts/livesearch.templ", "LiveSearchStatus/p.y-live-search__status", []string{"role=status", "aria-live=polite"}},
 	{"internal/ui/pages/slotmachine.templ", "slotCard/p.y-slotlive.y-offscreen", []string{"role=status", "aria-live=polite"}},
@@ -39,41 +44,57 @@ var (
 
 func TestLiveRegionOwnershipInventory(t *testing.T) {
 	t.Parallel()
+	sources := make(map[string]string)
+	for _, path := range liveRegionSourceFiles(t) {
+		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- repository paths enumerated above
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		sources[path] = string(data)
+	}
+	for _, problem := range liveRegionInventoryProblems(liveRegionOwners, sources) {
+		t.Error(problem)
+	}
+}
+
+// liveRegionInventoryProblems compares the live regions declared in sources,
+// keyed by repository path, with the owners' declarations and reports every
+// difference: an element that holds too few or too many, a declaration nobody
+// owns, a declaration an owner lost, and a mention the scan cannot read.
+func liveRegionInventoryProblems(owners []liveRegionOwner, sources map[string]string) []string {
 	want := make(map[string]int)
-	for _, owner := range liveRegionOwners {
+	for _, owner := range owners {
 		for _, attribute := range owner.attributes {
 			want[owner.path+" "+owner.owner+" "+attribute]++
 		}
 	}
 	found := make(map[string]int)
 	elements := make(map[string]int)
-	for _, path := range liveRegionSourceFiles(t) {
-		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- repository paths enumerated above
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		scanLiveRegionDeclarations(t, path, withoutLiveRegionComments(string(data)), found, elements)
+	var problems []string
+	for _, path := range slices.Sorted(maps.Keys(sources)) {
+		problems = append(problems, scanLiveRegionDeclarations(path, withoutLiveRegionComments(sources[path]), found, elements)...)
 	}
 	// The two attributes must belong to one element. Two lookalike elements
 	// with one attribute each cannot satisfy a single owner's declaration.
-	for _, owner := range liveRegionOwners {
+	for _, owner := range owners {
 		if strings.HasSuffix(owner.path, ".templ") {
 			key := owner.path + " " + owner.owner
 			if elements[key] != 1 {
-				t.Errorf("live-region owner %s has %d elements, want exactly one", key, elements[key])
+				problems = append(problems, fmt.Sprintf("live-region owner %s has %d elements, want exactly one", key, elements[key]))
 			}
 		}
 	}
-	for key, count := range found {
-		if count != want[key] {
-			t.Errorf("added live-region declaration: %s (found %d, want %d)", key, count, want[key])
+	for _, key := range slices.Sorted(maps.Keys(found)) {
+		if found[key] != want[key] {
+			problems = append(problems, fmt.Sprintf("added live-region declaration: %s (found %d, want %d)", key, found[key], want[key]))
 		}
 	}
-	for key, count := range want {
-		if found[key] < count {
-			t.Errorf("missing live-region declaration: %s (found %d, want %d)", key, found[key], count)
+	for _, key := range slices.Sorted(maps.Keys(want)) {
+		if found[key] < want[key] {
+			problems = append(problems, fmt.Sprintf("missing live-region declaration: %s (found %d, want %d)", key, found[key], want[key]))
 		}
 	}
+	return problems
 }
 
 // Every template under internal/ui participates, including any future fixture
@@ -117,8 +138,8 @@ func withoutLiveRegionComments(source string) string {
 	return strings.Join(lines, "\n")
 }
 
-func scanLiveRegionDeclarations(t *testing.T, path, source string, found, elements map[string]int) {
-	t.Helper()
+func scanLiveRegionDeclarations(path, source string, found, elements map[string]int) []string {
+	var problems []string
 	covered := make([]bool, len(source))
 	record := func(start, end int, owner, attribute, value string) {
 		for i := start; i < end; i++ {
@@ -148,9 +169,10 @@ func scanLiveRegionDeclarations(t *testing.T, path, source string, found, elemen
 	for _, token := range liveRegionToken.FindAllStringIndex(source, -1) {
 		if !covered[token[0]] {
 			line := 1 + strings.Count(source[:token[0]], "\n")
-			t.Errorf("%s:%d unreadable live-region declaration near %q; name its element and use a literal attribute", path, line, source[token[0]:token[1]])
+			problems = append(problems, fmt.Sprintf("%s:%d unreadable live-region declaration near %q; name its element and use a literal attribute", path, line, source[token[0]:token[1]]))
 		}
 	}
+	return problems
 }
 
 func liveTemplateOwner(before string) string {
@@ -181,4 +203,86 @@ func liveJSOwner(before, receiver string) string {
 		return fmt.Sprintf("%s/%s.%s", receiver, element[1], strings.Join(strings.Fields(element[2]), "."))
 	}
 	return receiver + "/unowned"
+}
+
+const (
+	syntheticReplyTemplate = "templ Reply() {\n\t<p class=\"y-reply\" role=\"status\" aria-live=\"polite\"></p>\n}\n"
+	syntheticSpeechScript  = "const speechStatus = document.createElement('span');\nspeechStatus.className = 'y-tts';\nspeechStatus.setAttribute('aria-live', 'polite');\n"
+)
+
+var syntheticLiveRegionOwners = []liveRegionOwner{
+	{"reply.templ", "Reply/p.y-reply", []string{"role=status", "aria-live=polite"}},
+	{"speech.js", "speechStatus/span.y-tts", []string{"aria-live=polite"}},
+}
+
+// TestLiveRegionInventoryRejectsAddedAndMissingDeclarations feeds the
+// inventory synthetic sources, so no repository file has to be edited to show
+// that it fails closed in each direction.
+func TestLiveRegionInventoryRejectsAddedAndMissingDeclarations(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		change func(sources map[string]string)
+		want   []string
+	}{
+		{
+			name:   "the declared regions alone",
+			change: func(map[string]string) {},
+			want:   nil,
+		},
+		{
+			name: "a template gains a live region",
+			change: func(sources map[string]string) {
+				sources["probe.templ"] = "templ Probe() {\n\t<p class=\"y-probe\" role=\"status\"></p>\n}\n"
+			},
+			want: []string{"added live-region declaration: probe.templ Probe/p.y-probe role=status (found 1, want 0)"},
+		},
+		{
+			name: "a script gains a live region",
+			change: func(sources map[string]string) {
+				sources["probe.js"] = "const probe = document.createElement('p');\nprobe.className = 'y-probe';\nprobe.setAttribute('aria-live', 'polite');\n"
+			},
+			want: []string{"added live-region declaration: probe.js probe/p.y-probe aria-live=polite (found 1, want 0)"},
+		},
+		{
+			name: "a template loses its role",
+			change: func(sources map[string]string) {
+				sources["reply.templ"] = strings.Replace(sources["reply.templ"], ` role="status"`, "", 1)
+			},
+			want: []string{"missing live-region declaration: reply.templ Reply/p.y-reply role=status (found 0, want 1)"},
+		},
+		{
+			name: "a script loses its live attribute",
+			change: func(sources map[string]string) {
+				sources["speech.js"] = strings.Replace(sources["speech.js"], "speechStatus.setAttribute('aria-live', 'polite');\n", "", 1)
+			},
+			want: []string{"missing live-region declaration: speech.js speechStatus/span.y-tts aria-live=polite (found 0, want 1)"},
+		},
+		{
+			name: "a role moves to another element",
+			change: func(sources map[string]string) {
+				sources["reply.templ"] = "templ Reply() {\n\t<p class=\"y-reply\" aria-live=\"polite\"></p>\n\t<p class=\"y-gloss\" role=\"status\"></p>\n}\n"
+			},
+			want: []string{
+				"added live-region declaration: reply.templ Reply/p.y-gloss role=status (found 1, want 0)",
+				"missing live-region declaration: reply.templ Reply/p.y-reply role=status (found 0, want 1)",
+			},
+		},
+		{
+			name: "a script sets the attribute in a shape the scan cannot read",
+			change: func(sources map[string]string) {
+				sources["speech.js"] += "speechStatus.ariaLive = 'polite';\n"
+			},
+			want: []string{`speech.js:4 unreadable live-region declaration near "ariaLive"; name its element and use a literal attribute`},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sources := map[string]string{"reply.templ": syntheticReplyTemplate, "speech.js": syntheticSpeechScript}
+			tt.change(sources)
+			if diff := cmp.Diff(tt.want, liveRegionInventoryProblems(syntheticLiveRegionOwners, sources)); diff != "" {
+				t.Errorf("inventory problems mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
 }
