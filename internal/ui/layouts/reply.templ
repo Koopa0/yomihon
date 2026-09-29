@@ -5,6 +5,7 @@ package layouts
 // and its presentation. Children keep authored status tokens language-tagged.
 // An empty reply keeps its region in the document without taking up space.
 templ Reply(class string, attrs templ.Attributes) {
-	<p class={ "y-reply " + class } role="status" aria-live="polite" aria-atomic="true" { attrs... }>{ children... }
-</p>
+	<p class={ "y-reply " + class } role="status" aria-live="polite" aria-atomic="true" { attrs... }>
+		{ children... }
+	</p>
 }
