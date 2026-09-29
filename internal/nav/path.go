@@ -135,7 +135,11 @@ type PathItem struct {
 // the grammar decided; the resolution fields are meaningful only for an
 // accepted entry, since a refused row is never resolved.
 type PathEntry struct {
-	Text   string
+	// Name is what a course prints for the row. A resolved row is named by
+	// the alias its author wrote, else by the note's own title, else by the
+	// link text; a row that resolved to nothing keeps its link text, since no
+	// note was read to say better.
+	Name   string
 	Target string
 	Line   int
 	Span   sequence.Span
@@ -165,8 +169,7 @@ func (e *PathEntry) Openable() bool {
 func buildPath(
 	n *vault.Note,
 	idx *graph.Index,
-	statusByPath map[string]string,
-	langsByPath map[string]string,
+	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
 ) Path {
 	doc := sequence.Parse(n.Body, n.BodyLine)
@@ -178,7 +181,7 @@ func buildPath(
 		Diagnostics: doc.Diagnostics,
 	}
 	for _, g := range doc.Groups {
-		p.Groups = append(p.Groups, buildPathGroup(g, idx, statusByPath, langsByPath, policy))
+		p.Groups = append(p.Groups, buildPathGroup(g, idx, facts, policy))
 	}
 	main, locals := projectStops(p.Groups)
 	p.Planned = main.planned
@@ -199,8 +202,7 @@ func buildPath(
 func buildPathGroup(
 	g *sequence.Group,
 	idx *graph.Index,
-	statusByPath map[string]string,
-	langsByPath map[string]string,
+	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
 ) *PathGroup {
 	out := &PathGroup{
@@ -219,13 +221,13 @@ func buildPathGroup(
 	for _, item := range g.Items {
 		switch {
 		case item.Entry != nil:
-			entry := buildPathEntry(item.Entry, idx, statusByPath, langsByPath, policy)
+			entry := buildPathEntry(item.Entry, idx, facts, policy)
 			if entry.State == sequence.EntryAccepted {
 				out.Planned++
 			}
 			out.Items = append(out.Items, PathItem{Entry: entry})
 		case item.Branch != nil:
-			child := buildPathGroup(item.Branch, idx, statusByPath, langsByPath, policy)
+			child := buildPathGroup(item.Branch, idx, facts, policy)
 			// A branch counts what the main line beneath it carries, because a
 			// part whose lessons all sit in child branches would otherwise read
 			// zero. Only the main line joins counts end to end: a side branch
@@ -253,12 +255,11 @@ func buildPathGroup(
 func buildPathEntry(
 	c *sequence.Candidate,
 	idx *graph.Index,
-	statusByPath map[string]string,
-	langsByPath map[string]string,
+	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
 ) *PathEntry {
 	entry := &PathEntry{
-		Text:   c.Text,
+		Name:   linkText(c),
 		Target: c.Target,
 		Line:   c.Line,
 		Span:   c.Span,
@@ -271,13 +272,38 @@ func buildPathEntry(
 	entry.Kind = entryKindOf(res, policy)
 	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
-		entry.Status = statusByPath[res.RelPath]
-		entry.Language = langsByPath[res.RelPath]
+		known := facts[res.RelPath]
+		entry.Status = known.status
+		entry.Language = known.language
+		entry.Name = courseRowName(c, known.title)
 	}
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)
 	}
 	return entry
+}
+
+// courseRowName is what a course prints for a row whose target resolved: the
+// author's alias when the row wrote one, otherwise the note's own title, and
+// the link text only for a note that declares no title. The alias is read from
+// the link as a fact, never inferred by comparing display text with the target.
+// A link that addresses a heading or block names a place inside the note, so
+// its title would give two different destinations one name: it keeps its link
+// text unless it wrote an alias. A link whose display came out empty prints
+// its target.
+func courseRowName(c *sequence.Candidate, title string) string {
+	if c.Aliased || c.Fragment || title == "" {
+		return linkText(c)
+	}
+	return title
+}
+
+// linkText is the words the row's link shows, the target when it shows none.
+func linkText(c *sequence.Candidate) string {
+	if c.Text == "" {
+		return c.Target
+	}
+	return c.Text
 }
 
 // mainLine is the primary walk's result: how many lessons the course plans,
@@ -329,7 +355,7 @@ func (w *stopWalk) primary(g *PathGroup) {
 			w.main.planned++
 			item.Entry.Number = w.main.planned
 			if item.Entry.Openable() {
-				w.main.stops = append(w.main.stops, NoteRef{Name: item.Entry.Text, RelPath: item.Entry.RelPath})
+				w.main.stops = append(w.main.stops, NoteRef{Name: item.Entry.Name, RelPath: item.Entry.RelPath, Language: item.Entry.Language})
 			}
 		case item.Group != nil:
 			w.walk(item.Group)
@@ -360,7 +386,7 @@ func localStops(g *PathGroup) []NoteRef {
 		n++
 		item.Entry.Number = n
 		if item.Entry.Openable() {
-			stops = append(stops, NoteRef{Name: item.Entry.Text, RelPath: item.Entry.RelPath})
+			stops = append(stops, NoteRef{Name: item.Entry.Name, RelPath: item.Entry.RelPath, Language: item.Entry.Language})
 		}
 	}
 	return stops

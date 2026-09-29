@@ -8,4 +8,4 @@ updated: 2026-09-04
 lang: en
 ---
 
-This note carries `status: published`, written by hand. Its status panel names the status and offers nothing onward: the contract allows `ready → published`, and yomihon still does not make that move, because the value records something that happened outside this vault. See [[The status lifecycle]].
+This note carries `status: published`, written by hand. Its status panel offers `archived`, which this example contract permits from `published`. Yomihon never sets a note **to** `published`: that value records a publication outside this vault, which yomihon cannot attest to. A note already marked `published` can still offer other transitions allowed by its contract. See [[The status lifecycle]].

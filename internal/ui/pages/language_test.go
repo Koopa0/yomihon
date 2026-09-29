@@ -80,7 +80,7 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 				`<a class="y-metarow__raw" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
 				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
 				`<nav class="y-steps y-steps--course" lang="` + tt.tag + `" aria-label="Japanese course">`,
-				`<section class="y-sealbar" lang="` + tt.tag + `" aria-label="`,
+				`<section class="y-sealbar" lang="` + tt.tag + `" aria-labelledby="status-bar-label"`,
 				`<span class="y-steps__name" lang="ja">L00 はじめに</span>`,
 				`<span class="y-steps__name">L02</span>`,
 			} {
@@ -140,7 +140,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 		{
 			name: "study path warning",
 			render: func(buf *bytes.Buffer) error {
-				return entryRow(PathEntryView{Text: "Missing", Kind: nav.EntryAmbiguous}, wording.ZhHant).Render(t.Context(), buf)
+				return entryRow(PathEntryView{Name: "Missing", Kind: nav.EntryAmbiguous}, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{`data-resolution="ambiguous"`, `title="目標有歧義"`, ">有歧義</span>"},
 			forbidden: []string{`title="Target is ambiguous"`, ">ambiguous</span>"},
