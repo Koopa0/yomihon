@@ -284,7 +284,15 @@ try {
   if (renamed === columnHTML) {
     fail('column-is-the-note', 'the second column names none of its places, so the two notes on this page answer to one set of them');
   }
-  if (upToTheWriteFace(renamed) !== upToTheWriteFace(aloneHTML)) {
+  // The mark control must know which article's qualified heading IDs to
+  // remove when it records a place. This is the one article attribute that
+  // intentionally differs after the existing ID and href normalization.
+  const columnPrefix = ` data-uncertainty-prefix="${COLUMN_B_PREFIX}"`;
+  const alonePrefix = ' data-uncertainty-prefix=""';
+  if (!renamed.includes(columnPrefix) || !aloneHTML.includes(alonePrefix)) {
+    fail('column-is-the-note', 'the per-column mark prefix does not match the IDs of that reading');
+  }
+  if (upToTheWriteFace(renamed.replace(columnPrefix, alonePrefix)) !== upToTheWriteFace(aloneHTML)) {
     fail('column-is-the-note', 'the second column is not what the note reads as on its own page');
   }
 

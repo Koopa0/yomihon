@@ -29,6 +29,8 @@ var liveRegionOwners = []liveRegionOwner{
 	{"internal/ui/layouts/livesearch.templ", "LiveSearchStatus/p.y-live-search__status", []string{"role=status", "aria-live=polite"}},
 	{"internal/ui/pages/slotmachine.templ", "slotCard/p.y-slotlive.y-offscreen", []string{"role=status", "aria-live=polite"}},
 	{"assets/js/lesson.js", "speechStatus/span.y-ttsbar__status", []string{"aria-live=polite"}},
+	{"internal/ui/pages/thought.templ", "Thought/p.y-thought__said", []string{"role=status"}},
+	{"assets/js/uncertainty.js", "said/p.y-uncertainty__said", []string{"role=status"}},
 	{"assets/js/freshness.js", "banner/p.y-freshness", []string{"role=status"}},
 }
 

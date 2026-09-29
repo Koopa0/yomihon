@@ -2246,6 +2246,9 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			if roles.Available() || roles.IsPathType("study-path") || roles.IsMapType("moc") {
 				return "NavigationRoles() claims a declared role set"
 			}
+			if got := roles.AnswerType(); got != "" {
+				return fmt.Sprintf("NavigationRoles().AnswerType() = %q, want no declared answer role", got)
+			}
 			return ""
 		},
 		"KnowledgeScope": func() string {
@@ -2321,6 +2324,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"StartsAt": func() string {
 			if c.StartsAt("lesson", "draft") {
 				return "StartsAt() calls a status a starting point with no lifecycle behind it"
+			}
+			return ""
+		},
+		"DeclaresInitial": func() string {
+			if c.DeclaresInitial("lesson", "draft") {
+				return "DeclaresInitial() assigns an explicit initial state without a contract"
 			}
 			return ""
 		},

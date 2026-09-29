@@ -53,14 +53,20 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		visibleNav.ArtifactClosure().Diagnostic(),
 	)
 	kept, hasMark := h.sources.Continuation()
+	open, openFault := h.openThoughtShelf(r.Context(), snap, lang, pages.OpenThoughtsHomeRows)
+	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
+		open = pages.Shelf{}
+	}
 	view := pages.HomeView{
-		Fault:          fault,
-		PrivacyFault:   snap.PrivacyPolicy().Diagnostic(),
-		Degraded:       degradedNotice(&fresh, lang),
-		DegradedDetail: blockedDetail(fresh.Blocked),
-		Blocks:         blocks,
-		ReadmeMissing:  !hasReadme,
-		Continue:       continueRow(&kept, hasMark, snap, lang),
+		Fault:             fault,
+		OpenThoughts:      open,
+		OpenThoughtsFault: openFault,
+		PrivacyFault:      snap.PrivacyPolicy().Diagnostic(),
+		Degraded:          degradedNotice(&fresh, lang),
+		DegradedDetail:    blockedDetail(fresh.Blocked),
+		Blocks:            blocks,
+		ReadmeMissing:     !hasReadme,
+		Continue:          continueRow(&kept, hasMark, snap, lang),
 	}
 	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)

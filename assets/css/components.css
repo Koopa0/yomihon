@@ -197,6 +197,26 @@ body {
   white-space: nowrap;
 }
 
+/* A kept location or authored source section identifies the row, so a narrow
+   shelf must keep those words visible instead of clipping them like a title. */
+.ui-navitem--wrap {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ui-navitem--wrap > span {
+  max-width: 100%;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.ui-navitem--wrap > .ui-navitem__count {
+  margin-left: 0;
+}
+
 /* ---- Sidebar section label ---- */
 .ui-side__label {
   color: var(--fg-faint);
@@ -3455,6 +3475,12 @@ main#main-content {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+/* The reader's return shelf precedes the four navigation modes as one row;
+   those four keep their existing two-by-two organisation beneath it. */
+.y-homegrid > [data-home-block='open-thoughts'] {
+  grid-column: 1 / -1;
 }
 
 .y-homeblock {

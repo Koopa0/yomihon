@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// File is the one file yomihon writes outside the vault: the marks kept for
-// one vault, under the configuration directory of the person running it. It
-// owns that path and the discipline of replacing the file whole.
+// File keeps the reader's marks for one vault under the configuration
+// directory of the person running it. Continuation and uncertainty marks use
+// separate files, each replaced whole.
 //
 // It holds no mark in memory. The file on disk is the record, so a reader who
 // deletes it has deleted it, rather than arguing with a copy this process is
@@ -27,9 +27,7 @@ type File struct {
 	// is named after a digest and a person who has to find the right one needs
 	// something to read.
 	vaultRoot string
-	// mu serializes writers. Two marks set at once would otherwise race
-	// between their temporary files and the rename that installs one, and the
-	// loser's bytes could be the ones left under the name.
+	// mu serializes writers, including uncertainty read-modify-write updates.
 	mu sync.Mutex
 }
 

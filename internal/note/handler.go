@@ -1,6 +1,6 @@
 // Package note owns the general reading surface — every route a reader
-// reaches that is not one of the dedicated faces. Register mounts twelve of
-// them: Home, one rendered note, two notes read side by side, one folder, the
+// reaches that is not one of the dedicated faces. Register mounts Home, one
+// rendered note, an external-editor thought stub, two notes read side by side, one folder, the
 // maps mode page, the folders mode page, the whole-vault health page, a vault
 // file's raw bytes, the freshness poll a page keeps open on the note it is
 // showing, the excerpt a hover card shows of the note under the reader's
@@ -52,7 +52,13 @@ import (
 // view for the request. Source changes affect the next request; a write still
 // revalidates current authority under the lifecycle lock.
 type Sources struct {
-	Source *vault.Reader
+	// Uncertainties reads the separate location-mark file. Nil means this
+	// process has no mark storage; a read error remains visible on the desk.
+	Uncertainties func() ([]mark.Uncertainty, error)
+	Source        *vault.Reader
+	// Contract supplies the field and lifecycle vocabulary a thought stub is
+	// written from; the note type it is for comes from the snapshot's roles.
+	Contract *schema.Contract
 	// VaultName is the folder's own name, taken once at start-up because the
 	// directory the server was pointed at cannot change under a running
 	// process. The rail's foot says it on every page.
@@ -84,8 +90,9 @@ type Sources struct {
 	// this process keeps none — no configuration directory to hold the file.
 	// The page renders no control without it, so a reader is never invited to
 	// keep something that has nowhere to go.
-	MarkAddress string
-	Log         *slog.Logger
+	MarkAddress        string
+	UncertaintyAddress string
+	Log                *slog.Logger
 }
 
 // Handler serves reading pages from one rooted vault capability and its
@@ -136,6 +143,8 @@ func New(d *Sources) *Handler {
 // router's own fallback, which answers in English and offers nowhere to go.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
+	mux.HandleFunc("GET /thought/{path...}", h.thought)
+	mux.HandleFunc("GET "+openThoughtsAddress, h.openThoughts)
 	mux.HandleFunc("GET /compare/{path...}", h.compare)
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
 	mux.HandleFunc("GET /freshness/{path...}", h.freshness)
@@ -391,37 +400,40 @@ func (h *Handler) reading(
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
 	view = pages.NoteView{
-		Title:             n.Title,
-		RelPath:           n.RelPath,
-		Language:          n.Language,
-		Type:              n.Type,
-		Status:            noteStatus,
-		Updated:           updatedDisplay,
-		UpdatedAt:         updatedMachine,
-		UpdatedFromFile:   updatedFromFile,
-		ObsidianHref:      pages.ObsidianHref(h.sources.Source.Name(), n.RelPath),
-		Diagnostic:        n.FMDiagnostic,
-		Stale:             n.Stale,
-		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
-		CitedBy:           snap.CitedBy(rel),
-		BasedOn:           declaredSources,
-		Pair:              pairOffer(snap, state.shell.Nav, n),
-		VaultHasLinks:     snap.AnyCitations(),
-		Prev:              footPrev,
-		Next:              footNext,
-		StepsLabel:        footLabel,
-		StepsCourse:       footCourse,
-		TOC:               result.TOC,
-		BodyHTML:          result.HTML,
-		TitleAnchor:       result.TitleAnchor,
-		ReadingRail:       readingRail,
-		Governed:          state.shell.Governed,
-		NonInstance:       state.nonInstance(),
-		WriteDiagnostic:   state.writeDiagnostic,
-		IDPrefix:          idPrefix,
-		Transitions:       state.transitions,
-		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
-		MarkAddress:       h.sources.MarkAddress,
+		Title:              n.Title,
+		RelPath:            n.RelPath,
+		Language:           n.Language,
+		Type:               n.Type,
+		Status:             noteStatus,
+		Updated:            updatedDisplay,
+		UpdatedAt:          updatedMachine,
+		UpdatedFromFile:    updatedFromFile,
+		ObsidianHref:       pages.ObsidianHref(h.sources.Source.Name(), n.RelPath),
+		Diagnostic:         n.FMDiagnostic,
+		Stale:              n.Stale,
+		RenderDiagnostics:  noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
+		CitedBy:            snap.CitedBy(rel),
+		BasedOn:            declaredSources,
+		DeclaredBy:         declaredBy(snap, rel, &result, idPrefix, lang),
+		Pair:               pairOffer(snap, state.shell.Nav, n),
+		VaultHasLinks:      snap.AnyCitations(),
+		Prev:               footPrev,
+		Next:               footNext,
+		StepsLabel:         footLabel,
+		StepsCourse:        footCourse,
+		TOC:                result.TOC,
+		BodyHTML:           result.HTML,
+		TitleAnchor:        result.TitleAnchor,
+		ReadingRail:        readingRail,
+		Governed:           state.shell.Governed,
+		NonInstance:        state.nonInstance(),
+		WriteDiagnostic:    state.writeDiagnostic,
+		IDPrefix:           idPrefix,
+		Transitions:        state.transitions,
+		ContentIdentity:    hex.EncodeToString(n.ContentIdentity[:]),
+		MarkAddress:        h.sources.MarkAddress,
+		UncertaintyAddress: h.sources.UncertaintyAddress,
+		ThoughtDoor:        snap.NavigationRoles().AnswerType() != "" && thoughtSourceAvailable(snap, rel),
 		// The identity above covers the note's own bytes; what the render
 		// pulled in from other notes is bound by its own stamp, so an edit to
 		// an embedded source can reach this page while it is open.
