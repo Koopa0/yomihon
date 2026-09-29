@@ -160,35 +160,37 @@ export function initPreview() {
     timer = setTimeout(close, travelGrace);
   }
 
-  // The one place that decides which links have a card. Every term is a class
-  // or an address the renderer itself writes: a link whose fragment it could
-  // not place carries a second class, a concept term in a lesson carries the
-  // class of the sheet that opens on click, and a link out of the vault is not
-  // a note link at all. Nothing on the server asks this question a second time.
+  // The one place that decides which links have a card. The address is read off
+  // the link, which is the renderer's own word for where it leads: a link whose
+  // fragment it could not place carries a second class, and a link out of the
+  // vault is not a note link at all. Nothing on the server asks this question a
+  // second time.
   //
-  // The last term is the address rather than a class, because a wikilink may
+  // The last term is the name at the end of the address, because a wikilink may
   // name any file the vault holds and the renderer marks a picture or a plain
   // text file exactly as it marks a note. They travel the same route, so what
-  // tells them apart is the name at the end of it: a note's does end in .md and
-  // a file's does not, and only a note has anything a card could cut.
-  const links = [...root.querySelectorAll(
-    '.y-prose a.wikilink:not(.wikilink-degraded):not(.concept-link)[href^="/notes/"]',
-  )].filter((link) => link.pathname.endsWith('.md'));
+  // tells them apart is that a note's name does end in .md and a file's does
+  // not, and only a note has anything a card could cut.
+  //
+  // Prose links and declared-source rows answer to this one test, so a row
+  // whose place the source lacks is refused for the reason a prose link to a
+  // missing section is: its address falls back to the top of the file, and a
+  // card would show that opening as though it were the passage named.
+  const eligible = (link) => link.matches(':not(.wikilink-degraded)[href^="/notes/"]') && link.pathname.endsWith('.md');
 
-  // The sources a claim declares sit in the rail and, at narrow widths, in a
-  // disclosure above the text, both outside the main element, so they are asked
-  // for by their own block rather than by widening the root. The same reading
-  // of the address applies: only a note answers a card. A row whose place the
-  // source lacks is marked degraded and stays out, because its address falls
-  // back to the top of the file and a card would show that file's opening as
-  // though it were the passage the claim named. The outline, the course
-  // navigation, the list of notes citing this one and the list of notes that
-  // declare this one as their source are not this note's declared sources and
-  // are never asked. The last shares the block's class, so it is excluded by
-  // the attribute the renderer puts on it.
-  const sources = [...document.querySelectorAll(
-    '.y-basedon:not([data-declared-by]) a.ui-navitem:not(.wikilink-degraded)[href^="/notes/"]',
-  )].filter((link) => link.pathname.endsWith('.md'));
+  // A concept term in a lesson carries the class of the sheet that opens on
+  // click, so a card on it would be a second affordance on one element.
+  const links = [...root.querySelectorAll('.y-prose a.wikilink:not(.concept-link)')].filter(eligible);
+
+  // The sources a claim declares sit in the rail, which is outside the main
+  // element, and in the disclosure the narrow layout folds above the text,
+  // which is inside it, so they are asked for by their own block rather than
+  // by widening the root. The outline, the course navigation, the list of
+  // notes citing this one and the list of notes that declare this one as their
+  // source are not this note's declared sources and are never asked. The last
+  // shares the block's class, so it is excluded by the attribute the renderer
+  // puts on it.
+  const sources = [...document.querySelectorAll('.y-basedon:not([data-declared-by]) a.ui-navitem')].filter(eligible);
   links.push(...sources);
 
   for (const link of links) {

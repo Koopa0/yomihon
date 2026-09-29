@@ -27,7 +27,10 @@ const SITES = [
   'source-opens-on-focus',
   'source-card-anchored-to-row',
   'source-card-shows-the-cited-passage',
+  'compact-row-opens-its-section',
   'the-whole-source-row-opens-the-top-of-the-source',
+  'compare-column-source-opens',
+  'compare-column-missing-location-opens-nothing',
   'narrow-inline-source-opens',
   'missing-location-opens-nothing',
   'outline-and-navigation-open-nothing',
@@ -72,7 +75,7 @@ const rewriteAsset = (route, needle, replacement) => async (context) => {
 const rewriteModule = (needle, replacement) => rewriteAsset('**/static/preview.js', needle, replacement);
 const rewriteStylesheet = (needle, replacement) => rewriteAsset('**/static/app.css', needle, replacement);
 
-const SOURCE_SELECTOR = "'.y-basedon:not([data-declared-by]) a.ui-navitem";
+const SOURCE_SELECTOR = "'.y-basedon:not([data-declared-by]) a.ui-navitem'";
 
 const MUTATIONS = {
   // The list is looked for inside the main element only, which is the barrier
@@ -85,7 +88,7 @@ const MUTATIONS = {
   // Only the rail is asked, so the copy inside the disclosure never opens one.
   'find-sources-only-in-the-rail': {
     target: 'narrow-inline-source-opens',
-    apply: rewriteModule(SOURCE_SELECTOR, "'.y-rail-right .y-basedon:not([data-declared-by]) a.ui-navitem"),
+    apply: rewriteModule(SOURCE_SELECTOR, "'.y-rail-right .y-basedon:not([data-declared-by]) a.ui-navitem'"),
   },
   'ignore-the-keyboard': {
     target: 'source-opens-on-focus',
@@ -104,12 +107,31 @@ const MUTATIONS = {
   // A row whose place the source lacks is asked for as well.
   'preview-the-missing-location': {
     target: 'missing-location-opens-nothing',
-    apply: rewriteModule(`${SOURCE_SELECTOR}:not(.wikilink-degraded)`, SOURCE_SELECTOR),
+    apply: rewriteModule(':not(.wikilink-degraded)', ''),
+  },
+  // A row whose place is missing is previewed in the compare columns only.
+  'preview-the-missing-location-in-compare-only': {
+    target: 'compare-column-missing-location-opens-nothing',
+    apply: rewriteModule(':not(.wikilink-degraded)', ':is(:not(.wikilink-degraded), .y-compare *)'),
+  },
+  // The compare columns draw the same article, and stop being asked for.
+  'exclude-compare-columns': {
+    target: 'compare-column-source-opens',
+    apply: rewriteModule(SOURCE_SELECTOR, "'.y-basedon:not([data-declared-by]):not(.y-compare .y-basedon) a.ui-navitem'"),
+  },
+  // A row that is the only place a source is declared at is a compact row, not
+  // a location under a group; this stops asking for it.
+  'drop-compact-rows': {
+    target: 'compact-row-opens-its-section',
+    apply: rewriteModule(
+      'links.push(...sources);',
+      'links.push(...sources.filter((link) => link.closest(\'.y-basedon__locations\') || link.nextElementSibling));',
+    ),
   },
   // The source selector is no longer scoped to the declared-sources block.
   'preview-every-navigation-link': {
     target: 'outline-and-navigation-open-nothing',
-    apply: rewriteModule(SOURCE_SELECTOR, "'a.ui-navitem"),
+    apply: rewriteModule(SOURCE_SELECTOR, "'a.ui-navitem'"),
   },
   // The list of notes that declare this one shares the block's class and
   // would be asked for as though it were this note's own sources.
@@ -354,6 +376,22 @@ const journey = async (browser, width, placement) => {
     await page.keyboard.press('Escape');
     await settles(page, false, 2000);
 
+    // A source with one location is one compact row, not a group.
+    const compact = await row(list, /Chapter scale/);
+    await pointerOnto(page, compact);
+    proveApplied('compact-row-opens-its-section');
+    if (!(await settles(page, true, 4000))) {
+      fail('compact-row-opens-its-section', `resting the pointer on the compact row in the ${placement} list opened no card`);
+    }
+    {
+      const state = await cardState(page);
+      if (!state.proseText.includes('一章的正文') || state.proseText.includes('一篇的正文')) {
+        fail('compact-row-opens-its-section', `the compact row's card does not carry exactly its section; it reads ${JSON.stringify(state.proseText.slice(0, 120))}`);
+      }
+    }
+    await page.mouse.move(4, 4);
+    await settles(page, false, 2000);
+
     // The whole-source row asks for no section: the top of the source.
     const whole = await row(list, /^source-locations-source$/);
     await pointerOnto(page, whole);
@@ -449,6 +487,43 @@ const citedByAndOutline = async (browser) => {
         fail('outline-and-navigation-open-nothing', `${JSON.stringify(await link.getAttribute('href'))} opened a card or asked for an excerpt`);
       }
       await page.mouse.move(4, 4);
+    }
+  } finally {
+    await context.close();
+  }
+};
+
+// The compare columns draw the same article, aids included, so a source row in
+// one of them opens a card the same way and a missing location still opens
+// none.
+const compare = async (browser) => {
+  const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, reducedMotion: 'reduce' });
+  if (mutation) proof = await mutation.apply(context);
+  const requests = [];
+  context.on('request', (request) => {
+    if (request.url().startsWith(`${BASE}/preview/`)) requests.push(request.url());
+  });
+  try {
+    const page = await context.newPage();
+    const response = await page.goto(`${BASE}/compare${PAGE.slice('/notes'.length)}?with=Notes%2Fsource-locations-source.md`, { waitUntil: 'networkidle' });
+    if (!response || response.status() !== 200) broken(`the compare page returned ${response?.status() ?? 'no response'}, want 200`);
+    await page.waitForSelector('html[data-js]');
+    const list = await openSources(page);
+    const methods = await row(list, 'Method evidence');
+    await pointerOnto(page, methods);
+    proveApplied('compare-column-source-opens');
+    if (!(await settles(page, true, 4000))) fail('compare-column-source-opens', 'resting the pointer on the Methods row in a compare column opened no card');
+    if (!(await cardState(page)).proseText.includes(METHODS)) fail('compare-column-source-opens', 'the compare column card does not carry the Methods passage');
+    await page.mouse.move(4, 4);
+    await settles(page, false, 2000);
+    const seen = requests.length;
+    const missing = list.locator('a.wikilink-degraded');
+    if ((await missing.count()) !== 1) broken(`the compare column shows ${await missing.count()} rows the source lacks, want 1`);
+    await pointerOnto(page, missing);
+    await page.waitForTimeout(900);
+    proveApplied('compare-column-missing-location-opens-nothing');
+    if ((await cardState(page)).open || requests.length !== seen) {
+      fail('compare-column-missing-location-opens-nothing', 'the missing-location row in a compare column opened a card or asked for an excerpt');
     }
   } finally {
     await context.close();
@@ -551,6 +626,7 @@ try {
   await journey(browser, 1600, 'rail');
   await journey(browser, 390, 'inline');
   await citedByAndOutline(browser);
+  await compare(browser);
   await activation(browser);
   await touch(browser);
   console.log('PASS source-preview: a declared source opens a card at its cited passage from the rail and from the disclosure, the missing location, navigation and cited-by open none, and following the row is one activation');
