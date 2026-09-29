@@ -30,6 +30,12 @@
 //              the end of the term go
 //   alnum      a Latin word reached mid-word, which does not depend on either
 //   crossing   a phrase from one paragraph into the next, ending inside 錠前
+//   hard break a whole word with a long unbroken run beside it across a hard
+//              line break, in both forms Markdown writes one (a trailing
+//              backslash and two trailing spaces), once for the run after the
+//              match and once for the run before it: the page draws the break
+//              as a break, so a run reaching over it is text the page does not
+//              carry in one piece
 //   ruby       a match beside a ruby annotation, with furigana on and off: the
 //              annotation is in the rendered text when it is on, so a run
 //              spanning it is text the page does not carry in one piece
@@ -56,9 +62,13 @@ const CASES = [
   { site: 'suffix-case-in-view', query: '紫陽', term: '紫陽', copies: 1 },
   { site: 'alnum-case-in-view', query: 'urmalin', term: 'tourmaline', copies: 1 },
   { site: 'crossing-case-in-view', query: '"銀杏並木の奥にある小さな倉庫の錠"', term: '銀杏', copies: 1 },
+  { site: 'hardbreak-case-in-view', query: '布団', term: '布団', copies: 1 },
+  { site: 'hardbreak-case-in-view', query: '雪柳', term: '雪柳', copies: 1 },
+  { site: 'hardbreak-case-in-view', query: '囲炉裏', term: '囲炉裏', copies: 1 },
+  { site: 'hardbreak-case-in-view', query: '山桜', term: '山桜', copies: 1 },
   { site: 'ruby-case-in-view', query: '白い花', term: '白い花', copies: 1, furigana: ['on', 'off'] },
 ];
-const SITES = CASES.map((c) => c.site);
+const SITES = [...new Set(CASES.map((c) => c.site))];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -106,6 +116,9 @@ const RUN_BEFORE_REPORT = '夜が明けるとすぐに窓辺の椅子に腰を�
 const RUN_BEFORE_ALNUM = 'ledger of to';
 const RUN_AFTER_SUFFIX = '花の株で';
 const RUN_AFTER_CROSSING = '前に合うと';
+const LINE_ONE_BACKSLASH = '冬の朝は窓の外がいつまでも暗くて誰もが布団の中でじっと身をすくめたまま夜が明けるのをただ静かに待ち続けていた';
+const LINE_TWO_BACKSLASH = '白木蓮の花が静かに咲きはじめる頃になってようやく人々は外へ出て';
+const LINE_TWO_SPACES = '黒松の枝が静かに揺れはじめる頃になってようやく人々は庭へ出て山桜の花を眺めた。';
 const RUN_AFTER_RUBY = 'が咲く木蓮の枝のそばを通って';
 
 const MUTATIONS = {
@@ -149,6 +162,22 @@ const MUTATIONS = {
     query: '白い花',
     needle: 'text=%E7%99%BD%E3%81%84%E8%8A%B1"',
     replacement: `text=%E7%99%BD%E3%81%84%E8%8A%B1,-${enc(RUN_AFTER_RUBY)}"`,
+  },
+  // The run before a match reaching back over a hard break, as it did when a
+  // run with no boundary in it went back to the start of the block.
+  'span-the-break-before': {
+    target: 'hardbreak-case-in-view',
+    query: '雪柳',
+    needle: `text=${enc(LINE_TWO_BACKSLASH)}-,`,
+    replacement: `text=${enc(`${LINE_ONE_BACKSLASH} ${LINE_TWO_BACKSLASH}`)}-,`,
+  },
+  // The run after a match reaching over one, as it did when a run with no
+  // boundary in it went on to the end of the block.
+  'span-the-break-after': {
+    target: 'hardbreak-case-in-view',
+    query: '囲炉裏',
+    needle: `,-${enc('の端でぼんやり足を伸ばしたまま日が暮れるのをただ静かに眺め続けていた')}`,
+    replacement: `,-${enc(`の端でぼんやり足を伸ばしたまま日が暮れるのをただ静かに眺め続けていた ${LINE_TWO_SPACES}`)}`,
   },
   // With no directive at all the note opens at the top, which is what every
   // case above measures the absence of. It is aimed at the first case so that
@@ -258,7 +287,7 @@ const unapplied = () => proofs.map((p) => p()).find((issue) => issue) || '';
 try {
   for (const testCase of CASES) {
     const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
-    const apply = mutation && mutation.target === testCase.site
+    const apply = mutation && mutation.target === testCase.site && mutation.query === testCase.query
       ? rewriteResults(mutation.query, mutation.needle, mutation.replacement)
       : null;
     for (const furigana of testCase.furigana || [null]) {

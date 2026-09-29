@@ -2020,11 +2020,23 @@ func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 			want: thirty,
 		},
 		{
-			// One over: the comma leaves thirty-one, so it is outside the
-			// budget and the run goes back to the block start.
-			name: "a boundary one character outside the budget is not used",
+			// One over: the comma leaves thirty-one, outside the budget, but
+			// it is still the nearest boundary, so the run begins there.
+			name: "a boundary one character outside the budget is still the nearest one",
 			run:  "第一段落的開頭寫得很長很長很長很長很長很長，" + thirtyOne,
-			want: "第一段落的開頭寫得很長很長很長很長很長很長，" + thirtyOne,
+			want: thirtyOne,
+		},
+		{
+			// The page draws a hard line break as a break, so a run that
+			// spanned one would not be text it carries in one piece.
+			name: "the run stops at a hard line break",
+			run:  "第一行寫得很長很長很長很長很長很長很長很長很長很長很長很長\n第二行也寫得很長很長很長很長很長很長很長很長很長很長很長",
+			want: "第二行也寫得很長很長很長很長很長很長很長很長很長很長很長",
+		},
+		{
+			name: "a match opening a line after a hard break names nothing",
+			run:  "第一行寫得很長很長很長很長很長很長很長很長很長很長很長很長很長很長很長\n",
+			want: "",
 		},
 		{
 			// The middle dot is part of a katakana word; a run cut after it
@@ -2106,24 +2118,20 @@ func TestLandingSuffixEndsWhereABrowserAgreesAWordEnds(t *testing.T) {
 		},
 		{name: "a boundary at the budget is inside it", before: "獸", rest: thirty + "。後續", want: thirty},
 		{
-			// One over: the full stop is outside the budget, so the run is
-			// what is left of the block, full stop and all.
-			name:   "a boundary one character outside the budget is not used",
+			// One over the budget: the run still ends at the nearest
+			// boundary, which is the full stop.
+			name:   "a boundary outside the budget is still the nearest one",
 			before: "獸",
 			rest:   thirtyOne + "。後續",
-			want:   thirtyOne + "。後續",
+			want:   thirtyOne,
 		},
+		{name: "a run with no boundary is the rest of the block", before: "獸", rest: thirtyOne, want: thirtyOne},
+		{name: "a hard line break ends the run", before: "獸", rest: thirtyOne + "\n後續", want: thirtyOne},
 		{name: "an apostrophe inside a word joins it", before: "n", rest: "'t stop here", want: "'t"},
 		{name: "a point inside a number joins it", before: "3", rest: ".14 more", want: ".14"},
 		{name: "a point after a word ends it", before: "e", rest: ". More", want: ""},
 		{name: "a middle dot between katakana joins them", before: "コ", rest: "・ミルク。", want: "・ミルク"},
 		{name: "white space ends the run", before: "獸", rest: "三個\n 字出現。", want: "三個"},
-		{
-			name:   "the rest of the block is collapsed the way a snippet is",
-			before: "獸",
-			rest:   thirtyOne + "\n 後續。",
-			want:   thirtyOne + " 後續。",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

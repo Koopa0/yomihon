@@ -81,9 +81,9 @@ type Result struct {
 	LandingPrefix string
 
 	// LandingSuffix is the run of characters after the last term a directive
-	// names, up to the nearest certain boundary: white space, punctuation, or
-	// the end of the block. A browser holds a term with nothing behind it to
-	// end where a word does, and in a script that parts no words with spaces
+	// names, up to the nearest certain boundary: white space, a line break,
+	// punctuation, or the end of the block. A browser holds a term with nothing
+	// behind it to end where a word does, and in a script that parts no words with spaces
 	// that is a dictionary boundary this index has no model of. A term the
 	// directive follows with a run that itself ends at a certain boundary is
 	// released from the requirement, so the match can end anywhere. Empty where
@@ -121,10 +121,6 @@ const (
 	// the two spellings of the same sentence to part.
 	landingPrefixWords = 3
 	landingPrefixRunes = 30
-
-	// landingSuffixRunes bounds the run named after a match, in characters the
-	// reader sees, for the same reason the prefix is bounded.
-	landingSuffixRunes = 30
 )
 
 // Answer is everything one pass over the index found for a query: the results
@@ -655,7 +651,7 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	var terms landingTerms
 	blockStart, verbatim := e.blockAt(start)
 	if verbatim {
-		terms.prefix = landingPrefix(collapseFields(e.PlainText[blockStart:start]))
+		terms.prefix = landingPrefix(e.PlainText[blockStart:start])
 	}
 	firstEnd := e.blockEndAfter(start)
 	terms.crossing = end > firstEnd
@@ -750,10 +746,10 @@ func joinsAWord(r rune) bool {
 //
 // Where the last word is over the budget and is written in such a script, the
 // run therefore begins after the earliest certain boundary that leaves it
-// inside the budget, and where there is none it is the whole run back to the
-// start of the block. A last word in any other script is dropped instead: the
-// term that follows it is grown to the edges of its own word, so it stands
-// alone without one.
+// inside the budget, and where there is none, after the nearest one before
+// it. A last word in any other script is dropped instead: the term that
+// follows it is grown to the edges of its own word, so it stands alone
+// without one.
 func landingPrefix(run string) string {
 	words := strings.Fields(run)
 	if len(words) > landingPrefixWords {
@@ -770,9 +766,17 @@ func landingPrefix(run string) string {
 
 // unspacedPrefix is the run a directive names ahead of a match whose last word
 // is over the budget, or empty where that word is not written without spaces.
-// The run arrives with its white space collapsed and its ends trimmed.
+// It never reaches back over a hard line break: the page draws a break as a
+// break, not as the white space it becomes once the run is collapsed, so a
+// run spanning one is text the page does not carry in one piece.
 func unspacedPrefix(run string) string {
-	runes := []rune(run)
+	if i := strings.LastIndex(run, "\n"); i >= 0 {
+		run = run[i+1:]
+	}
+	runes := []rune(collapseFields(run))
+	if len(runes) == 0 {
+		return ""
+	}
 	lastWord := runes
 	for i, r := range slices.Backward(runes) {
 		if r == ' ' {
@@ -783,20 +787,30 @@ func unspacedPrefix(run string) string {
 	if !slices.ContainsFunc(lastWord, writesWithoutSpaces) {
 		return ""
 	}
-	for i := max(1, len(runes)-landingPrefixRunes); i < len(runes); i++ {
+	last := len(runes) - 1
+	if isCertainBoundary(runes, last) {
+		return ""
+	}
+	for i := max(1, len(runes)-landingPrefixRunes); i <= last; i++ {
 		if isCertainBoundary(runes, i-1) {
 			return string(runes[i:])
+		}
+	}
+	for i := last - 1; i >= 0; i-- {
+		if isCertainBoundary(runes, i) {
+			return string(runes[i+1:])
 		}
 	}
 	return string(runes)
 }
 
 // landingSuffix cuts the block after a term, text[from:to], down to the
-// nearest certain boundary inside the budget, which is the run itself ending
-// where the browser agrees a word ends. With none inside the budget it is the
-// whole rest of the block, whose end is one. Empty where the term already
-// stands against a boundary. The character before from is read too, because
-// whether a mark joins a word depends on what stands on both sides of it.
+// nearest certain boundary, which is the run itself ending where the browser
+// agrees a word ends. A hard line break is one, so the run never reaches over
+// it, and with no other the rest of the block is the run, whose end is one.
+// Empty where the term already stands against a boundary. The character
+// before from is read too, because whether a mark joins a word depends on
+// what stands on both sides of it.
 func landingSuffix(text string, from, to int) string {
 	runes := []rune(text[from:to])
 	offset := 0
@@ -807,9 +821,6 @@ func landingSuffix(text string, from, to int) string {
 	}
 	for i := offset; i < len(runes); i++ {
 		if isCertainBoundary(runes, i) {
-			if i-offset > landingSuffixRunes {
-				break
-			}
 			return collapseFields(string(runes[offset:i]))
 		}
 	}
