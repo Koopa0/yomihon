@@ -260,6 +260,7 @@ The claim.
 		`Study limitations`,
 		`Method evidence`,
 		`wikilink-broken wikilink-degraded`,
+		`href="/notes/Source.md#missing"`,
 		`找不到「Missing」這個小節，連結會落在筆記最上方`,
 		`找不到這個區塊，連結已改為指向整篇筆記`,
 	} {
@@ -270,8 +271,8 @@ The claim.
 	if strings.Contains(block, "Second alias") || strings.Count(block, "Method evidence") != 1 {
 		t.Errorf("identical location was not collapsed: %s", block)
 	}
-	if strings.Contains(block, "#missing") || strings.Contains(block, "#%5Eabsent") {
-		t.Errorf("missing location retained a false destination: %s", block)
+	if strings.Contains(block, "#%5Eabsent") {
+		t.Errorf("missing block retained a false destination: %s", block)
 	}
 	if strings.Index(block, "Study limitations") >= strings.Index(block, "Method evidence") {
 		t.Errorf("locations lost authored order: %s", block)
@@ -306,5 +307,45 @@ The claim.
 	mixedBlock := basedOnBlock(t, mixed)
 	if !strings.Contains(mixedBlock, `href="/notes/Source.md"`) || !strings.Contains(mixedBlock, `href="/notes/Source.md#methods"`) || strings.Count(mixedBlock, "<a ") != 2 {
 		t.Errorf("bare source disappeared beside its one location: %s", mixedBlock)
+	}
+}
+
+// A declared heading the source lacks keeps its address as written, the way a
+// body link to a missing section does, and note health says so in those words.
+// The two must agree: the sentence promises the address survives.
+func TestMissingDeclaredSectionKeepsItsAddressAndSaysSo(t *testing.T) {
+	t.Parallel()
+	root := writeNotes(t, map[string]string{
+		"Source.md": "## Methods\n\nmethod\n",
+		"Claim.md":  "---\nbased_on:\n - \"[[Source#Methods]]\"\n - \"[[Source#Missing]]\"\n---\nThe claim.\n",
+	})
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Claim.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	if block := basedOnBlock(t, body); !strings.Contains(block, `href="/notes/Source.md#missing"`) {
+		t.Errorf("the missing section lost its address; block = %s", block)
+	}
+	if conditions := noteConditions(t, body); !strings.Contains(conditions, "連結位址照原樣保留") {
+		t.Errorf("note health does not say the address was kept; conditions = %s", conditions)
+	}
+}
+
+// A source that is not a note has no headings to check, so a section address
+// on it is not a missing section.
+func TestDeclaredNonNoteSourceRaisesNoSectionDiagnostic(t *testing.T) {
+	t.Parallel()
+	root := writeNotes(t, map[string]string{
+		"paper.pdf": "%PDF-1.4\n",
+		"Claim.md":  "---\nbased_on:\n - \"[[paper.pdf#page=3]]\"\n---\nThe claim.\n",
+	})
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Claim.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	if strings.Contains(body, "page=3") || strings.Contains(body, "找不到") {
+		t.Errorf("a non-note source was reported as missing a section; body mentions it")
 	}
 }

@@ -9,8 +9,9 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// SourceLocation is an authored place in a declared source. A missing place
-// keeps its label but has no fragment: following it opens the source itself.
+// SourceLocation is an authored place in a declared source. A missing block
+// keeps its label but has no fragment, so following it opens the source
+// itself; a missing section keeps the address as written, like a body link.
 type SourceLocation struct {
 	Label      string
 	Fragment   string
@@ -65,8 +66,9 @@ func DeclaredLocation(result *Result, title string, link graph.Wikilink, display
 		diag.Message = fmt.Sprintf("no rendered block matched %q; the link leads to the note itself", "^"+link.Block)
 	} else {
 		diag.Kind, diag.Section = DiagLinkSectionMissing, link.Heading
+		location.Fragment = id
 		location.Reason = fmt.Sprintf(wording.SectionNotFoundFmt.In(lang), link.Heading)
-		diag.Message = fmt.Sprintf("no rendered heading matched %q; the link leads to the note itself", link.Heading)
+		diag.Message = fmt.Sprintf("no rendered heading matched %q; the link keeps its address", link.Heading)
 	}
 	location.Diagnostic = diag
 	return location

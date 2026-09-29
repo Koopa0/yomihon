@@ -1,7 +1,8 @@
 // Behavior lock for a claim's declared source locations, followed the way a
 // reader follows them: from the claim to the Methods passage of its source,
-// back to the claim, then on to the Limitations passage, and a location the
-// source no longer has opening the source itself with its reason in view. It
+// back to the claim, then on to the Limitations passage, and a section the
+// source no longer has keeping its address as written and opening the source
+// from the top with its reason in view. It
 // runs at a wide and a phone width, where the list sits in the rail and in a
 // disclosure respectively.
 //
@@ -67,15 +68,9 @@ const MUTATIONS = {
     target: 'fragment-limitations',
     apply: rewrite(CLAIM_ROUTE, `.md#limitations"`, `.md#methods"`, 2, 'Limitations location link'),
   },
-  'invent-missing-fragment': {
+  'drop-missing-fragment': {
     target: 'fallback-address',
-    apply: rewrite(
-      CLAIM_ROUTE,
-      `wikilink-degraded" ${SOURCE_LINK}"`,
-      `wikilink-degraded" ${SOURCE_LINK}#missing"`,
-      2,
-      'missing location link',
-    ),
+    apply: rewrite(CLAIM_ROUTE, `${SOURCE_LINK}#missing"`, `${SOURCE_LINK}"`, 2, 'missing section link'),
   },
   'hide-fallback-reason': {
     target: 'fallback-reason',
@@ -187,14 +182,14 @@ const journey = async (browser, width) => {
     const missing = list.locator('a.wikilink-degraded').filter({ hasText: 'Missing evidence' });
     if (await missing.count() !== 1) broken('the claim shows no location the source lacks');
     const href = await missing.getAttribute('href');
-    if (href !== SOURCE) fail('fallback-address', `the missing location links to ${href}, want the source itself ${SOURCE}`);
+    if (href !== `${SOURCE}#missing`) fail('fallback-address', `the missing section links to ${href}, want its address kept as ${SOURCE}#missing`);
     const reason = missing.locator('.y-basedon__reason');
     if (!(await reason.isVisible()) || (await reason.innerText()).trim() === '') {
       fail('fallback-reason', 'the missing location shows no reason without hovering');
     }
     await missing.click();
-    await page.waitForURL((url) => url.pathname === SOURCE && url.hash === '', { timeout: 5000 });
-    if (await page.evaluate(() => scrollY) !== 0) fail('fallback-address', 'the fallback opened the source part-way down');
+    await page.waitForURL((url) => url.pathname === SOURCE && url.hash === '#missing', { timeout: 5000 });
+    if (await page.evaluate(() => scrollY) !== 0) fail('fallback-address', 'the missing section opened the source part-way down');
     return width;
   } finally {
     await context.close();

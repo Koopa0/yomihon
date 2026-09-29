@@ -51,7 +51,8 @@ func (g *Generation) DeclaredSources(relPath string, lang wording.Lang) ([]Decla
 		}
 		inner := basedOnInner(strings.TrimSpace(value))
 		link, _ := graph.ParseWikilink(inner)
-		if link.Heading == "" && link.Block == "" {
+		// A source that is not a note has no headings or blocks to check.
+		if (link.Heading == "" && link.Block == "") || !vault.IsMarkdown(ref.RelPath) {
 			groups[at].WholeFile = true
 			continue
 		}

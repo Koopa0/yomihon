@@ -60,7 +60,7 @@ No body citation.
 			{Label: "Limit first", Fragment: "limitations"},
 			{Label: "Method evidence", Fragment: "methods"},
 			{Label: "^Quote-1", Fragment: "^quote-1"},
-			{Label: "Missing evidence"}, {Label: "^absent"}, {Label: "Fiction"},
+			{Label: "Missing evidence", Fragment: "missing"}, {Label: "^absent"}, {Label: "Fiction", Fragment: "fiction"},
 			{Label: "Source", Fragment: "source"},
 		}},
 		{Name: "Other", RelPath: "Other.md", Locations: []render.SourceLocation{{Label: "Observation", Fragment: "observation"}}},
