@@ -2,10 +2,14 @@ package pages
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
@@ -117,5 +121,101 @@ func TestDeclaredSourcesRenderInDeclarationOrder(t *testing.T) {
 	}
 	if zebra >= apple || apple >= middle {
 		t.Errorf("declared sources were reordered on the page")
+	}
+}
+
+// The source-location card decides which rows to preview from what the page
+// says about them: the block they sit in, the class a row whose place is
+// missing carries, and the address. This holds that reading to the markup, so a
+// change to the block cannot quietly widen or empty the set the card is offered
+// on.
+func TestDeclaredSourceRowsCarryWhatTheCardReads(t *testing.T) {
+	t.Parallel()
+
+	view := NoteView{
+		Title:   "Claim",
+		RelPath: "Notes/Claim.md",
+		BasedOn: []snapshot.DeclaredSource{
+			{
+				Name:    "Study",
+				RelPath: "Notes/Study.md",
+				Locations: []render.SourceLocation{
+					{Label: "Methods", Fragment: "methods"},
+					{Label: "Absent", Fragment: "absent", Reason: "no such section"},
+				},
+			},
+			{
+				Name:      "Handbook",
+				RelPath:   "Notes/Handbook.md",
+				Locations: []render.SourceLocation{{Label: "Limits", Fragment: "limits"}},
+			},
+			{
+				Name:      "Gone",
+				RelPath:   "Notes/Gone.md",
+				Locations: []render.SourceLocation{{Label: "Lost", Fragment: "lost", Reason: "no such section"}},
+			},
+			{Name: "Data", RelPath: "Notes/data.txt"},
+			{Name: "[[twin]]"},
+		},
+		DeclaredBy: []DeclaringNoteView{{
+			Note:      nav.NoteRef{Name: "Later", RelPath: "Notes/Later.md"},
+			Locations: []DeclaredPlaceView{{Label: "Methods", Href: "/notes/Notes/Later.md#methods"}},
+		}},
+	}
+	var buf bytes.Buffer
+	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := buf.String()
+
+	// The rail and the disclosure the narrow layout folds draw each list once.
+	blocks := regexp.MustCompile(`(?s)<nav class="y-basedon"([^>]*)>(.*?)</nav>`).FindAllStringSubmatch(html, -1)
+	anchor := regexp.MustCompile(`<a class="([^"]*)" href="([^"]*)"`)
+	var own, declaring int
+	for _, block := range blocks {
+		if strings.Contains(block[1], "data-declared-by") {
+			// The list of notes declaring this one shares the block's class and
+			// is not this note's own source list, so the card is told apart from
+			// it by the attribute alone.
+			declaring++
+			continue
+		}
+		own++
+		var previewable, refused []string
+		for _, match := range anchor.FindAllStringSubmatch(block[2], -1) {
+			class, href := match[1], match[2]
+			path, _, _ := strings.Cut(href, "#")
+			if !strings.Contains(class, "wikilink-degraded") && strings.HasPrefix(href, "/notes/") && strings.HasSuffix(path, ".md") {
+				previewable = append(previewable, href)
+			} else {
+				refused = append(refused, href)
+			}
+		}
+		// A group with several locations is a link to the whole file and one
+		// link per location; a lone location is one compact row and no group
+		// link. A row whose place is missing, and a file that is not a note,
+		// are refused.
+		wantPreviewable := []string{
+			"/notes/Notes/Study.md",
+			"/notes/Notes/Study.md#methods",
+			"/notes/Notes/Handbook.md#limits",
+		}
+		wantRefused := []string{
+			"/notes/Notes/Study.md#absent",
+			"/notes/Notes/Gone.md#lost",
+			"/notes/Notes/data.txt",
+		}
+		if diff := cmp.Diff(wantPreviewable, previewable); diff != "" {
+			t.Errorf("rows the card is offered on (-want +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(wantRefused, refused); diff != "" {
+			t.Errorf("rows the card must refuse (-want +got):\n%s", diff)
+		}
+	}
+	if own != 2 {
+		t.Errorf("the note draws %d source lists of its own, want 2 (rail and disclosure)", own)
+	}
+	if declaring != 2 {
+		t.Errorf("the note draws %d lists of notes declaring it, want 2 (rail and disclosure)", declaring)
 	}
 }
