@@ -350,6 +350,8 @@ func (h *Handler) reading(
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	result := snap.Render(rel, n.Body, lang)
+	declaredSources, sourceDiagnostics := snap.DeclaredSources(rel, lang)
+	result.Diagnostics = append(result.Diagnostics, sourceDiagnostics...)
 
 	// Governed lesson bodies get the read-aloud affordance: wrap each ruby-bearing
 	// sentence with a speak button whose text has the furigana stripped
@@ -402,7 +404,7 @@ func (h *Handler) reading(
 		Stale:             n.Stale,
 		RenderDiagnostics: noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
 		CitedBy:           snap.CitedBy(rel),
-		BasedOn:           snap.BasedOn(rel),
+		BasedOn:           declaredSources,
 		Pair:              pairOffer(snap, state.shell.Nav, n),
 		VaultHasLinks:     snap.AnyCitations(),
 		Prev:              footPrev,

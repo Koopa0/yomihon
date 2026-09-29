@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -32,7 +33,7 @@ func comparedNote(prefix, title, relPath, language string) NoteView {
 		SchemaNotices: [][]wording.SchemaPart{
 			{{Text: "the contract does not know "}, {Text: "unknown_key", Code: true}},
 		},
-		BasedOn:     []nav.NoteRef{{Name: "Source", RelPath: "Writing/Source.md"}},
+		BasedOn:     []snapshot.DeclaredSource{{Name: "Source", RelPath: "Writing/Source.md"}},
 		Pair:        nav.NoteRef{Name: "The other half", RelPath: "Writing/Other.md"},
 		Next:        nav.NoteRef{Name: "Next one", RelPath: "Writing/Next.md"},
 		StepsLabel:  "接著讀",

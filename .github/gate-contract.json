@@ -38,6 +38,7 @@
     {"name": "e2e-http", "owns": ["e2e-http-check"]},
     {"name": "fuzz", "owns": ["fuzz-smoke", "performance-smoke"]},
     {"name": "e2e-behavior", "owns": ["browser-check"]},
+    {"name": "source-location-acceptance"},
     {"name": "e2e-mutations", "owns": ["mutation-check"]}
   ]
 }

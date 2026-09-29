@@ -219,3 +219,92 @@ func railRight(t *testing.T, body string) string {
 	}
 	return body[start : start+end]
 }
+
+// This goes through the real handler, captured projection and shared template.
+// Both responsive copies must offer the same authored places and note health
+// must explain the missing places without counting them as body citations.
+func TestDeclaredSourceLocationsReachTheReadingPage(t *testing.T) {
+	t.Parallel()
+	root := writeNotes(t, map[string]string{
+		"Source.md": "# Source\n\n## Methods\n\nmethod ^quote-1\n\n## Limitations\n\nlimits\n",
+		"Other.md":  "## Observation\n\nobservation\n",
+		"Claim.md": `---
+based_on:
+ - "[[Source#Limitations|Study limitations]]"
+ - "[[Other#observation]]"
+ - "[[Source#Methods|Method evidence]]"
+ - "[[Source#Methods|Second alias]]"
+ - "[[Source#^quote-1]]"
+ - "[[Source]]"
+ - "[[Source#Missing|Missing evidence]]"
+ - "[[Source#^absent]]"
+---
+The claim.
+`,
+		"Single.md": "---\nbased_on: \"[[Source#methods]]\"\n---\nSingle claim.\n",
+		"Mixed.md":  "---\nbased_on: [Source, \"[[Source#methods]]\"]\n---\nMixed claim.\n",
+	})
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, body := get(t, srv.Client(), srv.URL+"/notes/Claim.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	block := basedOnBlock(t, body)
+	for _, want := range []string{
+		`ui-navitem__count">2</span>`,
+		`href="/notes/Source.md#limitations"`,
+		`href="/notes/Source.md#methods"`,
+		`href="/notes/Source.md#%5Equote-1"`,
+		`href="/notes/Source.md"`,
+		`Other › Observation`,
+		`Study limitations`,
+		`Method evidence`,
+		`wikilink-broken wikilink-degraded`,
+		`找不到「Missing」這個小節，連結會落在筆記最上方`,
+		`找不到這個區塊，連結已改為指向整篇筆記`,
+	} {
+		if !strings.Contains(block, want) {
+			t.Errorf("declared source block missing %q: %s", want, block)
+		}
+	}
+	if strings.Contains(block, "Second alias") || strings.Count(block, "Method evidence") != 1 {
+		t.Errorf("identical location was not collapsed: %s", block)
+	}
+	if strings.Contains(block, "#missing") || strings.Contains(block, "#%5Eabsent") {
+		t.Errorf("missing location retained a false destination: %s", block)
+	}
+	if strings.Index(block, "Study limitations") >= strings.Index(block, "Method evidence") {
+		t.Errorf("locations lost authored order: %s", block)
+	}
+	if strings.Index(block, "Method evidence") >= strings.Index(block, "Other › Observation") {
+		t.Errorf("file grouping lost authored order: %s", block)
+	}
+	if strings.Count(body, block) != 2 {
+		t.Error("wide and narrow placements differ")
+	}
+	if !strings.Contains(body, `<div class="y-diaglist">`) {
+		t.Fatal("note health omits all source-location diagnostics")
+	}
+	conditions := noteConditions(t, body)
+	for _, want := range []string{"Missing", "absent"} {
+		if !strings.Contains(conditions, want) {
+			t.Errorf("note health omits missing place %q: %s", want, conditions)
+		}
+	}
+	code, single := get(t, srv.Client(), srv.URL+"/notes/Single.md")
+	if code != http.StatusOK {
+		t.Fatalf("single status = %d", code)
+	}
+	singleBlock := basedOnBlock(t, single)
+	if !strings.Contains(singleBlock, "Source › Methods") || strings.Count(singleBlock, "<a ") != 1 || strings.Contains(singleBlock, `href="/notes/Source.md"`) {
+		t.Errorf("single location did not collapse: %s", singleBlock)
+	}
+	code, mixed := get(t, srv.Client(), srv.URL+"/notes/Mixed.md")
+	if code != http.StatusOK {
+		t.Fatalf("mixed status = %d", code)
+	}
+	mixedBlock := basedOnBlock(t, mixed)
+	if !strings.Contains(mixedBlock, `href="/notes/Source.md"`) || !strings.Contains(mixedBlock, `href="/notes/Source.md#methods"`) || strings.Count(mixedBlock, "<a ") != 2 {
+		t.Errorf("bare source disappeared beside its one location: %s", mixedBlock)
+	}
+}
