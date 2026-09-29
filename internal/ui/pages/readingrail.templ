@@ -61,16 +61,6 @@ templ bookRail(rr ReadingRail, c layouts.Chrome) {
 		<div class="y-railbook" data-book-path={ rr.book.RelPath }>
 			<a class="y-railbook__title" href={ templ.URL(syllabusHrefFrom(rr.book.RelPath, rr.CurrentPath)) }>{ rr.book.Title }</a>
 			<p class="y-railbook__span">{ plural(view.Parts, wording.PartCountOne, wording.PartCountMany, c.Lang) } · { plural(view.Entries, wording.LessonCountOne, wording.LessonCountMany, c.Lang) }</p>
-			if rr.neighbors.Prev.RelPath != "" || rr.neighbors.Next.RelPath != "" {
-				<nav class="y-lessonsteps" aria-label={ rr.courseStepsLabel(c.Lang) }>
-					if rr.neighbors.Prev.RelPath != "" {
-						<a class="ui-navitem" href={ templ.URL(notesHref(rr.neighbors.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }<span { authoredLanguageAttrs(rr.neighbors.Prev.Language)... }>{ rr.neighbors.Prev.Name }</span></a>
-					}
-					if rr.neighbors.Next.RelPath != "" {
-						<a class="ui-navitem" href={ templ.URL(notesHref(rr.neighbors.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }<span { authoredLanguageAttrs(rr.neighbors.Next.Language)... }>{ rr.neighbors.Next.Name }</span> →</a>
-					}
-				</nav>
-			}
 			for _, sec := range view.Branches {
 				@bookRailBranch(rr, c, rr.book.RelPath, nil, sec)
 			}

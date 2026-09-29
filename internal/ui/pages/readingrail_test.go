@@ -24,7 +24,6 @@ func TestReadingRailBookShowsOnePath(t *testing.T) {
 		`data-reading-rail="book"`,
 		`data-book-path="Maps/Go path.md"`,
 		`data-book-branch=`,
-		`class="y-lessonsteps"`,
 		`aria-current="page"`,
 	} {
 		if !strings.Contains(html, want) {
@@ -32,6 +31,7 @@ func TestReadingRailBookShowsOnePath(t *testing.T) {
 		}
 	}
 	for _, ban := range []string{
+		`y-lessonsteps`,
 		`data-sidebar-group="paths"`,
 		`data-sidebar-group="maps"`,
 		`data-sidebar-group="journal"`,

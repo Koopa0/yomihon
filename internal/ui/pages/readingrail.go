@@ -1,8 +1,6 @@
 package pages
 
 import (
-	"fmt"
-
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -132,12 +130,4 @@ func (r *ReadingRail) bookView() PathView {
 		return PathView{}
 	}
 	return BuildPathView(r.book, nil, &CourseCover{Here: r.CurrentPath})
-}
-
-// courseStepsLabel names the path's whole order for the book rail's step links.
-func (r *ReadingRail) courseStepsLabel(lang wording.Lang) string {
-	if r.book == nil {
-		return ""
-	}
-	return fmt.Sprintf(wording.CourseOrderOf.In(lang), r.book.Title)
 }

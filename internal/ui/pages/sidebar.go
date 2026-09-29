@@ -267,12 +267,12 @@ func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFaul
 
 // FooterSequence chooses which order the foot of the article offers, and what to
 // call it. The rail has already resolved which book, if any, the page is being
-// read inside, and the foot walks that same book: one page offers one lesson
-// onward, wherever on it the reader reaches. A page whose rail resolved no book
-// — none teaches this note, or several do and none of them is its own — keeps
-// the folder, whose alphabetical order a course's declared one can contradict
-// completely. A course foot names the step onward, not the path's whole order —
-// the rail already uses that name.
+// read inside, and the foot walks that same book: the foot is the one place a
+// page in a book offers a lesson onward, since the rail's head carries only the
+// course's name and extent. A page whose rail resolved no book — none teaches
+// this note, or several do and none of them is its own — keeps the folder,
+// whose alphabetical order a course's declared one can contradict completely.
+// A course foot names the step onward, not the path's whole order.
 //
 // course reports which order won, so the foot can print it: that and the step
 // words are all a sighted reader has to tell a course from folder adjacency.
