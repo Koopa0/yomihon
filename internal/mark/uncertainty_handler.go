@@ -14,21 +14,32 @@ import (
 // UncertaintyAddress is shared by the page controls and their route.
 const UncertaintyAddress = "/uncertainties"
 
+// Places says whether a note is readable now and renders an anchor. An empty
+// anchor names the note as a whole. A mark is accepted only for such a place,
+// so a request cannot store text the vault never showed.
+type Places interface {
+	HasPlace(rel, anchor string) bool
+}
+
 // UncertaintyHandler reads and toggles the reader's accumulated location marks.
 type UncertaintyHandler struct {
-	file *File
-	log  *slog.Logger
+	file   *File
+	places Places
+	log    *slog.Logger
 }
 
 // NewUncertaintyHandler connects the route to the existing vault-local store.
-func NewUncertaintyHandler(file *File, log *slog.Logger) *UncertaintyHandler {
+func NewUncertaintyHandler(file *File, places Places, log *slog.Logger) *UncertaintyHandler {
 	if file == nil {
 		panic("mark: NewUncertaintyHandler requires a non-nil File")
+	}
+	if places == nil {
+		panic("mark: NewUncertaintyHandler requires a non-nil Places")
 	}
 	if log == nil {
 		panic("mark: NewUncertaintyHandler requires a non-nil logger")
 	}
-	return &UncertaintyHandler{file: file, log: log}
+	return &UncertaintyHandler{file: file, places: places, log: log}
 }
 
 // Register mounts read and toggle endpoints. The serving command supplies the
@@ -65,7 +76,7 @@ func (h *UncertaintyHandler) toggle(w http.ResponseWriter, r *http.Request) {
 		Anchor:  r.PostFormValue("anchor"),
 		At:      time.Now(),
 	}
-	marked, err := h.file.ToggleUncertainty(kept)
+	marked, err := h.file.ToggleUncertainty(kept, func(u *Uncertainty) bool { return h.places.HasPlace(u.RelPath, u.Anchor) })
 	switch {
 	case err == nil:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")

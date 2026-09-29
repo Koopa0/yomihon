@@ -1,10 +1,12 @@
 package mark_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -36,13 +38,13 @@ func TestUncertaintyTogglesOnlyTheChosenPathAndAnchor(t *testing.T) {
 	third := *first
 	third.RelPath = "Notes/other.md"
 	for _, kept := range []*mark.Uncertainty{first, &second, &third} {
-		if added, toggleErr := file.ToggleUncertainty(kept); toggleErr != nil || !added {
+		if added, toggleErr := file.ToggleUncertainty(kept, admitAny); toggleErr != nil || !added {
 			t.Fatalf("add %v = %v, %v", kept, added, toggleErr)
 		}
 	}
 	// Time is not identity: revisiting the first location removes it.
 	first.At = first.At.Add(time.Hour)
-	if added, toggleErr := file.ToggleUncertainty(first); toggleErr != nil || added {
+	if added, toggleErr := file.ToggleUncertainty(first, admitAny); toggleErr != nil || added {
 		t.Fatalf("remove first = %v, %v", added, toggleErr)
 	}
 	held, err := file.Uncertainties()
@@ -53,7 +55,7 @@ func TestUncertaintyTogglesOnlyTheChosenPathAndAnchor(t *testing.T) {
 		t.Fatalf("unrelated marks changed (-want +got):\n%s", diff)
 	}
 	for _, kept := range []*mark.Uncertainty{&second, &third} {
-		if added, toggleErr := file.ToggleUncertainty(kept); toggleErr != nil || added {
+		if added, toggleErr := file.ToggleUncertainty(kept, admitAny); toggleErr != nil || added {
 			t.Fatalf("remove %v = %v, %v", kept, added, toggleErr)
 		}
 	}
@@ -73,11 +75,11 @@ func TestUncertaintyStoresOnlyPathAnchorAndTimeOutsideContinuation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = file.ToggleUncertainty(anUncertainty()); err != nil {
+	if _, err = file.ToggleUncertainty(anUncertainty(), admitAny); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(file.Path())
-	if err != nil || string(before) != string(after) {
+	if err != nil || !bytes.Equal(before, after) {
 		t.Fatalf("uncertainty changed continuation bytes: %v", err)
 	}
 	data, err := os.ReadFile(file.UncertaintyPath())
@@ -96,7 +98,7 @@ func TestUncertaintyStoresOnlyPathAnchorAndTimeOutsideContinuation(t *testing.T)
 		t.Fatal(err)
 	}
 	after, err = os.ReadFile(file.UncertaintyPath())
-	if err != nil || string(data) != string(after) {
+	if err != nil || !bytes.Equal(data, after) {
 		t.Fatalf("continuation writer changed uncertainty bytes: %v", err)
 	}
 	info, err := os.Stat(file.UncertaintyPath())
@@ -131,7 +133,7 @@ func TestCorruptUncertaintiesAreNeverReplaced(t *testing.T) {
 			if _, err := file.Uncertainties(); !errors.Is(err, mark.ErrUnreadableUncertainties) {
 				t.Fatalf("read damaged file = %v; want unreadable", err)
 			}
-			if _, err := file.ToggleUncertainty(anUncertainty()); !errors.Is(err, mark.ErrUnreadableUncertainties) || errors.Is(err, mark.ErrInvalid) {
+			if _, err := file.ToggleUncertainty(anUncertainty(), admitAny); !errors.Is(err, mark.ErrUnreadableUncertainties) || errors.Is(err, mark.ErrInvalid) {
 				t.Fatalf("toggle damaged file = %v; want unreadable", err)
 			}
 			data, err := os.ReadFile(file.UncertaintyPath())
@@ -151,14 +153,14 @@ func TestUncertaintyReadFailureDoesNotLookEmpty(t *testing.T) {
 	if _, err := file.Uncertainties(); !errors.Is(err, mark.ErrUnreadableUncertainties) {
 		t.Fatalf("read directory = %v; want unreadable", err)
 	}
-	if _, err := file.ToggleUncertainty(anUncertainty()); !errors.Is(err, mark.ErrUnreadableUncertainties) {
+	if _, err := file.ToggleUncertainty(anUncertainty(), admitAny); !errors.Is(err, mark.ErrUnreadableUncertainties) {
 		t.Fatalf("toggle over directory = %v; want unreadable", err)
 	}
 }
 
 func TestInvalidUncertaintyIsRefusedBeforeReadingStorage(t *testing.T) {
 	t.Parallel()
-	if _, err := newFile(t).ToggleUncertainty(nil); !errors.Is(err, mark.ErrInvalid) {
+	if _, err := newFile(t).ToggleUncertainty(nil, admitAny); !errors.Is(err, mark.ErrInvalid) {
 		t.Fatalf("nil toggle = %v; want invalid submission", err)
 	}
 	for _, tt := range []struct {
@@ -185,7 +187,7 @@ func TestInvalidUncertaintyIsRefusedBeforeReadingStorage(t *testing.T) {
 			}
 			kept := anUncertainty()
 			tt.spoil(kept)
-			if _, err := file.ToggleUncertainty(kept); !errors.Is(err, mark.ErrInvalid) {
+			if _, err := file.ToggleUncertainty(kept, admitAny); !errors.Is(err, mark.ErrInvalid) {
 				t.Fatalf("invalid toggle = %v; want invalid submission", err)
 			}
 		})
@@ -198,7 +200,7 @@ func TestUncertaintiesSurviveRestartAndRemainVaultLocal(t *testing.T) {
 	file := newFileFor(t, config, "/vaults/one")
 	kept := anUncertainty()
 	kept.Anchor = ""
-	if _, err := file.ToggleUncertainty(kept); err != nil {
+	if _, err := file.ToggleUncertainty(kept, admitAny); err != nil {
 		t.Fatal(err)
 	}
 	reopened := newFileFor(t, config, "/vaults/one")
@@ -229,7 +231,7 @@ func TestConcurrentUncertaintyTogglesKeepEveryDistinctLocation(t *testing.T) {
 		writers.Go(func() {
 			kept := anUncertainty()
 			kept.Anchor = anchor
-			if _, err := file.ToggleUncertainty(kept); err != nil {
+			if _, err := file.ToggleUncertainty(kept, admitAny); err != nil {
 				t.Errorf("toggle %s: %v", anchor, err)
 			}
 		})
@@ -238,5 +240,73 @@ func TestConcurrentUncertaintyTogglesKeepEveryDistinctLocation(t *testing.T) {
 	held, err := file.Uncertainties()
 	if err != nil || len(held) != 4 {
 		t.Fatalf("concurrent writes retained %v, %v; want all four", held, err)
+	}
+}
+
+func admitAny(*mark.Uncertainty) bool { return true }
+
+func TestToggleUncertaintyRefusesInvalidUTF8ThenStaysReadable(t *testing.T) {
+	t.Parallel()
+	file := newFile(t)
+	// JSON stores an invalid byte as U+FFFD, so two identical requests used to
+	// write the same pair twice and make every later read fail as a duplicate.
+	for range 2 {
+		kept := anUncertainty()
+		kept.Anchor = "x\xff"
+		if _, err := file.ToggleUncertainty(kept, admitAny); !errors.Is(err, mark.ErrInvalid) {
+			t.Fatalf("ToggleUncertainty(invalid UTF-8 anchor) error = %v, want ErrInvalid", err)
+		}
+	}
+	held, err := file.Uncertainties()
+	if err != nil || len(held) != 0 {
+		t.Fatalf("Uncertainties() = %v, %v; want a readable empty list", held, err)
+	}
+	if _, err = file.ToggleUncertainty(anUncertainty(), admitAny); err != nil {
+		t.Fatalf("a later valid toggle failed: %v", err)
+	}
+}
+
+func TestToggleUncertaintyRefusesBeyondTheCapButStillClears(t *testing.T) {
+	t.Parallel()
+	file := newFile(t)
+	for i := range mark.MaxUncertainties {
+		kept := anUncertainty()
+		kept.Anchor = "a" + strconv.Itoa(i)
+		if added, err := file.ToggleUncertainty(kept, admitAny); err != nil || !added {
+			t.Fatalf("mark %d = %v, %v", i, added, err)
+		}
+	}
+	over := anUncertainty()
+	over.Anchor = "over"
+	if _, err := file.ToggleUncertainty(over, admitAny); !errors.Is(err, mark.ErrInvalid) {
+		t.Fatalf("mark past the cap error = %v, want ErrInvalid", err)
+	}
+	held, err := file.Uncertainties()
+	if err != nil || len(held) != mark.MaxUncertainties {
+		t.Fatalf("after the refusal: %d marks, %v", len(held), err)
+	}
+	first := anUncertainty()
+	first.Anchor = "a0"
+	if added, err := file.ToggleUncertainty(first, admitAny); err != nil || added {
+		t.Fatalf("clearing at the cap = %v, %v", added, err)
+	}
+	if added, err := file.ToggleUncertainty(over, admitAny); err != nil || !added {
+		t.Fatalf("adding after room was made = %v, %v", added, err)
+	}
+}
+
+func TestToggleUncertaintyAdmitsOnlyWhenAddingAndWithoutAdmitterRefuses(t *testing.T) {
+	t.Parallel()
+	file := newFile(t)
+	if _, err := file.ToggleUncertainty(anUncertainty(), nil); !errors.Is(err, mark.ErrInvalid) {
+		t.Fatalf("no admitter error = %v, want ErrInvalid", err)
+	}
+	if _, err := file.ToggleUncertainty(anUncertainty(), admitAny); err != nil {
+		t.Fatal(err)
+	}
+	// The place has since gone; clearing the mark must still work.
+	refuse := func(*mark.Uncertainty) bool { return false }
+	if added, err := file.ToggleUncertainty(anUncertainty(), refuse); err != nil || added {
+		t.Fatalf("clearing a stale mark = %v, %v", added, err)
 	}
 }

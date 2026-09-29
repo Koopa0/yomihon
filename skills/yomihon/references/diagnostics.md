@@ -269,8 +269,8 @@ carries `"withheld":true` instead of a match, so a script gated on the exit
 code does not go on to create a second note under a withheld note's own name:
 
 ```
-$ yomihon exists --root <vault> --format json 2026-08-30
-{"query":"2026-08-30","matches":[],"withheld":true}
+$ yomihon exists --root <vault> --format json 2026-09-22
+{"query":"2026-09-22","matches":[],"withheld":true}
 $ echo $?
 0
 ```

@@ -312,7 +312,7 @@ func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 	resolvedBranches := []Branch{{
 		Heading: "Shelf",
 		Level:   2,
-		Entries: []MapEntry{{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
+		Entries: []MapEntry{{Name: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
 	}}
 	wantPaths := []pathShape{{
 		Title: "Course", RelPath: "Maps/Course.md", Domain: "golang", Type: "study-path", Planned: 3,
@@ -411,7 +411,7 @@ func TestNewOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
 	if len(model.Maps()) != 1 || len(model.Maps()[0].Branches) != 1 {
 		t.Fatalf("New Maps = %+v, want one general-map branch", model.Maps())
 	}
-	wantEntries := []MapEntry{{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
+	wantEntries := []MapEntry{{Name: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
 	if diff := cmp.Diff(wantEntries, model.Maps()[0].Branches[0].Entries); diff != "" {
 		t.Errorf("New general-map entries mismatch (-want +got):\n%s", diff)
 	}
@@ -871,29 +871,29 @@ func TestParseBranchesGoShape(t *testing.T) {
 			Heading: "Data and the Hardware",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
+				{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
 			},
 			Subbranches: []Branch{
 				{
 					Heading: "Text as Bytes",
 					Level:   3,
 					Entries: []MapEntry{
-						{Text: "Entry A", Target: "Entry A", RelPath: "L/Entry A.md", Status: "draft"},
-						{Text: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
+						{Name: "Entry A", Target: "Entry A", RelPath: "L/Entry A.md", Status: "draft"},
+						{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
 					},
 				},
 				{
 					Heading: "Alignment",
 					Level:   3,
 					Entries: []MapEntry{
-						{Text: "Entry C", Target: "Entry C", RelPath: "L/Entry C.md"},
+						{Name: "Entry C", Target: "Entry C", RelPath: "L/Entry C.md"},
 					},
 				},
 			},
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath, nil, testArtifactPolicy(t))
+	got := parseBranches(body, idx, statusFacts(statusByPath), testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (Go shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -965,14 +965,14 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 			Heading: "Kana warm-up (order = lines)",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "P01 Kana", Target: "P01 Kana", RelPath: "jp/P01 Kana.md", Status: "draft"},
+				{Name: "P01 Kana", Target: "P01 Kana", RelPath: "jp/P01 Kana.md", Status: "draft"},
 			},
 		},
 		{
 			Heading: "Daily loop",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "Loop Link", Target: "Loop Link", RelPath: "Loop Link.md"},
+				{Name: "Loop Link", Target: "Loop Link", RelPath: "Loop Link.md"},
 			},
 		},
 		{
@@ -983,15 +983,15 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 					Heading: "Decode",
 					Level:   3,
 					Entries: []MapEntry{
-						{Text: "L01 Intro", Target: "L01 Intro", RelPath: "jp/L01 Intro.md", Status: "draft"},
-						{Text: "L02 Next", Target: "L02 Next", RelPath: "jp/L02 Next.md", Status: "draft"},
+						{Name: "L01 Intro", Target: "L01 Intro", RelPath: "jp/L01 Intro.md", Status: "draft"},
+						{Name: "L02 Next", Target: "L02 Next", RelPath: "jp/L02 Next.md", Status: "draft"},
 					},
 				},
 				{
 					Heading: "Verbs",
 					Level:   3,
 					Entries: []MapEntry{
-						{Text: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: schema.SealStatus},
+						{Name: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: schema.SealStatus},
 					},
 				},
 			},
@@ -1000,13 +1000,13 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 			Heading: "Gaps",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "Some Guide", Target: "Some Guide", RelPath: "Some Guide.md"},
-				{Text: "Another Guide", Target: "Another Guide", RelPath: "Another Guide.md"},
+				{Name: "Some Guide", Target: "Some Guide", RelPath: "Some Guide.md"},
+				{Name: "Another Guide", Target: "Another Guide", RelPath: "Another Guide.md"},
 			},
 		},
 	}
 
-	got := parseBranches(body, idx, statusByPath, nil, testArtifactPolicy(t))
+	got := parseBranches(body, idx, statusFacts(statusByPath), testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (大家 shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -1045,18 +1045,18 @@ func TestParseBranchesFaultTolerance(t *testing.T) {
 				{
 					Heading: "",
 					Level:   4,
-					Entries: []MapEntry{{Text: "Real", Target: "Real", RelPath: "ok/Real.md"}},
+					Entries: []MapEntry{{Name: "Real", Target: "Real", RelPath: "ok/Real.md"}},
 				},
 				{
 					Heading: "Module",
 					Level:   3,
-					Entries: []MapEntry{{Text: "Real", Target: "Real", RelPath: "ok/Real.md"}},
+					Entries: []MapEntry{{Name: "Real", Target: "Real", RelPath: "ok/Real.md"}},
 				},
 			},
 		},
 	}
 
-	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+	got := parseBranches(body, idx, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fault tolerance) mismatch (-want +got):\n%s", diff)
 	}
@@ -1107,42 +1107,42 @@ func TestParseBranchesProseLinksCountWhatThePageHolds(t *testing.T) {
 			Heading: "Authors",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "Norwegian Wood", Target: "Norwegian Wood", RelPath: "Norwegian Wood.md"},
-				{Text: "Kafka on the Shore", Target: "Kafka on the Shore", RelPath: "Kafka on the Shore.md"},
+				{Name: "Norwegian Wood", Target: "Norwegian Wood", RelPath: "Norwegian Wood.md"},
+				{Name: "Kafka on the Shore", Target: "Kafka on the Shore", RelPath: "Kafka on the Shore.md"},
 			},
 		},
 		{
 			Heading: "Forms",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "The Wind-Up Bird Chronicle", Target: "The Wind-Up Bird Chronicle", RelPath: "The Wind-Up Bird Chronicle.md"},
+				{Name: "The Wind-Up Bird Chronicle", Target: "The Wind-Up Bird Chronicle", RelPath: "The Wind-Up Bird Chronicle.md"},
 			},
 		},
 		{
 			Heading: "Editions",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "《挪威的森林》", Target: "挪威的森林", RelPath: "挪威的森林.md"},
-				{Text: "海辺のカフカ", Target: "海辺のカフカ", RelPath: "海辺のカフカ.md"},
+				{Name: "《挪威的森林》", Target: "挪威的森林", RelPath: "挪威的森林.md"},
+				{Name: "海辺のカフカ", Target: "海辺のカフカ", RelPath: "海辺のカフカ.md"},
 			},
 		},
 		{
 			Heading: "Places — [[Sputnik Sweetheart]]",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "Sputnik Sweetheart", Target: "Sputnik Sweetheart", RelPath: "Sputnik Sweetheart.md"},
+				{Name: "Sputnik Sweetheart", Target: "Sputnik Sweetheart", RelPath: "Sputnik Sweetheart.md"},
 			},
 		},
 		{
 			Heading: "After",
 			Level:   2,
 			Entries: []MapEntry{
-				{Text: "Colorless Tsukuru Tazaki", Target: "Colorless Tsukuru Tazaki", RelPath: "Colorless Tsukuru Tazaki.md"},
+				{Name: "Colorless Tsukuru Tazaki", Target: "Colorless Tsukuru Tazaki", RelPath: "Colorless Tsukuru Tazaki.md"},
 			},
 		},
 	}
 
-	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+	got := parseBranches(body, idx, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (prose map) mismatch (-want +got):\n%s", diff)
 	}
@@ -1168,10 +1168,10 @@ func TestParseBranchesFencedWikilinkIsNotAnEntry(t *testing.T) {
 		Heading: "Quoted",
 		Level:   2,
 		Entries: []MapEntry{
-			{Text: "Live", Target: "Live", RelPath: "Live.md"},
+			{Name: "Live", Target: "Live", RelPath: "Live.md"},
 		},
 	}}
-	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+	got := parseBranches(body, idx, nil, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (fenced negative) mismatch (-want +got):\n%s", diff)
 	}
@@ -1199,11 +1199,11 @@ func TestParseBranchesAdmitsEveryLiveLineKind(t *testing.T) {
 			t.Parallel()
 			idx := resolver(t, tt.path)
 			target := strings.TrimSuffix(tt.path, ".md")
-			got := parseBranches("## Branch\n\n"+tt.line+"\n", idx, map[string]string{}, nil, testArtifactPolicy(t))
+			got := parseBranches("## Branch\n\n"+tt.line+"\n", idx, nil, testArtifactPolicy(t))
 			want := []Branch{{
 				Heading: "Branch",
 				Level:   2,
-				Entries: []MapEntry{{Text: target, Target: target, RelPath: tt.path}},
+				Entries: []MapEntry{{Name: target, Target: target, RelPath: tt.path}},
 			}}
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("parseBranches(%q) mismatch (-want +got):\n%s", tt.line, diff)
@@ -1231,13 +1231,13 @@ func TestParseBranchesIgnoresAHeadingShapedLineInsideAFence(t *testing.T) {
 		"\n" +
 		"Later [[After]].\n"
 
-	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+	got := parseBranches(body, idx, nil, testArtifactPolicy(t))
 	want := []Branch{{
 		Heading: "Real",
 		Level:   2,
 		Entries: []MapEntry{
-			{Text: "Live", Target: "Live", RelPath: "Live.md"},
-			{Text: "After", Target: "After", RelPath: "After.md"},
+			{Name: "Live", Target: "Live", RelPath: "Live.md"},
+			{Name: "After", Target: "After", RelPath: "After.md"},
 		},
 	}}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -1259,12 +1259,12 @@ func TestParseBranchesQuotedInlineLinksAreNotEntries(t *testing.T) {
 		"See `[[Backticked]]`.\n" +
 		"%%[[Commented]]%%\n"
 
-	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+	got := parseBranches(body, idx, nil, testArtifactPolicy(t))
 	want := []Branch{{
 		Heading: "Zone",
 		Level:   2,
 		Entries: []MapEntry{
-			{Text: "Live", Target: "Live", RelPath: "Live.md"},
+			{Name: "Live", Target: "Live", RelPath: "Live.md"},
 		},
 	}}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -1298,8 +1298,8 @@ func TestParseBranchesHeadingAndLinkShareEachSkipZone(t *testing.T) {
 		Heading: "Real",
 		Level:   2,
 		Entries: []MapEntry{
-			{Text: "Live", Target: "Live", RelPath: "Live.md"},
-			{Text: "After", Target: "After", RelPath: "After.md"},
+			{Name: "Live", Target: "Live", RelPath: "Live.md"},
+			{Name: "After", Target: "After", RelPath: "After.md"},
 		},
 	}}
 
@@ -1309,7 +1309,7 @@ func TestParseBranchesHeadingAndLinkShareEachSkipZone(t *testing.T) {
 			// After sits past the zone with no new heading, so a ghost
 			// heading the zone failed to hide files it under Hidden.
 			body := "## Real\n\nSee [[Live]].\n\n" + tt.zone + "\nLater [[After]].\n"
-			got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+			got := parseBranches(body, idx, nil, testArtifactPolicy(t))
 			if heading, link := zoneAdmission(got, "Hidden"); heading != link {
 				t.Errorf("Hidden heading admitted=%v, Hidden link admitted=%v; they must match", heading, link)
 			}
@@ -1332,7 +1332,7 @@ func TestParseBranchesReadsTheHeadingFormsThePageShows(t *testing.T) {
 	branch := []Branch{{
 		Heading: "References",
 		Level:   2,
-		Entries: []MapEntry{{Text: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
+		Entries: []MapEntry{{Name: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
 	}}
 	tests := []struct {
 		name    string
@@ -1353,7 +1353,7 @@ func TestParseBranchesReadsTheHeadingFormsThePageShows(t *testing.T) {
 		{name: "marks with no words", heading: "#### ", want: []Branch{{
 			Heading: "",
 			Level:   4,
-			Entries: []MapEntry{{Text: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
+			Entries: []MapEntry{{Name: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
 		}}},
 	}
 	for _, tt := range tests {
@@ -1361,7 +1361,7 @@ func TestParseBranchesReadsTheHeadingFormsThePageShows(t *testing.T) {
 			t.Parallel()
 			idx := resolver(t, "Alpha.md")
 			body := tt.heading + "\n\nSee [[Alpha]].\n"
-			got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+			got := parseBranches(body, idx, nil, testArtifactPolicy(t))
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("parseBranches(%q) mismatch (-want +got):\n%s", body, diff)
 			}
@@ -1385,17 +1385,17 @@ func TestParseBranchesGivesAnUnderlinedHeadingItsOwnLink(t *testing.T) {
 		"A word about [[Beta]]\n" +
 		"---------------------\n"
 
-	got := parseBranches(body, idx, map[string]string{}, nil, testArtifactPolicy(t))
+	got := parseBranches(body, idx, nil, testArtifactPolicy(t))
 	want := []Branch{
 		{
 			Heading: "First",
 			Level:   2,
-			Entries: []MapEntry{{Text: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
+			Entries: []MapEntry{{Name: "Alpha", Target: "Alpha", RelPath: "Alpha.md"}},
 		},
 		{
 			Heading: "A word about [[Beta]]",
 			Level:   2,
-			Entries: []MapEntry{{Text: "Beta", Target: "Beta", RelPath: "Beta.md"}},
+			Entries: []MapEntry{{Name: "Beta", Target: "Beta", RelPath: "Beta.md"}},
 		},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -1423,7 +1423,7 @@ func TestNewCountsAMapWrittenInEitherHeadingForm(t *testing.T) {
 		Heading: "References",
 		Level:   2,
 		Entries: []MapEntry{{
-			Text: "Alpha", Target: "Alpha", RelPath: "Concepts/Alpha.md", Status: "growing", Kind: EntryResolved,
+			Name: "Alpha", Target: "Alpha", RelPath: "Concepts/Alpha.md", Status: "growing", Kind: EntryResolved,
 		}},
 	}}
 	want := []Map{
@@ -1463,7 +1463,7 @@ func TestPathKeepsAPlannedLessonInItsPlace(t *testing.T) {
 
 	idx := resolver(t, "Writing/Existing.md")
 	body := "## Course {sequence=primary}\n\n- [[Existing]]\n- [[Unwritten Lesson]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
 
 	want := []groupShape{{
 		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 2,
@@ -1491,7 +1491,7 @@ func TestPathKeepsAnAmbiguousLessonInOrder(t *testing.T) {
 
 	idx := resolver(t, "Writing/First.md", "A/Repeated.md", "B/Repeated.md", "Writing/Last.md")
 	body := "## Course {sequence=primary}\n\n- [[First]]\n- [[Repeated|Unresolved choice]]\n- [[Last]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
 
 	want := []groupShape{{
 		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 3,
@@ -1730,12 +1730,12 @@ func TestPlacements(t *testing.T) {
 			Branches: []Branch{
 				{Heading: "Part A", Level: 2, Subbranches: []Branch{
 					{Heading: "Module 1", Level: 3, Entries: []MapEntry{
-						{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
-						{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
+						{Name: "L1", Target: "L1", RelPath: "L/L1.md"},
+						{Name: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
 					}},
 				}},
 				{Heading: "Part B", Level: 2, Entries: []MapEntry{
-					{Text: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
+					{Name: "Shared", Target: "Shared", RelPath: "L/Shared.md"},
 				}},
 			},
 		},
@@ -1743,7 +1743,7 @@ func TestPlacements(t *testing.T) {
 			Title: "JP", RelPath: "Maps/jp-path.md",
 			Branches: []Branch{
 				{Heading: "Unit 1", Level: 2, Entries: []MapEntry{
-					{Text: "L1", Target: "L1", RelPath: "L/L1.md"},
+					{Name: "L1", Target: "L1", RelPath: "L/L1.md"},
 				}},
 			},
 		},
@@ -2486,7 +2486,7 @@ func groupShapes(groups []*PathGroup) []groupShape {
 			case item.Entry != nil:
 				e := item.Entry
 				shape.Entries = append(shape.Entries, entryShape{
-					Text:       e.Text,
+					Text:       e.Name,
 					Target:     e.Target,
 					RelPath:    e.RelPath,
 					Status:     e.Status,

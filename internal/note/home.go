@@ -53,8 +53,8 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		visibleNav.ArtifactClosure().Diagnostic(),
 	)
 	kept, hasMark := h.sources.Continuation()
-	open, openFault := h.openThoughtShelf(r.Context(), snap, lang)
-	if h.sources.Contract.AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
+	open, openFault := h.openThoughtShelf(r.Context(), snap, lang, pages.OpenThoughtsHomeRows)
+	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
 		open = pages.Shelf{}
 	}
 	view := pages.HomeView{

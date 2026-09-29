@@ -19,14 +19,14 @@ func TestThoughtRouteOffersOrdinaryDocumentsAndLessonsTheSameDoor(t *testing.T) 
 	for _, noteType := range []string{"", "lesson"} {
 		t.Run(noteType, func(t *testing.T) {
 			t.Parallel()
-			mux, _, root := thoughtRouteFixture(t, true, noteType)
+			mux, root := thoughtRouteFixture(t, true, noteType)
 			recorder := httptest.NewRecorder()
-			mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/thought/Source.md?section=chapter-one", http.NoBody))
+			mux.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/thought/Source.md?section=chapter-one", http.NoBody))
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("thought route status = %d, body %s", recorder.Code, recorder.Body.String())
 			}
 			markdown := thoughtTextarea(t, recorder.Body.String())
-			const want = "---\ntype: \"writing\"\nstatus: \"draft\"\ndomain: \"japanese\"\nbased_on: \"[[Source#chapter-one]]\"\n---\n"
+			const want = "---\ntype: \"writing\"\nstatus: \"draft\"\ndomain: \"japanese\"\nbased_on: \"[[Source#Chapter one]]\"\n---\n"
 			if markdown != want {
 				t.Errorf("offered Markdown = %q, want %q", markdown, want)
 			}
@@ -45,32 +45,17 @@ func TestThoughtRouteRejectsUnavailableAuthorityAndInvalidSections(t *testing.T)
 	for _, tc := range []struct {
 		name    string
 		answer  bool
-		revoke  bool
 		request string
 	}{
 		{name: "absent role", request: "/thought/Source.md"},
 		{name: "unknown section", answer: true, request: "/thought/Source.md?section=not-a-section"},
-		{name: "revoked role", answer: true, revoke: true, request: "/thought/Source.md"},
 		{name: "missing file", answer: true, request: "/thought/Missing.md"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			mux, contractPath, _ := thoughtRouteFixture(t, tc.answer, "")
-			if tc.revoke {
-				data, err := os.ReadFile(contractPath)
-				if err != nil {
-					t.Fatal(err)
-				}
-				updated := strings.Replace(string(data), "answer_type = \"writing\"\n", "", 1)
-				if updated == string(data) {
-					t.Fatal("revocation did not remove the declared role")
-				}
-				if err := os.WriteFile(contractPath, []byte(updated), 0o600); err != nil {
-					t.Fatal(err)
-				}
-			}
+			mux, _ := thoughtRouteFixture(t, tc.answer, "")
 			recorder := httptest.NewRecorder()
-			mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, tc.request, http.NoBody))
+			mux.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, tc.request, http.NoBody))
 			if recorder.Code != http.StatusNotFound {
 				t.Errorf("thought route status = %d, want 404", recorder.Code)
 			}
@@ -81,9 +66,38 @@ func TestThoughtRouteRejectsUnavailableAuthorityAndInvalidSections(t *testing.T)
 	}
 }
 
-func thoughtRouteFixture(t *testing.T, declareAnswer bool, sourceType string) (http.Handler, string, string) {
+func TestHasPlaceAcceptsOnlyRenderedAnchorsOfReadableNotes(t *testing.T) {
+	t.Parallel()
+	handler, _ := thoughtRouteHandler(t, false, "")
+	for _, tc := range []struct {
+		rel, anchor string
+		want        bool
+	}{
+		{"Source.md", "", true},
+		{"Source.md", "chapter-one", true},
+		{"Source.md", "not-a-section", false},
+		{"Source.md", "slot-pattern-1", false},
+		{"Missing.md", "", false},
+		{"Missing.md", "chapter-one", false},
+		{"../Source.md", "", false},
+	} {
+		if got := handler.HasPlace(tc.rel, tc.anchor); got != tc.want {
+			t.Errorf("HasPlace(%q, %q) = %v, want %v", tc.rel, tc.anchor, got, tc.want)
+		}
+	}
+}
+
+func thoughtRouteFixture(t *testing.T, declareAnswer bool, sourceType string) (mux http.Handler, root string) {
 	t.Helper()
-	root := t.TempDir()
+	handler, root := thoughtRouteHandler(t, declareAnswer, sourceType)
+	routes := http.NewServeMux()
+	handler.Register(routes)
+	return routes, root
+}
+
+func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (handler *note.Handler, root string) {
+	t.Helper()
+	root = t.TempDir()
 	content := "---\ntitle: '<img src=x onerror=alert(1)>'\ndomain: japanese\n"
 	if sourceType != "" {
 		content += "type: " + sourceType + "\n"
@@ -101,7 +115,7 @@ func thoughtRouteFixture(t *testing.T, declareAnswer bool, sourceType string) (h
 		text = strings.Replace(text, "[navigation]\n", "[navigation]\nanswer_type = \"writing\"\n", 1)
 	}
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
+	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- a temporary file this test just named
 		t.Fatal(err)
 	}
 	contract, err := schema.LoadFile(contractPath)
@@ -111,14 +125,12 @@ func thoughtRouteFixture(t *testing.T, declareAnswer bool, sourceType string) (h
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 	writer := openStatusWriter(t, source, contract, contract.Governance())
-	handler := note.New(&note.Sources{
+	handler = note.New(&note.Sources{
 		Source: source, Contract: contract, Snapshot: store.Current, Status: writer.Authority,
 		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation: noMark, Log: log,
 	})
-	mux := http.NewServeMux()
-	handler.Register(mux)
-	return mux, contractPath, root
+	return handler, root
 }
 
 func thoughtTextarea(t *testing.T, body string) string {

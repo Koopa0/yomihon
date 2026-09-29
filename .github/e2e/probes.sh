@@ -56,6 +56,7 @@ probes=(
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
+  "book-rail-head.mjs|/notes/Course/C02.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
   "motion-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "overlay-commands.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -72,6 +73,7 @@ probes=(
   # probe measures is the same measurement next month.
   "journal-month.mjs|/journal?month=2026-07"
   "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "reply-contract.mjs|/notes/Notes/reading-fidelity.md"
   "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
   "result-landing-visibility.mjs|/search?q=%22alpha%20beta%20gamma%22"
@@ -88,6 +90,7 @@ probes=(
   # A query broad enough that its answer runs past one page, which is what
   # gives this one a way on to follow. It drives the findings table itself.
   "pager-contract.mjs|/search?q=e"
+  "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads

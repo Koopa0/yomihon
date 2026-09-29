@@ -29,7 +29,7 @@ templ Thought(v ThoughtView, c layouts.Chrome) {
 					if v.EditorHref != "" {
 						<a class="y-xbtn" href={ templ.SafeURL(v.EditorHref) }>{ wording.ThoughtObsidian.In(c.Lang) }</a>
 					}
-					<p role="status" data-thought-said></p>
+					<p class="y-thought__said" role="status" data-thought-said></p>
 				</section>
 			</div>
 		</main>

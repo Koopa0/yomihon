@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"strconv"
+
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/wording"
@@ -25,4 +27,11 @@ func uncertaintyAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 		"data-uncertainty-scope":       wording.UncertaintyPlaceOnly.In(lang),
 		"data-uncertainty-lang":        lang.Tag(),
 	}
+}
+
+// SlotPatternID is the id of the slot-machine card at a zero-based position.
+// It comes from position, not from the pattern's authored id, which nothing
+// checks for being present or distinct.
+func SlotPatternID(index int) string {
+	return "slot-pattern-" + strconv.Itoa(index+1)
 }

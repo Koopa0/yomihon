@@ -140,7 +140,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 		{
 			name: "study path warning",
 			render: func(buf *bytes.Buffer) error {
-				return entryRow(PathEntryView{Text: "Missing", Kind: nav.EntryAmbiguous}, wording.ZhHant).Render(t.Context(), buf)
+				return entryRow(PathEntryView{Name: "Missing", Kind: nav.EntryAmbiguous}, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{`data-resolution="ambiguous"`, `title="目標有歧義"`, ">有歧義</span>"},
 			forbidden: []string{`title="Target is ambiguous"`, ">ambiguous</span>"},

@@ -40,7 +40,10 @@ type Branch struct {
 // because their order is a curriculum. The shelf's branch count is how many
 // headings this list keeps alive, so the rail and the shelf name the same tree.
 type MapEntry struct {
-	Text       string
+	// Name is what the map prints for the row: the alias its author wrote,
+	// else the resolved note's own title, else the link text. A row that
+	// addresses a heading or block keeps its link text unless it wrote an alias.
+	Name       string
 	Target     string
 	RelPath    string
 	Status     string
@@ -75,8 +78,7 @@ func cloneBranches(source []Branch) []Branch {
 func parseMap(
 	n *vault.Note,
 	idx *graph.Index,
-	statusByPath map[string]string,
-	langsByPath map[string]string,
+	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
 ) Map {
 	return Map{
@@ -84,7 +86,7 @@ func parseMap(
 		RelPath:  n.RelPath,
 		Domain:   n.Domain(),
 		Type:     n.Type(),
-		Branches: parseBranches(n.Body, idx, statusByPath, langsByPath, policy),
+		Branches: parseBranches(n.Body, idx, facts, policy),
 	}
 }
 
@@ -111,8 +113,7 @@ type branchNode struct {
 func parseBranches(
 	body string,
 	idx *graph.Index,
-	statusByPath map[string]string,
-	langsByPath map[string]string,
+	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
 ) []Branch {
 	var roots []*branchNode
@@ -124,10 +125,10 @@ func parseBranches(
 		if h.Level < 2 {
 			continue
 		}
-		attachLiveLinks(stack, links, &next, h.Start, idx, statusByPath, langsByPath, policy)
+		attachLiveLinks(stack, links, &next, h.Start, idx, facts, policy)
 		stack = openBranch(&roots, stack, headingLabel(strings.TrimSpace(h.Text)), h.Level)
 	}
-	attachLiveLinks(stack, links, &next, len(body), idx, statusByPath, langsByPath, policy)
+	attachLiveLinks(stack, links, &next, len(body), idx, facts, policy)
 	return convertBranches(pruneBranches(roots))
 }
 
@@ -140,8 +141,7 @@ func attachLiveLinks(
 	next *int,
 	until int,
 	idx *graph.Index,
-	statusByPath map[string]string,
-	langsByPath map[string]string,
+	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
 ) {
 	for *next < len(links) && links[*next].Span.Start < until {
@@ -150,7 +150,7 @@ func attachLiveLinks(
 		if len(stack) == 0 {
 			continue
 		}
-		entry := resolveEntry(link.Target, link.Display, idx, statusByPath, langsByPath, policy)
+		entry := resolveEntry(link, idx, facts, policy)
 		if entry.Kind != EntryResolved {
 			continue
 		}
@@ -223,13 +223,15 @@ func headingLabel(text string) string {
 // Unresolved, ambiguous and non-instance targets get distinct warning kinds
 // and are dropped by parseBranches; only a uniquely resolved governed row
 // becomes an entry the rail can follow.
-func resolveEntry(target, display string, idx *graph.Index, statusByPath, langsByPath map[string]string, policy schema.ArtifactPolicy) MapEntry {
-	res := idx.Resolve(target)
-	entry := MapEntry{Text: display, Target: target, Kind: entryKindOf(res, policy)}
+func resolveEntry(link sequence.Link, idx *graph.Index, facts map[string]noteFacts, policy schema.ArtifactPolicy) MapEntry {
+	res := idx.Resolve(link.Target)
+	entry := MapEntry{Name: linkText(link), Target: link.Target, Kind: entryKindOf(res, policy)}
 	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
-		entry.Status = statusByPath[res.RelPath]
-		entry.Language = langsByPath[res.RelPath]
+		known := facts[res.RelPath]
+		entry.Status = known.status
+		entry.Language = known.language
+		entry.Name = rowName(link, known.title)
 	}
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)

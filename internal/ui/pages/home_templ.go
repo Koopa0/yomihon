@@ -226,7 +226,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = ShelfBlock(v.OpenThoughts, "open-thoughts", 5, c.Lang).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = ShelfBlock(v.OpenThoughts, "open-thoughts", OpenThoughtsHomeRows, c.Lang).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

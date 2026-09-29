@@ -224,7 +224,7 @@ templ headerMark(mark *MarkOffer, lang wording.Lang) {
 		data-mark-failed={ wording.MarkNotStored.In(lang) }
 	>
 		<button class="y-xbtn" type="button" data-mark-button>{ wording.MarkSetControl.In(lang) }</button>
-		<p class="y-headermark__said" data-mark-said role="status" aria-live="polite" aria-atomic="true"></p>
+		@Reply("y-headermark__said", templ.Attributes{"data-mark-said": true})
 	</div>
 }
 

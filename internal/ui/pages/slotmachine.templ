@@ -41,7 +41,7 @@ templ SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) {
 // so arriving announces nothing, and declares Japanese because the sentence is
 // Japanese — the nearest declared language above it would be the wrong voice.
 templ slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) {
-	{{ headingID := "slot-pattern-" + strconv.Itoa(index+1) }}
+	{{ headingID := SlotPatternID(index) }}
 	<article class="y-slotcard" aria-labelledby={ headingID }>
 		@templ.Raw(`<script nonce="` + templ.EscapeString(nonce) + `" type="application/json" class="y-slotdata">` + lesson.PatternJSON(p) + `</script>`)
 		<header class="y-slotcard__head">

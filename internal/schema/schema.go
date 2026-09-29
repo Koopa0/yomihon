@@ -102,7 +102,6 @@ type Contract struct {
 	artifactPolicy  ArtifactPolicy
 	privacyPolicy   PrivacyPolicy
 	journalDir      JournalDir
-	answerType      *answerTypeState
 	metadata        contractMetadata
 	written         writtenKeys
 
@@ -370,7 +369,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		contract.definition.Enums.Type,
 		&tomlMeta,
 	)
-	contract.answerType = deriveAnswerType(navigation, unknown.navigation, contract.definition.Enums.Type, source)
+	contract.navigationRoles = contract.navigationRoles.withAnswerType(navigation, unknown.navigation, contract.definition.Enums.Type)
 	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
 	contract.journalDir = resolveJournalDir(
 		navigation,

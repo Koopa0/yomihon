@@ -2246,11 +2246,8 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			if roles.Available() || roles.IsPathType("study-path") || roles.IsMapType("moc") {
 				return "NavigationRoles() claims a declared role set"
 			}
-			return ""
-		},
-		"AnswerType": func() string {
-			if got := c.AnswerType(); got != "" {
-				return fmt.Sprintf("AnswerType() = %q, want no declared answer role", got)
+			if got := roles.AnswerType(); got != "" {
+				return fmt.Sprintf("NavigationRoles().AnswerType() = %q, want no declared answer role", got)
 			}
 			return ""
 		},

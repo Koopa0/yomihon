@@ -95,7 +95,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 				@continueRow(v.Continue, c.Lang)
 				<div class="y-homegrid">
 					if v.OpenThoughts.Title != "" {
-						@ShelfBlock(v.OpenThoughts, "open-thoughts", 5, c.Lang) {
+						@ShelfBlock(v.OpenThoughts, "open-thoughts", OpenThoughtsHomeRows, c.Lang) {
 							if v.OpenThoughtsFault != "" {
 								@nothingToShow(nothingNotice{Kind: "open-thoughts", Fault: true}) {
 									<p>{ v.OpenThoughtsFault }</p>

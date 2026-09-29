@@ -2,6 +2,9 @@ package pages
 
 import "slices"
 
+// OpenThoughtsHomeRows is how many open-thought rows the desk has room for.
+const OpenThoughtsHomeRows = 5
+
 // Shelf is one organisation's listing of documents, in the order that
 // organisation puts them: a name, a measure, one sentence, and rows. The vault
 // declares several — the courses, the maps, the reports, the folders — and each

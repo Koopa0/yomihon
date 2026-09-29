@@ -120,6 +120,13 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 			t.Fatalf("Chtimes(%q) error = %v", rel, err)
 		}
 	}
+	return root, modelOf(t, root)
+}
+
+// modelOf reads the folder at root the way a running server does and answers
+// with the navigation model built from it.
+func modelOf(t *testing.T, root string) *nav.Model {
+	t.Helper()
 	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatalf("vault.Open() error = %v", err)
@@ -153,7 +160,7 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	return root, nav.New(
+	return nav.New(
 		scan.Files(),
 		notes,
 		graph.New(noteList, resources),
@@ -859,7 +866,7 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 		"study path row": func(rel string) string {
 			t.Helper()
 			var buf bytes.Buffer
-			entry := nav.PathEntry{Kind: nav.EntryResolved, RelPath: rel, Text: "L", Status: "draft"}
+			entry := nav.PathEntry{Kind: nav.EntryResolved, RelPath: rel, Name: "L", Status: "draft"}
 			if err := pathEntryLink(sb, layouts.Chrome{}, &entry).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}
@@ -868,7 +875,7 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 		"map branch row": func(rel string) string {
 			t.Helper()
 			var buf bytes.Buffer
-			entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: rel, Text: "L", Status: "draft"}
+			entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: rel, Name: "L", Status: "draft"}
 			if err := entryLink(sb, layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}

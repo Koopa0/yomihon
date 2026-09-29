@@ -6,10 +6,10 @@ domain: yomihon
 slug: building-from-source
 level: fundamental
 superseded_by: ["L01 Point yomihon at a folder"]
-created: 2026-01-05
-updated: 2026-09-04
+created: 2026-09-22
+updated: 2026-09-22
 lang: en
 ---
 
-The build steps moved into the project's own README, where they are kept
-current. Nothing here was wrong; it just stopped being the first thing to do.
+Installation instructions are in the [project README](https://github.com/koopa0/yomihon#install).
+To open a vault, continue with [[L01 Point yomihon at a folder]].

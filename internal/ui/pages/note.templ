@@ -50,8 +50,7 @@ type NoteView struct {
 	RenderDiagnostics []render.Diagnostic
 	// Prev and Next are the notes either side of this one in the sequence the
 	// foot of the article offers. StepsLabel names that sequence, printed and
-	// spoken alike — a course's step onward, or folder adjacency — so the rail
-	// can keep the path's whole order under a different landmark name.
+	// spoken alike — a course's step onward, or folder adjacency.
 	// StepsCourse says which order arrived, which picks the step words.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
@@ -224,13 +223,13 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
-			<template id={ "concept-" + c.ID } data-title={ c.Title }>
+			<template id={ "concept-" + c.ID } data-title={ conceptSheetTitle(c.Title, lang) }>
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog id="_y-concept-sheet" class="y-conceptsheet" data-concept-sheet aria-label={ wording.GrammarNote.In(lang) } closedby="any">
+		<dialog id="_y-concept-sheet" class="y-conceptsheet" data-concept-sheet aria-labelledby="_y-concept-title" closedby="any">
 			<div class="y-conceptsheet__head">
-				<span class="y-conceptsheet__title" data-concept-title></span>
+				<h2 id="_y-concept-title" class="y-conceptsheet__title" data-concept-title></h2>
 				<button type="button" class="y-iconbtn" command="close" commandfor="_y-concept-sheet" aria-label={ wording.CloseControl.In(lang) }>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
@@ -815,11 +814,11 @@ templ statusBar(v NoteView, lang wording.Lang) {
 // appears once, and reaching the same address again states nothing.
 templ flipReceipt(v NoteView, lang wording.Lang) {
 	if v.showsFlipReceipt() {
-		<p class="y-flipreceipt" role="status">
+		@layouts.Reply("y-flipreceipt", templ.Attributes{"data-reply-tone": "kept"}) {
 			{ wording.FlipReceiptBefore.In(lang) }<code lang="en">{ v.FlippedFrom }</code>{ wording.FlipReceiptBetween.In(lang) }<code lang="en">{ v.Status }</code>{ wording.FlipReceiptAfter.In(lang) }
 			if v.FlipNoReturn {
 				{ frontmatterDoorLine(&v, lang) }
 			}
-		</p>
+		}
 	}
 }

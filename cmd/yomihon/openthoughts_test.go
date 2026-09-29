@@ -68,7 +68,7 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 	putOpenThoughtFile(t, root, "Inside/WrongRole.md", openThoughtNote("Wrong role", "other", "started", "2026-09-11"))
 	putOpenThoughtFile(t, root, "Inside/Invalid.md", openThoughtNote("Invalid status", "reflection", "unknown", "2026-09-12"))
 	site, marks := openThoughtSite(t, root)
-	_, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)})
+	_, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, admitMark)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,14 +147,14 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			putOpenThoughtFile(t, root, "LooksLikeAnAnswer.md", openThoughtNote("Never guessed", "reflection", "started", "2026-09-01"))
 			site, marks := openThoughtSite(t, root)
 			kept := &mark.Uncertainty{RelPath: "Source.md", At: time.Now()}
-			if _, err := marks.ToggleUncertainty(kept); err != nil {
+			if _, err := marks.ToggleUncertainty(kept, admitMark); err != nil {
 				t.Fatal(err)
 			}
 			page := openThoughtPage(t, site, "/open-thoughts", "en")
 			if strings.Count(page, "data-index-row") != 1 || strings.Contains(page, "Never guessed") {
 				t.Error("ungoverned/invalid shelf must show marks without guessing an answer role")
 			}
-			if _, err := marks.ToggleUncertainty(kept); err != nil {
+			if _, err := marks.ToggleUncertainty(kept, admitMark); err != nil {
 				t.Fatal(err)
 			}
 			if strings.Contains(openThoughtPage(t, site, "/", "en"), `data-home-block="open-thoughts"`) {
@@ -216,23 +216,6 @@ func TestOpenThoughtsDoesNotTreatInferredInitialAsDeclared(t *testing.T) {
 	}
 }
 
-func TestOpenThoughtsRevokedContractKeepsOnlyMarks(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	putOpenThoughtFile(t, root, schema.ContractRelPath, openThoughtContract)
-	putOpenThoughtFile(t, root, "Inside/Thought.md", openThoughtNote("Withdrawn role", "reflection", "started", "2026-09-01"))
-	putOpenThoughtFile(t, root, "Source.md", "source\n")
-	site, marks := openThoughtSite(t, root)
-	if _, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: "Source.md", At: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
-	putOpenThoughtFile(t, root, schema.ContractRelPath, "broken contract")
-	page := openThoughtPage(t, site, "/open-thoughts", "en")
-	if strings.Count(page, "data-index-row") != 1 || strings.Contains(page, "Withdrawn role") {
-		t.Error("revoked contract kept an answer-role row or lost the independent mark")
-	}
-}
-
 func TestOpenThoughtsReadFailureIsNotCompletion(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -248,6 +231,85 @@ func TestOpenThoughtsReadFailureIsNotCompletion(t *testing.T) {
 		t.Error("failed live read was presented as completion or an empty complete shelf")
 	}
 }
+
+func TestOpenThoughtsSkipsDeclaredNonInstances(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	putOpenThoughtFile(t, root, schema.ContractRelPath, strings.Replace(openThoughtContract, "non_instance_dirs = []", `non_instance_dirs = ["Templates"]`, 1))
+	putOpenThoughtFile(t, root, "Inside/Real.md", openThoughtNote("A real thought", "reflection", "started", "2026-09-01"))
+	putOpenThoughtFile(t, root, "Templates/Template.md", openThoughtNote("A template row", "reflection", "started", "2026-09-02"))
+	site, _ := openThoughtSite(t, root)
+	for _, address := range []string{"/", "/open-thoughts"} {
+		page := openThoughtPage(t, site, address, "en")
+		if !strings.Contains(page, "A real thought") {
+			t.Errorf("GET %s lost the real thought", address)
+		}
+		if strings.Contains(page, "A template row") {
+			t.Errorf("GET %s lists a declared non-instance as an open thought", address)
+		}
+	}
+	if !strings.Contains(openThoughtPage(t, site, "/open-thoughts", "en"), "1 item") {
+		t.Error("the count includes the non-instance")
+	}
+}
+
+func TestOpenThoughtsNeverShowsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	putOpenThoughtFile(t, root, schema.ContractRelPath, openThoughtContract)
+	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
+	site, marks := openThoughtSite(t, root)
+	const stray = "Visit example dot com for free prizes.md"
+	// The store accepts whatever its admitter does; a file written by an older
+	// build or by hand can hold a path the vault does not.
+	for _, rel := range []string{stray, "Source.md"} {
+		if _, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: rel, At: time.Now()}, admitMark); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, address := range []string{"/", "/open-thoughts"} {
+		page := openThoughtPage(t, site, address, "en")
+		if strings.Contains(page, "free prizes") {
+			t.Errorf("GET %s renders text from a mark whose note is not in the vault", address)
+		}
+		if !strings.Contains(page, "Source") {
+			t.Errorf("GET %s lost the mark on a real note", address)
+		}
+	}
+	if got := strings.Count(openThoughtPage(t, site, "/open-thoughts", "en"), "data-index-row"); got != 1 {
+		t.Errorf("open shelf rows = %d, want only the real mark", got)
+	}
+}
+
+func TestOpenThoughtsHomeConfirmsOnlyTheRowsItShows(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	putOpenThoughtFile(t, root, schema.ContractRelPath, openThoughtContract)
+	for i := 1; i <= 7; i++ {
+		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Thought%d.md", i), openThoughtNote(fmt.Sprintf("Thought %d", i), "reflection", "started", fmt.Sprintf("2026-09-%02d", i)))
+	}
+	site, _ := openThoughtSite(t, root)
+	// The oldest note is beyond the five rows Home has room for. Its file is
+	// gone, so a status read of it fails; only the complete shelf reads it.
+	if err := os.Remove(filepath.Join(root, "Inside", "Thought1.md")); err != nil {
+		t.Fatal(err)
+	}
+	home := openThoughtPage(t, site, "/", "en")
+	if strings.Contains(home, "current statuses could not be read") {
+		t.Error("Home read the status of a note it does not show")
+	}
+	if got := strings.Count(openThoughtBlock(t, home), "data-desk-item"); got != 5 {
+		t.Errorf("Home rows = %d, want five", got)
+	}
+	if !strings.Contains(openThoughtBlock(t, home), "7 items") {
+		t.Error("Home's count is not the snapshot's candidate count")
+	}
+	if !strings.Contains(openThoughtPage(t, site, "/open-thoughts", "en"), "current statuses could not be read") {
+		t.Error("the complete shelf did not read every row it shows")
+	}
+}
+
+func admitMark(*mark.Uncertainty) bool { return true }
 
 func openThoughtSite(t *testing.T, root string) (*readingSite, *mark.File) {
 	t.Helper()

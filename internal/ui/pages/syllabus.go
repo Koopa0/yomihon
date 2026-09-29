@@ -103,6 +103,9 @@ type CourseAction struct {
 	// first lesson is the next thing on the page and naming it twice says
 	// nothing; a lesson somewhere inside it cannot be found by looking.
 	Lesson string
+	// LessonLanguage is the language that lesson's note declared, empty where
+	// it declared none, so its name is read in its own language.
+	LessonLanguage string
 }
 
 // Token is the machine word the markup carries for which verb this is. It
@@ -154,7 +157,7 @@ type PathItemView struct {
 // walk, the one owner of sequence position, and zero means the walk never
 // reaches the row.
 type PathEntryView struct {
-	Text string
+	Name string
 	// RelPath is the note this row reached, empty for a row that reached none.
 	// It is the row's own identity: the href and the two marks below are read
 	// off it, and the cover's verb asks which row is the note a reader kept a
@@ -330,7 +333,7 @@ func courseAction(branches []PathBranchView, cover *CourseCover) CourseAction {
 		if kept := firstLesson(branches, false, func(entry *PathEntryView, _ bool) bool {
 			return entry.RelPath == cover.KeptNote
 		}); kept != nil {
-			return CourseAction{Href: cover.KeptHref, Continuing: true, Lesson: kept.Text}
+			return CourseAction{Href: cover.KeptHref, Continuing: true, Lesson: kept.Name, LessonLanguage: kept.Language}
 		}
 	}
 	first := firstLesson(branches, false, func(entry *PathEntryView, local bool) bool {
@@ -436,7 +439,7 @@ func countModules(sv *PathBranchView) int {
 // Only a resolved row can be the one the reader is at: a row that reached no
 // note is not a note anyone can have been reading.
 func buildPathEntry(entry *nav.PathEntry, here string) PathEntryView {
-	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
+	v := PathEntryView{Name: entry.Name, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
 	if entry.Kind != nav.EntryResolved {
 		return v
 	}
