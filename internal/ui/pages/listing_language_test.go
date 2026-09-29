@@ -248,35 +248,6 @@ func TestBookRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 			t.Errorf("study path row missing %q in %q", want, html)
 		}
 	})
-
-	t.Run("the steps either side", func(t *testing.T) {
-		t.Parallel()
-		rail := ReadingRail{
-			book: &nav.Path{Title: "日本語の道", RelPath: "Maps/Language path.md"},
-			neighbors: nav.Neighbors{
-				PathTitle:   "日本語の道",
-				PathRelPath: "Maps/Language path.md",
-				Prev:        nav.NoteRef{Name: "L00 はじめに", RelPath: "Lessons/L00.md", Language: "ja"},
-				Next:        nav.NoteRef{Name: "Alpha", RelPath: "Lessons/alpha.md"},
-			},
-		}
-		var buf bytes.Buffer
-		if err := bookRail(rail, chrome).Render(t.Context(), &buf); err != nil {
-			t.Fatalf("render book rail: %v", err)
-		}
-		html := buf.String()
-		// Each expectation puts the interface's word immediately before the
-		// span, which is the boundary itself: the words naming the step stay
-		// English and the title they hand over to stays Japanese.
-		for _, want := range []string{
-			`Previous lesson: <span lang="ja">L00 はじめに</span>`,
-			`Next lesson: <span>Alpha</span>`,
-		} {
-			if !strings.Contains(html, want) {
-				t.Errorf("the book rail's steps are missing %q in %q", want, html)
-			}
-		}
-	})
 }
 
 // TestHealthListingLanguageComesOnlyFromAuthority holds health link names the
