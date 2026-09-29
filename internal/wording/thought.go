@@ -1,6 +1,6 @@
 package wording
 
-// ThoughtDoor names the external note handoff.
+// ThoughtDoor names the link that starts a note of the reader's own, based on this note.
 var ThoughtDoor = both("留下自己的想法", "Leave a thought")
 
 // ThoughtMarkdown labels the copyable text.
@@ -21,8 +21,8 @@ var ThoughtCopyFailed = both("請選取上方文字，手動複製。", "Select 
 // ThoughtObsidian names the optional external editor action.
 var ThoughtObsidian = both("在 Obsidian 建立筆記", "Create in Obsidian")
 
-// ThoughtSectionFmt names the section-specific handoff in the contents list
-// for the one section it belongs to; the argument is the heading's own text.
+// ThoughtSectionFmt names, in the contents list, the link that starts a note of
+// the reader's own based on one section; the argument is that heading's text.
 var ThoughtSectionFmt = both("留想法：%s", "Leave a thought: %s")
 
 // DeclaredBy labels reverse source declarations, distinct from body backlinks.
