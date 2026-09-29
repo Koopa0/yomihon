@@ -116,7 +116,8 @@ func (f *File) ToggleUncertainty(kept *Uncertainty, admit func(*Uncertainty) boo
 	if err = os.MkdirAll(f.dir, 0o700); err != nil {
 		return false, fmt.Errorf("create the marks directory: %w", err)
 	}
-	if err = f.replaceUncertainties(append(data, '\n')); err != nil {
+	err = f.replaceUncertainties(append(data, '\n'))
+	if err != nil {
 		return false, err
 	}
 	return added, nil

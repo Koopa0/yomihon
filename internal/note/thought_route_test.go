@@ -19,9 +19,9 @@ func TestThoughtRouteOffersOrdinaryDocumentsAndLessonsTheSameDoor(t *testing.T) 
 	for _, noteType := range []string{"", "lesson"} {
 		t.Run(noteType, func(t *testing.T) {
 			t.Parallel()
-			mux, _, root := thoughtRouteFixture(t, true, noteType)
+			mux, root := thoughtRouteFixture(t, true, noteType)
 			recorder := httptest.NewRecorder()
-			mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/thought/Source.md?section=chapter-one", http.NoBody))
+			mux.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/thought/Source.md?section=chapter-one", http.NoBody))
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("thought route status = %d, body %s", recorder.Code, recorder.Body.String())
 			}
@@ -53,9 +53,9 @@ func TestThoughtRouteRejectsUnavailableAuthorityAndInvalidSections(t *testing.T)
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			mux, _, _ := thoughtRouteFixture(t, tc.answer, "")
+			mux, _ := thoughtRouteFixture(t, tc.answer, "")
 			recorder := httptest.NewRecorder()
-			mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, tc.request, http.NoBody))
+			mux.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, tc.request, http.NoBody))
 			if recorder.Code != http.StatusNotFound {
 				t.Errorf("thought route status = %d, want 404", recorder.Code)
 			}
@@ -87,17 +87,17 @@ func TestHasPlaceAcceptsOnlyRenderedAnchorsOfReadableNotes(t *testing.T) {
 	}
 }
 
-func thoughtRouteFixture(t *testing.T, declareAnswer bool, sourceType string) (http.Handler, string, string) {
+func thoughtRouteFixture(t *testing.T, declareAnswer bool, sourceType string) (mux http.Handler, root string) {
 	t.Helper()
 	handler, root := thoughtRouteHandler(t, declareAnswer, sourceType)
-	mux := http.NewServeMux()
-	handler.Register(mux)
-	return mux, "", root
+	routes := http.NewServeMux()
+	handler.Register(routes)
+	return routes, root
 }
 
-func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (*note.Handler, string) {
+func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (handler *note.Handler, root string) {
 	t.Helper()
-	root := t.TempDir()
+	root = t.TempDir()
 	content := "---\ntitle: '<img src=x onerror=alert(1)>'\ndomain: japanese\n"
 	if sourceType != "" {
 		content += "type: " + sourceType + "\n"
@@ -115,7 +115,7 @@ func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (*
 		text = strings.Replace(text, "[navigation]\n", "[navigation]\nanswer_type = \"writing\"\n", 1)
 	}
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
+	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- a temporary file this test just named
 		t.Fatal(err)
 	}
 	contract, err := schema.LoadFile(contractPath)
@@ -125,7 +125,7 @@ func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (*
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 	writer := openStatusWriter(t, source, contract, contract.Governance())
-	handler := note.New(&note.Sources{
+	handler = note.New(&note.Sources{
 		Source: source, Contract: contract, Snapshot: store.Current, Status: writer.Authority,
 		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation: noMark, Log: log,

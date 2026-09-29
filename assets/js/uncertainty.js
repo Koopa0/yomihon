@@ -41,6 +41,7 @@ export function initUncertainty() {
     scope.className = 'y-fileinfo__note';
     scope.textContent = words.uncertaintyScope;
     const said = document.createElement('p');
+    said.className = 'y-uncertainty__said';
     said.setAttribute('role', 'status');
     group.append(button, scope, said);
     container.append(group);

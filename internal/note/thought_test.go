@@ -63,7 +63,7 @@ func TestThoughtMarkdownOmitsStatusWithoutLiteralInitial(t *testing.T) {
 	// first status from rows that name no predecessor, but nothing declares one.
 	contract := thoughtTestContractWith(t, func(text string) string {
 		var kept []string
-		for _, line := range strings.Split(text, "\n") {
+		for line := range strings.SplitSeq(text, "\n") {
 			if !strings.HasPrefix(line, "initial = ") {
 				kept = append(kept, line)
 			}
@@ -132,7 +132,7 @@ func thoughtTestContractWith(t *testing.T, edit func(string) string) *schema.Con
 	text := strings.Replace(string(data), "[navigation]\n", "[navigation]\nanswer_type = \"writing\"\n", 1)
 	text = edit(text)
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
+	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	contract, err := schema.LoadFile(contractPath)

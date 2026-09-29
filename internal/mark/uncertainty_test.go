@@ -1,6 +1,7 @@
 package mark_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -78,7 +79,7 @@ func TestUncertaintyStoresOnlyPathAnchorAndTimeOutsideContinuation(t *testing.T)
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(file.Path())
-	if err != nil || string(before) != string(after) {
+	if err != nil || !bytes.Equal(before, after) {
 		t.Fatalf("uncertainty changed continuation bytes: %v", err)
 	}
 	data, err := os.ReadFile(file.UncertaintyPath())
@@ -97,7 +98,7 @@ func TestUncertaintyStoresOnlyPathAnchorAndTimeOutsideContinuation(t *testing.T)
 		t.Fatal(err)
 	}
 	after, err = os.ReadFile(file.UncertaintyPath())
-	if err != nil || string(data) != string(after) {
+	if err != nil || !bytes.Equal(data, after) {
 		t.Fatalf("continuation writer changed uncertainty bytes: %v", err)
 	}
 	info, err := os.Stat(file.UncertaintyPath())

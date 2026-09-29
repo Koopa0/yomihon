@@ -39,7 +39,7 @@ func uncertaintyRequest(t *testing.T, handler http.Handler, method, body, lang s
 	t.Helper()
 	request := httptest.NewRequestWithContext(t.Context(), method, mark.UncertaintyAddress, strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	request.AddCookie(&http.Cookie{Name: "yomihon_lang", Value: lang})
+	request.AddCookie(&http.Cookie{Name: "yomihon_lang", Value: lang, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	return response

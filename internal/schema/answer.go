@@ -7,12 +7,24 @@ import "slices"
 // return no type; neither a familiar type name nor a lifecycle stage grants
 // this role.
 func (r NavigationRoles) AnswerType() string {
-	return r.answerType
-}
-
-func deriveAnswerType(section *navigationSection, unknownKeys, enumTypes []string) string {
-	if section == nil || len(unknownKeys) > 0 || !slices.Contains(enumTypes, section.AnswerType) {
+	if r.sets == nil {
 		return ""
 	}
-	return section.AnswerType
+	return r.sets.answer
+}
+
+// withAnswerType returns r carrying the declared answer type. The declaration
+// is independent of the path and map sets, so it is kept even where those
+// could not be honoured.
+func (r NavigationRoles) withAnswerType(section *navigationSection, unknownKeys, enumTypes []string) NavigationRoles {
+	if section == nil || len(unknownKeys) > 0 || !slices.Contains(enumTypes, section.AnswerType) {
+		return r
+	}
+	sets := roleSets{}
+	if r.sets != nil {
+		sets = *r.sets
+	}
+	sets.answer = section.AnswerType
+	r.sets = &sets
+	return r
 }

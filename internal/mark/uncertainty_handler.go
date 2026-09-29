@@ -34,7 +34,7 @@ func NewUncertaintyHandler(file *File, places Places, log *slog.Logger) *Uncerta
 		panic("mark: NewUncertaintyHandler requires a non-nil File")
 	}
 	if places == nil {
-		panic("mark: NewUncertaintyHandler requires non-nil Places")
+		panic("mark: NewUncertaintyHandler requires a non-nil Places")
 	}
 	if log == nil {
 		panic("mark: NewUncertaintyHandler requires a non-nil logger")

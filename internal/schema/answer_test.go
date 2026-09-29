@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -95,11 +94,4 @@ func TestAnswerTypeAcceptsDeclaredUnicodeWord(t *testing.T) {
 
 func answerContract(declaration string) string {
 	return strings.Replace(validContractV1, "[navigation]\n", "[navigation]\njournal_dir = \"Diary\"\n"+declaration+"\n", 1)
-}
-
-func writeAnswerContract(t *testing.T, path string, data []byte) {
-	t.Helper()
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
 }

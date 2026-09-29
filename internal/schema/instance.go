@@ -32,11 +32,16 @@ type artifactSection struct {
 // general maps; its membership sets cannot be changed after loading. The zero
 // value is unclaimed, so both sets are empty and no note is either.
 type NavigationRoles struct {
-	pathTypes map[string]struct{}
-	mapTypes  map[string]struct{}
-	// answerType is the one note type declared for the reader's own thoughts.
-	answerType string
-	claim      Claim
+	sets  *roleSets
+	claim Claim
+}
+
+// roleSets holds what the contract declared. They sit behind one pointer so
+// that NavigationRoles stays small enough to pass by value.
+type roleSets struct {
+	paths  map[string]struct{}
+	maps   map[string]struct{}
+	answer string
 }
 
 // Claim reports how far the navigation declaration got.
@@ -67,7 +72,10 @@ func (r NavigationRoles) IsPathType(noteType string) bool {
 	if !r.Trustworthy() {
 		return false
 	}
-	_, ok := r.pathTypes[NormalizeWord(noteType)]
+	if r.sets == nil {
+		return false
+	}
+	_, ok := r.sets.paths[NormalizeWord(noteType)]
 	return ok
 }
 
@@ -76,7 +84,10 @@ func (r NavigationRoles) IsMapType(noteType string) bool {
 	if !r.Trustworthy() {
 		return false
 	}
-	_, ok := r.mapTypes[NormalizeWord(noteType)]
+	if r.sets == nil {
+		return false
+	}
+	_, ok := r.sets.maps[NormalizeWord(noteType)]
 	return ok
 }
 
@@ -99,7 +110,10 @@ func (r NavigationRoles) PathTypes() []string {
 	if !r.Trustworthy() {
 		return nil
 	}
-	return slices.Sorted(maps.Keys(r.pathTypes))
+	if r.sets == nil {
+		return nil
+	}
+	return slices.Sorted(maps.Keys(r.sets.paths))
 }
 
 // MapTypes returns the types the contract declares as general maps. See
@@ -108,7 +122,10 @@ func (r NavigationRoles) MapTypes() []string {
 	if !r.Trustworthy() {
 		return nil
 	}
-	return slices.Sorted(maps.Keys(r.mapTypes))
+	if r.sets == nil {
+		return nil
+	}
+	return slices.Sorted(maps.Keys(r.sets.maps))
 }
 
 // ArtifactPolicy identifies vault directories whose files are readable
@@ -255,7 +272,7 @@ func deriveNavigationRoles(
 		}
 		mapTypes[noteType] = struct{}{}
 	}
-	return NavigationRoles{pathTypes: paths, mapTypes: mapTypes, claim: heldClaim()}
+	return NavigationRoles{sets: &roleSets{paths: paths, maps: mapTypes}, claim: heldClaim()}
 }
 
 func invalidNavigationRoles(format string, args ...any) NavigationRoles {
