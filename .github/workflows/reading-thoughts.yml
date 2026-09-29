@@ -51,6 +51,12 @@ jobs:
         run: |
           set -o pipefail
           bash tools/reading-thoughts.sh "${RUNNER_TEMP}/yomihon-reading-thoughts" 2>&1 | tee "${RUNNER_TEMP}/reading-thoughts.log"
+      - name: Prove open-thought shelf production regressions
+        run: python3 tools/open-thoughts-mutations.py --output-dir "${RUNNER_TEMP}/open-thoughts-mutations"
+      - name: Drive open-thought shelf tasks in installed Chrome
+        run: |
+          set -o pipefail
+          bash tools/open-thoughts.sh "${RUNNER_TEMP}/yomihon-reading-thoughts" 2>&1 | tee "${RUNNER_TEMP}/open-thoughts.log"
       - name: Preserve acceptance evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -59,3 +65,5 @@ jobs:
           path: |
             ${{ runner.temp }}/reading-thoughts.log
             ${{ runner.temp }}/thought-mutations/
+            ${{ runner.temp }}/open-thoughts.log
+            ${{ runner.temp }}/open-thoughts-mutations/

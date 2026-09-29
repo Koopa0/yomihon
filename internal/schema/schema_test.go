@@ -2330,6 +2330,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"DeclaresInitial": func() string {
+			if c.DeclaresInitial("lesson", "draft") {
+				return "DeclaresInitial() assigns an explicit initial state without a contract"
+			}
+			return ""
+		},
 		"Transition": func() string {
 			if err := c.Transition("lesson", "draft", "ready"); !errors.Is(err, schema.ErrUnknownStatus) {
 				return fmt.Sprintf("Transition() error = %v, want one wrapping ErrUnknownStatus", err)

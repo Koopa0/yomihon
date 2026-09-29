@@ -52,7 +52,10 @@ import (
 // view for the request. Source changes affect the next request; a write still
 // revalidates current authority under the lifecycle lock.
 type Sources struct {
-	Source *vault.Reader
+	// Uncertainties reads the separate location-mark file. Nil means this
+	// process has no mark storage; a read error remains visible on the desk.
+	Uncertainties func() ([]mark.Uncertainty, error)
+	Source        *vault.Reader
 	// Contract supplies optional navigation roles; nil leaves their doors closed.
 	Contract *schema.Contract
 	// VaultName is the folder's own name, taken once at start-up because the
@@ -140,6 +143,7 @@ func New(d *Sources) *Handler {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
 	mux.HandleFunc("GET /thought/{path...}", h.thought)
+	mux.HandleFunc("GET "+openThoughtsAddress, h.openThoughts)
 	mux.HandleFunc("GET /compare/{path...}", h.compare)
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
 	mux.HandleFunc("GET /freshness/{path...}", h.freshness)

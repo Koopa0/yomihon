@@ -23,7 +23,9 @@ const HomeReadmeRelPath = "README.md"
 // blocks gets a sentence instead. The faults sit below the seam, where a reader
 // who came to read is not made to walk past them.
 type HomeView struct {
-	Fault string
+	OpenThoughts      Shelf
+	OpenThoughtsFault string
+	Fault             string
 	// PrivacyFault is why the contract's egress declaration could not be used.
 	// It is not folded into Fault, which explains an empty block: a refused
 	// egress declaration empties nothing here, only the judging commands, whose
@@ -91,6 +93,14 @@ templ Home(v HomeView, c layouts.Chrome) {
 				// came back for it and the four are what they walk past when
 				// they did not.
 				@continueRow(v.Continue, c.Lang)
+				if v.OpenThoughts.Title != "" {
+					@ShelfBlock(v.OpenThoughts, "open-thoughts", 5, c.Lang)
+					if v.OpenThoughtsFault != "" {
+						@nothingToShow(nothingNotice{Kind: "open-thoughts", Fault: true}) {
+							<p>{ v.OpenThoughtsFault }</p>
+						}
+					}
+				}
 				<div class="y-homegrid">
 					for _, block := range v.Blocks {
 						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
