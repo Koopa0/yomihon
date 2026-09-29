@@ -21,9 +21,9 @@ type drawerRow struct {
 var drawerRowPattern = regexp.MustCompile(
 	`<a class="ui-navitem[^"]*" href="(/notes/[^"]+)"[^>]*>\s*<span class="y-navdot" aria-hidden="true"></span>\s*<span(?: lang="([^"]*)")?>([^<]*)</span>`)
 
-// drawerRows reads the rows of the sidebar drawer marked group, up to the next
-// drawer.
-func drawerRows(t *testing.T, html, group string) []drawerRow {
+// drawerSection is the markup of the sidebar drawer marked group, up to the
+// next drawer.
+func drawerSection(t *testing.T, html, group string) string {
 	t.Helper()
 	_, after, found := strings.Cut(html, `data-sidebar-group="`+group+`"`)
 	if !found {
@@ -32,6 +32,14 @@ func drawerRows(t *testing.T, html, group string) []drawerRow {
 	if next := strings.Index(after, `data-sidebar-group="`); next >= 0 {
 		after = after[:next]
 	}
+	return after
+}
+
+// drawerRows reads the rows of the sidebar drawer marked group, up to the next
+// drawer.
+func drawerRows(t *testing.T, html, group string) []drawerRow {
+	t.Helper()
+	after := drawerSection(t, html, group)
 	var rows []drawerRow
 	for _, m := range drawerRowPattern.FindAllStringSubmatch(after, -1) {
 		rows = append(rows, drawerRow{Href: m[1], Lang: m[2], Name: m[3]})
@@ -71,6 +79,11 @@ func TestMapRowsNameTheNoteAsTheAuthorAndNoteDeclared(t *testing.T) {
 			html := renderedHTML(t, sidebar(NewSidebar(nav.Shell{Nav: model}, current), chrome))
 			if diff := cmp.Diff(want, drawerRows(t, html, "maps")); diff != "" {
 				t.Errorf("maps drawer rows (-want +got):\n%s", diff)
+			}
+			// The row to a note nobody wrote is dropped, not drawn as a
+			// broken row under its link text.
+			if section := drawerSection(t, html, "maps"); strings.Contains(section, "y-navitem--broken") || strings.Contains(section, "not-written-yet") {
+				t.Errorf("the maps drawer draws the row that resolves to no note")
 			}
 		})
 	}
