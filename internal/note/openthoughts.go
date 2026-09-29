@@ -49,7 +49,7 @@ type openThoughtCandidate struct {
 // just moved on leaves the list at once without every request parsing every
 // note of the role. limit bounds the rows returned; zero means all of them.
 // The count is the snapshot's, less any candidate the live read removed.
-func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generation, lang wording.Lang, limit int) (pages.Shelf, string) {
+func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generation, lang wording.Lang, limit int) (shelf pages.Shelf, fault string) {
 	contract := h.sources.Contract
 	role := snap.NavigationRoles().AnswerType()
 	var initial []string
@@ -58,7 +58,7 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 			initial = append(initial, status)
 		}
 	}
-	shelf := pages.Shelf{
+	shelf = pages.Shelf{
 		Title: wording.OpenThoughtsTitle.In(lang), Href: openThoughtsAddress,
 		Lede: wording.OpenThoughtsMarksLede.In(lang), Empty: wording.OpenThoughtsMarksEmpty.In(lang),
 	}
