@@ -12,10 +12,14 @@
 // browser cannot find costs it the term as well: the note opens at the top
 // with the searched-for characters two thousand pixels below the screen.
 //
+// The run the row names begins at the comma before it, which every
+// segmenter breaks a word at, and the characters after the match run to the
+// full stop, so the match itself may stand anywhere inside its words.
+//
 // So the assertion is geometry rather than the href: a plausible-looking
 // address and any nonzero scroll both pass while the evidence stays out of
-// sight. The mutation below writes the run back in, which is the one regression
-// this file exists to catch.
+// sight. The mutation below writes a run cut to a character budget back in,
+// which is the one regression this file exists to catch.
 //
 // Env: YOMIHON_BASE, PAGE_PATH, and MUTATE.
 import { chromium } from 'playwright-core';
@@ -26,10 +30,12 @@ const MUTATE = process.env.MUTATE || '';
 const SITES = ['match-in-view'];
 
 // The searched-for characters, the run the match follows inside its own
-// block, and the last thirty characters of that run — which is where a
-// character budget spent from the end lands, between 咖 and 啡.
+// block, the part of that run the row names, the characters that follow the
+// match up to the full stop, and the last thirty characters of the run — which
+// is where a character budget spent from the end lands, between 咖 and 啡.
 const TERM = '獨角獸';
 const BLOCK_RUN = '那本咖啡色封皮的舊冊子在星期四早晨被翻開來，接著在這一行裡面才輪到';
+const NAMED_RUN = BLOCK_RUN.slice(BLOCK_RUN.indexOf('，') + 1);
 const CUT_RUN = BLOCK_RUN.slice(BLOCK_RUN.length - 30);
 const WIDTH = 1600;
 
@@ -75,8 +81,8 @@ const MUTATIONS = {
     target: 'match-in-view',
     apply: rewritePath(
       PAGE,
-      `text=${encodeURIComponent(TERM)}`,
-      `text=${encodeURIComponent(CUT_RUN)}-,${encodeURIComponent(TERM)}`,
+      `text=${encodeURIComponent(NAMED_RUN)}-,`,
+      `text=${encodeURIComponent(CUT_RUN)}-,`,
       1,
       'result directive',
     ),
@@ -161,10 +167,10 @@ try {
     scroll = now;
   }
 
-  // Nothing else on the page may spell those characters. The directive here
-  // carries the bare term, and the browser stops at the first copy it walks
-  // past — a copy in the navigation, which is drawn before the article, would
-  // answer for the article's and leave this probe measuring the wrong one.
+  // Nothing else on the page may spell those characters. The browser stops at
+  // the first copy it walks past — a copy in the navigation, which is drawn
+  // before the article, would answer for the article's and leave this probe
+  // measuring the wrong one.
   const everywhere = await wordCopies(page, 'body', TERM);
   if (!everywhere) broken('the note page rendered no body to measure');
   if (everywhere.length !== 1) {

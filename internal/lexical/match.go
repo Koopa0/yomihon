@@ -80,6 +80,18 @@ type Result struct {
 	// block, which is where there is nothing to say.
 	LandingPrefix string
 
+	// LandingSuffix is the run of characters after the last term a directive
+	// names, up to the nearest certain boundary: white space, a line break,
+	// punctuation, or the end of the block. A browser holds a term with nothing
+	// behind it to end where a word does, and in a script that parts no words with spaces
+	// that is a dictionary boundary this index has no model of. A term the
+	// directive follows with a run that itself ends at a certain boundary is
+	// released from the requirement, so the match can end anywhere. Empty where
+	// the term already stands against such a boundary, and where the page does
+	// not reproduce the block as written, which is where a run beside a term
+	// is not a run the page carries in one piece.
+	LandingSuffix string
+
 	// BlockCrossing reports that the match continues past that first block,
 	// so a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
@@ -564,6 +576,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		LandingBare:   terms.bare,
 		LandingEnd:    terms.last,
 		LandingPrefix: terms.prefix,
+		LandingSuffix: terms.suffix,
 		BlockCrossing: terms.crossing,
 		FromFence:     fromFence,
 		Language:      e.language,
@@ -573,12 +586,14 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 // landingTerms is everything one body match gives a browser text directive:
 // the stretch to arrive at, that same stretch grown to whole words for a
 // directive that names nothing ahead of it, the run of words the match
-// follows, the stretch its far end sits in grown the same way, and whether it
-// left its block to reach that end. They travel together because a directive
-// is assembled from all of them at once, and four loose strings are four a
-// caller can pair up the wrong way round.
+// follows, the stretch its far end sits in grown the same way, the run after
+// the last of those stretches, and whether it left its block to reach that
+// end. They travel together because a directive is assembled from all of them
+// at once, and five loose strings are five a caller can pair up the wrong way
+// round.
 type landingTerms struct {
 	prefix   string
+	suffix   string
 	first    string
 	bare     string
 	last     string
@@ -627,11 +642,16 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 }
 
 // landingAtSource places a selected source span on the directive's word edges.
+//
+// The run after the match is measured from the end of the last stretch a
+// directive can name, wherever growth left that end, and asked of the block
+// that stretch sits in: for a crossing match that is the last block, whose own
+// reproduction decides whether a run beside the term can be read as one.
 func (e *entry) landingAtSource(start, end int) landingTerms {
 	var terms landingTerms
 	blockStart, verbatim := e.blockAt(start)
 	if verbatim {
-		terms.prefix = landingPrefix(collapseFields(e.PlainText[blockStart:start]))
+		terms.prefix = landingPrefix(e.PlainText[blockStart:start])
 	}
 	firstEnd := e.blockEndAfter(start)
 	terms.crossing = end > firstEnd
@@ -643,17 +663,24 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	terms.first = collapseFields(e.PlainText[start:bareEnd])
 	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
 	if !terms.crossing {
+		if verbatim && terms.first != "" {
+			terms.suffix = landingSuffix(e.PlainText, bareEnd, firstEnd)
+		}
 		return terms
 	}
-	lastStart, _ := e.blockAt(end - 1)
+	lastStart, lastVerbatim := e.blockAt(end - 1)
 	from := max(lastStart, firstEnd)
+	lastEnd := e.blockEndAfter(end - 1)
 	// The far end is grown for the reason the first stretch's standalone form
 	// is, and inside its own block for the reason that one is: a word cannot
 	// be assembled out of two blocks the page draws apart. This stretch opens
 	// where that block opens, which is a word's edge already, so that same
 	// offset serves as the floor and the only growth is outward.
-	_, lastStop := wordEdges(e.PlainText, from, end, from, e.blockEndAfter(end-1))
+	_, lastStop := wordEdges(e.PlainText, from, end, from, lastEnd)
 	terms.last = collapseFields(e.PlainText[from:lastStop])
+	if lastVerbatim && terms.last != "" {
+		terms.suffix = landingSuffix(e.PlainText, lastStop, lastEnd)
+	}
 	return terms
 }
 
@@ -707,16 +734,22 @@ func joinsAWord(r rune) bool {
 
 // landingPrefix cuts a block's run of words before a match down to what one
 // term of a directive can carry. Only whole words come off the front, and a
-// last word still over the budget comes off with them, leaving nothing.
+// last word still over the budget comes off with them.
 //
 // A browser finds a leading run only where it begins at a word boundary, and
-// the one boundary this index can see is a space. A script that parts no
-// words with spaces divides them by dictionary, which nothing here has a
-// model of, so a cut made where the budget ran out falls inside a word almost
-// every time — and a run that begins inside a word is not merely weaker: it
-// is found nowhere, and the browser abandons the whole directive, leaving a
-// note that used to open at its match opening at the top. A run that fits is
-// the one the block opens with, which is a boundary the browser agrees with.
+// the boundaries this index can be certain of are the ones every segmenter
+// agrees on: white space, punctuation, and the start of the block. A cut made
+// anywhere else in a script that parts no words with spaces divides them by
+// dictionary, which nothing here has a model of, so it falls inside a word
+// almost every time — and a run that begins inside a word is not merely
+// weaker: it is found nowhere, and the browser abandons the whole directive.
+//
+// Where the last word is over the budget and is written in such a script, the
+// run therefore begins after the earliest certain boundary that leaves it
+// inside the budget, and where there is none, after the nearest one before
+// it. A last word in any other script is dropped instead: the term that
+// follows it is grown to the edges of its own word, so it stands alone
+// without one.
 func landingPrefix(run string) string {
 	words := strings.Fields(run)
 	if len(words) > landingPrefixWords {
@@ -725,8 +758,103 @@ func landingPrefix(run string) string {
 	for len(words) > 0 && utf8.RuneCountInString(strings.Join(words, " ")) > landingPrefixRunes {
 		words = words[1:]
 	}
-	return strings.Join(words, " ")
+	if len(words) > 0 {
+		return strings.Join(words, " ")
+	}
+	return unspacedPrefix(run)
 }
+
+// unspacedPrefix is the run a directive names ahead of a match whose last word
+// is over the budget, or empty where that word is not written without spaces.
+// It never reaches back over a hard line break: the page draws a break as a
+// break, not as the white space it becomes once the run is collapsed, so a
+// run spanning one is text the page does not carry in one piece.
+func unspacedPrefix(run string) string {
+	if i := strings.LastIndex(run, "\n"); i >= 0 {
+		run = run[i+1:]
+	}
+	runes := []rune(collapseFields(run))
+	if len(runes) == 0 {
+		return ""
+	}
+	lastWord := runes
+	for i, r := range slices.Backward(runes) {
+		if r == ' ' {
+			lastWord = runes[i+1:]
+			break
+		}
+	}
+	if !slices.ContainsFunc(lastWord, writesWithoutSpaces) {
+		return ""
+	}
+	last := len(runes) - 1
+	if isCertainBoundary(runes, last) {
+		return ""
+	}
+	for i := max(1, len(runes)-landingPrefixRunes); i <= last; i++ {
+		if isCertainBoundary(runes, i-1) {
+			return string(runes[i:])
+		}
+	}
+	for i := last - 1; i >= 0; i-- {
+		if isCertainBoundary(runes, i) {
+			return string(runes[i+1:])
+		}
+	}
+	return string(runes)
+}
+
+// landingSuffix cuts the block after a term, text[from:to], down to the
+// nearest certain boundary, which is the run itself ending where the browser
+// agrees a word ends. A hard line break is one, so the run never reaches over
+// it, and with no other the rest of the block is the run, whose end is one.
+// Empty where the term already stands against a boundary. The character
+// before from is read too, because whether a mark joins a word depends on
+// what stands on both sides of it.
+func landingSuffix(text string, from, to int) string {
+	runes := []rune(text[from:to])
+	offset := 0
+	if from > 0 {
+		before, _ := utf8.DecodeLastRuneInString(text[:from])
+		runes = append([]rune{before}, runes...)
+		offset = 1
+	}
+	for i := offset; i < len(runes); i++ {
+		if isCertainBoundary(runes, i) {
+			return collapseFields(string(runes[offset:i]))
+		}
+	}
+	return collapseFields(string(runes[offset:]))
+}
+
+// isCertainBoundary reports whether the character at i, being white space or
+// punctuation, is one every text segmenter breaks a word at. A few marks only
+// join: an apostrophe or a full stop inside a word, a comma inside a number.
+// They are skipped where a letter or digit stands on both sides, and are
+// boundaries otherwise, since beside characters of a script without spaces
+// they join nothing. Two more join whatever stands beside them, katakana
+// included, and are never a boundary.
+func isCertainBoundary(runes []rune, i int) bool {
+	r := runes[i]
+	switch {
+	case unicode.IsSpace(r):
+		return true
+	case !unicode.IsPunct(r), strings.ContainsRune(alwaysJoiningMarks, r):
+		return false
+	case !strings.ContainsRune(joiningMarks, r):
+		return true
+	}
+	return i == 0 || i == len(runes)-1 || !joinsAWord(runes[i-1]) || !joinsAWord(runes[i+1])
+}
+
+// joiningMarks are the punctuation characters that, between two letters or two
+// digits, are part of the word around them rather than a break in it.
+const joiningMarks = "'\u2018\u2019.\u2024:,;\u00b7\u2027\uff07\uff0e\uff1a\uff0c\uff1b"
+
+// alwaysJoiningMarks are the punctuation characters a word continues through
+// on both sides: the katakana middle dot, which katakana words are written
+// with, and the low line, which identifiers are.
+const alwaysJoiningMarks = "\u30fb_\uff3f"
 
 func collapseFields(s string) string {
 	return strings.Join(strings.Fields(s), " ")
