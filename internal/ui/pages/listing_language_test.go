@@ -166,7 +166,7 @@ func TestRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 		})
 	}
 
-	entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: "Writing/lessons/japanese/L01.md", Text: "L01", Language: "ja"}
+	entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: "Writing/lessons/japanese/L01.md", Name: "L01", Language: "ja"}
 	var buf bytes.Buffer
 	if err := entryLink(Sidebar{}, layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render map row: %v", err)
