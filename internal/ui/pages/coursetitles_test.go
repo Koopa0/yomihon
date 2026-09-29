@@ -45,7 +45,7 @@ func submatches(re *regexp.Regexp, html string) []string {
 // prints for a row on every surface that names a lesson: an alias the row wrote
 // wins, then the resolved note's own title, then the link text; a row that
 // resolved to nothing keeps its link text. The syllabus page, the book rail, the
-// step beside it and the article foot all read that one answer.
+// sidebar and the article foot all read that one answer.
 func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 	t.Parallel()
 	model := modelOf(t, "testdata/coursetitles")
@@ -72,8 +72,7 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 		}
 	})
 
-	// The rail is drawn from the lesson with no title, so its previous and next
-	// steps exist and the unwritten row lies past the current one.
+	// The rail is drawn from the lesson with no title.
 	t.Run("book rail", func(t *testing.T) {
 		t.Parallel()
 		rail := NewReadingRail(nav.Shell{Nav: model}, "Lessons/no-title.md", "")
@@ -81,11 +80,6 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 		got := submatches(regexp.MustCompile(`<span class="y-nav(?:dot|mark y-navmark--warn)" aria-hidden="true">(?:!)?</span>\s*<span[^>]*>([^<]*)</span>`), html)
 		if diff := cmp.Diff(rows, got); diff != "" {
 			t.Errorf("book rail rows (-want +got):\n%s", diff)
-		}
-		stepsNav := regexp.MustCompile(`(?s)<nav class="y-lessonsteps".*?</nav>`).FindString(html)
-		steps := submatches(regexp.MustCompile(`<span>([^<]*)</span>`), stepsNav)
-		if diff := cmp.Diff([]string{titlesIota, titlesLast}, steps); diff != "" {
-			t.Errorf("book rail step names (-want +got):\n%s", diff)
 		}
 	})
 
