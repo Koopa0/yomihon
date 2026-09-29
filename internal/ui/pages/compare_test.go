@@ -93,6 +93,28 @@ func TestACompareColumnCarriesNoWriteFace(t *testing.T) {
 	}
 }
 
+// A saved place names the source's unqualified anchor even when two articles
+// render the same heading ID under separate column prefixes.
+func TestACompareColumnMarkUsesItsQualifiedIDSpace(t *testing.T) {
+	t.Parallel()
+	a := comparedNote("a-", "First", "Writing/First.md", "en")
+	b := comparedNote("b-", "Second", "Writing/Second.md", "en")
+	a.UncertaintyAddress = "/uncertainties"
+	b.UncertaintyAddress = "/uncertainties"
+	compared := renderedBytes(t, t.Context(), Compare(CompareView{A: a, B: b}, recordedChrome()))
+	for _, prefix := range []string{"a-", "b-"} {
+		attr := `data-uncertainty-prefix="` + prefix + `"`
+		if got := strings.Count(compared, attr); got != 1 {
+			t.Errorf("compare column mark prefix %q occurs %d times, want one qualified article", prefix, got)
+		}
+	}
+	b.IDPrefix = ""
+	alone := renderedBytes(t, t.Context(), Note(b, recordedChrome()))
+	if !strings.Contains(alone, `data-uncertainty-prefix=""`) {
+		t.Error("a note on its own still claims a column prefix")
+	}
+}
+
 const articleOpening = `<article class="y-article"`
 
 func renderedBytes(t *testing.T, ctx context.Context, c templ.Component) string {

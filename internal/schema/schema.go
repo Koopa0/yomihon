@@ -92,9 +92,10 @@ func DefaultPlannedInlineMarks() []string {
 // returns what a folder that declared nothing declares — no version, no
 // vocabulary, no capability, no legal transition.
 type Contract struct {
-	version    string
-	definition Definition
-	stages     []Stage
+	version         string
+	definition      Definition
+	stages          []Stage
+	initialDeclared bool
 
 	navigationRoles NavigationRoles
 	knowledgeScope  KnowledgeScope
@@ -154,6 +155,7 @@ type navigationPrimitives struct {
 	PathTypes  toml.Primitive `toml:"path_types"`
 	MapTypes   toml.Primitive `toml:"map_types"`
 	JournalDir toml.Primitive `toml:"journal_dir"`
+	AnswerType toml.Primitive `toml:"answer_type"`
 }
 
 type artifactPrimitives struct {
@@ -351,6 +353,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	if len(decoded.Lifecycle) == 0 {
 		return nil, errors.New("no lifecycle stages")
 	}
+	contract.initialDeclared = decoded.Lifecycle[0].Initial != nil
 	contract.stages, err = decodeLifecycleStages(decoded.Lifecycle)
 	if err != nil {
 		return nil, err
@@ -366,6 +369,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		contract.definition.Enums.Type,
 		&tomlMeta,
 	)
+	contract.navigationRoles = contract.navigationRoles.withAnswerType(navigation, unknown.navigation, contract.definition.Enums.Type)
 	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
 	contract.journalDir = resolveJournalDir(
 		navigation,
@@ -479,6 +483,7 @@ func foldDeclaredWords(contract *Contract, navigation *navigationSection) {
 	if navigation != nil {
 		foldWords(navigation.PathTypes)
 		foldWords(navigation.MapTypes)
+		navigation.AnswerType = NormalizeWord(navigation.AnswerType)
 	}
 }
 
@@ -513,6 +518,11 @@ func decodeNavigationSection(
 	if metadata.IsDefined("navigation", "journal_dir") {
 		if err := metadata.PrimitiveDecode(fields.JournalDir, &section.JournalDir); err != nil {
 			journalTypeErrorKey = "navigation.journal_dir"
+		}
+	}
+	if metadata.IsDefined("navigation", "answer_type") {
+		if err := metadata.PrimitiveDecode(fields.AnswerType, &section.AnswerType); err != nil {
+			section.AnswerType = ""
 		}
 	}
 	return section, rolesTypeErrorKey, journalTypeErrorKey

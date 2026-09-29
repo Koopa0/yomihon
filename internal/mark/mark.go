@@ -1,9 +1,10 @@
-// Package mark keeps the one place a reader meant to come back to.
+// Package mark keeps the places a reader meant to come back to.
 //
 // A note's status is the author's word about the material and never the
 // reader's own progress, so a reader who stops in the middle of one needs a
-// mark of their own. There is one, in total: setting another replaces it. It
-// records where to land rather than anything about what was understood — the
+// continuation mark of their own. There is one continuation in total: setting
+// another replaces it. It records where to land rather than anything about
+// what was understood — the
 // id of the nearest anchor above where the reader stopped, how far below it
 // they were, and the identity of the bytes that were on screen — because a
 // mark meant to survive days has to survive a change of text size or typeface,
@@ -16,6 +17,11 @@
 // scanner never meets this. What it costs is that a mark does not travel: one
 // left on this machine is invisible on the next, which the interface says in
 // words rather than leaving the reader to find out.
+//
+// Uncertainty marks accumulate separately in a second file. Each holds only
+// a path, anchor and time; it makes no promise to recover a changed source.
+// Unlike continuation storage, unreadable uncertainty storage is preserved
+// and reported rather than replaced by the next mark.
 //
 // Only the reading server builds one. The adjudication commands never read it:
 // what they answer is about the vault, and this is about the reader.

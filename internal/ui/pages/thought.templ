@@ -1,0 +1,37 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// ThoughtView is a copyable stub, never an editor or a saved note.
+type ThoughtView struct {
+	SourceTitle string
+	SourceHref  string
+	Markdown    string
+	EditorHref  string
+}
+
+templ Thought(v ThoughtView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<main id="main-content" tabindex="-1" class="y-main y-deskmain">
+			<div class="y-home">
+				<h1 class="y-title">{ wording.ThoughtDoor.In(c.Lang) }</h1>
+				<p><a class="ui-navitem" href={ templ.URL(v.SourceHref) }>{ v.SourceTitle }</a></p>
+				<section class="y-homeblock" data-thought-stub data-thought-copied={ wording.ThoughtCopied.In(c.Lang) } data-thought-copyfailed={ wording.ThoughtCopyFailed.In(c.Lang) }>
+					<label for="thought-markdown" class="ui-side__label">{ wording.ThoughtMarkdown.In(c.Lang) }</label>
+					<div class="mt-2">
+						<textarea id="thought-markdown" readonly rows="8" class="block w-full rounded-md border px-3 py-1.5 font-mono text-base" data-thought-markdown>{ v.Markdown }</textarea>
+					</div>
+					<p>{ wording.ThoughtExternal.In(c.Lang) }</p>
+					<button type="button" class="y-xbtn" hidden data-thought-copy>{ wording.ThoughtCopy.In(c.Lang) }</button>
+					if v.EditorHref != "" {
+						<a class="y-xbtn" href={ templ.SafeURL(v.EditorHref) }>{ wording.ThoughtObsidian.In(c.Lang) }</a>
+					}
+					<p class="y-thought__said" role="status" data-thought-said></p>
+				</section>
+			</div>
+		</main>
+	}
+}
