@@ -134,7 +134,7 @@ const MUTATIONS = {
   },
   'change-declared-article-lang': {
     target: 'declared-article-language',
-    apply: rewritePath(DECLARED_PAGE, '<article class="y-article" lang="ja">', '<article class="y-article" lang="und">', 'declared note article language'),
+    apply: rewritePath(DECLARED_PAGE, '<article class="y-article" lang="ja"', '<article class="y-article" lang="und"', 'declared note article language'),
   },
   'drop-inline-aids-chrome-lang': {
     target: 'inline-aids-chrome-language',
@@ -169,7 +169,7 @@ const MUTATIONS = {
   },
   'change-missing-article-lang': {
     target: 'missing-article-language',
-    apply: rewritePath(MISSING_PAGE, '<article class="y-article">', '<article class="y-article" lang="ja">', 'missing note article language'),
+    apply: rewritePath(MISSING_PAGE, '<article class="y-article"', '<article class="y-article" lang="ja"', 'missing note article language'),
   },
   // These three run against the second pass, where the reader chose English.
   // Each injects the shape a chrome that ignored the choice would produce.
@@ -186,7 +186,7 @@ const MUTATIONS = {
   'switched-article-follows-chrome': {
     target: 'switched-authored-language',
     on: 'switched',
-    apply: rewritePath(DECLARED_PAGE, '<article class="y-article" lang="ja">', '<article class="y-article" lang="en">', 'switched note article language'),
+    apply: rewritePath(DECLARED_PAGE, '<article class="y-article" lang="ja"', '<article class="y-article" lang="en"', 'switched note article language'),
   },
   'switched-toc-follows-chrome': {
     target: 'switched-authored-language',
