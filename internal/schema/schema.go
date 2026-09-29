@@ -101,6 +101,7 @@ type Contract struct {
 	artifactPolicy  ArtifactPolicy
 	privacyPolicy   PrivacyPolicy
 	journalDir      JournalDir
+	answerType      *answerTypeState
 	metadata        contractMetadata
 	written         writtenKeys
 
@@ -154,6 +155,7 @@ type navigationPrimitives struct {
 	PathTypes  toml.Primitive `toml:"path_types"`
 	MapTypes   toml.Primitive `toml:"map_types"`
 	JournalDir toml.Primitive `toml:"journal_dir"`
+	AnswerType toml.Primitive `toml:"answer_type"`
 }
 
 type artifactPrimitives struct {
@@ -366,6 +368,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		contract.definition.Enums.Type,
 		&tomlMeta,
 	)
+	contract.answerType = deriveAnswerType(navigation, unknown.navigation, contract.definition.Enums.Type, source)
 	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
 	contract.journalDir = resolveJournalDir(
 		navigation,
@@ -479,6 +482,7 @@ func foldDeclaredWords(contract *Contract, navigation *navigationSection) {
 	if navigation != nil {
 		foldWords(navigation.PathTypes)
 		foldWords(navigation.MapTypes)
+		navigation.AnswerType = NormalizeWord(navigation.AnswerType)
 	}
 }
 
@@ -513,6 +517,11 @@ func decodeNavigationSection(
 	if metadata.IsDefined("navigation", "journal_dir") {
 		if err := metadata.PrimitiveDecode(fields.JournalDir, &section.JournalDir); err != nil {
 			journalTypeErrorKey = "navigation.journal_dir"
+		}
+	}
+	if metadata.IsDefined("navigation", "answer_type") {
+		if err := metadata.PrimitiveDecode(fields.AnswerType, &section.AnswerType); err != nil {
+			section.AnswerType = ""
 		}
 	}
 	return section, rolesTypeErrorKey, journalTypeErrorKey

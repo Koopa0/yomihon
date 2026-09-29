@@ -158,6 +158,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// ask.
 	keptPlace := func() (mark.Continuation, bool) { return mark.Continuation{}, false }
 	markAddress := ""
+	uncertaintyAddress := ""
 	var marks *mark.File
 	if configDir != "" {
 		if marks, err = mark.New(configDir, source.Name()); err != nil {
@@ -165,6 +166,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		}
 		keptPlace = marks.Continuation
 		markAddress = mark.Address
+		uncertaintyAddress = mark.UncertaintyAddress
 	} else {
 		log.Warn("no reading place can be kept; the reading room is unaffected",
 			"reason", "the environment named no configuration directory")
@@ -188,19 +190,22 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:         source,
-		VaultName:      vaultName,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   keptPlace,
-		MarkAddress:    markAddress,
-		Log:            log,
+		Source:             source,
+		Contract:           contract,
+		VaultName:          vaultName,
+		Status:             writer.Authority,
+		Snapshot:           store.Current,
+		ObservedStatus:     writer.ObservedStatus,
+		ConsumeReceipt:     writer.ConsumeReceipt,
+		Continuation:       keptPlace,
+		MarkAddress:        markAddress,
+		UncertaintyAddress: uncertaintyAddress,
+		Log:                log,
 	}).Register(mux)
 	status.NewHandler(writer, shellProvider, log).Register(mux)
 	if marks != nil {
 		mark.NewHandler(marks, log).Register(mux)
+		mark.NewUncertaintyHandler(marks, log).Register(mux)
 	}
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)

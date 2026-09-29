@@ -13,6 +13,8 @@ import { initPreview } from './preview.js';
 import { initSearch } from './search.js';
 import { initShortcuts } from './shortcuts.js';
 import { initSidebar } from './sidebar.js';
+import { initThought } from './thought.js';
+import { initUncertainty } from './uncertainty.js';
 
 function init() {
   const root = document.documentElement;
@@ -30,6 +32,8 @@ function init() {
   initShortcuts({ drawer, sidebar, search });
   initLesson();
   initMark();
+  initThought();
+  initUncertainty();
   initPreview();
   initDiagrams(preferences).catch((error) => {
     root.setAttribute('data-mermaid-error', '');

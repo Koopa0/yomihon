@@ -1,0 +1,48 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/wording"
+	"strconv"
+)
+
+// DeclaringNoteView separates the note to open from places in its source.
+type DeclaringNoteView struct {
+	Note      nav.NoteRef
+	Locations []DeclaredPlaceView
+}
+
+// DeclaredPlaceView keeps a missing location readable without a false link.
+type DeclaredPlaceView struct {
+	Label string
+	Href  string
+}
+
+templ declaredByBlock(v NoteView, lang wording.Lang) {
+	if len(v.DeclaredBy) > 0 {
+		<nav class="y-basedon" aria-label={ wording.DeclaredBy.In(lang) } data-declared-by>
+			<div class="ui-side__label">
+				{ wording.DeclaredBy.In(lang) }
+				<span class="ui-navitem__count">{ strconv.Itoa(len(v.DeclaredBy)) }</span>
+			</div>
+			<ul role="list">
+				for _, ref := range v.DeclaredBy {
+					<li>
+						<a class="ui-navitem" href={ templ.URL(notesHref(ref.Note.RelPath)) } { authoredLanguageAttrs(ref.Note.Language)... }>{ ref.Note.Name }</a>
+						<ul class="ml-4" role="list">
+							for _, place := range ref.Locations {
+								<li>
+									if place.Href != "" {
+										<a class="ui-navitem" href={ templ.URL(place.Href) }>{ place.Label }</a>
+									} else {
+										<span class="ui-navitem">{ place.Label }</span>
+									}
+								</li>
+							}
+						</ul>
+					</li>
+				}
+			</ul>
+		</nav>
+	}
+}

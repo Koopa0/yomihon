@@ -3,6 +3,7 @@ package pages
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -68,6 +69,8 @@ type NoteView struct {
 	// author's own text, unlinked. An empty list hides the block — declaring
 	// nothing is the default, not a finding.
 	BasedOn []nav.NoteRef
+	// DeclaredBy keeps each declaring note separate from places in this source.
+	DeclaredBy []DeclaringNoteView
 	// Pair is the one other note this one is offered to be read beside, or the
 	// zero value where none is. The offer says the same words whichever way the
 	// pair was found, so nothing here says which; two candidates at the same
@@ -99,7 +102,9 @@ type NoteView struct {
 	// MarkAddress is where the control for keeping a reading place posts to.
 	// Empty where this process keeps no marks, and the control is then absent
 	// rather than offering a reader something with nowhere to go.
-	MarkAddress string
+	MarkAddress        string
+	UncertaintyAddress string
+	ThoughtDoor        bool
 	// TranscludedIdentity is the render's digest over what every embed here came
 	// to — the excerpt pulled in, or the absence shown in its place — and is
 	// empty where the page carries none. It rides the freshness watch alone: a
@@ -190,10 +195,13 @@ templ Note(v NoteView, c layouts.Chrome) {
 // the note's own page passes it in, a column beside another note passes nothing.
 // Nothing here asks which page it is on.
 templ noteArticle(v NoteView, lang wording.Lang) {
-	<article class="y-article" { authoredLanguageAttrs(v.Language)... }>
+	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { uncertaintyAttrs(&v, lang)... }>
 		@articleHead(v, lang)
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
+		if v.ThoughtDoor {
+			<p lang={ lang.Tag() }><a class="y-metarow__raw" href={ templ.URL(thoughtHref(v.RelPath, "")) }>{ wording.ThoughtDoor.In(lang) }</a></p>
+		}
 		<div class="y-prose">
 			@templ.Raw(v.BodyHTML)
 		</div>
@@ -364,11 +372,12 @@ templ rightRail(v NoteView, lang wording.Lang) {
 		if len(v.TOC) > 0 {
 			<nav aria-label={ wording.OnThisPage.In(lang) }>
 				<div class="ui-side__label">{ wording.OnThisPage.In(lang) }</div>
-				@tocList(v)
+				@tocList(v, lang)
 			</nav>
 		}
 		@pairOffer(v, lang)
 		@basedOn(v, lang)
+		@declaredByBlock(v, lang)
 		@citedBy(v, lang)
 		@diagnostics(v, lang)
 		@markControl(v, lang)
@@ -483,18 +492,21 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 // tocList is the table-of-contents link list, shared by the right rail and the
 // inline disclosure so the two render one surface.
 //
-// Every entry is one of the note's own headings reprinted, so the list carries
-// the note's language and takes no interface language at all. It needs saying
+// Every heading is the note's own text, so the list carries its language;
+// the optional thought doors declare the interface language separately. It needs saying
 // on the list because neither copy would otherwise inherit the right answer:
 // the folded one sits inside a block that declares the language the interface
 // speaks, and the rail one sits outside the article entirely, where the
 // document's language is all there is. A note that declared no language stamps
 // nothing here either, and both copies inherit the same page language the
 // article does.
-templ tocList(v NoteView) {
+templ tocList(v NoteView, lang wording.Lang) {
 	<div class="y-toc__list" { authoredLanguageAttrs(v.Language)... }>
 		for _, h := range v.TOC {
 			<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
+			if v.ThoughtDoor {
+				<a href={ templ.URL(thoughtHref(v.RelPath, strings.TrimPrefix(h.ID, v.IDPrefix))) } data-level={ strconv.Itoa(h.Level) } lang={ lang.Tag() } aria-label={ wording.ThoughtSection.In(lang) + ": " + h.Text }>{ wording.ThoughtSection.In(lang) }</a>
+			}
 		}
 	</div>
 }
@@ -513,7 +525,7 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 						@chevron()
 						{ wording.OnThisPage.In(lang) }
 					</summary>
-					@tocList(v)
+					@tocList(v, lang)
 				</details>
 			}
 			// This block sits between the title and the first sentence, so it
@@ -536,6 +548,16 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 						<span class="y-diagcount">{ strconv.Itoa(len(v.BasedOn)) }</span>
 					</summary>
 					@basedOnBlock(v, lang)
+				</details>
+			}
+			if len(v.DeclaredBy) > 0 {
+				<details class="y-toc-inline">
+					<summary class="y-toc-inline__summary">
+						@chevron()
+						{ wording.DeclaredBy.In(lang) }
+						<span class="y-diagcount">{ strconv.Itoa(len(v.DeclaredBy)) }</span>
+					</summary>
+					@declaredByBlock(v, lang)
 				</details>
 			}
 			// A fact about the library rather than a decoration the narrow

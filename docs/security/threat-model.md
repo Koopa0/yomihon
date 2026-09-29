@@ -5,7 +5,7 @@ single-user local process with an unauthenticated HTTP listener hard-coded to
 `127.0.0.1`; exposing it through a proxy, tunnel, container port, or
 non-loopback bind is unsupported. The four walls hold: one written field,
 loopback only, one schema source, report and never repair. The reader's own
-marks are kept in one file outside the vault, which leaves the first of those
+marks are kept in two files outside the vault, which leaves the first of those
 literally true of the vault directory.
 
 ## What is protected
@@ -15,7 +15,7 @@ literally true of the vault directory.
 | Vault files, contract-private paths included | Confidential outside the local reader; never silently repaired. |
 | `System/schemas/vault-schema.toml` | Sole machine authority for lifecycle, instance, artifact and privacy capability; missing, invalid or stale authority fails closed. |
 | The status write | Exactly one legal `status` line changes, the source is not stale, and the replacement is durable before the success response. |
-| The reader's own marks | Kept outside the vault, replaced whole or not at all, and read by no command-line face. Losing one costs a press of the control, so it is not held to the status write's durability. |
+| The reader's own marks | Kept outside the vault, replaced whole or not at all, and read by no command-line face. Continuation and uncertainty marks occupy independent files. Unreadable uncertainty storage is preserved. Marks have no backup or recovery guarantee and are not held to the status write's durability. |
 | Agent-facing results | Contract-private paths neither appear in nor influence results, with one exception: `exists` answers whether a caller-supplied exact name is taken, disclosing that bit and nothing else. |
 | Browser authority | Authored vault bytes stay display input, never first-party script, navigation, form, frame, or automatic remote-resource authority. |
 
@@ -39,7 +39,9 @@ process that can already read the vault. OS, browser and filesystem are trusted.
 | Process to vault | `vault.Reader` and `os.Root` pin the selected root. Paths are vault-relative and normalized before privileged use; the write path refuses symlinked traversal and rechecks file and parent identity. |
 | Contract to privileged action | `internal/schema` derives capability from the exact contract source. Agent output and status writes both fail closed without valid authority. |
 | Status mutation | `internal/status` alone writes. `POST /status` is capped at 4 KiB; it writes a synchronized sibling temporary file, revalidates, renames atomically, then synchronizes the directory. macOS and Linux only. |
-| Marking a reading place | `internal/mark` alone writes, to one file under the platform's configuration directory and never into the vault. `POST /marks` is capped at 4 KiB and refuses any path, anchor, offset or identity outside the shape a reading page stamps; the file is written to a sibling temporary name and renamed over. It is deliberately not synchronized to durable storage: what a crash costs is one place a reader keeps again. Like the status write, it is the reader's — an agent never calls it. |
+| Marking a continuation place | `internal/mark` writes `reader.json` under the platform's configuration directory, never into the vault. `POST /marks` is capped at 4 KiB and refuses any path, anchor, offset or identity outside the shape a reading page stamps; the file is written to a sibling temporary name and renamed over. It is deliberately not synchronized to durable storage. Like the status write, it is the reader's — an agent never calls it. |
+| Marking uncertainty | `internal/mark` writes the separate `uncertainty.json`. `POST /uncertainties` is capped at 4 KiB; path and anchor are validated and the server assigns the time. Only those three fields are stored. A toggle reads the existing array first, refuses unreadable or malformed storage, then installs a complete array by sibling-file rename. Writes are serialized within the serving process and are not synchronized to durable storage. `GET /uncertainties` exposes location records to the local reading client and reports unreadable storage as failure, not an empty list. An agent never calls the write route. |
+| External thought-note handoff | `internal/schema` reads optional `[navigation].answer_type` from the vault contract and accepts only an existing type enum member under current authority. The page offers derived frontmatter and a `based_on` link for copying or an explicit external-editor action. The reader's editor creates and saves the note; this does not grant the server another vault write face. No private contract is installed or amended automatically. |
 
 `YOMIHON_PORT` is the only environment value this program names, held to a
 mechanically tested allowlist; the bind host is not configurable, and the vault
@@ -86,9 +88,14 @@ What that instance accepts:
 - **An hourly restore from git as the compensating control**, with the
   consequence that a visitor sees a status another visitor moved until that
   restore runs.
+- **Shared reader marks wherever those routes are exposed.** There is no
+  per-visitor mark store: continuation and uncertainty marks belong to the
+  serving machine and vault. Restoring the sample vault from git does not
+  reset either configuration file outside it.
 
-The exposure is therefore the sample notes' state, not their content. A second
-instance, or one over any vault that is not `examples/vault`, is a new decision.
+The mutable exposure is the sample notes' state and any shared reader marks;
+the note content is already public. A second instance, or one over any vault
+that is not `examples/vault`, is a new decision.
 
 ## What is not defended
 
@@ -99,6 +106,12 @@ instance, or one over any vault that is not `examples/vault`, is a new decision.
   same-UID process. A machine with untrusted local users is outside the model.
 - No Windows status publication, encryption at rest, secure deletion, or backup
   and restore.
+- No recovery of lost uncertainty marks, detection of changed source content,
+  relocation after a file or heading moves, or reconstruction of a selected
+  sentence. Deleting `uncertainty.json` clears those marks; a machine failure
+  may lose them. Its independence from `reader.json` prevents an older
+  continuation writer from replacing it, without creating a migration or
+  recovery promise.
 - Repeated `exists` queries enumerate which exact names answer from withheld
   directories, one caller-supplied name at a time. Accepted, because every
   alternative answer manufactures a concrete harm: a duplicate note under a

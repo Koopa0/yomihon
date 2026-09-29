@@ -179,6 +179,24 @@ func ObsidianHref(root, rel string) string {
 	return "obsidian://open?path=" + strings.Join(segments, "/")
 }
 
+// ObsidianNewHref offers a stub to the editor without append or overwrite.
+func ObsidianNewHref(root, rel, content string) string {
+	if root == "" || rel == "" {
+		return ""
+	}
+	query := url.Values{"path": {filepath.ToSlash(root) + "/" + rel}, "content": {content}}
+	return "obsidian://new?" + strings.ReplaceAll(query.Encode(), "+", "%20")
+}
+
+// thoughtHref opens the copyable stub for this source and optional section.
+func thoughtHref(rel, section string) string {
+	address := VaultHref("/thought/", rel)
+	if section != "" {
+		address += "?" + url.Values{"section": {section}}.Encode()
+	}
+	return address
+}
+
 // CompareWithParam names the second of the two notes a side-by-side address
 // holds. The link is written here and read by the route that answers it, so the
 // two ends share one spelling rather than agreeing by hand.

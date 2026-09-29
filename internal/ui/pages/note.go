@@ -186,7 +186,7 @@ func (v *NoteView) diagCount() int {
 // a new folder rather than an edge of one.
 func (v *NoteView) hasAids() bool {
 	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 ||
-		v.citedByShown() || len(v.BasedOn) > 0 || v.Pair.RelPath != "" || v.offersMark()
+		v.citedByShown() || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.Pair.RelPath != "" || v.offersMark()
 }
 
 // offersMark reports whether this page can offer to keep the reader's place.
