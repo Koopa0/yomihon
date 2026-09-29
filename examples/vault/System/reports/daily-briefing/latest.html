@@ -1,8 +1,208 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>Briefing</title>
-<h1>Briefing for 2026-09-04</h1>
-<p>Two notes changed status yesterday. One link still has no target.</p>
-<p>An HTML briefing is written by whatever produced it, so yomihon shows it
-inside a sandbox with no scripting, no network and no access to the page
-around it.</p>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>接收者離開後 — Go 並行回顧</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --paper: #f4f1e9;
+      --card: #fffdf7;
+      --ink: #24382f;
+      --muted: #5c675e;
+      --line: #c8cec0;
+      --accent: #305e48;
+      --wash: #e7eedf;
+      --old: #795039;
+      --old-wash: #f1e5d8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.85;
+      overflow-wrap: anywhere;
+    }
+    main { max-width: 1080px; margin: 0 auto; padding: 44px clamp(20px, 5vw, 64px) 32px; }
+    p { margin: 0 0 1em; }
+    h1, h2, h3 { line-height: 1.4; text-wrap: balance; }
+    h1 {
+      max-width: 12em;
+      margin: 24px 0 20px;
+      font-family: "Iowan Old Style", "Songti TC", "Noto Serif CJK TC", serif;
+      font-size: clamp(2.1rem, 6vw, 3.8rem);
+      font-weight: 600;
+      letter-spacing: -.025em;
+    }
+    h2 { margin: 0; font-size: 1.4rem; font-weight: 650; }
+    h3 { margin: 0 0 12px; font-size: 1.05rem; }
+    code { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: .9em; }
+    .masthead {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--ink);
+      font-size: .8rem;
+      letter-spacing: .09em;
+    }
+    .masthead p { margin: 0; }
+    .brand { font-weight: 700; }
+    .muted, .eyebrow, .meta, figcaption { color: var(--muted); }
+    .eyebrow { margin: 30px 0 0; font-size: .8rem; letter-spacing: .1em; }
+    .deck { max-width: 37em; font-size: 1.12rem; }
+    .section-head { display: flex; align-items: baseline; gap: 14px; margin: 34px 0 20px; }
+    .section-no { color: var(--accent); font-family: ui-monospace, monospace; font-size: .85rem; }
+    .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .claim { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 3px; background: var(--card); }
+    .claim.before { border-top: 3px solid var(--old); background: var(--old-wash); }
+    .claim.after { border-top: 3px solid var(--accent); background: var(--wash); }
+    .label { display: block; margin-bottom: 16px; font-size: .8rem; font-weight: 650; letter-spacing: .06em; }
+    .claim p { margin: 0; font-size: .9rem; }
+    pre { margin: 0 0 20px; overflow-x: auto; line-height: 1.6; tab-size: 2; }
+    pre code { font-size: .8rem; }
+    .case { margin: 0; padding: 24px; background: var(--card); border: 1px solid var(--line); }
+    .case p:last-child { margin-bottom: 0; }
+    .outcomes { padding: 0; margin: 0; list-style: none; }
+    .outcomes li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+    .outcomes strong { font-weight: 650; }
+    .outcomes span { font-size: .9rem; }
+    .takeaway { margin: 22px 0 0; padding: 0 0 0 18px; border-left: 3px solid var(--accent); }
+    .sources { margin: 0; padding-left: 1.5em; font-size: .88rem; }
+    .sources li { padding: 4px 0 8px 8px; }
+    .sources small { display: block; color: var(--muted); }
+    footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--ink); font-size: .77rem; color: var(--muted); }
+    footer p { margin: 0; }
+    @media (max-width: 620px) {
+      main { padding-top: 24px; }
+      .comparison { grid-template-columns: 1fr; }
+      .claim, .case { padding: 20px; }
+      .outcomes li { grid-template-columns: 1fr; gap: 4px; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #17221e;
+        --card: #1e2b25;
+        --ink: #e4ebdc;
+        --muted: #acb9ae;
+        --line: #485b4c;
+        --accent: #b2cf9f;
+        --wash: #29392b;
+        --old: #dfb693;
+        --old-wash: #352e25;
+      }
+    }
+    @media print {
+      :root { --paper: #fff; --card: #fff; --ink: #111; --muted: #444; --line: #aaa; --accent: #244b37; --wash: #fff; --old: #65462d; --old-wash: #fff; }
+      body { font-size: 10pt; }
+      main { max-width: none; padding: 0; }
+      h1 { font-size: 30pt; }
+      .section-head { margin-top: 22px; break-after: avoid; }
+      .claim, .case, .sources li { break-inside: avoid; }
+      pre { overflow: visible; white-space: pre-wrap; }
+      footer { margin-top: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="masthead">
+        <p class="brand">Go / 並行回顧</p>
+        <p class="meta"><time datetime="2026-09-22">2026 年 9 月 22 日</time></p>
+      </div>
+      <p class="eyebrow">GOROUTINE · CHANNEL · CONTEXT</p>
+      <h1>接收者離開後，<br>誰還在等待？</h1>
+      <p class="deck">只需要第一個結果，卻啟動了會送出三個值的 producer。第一個值取到了，後面的 send 怎麼結束？</p>
+    </header>
+
+    <section aria-labelledby="case-title">
+      <div class="section-head"><span class="section-no" aria-hidden="true">01</span><h2 id="case-title">一次沒完成的傳送</h2></div>
+      <div class="case">
+        <ul class="outcomes">
+          <li><strong>producer 送出 2</strong><span>consumer 接收；無緩衝 channel 的這次傳送完成。</span></li>
+          <li><strong>consumer 返回</strong><span>它已取得結果，不再接收。</span></li>
+          <li><strong>producer 嘗試送出 4</strong><span>沒有接收者，send 阻塞，goroutine 無法返回。</span></li>
+        </ul>
+      </div>
+      <p class="takeaway">假設外層程式仍在運行。接收函式返回，不會替另一個 goroutine 執行 return。</p>
+    </section>
+
+    <section aria-labelledby="revision-title">
+      <div class="section-head"><span class="section-no" aria-hidden="true">02</span><h2 id="revision-title">讓等待有另一個出口</h2></div>
+      <p class="muted">兩個版本都取第一個值。修正版使用標準庫 <code>context</code>。</p>
+      <div class="comparison">
+        <article class="claim before">
+          <h3 class="label">只有 send：等待接收者</h3>
+          <pre><code>func first() int {
+  out := make(chan int)
+  go func() {
+    defer close(out)
+    for _, v := range []int{2, 4, 6} {
+      out &lt;- v
+    }
+  }()
+  return &lt;-out
+}</code></pre>
+          <p><code>defer close(out)</code> 要等 goroutine 返回才會執行。它無法解除前面卡住的 send。</p>
+        </article>
+        <article class="claim after">
+          <h3 class="label">select：也能收到取消通知</h3>
+          <pre><code>func first() int {
+  ctx, cancel := context.WithCancel(
+    context.Background(),
+  )
+  defer cancel()
+  out := make(chan int)
+  go func() {
+    defer close(out)
+    for _, v := range []int{2, 4, 6} {
+      select {
+      case out &lt;- v:
+      case &lt;-ctx.Done():
+        return
+      }
+    }
+  }()
+  return &lt;-out
+}</code></pre>
+          <p><code>first</code> 返回時呼叫 cancel。producer 可從 Done 分支返回，再關閉輸出。</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="limits-title">
+      <div class="section-head"><span class="section-no" aria-hidden="true">03</span><h2 id="limits-title">通知、關閉、等待，各有責任</h2></div>
+      <div class="case">
+        <ul class="outcomes">
+          <li><strong>consumer 呼叫 cancel</strong><span>表示不再需要結果。cancel 不會強制終止 goroutine，也不等待它結束。</span></li>
+          <li><strong>唯一 producer 關閉 out</strong><span>只有它知道自己不會再送值。consumer 不應用 close 中止 sender；向已關閉 channel 傳送會 panic。</span></li>
+          <li><strong>工作自行處理取消</strong><span>select 才是退出路徑。換成不檢查 Done 的運算或阻塞 I/O，cancel 無法替它中斷。</span></li>
+        </ul>
+      </div>
+      <p class="takeaway">若其他程式碼需要確認 producer 已退出，另用 WaitGroup 等待。若 send 與 Done 同時就緒，select 沒有「取消優先」保證。</p>
+    </section>
+
+    <section aria-labelledby="sources-title">
+      <div class="section-head"><span class="section-no" aria-hidden="true">04</span><h2 id="sources-title">Go 官方依據</h2></div>
+      <ol class="sources">
+        <li><strong>Pipelines and cancellation</strong><small><code>go.dev/blog/pipelines</code> — Stopping short、Explicit cancellation。</small></li>
+        <li><strong>context：WithCancel、CancelFunc</strong><small><code>pkg.go.dev/context</code> — 取消通知與工作結束是兩回事。</small></li>
+        <li><strong>語言規格：Send、Select、Close</strong><small><code>go.dev/ref/spec</code> — 傳送的阻塞條件、就緒分支選擇及關閉行為。</small></li>
+      </ol>
+    </section>
+
+    <footer>
+      <p>Go 並行範例</p>
+      <p>2026.09.22</p>
+    </footer>
+  </main>
+</body>
+</html>
