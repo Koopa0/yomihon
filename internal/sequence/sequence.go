@@ -137,8 +137,12 @@ type Candidate struct {
 	// separator, so Text is theirs and not just the target read back. It is
 	// false for a multi-target row, which has no one link to speak of.
 	Aliased bool
-	Line    int
-	Span    Span
+	// Fragment is whether the link addresses a heading or block inside the
+	// note rather than the whole note, so two rows to one note can name
+	// different places.
+	Fragment bool
+	Line     int
+	Span     Span
 	// TargetSpan is where Target is written: the bytes of that one wikilink. A
 	// row can carry others, so a consumer matching a link it read itself back
 	// to this entry joins on these bytes. It is zero exactly when Target is empty.
@@ -711,12 +715,14 @@ func (p *parser) plainRow(hits []linkHit, spans []Span, name string, line int, o
 			strings.TrimSpace(own))
 		entry.Text = hits[0].display
 		entry.Aliased = hits[0].aliased
+		entry.Fragment = hits[0].fragment
 		entry.Target = hits[0].target
 		entry.TargetSpan = hits[0].span()
 		entry.State = EntryNoncanonical
 	default:
 		entry.Text = hits[0].display
 		entry.Aliased = hits[0].aliased
+		entry.Fragment = hits[0].fragment
 		entry.Target = hits[0].target
 		entry.TargetSpan = hits[0].span()
 		entry.State = EntryAccepted
@@ -1003,8 +1009,11 @@ type linkHit struct {
 	display string
 	// aliased is whether the author wrote display text after the separator.
 	aliased bool
-	start   int
-	stop    int
+	// fragment is whether the link addresses a heading or block inside the
+	// note rather than the whole note.
+	fragment bool
+	start    int
+	stop     int
 }
 
 // span is where this link is written, as the occurrence identity a row keeps.
@@ -1091,7 +1100,7 @@ func (p *parser) linksIn(rng Span) []linkHit {
 		if !ok {
 			continue
 		}
-		out = append(out, linkHit{target: link.Target, display: link.Display, aliased: link.Aliased, start: absolute, stop: rng.Start + next})
+		out = append(out, linkHit{target: link.Target, display: link.Display, aliased: link.Aliased, fragment: link.Heading != "" || link.Block != "", start: absolute, stop: rng.Start + next})
 	}
 	return out
 }

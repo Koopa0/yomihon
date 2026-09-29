@@ -47,7 +47,9 @@ type Wikilink struct {
 	// Empty means the link addresses a place in the current file.
 	Target string
 	// Display is the text a reader sees: the words after the display
-	// separator, or the whole inner text when the author wrote none.
+	// separator, or the whole inner text when the author wrote none. It is
+	// empty when a separator has nothing after it, and a caller that prints
+	// a label then falls back to the target.
 	Display string
 	// Aliased is true when the author wrote display text after the separator.
 	// It is read off the link's own bytes: a link with no alias also has a

@@ -63,10 +63,10 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 									<div class="y-lessonsteps__path">{ step.PathTitle }</div>
 								}
 								if step.Prev.RelPath != "" {
-									<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }{ step.Prev.Name }</a>
+									<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }<span { authoredLanguageAttrs(step.Prev.Language)... }>{ step.Prev.Name }</span></a>
 								}
 								if step.Next.RelPath != "" {
-									<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }{ step.Next.Name } →</a>
+									<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }<span { authoredLanguageAttrs(step.Next.Language)... }>{ step.Next.Name }</span> →</a>
 								}
 							</nav>
 						}

@@ -9,15 +9,18 @@ import "testing"
 func TestARowSaysWhetherItWroteAnAlias(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		row         string
-		wantText    string
-		wantAliased bool
+		name         string
+		row          string
+		wantText     string
+		wantAliased  bool
+		wantFragment bool
 	}{
 		{name: "no alias", row: "- [[Lessons/a]]\n", wantText: "Lessons/a", wantAliased: false},
 		{name: "an alias", row: "- [[Lessons/a|Words]]\n", wantText: "Words", wantAliased: true},
 		{name: "an alias that repeats the target", row: "- [[a|a]]\n", wantText: "a", wantAliased: true},
-		{name: "a heading is not an alias", row: "- [[a#Part]]\n", wantText: "a#Part", wantAliased: false},
+		{name: "a heading is not an alias", row: "- [[a#Part]]\n", wantText: "a#Part", wantAliased: false, wantFragment: true},
+		{name: "a block address is a fragment", row: "- [[a#^b1]]\n", wantText: "a#^b1", wantAliased: false, wantFragment: true},
+		{name: "an alias over a heading is both", row: "- [[a#Part|Words]]\n", wantText: "Words", wantAliased: true, wantFragment: true},
 		{name: "a separator with nothing after it", row: "- [[a|]]\n", wantText: "", wantAliased: false},
 	}
 	for _, tt := range tests {
@@ -33,6 +36,9 @@ func TestARowSaysWhetherItWroteAnAlias(t *testing.T) {
 			}
 			if got := entries[0].Aliased; got != tt.wantAliased {
 				t.Errorf("row %q Aliased = %v, want %v", tt.row, got, tt.wantAliased)
+			}
+			if got := entries[0].Fragment; got != tt.wantFragment {
+				t.Errorf("row %q Fragment = %v, want %v", tt.row, got, tt.wantFragment)
 			}
 		})
 	}

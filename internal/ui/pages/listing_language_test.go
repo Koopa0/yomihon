@@ -193,12 +193,12 @@ func TestBookRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 	}{
 		{
 			name:  "a lesson that declared its language",
-			entry: PathEntryView{Kind: nav.EntryResolved, Text: "日本語の課", Href: "/notes/Lessons/Language lesson.md", Language: "ja"},
+			entry: PathEntryView{Kind: nav.EntryResolved, Name: "日本語の課", Href: "/notes/Lessons/Language lesson.md", Language: "ja"},
 			want:  `<span lang="ja">日本語の課</span>`,
 		},
 		{
 			name:  "a lesson that declared none",
-			entry: PathEntryView{Kind: nav.EntryResolved, Text: "Alpha", Href: "/notes/Notes/alpha.md"},
+			entry: PathEntryView{Kind: nav.EntryResolved, Name: "Alpha", Href: "/notes/Notes/alpha.md"},
 			want:  `<span>Alpha</span>`,
 		},
 		{
@@ -208,7 +208,7 @@ func TestBookRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 			// of it ask the view the same way and this is the one that would
 			// go unnoticed if it stopped.
 			name:  "a row that reached nothing",
-			entry: PathEntryView{Kind: nav.EntryAmbiguous, Text: "日本語の課"},
+			entry: PathEntryView{Kind: nav.EntryAmbiguous, Name: "日本語の課"},
 			want:  `<span>日本語の課</span>`,
 		},
 	}
@@ -239,7 +239,7 @@ func TestBookRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 	t.Run("the study path's own row", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		entry := PathEntryView{Kind: nav.EntryResolved, Text: "日本語の課", Href: "/notes/Lessons/Language lesson.md", Language: "ja"}
+		entry := PathEntryView{Kind: nav.EntryResolved, Name: "日本語の課", Href: "/notes/Lessons/Language lesson.md", Language: "ja"}
 		if err := entryRow(entry, wording.En).Render(t.Context(), &buf); err != nil {
 			t.Fatalf("render study path row: %v", err)
 		}

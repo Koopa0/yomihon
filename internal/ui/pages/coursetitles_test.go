@@ -126,3 +126,49 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 		}
 	})
 }
+
+// TestACoursesLessonNameKeepsTheLanguageItsNoteDeclared holds the two surfaces
+// that print a lesson's name bare: the steps in the left sidebar and the
+// cover's continue-with lesson. Each carries the language its note declared,
+// and none where it declared nothing.
+func TestACoursesLessonNameKeepsTheLanguageItsNoteDeclared(t *testing.T) {
+	t.Parallel()
+	model := modelOf(t, "testdata/coursetitles")
+	chrome := recordedChrome()
+
+	t.Run("sidebar steps", func(t *testing.T) {
+		t.Parallel()
+		sb := NewSidebar(nav.Shell{Nav: model}, "Lessons/no-title.md")
+		sb.Steps = []nav.Neighbors{{
+			PathTitle:   "Naming course",
+			PathRelPath: titlesCoursePath,
+			Prev:        nav.NoteRef{Name: "前の課", RelPath: "Lessons/iota-constants.md", Language: "ja"},
+			Next:        nav.NoteRef{Name: "Next lesson", RelPath: "Lessons/last-lesson.md"},
+		}}
+		html := renderedHTML(t, sidebar(sb, chrome))
+		stepsNav := regexp.MustCompile(`(?s)<nav class="y-lessonsteps".*?</nav>`).FindString(html)
+		got := regexp.MustCompile(`<span[^>]*>[^<]*</span>`).FindAllString(stepsNav, -1)
+		want := []string{`<span lang="ja">前の課</span>`, `<span>Next lesson</span>`}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("sidebar step names (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("cover continue-with lesson", func(t *testing.T) {
+		t.Parallel()
+		const kept = "Lessons/iota-constants.md"
+		branches := []PathBranchView{{Items: []PathItemView{{Entry: &PathEntryView{
+			Name: "続きの課", Language: "ja", RelPath: kept, Href: notesHref(kept), Kind: nav.EntryResolved, Number: 1,
+		}}}}}
+		action := courseAction(branches, &CourseCover{KeptNote: kept, KeptHref: ResumeHref(kept, "top", 0)})
+		if action.LessonLanguage != "ja" {
+			t.Fatalf("CourseAction.LessonLanguage = %q, want ja", action.LessonLanguage)
+		}
+		view := BuildPathView(model.Path(titlesCoursePath), model.Paths(), &CourseCover{})
+		view.Action = action
+		html := renderedHTML(t, Syllabus(view, chrome))
+		if !regexp.MustCompile(`<span class="y-cover__lesson" lang="ja">続きの課</span>`).MatchString(html) {
+			t.Errorf("the cover does not print the lesson in its declared language")
+		}
+	})
+}

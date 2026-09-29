@@ -9,7 +9,8 @@ import (
 // TestACourseNamesAResolvedRowByAliasThenTitleThenLinkText holds the ruling on
 // what a course prints for a lesson, and that the walk hands the same name to
 // the steps on either side of it. An alias that repeats the target is still an
-// alias. A row that resolved to nothing keeps its link
+// alias. A link to a heading or block keeps its link text, so two rows to one
+// note name different places. A row that resolved to nothing keeps its link
 // text, and a title the note does not declare is not read off its file name.
 func TestACourseNamesAResolvedRowByAliasThenTitleThenLinkText(t *testing.T) {
 	t.Parallel()
@@ -21,20 +22,30 @@ func TestACourseNamesAResolvedRowByAliasThenTitleThenLinkText(t *testing.T) {
 		"2. [[titled]]\n" +
 		"3. [[Writing/untitled]]\n" +
 		"4. [[not written]]\n" +
-		"5. [[last|last]]\n"
-	titles := map[string]string{
-		"Writing/aliased.md": "Aliased: the title",
-		"Writing/titled.md":  "Titled: the title",
-		"Writing/last.md":    "Last: the title",
+		"5. [[last|last]]\n" +
+		"6. [[titled#Part A]]\n" +
+		"7. [[titled#^block-b]]\n" +
+		"8. [[titled|]]\n" +
+		"9. [[Writing/untitled|]]\n"
+	facts := map[string]noteFacts{
+		"Writing/aliased.md": {title: "Aliased: the title"},
+		"Writing/titled.md":  {title: "Titled: the title", language: "ja"},
+		"Writing/last.md":    {title: "Last: the title"},
 	}
-	langs := map[string]string{"Writing/titled.md": "ja"}
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, langs, titles, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, facts, testArtifactPolicy(t))
 
 	var got []string
 	for _, item := range p.Groups[0].Items {
 		got = append(got, item.Entry.Name)
 	}
-	want := []string{"My words", "Titled: the title", "Writing/untitled", "not written", "last"}
+	want := []string{
+		"My words", "Titled: the title", "Writing/untitled", "not written", "last",
+		// Two rows to one note name two places, so neither takes the title.
+		"titled#Part A", "titled#^block-b",
+		// A separator with nothing after it wrote no alias: the note's title,
+		// else the target.
+		"Titled: the title", "Writing/untitled",
+	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("row names (-want +got):\n%s", diff)
 	}

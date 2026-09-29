@@ -65,12 +65,8 @@ func listenView(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) pag
 		if len(marked) == 0 {
 			continue
 		}
-		title := note.Title
-		if title == "" {
-			title = entry.Name
-		}
 		view.Lessons = append(view.Lessons, pages.ListenLesson{
-			Title:      title,
+			Title:      entry.Name,
 			Href:       pages.VaultHref("/notes/", entry.RelPath),
 			Paragraphs: marked,
 		})
