@@ -111,6 +111,22 @@ const ready = async (page, selector) => {
   }
 };
 
+// clearMarks empties the store whatever happened above. A failed or mutated run
+// stops with a mark still kept, and every later probe's desk would then list it.
+const clearMarks = async () => {
+  try {
+    const held = await (await fetch(`${BASE}/uncertainties`)).json();
+    for (const { path, anchor } of held) {
+      await fetch(`${BASE}/uncertainties`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
+    }
+    const left = await (await fetch(`${BASE}/uncertainties`)).json();
+    if (left.length !== 0) console.error(`BROKEN uncertainty-marks: ${left.length} mark(s) remain after cleanup`);
+  } catch (err) {
+    console.error(`BROKEN uncertainty-marks: cleanup failed: ${err}`);
+    process.exitCode = 1;
+  }
+};
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const context = await browser.newContext({ viewport: PHONE });
@@ -173,4 +189,5 @@ try {
   }
 } finally {
   await browser.close();
+  await clearMarks();
 }
