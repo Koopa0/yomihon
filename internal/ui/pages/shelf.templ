@@ -40,6 +40,7 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 			}
 			<a class="ui-navitem y-shelfall" href={ templ.URL(s.Href) }>{ wording.ShelfAll.In(lang) }</a>
 		}
+		{ children... }
 	</section>
 }
 
@@ -84,7 +85,7 @@ templ ShelfRail(s Shelf, limit int, dir, more string) {
 // leads with its day here too; the line the document opens with is left to the
 // full width, a block being a corner of the shelf rather than a listing.
 templ shelfRowLink(row Row) {
-	<a class="ui-navitem" href={ templ.URL(row.Href) } data-desk-item>
+	<a class={ "ui-navitem", templ.KV("ui-navitem--wrap", row.Wrap) } href={ templ.URL(row.Href) } data-desk-item>
 		if row.When != "" {
 			<span class="ui-navitem__when">{ row.When }</span>
 		}

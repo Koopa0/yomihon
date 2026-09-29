@@ -31,6 +31,9 @@ type ListIndexView struct {
 	Mode   string
 	Kicker string
 	Fault  string
+	// Notice reports an unavailable input independent of the vault contract,
+	// such as the reader's own marks. It carries its complete translated words.
+	Notice string
 	Shelf  Shelf
 }
 

@@ -15,6 +15,11 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
 			<div class="y-home">
 				@indexHead(v.Kicker, v.Shelf.Title, v.Shelf.Lede, c.Lang)
+				if v.Notice != "" {
+					@nothingToShow(nothingNotice{Kind: v.Mode, Fault: true}) {
+						<p>{ v.Notice }</p>
+					}
+				}
 				if v.Fault != "" {
 					@indexFault(v.Fault, c)
 				} else if len(v.Shelf.Rows) == 0 && v.Shelf.Empty != "" {

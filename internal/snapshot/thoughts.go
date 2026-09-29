@@ -1,0 +1,37 @@
+package snapshot
+
+import (
+	"slices"
+
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
+)
+
+// NotesOfType returns captured readable notes of one declared type, including
+// notes outside the knowledge layer but never a declared non-instance, such as
+// a template. It grants no role or lifecycle meaning; the caller supplies the
+// type obtained from its contract authority.
+func (g *Generation) NotesOfType(noteType string) []Reading {
+	if g == nil || noteType == "" {
+		return nil
+	}
+	var notes []Reading
+	policy := g.ArtifactPolicy()
+	for rel := range g.notes {
+		reading := g.notes[rel]
+		if schema.NormalizeWord(reading.Type) == noteType && !policy.IsNonInstance(reading.RelPath) {
+			notes = append(notes, reading)
+		}
+	}
+	slices.SortFunc(notes, func(a, b Reading) int { return vault.ComparePaths(a.RelPath, b.RelPath) })
+	return notes
+}
+
+// BasedOnDeclarations returns the source words the note authored, including
+// any section or block fragments. The detached list grants no link target.
+func (g *Generation) BasedOnDeclarations(rel string) []string {
+	if g == nil {
+		return nil
+	}
+	return slices.Clone(basedOnValues(g.parsed[rel]))
+}
