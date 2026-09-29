@@ -250,11 +250,10 @@ func buildStepsModel(t *testing.T) *nav.Model {
 	)
 }
 
-// TestStudyPathLandmarksDoNotShareAName locks the ruling on #293: on a note
-// one course teaches, the rail names the path's whole order and the foot
-// names the step onward. Landmark navigation must not offer two identically
-// named navigations.
-func TestStudyPathLandmarksDoNotShareAName(t *testing.T) {
+// TestOnlyTheFootOffersTheCourseStep locks that on a note one course teaches,
+// the step onward is one landmark, in the article foot: the book rail's head
+// carries the course's name and extent and no step navigation of its own.
+func TestOnlyTheFootOffersTheCourseStep(t *testing.T) {
 	t.Parallel()
 
 	model := buildStepsModel(t)
@@ -269,9 +268,8 @@ func TestStudyPathLandmarksDoNotShareAName(t *testing.T) {
 	if err := readingRail(resolved, layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &rail); err != nil {
 		t.Fatalf("render reading rail: %v", err)
 	}
-	railName := navAriaLabel(rail.String(), "y-lessonsteps")
-	if railName == "" {
-		t.Fatalf("the rail has no y-lessonsteps landmark; html = %q", rail.String())
+	if strings.Contains(rail.String(), "<nav") {
+		t.Errorf("the book rail renders a step landmark, so the page offers the step onward twice; html = %q", rail.String())
 	}
 
 	var foot bytes.Buffer
@@ -282,9 +280,6 @@ func TestStudyPathLandmarksDoNotShareAName(t *testing.T) {
 	footName := navAriaLabel(foot.String(), "y-steps")
 	if footName == "" {
 		t.Fatalf("the foot has no y-steps landmark; html = %q", foot.String())
-	}
-	if railName == footName {
-		t.Errorf("rail and foot share the landmark name %q", railName)
 	}
 }
 

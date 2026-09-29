@@ -49,8 +49,7 @@ type NoteView struct {
 	RenderDiagnostics []render.Diagnostic
 	// Prev and Next are the notes either side of this one in the sequence the
 	// foot of the article offers. StepsLabel names that sequence, printed and
-	// spoken alike — a course's step onward, or folder adjacency — so the rail
-	// can keep the path's whole order under a different landmark name.
+	// spoken alike — a course's step onward, or folder adjacency.
 	// StepsCourse says which order arrived, which picks the step words.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
