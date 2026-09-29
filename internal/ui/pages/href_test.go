@@ -399,6 +399,95 @@ func TestHitFragment(t *testing.T) {
 			},
 			want: "#:~:text=egret",
 		},
+		{
+			// The run after the term lifts the requirement that the term end
+			// at a word boundary, which is what a match in the middle of a
+			// word of a script without spaces needs. Its "-" is the mark and
+			// stays literal.
+			name: "a term with a run before and after it goes out as three terms",
+			hit: SearchResult{
+				Landing:       "紫陽",
+				LandingBare:   "紫陽",
+				LandingPrefix: "分けてもらった",
+				LandingSuffix: "花の株で",
+			},
+			want: "#:~:text=%E5%88%86%E3%81%91%E3%81%A6%E3%82%82%E3%82%89%E3%81%A3%E3%81%9F-,%E7%B4%AB%E9%99%BD,-%E8%8A%B1%E3%81%AE%E6%A0%AA%E3%81%A7",
+		},
+		{
+			name: "a term that opens its block still carries the run after it",
+			hit: SearchResult{
+				Landing:       "紫陽",
+				LandingBare:   "紫陽",
+				LandingSuffix: "花の株で",
+			},
+			want: "#:~:text=%E7%B4%AB%E9%99%BD,-%E8%8A%B1%E3%81%AE%E6%A0%AA%E3%81%A7",
+		},
+		{
+			// A hyphen the author wrote inside the run is encoded, so it
+			// cannot be read as the mark that closes the term before it.
+			name: "a hyphen inside the run after the term cannot pass for a mark",
+			hit: SearchResult{
+				Landing:       "cobalt",
+				LandingBare:   "cobalt",
+				LandingPrefix: "the",
+				LandingSuffix: "read-aloud",
+			},
+			want: "#:~:text=the-,cobalt,-read%2Daloud",
+		},
+		{
+			name: "a crossing match names the run after the far end, in four terms",
+			hit: SearchResult{
+				Landing:       "銀杏",
+				LandingBare:   "銀杏",
+				LandingEnd:    "並木の奥",
+				LandingPrefix: "鍵は",
+				LandingSuffix: "にある",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=%E9%8D%B5%E3%81%AF-,%E9%8A%80%E6%9D%8F,%E4%B8%A6%E6%9C%A8%E3%81%AE%E5%A5%A5,-%E3%81%AB%E3%81%82%E3%82%8B",
+		},
+		{
+			name: "a far end travelling alone carries the run after it",
+			hit: SearchResult{
+				LandingEnd:    "並木の奥",
+				LandingPrefix: "abc def",
+				LandingSuffix: "にある",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=%E4%B8%A6%E6%9C%A8%E3%81%AE%E5%A5%A5,-%E3%81%AB%E3%81%82%E3%82%8B",
+		},
+		{
+			// The run was measured from the far end, so it is not the run
+			// after a first stretch that has no far end beside it.
+			name: "a first stretch with no far end never carries the run measured after another",
+			hit: SearchResult{
+				Landing:       "cobalt",
+				LandingBare:   "cobalt",
+				LandingSuffix: "にある",
+				BlockCrossing: true,
+			},
+			want: "#:~:text=cobalt",
+		},
+		{
+			name: "words that collapse to nothing are not written as an empty run after",
+			hit: SearchResult{
+				Landing:       "cobalt",
+				LandingBare:   "cobalt",
+				LandingSuffix: "   ",
+			},
+			want: "#:~:text=cobalt",
+		},
+		{
+			// A word grown to its edges has nothing after it to name, so
+			// the directive is the one it was before the run existed.
+			name: "an alphanumeric hit with nothing after it is unchanged",
+			hit: SearchResult{
+				Landing:       "urmaline",
+				LandingBare:   "tourmaline",
+				LandingPrefix: "ledger of to",
+			},
+			want: "#:~:text=ledger%20of%20to-,urmaline",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

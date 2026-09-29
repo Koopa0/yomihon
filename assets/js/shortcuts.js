@@ -1,6 +1,6 @@
 // Cross-feature keyboard policy. Feature modules own their mechanics; this
 // module alone decides shortcut priority, typing exclusions, and modifiers.
-export function initShortcuts({ drawer, sidebar, search }) {
+export function initShortcuts({ drawer, rail, sidebar, search }) {
   const root = document.documentElement;
   window.addEventListener('keydown', (event) => {
     // An input method mid-composition owns the keyboard, and the exclusion has
@@ -40,6 +40,10 @@ export function initShortcuts({ drawer, sidebar, search }) {
       if (sidebar.canFocusFilter()) {
         event.preventDefault();
         if (drawer.isNarrow() && !drawer.isOpen()) drawer.open();
+        // A folded column holds a filter nobody can reach, and focus asked of
+        // a hidden input lands nowhere. The column is opened first, as the
+        // drawer is above.
+        rail.expand();
         sidebar.focusFilter();
       }
       return;
@@ -48,6 +52,9 @@ export function initShortcuts({ drawer, sidebar, search }) {
       if (drawer.isNarrow()) {
         event.preventDefault();
         drawer.toggle();
+      } else if (rail.available()) {
+        event.preventDefault();
+        rail.toggle();
       }
     }
   });

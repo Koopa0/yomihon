@@ -7,8 +7,9 @@ package wording
 // arriving at what they came for.
 var SkipToContent = both("跳至主要內容", "Skip to content")
 
-// ToggleNavigation names the control that opens the rail at widths where it is
-// collapsed behind it.
+// ToggleNavigation names the header control that opens the rail as a drawer at
+// widths where it is folded behind it; ToggleRail names the one that folds the
+// column above them.
 var ToggleNavigation = both("切換導覽", "Toggle navigation")
 
 // BrandTag sits beside the name and says what this is: a place to read what is
@@ -99,19 +100,6 @@ var (
 	ShortcutCloseSearchOrFilter = both("關閉搜尋或篩選", "Close search or the filter")
 	ShortcutJumpToFilter        = both("跳到導覽篩選（單鍵開啟時）", "Jump to the navigation filter (when single keys are on)")
 	ShortcutToggleSidebar       = both("收合或展開側欄（單鍵開啟時）", "Collapse or expand the sidebar (when single keys are on)")
-)
-
-// ShortcutSidebarNarrowOnly is the rest of what the sidebar key does, which is
-// nothing at most reading widths. There is only something to fold away where
-// the window is narrow enough that the sidebar has become a drawer; on a wide
-// one the sidebar is simply present, the key is inert, and the row above
-// promised otherwise — leaving a reader pressing a documented key at a desk and
-// reading the silence as a broken preference. The sentence describes the
-// condition the way the reader can see it rather than by a pixel count, whose
-// one home is the stylesheet.
-var ShortcutSidebarNarrowOnly = both(
-	"側欄一直看得見時，這個鍵沒有作用。",
-	"When the sidebar stays in view, this key does nothing.",
 )
 
 // SingleKeyShortcuts names the preference that decides whether a bare key does

@@ -229,6 +229,17 @@ var choices = []choice{
 		inForce: func(c *layouts.Chrome) string { return c.Ruby },
 	},
 	{
+		name:   "rail",
+		cookie: "yomihon_rail",
+		legend: wording.PrefRail,
+		note:   wording.PrefRailNote,
+		labels: map[string]wording.Phrase{
+			"open":      wording.PrefRailOpen,
+			"collapsed": wording.PrefRailCollapsed,
+		},
+		inForce: func(c *layouts.Chrome) string { return c.Rail },
+	},
+	{
 		name:   "shortcuts",
 		cookie: "yomihon_shortcuts",
 		legend: wording.PrefShortcuts,

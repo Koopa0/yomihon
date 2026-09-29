@@ -29,13 +29,14 @@ var (
 	textSizeChoice  = preference{cookie: "yomihon_textsize", values: []string{"m", "l", "xl"}, fallback: "m"}
 	shortcutsChoice = preference{cookie: "yomihon_shortcuts", values: []string{"on", "off"}, fallback: "on"}
 	fontChoice      = preference{cookie: "yomihon_font", values: []string{"serif", "sans", "kai"}, fallback: ""}
+	railChoice      = preference{cookie: "yomihon_rail", values: []string{"open", "collapsed"}, fallback: "open"}
 )
 
 // preferences is every reading choice in one place. The interface language is
 // not among them: each row here resolves to a short value the root carries for
 // the stylesheet to answer, while the language decides which words the server
 // writes at all, so it is read beside the dictionary those words come from.
-var preferences = [...]preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice}
+var preferences = [...]preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice}
 
 // read answers one choice for this request: the stored value when the cookie
 // carries one the row honours, and the row's fallback otherwise. An unknown

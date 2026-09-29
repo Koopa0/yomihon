@@ -34,7 +34,12 @@ type Chrome struct {
 	// "kai", or "" when the reader never chose. A choice is stamped on the
 	// root, as the theme is; no choice leaves the attribute off and the
 	// stylesheet's base value answers.
-	Font                      string
+	Font string
+	// Rail is whether the left navigation column is shown above the drawer
+	// width: "open" or "collapsed". The root carries it so the first paint is
+	// already the column the reader left; it has no effect where the column is
+	// a drawer.
+	Rail                      string
 	SingleKeyShortcutsEnabled bool // plain / and [ are enabled
 	// Lang is the language the interface speaks for this request, and the
 	// language the document declares. The article inside it may declare its
@@ -131,6 +136,7 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 		Ruby:                      read(r, rubyChoice),
 		TextSize:                  read(r, textSizeChoice),
 		Font:                      read(r, fontChoice),
+		Rail:                      read(r, railChoice),
 		SingleKeyShortcutsEnabled: read(r, shortcutsChoice) == "on",
 		// The request's own address, so a control the server answers can bring
 		// the reader back to this page afterwards. Only an address a GET can
