@@ -436,7 +436,7 @@ func countModules(sv *PathBranchView) int {
 // Only a resolved row can be the one the reader is at: a row that reached no
 // note is not a note anyone can have been reading.
 func buildPathEntry(entry *nav.PathEntry, here string) PathEntryView {
-	v := PathEntryView{Text: entry.Text, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
+	v := PathEntryView{Text: entry.Name, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
 	if entry.Kind != nav.EntryResolved {
 		return v
 	}

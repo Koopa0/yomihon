@@ -436,7 +436,7 @@ func newModel(
 	// The recent-notes summary is collected in every contract state; paths and
 	// maps exist only as a contract's own classification, so either closed
 	// declaration ends the build with none of them.
-	statusByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
+	statusByPath, titlesByPath, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
 	m.knowledgeNotes = knowledgeNotes
 	m.knowledgeScoped = scope.Available()
 	if m.artifact.Closed() || m.navigation.Closed() {
@@ -447,7 +447,7 @@ func newModel(
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
-			m.paths = append(m.paths, buildPath(n, resolver, statusByPath, langs, policy))
+			m.paths = append(m.paths, buildPath(n, resolver, statusByPath, langs, titlesByPath, policy))
 			continue
 		}
 		m.maps = append(m.maps, parseMap(n, resolver, statusByPath, langs, policy))
@@ -471,18 +471,18 @@ func newModel(
 	return m
 }
 
-// collectNavigationNotes projects already parsed notes into entry badges, Home
-// summaries, and the map notes parsed by newModel. An absent note is skipped
-// without affecting its neighbors.
+// collectNavigationNotes projects already parsed notes into entry badges, the
+// declared titles a course names its lessons by, Home summaries, and the map
+// notes parsed by newModel. An absent note is skipped without affecting its
+// neighbors.
 func collectNavigationNotes(
 	files []capturedFile,
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
-) (map[string]string, []*vault.Note, []NoteSummary) {
-	statusByPath := make(map[string]string)
-	var mapNotes []*vault.Note
-	var knowledgeNotes []NoteSummary
+) (statusByPath, titlesByPath map[string]string, mapNotes []*vault.Note, knowledgeNotes []NoteSummary) {
+	statusByPath = make(map[string]string)
+	titlesByPath = make(map[string]string)
 	for _, file := range files {
 		p := file.path
 		if !vault.IsMarkdown(p) || policy.IsNonInstance(p) {
@@ -494,6 +494,11 @@ func collectNavigationNotes(
 		}
 		if status := n.Status(); status != "" {
 			statusByPath[p] = status
+		}
+		// The declared title only: Note.Title falls back to the file stem,
+		// which would name a course row by its file again.
+		if title, _ := n.Text("title"); title != "" {
+			titlesByPath[p] = title
 		}
 		// Membership is the vault's own declaration, not whether a note happens
 		// to carry a type: a note without frontmatter is still one its author
@@ -511,7 +516,7 @@ func collectNavigationNotes(
 			mapNotes = append(mapNotes, n)
 		}
 	}
-	return statusByPath, mapNotes, knowledgeNotes
+	return statusByPath, titlesByPath, mapNotes, knowledgeNotes
 }
 
 // The report projection selects by location alone, and the sidebar drawer asks

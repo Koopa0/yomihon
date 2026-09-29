@@ -133,8 +133,12 @@ func (s EntryState) String() string {
 type Candidate struct {
 	Text   string
 	Target string
-	Line   int
-	Span   Span
+	// Aliased is whether the author wrote display text after the link's
+	// separator, so Text is theirs and not just the target read back. It is
+	// false for a multi-target row, which has no one link to speak of.
+	Aliased bool
+	Line    int
+	Span    Span
 	// TargetSpan is where Target is written: the bytes of that one wikilink. A
 	// row can carry others, so a consumer matching a link it read itself back
 	// to this entry joins on these bytes. It is zero exactly when Target is empty.
@@ -706,11 +710,13 @@ func (p *parser) plainRow(hits []linkHit, spans []Span, name string, line int, o
 			"a lesson row opens with its link; move the link to the front, or take the row out of the course",
 			strings.TrimSpace(own))
 		entry.Text = hits[0].display
+		entry.Aliased = hits[0].aliased
 		entry.Target = hits[0].target
 		entry.TargetSpan = hits[0].span()
 		entry.State = EntryNoncanonical
 	default:
 		entry.Text = hits[0].display
+		entry.Aliased = hits[0].aliased
 		entry.Target = hits[0].target
 		entry.TargetSpan = hits[0].span()
 		entry.State = EntryAccepted
@@ -995,6 +1001,8 @@ func (p *parser) spansUnder(node ast.Node) []Span {
 type linkHit struct {
 	target  string
 	display string
+	// aliased is whether the author wrote display text after the separator.
+	aliased bool
 	start   int
 	stop    int
 }
@@ -1079,11 +1087,11 @@ func (p *parser) linksIn(rng Span) []linkHit {
 			// this vault has to agree that they are text rather than a link.
 			continue
 		}
-		target, display, ok := graph.SplitWikilink(inner)
+		link, ok := graph.ParseWikilink(inner)
 		if !ok {
 			continue
 		}
-		out = append(out, linkHit{target: target, display: display, start: absolute, stop: rng.Start + next})
+		out = append(out, linkHit{target: link.Target, display: link.Display, aliased: link.Aliased, start: absolute, stop: rng.Start + next})
 	}
 	return out
 }

@@ -1463,7 +1463,7 @@ func TestPathKeepsAPlannedLessonInItsPlace(t *testing.T) {
 
 	idx := resolver(t, "Writing/Existing.md")
 	body := "## Course {sequence=primary}\n\n- [[Existing]]\n- [[Unwritten Lesson]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, nil, testArtifactPolicy(t))
 
 	want := []groupShape{{
 		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 2,
@@ -1491,7 +1491,7 @@ func TestPathKeepsAnAmbiguousLessonInOrder(t *testing.T) {
 
 	idx := resolver(t, "Writing/First.md", "A/Repeated.md", "B/Repeated.md", "Writing/Last.md")
 	body := "## Course {sequence=primary}\n\n- [[First]]\n- [[Repeated|Unresolved choice]]\n- [[Last]]\n"
-	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, testArtifactPolicy(t))
+	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, map[string]string{}, nil, nil, testArtifactPolicy(t))
 
 	want := []groupShape{{
 		Name: "Course", Level: 2, Role: "primary", Projectable: true, Planned: 3,
@@ -2486,7 +2486,7 @@ func groupShapes(groups []*PathGroup) []groupShape {
 			case item.Entry != nil:
 				e := item.Entry
 				shape.Entries = append(shape.Entries, entryShape{
-					Text:       e.Text,
+					Text:       e.Name,
 					Target:     e.Target,
 					RelPath:    e.RelPath,
 					Status:     e.Status,

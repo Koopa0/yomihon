@@ -49,6 +49,11 @@ type Wikilink struct {
 	// Display is the text a reader sees: the words after the display
 	// separator, or the whole inner text when the author wrote none.
 	Display string
+	// Aliased is true when the author wrote display text after the separator.
+	// It is read off the link's own bytes: a link with no alias also has a
+	// Display, the target itself, and comparing the two would take a link
+	// written as [[Note|Note]] for one that named nothing.
+	Aliased bool
 	// Heading is the section name written after "#", empty when absent.
 	Heading string
 	// Block is the block name written after "^", empty when absent. Obsidian
@@ -87,6 +92,7 @@ func ParseWikilink(inner string) (Wikilink, bool) {
 	if before, after, found := strings.Cut(inner, "|"); found {
 		beforePipe = strings.TrimRight(before, `\`)
 		link.Display = strings.TrimSpace(after)
+		link.Aliased = link.Display != ""
 	}
 	beforeFragment, fragment, hasFragment := strings.Cut(beforePipe, "#")
 	if hasFragment {

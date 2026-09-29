@@ -24,9 +24,9 @@ func TestTeachingPath(t *testing.T) {
 		"Writing/lessons/japanese/L01 て形.md",
 	)
 	policy := testArtifactPolicy(t)
-	goPath := buildPath(domainPathNote("Maps/go.md", "Go 課綱", "golang", goBody), idx, nil, nil, policy)
-	jpPath := buildPath(domainPathNote("Maps/jp.md", "日本語 學習路徑", "japanese", jpBody), idx, nil, nil, policy)
-	secondGo := buildPath(domainPathNote("Maps/second.md", "Second Go", "golang", secondGoBody), idx, nil, nil, policy)
+	goPath := buildPath(domainPathNote("Maps/go.md", "Go 課綱", "golang", goBody), idx, nil, nil, nil, policy)
+	jpPath := buildPath(domainPathNote("Maps/jp.md", "日本語 學習路徑", "japanese", jpBody), idx, nil, nil, nil, policy)
+	secondGo := buildPath(domainPathNote("Maps/second.md", "Second Go", "golang", secondGoBody), idx, nil, nil, nil, policy)
 
 	twoCourse := &Model{paths: []Path{goPath, jpPath}}
 	threeCourse := &Model{paths: []Path{goPath, jpPath, secondGo}}

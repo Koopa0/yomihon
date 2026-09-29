@@ -67,7 +67,7 @@ func listenView(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) pag
 		}
 		title := note.Title
 		if title == "" {
-			title = entry.Text
+			title = entry.Name
 		}
 		view.Lessons = append(view.Lessons, pages.ListenLesson{
 			Title:      title,
