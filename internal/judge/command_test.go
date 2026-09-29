@@ -96,7 +96,44 @@ func TestRunExistsGolden(t *testing.T) {
 	}
 }
 
-const existsFoldVault = "testdata/vault-exists-fold"
+// existsFoldSkeleton is the tracked part of the width-fold vault, and
+// existsFoldNote is the note written into it at test time. The note's filename
+// carries a fullwidth colon, which a Go module zip rejects, so it cannot be
+// tracked under that name and every `go install module@version` would fail.
+const (
+	existsFoldSkeleton = "testdata/vault-exists-fold"
+	existsFoldNote     = "testdata/exists-fold-note.md"
+)
+
+// existsFoldVault returns a temporary vault made of the tracked skeleton plus
+// the note under its fullwidth-colon filename, byte for byte as tracked.
+func existsFoldVault(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS(existsFoldSkeleton)); err != nil {
+		t.Fatalf("copy %s: %v", existsFoldSkeleton, err)
+	}
+	body, err := os.ReadFile(existsFoldNote)
+	if err != nil {
+		t.Fatalf("read %s: %v", existsFoldNote, err)
+	}
+	vault, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatalf("open %s: %v", root, err)
+	}
+	t.Cleanup(func() {
+		if err := vault.Close(); err != nil {
+			t.Errorf("close %s: %v", root, err)
+		}
+	})
+	if err := vault.MkdirAll("Concepts/golang", 0o750); err != nil {
+		t.Fatalf("mkdir Concepts/golang: %v", err)
+	}
+	if err := vault.WriteFile("Concepts/golang/"+existsFoldExact+".md", body, 0o600); err != nil {
+		t.Fatalf("write fixture note: %v", err)
+	}
+	return root
+}
 
 // existsFoldExact is the fixture filename as written: a fullwidth colon
 // (U+FF1A) between the two CJK runs. existsFoldASCII is the same letters
@@ -118,7 +155,7 @@ func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
 	t.Run("fullwidth colon is an exact hit", func(t *testing.T) {
 		t.Parallel()
 		got, exit, err := RunExists(t.Context(), &ExistsOptions{
-			Root: existsFoldVault, Name: existsFoldExact, Format: FormatJSON,
+			Root: existsFoldVault(t), Name: existsFoldExact, Format: FormatJSON,
 		})
 		if err != nil {
 			t.Fatalf("RunExists: %v", err)
@@ -137,7 +174,7 @@ func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
 	t.Run("ascii colon is a near match and exits 1", func(t *testing.T) {
 		t.Parallel()
 		got, exit, err := RunExists(t.Context(), &ExistsOptions{
-			Root: existsFoldVault, Name: existsFoldASCII, Format: FormatJSON,
+			Root: existsFoldVault(t), Name: existsFoldASCII, Format: FormatJSON,
 		})
 		if err != nil {
 			t.Fatalf("RunExists: %v", err)
@@ -151,7 +188,7 @@ func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
 	t.Run("human names the near match and still says the name does not exist", func(t *testing.T) {
 		t.Parallel()
 		got, exit, err := RunExists(t.Context(), &ExistsOptions{
-			Root: existsFoldVault, Name: existsFoldASCII, Format: FormatHuman,
+			Root: existsFoldVault(t), Name: existsFoldASCII, Format: FormatHuman,
 		})
 		if err != nil {
 			t.Fatalf("RunExists: %v", err)
