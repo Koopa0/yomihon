@@ -189,7 +189,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	}
 
 	mux := http.NewServeMux()
-	note.New(&note.Sources{
+	readers := note.New(&note.Sources{
 		Source:             source,
 		Contract:           contract,
 		VaultName:          vaultName,
@@ -201,11 +201,12 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		MarkAddress:        markAddress,
 		UncertaintyAddress: uncertaintyAddress,
 		Log:                log,
-	}).Register(mux)
+	})
+	readers.Register(mux)
 	status.NewHandler(writer, shellProvider, log).Register(mux)
 	if marks != nil {
 		mark.NewHandler(marks, log).Register(mux)
-		mark.NewUncertaintyHandler(marks, log).Register(mux)
+		mark.NewUncertaintyHandler(marks, readers, log).Register(mux)
 	}
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)

@@ -53,7 +53,8 @@ import (
 // revalidates current authority under the lifecycle lock.
 type Sources struct {
 	Source *vault.Reader
-	// Contract supplies optional navigation roles; nil leaves their doors closed.
+	// Contract supplies the field and lifecycle vocabulary a thought stub is
+	// written from; the note type it is for comes from the snapshot's roles.
 	Contract *schema.Contract
 	// VaultName is the folder's own name, taken once at start-up because the
 	// directory the server was pointed at cannot change under a running
@@ -426,7 +427,7 @@ func (h *Handler) reading(
 		ContentIdentity:    hex.EncodeToString(n.ContentIdentity[:]),
 		MarkAddress:        h.sources.MarkAddress,
 		UncertaintyAddress: h.sources.UncertaintyAddress,
-		ThoughtDoor:        h.sources.Contract.AnswerType() != "" && thoughtSourceAvailable(snap, rel),
+		ThoughtDoor:        snap.NavigationRoles().AnswerType() != "" && thoughtSourceAvailable(snap, rel),
 		// The identity above covers the note's own bytes; what the render
 		// pulled in from other notes is bound by its own stamp, so an edit to
 		// an embedded source can reach this page while it is open.

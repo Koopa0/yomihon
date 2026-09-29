@@ -15,11 +15,23 @@ import (
 	"github.com/koopa0/yomihon/internal/mark"
 )
 
+// vaultPlaces answers for one vault. A nil map accepts every place.
+type vaultPlaces map[[2]string]bool
+
+func (p vaultPlaces) HasPlace(rel, anchor string) bool {
+	return p == nil || p[[2]string{rel, anchor}]
+}
+
 func newUncertaintyHandler(t *testing.T) (*mark.File, http.Handler) {
+	t.Helper()
+	return newUncertaintyHandlerFor(t, nil)
+}
+
+func newUncertaintyHandlerFor(t *testing.T, places vaultPlaces) (*mark.File, http.Handler) {
 	t.Helper()
 	file := newFile(t)
 	mux := http.NewServeMux()
-	mark.NewUncertaintyHandler(file, slog.New(slog.DiscardHandler)).Register(mux)
+	mark.NewUncertaintyHandler(file, places, slog.New(slog.DiscardHandler)).Register(mux)
 	return file, mux
 }
 
@@ -92,6 +104,7 @@ func TestUncertaintyRouteRefusesBadFormsAndCapsTheBody(t *testing.T) {
 		{"missing path", "anchor=one", http.StatusUnprocessableEntity},
 		{"traversal", "path=../private.md&anchor=one", http.StatusUnprocessableEntity},
 		{"invalid anchor", "path=source.md&anchor=one%23two", http.StatusUnprocessableEntity},
+		{"invalid utf-8 anchor", "path=source.md&anchor=x%FF", http.StatusUnprocessableEntity},
 		{"malformed form", "path=%zz", http.StatusBadRequest},
 		{"past body cap", "path=source.md&anchor=one&pad=" + strings.Repeat("x", 4096), http.StatusBadRequest},
 		{"inside body cap", "path=source.md&anchor=one&pad=" + strings.Repeat("x", 3000), http.StatusOK},
@@ -164,5 +177,46 @@ func TestUncertaintyRouteRejectsOtherWriteMethods(t *testing.T) {
 				t.Fatalf("%s created storage: %v", method, err)
 			}
 		})
+	}
+}
+
+func TestUncertaintyRouteRefusesInvalidUTF8RepeatedlyAndStaysReadable(t *testing.T) {
+	t.Parallel()
+	_, handler := newUncertaintyHandler(t)
+	for range 2 {
+		if response := uncertaintyRequest(t, handler, http.MethodPost, "path=source.md&anchor=x%FF", "en"); response.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("POST invalid UTF-8 = %d, want 422", response.Code)
+		}
+	}
+	if response := uncertaintyRequest(t, handler, http.MethodGet, "", "en"); response.Code != http.StatusOK {
+		t.Fatalf("GET after the refusals = %d %s, want 200", response.Code, response.Body.String())
+	}
+}
+
+func TestUncertaintyRouteAcceptsOnlyPlacesTheVaultRenders(t *testing.T) {
+	t.Parallel()
+	places := vaultPlaces{{"Notes/real.md", "one"}: true, {"Notes/real.md", ""}: true}
+	file, handler := newUncertaintyHandlerFor(t, places)
+	for _, tt := range []struct {
+		body string
+		want int
+	}{
+		{"path=Notes/real.md&anchor=one", http.StatusOK},
+		{"path=Notes/real.md", http.StatusOK},
+		{"path=Notes/real.md&anchor=missing", http.StatusUnprocessableEntity},
+		{"path=Visit+example.com+for+free+prizes.md&anchor=one", http.StatusUnprocessableEntity},
+	} {
+		if response := uncertaintyRequest(t, handler, http.MethodPost, tt.body, "en"); response.Code != tt.want {
+			t.Errorf("POST %q = %d, want %d", tt.body, response.Code, tt.want)
+		}
+	}
+	held, err := file.Uncertainties()
+	if err != nil || len(held) != 2 {
+		t.Fatalf("stored marks = %v, %v; want only the two real places", held, err)
+	}
+	// A place that has since disappeared can still be cleared.
+	delete(places, [2]string{"Notes/real.md", "one"})
+	if response := uncertaintyRequest(t, handler, http.MethodPost, "path=Notes/real.md&anchor=one", "en"); response.Code != http.StatusOK || response.Body.String() != "{\"marked\":false}\n" {
+		t.Fatalf("clearing a vanished place = %d %s", response.Code, response.Body.String())
 	}
 }

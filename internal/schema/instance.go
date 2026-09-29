@@ -34,7 +34,9 @@ type artifactSection struct {
 type NavigationRoles struct {
 	pathTypes map[string]struct{}
 	mapTypes  map[string]struct{}
-	claim     Claim
+	// answerType is the one note type declared for the reader's own thoughts.
+	answerType string
+	claim      Claim
 }
 
 // Claim reports how far the navigation declaration got.

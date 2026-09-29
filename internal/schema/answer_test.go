@@ -2,11 +2,8 @@ package schema
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/vault"
 )
 
 func TestAnswerTypeRequiresExplicitEnumMember(t *testing.T) {
@@ -35,7 +32,7 @@ func TestAnswerTypeRequiresExplicitEnumMember(t *testing.T) {
 			if err != nil {
 				t.Fatalf("LoadFile() error = %v", err)
 			}
-			if got := contract.AnswerType(); got != tt.want {
+			if got := contract.NavigationRoles().AnswerType(); got != tt.want {
 				t.Errorf("AnswerType() = %q, want %q", got, tt.want)
 			}
 		})
@@ -69,20 +66,16 @@ func TestAnswerTypeUnknownNavigationKeyClosesRole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := contract.AnswerType(); got != "" {
+	if got := contract.NavigationRoles().AnswerType(); got != "" {
 		t.Errorf("AnswerType() = %q despite unknown navigation key", got)
 	}
 }
 
 func TestAnswerTypeHasNoFabricatedAuthority(t *testing.T) {
 	t.Parallel()
-	decoded, err := decodeContract([]byte(answerContract(`answer_type = "lesson"`)), policySource{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, contract := range []*Contract{nil, {}, decoded} {
-		if got := contract.AnswerType(); got != "" {
-			t.Errorf("AnswerType() = %q without a revalidatable contract", got)
+	for _, contract := range []*Contract{nil, {}} {
+		if got := contract.NavigationRoles().AnswerType(); got != "" {
+			t.Errorf("AnswerType() = %q without a decoded declaration", got)
 		}
 	}
 }
@@ -95,65 +88,8 @@ func TestAnswerTypeAcceptsDeclaredUnicodeWord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := contract.AnswerType(); got != "r\u00e9ponse" {
+	if got := contract.NavigationRoles().AnswerType(); got != "r\u00e9ponse" {
 		t.Errorf("AnswerType() = %q, want declared enum member", got)
-	}
-}
-
-func TestAnswerTypeRevocationClosesEveryContractCopy(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	contractPath := filepath.Join(root, filepath.FromSlash(ContractRelPath))
-	if err := os.MkdirAll(filepath.Dir(contractPath), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	data := []byte(answerContract(`answer_type = "lesson"`))
-	writeAnswerContract(t, contractPath, data)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := reader.Close(); err != nil {
-			t.Errorf("reader.Close(): %v", err)
-		}
-	})
-	contract, err := LoadReader(t.Context(), reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	other := *contract
-	if got := contract.AnswerType(); got != "lesson" {
-		t.Fatalf("AnswerType() = %q before revocation", got)
-	}
-	writeAnswerContract(t, contractPath, []byte(answerContract("")))
-	if got := contract.AnswerType(); got != "" {
-		t.Fatalf("AnswerType() = %q after revocation", got)
-	}
-	writeAnswerContract(t, contractPath, data)
-	if got := other.AnswerType(); got != "" {
-		t.Errorf("copied AnswerType() = %q after observed revocation", got)
-	}
-}
-
-func TestAnswerTypeUnreadableSourceClosesOnlyCurrentCall(t *testing.T) {
-	t.Parallel()
-	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	data := []byte(answerContract(`answer_type = "lesson"`))
-	writeAnswerContract(t, contractPath, data)
-	contract, err := LoadFile(contractPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(contractPath); err != nil {
-		t.Fatal(err)
-	}
-	if got := contract.AnswerType(); got != "" {
-		t.Errorf("AnswerType() = %q with unreadable source", got)
-	}
-	writeAnswerContract(t, contractPath, data)
-	if got := contract.AnswerType(); got != "lesson" {
-		t.Errorf("AnswerType() = %q after same source returns", got)
 	}
 }
 

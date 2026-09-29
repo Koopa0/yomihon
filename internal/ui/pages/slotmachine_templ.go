@@ -172,7 +172,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		headingID := "slot-pattern-" + strconv.Itoa(index+1)
+		headingID := SlotPatternID(index)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<article class=\"y-slotcard\" aria-labelledby=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

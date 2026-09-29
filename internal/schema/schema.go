@@ -92,16 +92,16 @@ func DefaultPlannedInlineMarks() []string {
 // returns what a folder that declared nothing declares — no version, no
 // vocabulary, no capability, no legal transition.
 type Contract struct {
-	version    string
-	definition Definition
-	stages     []Stage
+	version         string
+	definition      Definition
+	stages          []Stage
+	initialDeclared bool
 
 	navigationRoles NavigationRoles
 	knowledgeScope  KnowledgeScope
 	artifactPolicy  ArtifactPolicy
 	privacyPolicy   PrivacyPolicy
 	journalDir      JournalDir
-	answerType      *answerTypeState
 	metadata        contractMetadata
 	written         writtenKeys
 
@@ -353,6 +353,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	if len(decoded.Lifecycle) == 0 {
 		return nil, errors.New("no lifecycle stages")
 	}
+	contract.initialDeclared = decoded.Lifecycle[0].Initial != nil
 	contract.stages, err = decodeLifecycleStages(decoded.Lifecycle)
 	if err != nil {
 		return nil, err
@@ -368,7 +369,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		contract.definition.Enums.Type,
 		&tomlMeta,
 	)
-	contract.answerType = deriveAnswerType(navigation, unknown.navigation, contract.definition.Enums.Type, source)
+	contract.navigationRoles.answerType = deriveAnswerType(navigation, unknown.navigation, contract.definition.Enums.Type)
 	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
 	contract.journalDir = resolveJournalDir(
 		navigation,

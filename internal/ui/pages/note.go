@@ -347,3 +347,13 @@ func schemaNoticesRef(v *NoteView) templ.Attributes {
 	}
 	return templ.Attributes{"aria-describedby": v.schemaNoticesID()}
 }
+
+// conceptSheetTitle is the words the sheet is named by. The sheet takes its
+// accessible name from its visible title, so a concept that arrives without one
+// still needs something to be called.
+func conceptSheetTitle(title string, lang wording.Lang) string {
+	if strings.TrimSpace(title) == "" {
+		return wording.ConceptNote.In(lang)
+	}
+	return title
+}

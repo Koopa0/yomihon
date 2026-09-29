@@ -56,6 +56,7 @@ probes=(
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
+  "book-rail-head.mjs|/notes/Course/C02.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
   "motion-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "overlay-commands.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -88,6 +89,7 @@ probes=(
   # A query broad enough that its answer runs past one page, which is what
   # gives this one a way on to follow. It drives the findings table itself.
   "pager-contract.mjs|/search?q=e"
+  "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads

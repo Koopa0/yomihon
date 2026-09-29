@@ -111,8 +111,8 @@ func TestBuildPathView(t *testing.T) {
 				Items: []PathItemView{{Branch: &PathBranchView{
 					Num: 1, Heading: "Text", Depth: 1, Total: 2,
 					Items: []PathItemView{
-						{Entry: &PathEntryView{Text: "Slices", RelPath: "Writing/Slices.md", Href: "/notes/Writing/Slices.md", Status: schema.SealStatus, Sealed: true, Number: 1}},
-						{Entry: &PathEntryView{Text: "Arrays", RelPath: "Writing/Arrays.md", Href: "/notes/Writing/Arrays.md", Status: "draft", Number: 2}},
+						{Entry: &PathEntryView{Name: "Slices", RelPath: "Writing/Slices.md", Href: "/notes/Writing/Slices.md", Status: schema.SealStatus, Sealed: true, Number: 1}},
+						{Entry: &PathEntryView{Name: "Arrays", RelPath: "Writing/Arrays.md", Href: "/notes/Writing/Arrays.md", Status: "draft", Number: 2}},
 					},
 				}}},
 			},
@@ -122,7 +122,7 @@ func TestBuildPathView(t *testing.T) {
 				Items: []PathItemView{
 					// The main line's numbering continues from the first part:
 					// the course has one declared order across its parts.
-					{Entry: &PathEntryView{Text: "GC", RelPath: "Writing/GC.md", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true, Number: 3}},
+					{Entry: &PathEntryView{Name: "GC", RelPath: "Writing/GC.md", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true, Number: 3}},
 					// The side branch is drawn where the author put it: under
 					// the lesson it hangs from, before the next main lesson —
 					// and it numbers its own rows from one, never sharing the
@@ -130,13 +130,13 @@ func TestBuildPathView(t *testing.T) {
 					{Branch: &PathBranchView{
 						Num: 1, Heading: "選修", Depth: 1, Local: true, Total: 1,
 						Items: []PathItemView{
-							{Entry: &PathEntryView{Text: "Tuning", RelPath: "Writing/Tuning.md", Href: "/notes/Writing/Tuning.md", Status: "draft", Number: 1}},
+							{Entry: &PathEntryView{Name: "Tuning", RelPath: "Writing/Tuning.md", Href: "/notes/Writing/Tuning.md", Status: "draft", Number: 1}},
 						},
 					}},
 					// Warning rows keep their place and their number: a planned
 					// lesson is still one of the course's lessons.
-					{Entry: &PathEntryView{Text: "Template", Kind: nav.EntryNonInstance, Number: 4}},
-					{Entry: &PathEntryView{Text: "Unwritten", Kind: nav.EntryUnresolved, Number: 5}},
+					{Entry: &PathEntryView{Name: "Template", Kind: nav.EntryNonInstance, Number: 4}},
+					{Entry: &PathEntryView{Name: "Unwritten", Kind: nav.EntryUnresolved, Number: 5}},
 				},
 			},
 		},
@@ -258,7 +258,7 @@ func TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule(t *testing.T) {
 	find = func(items []PathItemView) {
 		for _, item := range items {
 			switch {
-			case item.Entry != nil && item.Entry.Text == "GC":
+			case item.Entry != nil && item.Entry.Name == "GC":
 				gc = item.Entry
 			case item.Branch != nil:
 				if item.Branch.Heading == "深入" {
@@ -689,9 +689,9 @@ func TestACourseReportsAnItemItCouldNotRead(t *testing.T) {
 	branch := PathBranchView{
 		Heading: "Part",
 		Items: []PathItemView{
-			{Entry: &PathEntryView{Text: "L01", Kind: nav.EntryResolved, Href: "/notes/L01.md", Number: 1}},
+			{Entry: &PathEntryView{Name: "L01", Kind: nav.EntryResolved, Href: "/notes/L01.md", Number: 1}},
 			{},
-			{Entry: &PathEntryView{Text: "L02", Kind: nav.EntryResolved, Href: "/notes/L02.md", Number: 2}},
+			{Entry: &PathEntryView{Name: "L02", Kind: nav.EntryResolved, Href: "/notes/L02.md", Number: 2}},
 		},
 	}
 	runs := branch.Runs(wording.ZhHant)
@@ -776,7 +776,7 @@ func TestBuildPathViewMarksTheLessonTheReaderArrivedFrom(t *testing.T) {
 		for _, sec := range v.Branches {
 			for _, item := range sec.Items {
 				if item.Entry != nil && item.Entry.Here {
-					names = append(names, item.Entry.Text)
+					names = append(names, item.Entry.Name)
 				}
 			}
 		}

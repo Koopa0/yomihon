@@ -24,7 +24,7 @@ func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 	snap := h.sources.Snapshot().Capture()
 	authority := h.sources.Status()
 	rel := vault.NormalizeNFC(r.PathValue("path"))
-	role := h.sources.Contract.AnswerType()
+	role := snap.NavigationRoles().AnswerType()
 	n, ok := readableNote(snap, rel)
 	if !ok || role == "" || !thoughtSourceAvailable(snap, rel) {
 		h.showNotFound(w, r, rel, authority, snap)
@@ -32,12 +32,17 @@ func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 	}
 	section := r.URL.Query().Get("section")
 	label := n.Title
+	sectionText := ""
 	if section != "" {
 		result := snap.Render(rel, n.Body, lang)
 		found := section == result.TitleAnchor
+		if found {
+			sectionText = n.Title
+		}
 		for _, heading := range result.TOC {
 			if heading.ID == section {
 				label = heading.Text
+				sectionText = heading.Text
 				found = true
 				break
 			}
@@ -47,7 +52,7 @@ func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	markdown := thoughtMarkdown(h.sources.Contract, role, &n, section)
+	markdown := thoughtMarkdown(h.sources.Contract, role, &n, sectionText)
 	// A second thought must not target the first one's file. The editor owns
 	// the final name; this bounded suggestion neither probes nor writes disk.
 	destination := path.Join(path.Dir(rel), "thought-"+rand.Text()+".md")
@@ -77,7 +82,9 @@ func thoughtSourceAvailable(snap *snapshot.Generation, rel string) bool {
 }
 
 // thoughtMarkdown omits values that the source and contract cannot determine.
-func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Reading, section string) string {
+// sectionText is the section heading as the reader sees it: Obsidian matches a
+// heading link by its text, not by the id this site gives it.
+func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Reading, sectionText string) string {
 	definition := contract.Definition()
 	var b strings.Builder
 	b.WriteString("---\n")
@@ -89,7 +96,7 @@ func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Re
 	write("type", role)
 	var initial []string
 	for _, status := range contract.Statuses(role) {
-		if contract.StartsAt(role, status) {
+		if contract.DeclaresInitial(role, status) {
 			initial = append(initial, status)
 		}
 	}
@@ -100,9 +107,22 @@ func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Re
 		write("domain", source.Domain)
 	}
 	target := strings.TrimSuffix(source.RelPath, ".md")
-	if section != "" {
-		target += "#" + section
+	if heading := headingLinkText(sectionText); heading != "" {
+		target += "#" + heading
 	}
 	b.WriteString("based_on: " + strconv.Quote("[["+target+"]]") + "\n---\n")
 	return b.String()
+}
+
+// headingLinkText makes heading text safe inside a wikilink. Characters that
+// end or split a link target are written as spaces, as Obsidian does when it
+// composes a heading link itself.
+func headingLinkText(text string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		if strings.ContainsRune("#|[]^:", r) {
+			return ' '
+		}
+		return r
+	}, text)
+	return strings.Join(strings.Fields(cleaned), " ")
 }
