@@ -88,8 +88,9 @@ try {
     await page.reload({ waitUntil: 'domcontentloaded' });
     prove();
     check(await isOpen(page) === want, site, `reload lost saved open=${want}`);
-    // Use the ordinary next-lesson link, preserving the same browser tab.
-    await page.locator(`#nav-rail .y-lessonsteps a[href="${NEXT}"]`).click();
+    // Follow the next lesson's row in the chapter tree, preserving the same
+    // browser tab.
+    await page.locator(`#nav-rail a.ui-navitem[href="${NEXT}"]`).click();
     await page.waitForURL(BASE + NEXT);
     prove();
     preserve(await isOpen(page) === want, `next lesson lost saved open=${want}`);

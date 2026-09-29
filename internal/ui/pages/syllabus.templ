@@ -89,7 +89,7 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 				>
 					<span class="y-cover__verb">{ v.Action.Verb(lang) }</span>
 					if v.Action.Lesson != "" {
-						<span class="y-cover__lesson">{ v.Action.Lesson }</span>
+						<span class="y-cover__lesson" { authoredLanguageAttrs(v.Action.LessonLanguage)... }>{ v.Action.Lesson }</span>
 					}
 				</a>
 			}
@@ -212,7 +212,7 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 	if l.Kind == nav.EntryResolved {
 		<a class={ "y-lesson", templ.KV("y-lesson--here", l.Here) } href={ templ.URL(l.Href) } { hereAttr(l.Here)... }>
 			<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Sealed) } aria-hidden="true"></span>
-			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Text }</span>
+			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
 			if l.Status != "" {
 				<span class={ "ui-status", "ui-status--" + l.Status }>{ l.Status }</span>
 			}
@@ -224,7 +224,7 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 			title={ entryResolutionTitle(l.Kind, lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Text }</span>
+			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
 			<span class="y-navmark y-navmark--warn">{ entryResolutionLabel(l.Kind, lang) }</span>
 		</span>
 	}

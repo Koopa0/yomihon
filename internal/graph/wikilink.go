@@ -47,8 +47,15 @@ type Wikilink struct {
 	// Empty means the link addresses a place in the current file.
 	Target string
 	// Display is the text a reader sees: the words after the display
-	// separator, or the whole inner text when the author wrote none.
+	// separator, or the whole inner text when the author wrote none. It is
+	// empty when a separator has nothing after it, and a caller that prints
+	// a label then falls back to the target.
 	Display string
+	// Aliased is true when the author wrote display text after the separator.
+	// It is read off the link's own bytes: a link with no alias also has a
+	// Display, the target itself, and comparing the two would take a link
+	// written as [[Note|Note]] for one that named nothing.
+	Aliased bool
 	// Heading is the section name written after "#", empty when absent.
 	Heading string
 	// Block is the block name written after "^", empty when absent. Obsidian
@@ -87,6 +94,7 @@ func ParseWikilink(inner string) (Wikilink, bool) {
 	if before, after, found := strings.Cut(inner, "|"); found {
 		beforePipe = strings.TrimRight(before, `\`)
 		link.Display = strings.TrimSpace(after)
+		link.Aliased = link.Display != ""
 	}
 	beforeFragment, fragment, hasFragment := strings.Cut(beforePipe, "#")
 	if hasFragment {
