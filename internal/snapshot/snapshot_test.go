@@ -2162,3 +2162,44 @@ func TestMissingFileTellsAnAbsentPathFromAnUnseenOne(t *testing.T) {
 		})
 	}
 }
+
+func TestAnswerRoleIsFixedAtStartAcrossRescans(t *testing.T) {
+	root := t.TempDir()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared := strings.Replace(string(data), "[navigation]\n", "[navigation]\nanswer_type = \"writing\"\n", 1)
+	if declared == string(data) {
+		t.Fatal("the contract fixture has no navigation table")
+	}
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(contractPath, []byte(declared), 0o600); err != nil { // #nosec G703 -- a testing.T.TempDir root
+		t.Fatal(err)
+	}
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, _ := newTestStore(t, root, contract)
+	if got := store.Current().NavigationRoles().AnswerType(); got != "writing" {
+		t.Fatalf("answer role at start = %q, want %q", got, "writing")
+	}
+	// The declaration is withdrawn on disk and the vault changes, so the next
+	// scan rebuilds. Like path_types and map_types, the role holds until the
+	// next start.
+	if err = os.WriteFile(contractPath, data, 0o600); err != nil { // #nosec G703 -- a testing.T.TempDir root
+		t.Fatal(err)
+	}
+	writeNote(t, root, "Later.md", "---\ntitle: Later\n---\nlater\n")
+	store.rescan(t.Context())
+	if _, ok := store.Current().Note("Later.md"); !ok {
+		t.Fatal("the rescan did not publish a new generation, so it proves nothing")
+	}
+	if got := store.Current().NavigationRoles().AnswerType(); got != "writing" {
+		t.Errorf("answer role after a rescan = %q, want it fixed at %q until the next start", got, "writing")
+	}
+}
