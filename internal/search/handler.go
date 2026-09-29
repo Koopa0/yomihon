@@ -395,6 +395,7 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 			LandingBare:   r.LandingBare,
 			LandingEnd:    r.LandingEnd,
 			LandingPrefix: r.LandingPrefix,
+			LandingSuffix: r.LandingSuffix,
 			BlockCrossing: r.BlockCrossing,
 			FromFence:     r.FromFence,
 		}

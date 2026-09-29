@@ -130,6 +130,13 @@ type SearchResult struct {
 	// block.
 	LandingPrefix string
 
+	// LandingSuffix is the run of characters after the last term the
+	// directive names, up to the nearest boundary every segmenter agrees on,
+	// so the match may end anywhere: a browser holds a term with nothing
+	// behind it to end where a word does. For a crossing match it follows
+	// the far end. Empty where the term already ends at such a boundary.
+	LandingSuffix string
+
 	// BlockCrossing reports that the match continues into a later block, so
 	// a directive built from the whole phrase would find nothing.
 	BlockCrossing bool

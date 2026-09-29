@@ -81,20 +81,24 @@ const resumeOffsetParam = "at"
 // hitFragment encodes the destination selected by the search layer. A crossing
 // match names one term in each end block; a normal hit names the first marked
 // excerpt span, whose source context and word edges are known by the index.
+// The run after the last term goes out with it wherever the index offered
+// one, and follows the term it was measured from: the far end of a crossing
+// match, never the first stretch.
 func hitFragment(r *SearchResult) string {
+	suffix := strings.TrimSpace(r.LandingSuffix)
 	if r.BlockCrossing {
 		prefix, start := landingTerm(r)
 		end := strings.TrimSpace(r.LandingEnd)
 		switch {
 		case start != "" && end != "":
-			return textDirective(prefix, start, end)
+			return textDirective(prefix, start, end, suffix)
 		case start != "":
-			return textDirective(prefix, start, "")
+			return textDirective(prefix, start, "", "")
 		case end != "":
 			// Those words sit in the first block and this stretch in the
 			// last, and a prefix is only read as one beside a term from the
 			// same block, so this end travels alone.
-			return textDirective("", end, "")
+			return textDirective("", end, "", suffix)
 		default:
 			return ""
 		}
@@ -103,7 +107,7 @@ func hitFragment(r *SearchResult) string {
 	if start == "" {
 		return ""
 	}
-	return textDirective(prefix, start, "")
+	return textDirective(prefix, start, "", suffix)
 }
 
 // landingTerm is the opening of a directive that names the landing match: the
@@ -121,11 +125,12 @@ func landingTerm(r *SearchResult) (prefix, start string) {
 }
 
 // textDirective assembles the fragment for one hit. The "-" that marks the
-// leading term as words to search ahead of the match is written after the
+// leading term as words to search ahead of the match, and the one that marks
+// the trailing term as words to search after it, are written outside the
 // escaping rather than through it: escapeTextDirective spends that character
 // on the reader's own words, so a marker passed through it would come out
 // encoded and be read as part of the term.
-func textDirective(prefix, start, end string) string {
+func textDirective(prefix, start, end, suffix string) string {
 	var b strings.Builder
 	b.WriteString("#:~:text=")
 	if prefix = strings.TrimSpace(prefix); prefix != "" {
@@ -136,6 +141,10 @@ func textDirective(prefix, start, end string) string {
 	if end != "" {
 		b.WriteString(",")
 		b.WriteString(escapeTextDirective(end))
+	}
+	if suffix = strings.TrimSpace(suffix); suffix != "" {
+		b.WriteString(",-")
+		b.WriteString(escapeTextDirective(suffix))
 	}
 	return b.String()
 }
