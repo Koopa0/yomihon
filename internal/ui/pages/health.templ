@@ -235,30 +235,22 @@ templ healthSeverityBadge(s judge.Severity) {
 	<span class={ "y-severity", "y-severity--" + s.String() } lang="en">{ s.String() }</span>
 }
 
-// healthShapeLine states the table's own shape before a reader scrolls it:
-// each weight the judge names among its findings, heaviest first, and how
-// many files the whole table touches. Every number is tallied off the same
-// rows the table draws below, so the two cannot disagree, and a weight is a
-// link to the table ordered by it — the ordering the header row already
-// answers, named once in HealthBySeverity rather than written out a second
-// time here. A kind no rule weighs still names a file, so Files can exceed
-// what the weights beside it add up to; the line does not pretend otherwise
-// by summing them into a total of its own.
+// healthShapeLine states the complete findings total, each weight the judge
+// names, and the distinct files the table touches. All counts come from the
+// whole report, before pagination. Unweighed findings contribute to the total
+// without acquiring a severity. Each weight links to the table ordered by it.
 templ healthShapeLine(shape healthShape, lang wording.Lang) {
 	if shape.Files > 0 {
 		<p class="y-healthshape">
-			for i, weight := range shape.Weights {
-				if i > 0 {
-					<span aria-hidden="true">·</span>
-				}
+			<span class="y-healthshape__total">{ plural(shape.Total, wording.LibraryFindingOne, wording.LibraryFindingMany, lang) }</span>
+			for _, weight := range shape.Weights {
+				<span aria-hidden="true">·</span>
 				<a class="y-healthshape__weight" href={ templ.URL(HealthBySeverity.href()) }>
 					@healthSeverityBadge(weight.Severity)
 					{ " " }{ strconv.Itoa(weight.Count) }
 				</a>
 			}
-			if len(shape.Weights) > 0 {
-				<span aria-hidden="true">·</span>
-			}
+			<span aria-hidden="true">·</span>
 			<span>{ plural(shape.Files, wording.HealthShapeFilesOne, wording.HealthShapeFilesMany, lang) }</span>
 		</p>
 	}
