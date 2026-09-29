@@ -82,7 +82,13 @@ type Span = graph.Span
 type Link struct {
 	Target  string
 	Display string
-	Span    Span
+	// Aliased is whether the author wrote display text after the separator,
+	// so Display is theirs and not just the target read back.
+	Aliased bool
+	// Fragment is whether the link addresses a heading or block inside the
+	// note rather than the whole note.
+	Fragment bool
+	Span     Span
 }
 
 // EntryState is what canonical validation decided about one candidate. Only
@@ -1045,7 +1051,7 @@ func LiveScan(body string) (links []Link, zones []Span) {
 	}
 	out := make([]Link, len(hits))
 	for i, h := range hits {
-		out[i] = Link{Target: h.target, Display: h.display, Span: h.span()}
+		out[i] = Link{Target: h.target, Display: h.display, Aliased: h.aliased, Fragment: h.fragment, Span: h.span()}
 	}
 	return out, zones
 }

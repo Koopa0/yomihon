@@ -43,3 +43,31 @@ func TestARowSaysWhetherItWroteAnAlias(t *testing.T) {
 		})
 	}
 }
+
+// TestALiveLinkSaysWhetherItWroteAnAlias holds the same two facts on the scan a
+// general map reads, where a link is not a row: the alias read off the link's
+// bytes, and whether it addresses a place inside the note.
+func TestALiveLinkSaysWhetherItWroteAnAlias(t *testing.T) {
+	t.Parallel()
+	body := "## P\n\n[[a]] [[a|Words]] [[a|a]] [[a#Part]] [[a#^b1]] [[a#Part|Words]] [[a|]]\n"
+	links, _ := LiveScan(body)
+	want := []Link{
+		{Target: "a", Display: "a"},
+		{Target: "a", Display: "Words", Aliased: true},
+		{Target: "a", Display: "a", Aliased: true},
+		{Target: "a", Display: "a#Part", Fragment: true},
+		{Target: "a", Display: "a#^b1", Fragment: true},
+		{Target: "a", Display: "Words", Aliased: true, Fragment: true},
+		{Target: "a", Display: ""},
+	}
+	if len(links) != len(want) {
+		t.Fatalf("LiveScan found %d links, want %d", len(links), len(want))
+	}
+	for i := range want {
+		got := links[i]
+		got.Span = Span{}
+		if got != want[i] {
+			t.Errorf("link %d = %+v, want %+v", i, got, want[i])
+		}
+	}
+}
