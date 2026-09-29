@@ -250,12 +250,12 @@ func TestShortcutPreferenceLivesWithTheKeysItGoverns(t *testing.T) {
 	}
 }
 
-// TestKeyboardHelpSaysWhereTheSidebarKeyActs checks the sidebar key's row
-// carries the condition that decides whether pressing it does anything. The
-// row named the preference and stopped there, so at a width where the sidebar
-// never folds the panel described a key that cannot work, and the reader who
-// tried it had the preference to blame and no way to learn better.
-func TestKeyboardHelpSaysWhereTheSidebarKeyActs(t *testing.T) {
+// TestKeyboardHelpDoesNotDisownTheSidebarKey holds the sidebar key's row to the
+// one sentence about what it does. The key once carried a second sentence
+// saying it did nothing where the sidebar stays in view; it now folds the
+// column at those widths too, so that sentence would promise silence from a
+// key that answers.
+func TestKeyboardHelpDoesNotDisownTheSidebarKey(t *testing.T) {
 	t.Parallel()
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		t.Run(string(lang), func(t *testing.T) {
@@ -265,9 +265,9 @@ func TestKeyboardHelpSaysWhereTheSidebarKeyActs(t *testing.T) {
 				t.Fatalf("render header: %v", err)
 			}
 			panel := elementSubtree(t, buf.String(), `id="_y-kbd-help"`)
-			row := shortcutRow(t, panel, "[")
-			if want := wording.ShortcutSidebarNarrowOnly.In(lang); !strings.Contains(row, want) {
-				t.Errorf("the sidebar key's row does not say where it acts; want %q; row = %q", want, row)
+			row := strings.TrimSpace(shortcutRow(t, panel, "["))
+			if want := wording.ShortcutToggleSidebar.In(lang); row != want {
+				t.Errorf("the sidebar key's row = %q, want exactly %q", row, want)
 			}
 		})
 	}
@@ -368,6 +368,25 @@ func TestBaseStampsTextSizeOnTheRoot(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `data-textsize="xl"`) {
 		t.Error(`Base() root is missing data-textsize="xl"`)
+	}
+}
+
+// The folded column has to be on the root before the first paint, and in the
+// markup rather than in anything a script sets: the script arrives after the
+// page has painted, and a column that painted and then vanished on every load
+// would be worse than one that never folded.
+func TestBaseStampsTheColumnStateOnTheRoot(t *testing.T) {
+	t.Parallel()
+	for _, rail := range []string{"open", "collapsed"} {
+		var buf bytes.Buffer
+		if err := Base(Chrome{Rail: rail}).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("Base().Render() error = %v", err)
+		}
+		_, afterDoctype, _ := strings.Cut(buf.String(), "<html")
+		root, _, _ := strings.Cut(afterDoctype, ">")
+		if !strings.Contains(root, `data-rail="`+rail+`"`) {
+			t.Errorf("Base() root is missing data-rail=%q; root = %q", rail, root)
+		}
 	}
 }
 

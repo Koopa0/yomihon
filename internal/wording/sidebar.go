@@ -6,6 +6,27 @@ package wording
 // LibraryNavigation names the rail itself for whoever reaches it by key.
 var LibraryNavigation = both("書庫導覽", "Library navigation")
 
+// ToggleRail names the button at the top of the left column that folds the
+// whole column away above the drawer width and brings it back. The name does
+// not change with the state: the button reports which state it is in through
+// aria-expanded, and a name that flipped as well would say the state twice
+// and, read by a screen reader, the wrong one.
+var ToggleRail = both("切換側欄", "Toggle sidebar")
+
+// HideRail and ShowRail are the button's tooltip: the action it will take from
+// the state it is in, and the key that takes it. The tooltip may change with
+// the state where the name may not, because it is what a pointer is told and
+// the name is what the button is called.
+var (
+	HideRail = both("收合側欄", "Hide sidebar")
+	ShowRail = both("展開側欄", "Show sidebar")
+
+	// RailKeyHint is appended to the tooltip while single-key shortcuts are on,
+	// and left off while they are not: the tooltip promises the key only when
+	// the key works.
+	RailKeyHint = both("（[）", " ([)")
+)
+
 // VaultRoot is what the rail calls the folder everything else sits under, since
 // that folder has no name of its own to show.
 var VaultRoot = both("書庫根目錄", "Library root")

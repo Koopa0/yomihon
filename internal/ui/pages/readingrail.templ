@@ -10,44 +10,37 @@ import (
 // chosen by what is being read, never by the address the reader arrived from.
 templ readingRail(rr ReadingRail, c layouts.Chrome) {
 	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
-		<input
-			class="y-filter"
-			type="text"
-			placeholder={ wording.FilterNavigation.In(c.Lang) }
-			aria-label={ wording.FilterNavigationLabel.In(c.Lang) }
-			autocomplete="off"
-			spellcheck="false"
-			data-nav-filter
-			hidden
-		/>
-		<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
-		<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
-		if rr.Model != nil {
-			if faults := rr.CapabilityFaults(c.Lang); len(faults) > 0 {
-				<div class="y-railsep" aria-hidden="true"></div>
-				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
-					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
-					for _, fault := range faults {
-						<p>
-							@browserDiagnostic(fault.Summary, fault.Detail)
-						</p>
-					}
-				</section>
+		@railHead(c, true)
+		<div class="y-railbody" id="nav-rail-body">
+			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
+			<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
+			if rr.Model != nil {
+				if faults := rr.CapabilityFaults(c.Lang); len(faults) > 0 {
+					<div class="y-railsep" aria-hidden="true"></div>
+					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
+						<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
+						for _, fault := range faults {
+							<p>
+								@browserDiagnostic(fault.Summary, fault.Detail)
+							</p>
+						}
+					</section>
+				}
 			}
-		}
-		switch rr.Kind {
-			case ReadingRailBook:
-				@bookRail(rr, c)
-			case ReadingRailFolder:
-				if rr.Model != nil {
-					@ShelfRail(rr.HereShelf(c.Lang), railWindow, rr.hereDir, wording.MoreInFolder.In(c.Lang))
-				}
-			case ReadingRailReports:
-				if rr.Model != nil {
-					@reportsRail(rr, c)
-				}
-		}
-		@railFoot(rr.Vault, c.Lang)
+			switch rr.Kind {
+				case ReadingRailBook:
+					@bookRail(rr, c)
+				case ReadingRailFolder:
+					if rr.Model != nil {
+						@ShelfRail(rr.HereShelf(c.Lang), railWindow, rr.hereDir, wording.MoreInFolder.In(c.Lang))
+					}
+				case ReadingRailReports:
+					if rr.Model != nil {
+						@reportsRail(rr, c)
+					}
+			}
+			@railFoot(rr.Vault, c.Lang)
+		</div>
 	</aside>
 	@settleRail(c)
 }

@@ -88,6 +88,7 @@ func buildRegistry() map[string]entry {
 		"yomihon.js",
 		"preferences.js",
 		"drawer.js",
+		"rail.js",
 		"sidebar.js",
 		"contents.js",
 		"freshness.js",

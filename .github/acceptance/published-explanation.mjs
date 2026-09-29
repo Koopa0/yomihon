@@ -88,6 +88,10 @@ const requireText = (site, actual, expected) => {
 async function follow(link) {
   requireThat(await link.count() === 1, 'the route must offer exactly one matching link');
   await link.click();
+  // The destination is read only once it has finished loading: a page that
+  // holds an inline script before its main region is not there to read at the
+  // moment the click returns.
+  await link.page().waitForLoadState('load');
 }
 
 async function noPublishedTarget(page) {

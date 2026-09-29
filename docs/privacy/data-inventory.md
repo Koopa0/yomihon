@@ -73,6 +73,7 @@ carry the rail.
 | `yomihon_textsize` | The text size, `m`, `l` or `xl` | A year from the last write |
 | `yomihon_font` | The typeface, `serif`, `sans` or `kai`; no value is the serif face as well | A year from the last write |
 | `yomihon_ruby` | Whether furigana show, `on` or `off` | A year from the last write |
+| `yomihon_rail` | Whether the left column is shown or folded to a strip on wide windows, `open` or `collapsed` | A year from the last write |
 | `yomihon_shortcuts` | Whether single-key shortcuts answer, `on` or `off` | A year from the last write |
 | `yomihon.nav` | Which folders of the left rail the reader opened or closed, one true-or-false each | Until the tab closes |
 | `yomihon.nav.filter` | The text the reader typed into the rail's filter box, kept as typed so a narrowing survives opening a note | Until the tab closes |
