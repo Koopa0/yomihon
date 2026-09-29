@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -164,15 +166,24 @@ func TestFlipReceiptNamesTheRecoveryForAOneWayDoor(t *testing.T) {
 
 	receiptParagraph := func(t *testing.T, landing string) string {
 		t.Helper()
-		start := strings.Index(landing, `class="y-flipreceipt"`)
-		if start < 0 {
-			t.Fatalf("the landing carries no receipt at all")
+		for _, bounds := range regexp.MustCompile(`<p\b[^>]*>`).FindAllStringIndex(landing, -1) {
+			tag := landing[bounds[0]:bounds[1]]
+			_, classes, hasClass := strings.Cut(tag, ` class="`)
+			if !hasClass {
+				continue
+			}
+			classValue, _, closed := strings.Cut(classes, `"`)
+			if !closed || !slices.Contains(strings.Fields(classValue), "y-flipreceipt") {
+				continue
+			}
+			end := strings.Index(landing[bounds[1]:], "</p>")
+			if end < 0 {
+				t.Fatalf("the receipt paragraph is unterminated")
+			}
+			return landing[bounds[1] : bounds[1]+end]
 		}
-		end := strings.Index(landing[start:], "</p>")
-		if end < 0 {
-			t.Fatalf("the receipt paragraph is unterminated")
-		}
-		return landing[start : start+end]
+		t.Fatalf("the landing carries no receipt at all")
+		return ""
 	}
 
 	t.Run("a no-return flip's receipt carries the door", func(t *testing.T) {

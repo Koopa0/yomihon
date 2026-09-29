@@ -1722,7 +1722,7 @@ details.y-metarow {
   animation: y-reply-in var(--dur-slow) var(--ease-standard);
 }
 
-.y-reply[data-reply-tone="refused"] {
+.y-reply[data-reply-tone='refused'] {
   color: var(--warn);
 }
 
