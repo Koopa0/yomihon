@@ -120,7 +120,10 @@ const clearMarks = async () => {
       await fetch(`${BASE}/uncertainties`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
     }
     const left = await (await fetch(`${BASE}/uncertainties`)).json();
-    if (left.length !== 0) console.error(`BROKEN uncertainty-marks: ${left.length} mark(s) remain after cleanup`);
+    if (left.length !== 0) {
+      console.error(`BROKEN uncertainty-marks: ${left.length} mark(s) remain after cleanup`);
+      process.exitCode = 1;
+    }
   } catch (err) {
     console.error(`BROKEN uncertainty-marks: cleanup failed: ${err}`);
     process.exitCode = 1;
