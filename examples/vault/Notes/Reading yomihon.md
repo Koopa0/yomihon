@@ -2,13 +2,13 @@
 title: Reading yomihon
 type: study-path
 status: ready
-created: 2026-01-04
+created: 2026-09-22
 lang: en
 ---
 
 # Reading yomihon
 
-Four notes and two lessons, in order; each assumes the one before it. A side branch hangs off the second lesson for anyone whose notes are not all in English: it keeps its own order and its own count, and the main line carries on without it.
+The reader's contract, status model and setup. For subject lessons, see [[Go 並行入門]] and [[在圖書館讀日文]].
 
 ## The idea {sequence=primary}
 
@@ -29,3 +29,4 @@ Four notes and two lessons, in order; each assumes the one before it. A side bra
 - [[Wikilinks in this dialect]]
 - [[Privacy and egress]]
 - [[Two languages]]
+- [[Reading preferences]]
