@@ -127,7 +127,10 @@ async function courseRoute(page, base, language) {
   const labels = LANGUAGES[language];
   await page.goto(base, { waitUntil: 'domcontentloaded' });
   requireThat(await page.locator('html').getAttribute('lang') === language, 'wrong interface language');
-  await follow(page.locator('[data-home-block="paths"] [data-desk-item]').filter({ hasText: labels.course }));
+  // Home only previews a few paths; the index is the complete public route.
+  await follow(page.locator('[data-home-block="paths"] h2 a'));
+  requireThat(new URL(page.url()).pathname === '/paths', 'Home did not open the course index');
+  await follow(page.locator('main[data-index="paths"] a[data-index-row]').filter({ hasText: labels.course }));
   requireThat(new URL(page.url()).pathname.startsWith('/syllabus/'), 'Home did not open the course');
   await follow(page.locator('main a.y-lesson').filter({ hasText: labels.lifecycle }));
   requireThat(await page.locator('.y-article h1').innerText() === labels.lifecycle, 'course did not open the lifecycle note');
@@ -150,12 +153,17 @@ async function searchRoute(page, base, language) {
     'Home search must remain a native GET form');
   await form.locator('input[name="q"]').fill('published');
   await form.getByRole('button', { name: LANGUAGES[language].search, exact: true }).click();
+  await page.waitForURL((url) => url.pathname === '/search' && url.searchParams.get('q') === 'published');
   const address = new URL(page.url());
   requireThat(address.pathname === '/search' && address.searchParams.get('q') === 'published', 'native search did not submit the query');
-  const result = page.locator('a.y-result').filter({
+  // The header has a separate live-search result region. Inspect the full
+  // search page reached by this GET, and wait for its row to become visible.
+  const results = page.locator('main .y-searchpage [data-live-search-results]');
+  const result = results.locator('a.y-result').filter({
     has: page.locator('.y-result__title').filter({ hasText: /^A published note$/u }),
   });
-  requireThat(await result.count() === 1, 'search must offer A published note exactly once');
+  await result.first().waitFor({ state: 'visible' });
+  requireThat(await result.count() === 1, 'full search page must offer A published note exactly once');
   requireText('published-search-excerpt', await result.locator('.y-result__snippet').innerText(), [
     'Its status panel offers archived',
   ]);
