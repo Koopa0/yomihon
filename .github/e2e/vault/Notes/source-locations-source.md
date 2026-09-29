@@ -316,3 +316,4 @@ Closing context so the last heading is not the end of the page.
 
 Closing context so the last heading is not the end of the page.
 
+The claim this study is cited for is [[source-locations-claim|the checked claim]].

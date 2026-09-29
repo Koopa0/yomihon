@@ -174,6 +174,23 @@ export function initPreview() {
   const links = [...root.querySelectorAll(
     '.y-prose a.wikilink:not(.wikilink-degraded):not(.concept-link)[href^="/notes/"]',
   )].filter((link) => link.pathname.endsWith('.md'));
+
+  // The sources a claim declares sit in the rail and, at narrow widths, in a
+  // disclosure above the text, both outside the main element, so they are asked
+  // for by their own block rather than by widening the root. The same reading
+  // of the address applies: only a note answers a card. A row whose place the
+  // source lacks is marked degraded and stays out, because its address falls
+  // back to the top of the file and a card would show that file's opening as
+  // though it were the passage the claim named. The outline, the course
+  // navigation, the list of notes citing this one and the list of notes that
+  // declare this one as their source are not this note's declared sources and
+  // are never asked. The last shares the block's class, so it is excluded by
+  // the attribute the renderer puts on it.
+  const sources = [...document.querySelectorAll(
+    '.y-basedon:not([data-declared-by]) a.ui-navitem:not(.wikilink-degraded)[href^="/notes/"]',
+  )].filter((link) => link.pathname.endsWith('.md'));
+  links.push(...sources);
+
   for (const link of links) {
     link.addEventListener('pointerenter', () => schedule(link, openDelay));
     link.addEventListener('pointerleave', release);
