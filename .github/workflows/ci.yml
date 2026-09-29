@@ -371,6 +371,12 @@ jobs:
       - name: Run the behavior probes against the fixture vault
         run: make browser-check
 
+      - name: Read the public publication examples and reject the old explanations
+        run: |
+          npm exec --prefix .github -- biome lint --error-on-warnings .github/acceptance/published-explanation.mjs
+          go build -o "${RUNNER_TEMP}/yomihon-example-acceptance" ./cmd/yomihon
+          node .github/acceptance/published-explanation.mjs "${RUNNER_TEMP}/yomihon-example-acceptance"
+
   # Proves the probes above can fail. Each one names its own self-test modes;
   # every mode injects the regression that probe exists to catch, and the run is
   # required to exit 1 and print the marker naming the mode it caught. Exit 0
