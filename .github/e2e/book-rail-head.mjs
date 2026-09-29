@@ -15,7 +15,16 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Course/C02.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['the-name-outranks-the-extent', 'part-headings-are-not-labels'];
+const SITES = [
+  'the-name-outranks-the-extent',
+  'the-name-is-never-clipped',
+  'part-headings-are-not-labels',
+  'other-rails-keep-the-label-face',
+];
+// One unbroken run, far wider than the rail: only a title allowed to break
+// anywhere holds it, so a rule that stopped wrapping cannot hide behind a name
+// that happened to be short.
+const LONG_NAME = 'Supercalifragilisticexpialidocious'.repeat(3);
 const WIDTHS = [1440, 1024, 901];
 
 class LockFired extends Error {
@@ -35,10 +44,10 @@ const broken = (message) => {
   throw new ProbeBroken(`BROKEN book-rail-head: ${message}`);
 };
 
-// Takes one rule out of the served stylesheet. The rule has to be found exactly
+// Rewrites one rule in of the served stylesheet. The rule has to be found exactly
 // once: a needle that matched nothing would let the mutation pass as applied
 // while changing nothing.
-const dropRule = (needle) => async (page) => {
+const editRule = (needle, replacement) => async (page) => {
   let served = 0;
   let matches = 0;
   await page.route('**/static/app.css', async (route) => {
@@ -46,7 +55,7 @@ const dropRule = (needle) => async (page) => {
     const original = await response.text();
     served += 1;
     matches = original.split(needle).length - 1;
-    await route.fulfill({ response, body: matches === 1 ? original.replace(needle, '.dropped-by-mutation{') : original });
+    await route.fulfill({ response, body: matches === 1 ? original.replace(needle, replacement) : original });
   });
   return async () => {
     if (served === 0) return 'the stylesheet was never requested, so the rule reached no page';
@@ -55,10 +64,35 @@ const dropRule = (needle) => async (page) => {
   };
 };
 
+// Takes a rule out by renaming its selector to one nothing matches.
+const dropRule = (needle) => editRule(needle, '.dropped-by-mutation{');
+
+// Adds a rule after everything served, at equal specificity, so it wins.
+const appendRule = (rule) => async (page) => {
+  let served = 0;
+  await page.route('**/static/app.css', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    served += 1;
+    await route.fulfill({ response, body: `${original}\n${rule}\n` });
+  });
+  return async () => (served === 0 ? 'the stylesheet was never requested, so the rule reached no page' : '');
+};
+
 const MUTATIONS = {
   // Takes back the head's own styling: the name and the extent inherit the same
   // body face again.
   'drop-title-rule': { target: 'the-name-outranks-the-extent', apply: dropRule('.y-railbook__title{') },
+  // Stops the name wrapping: one line, cut off with an ellipsis.
+  'clip-title': {
+    target: 'the-name-is-never-clipped',
+    apply: appendRule('.y-railbook__title{overflow:hidden;overflow-wrap:normal;text-overflow:ellipsis;white-space:nowrap}'),
+  },
+  // Widens the override from book rails to every rail's part headings.
+  'widen-summary-override': {
+    target: 'other-rails-keep-the-label-face',
+    apply: editRule('.y-railbook .y-railsummary{', '.y-railsummary{'),
+  },
   // Puts part headings back on the interface label face.
   'drop-summary-override': { target: 'part-headings-are-not-labels', apply: dropRule('.y-railbook .y-railsummary{') },
 };
@@ -85,18 +119,21 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 }
 
 const measure = (page) =>
-  page.evaluate(() => {
+  page.evaluate((longName) => {
     const book = document.querySelector('.y-railbook');
     if (!book) return null;
     const title = book.querySelector('.y-railbook__title');
     const span = book.querySelector('.y-railbook__span');
     const summary = book.querySelector('.y-railsummary');
     if (!title || !span || !summary) return { missing: true };
+    title.textContent = longName;
     const t = getComputedStyle(title);
     const e = getComputedStyle(span);
     const s = getComputedStyle(summary);
     return {
       titleSize: parseFloat(t.fontSize),
+      summarySize: parseFloat(s.fontSize),
+      summaryWeight: Number(s.fontWeight),
       spanSize: parseFloat(e.fontSize),
       titleWeight: Number(t.fontWeight),
       spanWeight: Number(e.fontWeight),
@@ -109,7 +146,7 @@ const measure = (page) =>
       documentFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
       steps: document.querySelectorAll('.y-railbook nav, #nav-rail .y-lessonsteps').length,
     };
-  });
+  }, LONG_NAME);
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
@@ -133,10 +170,10 @@ try {
     if (m.steps !== 0) {
       broken(`at ${width}px the book rail carries ${m.steps} step navigation(s); the foot is the one place a lesson offers the step onward`);
     }
-    if (!(m.titleSize > m.spanSize && m.titleWeight > m.spanWeight)) {
+    if (!(m.titleSize > m.spanSize && m.titleWeight > m.spanWeight && m.titleSize > m.summarySize && m.titleWeight > m.summaryWeight)) {
       fail(
         'the-name-outranks-the-extent',
-        `at ${width}px the course name computes ${m.titleSize}px/${m.titleWeight} against the extent's ${m.spanSize}px/${m.spanWeight}; the name must be larger and heavier`,
+        `at ${width}px the course name computes ${m.titleSize}px/${m.titleWeight} against the extent's ${m.spanSize}px/${m.spanWeight} and a part heading's ${m.summarySize}px/${m.summaryWeight}; the name must be larger and heavier than both`,
       );
     }
     if (m.hairline !== '1px') {
@@ -148,8 +185,30 @@ try {
         `at ${width}px a part heading inside the book rail resolves text-transform=${m.transform}, letter-spacing=${m.spacing}, face=${m.summaryFace}; it reads as an interface label`,
       );
     }
-    if (!m.titleFits) broken(`at ${width}px the course name is clipped`);
+    if (!m.titleFits) {
+      fail('the-name-is-never-clipped', `at ${width}px a ${LONG_NAME.length}-character unbroken course name overflows its box, so it is clipped or pushes the rail`);
+    }
     if (!m.documentFits) broken(`at ${width}px the page scrolls sideways`);
+  }
+
+  // The other rails keep the interface label face: a book's override must not
+  // spread to the library sidebar that /health draws.
+  await page.goto(`${BASE}/health`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => document.fonts.ready);
+  if (proof) {
+    const issue = await proof();
+    if (issue) throw new NotApplied(`NOT-APPLIED book-rail-head: ${MUTATE}: ${issue}`);
+  }
+  const other = await page.evaluate(() => {
+    const el = document.querySelector('#nav-rail .y-railsummary');
+    if (!el) return null;
+    const s = getComputedStyle(el);
+    return { transform: s.textTransform, face: s.fontFamily, book: document.querySelectorAll('#nav-rail .y-railbook').length };
+  });
+  if (other === null) broken('/health draws no sidebar part heading to measure');
+  if (other.book !== 0) broken('/health draws a book rail, so it cannot stand for the other rails');
+  if (other.transform !== 'uppercase' || !other.face.includes('Mono')) {
+    fail('other-rails-keep-the-label-face', `a sidebar part heading outside a book rail resolves text-transform=${other.transform}, face=${other.face}; the label face is meant for it`);
   }
 
   // The name is a link, and reaching it from the keyboard has to show a ring.

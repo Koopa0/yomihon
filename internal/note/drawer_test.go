@@ -47,6 +47,9 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 		url  string
 		want []string
 		ban  []string
+		// footPrev and footNext are the hrefs the article foot offers, empty
+		// where the page has no such step. Only pages inside a book set them.
+		footPrev, footNext string
 	}{
 		{
 			name: "a placed lesson carries the book alone",
@@ -55,13 +58,15 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 				`data-reading-rail="book"`,
 				`data-book-path="Maps/Go path.md"`,
 			},
-			ban: []string{`data-sidebar-group=`, `y-lessonsteps`},
+			ban:      []string{`data-sidebar-group=`, `y-lessonsteps`},
+			footNext: "/notes/Writing/lessons/golang/Maps%20lesson.md",
 		},
 		{
-			name: "the closing lesson carries the book alone",
-			url:  "/notes/Writing/lessons/golang/Maps%20lesson.md",
-			want: []string{`data-reading-rail="book"`},
-			ban:  []string{`y-lessonsteps`},
+			name:     "the closing lesson carries the book alone",
+			url:      "/notes/Writing/lessons/golang/Maps%20lesson.md",
+			want:     []string{`data-reading-rail="book"`},
+			ban:      []string{`y-lessonsteps`},
+			footPrev: "/notes/Writing/lessons/golang/Slices.md",
 		},
 		{
 			name: "a journal entry carries its folder",
@@ -116,6 +121,18 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 				if strings.Contains(body, ban) {
 					t.Errorf("GET %s sidebar carries %q, want absent", tt.url, ban)
 				}
+			}
+			if tt.footPrev == "" && tt.footNext == "" {
+				return
+			}
+			// The step onward lives in the foot alone; the rail's rows link to
+			// the same lessons, so only the foot's own block can vouch for it.
+			foot := stepsBlock(t, body)
+			if got := footHref(foot, "prev"); got != tt.footPrev {
+				t.Errorf("GET %s foot steps back to %q, want %q", tt.url, got, tt.footPrev)
+			}
+			if got := footHref(foot, "next"); got != tt.footNext {
+				t.Errorf("GET %s foot steps on to %q, want %q", tt.url, got, tt.footNext)
 			}
 		})
 	}
@@ -670,9 +687,28 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	}
 }
 
+// footHref reads the address of the foot's link carrying the given rel, empty
+// where the foot offers none.
+func footHref(foot, rel string) string {
+	at := strings.Index(foot, `rel="`+rel+`"`)
+	if at < 0 {
+		return ""
+	}
+	open := strings.LastIndex(foot[:at], "<a ")
+	if open < 0 {
+		return ""
+	}
+	_, after, ok := strings.Cut(foot[open:at], `href="`)
+	if !ok {
+		return ""
+	}
+	href, _, _ := strings.Cut(after, `"`)
+	return href
+}
+
 // stepsBlock cuts the article-foot navigation out of a page, so an assertion
 // about its words cannot pass on the same words appearing elsewhere on the
-// page — the rail prints course steps too.
+// page — the sidebar of a page with no foot prints course steps too.
 func stepsBlock(t *testing.T, body string) string {
 	t.Helper()
 	// The marker stops before the closing quote so a modifier class on the

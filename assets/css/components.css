@@ -804,7 +804,7 @@ body {
   color: var(--fg);
   display: block;
   font-family: var(--font-sans);
-  font-size: calc(var(--fs-14) + 1px);
+  font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
   overflow-wrap: anywhere;
   padding: 8px 10px 0;
