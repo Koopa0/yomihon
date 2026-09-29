@@ -86,6 +86,7 @@ probes=(
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
+  "source-location-round-trip.mjs|/notes/Notes/source-locations-claim.md"
   # A query broad enough that its answer runs past one page, which is what
   # gives this one a way on to follow. It drives the findings table itself.
   "pager-contract.mjs|/search?q=e"
