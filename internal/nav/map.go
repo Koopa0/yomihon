@@ -225,13 +225,13 @@ func headingLabel(text string) string {
 // becomes an entry the rail can follow.
 func resolveEntry(link sequence.Link, idx *graph.Index, facts map[string]noteFacts, policy schema.ArtifactPolicy) MapEntry {
 	res := idx.Resolve(link.Target)
-	entry := MapEntry{Name: linkText(link.Display, link.Target), Target: link.Target, Kind: entryKindOf(res, policy)}
+	entry := MapEntry{Name: linkText(link), Target: link.Target, Kind: entryKindOf(res, policy)}
 	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
 		known := facts[res.RelPath]
 		entry.Status = known.status
 		entry.Language = known.language
-		entry.Name = rowName(link.Display, link.Target, link.Aliased, link.Fragment, known.title)
+		entry.Name = rowName(link, known.title)
 	}
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)

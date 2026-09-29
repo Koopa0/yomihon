@@ -259,7 +259,7 @@ func buildPathEntry(
 	policy schema.ArtifactPolicy,
 ) *PathEntry {
 	entry := &PathEntry{
-		Name:   linkText(c.Text, c.Target),
+		Name:   linkText(candidateLink(c)),
 		Target: c.Target,
 		Line:   c.Line,
 		Span:   c.Span,
@@ -275,7 +275,7 @@ func buildPathEntry(
 		known := facts[res.RelPath]
 		entry.Status = known.status
 		entry.Language = known.language
-		entry.Name = rowName(c.Text, c.Target, c.Aliased, c.Fragment, known.title)
+		entry.Name = rowName(candidateLink(c), known.title)
 	}
 	if entry.Kind == EntryAmbiguous {
 		entry.Candidates = slices.Clone(res.Candidates)
@@ -291,19 +291,25 @@ func buildPathEntry(
 // note, so its title would give two different destinations one name: it keeps
 // its link text unless it wrote an alias. A link whose display came out empty
 // prints its target.
-func rowName(display, target string, aliased, fragment bool, title string) string {
-	if aliased || fragment || title == "" {
-		return linkText(display, target)
+func rowName(link sequence.Link, title string) string {
+	if link.Aliased || link.Fragment || title == "" {
+		return linkText(link)
 	}
 	return title
 }
 
 // linkText is the words a row's link shows, the target when it shows none.
-func linkText(display, target string) string {
-	if display == "" {
-		return target
+func linkText(link sequence.Link) string {
+	if link.Display == "" {
+		return link.Target
 	}
-	return display
+	return link.Display
+}
+
+// candidateLink is the link a course row was read from, in the form a map row
+// arrives in, so both are named by one rule.
+func candidateLink(c *sequence.Candidate) sequence.Link {
+	return sequence.Link{Target: c.Target, Display: c.Text, Aliased: c.Aliased, Fragment: c.Fragment}
 }
 
 // mainLine is the primary walk's result: how many lessons the course plans,
