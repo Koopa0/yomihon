@@ -306,3 +306,14 @@ func stepWordNext(course bool, lang wording.Lang) string {
 	}
 	return wording.NextFile.In(lang)
 }
+
+// railToggleTitle is the tooltip the rail's fold control carries on the first
+// byte: the action it will take from the state the cookie says the column is
+// in. The script keeps it in step afterwards from the same two phrases, which
+// the control carries beside it.
+func railToggleTitle(rail string, lang wording.Lang) string {
+	if rail == "collapsed" {
+		return wording.ShowRail.In(lang)
+	}
+	return wording.HideRail.In(lang)
+}

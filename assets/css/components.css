@@ -715,18 +715,22 @@ body {
 /* ============================================================
    Shell + rails
    ============================================================ */
+:root {
+  --rail-open: 264px;
+}
+
 .y-shell {
   align-items: start;
   display: grid;
   flex: 1;
-  grid-template-columns: 264px minmax(0, 1fr) 316px;
+  grid-template-columns: var(--rail-open) minmax(0, 1fr) 316px;
 }
 /* The right rail exists to hold reading aids — the table of contents and the
    diagnostics list. A note with neither drops the rail's column entirely and
    the reading column takes the width; the status face at the article's end
    carries write controls wherever the rail is absent. */
 .y-shell--rail-empty {
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: var(--rail-open) minmax(0, 1fr);
 }
 
 .y-shell--rail-empty .y-rail-right {
@@ -752,6 +756,56 @@ body {
   padding: 6px 10px 48px;
   position: sticky;
   top: var(--header-height);
+}
+
+/* The button that folds the whole left column away. Its row is the rail's
+   first child and sticks to the top of the rail's own scroll box, because the
+   rail scrolls by itself and a control that scrolled out of it would be out of
+   reach exactly when the tree is long. The negative margins take the row out to
+   the rail's edges so the panel colour, not the tree passing underneath, is
+   what sits behind it.
+
+   The button is held to the row's left edge, four pixels in, because that is
+   where it stays when the column folds: the strip it is left standing in is
+   forty pixels wide, and a control that slid sideways between the two states
+   would be a different thing each time it was looked for.
+
+   It is drawn only above the width where the column becomes a drawer: there
+   the header's own button owns the act, and a second control for it would be
+   two names for one thing. The script reveals it before the first paint, and
+   with no script the row is never drawn. */
+.y-railtoggle {
+  align-items: center;
+  background: var(--panel);
+  display: none;
+  justify-content: flex-start;
+  margin: -6px -10px 0;
+  padding: 6px 4px;
+  position: sticky;
+  /* Held six pixels above the content edge, which is the rail's own top
+     padding: the row reaches the very top of the rail, so no row of the tree
+     passes in the gap above it. */
+  top: -6px;
+  z-index: 1;
+}
+
+@media (min-width: 901px) {
+  .y-railtoggle {
+    display: flex;
+  }
+
+  .y-railtoggle[hidden] {
+    display: none;
+  }
+}
+
+/* The mark is a window with its left pane. The pane is filled while the column
+   is shown and empty once it is folded, so the glyph is a picture of the state
+   rather than of the act. */
+.y-railtoggle__pane {
+  fill: currentColor;
+  fill-opacity: 0.28;
+  stroke: none;
 }
 
 .y-rail-right {
@@ -3284,7 +3338,7 @@ main#main-content {
   align-items: start;
   display: grid;
   flex: 1;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: var(--rail-open) minmax(0, 1fr);
 }
 
 /* Home — the quiet reading desk, ending in a link to the vault README. The
@@ -4964,8 +5018,12 @@ html {
 }
 
 @media (max-width: 1280px) {
+  :root {
+    --rail-open: 248px;
+  }
+
   .y-shell {
-    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-columns: var(--rail-open) minmax(0, 1fr);
   }
 
   .y-rail-right {
@@ -4979,6 +5037,74 @@ html {
     margin: 26px 0 6px;
   }
 }
+/* The left column folded away, above the width where it is a drawer. What is
+   left of it is a strip holding the one button that brings it back, so the
+   reader is never left without a way to undo the choice and the navigation
+   landmark stays, labelled, holding a button. The strip is the rail itself
+   narrowed — the same ground and the same edge — not a second element.
+
+   The rule reads the root rather than anything the script sets, because the
+   script arrives after the first paint and a column that painted and then
+   vanished on every page would be worse than one that never folded. It is held
+   to the shells that have a rail: a page without one has nothing in the first
+   track to give up, and its main would otherwise slide into the strip.
+
+   Everything here sits inside the width query. A cookie that says collapsed
+   read at a narrow width must leave the drawer whole, not empty.
+
+   The fold is a transition between two settled states. The server writes the
+   state on the root before anything is painted, so the first style the page
+   ever computes is already the final one and nothing moves on load; a change
+   afterwards, by the button or the key, is what the transition answers. While
+   the track narrows the panel keeps the width it had and the rail clips it, so
+   no row reflows on the way; it fades over the same time and leaves the tree
+   at the end, which is what lets the strip hold only the button. */
+@media (min-width: 901px) {
+  .y-shell:has(> .y-rail-left),
+  .y-shell2:has(> .y-rail-left) {
+    transition: grid-template-columns var(--dur-base) var(--ease-standard);
+  }
+
+  .y-rail-left {
+    overflow-x: hidden;
+  }
+
+  .y-railbody {
+    min-width: calc(var(--rail-open) - 21px);
+    opacity: 1;
+    transition: display var(--dur-base) var(--ease-standard), opacity var(--dur-base) var(--ease-standard);
+    transition-behavior: allow-discrete;
+  }
+
+  html[data-rail='collapsed'] {
+    --rail-strip: 40px;
+  }
+
+  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left) {
+    grid-template-columns: var(--rail-strip) minmax(0, 1fr) 316px;
+  }
+
+  html[data-rail='collapsed'] .y-shell--rail-empty:has(> .y-rail-left),
+  html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left) {
+    grid-template-columns: var(--rail-strip) minmax(0, 1fr);
+  }
+
+  html[data-rail='collapsed'] .y-railbody {
+    display: none;
+    opacity: 0;
+  }
+
+  html[data-rail='collapsed'] .y-railtoggle__pane {
+    fill-opacity: 0;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1280px) {
+  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left) {
+    grid-template-columns: var(--rail-strip) minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .y-shell,
   .y-shell2 {

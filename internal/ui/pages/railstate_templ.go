@@ -8,10 +8,25 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/koopa0/yomihon/internal/ui/layouts"
+import (
+	"strconv"
 
-// settleRail applies the same tab-session choices to both navigation rails.
-func settleRail(c layouts.Chrome) templ.Component {
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// railToggle is the button that folds the whole left column away above the
+// drawer width. It is the panel's sibling, first in the rail, and never inside
+// what it hides: a control that went with the column would leave nothing to
+// bring it back with. The state is the server's — the cookie the request
+// carried — so the button is right on the first byte, and the script only
+// keeps it in step afterwards.
+//
+// It is drawn hidden and the script that settles the rail reveals it before
+// the first paint, as it does the filter. A press does nothing without
+// script, and a control that only pretends is worse than one that is absent;
+// the preferences page is the way back for a reader running none.
+func railToggle(c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -32,20 +47,115 @@ func settleRail(c layouts.Chrome) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<script nonce=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"y-railtoggle\" hidden><button class=\"y-iconbtn y-railtoggle__button\" type=\"button\" data-rail-toggle data-title-hide=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Nonce)
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.HideRail.In(c.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 11, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 27, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\">\n\t\t(() => {\n\t\t\t\"use strict\";\n\t\t\tconst filter = document.querySelector(\".y-rail-left [data-nav-filter]\");\n\t\t\tif (filter) {\n\t\t\t\tfilter.hidden = false;\n\t\t\t}\n\t\t\tlet stored = {};\n\t\t\ttry {\n\t\t\t\tstored =\n\t\t\t\t\tJSON.parse(sessionStorage.getItem(\"yomihon.nav\") || \"{}\") || {};\n\t\t\t} catch {\n\t\t\t\tstored = {};\n\t\t\t}\n\t\t\tdocument\n\t\t\t\t.querySelectorAll(\".y-rail-left details[data-key]\")\n\t\t\t\t.forEach((d) => {\n\t\t\t\t\tif (d.hasAttribute(\"data-chain\")) {\n\t\t\t\t\t\td.open = true;\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tconst want = stored[d.dataset.key];\n\t\t\t\t\tif (typeof want === \"boolean\") {\n\t\t\t\t\t\td.open = want;\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" data-title-show=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.ShowRail.In(c.Lang))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 28, Col: 48}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" aria-controls=\"nav-rail-body\" aria-expanded=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatBool(c.Rail != "collapsed"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 30, Col: 60}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" aria-keyshortcuts=\"[\" aria-label=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.ToggleRail.In(c.Lang))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 32, Col: 45}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" title=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(railToggleTitle(c.Rail, c.Lang))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 33, Col: 42}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\"><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"></rect><path d=\"M9 4v16\"></path><rect class=\"y-railtoggle__pane\" x=\"3\" y=\"4\" width=\"6\" height=\"16\" rx=\"2\"></rect></svg></button></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// settleRail applies the same tab-session choices to every navigation rail.
+func settleRail(c layouts.Chrome) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var7 == nil {
+			templ_7745c5c3_Var7 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<script nonce=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Nonce)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 46, Col: 24}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\">\n\t\t(() => {\n\t\t\t\"use strict\";\n\t\t\tconst filter = document.querySelector(\".y-rail-left [data-nav-filter]\");\n\t\t\tif (filter) {\n\t\t\t\tfilter.hidden = false;\n\t\t\t}\n\t\t\tconst toggleRow = document.querySelector(\".y-rail-left .y-railtoggle\");\n\t\t\tif (toggleRow) {\n\t\t\t\ttoggleRow.hidden = false;\n\t\t\t}\n\t\t\tlet stored = {};\n\t\t\ttry {\n\t\t\t\tstored =\n\t\t\t\t\tJSON.parse(sessionStorage.getItem(\"yomihon.nav\") || \"{}\") || {};\n\t\t\t} catch {\n\t\t\t\tstored = {};\n\t\t\t}\n\t\t\tdocument\n\t\t\t\t.querySelectorAll(\".y-rail-left details[data-key]\")\n\t\t\t\t.forEach((d) => {\n\t\t\t\t\tif (d.hasAttribute(\"data-chain\")) {\n\t\t\t\t\t\td.open = true;\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tconst want = stored[d.dataset.key];\n\t\t\t\t\tif (typeof want === \"boolean\") {\n\t\t\t\t\t\td.open = want;\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

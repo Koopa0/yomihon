@@ -63,6 +63,19 @@ var (
 	)
 )
 
+// The left navigation column above the drawer width. Below it the column is a
+// drawer and this choice has nothing to fold, which the note says so a reader
+// on a narrow window who sets it and sees nothing knows why.
+var (
+	PrefRail     = both("側欄", "Sidebar")
+	PrefRailNote = both(
+		"只影響寬視窗；窄視窗的側欄一向是抽屜。",
+		"Applies to wide windows only; on a narrow window the sidebar is always a drawer.",
+	)
+	PrefRailOpen      = both("展開", "Shown")
+	PrefRailCollapsed = both("收合", "Collapsed")
+)
+
 // The face the reading is set in, and the three it may be set in. Each side
 // names them as its own readers know them: the Chinese page by the characters,
 // the English page by the names those faces carry in English.

@@ -10,6 +10,7 @@ import { initLesson } from './lesson.js';
 import { initMark } from './mark.js';
 import { initPreferences } from './preferences.js';
 import { initPreview } from './preview.js';
+import { initRail } from './rail.js';
 import { initSearch } from './search.js';
 import { initShortcuts } from './shortcuts.js';
 import { initSidebar } from './sidebar.js';
@@ -26,8 +27,9 @@ function init() {
   initContents();
   initCompareAlign();
   initFreshness();
+  const rail = initRail(preferences);
   const search = initSearch();
-  initShortcuts({ drawer, sidebar, search });
+  initShortcuts({ drawer, rail, sidebar, search });
   initLesson();
   initMark();
   initPreview();

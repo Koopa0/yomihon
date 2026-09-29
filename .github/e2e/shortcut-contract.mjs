@@ -38,7 +38,7 @@ const SITES = [
   'plain-filter-opens',
   'plain-drawer-toggles',
   'open-sheet-holds-printables',
-  'wide-drawer-key-stays-native',
+  'wide-key-folds-the-column-not-the-drawer',
   'wide-filter-escape-moves-nothing',
   'escape-dismisses',
   'composing-escape-stays-with-the-input',
@@ -142,11 +142,11 @@ const MUTATIONS = {
       "    if (typing || search.isOpen()) return;\n",
     ),
   },
-  // The key claimed at a width where it has nothing to fold. The keyboard help
-  // says it does nothing there, so a page that swallows it anyway leaves the
-  // reader with a key that neither works nor reaches the browser.
+  // The key reaching the drawer at a width where the sidebar is a column. There
+  // the key folds the column, and a page that opened the drawer as well would
+  // have set the drawer's state under a column that is not one.
   'arm-the-drawer-key-at-every-width': {
-    target: 'wide-drawer-key-stays-native',
+    target: 'wide-key-folds-the-column-not-the-drawer',
     apply: rewriteScript('      if (drawer.isNarrow()) {', '      if (true) {'),
   },
   // The filter answering an Escape that dismisses nothing, which at this width
@@ -304,6 +304,7 @@ const dispatch = (page, type, key, modifiers = {}) => page.evaluate(({ type, key
 
 const state = (page) => page.evaluate(({ dialog, filter, shortcutControl, shortcutOn, shortcutOff }) => ({
   nav: document.documentElement.dataset.nav,
+  rail: document.documentElement.dataset.rail,
   shortcuts: document.documentElement.dataset.singleKeyShortcuts,
   dialogOpen: Boolean(document.querySelector(dialog)?.open),
   filterFocused: document.activeElement === document.querySelector(filter),
@@ -571,20 +572,25 @@ try {
   await dispatch(page, 'keyup', '[');
   await press(page, '[');
 
-  // The sidebar key reaches a drawer, and above the width where the sidebar
-  // folds into one there is no drawer to reach. The keyboard help says so, so
-  // what is asked here is that the key really is the browser's at that width:
-  // a page that takes it and then declines to act would leave the reader
-  // holding a key that does nothing in either place. The media query is waited
-  // on rather than the drawer's own state, which reads closed at both widths
-  // and would let this pass without the viewport ever having changed.
+  // Above the width where the sidebar is a drawer the same key folds the
+  // column instead, so what is asked here is that it acts there and that it
+  // acts on the column alone: the drawer's own state stays closed. The media
+  // query is waited on rather than the drawer's own state, which reads closed
+  // at both widths and would let this pass without the viewport ever having
+  // changed. The second press puts the column back, so the questions after
+  // this one are asked of the layout they were written for.
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForFunction(() => !window.matchMedia('(max-width: 900px)').matches);
   const wideBracket = await dispatch(page, 'keydown', '[');
   after = await state(page);
   await dispatch(page, 'keyup', '[');
-  if (wideBracket.defaultPrevented || after.nav === 'open') {
-    fail('wide-drawer-key-stays-native', `wide [ left nav=${after.nav}, prevented=${wideBracket.defaultPrevented}`);
+  if (!wideBracket.defaultPrevented || after.nav === 'open' || after.rail !== 'collapsed') {
+    fail('wide-key-folds-the-column-not-the-drawer', `wide [ left nav=${after.nav}, rail=${after.rail}, prevented=${wideBracket.defaultPrevented}`);
+  }
+  await press(page, '[');
+  after = await state(page);
+  if (after.rail !== 'open' || after.nav === 'open') {
+    fail('wide-key-folds-the-column-not-the-drawer', `the second wide [ left nav=${after.nav}, rail=${after.rail}, want the column back`);
   }
 
   // At this width the filter's Escape has nothing behind it to fall through

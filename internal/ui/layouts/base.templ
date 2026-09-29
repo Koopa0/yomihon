@@ -20,6 +20,7 @@ templ Base(c Chrome) {
 		}
 		data-ruby={ c.Ruby }
 		data-textsize={ c.TextSize }
+		data-rail={ c.Rail }
 		if c.Font != "" {
 			data-font={ c.Font }
 		}
@@ -242,13 +243,7 @@ templ KeyboardKeys(lang wording.Lang) {
 		<dt><span class="ui-kbd">/</span></dt>
 		<dd>{ wording.ShortcutJumpToFilter.In(lang) }</dd>
 		<dt><span class="ui-kbd">[</span></dt>
-		// The one key whose row needs a second sentence: it reaches a
-		// drawer, and at most reading widths there is no drawer for it
-		// to reach.
-		<dd>
-			{ wording.ShortcutToggleSidebar.In(lang) }
-			{ wording.ShortcutSidebarNarrowOnly.In(lang) }
-		</dd>
+		<dd>{ wording.ShortcutToggleSidebar.In(lang) }</dd>
 	</dl>
 }
 

@@ -38,6 +38,7 @@ export function initPreferences() {
     document.cookie = `yomihon_shortcuts=${value};path=/;max-age=31536000;samesite=lax`;
   }
 
+  const railToggle = document.querySelector('[data-rail-toggle]');
   const themeToggle = document.querySelector('[data-theme-toggle]');
   const textsizeToggle = document.querySelector('[data-textsize-toggle]');
   const rubyToggle = document.querySelector('[data-ruby-toggle]');
@@ -135,6 +136,18 @@ export function initPreferences() {
     if (shortcutsToggle) shortcutsToggle.checked = value === 'on';
   }
 
+  // The left column's state reaches the root, the cookie, and the button that
+  // reports it through this one door, as the switches above do: the button's
+  // aria-expanded is the only place a reader who cannot see the column is told
+  // whether it is there.
+  function writeRail(value) {
+    setPreference('rail', value);
+    railToggle?.setAttribute('aria-expanded', String(value !== 'collapsed'));
+    // The tooltip names the action from the state the column is now in; the
+    // words come from the button, where the server wrote them.
+    if (railToggle) railToggle.title = railToggle.dataset[value === 'collapsed' ? 'titleShow' : 'titleHide'];
+  }
+
   textsizeToggle?.addEventListener('click', () => {
     writeTextSize({ m: 'l', l: 'xl', xl: 'm' }[root.dataset.textsize] || 'l');
   });
@@ -181,6 +194,7 @@ export function initPreferences() {
       setPreference('font', value);
     },
     ruby: writeRuby,
+    rail: writeRail,
     shortcuts: writeShortcuts,
   };
 
@@ -310,6 +324,10 @@ export function initPreferences() {
     } else {
       delete root.dataset.font;
     }
+    const rail = readCookie('yomihon_rail') === 'collapsed' ? 'collapsed' : 'open';
+    root.dataset.rail = rail;
+    railToggle?.setAttribute('aria-expanded', String(rail !== 'collapsed'));
+    if (railToggle) railToggle.title = railToggle.dataset[rail === 'collapsed' ? 'titleShow' : 'titleHide'];
     const shortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
     root.dataset.singleKeyShortcuts = shortcuts;
     if (shortcutsToggle) shortcutsToggle.checked = shortcuts === 'on';
@@ -330,6 +348,7 @@ export function initPreferences() {
   // What the reader is looking at, and a way to be told when that changes.
   return {
     theme: effectiveTheme,
+    writeRail,
     onThemeChange(listener) {
       themeChanged = listener;
     },

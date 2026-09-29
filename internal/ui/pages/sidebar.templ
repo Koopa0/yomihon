@@ -18,127 +18,130 @@ import (
 // current note and every branch renders closed. A nil model renders nothing.
 templ sidebar(sb Sidebar, c layouts.Chrome) {
 	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) }>
-		<input
-			class="y-filter"
-			type="text"
-			placeholder={ wording.FilterNavigation.In(c.Lang) }
-			aria-label={ wording.FilterNavigationLabel.In(c.Lang) }
-			autocomplete="off"
-			spellcheck="false"
-			data-nav-filter
-			hidden
-		/>
-		<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
-		<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
-		if sb.Model != nil {
-			@ShelfRail(sb.HereShelf(c.Lang), railWindow, sb.HereDir, wording.MoreInFolder.In(c.Lang))
-			// The rail carries a capability fault on every page it appears on,
-			// including a note opened straight from the command palette by a
-			// reader who never passes the desk. It appears only for a
-			// declaration the vault made and yomihon could not read: saying so
-			// for a folder that declared nothing would be an apology for the
-			// ordinary shape of a directory.
-			if faults := sb.CapabilityFaults(c.Lang); len(faults) > 0 {
-				<div class="y-railsep" aria-hidden="true"></div>
-				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
-					<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
-					for _, fault := range faults {
-						<p>
-							@browserDiagnostic(fault.Summary, fault.Detail)
-						</p>
-					}
-				</section>
-			}
-			if sb.Model.PathCount() > 0 {
-				<div class="y-railsep" aria-hidden="true"></div>
-				<details open?={ sb.pathsChainOpen() } data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
-					<summary class="y-railsummary">
-						@chevron()
-						{ wording.Paths.In(c.Lang) }
-					</summary>
-					<div class="y-railgroup">
-						for _, step := range sb.Steps {
-							<nav class="y-lessonsteps" aria-label={ fmt.Sprintf(wording.CourseOrderOf.In(c.Lang), step.PathTitle) }>
-								if len(sb.Steps) > 1 {
-									<div class="y-lessonsteps__path">{ step.PathTitle }</div>
-								}
-								if step.Prev.RelPath != "" {
-									<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }{ step.Prev.Name }</a>
-								}
-								if step.Next.RelPath != "" {
-									<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }{ step.Next.Name } →</a>
-								}
-							</nav>
-						}
-						for _, p := range sb.Model.Paths() {
-							@pathTree(sb, c, p)
-						}
-					</div>
-				</details>
-			}
-			if sb.Model.MapCount() > 0 {
-				<div class="y-railsep" aria-hidden="true"></div>
-				<details open?={ sb.mapsChainOpen() } data-sidebar-group="maps" { disclosureAttrs("maps", sb.mapsChainOpen())... }>
-					<summary class="y-railsummary">
-						@chevron()
-						{ wording.Maps.In(c.Lang) }
-					</summary>
-					<div class="y-railgroup">
-						for _, m := range sb.Model.Maps() {
-							@mapTree(sb, c, m, notesHref(m.RelPath))
-						}
-					</div>
-				</details>
-			}
-			if journal := sb.Model.JournalClosure(); journal.Closed() || sb.Model.JournalCount() > 0 {
-				<div class="y-railsep" aria-hidden="true"></div>
-				<details open?={ sb.journalOpen() } data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
-					<summary class="y-railsummary">
-						@chevron()
-						{ wording.Journal.In(c.Lang) }
-					</summary>
-					<div class="y-railgroup">
-						if journal.Closed() {
+		@railToggle(c)
+		<div class="y-railbody" id="nav-rail-body">
+			<input
+				class="y-filter"
+				type="text"
+				placeholder={ wording.FilterNavigation.In(c.Lang) }
+				aria-label={ wording.FilterNavigationLabel.In(c.Lang) }
+				autocomplete="off"
+				spellcheck="false"
+				data-nav-filter
+				hidden
+			/>
+			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
+			<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
+			if sb.Model != nil {
+				@ShelfRail(sb.HereShelf(c.Lang), railWindow, sb.HereDir, wording.MoreInFolder.In(c.Lang))
+				// The rail carries a capability fault on every page it appears on,
+				// including a note opened straight from the command palette by a
+				// reader who never passes the desk. It appears only for a
+				// declaration the vault made and yomihon could not read: saying so
+				// for a folder that declared nothing would be an apology for the
+				// ordinary shape of a directory.
+				if faults := sb.CapabilityFaults(c.Lang); len(faults) > 0 {
+					<div class="y-railsep" aria-hidden="true"></div>
+					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
+						<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
+						for _, fault := range faults {
 							<p>
-								@browserDiagnostic(wording.JournalUnavailable.In(c.Lang), journal.Diagnostic())
+								@browserDiagnostic(fault.Summary, fault.Detail)
 							</p>
 						}
-						for _, entry := range sb.recentJournal() {
-							<a class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) } href={ templ.URL(notesHref(entry.RelPath)) } data-sidebar-journal-entry { currentAttr(sb.current(entry.RelPath))... }>{ entry.Title }</a>
-						}
-						if sb.Model.JournalCount() > 0 {
-							<a class="ui-navitem y-shelfall" href={ templ.URL(indexHref(journalMode)) } data-sidebar-journal-all>{ wording.ShelfAll.In(c.Lang) }</a>
-						}
-					</div>
-				</details>
-			}
-			if len(sb.Model.Reports()) > 0 {
-				<div class="y-railsep" aria-hidden="true"></div>
-				<details open?={ sb.reportsOpen() } data-sidebar-group="reports" { disclosureAttrs("reports", false)... }>
-					<summary class="y-railsummary">
-						@chevron()
-						{ wording.Reports.In(c.Lang) }
-					</summary>
-					<div class="y-railgroup">
-						for _, rep := range sb.Model.Reports() {
-							if rep.Briefing {
-								<a class="ui-navitem" href={ templ.URL(reportHref(rep.Name)) }>
-									{ rep.Name }
-									if rep.Latest {
-										<span class="y-navmark">{ wording.Newest.In(c.Lang) }</span>
+					</section>
+				}
+				if sb.Model.PathCount() > 0 {
+					<div class="y-railsep" aria-hidden="true"></div>
+					<details open?={ sb.pathsChainOpen() } data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
+						<summary class="y-railsummary">
+							@chevron()
+							{ wording.Paths.In(c.Lang) }
+						</summary>
+						<div class="y-railgroup">
+							for _, step := range sb.Steps {
+								<nav class="y-lessonsteps" aria-label={ fmt.Sprintf(wording.CourseOrderOf.In(c.Lang), step.PathTitle) }>
+									if len(sb.Steps) > 1 {
+										<div class="y-lessonsteps__path">{ step.PathTitle }</div>
 									}
-								</a>
-							} else {
-								<a class="ui-navitem" href={ templ.URL(notesHref(rep.RelPath)) }>
-									{ rep.Name }
-								</a>
+									if step.Prev.RelPath != "" {
+										<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }{ step.Prev.Name }</a>
+									}
+									if step.Next.RelPath != "" {
+										<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }{ step.Next.Name } →</a>
+									}
+								</nav>
 							}
-						}
-					</div>
-				</details>
+							for _, p := range sb.Model.Paths() {
+								@pathTree(sb, c, p)
+							}
+						</div>
+					</details>
+				}
+				if sb.Model.MapCount() > 0 {
+					<div class="y-railsep" aria-hidden="true"></div>
+					<details open?={ sb.mapsChainOpen() } data-sidebar-group="maps" { disclosureAttrs("maps", sb.mapsChainOpen())... }>
+						<summary class="y-railsummary">
+							@chevron()
+							{ wording.Maps.In(c.Lang) }
+						</summary>
+						<div class="y-railgroup">
+							for _, m := range sb.Model.Maps() {
+								@mapTree(sb, c, m, notesHref(m.RelPath))
+							}
+						</div>
+					</details>
+				}
+				if journal := sb.Model.JournalClosure(); journal.Closed() || sb.Model.JournalCount() > 0 {
+					<div class="y-railsep" aria-hidden="true"></div>
+					<details open?={ sb.journalOpen() } data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
+						<summary class="y-railsummary">
+							@chevron()
+							{ wording.Journal.In(c.Lang) }
+						</summary>
+						<div class="y-railgroup">
+							if journal.Closed() {
+								<p>
+									@browserDiagnostic(wording.JournalUnavailable.In(c.Lang), journal.Diagnostic())
+								</p>
+							}
+							for _, entry := range sb.recentJournal() {
+								<a class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) } href={ templ.URL(notesHref(entry.RelPath)) } data-sidebar-journal-entry { currentAttr(sb.current(entry.RelPath))... }>{ entry.Title }</a>
+							}
+							if sb.Model.JournalCount() > 0 {
+								<a class="ui-navitem y-shelfall" href={ templ.URL(indexHref(journalMode)) } data-sidebar-journal-all>{ wording.ShelfAll.In(c.Lang) }</a>
+							}
+						</div>
+					</details>
+				}
+				if len(sb.Model.Reports()) > 0 {
+					<div class="y-railsep" aria-hidden="true"></div>
+					<details open?={ sb.reportsOpen() } data-sidebar-group="reports" { disclosureAttrs("reports", false)... }>
+						<summary class="y-railsummary">
+							@chevron()
+							{ wording.Reports.In(c.Lang) }
+						</summary>
+						<div class="y-railgroup">
+							for _, rep := range sb.Model.Reports() {
+								if rep.Briefing {
+									<a class="ui-navitem" href={ templ.URL(reportHref(rep.Name)) }>
+										{ rep.Name }
+										if rep.Latest {
+											<span class="y-navmark">{ wording.Newest.In(c.Lang) }</span>
+										}
+									</a>
+								} else {
+									<a class="ui-navitem" href={ templ.URL(notesHref(rep.RelPath)) }>
+										{ rep.Name }
+									</a>
+								}
+							}
+						</div>
+					</details>
+				}
 			}
-		}
-		@railFoot(sb.Vault, c.Lang)
+			@railFoot(sb.Vault, c.Lang)
+		</div>
 	</aside>
 	@settleRail(c)
 }
