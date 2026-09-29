@@ -5,6 +5,9 @@
 #   3. the status contexts listed in the committed .github/rulesets/main.json
 #      artifact — never the live GitHub ruleset.
 #
+# A CI job the contract marks "advisory": true must exist in the workflow but
+# must not be a required context. It runs as a visible report and blocks nothing.
+#
 # The contract lists all verify prerequisites explicitly. Dropping one from the
 # Makefile without updating the contract fails here, and listing one in the
 # contract that verify no longer reaches fails here too.
@@ -170,6 +173,26 @@ run_lock_test() {
     exit 1
   fi
   lock_case "a prerequisite owned twice" "must be unique"
+
+  lock_copies
+  jq '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) += [{"context": "commit-attribution", "integration_id": 15368}]' \
+    "$tmp/main.json" >"$tmp/main.new"
+  mv "$tmp/main.new" "$tmp/main.json"
+  if ! jq -e '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[] | select(.context == "commit-attribution")' "$tmp/main.json" >/dev/null; then
+    echo "check-gate-contract: lock test could not require the advisory job" >&2
+    exit 1
+  fi
+  lock_case "an advisory job made required" "ruleset contexts differ"
+
+  lock_copies
+  jq '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) |= map(select(.context != "coverage"))' \
+    "$tmp/main.json" >"$tmp/main.new"
+  mv "$tmp/main.new" "$tmp/main.json"
+  if jq -e '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[] | select(.context == "coverage")' "$tmp/main.json" >/dev/null; then
+    echo "check-gate-contract: lock test could not drop the coverage context" >&2
+    exit 1
+  fi
+  lock_case "a dropped required context" "ruleset contexts differ"
 }
 
 [ -f "$contract" ] || fail "missing contract file $contract"
@@ -264,7 +287,7 @@ contexts=$(ruleset_contexts)
 [ -n "$contexts" ] || fail "read no required contexts out of $ruleset"
 
 expected_contexts=$(
-  jq -r '.ci_jobs[] | if (.matrix | length) > 0 then .name as $job | .matrix[] | "\($job) (\(.))" else .name end' "$contract"
+  jq -r '.ci_jobs[] | select(.advisory != true) | if (.matrix | length) > 0 then .name as $job | .matrix[] | "\($job) (\(.))" else .name end' "$contract"
 )
 if ! same_sets "$expected_contexts" "$contexts"; then
   fail "ruleset contexts differ from the contract"
