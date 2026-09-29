@@ -3,6 +3,9 @@ package wording
 // UncertaintyControl names the reader's reversible location mark.
 var UncertaintyControl = both("還不確定", "Not sure yet")
 
+// UncertaintyClearControl makes an already kept mark visible and removable.
+var UncertaintyClearControl = both("移除標記", "Remove mark")
+
 // UncertaintySaved confirms that this location was kept.
 var UncertaintySaved = both("已標記這個位置。", "This location is marked.")
 

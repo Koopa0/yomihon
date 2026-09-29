@@ -16,6 +16,7 @@ func uncertaintyAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 		"data-uncertainty-path":        v.RelPath,
 		"data-uncertainty-prefix":      v.IDPrefix,
 		"data-uncertainty-label":       wording.UncertaintyControl.In(lang),
+		"data-uncertainty-clear-label": wording.UncertaintyClearControl.In(lang),
 		"data-uncertainty-saved":       wording.UncertaintySaved.In(lang),
 		"data-uncertainty-cleared":     wording.UncertaintyCleared.In(lang),
 		"data-uncertainty-failed":      wording.UncertaintyNotStored.In(lang),

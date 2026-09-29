@@ -36,9 +36,14 @@ export function initUncertainty() {
     group.append(button, scope, said);
     container.append(group);
     controls.push({ key, button });
+    const reflect = () => {
+      const marked = keys.has(key);
+      button.setAttribute('aria-pressed', String(marked));
+      button.textContent = marked ? words.uncertaintyClearLabel : words.uncertaintyLabel;
+    };
     ready.then(() => {
       button.disabled = !available;
-      button.setAttribute('aria-pressed', String(keys.has(key)));
+      reflect();
       if (!available) said.textContent = words.uncertaintyUnavailable;
     });
     button.addEventListener('click', async () => {
@@ -63,7 +68,9 @@ export function initUncertainty() {
         for (const control of controls) {
           if (control.key !== key) continue;
           control.button.disabled = false;
-          control.button.setAttribute('aria-pressed', String(keys.has(key)));
+          const marked = keys.has(key);
+          control.button.setAttribute('aria-pressed', String(marked));
+          control.button.textContent = marked ? words.uncertaintyClearLabel : words.uncertaintyLabel;
         }
       }
     });
