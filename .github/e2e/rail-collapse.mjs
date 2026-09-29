@@ -241,7 +241,7 @@ const MUTATIONS = {
   // The button's state left where it was.
   'leave-aria-expanded-stale': {
     target: 'state-is-told-by-the-control',
-    apply: rewriteAsset('**/preferences.js', "    railToggle?.setAttribute('aria-expanded', String(value !== 'collapsed'));\n", ''),
+    apply: rewriteAsset('**/preferences.js', "    railToggle.setAttribute('aria-expanded', String(!collapsed));\n", ''),
   },
   // The panel left standing in a column that is folded.
   'keep-the-panel-when-folded': {
