@@ -159,7 +159,7 @@ func TestHitFragment(t *testing.T) {
 			// first. With the same word twice the two are the same string, and
 			// this case would hold whichever end it was written from.
 			name: "the first marked stretch is the destination",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " and "}, {Text: "streams", Hit: true}, {Text: " after"}}},
+			hit:  SearchResult{LandingBare: "kafka", SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " and "}, {Text: "streams", Hit: true}, {Text: " after"}}},
 			want: "#:~:text=kafka",
 		},
 		{
@@ -173,37 +173,37 @@ func TestHitFragment(t *testing.T) {
 		},
 		{
 			name: "cjk and spaces are escaped",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "位元 運算", Hit: true}}},
+			hit:  SearchResult{LandingBare: "位元 運算", SnippetRuns: []SnippetRun{{Text: "位元 運算", Hit: true}}},
 			want: "#:~:text=%E4%BD%8D%E5%85%83%20%E9%81%8B%E7%AE%97",
 		},
 		{
 			name: "a hyphen cannot introduce a prefix or a suffix",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "read-aloud", Hit: true}}},
+			hit:  SearchResult{LandingBare: "read-aloud", SnippetRuns: []SnippetRun{{Text: "read-aloud", Hit: true}}},
 			want: "#:~:text=read%2Daloud",
 		},
 		{
 			name: "a comma cannot separate a parameter",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "one, two", Hit: true}}},
+			hit:  SearchResult{LandingBare: "one, two", SnippetRuns: []SnippetRun{{Text: "one, two", Hit: true}}},
 			want: "#:~:text=one%2C%20two",
 		},
 		{
 			name: "an ampersand cannot start a second directive",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "this & that", Hit: true}}},
+			hit:  SearchResult{LandingBare: "this & that", SnippetRuns: []SnippetRun{{Text: "this & that", Hit: true}}},
 			want: "#:~:text=this%20%26%20that",
 		},
 		{
 			name: "a percent sign cannot begin an escape of its own",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "100% done", Hit: true}}},
+			hit:  SearchResult{LandingBare: "100% done", SnippetRuns: []SnippetRun{{Text: "100% done", Hit: true}}},
 			want: "#:~:text=100%25%20done",
 		},
 		{
 			name: "the edges of the term are trimmed, since a term that is not a word matches none",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "  kafka  ", Hit: true}}},
+			hit:  SearchResult{LandingBare: "  kafka  ", SnippetRuns: []SnippetRun{{Text: "  kafka  ", Hit: true}}},
 			want: "#:~:text=kafka",
 		},
 		{
 			name: "a mark holding only spaces is passed over",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "   ", Hit: true}, {Text: "kafka", Hit: true}}},
+			hit:  SearchResult{LandingBare: "kafka", SnippetRuns: []SnippetRun{{Text: "   ", Hit: true}, {Text: "kafka", Hit: true}}},
 			want: "#:~:text=kafka",
 		},
 		{
@@ -286,16 +286,14 @@ func TestHitFragment(t *testing.T) {
 			want: "#:~:text=evidence%20records%20a-,bright%20crimson",
 		},
 		{
-			// An excerpt opens before the match, so an earlier copy of one of
-			// the query's words is marked first. Those words lead to the
-			// match, not to that copy, so the row keeps the bare term.
+			// The index selects the mark and its context before the page encodes it.
 			name: "an earlier copy of the word is not what those words lead to",
 			hit: SearchResult{
 				SnippetRuns:   []SnippetRun{{Text: "The decoy "}, {Text: "cobalt", Hit: true}, {Text: " sits here. The notebook calls this bird "}, {Text: "cobalt egret", Hit: true}},
-				Landing:       "cobalt egret",
-				LandingPrefix: "calls this bird",
+				Landing:       "cobalt",
+				LandingPrefix: "The decoy",
 			},
-			want: "#:~:text=cobalt",
+			want: "#:~:text=The%20decoy-,cobalt",
 		},
 		{
 			name: "a match that opens its block carries the bare term",

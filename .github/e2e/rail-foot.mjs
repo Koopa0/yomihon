@@ -7,8 +7,8 @@
 // phone width, still carries it once the drawer is open — one element, two
 // widths, so a foot that goes missing there went missing for a rule nobody
 // wrote down. That the number beside the dot is the health page's own: the page
-// tallies a count per row, and the foot claims their sum. And that a folder
-// whose name is one long unbroken word wraps inside the rail rather than making
+// states the complete findings total, and the foot claims the same number.
+// And that a folder whose name is one long unbroken word wraps inside the rail rather than making
 // the drawer scroll sideways, which is why the name is stamped long before the
 // last measurement rather than measured as the fixture happens to be named.
 //
@@ -174,27 +174,19 @@ const readFoot = (page) =>
     };
   });
 
-// The health page's own number: every row states how many findings of its
-// kind that file carries, so their sum is what the page holds. A report that
-// runs past one page divides the table on screen but not the rows the sum is
-// answerable to, so this reads the undivided listing — reached the same way
-// health-table.mjs reaches it, by the strip's own whole-listing link — rather
-// than the stretch the request happened to ask for. A page with nothing to
-// report draws no table, and the sum of no rows is zero.
+// Read the complete findings total the page states, without leaving the
+// requested page or deriving a different unit from table rows or files.
+// With no findings the page draws no table or shape line.
 const readHealthTotal = async (page) => {
-  const whole = page.locator('.y-pager__whole').first();
-  if (await whole.count() === 1) {
-    await page.goto(new URL(await whole.getAttribute('href'), page.url()).toString(), { waitUntil: 'domcontentloaded' });
-    if (await page.locator('.y-pager').count() !== 0) {
-      broken('the undivided report still draws a strip, so it is not the whole of it');
-    }
+  const total = page.locator('.y-healthshape__total');
+  if (await total.count() === 0 && await page.locator('.y-findings').count() === 0) return 0;
+  if (await total.count() !== 1 || !await total.isVisible()) {
+    fail('count-agrees-with-health', 'the health page has no single visible findings total');
   }
-  return page.evaluate(() =>
-    [...document.querySelectorAll('.y-findings tbody .y-findings__count')].reduce(
-      (total, cell) => total + Number(cell.textContent.trim()),
-      0,
-    ),
-  );
+  const text = (await total.innerText()).trim();
+  const match = /^(\d+) (?:finding|findings|項發現)$/.exec(text);
+  if (!match) fail('count-agrees-with-health', `the health total has no findings unit: ${JSON.stringify(text)}`);
+  return Number(match[1]);
 };
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -225,7 +217,7 @@ try {
   if (Number(wide.claimed) !== total) {
     fail(
       'count-agrees-with-health',
-      `the rail's foot claims ${wide.claimed} findings and the health page's rows hold ${total}`,
+      `the rail's foot claims ${wide.claimed} findings and the health page states ${total}`,
     );
   }
   // The number the reader sees and the number the foot states have to be the

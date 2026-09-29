@@ -49,15 +49,7 @@ templ readingRail(rr ReadingRail, c layouts.Chrome) {
 		}
 		@railFoot(rr.Vault, c.Lang)
 	</aside>
-	<script nonce={ c.Nonce }>
-		(() => {
-			"use strict";
-			const filter = document.querySelector(".y-rail-left [data-nav-filter]");
-			if (filter) {
-				filter.hidden = false;
-			}
-		})();
-	</script>
+	@settleRail(c)
 }
 
 templ bookRail(rr ReadingRail, c layouts.Chrome) {

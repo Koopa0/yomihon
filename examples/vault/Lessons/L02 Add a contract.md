@@ -31,16 +31,16 @@ first, and why?
 > shifts under the lifecycle, and starting there costs nothing — but the way
 > you find that out is by opening `[enums]`, which is the first section either
 > way.
-
-Change it in this order:
-
-1. `[enums]` and `[fields]`, together. Start from the frontmatter your notes
-   already carry — [[Frontmatter]] says where to look — and cut both down to
-   the keys and the values you really write.
-2. `[scan]`, naming the directories that hold knowledge rather than machinery.
-3. `[[lifecycle]]` last. It is the part that needs the most thought, and it is
-   easier to judge once the vocabulary above it has stopped moving:
-   [[The status lifecycle]].
+>
+> Change it in this order:
+>
+> 1. `[enums]` and `[fields]`, together. Start from the frontmatter your notes
+>    already carry — [[Frontmatter]] says where to look — and cut both down to
+>    the keys and the values you really write.
+> 2. `[scan]`, naming the directories that hold knowledge rather than machinery.
+> 3. `[[lifecycle]]` last. It is the part that needs the most thought, and it is
+>    easier to judge once the vocabulary above it has stopped moving:
+>    [[The status lifecycle]].
 
 It is validated whole, so a half-finished edit closes the status control until
 the edit is finished. Reading, folders and search do not depend on any of it

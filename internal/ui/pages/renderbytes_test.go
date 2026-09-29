@@ -411,8 +411,12 @@ func recordedEnglishChrome() layouts.Chrome {
 // leave unwritten.
 func recordedNoteView(t *testing.T, model *nav.Model, current string) NoteView {
 	t.Helper()
+	return renderedNoteView(t, model, current, "body with [[C01]] and [[C02#Missing|C02]]\n")
+}
+
+func renderedNoteView(t *testing.T, model *nav.Model, current, body string) NoteView {
+	t.Helper()
 	root := t.TempDir()
-	const body = "body with [[C01]] and [[C02#Missing|C02]]\n"
 	for rel, content := range map[string]string{
 		current:              body,
 		"Concepts/go/C01.md": "# C01\n",
@@ -913,6 +917,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 			RelPath:     "Writing/lessons/go/L01.md",
 			Title:       "L01",
 			Status:      "draft",
+			LandingBare: "kafka",
 			SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " after"}},
 			PathRuns:    []SnippetRun{{Text: "Writing/"}, {Text: "lessons", Hit: true}},
 			AliasRuns:   []SnippetRun{{Text: "another name"}},
@@ -923,6 +928,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 			RelPath:     "Writing/lessons/go/Reading kafka from source.md",
 			Title:       "Reading kafka from source",
 			Status:      "ready",
+			LandingBare: "kafka",
 			SnippetRuns: []SnippetRun{{Text: "the "}, {Text: "kafka", Hit: true}, {Text: " reader keeps its offsets"}},
 			PathRuns:    []SnippetRun{{Text: "Writing/lessons/go/Reading "}, {Text: "kafka", Hit: true}, {Text: " from source.md"}},
 		}},

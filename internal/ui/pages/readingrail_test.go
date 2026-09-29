@@ -36,11 +36,19 @@ func TestReadingRailBookShowsOnePath(t *testing.T) {
 		`data-sidebar-group="maps"`,
 		`data-sidebar-group="journal"`,
 		`data-sidebar-group="reports"`,
-		`yomihon.nav`,
 	} {
 		if strings.Contains(html, ban) {
 			t.Errorf("book rail still contains %q", ban)
 		}
+	}
+	// One book replaces the vault drawers, not the reader's manual choices.
+	// The browser probe owns restoration behavior; this render check ensures
+	// that this rail emits exactly one nonce-bound initializer to read them.
+	if got := strings.Count(html, `sessionStorage.getItem("yomihon.nav")`); got != 1 {
+		t.Errorf("book rail has %d disclosure-state readers, want one", got)
+	}
+	if !strings.Contains(html, `</aside><script nonce="n">`) {
+		t.Error("book rail does not initialize its state after its markup with the response nonce")
 	}
 }
 

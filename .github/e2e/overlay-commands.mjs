@@ -31,13 +31,14 @@ const MUTATE = process.env.MUTATE || '';
 const SEARCH_OPEN = '[data-search-open]';
 const SEARCH = '[data-search]';
 const HELP_OPEN = '.y-helpbtn';
-const HELP = '#kbd-help';
+const HELP = '#_y-kbd-help';
 const SHEET = '[data-concept-sheet]';
 const SHEET_CLOSE = '[data-concept-sheet] .y-conceptsheet__head button';
 const CONCEPT = '[data-concept]';
 
 const SITES = [
   'the-palette-opens-with-no-script',
+  'search-remains-reachable-with-neither-feature',
   'the-keyboard-help-opens-with-no-script',
   'the-sheet-closes-with-no-listener',
   'an-engine-without-commands-keeps-a-way-in',
@@ -64,7 +65,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED overlay-comm
 // changes is only whether the browser acts on it. Counted per load, because a
 // needle that has been rewritten since proves nothing about the page that was
 // actually served.
-const rewriteMarkup = (needle, replacement, label) => async (page) => {
+const rewriteMarkup = (needle, replacement, label, transform = (body) => body) => async (page) => {
   const perLoad = [];
   await page.route(`${BASE}/**`, async (route) => {
     const request = route.request();
@@ -75,7 +76,7 @@ const rewriteMarkup = (needle, replacement, label) => async (page) => {
     const response = await route.fetch();
     const original = await response.text();
     perLoad.push(original.split(needle).length - 1);
-    await route.fulfill({ response, body: original.replaceAll(needle, replacement) });
+    await route.fulfill({ response, body: transform(original.replaceAll(needle, replacement)) });
   });
   return () => {
     if (perLoad.length === 0) return `${label}: no page was served, so nothing was rewritten`;
@@ -105,13 +106,54 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
   };
 };
 
+// Each CSS regression also removes the native search target, so geometry is
+// measured on the same scriptless capability pair as the destination check.
+const distortScriptlessHeader = (selector, css) => async (page) => {
+  const nativeProof = await rewriteMarkup(
+    'commandfor="_y-search-dialog"', 'data-unsupported-commandfor="_y-search-dialog"',
+    'the disabled native search invoker',
+  )(page);
+  const perLoad = [];
+  await page.route('**/app.css', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    perLoad.push((body.match(selector) || []).length);
+    await route.fulfill({ response, body: body + '\n' + css });
+  });
+  return () => nativeProof() || (perLoad.length === 0 || perLoad.some((hits) => hits !== 1)
+    ? `scriptless header rule matched [${perLoad}]` : '');
+};
+
 const MUTATIONS = {
+  'remove-the-scriptless-search-destination': {
+    target: 'search-remains-reachable-with-neither-feature',
+    apply: rewriteMarkup(
+      'class="y-searchfallback" href="/search"',
+      'class="y-searchfallback" href="/"',
+      'the scriptless search link',
+      (body) => body.replaceAll('commandfor=', 'data-unsupported-commandfor='),
+    ),
+  },
+  'widen-the-scriptless-search-link': {
+    target: 'search-remains-reachable-with-neither-feature',
+    apply: distortScriptlessHeader(
+      /\.y-searchfallback\s*\{/g,
+      '.y-searchfallback { display: inline-block; min-width: 1500px; }',
+    ),
+  },
+  'truncate-the-scriptless-wordmark': {
+    target: 'search-remains-reachable-with-neither-feature',
+    apply: distortScriptlessHeader(
+      /\.y-brand__name\s*>\s*span\s*\{/g,
+      '.y-brand__name > span { max-width: 1px; }',
+    ),
+  },
   // The press stops naming the palette, so opening it is back to being the
   // script's job — and with scripting off there is no job.
   'take-the-command-off-the-palette-press': {
     target: 'the-palette-opens-with-no-script',
     apply: rewriteMarkup(
-      'command="show-modal" commandfor="search-dialog"',
+      'command="show-modal" commandfor="_y-search-dialog"',
       'data-retired-command="show-modal"',
       'the command on the header press',
     ),
@@ -120,8 +162,8 @@ const MUTATIONS = {
   'take-the-target-off-the-help-press': {
     target: 'the-keyboard-help-opens-with-no-script',
     apply: rewriteMarkup(
-      'popovertarget="kbd-help"',
-      'data-retired-popovertarget="kbd-help"',
+      'popovertarget="_y-kbd-help"',
+      'data-retired-popovertarget="_y-kbd-help"',
       'the popover target on the keyboard help press',
     ),
   },
@@ -130,7 +172,7 @@ const MUTATIONS = {
   'take-the-command-off-the-sheet-close': {
     target: 'the-sheet-closes-with-no-listener',
     apply: rewriteMarkup(
-      'command="close" commandfor="concept-sheet"',
+      'command="close" commandfor="_y-concept-sheet"',
       'data-retired-command="close"',
       'the command on the sheet close press',
     ),
@@ -215,6 +257,62 @@ try {
     await context.close();
   }
 
+  // No script and no invokers: the visible link is an ordinary keyboard route.
+  // Removing the command attribute models the unsupported native behavior;
+  // no injected script is needed or allowed in this context.
+  for (const language of ['zh-Hant', 'en']) {
+    const site = 'search-remains-reachable-with-neither-feature';
+    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 375, height: 800 } });
+    await context.addCookies([{ name: 'yomihon_lang', value: language, url: BASE }]);
+    const page = await context.newPage();
+    const proof = MUTATE && MUTATIONS[MUTATE].target === site
+      ? await applyMutation(page, site)
+      : await rewriteMarkup(
+        'commandfor="_y-search-dialog"', 'data-unsupported-commandfor="_y-search-dialog"',
+        'the disabled native search invoker',
+      )(page);
+    await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    if (await page.locator('html').getAttribute('lang') !== language) broken(`the fixture did not select ${language}`);
+    if (await page.$eval(SEARCH_OPEN, (element) => element.hasAttribute('commandfor'))) broken('the no-invoker fixture still has an active invoker');
+    if (await page.$eval('html', (root) => root.hasAttribute('data-js'))) broken('script ran in the no-script fixture');
+    const link = page.locator('header .y-searchfallback');
+    if (await link.count() !== 1 || !(await link.isVisible()) || !(await link.innerText()).trim()) {
+      checkProof(proof);
+      fail(site, 'the page offers no visible, named scriptless search link');
+    }
+    for (const width of [1280, 938, 937, 720, 521, 520, 390, 375, 360]) {
+      await page.setViewportSize({ width, height: 800 });
+      const row = await page.evaluate(() => {
+        const header = document.querySelector('header');
+        const name = document.querySelector('.y-brand__name > span');
+        const link = document.querySelector('.y-searchfallback').getBoundingClientRect();
+        return {
+          overflow: header.scrollWidth - header.clientWidth,
+          nameLost: name.scrollWidth - name.clientWidth,
+          linkFits: link.left >= 0 && link.right <= innerWidth && link.width > 0,
+        };
+      });
+      checkProof(proof);
+      if (row.overflow > 1 || row.nameLost > 1 || !row.linkFits) {
+        fail(site, `${language} at ${width}px: the scriptless header does not fit: ${JSON.stringify(row)}`);
+      }
+    }
+    // Tab to the link from the document; do not supply focus the reader cannot reach.
+    let reached = false;
+    for (let step = 0; step < 20; step += 1) {
+      await page.keyboard.press('Tab');
+      if (await link.evaluate((element) => element === document.activeElement)) { reached = true; break; }
+    }
+    checkProof(proof);
+    if (!reached) fail(site, 'keyboard navigation never reached the scriptless search link');
+    await Promise.all([
+      page.waitForURL((url) => url.pathname !== new URL(BASE + PAGE).pathname),
+      page.keyboard.press('Enter'),
+    ]);
+    if (new URL(page.url()).pathname !== '/search') fail(site, 'the scriptless search link did not reach /search');
+    await context.close();
+  }
+
   // --- The keyboard explanation, the same way ---------------------------
   {
     const site = 'the-keyboard-help-opens-with-no-script';
@@ -294,7 +392,7 @@ try {
   console.log(
     'PASS overlay-commands: the palette and the keyboard help open from a press on a page running no script,'
     + ' the concept sheet closes on a press nothing listens for, and an engine without the markup form of a'
-    + ' press still has a way into the palette',
+    + ' press still has a way into the palette; with neither feature a keyboard link reaches /search',
   );
 } catch (error) {
   if (error instanceof NotApplied) {

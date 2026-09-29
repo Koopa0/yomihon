@@ -162,12 +162,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// offer, so every other page's header has nothing to draw.
 	{{ c.Mark = v.markOffer() }}
 	@layouts.Base(c) {
-		// Ahead of the note, because the press that shuts the sheet names it
-		// by id and a name is answered by whichever element carries it first.
-		// The ids a note stamps on its own headings are folded from the words
-		// the author wrote, so a heading called "Concept sheet" folds to
-		// exactly this name, and a lesson that had one would leave the press
-		// shutting a heading.
+		// The sheet owns an id outside the authored section namespace.
 		@conceptSheet(v.Concepts, lang)
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
@@ -225,10 +220,10 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 				@templ.Raw(c.HTML)
 			</template>
 		}
-		<dialog id="concept-sheet" class="y-conceptsheet" data-concept-sheet aria-label={ wording.GrammarNote.In(lang) } closedby="any">
+		<dialog id="_y-concept-sheet" class="y-conceptsheet" data-concept-sheet aria-label={ wording.GrammarNote.In(lang) } closedby="any">
 			<div class="y-conceptsheet__head">
 				<span class="y-conceptsheet__title" data-concept-title></span>
-				<button type="button" class="y-iconbtn" command="close" commandfor="concept-sheet" aria-label={ wording.CloseControl.In(lang) }>
+				<button type="button" class="y-iconbtn" command="close" commandfor="_y-concept-sheet" aria-label={ wording.CloseControl.In(lang) }>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
 			</div>
