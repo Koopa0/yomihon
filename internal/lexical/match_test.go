@@ -1827,6 +1827,12 @@ func TestLandingNamesTheWordsTheMatchFollowsInsideItsOwnBlock(t *testing.T) {
 			if got[0].LandingPrefix != tt.prefix {
 				t.Errorf("LandingPrefix = %q, want %q", got[0].LandingPrefix, tt.prefix)
 			}
+			// Every match here ends against white space, a full stop or the end of
+			// its block, which are boundaries already: nothing follows to name,
+			// and the directives stay as they were.
+			if got[0].LandingSuffix != "" {
+				t.Errorf("LandingSuffix = %q, want none", got[0].LandingSuffix)
+			}
 		})
 	}
 }
@@ -1963,10 +1969,18 @@ func TestLandingGrowthStaysInsideTheBlockAndOutOfTheGaps(t *testing.T) {
 // kept short. Words come off the front whole, and nothing is ever cut inside
 // what strings.Fields calls one word: a browser looks for a leading run only
 // where the run begins at a word boundary, and in prose that parts no words
-// with spaces the boundaries are dictionary ones this index cannot see.
+// with spaces the boundaries are dictionary ones this index cannot see. Where
+// that script leaves a word over the budget the run begins at a boundary every
+// segmenter agrees on instead — after punctuation, or at the start of the
+// block — and a word in any other script is dropped as it always was.
 func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 	t.Parallel()
 
+	const (
+		// Thirty characters and thirty-one, the two sides of the budget.
+		thirty    = "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十"
+		thirtyOne = "零" + thirty
+	)
 	tests := []struct {
 		name string
 		run  string
@@ -1979,16 +1993,63 @@ func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 			// A tail of it would open between two characters the reader's
 			// language reads as one word, which a browser looks for and never
 			// finds — and a leading run it cannot find costs it the term as
-			// well, so the note opens at the top instead of at the match.
-			name: "a paragraph written without spaces is dropped, not cut to its tail",
+			// well, so the note opens at the top instead of at the match. The
+			// block start is a boundary the browser agrees with, so the run
+			// goes back to it.
+			name: "a paragraph written without spaces and without punctuation is named whole",
 			run:  "第一段落的開頭寫得很長很長很長很長很長很長很長很長很長很長很長很長很長很長結尾",
+			want: "第一段落的開頭寫得很長很長很長很長很長很長很長很長很長很長很長很長很長很長結尾",
+		},
+		{
+			// The comma is a boundary every segmenter breaks at, and what
+			// follows it is inside the budget.
+			name: "punctuation inside the budget is where the run begins",
+			run:  "第一段落的開頭寫得很長很長很長很長很長很長很長很長很長很長很長，接著在這一行裡面才輪到",
+			want: "接著在這一行裡面才輪到",
+		},
+		{
+			name: "the earliest boundary that fits is the one used",
+			run:  "第一段落的開頭寫得很長很長很長很長很長很長很長很長很長很長很長，接著在這一行，裡面才輪到",
+			want: "接著在這一行，裡面才輪到",
+		},
+		{
+			// Thirty characters exactly after the comma: the budget is a
+			// limit, not a trigger.
+			name: "a boundary that leaves exactly the budget is inside it",
+			run:  "第一段落的開頭寫得很長很長很長很長很長很長，" + thirty,
+			want: thirty,
+		},
+		{
+			// One over: the comma leaves thirty-one, outside the budget, but
+			// it is still the nearest boundary, so the run begins there.
+			name: "a boundary one character outside the budget is still the nearest one",
+			run:  "第一段落的開頭寫得很長很長很長很長很長很長，" + thirtyOne,
+			want: thirtyOne,
+		},
+		{
+			// The page draws a hard line break as a break, so a run that
+			// spanned one would not be text it carries in one piece.
+			name: "the run stops at a hard line break",
+			run:  "第一行寫得很長很長很長很長很長很長很長很長很長很長很長很長\n第二行也寫得很長很長很長很長很長很長很長很長很長很長很長",
+			want: "第二行也寫得很長很長很長很長很長很長很長很長很長很長很長",
+		},
+		{
+			name: "a match opening a line after a hard break names nothing",
+			run:  "第一行寫得很長很長很長很長很長很長很長很長很長很長很長很長很長很長很長\n",
 			want: "",
+		},
+		{
+			// The middle dot is part of a katakana word; a run cut after it
+			// would begin inside one.
+			name: "a middle dot between katakana is not a boundary",
+			run:  "カフェオレ・ミルクコーヒー・エスプレッソ・ラテマキアート・カプチーノ",
+			want: "カフェオレ・ミルクコーヒー・エスプレッソ・ラテマキアート・カプチーノ",
 		},
 		{
 			// 30 characters exactly: the budget is a limit, not a trigger.
 			name: "a run at the budget is kept whole",
-			run:  "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十",
-			want: "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十",
+			run:  thirty,
+			want: thirty,
 		},
 		{
 			// 51 characters over three words; dropping the first leaves 26,
@@ -1999,9 +2060,16 @@ func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 		},
 		{
 			// Halving it would name a run that opens inside a word, which
-			// matches nothing, so the row keeps its bare term instead.
+			// matches nothing, so the row keeps its bare term instead. The
+			// term that follows is grown to its own word's edges, so it
+			// stands alone.
 			name: "one over-long word is dropped rather than halved",
 			run:  "pneumonoultramicroscopicsilicovolcanoconiosis",
+			want: "",
+		},
+		{
+			name: "an over-long word in a script with spaces is dropped whatever it holds",
+			run:  "pneumonoultramicroscopic.silicovolcanoconiosis-pneumono",
 			want: "",
 		},
 	}
@@ -2010,6 +2078,67 @@ func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 			t.Parallel()
 			if got := landingPrefix(tt.run); got != tt.want {
 				t.Errorf("landingPrefix(%q) = %q, want %q", tt.run, got, tt.want)
+			}
+		})
+	}
+}
+
+// The run after a term is the mirror of the run before it. A browser holds a
+// term with nothing behind it to end where a word does, and where the script
+// parts no words with spaces that is a dictionary boundary this index cannot
+// see; a run behind it that itself ends at white space, punctuation or the end
+// of the block is one every segmenter agrees on, and releases the term. The
+// run ends at the nearest such boundary inside the budget, and with none there
+// it is the rest of the block.
+func TestLandingSuffixEndsWhereABrowserAgreesAWordEnds(t *testing.T) {
+	t.Parallel()
+
+	const (
+		thirty    = "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十"
+		thirtyOne = thirty + "零"
+	)
+	tests := []struct {
+		name   string
+		before string // the last character of the term the run follows
+		rest   string // the block from the end of that term to its own end
+		want   string
+	}{
+		{name: "nothing after the term", before: "e", rest: "", want: ""},
+		{name: "a term that ends against white space", before: "e", rest: " here.", want: ""},
+		{name: "a term that ends against punctuation", before: "e", rest: ", here.", want: ""},
+		{name: "a term that stops inside a word of a script with spaces", before: "n", rest: "um here", want: "um"},
+		{name: "a run to a comma", before: "陽", rest: "花の株で、今年も青い花をつけた", want: "花の株で"},
+		{name: "a run to a full stop", before: "讀", rest: "用的導言。第二句", want: "用的導言"},
+		{name: "a fullwidth comma bounds it in Chinese", before: "陽", rest: "花的株，今年也開了", want: "花的株"},
+		{
+			name:   "a run past the budget with no boundary is the rest of the block",
+			before: "獸",
+			rest:   thirtyOne,
+			want:   thirtyOne,
+		},
+		{name: "a boundary at the budget is inside it", before: "獸", rest: thirty + "。後續", want: thirty},
+		{
+			// One over the budget: the run still ends at the nearest
+			// boundary, which is the full stop.
+			name:   "a boundary outside the budget is still the nearest one",
+			before: "獸",
+			rest:   thirtyOne + "。後續",
+			want:   thirtyOne,
+		},
+		{name: "a run with no boundary is the rest of the block", before: "獸", rest: thirtyOne, want: thirtyOne},
+		{name: "a hard line break ends the run", before: "獸", rest: thirtyOne + "\n後續", want: thirtyOne},
+		{name: "an apostrophe inside a word joins it", before: "n", rest: "'t stop here", want: "'t"},
+		{name: "a point inside a number joins it", before: "3", rest: ".14 more", want: ".14"},
+		{name: "a point after a word ends it", before: "e", rest: ". More", want: ""},
+		{name: "a middle dot between katakana joins them", before: "コ", rest: "・ミルク。", want: "・ミルク"},
+		{name: "white space ends the run", before: "獸", rest: "三個\n 字出現。", want: "三個"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			text := tt.before + tt.rest
+			if got := landingSuffix(text, len(tt.before), len(text)); got != tt.want {
+				t.Errorf("landingSuffix(%q after %q) = %q, want %q", tt.rest, tt.before, got, tt.want)
 			}
 		})
 	}
@@ -2025,9 +2154,12 @@ func TestLandingPrefixKeepsWhatABrowserCanFindAgain(t *testing.T) {
 // where 獨角獸 alone reached 1560, and a run beginning where the paragraph
 // begins reached 1560 too.
 //
-// The second row is what keeps the first honest. A run inside the budget is
-// still named, and it is the one the block opens with, which is a boundary
-// any browser agrees with — so this test fails just as loudly on a change
+// The run goes back to the nearest boundary every segmenter agrees on that
+// leaves it inside the budget — here the fullwidth comma, which breaks a word
+// in any language — and the term is followed by the characters up to the full
+// stop, so that the match is free to end anywhere. The second row is what
+// keeps the first honest: a run inside the budget is still named, and it is
+// the one the block opens with, so this test fails just as loudly on a change
 // that answers it by naming nothing at all.
 func TestLandingNamesNoRunItWouldHaveToCutInsideAWord(t *testing.T) {
 	t.Parallel()
@@ -2043,17 +2175,22 @@ func TestLandingNamesNoRunItWouldHaveToCutInsideAWord(t *testing.T) {
 		name   string
 		query  string
 		prefix string
+		suffix string
 	}{
 		{
 			// Thirty-three characters ahead of the match, three over the
-			// budget: the cut would fall between 咖 and 啡.
-			name:  "a match reached after a long run of characters names none of it",
-			query: "獨角獸",
+			// budget: a cut at the budget would fall between 咖 and 啡, and
+			// the comma leaves eleven.
+			name:   "a match reached after a long run begins its run at the comma",
+			query:  "獨角獸",
+			prefix: "接著在這一行裡面才輪到",
+			suffix: "三個字出現",
 		},
 		{
 			name:   "a run that fits is named, because the block opens where it opens",
 			query:  "飛馬",
 			prefix: "灰布下面寫著",
+			suffix: "兩個字",
 		},
 	}
 	for _, tt := range tests {
@@ -2065,6 +2202,144 @@ func TestLandingNamesNoRunItWouldHaveToCutInsideAWord(t *testing.T) {
 			}
 			if got[0].LandingPrefix != tt.prefix {
 				t.Errorf("LandingPrefix = %q, want %q", got[0].LandingPrefix, tt.prefix)
+			}
+			if got[0].LandingSuffix != tt.suffix {
+				t.Errorf("LandingSuffix = %q, want %q", got[0].LandingSuffix, tt.suffix)
+			}
+		})
+	}
+}
+
+// The run after the match is measured from the end of the last term a
+// directive names, wherever growth left it, and follows that term into the
+// block it sits in. A match ending against a boundary already has nothing
+// after it to name; one that stops inside a word of a script without spaces
+// names the characters up to the next boundary, or the rest of the block.
+func TestLandingSuffixFollowsTheTermItIsMeasuredFrom(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex([]Document{
+		DocumentFromNote(vault.Parse("Notes/Suffix.md", []byte(""+
+			"# Suffix\n\n"+
+			"夜が明けるとすぐに窓辺の椅子に腰をおろして空の色を長いあいだ眺めていた老人はその日もよく晴れ、それから静かに茶を淹れた。\n\n"+
+			"庭の隅にひっそりと咲いていたのは去年の梅雨に隣の家から分けてもらった紫陽花の株で、今年も青い花をつけた。\n\n"+
+			"その朝に限って玄関の外がいつになく明るく空は朝のうちからすっかり晴々として遠くの山の稜線までくっきりと見えていた\n\n"+
+			"The clerk kept a ledger of tourmaline samples on the shelf.\n\n"+
+			"Cobaltineが続く。\n\n"+
+			"<ruby>今日<rt>きょう</rt></ruby>は雨模様、ぼんやりとした窓の外を眺めるだけ。\n"))),
+	}, validArtifactPolicy(t))
+
+	tests := []struct {
+		name   string
+		query  string
+		prefix string
+		suffix string
+	}{
+		{
+			// The match ends on the comma, a boundary, and it opens inside
+			// 晴れ. What the browser needs here is the run before it, which
+			// goes back to the block start because nothing in it is a
+			// boundary; the run after is named all the same.
+			name:   "the report's own case names the run before and the run after",
+			query:  "れ、",
+			prefix: "夜が明けるとすぐに窓辺の椅子に腰をおろして空の色を長いあいだ眺めていた老人はその日もよく晴",
+			suffix: "それから静かに茶を淹れた",
+		},
+		{
+			name:   "a match ending inside a word names the run up to the comma",
+			query:  "紫陽",
+			prefix: "庭の隅にひっそりと咲いていたのは去年の梅雨に隣の家から分けてもらった",
+			suffix: "花の株で",
+		},
+		{
+			name:   "with no boundary before the block ends, the rest of the block is named",
+			query:  "晴々",
+			prefix: "その朝に限って玄関の外がいつになく明るく空は朝のうちからすっかり",
+			suffix: "として遠くの山の稜線までくっきりと見えていた",
+		},
+		{
+			name:   "a Latin word grown to its edges is followed by nothing to name",
+			query:  "urmalin",
+			prefix: "ledger of to",
+		},
+		{
+			// The word is grown to its edge, and the next character belongs
+			// to a script whose words part at no space, which is not a
+			// boundary this index is certain of.
+			name:   "a Latin word followed directly by kana names the kana up to the full stop",
+			query:  "cobaltin",
+			suffix: "が続く",
+		},
+		{
+			// The page draws the reading in among the characters it is
+			// spoken over, so a run beside the term is not text it carries
+			// in one piece: neither side of the match is named.
+			name:  "a block the page does not reproduce as written names neither run",
+			query: "雨模",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := searchResults(t, idx, Parse(tt.query))
+			if len(got) != 1 {
+				t.Fatalf("Search(%q) = %+v, want one hit", tt.query, got)
+			}
+			if got[0].LandingPrefix != tt.prefix {
+				t.Errorf("LandingPrefix = %q, want %q", got[0].LandingPrefix, tt.prefix)
+			}
+			if got[0].LandingSuffix != tt.suffix {
+				t.Errorf("LandingSuffix = %q, want %q", got[0].LandingSuffix, tt.suffix)
+			}
+		})
+	}
+}
+
+// A crossing match is looked for as one directive, and the run after it
+// belongs to the term it follows, which is the far end. Whether the page
+// reproduces the block that term sits in decides whether the run is named, and
+// the first block's own answer does not: each block is asked for itself.
+func TestLandingSuffixOfACrossingMatchFollowsTheFarEnd(t *testing.T) {
+	t.Parallel()
+
+	plain := "鍵はすべて銀杏\n並木の奥にある小さな倉庫の錠前に合うと"
+	split := strings.Index(plain, "\n")
+	tests := []struct {
+		name      string
+		firstOK   bool
+		lastOK    bool
+		wantStart string
+		suffix    string
+	}{
+		{name: "both blocks are reproduced as written", firstOK: true, lastOK: true, wantStart: "銀杏", suffix: "前に合うと"},
+		{name: "a far block the page draws differently names no run after", firstOK: true, lastOK: false, wantStart: "銀杏"},
+		{name: "a first block drawn differently does not withhold the far run", firstOK: false, lastOK: true, wantStart: "銀杏", suffix: "前に合うと"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			idx := NewIndex([]Document{{
+				RelPath:   "Notes/Crossing.md",
+				Title:     "Crossing",
+				PlainText: plain,
+				Blocks: []render.Block{
+					{End: split, Verbatim: tt.firstOK},
+					{End: len(plain), Verbatim: tt.lastOK},
+				},
+			}}, validArtifactPolicy(t))
+
+			got := searchResults(t, idx, Parse(`"銀杏並木の奥にある小さな倉庫の錠"`))
+			if len(got) != 1 {
+				t.Fatalf("Search = %+v, want one hit", got)
+			}
+			if !got[0].BlockCrossing {
+				t.Fatalf("BlockCrossing = false, want a crossing")
+			}
+			if got[0].Landing != tt.wantStart || got[0].LandingEnd != "並木の奥にある小さな倉庫の錠" {
+				t.Errorf("Landing = %q, LandingEnd = %q, want %q and the far stretch", got[0].Landing, got[0].LandingEnd, tt.wantStart)
+			}
+			if got[0].LandingSuffix != tt.suffix {
+				t.Errorf("LandingSuffix = %q, want %q", got[0].LandingSuffix, tt.suffix)
 			}
 		})
 	}

@@ -70,6 +70,13 @@ func storedChoices() []storedChoice {
 			unknown:  []string{"", "Serif", "KAI", "kaiti", "mono"},
 			answer:   func(c Chrome) string { return c.Font },
 		},
+		{
+			cookie:   "yomihon_rail",
+			values:   []string{"open", "collapsed"},
+			fallback: "open",
+			unknown:  []string{"", "Collapsed", "closed", "hidden", "1"},
+			answer:   func(c Chrome) string { return c.Rail },
+		},
 	}
 }
 
@@ -126,6 +133,7 @@ func TestPreferencesPublishesEveryStoredChoice(t *testing.T) {
 		{Cookie: "yomihon_textsize", Values: []string{"m", "l", "xl"}, Fallback: "m"},
 		{Cookie: "yomihon_shortcuts", Values: []string{"on", "off"}, Fallback: "on"},
 		{Cookie: "yomihon_font", Values: []string{"serif", "sans", "kai"}, Fallback: ""},
+		{Cookie: "yomihon_rail", Values: []string{"open", "collapsed"}, Fallback: "open"},
 	}
 	if diff := cmp.Diff(want, Preferences()); diff != "" {
 		t.Errorf("Preferences() mismatch (-want +got):\n%s", diff)
@@ -134,7 +142,7 @@ func TestPreferencesPublishesEveryStoredChoice(t *testing.T) {
 	// list. A row left off it is a preference a reader carries and no surface
 	// can name, which is the drift the one table exists to prevent.
 	published := Preferences()
-	for _, row := range []preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice} {
+	for _, row := range []preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice} {
 		if !slices.ContainsFunc(published, func(p Preference) bool { return p.Cookie == row.cookie }) {
 			t.Errorf("the chrome reads %q, which Preferences() does not list", row.cookie)
 		}
@@ -166,6 +174,7 @@ func TestPreferencesHandsOutNothingACallerCanWriteThrough(t *testing.T) {
 		{Cookie: "yomihon_textsize", Values: []string{"m", "l", "xl"}, Fallback: "m"},
 		{Cookie: "yomihon_shortcuts", Values: []string{"on", "off"}, Fallback: "on"},
 		{Cookie: "yomihon_font", Values: []string{"serif", "sans", "kai"}, Fallback: ""},
+		{Cookie: "yomihon_rail", Values: []string{"open", "collapsed"}, Fallback: "open"},
 	}
 	if diff := cmp.Diff(want, Preferences()); diff != "" {
 		t.Errorf("Preferences() after a caller wrote through it (-want +got):\n%s", diff)
