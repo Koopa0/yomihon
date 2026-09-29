@@ -59,16 +59,16 @@ func TestMapRowsNameTheNoteAsTheAuthorAndNoteDeclared(t *testing.T) {
 	chrome := recordedChrome()
 
 	const (
-		slice = "/notes/Lessons/slice-declare.md"
-		iota  = "/notes/Lessons/iota-constants.md"
-		last  = "/notes/Lessons/last-lesson.md"
-		bare  = "/notes/Lessons/no-title.md"
+		slice      = "/notes/Lessons/slice-declare.md"
+		iotaLesson = "/notes/Lessons/iota-constants.md"
+		last       = "/notes/Lessons/last-lesson.md"
+		bare       = "/notes/Lessons/no-title.md"
 	)
 	want := []drawerRow{
 		{Href: slice, Name: "Slices, in my words"},
-		{Href: iota, Name: "iota: The Compile-Time Constant Generator", Lang: "ja"},
+		{Href: iotaLesson, Name: "iota: The Compile-Time Constant Generator", Lang: "ja"},
 		{Href: bare, Name: "Lessons/no-title"},
-		{Href: iota, Name: "Lessons/iota-constants#Part A", Lang: "ja"},
+		{Href: iotaLesson, Name: "Lessons/iota-constants#Part A", Lang: "ja"},
 		{Href: last, Name: "Last: The Final Lesson"},
 		{Href: bare, Name: "Lessons/no-title"},
 		{Href: last, Name: "Last: The Final Lesson"},
