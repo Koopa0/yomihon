@@ -91,6 +91,10 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 // and the kept marks whose notes the snapshot holds. A mark whose note is not
 // in the snapshot is never a candidate: its path is text nothing in the vault
 // vouches for. The fault is set when the mark file cannot be read.
+//
+// A note's snapshot status selects it, so a note moved back to an initial
+// status reappears only after the next scan (at most one scan interval); a
+// move out of one removes it at once through the live read.
 func (h *Handler) openCandidates(snap *snapshot.Generation, role string, lang wording.Lang) (candidates []openThoughtCandidate, fault string) {
 	notes := snap.NotesOfType(role)
 	for i := range notes {
