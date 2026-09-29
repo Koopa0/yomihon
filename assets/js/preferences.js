@@ -134,18 +134,43 @@ export function initPreferences() {
   function writeShortcuts(value) {
     setSingleKeyShortcuts(value);
     if (shortcutsToggle) shortcutsToggle.checked = value === 'on';
+    // The fold button advertises a key, and only while that key works.
+    syncRailControl();
+  }
+
+  // What the fold button says, from the two settings it depends on. The
+  // tooltip names the action from the state the column is in, with the key that
+  // takes it, and the key is left off — here and in aria-keyshortcuts — while
+  // single-key shortcuts are off. The words come from the button, where the
+  // server wrote them; aria-expanded is the only place a reader who cannot see
+  // the column is told whether it is there.
+  function syncRailControl() {
+    if (!railToggle) return;
+    const collapsed = root.dataset.rail === 'collapsed';
+    const keys = root.dataset.singleKeyShortcuts !== 'off';
+    railToggle.setAttribute('aria-expanded', String(!collapsed));
+    railToggle.title = (collapsed ? railToggle.dataset.titleShow : railToggle.dataset.titleHide) + (keys ? railToggle.dataset.titleKey : '');
+    if (keys) railToggle.setAttribute('aria-keyshortcuts', '[');
+    else railToggle.removeAttribute('aria-keyshortcuts');
+  }
+
+  // Focus inside a column about to leave the tree would fall to the body, so it
+  // is put on the button first — the one thing left standing. Every way the
+  // column can be folded passes through here, a key, a click, a setting, and a
+  // page restored from the cache.
+  function keepFocusOutOfFoldedRail(value) {
+    const column = document.querySelector('#nav-rail');
+    if (value === 'collapsed' && column?.contains(document.activeElement) && document.activeElement !== railToggle) {
+      railToggle?.focus();
+    }
   }
 
   // The left column's state reaches the root, the cookie, and the button that
-  // reports it through this one door, as the switches above do: the button's
-  // aria-expanded is the only place a reader who cannot see the column is told
-  // whether it is there.
+  // reports it through this one door, as the switches above do.
   function writeRail(value) {
+    keepFocusOutOfFoldedRail(value);
     setPreference('rail', value);
-    railToggle?.setAttribute('aria-expanded', String(value !== 'collapsed'));
-    // The tooltip names the action from the state the column is now in; the
-    // words come from the button, where the server wrote them.
-    if (railToggle) railToggle.title = railToggle.dataset[value === 'collapsed' ? 'titleShow' : 'titleHide'];
+    syncRailControl();
   }
 
   textsizeToggle?.addEventListener('click', () => {
@@ -324,13 +349,20 @@ export function initPreferences() {
     } else {
       delete root.dataset.font;
     }
-    const rail = readCookie('yomihon_rail') === 'collapsed' ? 'collapsed' : 'open';
-    root.dataset.rail = rail;
-    railToggle?.setAttribute('aria-expanded', String(rail !== 'collapsed'));
-    if (railToggle) railToggle.title = railToggle.dataset[rail === 'collapsed' ? 'titleShow' : 'titleHide'];
     const shortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
     root.dataset.singleKeyShortcuts = shortcuts;
     if (shortcutsToggle) shortcutsToggle.checked = shortcuts === 'on';
+    // The column is put in its stored state at once. The fold answers a
+    // reader's press with a transition, and a restore is not a press: the
+    // stylesheet is told to hold still for the length of the write, which is
+    // made to take effect before it is lifted.
+    const rail = readCookie('yomihon_rail') === 'collapsed' ? 'collapsed' : 'open';
+    root.dataset.railSettling = '';
+    keepFocusOutOfFoldedRail(rail);
+    root.dataset.rail = rail;
+    syncRailControl();
+    void root.offsetWidth;
+    delete root.dataset.railSettling;
     // On the page where these choices are set, the radios say which one is in
     // force, so they are as much a stale claim as the attributes above.
     syncSettingsChoices();

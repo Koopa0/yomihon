@@ -7,33 +7,53 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// railToggle is the button that folds the whole left column away above the
-// drawer width. It is the panel's sibling, first in the rail, and never inside
-// what it hides: a control that went with the column would leave nothing to
-// bring it back with. The state is the server's — the cookie the request
-// carried — so the button is right on the first byte, and the script only
+// railHead is the first row of every navigation rail: the button that folds the
+// whole left column away above the drawer width and, on a rail that has one,
+// the filter box beside it. It is the panel's sibling and never inside what it
+// hides — a control that went with the column would leave nothing to bring it
+// back with — and it is one row, so the filter stays where it can be reached
+// while the tree under it scrolls. The state is the server's, the cookie the
+// request carried, so the button is right on the first byte and the script only
 // keeps it in step afterwards.
 //
-// It is drawn hidden and the script that settles the rail reveals it before
-// the first paint, as it does the filter. A press does nothing without
-// script, and a control that only pretends is worse than one that is absent;
-// the preferences page is the way back for a reader running none.
-templ railToggle(c layouts.Chrome) {
-	<div class="y-railtoggle" hidden>
+// The whole row is drawn hidden and the script that settles the rail reveals it
+// before the first paint, as it always did the filter. The button does nothing
+// without script, and a control that only pretends is worse than one that is
+// absent; the preferences page is the way back for a reader running none.
+//
+// The tooltip and the advertised key follow the single-key setting, because a
+// key the reader has turned off is not one to promise.
+templ railHead(c layouts.Chrome, filter bool) {
+	<div class="y-railhead" hidden>
 		<button
 			class="y-iconbtn y-railtoggle__button"
 			type="button"
 			data-rail-toggle
 			data-title-hide={ wording.HideRail.In(c.Lang) }
 			data-title-show={ wording.ShowRail.In(c.Lang) }
+			data-title-key={ wording.RailKeyHint.In(c.Lang) }
 			aria-controls="nav-rail-body"
 			aria-expanded={ strconv.FormatBool(c.Rail != "collapsed") }
-			aria-keyshortcuts="["
+			if c.SingleKeyShortcutsEnabled {
+				aria-keyshortcuts="["
+			}
 			aria-label={ wording.ToggleRail.In(c.Lang) }
-			title={ railToggleTitle(c.Rail, c.Lang) }
+			title={ railToggleTitle(c.Rail, c.Lang, c.SingleKeyShortcutsEnabled) }
 		>
 			<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path><rect class="y-railtoggle__pane" x="3" y="4" width="6" height="16" rx="2"></rect></svg>
 		</button>
+		if filter {
+			<input
+				class="y-filter"
+				type="text"
+				placeholder={ wording.FilterNavigation.In(c.Lang) }
+				aria-label={ wording.FilterNavigationLabel.In(c.Lang) }
+				autocomplete="off"
+				spellcheck="false"
+				data-nav-filter
+				hidden
+			/>
+		}
 	</div>
 }
 
@@ -50,9 +70,9 @@ templ settleRail(c layouts.Chrome) {
 			if (filter) {
 				filter.hidden = false;
 			}
-			const toggleRow = document.querySelector(".y-rail-left .y-railtoggle");
-			if (toggleRow) {
-				toggleRow.hidden = false;
+			const head = document.querySelector(".y-rail-left .y-railhead");
+			if (head) {
+				head.hidden = false;
 			}
 			let stored = {};
 			try {

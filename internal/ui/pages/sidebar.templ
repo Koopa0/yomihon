@@ -18,18 +18,8 @@ import (
 // current note and every branch renders closed. A nil model renders nothing.
 templ sidebar(sb Sidebar, c layouts.Chrome) {
 	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) }>
-		@railToggle(c)
+		@railHead(c, true)
 		<div class="y-railbody" id="nav-rail-body">
-			<input
-				class="y-filter"
-				type="text"
-				placeholder={ wording.FilterNavigation.In(c.Lang) }
-				aria-label={ wording.FilterNavigationLabel.In(c.Lang) }
-				autocomplete="off"
-				spellcheck="false"
-				data-nav-filter
-				hidden
-			/>
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
 			<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
 			if sb.Model != nil {

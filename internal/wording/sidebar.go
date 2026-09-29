@@ -18,8 +18,13 @@ var ToggleRail = both("切換側欄", "Toggle sidebar")
 // the state where the name may not, because it is what a pointer is told and
 // the name is what the button is called.
 var (
-	HideRail = both("收合側欄（[）", "Hide sidebar ([)")
-	ShowRail = both("展開側欄（[）", "Show sidebar ([)")
+	HideRail = both("收合側欄", "Hide sidebar")
+	ShowRail = both("展開側欄", "Show sidebar")
+
+	// RailKeyHint is appended to the tooltip while single-key shortcuts are on,
+	// and left off while they are not: the tooltip promises the key only when
+	// the key works.
+	RailKeyHint = both("（[）", " ([)")
 )
 
 // VaultRoot is what the rail calls the folder everything else sits under, since

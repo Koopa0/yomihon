@@ -2,6 +2,7 @@ package pages
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -66,10 +67,10 @@ func TestEveryRailCarriesTheFoldControlBesideItsPanel(t *testing.T) {
 				if !strings.Contains(html, `aria-controls="nav-rail-body"`) {
 					t.Error("the fold control does not name the panel")
 				}
-				if !strings.Contains(html, `<div class="y-railtoggle" hidden>`) {
-					t.Error("the control's row is not drawn hidden; without script a press would do nothing")
+				if !strings.Contains(html, `<div class="y-railhead" hidden>`) {
+					t.Error("the rail's head row is not drawn hidden; without script a press would do nothing")
 				}
-				if !strings.Contains(html, "toggleRow.hidden = false") {
+				if !strings.Contains(html, "head.hidden = false") {
 					t.Error("the script that settles the rail does not reveal the control before the first paint")
 				}
 				// The panel closes before the rail does, so nothing but the panel
@@ -85,40 +86,72 @@ func TestEveryRailCarriesTheFoldControlBesideItsPanel(t *testing.T) {
 // TestFoldControlStatesTheColumnFromTheCookie holds what the button says on the
 // first byte to what the request carried: aria-expanded is the column's state,
 // the name does not change with it, and the tooltip names the action from that
-// state. The fallback is a column that is shown.
+// state. The fallback is a column that is shown. The key is advertised, in the
+// tooltip and in aria-keyshortcuts, only while single-key shortcuts are on.
 func TestFoldControlStatesTheColumnFromTheCookie(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		rail     string
+		keys     bool
 		expanded string
-		title    func(wording.Lang) string
+		action   func(wording.Lang) string
 	}{
-		{"", "true", wording.HideRail.In},
-		{"open", "true", wording.HideRail.In},
-		{"collapsed", "false", wording.ShowRail.In},
+		{"", true, "true", wording.HideRail.In},
+		{"open", true, "true", wording.HideRail.In},
+		{"collapsed", true, "false", wording.ShowRail.In},
+		{"open", false, "true", wording.HideRail.In},
+		{"collapsed", false, "false", wording.ShowRail.In},
 	}
 	for _, tt := range tests {
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-			t.Run(tt.rail+"/"+string(lang), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s/%v/%s", tt.rail, tt.keys, lang), func(t *testing.T) {
 				t.Parallel()
 				var buf bytes.Buffer
-				if err := railToggle(layouts.Chrome{Lang: lang, Rail: tt.rail}).Render(t.Context(), &buf); err != nil {
+				if err := railHead(layouts.Chrome{Lang: lang, Rail: tt.rail, SingleKeyShortcutsEnabled: tt.keys}, true).Render(t.Context(), &buf); err != nil {
 					t.Fatalf("render: %v", err)
 				}
 				html := buf.String()
+				title := tt.action(lang)
+				if tt.keys {
+					title += wording.RailKeyHint.In(lang)
+				}
 				for _, want := range []string{
 					`aria-expanded="` + tt.expanded + `"`,
 					`aria-label="` + wording.ToggleRail.In(lang) + `"`,
-					`title="` + tt.title(lang) + `"`,
-					`aria-keyshortcuts="["`,
+					`title="` + title + `"`,
 					`data-title-hide="` + wording.HideRail.In(lang) + `"`,
 					`data-title-show="` + wording.ShowRail.In(lang) + `"`,
+					`data-title-key="` + wording.RailKeyHint.In(lang) + `"`,
 				} {
 					if !strings.Contains(html, want) {
 						t.Errorf("fold control missing %q; html = %q", want, html)
 					}
 				}
+				if got := strings.Contains(html, `aria-keyshortcuts="["`); got != tt.keys {
+					t.Errorf("aria-keyshortcuts advertised = %v with single keys %v", got, tt.keys)
+				}
 			})
 		}
+	}
+}
+
+// TestRailHeadHoldsTheFilterBesideTheButton keeps the filter in the head row,
+// after the button and outside the panel, on the rails that have one, and off
+// the study-path rail that never had one.
+func TestRailHeadHoldsTheFilterBesideTheButton(t *testing.T) {
+	t.Parallel()
+	var with, without bytes.Buffer
+	if err := railHead(layouts.Chrome{Lang: wording.En}, true).Render(t.Context(), &with); err != nil {
+		t.Fatal(err)
+	}
+	if err := railHead(layouts.Chrome{Lang: wording.En}, false).Render(t.Context(), &without); err != nil {
+		t.Fatal(err)
+	}
+	button, filter := strings.Index(with.String(), "data-rail-toggle"), strings.Index(with.String(), "data-nav-filter")
+	if button < 0 || filter < button {
+		t.Errorf("the filter does not follow the button in the head row: button at %d, filter at %d", button, filter)
+	}
+	if strings.Contains(without.String(), "data-nav-filter") {
+		t.Error("a rail without a filter drew one")
 	}
 }

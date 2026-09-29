@@ -238,7 +238,7 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 templ syllabusRail(v PathView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
 	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.StudyPathNav.In(lang) }>
-		@railToggle(c)
+		@railHead(c, false)
 		<div class="y-railbody" id="nav-rail-body">
 			<div class="ui-side__label y-syl-raillabel">{ wording.StudyPaths.In(lang) }</div>
 			for _, p := range v.Paths {

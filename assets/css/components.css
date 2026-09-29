@@ -758,44 +758,69 @@ body {
   top: var(--header-height);
 }
 
-/* The button that folds the whole left column away. Its row is the rail's
-   first child and sticks to the top of the rail's own scroll box, because the
-   rail scrolls by itself and a control that scrolled out of it would be out of
-   reach exactly when the tree is long. The negative margins take the row out to
-   the rail's edges so the panel colour, not the tree passing underneath, is
-   what sits behind it.
+/* The rail's first row: the button that folds the whole left column away and,
+   beside it, the filter. It is one row, and it sticks to the top of the rail's
+   own scroll box, because the rail scrolls by itself and neither the button nor
+   the filter may scroll out of reach exactly when the tree is long. The
+   negative margins take the row out to the rail's edges so the panel colour,
+   not the tree passing underneath, is what sits behind it.
 
    The button is held to the row's left edge, four pixels in, because that is
    where it stays when the column folds: the strip it is left standing in is
    forty pixels wide, and a control that slid sideways between the two states
    would be a different thing each time it was looked for.
 
-   It is drawn only above the width where the column becomes a drawer: there
-   the header's own button owns the act, and a second control for it would be
-   two names for one thing. The script reveals it before the first paint, and
-   with no script the row is never drawn. */
-.y-railtoggle {
-  align-items: center;
-  background: var(--panel);
+   Its height is fixed, and named, because the rail's scroll padding has to
+   equal it: focus moved by the keyboard scrolls a row into the part of the rail
+   that is not under this one.
+
+   The script reveals the row before the first paint; with no script it is never
+   drawn, filter included, as the filter never was. Below the width where the
+   column becomes a drawer the row is only the filter, as it was, and the
+   header's own button owns the act of opening it. */
+:root {
+  --rail-head-height: 44px;
+}
+
+.y-railtoggle__button {
   display: none;
-  justify-content: flex-start;
-  margin: -6px -10px 0;
-  padding: 6px 4px;
-  position: sticky;
-  /* Held six pixels above the content edge, which is the rail's own top
-     padding: the row reaches the very top of the rail, so no row of the tree
-     passes in the gap above it. */
-  top: -6px;
-  z-index: 1;
 }
 
 @media (min-width: 901px) {
-  .y-railtoggle {
+  .y-railhead {
+    align-items: center;
+    background: var(--panel);
+    box-sizing: border-box;
     display: flex;
+    gap: 6px;
+    height: var(--rail-head-height);
+    margin: -6px -10px 4px;
+    padding: 0 10px 0 4px;
+    position: sticky;
+    /* Held six pixels above the content edge, which is the rail's own top
+       padding: the row reaches the very top of the rail, so no row of the tree
+       passes in the gap above it. */
+    top: -6px;
+    z-index: 1;
   }
 
-  .y-railtoggle[hidden] {
+  .y-railhead[hidden] {
     display: none;
+  }
+
+  .y-railtoggle__button {
+    display: inline-flex;
+  }
+
+  .y-railhead .y-filter {
+    flex: 1;
+    margin: 0;
+    min-width: 0;
+    width: auto;
+  }
+
+  .y-rail-left {
+    scroll-padding-top: var(--rail-head-height);
   }
 }
 
@@ -5054,11 +5079,8 @@ html {
 }
 
 @media (max-width: 1280px) {
-  :root {
-    --rail-open: 248px;
-  }
-
   .y-shell {
+    --rail-open: 248px;
     grid-template-columns: var(--rail-open) minmax(0, 1fr);
   }
 
@@ -5105,11 +5127,23 @@ html {
     overflow-x: hidden;
   }
 
-  .y-railbody {
-    min-width: calc(var(--rail-open) - 21px);
+  .y-railbody,
+  .y-railhead .y-filter {
     opacity: 1;
     transition: display var(--dur-base) var(--ease-standard), opacity var(--dur-base) var(--ease-standard);
     transition-behavior: allow-discrete;
+  }
+
+  /* Held at the width the column has when open for as long as the column is
+     moving, either way, so no row reflows on the way and the rail's scroll
+     position means the same thing at both ends. Only while it moves: an open
+     panel at rest is as wide as the room it has, which is less than the column
+     by the rail's padding, its edge, and the scrollbar when it scrolls, and a
+     floor set from the column alone would push the panel's right side under
+     that scrollbar. The 21 is the two ten-pixel sides of the rail's padding
+     and its one-pixel edge. */
+  html[data-rail-moving] .y-railbody {
+    min-width: calc(var(--rail-open) - 21px);
   }
 
   html[data-rail='collapsed'] {
@@ -5125,9 +5159,26 @@ html {
     grid-template-columns: var(--rail-strip) minmax(0, 1fr);
   }
 
-  html[data-rail='collapsed'] .y-railbody {
+  html[data-rail='collapsed'] .y-railbody,
+  html[data-rail='collapsed'] .y-railhead .y-filter {
     display: none;
     opacity: 0;
+  }
+
+  /* The ring's edge is the reach of the outline, and with the usual offset it
+     would run a pixel past the strip's inside edge on the right. */
+  html[data-rail='collapsed'] .y-railtoggle__button:focus-visible {
+    outline-offset: 0;
+  }
+
+  /* A page restored from the back/forward cache is put in the state its cookie
+     names at once: the fold is answered by a transition only when the reader
+     asked for it, and a restore is not the reader asking. */
+  html[data-rail-settling] .y-shell:has(> .y-rail-left),
+  html[data-rail-settling] .y-shell2:has(> .y-rail-left),
+  html[data-rail-settling] .y-railbody,
+  html[data-rail-settling] .y-railhead .y-filter {
+    transition: none;
   }
 
   html[data-rail='collapsed'] .y-railtoggle__pane {

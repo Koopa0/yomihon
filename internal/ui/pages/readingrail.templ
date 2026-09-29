@@ -10,18 +10,8 @@ import (
 // chosen by what is being read, never by the address the reader arrived from.
 templ readingRail(rr ReadingRail, c layouts.Chrome) {
 	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
-		@railToggle(c)
+		@railHead(c, true)
 		<div class="y-railbody" id="nav-rail-body">
-			<input
-				class="y-filter"
-				type="text"
-				placeholder={ wording.FilterNavigation.In(c.Lang) }
-				aria-label={ wording.FilterNavigationLabel.In(c.Lang) }
-				autocomplete="off"
-				spellcheck="false"
-				data-nav-filter
-				hidden
-			/>
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
 			<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
 			if rr.Model != nil {

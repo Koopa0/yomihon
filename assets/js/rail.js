@@ -24,6 +24,21 @@ export function initRail(preferences) {
   // document as well.
   let scrollTop = 0;
 
+  // The column is moving from the press until its track has finished, and the
+  // stylesheet holds the panel's width for that long. The end is the
+  // transition's own, with a timer behind it for a page where none runs.
+  let settle = 0;
+  function startMoving() {
+    root.dataset.railMoving = '';
+    clearTimeout(settle);
+    settle = setTimeout(() => delete root.dataset.railMoving, 400);
+  }
+  root.addEventListener('transitionend', (event) => {
+    if (event.propertyName !== 'grid-template-columns') return;
+    clearTimeout(settle);
+    delete root.dataset.railMoving;
+  });
+
   function isCollapsed() {
     return root.dataset.rail === 'collapsed';
   }
@@ -38,15 +53,14 @@ export function initRail(preferences) {
 
   function collapse() {
     if (!available() || isCollapsed()) return;
-    // Focus inside a panel about to leave the tree would fall to the body, so
-    // it is put on the control first — the one thing left standing.
-    if (rail.contains(document.activeElement) && document.activeElement !== button) button.focus();
     scrollTop = rail.scrollTop;
+    startMoving();
     preferences.writeRail('collapsed');
   }
 
   function expand() {
     if (!available() || !isCollapsed()) return;
+    startMoving();
     preferences.writeRail('open');
     rail.scrollTop = scrollTop;
   }

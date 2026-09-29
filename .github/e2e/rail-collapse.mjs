@@ -23,8 +23,9 @@ const MUTATE = process.env.MUTATE || '';
 const RAIL = '#nav-rail';
 const BODY = '#nav-rail-body';
 const TOGGLE = '[data-rail-toggle]';
-const ROW = '.y-railtoggle';
+const ROW = '.y-railhead';
 const NAV_TOGGLE = '[data-nav-toggle]';
+const FILTER = '[data-nav-filter]';
 
 // One page of each shape of rail: a book rail, a folder rail, a note with
 // nothing in its right rail, the study-path page, and a page that mounts the
@@ -63,6 +64,13 @@ const SITES = [
   'control-revealed-before-runtime',
   'no-script-draws-no-control',
   'strip-is-one-button',
+  'every-shell-keeps-its-open-width',
+  'open-panel-keeps-its-padding-beside-a-scrollbar',
+  'focus-is-never-hidden-under-the-head',
+  'restore-does-not-animate',
+  'restore-moves-focus-out',
+  'off-shortcuts-do-not-advertise-the-key',
+  'strip-ring-is-whole',
 ];
 
 class LockFired extends Error {
@@ -196,16 +204,18 @@ const MUTATIONS = {
   // Focus left in a panel that has just left the tree.
   'leave-focus-in-the-panel': {
     target: 'focus-leaves-the-hidden-panel',
-    apply: rewriteAsset(
-      '**/rail.js',
-      '    if (rail.contains(document.activeElement) && document.activeElement !== button) button.focus();\n',
-      '',
-    ),
+    apply: rewriteAsset('**/preferences.js', '      railToggle?.focus();\n', ''),
+  },
+  // The panel free to reflow while the column moves, so the position the rail
+  // was saved at means something else by the time it is put back.
+  'let-the-panel-reflow-while-moving': {
+    target: 'rail-scroll-is-restored',
+    apply: rewriteAsset('**/rail.js', "    root.dataset.railMoving = '';\n", ''),
   },
   // The control scrolling away with the tree.
   'unstick-the-control': {
     target: 'control-is-a-sticky-sibling',
-    apply: injectStyle('.y-railtoggle{position:static!important}', '.y-railtoggle'),
+    apply: injectStyle('.y-railhead{position:static!important}', '.y-railhead'),
   },
   // The rail coming back at the top.
   'forget-the-rail-scroll': {
@@ -278,12 +288,51 @@ const MUTATIONS = {
   // The control revealed by the runtime and not before it.
   'reveal-only-with-the-runtime': {
     target: 'control-revealed-before-runtime',
-    apply: rewriteDocument('toggleRow.hidden = false;', ''),
+    apply: rewriteDocument('head.hidden = false;', ''),
   },
   // The control drawn where no script can answer it.
   'draw-the-control-without-script': {
     target: 'no-script-draws-no-control',
-    apply: rewriteDocument('<div class="y-railtoggle" hidden>', '<div class="y-railtoggle">'),
+    apply: rewriteDocument('<div class="y-railhead" hidden>', '<div class="y-railhead">'),
+  },
+  // The 248px rail of the note shell reaching the shells that were 264px.
+  'give-the-study-shell-the-narrow-rail': {
+    target: 'every-shell-keeps-its-open-width',
+    apply: injectStyle('.y-shell2{--rail-open:248px!important}', '.y-shell2'),
+  },
+  // The panel floored at the column's width whether or not it is folding.
+  'floor-the-open-panel-at-the-column-width': {
+    target: 'open-panel-keeps-its-padding-beside-a-scrollbar',
+    apply: injectStyle('.y-railbody{min-width:calc(var(--rail-open) - 21px)!important}', '.y-railbody'),
+  },
+  // Scroll padding gone, so focus scrolls a row under the sticky head.
+  'drop-the-scroll-padding': {
+    target: 'focus-is-never-hidden-under-the-head',
+    apply: injectStyle('.y-rail-left{scroll-padding-top:0!important}', '.y-rail-left'),
+  },
+  // The restore's write left to animate.
+  'animate-the-restore': {
+    target: 'restore-does-not-animate',
+    apply: rewriteAsset('**/preferences.js', "    root.dataset.railSettling = '';\n", ''),
+  },
+  // The restore forgetting to move focus out of a panel it hides.
+  'restore-strands-focus': {
+    target: 'restore-moves-focus-out',
+    apply: rewriteAsset('**/preferences.js', '    keepFocusOutOfFoldedRail(rail);\n', ''),
+  },
+  // The key advertised whatever the setting.
+  'leave-the-key-advertised': {
+    target: 'off-shortcuts-do-not-advertise-the-key',
+    apply: rewriteAsset(
+      '**/preferences.js',
+      "    if (keys) railToggle.setAttribute('aria-keyshortcuts', '[');\n    else railToggle.removeAttribute('aria-keyshortcuts');\n",
+      "    railToggle.setAttribute('aria-keyshortcuts', '[');\n",
+    ),
+  },
+  // The usual ring offset, which runs a pixel past the strip.
+  'restore-the-ring-offset': {
+    target: 'strip-ring-is-whole',
+    apply: injectStyle("html[data-rail='collapsed'] .y-railtoggle__button:focus-visible{outline-offset:2px!important}", '.y-railtoggle__button'),
   },
   // The whole strip answering a click.
   'make-the-strip-a-target': {
@@ -322,6 +371,14 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 }
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
+// A second browser that keeps its scrollbars. Headless Chrome hides them by
+// default, so every other page here is one where a scrolling rail loses no room
+// to a scrollbar, which is the case that hides how the panel fits beside one.
+let classicBrowser = null;
+const classic = async () => {
+  classicBrowser ??= await chromium.launch({ channel: 'chrome', headless: true, ignoreDefaultArgs: ['--hide-scrollbars'] });
+  return classicBrowser;
+};
 
 // The transitions a page starts, from before its first script runs.
 const recordTransitions = () => {
@@ -334,9 +391,9 @@ const recordTransitions = () => {
 // Opens a page in a context of its own. The mutation is applied only when the
 // site being run is the one it aims at, so every other page is the real one.
 const open = async (site, path, {
-  width = 1281, height = 800, collapsed = false, script = true, reducedMotion = 'no-preference', wait = true, mutate = true,
+  width = 1281, height = 800, collapsed = false, script = true, reducedMotion = 'no-preference', wait = true, mutate = true, scrollbars = false,
 } = {}) => {
-  const context = await browser.newContext({ viewport: { width, height }, javaScriptEnabled: script, reducedMotion });
+  const context = await (scrollbars ? await classic() : browser).newContext({ viewport: { width, height }, javaScriptEnabled: script, reducedMotion });
   if (collapsed) await context.addCookies([{ name: 'yomihon_rail', value: 'collapsed', url: BASE }]);
   const page = await context.newPage();
   await page.addInitScript(recordTransitions);
@@ -509,6 +566,15 @@ try {
       const held = await page.evaluate(() => document.activeElement?.tagName);
       fail('focus-leaves-the-hidden-panel', `folding with focus in the panel left focus on ${held}, want the control`);
     }
+    // The filter shares the head with the button and goes with the panel, so it
+    // is a place focus can be when the fold happens too.
+    await key(page, '[');
+    await settled(page);
+    await page.locator(FILTER).focus();
+    await page.evaluate(() => document.querySelector('[data-rail-toggle]').click());
+    await settled(page);
+    const fromFilter = await geometry(page);
+    if (!fromFilter.focusInToggle) fail('focus-leaves-the-hidden-panel', 'folding with focus in the filter did not move it to the control');
     await context.close();
   });
 
@@ -529,7 +595,7 @@ try {
       const panel = document.querySelector(body);
       return {
         inside: panel.contains(button),
-        sibling: button.closest('.y-railtoggle')?.parentElement === panel.parentElement,
+        sibling: button.closest('.y-railhead')?.parentElement === panel.parentElement,
         controlsResolves: document.getElementById(button.getAttribute('aria-controls')) === panel,
       };
     }, { body: BODY, toggle: TOGGLE });
@@ -548,6 +614,14 @@ try {
     if (Math.abs(offsets.row - offsets.rail) > 1) {
       fail('control-is-a-sticky-sibling', `with the tree scrolled ${offsets.scrolled}px the control is ${offsets.row - offsets.rail}px from the top of the rail, want it held there`);
     }
+    const filterAt = await page.evaluate(() => {
+      const rail = document.querySelector('#nav-rail').getBoundingClientRect();
+      const filter = document.querySelector('[data-nav-filter]').getBoundingClientRect();
+      return { top: filter.top - rail.top, bottom: filter.bottom - rail.top };
+    });
+    if (filterAt.top < 0 || filterAt.bottom > 44) {
+      fail('control-is-a-sticky-sibling', `with the tree scrolled the filter is at ${filterAt.top}-${filterAt.bottom}px from the top of the rail, want it inside the sticky row`);
+    }
     await context.close();
   });
 
@@ -558,9 +632,13 @@ try {
     await page.evaluate(() => { document.querySelector('#nav-rail').scrollTop = 500; });
     const from = await page.evaluate(() => document.querySelector('#nav-rail').scrollTop);
     if (from < 300) broken(`the rail scrolled only ${from}px`);
-    await page.locator(TOGGLE).click();
+    // Pressed from the page rather than by the driver, which scrolls a sticky
+    // button's natural place into view before it clicks; a reader presses the
+    // one they can see, and nothing scrolls.
+    const press = () => page.evaluate(() => document.querySelector('[data-rail-toggle]').click());
+    await press();
     await settled(page);
-    await page.locator(TOGGLE).click();
+    await press();
     await settled(page);
     const to = await page.evaluate(() => document.querySelector('#nav-rail').scrollTop);
     if (Math.abs(to - from) > 2) fail('rail-scroll-is-restored', `the rail was at ${from}px, is at ${to}px after folding and opening, want it put back`);
@@ -573,7 +651,7 @@ try {
     const g = await geometry(page);
     if (g.state !== 'collapsed') broken('the page did not carry the collapsed choice');
     if (g.body.display === 'none') fail('collapsed-rule-stops-at-901', 'at 900 a collapsed choice has emptied the drawer: the panel is not drawn');
-    if ((await page.locator(ROW).evaluate((row) => getComputedStyle(row).display)) !== 'none') {
+    if ((await page.locator(TOGGLE).evaluate((button) => getComputedStyle(button).display)) !== 'none') {
       fail('collapsed-rule-stops-at-901', 'the fold control is drawn at 900, where the header owns the act');
     }
     await page.locator(NAV_TOGGLE).click();
@@ -667,7 +745,7 @@ try {
         display: getComputedStyle(panel).display,
         boxes: panel.getClientRects().length,
         landmark: rail.tagName === 'ASIDE' && rail.hasAttribute('aria-label'),
-        reachable: [...rail.querySelectorAll('a[href], input, button, summary')].filter((el) => el.getClientRects().length > 0 && !el.closest('.y-railtoggle')).length,
+        reachable: [...rail.querySelectorAll('a[href], input, button, summary')].filter((el) => el.getClientRects().length > 0 && !el.matches('[data-rail-toggle]')).length,
       };
     }, BODY);
     if (facts.display !== 'none' || facts.boxes !== 0 || facts.reachable !== 0) {
@@ -728,7 +806,7 @@ try {
   // repeating its own prose, since no fixture note is long enough to scroll to
   // the middle of.
   await run('reading-position-survives', async () => {
-    for (const [width, mustReflow] of [[901, true], [1000, false], [1024, false]]) {
+    for (const width of [901, 1000, 1024]) {
       const { page, context, checkProof } = await open('reading-position-survives', '/notes/Notes/reading-fidelity.md', { width });
       await checkProof();
       await page.evaluate(() => {
@@ -746,8 +824,14 @@ try {
       await key(page, '[');
       await settled(page);
       const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
-      const reflowed = Math.abs(after.width - before.width) > 1;
-      if (reflowed !== mustReflow) broken(`at ${width}px the text ${reflowed ? 'reflowed' : 'held its width'}, want ${mustReflow ? 'a reflow' : 'no reflow'}, so this case would not test what it names`);
+      // Where the text is narrower than its measure the fold widens it and the
+      // paragraphs above the reader reflow; the narrowest width has to be such a
+      // case, or the assertion below would pass for lack of anything to move. The
+      // widths above it are asked whichever way they fall, because the measure's
+      // edge sits within a few pixels of one of them and moves with the platform.
+      if (width === 901 && !(before.width < 640 && after.width > before.width)) {
+        broken(`at 901px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
+      }
       if (Math.abs(after.top - before.top) > 2) {
         fail('reading-position-survives', `at ${width}px the paragraph being read moved ${after.top - before.top}px when the column folded`);
       }
@@ -816,6 +900,160 @@ try {
     await context.close();
   });
 
+  // The open width of every shell is what it was before the fold existed: the
+  // note shell narrows to 248px at 1280 and below, and the study-path and
+  // shared-sidebar shells stay 264px at every width.
+  await run('every-shell-keeps-its-open-width', async () => {
+    for (const width of [901, 1024, 1280, 1281]) {
+      for (const [shape, path] of SHAPES) {
+        const { page, context, checkProof } = await open('every-shell-keeps-its-open-width', path, { width });
+        if (shape === 'study path' && width === 901) await checkProof();
+        const facts = await page.evaluate(() => {
+          const shell = document.querySelector('.y-shell, .y-shell2');
+          return { note: shell.classList.contains('y-shell'), rail: document.querySelector('#nav-rail').getBoundingClientRect().width };
+        });
+        const want = facts.note && width <= 1280 ? 248 : 264;
+        if (Math.round(facts.rail) !== want) {
+          fail('every-shell-keeps-its-open-width', `${shape} (${path}) at ${width}px has an open rail ${facts.rail}px wide, want ${want}`);
+        }
+        await context.close();
+      }
+    }
+  });
+
+  // With a scrollbar that takes room, an open rail that scrolls still has its
+  // padding on the right: the panel is as wide as the room it has, not as wide
+  // as the column.
+  await run('open-panel-keeps-its-padding-beside-a-scrollbar', async () => {
+    const { page, context, checkProof } = await open('open-panel-keeps-its-padding-beside-a-scrollbar', PAGE, { width: 1024, height: 500, scrollbars: true });
+    await checkProof();
+    await makeRailScroll(page);
+    const facts = await page.evaluate(() => {
+      const rail = document.querySelector('#nav-rail');
+      return {
+        gutter: rail.offsetWidth - rail.clientWidth - 1,
+        room: rail.clientWidth,
+        body: document.querySelector('#nav-rail-body').getBoundingClientRect().right,
+        filter: document.querySelector('[data-nav-filter]').getBoundingClientRect().right,
+      };
+    });
+    if (facts.gutter < 5) broken(`the rail has a ${facts.gutter}px scrollbar, so this case would not test the room it takes`);
+    for (const [name, right] of [['panel', facts.body], ['filter', facts.filter]]) {
+      if (right > facts.room - 9) {
+        fail('open-panel-keeps-its-padding-beside-a-scrollbar', `the ${name} ends at ${right}px in a rail ${facts.room}px wide beside a ${facts.gutter}px scrollbar, want the rail's 10px padding kept`);
+      }
+    }
+    await context.close();
+  });
+
+  // Keyboard focus never lands on a row the sticky head covers.
+  await run('focus-is-never-hidden-under-the-head', async () => {
+    const { page, context, checkProof } = await open('focus-is-never-hidden-under-the-head', PAGE, { width: 1024, height: 420 });
+    await checkProof();
+    await makeRailScroll(page);
+    await page.evaluate((body) => {
+      for (const details of document.querySelectorAll(`${body} details`)) details.open = true;
+      const links = [...document.querySelectorAll(`${body} a[href]`)].filter((a) => a.getClientRects().length > 0);
+      links.at(-1).focus();
+    }, BODY);
+    let steps = 0;
+    for (; steps < 30; steps += 1) {
+      await page.keyboard.press('Shift+Tab');
+      const at = await page.evaluate(() => {
+        const active = document.activeElement;
+        const head = document.querySelector('.y-railhead').getBoundingClientRect();
+        if (!active || !active.closest('#nav-rail-body')) return { done: true };
+        return { done: false, top: active.getBoundingClientRect().top, head: head.bottom, text: active.textContent.trim().slice(0, 30) };
+      });
+      if (at.done) break;
+      if (at.top < at.head - 1) {
+        fail('focus-is-never-hidden-under-the-head', `Shift+Tab step ${steps + 1} focused "${at.text}" at ${at.top}px with the sticky head reaching ${at.head}px`);
+      }
+    }
+    if (steps < 10) broken(`only ${steps} Shift+Tab steps stayed in the panel, too few to have scrolled anything`);
+    await context.close();
+  });
+
+  // A page restored from the back/forward cache is put in the state the cookies
+  // name, and the fold is not animated to get there. The pageshow event is
+  // dispatched by hand: no headless run keeps a page in the cache reliably.
+  const restore = async (site, focusIn) => {
+    const { page, context, checkProof } = await open(site, PAGE, { width: 1281 });
+    await checkProof();
+    await context.addCookies([{ name: 'yomihon_rail', value: 'collapsed', url: BASE }]);
+    if (focusIn) await page.locator(`${BODY} a[href]`).first().focus();
+    await page.evaluate(() => {
+      window.__railTransitions.length = 0;
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    });
+    const now = await geometry(page);
+    await page.waitForTimeout(300);
+    const ran = await page.evaluate(() => window.__railTransitions.slice());
+    return { page, context, now, ran };
+  };
+
+  await run('restore-does-not-animate', async () => {
+    const { context, now, ran } = await restore('restore-does-not-animate', false);
+    if (now.state !== 'collapsed' || Math.round(now.rail.width) !== STRIP) {
+      fail('restore-does-not-animate', `right after a restore the column is ${now.rail.width}px with rail=${now.state}, want the strip at once`);
+    }
+    if (ran.includes('grid-template-columns')) fail('restore-does-not-animate', `a restore ran transitions ${JSON.stringify(ran)}`);
+    await context.close();
+  });
+
+  await run('restore-moves-focus-out', async () => {
+    const { context, now } = await restore('restore-moves-focus-out', true);
+    if (!now.focusInToggle) fail('restore-moves-focus-out', 'a restore that folds the column left focus in the panel it hid');
+    await context.close();
+  });
+
+  // While single keys are off nothing on the button promises one, and turning
+  // them on and off moves it.
+  await run('off-shortcuts-do-not-advertise-the-key', async () => {
+    const { page, context, checkProof } = await open('off-shortcuts-do-not-advertise-the-key', PAGE, { width: 1281 });
+    await context.addCookies([{ name: 'yomihon_shortcuts', value: 'off', url: BASE }]);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('html[data-js]');
+    await checkProof();
+    const read = () => page.evaluate(() => {
+      const button = document.querySelector('[data-rail-toggle]');
+      return { title: button.title, keys: button.getAttribute('aria-keyshortcuts') };
+    });
+    const flip = (on) => page.evaluate((value) => {
+      const box = document.querySelector('[data-single-key-shortcuts-toggle]');
+      box.checked = value;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    }, on);
+    let g = await read();
+    if (g.title.includes('[') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `with single keys off the button says title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    await flip(true);
+    g = await read();
+    if (!g.title.includes('[') || g.keys !== '[') fail('off-shortcuts-do-not-advertise-the-key', `turning single keys on left title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    await flip(false);
+    g = await read();
+    if (g.title.includes('[') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `turning single keys off left title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    await context.close();
+  });
+
+  // The focus ring on the strip's button is whole on both sides: the strip is
+  // forty pixels with a one-pixel edge, and the button sits four in.
+  await run('strip-ring-is-whole', async () => {
+    const { page, context, checkProof } = await open('strip-ring-is-whole', PAGE, { width: 1281, collapsed: true });
+    await checkProof();
+    await page.keyboard.press('Tab');
+    await page.locator(TOGGLE).focus();
+    const ring = await page.evaluate(() => {
+      const button = document.querySelector('[data-rail-toggle]');
+      const style = getComputedStyle(button);
+      const box = button.getBoundingClientRect();
+      const reach = Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth);
+      return { focused: button.matches(':focus-visible'), left: box.left - reach, right: box.right + reach, room: document.querySelector('#nav-rail').clientWidth };
+    });
+    if (!ring.focused) broken('the button is not showing a focus ring');
+    if (ring.left < 0 || ring.right > ring.room) fail('strip-ring-is-whole', `the ring spans ${ring.left}-${ring.right}px in a strip ${ring.room}px wide`);
+    await context.close();
+  });
+
   console.log('PASS rail-collapse: the left column folds to a strip above 900px by button, key and filter key, keeps the reader\'s place and the choice, animates only on change, and leaves the drawer whole');
 } catch (err) {
   if (err instanceof NotApplied) {
@@ -838,5 +1076,6 @@ try {
     process.exitCode = 1;
   }
 } finally {
+  await classicBrowser?.close();
   await browser.close();
 }
