@@ -5,7 +5,7 @@ package wording
 
 // The concept sheet a lesson's wikilinks open.
 var (
-	GrammarNote  = both("文法筆記", "Grammar note")
+	ConceptNote  = both("概念筆記", "Concept note")
 	CloseControl = both("關閉", "Close")
 )
 
