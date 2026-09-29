@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
@@ -26,7 +27,7 @@ func TestDeclaredSourceAndTextCitationLabelsDiffer(t *testing.T) {
 		Title:         "Derived model",
 		RelPath:       "Concepts/yomihon/Derived model.md",
 		VaultHasLinks: true,
-		BasedOn:       []nav.NoteRef{{Name: "Source model", RelPath: "Concepts/yomihon/Source model.md"}},
+		BasedOn:       []snapshot.DeclaredSource{{Name: "Source model", RelPath: "Concepts/yomihon/Source model.md"}},
 		CitedBy:       []nav.NoteRef{{Name: "Other", RelPath: "Concepts/yomihon/Other.md"}},
 	}
 	if err := Note(noteView, layouts.Chrome{}).Render(t.Context(), &noteBuf); err != nil {
@@ -77,7 +78,7 @@ func TestDeclaredSourceRendersAuthorTextWhenUnlinked(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	view := NoteView{
-		BasedOn: []nav.NoteRef{{Name: "[[twin]]"}, {Name: "Book notes", RelPath: "Book notes.md"}},
+		BasedOn: []snapshot.DeclaredSource{{Name: "[[twin]]"}, {Name: "Book notes", RelPath: "Book notes.md"}},
 	}
 	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
@@ -98,7 +99,7 @@ func TestDeclaredSourcesRenderInDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	view := NoteView{
-		BasedOn: []nav.NoteRef{
+		BasedOn: []snapshot.DeclaredSource{
 			{Name: "Zebra", RelPath: "Sources/Zebra.md"},
 			{Name: "Apple", RelPath: "Sources/Apple.md"},
 			{Name: "Middle", RelPath: "Sources/Middle.md"},
