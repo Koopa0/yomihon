@@ -10,10 +10,10 @@ var OpenThoughtsCount = both("%d 筆", "%d items")
 var OpenThoughtsCountOne = both("%d 筆", "%d item")
 
 // OpenThoughtsLedeFmt names the literal role and initial stages behind this view.
-var OpenThoughtsLedeFmt = both("類型為 %s、狀態為 %s 的筆記，以及你的位置標記；依時間由新到舊。", "Notes of type %s with status %s, together with your marked locations; newest first.")
+var OpenThoughtsLedeFmt = both("類型為 %s、處於以下任一初始狀態的筆記：%s；加上你的位置標記，依時間由新到舊。", "Notes of type %s in any of these initial statuses: %s; together with your marked locations, newest first.")
 
 // OpenThoughtsEmptyFmt states which declarations fill the empty shelf.
-var OpenThoughtsEmptyFmt = both("尚無標記位置，或類型為 %s、狀態為 %s 的筆記。", "No marked locations or notes of type %s with status %s yet.")
+var OpenThoughtsEmptyFmt = both("尚無標記位置，也沒有類型為 %s、處於以下任一初始狀態的筆記：%s。", "No marked locations or notes of type %s in any of these initial statuses: %s.")
 
 // OpenThoughtsMarksLede describes the shelf when no usable answer role exists.
 var OpenThoughtsMarksLede = both("你標記為「還不確定」的位置，依時間由新到舊。", "Locations you marked as “Not sure yet”, newest first.")

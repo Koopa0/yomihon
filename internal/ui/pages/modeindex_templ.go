@@ -72,26 +72,63 @@ func ListIndex(v ListIndexView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			if v.Notice != "" {
+				templ_7745c5c3_Var4 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+					if !templ_7745c5c3_IsBuffer {
+						defer func() {
+							templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+							if templ_7745c5c3_Err == nil {
+								templ_7745c5c3_Err = templ_7745c5c3_BufErr
+							}
+						}()
+					}
+					ctx = templ.InitializeContext(ctx)
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var5 string
+					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 20, Col: 19}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					return nil
+				})
+				templ_7745c5c3_Err = nothingToShow(nothingNotice{Kind: v.Mode, Fault: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
 			if v.Fault != "" {
 				templ_7745c5c3_Err = indexFault(v.Fault, c).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else if len(v.Shelf.Rows) == 0 && v.Shelf.Empty != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"y-homeempty\" data-index-empty>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<p class=\"y-homeempty\" data-index-empty>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var4 string
-				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(v.Shelf.Empty)
+				var templ_7745c5c3_Var6 string
+				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(v.Shelf.Empty)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 21, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 26, Col: 60}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -104,7 +141,7 @@ func ListIndex(v ListIndexView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></main>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div></main>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -140,12 +177,12 @@ func FolderIndex(v ListIndexView, recent RecentBlock, statuses StatusDistributio
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var5 == nil {
-			templ_7745c5c3_Var5 = templ.NopComponent
+		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var7 == nil {
+			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var6 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var8 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -163,7 +200,7 @@ func FolderIndex(v ListIndexView, recent RecentBlock, statuses StatusDistributio
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = ListIndex(v, c).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = ListIndex(v, c).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -191,18 +228,18 @@ func shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chr
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var7 == nil {
-			templ_7745c5c3_Var7 = templ.NopComponent
+		templ_7745c5c3_Var9 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var9 == nil {
+			templ_7745c5c3_Var9 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		if len(recent.Notes) > 0 || len(statuses.Statuses) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"y-homegrid y-shelfblocks\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"y-homegrid y-shelfblocks\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if len(recent.Notes) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<section class=\"y-homeblock y-homeblock--recent\" data-home-block=\"recent\" aria-labelledby=\"folders-recent-title\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<section class=\"y-homeblock y-homeblock--recent\" data-home-block=\"recent\" aria-labelledby=\"folders-recent-title\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -210,25 +247,25 @@ func shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chr
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"y-homerecent\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"y-homerecent\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				for _, n := range recent.Notes {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<a class=\"y-homenote\" href=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<a class=\"y-homenote\" href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var8 templ.SafeURL
-					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(n.RelPath)))
+					var templ_7745c5c3_Var10 templ.SafeURL
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(notesHref(n.RelPath)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 54, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 59, Col: 67}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" data-home-recent-note><span class=\"y-homenote__main\"><span class=\"y-homenote__title\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" data-home-recent-note><span class=\"y-homenote__main\"><span class=\"y-homenote__title\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -236,69 +273,69 @@ func shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chr
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, ">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, ">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var9 string
-					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(n.Title)
+					var templ_7745c5c3_Var11 string
+					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(n.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 56, Col: 91}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 61, Col: 91}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</span> <span class=\"y-homenote__path\">")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var10 string
-					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(n.RelPath)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 57, Col: 51}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span> <span class=\"y-homenote__path\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</span></span> <span class=\"y-homenote__meta\">")
+					var templ_7745c5c3_Var12 string
+					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(n.RelPath)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 62, Col: 51}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</span></span> <span class=\"y-homenote__meta\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					if n.Status != "" {
-						var templ_7745c5c3_Var11 = []any{"ui-status", "ui-status--" + n.Status}
-						templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var11...)
+						var templ_7745c5c3_Var13 = []any{"ui-status", "ui-status--" + n.Status}
+						templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var13...)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span class=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<span class=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var12 string
-						templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var11).String())
+						var templ_7745c5c3_Var14 string
+						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var13).String())
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 1, Col: 0}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var13 string
-						templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(n.Status)
+						var templ_7745c5c3_Var15 string
+						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(n.Status)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 61, Col: 74}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 66, Col: 74}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</span> ")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</span> ")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -310,49 +347,49 @@ func shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chr
 						}
 					}
 					if n.Modified != "" {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<time datetime=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<time datetime=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var14 string
-						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(n.ModifiedAt)
+						var templ_7745c5c3_Var16 string
+						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(n.ModifiedAt)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 67, Col: 39}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 72, Col: 39}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\">")
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var15 string
-						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(n.Modified)
-						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 67, Col: 54}
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</time>")
+						var templ_7745c5c3_Var17 string
+						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(n.Modified)
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 72, Col: 54}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</time>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span></a>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</span></a>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div></section>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div></section>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 			if len(statuses.Statuses) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<section class=\"y-homeblock y-homeblock--lifecycle\" data-home-block=\"lifecycle\" aria-labelledby=\"folders-lifecycle-title\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<section class=\"y-homeblock y-homeblock--lifecycle\" data-home-block=\"lifecycle\" aria-labelledby=\"folders-lifecycle-title\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -360,43 +397,43 @@ func shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chr
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"y-homechips\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<div class=\"y-homechips\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				for _, it := range statuses.Statuses {
-					var templ_7745c5c3_Var16 = []any{"y-homechip", templ.KV("y-homechip--unknown", it.Unknown)}
-					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var16...)
+					var templ_7745c5c3_Var18 = []any{"y-homechip", templ.KV("y-homechip--unknown", it.Unknown)}
+					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var18...)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<a class=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<a class=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var17 string
-					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var16).String())
+					var templ_7745c5c3_Var19 string
+					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var18).String())
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 1, Col: 0}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\" href=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var18 templ.SafeURL
-					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(statusHref(it.Name)))
+					var templ_7745c5c3_Var20 templ.SafeURL
+					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(statusHref(it.Name)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 80, Col: 115}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 85, Col: 115}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -404,23 +441,23 @@ func shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chr
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</a>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</a>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				if len(statuses.Unstated) > 0 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"y-homeunstated\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<div class=\"y-homeunstated\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					for _, it := range statuses.Unstated {
 						if it.Href == "" {
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<span class=\"y-homeunstated__cell\">")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<span class=\"y-homeunstated__cell\">")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -428,25 +465,25 @@ func shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chr
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</span>")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</span>")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 						} else {
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<a class=\"y-homeunstated__cell\" href=\"")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<a class=\"y-homeunstated__cell\" href=\"")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							var templ_7745c5c3_Var19 templ.SafeURL
-							templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(it.Href))
+							var templ_7745c5c3_Var21 templ.SafeURL
+							templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(it.Href))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 93, Col: 66}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 98, Col: 66}
 							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\">")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\">")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -454,36 +491,36 @@ func shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chr
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</a>")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</a>")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div><p class=\"y-homeblock__note\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</div><p class=\"y-homeblock__note\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var20 string
-					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(wording.LifecycleUnstatedNote.In(c.Lang))
+					var templ_7745c5c3_Var22 string
+					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(wording.LifecycleUnstatedNote.In(c.Lang))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 99, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 104, Col: 77}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</p>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</p>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</section>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</section>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -512,84 +549,84 @@ func indexHead(kicker, title, lede string, lang wording.Lang) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var21 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var21 == nil {
-			templ_7745c5c3_Var21 = templ.NopComponent
+		templ_7745c5c3_Var23 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var23 == nil {
+			templ_7745c5c3_Var23 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<header class=\"y-home__head\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<header class=\"y-home__head\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if kicker != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<div class=\"y-home__kicker\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var22 string
-			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(kicker)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 114, Col: 39}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</div>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<h1 class=\"y-title\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var23 string
-		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(title)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 116, Col: 29}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</h1>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if lede != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<div class=\"y-home__kicker\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var24 string
-			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(lede)
+			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(kicker)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 118, Col: 12}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 119, Col: 39}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<a class=\"y-back\" href=\"/\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<h1 class=\"y-title\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var25 string
-		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(wording.BackHome.In(lang))
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 120, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 121, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</a></header>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</h1>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if lede != "" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<p>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var26 string
+			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(lede)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 123, Col: 12}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</p>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<a class=\"y-back\" href=\"/\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var27 string
+		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(wording.BackHome.In(lang))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/modeindex.templ`, Line: 125, Col: 56}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</a></header>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -615,12 +652,12 @@ func indexFault(fault string, c layouts.Chrome) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var26 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var26 == nil {
-			templ_7745c5c3_Var26 = templ.NopComponent
+		templ_7745c5c3_Var28 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var28 == nil {
+			templ_7745c5c3_Var28 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<section class=\"y-homeblock y-homeblock--faults\" data-home-block=\"faults\" aria-labelledby=\"index-faults-title\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<section class=\"y-homeblock y-homeblock--faults\" data-home-block=\"faults\" aria-labelledby=\"index-faults-title\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -628,7 +665,7 @@ func indexFault(fault string, c layouts.Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<p class=\"y-homeempty\" data-home-fault>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<p class=\"y-homeempty\" data-home-fault>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -636,7 +673,7 @@ func indexFault(fault string, c layouts.Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</p></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</p></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

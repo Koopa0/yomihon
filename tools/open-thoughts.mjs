@@ -83,6 +83,10 @@ async function nativeShelf(browser, base, copy) {
     assert.equal(await block.locator('[data-desk-item]').count(), 5, 'Home shows five');
     assert((await block.locator('[data-desk-item]').first().textContent()).includes('Thought 7'), 'outside-knowledge answer is newest');
     assert((await block.textContent()).includes('[[Notes/Open source#Source section]]'), 'authored source section is on the Home row');
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'narrow Home has no horizontal overflow');
+    const screenshots = join(process.env.RUNNER_TEMP || '/tmp', 'open-thoughts-screenshots');
+    await mkdir(screenshots, { recursive: true });
+    await page.screenshot({ path: join(screenshots, `home-${copy.lang}-390.png`), fullPage: true });
     await block.locator('a.y-shelfall').click();
     assert.equal(new URL(page.url()).pathname, '/open-thoughts');
     const rows = page.locator('[data-index-row]');
@@ -90,6 +94,8 @@ async function nativeShelf(browser, base, copy) {
     assert.deepEqual(await rows.evaluateAll((items) => items.map((item) => item.getAttribute('href'))), [
       '/notes/Outside/Open7.md', ...[6, 5, 4, 3, 2, 1].map((i) => `/notes/Notes/Open${i}.md`),
     ], 'whole ordered answer set');
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'narrow full shelf has no horizontal overflow');
+    await page.screenshot({ path: join(screenshots, `all-${copy.lang}-390.png`), fullPage: true });
     await rows.last().click();
     assert.equal(new URL(page.url()).pathname, '/notes/Notes/Open1.md', 'oldest thought remains reachable');
     assert(await page.locator('.y-article').isVisible());

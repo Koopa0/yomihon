@@ -170,6 +170,9 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			if !strings.Contains(page, "Marks cannot be read right now") || strings.Contains(page, "No locations marked") || strings.Contains(page, "0 items") {
 				t.Error("corrupt marks were presented as an empty shelf rather than unavailable")
 			}
+			if strings.Contains(page, "Contract capabilities") || strings.Contains(page, "Some pages cannot be shown because of it") {
+				t.Error("the reader's damaged mark file was mislabeled as a vault contract failure")
+			}
 			home := openThoughtPage(t, site, "/", "en")
 			if !strings.Contains(home, "Marks cannot be read right now") || strings.Contains(openThoughtBlock(t, home), "No locations marked") {
 				t.Error("Home hid unavailable marks behind an empty shelf")
@@ -188,8 +191,8 @@ func TestOpenThoughtsEmptyNamesEveryInitialStage(t *testing.T) {
 	putOpenThoughtFile(t, root, schema.ContractRelPath, openThoughtContract)
 	site, _ := openThoughtSite(t, root)
 	for lang, sentence := range map[string]string{
-		"en":      "No marked locations or notes of type reflection with status started, revisit yet.",
-		"zh-Hant": "尚無標記位置，或類型為 reflection、狀態為 started、revisit 的筆記。",
+		"en":      "No marked locations or notes of type reflection in any of these initial statuses: started, revisit.",
+		"zh-Hant": "尚無標記位置，也沒有類型為 reflection、處於以下任一初始狀態的筆記：started、revisit。",
 	} {
 		if page := openThoughtPage(t, site, "/open-thoughts", lang); !strings.Contains(page, sentence) {
 			t.Errorf("declared empty state missing %q", sentence)

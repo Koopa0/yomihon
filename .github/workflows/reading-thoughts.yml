@@ -67,3 +67,4 @@ jobs:
             ${{ runner.temp }}/thought-mutations/
             ${{ runner.temp }}/open-thoughts.log
             ${{ runner.temp }}/open-thoughts-mutations/
+            ${{ runner.temp }}/open-thoughts-screenshots/
