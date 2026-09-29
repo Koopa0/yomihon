@@ -45,6 +45,9 @@ type Shelf struct {
 // Row is one document on the shelf.
 type Row struct {
 	Text string
+	// Wrap preserves a location or declaration that must stay readable even
+	// on the narrow desk, rather than shortening the dated row with ellipsis.
+	Wrap bool
 	// Href is where the row leads, and is empty for a row that is listed
 	// without being a stop: a lesson nobody has written yet is still part of
 	// the course, and saying so is not the same as offering to open it.

@@ -93,15 +93,16 @@ templ Home(v HomeView, c layouts.Chrome) {
 				// came back for it and the four are what they walk past when
 				// they did not.
 				@continueRow(v.Continue, c.Lang)
-				if v.OpenThoughts.Title != "" {
-					@ShelfBlock(v.OpenThoughts, "open-thoughts", 5, c.Lang)
-					if v.OpenThoughtsFault != "" {
-						@nothingToShow(nothingNotice{Kind: "open-thoughts", Fault: true}) {
-							<p>{ v.OpenThoughtsFault }</p>
+				<div class="y-homegrid">
+					if v.OpenThoughts.Title != "" {
+						@ShelfBlock(v.OpenThoughts, "open-thoughts", 5, c.Lang) {
+							if v.OpenThoughtsFault != "" {
+								@nothingToShow(nothingNotice{Kind: "open-thoughts", Fault: true}) {
+									<p>{ v.OpenThoughtsFault }</p>
+								}
+							}
 						}
 					}
-				}
-				<div class="y-homegrid">
 					for _, block := range v.Blocks {
 						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
 					}

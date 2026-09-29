@@ -83,6 +83,13 @@ async function nativeShelf(browser, base, copy) {
     assert.equal(await block.locator('[data-desk-item]').count(), 5, 'Home shows five');
     assert((await block.locator('[data-desk-item]').first().textContent()).includes('Thought 7'), 'outside-knowledge answer is newest');
     assert((await block.textContent()).includes('[[Notes/Open source#Source section]]'), 'authored source section is on the Home row');
+    for (const row of await block.locator('[data-desk-item]').all()) {
+      assert(await row.locator('span').nth(1).evaluate((text) => {
+        const style = getComputedStyle(text);
+        return style.whiteSpace !== 'nowrap' && style.textOverflow !== 'ellipsis' && text.scrollWidth <= text.clientWidth + 1;
+      }), 'Home source location stays visibly readable instead of clipped');
+    }
+    assert.equal(await block.locator('..').getAttribute('class'), 'y-homegrid', 'existing grid supplies spacing between shelves');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'narrow Home has no horizontal overflow');
     const screenshots = join(process.env.RUNNER_TEMP || '/tmp', 'open-thoughts-screenshots');
     await mkdir(screenshots, { recursive: true });

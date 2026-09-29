@@ -79,6 +79,9 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 			if got := strings.Count(block, "data-desk-item"); got != 5 {
 				t.Errorf("open desk rows = %d, want exactly five", got)
 			}
+			if got := strings.Count(block, "ui-navitem--wrap"); got != 5 {
+				t.Errorf("open desk rows preserving their source location = %d, want five", got)
+			}
 			if !strings.Contains(block, `href="/open-thoughts"`) || !strings.Contains(block, `class="ui-navitem y-shelfall"`) {
 				t.Error("open desk does not expose the existing All shelf link")
 			}

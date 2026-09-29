@@ -102,7 +102,7 @@ func (h *Handler) openNoteRows(ctx context.Context, snap *snapshot.Generation, r
 		if declarations := snap.BasedOnDeclarations(reading.RelPath); len(declarations) > 0 {
 			text += " — " + strings.Join(declarations, "; ")
 		}
-		row := pages.Row{Text: text, Href: pages.ResumeHref(reading.RelPath, "", 0), Language: reading.Language}
+		row := pages.Row{Text: text, Href: pages.ResumeHref(reading.RelPath, "", 0), Language: reading.Language, Wrap: true}
 		if !reading.Updated.IsZero() {
 			row.When = reading.Updated.Format(time.DateOnly)
 		}
@@ -121,7 +121,7 @@ func openMarkRow(kept *mark.Uncertainty, snap *snapshot.Generation, lang wording
 		text += " #" + kept.Anchor
 	}
 	row := pages.Row{
-		Text: text, Href: pages.ResumeHref(kept.RelPath, kept.Anchor, 0),
+		Text: text, Href: pages.ResumeHref(kept.RelPath, kept.Anchor, 0), Wrap: true,
 		When: kept.At.Format(time.DateOnly), Mark: wording.UncertaintyControl.In(lang), Language: reading.Language,
 	}
 	if !found {

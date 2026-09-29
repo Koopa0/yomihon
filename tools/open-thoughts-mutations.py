@@ -15,6 +15,13 @@ spec.loader.exec_module(runner)
 # and the designated assertion's normal Go test failure. It restores bytes
 # after every mode, including timeout, signal, and failed evidence checks.
 runner.MODES = {
+    "visible-source-location": {
+        "file": "internal/note/openthoughts.go",
+        "before": "Language: reading.Language, Wrap: true",
+        "after": "Language: reading.Language, Wrap: false",
+        "test": "TestOpenThoughtsComposesBothSourcesAndReachesOlderRows",
+        "assertion": "open desk rows preserving their source location =",
+    },
     "literal-initial": {
         "file": "internal/schema/declaredinitial.go",
         "before": "c != nil && c.initialDeclared && c.StartsAt(noteType, status)",
