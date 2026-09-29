@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
@@ -339,7 +340,7 @@ func TestStatusBarMirrorsTheStatusPanelGuard(t *testing.T) {
 			}
 			if tt.wantStatusBar {
 				html := buf.String()
-				want := `<section class="y-sealbar" lang="zh-Hant" aria-label="` + wording.StatusBar.In(wording.ZhHant) + `"`
+				want := `<section class="y-sealbar" lang="zh-Hant" aria-labelledby="status-bar-label"`
 				if !strings.Contains(html, want) {
 					t.Errorf("status bar is not a named region: missing %q", want)
 				}
@@ -721,10 +722,10 @@ func TestTheConceptSheetCloseNamesWhatItCloses(t *testing.T) {
 		t.Fatalf("render concept sheet: %v", err)
 	}
 	html := buf.String()
-	if !strings.Contains(html, `<dialog id="concept-sheet"`) {
+	if !strings.Contains(html, `<dialog id="_y-concept-sheet"`) {
 		t.Errorf("the sheet carries no id for a press to name; html = %q", html)
 	}
-	if !strings.Contains(html, `command="close" commandfor="concept-sheet"`) {
+	if !strings.Contains(html, `command="close" commandfor="_y-concept-sheet"`) {
 		t.Errorf("the close press does not declare what it closes; html = %q", html)
 	}
 	// The sheet is also asked to keep the platform's own two ways out, because
@@ -734,19 +735,81 @@ func TestTheConceptSheetCloseNamesWhatItCloses(t *testing.T) {
 	}
 }
 
-// TestAPressNamesAnOverlayThePageAnswersFirst holds the one thing that decides
-// whether a press declared in the markup reaches the surface it names. A name
-// is answered by whichever element in the page carries it first, and the ids a
-// note stamps on its own headings are folded from the words the author wrote —
-// so a heading called "Search dialog" or "Concept sheet" folds to exactly the
-// name one of these presses uses. Every surface a press names is therefore
-// drawn ahead of the note's own words, where no heading can come before it.
+// TestTheConceptSheetIsNamedByItsTitle holds the sheet's accessible name to
+// the words the reader sees in its head: the dialog points at the heading the
+// script fills, rather than carrying a fixed word that would drift from it. A
+// concept that arrives untitled still gets a name, because the heading is what
+// names the sheet and an empty one would leave it unnamed.
+func TestTheConceptSheetIsNamedByItsTitle(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		lang wording.Lang
+		want string
+	}{
+		{"zh-Hant", wording.ZhHant, "概念筆記"},
+		{"en", wording.En, "Concept note"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			concepts := []lesson.ConceptDoc{
+				{ID: "c1", Title: "は", HTML: "<p>concept</p>"},
+				{ID: "c2", Title: "  ", HTML: "<p>untitled</p>"},
+			}
+			if err := conceptSheet(concepts, tc.lang).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render concept sheet: %v", err)
+			}
+			html := buf.String()
+
+			dialog := regexp.MustCompile(`<dialog [^>]*>`).FindString(html)
+			if dialog == "" {
+				t.Fatalf("no dialog rendered; html = %q", html)
+			}
+			match := regexp.MustCompile(`aria-labelledby="([^"]+)"`).FindStringSubmatch(dialog)
+			if match == nil {
+				t.Fatalf("the sheet is not named by a title; dialog = %q", dialog)
+			}
+			if strings.Contains(dialog, "aria-label=") {
+				t.Errorf("a fixed aria-label still names the sheet; dialog = %q", dialog)
+			}
+			heading := regexp.MustCompile(`<h2 [^>]*id="` + regexp.QuoteMeta(match[1]) + `"[^>]*>`).FindString(html)
+			if heading == "" {
+				t.Fatalf("the sheet names id %q and no heading carries it; html = %q", match[1], html)
+			}
+			if strings.Count(html, `id="`+match[1]+`"`) != 1 {
+				t.Errorf("id %q is not unique on the sheet; html = %q", match[1], html)
+			}
+			if graph.SectionID(match[1]) == match[1] {
+				t.Errorf("title id %q is inside the authored section namespace", match[1])
+			}
+			if !strings.Contains(html, `data-title="は"`) {
+				t.Errorf("a titled concept lost its title; html = %q", html)
+			}
+			if !strings.Contains(html, `data-title="`+tc.want+`"`) {
+				t.Errorf("an untitled concept has no neutral name %q; html = %q", tc.want, html)
+			}
+		})
+	}
+}
+
+// TestAPressNamesAnOverlayThePageAnswersFirst keeps every invoker target
+// unique even when authored headings use the old chrome names. The chrome owns
+// its own namespace; rendering must preserve the author's section addresses.
 func TestAPressNamesAnOverlayThePageAnswersFirst(t *testing.T) {
 	t.Parallel()
 
 	model := buildModel(t)
 	var buf bytes.Buffer
-	page := Note(recordedNoteView(t, model, "Writing/lessons/go/L01.md"), recordedChrome())
+	const headings = "## Search dialog\n\n## Concept sheet\n\n## Header fold\n\n## Kbd help\n"
+	view := renderedNoteView(t, model, "Writing/lessons/go/L01.md", headings)
+	for _, id := range []string{"search-dialog", "concept-sheet", "header-fold", "kbd-help"} {
+		if !strings.Contains(view.BodyHTML, `id="`+id+`"`) {
+			t.Errorf("authored section address %q was changed or omitted", id)
+		}
+	}
+	page := Note(view, recordedChrome())
 	if err := page.Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render note page: %v", err)
 	}
@@ -761,6 +824,9 @@ func TestAPressNamesAnOverlayThePageAnswersFirst(t *testing.T) {
 		t.Fatal("no press on this page names a surface, so this test read a page it cannot ask anything of")
 	}
 	for _, match := range named {
+		if graph.SectionID(match[1]) == match[1] {
+			t.Errorf("overlay target %q is inside the authored section namespace", match[1])
+		}
 		id := `id="` + match[1] + `"`
 		first := strings.Index(html, id)
 		switch {

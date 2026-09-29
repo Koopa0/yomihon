@@ -15,7 +15,7 @@ func TestDeclaredSourceAndTextCitationLabelsDiffer(t *testing.T) {
 	const (
 		declared = `ui-side__label">聲明的來源`
 		cited    = `ui-side__label">正文連到這篇`
-		islands  = "沒有正文連過來的筆記"
+		islands  = "沒有正文 [[…]] 連結連過來的筆記"
 	)
 	if declared == cited || declared == islands {
 		t.Fatalf("declared-source %q must differ from cited-in-the-text labels %q and %q", declared, cited, islands)
@@ -68,8 +68,8 @@ func TestDeclaredSourceAndTextCitationLabelsDiffer(t *testing.T) {
 	if strings.Contains(healthHTML, "沒有人連過來的筆記") {
 		t.Error("the health list still uses the old unscoped island heading")
 	}
-	if !strings.Contains(healthHTML, "把它們寫進來源聲明並不算這裡說的連過來") {
-		t.Error("the health list does not say a declared source is outside this list's scope")
+	if !strings.Contains(healthHTML, "一般 Markdown 連結和來源聲明都不計入") {
+		t.Error("the health list does not exclude ordinary Markdown links and declared sources from its scope")
 	}
 }
 

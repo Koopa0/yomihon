@@ -37,14 +37,7 @@ templ Base(c Chrome) {
 			<a class="y-skiplink" href="#main-content">{ wording.SkipToContent.In(c.Lang) }</a>
 			<div class="yomihon">
 				@header(c)
-				// Ahead of the page, and that is load-bearing. A press names
-				// the palette by id, and a name is answered by whichever
-				// element carries it first. The ids a note stamps on its own
-				// headings are folded from the words the author wrote, so a
-				// heading called "Search dialog" folds to exactly this name —
-				// and would answer the press if it came first. The skip link's
-				// target and the two header panels are ahead of the page for
-				// the same reason.
+				// Overlay ids use underscores, which authored SectionID values cannot contain.
 				@searchDialog(c.Lang)
 				{ children... }
 			</div>
@@ -82,17 +75,14 @@ templ header(c Chrome) {
 			<span class="y-brand__tag">{ wording.BrandTag.In(c.Lang) }</span>
 		</div>
 		<div class="y-header__spacer"></div>
-		// The press declares what it opens and the browser performs it, so the
-		// palette comes up on a page running no script at all. It used to be a
-		// link to the search page whose press the script then cancelled; what
-		// the reader reaches now is the palette itself, and the form inside it
-		// is the same GET to the same page one Enter further on. What that
-		// trades away is opening the search page in a new tab from here.
-		<button class="y-searchbtn" type="button" command="show-modal" commandfor="search-dialog" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
+		// Native invokers open the palette without script. The script keeps a
+		// listener for engines without invokers; the link works without either.
+		<button class="y-searchbtn" type="button" command="show-modal" commandfor="_y-search-dialog" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
 			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
 			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
 			<span class="ui-kbd">⌘K</span>
 		</button>
+		<noscript><a class="y-searchfallback" href="/search">{ wording.SearchTitle.In(c.Lang) }</a></noscript>
 		// Both lengths of the label are drawn and the stylesheet shows the one
 		// the row has room for, because which of them fits is a question about
 		// the window and the server answering it would have to guess. No single
@@ -119,7 +109,7 @@ templ header(c Chrome) {
 		// popover and they are inside it. So each control has one accessible
 		// name, one pressed state, and one place a script can find it,
 		// whichever way the window is sized.
-		<button class="y-iconbtn y-foldbtn" type="button" popovertarget="header-fold" aria-label={ wording.InterfaceOptions.In(c.Lang) } title={ wording.InterfaceOptions.In(c.Lang) }>
+		<button class="y-iconbtn y-foldbtn" type="button" popovertarget="_y-header-fold" aria-label={ wording.InterfaceOptions.In(c.Lang) } title={ wording.InterfaceOptions.In(c.Lang) }>
 			<span aria-hidden="true">⋯</span>
 		</button>
 		// What the panel holds is written as a plain sequence of controls
@@ -127,7 +117,7 @@ templ header(c Chrome) {
 		// added by writing one more of them. They stand in the order the wide
 		// row draws them, because that order is the same list read two ways and
 		// a reader who learned one of them has learned the other.
-		<div id="header-fold" popover class="y-headerfold">
+		<div id="_y-header-fold" popover class="y-headerfold">
 			// The whole-folder view is a destination, like the reading choices
 			// under it: somewhere to go when not reading anything in particular.
 			// It used to disappear on a narrow window while the reading choices
@@ -146,10 +136,10 @@ templ header(c Chrome) {
 			<button class="y-iconbtn y-textsizebtn" type="button" data-textsize-toggle aria-label={ textSizeLabel(c.TextSize, c.Lang) } title={ wording.TextSizeCycle.In(c.Lang) } data-label-m={ wording.TextSizeMedium.In(c.Lang) } data-label-l={ wording.TextSizeLarge.In(c.Lang) } data-label-xl={ wording.TextSizeExtraLarge.In(c.Lang) }>
 				<span aria-hidden="true">{ wording.TextSizeMark.In(c.Lang) }</span>
 			</button>
-			<button class="y-iconbtn y-helpbtn" type="button" popovertarget="kbd-help" aria-label={ wording.KeyboardHelpControl.In(c.Lang) }>
+			<button class="y-iconbtn y-helpbtn" type="button" popovertarget="_y-kbd-help" aria-label={ wording.KeyboardHelpControl.In(c.Lang) }>
 				<span aria-hidden="true">?</span>
 			</button>
-			<div id="kbd-help" popover class="y-kbdhelp" aria-label={ wording.KeyboardHelp.In(c.Lang) }>
+			<div id="_y-kbd-help" popover class="y-kbdhelp" aria-label={ wording.KeyboardHelp.In(c.Lang) }>
 				<h2 class="y-kbdhelp__title">{ wording.KeyboardHelp.In(c.Lang) }</h2>
 				@KeyboardKeys(c.Lang)
 				// The preference belongs beside the keys it governs. In the header
@@ -271,7 +261,7 @@ templ KeyboardKeys(lang wording.Lang) {
 // page running none, the form inside is still an ordinary GET to the search
 // page, so the palette answers with or without the live rows.
 templ searchDialog(lang wording.Lang) {
-	<dialog id="search-dialog" class="y-searchdialog ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any" aria-label={ wording.SearchNotes.In(lang) }>
+	<dialog id="_y-search-dialog" class="y-searchdialog ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any" aria-label={ wording.SearchNotes.In(lang) }>
 		// The palette a reader opens with the keyboard is the same capability
 		// the full page offers, so it is announced as the same landmark. The
 		// element carries that meaning itself, which is one fewer attribute to

@@ -221,3 +221,54 @@ func TestAnUnknownCourseRefusesTheWayTheCoursePageDoes(t *testing.T) {
 		}
 	}
 }
+
+// TestTheListeningPageNamesALessonAsTheCoursePageDoes holds that a lesson's
+// heading here is the name its row prints on the course page: the alias its
+// row wrote, else the note's declared title, else the link text. Before, the
+// page read the note's title with a file-name fallback, so an aliased row and
+// a row over an untitled note read differently on the two pages.
+func TestTheListeningPageNamesALessonAsTheCoursePageDoes(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	lessonDir := filepath.Join(root, "Writing", "lessons", "golang")
+	mapsDir := filepath.Join(root, "Maps")
+	for _, dir := range []string{lessonDir, mapsDir} {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+	lesson := func(name, title string) {
+		head := "---\n"
+		if title != "" {
+			head += "title: \"" + title + "\"\n"
+		}
+		head += "type: lesson\ndomain: golang\nstatus: ready\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n"
+		body := head + "<!-- read-aloud: ja -->\nいち。\n"
+		if err := os.WriteFile(filepath.Join(lessonDir, name+".md"), []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	lesson("First", "First: the title")
+	lesson("Second", "Second: the title")
+	lesson("Third", "")
+	path := "---\ntitle: Go path\ntype: study-path\ndomain: golang\nstatus: evergreen\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n" +
+		"## line | Line | 線 {sequence=primary}\n\n- [[First|Alias words]]\n- [[Second]]\n- [[Writing/lessons/golang/Third]]\n"
+	if err := os.WriteFile(filepath.Join(mapsDir, "Path.md"), []byte(path), 0o600); err != nil {
+		t.Fatalf("write path: %v", err)
+	}
+
+	srv := listenServer(t, root, lessonTypes("lesson"))
+	code, page := get(t, srv.Client(), srv.URL+"/listen/Maps/Path.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET the listening page status = %d, want 200", code)
+	}
+	var got []string
+	for _, match := range lessonHeading.FindAllStringSubmatch(page, -1) {
+		got = append(got, match[2])
+	}
+	want := []string{"Alias words", "Second: the title", "Writing/lessons/golang/Third"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("lesson headings (-want +got):\n%s", diff)
+	}
+}

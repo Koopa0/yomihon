@@ -420,6 +420,24 @@ body {
   padding: 0 10px 0 11px;
 }
 
+.y-searchfallback {
+  color: var(--fg-subtle);
+  font-size: var(--fs-13);
+  white-space: nowrap;
+}
+
+/* With scripting off, the adjacent text link names the search-page route.
+   Use the existing compact search-button presentation so two entrances do
+   not displace the wordmark. Its accessible name and native command remain. */
+.y-header:has(.y-searchfallback) .y-searchbtn {
+  min-width: 0;
+}
+
+.y-header:has(.y-searchfallback) .y-searchbtn__label,
+.y-header:has(.y-searchfallback) .y-searchbtn .ui-kbd {
+  display: none;
+}
+
 .y-searchbtn__label {
   flex: 1;
   text-align: left;
@@ -776,6 +794,42 @@ body {
 .y-railsummary--label {
   font-weight: inherit;
   margin: 0;
+}
+
+/* The head of a book rail: the course's name, then how much of it there is.
+   The name is the one strong line in the rail; the extent is meta beneath it,
+   and a hairline closes the head before the parts begin. The text sits on the
+   same gutter as the rows below it. */
+.y-railbook__title {
+  color: var(--fg);
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+  padding: 8px 10px 0;
+  text-decoration: none;
+  text-wrap: balance;
+}
+
+.y-railbook__span {
+  border-bottom: 1px solid var(--border-faint);
+  color: var(--fg-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  margin: 0;
+  padding: 4px 10px 12px;
+}
+
+/* Part headings in a book are authored titles, not interface labels, so they
+   read in the sans face at a reading size. Folder, reports and library rails
+   keep the label face. */
+.y-railbook .y-railsummary {
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .y-railgroup {

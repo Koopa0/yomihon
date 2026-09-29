@@ -31,7 +31,7 @@ func TestTheHeaderMarkIsInsideTheFoldedPanelAndLast(t *testing.T) {
 	if strings.Count(html, "y-headermark") == 0 {
 		t.Fatalf("the header draws no control for keeping a reading place; html = %q", html)
 	}
-	panel := elementSubtree(t, html, `id="header-fold"`)
+	panel := elementSubtree(t, html, `id="_y-header-fold"`)
 	if !strings.Contains(panel, `class="y-headermark"`) {
 		t.Errorf("the control is somewhere in the header other than the folded panel; panel = %q", panel)
 	}

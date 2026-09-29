@@ -959,3 +959,29 @@ func foldIndexOracle(srcOfFold []int, src int) int {
 	}
 	return len(srcOfFold) - 1
 }
+
+func TestFirstExcerptMarkKeepsItsSourceInterval(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, plain string
+		tokens      []string
+		want        string
+	}{
+		{"overlap", "The ledger holds lanthanum here.", []string{"nthanu", "nthanum here"}, "nthanum here"},
+		{"collapsed whitespace", "before\tlanthanum\n\t here after", []string{"nthanum here"}, "nthanum\n\t here"},
+		{"unicode space", "before\u3000lanthanum\u3000here after", []string{" lanthanum here "}, "lanthanum\u3000here"},
+		{"folded character", "İİ before lanthanum here", []string{"nthanum"}, "nthanum"},
+		{"repeated text", "unmatched before lanthanum here and lanthanum later", []string{"nthanum"}, "nthanum"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			start, end, found := firstSnippetMatch(tt.plain, tt.tokens)
+			if !found || tt.plain[start:end] != tt.want {
+				t.Fatalf("first mark = [%d,%d), found %v: %q; want %q", start, end, found, tt.plain[start:end], tt.want)
+			}
+			if start != strings.Index(tt.plain, tt.want) {
+				t.Fatalf("mark selected a later occurrence at %d", start)
+			}
+		})
+	}
+}

@@ -53,10 +53,10 @@ var (
 		"這些筆記都存在。連結指不到它們，是因為寫的是標題，而標題不是這個書庫解析連結用的名字——檔名和 aliases 才是。要修的是那篇筆記的 aliases，不是再寫一篇。",
 		"These notes exist. The links miss them because they name a title, and a title is not what this library resolves a link by — a filename and its aliases are. The repair is that note's aliases, not another note.",
 	)
-	IslandsTitle = both("沒有正文連過來的筆記", "Notes nothing cites in the text")
+	IslandsTitle = both("沒有正文 [[…]] 連結連過來的筆記", "Notes with no incoming body [[…]] links")
 	IslandsLede  = both(
-		"沒有其他筆記在正文連到它們。把它們寫進來源聲明並不算這裡說的連過來。很多寫作方式本來就不互相引用——日記、逐字稿、模板、產生出來的報告——所以這裡按資料夾分開，先看形狀，再決定哪一堆值得你看。",
-		"No other note cites these in the text. Naming them as a declared source does not count here. Plenty of writing is not meant to be cited — journals, transcripts, templates, generated reports — so they are grouped by folder: see the shape first, then decide which group is worth your time.",
+		"沒有其他筆記在正文用 [[…]] 連結連到它們。一般 Markdown 連結和來源聲明都不計入；即使這裡列出筆記，它仍可能有能正常開啟的 Markdown 連結連過來，不表示那些連結需要修正。很多寫作方式本來就不互相引用——日記、逐字稿、模板、產生出來的報告——所以這裡按資料夾分開，先看形狀，再決定哪一堆值得你看。",
+		"No other note links to these with [[…]] in its body. Ordinary Markdown links and declared sources do not count here; a listed note may still have working incoming Markdown links that need no repair. Plenty of writing is not meant to be cited — journals, transcripts, templates, generated reports — so they are grouped by folder: see the shape first, then decide which group is worth your time.",
 	)
 	StatusOutsideEnumTitle = both("狀態值不在允許清單的筆記", "Notes whose status is outside the list")
 	StatusOutsideEnumLede  = both(

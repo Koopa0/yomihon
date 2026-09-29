@@ -5,18 +5,14 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// TestTheRailAndTheFootWalkTheSameCourse holds one reading page to one order.
-// Where several study paths teach a note, the page walks the one whose domain
-// the note shares; where nothing picks a course out, it keeps the folder's
-// alphabetical neighbour. Either way both onward controls have to name the
-// same lesson: a reader who finishes the prose reaches for the step under it,
-// and sending that step somewhere the rail does not go takes them out of the
-// course they are reading.
-func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
+// TestThePageOffersOneStepOnwardInTheFoot holds one reading page to one order
+// and one place to take it. Where several study paths teach a note, the foot
+// walks the one whose domain the note shares; where nothing picks a course out,
+// it keeps the folder's alphabetical neighbour. Either way the step onward is
+// offered once, under the prose, and the rail beside it carries no second copy.
+func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -46,7 +42,6 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 		// step cannot stand in for a rail that never showed a book.
 		courses  map[string]string
 		wantKind string
-		wantRail string
 		wantFoot string
 	}{
 		{
@@ -56,7 +51,6 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 				"Maps/Secondary path.md": syllabus("Secondary path", "japanese", "Other next"),
 			},
 			wantKind: "book",
-			wantRail: primaryNext,
 			wantFoot: primaryNext,
 		},
 		{
@@ -65,7 +59,6 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 				"Maps/Primary path.md": syllabus("Primary path", "golang", "Primary next"),
 			},
 			wantKind: "book",
-			wantRail: primaryNext,
 			wantFoot: primaryNext,
 		},
 		{
@@ -78,7 +71,6 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 				"Maps/Secondary path.md": syllabus("Secondary path", "meta", "Other next"),
 			},
 			wantKind: "folder",
-			wantRail: "",
 			wantFoot: folderNext,
 		},
 	}
@@ -97,38 +89,14 @@ func TestTheRailAndTheFootWalkTheSameCourse(t *testing.T) {
 			if kind := `data-reading-rail="` + tt.wantKind + `"`; !strings.Contains(page, kind) {
 				t.Fatalf("the page carries no %s rail, so its step onward proves nothing", tt.wantKind)
 			}
-			rail := railOnwardHref(t, page)
-			foot := footOnwardHref(t, page)
-			if rail != tt.wantRail {
-				t.Errorf("the rail offers %q as the step onward, want %q", rail, tt.wantRail)
+			if strings.Contains(page, `class="y-lessonsteps"`) {
+				t.Error("the rail offers a step onward as well as the foot; one page offers one")
 			}
-			if foot != tt.wantFoot {
+			if foot := footOnwardHref(t, page); foot != tt.wantFoot {
 				t.Errorf("the foot offers %q as the step onward, want %q", foot, tt.wantFoot)
-			}
-			if rail != "" && rail != foot {
-				t.Errorf("one page offers two steps onward: the rail goes to %q and the foot to %q", rail, foot)
 			}
 		})
 	}
-}
-
-// railOnwardHref is the address the book rail offers as the lesson after this
-// one, empty where the rail carries a folder rather than a book.
-func railOnwardHref(t *testing.T, page string) string {
-	t.Helper()
-	start := strings.Index(page, `<nav class="y-lessonsteps"`)
-	if start < 0 {
-		return ""
-	}
-	rail, _, closed := strings.Cut(page[start:], "</nav>")
-	if !closed {
-		t.Fatal("the rail's course steps never close")
-	}
-	at := strings.Index(rail, wording.RailNextLesson.In(wording.ZhHant))
-	if at < 0 {
-		return ""
-	}
-	return linkHref(t, rail, at)
 }
 
 // footOnwardHref is the address the foot of the article offers as the step

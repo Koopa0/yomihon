@@ -231,7 +231,7 @@ func TestSearchDialogStatesTheCountOnce(t *testing.T) {
 		t.Fatalf("render search page: %v", err)
 	}
 	page := pageBuf.String()
-	dialog, ok := cutElement(page, `<dialog id="search-dialog"`, "</dialog>")
+	dialog, ok := cutElement(page, `<dialog id="_y-search-dialog"`, "</dialog>")
 	if !ok {
 		t.Fatal("the page has no command palette")
 	}
