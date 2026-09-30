@@ -56,9 +56,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// raw serves the briefing's bytes unchanged, read fresh from disk each
-// request. A file that vanished between the snapshot and this request is a 404
-// rather than a server failure.
+// raw serves the briefing's bytes, read fresh from disk each request, with its
+// link elements made inert (see inertLinks) and nothing else changed. A file
+// that vanished between the snapshot and this request is a 404 rather than a
+// server failure. A briefing marked as UTF-16 is served as plain text: the
+// browser would decode it past the check that disarms its links, so it is not
+// rendered at all.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	snap := h.snapshot().Generation
@@ -75,7 +78,13 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	contentType := "text/html; charset=utf-8"
+	if utf16Marked(b) {
+		contentType = "text/plain; charset=utf-8"
+	} else {
+		b = inertLinks(b)
+	}
+	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	// The mutable latest.html is re-read from disk each request, so a cached
 	// copy in the browser would serve an older briefing than the one on disk.
