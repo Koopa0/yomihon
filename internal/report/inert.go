@@ -38,7 +38,7 @@ const inertRel = ` rel=_ `
 // This is the one change the report route makes to a briefing's bytes, and it
 // is made because the frame cannot refuse the request any other way. A link
 // element does nothing else under this policy. A reader can see the change
-// only where "<link" is text rather than a tag — a textarea, a title, a quoted
+// only where "<link" is text rather than a tag — a textarea, a title, an
 // attribute value such as a tooltip, a string in a style sheet — which shows
 // the inserted relation as text.
 func inertLinks(doc []byte) []byte {

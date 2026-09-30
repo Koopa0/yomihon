@@ -21,9 +21,8 @@ func nested(opener, leaf, closer string, n int) string {
 // about the unknown table instead. The exceptions are the non-ASCII key and
 // the key after a bare carriage return, which this decoder refuses on its
 // own; they are here so that a decoder which accepts them cannot bring the
-// cost back. The cases past the plain ones
-// are the ways a string could hide the structure around it if the walk misread
-// where it ends.
+// cost back. The cases past the plain ones are the ways a string could hide
+// the structure around it if the walk misread where it ends.
 func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 	t.Parallel()
 	past := maxContractDepth + 1
@@ -55,6 +54,7 @@ func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 		{"an array of inline tables with long keys", "[extra]\nx = [" + nested("{"+strings.Repeat("k.", 4)+"k = ", "1", "}", 8) + "]\n"},
 		// A path of few parts can still be long in bytes, and the decoder copies
 		// every byte of it for each key read beneath it.
+		{"a long header with no key beneath it", "[extra." + strings.Repeat("p", maxContractPathBytes) + "]\n"},
 		{"a long header part", "[extra." + strings.Repeat("p", maxContractPathBytes) + "]\nk = 1\n"},
 		{"a long quoted header part", `[extra."` + strings.Repeat("p", maxContractPathBytes) + `"]` + "\nk = 1\n"},
 		{"long keys opening each inline table", "[extra]\nx = " + nested("{"+strings.Repeat("k", 40)+" = ", "1", "}", 7) + "\n"},
