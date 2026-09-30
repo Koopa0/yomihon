@@ -199,9 +199,6 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 		@articleHead(v, lang)
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
-		if v.ThoughtDoor {
-			<p lang={ lang.Tag() }><a class="y-metarow__raw" href={ templ.URL(thoughtHref(v.RelPath, "")) }>{ wording.ThoughtDoor.In(lang) }</a></p>
-		}
 		<div class="y-prose">
 			@templ.Raw(v.BodyHTML)
 		</div>
@@ -289,11 +286,13 @@ templ articleHead(v NoteView, lang wording.Lang) {
 			<div class="y-metarow__detail">
 				@noteFacts(v, lang)
 				@obsidianDoor(v, lang)
+				@thoughtDoor(v, lang)
 			</div>
 		</details>
 		<div class="y-headmeta">
 			@noteFacts(v, lang)
 			@obsidianDoor(v, lang)
+			@thoughtDoor(v, lang)
 		</div>
 	}
 	if v.Stale {
@@ -357,6 +356,16 @@ templ noteFacts(v NoteView, lang wording.Lang) {
 templ obsidianDoor(v NoteView, lang wording.Lang) {
 	if v.ObsidianHref != "" {
 		<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
+	}
+}
+
+// thoughtDoor is the page-level way to leave a thought about this note. It
+// stands in the head's actions beside the Obsidian door, in the same link
+// style, so it reads as something the reader can do with the note rather than
+// as a stray line of the article.
+templ thoughtDoor(v NoteView, lang wording.Lang) {
+	if v.ThoughtDoor {
+		<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.URL(thoughtHref(v.RelPath, "")) }>{ wording.ThoughtDoor.In(lang) }</a>
 	}
 }
 
@@ -530,15 +539,22 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 templ tocList(v NoteView, lang wording.Lang) {
 	<div class="y-toc__list" { authoredLanguageAttrs(v.Language)... }>
 		for _, h := range v.TOC {
-			<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
-			@thoughtSectionLink(v, h, lang)
+			<div class="y-toc__row">
+				<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
+				@thoughtSectionLink(v, h, lang)
+			</div>
 		}
 	</div>
 }
 
+// thoughtSectionLink is the trailing icon of a contents row: the section's own
+// way to leave a thought. It has no visible words, so its name says which
+// section it is for, in the interface's language.
 templ thoughtSectionLink(v NoteView, h render.TOCEntry, lang wording.Lang) {
 	if v.ThoughtDoor {
-		<a href={ templ.URL(thoughtHref(v.RelPath, strings.TrimPrefix(h.ID, v.IDPrefix))) } data-level={ strconv.Itoa(h.Level) } lang={ lang.Tag() } aria-label={ wording.ThoughtSection.In(lang) + ": " + h.Text }>{ wording.ThoughtSection.In(lang) }</a>
+		<a class="y-toc__door" href={ templ.URL(thoughtHref(v.RelPath, strings.TrimPrefix(h.ID, v.IDPrefix))) } lang={ lang.Tag() } aria-label={ fmt.Sprintf(wording.ThoughtSectionFmt.In(lang), h.Text) }>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+		</a>
 	}
 }
 

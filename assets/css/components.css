@@ -2170,6 +2170,55 @@ button.y-freshness__action {
   padding-left: 32px;
 }
 
+/* One heading, one row: the heading's link takes the width and the section's
+   door is a trailing icon in the same row. The door is drawn only where the
+   pointer is on the row or focus is inside it, so a list of headings reads as
+   headings; a touch screen has no hover, so it is always drawn there. */
+.y-toc__row {
+  align-items: stretch;
+  display: flex;
+}
+
+.y-toc__row > a:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.y-toc__list .y-toc__door {
+  align-items: center;
+  border-left: 0;
+  color: var(--fg-faint);
+  display: flex;
+  flex: none;
+  justify-content: center;
+  margin-left: 0;
+  min-width: 28px;
+  opacity: 0;
+  padding: 0;
+}
+
+.y-toc__door svg {
+  height: 14px;
+  width: 14px;
+}
+
+.y-toc__row:hover .y-toc__door,
+.y-toc__row:focus-within .y-toc__door {
+  opacity: 1;
+}
+
+.y-toc__list .y-toc__door:hover {
+  color: var(--accent);
+}
+
+@media (pointer: coarse) {
+  .y-toc__list .y-toc__door {
+    min-width: 44px;
+    opacity: 1;
+  }
+}
+
 .y-statuspanel {
   background: var(--panel);
   border: 1px solid var(--border);
