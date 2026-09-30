@@ -57,7 +57,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 }
 
 // raw serves the briefing's bytes, read fresh from disk each request, with its
-// link elements made inert (see inertLinks) and nothing else changed. A file
+// link elements made inert (see inertLinks) and no other byte changed. A file
 // that vanished between the snapshot and this request is a 404 rather than a
 // server failure. A briefing marked as UTF-16 is served as plain text: the
 // browser would decode it past the check that disarms its links, so it is not

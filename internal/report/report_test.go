@@ -751,17 +751,25 @@ func TestRawDisarmsEveryLinkElement(t *testing.T) {
 	tests := []struct {
 		name, in, want string
 	}{
-		{"space", `<link rel="prerender" href="http://h/">`, `<link rel="" rel="prerender" href="http://h/">`},
-		{"upper case", `<LINK REL=prerender HREF=http://h/>`, `<LINK rel="" REL=prerender HREF=http://h/>`},
-		{"mixed case", `<LiNk rel=preconnect href=http://h/>`, `<LiNk rel="" rel=preconnect href=http://h/>`},
-		{"tab", "<link\trel=prerender href=http://h/>", "<link rel=\"\"\trel=prerender href=http://h/>"},
-		{"line feed", "<link\nrel=prerender href=http://h/>", "<link rel=\"\"\nrel=prerender href=http://h/>"},
-		{"carriage return", "<link\rrel=prerender href=http://h/>", "<link rel=\"\"\rrel=prerender href=http://h/>"},
-		{"form feed", "<link\frel=prerender href=http://h/>", "<link rel=\"\"\frel=prerender href=http://h/>"},
-		{"solidus", `<link/rel=prerender/href=http://h/>`, `<link rel=""/rel=prerender/href=http://h/>`},
-		{"bare", `<link>`, `<link rel="">`},
-		{"two", `<link rel=a><p>x</p><link rel=b>`, `<link rel="" rel=a><p>x</p><link rel="" rel=b>`},
+		{"space", `<link rel="prerender" href="http://h/">`, `<link rel=_  rel="prerender" href="http://h/">`},
+		{"upper case", `<LINK REL=prerender HREF=http://h/>`, `<LINK rel=_  REL=prerender HREF=http://h/>`},
+		{"mixed case", `<LiNk rel=preconnect href=http://h/>`, `<LiNk rel=_  rel=preconnect href=http://h/>`},
+		{"tab", "<link\trel=prerender href=http://h/>", "<link rel=_ \trel=prerender href=http://h/>"},
+		{"line feed", "<link\nrel=prerender href=http://h/>", "<link rel=_ \nrel=prerender href=http://h/>"},
+		{"carriage return", "<link\rrel=prerender href=http://h/>", "<link rel=_ \rrel=prerender href=http://h/>"},
+		{"form feed", "<link\frel=prerender href=http://h/>", "<link rel=_ \frel=prerender href=http://h/>"},
+		{"solidus", `<link/rel=prerender/href=http://h/>`, `<link rel=_ /rel=prerender/href=http://h/>`},
+		// A reference after the author's "/" decodes to a space; the inserted
+		// value has ended before it, so it cannot add a relation to the value.
+		{"a reference after a solidus", `<link/&#32;prerender href=http://h/>`, `<link rel=_ /&#32;prerender href=http://h/>`},
+		{"an author's bare equals sign", `<link =prerender href=http://h/>`, `<link rel=_  =prerender href=http://h/>`},
+		{"bare", `<link>`, `<link rel=_ >`},
+		{"two", `<link rel=a><p>x</p><link rel=b>`, `<link rel=_  rel=a><p>x</p><link rel=_  rel=b>`},
+		// Inside a quoted attribute value the opener is text; the inserted
+		// relation carries no quote, so the value stays whole.
+		{"inside a quoted attribute", `<p title="see <link rel=x> here">t</p>`, `<p title="see <link rel=_  rel=x> here">t</p>`},
 		{"a longer tag name", `<linkish rel=prerender>`, `<linkish rel=prerender>`},
+		{"a Kelvin sign", "<lin\u212a rel=prerender>", "<lin\u212a rel=prerender>"},
 		{"text", `a link, not <a> tag`, `a link, not <a> tag`},
 		{"an unfinished tag", `<link`, `<link`},
 	}
