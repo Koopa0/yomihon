@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,9 +18,10 @@ func nested(opener, leaf, closer string, n int) string {
 // the decoder, whose cost grows with the square of the depth. Each shape
 // nests one step past the bound, and none would be refused for anything else
 // first: without the guard the decoder reads every one of them and answers
-// about the unknown table instead. The one exception is the non-ASCII key,
-// which this decoder refuses on its own; it is here so that a decoder which
-// accepts such keys cannot bring the cost back. The cases past the plain ones
+// about the unknown table instead. The exceptions are the non-ASCII key and
+// the key after a bare carriage return, which this decoder refuses on its
+// own; they are here so that a decoder which accepts them cannot bring the
+// cost back. The cases past the plain ones
 // are the ways a string could hide the structure around it if the walk misread
 // where it ends.
 func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
@@ -40,6 +42,8 @@ func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 		{"closers inside multi-line strings", "[extra]\nx = " + nested(`{s = """]}""", a = `, "1", "}", past) + "\n"},
 		{"a quote run closing a multi-line string", "[extra]\nx = " + nested(`{s = """]}""""", a = `, "1", "}", past) + "\n"},
 		{"a quote run closing a multi-line literal", "[extra]\nx = " + nested(`{s = ''']}''''', a = `, "1", "}", past) + "\n"},
+		{"four quotes closing a multi-line string", "[extra]\nx = " + nested(`{s = """]}"""", a = `, "1", "}", past) + "\n"},
+		{"four quotes closing a multi-line literal", "[extra]\nx = " + nested(`{s = ''']}'''', a = `, "1", "}", past) + "\n"},
 		{"a backslash ending a literal string", "[extra]\nx = " + nested(`{s = '\', a = `, "1", "}", past) + "\n"},
 		{"an escaped quote inside a basic string", "[extra]\nx = " + nested(`{s = "\"]}", a = `, "1", "}", past) + "\n"},
 		{"closers inside comments", "[extra]\nx = " + nested("[ # ]]]]\n", "1", "]", past) + "\n"},
@@ -56,6 +60,7 @@ func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 		{"long keys opening each inline table", "[extra]\nx = " + nested("{"+strings.Repeat("k", 40)+" = ", "1", "}", 7) + "\n"},
 		{"a long key opening an inline table", "[extra]\nx = { " + strings.Repeat("k", maxContractPathBytes) + " = { a = 1 } }\n"},
 		{"a long quoted key", "[extra]\n\"" + strings.Repeat("k", maxContractPathBytes) + "\" = 1\n"},
+		{"a key after a bare carriage return", "[extra]\nx = 1\r" + strings.Repeat("k", maxContractPathBytes) + " = { b = 1 }\n"},
 		{"long parts within the part bound", "[extra]\n" + strings.Repeat(strings.Repeat("k", 32)+".", 8) + "k = 1\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -118,20 +123,25 @@ func TestDecodeKeepsAContractWithinTheBound(t *testing.T) {
 		}
 	}
 
-	contracts, err := filepath.Glob(filepath.Join("..", "..", "*", "*", "System", "schemas", "vault-schema.toml"))
+	// Every TOML file in the repository is a contract, so the set is found by
+	// walking the tree rather than listed by pattern: a pattern misses the
+	// contract kept one directory deeper than it looks.
+	var contracts []string
+	err := filepath.WalkDir(filepath.Join("..", ".."), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "node_modules") {
+			return filepath.SkipDir
+		}
+		if !entry.IsDir() && filepath.Ext(path) == ".toml" {
+			contracts = append(contracts, path)
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	more, err := filepath.Glob(filepath.Join("..", "..", "internal", "*", "testdata", "*", "System", "schemas", "vault-schema.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	contracts = append(contracts, more...)
-	tomls, err := filepath.Glob(filepath.Join("..", "..", "internal", "*", "testdata", "*.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	contracts = append(contracts, tomls...)
 	if len(contracts) < 10 {
 		t.Fatalf("found %d contracts in the repository, want the whole set", len(contracts))
 	}

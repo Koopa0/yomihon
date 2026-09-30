@@ -1,6 +1,9 @@
 package schema
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 // maxContractDepth bounds how deep arrays and inline tables may nest, and
 // maxContractPath and maxContractPathBytes how long the decoder's key path may
@@ -47,7 +50,9 @@ func checkContractDepth(data []byte) error {
 			continue
 		}
 		if !walk.step(data[i]) {
-			return fmt.Errorf("contract nests deeper than %d levels, or builds a key path longer than %d parts or %d bytes", maxContractDepth, maxContractPath, maxContractPathBytes)
+			line := 1 + bytes.Count(data[:i], []byte("\n"))
+			return fmt.Errorf("contract nests deeper than %d levels, or builds a key path longer than %d parts or %d bytes, at line %d",
+				maxContractDepth, maxContractPath, maxContractPathBytes, line)
 		}
 		i++
 	}
@@ -141,8 +146,10 @@ func (w *depthWalk) step(c byte) bool {
 		w.pop()
 	case c == '.' || c == '=':
 		return w.keyMark(c)
-	case c == ',' || c == '\n':
-		// A comma or a line break ends a key or a value.
+	case c == ',' || c == '\n' || c == '\r':
+		// A comma or a line break ends a key or a value. A carriage return
+		// ends one too, even alone, where this decoder refuses the file, so
+		// the walk does not lean on that refusal.
 		w.endKey(w.inArray())
 	case keyByte(c) && !w.value:
 		w.keyBytes++
