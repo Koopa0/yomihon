@@ -723,3 +723,84 @@ func TestAReportResolvesFromEitherSpellingOfItsName(t *testing.T) {
 		})
 	}
 }
+
+// writeBriefing places body under the briefing name in a fresh vault and
+// returns a handler serving it.
+func writeBriefing(t *testing.T, body []byte) http.Handler {
+	t.Helper()
+	root := t.TempDir()
+	dir := filepath.Join(root, "System", "reports", "daily-briefing")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, briefingName), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return newHandler(t, root)
+}
+
+// TestRawDisarmsEveryLinkElement is the one rewrite the report route makes. A
+// link element can ask the browser to fetch another page ahead of a visit, and
+// the browser makes that request outside the frame's policy, so every link
+// element in a briefing leaves with an empty rel ahead of its own. The cases
+// are the spellings an HTML tokenizer opens a link element from — any letter
+// case, and each character that can end a tag name — beside neighbours it does
+// not, which must come back as written.
+func TestRawDisarmsEveryLinkElement(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, in, want string
+	}{
+		{"space", `<link rel="prerender" href="http://h/">`, `<link rel=_  rel="prerender" href="http://h/">`},
+		{"upper case", `<LINK REL=prerender HREF=http://h/>`, `<LINK rel=_  REL=prerender HREF=http://h/>`},
+		{"mixed case", `<LiNk rel=preconnect href=http://h/>`, `<LiNk rel=_  rel=preconnect href=http://h/>`},
+		{"tab", "<link\trel=prerender href=http://h/>", "<link rel=_ \trel=prerender href=http://h/>"},
+		{"line feed", "<link\nrel=prerender href=http://h/>", "<link rel=_ \nrel=prerender href=http://h/>"},
+		{"carriage return", "<link\rrel=prerender href=http://h/>", "<link rel=_ \rrel=prerender href=http://h/>"},
+		{"form feed", "<link\frel=prerender href=http://h/>", "<link rel=_ \frel=prerender href=http://h/>"},
+		{"solidus", `<link/rel=prerender/href=http://h/>`, `<link rel=_ /rel=prerender/href=http://h/>`},
+		// A reference after the author's "/" decodes to a space; the inserted
+		// value has ended before it, so it cannot add a relation to the value.
+		{"a reference after a solidus", `<link/&#32;prerender href=http://h/>`, `<link rel=_ /&#32;prerender href=http://h/>`},
+		{"an author's bare equals sign", `<link =prerender href=http://h/>`, `<link rel=_  =prerender href=http://h/>`},
+		{"bare", `<link>`, `<link rel=_ >`},
+		{"two", `<link rel=a><p>x</p><link rel=b>`, `<link rel=_  rel=a><p>x</p><link rel=_  rel=b>`},
+		// Inside a quoted attribute value the opener is text; the inserted
+		// relation carries no quote, so the value stays whole.
+		{"inside a quoted attribute", `<p title="see <link rel=x> here">t</p>`, `<p title="see <link rel=_  rel=x> here">t</p>`},
+		{"a longer tag name", `<linkish rel=prerender>`, `<linkish rel=prerender>`},
+		{"a Kelvin sign", "<lin\u212a rel=prerender>", "<lin\u212a rel=prerender>"},
+		{"text", `a link, not <a> tag`, `a link, not <a> tag`},
+		{"an unfinished tag", `<link`, `<link`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rr := get(t, writeBriefing(t, []byte(tt.in)), "/reports/"+briefingName+"/raw")
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rr.Code)
+			}
+			if got := rr.Body.String(); got != tt.want {
+				t.Errorf("raw body for %q = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRawServesAUTF16BriefingAsText holds the one briefing the rewrite cannot
+// read. A byte order mark for UTF-16 overrides the declared charset, so the
+// browser would find link elements in characters the byte match never sees;
+// such a briefing is handed over as plain text, and is never rendered.
+func TestRawServesAUTF16BriefingAsText(t *testing.T) {
+	t.Parallel()
+	for _, mark := range [][]byte{{0xFE, 0xFF}, {0xFF, 0xFE}} {
+		body := append(append([]byte{}, mark...), []byte("<\x00l\x00i\x00n\x00k\x00>\x00")...)
+		rr := get(t, writeBriefing(t, body), "/reports/"+briefingName+"/raw")
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rr.Code)
+		}
+		if ct := rr.Result().Header.Get("Content-Type"); ct != "text/plain; charset=utf-8" {
+			t.Errorf("Content-Type for a briefing opening % x = %q, want text/plain; charset=utf-8", mark, ct)
+		}
+	}
+}

@@ -43,9 +43,9 @@ func (h *Handler) apply(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, wording.PrefUnknownValue.In(lang), http.StatusUnprocessableEntity)
 		return
 	}
-	// #nosec G710 -- localNext admits only a same-site absolute path; every
+	// #nosec G710 -- LocalNext admits only a same-site absolute path; every
 	// other shape of the client-controlled field falls back to Home.
-	http.Redirect(w, r, localNext(r.PostFormValue(nextField)), http.StatusSeeOther)
+	http.Redirect(w, r, origin.LocalNext(r.PostFormValue(nextField)), http.StatusSeeOther)
 }
 
 // returnAddress is where applying a choice sends the reader. It is the address
@@ -57,7 +57,7 @@ func returnAddress(r *http.Request) string {
 	if from == "" {
 		return address
 	}
-	return localNext(from)
+	return origin.LocalNext(from)
 }
 
 // view is the page's own answer for this request: every choice in the order the
