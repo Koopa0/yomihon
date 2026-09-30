@@ -3,91 +3,100 @@ package schema
 import "fmt"
 
 // maxContractDepth bounds how deep arrays and inline tables may nest, and
-// maxContractPath how many parts the decoder's key path may reach: the table
-// header's parts, the parts of each key that opens an inline table on the way
-// down, and the parts of the key being read. A contract written for this
-// schema reaches two levels and a path of three or four parts; the bounds
-// leave room for any honest contract many times over.
+// maxContractPath and maxContractPathBytes how long the decoder's key path may
+// grow, in parts and in bytes: the table header, each key that opens an inline
+// table on the way down, and the key being read. A contract written for this
+// schema reaches two levels and a path of four parts and a few dozen bytes;
+// the bounds leave room for any honest contract many times over.
 //
 // They exist because the TOML decoder copies the whole key path for every key
-// it reads, so its cost grows with the square of the path's length. A contract
-// of some twenty kilobytes that nests a few thousand levels deep, or chains a
-// few thousand key parts, costs the decoder close to a gigabyte, and the
-// contract is the first file read when yomihon starts, so a vault that arrives
-// by clone or sync could exhaust memory before anything else runs. Depth and
-// key length are bounded together, as one path, because either one alone can
-// be kept small while the two multiply. A contract past either bound is
-// refused before the decoder sees the bytes.
+// it reads, so its cost grows with the length of that path times the number
+// of keys. A contract of some twenty kilobytes that nests a few thousand
+// levels deep, or chains a few thousand key parts, costs the decoder close to
+// a gigabyte, and one long key part above a few thousand short keys costs it
+// several; the contract is the first file read when yomihon starts, so a
+// vault that arrives by clone or sync could exhaust memory before anything
+// else runs. Depth, part count and bytes are bounded together, as one path,
+// because any one of them alone can be kept small while the others grow. A
+// contract past a bound is refused before the decoder sees the bytes.
 const (
-	maxContractDepth = 32
-	maxContractPath  = 32
+	maxContractDepth     = 32
+	maxContractPath      = 32
+	maxContractPathBytes = 256
 )
 
 // maxContractBytes bounds the size of a contract the decoder is handed. The
-// path bound keeps each key cheap; this keeps the number of keys finite. A
+// path bounds keep each key cheap; this keeps the number of keys finite. A
 // contract for this schema is a few kilobytes.
 const maxContractBytes = 256 << 10
 
 // checkContractDepth walks data once and refuses it when it is larger than
 // maxContractBytes, nests arrays and inline tables deeper than
-// maxContractDepth, or builds a key path longer than maxContractPath. Strings
-// and comments are passed over by the same rules the decoder reads them with,
-// so a bracket or dot written inside one counts for nothing, and a string
-// cannot hide the structure around it.
+// maxContractDepth, or builds a key path longer than maxContractPath parts or
+// maxContractPathBytes bytes. Strings and comments are passed over by the
+// same rules the decoder reads them with, so a bracket or dot written inside
+// one counts for nothing, and a string cannot hide the structure around it.
 func checkContractDepth(data []byte) error {
 	if len(data) > maxContractBytes {
 		return fmt.Errorf("contract is larger than %d bytes", maxContractBytes)
 	}
 	var walk depthWalk
 	for i := 0; i < len(data); {
-		if next, passed := passOver(data, i); passed {
+		if next, passed := walk.passOver(data, i); passed {
 			i = next
 			continue
 		}
 		if !walk.step(data[i]) {
-			return fmt.Errorf("contract nests deeper than %d levels", maxContractDepth)
+			return fmt.Errorf("contract nests deeper than %d levels, or builds a key path longer than %d parts or %d bytes", maxContractDepth, maxContractPath, maxContractPathBytes)
 		}
 		i++
 	}
 	return nil
 }
 
-// passOver reports whether a comment or a string opens at i and, if one does,
-// the index just past it. A quoted key part is still part of the key around
-// it, so passing over one leaves the count of the key's dots alone.
-func passOver(data []byte, i int) (int, bool) {
-	switch data[i] {
-	case '#':
-		for i < len(data) && data[i] != '\n' {
-			i++
-		}
-		return i, true
-	case '"', '\'':
-		return skipTOMLString(data, i), true
-	}
-	return i, false
+// span is the length of a key path in the two measures the decoder's cost
+// follows: its parts, and the bytes they are written in. A quoted part counts
+// its quotes and escapes, so the count never falls short of what the decoder
+// keeps.
+type span struct {
+	parts, bytes int
+}
+
+func (s span) add(t span) span {
+	return span{parts: s.parts + t.parts, bytes: s.bytes + t.bytes}
+}
+
+// fits reports whether a path of this span is within both bounds.
+func (s span) fits() bool {
+	return s.parts <= maxContractPath && s.bytes <= maxContractPathBytes
 }
 
 // frame is one open array or inline table: the key path its contents are read
 // under, and whether it is an array, whose contents are values, not keys.
 type frame struct {
-	path  int
+	path  span
 	array bool
 }
 
 // depthWalk is where the walk stands: the open arrays and inline tables, the
-// parts of the table header above them, and the key being read.
+// table header above them, and the key being read.
 type depthWalk struct {
 	open     []frame
-	header   int  // parts of the current table header
+	header   span // the current table header
 	inHeader int  // brackets open in a table header being read; 0 outside one
 	dots     int  // dots in the key being read
-	keyParts int  // parts of the key whose value follows its "="
+	keyBytes int  // bytes of the key being read
+	opener   span // the key whose value follows its "="
 	value    bool // what follows is a value, not a key
 }
 
+// key is the span of the key being read: one part, and one more for each dot.
+func (w *depthWalk) key() span {
+	return span{parts: w.dots + 1, bytes: w.keyBytes}
+}
+
 // path is the key path the next key is read under.
-func (w *depthWalk) path() int {
+func (w *depthWalk) path() span {
 	if n := len(w.open); n > 0 {
 		return w.open[n-1].path
 	}
@@ -100,33 +109,46 @@ func (w *depthWalk) inArray() bool {
 	return n > 0 && w.open[n-1].array
 }
 
+// passOver reports whether a comment or a string opens at i and, if one does,
+// the index just past it. A quoted key part is still part of the key around
+// it: passing over one adds its bytes to the key and leaves its dots alone.
+func (w *depthWalk) passOver(data []byte, i int) (int, bool) {
+	switch data[i] {
+	case '#':
+		for i < len(data) && data[i] != '\n' {
+			i++
+		}
+		return i, true
+	case '"', '\'':
+		next := skipTOMLString(data, i)
+		if !w.value {
+			w.keyBytes += next - i
+		}
+		return next, true
+	}
+	return i, false
+}
+
 // step folds one byte outside any string or comment into the walk and reports
 // whether the contract is still within the bounds.
 func (w *depthWalk) step(c byte) bool {
 	switch {
-	case c == '[' && w.readingHeader():
-		// A header's own path starts over from nothing.
-		if w.inHeader == 0 {
-			w.header, w.dots = 0, 0
-		}
-		w.inHeader++
-	case c == ']' && w.inHeader > 0:
-		w.inHeader--
-		if w.inHeader == 0 {
-			w.header, w.dots = w.dots+1, 0
-			return w.header <= maxContractPath
-		}
+	case c == '[' && w.readingHeader(), c == ']' && w.inHeader > 0:
+		return w.headerBracket(c)
 	case c == '[' || c == '{':
 		return w.push(c == '[')
 	case c == ']' || c == '}':
 		w.pop()
 	case c == '.' || c == '=':
-		return w.key(c)
-	case keyByte(c):
-	default:
-		// Anything else ends a key or a value: a comma, a line break.
-		w.dots, w.keyParts, w.value = 0, 0, w.inArray()
+		return w.keyMark(c)
+	case c == ',' || c == '\n':
+		// A comma or a line break ends a key or a value.
+		w.endKey(w.inArray())
+	case keyByte(c) && !w.value:
+		w.keyBytes++
 	}
+	// Anything else — a byte of a value, or a colon or sign inside one — leaves
+	// the walk where it stands.
 	return true
 }
 
@@ -136,25 +158,44 @@ func (w *depthWalk) readingHeader() bool {
 	return w.inHeader > 0 || len(w.open) == 0 && !w.value
 }
 
-// key folds a dot or an "=" into the key being read and reports whether the
-// key, read under the current path, is still within the bound.
-func (w *depthWalk) key(c byte) bool {
+// headerBracket folds a bracket of a table header into the walk. A header's
+// own path starts over from nothing, and is judged once its brackets close.
+func (w *depthWalk) headerBracket(c byte) bool {
+	if c == '[' {
+		if w.inHeader == 0 {
+			w.header, w.dots, w.keyBytes = span{}, 0, 0
+		}
+		w.inHeader++
+		return true
+	}
+	w.inHeader--
+	if w.inHeader > 0 {
+		return true
+	}
+	w.header, w.dots, w.keyBytes = w.key(), 0, 0
+	return w.header.fits()
+}
+
+// keyMark folds a dot or an "=" into the key being read and reports whether
+// the key, read under the current path, is still within the bounds.
+func (w *depthWalk) keyMark(c byte) bool {
 	if c == '=' {
-		w.keyParts, w.dots, w.value = w.dots+1, 0, true
-		return w.within(w.keyParts)
+		w.opener = w.key()
+		w.dots, w.keyBytes, w.value = 0, 0, true
+		return w.path().add(w.opener).fits()
 	}
 	if w.value {
 		// A dot inside a value is a fraction or a time, not a key part.
 		return true
 	}
 	w.dots++
-	return w.within(w.dots + 1)
+	return w.path().add(w.key()).fits()
 }
 
-// within reports whether a key of the given parts, read under the current
-// path, keeps the path within maxContractPath.
-func (w *depthWalk) within(parts int) bool {
-	return w.path()+parts <= maxContractPath
+// endKey forgets the key being read and the key that opened the value, and
+// says whether a value or a key follows.
+func (w *depthWalk) endKey(value bool) {
+	w.dots, w.keyBytes, w.opener, w.value = 0, 0, span{}, value
 }
 
 // push opens an array or inline table. Its contents are read under the path
@@ -164,11 +205,11 @@ func (w *depthWalk) within(parts int) bool {
 func (w *depthWalk) push(array bool) bool {
 	path := w.path()
 	if w.value && !w.inArray() {
-		path += w.keyParts
+		path = path.add(w.opener)
 	}
 	w.open = append(w.open, frame{path: path, array: array})
-	w.dots, w.keyParts, w.value = 0, 0, array
-	return len(w.open) <= maxContractDepth && path <= maxContractPath
+	w.endKey(array)
+	return len(w.open) <= maxContractDepth && path.fits()
 }
 
 // pop closes the innermost open array or inline table.
@@ -176,16 +217,16 @@ func (w *depthWalk) pop() {
 	if n := len(w.open); n > 0 {
 		w.open = w.open[:n-1]
 	}
-	w.dots, w.keyParts, w.value = 0, 0, false
+	w.endKey(false)
 }
 
-// keyByte reports whether c can stand inside a dotted key without ending it:
-// a bare-key character, the spaces a key may carry around its dots, or any
-// byte of a non-ASCII character, which is counted as part of the key rather
-// than trusted to end it.
+// keyByte reports whether c is a byte of a bare key part: a bare-key
+// character, or any byte of a non-ASCII character, which is counted as part of
+// the key rather than trusted to be anything else. The spaces a key may carry
+// around its dots are no part of it, and leave the walk where it stands.
 func keyByte(c byte) bool {
 	return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' ||
-		c == '_' || c == '-' || c == ' ' || c == '\t' || c >= 0x80
+		c == '_' || c == '-' || c >= 0x80
 }
 
 // skipTOMLString returns the index just past the string that opens at i, which

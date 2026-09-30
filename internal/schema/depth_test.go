@@ -49,6 +49,14 @@ func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 		{"a long header above a long key", "[" + strings.Repeat("h.", 19) + "h]\n" + strings.Repeat("k.", 19) + "k = 1\n"},
 		{"inline tables one past the path", "[extra]\ny = " + nested("{a = ", "1", "}", maxContractPath-1) + "\n"},
 		{"an array of inline tables with long keys", "[extra]\nx = [" + nested("{"+strings.Repeat("k.", 4)+"k = ", "1", "}", 8) + "]\n"},
+		// A path of few parts can still be long in bytes, and the decoder copies
+		// every byte of it for each key read beneath it.
+		{"a long header part", "[extra." + strings.Repeat("p", maxContractPathBytes) + "]\nk = 1\n"},
+		{"a long quoted header part", `[extra."` + strings.Repeat("p", maxContractPathBytes) + `"]` + "\nk = 1\n"},
+		{"long keys opening each inline table", "[extra]\nx = " + nested("{"+strings.Repeat("k", 40)+" = ", "1", "}", 7) + "\n"},
+		{"a long key opening an inline table", "[extra]\nx = { " + strings.Repeat("k", maxContractPathBytes) + " = { a = 1 } }\n"},
+		{"a long quoted key", "[extra]\n\"" + strings.Repeat("k", maxContractPathBytes) + "\" = 1\n"},
+		{"long parts within the part bound", "[extra]\n" + strings.Repeat(strings.Repeat("k", 32)+".", 8) + "k = 1\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -92,13 +100,18 @@ func TestDecodeKeepsAContractWithinTheBound(t *testing.T) {
 		})
 	}
 
-	// At the bounds exactly: arrays as deep as allowed, a key whose parts and
-	// its header's fill the path, and inline tables whose innermost key does.
+	// At the bounds exactly: arrays as deep as allowed, a key whose parts or
+	// bytes and its header's fill the path, and inline tables whose innermost
+	// key does.
 	for name, atBound := range map[string]string{
 		"arrays":        "[extra]\nx = " + nested("[", "1", "]", maxContractDepth) + "\n",
 		"a dotted key":  "[extra]\n" + strings.Repeat("a.", maxContractPath-2) + "a = 1\n",
 		"inline tables": "[extra]\ny = " + nested("{a = ", "1", "}", maxContractPath-2) + "\n",
 		"floats":        "[extra]\nx = " + nested("[", "1.5, 2.5", "]", maxContractDepth) + "\n",
+		"a long key":    "[extra]\n" + strings.Repeat("k", maxContractPathBytes-len("extra")) + "=1\n",
+		// A colon or a sign inside a value does not end it, so the dot after
+		// one is still a fraction, not a key part.
+		"a time and a signed float": "[extra]\ny = " + nested("{a = ", "07:32:00.5, b = +1.5", "}", maxContractPath-2) + "\n",
 	} {
 		if err := checkContractDepth([]byte(atBound)); err != nil {
 			t.Errorf("checkContractDepth() with %s at the bound = %v, want nil", name, err)
