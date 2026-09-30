@@ -28,10 +28,10 @@ func LocalNext(next string) string {
 	// newline are refused as well, though the redirect percent-escapes every
 	// non-ASCII byte and so never writes one raw: the language route refused
 	// them before the two checks were one, both routes do now, and an answer
-	// that holds none can be written anywhere else without a second thought. Invalid UTF-8 decodes to the replacement character, which is in
-	// none of these sets and needs no case of its own. No address a page's own
-	// form carries contains any of these, so the fallback refuses no honest
-	// request.
+	// that holds none can be written anywhere else without a second thought.
+	// Invalid UTF-8 decodes to the replacement character, which is in none of
+	// these sets and needs no case of its own. No address a page's own form
+	// carries contains any of these, so the fallback refuses no honest request.
 	for _, r := range next {
 		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == '\u2028' || r == '\u2029' {
 			return "/"
