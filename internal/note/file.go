@@ -319,12 +319,11 @@ func markupDocument(contentType string) bool {
 }
 
 // attachment is the Content-Disposition that saves a file under its own name.
-// A name the header cannot carry saves under whatever the browser chooses.
+// The formatter quotes or percent-encodes the name as it needs, so every name
+// has a value: it answers nothing only for a type or parameter name that is
+// not a token, and both of these are.
 func attachment(name string) string {
-	if value := mime.FormatMediaType("attachment", map[string]string{"filename": name}); value != "" {
-		return value
-	}
-	return "attachment"
+	return mime.FormatMediaType("attachment", map[string]string{"filename": name})
 }
 
 func namedContentType(rel string) (string, bool) {
