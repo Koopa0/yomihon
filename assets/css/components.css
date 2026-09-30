@@ -6592,6 +6592,15 @@ html {
   border-bottom-color: var(--accent);
 }
 
+/* A declared source owns the card the same way, and shows it with the row
+   colouring a pointer resting on it already gets, so the card's owner is
+   still readable after the pointer has crossed into the card. */
+.y-basedon .ui-navitem[data-preview-open] {
+  anchor-name: --y-preview-anchor;
+  background: var(--overlay);
+  color: var(--fg);
+}
+
 .y-preview {
   background: var(--panel);
   border: 1px solid var(--border);
