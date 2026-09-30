@@ -20,16 +20,18 @@ import (
 // clean path again changes nothing, so the redirect sends exactly what passed.
 func LocalNext(next string) string {
 	// A rune that can end a line or a control sequence is refused before any
-	// shape check. The value is written into a header where such a rune
-	// survives, and a parser on the receiving side may drop it before it reads
-	// the shape — so "/\t/host" would leave here as a same-site path and
-	// arrive as a protocol-relative address. The refused set is C0 and delete,
-	// C1 — where U+0085 lives — and the two Unicode separators that end a line
-	// without being a newline. Invalid UTF-8 decodes to the replacement
-	// character, which is not in that set and needs no case of its own, since
-	// the redirect percent-escapes every non-ASCII byte on the way out. No
-	// address a page's own form carries contains any of these, so the fallback
-	// refuses no honest request.
+	// shape check. A C0 control survives into the header the redirect writes,
+	// and a parser on the receiving side may drop it before it reads the shape
+	// — so "/\t/host" would leave here as a same-site path and arrive as a
+	// protocol-relative address. Delete is refused with them. C1 — where U+0085
+	// lives — and the two Unicode separators that end a line without being a
+	// newline are refused as well, though the redirect percent-escapes every
+	// non-ASCII byte and so never writes one raw: the language route refused
+	// them before the two checks were one, both routes do now, and an answer
+	// that holds none can be written anywhere else without a second thought. Invalid UTF-8 decodes to the replacement character, which is in
+	// none of these sets and needs no case of its own. No address a page's own
+	// form carries contains any of these, so the fallback refuses no honest
+	// request.
 	for _, r := range next {
 		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == '\u2028' || r == '\u2029' {
 			return "/"

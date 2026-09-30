@@ -20,8 +20,9 @@ func browserHost(t *testing.T, location string) string {
 	read = strings.NewReplacer("\t", "", "\n", "", "\r", "", `\`, "/").Replace(read)
 	ref, err := url.Parse(read)
 	if err != nil {
-		// An address no parser can read takes the reader nowhere at all.
-		return siteHost
+		// A browser reads addresses Go refuses, a stray percent sign among
+		// them, so an address this oracle cannot parse is one it cannot judge.
+		t.Fatalf("browserHost(%q): %v", location, err)
 	}
 	base := &url.URL{Scheme: "http", Host: siteHost, Path: "/notes/A.md"}
 	return base.ResolveReference(ref).Host
@@ -61,9 +62,6 @@ func TestAReturnAddressNeverLeavesThisSite(t *testing.T) {
 		"/\t/evil.example",
 		"/\n/evil.example",
 		"/\x7f/evil.example",
-		"/\u0085/evil.example",
-		"/\u2028/evil.example",
-		"/\u2029/evil.example",
 		" //evil.example",
 	} {
 		location := redirectedTo(t, next)
@@ -91,6 +89,11 @@ func TestALocalAddressComesBackAsTheRedirectWouldSendIt(t *testing.T) {
 		{next: "", want: "/"},
 		{next: "notes/A.md", want: "/"},
 		{next: `/./\evil.example`, want: "/"},
+		// The redirect would percent-escape these and keep them on the site,
+		// so it is the answer, not the browser, that shows they are refused.
+		{next: "/\u0085/evil.example", want: "/"},
+		{next: "/\u2028/evil.example", want: "/"},
+		{next: "/\u2029/evil.example", want: "/"},
 	}
 	for _, tt := range tests {
 		if got := LocalNext(tt.next); got != tt.want {
