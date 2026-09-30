@@ -489,6 +489,8 @@ func classifyDecodeError(err error) string {
 		return "unknown-core"
 	case strings.HasPrefix(message, "contract keys differ only by letter case: "):
 		return "folded-keys"
+	case strings.HasPrefix(message, "contract nests deeper than "):
+		return "too-deep"
 	case message == "no lifecycle stages":
 		return "missing-lifecycle"
 	case strings.HasPrefix(message, "toml:"):
