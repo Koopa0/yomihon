@@ -491,6 +491,8 @@ func classifyDecodeError(err error) string {
 		return "folded-keys"
 	case strings.HasPrefix(message, "contract nests deeper than "):
 		return "too-deep"
+	case strings.HasPrefix(message, "contract is larger than "):
+		return "too-large"
 	case message == "no lifecycle stages":
 		return "missing-lifecycle"
 	case strings.HasPrefix(message, "toml:"):

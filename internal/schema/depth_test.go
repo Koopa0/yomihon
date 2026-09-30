@@ -43,6 +43,12 @@ func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 		{"a backslash ending a literal string", "[extra]\nx = " + nested(`{s = '\', a = `, "1", "}", past) + "\n"},
 		{"an escaped quote inside a basic string", "[extra]\nx = " + nested(`{s = "\"]}", a = `, "1", "}", past) + "\n"},
 		{"closers inside comments", "[extra]\nx = " + nested("[ # ]]]]\n", "1", "]", past) + "\n"},
+		// Depth and key length each within their bound, multiplied past it:
+		// the decoder's cost follows the whole path, not either part alone.
+		{"a long key opening each inline table", "[extra]\nx = " + nested("{"+strings.Repeat("k.", 4)+"k = ", "1", "}", 8) + "\n"},
+		{"a long header above a long key", "[" + strings.Repeat("h.", 19) + "h]\n" + strings.Repeat("k.", 19) + "k = 1\n"},
+		{"inline tables one past the path", "[extra]\ny = " + nested("{a = ", "1", "}", maxContractPath-1) + "\n"},
+		{"an array of inline tables with long keys", "[extra]\nx = [" + nested("{"+strings.Repeat("k.", 4)+"k = ", "1", "}", 8) + "]\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -86,10 +92,17 @@ func TestDecodeKeepsAContractWithinTheBound(t *testing.T) {
 		})
 	}
 
-	atBound := "[extra]\nx = " + nested("[", "1", "]", maxContractDepth) + "\n" +
-		strings.Repeat("a.", maxContractDepth) + "a = 1\n"
-	if err := checkContractDepth([]byte(atBound)); err != nil {
-		t.Errorf("checkContractDepth() at the bound = %v, want nil", err)
+	// At the bounds exactly: arrays as deep as allowed, a key whose parts and
+	// its header's fill the path, and inline tables whose innermost key does.
+	for name, atBound := range map[string]string{
+		"arrays":        "[extra]\nx = " + nested("[", "1", "]", maxContractDepth) + "\n",
+		"a dotted key":  "[extra]\n" + strings.Repeat("a.", maxContractPath-2) + "a = 1\n",
+		"inline tables": "[extra]\ny = " + nested("{a = ", "1", "}", maxContractPath-2) + "\n",
+		"floats":        "[extra]\nx = " + nested("[", "1.5, 2.5", "]", maxContractDepth) + "\n",
+	} {
+		if err := checkContractDepth([]byte(atBound)); err != nil {
+			t.Errorf("checkContractDepth() with %s at the bound = %v, want nil", name, err)
+		}
 	}
 
 	contracts, err := filepath.Glob(filepath.Join("..", "..", "*", "*", "System", "schemas", "vault-schema.toml"))
@@ -117,5 +130,20 @@ func TestDecodeKeepsAContractWithinTheBound(t *testing.T) {
 		if err := checkContractDepth(data); err != nil {
 			t.Errorf("%s: %v", path, err)
 		}
+	}
+}
+
+// TestDecodeRefusesAContractPastTheSizeBound holds the second bound. The path
+// bound keeps each key the decoder reads cheap; this one keeps the number of
+// keys finite, whatever shape a future decoder turns out to be slow on.
+func TestDecodeRefusesAContractPastTheSizeBound(t *testing.T) {
+	t.Parallel()
+	padding := strings.Repeat("# a comment line that only takes up room\n", maxContractBytes/40)
+	_, err := decodeContract([]byte(validContractV1+padding), policySource{})
+	if err == nil {
+		t.Fatal("decodeContract() error = nil, want the size refusal")
+	}
+	if got := classifyDecodeError(err); got != "too-large" {
+		t.Errorf("classifyDecodeError() = %q, want %q (error was %v)", got, "too-large", err)
 	}
 }
