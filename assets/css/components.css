@@ -2182,6 +2182,7 @@ button.y-freshness__action {
 .y-toc__row > a:first-child {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .y-toc__list .y-toc__door {

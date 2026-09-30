@@ -50,8 +50,8 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 			rows := regexp.MustCompile(`(?s)<div class="y-toc__row">(.*?)</div>`).FindAllStringSubmatch(page, -1)
 			// The list is drawn twice (rail and inline fold); each copy has one
 			// row per heading, never a second row for the door.
-			if len(rows) == 0 || len(rows)%len(headings) != 0 {
-				t.Fatalf("contents rows = %d, want a whole number of copies of %d rows", len(rows), len(headings))
+			if len(rows) != 2*len(headings) {
+				t.Fatalf("contents rows = %d, want %d: two copies of %d rows", len(rows), 2*len(headings), len(headings))
 			}
 			for i, row := range rows {
 				heading := headings[i%len(headings)]
@@ -60,6 +60,9 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 				}
 				if got := strings.Count(row[1], `class="y-toc__door"`); got != 1 {
 					t.Errorf("row %d holds %d section doors, want 1", i, got)
+				}
+				if !strings.Contains(row[1], `<svg`) || !strings.Contains(row[1], `aria-hidden="true"`) {
+					t.Errorf("row %d door icon is not hidden from assistive technology:\n%s", i, row[1])
 				}
 				if !strings.Contains(row[1], tc.sectionOf(heading.Text)) {
 					t.Errorf("row %d door is not named for %q:\n%s", i, heading.Text, row[1])
@@ -73,12 +76,23 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 			}
 
 			seam := strings.Index(page, `class="y-seam"`)
-			door := strings.Index(page, `href="/thought/Notes/Probe.md"`)
-			if seam < 0 || door < 0 {
-				t.Fatalf("seam at %d, page door at %d; both must be drawn", seam, door)
+			detail := strings.Index(page, `class="y-metarow__detail"`)
+			headmeta := strings.Index(page, `class="y-headmeta"`)
+			if detail < 0 || detail >= headmeta || headmeta >= seam {
+				t.Fatalf("detail block at %d, headmeta block at %d, seam at %d; want all drawn in that order", detail, headmeta, seam)
 			}
-			if door > seam {
-				t.Errorf("the page door is drawn after the seam (%d > %d), it belongs in the head's actions", door, seam)
+			const pageDoor = `href="/thought/Notes/Probe.md"`
+			if got := strings.Count(page, pageDoor); got != 2 {
+				t.Errorf("page doors = %d, want 2 (one per head block)", got)
+			}
+			if got := strings.Count(page[:seam], pageDoor); got != 2 {
+				t.Errorf("page doors before the seam = %d, want 2", got)
+			}
+			if got := strings.Count(page[detail:headmeta], pageDoor); got != 1 {
+				t.Errorf("page doors in the y-metarow__detail block = %d, want 1", got)
+			}
+			if got := strings.Count(page[headmeta:seam], pageDoor); got != 1 {
+				t.Errorf("page doors in the y-headmeta block = %d, want 1", got)
 			}
 			if !strings.Contains(page, `class="y-metarow__raw" lang="`+tc.lang.Tag()+`" href="/thought/Notes/Probe.md">`+tc.page+`</a>`) {
 				t.Errorf("the page door does not use the head actions' link style and words %q", tc.page)
