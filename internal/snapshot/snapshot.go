@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"runtime/debug"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -777,9 +778,10 @@ func retryDelay(consecutive int) time.Duration {
 }
 
 // buildGeneration performs one generation build from one completed enumeration. A scan
-// or file-read problem returns that source as blocked so the caller retries; the
-// source itself is taken from previous when that generation read it, and is
-// otherwise omitted. previous is nil at startup. Cancellation aborts the build.
+// or file-read problem, or a note whose parse panics, returns that source as
+// blocked so the caller retries; the source itself is taken from previous when
+// that generation read it, and is otherwise omitted. previous is nil at
+// startup. Cancellation aborts the build.
 func buildGeneration(
 	ctx context.Context,
 	source Source,
@@ -797,7 +799,7 @@ func buildGeneration(
 	projectionPolicy := capabilities.Artifacts.Capture()
 	entries := scan.Files()
 	g := newGeneration(len(entries))
-	blocked := blockedFromProblems(scan.Problems())
+	g.blocked = blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
 	noteCount := markdownCount(entries)
@@ -823,18 +825,19 @@ func buildGeneration(
 				return nil, nil, contextErr
 			}
 			log.Warn("vault source unavailable in snapshot generation", "path", relPath, "error", err)
-			if want.holdsBackGeneration {
-				blocked = append(blocked, BlockedSource{Path: relPath, Reason: err.Error()})
-			}
-			g.carry(carried, relPath, note, want)
+			g.unread(carried, relPath, note, want, err.Error())
 			continue
 		}
 		if !note {
 			g.captureFile(relPath, data, want.indexable)
 			continue
 		}
-		g.captureNote(vault.Parse(relPath, data), data, capabilities.Language)
-		g.recordVerdict(relPath, data, contract, log)
+		if reason := g.readNote(relPath, data, capabilities.Language, contract, log); reason != "" {
+			// The bytes opened and the parse panicked: the note is recorded the
+			// way one the read could not open is, so the rest of the folder is
+			// still read and served.
+			g.unread(carried, relPath, note, want, reason)
+		}
 	}
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
@@ -888,7 +891,7 @@ func buildGeneration(
 		noteCount:      noteCount,
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen)
-	return gen, blocked, nil
+	return gen, g.blocked, nil
 }
 
 // markdownCount is how many of these entries are notes rather than the other
@@ -931,6 +934,10 @@ type generation struct {
 	// sizeSkipped are notes this reading refused for size, recorded here so
 	// the published generation can name them in Skipped().
 	sizeSkipped []Skipped
+	// blocked are the sources this reading wanted and could not have: a path
+	// the scan could not observe, a file whose read failed, a note whose
+	// parse panicked. Any of them leaves the generation incomplete.
+	blocked []BlockedSource
 }
 
 // newGeneration opens an empty generation sized for a folder of entries files.
@@ -984,21 +991,55 @@ func (g *generation) skipUnread(relPath string, note bool, size int64, log *slog
 	})
 }
 
-// captureNote files one note this reading opened into every projection built
-// from a note.
-func (g *generation) captureNote(parsed *vault.Note, data []byte, languages schema.ArticleLanguage) {
-	g.parsed[parsed.RelPath] = parsed
+// parseNoteSource turns one note's bytes into the parsed note a generation
+// holds. It is a variable only so a test can make one file's parse panic: a
+// third-party parser does not panic on demand, and the input that makes one do
+// it is a defect its own module can later fix. Nothing in production assigns it.
+var parseNoteSource = vault.Parse
+
+// readNote parses one note this reading opened and files it into every
+// projection built from a note. A panic anywhere in that work — a third-party
+// parser, the schema verdict, the projection — is contained to this one file:
+// nothing of the note is filed, one ERROR record names the path and the panic
+// value, and the returned reason says what happened so the caller can treat the
+// file like one it could not open. A note that was filed answers "".
+//
+// Everything that can panic runs before anything is filed, so a panic cannot
+// leave the note in some projections and not in others.
+func (g *generation) readNote(
+	relPath string,
+	data []byte,
+	languages schema.ArticleLanguage,
+	contract *schema.Contract,
+	log *slog.Logger,
+) (panicked string) {
+	defer func() {
+		// Every panic is contained, runtime errors included: a nil dereference
+		// or an unhashable map key inside a parser is exactly what this guards.
+		if rec := recover(); rec != nil {
+			value := fmt.Sprint(rec)
+			panicked = "panic while parsing this note: " + value
+			log.Error("vault note parse panicked; treating the note as unreadable",
+				"path", relPath, "panic", value, "stack", string(debug.Stack()))
+		}
+	}()
+	parsed := parseNoteSource(relPath, data)
+	reading := newReading(parsed, data, languages)
+	findings, verdictErr := judge.LintFrontmatter(relPath, data, contract)
+
+	g.parsed[relPath] = parsed
 	g.ordered = append(g.ordered, parsed)
-	g.readings[parsed.RelPath] = newReading(parsed, data, languages)
+	g.readings[relPath] = reading
+	g.recordVerdict(relPath, findings, verdictErr, log)
+	return ""
 }
 
-// recordVerdict reaches the schema's verdict for one note and keeps it when
-// there is one. A note the schema is content with is left out rather than stored
-// empty; absent and clean read the same at the accessor. The only fault it can
-// meet is a slug pattern nothing can compile, which is said once and leaves that
-// note without a verdict rather than the folder without a generation.
-func (g *generation) recordVerdict(relPath string, data []byte, contract *schema.Contract, log *slog.Logger) {
-	findings, err := judge.LintFrontmatter(relPath, data, contract)
+// recordVerdict keeps the schema's verdict for one note when there is one. A
+// note the schema is content with is left out rather than stored empty; absent
+// and clean read the same at the accessor. The only fault it can meet is a slug
+// pattern nothing can compile, which is said once and leaves that note without
+// a verdict rather than the folder without a generation.
+func (g *generation) recordVerdict(relPath string, findings []judge.Finding, err error, log *slog.Logger) {
 	if err != nil {
 		log.Warn("schema verdict unavailable for a note", "path", relPath, "error", err)
 		return
@@ -1027,6 +1068,16 @@ func carriedFrom(previous *Generation) carriedGeneration {
 		captured: previous.notes,
 		sidecars: previous.sidecars,
 	}
+}
+
+// unread records a source this reading wanted and could not use, whether its
+// read failed or its parse panicked: it is named in the blocked list when the
+// reading surface depends on it, and given whatever the fallback held for it.
+func (g *generation) unread(from carriedGeneration, relPath string, note bool, want bytesWanted, reason string) {
+	if want.holdsBackGeneration {
+		g.blocked = append(g.blocked, BlockedSource{Path: relPath, Reason: reason})
+	}
+	g.carry(from, relPath, note, want)
 }
 
 // carry gives this generation whatever the fallback held for a source this
