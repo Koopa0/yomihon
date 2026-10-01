@@ -148,7 +148,8 @@ func (h *Health) Empty() bool {
 
 // newHealth gathers the whole-folder view from projections this generation
 // already built, through the same extractor as every other link answer here.
-func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef) Health {
+// links is what each note cites, by path, as it was read when the note was.
+func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef) Health {
 	var h Health
 	var uncited []nav.NoteRef
 	titleReferenced := make(map[string]bool)
@@ -176,7 +177,7 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 		}
 		from := nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath}
 		seen := make(map[string]bool)
-		for _, target := range judge.LinkTargets(n.Body) {
+		for _, target := range links[n.RelPath] {
 			res := idx.Resolve(target)
 			switch {
 			case res.Kind != graph.KindUnresolved || planned.Has(target) || seen[target]:

@@ -27,7 +27,7 @@ that the file you downloaded was built by this repository's release workflow
 from a specific commit, run:
 
 ```bash
-gh attestation verify yomihon_v0.2.0_darwin_arm64 --repo koopa0/yomihon
+gh attestation verify yomihon_v0.3.0_darwin_arm64 --repo koopa0/yomihon
 ```
 
 The command names the repository and the workflow that produced the binary, and

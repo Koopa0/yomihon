@@ -119,6 +119,16 @@ body {
   opacity: 0.055;
 }
 
+/* The dark desk's grain also has to reach a reader who chose nothing on a dark
+   system; multiply over a near-black page is the light desk's blend. An
+   explicit light choice escapes through the :not() guard. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .yomihon::after {
+    mix-blend-mode: overlay;
+    opacity: 0.055;
+  }
+}
+
 /* ============================================================
    DS components (only the ones this page uses)
    ============================================================ */
@@ -5465,8 +5475,13 @@ html {
      printed as black on near-black, which is not a duller page but a blank
      one. Naming the whole palette here also means a colour added later cannot
      quietly reintroduce that, since anything unnamed inherits a white ground.
-     color-scheme goes with it, or the browser paints form controls dark. */
+     color-scheme goes with it, or the browser paints form controls dark.
+     The system-dark palette is written as :root:not([data-theme='light']), a
+     specificity the bare :root does not reach, so a reader who stored no
+     choice would print the screen's dark ink; the same selector here ties
+     with it and wins by coming later. */
   :root,
+  :root:not([data-theme='light']),
   :root[data-theme='dark'],
   :root[data-theme='light'] {
     color-scheme: light;

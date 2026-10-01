@@ -42,6 +42,13 @@ func TestAFenceThatNeverClosesIsStatedAndNotCalledLegal(t *testing.T) {
 				faces: 2,
 			},
 			{
+				// A contract that requires a block gives the absent block a sentence
+				// of its own, and a fence that never closes is not that either.
+				name:  "a governed note under a contract that requires a block",
+				view:  NoteView{Governed: true, Title: "T", RelPath: "Notes/T.md", NoFrontmatter: true, FrontmatterRequired: true, FrontmatterUnclosed: true},
+				faces: 2,
+			},
+			{
 				// The fact is about the bytes, so it does not wait for a contract
 				// to have an opinion.
 				name:  "a folder nothing governs",
@@ -65,8 +72,10 @@ func TestAFenceThatNeverClosesIsStatedAndNotCalledLegal(t *testing.T) {
 					t.Errorf("the status faces state it %d times, want %d", got, tt.faces)
 				}
 				for _, claim := range []wording.Lang{wording.ZhHant, wording.En} {
-					if strings.Contains(html, wording.NoFrontmatter.In(claim)) {
-						t.Errorf("the page calls a note whose fence never closes frontmatter-free: %q", wording.NoFrontmatter.In(claim))
+					for _, absent := range []wording.Phrase{wording.NoFrontmatter, wording.NoFrontmatterRequired} {
+						if strings.Contains(html, absent.In(claim)) {
+							t.Errorf("the page calls a note whose fence never closes frontmatter-free: %q", absent.In(claim))
+						}
 					}
 				}
 

@@ -141,6 +141,7 @@ func newServerWithMark(
 	writer := openStatusWriter(t, source, contract, governance)
 	h := note.New(&note.Sources{
 		Source:         source,
+		Contract:       contract,
 		VaultName:      shell.VaultName(source.Name()),
 		Status:         writer.Authority,
 		Snapshot:       store.Current,
@@ -2663,6 +2664,85 @@ func TestShowNoFrontmatter(t *testing.T) {
 	}
 }
 
+// TestShowNoFrontmatterFollowsContract holds the wiring from the contract's
+// no_frontmatter_is_legal declaration to the sentence a request serves for a
+// note with no frontmatter block: the page has to say the contract requires one
+// exactly when the contract says so, and say it is legal otherwise.
+func TestShowNoFrontmatterFollowsContract(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		contract *schema.Contract
+		want     string
+		notWant  string
+	}{
+		{
+			name:     "legal",
+			contract: loadContract(t),
+			want:     wording.NoFrontmatter.In(wording.ZhHant),
+			notWant:  wording.NoFrontmatterRequired.In(wording.ZhHant),
+		},
+		{
+			name:     "required",
+			contract: loadContractRequiringFrontmatter(t),
+			want:     wording.NoFrontmatterRequired.In(wording.ZhHant),
+			notWant:  wording.NoFrontmatter.In(wording.ZhHant),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			dir := filepath.Join(root, "Drills")
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "d1.md"), []byte("just a drill body\n"), 0o600); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			srv := newServerWithContract(t, root, tt.contract)
+
+			code, body := get(t, srv.Client(), srv.URL+"/notes/Drills/d1.md")
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if !strings.Contains(body, tt.want) {
+				t.Errorf("page missing %q; body = %q", tt.want, body)
+			}
+			if strings.Contains(body, tt.notWant) {
+				t.Errorf("page carries %q under the %s contract; body = %q", tt.notWant, tt.name, body)
+			}
+		})
+	}
+}
+
+// loadContractRequiringFrontmatter is the testdata contract with its scan
+// declaration turned against a note that carries no frontmatter block.
+func loadContractRequiringFrontmatter(t *testing.T) *schema.Contract {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	const legal = "no_frontmatter_is_legal = true"
+	modified := strings.Replace(string(data), legal, "no_frontmatter_is_legal = false", 1)
+	if modified == string(data) {
+		t.Fatal("frontmatter declaration replacement did not apply")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if writeErr := os.WriteFile(path, []byte(modified), 0o600); writeErr != nil { // #nosec G703 -- fixed basename under t.TempDir
+		t.Fatalf("write modified contract: %v", writeErr)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	if !contract.RequiresFrontmatter() {
+		t.Fatal("the modified contract does not require frontmatter")
+	}
+	return contract
+}
+
 // TestAFenceThatNeverClosesIsSaidOnThePage drives the shape the lost dash
 // makes through the real handler. The closing line of the block is gone, so no
 // reader finds a block, and the page used to answer that the note has no
@@ -2679,33 +2759,13 @@ func TestAFenceThatNeverClosesIsSaidOnThePage(t *testing.T) {
 	t.Parallel()
 
 	const content = "---\ntitle: Unclosed\ntype: writing\nstatus: draft\n--\n\n# Body\n\nbody\n"
-	strict := func(t *testing.T) *schema.Contract {
-		t.Helper()
-		raw, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
-		if err != nil {
-			t.Fatalf("read the contract fixture: %v", err)
-		}
-		text := strings.Replace(string(raw), "no_frontmatter_is_legal = true", "no_frontmatter_is_legal = false", 1)
-		if text == string(raw) {
-			t.Fatal("the contract fixture no longer says no_frontmatter_is_legal = true, so this would test the lenient contract twice")
-		}
-		path := filepath.Join(t.TempDir(), "contract.toml")
-		if writeErr := os.WriteFile(path, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- the path is this test's own t.TempDir() joined with a fixed name
-			t.Fatalf("write the strict contract: %v", writeErr)
-		}
-		contract, err := schema.LoadFile(path)
-		if err != nil {
-			t.Fatalf("LoadFile(strict contract) = %v", err)
-		}
-		return contract
-	}
 	tests := []struct {
 		name     string
 		rel      string
 		contract func(t *testing.T) *schema.Contract
 	}{
 		{name: "a note the contract judges, contract allows no block", rel: "Writing/Unclosed.md", contract: loadContract},
-		{name: "a note the contract judges, contract wants a block", rel: "Writing/Unclosed.md", contract: strict},
+		{name: "a note the contract judges, contract wants a block", rel: "Writing/Unclosed.md", contract: loadContractRequiringFrontmatter},
 		{name: "a note outside the layer the contract judges", rel: "Drills/Unclosed.md", contract: loadContract},
 	}
 	for _, tt := range tests {
@@ -2754,8 +2814,10 @@ func TestAFenceThatNeverClosesIsSaidOnThePage(t *testing.T) {
 					}
 				}
 				for _, claim := range []wording.Lang{wording.ZhHant, wording.En} {
-					if strings.Contains(body, wording.NoFrontmatter.In(claim)) {
-						t.Errorf("the page calls a note whose fence never closes frontmatter-free: %q", wording.NoFrontmatter.In(claim))
+					for _, absent := range []wording.Phrase{wording.NoFrontmatter, wording.NoFrontmatterRequired} {
+						if strings.Contains(body, absent.In(claim)) {
+							t.Errorf("the page calls a note whose fence never closes frontmatter-free: %q", absent.In(claim))
+						}
 					}
 				}
 				if strings.Contains(body, "schema.frontmatter") {

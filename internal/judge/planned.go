@@ -2,6 +2,7 @@ package judge
 
 import (
 	"iter"
+	"maps"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -43,6 +44,18 @@ func NewPlanned(bodies iter.Seq[string], contract *schema.Contract) Planned {
 		set.add(extractPlannedNamesWith(body, marks))
 	}
 	return set
+}
+
+// MergePlanned is the union of sets: what NewPlanned would have harvested from
+// every body the sets were harvested from, one note at a time. It exists so a
+// caller that has to attribute a harvesting failure to one note can harvest
+// note by note and still end with the corpus's one set.
+func MergePlanned(sets ...Planned) Planned {
+	merged := Planned{names: make(map[string]bool)}
+	for _, set := range sets {
+		maps.Copy(merged.names, set.names)
+	}
+	return merged
 }
 
 // add folds harvested names into the set, dropping any that normalize away to

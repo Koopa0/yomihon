@@ -68,9 +68,10 @@ var (
 	// NoFrontmatter is the sentence for a file that has no frontmatter block.
 	// A present but empty fence pair is a block with no status and uses
 	// StatusUnreadable instead — the judge already keeps those shapes apart.
-	NoFrontmatter      = both("沒有 frontmatter（合法）。", "No frontmatter (which is legal).")
-	NoLegalTransitions = both("目前沒有合法的狀態轉換。", "No status transition is legal from here.")
-	FrontmatterNotYAML = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
+	NoFrontmatter         = both("沒有 frontmatter（合法）。", "No frontmatter (which is legal).")
+	NoFrontmatterRequired = both("沒有 frontmatter（契約要求必須有）。", "No frontmatter (the contract requires one).")
+	NoLegalTransitions    = both("目前沒有合法的狀態轉換。", "No status transition is legal from here.")
+	FrontmatterNotYAML    = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
 )
 
 // StatusFrontmatterNeverCloses is the status face for a note whose first line

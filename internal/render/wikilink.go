@@ -484,6 +484,10 @@ func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPol
 // recognizes and keeping every other line as its author wrote it.
 func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collector) {
 	st.kept = make([]string, 0, len(st.lines))
+	// Whether a code span owns each line's address is read from the run around
+	// it, so it is answered for the whole body in one pass. Asked line by line it
+	// would read a run of addressed lines once per line.
+	owned := CodeSpanOwnedAddresses(st.address)
 
 	for st.i < len(st.lines) {
 		switch {
@@ -518,7 +522,7 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 			// the same kind of quoted text, asked of the author's own lines
 			// because a span can run past the end of one; the answer does not
 			// widen to indented code.
-			if !CodeSpanOwnsBlockAddress(st.address, st.i) {
+			if !owned[st.i] {
 				line = markBlockAnchor(line, col.page, &st.marks.inline, allowEmbed == embedsAllowed)
 			}
 			st.kept = append(st.kept, line)

@@ -227,6 +227,15 @@ func (v *NoteView) citedByShown() bool {
 	return len(v.CitedBy) > 0 || v.VaultHasLinks
 }
 
+// noFrontmatterLine is the absent-block sentence, which says whether the
+// folder's contract allows a note without a frontmatter block.
+func noFrontmatterLine(v *NoteView, lang wording.Lang) string {
+	if v.FrontmatterRequired {
+		return wording.NoFrontmatterRequired.In(lang)
+	}
+	return wording.NoFrontmatter.In(lang)
+}
+
 // frontmatterDoorLine is the empty state's escape hatch: recovery is a hand edit
 // of the frontmatter, through the editor link the page carries when it has one.
 func frontmatterDoorLine(v *NoteView, lang wording.Lang) string {

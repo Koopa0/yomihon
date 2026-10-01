@@ -18,11 +18,15 @@ yomihon 把一個 Markdown 資料夾讀成一本書。學習路徑是一門課�
 
 ## 安裝
 
+從最新版本[下載執行檔](https://github.com/koopa0/yomihon/releases/latest)，或者，已有 Go 1.27 以上：
+
 ```sh
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
 
-需要 Go 1.27 以上。
+閱讀在 macOS、Linux 與 Windows 都能用。更改筆記的狀態在 macOS 與 Linux 可用，Windows 會拒絕。
+
+範例知識庫附在原始碼裡，不在執行檔中：請從該版本的原始碼壓縮檔取得，或 clone 本 repo。
 
 ## 使用
 
