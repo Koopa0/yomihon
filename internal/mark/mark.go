@@ -36,6 +36,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -129,8 +131,18 @@ func validate(c *Continuation) error {
 		return fmt.Errorf("%w: the note path is empty or too long", ErrInvalid)
 	case !fs.ValidPath(c.RelPath) || c.RelPath == ".":
 		return fmt.Errorf("%w: %q is not a local vault-relative path", ErrInvalid, c.RelPath)
+	case carriesControl(c.RelPath):
+		// fs.ValidPath lets a NUL or a line break through. A reading page
+		// never stamps one, and a path that holds one is not text to put on
+		// the desk.
+		return fmt.Errorf("%w: %q carries a control character", ErrInvalid, c.RelPath)
 	case c.RelPath != vault.NormalizeNFC(c.RelPath):
 		return fmt.Errorf("%w: %q is not written in NFC", ErrInvalid, c.RelPath)
+	case !utf8.ValidString(c.Anchor):
+		// The path needs no case of its own: fs.ValidPath refuses invalid
+		// UTF-8. An anchor has only the character check below, which reads an
+		// invalid byte as U+FFFD and lets it by.
+		return fmt.Errorf("%w: the anchor is not valid UTF-8", ErrInvalid)
 	case len(c.Anchor) > maxAnchorBytes:
 		return fmt.Errorf("%w: the anchor is too long", ErrInvalid)
 	case strings.ContainsFunc(c.Anchor, isNotAnchorRune):
@@ -141,6 +153,15 @@ func validate(c *Continuation) error {
 		return fmt.Errorf("%w: the identity is not a content identity", ErrInvalid)
 	}
 	return nil
+}
+
+// carriesControl reports whether s holds a rune that is not text in a name: a
+// C0 or C1 control (NUL, a line break and DELETE among them), or one of the
+// two Unicode separators that end a line without being a newline.
+func carriesControl(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool {
+		return unicode.IsControl(r) || r == 0x2028 || r == 0x2029
+	})
 }
 
 // isNotAnchorRune reports whether r cannot appear in an anchor this file

@@ -39,7 +39,7 @@ process that can already read the vault. OS, browser and filesystem are trusted.
 | Process to vault | `vault.Reader` and `os.Root` pin the selected root. Paths are vault-relative and normalized before privileged use; the write path refuses symlinked traversal and rechecks file and parent identity. |
 | Contract to privileged action | `internal/schema` derives capability from the exact contract source. Agent output and status writes both fail closed without valid authority. |
 | Status mutation | `internal/status` alone writes. `POST /status` is capped at 4 KiB; it writes a synchronized sibling temporary file, revalidates, renames atomically, then synchronizes the directory. macOS and Linux only. |
-| Marking a continuation place | `internal/mark` writes `reader.json` under the platform's configuration directory, never into the vault. `POST /marks` is capped at 4 KiB and refuses any path, anchor, offset or identity outside the shape a reading page stamps; the file is written to a sibling temporary name and renamed over. It is deliberately not synchronized to durable storage. Like the status write, it is the reader's — an agent never calls it. |
+| Marking a continuation place | `internal/mark` writes `reader.json` under the platform's configuration directory, never into the vault. `POST /marks` is capped at 4 KiB and refuses any path, anchor, offset or identity outside the shape a reading page stamps: path and anchor must be valid UTF-8, the path may carry no control character, and a place is accepted only for a path that is a readable note in the current snapshot. Only the note is looked up; the anchor is held to its shape, since it reaches the desk only inside an address and never as text. The file is written to a sibling temporary name and renamed over. It is deliberately not synchronized to durable storage. Like the status write, it is the reader's — an agent never calls it. |
 | Marking uncertainty | `internal/mark` writes the separate `uncertainty.json`. `POST /uncertainties` is capped at 4 KiB; path and anchor must be valid UTF-8 and shaped like a vault path and a document id, and the server assigns the time. A new mark is accepted only for a path that is a readable note in the current snapshot and an anchor that note renders (an empty anchor names the note as a whole), and only while fewer than 500 marks are stored; clearing a mark is always allowed. Only those three fields are stored. A toggle reads the existing array first, refuses unreadable or malformed storage, then installs a complete array by sibling-file rename. Writes are serialized within the serving process and are not synchronized to durable storage. `GET /uncertainties` exposes location records to the local reading client and reports unreadable storage as failure, not an empty list. An agent never calls the write route. |
 | External thought-note handoff | `internal/schema` reads optional `[navigation].answer_type` from the vault contract and accepts only an existing type enum member. The role is read once when the server starts, like `path_types` and `map_types`; withdrawing the declaration takes effect at the next start. The page offers derived frontmatter and a `based_on` link for copying or an explicit external-editor action. The reader's editor creates and saves the note; this does not grant the server another vault write face. No private contract is installed or amended automatically. |
 
@@ -91,12 +91,18 @@ What that instance accepts:
 - **Shared reader marks, bounded, wherever those routes are exposed.** There
   is no per-visitor mark store: continuation and uncertainty marks belong to
   the serving machine and vault, and restoring the sample vault from git does
-  not reset either configuration file outside it. What a visitor can add to the
-  uncertainty file is bounded by three guards: the place must exist in the
-  served vault (a readable note and an anchor it renders, so no visitor text
-  is stored), the file holds at most 500 marks, and path and anchor must be
-  valid UTF-8 (so a request cannot make the file unreadable). Whether an
-  anonymous instance should accept marks at all remains the owner's decision.
+  not reset either configuration file outside it. What a visitor can add to
+  either file is bounded by guards: the place must exist in the served vault,
+  so no visitor text is stored. For an uncertainty mark that is a readable note
+  and an anchor it renders. For a continuation mark it is a readable note, and
+  the note's path is the one field Home prints, so a path that names no note, or
+  carries a control character, is refused with 422; the anchor is held to its
+  shape and appears only inside an address. A visitor can still point the shared
+  Home row at any note the vault holds, since the continuation is one value that
+  replaces itself. The uncertainty file holds at most 500 marks, and path and
+  anchor must be valid UTF-8 on both routes (so a request cannot make either
+  file unreadable). Whether an anonymous instance should accept marks at all
+  remains the owner's decision.
 
 The mutable exposure is the sample notes' state and the bounded shared reader marks;
 the note content is already public. A second instance, or one over any vault
