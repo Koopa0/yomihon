@@ -570,12 +570,13 @@ func replyTo(t *testing.T, handler http.Handler, form url.Values) (status int, b
 }
 
 // TestAPathCarryingAControlCharacterIsRefused holds the half of a path's shape
-// that fs.ValidPath does not: it lets a NUL, a line break and DELETE through,
-// and a reading page never stamps one. What is refused is the character, so each
-// class the predicate names is driven — C0, DELETE, C1 and the two Unicode
-// separators that end a line without being a newline — and the same test keeps
-// the ordinary spellings a note really has, so a predicate that grew too wide
-// would show here rather than on someone's lesson.
+// that fs.ValidPath does not: it lets a NUL, a line break and DELETE through.
+// A file whose own name holds one is refused too, an accepted cost of keeping a
+// path that is not one line of text off the desk. What is refused is the
+// character, so each class the predicate names is driven — C0, DELETE, C1 and
+// the two Unicode separators that end a line without being a newline — and the
+// same test keeps the ordinary spellings a note really has, so a predicate that
+// grew too wide would show here rather than on someone's lesson.
 func TestAPathCarryingAControlCharacterIsRefused(t *testing.T) {
 	t.Parallel()
 

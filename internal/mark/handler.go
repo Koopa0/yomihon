@@ -31,7 +31,7 @@ const Address = "/marks"
 // business calling: like the status write, this endpoint is the reader's.
 //
 // It keeps a place only in a note the vault holds now, asked of the same Places
-// the uncertainty route asks. The path is the one field of a mark that reaches
+// the uncertainty route asks. The path is the one field of a mark that can reach
 // the desk as text, so a path nobody's note carries is refused rather than
 // stored for a later page to print.
 type Handler struct {

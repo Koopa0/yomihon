@@ -132,9 +132,13 @@ func validate(c *Continuation) error {
 	case !fs.ValidPath(c.RelPath) || c.RelPath == ".":
 		return fmt.Errorf("%w: %q is not a local vault-relative path", ErrInvalid, c.RelPath)
 	case carriesControl(c.RelPath):
-		// fs.ValidPath lets a NUL or a line break through. A reading page
-		// never stamps one, and a path that holds one is not text to put on
-		// the desk.
+		// fs.ValidPath lets a NUL or a line break through, and a path that
+		// holds a control character is not one line of text to put on the
+		// desk. Almost no note carries one in its name. A file whose own name
+		// does (a tab or a line break, which Linux and macOS allow) is still
+		// offered the control on its page, and pressing it is refused here
+		// with the rest; the cost is accepted because such names are very
+		// rare.
 		return fmt.Errorf("%w: %q carries a control character", ErrInvalid, c.RelPath)
 	case c.RelPath != vault.NormalizeNFC(c.RelPath):
 		return fmt.Errorf("%w: %q is not written in NFC", ErrInvalid, c.RelPath)
