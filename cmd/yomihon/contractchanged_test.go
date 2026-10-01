@@ -1,10 +1,8 @@
 package main
 
 import (
-	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,31 +11,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
-
-// pageIn asks the site for one page as a reader who has chosen lang and returns
-// the status it answered with beside the page, because the course page's status
-// is half of what this file is about and readingPageIn refuses anything but 200.
-func pageIn(t *testing.T, site http.Handler, target string, lang wording.Lang) (code int, page string) {
-	t.Helper()
-	recorder := httptest.NewRecorder()
-	request := siteRequest(t, http.MethodGet, target, nil)
-	// #nosec G124 -- the language cookie the server itself sets carries none of
-	// those attributes, and a request that added them would be asking the
-	// handler about a reader who does not exist.
-	request.AddCookie(&http.Cookie{Name: wording.CookieName, Value: string(lang)})
-	site.ServeHTTP(recorder, request)
-	response := recorder.Result()
-	defer func() {
-		if err := response.Body.Close(); err != nil {
-			t.Errorf("close %s response: %v", target, err)
-		}
-	}()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatalf("read %s response: %v", target, err)
-	}
-	return response.StatusCode, string(body)
-}
 
 // TestAContractEditedUnderARunningInstanceSaysToRestart is the moment the
 // latch exists for, seen from the reader's chair. An author reads a diagnostic
@@ -48,10 +21,11 @@ func pageIn(t *testing.T, site http.Handler, target string, lang wording.Lang) (
 // handed a 404 that blamed the address they typed, and a line of English
 // diagnostic on the desk and the course index.
 //
-// One comment line is the whole edit: it changes no declaration, which is why
-// the page must not describe a fault in the contract. The latch is unchanged
-// and so is the diagnostic the commands and the log keep; only what the three
-// reading surfaces say is under test.
+// One comment line is the whole edit: it changes no declaration. What is under
+// test is what the two course pages, the two indexes and the desk say about it:
+// that the contract changed and yomihon must be restarted, with none of the
+// English diagnostic the commands and the log keep. The latch is unchanged, and
+// the lede a page carries above that sentence is not asserted here.
 func TestAContractEditedUnderARunningInstanceSaysToRestart(t *testing.T) {
 	t.Parallel()
 
@@ -75,7 +49,7 @@ func TestAContractEditedUnderARunningInstanceSaysToRestart(t *testing.T) {
 		{"the desk", "/"},
 	}
 	restartIn := func(lang wording.Lang) string {
-		return wording.JoinGuide(wording.ContractChanged, wording.ContractChangedNext, lang)
+		return wording.JoinGuide(wording.ContractChanged, wording.RestartYomihon, lang)
 	}
 
 	// The control. Before the edit every surface answers, and none says to

@@ -52,12 +52,12 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// One cause is not quoted: a contract that changed after yomihon read it is
 	// said in the reader's own words, once, whichever of the three carries it.
 	fault, restart := statedAsFaults(lang,
-		cause{authority.Diagnostic(lang), authority.Claim().Reason()},
-		cause{visibleNav.NavigationClosure().Diagnostic(), visibleNav.NavigationClosure().Reason()},
-		cause{visibleNav.ArtifactClosure().Diagnostic(), visibleNav.ArtifactClosure().Reason()},
+		faultCause{authority.Diagnostic(lang), authority.Claim().Reason()},
+		faultCause{visibleNav.NavigationClosure().Diagnostic(), visibleNav.NavigationClosure().Reason()},
+		faultCause{visibleNav.ArtifactClosure().Diagnostic(), visibleNav.ArtifactClosure().Reason()},
 	)
 	privacy := snap.PrivacyPolicy().Claim()
-	privacyFault, privacyRestart := statedAsFaults(lang, cause{privacy.Diagnostic(), privacy.Reason()})
+	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
 	kept, hasMark := h.sources.Continuation()
 	open, openFault := h.openThoughtShelf(r.Context(), snap, lang, pages.OpenThoughtsHomeRows)
 	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
@@ -166,27 +166,25 @@ func statedOnce(causes ...string) string {
 	return strings.Join(distinct, "; ")
 }
 
-// cause is one reason a page withheld something: the operator's sentence for
-// it, and the reason behind that sentence, which is the value a page branches
-// on when the dictionary has words of its own for the cause.
-type cause struct {
+// faultCause is one reason a page withheld something: the operator's sentence
+// for it, and the reason behind that sentence, which is the value a page
+// branches on when the dictionary has words of its own for the cause.
+type faultCause struct {
 	diagnostic string
 	reason     schema.Reason
 }
 
-// statedAsFaults is statedOnce for causes that may have words of their own. A
-// contract that changed after yomihon read it is said in the reader's language
-// rather than quoted, so it is taken out of what is quoted and returned as that
-// sentence — once, however many of the causes carry it. Everything else is
-// quoted exactly as statedOnce quotes it.
-func statedAsFaults(lang wording.Lang, causes ...cause) (quoted, restart string) {
+// statedAsFaults is statedOnce for causes that may have words of their own.
+// Each cause is divided by pages.FaultOf, the one place that decides which are
+// said in the reader's language and which are quoted; the quoted ones are
+// stated once as statedOnce states them, and the reader's sentence is returned
+// once however many of the causes carry it.
+func statedAsFaults(lang wording.Lang, causes ...faultCause) (quoted, said string) {
 	quotes := make([]string, 0, len(causes))
 	for _, c := range causes {
-		if c.reason == schema.ReasonContractChanged {
-			restart = pages.ContractChangedSentence(lang)
-			continue
-		}
-		quotes = append(quotes, c.diagnostic)
+		q, s := pages.FaultOf(c.diagnostic, c.reason, lang)
+		quotes = append(quotes, q)
+		said = cmp.Or(said, s)
 	}
-	return statedOnce(quotes...), restart
+	return statedOnce(quotes...), said
 }

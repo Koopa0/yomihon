@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -14,7 +15,20 @@ import (
 // that cause says these words, so a reader who meets them on the desk and again
 // on a course page is told one thing.
 func ContractChangedSentence(lang wording.Lang) string {
-	return wording.JoinGuide(wording.ContractChanged, wording.ContractChangedNext, lang)
+	return wording.JoinGuide(wording.ContractChanged, wording.RestartYomihon, lang)
+}
+
+// FaultOf divides why a projection was withheld into the two things a page can
+// say about it: the operator's sentence, quoted as the contract's own, and the
+// reader's sentence for a cause the dictionary has words of its own for. A
+// cause is one or the other, never both, so a page does not say it twice. It
+// takes the two values rather than a nav.Closure, so a schema.Claim can feed it
+// too, and every surface that states why something is missing decides here.
+func FaultOf(diagnostic string, reason schema.Reason, lang wording.Lang) (quoted, said string) {
+	if reason == schema.ReasonContractChanged {
+		return "", ContractChangedSentence(lang)
+	}
+	return diagnostic, ""
 }
 
 // WriteContractChanged answers a request for something yomihon can no longer

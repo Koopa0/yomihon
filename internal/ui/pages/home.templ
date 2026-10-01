@@ -122,7 +122,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 						@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
 						<p class="y-homeempty" data-home-fault>
 							if v.Restart != "" {
-								<span>{ v.Restart }</span>
+								@browserDiagnostic(v.Restart, "")
 							}
 							if v.Fault != "" {
 								@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
@@ -136,7 +136,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 							<p>{ wording.HomePrivacyLede.In(c.Lang) }</p>
 							<p>
 								if v.PrivacyRestart != "" {
-									<span>{ v.PrivacyRestart }</span>
+									@browserDiagnostic(v.PrivacyRestart, "")
 								}
 								if v.PrivacyFault != "" {
 									@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)

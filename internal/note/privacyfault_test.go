@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -17,20 +16,29 @@ import (
 // refused, absent — can each be put in front of the home page.
 func contractWithPrivacySection(t *testing.T, privacySection string) *schema.Contract {
 	t.Helper()
+	contract, _ := contractFileWithPrivacySection(t, privacySection)
+	return contract
+}
+
+// contractFileWithPrivacySection is contractWithPrivacySection for a test that
+// goes on to edit the file the contract was read from, which is why it also
+// says where that file is.
+func contractFileWithPrivacySection(t *testing.T, privacySection string) (contract *schema.Contract, path string) {
+	t.Helper()
 	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		t.Fatalf("read the schema test contract: %v", err)
 	}
-	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	path = filepath.Join(t.TempDir(), "vault-schema.toml")
 	err = os.WriteFile(path, []byte(string(base)+"\n"+privacySection), 0o600) // #nosec G703 -- fixed basename under this test's TempDir
 	if err != nil {
 		t.Fatalf("write the contract: %v", err)
 	}
-	contract, err := schema.LoadFile(path)
+	contract, err = schema.LoadFile(path)
 	if err != nil {
 		t.Fatalf("LoadFile = %v", err)
 	}
-	return contract
+	return contract, path
 }
 
 // TestHomeSaysWhyTheAdjudicationCommandsAreClosed keeps the other half of a
@@ -79,19 +87,7 @@ func TestHomeSaysWhyTheAdjudicationCommandsAreClosed(t *testing.T) {
 func TestHomeSaysToRestartWhenTheContractChangedUnderThePrivacyDeclaration(t *testing.T) {
 	t.Parallel()
 
-	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read the schema test contract: %v", err)
-	}
-	declared := slices.Concat(base, []byte("\n[privacy]\nnever_egress_dirs = [\"Private\"]\n"))
-	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err = os.WriteFile(path, declared, 0o600); err != nil { // #nosec G703 -- fixed basename under this test's TempDir
-		t.Fatalf("write the contract: %v", err)
-	}
-	contract, err := schema.LoadFile(path)
-	if err != nil {
-		t.Fatalf("LoadFile = %v", err)
-	}
+	contract, path := contractFileWithPrivacySection(t, "[privacy]\nnever_egress_dirs = [\"Private\"]\n")
 	srv := newServerWithContract(t, fragmentSplitVault(t), contract)
 
 	// The control: a usable declaration earns no block, so the sentence below is
@@ -100,6 +96,10 @@ func TestHomeSaysToRestartWhenTheContractChangedUnderThePrivacyDeclaration(t *te
 		t.Fatalf("a usable egress declaration was reported as a fault:\n%s", body)
 	}
 
+	declared, err := os.ReadFile(path) // #nosec G304 -- the file the helper just wrote, under this test's TempDir
+	if err != nil {
+		t.Fatalf("read the contract back: %v", err)
+	}
 	if err = os.WriteFile(path, append(declared, []byte("# note: a comment\n")...), 0o600); err != nil { // #nosec G703 -- fixed basename under this test's TempDir
 		t.Fatalf("edit the contract under the running instance: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestHomeSaysToRestartWhenTheContractChangedUnderThePrivacyDeclaration(t *te
 		if block == "" {
 			t.Fatalf("the desk in %s carries no block about the commands being closed:\n%s", lang, page)
 		}
-		if want := wording.JoinGuide(wording.ContractChanged, wording.ContractChangedNext, lang); !strings.Contains(block, want) {
+		if want := wording.JoinGuide(wording.ContractChanged, wording.RestartYomihon, lang); !strings.Contains(block, want) {
 			t.Errorf("the privacy block in %s does not say %q:\n%s", lang, want, block)
 		}
 		for _, raw := range []string{"source changed after startup", "until restart"} {

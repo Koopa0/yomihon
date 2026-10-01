@@ -130,20 +130,9 @@ func NewPathIndex(paths []nav.Path, roles schema.NavigationRoles, closure nav.Cl
 	view := listIndex(pathMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
 		"", emptySentence(contract, declarationSentence(roles.PathTypes(), lang), lang), rows)
-	view.Fault, view.Restart = faultOf(closure, lang)
+	view.Fault, view.Restart = FaultOf(closure.Diagnostic(), closure.Reason(), lang)
 	withholdListing(&view, closure)
 	return view
-}
-
-// faultOf divides why a projection was withheld into the two things a page can
-// say about it: the operator's sentence, quoted as the contract's own, and the
-// reader's sentence for the one cause the dictionary has words for. A cause is
-// one or the other, never both, so the page does not say it twice.
-func faultOf(closure nav.Closure, lang wording.Lang) (quoted, said string) {
-	if closure.Reason() == schema.ReasonContractChanged {
-		return "", ContractChangedSentence(lang)
-	}
-	return closure.Diagnostic(), ""
 }
 
 // ContractState is what an empty listing may say about the folder's contract.
@@ -207,7 +196,7 @@ func ContractStateFrom(governed bool, snap *snapshot.Generation) ContractState {
 func emptySentence(contract ContractState, governed string, lang wording.Lang) string {
 	switch contract {
 	case ContractUnloaded:
-		return wording.JoinGuide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext, lang)
+		return wording.JoinGuide(wording.IndexContractUnloaded, wording.RestartYomihon, lang)
 	case ContractAbsent:
 		return wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, lang)
 	default:
@@ -275,7 +264,7 @@ func NewMapIndex(maps []nav.Map, roles schema.NavigationRoles, closure nav.Closu
 	view := listIndex(mapMode, wording.Maps.In(lang),
 		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
 		"", emptySentence(contract, declarationSentence(roles.MapTypes(), lang), lang), rows)
-	view.Fault, view.Restart = faultOf(closure, lang)
+	view.Fault, view.Restart = FaultOf(closure.Diagnostic(), closure.Reason(), lang)
 	withholdListing(&view, closure)
 	return view
 }

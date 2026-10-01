@@ -136,7 +136,7 @@ templ indexFault(fault, restart string, c layouts.Chrome) {
 		@homeBlockHead("index-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
 		<p class="y-homeempty" data-home-fault>
 			if restart != "" {
-				<span>{ restart }</span>
+				@browserDiagnostic(restart, "")
 			}
 			if fault != "" {
 				@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), fault)
