@@ -73,7 +73,7 @@ func frontmatterStatusContract(t *testing.T, legal bool) *schema.Contract {
 		t.Fatalf("frontmatter declaration %q not present", want)
 	}
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(path, []byte(rewritten), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(rewritten), 0o600); err != nil { // #nosec G703 -- the path is under t.TempDir()
 		t.Fatalf("write contract fixture: %v", err)
 	}
 	contract, err := schema.LoadFile(path)
