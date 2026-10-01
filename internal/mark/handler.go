@@ -2,6 +2,7 @@ package mark
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -28,20 +29,30 @@ const Address = "/marks"
 // the same loopback listener, with the body cap and the replace-by-rename
 // discipline the status write already has. It is not a face an agent has any
 // business calling: like the status write, this endpoint is the reader's.
+//
+// It keeps a place only in a note the vault holds now, asked of the same Places
+// the uncertainty route asks. The path is the one field of a mark that can reach
+// the desk as text, so a path nobody's note carries is refused rather than
+// stored for a later page to print.
 type Handler struct {
-	file *File
-	log  *slog.Logger
+	file   *File
+	places Places
+	log    *slog.Logger
 }
 
-// NewHandler wires the mark route around an existing file.
-func NewHandler(file *File, log *slog.Logger) *Handler {
+// NewHandler wires the mark route around an existing file and the vault whose
+// notes a place may name.
+func NewHandler(file *File, places Places, log *slog.Logger) *Handler {
 	if file == nil {
 		panic("mark: NewHandler requires a non-nil File")
+	}
+	if places == nil {
+		panic("mark: NewHandler requires a non-nil Places")
 	}
 	if log == nil {
 		panic("mark: NewHandler requires a non-nil logger")
 	}
-	return &Handler{file: file, log: log}
+	return &Handler{file: file, places: places, log: log}
 }
 
 // Register mounts the route.
@@ -72,7 +83,7 @@ func (h *Handler) set(w http.ResponseWriter, r *http.Request) {
 		Identity: r.PostFormValue("identity"),
 		At:       time.Now(),
 	}
-	switch err = h.file.SetContinuation(kept); {
+	switch err = h.keep(kept); {
 	case err == nil:
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, ErrInvalid):
@@ -85,4 +96,24 @@ func (h *Handler) set(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("write the marks file", "path", h.file.Path(), "error", err)
 		http.Error(w, wording.MarkNotStored.In(lang), http.StatusInternalServerError)
 	}
+}
+
+// keep stores kept when its shape is one this file holds and its note is one
+// the vault holds. The shape is judged first, so a path no note could carry
+// never reaches the vault to be looked up.
+//
+// Only the note is asked after: the empty anchor names it as a whole. An anchor
+// is any id the rendered body carries — a block address or a footnote as readily
+// as a heading — and the vault's answer for an anchor covers headings alone, so
+// asking it about the anchor would refuse a place a reading page honestly
+// stamps. The anchor stays bounded by its shape, and it only ever reaches the
+// desk inside an address.
+func (h *Handler) keep(kept *Continuation) error {
+	if err := validate(kept); err != nil {
+		return err
+	}
+	if !h.places.HasPlace(kept.RelPath, "") {
+		return fmt.Errorf("%w: %q is not a note this vault holds", ErrInvalid, kept.RelPath)
+	}
+	return h.file.SetContinuation(kept)
 }
