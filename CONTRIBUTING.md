@@ -315,6 +315,28 @@ squashed or rebased, and both carry your branch's commit messages into `main`,
 so a trailer written on the branch becomes a trailer in the history. If your
 tooling appends one you cannot remove, say so in the pull request.
 
+## Before you tag a release
+
+Also whenever the public screenshots or the README's reading claims change.
+Check that:
+
+- the version, `README.md` and `README.zh-TW.md` agree, and both READMEs give
+  the same install path, linking the latest-release page rather than one
+  version's asset;
+- the platform assets `release.yml` builds match what the READMEs promise, and
+  the Windows limit (status changes refused) is still stated where the install
+  choice is;
+- `go install github.com/koopa0/yomihon/cmd/yomihon@<the commit>` in a
+  disposable `GOBIN`, `GOMODCACHE` and `GOCACHE` installs the module you expect,
+  without touching your own binary;
+- the example vault comes from the same revision as the binary;
+- every behaviour a screenshot shows still happens at that commit, and the
+  images were regenerated with `make screenshots`.
+
+After the tag publishes, download one asset and check it against `SHA256SUMS`
+and `go version -m`, and confirm `go list -m github.com/koopa0/yomihon@latest`
+reports the new version.
+
 ## Report a vulnerability
 
 Report privately through

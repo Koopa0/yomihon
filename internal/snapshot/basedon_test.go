@@ -107,7 +107,7 @@ func TestBasedOnDoesNotCountAsABodyBacklink(t *testing.T) {
 		parse(t, "Concepts/derived.md", "---\nbased_on: \"[[source]]\"\n---\n\nno body link\n"),
 	}
 	idx := graph.New(notes, nil)
-	if refs := newBacklinks(notes, idx).To("Concepts/source.md"); len(refs) != 0 {
+	if refs := newBacklinks(notes, linksOf(notes), idx).To("Concepts/source.md"); len(refs) != 0 {
 		t.Errorf("a based_on declaration counted as a body citation: %v", refs)
 	}
 }

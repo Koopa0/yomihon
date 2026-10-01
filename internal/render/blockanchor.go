@@ -19,6 +19,22 @@ import (
 // of that word, the same reading the excerpt scan takes.
 var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^\S+)\z`)
 
+// blockAddressIn finds the address line ends with. It answers nil when the line
+// ends in none; otherwise m is blockMarkerTail's match on trimmed, the line
+// without its trailing blanks, and m[2] and m[3] bound the address within it.
+// The pattern has no literal prefix, so the engine would try it from every byte
+// of the line, and almost no line holds a caret at all: a line without one
+// cannot end in an address, and is answered before the pattern is asked. Every
+// reader of an address asks through here, so none of them pays for the lines
+// that cannot have one.
+func blockAddressIn(line string) (trimmed string, m []int) {
+	if strings.IndexByte(line, '^') < 0 {
+		return "", nil
+	}
+	trimmed = strings.TrimRight(line, " \t")
+	return trimmed, blockMarkerTail.FindStringSubmatchIndex(trimmed)
+}
+
 // blockAnchorID is the single definition of the id a block address makes: the
 // address folded the way both kinds of fragment fold, so capitals and Unicode
 // form never keep an address from its marker.
@@ -72,16 +88,23 @@ func BlockAddressLines(authored []string, transformed string) []string {
 	return lines
 }
 
-// CodeSpanOwnsBlockAddress reports whether the caret lines[at] would take as a
-// block address sits inside a code span. A caret there is the author
-// showing an expression, not naming a block. The CommonMark spec lets a line
-// ending stand inside a code span, so the span is looked for over the run of
-// lines goldmark reads with that one rather than over that line alone: an
-// expression the author wrapped is still one span, and its closing backtick is
-// not a delimiter this pass may eat. The three readers of a block address ask
-// this together so a link, an excerpt, and the page's ids stay on one answer.
-// Indented code and fences are not this question: those have their own
-// readings already.
+// CodeSpanOwnedAddresses reports, for every line of lines, whether the caret
+// that line would take as a block address sits inside a code span. A caret
+// there is the author showing an expression, not naming a block. The
+// CommonMark spec lets a line ending stand inside a code span, so the span is
+// looked for over the run of lines goldmark reads with that one rather than
+// over that line alone: an expression the author wrapped is still one span, and
+// its closing backtick is not a delimiter this pass may eat. The three readers
+// of a block address ask this together so a link, an excerpt, and the page's
+// ids stay on one answer. Indented code and fences are not this question: those
+// have their own readings already.
+//
+// It is asked of a whole body at once and answered by index, because the answer
+// for one line is a reading of the run around it, and a run of n addressed
+// lines, a transcript with an address on each, read afresh by every one of them
+// costs n times n. Here each run is walked once, joined once, and its spans
+// found once, however many addresses it holds. A line that ends in no address
+// answers false: it has no caret to own.
 //
 // The run ends at a blank line and at every other line that ends a block, so
 // two stray backticks an author wrote on either side of a heading, a list
@@ -97,21 +120,43 @@ func BlockAddressLines(authored []string, transformed string) []string {
 // the run ends at — a heading, a list marker, a quote opener, a break, a fence
 // — is read from the line as it stands, because that shape is one goldmark will
 // see in the document this text becomes.
-func CodeSpanOwnsBlockAddress(lines []string, at int) bool {
-	trimmed := strings.TrimRight(lines[at], " \t")
-	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
-	if m == nil {
-		return false
+func CodeSpanOwnedAddresses(lines []string) []bool {
+	owned := make([]bool, len(lines))
+	for at := 0; at < len(lines); {
+		if _, m := blockAddressIn(lines[at]); m == nil {
+			at++
+			continue
+		}
+		start, end := at, at+1
+		for start > 0 && !inlineRunBreaks(lines[start-1], lines[start]) {
+			start--
+		}
+		for end < len(lines) && !inlineRunBreaks(lines[end-1], lines[end]) {
+			end++
+		}
+		markOwnedAddresses(lines[start:end], owned[start:end])
+		at = end
 	}
-	start, end := at, at+1
-	for start > 0 && !inlineRunBreaks(lines[start-1], lines[start]) {
-		start--
+	return owned
+}
+
+// markOwnedAddresses sets owned[i] for each line of one run whose address a
+// code span of the run holds. The spans and the addresses both come in order,
+// so one cursor over the spans serves every address: a span that ended before
+// an address ended cannot hold a later one, and of the rest only the first can
+// hold this one, since spans do not overlap.
+func markOwnedAddresses(run []string, owned []bool) {
+	spans := codeSpanRanges(strings.Join(run, "\n"))
+	next, off := 0, 0
+	for i, line := range run {
+		if _, m := blockAddressIn(line); m != nil {
+			for next < len(spans) && spans[next][1] < off+m[3] {
+				next++
+			}
+			owned[i] = next < len(spans) && spans[next][0] <= off+m[2]
+		}
+		off += len(line) + 1
 	}
-	for end < len(lines) && !inlineRunBreaks(lines[end-1], lines[end]) {
-		end++
-	}
-	off := len(strings.Join(lines[start:at+1], "\n")) - len(lines[at])
-	return withinAny(codeSpanRanges(strings.Join(lines[start:end], "\n")), off+m[2], off+m[3])
 }
 
 // inlineRunBreaks reports whether two adjacent lines, above then below, reach
@@ -155,8 +200,7 @@ func inlineRunBreaks(above, below string) bool {
 // that question is asked of the source the author wrote, which the scan holds
 // and this already-converted line no longer is.
 func markBlockAnchor(line string, page *composition, inline *[]string, claim bool) string {
-	trimmed := strings.TrimRight(line, " \t")
-	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
+	trimmed, m := blockAddressIn(line)
 	if m == nil {
 		return line
 	}

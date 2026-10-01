@@ -25,11 +25,18 @@ below is for.
 
 ## Install
 
+[Download a binary](https://github.com/koopa0/yomihon/releases/latest) from the
+latest release, or, with Go 1.27 or newer:
+
 ```sh
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
 
-Needs Go 1.27 or newer.
+Reading works on macOS, Linux and Windows. Changing a note's status works on
+macOS and Linux; Windows refuses it.
+
+The example vault comes with the source, not the binary: take it from the
+release's source archive, or clone this repository.
 
 ## Use
 
