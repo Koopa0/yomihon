@@ -23,8 +23,10 @@ in yomihon. Go module dependencies remain identified by `go.mod` and `go.sum`.
 
 ## Newsreader 1.003
 
-- Files: `assets/fonts/Newsreader-Variable.woff2`,
-  `assets/fonts/Newsreader-Italic-Variable.woff2`
+- Files: `assets/fonts/Newsreader-Latin-Variable.woff2`,
+  `assets/fonts/Newsreader-Latin-Italic-Variable.woff2`,
+  `assets/fonts/Newsreader-LatinExt-Variable.woff2`,
+  `assets/fonts/Newsreader-LatinExt-Italic-Variable.woff2`
 - Upstream: <https://github.com/productiontype/Newsreader>
 - Copyright: 2020 The Newsreader Project Authors
 - Licence: SIL Open Font License 1.1, reproduced in
