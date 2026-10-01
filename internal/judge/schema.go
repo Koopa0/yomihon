@@ -23,18 +23,7 @@ func checkSchema(notes []note, contract *schema.Contract) ([]Finding, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := contract.KnowledgeScope()
-	skip := contract.SkipBasenames()
-	var out []Finding
-	for i := range notes {
-		n := &notes[i]
-		seg := strings.Split(n.path, "/")
-		skipped := slices.Contains(skip, seg[len(seg)-1])
-		if scope.Includes(n.path) && !skipped {
-			out = append(out, run.note(n)...)
-		}
-	}
-	return out, nil
+	return run.check(notes), nil
 }
 
 // checkKnowledgeScope reports each knowledge directory the contract declares
@@ -91,6 +80,8 @@ func unmatchedKnowledgeDir(dir string) Finding {
 type lintRun struct {
 	contract            *schema.Contract
 	definition          schema.Definition
+	scope               schema.KnowledgeScope
+	skip                []string
 	slug                *regexp.Regexp
 	requiresFrontmatter bool
 	inboxType           string
@@ -108,6 +99,8 @@ func newLintRun(contract *schema.Contract) (*lintRun, error) {
 	run := &lintRun{
 		contract:            contract,
 		definition:          contract.Definition(),
+		scope:               contract.KnowledgeScope(),
+		skip:                contract.SkipBasenames(),
 		requiresFrontmatter: contract.RequiresFrontmatter(),
 	}
 	slug, err := regexp.Compile(run.definition.Rules.SlugPattern)
@@ -119,6 +112,22 @@ func newLintRun(contract *schema.Contract) (*lintRun, error) {
 	run.conceptType, run.conceptDeclared = contract.ConceptType()
 	run.lessonType, _ = contract.LessonType()
 	return run, nil
+}
+
+// check returns the frontmatter findings of every note the run's contract
+// governs: those inside its knowledge scope whose file name its scan does not
+// skip.
+func (r *lintRun) check(notes []note) []Finding {
+	var out []Finding
+	for i := range notes {
+		n := &notes[i]
+		seg := strings.Split(n.path, "/")
+		skipped := slices.Contains(r.skip, seg[len(seg)-1])
+		if r.scope.Includes(n.path) && !skipped {
+			out = append(out, r.note(n)...)
+		}
+	}
+	return out
 }
 
 // note returns the frontmatter findings for one in-scope note, in the
@@ -452,13 +461,44 @@ func schemaFinding(n *note, ruleID RuleID, field, value, reason string) Finding 
 // the reading parse would be a second, quieter set of rules. The findings come
 // back in the order the command puts them in.
 func LintFrontmatter(relPath string, data []byte, contract *schema.Contract) ([]Finding, error) {
-	if contract == nil {
-		return nil, nil
-	}
-	findings, err := checkSchema([]note{parseNote(relPath, data)}, contract)
+	lint, err := NewFrontmatterLinter(contract)
 	if err != nil {
 		return nil, err
 	}
+	return lint.Lint(relPath, data), nil
+}
+
+// FrontmatterLinter is LintFrontmatter for a caller with many notes to judge
+// against one contract: the contract is resolved once, rather than once per
+// note, and a note is read for its frontmatter alone, because the frontmatter
+// rules read nothing of the body. The zero value, which is what a folder no
+// contract governs gets, says nothing about any note.
+type FrontmatterLinter struct {
+	run *lintRun
+}
+
+// NewFrontmatterLinter resolves the contract. A nil contract yields the zero
+// linter. The only failure is the one newLintRun reports, a slug pattern the
+// contract declares that does not compile.
+func NewFrontmatterLinter(contract *schema.Contract) (FrontmatterLinter, error) {
+	if contract == nil {
+		return FrontmatterLinter{}, nil
+	}
+	run, err := newLintRun(contract)
+	if err != nil {
+		return FrontmatterLinter{}, err
+	}
+	return FrontmatterLinter{run: run}, nil
+}
+
+// Lint reports what the check command would say about one note's frontmatter,
+// in the order the command puts the findings in. Like LintFrontmatter it takes
+// the note's own bytes.
+func (l FrontmatterLinter) Lint(relPath string, data []byte) []Finding {
+	if l.run == nil {
+		return nil
+	}
+	findings := l.run.check([]note{parseFrontmatter(relPath, data)})
 	sortFindings(findings)
-	return findings, nil
+	return findings
 }

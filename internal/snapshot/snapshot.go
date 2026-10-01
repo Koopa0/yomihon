@@ -801,6 +801,9 @@ func buildGeneration(
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
 	noteCount := markdownCount(entries)
+	// One contract judges every note of this build, so it is resolved once here
+	// rather than once per note.
+	lint, lintErr := judge.NewFrontmatterLinter(contract)
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -834,7 +837,7 @@ func buildGeneration(
 			continue
 		}
 		g.captureNote(vault.Parse(relPath, data), data, capabilities.Language)
-		g.recordVerdict(relPath, data, contract, log)
+		g.recordVerdict(relPath, data, lint, lintErr, log)
 	}
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
@@ -997,13 +1000,12 @@ func (g *generation) captureNote(parsed *vault.Note, data []byte, languages sche
 // empty; absent and clean read the same at the accessor. The only fault it can
 // meet is a slug pattern nothing can compile, which is said once and leaves that
 // note without a verdict rather than the folder without a generation.
-func (g *generation) recordVerdict(relPath string, data []byte, contract *schema.Contract, log *slog.Logger) {
-	findings, err := judge.LintFrontmatter(relPath, data, contract)
-	if err != nil {
-		log.Warn("schema verdict unavailable for a note", "path", relPath, "error", err)
+func (g *generation) recordVerdict(relPath string, data []byte, lint judge.FrontmatterLinter, lintErr error, log *slog.Logger) {
+	if lintErr != nil {
+		log.Warn("schema verdict unavailable for a note", "path", relPath, "error", lintErr)
 		return
 	}
-	if len(findings) > 0 {
+	if findings := lint.Lint(relPath, data); len(findings) > 0 {
 		g.findings[relPath] = findings
 	}
 }
