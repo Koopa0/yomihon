@@ -113,6 +113,10 @@ type NoteView struct {
 	NonInstance         bool
 	WriteDiagnostic     string
 	NoFrontmatter       bool
+	// FrontmatterRequired says the governing schema explicitly requires a
+	// frontmatter block; it changes only the truthfulness of the absent-block
+	// status sentence, not the face state itself.
+	FrontmatterRequired bool
 	// OutsideKnowledgeScope is set for a note the write face reaches no further
 	// than reading: it sits outside the layer scan.knowledge_dirs declares, so
 	// its transition set is empty for that reason rather than because the
@@ -643,7 +647,7 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 							@browserDiagnostic(wording.WriteFaceUnavailable.In(lang), v.WriteDiagnostic)
 						</p>
 					case faceNoFrontmatter:
-						<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(lang) }</p>
+						<p class="y-statuspanel__notice">{ noFrontmatterLine(&v, lang) }</p>
 					case faceStatusUnknown:
 						@statusUnknownFlag(v, "y-statuspanel__notice", lang)
 					case faceStatusNotText:
@@ -820,7 +824,7 @@ templ statusBar(v NoteView, lang wording.Lang) {
 						@browserDiagnostic(wording.WriteFaceUnavailable.In(lang), v.WriteDiagnostic)
 					</p>
 				case faceNoFrontmatter:
-					<p class="y-sealbar__notice">{ wording.NoFrontmatter.In(lang) }</p>
+					<p class="y-sealbar__notice">{ noFrontmatterLine(&v, lang) }</p>
 				case faceStatusUnknown:
 					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
