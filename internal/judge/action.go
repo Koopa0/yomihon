@@ -25,6 +25,16 @@ var errWithheldUnreadable = errors.New(
 	"vault scan failed: a file under a directory this vault's contract withholds from agent-facing output could not be read; naming it or the reason would describe ground the contract closed",
 )
 
+// errWithheldCollision is the whole answer about two names that fold to one
+// path when either lies under a directory the contract keeps out of
+// agent-facing output. The kind of failure is said, because a bare "scan
+// failed" sends the caller to look for a permission; the names are not, since
+// saying either would describe ground the contract closed. The sentence is
+// fixed, so every such pair reads the same.
+var errWithheldCollision = errors.New(
+	"vault scan failed: vault contains canonically colliding paths, and at least one lies under a directory this vault's contract withholds from agent-facing output; naming them would describe ground the contract closed",
+)
+
 // actionHooks are the two seams a test drives an observation through: after the
 // scan is pinned, and after each note is read. Nothing in production sets
 // either, and no caller outside this package can — the moments they name are
@@ -174,7 +184,13 @@ func entryUnreadable(relPath string, cause error, authority scanAuthority) error
 // privacy policy canonicalizes what it is asked, so a decomposed spelling still
 // resolves to the directory the contract declared. A cause that names nothing
 // keeps the bare refusal rather than inventing a path to go looking with.
+//
+// Two names that fold to one path are a failure of their own kind, and the
+// repair is to rename one of them, so the refusal says that and names both.
 func scanStopped(cause error, authority scanAuthority) error {
+	if collision, ok := errors.AsType[*vault.CollisionError](cause); ok {
+		return collisionStopped(collision, authority)
+	}
 	pathErr, ok := errors.AsType[*fs.PathError](cause)
 	if !ok || !nameableVaultPath(pathErr.Path) {
 		return errVaultScan
@@ -183,6 +199,20 @@ func scanStopped(cause error, authority scanAuthority) error {
 		return errWithheldUnreadable
 	}
 	return fmt.Errorf("vault scan failed: %w", pathErr)
+}
+
+// collisionStopped is the refusal for a scan that met two names with one
+// canonical path. It names both only when the contract lets it describe both:
+// a name under a withheld directory is ground the contract closed, and so is
+// the other half of a pair that would confirm it, so either one withheld ends
+// the refusal at the kind of failure.
+func collisionStopped(collision *vault.CollisionError, authority scanAuthority) error {
+	for _, raw := range collision.Paths {
+		if !authority.egressAllowed(raw) {
+			return errWithheldCollision
+		}
+	}
+	return fmt.Errorf("vault scan failed: %w", collision)
 }
 
 // nameableVaultPath reports whether a path recovered from a failure names one
