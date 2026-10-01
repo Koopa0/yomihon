@@ -121,6 +121,23 @@ var (
 	ContractUnreadablePrefix = both("vault contract 無法讀取：", "The vault contract could not be read: ")
 )
 
+// ContractChanged and ContractChangedNext are what a reader is told when the
+// contract's bytes moved after yomihon read it. yomihon reads the contract once,
+// when it starts, and stops using one it can no longer vouch for until it is
+// started again — even if the bytes are put back. The sentence names the cause
+// and the step that follows, in the same pair the first-contract-added case
+// uses, so a page joins them with JoinGuide. Kicker and title are for the page
+// that stands where a course was.
+var (
+	ContractChanged = both(
+		"契約在 yomihon 啟動之後被改過，依契約而來的內容先停用了。",
+		"The contract changed after yomihon started, so what depends on it is switched off.",
+	)
+	ContractChangedNext   = both("請重新啟動 yomihon。", "Restart yomihon.")
+	ContractChangedKicker = both("需要重新啟動", "Restart needed")
+	ContractChangedTitle  = both("契約已變動", "The contract changed")
+)
+
 // The two headings for groups of findings that could not be worked out. Each
 // sits above the reason the failing declaration gave, so the heading says what
 // is missing and the sentence under it says why.

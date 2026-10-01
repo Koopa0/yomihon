@@ -4,10 +4,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // contractWithPrivacySection builds the test contract with a privacy
@@ -64,5 +66,58 @@ func TestHomeSaysWhyTheAdjudicationCommandsAreClosed(t *testing.T) {
 	fine := newServerWithContract(t, fragmentSplitVault(t), usable)
 	if _, body := get(t, fine.Client(), fine.URL+"/"); strings.Contains(body, `data-nothing="privacy"`) {
 		t.Errorf("a usable egress declaration was reported as a fault:\n%s", body)
+	}
+}
+
+// TestHomeSaysToRestartWhenTheContractChangedUnderThePrivacyDeclaration is the
+// egress declaration's half of the moment the whole-site test drives. The
+// contract's bytes move while yomihon is running, the privacy declaration is
+// latched shut on the next reconcile, and the desk's block about the judging
+// commands then quoted the operator's English line, in a zh-Hant page, in place
+// of telling the reader what to do. The reconcile is a wall-clock tick, so this
+// calls what the tick calls rather than waiting for one.
+func TestHomeSaysToRestartWhenTheContractChangedUnderThePrivacyDeclaration(t *testing.T) {
+	t.Parallel()
+
+	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read the schema test contract: %v", err)
+	}
+	declared := slices.Concat(base, []byte("\n[privacy]\nnever_egress_dirs = [\"Private\"]\n"))
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err = os.WriteFile(path, declared, 0o600); err != nil { // #nosec G703 -- fixed basename under this test's TempDir
+		t.Fatalf("write the contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile = %v", err)
+	}
+	srv := newServerWithContract(t, fragmentSplitVault(t), contract)
+
+	// The control: a usable declaration earns no block, so the sentence below is
+	// news about the edit and not furniture.
+	if _, body := get(t, srv.Client(), srv.URL+"/"); strings.Contains(body, `data-nothing="privacy"`) {
+		t.Fatalf("a usable egress declaration was reported as a fault:\n%s", body)
+	}
+
+	if err = os.WriteFile(path, append(declared, []byte("# note: a comment\n")...), 0o600); err != nil { // #nosec G703 -- fixed basename under this test's TempDir
+		t.Fatalf("edit the contract under the running instance: %v", err)
+	}
+	contract.PrivacyPolicy().ValidateSource()
+
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		page := getInLanguage(t, srv.Client(), srv.URL+"/", lang)
+		block := pageSection(page, `data-home-block="privacy"`)
+		if block == "" {
+			t.Fatalf("the desk in %s carries no block about the commands being closed:\n%s", lang, page)
+		}
+		if want := wording.JoinGuide(wording.ContractChanged, wording.ContractChangedNext, lang); !strings.Contains(block, want) {
+			t.Errorf("the privacy block in %s does not say %q:\n%s", lang, want, block)
+		}
+		for _, raw := range []string{"source changed after startup", "until restart"} {
+			if strings.Contains(page, raw) {
+				t.Errorf("the desk in %s prints the diagnostic constant (%q)", lang, raw)
+			}
+		}
 	}
 }

@@ -471,6 +471,11 @@ func TestArtifactPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
 	if got := second.Diagnostic(); got != want {
 		t.Errorf("second policy diagnostic = %q, want %q", got, want)
 	}
+	// The words are the operator's. What a page says to a reader is chosen from
+	// the reason, so the reason has to be the changed-contract one.
+	if got := second.Claim().Reason(); got != schema.ReasonContractChanged {
+		t.Errorf("second policy reason = %v, want %v", got, schema.ReasonContractChanged)
+	}
 
 	reloaded, err := schema.Load(root)
 	if err != nil {
@@ -655,6 +660,9 @@ func TestPrivacyPolicySourceDriftLatchesAcrossCopies(t *testing.T) {
 	const want = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
 	if got := second.Diagnostic(); got != want {
 		t.Errorf("second privacy policy diagnostic = %q, want %q", got, want)
+	}
+	if got := second.Claim().Reason(); got != schema.ReasonContractChanged {
+		t.Errorf("second privacy policy reason = %v, want %v", got, schema.ReasonContractChanged)
 	}
 
 	reloaded, err := schema.Load(root)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -47,11 +48,16 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	//
 	// The rail no longer carries this on every page, because the rail is now
 	// the book being read, which makes this the only place it is said.
-	fault := statedOnce(
-		authority.Diagnostic(lang),
-		visibleNav.NavigationClosure().Diagnostic(),
-		visibleNav.ArtifactClosure().Diagnostic(),
+	//
+	// One cause is not quoted: a contract that changed after yomihon read it is
+	// said in the reader's own words, once, whichever of the three carries it.
+	fault, restart := statedAsFaults(lang,
+		cause{authority.Diagnostic(lang), authority.Claim().Reason()},
+		cause{visibleNav.NavigationClosure().Diagnostic(), visibleNav.NavigationClosure().Reason()},
+		cause{visibleNav.ArtifactClosure().Diagnostic(), visibleNav.ArtifactClosure().Reason()},
 	)
+	privacy := snap.PrivacyPolicy().Claim()
+	privacyFault, privacyRestart := statedAsFaults(lang, cause{privacy.Diagnostic(), privacy.Reason()})
 	kept, hasMark := h.sources.Continuation()
 	open, openFault := h.openThoughtShelf(r.Context(), snap, lang, pages.OpenThoughtsHomeRows)
 	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
@@ -59,9 +65,11 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.HomeView{
 		Fault:             fault,
+		Restart:           restart,
 		OpenThoughts:      open,
 		OpenThoughtsFault: openFault,
-		PrivacyFault:      snap.PrivacyPolicy().Diagnostic(),
+		PrivacyFault:      privacyFault,
+		PrivacyRestart:    privacyRestart,
 		Degraded:          degradedNotice(&fresh, lang),
 		DegradedDetail:    blockedDetail(fresh.Blocked),
 		Blocks:            blocks,
@@ -156,4 +164,29 @@ func statedOnce(causes ...string) string {
 		distinct = append(distinct, cause)
 	}
 	return strings.Join(distinct, "; ")
+}
+
+// cause is one reason a page withheld something: the operator's sentence for
+// it, and the reason behind that sentence, which is the value a page branches
+// on when the dictionary has words of its own for the cause.
+type cause struct {
+	diagnostic string
+	reason     schema.Reason
+}
+
+// statedAsFaults is statedOnce for causes that may have words of their own. A
+// contract that changed after yomihon read it is said in the reader's language
+// rather than quoted, so it is taken out of what is quoted and returned as that
+// sentence — once, however many of the causes carry it. Everything else is
+// quoted exactly as statedOnce quotes it.
+func statedAsFaults(lang wording.Lang, causes ...cause) (quoted, restart string) {
+	quotes := make([]string, 0, len(causes))
+	for _, c := range causes {
+		if c.reason == schema.ReasonContractChanged {
+			restart = pages.ContractChangedSentence(lang)
+			continue
+		}
+		quotes = append(quotes, c.diagnostic)
+	}
+	return statedOnce(quotes...), restart
 }
