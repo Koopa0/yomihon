@@ -2,7 +2,6 @@ package note
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -50,38 +49,7 @@ func (h *Handler) language(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   langCookieMaxAgeSeconds,
 		SameSite: http.SameSiteLaxMode,
 	})
-	// #nosec G710 -- localNext admits only a same-site absolute path; every
+	// #nosec G710 -- LocalNext admits only a same-site absolute path; every
 	// other shape of the client-controlled field falls back to Home.
-	http.Redirect(w, r, localNext(r.PostFormValue("next")), http.StatusSeeOther)
-}
-
-// localNext validates the address the form asks to return to. The field is
-// client-controlled bytes, so only a same-site absolute path survives:
-// anything else — an empty value, a full URL, a protocol-relative or
-// backslashed address a browser would read as one — falls back to Home rather
-// than carrying the reader somewhere the form never stood.
-func localNext(next string) string {
-	// A rune that can end a line or a control sequence is refused before any
-	// shape check. This side writes the value into a header where such a rune
-	// survives, and a parser on the receiving side may drop it before it reads
-	// the shape — so "/\t/host" would leave here as a same-site path and
-	// arrive as a protocol-relative address. The refused set is C0 and delete,
-	// C1 — where U+0085 lives — and the two Unicode separators that end a line
-	// without being a newline. Invalid UTF-8 decodes to the replacement
-	// character, which is not in that set and needs no case of its own, since
-	// the redirect percent-escapes every non-ASCII byte on the way out. No
-	// address a page's own form carries contains any of these, so the fallback
-	// refuses no honest request.
-	for _, r := range next {
-		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == '\u2028' || r == '\u2029' {
-			return "/"
-		}
-	}
-	if next == "" || next[0] != '/' {
-		return "/"
-	}
-	if strings.HasPrefix(next, "//") || strings.HasPrefix(next, `/\`) {
-		return "/"
-	}
-	return next
+	http.Redirect(w, r, origin.LocalNext(r.PostFormValue("next")), http.StatusSeeOther)
 }

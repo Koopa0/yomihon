@@ -13,7 +13,7 @@ import (
 	"maps"
 	"slices"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // slotColors is the closed set of slot colour tokens, each mapping to a

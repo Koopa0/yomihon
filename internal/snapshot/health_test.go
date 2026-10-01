@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"iter"
 	"slices"
 	"testing"
 
@@ -12,6 +13,28 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
+
+// noteBodies iterates the parsed bodies of notes, for a test that harvests the
+// planned names of the corpus it built in one pass.
+func noteBodies(notes []*vault.Note) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for _, n := range notes {
+			if !yield(n.Body) {
+				return
+			}
+		}
+	}
+}
+
+// linksOf is what each note cites, by path, read through the same extractor a
+// build reads a note's body with when it reads the note.
+func linksOf(notes []*vault.Note) map[string][]string {
+	links := make(map[string][]string, len(notes))
+	for _, n := range notes {
+		links[n.RelPath] = judge.LinkTargets(n.Body)
+	}
+	return links
+}
 
 // A citation that lands nowhere has more than one reason and more than one
 // repair, and this page is worse than useless if it names the wrong one. The
@@ -36,7 +59,7 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	}
 	idx := graph.New(notes, nil)
 	planned := judge.NewPlanned(noteBodies(notes), nil)
-	h := newHealth(notes, idx, planned, newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+	h := newHealth(notes, linksOf(notes), idx, planned, newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	wantTitleOnly := []HealthTitleLink{{
 		From:   nav.NoteRef{Name: "cites title", RelPath: "Concepts/cites title.md"},
@@ -71,7 +94,7 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 		parse(t, "root.md", "e\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	want := []HealthIslandGroup{
 		{Dir: "Sources/course", Notes: []nav.NoteRef{
@@ -125,7 +148,7 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 				notes = []*vault.Note{target, citer}
 			}
 			idx := graph.New(notes, nil)
-			h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+			h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 			// The citer alone: nothing writes its name down anywhere, while the
 			// target's name is written in the citer either way round.
@@ -189,7 +212,7 @@ func TestHealthReportsSharedNamesNobodyHasLinkedTo(t *testing.T) {
 		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]]\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, idx), schema.ArtifactPolicy{}, titlesByName(notes))
+	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes))
 
 	// The names carrying the extension are absent on purpose: two files sharing
 	// "cited.md" necessarily share "cited", and one repair stated twice reads

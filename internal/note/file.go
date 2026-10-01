@@ -156,7 +156,8 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 // briefings established. Every response states its content type outright and
 // forbids browser sniffing. Document types that could execute in yomihon's
 // origin also receive a Content-Security-Policy sandbox; PDF keeps the narrower
-// confinement described by sandboxFor.
+// confinement described by sandboxFor. A markup document is also marked as a
+// download, so opening its address saves the file instead of rendering it.
 //
 // The sandbox here is tighter than the report route's in one respect: both
 // policies refuse scripts, but the report policy admits data: fonts, images,
@@ -228,6 +229,15 @@ func serveRaw(
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
+	// A markup document is handed over as a download rather than opened as a
+	// page. Opened, its elements are the browser's to act on, and a link
+	// element can ask for a page to be fetched ahead of a visit in a way the
+	// policy below does not govern. None of yomihon's own pages opens one of
+	// these as a document: a picture is drawn from its bytes by an img, which
+	// grants markup no such reach, and that is unchanged by the disposition.
+	if markupDocument(contentType) {
+		w.Header().Set("Content-Disposition", attachment(path.Base(rel)))
+	}
 	// A same-origin document this route hands the browser gets its confinement
 	// from the policy, so bytes are written only once that policy is known to
 	// reach the reader. Serving them under the reading shell's own policy
@@ -291,6 +301,29 @@ func fileContentType(rel string, data []byte) string {
 		return textContentType
 	}
 	return octetContentType
+}
+
+// markupDocument reports whether a browser opening contentType would build a
+// document of elements from it: HTML, and any XML, SVG included.
+func markupDocument(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		// A type the parser cannot read is not one a browser renders either,
+		// but an unreadable answer is treated as the one that needs care.
+		return true
+	}
+	return mediaType == "text/html" ||
+		strings.HasSuffix(mediaType, "/xml") ||
+		strings.HasSuffix(mediaType, "+xml") ||
+		mediaType == "text/xsl"
+}
+
+// attachment is the Content-Disposition that saves a file under its own name.
+// The formatter quotes or percent-encodes the name as it needs, so every name
+// has a value: it answers nothing only for a type or parameter name that is
+// not a token, and both of these are.
+func attachment(name string) string {
+	return mime.FormatMediaType("attachment", map[string]string{"filename": name})
 }
 
 func namedContentType(rel string) (string, bool) {

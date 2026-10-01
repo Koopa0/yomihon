@@ -473,6 +473,61 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 	}
 }
 
+// TestTheSiteKeepsNoPlaceInANoteItDoesNotHold drives the production assembly:
+// the route that keeps a reading place is handed the reading room's own answer
+// to whether a note is there. On a shared instance this route is open to anyone
+// who can reach it and its path is printed on Home, so a path that names no
+// note — a sentence, say — must be refused with the uncertainty route's own
+// status instead of being stored for the desk to show.
+func TestTheSiteKeepsNoPlaceInANoteItDoesNotHold(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeRecoverySiteFixture(t, root)
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+
+	serve := func(method, target string, body io.Reader) *httptest.ResponseRecorder {
+		req := siteRequest(t, method, target, body)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		recorder := httptest.NewRecorder()
+		site.ServeHTTP(recorder, req)
+		return recorder
+	}
+	keep := func(path string) int {
+		form := url.Values{"path": {path}, "offset": {"0"}, "identity": {strings.Repeat("a", 64)}}
+		return serve(http.MethodPost, "/marks", strings.NewReader(form.Encode())).Code
+	}
+	kept := func() bool {
+		home := serve(http.MethodGet, "/", http.NoBody)
+		if home.Code != http.StatusOK {
+			t.Fatalf("GET / = %d, want 200", home.Code)
+		}
+		return strings.Contains(home.Body.String(), "data-home-continue")
+	}
+
+	for _, path := range []string{"Maps/nope.md", "Visit spam.example for free prizes", "Maps/a\x00b\nc.md"} {
+		if got := keep(path); got != http.StatusUnprocessableEntity {
+			t.Errorf("POST /marks over %q = %d, want %d", path, got, http.StatusUnprocessableEntity)
+		}
+	}
+	if kept() {
+		t.Error("Home offers a way back to a place after every path that names no note was refused")
+	}
+	if got := keep("Maps/study.md"); got != http.StatusNoContent {
+		t.Errorf("POST /marks over a note the vault holds = %d, want %d", got, http.StatusNoContent)
+	}
+	if !kept() {
+		t.Error("Home offers no way back to the place that was kept")
+	}
+}
+
 // TestTheSiteRefusesARequestAddressedElsewhere asserts the assembled site — not
 // the middleware in isolation — turns away a request whose Host names anything
 // but this machine.

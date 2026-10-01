@@ -408,3 +408,35 @@ func TestThePlannedSetIsOnlyEnteredThroughTheHarvest(t *testing.T) {
 		t.Error("the set claims a name nothing declared")
 	}
 }
+
+// TestMergingTheNotesOwnPlannedSetsAnswersAsOneHarvestOfTheCorpus holds the
+// union to what a single harvest over every body would have produced, because a
+// caller that harvests note by note is standing in for that one harvest and the
+// two must not disagree about which names a corpus has declared.
+func TestMergingTheNotesOwnPlannedSetsAnswersAsOneHarvestOfTheCorpus(t *testing.T) {
+	t.Parallel()
+
+	bodies := []string{
+		"接下來 [[Consistent Hashing]] 待整理。\n",
+		"接下來 [[Bloom Filter]] 待整理。\n",
+		"沒有宣告任何待寫的名字。\n",
+	}
+	whole := NewPlanned(slices.Values(bodies), nil)
+	var parts []Planned
+	for _, body := range bodies {
+		parts = append(parts, NewPlanned(slices.Values([]string{body}), nil))
+	}
+	merged := MergePlanned(parts...)
+	for _, name := range []string{"consistent hashing", "bloom filter", "skip list", "一致性雜湊"} {
+		if got, want := merged.Has(name), whole.Has(name); got != want {
+			t.Errorf("merged.Has(%q) = %t, a single harvest says %t", name, got, want)
+		}
+	}
+	if !merged.Has("bloom filter") {
+		t.Error("the merged set lost a name the second note declared")
+	}
+	var empty Planned
+	if MergePlanned(empty).Has("consistent hashing") {
+		t.Error("merging the zero set invented a planned name")
+	}
+}

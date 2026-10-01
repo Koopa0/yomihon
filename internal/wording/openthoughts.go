@@ -9,7 +9,7 @@ var OpenThoughtsCount = both("%d 筆", "%d items")
 // OpenThoughtsCountOne is the singular combined item count.
 var OpenThoughtsCountOne = both("%d 筆", "%d item")
 
-// OpenThoughtsLedeFmt names the literal role and initial stages behind this view.
+// OpenThoughtsLedeFmt names the literal role and initial statuses behind this view.
 var OpenThoughtsLedeFmt = both("類型為 %s、處於以下任一初始狀態的筆記：%s；加上你的位置標記，依時間由新到舊。", "Notes of type %s in any of these initial statuses: %s; together with your marked locations, newest first.")
 
 // OpenThoughtsEmptyFmt states which declarations fill the empty shelf.

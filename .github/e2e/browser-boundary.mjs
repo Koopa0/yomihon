@@ -26,6 +26,7 @@ const SITES = [
 	"report-static-content-preserved",
 	"report-script-inert",
 	"report-refresh-inert",
+	"report-link-inert",
 	"report-resource-zero-network",
 	"report-webrtc-zero-network",
 ];
@@ -57,6 +58,8 @@ const MUTATIONS = {
 	},
 	"enable-report-script": { target: "report-script-inert", phase: "report" },
 	"enable-report-refresh": { target: "report-refresh-inert", phase: "report" },
+	"restore-report-link-rel": { target: "report-link-inert", phase: "report" },
+	"open-report-link-rel": { target: "report-link-inert", phase: "report" },
 	"weaken-report-resource-policy": {
 		target: "report-resource-zero-network",
 		phase: "report",
@@ -327,6 +330,11 @@ const installReportResponse = async (page, attacker) => {
 			refresh: occurrences(original, `${ATTACKER_TOKEN}/report-refresh`),
 			style: occurrences(original, `${ATTACKER_TOKEN}/report-style`),
 			prefetch: occurrences(original, `${ATTACKER_TOKEN}/report-prefetch`),
+			prerender: occurrences(original, `${ATTACKER_TOKEN}/report-prerender`),
+			referencePrerender: occurrences(
+				original,
+				`${ATTACKER_TOKEN}/report-reference-prerender`,
+			),
 			image: occurrences(original, `${ATTACKER_TOKEN}/report-image`),
 			fetch: occurrences(original, `${ATTACKER_TOKEN}/report-fetch`),
 			webrtc: occurrences(original, STUN_TOKEN),
@@ -374,6 +382,24 @@ const installReportResponse = async (page, attacker) => {
 						'data-report-mutation="weaken-report-resource-policy"',
 					);
 					break;
+				case "restore-report-link-rel": {
+					// The route's one rewrite, undone at its single site: the
+					// prerender link keeps the rel its author wrote.
+					const needle = '<link rel=_  rel="prerender"';
+					bodyMatches = occurrences(body, needle);
+					body = body.replace(needle, '<link rel="prerender"');
+					break;
+				}
+				case "open-report-link-rel": {
+					// The inserted relation without the space that closes it:
+					// the unquoted value runs on through the author's "/" and
+					// picks up the reference that decodes to a space and a
+					// relation of the author's own.
+					const needle = "<link rel=_ /&#32;prerender";
+					bodyMatches = occurrences(body, needle);
+					body = body.replace(needle, "<link rel=_/&#32;prerender");
+					break;
+				}
 				case "enable-report-webrtc":
 					expectedCsp = executableReportPolicy;
 					headers["content-security-policy"] = executableReportPolicy;
@@ -622,6 +648,32 @@ try {
 				"report-script-inert",
 				`report CSP=${JSON.stringify(proof.csp)}, want=${JSON.stringify(reportPolicy)}`,
 			);
+		}
+		// A link element can have a page fetched ahead of a visit outside the
+		// report policy, so every one the report holds must carry only the
+		// relation the route inserts, which no browser acts on.
+		// This is read from the document rather than waited for on the wire:
+		// the rel the parser kept is there at any moment, while the request a
+		// live rel starts has no deadline a probe could honestly wait out.
+		// Only the fixture's own body carries its three link elements; the
+		// mutations that stand in a one-line document of their own carry none.
+		if (
+			!MUTATE ||
+			MUTATE === "strip-report-static-content" ||
+			MUTATE === "restore-report-link-rel" ||
+			MUTATE === "open-report-link-rel"
+		) {
+			const linkRels = await page.evaluate(() =>
+				[...document.querySelectorAll("link")].map((link) =>
+					link.getAttribute("rel"),
+				),
+			);
+			if (linkRels.length !== 3 || linkRels.some((rel) => rel !== "_")) {
+				fail(
+					"report-link-inert",
+					`report link elements carry rel=${JSON.stringify(linkRels)}, want three "_"`,
+				);
+			}
 		}
 		await page.waitForTimeout(700);
 		if (!MUTATE || MUTATE === "strip-report-static-content") {

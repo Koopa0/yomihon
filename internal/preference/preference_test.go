@@ -453,6 +453,14 @@ func TestTheReturnAddressStaysOnThisSite(t *testing.T) {
 		{name: "a decoded tab falls to Home", next: "/\t/evil.example", want: "/"},
 		{name: "a decoded newline falls to Home", next: "/\n/evil.example", want: "/"},
 		{name: "a delete byte falls to Home", next: "/\x7f/evil.example", want: "/"},
+		{name: "a next line falls to Home", next: "/\u0085/evil.example", want: "/"},
+		{name: "a line separator falls to Home", next: "/\u2028/evil.example", want: "/"},
+		{name: "a paragraph separator falls to Home", next: "/\u2029/evil.example", want: "/"},
+		// The redirect cleans the path before it writes the header, so a dot
+		// segment ahead of a backslash would leave as "/\host" had only the
+		// bytes the form sent been judged.
+		{name: "a dot segment before a backslash falls to Home", next: `/./\evil.example`, want: "/"},
+		{name: "a parent segment before a backslash falls to Home", next: `/a/../\evil.example`, want: "/"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -706,7 +714,7 @@ func TestAnAddressOffThisSiteNeverReachesTheForms(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	for _, from := range []string{"//evil.example", `/\evil.example`, "https://evil.example/"} {
+	for _, from := range []string{"//evil.example", `/\evil.example`, `/./\evil.example`, "https://evil.example/"} {
 		t.Run(from, func(t *testing.T) {
 			t.Parallel()
 			code, body := page(t, srv, "/preferences?from="+url.QueryEscape(from))

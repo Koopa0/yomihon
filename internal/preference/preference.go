@@ -33,7 +33,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -324,30 +323,4 @@ func (ch *choice) chosen(option, current string) bool {
 // values a cookie may carry, or the option that stands for storing none.
 func (ch *choice) honours(value string, stored []string) bool {
 	return slices.Contains(stored, value) || (ch.whenUnset != "" && value == ch.whenUnset)
-}
-
-// localNext validates the address the form asks to return to. The field is
-// client-controlled bytes, so only a same-site absolute path survives:
-// anything else — an empty value, a full URL, a protocol-relative or
-// backslashed address a browser would read as one — falls back to Home rather
-// than carrying the reader somewhere the form never stood.
-func localNext(next string) string {
-	// A control byte is refused before any shape check. This side writes the
-	// value into a header where a tab or a delete survives, and the WHATWG URL
-	// parser on the receiving side strips such bytes before it reads the
-	// shape — so "/\t/host" leaves here as a same-site path and arrives as a
-	// protocol-relative address. No address a page's own form carries contains
-	// one, so the fallback refuses no honest request.
-	for i := range len(next) {
-		if next[i] < 0x20 || next[i] == 0x7f {
-			return "/"
-		}
-	}
-	if next == "" || next[0] != '/' {
-		return "/"
-	}
-	if strings.HasPrefix(next, "//") || strings.HasPrefix(next, `/\`) {
-		return "/"
-	}
-	return next
 }

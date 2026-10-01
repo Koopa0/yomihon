@@ -153,6 +153,11 @@ func TestLanguagePostKeepsTheRedirectLocal(t *testing.T) {
 		{name: "a next line falls to Home", next: "/\u0085/evil.example", want: "/"},
 		{name: "a line separator falls to Home", next: "/\u2028/evil.example", want: "/"},
 		{name: "a paragraph separator falls to Home", next: "/\u2029/evil.example", want: "/"},
+		// The redirect cleans the path before it writes the header, so a dot
+		// segment ahead of a backslash would leave as "/\host" had only the
+		// bytes the form sent been judged.
+		{name: "a dot segment before a backslash falls to Home", next: `/./\evil.example`, want: "/"},
+		{name: "a parent segment before a backslash falls to Home", next: `/a/../\evil.example`, want: "/"},
 		// The refusal above is a set of separators, not of non-ASCII: most of
 		// this vault's own paths are CJK, and rejecting them would send every
 		// reader of them to Home on a language switch.

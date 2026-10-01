@@ -29,7 +29,7 @@ func TestBacklinks(t *testing.T) {
 		parse(t, "B/twin.md", "two\n"),
 	}
 	idx := graph.New(notes, nil)
-	b := newBacklinks(notes, idx)
+	b := newBacklinks(notes, linksOf(notes), idx)
 
 	tests := []struct {
 		name    string

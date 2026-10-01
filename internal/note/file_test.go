@@ -295,6 +295,43 @@ func TestRawNamesTheContentType(t *testing.T) {
 	}
 }
 
+// TestRawHandsMarkupOverAsADownload holds the route to saving, not opening, a
+// document of elements. Opened, a markup file's link elements are the
+// browser's to act on, and one can ask for a page to be fetched ahead of a
+// visit outside the sandbox's reach; saved, nothing in it runs. The bytes are
+// still the file's own, and every other kind keeps opening in place — a
+// picture, which the viewer draws through an img that grants markup no such
+// reach, and a PDF, which the viewer frames.
+func TestRawHandsMarkupOverAsADownload(t *testing.T) {
+	t.Parallel()
+	root := fileVault(t)
+	write(t, filepath.Join(root, "feed.xml"), []byte(`<?xml version="1.0"?><feed/>`))
+	write(t, filepath.Join(root, "頁面.html"), []byte("<p>cjk</p>\n"))
+	srv := newServer(t, root)
+
+	for _, tt := range []struct{ path, want string }{
+		{path: "page.html", want: `attachment; filename=page.html`},
+		{path: "icon.svg", want: `attachment; filename=icon.svg`},
+		{path: "feed.xml", want: `attachment; filename=feed.xml`},
+		{path: "%E9%A0%81%E9%9D%A2.html", want: `attachment; filename*=utf-8''%E9%A0%81%E9%9D%A2.html`},
+		{path: "pic.png"},
+		{path: "doc.pdf"},
+		{path: "notes.txt"},
+		{path: "blob"},
+	} {
+		code, header, body := fetch(t, srv.Client(), srv.URL+"/raw/"+tt.path)
+		if code != http.StatusOK {
+			t.Fatalf("GET /raw/%s = %d, want 200", tt.path, code)
+		}
+		if got := header.Get("Content-Disposition"); got != tt.want {
+			t.Errorf("GET /raw/%s Content-Disposition = %q, want %q", tt.path, got, tt.want)
+		}
+		if tt.path == "page.html" && body != "<script>alert(1)</script>\n" {
+			t.Errorf("GET /raw/page.html body = %q, want the file's bytes unchanged", body)
+		}
+	}
+}
+
 func TestRawKeepsThePinnedVaultWhenTheConfiguredNameIsReplaced(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()

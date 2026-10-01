@@ -274,3 +274,30 @@ func TestServeRawWithholdsBytesItCannotConfine(t *testing.T) {
 		})
 	}
 }
+
+// TestMarkupDocumentNamesEveryTypeABrowserBuildsADocumentFrom holds the set
+// the raw route hands over as a download, including the types no extension in
+// the viewer's own table reaches: those come from the machine's mime table,
+// which differs from one machine to the next.
+func TestMarkupDocumentNamesEveryTypeABrowserBuildsADocumentFrom(t *testing.T) {
+	t.Parallel()
+	for contentType, want := range map[string]bool{
+		"text/html; charset=utf-8":     true,
+		"application/xhtml+xml":        true,
+		"image/svg+xml":                true,
+		"text/xml; charset=utf-8":      true,
+		"application/xml":              true,
+		"application/atom+xml":         true,
+		"text/xsl":                     true,
+		"a type no parser reads":       true,
+		"image/png":                    false,
+		"application/pdf":              false,
+		"text/plain; charset=utf-8":    false,
+		"text/markdown; charset=utf-8": false,
+		"application/octet-stream":     false,
+	} {
+		if got := markupDocument(contentType); got != want {
+			t.Errorf("markupDocument(%q) = %v, want %v", contentType, got, want)
+		}
+	}
+}

@@ -316,6 +316,9 @@ func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
 }
 
 func decodeContract(data []byte, source policySource) (*Contract, error) {
+	if err := checkContractDepth(data); err != nil {
+		return nil, err
+	}
 	if err := validateDistinctKeys(data); err != nil {
 		return nil, err
 	}
