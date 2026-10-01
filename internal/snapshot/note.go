@@ -25,6 +25,12 @@ type Reading struct {
 	// HasFrontmatter is whether the source bytes opened a frontmatter block,
 	// including an empty fence pair whose YAML decoded to no fields.
 	HasFrontmatter bool
+	// FrontmatterUnclosed is true where the source bytes opened a fence and a
+	// field-shaped line and nothing ever closed it. Such a note has no block as
+	// far as HasFrontmatter and every other reader here are concerned, so this
+	// is the one fact that tells it from a note that never wrote one, and it is
+	// what keeps a page from calling it frontmatter-free.
+	FrontmatterUnclosed bool
 	// StatusNotText is true where the note wrote a status the reader did not
 	// take as text, so Status above is empty for a reason a page can name.
 	StatusNotText bool
@@ -65,5 +71,8 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		StatusNotText:      parsed.StatusNotText(),
 		Updated:            parsed.Updated(),
 		ContentIdentity:    vault.ContentIdentity(data),
+		// Asked only of a note with no block, where the answer can be yes, so a
+		// note that did parse is not scanned a second time for it.
+		FrontmatterUnclosed: !parsed.HasFrontmatter && vault.OpensUnclosedFrontmatter(data),
 	}
 }

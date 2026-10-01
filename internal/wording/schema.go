@@ -106,17 +106,19 @@ var (
 
 // The two things the health page says about frontmatter. They are separate
 // sections because a reader does something different about each: a note whose
-// frontmatter cannot be read needs its YAML repaired before anything else can
-// be judged, while a note the schema disagrees with has a specific field to
-// change.
+// frontmatter cannot be read needs that repaired before anything else can be
+// judged, while a note the schema disagrees with has a specific field to
+// change. A block can fail to be read in two ways, YAML that is not valid and a
+// fence that never closes, and only the first is one the grouping by status
+// places in its own cell.
 var (
 	HealthFrontmatterTitle = both(
 		"frontmatter 讀不出來的筆記",
 		"Notes whose frontmatter could not be read")
 
 	HealthFrontmatterLede = both(
-		"這些筆記的 frontmatter 不是合法的 YAML。內文照常閱讀、連結照常解析，但它們宣告的每一項都無法判斷；在依狀態分組裡，它們只出現在「無法判讀」一格。",
-		"These notes' frontmatter is not valid YAML. The body still reads and the links still resolve, but nothing they declare could be judged; in the grouping by status they appear only in the cell for what could not be read.")
+		"這些筆記的 frontmatter 讀不出來：不是合法的 YAML，或是第一行的 --- 之後一直沒有結尾的 ---。內文照常閱讀、連結照常解析，但它們宣告的每一項都無法判斷。YAML 不合法的筆記，在依狀態分組裡只出現在「讀不出來」一格。",
+		"These notes' frontmatter could not be read: it is not valid YAML, or it opens with --- on line 1 and the closing --- never comes. The body still reads and the links still resolve, but nothing they declare could be judged. A note whose YAML is not valid appears in the grouping by status only in the cell for what could not be read.")
 
 	HealthSchemaTitle = both(
 		"schema 有話說的筆記",

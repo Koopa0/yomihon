@@ -136,6 +136,13 @@ func (r *lintRun) check(notes []note) []Finding {
 // knowledge-note rules. That order is the tiebreak the stable sort preserves.
 func (r *lintRun) note(n *note) []Finding {
 	if n.noFrontmatter {
+		// The fence that never closes is said whatever the contract thinks of
+		// a note with no block, and in place of "is missing": the block is
+		// there and only its closing line is not, so "is missing" would send
+		// the author to the wrong fault.
+		if n.unclosedFrontmatter {
+			return []Finding{unclosedFrontmatterFinding(n)}
+		}
 		if r.requiresFrontmatter {
 			return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is missing")}
 		}
@@ -451,6 +458,17 @@ func schemaFinding(n *note, ruleID RuleID, field, value, reason string) Finding 
 	if value != "" {
 		f.Target = new(value)
 	}
+	return f
+}
+
+// unclosedFrontmatterFinding builds the finding for a note whose opening fence
+// nothing closes. It is a reason of schema.frontmatter, whose other two reasons
+// are a block that cannot be read and a note with no block where the contract
+// wants one, and it keeps the identity those two share: one per path. The
+// action is its own, because nothing here is a mismatch with the schema to fix.
+func unclosedFrontmatterFinding(n *note) Finding {
+	f := schemaFinding(n, "schema.frontmatter", "", "", "opens on line 1 and never closes")
+	f.SuggestedAction = "add the closing --- line, or remove the opening --- if the note has no frontmatter"
 	return f
 }
 

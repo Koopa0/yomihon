@@ -23,6 +23,13 @@ type note struct {
 	badFrontmatter bool
 	frontmatter    map[string]fmValue
 
+	// unclosedFrontmatter is set beside noFrontmatter for a note whose first
+	// line opens a fence and whose next line reads as a field, with no closing
+	// fence after them. The note has no block as far as every reader is
+	// concerned, and this is the one fact that tells it from a note that never
+	// wrote one.
+	unclosedFrontmatter bool
+
 	title      string
 	titleEn    string
 	aliases    []string
@@ -137,6 +144,7 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 	}
 	if !found {
 		n.noFrontmatter = true
+		n.unclosedFrontmatter = vault.OpensUnclosedFrontmatter(data)
 		return n
 	}
 	var doc yaml.Node

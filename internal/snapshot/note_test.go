@@ -70,3 +70,36 @@ func TestCaptureNoteKeepsEmptyBlockApartFromAbsent(t *testing.T) {
 		t.Fatal("a file with no delimiters was projected as a frontmatter block")
 	}
 }
+
+// TestCaptureNoteKeepsAFenceNothingClosedApartFromAbsent holds the second
+// projection of a file the split read no block from. A note whose closing fence
+// lost a character and a note that never wrote frontmatter both have no block,
+// and a page that cannot tell them apart calls the first one legal. Neither is a
+// frontmatter block, and only the first is a fence nothing closed.
+func TestCaptureNoteKeepsAFenceNothingClosedApartFromAbsent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		content      string
+		wantBlock    bool
+		wantUnclosed bool
+	}{
+		{name: "the closing fence lost a dash", content: "---\ntitle: Unclosed\ntype: note\nstatus: draft\n--\n\n# Body\n", wantUnclosed: true},
+		{name: "a block that closes", content: "---\ntitle: Closed\n---\nbody\n", wantBlock: true},
+		{name: "an empty fence pair", content: "---\n---\nbody\n", wantBlock: true},
+		{name: "a thematic break and prose", content: "---\n\nbody\n"},
+		{name: "no delimiters", content: "body\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			data := []byte(tt.content)
+			got := newReading(vault.Parse("Note.md", data), data, schema.ArticleLanguage{})
+			if got.HasFrontmatter != tt.wantBlock || got.FrontmatterUnclosed != tt.wantUnclosed {
+				t.Errorf("newReading(%q) = block %v, unclosed %v; want block %v, unclosed %v",
+					tt.content, got.HasFrontmatter, got.FrontmatterUnclosed, tt.wantBlock, tt.wantUnclosed)
+			}
+		})
+	}
+}

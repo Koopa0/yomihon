@@ -30,8 +30,11 @@ import (
 // escape, and an unterminated quote each become a single parse fault; a merge
 // key is read as an ordinary key; and the fence handling matches — an empty
 // block reads as present-but-empty, a "..." close and a closing fence at end of
-// file are both honored. Each golden holds the schema subset of the reference
-// tool's sorted output over that same fixture.
+// file are both honored. The unclosed fixture pins the fence that never closes:
+// three notes that open a block and lose its closing line each draw one finding,
+// while a block that closes and two notes that open with a thematic break draw
+// none. Each golden holds the schema subset of the reference tool's sorted
+// output over that same fixture.
 func TestCheckSchemaGolden(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -43,6 +46,7 @@ func TestCheckSchemaGolden(t *testing.T) {
 		{name: "scalar coercion", fixture: "testdata/vault-coercion", golden: "testdata/golden/coercion.jsonl"},
 		{name: "parser strictness", fixture: "testdata/vault-strictness", golden: "testdata/golden/strictness.jsonl"},
 		{name: "unreachable status", fixture: "testdata/vault-status-unreachable", golden: "testdata/golden/status-unreachable.jsonl"},
+		{name: "unclosed fence", fixture: "testdata/vault-unclosed", golden: "testdata/golden/unclosed.jsonl"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

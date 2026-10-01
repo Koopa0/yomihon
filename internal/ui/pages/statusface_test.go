@@ -43,6 +43,11 @@ func TestBothStatusFacesDrawEveryWriteFaceState(t *testing.T) {
 			token: "unavailable",
 			mark:  "contract unreadable",
 		},
+		faceFrontmatterUnclosed: {
+			view:  with(func(v *NoteView) { v.FrontmatterUnclosed = true }),
+			token: "instance",
+			mark:  wording.StatusFrontmatterNeverCloses.In(wording.ZhHant),
+		},
 		faceNoFrontmatter: {
 			view:  with(func(v *NoteView) { v.NoFrontmatter = true }),
 			token: "instance",
@@ -159,6 +164,16 @@ func TestTheWriteFaceStatesOverrideInOneOrder(t *testing.T) {
 			name: "a write face that could not open outranks what the frontmatter says",
 			view: NoteView{Governed: true, WriteDiagnostic: "unreadable", NoFrontmatter: true, Status: "seed", StatusUnknown: true, OutsideKnowledgeScope: true},
 			want: faceWriteUnavailable,
+		},
+		{
+			name: "a write face that could not open outranks an opening fence nothing closes",
+			view: NoteView{Governed: true, WriteDiagnostic: "unreadable", FrontmatterUnclosed: true},
+			want: faceWriteUnavailable,
+		},
+		{
+			name: "an opening fence nothing closes outranks the sentence for no frontmatter",
+			view: NoteView{Governed: true, NoFrontmatter: true, FrontmatterUnclosed: true, OutsideKnowledgeScope: true},
+			want: faceFrontmatterUnclosed,
 		},
 		{
 			name: "no frontmatter at all outranks the status read out of it",
