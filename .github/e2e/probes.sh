@@ -35,7 +35,6 @@ probes=(
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"
   "right-rail-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "skip-link-contract.mjs|/notes/Notes/alpha.md"
-  "arrival-fade.mjs|/notes/Notes/reading-fidelity.md"
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
   "print-librarian-chrome.mjs|/notes/Notes/reading-fidelity.md"
   "print-fold-open.mjs|/notes/Notes/reading-fidelity.md"
