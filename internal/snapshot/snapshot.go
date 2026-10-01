@@ -7,9 +7,9 @@ package snapshot
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
-	"iter"
 	"log/slog"
 	"runtime/debug"
 	"slices"
@@ -141,9 +141,11 @@ type Generation struct {
 	// the resolver is built not to answer.
 	titles map[string][]nav.NoteRef
 
-	// parsed and sidecars are what a later build falls back on for a source it can
-	// no longer read; the projections already hold both, so this costs two maps.
+	// parsed, products and sidecars are what a later build falls back on for a
+	// source it can no longer read; the projections already hold most of it, so
+	// this costs three maps.
 	parsed   map[string]*vault.Note
+	products map[string]noteProducts
 	sidecars map[string][]byte
 
 	// skippedNotes are markdown paths this generation left out of the note map
@@ -507,6 +509,9 @@ type Store struct {
 	// contract is the folder's own vocabulary, read once at startup — the same
 	// reading the capabilities above came from. No Generation holds it.
 	contract *schema.Contract
+	// reported is which note parse panics the loop has already logged in full,
+	// so a panic that repeats on unchanged bytes is not logged in full again.
+	reported *panicLedger
 	prev     vault.Scan
 	retry    bool
 
@@ -567,7 +572,8 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
-	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, generationCaps, contract)
+	reported := &panicLedger{}
+	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, generationCaps, contract, reported)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
@@ -577,6 +583,7 @@ func New(
 		now:          time.Now,
 		capabilities: capabilities,
 		contract:     contract,
+		reported:     reported,
 		prev:         scan,
 		retry:        len(blocked) != 0,
 	}
@@ -688,6 +695,7 @@ func (s *Store) rescan(ctx context.Context) {
 		s.log,
 		capabilities,
 		s.contract,
+		s.reported,
 	)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -793,12 +801,14 @@ func buildGeneration(
 	// revalidation reach a build already in progress.
 	capabilities schema.Capabilities,
 	contract *schema.Contract,
+	reported *panicLedger,
 ) (*Generation, []BlockedSource, error) {
 	// Classification is generation data, so one point-in-time policy builds every
 	// projection; Capture rebinds request-time access to the current authority.
 	projectionPolicy := capabilities.Artifacts.Capture()
 	entries := scan.Files()
 	g := newGeneration(len(entries))
+	g.reported = reported
 	g.blocked = blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
@@ -843,7 +853,7 @@ func buildGeneration(
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated)
-	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
+	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
 	for _, problem := range slotProblems {
@@ -857,14 +867,15 @@ func buildGeneration(
 		concepts = lesson.ConceptIndex{}
 	}
 
-	planned := judge.NewPlanned(noteBodies(g.ordered), contract)
-	backlinks := newBacklinks(g.ordered, graphIndex)
+	planned := g.plannedSet()
+	links := g.linkTargets()
+	backlinks := newBacklinks(g.ordered, links, graphIndex)
 	sources := newBasedOnBy(g.ordered, graphIndex)
 	// What the schema said is gathered here, with the rest of the whole-folder
 	// view, because every page's rail now states how many findings stand
 	// against the folder and a walk over every note is not a thing to do on
 	// every page.
-	health := newHealth(g.ordered, graphIndex, planned, backlinks, capabilities.Artifacts, titles)
+	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles)
 	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
 	gen := &Generation{
 		graph:          graphIndex,
@@ -885,12 +896,14 @@ func buildGeneration(
 		domainRoots:    contract.Definition().Rules.DomainEqualsFolderUnder,
 		titles:         titles,
 		parsed:         g.parsed,
+		products:       g.products,
 		sidecars:       g.sidecars,
 		skippedNotes:   g.skippedNotes,
 		sizeSkipped:    slices.Clone(g.sizeSkipped),
 		noteCount:      noteCount,
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen)
+	g.settleReported()
 	return gen, g.blocked, nil
 }
 
@@ -938,6 +951,14 @@ type generation struct {
 	// the scan could not observe, a file whose read failed, a note whose
 	// parse panicked. Any of them leaves the generation incomplete.
 	blocked []BlockedSource
+	// products is what each note in parsed yields from its body, by path: the
+	// folder-wide projections read these rather than parsing a body themselves.
+	products map[string]noteProducts
+	// reported is the Store's memory of the note parse panics already logged in
+	// full, and panics is this reading's own account to replace it with. A
+	// reading built outside a Store has no memory, and logs every panic in full.
+	reported *panicLedger
+	panics   map[string][sha256.Size]byte
 }
 
 // newGeneration opens an empty generation sized for a folder of entries files.
@@ -952,6 +973,8 @@ func newGeneration(entries int) *generation {
 		resources:    make([]string, 0, entries),
 		findings:     make(map[string][]judge.Finding),
 		skippedNotes: make(map[string]struct{}),
+		products:     make(map[string]noteProducts, entries),
+		panics:       make(map[string][sha256.Size]byte),
 	}
 }
 
@@ -991,21 +1014,97 @@ func (g *generation) skipUnread(relPath string, note bool, size int64, log *slog
 	})
 }
 
-// parseNoteSource turns one note's bytes into the parsed note a generation
-// holds. It is a variable only so a test can make one file's parse panic: a
-// third-party parser does not panic on demand, and the input that makes one do
-// it is a defect its own module can later fix. Nothing in production assigns it.
-var parseNoteSource = vault.Parse
+// noteParsers are the calls a note's bytes go through on the way to everything
+// a generation holds about it: the note's own parse, the search entry its body
+// yields, the concept names it declares it owes, and the links it cites.
+type noteParsers struct {
+	note     func(relPath string, data []byte) *vault.Note
+	document func(*vault.Note) lexical.Document
+	planned  func(body string, contract *schema.Contract) judge.Planned
+	links    func(body string) []string
+}
 
-// readNote parses one note this reading opened and files it into every
-// projection built from a note. A panic anywhere in that work — a third-party
-// parser, the schema verdict, the projection — is contained to this one file:
-// nothing of the note is filed, one ERROR record names the path and the panic
-// value, and the returned reason says what happened so the caller can treat the
-// file like one it could not open. A note that was filed answers "".
+// parsers is what a build parses notes with. It is a variable only so a test
+// can make one note panic at the stage it names: a third-party parser does not
+// panic on demand, and the input that makes one do it is a defect its own
+// module can later fix. Nothing in production assigns it.
 //
-// Everything that can panic runs before anything is filed, so a panic cannot
-// leave the note in some projections and not in others.
+// A test that swaps it must not be parallel. A parallel test is held until
+// every sequential one has finished, and that is what keeps the swap from being
+// read by a build running beside it.
+var parsers = noteParsers{
+	note:     vault.Parse,
+	document: lexical.DocumentFromNote,
+	planned:  plannedNames,
+	links:    judge.LinkTargets,
+}
+
+// plannedNames harvests the concept names one body declares it still owes.
+func plannedNames(body string, contract *schema.Contract) judge.Planned {
+	return judge.NewPlanned(slices.Values([]string{body}), contract)
+}
+
+// noteProducts is what the folder-wide projections read out of one note's body,
+// derived once, beside the note's own parse and under the same guard, so that a
+// parser which cannot survive a body costs that note rather than the generation.
+type noteProducts struct {
+	// document is the note's search entry, before the declared language and the
+	// knowledge layer are applied to it.
+	document lexical.Document
+	// planned is the set of concept names the body declares it still owes.
+	planned judge.Planned
+	// links are the wikilink targets the body cites, in document order.
+	links []string
+}
+
+// noteRead is one note read whole, held apart from the generation until every
+// part of it exists.
+type noteRead struct {
+	parsed     *vault.Note
+	reading    Reading
+	findings   []judge.Finding
+	verdictErr error
+	products   noteProducts
+}
+
+// notePanic is what a recovered panic left behind: the value, and where it was.
+type notePanic struct {
+	value string
+	stack []byte
+}
+
+// deriveNote parses one note and derives from it everything a generation keeps.
+// This is the one place a note's bytes meet a parser, and a panic anywhere in
+// it — the YAML decoder, the markdown parse, the schema verdict, a projection —
+// is recovered and returned as the fault, with nothing of the note produced.
+// Every panic is contained, runtime errors included: an unhashable map key or a
+// nil dereference inside a parser is exactly what this guards.
+func deriveNote(
+	relPath string,
+	data []byte,
+	languages schema.ArticleLanguage,
+	contract *schema.Contract,
+) (read noteRead, fault *notePanic) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			read, fault = noteRead{}, &notePanic{value: fmt.Sprint(rec), stack: debug.Stack()}
+		}
+	}()
+	read.parsed = parsers.note(relPath, data)
+	read.reading = newReading(read.parsed, data, languages)
+	read.findings, read.verdictErr = judge.LintFrontmatter(relPath, data, contract)
+	read.products = noteProducts{
+		document: parsers.document(read.parsed),
+		planned:  parsers.planned(read.parsed.Body, contract),
+		links:    parsers.links(read.parsed.Body),
+	}
+	return read, nil
+}
+
+// readNote reads one note this reading opened and files it into every
+// collection built from a note. If deriving it panics, nothing of the note is
+// filed and the returned reason says what happened, so the caller can treat the
+// file like one it could not open. A note that was filed answers "".
 func (g *generation) readNote(
 	relPath string,
 	data []byte,
@@ -1013,25 +1112,85 @@ func (g *generation) readNote(
 	contract *schema.Contract,
 	log *slog.Logger,
 ) (panicked string) {
-	defer func() {
-		// Every panic is contained, runtime errors included: a nil dereference
-		// or an unhashable map key inside a parser is exactly what this guards.
-		if rec := recover(); rec != nil {
-			value := fmt.Sprint(rec)
-			panicked = "panic while parsing this note: " + value
-			log.Error("vault note parse panicked; treating the note as unreadable",
-				"path", relPath, "panic", value, "stack", string(debug.Stack()))
-		}
-	}()
-	parsed := parseNoteSource(relPath, data)
-	reading := newReading(parsed, data, languages)
-	findings, verdictErr := judge.LintFrontmatter(relPath, data, contract)
-
-	g.parsed[relPath] = parsed
-	g.ordered = append(g.ordered, parsed)
-	g.readings[relPath] = reading
-	g.recordVerdict(relPath, findings, verdictErr, log)
+	read, fault := deriveNote(relPath, data, languages, contract)
+	if fault != nil {
+		g.reportPanic(relPath, data, fault, log)
+		return "panic while parsing this note: " + fault.value
+	}
+	g.fileNote(relPath, &read, log)
 	return ""
+}
+
+// fileNote files one note read whole. Nothing here parses anything: it only
+// stores what deriveNote produced.
+func (g *generation) fileNote(relPath string, read *noteRead, log *slog.Logger) {
+	g.parsed[relPath] = read.parsed
+	g.ordered = append(g.ordered, read.parsed)
+	g.readings[relPath] = read.reading
+	g.products[relPath] = read.products
+	g.recordVerdict(relPath, read.findings, read.verdictErr, log)
+}
+
+// panicLedger is a Store's memory of the note parse panics it has already logged
+// in full: the identity of the bytes that panicked, by path. Only the
+// reconciliation loop builds generations, so only it reads or writes this.
+type panicLedger struct {
+	seen map[string][sha256.Size]byte
+}
+
+// has reports whether the panic of exactly these bytes at relPath was already
+// reported. A nil ledger remembers nothing.
+func (l *panicLedger) has(relPath string, identity [sha256.Size]byte) bool {
+	if l == nil {
+		return false
+	}
+	got, ok := l.seen[relPath]
+	return ok && got == identity
+}
+
+// reportPanic says that one note's parse panicked. The first time these bytes
+// are seen to do it the record is an ERROR naming the path, the value and the
+// stack. A panic is deterministic for its bytes and an unreadable note is read
+// again on a schedule, so the same bytes panicking again is one WARN line.
+func (g *generation) reportPanic(relPath string, data []byte, fault *notePanic, log *slog.Logger) {
+	identity := vault.ContentIdentity(data)
+	g.panics[relPath] = identity
+	if g.reported.has(relPath, identity) {
+		log.Warn("vault note parse still panics on bytes already reported; treating the note as unreadable",
+			"path", relPath, "panic", fault.value)
+		return
+	}
+	log.Error("vault note parse panicked; treating the note as unreadable",
+		"path", relPath, "panic", fault.value, "stack", string(fault.stack))
+}
+
+// settleReported replaces the Store's memory with what this reading saw, so a
+// note that stopped panicking is forgotten and is reported in full if it panics
+// again.
+func (g *generation) settleReported() {
+	if g.reported != nil {
+		g.reported.seen = g.panics
+	}
+}
+
+// plannedSet is the corpus's one set of planned names: the harvest of every
+// held note, each made when that note was read.
+func (g *generation) plannedSet() judge.Planned {
+	sets := make([]judge.Planned, 0, len(g.ordered))
+	for _, n := range g.ordered {
+		sets = append(sets, g.products[n.RelPath].planned)
+	}
+	return judge.MergePlanned(sets...)
+}
+
+// linkTargets is what every held note cites, by path, as it was read when the
+// note was.
+func (g *generation) linkTargets() map[string][]string {
+	links := make(map[string][]string, len(g.ordered))
+	for _, n := range g.ordered {
+		links[n.RelPath] = g.products[n.RelPath].links
+	}
+	return links
 }
 
 // recordVerdict keeps the schema's verdict for one note when there is one. A
@@ -1054,6 +1213,7 @@ func (g *generation) recordVerdict(relPath string, findings []judge.Finding, err
 type carriedGeneration struct {
 	parsed   map[string]*vault.Note
 	captured map[string]Reading
+	products map[string]noteProducts
 	sidecars map[string][]byte
 }
 
@@ -1066,6 +1226,7 @@ func carriedFrom(previous *Generation) carriedGeneration {
 	return carriedGeneration{
 		parsed:   previous.parsed,
 		captured: previous.notes,
+		products: previous.products,
 		sidecars: previous.sidecars,
 	}
 }
@@ -1091,15 +1252,17 @@ func (g *generation) carry(from carriedGeneration, relPath string, note bool, wa
 }
 
 // carryNote gives the generation being built the copy of relPath the fallback
-// generation read, marked as one that could not be re-read. Both halves are
-// required: the resolver, navigation and index are built from the parsed note,
-// and the page renders the captured projection. Without such a copy the note is
-// left out and the resolver gets a stub, so a citation naming it still lands on
-// it rather than joining the citations to files that do not exist.
+// generation read, marked as one that could not be re-read. Every part is
+// required: the resolver and navigation are built from the parsed note, the
+// index and the link projections from what its body yielded, and the page
+// renders the captured projection. Without such a copy the note is left out and
+// the resolver gets a stub, so a citation naming it still lands on it rather
+// than joining the citations to files that do not exist.
 func (g *generation) carryNote(from carriedGeneration, relPath string) {
 	lastKnown, lastKnownOK := from.parsed[relPath]
 	captured, capturedOK := from.captured[relPath]
-	if !lastKnownOK || !capturedOK {
+	products, productsOK := from.products[relPath]
+	if !lastKnownOK || !capturedOK || !productsOK {
 		g.unreadable = append(g.unreadable, vault.Parse(relPath, nil))
 		return
 	}
@@ -1107,6 +1270,7 @@ func (g *generation) carryNote(from carriedGeneration, relPath string) {
 	g.parsed[relPath] = lastKnown
 	g.ordered = append(g.ordered, lastKnown)
 	g.readings[relPath] = captured
+	g.products[relPath] = products
 }
 
 // carryFile gives the generation being built the practice file the fallback read,
@@ -1134,21 +1298,6 @@ func blockedFromProblems(problems []vault.Diagnostic) []BlockedSource {
 		blocked = append(blocked, BlockedSource{Path: problem.Path(), Reason: reason})
 	}
 	return blocked
-}
-
-// noteBodies iterates the parsed bodies of one generation's notes: every note
-// the server read, not the narrower corpus the adjudicator harvests.
-func noteBodies(notes []*vault.Note) iter.Seq[string] {
-	return func(yield func(string) bool) {
-		for _, n := range notes {
-			if n == nil {
-				continue
-			}
-			if !yield(n.Body) {
-				return
-			}
-		}
-	}
 }
 
 // captureFile files one vault entry that is not a note into the projections that
@@ -1204,16 +1353,18 @@ func wantedBytes(entry vault.Entry, note bool) bytesWanted {
 // captured note is here: a note over the source bound never reached the
 // generation, so this loop does not decide size. Files join only when their
 // own page shows their characters. Knowledge-layer membership is Includes
-// on the contract's scope, not a second copy of that directory list.
+// on the contract's scope, not a second copy of that directory list. The note
+// entries are the ones made when each note was read; none is parsed here.
 func indexDocuments(
 	notes []*vault.Note,
+	products map[string]noteProducts,
 	files []lexical.Document,
 	knowledge schema.KnowledgeScope,
 	languages schema.ArticleLanguage,
 ) []lexical.Document {
 	documents := make([]lexical.Document, 0, len(notes)+len(files))
 	for _, note := range notes {
-		doc := lexical.DocumentFromNote(note)
+		doc := products[note.RelPath].document
 		if tag, err := languages.Resolve(note.Frontmatter); err == nil {
 			doc.Language = tag
 		}
