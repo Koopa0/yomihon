@@ -61,7 +61,7 @@ func TestTheReleaseBuildCheckReadsTheCommandNotItsSpelling(t *testing.T) {
 		name        string
 		script      string
 		wantBuilds  int
-		wantMissing []string
+		wantMissing []string // what the last build found lacks; a row with one build has one answer
 	}{
 		{
 			name:       "both flags on the line",
@@ -240,6 +240,41 @@ func TestTheReleaseBuildCheckReadsTheCommandNotItsSpelling(t *testing.T) {
 			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
 		},
 		{
+			name:        "a trailing comment that ends in a backslash does not join the next line",
+			script:      "go build -trimpath -ldflags=\"-s -w\" ./cmd/yomihon # published binary \\\ngo build -o dist/extra ./cmd/yomihon",
+			wantBuilds:  2,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:        "an escaped backslash at the end of a line does not join the next line",
+			script:      "echo a\\\\\ngo build -o out ./cmd/yomihon",
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:        "-ldflags takes the next word as its value, so -trimpath there is not the flag",
+			script:      `go build -ldflags -trimpath -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:        "-ldflags given -s as its value does not also get -w",
+			script:      `go build -trimpath -ldflags -s -w ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{`-ldflags="-s -w"`},
+		},
+		{
+			name:        "-o takes the next word as its value, so -trimpath there is not the flag",
+			script:      `go build -o -trimpath -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:       "the output named before the flags, the ldflags value as a separate word",
+			script:     `go build -o out -trimpath -ldflags "-s -w" ./cmd/yomihon`,
+			wantBuilds: 1,
+		},
+		{
 			name:       "words that only mention a build",
 			script:     "# go build -o out ./cmd/yomihon\necho \"go build -o out\"\ngo test ./...",
 			wantBuilds: 0,
@@ -281,7 +316,7 @@ func TestTheReleaseBuildCheckReadsTheCommandNotItsSpelling(t *testing.T) {
 			if len(builds) == 0 {
 				return
 			}
-			got := missingReleaseFlags(builds[0].args)
+			got := missingReleaseFlags(builds[len(builds)-1].args)
 			if !slices.Equal(got, tt.wantMissing) {
 				t.Errorf("missingReleaseFlags(%q) = %q, want %q", tt.script, got, tt.wantMissing)
 			}
@@ -324,22 +359,23 @@ func releaseBuilds(t *testing.T) []releaseBuild {
 
 // goBuilds returns each `go build` a file runs, with the arguments up to the
 // operator that ends the command. A carriage return is not part of a line, a
-// line that begins with # is a comment and not a command, a line continued with
-// a backslash is one command, and a quoted string is one word, so text that only
-// mentions a build is not read as one.
+// comment is not a command, a line whose last character is an unquoted,
+// uncommented backslash is one command with the line after it, and a quoted
+// string is one word, so text that only mentions a build is not read as one.
+// Whether a line continues is the tokenizer's answer and not a look at the raw
+// text, because a backslash that ends a comment, or that an earlier backslash
+// escaped, does not join anything.
 func goBuilds(text string) []releaseBuild {
 	var builds []releaseBuild
 	lines := strings.Split(strings.ReplaceAll(text, "\r", ""), "\n")
 	for i := 0; i < len(lines); i++ {
-		if strings.HasPrefix(strings.TrimSpace(lines[i]), "#") {
-			continue
-		}
 		start, command := i+1, lines[i]
-		for strings.HasSuffix(command, `\`) && i+1 < len(lines) {
+		words, continued := shellWords(command)
+		for continued && i+1 < len(lines) {
 			i++
 			command = strings.TrimSuffix(command, `\`) + " " + lines[i]
+			words, continued = shellWords(command)
 		}
-		words := shellWords(command)
 		for w := 0; w+1 < len(words); w++ {
 			if words[w] != "go" || words[w+1] != "build" {
 				continue
@@ -368,9 +404,13 @@ func isShellOperator(word string) bool {
 // or | (or && or ||) is a word of its own whether or not a space surrounds it,
 // and an unquoted word that begins with # ends the line. A & that follows a >
 // or < is a redirection and stays in its word.
-func shellWords(line string) []string {
+//
+// continued reports that the line ended on a backslash that was still waiting
+// for the character it escapes, which is the newline the shell then removes. A
+// comment ends the line before any such backslash is read, and a backslash an
+// earlier one escaped is a character of its own, so neither continues the line.
+func shellWords(line string) (words []string, continued bool) {
 	var (
-		words  []string
 		word   strings.Builder
 		inWord bool
 		quote  rune
@@ -403,7 +443,7 @@ func shellWords(line string) []string {
 		case r == ' ' || r == '\t':
 			flush()
 		case r == '#' && !inWord:
-			return words
+			return words, false
 		case r == '&' && (strings.HasSuffix(word.String(), ">") || strings.HasSuffix(word.String(), "<")):
 			word.WriteRune(r)
 		case r == ';' || r == '&' || r == '|':
@@ -420,7 +460,16 @@ func shellWords(line string) []string {
 		}
 	}
 	flush()
-	return words
+	return words, escape
+}
+
+// buildFlagsWithValue are the flags `go build` reads a value for, as `go help
+// build` lists them and with -o, which it documents beside them. The boolean
+// ones (-a, -race, -trimpath and the rest) take no value and are not here.
+var buildFlagsWithValue = []string{
+	"-C", "-asmflags", "-buildmode", "-compiler", "-covermode", "-coverpkg",
+	"-gccgoflags", "-gcflags", "-installsuffix", "-ldflags", "-mod", "-modfile",
+	"-o", "-overlay", "-p", "-pgo", "-pkgdir", "-tags", "-toolexec",
 }
 
 // missingReleaseFlags names, in the spelling the workflow uses, each flag the
@@ -429,14 +478,16 @@ func shellWords(line string) []string {
 // so 0, f, F, FALSE and False switch it off as false does; a value go cannot
 // read stops the build and earns no credit. -ldflags counts only when its value
 // strips both the symbol table (-s) and the DWARF data (-w); when the flag is
-// given twice the last one is the one go uses.
+// given twice the last one is the one go uses. A flag that takes a value and is
+// not given one with `=` takes the next word, even one that begins with a dash,
+// so that word is a value and never a flag of its own.
 func missingReleaseFlags(args []string) []string {
 	var (
 		trimmed bool
 		ldflags []string
 	)
-	for i, arg := range args {
-		switch {
+	for i := 0; i < len(args); i++ {
+		switch arg := args[i]; {
 		case arg == "-trimpath":
 			trimmed = true
 		case strings.HasPrefix(arg, "-trimpath="):
@@ -444,8 +495,11 @@ func missingReleaseFlags(args []string) []string {
 			trimmed = err == nil && on
 		case strings.HasPrefix(arg, "-ldflags="):
 			ldflags = strings.Fields(strings.TrimPrefix(arg, "-ldflags="))
-		case arg == "-ldflags" && i+1 < len(args):
-			ldflags = strings.Fields(args[i+1])
+		case slices.Contains(buildFlagsWithValue, arg) && i+1 < len(args):
+			i++
+			if arg == "-ldflags" {
+				ldflags = strings.Fields(args[i])
+			}
 		}
 	}
 
