@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 // releaseWorkflow is the workflow that builds the binaries a reader downloads.
@@ -19,28 +17,36 @@ const releaseWorkflow = ".github/workflows/release.yml"
 //
 // Without -trimpath every binary records the absolute directory it was built in,
 // so two clones of one commit in different directories produce different
-// SHA-256 values, and nobody can rebuild a release to the digest that was
-// published. Without -ldflags="-s -w" the binary carries the symbol table and
-// DWARF data, about a quarter of its size, which a reader never uses; a panic
-// still prints its file and line and `go version -m` still reads the build
-// information without them.
+// SHA-256 values, and nobody can rebuild a release from a checkout of their own
+// to the digest that was published. Without -ldflags="-s -w" the binary carries
+// the symbol table and DWARF data, about a quarter of its size, which a reader
+// never uses; a panic still prints its file and line and `go version -m` still
+// reads the build information without them.
 //
 // The check reads every `go build` the workflow runs and asks each for both
 // flags, rather than looking for the one line that ships today: a second build
-// added to the workflow without them is the same mistake. A workflow that runs
-// no `go build` fails too, because then the check would be reading nothing and
-// would pass whatever the release did.
+// added to the workflow without them is the same mistake. A workflow in which it
+// finds no `go build` fails too, because then the check would be reading nothing
+// and would pass whatever the release did.
+//
+// It reads the file as text, one shell command at a time, and sees a build only
+// when `go` and `build` are two words of their own. A build spelled any other
+// way (inside `$(...)`, through a variable standing for go, as `go -C dir
+// build`, as `go install`, or as a whole command quoted into a one-line YAML
+// string) is not seen, and fails the check when it is the only one. Prose
+// outside a comment that spells the two words, a step name for instance, is read
+// as a build and fails it the other way.
 func TestTheReleaseBuildTrimsPathsAndStripsSymbols(t *testing.T) {
 	t.Parallel()
 
 	builds := releaseBuilds(t)
 	if len(builds) == 0 {
-		t.Fatalf("%s runs no `go build`, so there is no release build for this check to read; if the build moved, move this check with it", releaseWorkflow)
+		t.Fatalf("%s holds no `go build` this check can read, so there is no release build for it to hold; if the build moved or is spelled another way, move this check with it", releaseWorkflow)
 	}
 	for _, build := range builds {
 		if missing := missingReleaseFlags(build.args); len(missing) > 0 {
-			t.Errorf("%s: the `go build` in %s lacks %s (-trimpath keeps the runner's checkout path out of the binary; -s -w drops symbol data nobody reads)\n\tbuild: go build %q",
-				releaseWorkflow, build.where, strings.Join(missing, " and "), build.args)
+			t.Errorf("%s:%d: this `go build` lacks %s (-trimpath keeps the runner's checkout path out of the binary; -s -w drops symbol data nobody reads)\n\tbuild: go build %q",
+				releaseWorkflow, build.line, strings.Join(missing, " and "), build.args)
 		}
 	}
 }
@@ -78,6 +84,11 @@ func TestTheReleaseBuildCheckReadsTheCommandNotItsSpelling(t *testing.T) {
 			wantBuilds: 1,
 		},
 		{
+			name:       "CRLF line endings, the flags on a continued line",
+			script:     "go build \\\r\n  -trimpath \\\r\n  -ldflags=\"-s -w\" \\\r\n  ./cmd/yomihon\r\n",
+			wantBuilds: 1,
+		},
+		{
 			name:        "no flags",
 			script:      `go build -o "$out" ./cmd/yomihon`,
 			wantBuilds:  1,
@@ -102,20 +113,129 @@ func TestTheReleaseBuildCheckReadsTheCommandNotItsSpelling(t *testing.T) {
 			wantMissing: []string{`-ldflags="-s -w"`},
 		},
 		{
-			name:        "-trimpath switched off",
-			script:      `go build -trimpath=false -ldflags="-s -w" ./cmd/yomihon`,
-			wantBuilds:  1,
-			wantMissing: []string{"-trimpath"},
-		},
-		{
 			name:        "the last -ldflags wins, as it does for go",
 			script:      `go build -trimpath -ldflags="-s -w" -ldflags="-X main.version=v1" ./cmd/yomihon`,
 			wantBuilds:  1,
 			wantMissing: []string{`-ldflags="-s -w"`},
 		},
 		{
+			name:        "-trimpath switched off",
+			script:      `go build -trimpath=false -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:        "-trimpath given a value go cannot read",
+			script:      `go build -trimpath=maybe -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:        "a later -trimpath=false switches -trimpath off",
+			script:      `go build -trimpath -trimpath=false -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:        "a later -trimpath=0 switches -trimpath off",
+			script:      `go build -trimpath -trimpath=0 -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:        "a later -trimpath=f switches -trimpath off",
+			script:      `go build -trimpath -trimpath=f -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:        "a later -trimpath=F switches -trimpath off",
+			script:      `go build -trimpath -trimpath=F -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:        "a later -trimpath=FALSE switches -trimpath off",
+			script:      `go build -trimpath -trimpath=FALSE -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:        "a later -trimpath=False switches -trimpath off",
+			script:      `go build -trimpath -trimpath=False -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath"},
+		},
+		{
+			name:       "a later -trimpath switches it back on",
+			script:     `go build -trimpath=false -trimpath -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds: 1,
+		},
+		{
+			name:       "-trimpath given any spelling of true",
+			script:     `go build -trimpath=TRUE -ldflags="-s -w" ./cmd/yomihon`,
+			wantBuilds: 1,
+		},
+		{
 			name:        "flags that belong to the next command",
 			script:      `go build ./cmd/yomihon && go vet -trimpath -ldflags="-s -w" ./...`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:        "flags that belong to the next command, after a semicolon with no space",
+			script:      `go build ./cmd/yomihon;go vet -trimpath -ldflags="-s -w" ./...`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:        "flags that belong to the next command, after && with no space",
+			script:      `go build ./cmd/yomihon&&go vet -trimpath -ldflags="-s -w" ./...`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:        "flags that belong to the next command in a pipe, with no space",
+			script:      `go build ./cmd/yomihon|tee -trimpath -ldflags="-s -w"`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:        "flags that belong to the next command, after a background &",
+			script:      `go build ./cmd/yomihon& go vet -trimpath -ldflags="-s -w" ./...`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:       "a redirection is not the end of the command",
+			script:     `go build -o out ./cmd/yomihon 2>&1 -trimpath -ldflags="-s -w"`,
+			wantBuilds: 1,
+		},
+		{
+			name:        "flags that sit in a trailing comment",
+			script:      `go build -o out ./cmd/yomihon # -trimpath -ldflags="-s -w"`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:        "flags that sit in a comment after a semicolon with no space",
+			script:      `go build -o out ./cmd/yomihon;# -trimpath -ldflags="-s -w"`,
+			wantBuilds:  1,
+			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
+		},
+		{
+			name:       "both flags, then a comment",
+			script:     `go build -trimpath -ldflags="-s -w" ./cmd/yomihon # the release binary`,
+			wantBuilds: 1,
+		},
+		{
+			name:       "a # inside a word or a quoted string is not a comment",
+			script:     `go build -trimpath -o out#1 -ldflags="-s -w -X main.tag=a #b" ./cmd/yomihon`,
+			wantBuilds: 1,
+		},
+		{
+			name:        "a build on the line after a comment that ends in a backslash",
+			script:      "# the release build \\\ngo build -o out ./cmd/yomihon",
 			wantBuilds:  1,
 			wantMissing: []string{"-trimpath", `-ldflags="-s -w"`},
 		},
@@ -127,6 +247,26 @@ func TestTheReleaseBuildCheckReadsTheCommandNotItsSpelling(t *testing.T) {
 		{
 			name:       "no build at all",
 			script:     "go vet ./...",
+			wantBuilds: 0,
+		},
+		{
+			name:       "a build the reader does not see: command substitution",
+			script:     `bin=$(go build -o out ./cmd/yomihon)`,
+			wantBuilds: 0,
+		},
+		{
+			name:       "a build the reader does not see: go held in a variable",
+			script:     `"$GO" build -o out ./cmd/yomihon`,
+			wantBuilds: 0,
+		},
+		{
+			name:       "a build the reader does not see: go -C",
+			script:     `go -C cmd/yomihon build -o out`,
+			wantBuilds: 0,
+		},
+		{
+			name:       "a build the reader does not see: go install",
+			script:     `go install ./cmd/yomihon`,
 			wantBuilds: 0,
 		},
 	}
@@ -141,7 +281,7 @@ func TestTheReleaseBuildCheckReadsTheCommandNotItsSpelling(t *testing.T) {
 			if len(builds) == 0 {
 				return
 			}
-			got := missingReleaseFlags(builds[0])
+			got := missingReleaseFlags(builds[0].args)
 			if !slices.Equal(got, tt.wantMissing) {
 				t.Errorf("missingReleaseFlags(%q) = %q, want %q", tt.script, got, tt.wantMissing)
 			}
@@ -149,14 +289,29 @@ func TestTheReleaseBuildCheckReadsTheCommandNotItsSpelling(t *testing.T) {
 	}
 }
 
-// releaseBuild is one `go build` the release workflow runs, with where it runs.
-type releaseBuild struct {
-	where string
-	args  []string
+// TestTheReleaseBuildCheckNamesTheLineItReads pins the line a failure points at:
+// the one a command starts on, counted in the file as written, whatever the line
+// endings and however many lines a continuation spans.
+func TestTheReleaseBuildCheckNamesTheLineItReads(t *testing.T) {
+	t.Parallel()
+
+	script := "name: Build\r\n# go build ./not-this\r\nrun: |\r\n  set -e\r\n  go build \\\r\n    -o out ./cmd/yomihon\r\n  go build -trimpath ./cmd/other\r\n"
+	var got []int
+	for _, build := range goBuilds(script) {
+		got = append(got, build.line)
+	}
+	if want := []int{5, 7}; !slices.Equal(got, want) {
+		t.Errorf("goBuilds reported builds on lines %v, want %v", got, want)
+	}
 }
 
-// releaseBuilds reads every `go build` out of the run scripts of every job in
-// the release workflow, in the order the file declares its jobs and steps.
+// releaseBuild is one `go build` in a file, as the check reads it.
+type releaseBuild struct {
+	line int // the line the command starts on, counted from 1
+	args []string
+}
+
+// releaseBuilds reads every `go build` out of the release workflow.
 func releaseBuilds(t *testing.T) []releaseBuild {
 	t.Helper()
 
@@ -164,62 +319,36 @@ func releaseBuilds(t *testing.T) []releaseBuild {
 	if err != nil {
 		t.Fatalf("read %s: %v", releaseWorkflow, err)
 	}
-	var workflow struct {
-		Jobs yaml.Node `yaml:"jobs"`
-	}
-	if err := yaml.Unmarshal(data, &workflow); err != nil {
-		t.Fatalf("parse %s: %v", releaseWorkflow, err)
-	}
-	type step struct {
-		Name string `yaml:"name"`
-		Run  string `yaml:"run"`
-	}
-	type job struct {
-		Steps []step `yaml:"steps"`
-	}
-
-	// A mapping node keeps the order the file wrote its jobs in, which a Go map
-	// would not.
-	var found []releaseBuild
-	for i := 0; i+1 < len(workflow.Jobs.Content); i += 2 {
-		id := workflow.Jobs.Content[i].Value
-		var j job
-		if err := workflow.Jobs.Content[i+1].Decode(&j); err != nil {
-			t.Fatalf("parse job %q of %s: %v", id, releaseWorkflow, err)
-		}
-		for n, s := range j.Steps {
-			label := s.Name
-			if label == "" {
-				label = "step " + strconv.Itoa(n+1)
-			}
-			for _, args := range goBuilds(s.Run) {
-				found = append(found, releaseBuild{where: "job " + id + ", step " + label, args: args})
-			}
-		}
-	}
-	return found
+	return goBuilds(string(data))
 }
 
-// goBuilds returns the arguments of each `go build` a shell script runs, up to
-// the operator that ends the command. A line continued with a backslash is one
-// line, a comment is not a command, and a quoted string is one word, so text
-// that only mentions a build is not read as one.
-func goBuilds(script string) [][]string {
-	var builds [][]string
-	for line := range strings.SplitSeq(strings.ReplaceAll(script, "\\\n", " "), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+// goBuilds returns each `go build` a file runs, with the arguments up to the
+// operator that ends the command. A carriage return is not part of a line, a
+// line that begins with # is a comment and not a command, a line continued with
+// a backslash is one command, and a quoted string is one word, so text that only
+// mentions a build is not read as one.
+func goBuilds(text string) []releaseBuild {
+	var builds []releaseBuild
+	lines := strings.Split(strings.ReplaceAll(text, "\r", ""), "\n")
+	for i := 0; i < len(lines); i++ {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), "#") {
 			continue
 		}
-		words := shellWords(line)
-		for i := 0; i+1 < len(words); i++ {
-			if words[i] != "go" || words[i+1] != "build" {
+		start, command := i+1, lines[i]
+		for strings.HasSuffix(command, `\`) && i+1 < len(lines) {
+			i++
+			command = strings.TrimSuffix(command, `\`) + " " + lines[i]
+		}
+		words := shellWords(command)
+		for w := 0; w+1 < len(words); w++ {
+			if words[w] != "go" || words[w+1] != "build" {
 				continue
 			}
-			args := words[i+2:]
+			args := words[w+2:]
 			if end := slices.IndexFunc(args, isShellOperator); end >= 0 {
 				args = args[:end]
 			}
-			builds = append(builds, args)
+			builds = append(builds, releaseBuild{line: start, args: args})
 		}
 	}
 	return builds
@@ -234,8 +363,11 @@ func isShellOperator(word string) bool {
 }
 
 // shellWords splits a line the way a shell does for the purposes above:
-// whitespace separates words, single and double quotes group and are removed,
-// and a backslash outside single quotes escapes the next character.
+// whitespace separates words, single and double quotes group and are removed, a
+// backslash outside single quotes escapes the next character, an unquoted ;, &
+// or | (or && or ||) is a word of its own whether or not a space surrounds it,
+// and an unquoted word that begins with # ends the line. A & that follows a >
+// or < is a redirection and stays in its word.
 func shellWords(line string) []string {
 	var (
 		words  []string
@@ -244,7 +376,16 @@ func shellWords(line string) []string {
 		quote  rune
 		escape bool
 	)
-	for _, r := range line {
+	flush := func() {
+		if inWord {
+			words = append(words, word.String())
+			word.Reset()
+			inWord = false
+		}
+	}
+	runes := []rune(line)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
 		switch {
 		case escape:
 			word.WriteRune(r)
@@ -260,26 +401,35 @@ func shellWords(line string) []string {
 		case r == '\'' || r == '"':
 			quote, inWord = r, true
 		case r == ' ' || r == '\t':
-			if inWord {
-				words = append(words, word.String())
-				word.Reset()
-				inWord = false
+			flush()
+		case r == '#' && !inWord:
+			return words
+		case r == '&' && (strings.HasSuffix(word.String(), ">") || strings.HasSuffix(word.String(), "<")):
+			word.WriteRune(r)
+		case r == ';' || r == '&' || r == '|':
+			flush()
+			operator := string(r)
+			if r != ';' && i+1 < len(runes) && runes[i+1] == r {
+				operator += string(r)
+				i++
 			}
+			words = append(words, operator)
 		default:
 			word.WriteRune(r)
 			inWord = true
 		}
 	}
-	if inWord {
-		words = append(words, word.String())
-	}
+	flush()
 	return words
 }
 
 // missingReleaseFlags names, in the spelling the workflow uses, each flag the
-// release build is required to carry and does not. -ldflags counts only when
-// its value strips both the symbol table (-s) and the DWARF data (-w); when the
-// flag is given twice the last one is the one go uses.
+// release build is required to carry and does not. -trimpath counts when the
+// last one given is on, and go reads its value the way strconv.ParseBool does,
+// so 0, f, F, FALSE and False switch it off as false does; a value go cannot
+// read stops the build and earns no credit. -ldflags counts only when its value
+// strips both the symbol table (-s) and the DWARF data (-w); when the flag is
+// given twice the last one is the one go uses.
 func missingReleaseFlags(args []string) []string {
 	var (
 		trimmed bool
@@ -287,10 +437,11 @@ func missingReleaseFlags(args []string) []string {
 	)
 	for i, arg := range args {
 		switch {
-		case arg == "-trimpath" || arg == "-trimpath=true":
+		case arg == "-trimpath":
 			trimmed = true
-		case arg == "-trimpath=false":
-			trimmed = false
+		case strings.HasPrefix(arg, "-trimpath="):
+			on, err := strconv.ParseBool(strings.TrimPrefix(arg, "-trimpath="))
+			trimmed = err == nil && on
 		case strings.HasPrefix(arg, "-ldflags="):
 			ldflags = strings.Fields(strings.TrimPrefix(arg, "-ldflags="))
 		case arg == "-ldflags" && i+1 < len(args):
