@@ -36,9 +36,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -131,7 +131,7 @@ func validate(c *Continuation) error {
 		return fmt.Errorf("%w: the note path is empty or too long", ErrInvalid)
 	case !fs.ValidPath(c.RelPath) || c.RelPath == ".":
 		return fmt.Errorf("%w: %q is not a local vault-relative path", ErrInvalid, c.RelPath)
-	case carriesControl(c.RelPath):
+	case strings.ContainsFunc(c.RelPath, origin.EndsALine):
 		// fs.ValidPath lets a NUL or a line break through, and a path that
 		// holds a control character is not one line of text to put on the
 		// desk. Almost no note carries one in its name. A file whose own name
@@ -157,15 +157,6 @@ func validate(c *Continuation) error {
 		return fmt.Errorf("%w: the identity is not a content identity", ErrInvalid)
 	}
 	return nil
-}
-
-// carriesControl reports whether s holds a rune that is not text in a name: a
-// C0 or C1 control (NUL, a line break and DELETE among them), or one of the
-// two Unicode separators that end a line without being a newline.
-func carriesControl(s string) bool {
-	return strings.ContainsFunc(s, func(r rune) bool {
-		return unicode.IsControl(r) || r == 0x2028 || r == 0x2029
-	})
 }
 
 // isNotAnchorRune reports whether r cannot appear in an anchor this file

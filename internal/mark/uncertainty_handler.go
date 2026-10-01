@@ -15,10 +15,10 @@ import (
 const UncertaintyAddress = "/uncertainties"
 
 // Places says whether a note is readable now and renders an anchor. An empty
-// anchor names the note as a whole. Both mark routes accept a place only for a
-// note it names, so a request cannot store text the vault never showed; the
-// uncertainty route asks about the anchor as well, the continuation route about
-// the note alone.
+// anchor names the note as a whole. Both mark routes keep a place only in a note
+// this reports readable, so neither stores a path the vault never showed. The
+// uncertainty route also asks about the anchor; the continuation route holds its
+// anchor to a shape only.
 type Places interface {
 	HasPlace(rel, anchor string) bool
 }

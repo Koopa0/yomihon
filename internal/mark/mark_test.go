@@ -241,8 +241,26 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 		{"an absolute path", func(c *mark.Continuation) { c.RelPath = "/etc/passwd" }},
 		{"a path that climbs out", func(c *mark.Continuation) { c.RelPath = "../outside.md" }},
 		{"a path that is not in NFC", func(c *mark.Continuation) { c.RelPath = "Notes/\u30cf\u309a.md" }},
+		// fs.ValidPath lets control characters through, so each class the
+		// predicate names is driven: C0, DELETE, C1 and the two Unicode
+		// separators that end a line without being a newline.
+		{"a path carrying a NUL", func(c *mark.Continuation) { c.RelPath = "Notes/a\x00b.md" }},
+		{"a path carrying a line feed", func(c *mark.Continuation) { c.RelPath = "Notes/a\nb.md" }},
+		{"a path carrying a NUL and a line feed", func(c *mark.Continuation) { c.RelPath = "Notes/a\x00b\nc.md" }},
+		{"a path carrying a carriage return", func(c *mark.Continuation) { c.RelPath = "Notes/a\rb.md" }},
+		{"a path carrying a tab", func(c *mark.Continuation) { c.RelPath = "Notes/a\tb.md" }},
+		{"a path carrying DELETE", func(c *mark.Continuation) { c.RelPath = "Notes/a\x7fb.md" }},
+		{"a path carrying a C1 control", func(c *mark.Continuation) { c.RelPath = "Notes/a\u0085b.md" }},
+		{"a path carrying a line separator", func(c *mark.Continuation) { c.RelPath = "Notes/a\u2028b.md" }},
+		{"a path carrying a paragraph separator", func(c *mark.Continuation) { c.RelPath = "Notes/a\u2029b.md" }},
+		// fs.ValidPath already refused this on main; the row pins it.
+		{"a path that is not UTF-8", func(c *mark.Continuation) { c.RelPath = "Notes/a\xffb.md" }},
 		{"an anchor that could cut the address", func(c *mark.Continuation) { c.Anchor = "here#elsewhere" }},
 		{"an anchor carrying a control character", func(c *mark.Continuation) { c.Anchor = "here\nthere" }},
+		// The anchor had only the character check, which reads an invalid byte
+		// as U+FFFD and let it through to be stored as something its sender
+		// never wrote.
+		{"an anchor that is not UTF-8", func(c *mark.Continuation) { c.Anchor = "here\xff" }},
 		{"a negative offset", func(c *mark.Continuation) { c.Offset = -1 }},
 		{"an offset past any document", func(c *mark.Continuation) { c.Offset = 1 << 30 }},
 		{"an identity that is not one", func(c *mark.Continuation) { c.Identity = "not-a-digest" }},
@@ -255,9 +273,8 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 			file := newFile(t)
 			refused := aPlace()
 			tt.spoil(refused)
-			err := file.SetContinuation(refused)
-			if err == nil {
-				t.Fatalf("SetContinuation(%s) was accepted", tt.name)
+			if err := file.SetContinuation(refused); !errors.Is(err, mark.ErrInvalid) {
+				t.Fatalf("SetContinuation(%s) = %v, want ErrInvalid", tt.name, err)
 			}
 			if _, ok := file.Continuation(); ok {
 				t.Error("a refused place was stored anyway")
@@ -296,6 +313,29 @@ func TestARefusalLeavesTheKeptPlaceAlone(t *testing.T) {
 	}
 }
 
+// TestOrdinaryNoteNamesAreKept is the half the refusals in
+// TestARefusedPlaceIsNotStored cannot see: a rule on control characters that
+// grew too wide would show here rather than on someone's lesson.
+func TestOrdinaryNoteNamesAreKept(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct{ name, path string }{
+		{"a space", "Notes/A published note.md"},
+		{"Chinese", "Notes/go/提早返回的管線.md"},
+		{"an ideographic space", "Notes/日本\u3000語.md"},
+		{"a dotted name", "Notes/v1.2.md"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			place := aPlace()
+			place.RelPath = tt.path
+			if err := newFile(t).SetContinuation(place); err != nil {
+				t.Errorf("SetContinuation(%q) = %v, want it kept", tt.path, err)
+			}
+		})
+	}
+}
+
 // TestAnUnreadableFileReportsNoPlace covers the shapes a file can be in that
 // this version does not recognise. Each answers the same way a missing file
 // does, and the next place the reader keeps replaces it.
@@ -310,6 +350,7 @@ func TestAnUnreadableFileReportsNoPlace(t *testing.T) {
 		{"a version from another day", `{"version":99,"continuation":{"path":"a.md","offset":0,"identity":"` + anIdentity + `"}}`},
 		{"no continuation in it", `{"version":1,"vault":"/vaults/notes"}`},
 		{"a place the shape refuses", `{"version":1,"continuation":{"path":"../outside.md","offset":0,"identity":"` + anIdentity + `"}}`},
+		{"a path carrying a control character", `{"version":1,"continuation":{"path":"Notes/a\u0000b\nc.md","offset":1,"identity":"` + anIdentity + `"}}`},
 		{"an empty file", ""},
 	}
 	for _, tt := range tests {
@@ -442,6 +483,10 @@ func TestTheRouteRefusesWhatItCannotKeep(t *testing.T) {
 		want int
 	}{
 		{"a path that climbs out", url.Values{"path": {"../x.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
+		// newHandler's vault holds every note, so what refuses these two is the
+		// shape of the path and not the vault failing to find a name.
+		{"a path carrying a line feed", url.Values{"path": {"Notes/a\nb.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
+		{"a path carrying a NUL and a line feed", url.Values{"path": {"Notes/a\x00b\nc.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"an offset that is not a number", url.Values{"path": {"a.md"}, "offset": {"soon"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"no offset at all", url.Values{"path": {"a.md"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"no identity", url.Values{"path": {"a.md"}, "offset": {"0"}}, http.StatusUnprocessableEntity},
@@ -569,122 +614,6 @@ func replyTo(t *testing.T, handler http.Handler, form url.Values) (status int, b
 	return response.StatusCode, string(text)
 }
 
-// TestAPathCarryingAControlCharacterIsRefused holds the half of a path's shape
-// that fs.ValidPath does not: it lets a NUL, a line break and DELETE through.
-// A file whose own name holds one is refused too, an accepted cost of keeping a
-// path that is not one line of text off the desk. What is refused is the
-// character, so each class the predicate names is driven — C0, DELETE, C1 and
-// the two Unicode separators that end a line without being a newline — and the
-// same test keeps the ordinary spellings a note really has, so a predicate that
-// grew too wide would show here rather than on someone's lesson.
-func TestAPathCarryingAControlCharacterIsRefused(t *testing.T) {
-	t.Parallel()
-
-	refused := []struct{ name, path string }{
-		{"a NUL", "Notes/a\x00b.md"},
-		{"a line feed", "Notes/a\nb.md"},
-		{"a NUL and a line feed", "Notes/a\x00b\nc.md"},
-		{"a carriage return", "Notes/a\rb.md"},
-		{"a tab", "Notes/a\tb.md"},
-		{"DELETE", "Notes/a\x7fb.md"},
-		{"a C1 control", "Notes/a\u0085b.md"},
-		{"a line separator", "Notes/a\u2028b.md"},
-		{"a paragraph separator", "Notes/a\u2029b.md"},
-	}
-	for _, tt := range refused {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			file := newFile(t)
-			place := aPlace()
-			place.RelPath = tt.path
-			if err := file.SetContinuation(place); !errors.Is(err, mark.ErrInvalid) {
-				t.Errorf("SetContinuation(%q) = %v, want ErrInvalid", tt.path, err)
-			}
-			if _, statErr := os.Stat(file.Path()); !os.IsNotExist(statErr) {
-				t.Errorf("a refused path created %s", file.Path())
-			}
-		})
-	}
-
-	kept := []struct{ name, path string }{
-		{"a space", "Notes/A published note.md"},
-		{"Chinese", "Notes/go/提早返回的管線.md"},
-		{"an ideographic space", "Notes/日本\u3000語.md"},
-		{"a dotted name", "Notes/v1.2.md"},
-	}
-	for _, tt := range kept {
-		t.Run("keeps "+tt.name, func(t *testing.T) {
-			t.Parallel()
-			file := newFile(t)
-			place := aPlace()
-			place.RelPath = tt.path
-			if err := file.SetContinuation(place); err != nil {
-				t.Errorf("SetContinuation(%q) = %v, want it kept", tt.path, err)
-			}
-		})
-	}
-}
-
-// TestAPlaceThatIsNotValidUTF8IsRefused holds both fields that carry text. The
-// path was already refused by fs.ValidPath and stays pinned here; the anchor
-// had only a character check, which reads an invalid byte as U+FFFD and let it
-// through to be stored as something its sender never wrote.
-func TestAPlaceThatIsNotValidUTF8IsRefused(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		spoil func(*mark.Continuation)
-	}{
-		{"a path", func(c *mark.Continuation) { c.RelPath = "Notes/a\xffb.md" }},
-		{"an anchor", func(c *mark.Continuation) { c.Anchor = "here\xff" }},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			file := newFile(t)
-			place := aPlace()
-			tt.spoil(place)
-			if err := file.SetContinuation(place); !errors.Is(err, mark.ErrInvalid) {
-				t.Errorf("SetContinuation over %s that is not UTF-8 = %v, want ErrInvalid", tt.name, err)
-			}
-			if _, ok := file.Continuation(); ok {
-				t.Error("a refused place was stored anyway")
-			}
-		})
-	}
-}
-
-// TestAHandEditedFileHoldingAControlCharacterReportsNoPlace holds the read half
-// of the same shape. The file is the reader's own and a value that arrives by
-// hand reaches the desk as a posted one does, so a path the route would refuse
-// is no place when it is read back either.
-func TestAHandEditedFileHoldingAControlCharacterReportsNoPlace(t *testing.T) {
-	t.Parallel()
-
-	file := newFile(t)
-	if err := os.MkdirAll(filepath.Dir(file.Path()), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	doc := map[string]any{
-		"version": 1,
-		"vault":   "/vaults/notes",
-		"continuation": map[string]any{
-			"path": "Notes/a\x00b\nc.md", "offset": 1, "identity": anIdentity, "at": "2026-09-17T10:00:00Z",
-		},
-	}
-	data, err := json.Marshal(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(file.Path(), data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if got, ok := file.Continuation(); ok {
-		t.Errorf("a path with a NUL and a line break was read back as the place %+v", got)
-	}
-}
-
 // TestTheRouteKeepsAPlaceOnlyInANoteTheVaultHolds holds what the route asks of
 // the vault, and the one reply it gives to a refusal of either kind. The vault
 // holds one note; the others are a note it does not have and a sentence that is
@@ -734,30 +663,6 @@ func TestTheRouteKeepsAPlaceOnlyInANoteTheVaultHolds(t *testing.T) {
 				if strings.Contains(body, tt.path) {
 					t.Errorf("the refusal %q echoes the submitted path", body)
 				}
-			}
-		})
-	}
-}
-
-// TestTheRouteRefusesAControlCharacterWhateverTheVaultHolds drives the route
-// over a vault that holds every note, so what refuses these is the shape of
-// the path and not the vault failing to find a name nobody could give a file.
-func TestTheRouteRefusesAControlCharacterWhateverTheVaultHolds(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct{ name, path string }{
-		{"a NUL and a line feed", "Notes/a\x00b\nc.md"},
-		{"a line feed", "Notes/a\nb.md"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			file, handler := newHandler(t)
-			status, body := replyTo(t, handler, aPost(tt.path, "x"))
-			if status != http.StatusUnprocessableEntity {
-				t.Errorf("POST %s over %q = %d %q, want %d", mark.Address, tt.path, status, body, http.StatusUnprocessableEntity)
-			}
-			if _, kept := file.Continuation(); kept {
-				t.Errorf("POST over %q kept a place anyway", tt.path)
 			}
 		})
 	}
