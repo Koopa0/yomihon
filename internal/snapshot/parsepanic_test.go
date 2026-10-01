@@ -1,11 +1,10 @@
 package snapshot
 
 import (
-	"context"
+	"bytes"
 	"log/slog"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,52 +15,26 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// recordedLog is a slog.Handler that keeps every record it is handed, so a test
-// can count what a build logged at one level and read the attributes on it.
-type recordedLog struct {
-	mu      sync.Mutex
-	records []slog.Record
-}
-
-func (l *recordedLog) Enabled(context.Context, slog.Level) bool { return true }
-
-//nolint:gocritic // hugeParam: slog.Handler fixes this signature, record by value.
-func (l *recordedLog) Handle(_ context.Context, record slog.Record) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.records = append(l.records, record.Clone())
-	return nil
-}
-
-func (l *recordedLog) WithAttrs([]slog.Attr) slog.Handler { return l }
-
-func (l *recordedLog) WithGroup(string) slog.Handler { return l }
-
-// at returns the records logged at exactly level, in the order they were logged.
-func (l *recordedLog) at(level slog.Level) []slog.Record {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	var out []slog.Record
-	for i := range l.records {
-		if l.records[i].Level == level {
-			out = append(out, l.records[i])
+// logged returns the records written to buf at one level, a line each: the text
+// handler writes one record to a line and quotes a value that holds a newline.
+func logged(buf *bytes.Buffer, level string) []string {
+	var lines []string
+	for line := range strings.Lines(buf.String()) {
+		if strings.Contains(line, "level="+level+" ") {
+			lines = append(lines, line)
 		}
 	}
-	return out
+	return lines
 }
 
-// attrText returns the text of the attribute a record carries under key, empty
-// when it carries none.
-func attrText(record *slog.Record, key string) string {
-	var text string
-	record.Attrs(func(attr slog.Attr) bool {
-		if attr.Key == key {
-			text = attr.Value.String()
-			return false
+// assertsReportedInFull holds one ERROR record to what a reader needs from it.
+func assertsReportedInFull(t *testing.T, record string) {
+	t.Helper()
+	for _, want := range []string{"path=" + panicPoisoned, `panic="` + panicValue + `"`, "stack="} {
+		if !strings.Contains(record, want) {
+			t.Errorf("ERROR record lacks %s: %s", want, record)
 		}
-		return true
-	})
-	return text
+	}
 }
 
 // poisonMark is the word every note a test means to break carries in its text,
@@ -252,12 +225,12 @@ func TestAPanicInOneNotesParseAtStartupCostsThatNoteNotTheVault(t *testing.T) {
 					governance = contract.Governance()
 				}
 				breakStage(t, stage)
-				logs := &recordedLog{}
+				var logs bytes.Buffer
 
 				var store *Store
 				mustNotPanic(t, "startup scan", func() {
 					var err error
-					store, err = New(t.Context(), panicSource(t, root), slog.New(logs), contract, governance)
+					store, err = New(t.Context(), panicSource(t, root), slog.New(slog.NewTextHandler(&logs, nil)), contract, governance)
 					if err != nil {
 						t.Fatalf("New() error = %v, want a generation of the notes that parse", err)
 					}
@@ -291,19 +264,11 @@ func TestAPanicInOneNotesParseAtStartupCostsThatNoteNotTheVault(t *testing.T) {
 					t.Errorf("Blocked reason = %q, want the panic value %q in it", fresh.Blocked[0].Reason, panicValue)
 				}
 
-				errs := logs.at(slog.LevelError)
+				errs := logged(&logs, "ERROR")
 				if len(errs) != 1 {
 					t.Fatalf("logged %d ERROR records, want exactly 1", len(errs))
 				}
-				if path := attrText(&errs[0], "path"); path != panicPoisoned {
-					t.Errorf("ERROR path attribute = %q, want %q", path, panicPoisoned)
-				}
-				if got := attrText(&errs[0], "panic"); got != panicValue {
-					t.Errorf("ERROR panic attribute = %q, want %q", got, panicValue)
-				}
-				if attrText(&errs[0], "stack") == "" {
-					t.Error("ERROR carries no stack, so nothing says where in the parser it happened")
-				}
+				assertsReportedInFull(t, errs[0])
 			})
 		}
 	}
@@ -322,9 +287,7 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 			root := t.TempDir()
 			writePanicVault(t, root)
 			contract := testContract(t, root)
-			logs := &recordedLog{}
-			source := panicSource(t, root)
-			store, err := New(t.Context(), source, slog.New(logs), contract, contract.Governance())
+			store, err := New(t.Context(), panicSource(t, root), discardLogger(), contract, contract.Governance())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -343,7 +306,6 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 			writeNote(t, root, panicPoisoned, "---\ntitle: Poison\ntype: concept\n---\npoisoned, saved into a state that panics\n")
 			const added = "Concepts/Gamma.md"
 			writeNote(t, root, added, "---\ntitle: Gamma\ntype: concept\n---\ngamma\n")
-			readsBefore := source.reads[panicPoisoned]
 
 			// One rescan per scan interval, as the ticker drives it. The first three
 			// attempts land on ticks 0, 1 and 3, and the third is where retention ends.
@@ -376,42 +338,6 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 				t.Errorf("Freshness() = %+v, want an incomplete generation naming only %q", fresh, panicPoisoned)
 			}
 
-			// A panic is deterministic for its bytes, and the folder is read again on
-			// the unreadable-note schedule. The first attempt that meets the bytes
-			// logs an ERROR with the stack; each later attempt over the same bytes
-			// logs one WARN line and no more.
-			attempts := source.reads[panicPoisoned] - readsBefore
-			errs, warns := logs.at(slog.LevelError), logs.at(slog.LevelWarn)
-			var repeats []slog.Record
-			for i := range warns {
-				if strings.Contains(attrText(&warns[i], "path"), panicPoisoned) && attrText(&warns[i], "panic") != "" {
-					repeats = append(repeats, warns[i])
-				}
-			}
-			if attempts < 2 {
-				t.Fatalf("only %d build attempts met the panicking note; the repeat cannot be observed", attempts)
-			}
-			if len(errs) != 1 {
-				t.Fatalf("logged %d ERROR records over %d attempts on one set of bytes, want exactly 1", len(errs), attempts)
-			}
-			if path := attrText(&errs[0], "path"); path != panicPoisoned {
-				t.Errorf("ERROR path attribute = %q, want %q", path, panicPoisoned)
-			}
-			if got := attrText(&errs[0], "panic"); got != panicValue {
-				t.Errorf("ERROR panic attribute = %q, want %q", got, panicValue)
-			}
-			if len(repeats) != attempts-1 {
-				t.Errorf("logged %d WARN repeats over %d attempts, want %d", len(repeats), attempts, attempts-1)
-			}
-			for i := range repeats {
-				if got := attrText(&repeats[i], "panic"); got != panicValue {
-					t.Errorf("WARN %d panic attribute = %q, want %q", i, got, panicValue)
-				}
-				if attrText(&repeats[i], "stack") != "" {
-					t.Errorf("WARN %d carries a stack; the repeat is one line", i)
-				}
-			}
-
 			// Fixing the note is the ordinary path: it parses again, the next attempt
 			// publishes a whole generation, and every degraded fact clears.
 			restore()
@@ -441,9 +367,8 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 	root := t.TempDir()
 	writePanicVault(t, root)
 	contract := testContract(t, root)
-	logs := &recordedLog{}
-	source := panicSource(t, root)
-	store, err := New(t.Context(), source, slog.New(logs), contract, contract.Governance())
+	var logs bytes.Buffer
+	store, err := New(t.Context(), panicSource(t, root), slog.New(slog.NewTextHandler(&logs, nil)), contract, contract.Governance())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,12 +382,12 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 		mustNotPanic(t, "rebuild", func() { store.rescan(t.Context()) })
 	}
 	counts := func() (errs, warns int) {
-		for _, record := range logs.at(slog.LevelWarn) {
-			if attrText(&record, "panic") != "" {
+		for _, line := range logged(&logs, "WARN") {
+			if strings.Contains(line, "still panics") {
 				warns++
 			}
 		}
-		return len(logs.at(slog.LevelError)), warns
+		return len(logged(&logs, "ERROR")), warns
 	}
 
 	restore := breakStage(t, 1)

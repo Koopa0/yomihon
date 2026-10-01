@@ -509,9 +509,10 @@ type Store struct {
 	// contract is the folder's own vocabulary, read once at startup — the same
 	// reading the capabilities above came from. No Generation holds it.
 	contract *schema.Contract
-	// reported is which note parse panics the loop has already logged in full,
-	// so a panic that repeats on unchanged bytes is not logged in full again.
-	reported *panicLedger
+	// reported is the identity of the bytes whose parse panic the loop has
+	// already logged in full, by path, so a panic that repeats on unchanged
+	// bytes is not logged in full again.
+	reported map[string][sha256.Size]byte
 	prev     vault.Scan
 	retry    bool
 
@@ -572,7 +573,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
-	reported := &panicLedger{}
+	reported := make(map[string][sha256.Size]byte)
 	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, generationCaps, contract, reported)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
@@ -801,7 +802,7 @@ func buildGeneration(
 	// revalidation reach a build already in progress.
 	capabilities schema.Capabilities,
 	contract *schema.Contract,
-	reported *panicLedger,
+	reported map[string][sha256.Size]byte,
 ) (*Generation, []BlockedSource, error) {
 	// Classification is generation data, so one point-in-time policy builds every
 	// projection; Capture rebinds request-time access to the current authority.
@@ -903,7 +904,6 @@ func buildGeneration(
 		noteCount:      noteCount,
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen)
-	g.settleReported()
 	return gen, g.blocked, nil
 }
 
@@ -955,10 +955,8 @@ type generation struct {
 	// folder-wide projections read these rather than parsing a body themselves.
 	products map[string]noteProducts
 	// reported is the Store's memory of the note parse panics already logged in
-	// full, and panics is this reading's own account to replace it with. A
-	// reading built outside a Store has no memory, and logs every panic in full.
-	reported *panicLedger
-	panics   map[string][sha256.Size]byte
+	// full. A reading built outside a Store has none and logs every panic in full.
+	reported map[string][sha256.Size]byte
 }
 
 // newGeneration opens an empty generation sized for a folder of entries files.
@@ -974,7 +972,6 @@ func newGeneration(entries int) *generation {
 		findings:     make(map[string][]judge.Finding),
 		skippedNotes: make(map[string]struct{}),
 		products:     make(map[string]noteProducts, entries),
-		panics:       make(map[string][sha256.Size]byte),
 	}
 }
 
@@ -1117,35 +1114,15 @@ func (g *generation) readNote(
 		g.reportPanic(relPath, data, fault, log)
 		return "panic while parsing this note: " + fault.value
 	}
-	g.fileNote(relPath, &read, log)
-	return ""
-}
-
-// fileNote files one note read whole. Nothing here parses anything: it only
-// stores what deriveNote produced.
-func (g *generation) fileNote(relPath string, read *noteRead, log *slog.Logger) {
+	// A note that parses is forgotten, so these bytes panicking again after it
+	// was fixed is reported in full again.
+	delete(g.reported, relPath)
 	g.parsed[relPath] = read.parsed
 	g.ordered = append(g.ordered, read.parsed)
 	g.readings[relPath] = read.reading
 	g.products[relPath] = read.products
 	g.recordVerdict(relPath, read.findings, read.verdictErr, log)
-}
-
-// panicLedger is a Store's memory of the note parse panics it has already logged
-// in full: the identity of the bytes that panicked, by path. Only the
-// reconciliation loop builds generations, so only it reads or writes this.
-type panicLedger struct {
-	seen map[string][sha256.Size]byte
-}
-
-// has reports whether the panic of exactly these bytes at relPath was already
-// reported. A nil ledger remembers nothing.
-func (l *panicLedger) has(relPath string, identity [sha256.Size]byte) bool {
-	if l == nil {
-		return false
-	}
-	got, ok := l.seen[relPath]
-	return ok && got == identity
+	return ""
 }
 
 // reportPanic says that one note's parse panicked. The first time these bytes
@@ -1154,23 +1131,16 @@ func (l *panicLedger) has(relPath string, identity [sha256.Size]byte) bool {
 // again on a schedule, so the same bytes panicking again is one WARN line.
 func (g *generation) reportPanic(relPath string, data []byte, fault *notePanic, log *slog.Logger) {
 	identity := vault.ContentIdentity(data)
-	g.panics[relPath] = identity
-	if g.reported.has(relPath, identity) {
+	if seen, ok := g.reported[relPath]; ok && seen == identity {
 		log.Warn("vault note parse still panics on bytes already reported; treating the note as unreadable",
 			"path", relPath, "panic", fault.value)
 		return
 	}
+	if g.reported != nil {
+		g.reported[relPath] = identity
+	}
 	log.Error("vault note parse panicked; treating the note as unreadable",
 		"path", relPath, "panic", fault.value, "stack", string(fault.stack))
-}
-
-// settleReported replaces the Store's memory with what this reading saw, so a
-// note that stopped panicking is forgotten and is reported in full if it panics
-// again.
-func (g *generation) settleReported() {
-	if g.reported != nil {
-		g.reported.seen = g.panics
-	}
 }
 
 // plannedSet is the corpus's one set of planned names: the harvest of every
