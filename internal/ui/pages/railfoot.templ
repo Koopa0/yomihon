@@ -19,10 +19,11 @@ import (
 // how two of them would come to disagree about the same folder.
 //
 // The number is the health page's own, counted where that page counts its rows,
-// and the dot only colours what the words beside it already say.
+// and the dot colours what the words beside it say, and also stands for a
+// standing notice, which the number does not count.
 templ railFoot(v nav.Vault, lang wording.Lang) {
 	<div class="y-railsep" aria-hidden="true"></div>
-	<div class="y-railfoot" data-rail-foot data-health={ libraryHealthState(v.Findings) }>
+	<div class="y-railfoot" data-rail-foot data-health={ libraryHealthState(v.Findings, v.Noticed) }>
 		<p class="y-railfoot__name">{ libraryName(v.Name, lang) }</p>
 		<p class="y-railfoot__size">{ plural(v.Notes, wording.NoteCountOne, wording.NoteCountMany, lang) }</p>
 		<a class="y-railfoot__health" href="/health" data-rail-foot-findings={ strconv.Itoa(v.Findings) }>

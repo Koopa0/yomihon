@@ -1,12 +1,14 @@
 package pages
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -87,7 +89,34 @@ func TestTheFootAnswersInSentences(t *testing.T) {
 			t.Errorf("one finding and two read alike in %q", lang)
 		}
 	}
-	if libraryHealthState(0) == libraryHealthState(1) {
+	if libraryHealthState(0, false) == libraryHealthState(1, false) {
 		t.Error("a folder with nothing to answer for and one with something carry the same dot")
+	}
+}
+
+// TestTheFootsDotNeverSaysClearOverANotice holds the one case where the dot and
+// the number part ways. A standing notice is not in the findings count, so a
+// folder whose only trouble is that its pages have stopped updating still reads
+// "no findings" in words; the dot is what refuses to say clear beside it, and
+// the number is left alone.
+func TestTheFootsDotNeverSaysClearOverANotice(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	if err := railFoot(nav.Vault{Name: "example-vault", Noticed: true}, wording.En).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	foot := buf.String()
+	if !strings.Contains(foot, `data-health="findings"`) {
+		t.Errorf("the foot of a folder with a standing notice does not carry the findings dot: %q", foot)
+	}
+	if !strings.Contains(foot, `data-rail-foot-findings="0"`) {
+		t.Errorf("a notice moved the foot's number, which is the table's and not the notice's: %q", foot)
+	}
+	if libraryHealthState(0, true) != "findings" || libraryHealthState(2, true) != "findings" {
+		t.Error("a standing notice does not make the dot read findings")
+	}
+	if libraryHealthState(0, false) != "clear" {
+		t.Error("a folder with no findings and no notice does not read clear, so the dot could never say it")
 	}
 }

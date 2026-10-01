@@ -30,10 +30,13 @@ func libraryFindings(findings int, lang wording.Lang) string {
 }
 
 // libraryHealthState is the dot's state, which the stylesheet colours. It is the
-// only place the two states are named, and the words beside the dot carry the
-// same answer, so the colour is never the only thing saying it.
-func libraryHealthState(findings int) string {
-	if findings == 0 {
+// only place the two states are named. The words beside the dot say how many
+// findings the health table holds, and the dot says that, or that a standing
+// notice stands: a notice is no row of the table and is not in the number, but
+// a dot reading clear over a page that says it has stopped updating would be
+// the one surface every reading page carries contradicting the notice.
+func libraryHealthState(findings int, noticed bool) string {
+	if findings == 0 && !noticed {
 		return "clear"
 	}
 	return "findings"

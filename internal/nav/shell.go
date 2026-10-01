@@ -35,6 +35,11 @@ type Vault struct {
 	// Findings is how many things the health page has to report about this
 	// folder, counted the same way that page counts its own rows.
 	Findings int
+	// Noticed is whether a standing notice is being said about this folder,
+	// such as the pages having stopped updating. The notice is no row of the
+	// health table and is not in Findings, so the foot's dot is told separately:
+	// it must not read clear while the pages say they are stale.
+	Noticed bool
 }
 
 // WithoutInstanceProjections returns a shell whose navigation and topbar carry

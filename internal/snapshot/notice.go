@@ -3,7 +3,6 @@ package snapshot
 import (
 	"errors"
 	"slices"
-	"strconv"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -34,19 +33,17 @@ func NoticeReasons() []NoticeReason {
 	return reasons
 }
 
-// noticeReasonNames is each reason's name, sized by the sentinel so that a
-// reason added above is a slot here that is empty until it is filled.
-var noticeReasonNames = [noticeReasonEnd]string{
-	NoticeNamesCollide: "names_collide",
-}
-
 // String is the reason's name, for the log line or the failure message that
 // would otherwise print a number.
 func (r NoticeReason) String() string {
-	if r < noticeReasonEnd && noticeReasonNames[r] != "" {
-		return noticeReasonNames[r]
+	switch r {
+	case NoticeNamesCollide:
+		return "names_collide"
+	case noticeReasonEnd:
+		// Not a reason: the bound a walk over the set stops at, named here so
+		// that the linter's exhaustiveness answer covers the whole type.
 	}
-	return "notice_" + strconv.Itoa(int(r))
+	return "unknown"
 }
 
 // Notice is one standing fact about how the pages relate to the folder: why,

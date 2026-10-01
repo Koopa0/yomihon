@@ -3,9 +3,7 @@ package snapshot
 import (
 	"context"
 	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"fmt"
 	"log/slog"
 	"os"
 	"path"
@@ -243,7 +241,7 @@ func TestStartingOnACollidingPairNamesBothFiles(t *testing.T) {
 // tests below are about the record that carries notices and not about any one
 // reason: a scan that succeeds takes the collision notice down, and these have
 // to show a notice put there some other way is left alone.
-const noticeOutsideTheSet NoticeReason = 200
+var noticeOutsideTheSet = NoticeReason(200)
 
 func standingNoticeFolder(t *testing.T) (store *Store, source *recordingSource, root string) {
 	t.Helper()
@@ -303,58 +301,70 @@ func TestANoticeSurvivesACompletedBuild(t *testing.T) {
 	}
 }
 
-// TestNoticeReasonsIsEveryReasonDeclared pins the set the surfaces word. The
-// list is derived from the declarations by a sentinel rather than kept beside
-// them, and this reads the declarations from the source to say it did not fall
-// behind them: a reason it left out would be one no test of "every reason has
-// words" ever asks about.
-func TestNoticeReasonsIsEveryReasonDeclared(t *testing.T) {
+// refusingSource answers a scan with the error it is told to, and otherwise
+// leaves the folder to the reader beneath it.
+type refusingSource struct {
+	Source
+
+	refusal error
+}
+
+func (s *refusingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
+	if s.refusal != nil {
+		return vault.Scan{}, s.refusal
+	}
+	return s.Source.ScanAvailable(ctx)
+}
+
+// TestAScanRefusedForAnotherReasonTakesTheCollisionNoticeDown holds the branch
+// of the loop where the cause of the refusal changes. A pair is reported, and
+// then the folder cannot be scanned for some other reason: what stands against
+// it is no longer known to be that pair, and a notice naming two files the scan
+// did not get as far as would be a claim nobody just checked. It is a fake
+// source rather than a folder, because no real folder is refused one way and
+// then another by itself.
+func TestAScanRefusedForAnotherReasonTakesTheCollisionNoticeDown(t *testing.T) {
 	t.Parallel()
 
-	file, err := parser.ParseFile(token.NewFileSet(), "notice.go", nil, 0)
+	root := t.TempDir()
+	writeNote(t, root, "Notes/Existing.md", "---\ntitle: Existing\ntype: concept\n---\nexisting\n")
+	contract := testContract(t, root)
+	reader, err := vault.Open(root)
 	if err != nil {
-		t.Fatalf("parse notice.go: %v", err)
+		t.Fatalf("vault.Open: %v", err)
 	}
-	var declared []string
-	ast.Inspect(file, func(n ast.Node) bool {
-		spec, ok := n.(*ast.ValueSpec)
-		if !ok {
-			return true
-		}
-		if typed, isType := spec.Type.(*ast.Ident); isType && typed.Name == "NoticeReason" {
-			for _, name := range spec.Names {
-				if name.IsExported() {
-					declared = append(declared, name.Name)
-				}
-			}
-		}
-		return true
-	})
-	if len(declared) == 0 {
-		t.Fatal("no NoticeReason is declared in notice.go, so this read the wrong file")
+	t.Cleanup(func() { closeReader(t, reader) })
+	source := &refusingSource{Source: reader}
+	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	if err != nil {
+		t.Fatalf("snapshot.New: %v", err)
 	}
-	reasons := NoticeReasons()
-	if len(reasons) != len(declared) {
-		t.Fatalf("NoticeReasons() lists %d reasons and notice.go declares %d: %v", len(reasons), len(declared), declared)
+
+	pair := &vault.CollisionError{Paths: [2]string{collidingDecomposed, collidingComposed}}
+	source.refusal = fmt.Errorf("list pinned vault: %w", pair)
+	store.rescan(t.Context())
+	if len(store.Current().Freshness().Notices) != 1 {
+		t.Fatal("the pair left no notice, so nothing below is under test")
 	}
-	for i, reason := range reasons {
-		if want := NoticeReason(i + 1); reason != want {
-			t.Errorf("NoticeReasons()[%d] = %d, want %d", i, reason, want)
-		}
+
+	source.refusal = errors.New("list pinned vault: permission denied")
+	store.rescan(t.Context())
+	if notices := store.Current().Freshness().Notices; len(notices) != 0 {
+		t.Errorf("a refusal that is not a collision left the collision notice standing: %+v", notices)
 	}
 }
 
 // TestEveryNoticeReasonSaysItsOwnName: a log line or a failure that prints a
 // reason prints its name, and every reason the set lists has one of its own.
-// A reason added and left unnamed would print as a number, which nobody reading
-// a log has the constant block open beside.
+// A reason added and left unnamed would print as "unknown", which tells nobody
+// reading a log which reason it was.
 func TestEveryNoticeReasonSaysItsOwnName(t *testing.T) {
 	t.Parallel()
 
 	named := make(map[string]NoticeReason)
 	for _, reason := range NoticeReasons() {
 		name := reason.String()
-		if name == "" || strings.HasPrefix(name, "notice_") {
+		if name == "" || name == "unknown" {
 			t.Errorf("reason %d is named %q, which is no name of its own", reason, name)
 		}
 		if other, taken := named[name]; taken {
@@ -365,7 +375,9 @@ func TestEveryNoticeReasonSaysItsOwnName(t *testing.T) {
 	if len(named) == 0 {
 		t.Fatal("the set lists no reason, so nothing was named")
 	}
-	if got := NoticeReason(0).String(); !strings.HasPrefix(got, "notice_") {
-		t.Errorf("the zero reason is named %q, want it to read as no reason", got)
+	for _, outside := range []NoticeReason{0, noticeReasonEnd} {
+		if got := outside.String(); got != "unknown" {
+			t.Errorf("reason %d is named %q, want it to read as no reason", outside, got)
+		}
 	}
 }

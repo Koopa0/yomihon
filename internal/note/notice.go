@@ -9,13 +9,6 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// noticeWordings is what each reason says: a title and a sentence. A reason
-// with no row here would draw an empty heading, which is why the set the
-// snapshot lists is checked against this table in both languages.
-var noticeWordings = map[snapshot.NoticeReason]struct{ title, summary wording.Phrase }{
-	snapshot.NoticeNamesCollide: {wording.NoticeNamesCollideTitle, wording.NoticeNamesCollide},
-}
-
 // folderNotices words the standing notices the snapshot holds, in the reader's
 // language, for the surfaces that draw them. Nothing is dropped: a surface that
 // received a notice and did not draw it would be the silence this exists to
@@ -32,10 +25,17 @@ func folderNotices(notices []snapshot.Notice, lang wording.Lang) []pages.FolderN
 	return out
 }
 
-// noticeWords is what a reason says, as a title and a sentence.
+// noticeWords is what a reason says, as a title and a sentence. The switch has
+// no default arm, so a reason added to the snapshot's set without words here is
+// a gap the exhaustive linter reports rather than a notice with an empty
+// heading; the test over the set's own list is the second lock on the same gap.
 func noticeWords(reason snapshot.NoticeReason, lang wording.Lang) (title, summary string) {
-	words := noticeWordings[reason]
-	return words.title.In(lang), words.summary.In(lang)
+	//nolint:gocritic // singleCaseSwitch: the set has one reason today, and a switch is the form the exhaustive linter reads; a second reason adds a case here
+	switch reason {
+	case snapshot.NoticeNamesCollide:
+		return wording.NoticeNamesCollideTitle.In(lang), wording.NoticeNamesCollide.In(lang)
+	}
+	return "", ""
 }
 
 // noticeFiles names the files a notice is about as the filesystem spells them.
