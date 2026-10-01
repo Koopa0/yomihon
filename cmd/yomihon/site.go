@@ -208,7 +208,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	readers.Register(mux)
 	status.NewHandler(writer, shellProvider, log).Register(mux)
 	if marks != nil {
-		mark.NewHandler(marks, log).Register(mux)
+		mark.NewHandler(marks, readers, log).Register(mux)
 		mark.NewUncertaintyHandler(marks, readers, log).Register(mux)
 	}
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
