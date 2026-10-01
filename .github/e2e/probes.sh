@@ -42,6 +42,7 @@ probes=(
   "heading-fragment.mjs|/notes/Notes/reading-fidelity.md"
   "preview-card.mjs|/notes/Notes/reading-fidelity.md"
   "task-list-marker.mjs|/notes/Notes/reading-fidelity.md"
+  "code-ligatures.mjs|/notes/Notes/reading-fidelity.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "rail-disclosure-state.mjs|/notes/Course/C02.md"
   "vault-sidebar.mjs|/search"
