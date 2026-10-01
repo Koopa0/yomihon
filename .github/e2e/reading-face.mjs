@@ -18,9 +18,11 @@
 //   - Every style the stylesheet declares a Newsreader face for. The styles are
 //     read off the live stylesheet's own @font-face rules, not written down
 //     here, so a style added later is measured the day it is added. Each is
-//     set in the reading body as a specimen of A-Z, a-z and 0-9, and every
-//     glyph of it must be Newsreader: a face that carries the lower case and
-//     not the digits is as wrong as one that carries neither.
+//     set in the reading body as a specimen of A-Z, a-z and 0-9 and of Latin
+//     Extended letters carrying the combining marks fonts.css claims for
+//     latin-ext, and every glyph of it must be Newsreader: a face that
+//     carries the lower case and not the digits is as wrong as one that
+//     carries neither.
 //
 // The mutations point a Latin face's declaration back at the latin-ext file,
 // which is the state this lock exists to end, once for each style.
@@ -36,7 +38,12 @@ const MUTATE = process.env.MUTATE || '';
 const FAMILY = 'Newsreader';
 const MIN_SHARE = 0.9;
 const MIN_LETTERS = 40;
-const SPECIMEN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789';
+// The letters, then one Latin Extended letter under each of the five combining
+// marks (grave, acute, tilde, hook above, dot below) that fonts.css gives to
+// latin-ext. A mark no face claims is drawn, with the letter it sits on, by a
+// fallback serif. The bases are chosen so no precomposed Vietnamese letter,
+// which neither vendored file holds, stands in for the pair.
+const SPECIMEN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 \u0105\u0301 \u0101\u0300 \u0119\u0303 \u0117\u0309 \u012B\u0323';
 const SITES = ['served-prose-is-newsreader', 'every-declared-style-is-newsreader'];
 
 class LockFired extends Error {
@@ -181,7 +188,10 @@ const setSpecimen = (page, style) =>
       specimen.textContent = text;
       prose.append(specimen);
       void specimen.offsetHeight;
-      await document.fonts.load(`${style} 400 16px "${family}"`, text);
+      // A face that fails to load rejects the load. What this reads is which
+      // face drew the glyphs, so the rejection is not the finding: the
+      // fallback it leaves behind is, and the assertion below reports that.
+      await document.fonts.load(`${style} 400 16px "${family}"`, text).catch(() => []);
       return true;
     },
     { style, text: SPECIMEN, family: FAMILY },
@@ -228,8 +238,12 @@ try {
     broken(`the first .y-prose paragraph of ${PAGE} holds ${letters} Latin letters, want at least ${MIN_LETTERS}; it is not the English prose this lock is about`);
   }
   // Only a face that has loaded can have drawn anything. A page whose Newsreader
-  // never loaded is a failure of the lock's subject, said below, not of the page.
-  await page.evaluate((text) => document.fonts.load('400 16px "Newsreader"', text), served);
+  // never loaded is a failure of the lock's subject, said below, not of the page,
+  // so a load that rejects is let through to be measured.
+  await page.evaluate(
+    ({ text, family }) => document.fonts.load(`400 16px "${family}"`, text).catch(() => []),
+    { text: served, family: FAMILY },
+  );
   await settle(page);
   const prose = await measureFaces(cdp, 'served');
   if (prose === null) broken('the marked paragraph vanished before its fonts were read');
@@ -252,13 +266,13 @@ try {
     if (specimen.other > 0) {
       fail(
         'every-declared-style-is-newsreader',
-        `${specimen.other} of the ${specimen.total} glyphs of an A-Z, a-z, 0-9 specimen set in ${style} are not ${FAMILY}; drawn by: ${specimen.drawn}`,
+        `${specimen.other} of the ${specimen.total} glyphs of the A-Z, a-z, 0-9 and accented-letter specimen set in ${style} are not ${FAMILY}; drawn by: ${specimen.drawn}`,
       );
     }
   }
 
   console.log(
-    `PASS reading-face: ${Math.round((100 * prose.own) / prose.total)}% of the first English paragraph is ${FAMILY}, and an A-Z, a-z, 0-9 specimen is wholly ${FAMILY} in ${styles.join(' and ')}`,
+    `PASS reading-face: ${Math.round((100 * prose.own) / prose.total)}% of the first English paragraph is ${FAMILY}, and the A-Z, a-z, 0-9 and accented-letter specimen is wholly ${FAMILY} in ${styles.join(' and ')}`,
   );
 } catch (err) {
   if (err instanceof NotApplied) {

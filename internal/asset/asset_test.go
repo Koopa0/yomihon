@@ -53,8 +53,6 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 		{name: "monospace font", path: "/static/fonts/GeistMono-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
 		{name: "reading font", path: "/static/fonts/Newsreader-Latin-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
 		{name: "italic reading font", path: "/static/fonts/Newsreader-Latin-Italic-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
-		{name: "extended Latin reading font", path: "/static/fonts/Newsreader-LatinExt-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
-		{name: "extended Latin italic reading font", path: "/static/fonts/Newsreader-LatinExt-Italic-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
 		{name: "mermaid entry module", path: "/static/mermaid.esm.min.mjs", wantType: "text/javascript; charset=utf-8", minBodyLen: 1000},
 		{name: "brand mark", path: "/static/yomihon-mark.svg", wantType: "image/svg+xml", minBodyLen: 100},
 	}

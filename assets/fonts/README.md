@@ -24,13 +24,18 @@ files; `go test ./assets` (`TestThirdPartyAssetProvenance`) verifies the
 embedded bytes against it.
 
 The four Newsreader files are the `latin` and `latin-ext` `wght` files of that
-package, byte for byte. `fonts.css` declares each with the package's own
-`unicode-range`. The `latin-ext` files hold none of A-Z, a-z or 0-9, so they
-cannot draw an English run; `.github/e2e/reading-face.mjs` reads which face
-draws the reading body.
+package, byte for byte, and reproduce from
+`npm pack @fontsource-variable/newsreader@5.3.0` (`files/newsreader-{latin,latin-ext}-wght-{normal,italic}.woff2`).
+`fonts.css` declares each with fontsource's `unicode-range`, plus U+0300-0301,
+U+0303, U+0309 and U+0323 on the `latin-ext` faces: the files carry those
+marks, and fontsource sends them to its `vietnamese` subset, which is not
+vendored. The `latin-ext` files hold none of A-Z, a-z or 0-9, so they cannot
+draw an English run; `.github/e2e/reading-face.mjs` reads which face draws the
+reading body.
 
 The exact download URLs used for the two Geist binaries were not retained.
 Their embedded name, version, copyright, and licence metadata were verified
-directly from the WOFF2 files on 2026-07-14, and the Newsreader files' on
-2026-10-01; the hashes above identify the redistributed bytes without claiming
-a source archive that cannot be proved.
+directly from the WOFF2 files on 2026-07-14; the hashes above identify the
+redistributed bytes without claiming a source archive that cannot be proved.
+The Newsreader files' metadata was verified on 2026-10-01, against the package
+named above.

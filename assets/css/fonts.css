@@ -44,22 +44,26 @@
    Leads --font-serif so Latin runs inside serif prose/dek are truly
    serif; CJK falls through to Noto Serif / system serif.
 
-   Each style is two faces, split by `unicode-range` the way fontsource
-   publishes them: `latin` holds the basic Latin letters, digits and
-   punctuation every English run is made of, and `latin-ext` holds the
-   Latin Extended letters (macrons, ogoneks and the like) and is only
-   fetched by a page that uses one. `latin-ext` is declared first so the
-   few code points both ranges name (combining marks) resolve to `latin`.
-   A file without the letters its range claims once left the reading body
-   drawn by a fallback serif, with Newsreader owning only the word spaces;
-   .github/e2e/reading-face.mjs reads which face draws it. */
+   Each style is two faces, split by `unicode-range`: `latin` holds the
+   basic Latin letters, digits and punctuation every English run is made
+   of, and `latin-ext` holds the Latin Extended letters and is only fetched
+   by a page that uses one. The ranges are fontsource's, with one addition:
+   U+0300-0301, U+0303, U+0309 and U+0323 (grave, acute, tilde, hook above,
+   dot below) are also claimed by `latin-ext`, because fontsource sends them
+   to its `vietnamese` subset, which is not vendored, and a Latin Extended
+   letter carrying one would otherwise be drawn by a fallback serif.
+   `latin-ext` is declared first, so a code point both ranges name is
+   tried in `latin` first. A file without the letters its range claims once
+   left the reading body drawn by a fallback serif, with Newsreader owning
+   only the word spaces; .github/e2e/reading-face.mjs reads which face
+   draws it. */
 @font-face {
   font-display: swap;
   font-family: 'Newsreader';
   font-style: normal;
   font-weight: 400 600;
   src: url('/static/fonts/Newsreader-LatinExt-Variable.woff2') format('woff2-variations');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0300-0301, U+0303, U+0304, U+0308, U+0309, U+0323, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
   font-display: swap;
@@ -75,7 +79,7 @@
   font-style: italic;
   font-weight: 400 600;
   src: url('/static/fonts/Newsreader-LatinExt-Italic-Variable.woff2') format('woff2-variations');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0300-0301, U+0303, U+0304, U+0308, U+0309, U+0323, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
   font-display: swap;
