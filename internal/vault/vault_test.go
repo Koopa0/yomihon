@@ -185,14 +185,13 @@ func TestNonMappingYAMLIsInvalidYAML(t *testing.T) {
 }
 
 // parseWithoutPanic runs vault.Parse and turns a panic into a failure of the
-// calling test, so a parser that dies reports which input killed it instead of
-// aborting every test beside it. It returns nil when Parse panicked.
-func parseWithoutPanic(t *testing.T, content string) (n *vault.Note) {
+// calling subtest, so a parser that dies reports which input killed it instead
+// of aborting every test beside it.
+func parseWithoutPanic(t *testing.T, content string) *vault.Note {
 	t.Helper()
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("Parse(%q) panicked: %v", content, r)
-			n = nil
+			t.Fatalf("Parse(%q) panicked: %v", content, r)
 		}
 	}()
 	return vault.Parse("note.md", []byte(content))
@@ -211,35 +210,43 @@ func TestAFrontmatterMergeKeyNeverPanicsTheParser(t *testing.T) {
 	tests := []struct {
 		name       string
 		content    string
-		wantFields map[string]any // nil: the frontmatter must be reported as invalid YAML
+		wantDiag   bool
+		wantFields map[string]any
 	}{
 		{
-			name:    "a merge key beside a list key",
-			content: "---\n<<: {a: 1}\n? [1, 2]\n: 3\n---\n# hi\n",
+			name:     "a merge key beside a list key",
+			content:  "---\n<<: {a: 1}\n? [1, 2]\n: 3\n---\n# hi\n",
+			wantDiag: true,
 		},
 		{
-			name:    "a merge key after a mapping key",
-			content: "---\n? {x: 1}\n: 3\n<<: {a: 1}\n---\n# hi\n",
+			name:     "a merge key after a mapping key",
+			content:  "---\n? {x: 1}\n: 3\n<<: {a: 1}\n---\n# hi\n",
+			wantDiag: true,
 		},
 		{
-			name:    "a merged alias beside a list key",
-			content: "---\nbase: &base {a: 1}\n<<: *base\n? [1, 2]\n: 3\n---\n# hi\n",
+			name:     "a merged alias beside a list key",
+			content:  "---\nbase: &base {a: 1}\n<<: *base\n? [1, 2]\n: 3\n---\n# hi\n",
+			wantDiag: true,
 		},
 		{
-			name:    "a merged list of mappings beside a list key",
-			content: "---\n<<: [{a: 1}, {b: 2}]\n? [1, 2]\n: 3\n---\n# hi\n",
+			name:     "a merged list of mappings beside a list key",
+			content:  "---\n<<: [{a: 1}, {b: 2}]\n? [1, 2]\n: 3\n---\n# hi\n",
+			wantDiag: true,
 		},
 		{
-			name:    "a merge key holding a scalar beside a list key",
-			content: "---\n<<: 1\n? [1, 2]\n: 3\n---\n# hi\n",
+			name:     "a merge key holding a scalar beside a list key",
+			content:  "---\n<<: 1\n? [1, 2]\n: 3\n---\n# hi\n",
+			wantDiag: true,
 		},
 		{
-			name:    "a merge key holding a scalar",
-			content: "---\n<<: 1\nb: 2\n---\n# hi\n",
+			name:     "a merge key holding a scalar",
+			content:  "---\n<<: 1\nb: 2\n---\n# hi\n",
+			wantDiag: true,
 		},
 		{
-			name:    "a merged list holding a scalar",
-			content: "---\n<<: [1]\nb: 2\n---\n# hi\n",
+			name:     "a merged list holding a scalar",
+			content:  "---\n<<: [1]\nb: 2\n---\n# hi\n",
+			wantDiag: true,
 		},
 		{
 			name:       "a merged mapping",
@@ -261,26 +268,14 @@ func TestAFrontmatterMergeKeyNeverPanicsTheParser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := parseWithoutPanic(t, tt.content)
-			if n == nil {
-				return
-			}
 			if !n.HasFrontmatter {
 				t.Error("Parse() HasFrontmatter = false, want the block counted as present")
 			}
 			if n.Body != "# hi\n" {
 				t.Errorf("Parse() body = %q, want %q", n.Body, "# hi\n")
 			}
-			if tt.wantFields == nil {
-				if n.FMDiagnostic == "" {
-					t.Error("Parse() diagnostic empty, want the invalid-YAML diagnostic")
-				}
-				if n.Frontmatter != nil {
-					t.Errorf("Parse() frontmatter = %#v, want none", n.Frontmatter)
-				}
-				return
-			}
-			if n.FMDiagnostic != "" {
-				t.Errorf("Parse() diagnostic = %q, want the valid merge to decode", n.FMDiagnostic)
+			if gotDiag := n.FMDiagnostic != ""; gotDiag != tt.wantDiag {
+				t.Errorf("Parse() diagnostic = %q, want a diagnostic: %v", n.FMDiagnostic, tt.wantDiag)
 			}
 			if diff := cmp.Diff(tt.wantFields, n.Frontmatter); diff != "" {
 				t.Errorf("Parse() frontmatter mismatch (-want +got):\n%s", diff)
