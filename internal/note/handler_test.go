@@ -141,6 +141,7 @@ func newServerWithMark(
 	writer := openStatusWriter(t, source, contract, governance)
 	h := note.New(&note.Sources{
 		Source:         source,
+		Contract:       contract,
 		VaultName:      shell.VaultName(source.Name()),
 		Status:         writer.Authority,
 		Snapshot:       store.Current,
@@ -2661,6 +2662,85 @@ func TestShowNoFrontmatter(t *testing.T) {
 	if strings.Contains(body, wording.ContractUnavailable.In(wording.ZhHant)) || strings.Contains(body, "fail-closed") {
 		t.Errorf("page shows the fail-closed notice even though the contract loaded; body = %q", body)
 	}
+}
+
+// TestShowNoFrontmatterFollowsContract holds the wiring from the contract's
+// no_frontmatter_is_legal declaration to the sentence a request serves for a
+// note with no frontmatter block: the page has to say the contract requires one
+// exactly when the contract says so, and say it is legal otherwise.
+func TestShowNoFrontmatterFollowsContract(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		contract *schema.Contract
+		want     string
+		notWant  string
+	}{
+		{
+			name:     "legal",
+			contract: loadContract(t),
+			want:     wording.NoFrontmatter.In(wording.ZhHant),
+			notWant:  wording.NoFrontmatterRequired.In(wording.ZhHant),
+		},
+		{
+			name:     "required",
+			contract: loadContractRequiringFrontmatter(t),
+			want:     wording.NoFrontmatterRequired.In(wording.ZhHant),
+			notWant:  wording.NoFrontmatter.In(wording.ZhHant),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			dir := filepath.Join(root, "Drills")
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "d1.md"), []byte("just a drill body\n"), 0o600); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			srv := newServerWithContract(t, root, tt.contract)
+
+			code, body := get(t, srv.Client(), srv.URL+"/notes/Drills/d1.md")
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if !strings.Contains(body, tt.want) {
+				t.Errorf("page missing %q; body = %q", tt.want, body)
+			}
+			if strings.Contains(body, tt.notWant) {
+				t.Errorf("page carries %q under the %s contract; body = %q", tt.notWant, tt.name, body)
+			}
+		})
+	}
+}
+
+// loadContractRequiringFrontmatter is the testdata contract with its scan
+// declaration turned against a note that carries no frontmatter block.
+func loadContractRequiringFrontmatter(t *testing.T) *schema.Contract {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	const legal = "no_frontmatter_is_legal = true"
+	modified := strings.Replace(string(data), legal, "no_frontmatter_is_legal = false", 1)
+	if modified == string(data) {
+		t.Fatal("frontmatter declaration replacement did not apply")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if writeErr := os.WriteFile(path, []byte(modified), 0o600); writeErr != nil { // #nosec G703 -- fixed basename under t.TempDir
+		t.Fatalf("write modified contract: %v", writeErr)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	if !contract.RequiresFrontmatter() {
+		t.Fatal("the modified contract does not require frontmatter")
+	}
+	return contract
 }
 
 // TestShowTransitions exercises handler.go's default branch (view.Transitions

@@ -439,6 +439,7 @@ func (h *Handler) reading(
 		// an embedded source can reach this page while it is open.
 		TranscludedIdentity: result.TranscludedIdentity,
 		NoFrontmatter:       state.noFrontmatter,
+		FrontmatterRequired: state.frontmatterRequired,
 		StatusUnknown:       state.statusUnknown,
 		StatusNotText:       state.statusNotText,
 		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n.Type, lang),
@@ -619,10 +620,11 @@ type governanceState struct {
 	// empty unless the write face applies to this note; the page falls back to
 	// the scan's value, which is the only answer available when nothing may be
 	// written and is then never contradicted by anything.
-	status          string
-	transitions     []pages.Transition
-	writeDiagnostic string
-	noFrontmatter   bool
+	status              string
+	transitions         []pages.Transition
+	writeDiagnostic     string
+	noFrontmatter       bool
+	frontmatterRequired bool
 	// statusNotText is set when the note wrote a status the reader did not
 	// take as text, so status above is empty and the page can say which of
 	// the two silences this is.
@@ -675,6 +677,7 @@ func (h *Handler) governance(
 		case !n.HasFrontmatter:
 			// No block at all (e.g. drills): the absent sentence, no keys.
 			state.noFrontmatter = true
+			state.frontmatterRequired = h.sources.Contract.RequiresFrontmatter()
 		default:
 			// A present block, empty fence pair included: the no-status face
 			// when nothing readable was written there. No keys either until a
