@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"regexp"
 	"slices"
@@ -335,25 +334,28 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 		}
 	}
 
-	// The licence obligation is met by the embedded texts above, which ship
-	// inside the binary. The summary notice is kept on the maintainer's machine
-	// with the rest of the governance prose rather than in history, so a clean
-	// clone has none to read: it is checked where present and skipped where
-	// not, as a subtest so the embedded checks above keep reporting their own
-	// result.
+	// The summary notice is tracked, and every release ships it beside the
+	// binaries, so a checkout without it is broken and fails here rather than
+	// skipping. It is a subtest so the embedded checks above keep reporting
+	// their own result.
 	t.Run("summary notice names each component", func(t *testing.T) {
 		t.Parallel()
 
-		notices, err := os.ReadFile("../THIRD_PARTY_NOTICES.md")
-		if errors.Is(err, fs.ErrNotExist) {
-			t.Skip("THIRD_PARTY_NOTICES.md is not in this checkout; it is kept on the maintainer's machine")
-		}
-		if err != nil {
-			t.Fatalf("read third-party notices: %v", err)
-		}
+		notices := readThirdPartyNotices(t)
 		for _, component := range []string{"Mermaid 11.15.0", "Geist and Geist Mono 1.500", "Newsreader 1.003"} {
-			if !bytes.Contains(notices, []byte(component)) {
+			if !strings.Contains(notices, component) {
 				t.Errorf("third-party notices do not name %s", component)
+			}
+		}
+		// The release publishes the notice without the source tree, so the two
+		// licence texts it points at have to be in it and not only beside it.
+		for _, name := range []string{"fonts/LICENSE.txt", "js/mermaid/LICENSE"} {
+			data, readErr := Files.ReadFile(name)
+			if readErr != nil {
+				t.Fatalf("read notice %s: %v", name, readErr)
+			}
+			if !strings.Contains(squashSpace(notices), squashSpace(string(data))) {
+				t.Errorf("third-party notices do not reproduce the embedded %s", name)
 			}
 		}
 	})

@@ -62,6 +62,22 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # The licences of what is compiled into a binary ask for their notice to
+      # travel with it: MIT wants it "included in all copies", BSD-3-Clause
+      # wants binary redistributions to reproduce it in the accompanying
+      # materials, and Apache-2.0 wants its NOTICE to travel. A downloaded
+      # binary carries no source tree, so the notices are published beside it.
+      # They are copied into dist/ before the next step writes SHA256SUMS, which
+      # therefore lists them, and `gh release create ... dist/*` publishes
+      # whatever dist/ holds. They stay outside the attestation glob below,
+      # which names binaries only: they are verbatim copies of tracked files, and
+      # the tagged source shows what they said.
+      - name: Stage the licence notices
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp THIRD_PARTY_NOTICES.md LICENSE dist/
+
       # assets/css/output.css and the templ-generated Go under internal/ui
       # are committed source, kept current by the gate job's assets-drift
       # check, so building the released binary needs no generation step
