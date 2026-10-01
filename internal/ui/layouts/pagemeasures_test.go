@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -160,14 +161,14 @@ func containsBase(paths []string, base string) bool {
 	return false
 }
 
-// cssRule is one ordinary rule: the selector it was written under, and the
-// declarations inside it. A rule nested inside @media or @supports is an
-// ordinary rule too, which is the point — a box overridden at one width is
-// still a box.
+// cssRule is one ordinary rule: the selector it was written under, the
+// declarations inside it, and the at-rules around it, outermost first. A rule
+// nested inside @media or @supports is an ordinary rule too, which is the
+// point — a box overridden at one width is still a box.
 type cssRule struct {
 	selector string
 	body     string
-	depth    int
+	within   []string
 }
 
 // values returns every value the rule gives that property, in source order. A
@@ -212,15 +213,15 @@ func componentRules(t *testing.T) []cssRule {
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", componentsPath, err)
 	}
-	rules := parseRules(t, withoutComments(string(source)), 0)
+	rules := parseRules(t, withoutComments(string(source)), nil)
 	if len(rules) < 200 {
 		t.Fatalf("the parse of %s found %d rules; a sheet of %d bytes holds many more, so the parser stopped early",
 			componentsPath, len(rules), len(source))
 	}
 	deepest := 0
 	for _, rule := range rules {
-		if rule.depth > deepest {
-			deepest = rule.depth
+		if len(rule.within) > deepest {
+			deepest = len(rule.within)
 		}
 	}
 	if deepest < 2 {
@@ -230,7 +231,7 @@ func componentRules(t *testing.T) []cssRule {
 	return rules
 }
 
-func parseRules(t *testing.T, block string, depth int) []cssRule {
+func parseRules(t *testing.T, block string, within []string) []cssRule {
 	t.Helper()
 	var out []cssRule
 	for {
@@ -246,9 +247,9 @@ func parseRules(t *testing.T, block string, depth int) []cssRule {
 		}
 		body := rest[:end]
 		if strings.HasPrefix(prelude, "@") {
-			out = append(out, parseRules(t, body, depth+1)...)
+			out = append(out, parseRules(t, body, append(slices.Clone(within), prelude))...)
 		} else {
-			out = append(out, cssRule{selector: prelude, body: body, depth: depth})
+			out = append(out, cssRule{selector: prelude, body: body, within: within})
 		}
 		block = rest[end+1:]
 	}
