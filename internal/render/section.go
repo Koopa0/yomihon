@@ -318,6 +318,7 @@ func blockSlice(body strippedBody, block string) (string, bool) {
 // than over whatever the comment strip left.
 func blockMarkerLine(lines, address []string, block string) int {
 	want := graph.FoldFragment("^" + block)
+	owned := CodeSpanOwnedAddresses(address)
 	inFence, fenceByte, fenceLen := false, byte(0), 0
 	for i, line := range lines {
 		// A fence is looked for with any quote marker taken off it, because a
@@ -334,7 +335,7 @@ func blockMarkerLine(lines, address []string, block string) int {
 			inFence, fenceByte, fenceLen = true, open, n
 			continue
 		}
-		if UnanchorableLine(line) || CodeSpanOwnsBlockAddress(address, i) {
+		if UnanchorableLine(line) || owned[i] {
 			continue
 		}
 		trimmed := graph.FoldFragment(strings.TrimRight(line, " \t"))

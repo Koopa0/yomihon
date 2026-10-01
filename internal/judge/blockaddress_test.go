@@ -106,6 +106,31 @@ func TestTheThreeBlockAddressFacesAgreeOverAStrippedBody(t *testing.T) {
 	}
 }
 
+// A paragraph whose every line ends in an address, which is what a transcript
+// with one per line is, is a single run for the code-span question. The check
+// reads it once for the body; read once per line it cost the square of the
+// lines, six seconds for 2,000 of them. Four times the lines make about four
+// times the allocations when the run is read once, and about sixteen times as
+// many when each address reads it again, so a ratio of six separates them
+// without a clock.
+func TestBlockAddressCostGrowsLinearlyWithTheLinesOfARun(t *testing.T) {
+	// Not parallel: testing.AllocsPerRun pins GOMAXPROCS for its measurement
+	// and must not run alongside other parallel tests.
+	const lines = 200
+	small := strings.Repeat("これは字幕の行です ^t\n", lines)
+	large := strings.Repeat("これは字幕の行です ^t\n", 4*lines)
+
+	if _, _, kept := anchorSurface(small); len(kept) != lines {
+		t.Fatalf("the check kept %d address lines of %d, so the cost below is of a different pass", len(kept), lines)
+	}
+	smallAllocs := testing.AllocsPerRun(1, func() { anchorSurface(small) })
+	largeAllocs := testing.AllocsPerRun(1, func() { anchorSurface(large) })
+	if growth := largeAllocs / smallAllocs; growth > 6 {
+		t.Errorf("%d addressed lines made %.0f allocations and %d made %.0f, %.1fx for 4x the lines; want at most 6x",
+			lines, smallAllocs, 4*lines, largeAllocs, growth)
+	}
+}
+
 // blockAddressPipeline renders a body with nothing else in the vault: these
 // notes cite nothing, so what the page has to answer is its own addresses.
 func blockAddressPipeline() *render.Pipeline {
