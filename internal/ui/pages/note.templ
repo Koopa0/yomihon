@@ -16,7 +16,8 @@ import (
 // NoteView is everything the reading page needs. Diagnostic and
 // RenderDiagnostics are display-only: yomihon reports what it found, and a
 // human edits the file. Transitions, WriteDiagnostic, NonInstance,
-// OutsideKnowledgeScope and NoFrontmatter drive the two status faces.
+// OutsideKnowledgeScope, NoFrontmatter and FrontmatterUnclosed drive the two
+// status faces.
 type NoteView struct {
 	Title   string
 	RelPath string
@@ -113,6 +114,12 @@ type NoteView struct {
 	NonInstance         bool
 	WriteDiagnostic     string
 	NoFrontmatter       bool
+	// FrontmatterUnclosed is set where the note opened a frontmatter fence and
+	// nothing closed it. Every reader took such a note for body text with no
+	// block, so NoFrontmatter is true of it as far as they are concerned, and
+	// this is what says the block was meant: the page states the fence never
+	// closes, and the status face does not call the note frontmatter-free.
+	FrontmatterUnclosed bool
 	// OutsideKnowledgeScope is set for a note the write face reaches no further
 	// than reading: it sits outside the layer scan.knowledge_dirs declares, so
 	// its transition set is empty for that reason rather than because the
@@ -197,6 +204,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 templ noteArticle(v NoteView, lang wording.Lang) {
 	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { uncertaintyAttrs(&v, lang)... }>
 		@articleHead(v, lang)
+		@frontmatterUnclosedNotice(v, lang)
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
 		<div class="y-prose">
@@ -642,6 +650,8 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 						<p class="y-statuspanel__notice">
 							@browserDiagnostic(wording.WriteFaceUnavailable.In(lang), v.WriteDiagnostic)
 						</p>
+					case faceFrontmatterUnclosed:
+						@statusFrontmatterUnclosedFlag(v, "y-statuspanel__notice", lang)
 					case faceNoFrontmatter:
 						<p class="y-statuspanel__notice">{ wording.NoFrontmatter.In(lang) }</p>
 					case faceStatusUnknown:
@@ -689,6 +699,27 @@ templ schemaNotices(v NoteView, lang wording.Lang) {
 			}
 		</div>
 	}
+}
+
+// frontmatterUnclosedNotice states that this note opened a frontmatter fence
+// that never closes. It sits above the article whatever the vault governs,
+// because the fact does not depend on a contract: the keys below it are shown as
+// the prose they were read as, and without this nothing on the page says they
+// were meant to be fields. It is its own block rather than a schema notice
+// because the schema's verdict is absent from a vault with no contract.
+templ frontmatterUnclosedNotice(v NoteView, lang wording.Lang) {
+	if v.FrontmatterUnclosed {
+		<div lang={ lang.Tag() }>
+			<p class="y-statuspanel__notice y-statusflag">{ wording.FrontmatterNeverCloses.In(lang) }</p>
+		</div>
+	}
+}
+
+// statusFrontmatterUnclosedFlag is the status face for a note whose frontmatter
+// fence never closes: no status was read because no block was, and the way out
+// is the same hand edit the other no-status faces name.
+templ statusFrontmatterUnclosedFlag(v NoteView, noticeClass string, lang wording.Lang) {
+	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusFrontmatterNeverCloses.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
 }
 
 // statusUnknownFlag states that the note's status value is outside the
@@ -819,6 +850,8 @@ templ statusBar(v NoteView, lang wording.Lang) {
 					<p class="y-sealbar__notice">
 						@browserDiagnostic(wording.WriteFaceUnavailable.In(lang), v.WriteDiagnostic)
 					</p>
+				case faceFrontmatterUnclosed:
+					@statusFrontmatterUnclosedFlag(v, "y-sealbar__notice", lang)
 				case faceNoFrontmatter:
 					<p class="y-sealbar__notice">{ wording.NoFrontmatter.In(lang) }</p>
 				case faceStatusUnknown:

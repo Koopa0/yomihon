@@ -112,6 +112,13 @@ makes a missing frontmatter block a fault. A block that is present and
 unparseable is `schema.frontmatter` either way, and nothing else about that
 note can be judged until it parses.
 
+A block that never closes is not a block to any reader: its opening `---` is
+read as body text and its keys as prose. When line 1 is `---`, line 2 reads as
+`key:`, and no closing `---` or `...` follows, `check` says so under
+`schema.frontmatter` with the message `frontmatter opens on line 1 and never
+closes`, whatever `no_frontmatter_is_legal` says. A note that opens with a
+thematic break followed by anything else is not reported.
+
 ### `[navigation]` — what can be a course or a map
 
 `path_types` and `map_types` name the types that become study paths and maps.

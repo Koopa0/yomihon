@@ -73,6 +73,27 @@ var (
 	FrontmatterNotYAML = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
 )
 
+// StatusFrontmatterNeverCloses is the status face for a note whose first line
+// opens a frontmatter fence that nothing closes. It is not the sentence for no
+// frontmatter, which says the note is fine: the block is there, only its
+// closing line is not, and the status inside it was never read. It ends on the
+// same open clause the other no-status sentences do, and the door line follows.
+var StatusFrontmatterNeverCloses = both(
+	"frontmatter 沒有結尾的 ---，所以讀不到 status。yomihon 只陳述，不修復；",
+	"The frontmatter has no closing ---, so no status could be read. yomihon reports and never repairs; ",
+)
+
+// FrontmatterNeverCloses is said above the article of a note whose first line
+// opens a frontmatter fence, whose next line reads as a field, and which has no
+// closing fence after them. Every reader here takes such a note for body text
+// with no frontmatter at all, so the page has to say what it cannot show: the
+// keys below were not read as keys, and with them went the type, the status,
+// the slug and the domain.
+var FrontmatterNeverCloses = both(
+	"這篇的第一行是 ---，下一行也像欄位，但後面一直沒有結尾的 ---，所以整段 frontmatter 都沒有被讀進來，type、status、slug、domain 都不算。yomihon 只陳述，不修復；請直接編輯檔案，補上結尾的 ---。",
+	"This note opens a frontmatter block on line 1, and the closing --- never comes, so none of its fields were read: not type, status, slug or domain. yomihon reports and never repairs; edit the file and add the closing ---.",
+)
+
 // The way out of a state the interface offers nothing onward from. The second
 // form names the editor link the page already carries.
 var (

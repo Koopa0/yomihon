@@ -158,7 +158,7 @@ verdict.
 | `schema.unknown_key` | a key outside `[fields] known` | contract |
 | `schema.enum` | a value outside the list declared for this note's type. Read the message's own wording: it names the list it judged against | contract |
 | `schema.status_unreachable` | this note's status is in its type's enum, but no `[[lifecycle]]` row carrying that status applies to its type, so nothing could ever have moved it there. It is a finding about the note that carries the value, not about the contract that declares it: a status no note uses is never reported | contract |
-| `schema.frontmatter` | the frontmatter is not valid YAML. Everything else about the note is unjudgeable until this is fixed | contract |
+| `schema.frontmatter` | the frontmatter is not valid YAML, or it opens on line 1 with a `key:` line and never closes (a lost closing `---`). Everything else about the note is unjudgeable until this is fixed | contract |
 | `schema.language` | `lang` is not a valid BCP 47 tag | contract |
 | `schema.slug` | the slug does not match `[rules] slug_pattern` | `#rules` |
 | `schema.domain_folder` | the note's `domain` disagrees with the folder it sits in, under a root `[rules] domain_equals_folder_under` names | `#rules` |

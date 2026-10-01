@@ -127,10 +127,19 @@ func newLintRun(contract *schema.Contract) (*lintRun, error) {
 // knowledge-note rules. That order is the tiebreak the stable sort preserves.
 func (r *lintRun) note(n *note) []Finding {
 	if n.noFrontmatter {
-		if r.requiresFrontmatter {
-			return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is missing")}
+		var out []Finding
+		// The fence that never closes is said whatever the contract thinks of
+		// a note with no block, because the block is there and only its
+		// closing line is not. It is said beside "is missing" rather than
+		// instead of it: a finding the command already emits is not removed
+		// by adding one.
+		if n.unclosedFrontmatter {
+			out = append(out, unclosedFrontmatterFinding(n))
 		}
-		return nil
+		if r.requiresFrontmatter {
+			out = append(out, schemaFinding(n, "schema.frontmatter", "", "", "is missing"))
+		}
+		return out
 	}
 	if n.badFrontmatter {
 		return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is not valid YAML")}
@@ -442,6 +451,24 @@ func schemaFinding(n *note, ruleID RuleID, field, value, reason string) Finding 
 	if value != "" {
 		f.Target = new(value)
 	}
+	return f
+}
+
+// unclosedFrontmatterFinding builds the finding for a note whose opening fence
+// nothing closes. It is a reason of schema.frontmatter, whose other two reasons
+// are a block that cannot be read and a note with no block where the contract
+// wants one.
+//
+// Under a contract that wants a block this note also carries "is missing", and
+// the two would hash to the same fingerprint, which names the rule, the path
+// and the field and value, of which both have none. The fingerprint is how a
+// baseline tells one finding from another, so this one names its own reason and
+// a baseline that silenced "is missing" does not silence it. The action is its
+// own for the same reason: nothing here is a mismatch with the schema to fix.
+func unclosedFrontmatterFinding(n *note) Finding {
+	f := schemaFinding(n, "schema.frontmatter", "", "", "opens on line 1 and never closes")
+	f.SuggestedAction = "add the closing --- line, or remove the opening --- if the note has no frontmatter"
+	f.Fingerprint = fingerprint("schema.frontmatter", n.path, "unclosed\x1f")
 	return f
 }
 

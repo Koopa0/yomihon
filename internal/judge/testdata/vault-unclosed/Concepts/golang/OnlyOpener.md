@@ -1,0 +1,2 @@
+---
+title: Only the opener

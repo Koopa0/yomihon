@@ -261,6 +261,7 @@ type faceState uint8
 const (
 	faceNonInstance faceState = iota
 	faceWriteUnavailable
+	faceFrontmatterUnclosed
 	faceNoFrontmatter
 	faceStatusUnknown
 	faceStatusNotText
@@ -279,6 +280,8 @@ func statusFace(v *NoteView) faceState {
 		return faceNonInstance
 	case v.WriteDiagnostic != "":
 		return faceWriteUnavailable
+	case v.FrontmatterUnclosed:
+		return faceFrontmatterUnclosed
 	case v.NoFrontmatter:
 		return faceNoFrontmatter
 	case v.StatusUnknown:
@@ -305,7 +308,7 @@ func (f faceState) token() string {
 		return "non-instance"
 	case faceWriteUnavailable:
 		return "unavailable"
-	case faceNoFrontmatter, faceStatusUnknown, faceStatusNotText, faceStatusUnreadable,
+	case faceFrontmatterUnclosed, faceNoFrontmatter, faceStatusUnknown, faceStatusNotText, faceStatusUnreadable,
 		faceOutsideScope, faceNoTransitions, faceTransitions:
 		return "instance"
 	}
