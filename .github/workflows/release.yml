@@ -67,6 +67,12 @@ jobs:
       # check, so building the released binary needs no generation step
       # here — only the four published platforms, cross-compiled without
       # cgo the same way `make portable-build-check` already does.
+      #
+      # -trimpath keeps the runner's checkout path out of each binary, so a
+      # rebuild of the tagged commit from any directory yields the published
+      # SHA-256; -ldflags="-s -w" drops the symbol table and DWARF data, which
+      # a downloaded binary never uses. TestTheReleaseBuildTrimsPathsAndStripsSymbols
+      # holds the build to both.
       - name: Cross-build the published platforms
         env:
           TAG: ${{ github.ref_name }}
@@ -84,7 +90,7 @@ jobs:
             fi
             out="dist/yomihon_${TAG}_${goos}_${goarch}${ext}"
             echo "building $out"
-            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -o "$out" ./cmd/yomihon
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/yomihon
           done
 
           ( cd dist && sha256sum -- * > SHA256SUMS )
