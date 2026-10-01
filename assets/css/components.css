@@ -27,6 +27,22 @@ body {
   --header-clearance: calc(var(--header-height) + 16px);
 }
 
+/* Code is the one text a reader retypes character by character, so it has to
+   draw the characters that are there. Geist Mono joins pairs such as `<-`,
+   `->`, `=>` and `!=` into a single glyph through its `liga` feature, which is
+   on unless it is turned off, and a learner who copies what they see from Go's
+   `<-chan int` types an arrow Go rejects. `font-feature-settings: "calt" 0`
+   does not reach those joins; this property does. It is set on the elements
+   Preflight puts in the mono face rather than on `.y-prose`, so the code that
+   the diagnostics, the notices and the recovery detail quote reads the same
+   way the article's does. */
+code,
+kbd,
+pre,
+samp {
+  font-variant-ligatures: none;
+}
+
 .y-skiplink {
   background: var(--panel);
   border: 1px solid var(--border-strong);
