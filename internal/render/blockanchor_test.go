@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -468,7 +470,7 @@ func TestCodeSpanWindowStopsAtABlockBoundary(t *testing.T) {
 			t.Parallel()
 			addressed := !tt.owned
 
-			if got := render.CodeSpanOwnsBlockAddress(strings.Split(tt.body, "\n"), tt.at); got != tt.owned {
+			if got := render.CodeSpanOwnedAddresses(strings.Split(tt.body, "\n"))[tt.at]; got != tt.owned {
 				t.Errorf("a code span owns the address = %v, want %v", got, tt.owned)
 			}
 			if _, found := render.Excerpt(tt.body, "^genuine"); found != addressed {
@@ -482,6 +484,108 @@ func TestCodeSpanWindowStopsAtABlockBoundary(t *testing.T) {
 			}
 			if tt.owned && !strings.Contains(page.HTML, "<code>left ^genuine right</code>") {
 				t.Errorf("the page no longer draws the span that owns the caret:\n%s", page.HTML)
+			}
+		})
+	}
+}
+
+// The answer is read for a whole body at once, and each line's is its own: a
+// run holds several addresses and several spans, and a span can hold the second
+// of three addresses and neither of the others.
+func TestCodeSpanOwnedAddressesAnswersEveryLineOfABody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want []bool
+	}{
+		{
+			name: "addresses no span reaches, either side of a blank line",
+			body: "plain\nword ^one\n\nother `x` ^two",
+			want: []bool{false, false, false, false},
+		},
+		{
+			name: "the addresses either side of a span that holds one",
+			body: "`a` ^one\n`b` `c ^two`\n`d` ^three",
+			want: []bool{false, true, false},
+		},
+		{
+			name: "a span the author wrapped holds the address inside it and not the one after",
+			body: "x `left ^one\nright` ^two",
+			want: []bool{true, false},
+		},
+		{
+			name: "a span across three lines holds the two addresses between its backticks",
+			body: "`a ^one\nb ^two\nc` d ^three",
+			want: []bool{true, true, false},
+		},
+		{
+			name: "a backtick either side of a heading pairs with nothing",
+			body: "`a ^one\n## Heading\nb` ^two",
+			want: []bool{false, false, false},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := render.CodeSpanOwnedAddresses(strings.Split(tt.body, "\n"))
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("CodeSpanOwnedAddresses(%q) mismatch (-want +got):\n%s", tt.body, diff)
+			}
+		})
+	}
+}
+
+// A paragraph whose every line ends in an address, which is what a transcript
+// with one per line is, is a single run for the code-span question. The page
+// and the excerpt read it once for the body; read once per line it cost the
+// square of the lines, six seconds to view 2,000 of them. Four times the lines
+// make about four times the allocations when the run is read once, and about
+// sixteen times as many when each address reads it again, so a ratio of six
+// separates them without a clock.
+func TestBlockAddressCostGrowsLinearlyWithTheLinesOfARun(t *testing.T) {
+	// Not parallel: testing.AllocsPerRun pins GOMAXPROCS for its measurement
+	// and must not run alongside other parallel tests.
+	r := blockRenderer(t)
+	const line = "これは字幕の行です ^t\n"
+	page := func(body string) { _ = r.HTML("note.md", "", body, wording.ZhHant) }
+
+	tests := []struct {
+		name string
+		body func(lines int) string
+		run  func(body string)
+	}{
+		{
+			name: "the page stamps the anchors",
+			body: func(lines int) string { return strings.Repeat(line, lines) },
+			run:  page,
+		},
+		{
+			name: "the page stamps the anchors in a callout body",
+			body: func(lines int) string { return "> [!note] 字幕\n" + strings.Repeat("> "+line, lines) },
+			run:  page,
+		},
+		{
+			name: "the excerpt cuts to the last address",
+			body: func(lines int) string { return strings.Repeat(line, lines) + "最後の行です ^last\n" },
+			run: func(body string) {
+				if _, found := render.Excerpt(body, "^last"); !found {
+					t.Fatal("the excerpt did not find the last address")
+				}
+			},
+		},
+	}
+	const lines = 200
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			small, large := tt.body(lines), tt.body(4*lines)
+			smallAllocs := testing.AllocsPerRun(1, func() { tt.run(small) })
+			largeAllocs := testing.AllocsPerRun(1, func() { tt.run(large) })
+			if growth := largeAllocs / smallAllocs; growth > 6 {
+				t.Errorf("%d addressed lines made %.0f allocations and %d made %.0f, %.1fx for 4x the lines; want at most 6x",
+					lines, smallAllocs, 4*lines, largeAllocs, growth)
 			}
 		})
 	}
