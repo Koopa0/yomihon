@@ -116,8 +116,10 @@ A block that never closes is not a block to any reader: its opening `---` is
 read as body text and its keys as prose. When line 1 is `---`, line 2 reads as
 `key:`, and no closing `---` or `...` follows, `check` says so under
 `schema.frontmatter` with the message `frontmatter opens on line 1 and never
-closes`, whatever `no_frontmatter_is_legal` says. A note that opens with a
-thematic break followed by anything else is not reported.
+closes`, whatever `no_frontmatter_is_legal` says. Written `false`, this finding
+takes the place of `frontmatter is missing` for such a note, because the block
+is there and only its closing line is not. A note that opens with a thematic
+break followed by anything else is not reported.
 
 ### `[navigation]` — what can be a course or a map
 

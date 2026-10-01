@@ -491,9 +491,7 @@ func schemaNotices(findings []judge.Finding, domainFolder, noteType string, fenc
 		// The rule that reports a frontmatter block as unreadable has no sentence
 		// of its own here, and for a fence that never closes the page already
 		// says so in words that name the fence, so the finding is not said a
-		// second time as a rule nobody wrote words for. That includes the
-		// "is missing" a strict contract adds beside it, which names the
-		// wrong fault.
+		// second time as a rule nobody wrote words for.
 		if fenceUnclosed && f.RuleID == "schema.frontmatter" {
 			continue
 		}

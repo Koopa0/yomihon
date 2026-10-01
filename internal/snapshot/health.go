@@ -39,12 +39,13 @@ type Health struct {
 	// resolves to none of them because the vault refuses to guess.
 	Collisions []HealthCollision
 
-	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
-	// so nothing they declare could be judged at all; SchemaFaults are the ones
-	// whose frontmatter reads and carries something the schema does not accept.
-	// They are gathered while the folder is read, with everything else here,
-	// because the rail's foot states how many findings stand against the folder
-	// and a walk over every note is not a thing to do on every page.
+	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML or
+	// opens a fence nothing closes, so nothing they declare could be judged at
+	// all; SchemaFaults are the ones whose frontmatter reads and carries
+	// something the schema does not accept. They are gathered while the folder
+	// is read, with everything else here, because the rail's foot states how
+	// many findings stand against the folder and a walk over every note is not
+	// a thing to do on every page.
 	FrontmatterUnreadable []HealthNoteFindings
 	SchemaFaults          []HealthNoteFindings
 }

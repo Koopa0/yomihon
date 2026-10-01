@@ -1,21 +1,20 @@
 package judge
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// TestAnUnclosedFenceHasAnIdentityOfItsOwn holds what keeps the new reason from
-// hiding behind an old one. Under a contract that wants a block, a note whose
-// fence never closes draws "is missing" too, because the command already said
-// that and adding a finding removes none. Both would hash to the same
-// fingerprint if neither named its reason, since neither has a field or a
-// value, and a baseline written when only "is missing" was said would then
-// silence the one finding that names the actual fault.
-func TestAnUnclosedFenceHasAnIdentityOfItsOwn(t *testing.T) {
+// TestAnUnclosedFenceKeepsTheIdentityEveryReasonOfItsRuleShares holds the
+// fingerprint of the new reason to the one the rule already gives. The three
+// reasons of schema.frontmatter name no field and no value, so they share one
+// identity per path, and a baseline that silenced a note while its block was
+// unreadable or missing keeps silencing it when the note is changed into any of
+// the other two. A reason that hashed on its own would bring that note back as
+// new.
+func TestAnUnclosedFenceKeepsTheIdentityEveryReasonOfItsRuleShares(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -30,23 +29,24 @@ func TestAnUnclosedFenceHasAnIdentityOfItsOwn(t *testing.T) {
 	}
 
 	const path = "Writing/lessons/golang/L1.md"
-	findings, err := LintFrontmatter(path, []byte("---\ntitle: L1\ntype: lesson\nstatus: draft\n--\n\nbody\n"), contract)
-	if err != nil {
-		t.Fatalf("LintFrontmatter() error = %v", err)
+	fingerprints := map[string]string{}
+	for reason, body := range map[string]string{
+		"opens on line 1 and never closes": "---\ntitle: L1\ntype: lesson\nstatus: draft\n--\n\nbody\n",
+		"is missing":                       "body\n",
+		"is not valid YAML":                "---\ntitle: [\n---\n",
+	} {
+		findings, lintErr := LintFrontmatter(path, []byte(body), contract)
+		if lintErr != nil {
+			t.Fatalf("LintFrontmatter(%q) error = %v", body, lintErr)
+		}
+		if len(findings) != 1 || !strings.HasSuffix(findings[0].Message, reason) {
+			t.Fatalf("LintFrontmatter(%q) = %+v, want exactly one finding ending %q", body, findings, reason)
+		}
+		fingerprints[reason] = findings[0].Fingerprint
 	}
-	unclosedAt := slices.IndexFunc(findings, func(f Finding) bool { return strings.HasSuffix(f.Message, "never closes") })
-	missingAt := slices.IndexFunc(findings, func(f Finding) bool { return strings.HasSuffix(f.Message, "is missing") })
-	if len(findings) != 2 || unclosedAt < 0 || missingAt < 0 {
-		t.Fatalf("LintFrontmatter() = %+v, want one finding that the fence never closes and one that the block is missing", findings)
-	}
-	unclosed, missing := findings[unclosedAt], findings[missingAt]
-	if unclosed.Fingerprint == missing.Fingerprint {
-		t.Errorf("the unclosed finding and the missing finding share fingerprint %s", unclosed.Fingerprint)
-	}
-
-	// The baseline holds what an earlier run said, which was only "is missing".
-	kept := retainNew(slices.Clone(findings), map[string]bool{missing.Fingerprint: true})
-	if len(kept) != 1 || kept[0].Fingerprint != unclosed.Fingerprint {
-		t.Errorf("a baseline holding only the missing finding left %+v, want the unclosed finding to survive it", kept)
+	for reason, got := range fingerprints {
+		if want := fingerprints["is missing"]; got != want {
+			t.Errorf("the finding %q has fingerprint %s, want the %s every reason of schema.frontmatter shares", reason, got, want)
+		}
 	}
 }

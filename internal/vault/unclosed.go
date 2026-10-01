@@ -2,8 +2,7 @@ package vault
 
 import (
 	"bytes"
-	"unicode"
-	"unicode/utf8"
+	"regexp"
 )
 
 // OpensUnclosedFrontmatter reports whether data opens a frontmatter fence that
@@ -34,35 +33,16 @@ func OpensUnclosedFrontmatter(data []byte) bool {
 		}
 	}
 	line, _, _ := bytes.Cut(rest, []byte("\n"))
-	if !looksLikeKeyLine(bytes.TrimSuffix(line, []byte("\r"))) {
+	if !keyLine.Match(bytes.TrimSuffix(line, []byte("\r"))) {
 		return false
 	}
 	_, closed := SplitFrontmatter(data)
 	return !closed
 }
 
-// looksLikeKeyLine reports whether line begins a YAML mapping entry the way a
-// frontmatter field does: a name of letters, digits, "_" and "-" that starts
-// with a letter or "_", then a colon, then a space, a tab or the end of the
-// line. A colon run straight into text is not an entry in YAML either, which is
-// what keeps a bare address such as "https://example.com" from reading as one.
-func looksLikeKeyLine(line []byte) bool {
-	rest := line
-	for i := 0; len(rest) > 0; i++ {
-		r, size := utf8.DecodeRune(rest)
-		switch {
-		case r == ':':
-			if i == 0 {
-				return false
-			}
-			next := rest[size:]
-			return len(next) == 0 || next[0] == ' ' || next[0] == '\t'
-		case unicode.IsLetter(r) || r == '_':
-		case i > 0 && (unicode.IsDigit(r) || r == '-'):
-		default:
-			return false
-		}
-		rest = rest[size:]
-	}
-	return false
-}
+// keyLine matches a line that begins a YAML mapping entry the way a frontmatter
+// field does: a name of letters, digits, "_" and "-" that starts with a letter
+// or "_", then a colon, then a space, a tab or the end of the line. A colon run
+// straight into text is not an entry in YAML either, which is what keeps a bare
+// address such as "https://example.com" from reading as one.
+var keyLine = regexp.MustCompile(`^[\p{L}_][\p{L}\p{Nd}_-]*:(?:[ \t]|$)`)
