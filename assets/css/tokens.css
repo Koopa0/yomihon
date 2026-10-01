@@ -23,16 +23,13 @@
   --elevated: oklch(0.945 0.006 107);
   --overlay: oklch(0.915 0.008 107);
 
-  /* ---- Text (sumi inks, 4 tiers) ---- */
-  --fg: oklch(0.220 0.012 107);
+  /* ---- Text (sumi inks, 3 tiers: the faint tier is the subtle one under
+     its older name, so the quietest text is one value that clears 4.5:1 on
+     every surface it is set on) ---- */
+  --fg: oklch(0.153 0.012 107);
   --fg-muted: oklch(0.400 0.020 107);
-  --fg-subtle: oklch(0.470 0.022 107);
-  --fg-faint: oklch(0.500 0.018 107); /* least-prominent text still clears 4.5:1 on the darkest interactive surface */
-
-  /* ---- Lines ---- */
-  --border: oklch(0.880 0.008 106);
-  --border-strong: oklch(0.800 0.010 106);
-  --border-faint: oklch(0.930 0.006 106);
+  --fg-subtle: oklch(0.500 0.020 107);
+  --fg-faint: var(--fg-subtle);
 
   /* ---- The one interface accent — 朱 seal-ink vermilion, reserved for
      `ready`. The official mark's fixed publication obi carries
@@ -88,11 +85,7 @@
   --fg: oklch(0.962 0.004 106);
   --fg-muted: oklch(0.760 0.010 106);
   --fg-subtle: oklch(0.720 0.014 107);
-  --fg-faint: oklch(0.680 0.012 72);
-
-  --border: oklch(0.300 0.012 107);
-  --border-strong: oklch(0.400 0.014 107);
-  --border-faint: oklch(0.235 0.010 107);
+  --fg-faint: var(--fg-subtle);
 
   --accent: oklch(0.820 0.150 34);
   --accent-strong: oklch(0.880 0.130 34);
@@ -145,11 +138,7 @@
     --fg: oklch(0.962 0.004 106);
     --fg-muted: oklch(0.760 0.010 106);
     --fg-subtle: oklch(0.720 0.014 107);
-    --fg-faint: oklch(0.680 0.012 72);
-
-    --border: oklch(0.300 0.012 107);
-    --border-strong: oklch(0.400 0.014 107);
-    --border-faint: oklch(0.235 0.010 107);
+    --fg-faint: var(--fg-subtle);
 
     --accent: oklch(0.820 0.150 34);
     --accent-strong: oklch(0.880 0.130 34);
@@ -208,21 +197,21 @@
      the stacks above it, so choosing a face never rewrites a face. */
   --font-read: var(--font-serif);
 
-  /* UI scale */
-  --fs-11: 0.6875rem;
+  /* UI scale — the chrome sets in 12, 13 and 14; the larger steps are for a
+     note's title on the desk, the search field and the wordmark. */
   --fs-12: 0.75rem;
   --fs-13: 0.8125rem;
   --fs-14: 0.875rem;
+  --fs-15: 0.9375rem;
   --fs-16: 1rem;
   --fs-18: 1.125rem;
 
   /* Editorial scale */
   --fs-ed-17: 1.0625rem;
-  --fs-ed-19: 1.1875rem;
   --fs-ed-20: 1.25rem;
   --fs-ed-24: 1.5rem;
   --fs-ed-30: 1.875rem;
-  --fs-ed-38: 2.375rem;
+  --fs-ed-36: 2.25rem;
 
   /* Weights */
   --fw-regular: 400;
@@ -236,26 +225,45 @@
   --lh-normal: 1.5;
   --lh-read: 1.8;   /* CJK prose floor (≥1.8) */
   --lh-cjk: 2;      /* ruby-safe reading measure */
+  --lh-latin: 1.7647; /* 17px body on a 30px line, where the article is positively Latin */
 
-  /* Vertical rhythm in the reading column — four steps tied to the scale,
-     so the gap above a heading says which heading it is before the reader has
-     read a word of it. One value between sibling blocks, then one step for
-     each of the three depths the headings group into. */
-  --sp-block: 18px;
-  --sp-h4: 28px;
-  --sp-h3: 40px;
-  --sp-h2: 56px;
+  /* Vertical rhythm in the reading column. A paragraph sits about one body
+     line from the one before it. A heading is closer to what it introduces
+     than to what precedes it, and says which heading it is by how far it stands
+     from the text above: two and a half lines for a section, a line and a half
+     for a subsection, a line for the third step. The space under each is a
+     fraction of a line, so the heading reads as belonging to its own text. */
+  --sp-block: 24px;
+  --sp-h4: 32px;
+  --sp-h3: 48px;
+  --sp-h2: 72px;
+  --sp-after-h4: 8px;
+  --sp-after-h3: 12px;
+  --sp-after-h2: 16px;
 
-  /* Tracking */
-  --track-tight: -0.02em;
-  --track-snug: -0.01em;
+  /* Tracking is never positive. A heading in Latin letters may close up a
+     little; Han and kana are never tracked, either way. */
+  --track-tight: -0.025em;
+  --track-snug: -0.015em;
   --track-normal: 0;
-  --track-wide: 0.08em;
 
-  /* Radii — bookish, not SaaS */
-  --r-sm: 2px;
-  --r-md: 6px;
+  /* Lines and washes. Every one is the reading ink at a fixed share of
+     itself, so a hairline over the paper and a hairline over a panel are the
+     same ink at the same weight, and all of them turn over with the theme
+     because the ink does. */
+  --line: color-mix(in oklch, var(--fg) 10%, transparent);
+  --line-faint: color-mix(in oklch, var(--fg) 5%, transparent);
+  --line-strong: color-mix(in oklch, var(--fg) 20%, transparent);
+  --wash: color-mix(in oklch, var(--fg) 5%, transparent);
+  --border: var(--line);
+  --border-strong: var(--line-strong);
+  --border-faint: var(--line-faint);
+
+  /* Radii — a control is soft, a surface is softer */
+  --r-sm: 6px;
+  --r-md: 8px;
   --r-lg: 12px;
+  --r-xl: 16px;
 
   /* Overlay mask — the wash behind a dialog, sheet or drawer. One value for
      every kind of overlay rather than one per component: a reader dismissing
@@ -276,13 +284,25 @@
      is every page that lists what the folder holds instead of setting one
      thing to be read, where a row is read across as well as down. The answer
      shell is what a search comes back as, which takes a narrow column of its
-     own beside the results wherever there is room for one. */
-  --measure-read: 640px;
-  --gutter-read: 56px;
+     own beside the results wherever there is room for one.
+
+     The reading measure is counted in characters, not pixels: thirty-eight
+     body-size ems is thirty-eight Han characters a line, which is where a line
+     of Chinese or Japanese stays easy to carry from its end to the start of
+     the next, and it grows and shrinks with the reader's chosen text size so a
+     larger setting costs words a line rather than the line's length. */
+  --measure-read: calc(var(--fs-ed-17) * 38);
+  --gutter-read: 48px;
   --measure-list: 880px;
   --gutter-list: 48px;
   --measure-answer: 720px;
   --gutter-answer: 24px;
+
+  /* The widest the three columns of a reading page grow to: the left rail, the
+     reading box and the right rail, side by side, and no further. Past it the
+     whole arrangement stands in the middle of the window, so the space beside
+     the text never becomes wider than the gutter the rails were drawn with. */
+  --shell-max: 1280px;
 
   /* A notice, which is one heading and a sentence or two rather than an
      article. It is narrower than the reading measure on purpose: a page whose
@@ -338,20 +358,18 @@
    the reading, never the furniture around it. */
 :root[data-textsize='l'] {
   --fs-ed-17: 1.1875rem;
-  --fs-ed-19: 1.3125rem;
   --fs-ed-20: 1.375rem;
   --fs-ed-24: 1.625rem;
   --fs-ed-30: 2rem;
-  --fs-ed-38: 2.5rem;
+  --fs-ed-36: 2.375rem;
 }
 
 :root[data-textsize='xl'] {
   --fs-ed-17: 1.3125rem;
-  --fs-ed-19: 1.4375rem;
   --fs-ed-20: 1.5rem;
   --fs-ed-24: 1.75rem;
   --fs-ed-30: 2.1875rem;
-  --fs-ed-38: 2.625rem;
+  --fs-ed-36: 2.5rem;
 }
 
 /* The two largest steps at a phone's width. A reading column of about 340px
@@ -369,17 +387,17 @@
 @media (max-width: 720px) {
   :root {
     --fs-ed-30: 1.625rem;
-    --fs-ed-38: 1.875rem;
+    --fs-ed-36: 1.875rem;
   }
 
   :root[data-textsize='l'] {
     --fs-ed-30: 1.75rem;
-    --fs-ed-38: 2rem;
+    --fs-ed-36: 2rem;
   }
 
   :root[data-textsize='xl'] {
     --fs-ed-30: 1.875rem;
-    --fs-ed-38: 2.125rem;
+    --fs-ed-36: 2.125rem;
   }
 }
 

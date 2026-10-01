@@ -94,8 +94,6 @@ templ header(c Chrome) {
 		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
 			<span class="y-rubybtn__label y-rubybtn__label--long" aria-hidden="true">{ wording.FuriganaLabel.In(c.Lang) }</span>
 			<span class="y-rubybtn__label y-rubybtn__label--short" aria-hidden="true">{ wording.FuriganaLabelShort.In(c.Lang) }</span>
-			<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
-			<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
 		</button>
 		// Six of the row's controls are somewhere to go or something to set
 		// rather than anything about the note in front of the reader. Below the

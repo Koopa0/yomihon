@@ -241,8 +241,8 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	}
 }
 
-// articleHead is the breadcrumb + title + the file row + the kintsugi seam
-// above the rendered body.
+// articleHead is the breadcrumb + title + the file row above the rendered
+// body, which follows it after a space rather than a rule.
 //
 // The article around it speaks the note's own language, so the words here that
 // are yomihon's rather than the author's declare the interface language again.
@@ -254,7 +254,7 @@ templ articleHead(v NoteView, lang wording.Lang) {
 		<div class="y-crumbs">
 			for i, seg := range crumbs {
 				if i > 0 {
-					<span class="y-crumbs__sep" aria-hidden="true">·</span>
+					<span class="y-crumbs__sep" aria-hidden="true">/</span>
 				}
 				<a class="y-crumbs__link" href={ templ.URL(folderHref(seg.RelPath)) }>{ seg.Name }</a>
 			}
@@ -302,11 +302,14 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	if v.Stale {
 		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}
-	<div class="y-seam" aria-hidden="true"></div>
 }
 
 // noteFacts is the note's own facts, read as a description list: one dt/dd
-// pair per fact the note declared, in the same order every time. It is one
+// pair per fact the note declared, in the same order every time. The terms are
+// kept for a reader who listens and left unseen for one who looks: the line
+// reads as date, type, language and the file's own address, and the status is
+// not among them because the status face states it, live, wherever it can be
+// changed. It is one
 // component rendered from two places — the narrow disclosure and the wide-open
 // placement beside the title — so the two can never drift into naming a fact
 // differently. Every term carries the interface's language and every value the
@@ -314,24 +317,16 @@ templ articleHead(v NoteView, lang wording.Lang) {
 // own spelling, never translated, so only the label beside each is.
 templ noteFacts(v NoteView, lang wording.Lang) {
 	<dl class="y-notefacts">
-		if v.Type != "" {
-			<div>
-				<dt lang={ lang.Tag() }>{ wording.FileType.In(lang) }</dt>
-				<dd>{ v.Type }</dd>
-			</div>
-		}
-		// The status word is read-only here: it repeats what the live control
-		// says elsewhere on the page and opens no second way to change it.
-		if v.Status != "" {
-			<div>
-				<dt lang={ lang.Tag() }>{ wording.StatusLabel.In(lang) }</dt>
-				<dd>{ v.Status }</dd>
-			</div>
-		}
 		if v.Updated != "" {
 			<div>
 				<dt lang={ lang.Tag() }>{ noteDateLabel(&v, lang) }</dt>
 				<dd><time datetime={ v.UpdatedAt }>{ v.Updated }</time></dd>
+			</div>
+		}
+		if v.Type != "" {
+			<div>
+				<dt lang={ lang.Tag() }>{ wording.FileType.In(lang) }</dt>
+				<dd>{ v.Type }</dd>
 			</div>
 		}
 		// A note that declared no lang shows no row for one: the absence is the
@@ -513,16 +508,14 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 			<p class="y-steps__source">{ v.StepsLabel }</p>
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
-					<span class="y-steps__dir" aria-hidden="true">←</span>
-					<span class="y-steps__role">{ stepWordPrev(v.StepsCourse, lang) }</span>
+					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { stepWordPrev(v.StepsCourse, lang) }</span>
 					<span class="y-steps__name" { authoredLanguageAttrs(v.Prev.Language)... }>{ v.Prev.Name }</span>
 				</a>
 			}
 			if v.Next.RelPath != "" {
 				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
-					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, lang) }</span>
+					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, lang) } <span class="y-steps__dir" aria-hidden="true">→</span></span>
 					<span class="y-steps__name" { authoredLanguageAttrs(v.Next.Language)... }>{ v.Next.Name }</span>
-					<span class="y-steps__dir" aria-hidden="true">→</span>
 				</a>
 			}
 		</nav>

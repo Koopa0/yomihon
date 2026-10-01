@@ -107,9 +107,8 @@ templ Home(v HomeView, c layouts.Chrome) {
 						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
 					}
 				</div>
-				// Below this line the page stops being about reading and starts
-				// being about the vault's own health.
-				<div class="y-seam" aria-hidden="true"></div>
+				// Below the four ways in the page stops being about reading and
+				// starts being about the vault's own health.
 				if v.Fault != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
 						@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))

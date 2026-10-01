@@ -136,7 +136,6 @@ templ Health(v HealthView, c layouts.Chrome) {
 				// rather than in the column a note is read in.
 				<article class="y-healthpage">
 					<h1 class="y-title">{ wording.HealthTitle.In(c.Lang) }</h1>
-					<div class="y-seam" aria-hidden="true"></div>
 					if v.clean() {
 						@nothingToShow(nothingNotice{Kind: "health"}) {
 							<p>{ wording.HealthAllClear.In(c.Lang) }<code lang="en">yomihon check</code>{ wording.HealthAllClearAfterCommand.In(c.Lang) }</p>
