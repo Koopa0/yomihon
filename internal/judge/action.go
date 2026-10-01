@@ -35,14 +35,16 @@ var errWithheldCollision = errors.New(
 	"vault scan failed: vault contains canonically colliding paths, and at least one lies under a directory this vault's contract withholds from agent-facing output; naming them would describe ground the contract closed",
 )
 
-// actionHooks are the two seams a test drives an observation through: after the
-// scan is pinned, and after each note is read. Nothing in production sets
-// either, and no caller outside this package can — the moments they name are
-// inside the observation, which is why the coverage they buy cannot be had from
-// the binary that drives it.
+// actionHooks are the seams a test drives an observation through: after the
+// scan is pinned, after each note is read, and in place of the parse a note's
+// bytes go through. Nothing in production sets any of them, and no caller
+// outside this package can — the moments they name are inside the observation,
+// which is why the coverage they buy cannot be had from the binary that drives
+// it. The parse seam exists because no third-party parser panics on demand.
 type actionHooks struct {
 	afterScan     func()
 	afterNoteRead func(string)
+	parseNote     func(rel string, data []byte, marks plannedMarks) note
 }
 
 // action is one complete, pinned observation used by a judge command. The
@@ -114,6 +116,10 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		hooks.afterScan()
 	}
 	marks := plannedMarksFrom(a.authority.contract)
+	parse := parseNoteWithMarks
+	if hooks.parseNote != nil {
+		parse = hooks.parseNote
+	}
 	for _, entry := range a.scan.Files() {
 		relPath := entry.Path()
 		if !vault.IsMarkdown(relPath) || a.authority.contract.SkipsBasename(relPath) {
@@ -131,7 +137,15 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		if hooks.afterNoteRead != nil {
 			hooks.afterNoteRead(relPath)
 		}
-		a.notes = append(a.notes, parseNoteWithMarks(relPath, data, marks))
+		parsed, parseErr := parseContained(parse, relPath, data, marks)
+		if parseErr != nil {
+			// The file opened and its parse panicked. It is the same hole an
+			// unopenable file is: nothing was read from it, so nothing is judged
+			// from it and the rules that answer from the whole vault stand down.
+			a.unreadable = append(a.unreadable, unreadableEntry{path: relPath, cause: parseErr})
+			continue
+		}
+		a.notes = append(a.notes, parsed)
 	}
 	// A judgement needs something to be about. Where every read failed there is
 	// nothing in hand to judge, and the caller is owed the refusal rather than a
@@ -142,6 +156,26 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		return nil, a.abort(a.unreadableRefusal())
 	}
 	return a, nil
+}
+
+// parseContained runs one note's parse and turns a panic inside it into the
+// error that note is reported unreadable with, so one file a parser cannot
+// survive costs that file rather than the run. Every panic is contained,
+// runtime errors included: an unhashable map key or a nil dereference inside a
+// parser is what this is for.
+func parseContained(
+	parse func(rel string, data []byte, marks plannedMarks) note,
+	rel string,
+	data []byte,
+	marks plannedMarks,
+) (parsed note, err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			parsed = note{}
+			err = fmt.Errorf("panic while parsing this note: %v", rec)
+		}
+	}()
+	return parse(rel, data, marks), nil
 }
 
 // readVoidsTheObservation reports whether a failed read ended the observation
