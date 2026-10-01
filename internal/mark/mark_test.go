@@ -3,6 +3,7 @@ package mark_test
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -240,8 +241,26 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 		{"an absolute path", func(c *mark.Continuation) { c.RelPath = "/etc/passwd" }},
 		{"a path that climbs out", func(c *mark.Continuation) { c.RelPath = "../outside.md" }},
 		{"a path that is not in NFC", func(c *mark.Continuation) { c.RelPath = "Notes/\u30cf\u309a.md" }},
+		// fs.ValidPath lets control characters through, so each class the
+		// predicate names is driven: C0, DELETE, C1 and the two Unicode
+		// separators that end a line without being a newline.
+		{"a path carrying a NUL", func(c *mark.Continuation) { c.RelPath = "Notes/a\x00b.md" }},
+		{"a path carrying a line feed", func(c *mark.Continuation) { c.RelPath = "Notes/a\nb.md" }},
+		{"a path carrying a NUL and a line feed", func(c *mark.Continuation) { c.RelPath = "Notes/a\x00b\nc.md" }},
+		{"a path carrying a carriage return", func(c *mark.Continuation) { c.RelPath = "Notes/a\rb.md" }},
+		{"a path carrying a tab", func(c *mark.Continuation) { c.RelPath = "Notes/a\tb.md" }},
+		{"a path carrying DELETE", func(c *mark.Continuation) { c.RelPath = "Notes/a\x7fb.md" }},
+		{"a path carrying a C1 control", func(c *mark.Continuation) { c.RelPath = "Notes/a\u0085b.md" }},
+		{"a path carrying a line separator", func(c *mark.Continuation) { c.RelPath = "Notes/a\u2028b.md" }},
+		{"a path carrying a paragraph separator", func(c *mark.Continuation) { c.RelPath = "Notes/a\u2029b.md" }},
+		// fs.ValidPath already refused this on main; the row pins it.
+		{"a path that is not UTF-8", func(c *mark.Continuation) { c.RelPath = "Notes/a\xffb.md" }},
 		{"an anchor that could cut the address", func(c *mark.Continuation) { c.Anchor = "here#elsewhere" }},
 		{"an anchor carrying a control character", func(c *mark.Continuation) { c.Anchor = "here\nthere" }},
+		// The anchor had only the character check, which reads an invalid byte
+		// as U+FFFD and let it through to be stored as something its sender
+		// never wrote.
+		{"an anchor that is not UTF-8", func(c *mark.Continuation) { c.Anchor = "here\xff" }},
 		{"a negative offset", func(c *mark.Continuation) { c.Offset = -1 }},
 		{"an offset past any document", func(c *mark.Continuation) { c.Offset = 1 << 30 }},
 		{"an identity that is not one", func(c *mark.Continuation) { c.Identity = "not-a-digest" }},
@@ -254,9 +273,8 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 			file := newFile(t)
 			refused := aPlace()
 			tt.spoil(refused)
-			err := file.SetContinuation(refused)
-			if err == nil {
-				t.Fatalf("SetContinuation(%s) was accepted", tt.name)
+			if err := file.SetContinuation(refused); !errors.Is(err, mark.ErrInvalid) {
+				t.Fatalf("SetContinuation(%s) = %v, want ErrInvalid", tt.name, err)
 			}
 			if _, ok := file.Continuation(); ok {
 				t.Error("a refused place was stored anyway")
@@ -295,6 +313,29 @@ func TestARefusalLeavesTheKeptPlaceAlone(t *testing.T) {
 	}
 }
 
+// TestOrdinaryNoteNamesAreKept is the half the refusals in
+// TestARefusedPlaceIsNotStored cannot see: a rule on control characters that
+// grew too wide would show here rather than on someone's lesson.
+func TestOrdinaryNoteNamesAreKept(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct{ name, path string }{
+		{"a space", "Notes/A published note.md"},
+		{"Chinese", "Notes/go/提早返回的管線.md"},
+		{"an ideographic space", "Notes/日本\u3000語.md"},
+		{"a dotted name", "Notes/v1.2.md"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			place := aPlace()
+			place.RelPath = tt.path
+			if err := newFile(t).SetContinuation(place); err != nil {
+				t.Errorf("SetContinuation(%q) = %v, want it kept", tt.path, err)
+			}
+		})
+	}
+}
+
 // TestAnUnreadableFileReportsNoPlace covers the shapes a file can be in that
 // this version does not recognise. Each answers the same way a missing file
 // does, and the next place the reader keeps replaces it.
@@ -309,6 +350,7 @@ func TestAnUnreadableFileReportsNoPlace(t *testing.T) {
 		{"a version from another day", `{"version":99,"continuation":{"path":"a.md","offset":0,"identity":"` + anIdentity + `"}}`},
 		{"no continuation in it", `{"version":1,"vault":"/vaults/notes"}`},
 		{"a place the shape refuses", `{"version":1,"continuation":{"path":"../outside.md","offset":0,"identity":"` + anIdentity + `"}}`},
+		{"a path carrying a control character", `{"version":1,"continuation":{"path":"Notes/a\u0000b\nc.md","offset":1,"identity":"` + anIdentity + `"}}`},
 		{"an empty file", ""},
 	}
 	for _, tt := range tests {
@@ -376,11 +418,20 @@ func TestNoDirectoryUntilAPlaceIsKept(t *testing.T) {
 	}
 }
 
+// newHandler is the route over a vault that holds every note, so a test that
+// is about a field's shape or the body's size is not also about the vault.
 func newHandler(t *testing.T) (*mark.File, http.Handler) {
+	t.Helper()
+	return newHandlerFor(t, nil)
+}
+
+// newHandlerFor is the route over a vault that holds the places given. A nil
+// map is the vault that holds every one.
+func newHandlerFor(t *testing.T, places vaultPlaces) (*mark.File, http.Handler) {
 	t.Helper()
 	file := newFile(t)
 	mux := http.NewServeMux()
-	mark.NewHandler(file, slog.New(slog.DiscardHandler)).Register(mux)
+	mark.NewHandler(file, places, slog.New(slog.DiscardHandler)).Register(mux)
 	return file, mux
 }
 
@@ -432,6 +483,10 @@ func TestTheRouteRefusesWhatItCannotKeep(t *testing.T) {
 		want int
 	}{
 		{"a path that climbs out", url.Values{"path": {"../x.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
+		// newHandler's vault holds every note, so what refuses these two is the
+		// shape of the path and not the vault failing to find a name.
+		{"a path carrying a line feed", url.Values{"path": {"Notes/a\nb.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
+		{"a path carrying a NUL and a line feed", url.Values{"path": {"Notes/a\x00b\nc.md"}, "offset": {"0"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"an offset that is not a number", url.Values{"path": {"a.md"}, "offset": {"soon"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"no offset at all", url.Values{"path": {"a.md"}, "identity": {anIdentity}}, http.StatusUnprocessableEntity},
 		{"no identity", url.Values{"path": {"a.md"}, "offset": {"0"}}, http.StatusUnprocessableEntity},
@@ -535,4 +590,134 @@ func TestOnlyPostReachesTheRoute(t *testing.T) {
 	if response.StatusCode == http.StatusNoContent || response.StatusCode == http.StatusOK {
 		t.Errorf("GET %s = %d, want a refusal", mark.Address, response.StatusCode)
 	}
+}
+
+// aPost is what a reading page sends for a place, with the fields this file's
+// tests do not vary already in their ordinary spelling.
+func aPost(path, anchor string) url.Values {
+	return url.Values{"path": {path}, "anchor": {anchor}, "offset": {"1"}, "identity": {anIdentity}}
+}
+
+// replyTo posts form and returns the status and the body the route answered.
+func replyTo(t *testing.T, handler http.Handler, form url.Values) (status int, body string) {
+	t.Helper()
+	response := post(t, handler, form)
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	text, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read the reply: %v", err)
+	}
+	return response.StatusCode, string(text)
+}
+
+// TestTheRouteKeepsAPlaceOnlyInANoteTheVaultHolds holds what the route asks of
+// the vault, and the one reply it gives to a refusal of either kind. The vault
+// holds one note; the others are a note it does not have and a sentence that is
+// a perfectly good path and names nothing — the shape of the text a visitor to
+// a shared instance would want printed on the desk.
+func TestTheRouteKeepsAPlaceOnlyInANoteTheVaultHolds(t *testing.T) {
+	t.Parallel()
+
+	places := vaultPlaces{{"Notes/real.md", ""}: true}
+	// The sentence the route gives a shape it refuses, which a refusal for the
+	// vault not holding the note must be indistinguishable from: the reader
+	// cannot act on which field was wrong, and a visitor is told nothing about
+	// what the vault holds.
+	_, shaped := newHandlerFor(t, places)
+	shapeStatus, shapeRefusal := replyTo(t, shaped, aPost("../x.md", ""))
+	if shapeStatus != http.StatusUnprocessableEntity || shapeRefusal == "" {
+		t.Fatalf("a path that climbs out = %d %q, want a refusal with words", shapeStatus, shapeRefusal)
+	}
+	tests := []struct {
+		name string
+		path string
+		want int
+	}{
+		{"a note the vault holds", "Notes/real.md", http.StatusNoContent},
+		{"a note the vault does not hold", "Notes/nope.md", http.StatusUnprocessableEntity},
+		{"a sentence that names no note", "Visit spam.example for free prizes", http.StatusUnprocessableEntity},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			file, handler := newHandlerFor(t, places)
+			status, body := replyTo(t, handler, aPost(tt.path, ""))
+			if status != tt.want {
+				t.Errorf("POST %s over %q = %d %q, want %d", mark.Address, tt.path, status, body, tt.want)
+			}
+			got, kept := file.Continuation()
+			if wantKept := tt.want == http.StatusNoContent; kept != wantKept {
+				t.Errorf("POST over %q kept a place = %t, want %t", tt.path, kept, wantKept)
+			}
+			if kept && got.RelPath != tt.path {
+				t.Errorf("the route kept %q, want %q", got.RelPath, tt.path)
+			}
+			if tt.want == http.StatusUnprocessableEntity {
+				if body != shapeRefusal {
+					t.Errorf("a path the vault does not hold was answered %q, want the one refusal %q", body, shapeRefusal)
+				}
+				if strings.Contains(body, tt.path) {
+					t.Errorf("the refusal %q echoes the submitted path", body)
+				}
+			}
+		})
+	}
+}
+
+// TestTheRouteAsksTheVaultAboutTheNoteAndNotTheAnchor holds the scope of the
+// question. The vault answers for an anchor only where it is a heading, and a
+// reading page stamps the nearest id of any kind above the window — a block
+// address, a footnote. The vault here holds the note and nothing else, so a
+// route that asked it about the anchor too would refuse a place the page
+// honestly sent.
+func TestTheRouteAsksTheVaultAboutTheNoteAndNotTheAnchor(t *testing.T) {
+	t.Parallel()
+
+	file, handler := newHandlerFor(t, vaultPlaces{{"Notes/real.md", ""}: true})
+	status, body := replyTo(t, handler, aPost("Notes/real.md", "fn-3"))
+	if status != http.StatusNoContent {
+		t.Fatalf("POST %s over a real note under an id that is no heading = %d %q, want %d",
+			mark.Address, status, body, http.StatusNoContent)
+	}
+	if got, ok := file.Continuation(); !ok || got.Anchor != "fn-3" {
+		t.Errorf("the route kept %+v, %t, want the place under fn-3", got, ok)
+	}
+}
+
+// TestAPlaceTheVaultDoesNotHoldLeavesTheKeptPlaceAlone is the half the table
+// above cannot see: a refusal that wiped the file would look the same as one
+// that stored nothing, and only a file that already holds a place shows it.
+func TestAPlaceTheVaultDoesNotHoldLeavesTheKeptPlaceAlone(t *testing.T) {
+	t.Parallel()
+
+	file, handler := newHandlerFor(t, vaultPlaces{{"Notes/real.md", ""}: true})
+	if status, body := replyTo(t, handler, aPost("Notes/real.md", "one")); status != http.StatusNoContent {
+		t.Fatalf("keep the first place = %d %q, want %d", status, body, http.StatusNoContent)
+	}
+	if status, _ := replyTo(t, handler, aPost("Notes/nope.md", "two")); status != http.StatusUnprocessableEntity {
+		t.Fatalf("a note the vault does not hold = %d, want %d", status, http.StatusUnprocessableEntity)
+	}
+	got, ok := file.Continuation()
+	if !ok || got.RelPath != "Notes/real.md" || got.Anchor != "one" {
+		t.Errorf("after the refusal the file holds %+v, %t, want the first place", got, ok)
+	}
+}
+
+// TestTheRouteRefusesAVaultItIsNotGiven holds the constructor's own guard,
+// which the uncertainty route has too: a route with no vault to ask would
+// either accept everything or fail at the first request, and neither is a
+// refusal anyone chose.
+func TestTheRouteRefusesAVaultItIsNotGiven(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recover() == nil {
+			t.Error("mark.NewHandler accepted a nil Places")
+		}
+	}()
+	mark.NewHandler(newFile(t), nil, slog.New(slog.DiscardHandler))
 }
