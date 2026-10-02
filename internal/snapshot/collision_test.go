@@ -143,8 +143,8 @@ func TestACollidingPairIsNamedAndFreezesPublicationUntilOneOfThemIsGone(t *testi
 
 	store, root, logged := collisionFolder(t)
 	before := store.Current()
-	if notices := before.Freshness().Notices; len(notices) != 0 {
-		t.Fatalf("a folder with no pair in it already carries notices: %+v", notices)
+	if pair := before.Freshness().Collision; pair != nil {
+		t.Fatalf("a folder with no pair in it already names a collision: %q", pair)
 	}
 
 	addTheTwin(t, root)
@@ -157,8 +157,8 @@ func TestACollidingPairIsNamedAndFreezesPublicationUntilOneOfThemIsGone(t *testi
 	if _, ok := store.Current().Note("Notes/Fresh.md"); ok {
 		t.Error("a note written beside the pair is served, so nothing was refused")
 	}
-	want := []Notice{{Reason: NoticeNamesCollide, Paths: []string{collidingDecomposed, collidingComposed}}}
-	if diff := cmp.Diff(want, store.Current().Freshness().Notices); diff != "" {
+	want := []string{collidingDecomposed, collidingComposed}
+	if diff := cmp.Diff(want, store.Current().Freshness().Collision); diff != "" {
 		t.Errorf("the pages' account of the refusal (-want +got):\n%s", diff)
 	}
 	refusals := refusedScanErrors(logged())
@@ -177,17 +177,19 @@ func TestACollidingPairIsNamedAndFreezesPublicationUntilOneOfThemIsGone(t *testi
 	if _, ok := store.Current().Note("Notes/Fresh.md"); !ok {
 		t.Error("publication did not resume once one of the pair was gone")
 	}
-	if notices := store.Current().Freshness().Notices; len(notices) != 0 {
-		t.Errorf("the notice outlived the pair: %+v", notices)
+	if pair := store.Current().Freshness().Collision; pair != nil {
+		t.Errorf("the collision outlived the pair: %q", pair)
 	}
 }
 
-// TestAFolderThatReturnsToWhatWasPublishedLeavesNoNotice holds the one case the
-// test above cannot reach: the pair appears and goes again before anything
+// TestAFolderThatReturnsToWhatWasPublishedLeavesNoCollision holds the one case
+// the test above cannot reach: the pair appears and goes again before anything
 // else changes, so the next scan is level with what was published and the loop
-// stops before it builds. A notice cleared only where a build is begun would
-// stand over a folder that is whole.
-func TestAFolderThatReturnsToWhatWasPublishedLeavesNoNotice(t *testing.T) {
+// stops before it builds. A collision cleared only where a build is begun would
+// stand over a folder that is whole. It needs a filesystem that keeps both
+// spellings apart, so it skips on one that folds them; the test at the end of
+// this file holds the same clear on every filesystem.
+func TestAFolderThatReturnsToWhatWasPublishedLeavesNoCollision(t *testing.T) {
 	t.Parallel()
 
 	store, root, _ := collisionFolder(t)
@@ -195,8 +197,8 @@ func TestAFolderThatReturnsToWhatWasPublishedLeavesNoNotice(t *testing.T) {
 
 	addTheTwin(t, root)
 	store.rescan(t.Context())
-	if len(store.Current().Freshness().Notices) != 1 {
-		t.Fatalf("the pair left no notice, so nothing below is under test")
+	if store.Current().Freshness().Collision == nil {
+		t.Fatalf("the pair left no collision, so nothing below is under test")
 	}
 
 	removeTheTwin(t, root)
@@ -205,8 +207,8 @@ func TestAFolderThatReturnsToWhatWasPublishedLeavesNoNotice(t *testing.T) {
 	if store.Current() != before {
 		t.Fatal("a folder level with what was published was rebuilt, so the loop never took the short way out")
 	}
-	if notices := store.Current().Freshness().Notices; len(notices) != 0 {
-		t.Errorf("the notice stands over a folder with no pair in it: %+v", notices)
+	if pair := store.Current().Freshness().Collision; pair != nil {
+		t.Errorf("the collision stands over a folder with no pair in it: %q", pair)
 	}
 }
 
@@ -237,70 +239,6 @@ func TestStartingOnACollidingPairNamesBothFiles(t *testing.T) {
 	}
 }
 
-// noticeOutsideTheSet is a reason the closed set does not hold, so the two
-// tests below are about the record that carries notices and not about any one
-// reason: a scan that succeeds takes the collision notice down, and these have
-// to show a notice put there some other way is left alone.
-var noticeOutsideTheSet = NoticeReason(200)
-
-func standingNoticeFolder(t *testing.T) (store *Store, source *recordingSource, root string) {
-	t.Helper()
-	root = t.TempDir()
-	writeNote(t, root, "Notes/Existing.md", "---\ntitle: Existing\ntype: concept\n---\nexisting\n")
-	contract := testContract(t, root)
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
-	}
-	t.Cleanup(func() { closeReader(t, reader) })
-	source = &recordingSource{Source: reader, reads: make(map[string]int), fail: make(map[string]int)}
-	store, err = New(t.Context(), source, discardLogger(), contract, contract.Governance())
-	if err != nil {
-		t.Fatalf("snapshot.New: %v", err)
-	}
-	store.setNotice(Notice{Reason: noticeOutsideTheSet, Paths: []string{"Notes/Existing.md"}})
-	return store, source, root
-}
-
-// TestANoticeSurvivesAnIncompleteAttempt: a build that could not read a file
-// replaces the record's account of what could not be read, and says nothing
-// about the folder's other notices, which are about the scan and not the build.
-func TestANoticeSurvivesAnIncompleteAttempt(t *testing.T) {
-	t.Parallel()
-
-	store, source, root := standingNoticeFolder(t)
-	const unread = "Notes/Unread.md"
-	writeNote(t, root, unread, freshBody)
-	source.fail[unread] = 1 << 30
-	store.rescan(t.Context())
-
-	fresh := store.Current().Freshness()
-	if len(fresh.Blocked) != 1 || fresh.FailedRetries != 1 {
-		t.Fatalf("the attempt left Blocked = %+v, FailedRetries = %d, so no incomplete attempt was recorded", fresh.Blocked, fresh.FailedRetries)
-	}
-	if len(fresh.Notices) != 1 || fresh.Notices[0].Reason != noticeOutsideTheSet {
-		t.Errorf("an incomplete attempt dropped the notices: %+v", fresh.Notices)
-	}
-}
-
-// TestANoticeSurvivesACompletedBuild: a build that read everything clears the
-// record of what could not be read, and a notice that is not about that stands.
-func TestANoticeSurvivesACompletedBuild(t *testing.T) {
-	t.Parallel()
-
-	store, _, root := standingNoticeFolder(t)
-	writeNote(t, root, "Notes/Fresh.md", freshBody)
-	before := store.Current()
-	store.rescan(t.Context())
-
-	if store.Current() == before {
-		t.Fatal("the folder changed and nothing was published, so no build completed")
-	}
-	if notices := store.Current().Freshness().Notices; len(notices) != 1 || notices[0].Reason != noticeOutsideTheSet {
-		t.Errorf("a completed build dropped the notices: %+v", notices)
-	}
-}
-
 // refusingSource answers a scan with the error it is told to, and otherwise
 // leaves the folder to the reader beneath it.
 type refusingSource struct {
@@ -316,16 +254,13 @@ func (s *refusingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) 
 	return s.Source.ScanAvailable(ctx)
 }
 
-// TestAScanRefusedForAnotherReasonTakesTheCollisionNoticeDown holds the branch
-// of the loop where the cause of the refusal changes. A pair is reported, and
-// then the folder cannot be scanned for some other reason: what stands against
-// it is no longer known to be that pair, and a notice naming two files the scan
-// did not get as far as would be a claim nobody just checked. It is a fake
-// source rather than a folder, because no real folder is refused one way and
-// then another by itself.
-func TestAScanRefusedForAnotherReasonTakesTheCollisionNoticeDown(t *testing.T) {
-	t.Parallel()
-
+// refusableFolder is a folder holding one note, read into a store through a
+// source a test can make refuse its scan. A fake source rather than a folder,
+// because no real folder is refused one way and then another by itself, and
+// because a folder that holds both spellings of a name cannot be made on every
+// filesystem.
+func refusableFolder(t *testing.T) (store *Store, source *refusingSource) {
+	t.Helper()
 	root := t.TempDir()
 	writeNote(t, root, "Notes/Existing.md", "---\ntitle: Existing\ntype: concept\n---\nexisting\n")
 	contract := testContract(t, root)
@@ -334,50 +269,69 @@ func TestAScanRefusedForAnotherReasonTakesTheCollisionNoticeDown(t *testing.T) {
 		t.Fatalf("vault.Open: %v", err)
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
-	source := &refusingSource{Source: reader}
-	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
+	source = &refusingSource{Source: reader}
+	store, err = New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("snapshot.New: %v", err)
 	}
+	return store, source
+}
 
+// refusedForTheCollision is the refusal the reader gives for the pair, wrapped
+// the way the scan wraps what it meets.
+func refusedForTheCollision() error {
 	pair := &vault.CollisionError{Paths: [2]string{collidingDecomposed, collidingComposed}}
-	source.refusal = fmt.Errorf("list pinned vault: %w", pair)
+	return fmt.Errorf("list pinned vault: %w", pair)
+}
+
+// TestAScanRefusedForAnotherReasonTakesTheCollisionDown holds the branch of the
+// loop where the cause of the refusal changes. A pair is reported, and then the
+// folder cannot be scanned for some other reason: what stands against it is no
+// longer known to be that pair, and a collision naming two files the scan did
+// not get as far as would be a claim nobody just checked.
+func TestAScanRefusedForAnotherReasonTakesTheCollisionDown(t *testing.T) {
+	t.Parallel()
+
+	store, source := refusableFolder(t)
+	source.refusal = refusedForTheCollision()
 	store.rescan(t.Context())
-	if len(store.Current().Freshness().Notices) != 1 {
-		t.Fatal("the pair left no notice, so nothing below is under test")
+	if store.Current().Freshness().Collision == nil {
+		t.Fatal("the pair left no collision, so nothing below is under test")
 	}
 
 	source.refusal = errors.New("list pinned vault: permission denied")
 	store.rescan(t.Context())
-	if notices := store.Current().Freshness().Notices; len(notices) != 0 {
-		t.Errorf("a refusal that is not a collision left the collision notice standing: %+v", notices)
+	if pair := store.Current().Freshness().Collision; pair != nil {
+		t.Errorf("a refusal that is not a collision left the collision standing: %q", pair)
 	}
 }
 
-// TestEveryNoticeReasonSaysItsOwnName: a log line or a failure that prints a
-// reason prints its name, and every reason the set lists has one of its own.
-// A reason added and left unnamed would print as "unknown", which tells nobody
-// reading a log which reason it was.
-func TestEveryNoticeReasonSaysItsOwnName(t *testing.T) {
+// TestAScanThatCompletesOverAnUnchangedFolderTakesTheCollisionDown holds the
+// clear on every filesystem. The refusal is faked and the folder beneath it is
+// never changed, so the scan that follows completes level with what was
+// published and the loop stops before it builds. That is the only path on which
+// nothing but the clear itself can take the collision down: a rebuild would
+// store a fresh account of its own and hide a clear that was never made.
+func TestAScanThatCompletesOverAnUnchangedFolderTakesTheCollisionDown(t *testing.T) {
 	t.Parallel()
 
-	named := make(map[string]NoticeReason)
-	for _, reason := range NoticeReasons() {
-		name := reason.String()
-		if name == "" || name == "unknown" {
-			t.Errorf("reason %d is named %q, which is no name of its own", reason, name)
-		}
-		if other, taken := named[name]; taken {
-			t.Errorf("reasons %d and %d are both named %q", other, reason, name)
-		}
-		named[name] = reason
+	store, source := refusableFolder(t)
+	before := store.Current()
+
+	source.refusal = refusedForTheCollision()
+	store.rescan(t.Context())
+	want := []string{collidingDecomposed, collidingComposed}
+	if diff := cmp.Diff(want, store.Current().Freshness().Collision); diff != "" {
+		t.Fatalf("the refusal did not leave the pair, so nothing below is under test (-want +got):\n%s", diff)
 	}
-	if len(named) == 0 {
-		t.Fatal("the set lists no reason, so nothing was named")
+
+	source.refusal = nil
+	store.rescan(t.Context())
+
+	if store.Current() != before {
+		t.Fatal("a folder level with what was published was rebuilt, so the loop never took the short way out")
 	}
-	for _, outside := range []NoticeReason{0, noticeReasonEnd} {
-		if got := outside.String(); got != "unknown" {
-			t.Errorf("reason %d is named %q, want it to read as no reason", outside, got)
-		}
+	if pair := store.Current().Freshness().Collision; pair != nil {
+		t.Errorf("a scan that completed left the collision standing: %q", pair)
 	}
 }

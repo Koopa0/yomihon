@@ -64,7 +64,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		PrivacyFault:      snap.PrivacyPolicy().Diagnostic(),
 		Degraded:          degradedNotice(&fresh, lang),
 		DegradedDetail:    blockedDetail(fresh.Blocked),
-		Notices:           folderNotices(fresh.Notices, lang),
+		Notices:           folderNotices(fresh.Collision, lang),
 		Blocks:            blocks,
 		ReadmeMissing:     !hasReadme,
 		Continue:          continueRow(&kept, hasMark, snap, lang),

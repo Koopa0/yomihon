@@ -79,11 +79,12 @@ type Freshness struct {
 	// because "this page is seconds old" and "the folder was last seen whole an
 	// hour ago" are two facts a reader needs.
 	LastComplete time.Time
-	// Notices are the standing facts about the folder that no read failure
-	// explains: today, that two names in it fold to one path and the scan is
-	// refused, so nothing written since is being published. Empty means the
-	// folder is being scanned.
-	Notices []Notice
+	// Collision is the two files, as the filesystem spells them, whose names
+	// fold to one path. While it is set every scan is refused, so nothing
+	// written since the last good one is being published. The two print alike,
+	// so a surface that shows them has to tell them apart itself. Nil means no
+	// scan is being refused for that.
+	Collision []string
 }
 
 // buildFacts is one generation's own fixed account of itself: when it finished
@@ -98,14 +99,17 @@ type buildFacts struct {
 
 // liveAttempt is a Store's continuously updated account of its latest rebuild
 // attempt: the sources it currently cannot have, how many attempts in a row
-// came back incomplete, and the notices standing against the folder. Every
-// Generation published while one is current shares a pointer to it, so a page
-// serving a retained generation can say so. A value is never changed once
-// stored; the loop that writes it stores a replacement.
+// came back incomplete, and the pair of colliding files the latest refused scan
+// named. Every Generation published while one is current shares a pointer to
+// it, so a page serving a retained generation can say so. A value is never
+// changed once stored; the loop that writes it stores a replacement.
 type liveAttempt struct {
 	blocked       []BlockedSource
 	failedRetries int
-	notices       []Notice
+	// collision is nil unless the latest scan was refused for naming two files
+	// that fold to one path. A scan that completes always clears it before any
+	// build stores a record of its own, so a build never has to carry it.
+	collision []string
 }
 
 // BlockedSource is one vault path a build wanted, with why it could not have it.
@@ -262,10 +266,7 @@ func (g *Generation) Freshness() Freshness {
 		return out
 	}
 	out.FailedRetries = attempt.failedRetries
-	for _, notice := range attempt.notices {
-		notice.Paths = slices.Clone(notice.Paths)
-		out.Notices = append(out.Notices, notice)
-	}
+	out.Collision = slices.Clone(attempt.collision)
 	for _, source := range attempt.blocked {
 		if !slices.ContainsFunc(out.Blocked, func(known BlockedSource) bool { return known.Path == source.Path }) {
 			out.Blocked = append(out.Blocked, source)
@@ -508,9 +509,10 @@ type Store struct {
 	ptr atomic.Pointer[Generation]
 
 	// fresh is the live account of the latest build attempt: the sources it
-	// could not have and how many attempts in a row came back incomplete. It
-	// carries no build facts — those belong to a generation. The reconciliation
-	// loop is its only writer.
+	// could not have and how many attempts in a row came back incomplete, and
+	// the pair of colliding files the latest refused scan named. It carries no
+	// build facts — those belong to a generation. The reconciliation loop is its
+	// only writer.
 	fresh atomic.Pointer[liveAttempt]
 
 	source       Source
@@ -682,14 +684,14 @@ func (s *Store) rescan(ctx context.Context) {
 		if ctx.Err() == nil {
 			// The error carries the two files when the refusal is a name
 			// collision, so the line says which ones to repair.
-			s.noteRefusedScan(err)
+			s.setCollision(collidingPair(err))
 			s.log.Warn("vault scan unavailable; retaining previous snapshot", "error", err)
 		}
 		return
 	}
 	// A scan that completed is no longer being refused, whatever it goes on to
 	// find unchanged below.
-	s.clearNotice(NoticeNamesCollide)
+	s.setCollision(nil)
 	// The metadata comparison cannot see an in-place edit that preserves inode,
 	// mode, size and mtime, so once a wall-clock reconcileEvery period has
 	// elapsed the next tick rebuilds without the short-circuit. It never fires
@@ -732,7 +734,7 @@ func (s *Store) rescan(ctx context.Context) {
 		return
 	}
 	// Cleared before the swap, so a reader of the new generation sees no stale trouble.
-	s.fresh.Store(s.attempt().rebuilt(nil, 0))
+	s.fresh.Store(&liveAttempt{})
 	builtAt := s.now()
 	candidate.built = buildFacts{builtAt: builtAt, complete: true, lastComplete: builtAt}
 	candidate.freshness = &s.fresh
@@ -745,6 +747,30 @@ func (s *Store) rescan(ctx context.Context) {
 	s.nextRetry = time.Time{}
 	s.incompleteScan = vault.Scan{}
 	s.logBuild("vault snapshot rebuilt", candidate, scan)
+}
+
+// collidingPair is the two files a refused scan names as colliding, as a copy
+// the caller owns, or nil when the refusal is for any other reason.
+func collidingPair(err error) []string {
+	if collision, ok := errors.AsType[*vault.CollisionError](err); ok {
+		return slices.Clone(collision.Paths[:])
+	}
+	return nil
+}
+
+// setCollision puts the pair a scan named in the live account, or takes it out
+// when pair is nil. The sources a build could not read and the retry count are
+// left as they were: they are about builds, and a scan that did not get as far
+// as a build says nothing about them. Only the reconciliation loop calls it,
+// because only that loop writes the account.
+func (s *Store) setCollision(pair []string) {
+	current := s.fresh.Load()
+	if slices.Equal(current.collision, pair) {
+		return
+	}
+	next := *current
+	next.collision = pair
+	s.fresh.Store(&next)
 }
 
 // publishOnceDegraded publishes an attempt that could not read every source it
@@ -783,7 +809,7 @@ func (s *Store) noteIncomplete(scan vault.Scan, blocked []BlockedSource) {
 	s.incompleteScan = scan
 	s.nextRetry = s.now().Add(retryDelay(s.consecutiveIncomplete))
 	s.retry = true
-	s.fresh.Store(s.attempt().rebuilt(blocked, s.consecutiveIncomplete))
+	s.fresh.Store(&liveAttempt{blocked: blocked, failedRetries: s.consecutiveIncomplete})
 	s.log.Warn("vault snapshot incomplete; retaining previous generation",
 		"scan_problems", len(scan.Problems()),
 		"scan_skipped", len(scan.Skipped()),

@@ -47,7 +47,7 @@ func Project(vaultName string, lifecycle status.Authority, snap *snapshot.Genera
 			Name:     vaultName,
 			Notes:    snap.NoteCount(),
 			Findings: found.Total(),
-			Noticed:  len(found.Notices) > 0,
+			Noticed:  len(found.Collision) > 0,
 		},
 	}
 	// Either authority refusing closes the instance-derived navigation and
