@@ -81,6 +81,18 @@ const separateDoorRow = async (page) => {
   return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page');
 };
 
+// Gives the door its own strip again beside the heading, drawn or not.
+const reserveDoorStrip = async (page) => {
+  let seen = 0;
+  await page.route('**/static/app.css', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    seen += 1;
+    await route.fulfill({ response, body: `${original}\n.y-toc__list .y-toc__door{flex:none;min-width:28px;position:static}\n` });
+  });
+  return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page');
+};
+
 // The fixture's contract names no answer type, so its pages draw no thought
 // doors, and naming one would change the outline every other probe counts and
 // walks. The rows are the product's own, one per heading; each is given the
@@ -100,6 +112,10 @@ const MUTATIONS = {
   'restore-the-separate-door-row': {
     target: DOOR_SITE,
     apply: separateDoorRow,
+  },
+  'reserve-the-door-strip': {
+    target: DOOR_SITE,
+    apply: reserveDoorStrip,
   },
   'restore-child-shrink': {
     target: SITE,
@@ -311,18 +327,20 @@ try {
     await page.close();
   }
 
-  // Case: the section doors. One heading stays one row with its door trailing
-  // inside it; the door is drawn on hover and on focus, and always where there
-  // is no hover, without widening the phone.
+  // Case: the section doors. One heading stays one row with its door at the
+  // row's end inside it; the door is drawn on hover and on focus, and always
+  // where there is no hover, without widening the phone. Where a pointer can
+  // reveal it, it takes no width of its own, so the heading's link runs the
+  // whole row and a long heading wraps where it would with no door at all.
   {
     const wide = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await wide.newPage();
-    const proof = MUTATE === 'restore-the-separate-door-row' ? await MUTATIONS[MUTATE].apply(page) : null;
+    const proof = MUTATE && MUTATIONS[MUTATE].target === DOOR_SITE ? await MUTATIONS[MUTATE].apply(page) : null;
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => document.fonts.ready);
     if (proof) {
       const issue = proof();
-      if (issue) notApplied(`restore-the-separate-door-row: ${issue}`);
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
     }
     if (await standUpDoors(page) < 2) broken(`${PAGE} has fewer than two headings, so there is no row to measure`);
     const railRows = page.locator('.y-rail-right .y-toc__row');
@@ -339,8 +357,11 @@ try {
       if (shape.row.height > shape.link.height + 1) {
         failDoor(`contents row ${i + 1} is ${shape.row.height}px tall around a ${shape.link.height}px heading link, so its door is a row of its own`);
       }
-      if (!(shape.door.left >= shape.link.right - 1 && shape.door.right <= shape.row.right + 1 && shape.door.top >= shape.row.top - 1 && shape.door.bottom <= shape.row.bottom + 1)) {
-        failDoor(`contents row ${i + 1} does not hold its door trailing the heading: ${JSON.stringify(shape)}`);
+      if (!(shape.door.left >= shape.row.left && shape.door.right <= shape.row.right + 1 && shape.door.right >= shape.row.right - 1 && shape.door.top >= shape.row.top - 1 && shape.door.bottom <= shape.row.bottom + 1)) {
+        failDoor(`contents row ${i + 1} does not hold its door at the row's end: ${JSON.stringify(shape)}`);
+      }
+      if (shape.link.width < shape.row.width - 1) {
+        failDoor(`contents row ${i + 1} gives its heading ${shape.link.width}px of a ${shape.row.width}px row, so the door's hidden strip still narrows the heading`);
       }
       if (shape.opacity !== '0') failDoor(`contents row ${i + 1} draws its door (opacity ${shape.opacity}) with no pointer on the row and no focus in it`);
     }

@@ -14,7 +14,7 @@ templ JournalIndex(v JournalView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ journalMode }>
 			<div class="y-home">
-				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
+				@indexHead(v.Count, v.Title, v.Lede, c.Lang)
 				if v.Fault != "" {
 					@indexFault(v.Fault, "", c)
 				} else {

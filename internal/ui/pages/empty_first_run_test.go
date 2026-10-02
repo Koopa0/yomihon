@@ -441,7 +441,7 @@ func TestWithheldNavigationLeavesTheEmptySlotSilent(t *testing.T) {
 	if view.Shelf.Empty != "" {
 		t.Errorf("withheld path index spoke an empty sentence: %q", view.Shelf.Empty)
 	}
-	if view.Kicker != "" {
-		t.Errorf("withheld path index still carried a count: %q", view.Kicker)
+	if view.Count != "" {
+		t.Errorf("withheld path index still carried a count: %q", view.Count)
 	}
 }

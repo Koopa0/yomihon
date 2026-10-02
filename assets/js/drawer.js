@@ -73,8 +73,14 @@ export function initDrawer() {
     else rail.setAttribute('aria-hidden', 'true');
   }
 
+  // On a touch screen the filter is not where opening the drawer puts the
+  // reader: focusing a field there raises the on-screen keyboard over the very
+  // list the reader opened the drawer to look at. Focus goes to the first thing
+  // after it instead, and the filter waits to be touched.
+  const touch = window.matchMedia('(pointer: coarse)');
+
   function focusFirst() {
-    const target = focusableElements()[0] || rail;
+    const target = focusableElements().find((element) => !(touch.matches && element.matches('[data-nav-filter]'))) || rail;
     target?.focus();
   }
 

@@ -49,7 +49,9 @@ func noteConditions(t *testing.T, body string) string {
 	return block
 }
 
-// diagRow cuts the one diagnostic naming target out of a 筆記狀況 list.
+// diagRow cuts the one diagnostic naming target out of a 筆記狀況 list: as the
+// link's address, which the card sets in the machine face, or as one half of
+// how that address was read.
 func diagRow(t *testing.T, conditions, target string) string {
 	t.Helper()
 	for _, chunk := range strings.Split(conditions, `<div class="y-diag">`)[1:] {
@@ -57,7 +59,7 @@ func diagRow(t *testing.T, conditions, target string) string {
 		if !terminated {
 			row = chunk
 		}
-		if strings.Contains(row, "<code>"+target+"</code>") {
+		if strings.Contains(row, `<code class="y-diag__target">`+target+"</code>") || strings.Contains(row, "<code>"+target+"</code>") {
 			return row
 		}
 	}
