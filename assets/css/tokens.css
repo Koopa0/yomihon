@@ -336,8 +336,8 @@
   --dur-base: 120ms;
   --dur-slow: 200ms;
   --dur-dwell: 1100ms;
-  --dur-page-out: 120ms;
-  --dur-page-in: 220ms;
+  --dur-page-out: 90ms;
+  --dur-page-in: 200ms;
   --dur-page-gap: 40ms;
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);

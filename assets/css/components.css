@@ -3632,6 +3632,16 @@ a.y-facetrow:hover {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+
+  /* The tree a page change generates hangs off the root element, outside
+     .yomihon, so the rule above never reaches it. This is the same blanket
+     for that tree. The opt-in is already withheld from a reader who asked for
+     reduced motion, so this only holds if a change is ever started anyway. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 /* stylelint-enable declaration-no-important */
 
@@ -5216,33 +5226,39 @@ samp,
 }
 
 /* ============================================================
-   Page change — the new text rises into place, the chrome holds still
+   Page change — the new page rises into place, the chrome holds still
    ------------------------------------------------------------
    Every link here is a whole new document. The browser can carry the
-   reader across that seam instead of cutting it, and the one thing worth
-   carrying is the reading column: what was being read leaves, and what has
-   arrived rises into the same place. Everything else on the page — the
-   header, the left rail, the page behind them — stays where it is.
+   reader across that seam instead of cutting it: what was on screen fades
+   out quickly, and the page that has arrived rises into the same place a
+   moment later. The layer that moves is the page itself, the viewport the
+   reader was looking at, rather than the reading column. A column named on
+   its own is captured whole, so for a page the reader had scrolled its old
+   text would show from the top for the length of the fade, and for a long
+   note the picture is many screens tall.
+
+   The header and the left rail are named so that they stay where they are.
+   A group whose pixels differ cross-fades into a double exposure, so these
+   two are cut rather than faded: their old snapshots never show, and the
+   reader sees the new chrome from the first frame and never both. The rail
+   is named only where it is in flow; below the width where it becomes a
+   drawer it waits off-screen, and a name on an off-canvas fixed element is
+   not worth the risk. While the old and new pages are both partly
+   transparent what shows through is the document's canvas, which is not the
+   page's paper colour and which the translucent header would let through,
+   so the root group is given the paper colour and the ground never changes.
 
    The whole of it lives under one condition. A reader who has asked for
    reduced motion gets no opt-in, so the change stays an instant cut, and
-   gets none of the names below either, which would otherwise leave the
-   header, the rail and the column each a stacking context for nothing. The
-   reduced-motion blanket further up never reaches this tree of generated
-   pseudo-elements, so this condition is the only thing that does the job.
+   gets none of the names either, which would otherwise leave the header and
+   the rail stacking contexts for nothing. The reduced-motion blanket further
+   up never reaches this tree of generated pseudo-elements, so this condition
+   is the only thing that does the job.
 
-   Naming a region makes it a group of its own, and a group whose pixels
-   differ cross-fades into a double exposure. The header and the rail are
-   therefore cut rather than faded: their old snapshots never show, so what
-   the reader sees is the new chrome from the first frame and never both. The
-   page behind them is cut the same way. The rail is named only where it is in
-   flow; below the width where it becomes a drawer it waits off-screen, and a
-   name on an off-canvas fixed element is not worth the risk.
-
-   Back and Forward stay instant, and a transition that outlives its welcome
-   is ended: both are the page's own doing, in the script at the top of the
-   head. The page-change tokens live on :root because a custom property
-   reaches this pseudo-element tree by inheriting from the document root. */
+   Back and Forward stay instant, and a change that outlives its welcome is
+   ended: both are done by the script at the top of the head. The tokens are
+   on :root because a custom property reaches this pseudo-element tree by
+   inheriting from the document root. */
 @media (prefers-reduced-motion: no-preference) {
   @view-transition {
     navigation: auto;
@@ -5250,6 +5266,11 @@ samp,
 
   .y-header {
     view-transition-name: y-header;
+  }
+
+  ::view-transition-group(root) {
+    animation-duration: 0s;
+    background: var(--bg);
   }
 
   ::view-transition-old(root) {
@@ -5261,9 +5282,12 @@ samp,
   }
 
   ::view-transition-group(y-header),
+  ::view-transition-group(y-rail) {
+    animation-duration: 0s;
+  }
+
   ::view-transition-old(y-header),
   ::view-transition-new(y-header),
-  ::view-transition-group(y-rail),
   ::view-transition-old(y-rail),
   ::view-transition-new(y-rail) {
     animation: none;

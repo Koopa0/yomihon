@@ -376,11 +376,15 @@ func TestCSSChangesPagesOnlyForReadersWhoAllowMotion(t *testing.T) {
 		return "", false
 	}
 	for _, name := range []string{"y-header", "y-rail"} {
-		for _, part := range []string{"group", "old", "new"} {
+		for part, want := range map[string]string{
+			"group": "animation-duration: 0s",
+			"old":   "animation: none",
+			"new":   "animation: none",
+		} {
 			selector := "::view-transition-" + part + "(" + name + ")"
 			body, ok := bodyFor(selector)
-			if !ok || !strings.Contains(body, "animation: none") {
-				t.Errorf("%s is not cut with animation: none under %q; its body is %q", selector, gate, body)
+			if !ok || !strings.Contains(body, want) {
+				t.Errorf("%s is not cut with %q under %q; its body is %q", selector, want, gate, body)
 			}
 		}
 		old := "::view-transition-old(" + name + ")"
@@ -405,6 +409,23 @@ func TestCSSChangesPagesOnlyForReadersWhoAllowMotion(t *testing.T) {
 		if !ok || !strings.Contains(body, want) {
 			t.Errorf("%s does not run %q under %q; its body is %q", selector, want, gate, body)
 		}
+	}
+	// Under a partly transparent old and new page the ground that shows through
+	// is the page's own paper, not the document canvas, and the root group's
+	// own morph is not what decides how long the change lasts.
+	if body, ok := bodyFor("::view-transition-group(root)"); !ok ||
+		!strings.Contains(body, "background: var(--bg)") || !strings.Contains(body, "animation-duration: 0s") {
+		t.Errorf("::view-transition-group(root) does not stand on the page's paper colour with no morph of its own under %q; its body is %q", gate, body)
+	}
+
+	// The generated tree hangs off the root element, outside the container the
+	// reduced-motion blanket selects, so the blanket has a rule of its own for
+	// it. The opt-in is withheld from these readers already; this holds if a
+	// change is ever started anyway.
+	blanket := strings.Join(atRuleBodies(css, "@media (prefers-reduced-motion: reduce)"), "\n")
+	generated := regexp.MustCompile(`::view-transition-group\(\*\),\s*::view-transition-old\(\*\),\s*::view-transition-new\(\*\)\s*\{[^}]*animation:\s*none\s*!important`)
+	if !generated.MatchString(blanket) {
+		t.Error("the reduced-motion blanket does not switch off the animations of the page-change tree (::view-transition-group/old/new(*))")
 	}
 	for _, keyframes := range []string{"@keyframes y-page-leave", "@keyframes y-page-rise"} {
 		if !strings.Contains(css, keyframes) {
