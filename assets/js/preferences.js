@@ -377,6 +377,19 @@ export function initPreferences() {
     }
   });
 
+  // The pages the browser fetched ahead were written under the cookies of
+  // that moment, so a choice made since would come back undone on the next
+  // page: a theme chosen here, and the page after it still in the old one.
+  // Taking the rules out of the document makes the browser drop what it
+  // fetched, and the next page is then asked for in the ordinary way, under
+  // the choice. Any change to a cookie counts, one made in another tab
+  // included, which is why this listens to the cookie store rather than to the
+  // controls. A browser with no cookie store, or none that fetches ahead, has
+  // nothing to drop.
+  window.cookieStore?.addEventListener('change', () => {
+    document.querySelector('script[type="speculationrules"]')?.remove();
+  });
+
   // What the reader is looking at, and a way to be told when that changes.
   return {
     theme: effectiveTheme,

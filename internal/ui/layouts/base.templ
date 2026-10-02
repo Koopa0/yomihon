@@ -39,6 +39,15 @@ templ Base(c Chrome) {
 			<script nonce={ c.Nonce }>
 				document.documentElement.dataset.js = "on";
 			</script>
+			// Every page change is a whole new document, so the wait between a
+			// press and the page is the server's render time plus the trip. These
+			// rules let the browser spend that time before the press: it fetches
+			// the pages a reader is likely to open next, and the response waits
+			// until a navigation asks for exactly that address. The rules are
+			// data, not script, but a page that forbids inline code still wants
+			// them signed. A browser that does not know the type ignores the
+			// element.
+			@speculationScript(c.Nonce)
 			// Every page change is a whole new document, and a browser may paint
 			// the header and the rail before the column they frame has arrived,
 			// which reads as an empty column for a frame. This holds the first
