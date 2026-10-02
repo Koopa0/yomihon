@@ -142,19 +142,31 @@ func validate(c *Continuation) error {
 		return fmt.Errorf("%w: %q carries a control character", ErrInvalid, c.RelPath)
 	case c.RelPath != vault.NormalizeNFC(c.RelPath):
 		return fmt.Errorf("%w: %q is not written in NFC", ErrInvalid, c.RelPath)
-	case !utf8.ValidString(c.Anchor):
-		// The path needs no case of its own: fs.ValidPath refuses invalid
-		// UTF-8. An anchor has only the character check below, which reads an
-		// invalid byte as U+FFFD and lets it by.
-		return fmt.Errorf("%w: the anchor is not valid UTF-8", ErrInvalid)
-	case len(c.Anchor) > maxAnchorBytes:
-		return fmt.Errorf("%w: the anchor is too long", ErrInvalid)
-	case strings.ContainsFunc(c.Anchor, isNotAnchorRune):
-		return fmt.Errorf("%w: the anchor carries a character an id cannot hold", ErrInvalid)
+	}
+	if err := ValidateAnchor(c.Anchor); err != nil {
+		return err
+	}
+	switch {
 	case c.Offset < 0 || c.Offset > maxOffset:
 		return fmt.Errorf("%w: the offset is outside one document", ErrInvalid)
 	case !isContentIdentity(c.Identity):
 		return fmt.Errorf("%w: the identity is not a content identity", ErrInvalid)
+	}
+	return nil
+}
+
+// ValidateAnchor reports whether an anchor can be stored in a reader mark.
+// Empty is valid when no accepted ID precedes the reading position. Values
+// must be valid UTF-8, fit within 256 bytes, and contain no fragment delimiters,
+// spaces or ASCII control characters. A refusal wraps ErrInvalid.
+func ValidateAnchor(anchor string) error {
+	switch {
+	case !utf8.ValidString(anchor):
+		return fmt.Errorf("%w: the anchor is not valid UTF-8", ErrInvalid)
+	case len(anchor) > maxAnchorBytes:
+		return fmt.Errorf("%w: the anchor is too long", ErrInvalid)
+	case strings.ContainsFunc(anchor, isNotAnchorRune):
+		return fmt.Errorf("%w: the anchor carries a character an id cannot hold", ErrInvalid)
 	}
 	return nil
 }
