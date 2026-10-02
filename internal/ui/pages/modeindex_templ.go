@@ -109,8 +109,8 @@ func ListIndex(v ListIndexView, c layouts.Chrome) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			if v.Fault != "" {
-				templ_7745c5c3_Err = indexFault(v.Fault, c).Render(ctx, templ_7745c5c3_Buffer)
+			if v.Fault != "" || v.Restart != "" {
+				templ_7745c5c3_Err = indexFault(v.Fault, v.Restart, c).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -635,8 +635,11 @@ func indexHead(kicker, title, lede string, lang wording.Lang) templ.Component {
 }
 
 // indexFault states, in the one shape every surface uses for it, why a
-// projection this page would have listed is unavailable.
-func indexFault(fault string, c layouts.Chrome) templ.Component {
+// projection this page would have listed is unavailable. The fault is the
+// contract's own sentence, quoted; the restart is the dictionary's sentence for
+// a cause with words of its own, and takes the place of a quotation rather than
+// sitting beside one.
+func indexFault(fault, restart string, c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -669,9 +672,17 @@ func indexFault(fault string, c layouts.Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), fault).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
+		if restart != "" {
+			templ_7745c5c3_Err = browserDiagnostic(restart, "").Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		if fault != "" {
+			templ_7745c5c3_Err = browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), fault).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</p></section>")
 		if templ_7745c5c3_Err != nil {

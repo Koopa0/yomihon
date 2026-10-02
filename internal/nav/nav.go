@@ -35,6 +35,13 @@ func (c Closure) Closed() bool { return !c.claim.Trustworthy() }
 // says it.
 func (c Closure) Diagnostic() string { return c.claim.Diagnostic() }
 
+// Reason names, as a value a surface can branch on, why the projection was
+// withheld: a page that has words for the cause says them in the reader's
+// language, and a cause it has none for keeps the operator's sentence. It is
+// schema.ReasonUnstated for an open closure and for a rejection with nothing
+// more to say.
+func (c Closure) Reason() schema.Reason { return c.claim.Reason() }
+
 // Close builds a closure from a declaration outcome.
 func Close(claim schema.Claim) Closure { return Closure{claim: claim} }
 

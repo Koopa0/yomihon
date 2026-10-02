@@ -50,9 +50,9 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 			name:     "contract that reached the folder after yomihon started",
 			contract: ContractUnloaded,
 			roles:    declared,
-			path:     guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
-			mapState: guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
-			folder:   guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
+			path:     guide(wording.IndexContractUnloaded, wording.RestartYomihon),
+			mapState: guide(wording.IndexContractUnloaded, wording.RestartYomihon),
+			folder:   guide(wording.IndexContractUnloaded, wording.RestartYomihon),
 		},
 		{
 			name:     "contract that declares what fills each shelf",
@@ -206,7 +206,7 @@ owner = ["koopa"]
 var everyEmptyStep = []wording.Phrase{
 	wording.FolderIndexUngovernedNext,
 	wording.IndexUngovernedNext,
-	wording.IndexContractUnloadedNext,
+	wording.RestartYomihon,
 	wording.IndexDeclaredEmptyNext,
 }
 
@@ -258,9 +258,9 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 		{
 			name:     "contract this process never loaded",
 			contract: ContractUnloaded,
-			path:     guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
-			mapState: guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
-			folder:   guide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext),
+			path:     guide(wording.IndexContractUnloaded, wording.RestartYomihon),
+			mapState: guide(wording.IndexContractUnloaded, wording.RestartYomihon),
+			folder:   guide(wording.IndexContractUnloaded, wording.RestartYomihon),
 		},
 		{
 			name:     "contract that declares what fills each shelf",

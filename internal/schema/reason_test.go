@@ -20,6 +20,7 @@ func TestARejectionReasonNamesItself(t *testing.T) {
 	}{
 		{schema.ReasonUnstated, "unstated"},
 		{schema.ReasonContractUnreadable, "contract-unreadable"},
+		{schema.ReasonContractChanged, "contract-changed"},
 	} {
 		t.Run(tc.want, func(t *testing.T) {
 			t.Parallel()

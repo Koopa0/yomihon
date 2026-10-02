@@ -16,7 +16,7 @@ templ JournalIndex(v JournalView, c layouts.Chrome) {
 			<div class="y-home">
 				@indexHead(v.Kicker, v.Title, v.Lede, c.Lang)
 				if v.Fault != "" {
-					@indexFault(v.Fault, c)
+					@indexFault(v.Fault, "", c)
 				} else {
 					@monthCalendar(v.Grid)
 					if len(v.Entries.Rows) == 0 && v.Entries.Empty != "" {

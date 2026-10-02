@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -92,12 +93,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	shell := request.Shell
 	current := shell.Nav.Path(rel)
 	if current == nil {
-		view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(shell, "")}
-		// The title names which route refused; the page below it is shared.
-		chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
-		if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {
-			h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write study-path not-found page", "path", rel, "error", err)
-		}
+		h.refuseCourse(w, r, &shell, lang, "study-path", rel)
 		return
 	}
 
@@ -118,6 +114,32 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	view.Vault = shell.Vault
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
+	}
+}
+
+// refuseCourse answers a request for a course the navigation model does not
+// hold. Two causes empty the model of a course the reader was just reading, and
+// only one of them is an address that names nothing: a contract whose bytes
+// changed after yomihon read it stops yomihon projecting any course until it is
+// started again, and a 404 that suggests a mistyped address sends the author
+// who has just edited the contract looking in the wrong place. That cause is
+// read from the closure's reason, never from its words, and says to restart.
+//
+// face names the route for the log line a failed write leaves behind, and rel
+// is the course name the reader asked for, as the log has always recorded it.
+func (h *Handler) refuseCourse(w http.ResponseWriter, r *http.Request, shell *nav.Shell, lang wording.Lang, face, rel string) {
+	if shell.Nav.DeclaredClosure().Reason() == schema.ReasonContractChanged {
+		chrome := layouts.ChromeFromRequest(r, wording.ContractChangedTitle.In(lang))
+		if err := pages.WriteContractChanged(r.Context(), w, chrome); err != nil {
+			h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write "+face+" contract-changed page", "path", rel, "error", err)
+		}
+		return
+	}
+	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(*shell, "")}
+	// The title names which route refused; the page below it is shared.
+	chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
+	if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write "+face+" not-found page", "path", rel, "error", err)
 	}
 }
 

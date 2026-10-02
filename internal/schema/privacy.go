@@ -48,7 +48,7 @@ func (p PrivacyPolicy) Claim() Claim {
 		return Claim{}
 	}
 	if p.state.stale.Load() {
-		return Rejected(stalePrivacyDiagnostic)
+		return changedClaim(stalePrivacyDiagnostic)
 	}
 	return p.state.claim
 }

@@ -73,7 +73,7 @@ func JournalIndex(v JournalView, c layouts.Chrome) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.Fault != "" {
-				templ_7745c5c3_Err = indexFault(v.Fault, c).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = indexFault(v.Fault, "", c).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

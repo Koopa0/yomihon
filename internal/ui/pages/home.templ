@@ -26,11 +26,18 @@ type HomeView struct {
 	OpenThoughts      Shelf
 	OpenThoughtsFault string
 	Fault             string
+	// Restart and PrivacyRestart are the reader's sentence for the one cause
+	// the dictionary has words of its own for: the contract changed after
+	// yomihon read it. Each stands where the quotation beside it would, in
+	// place of it, so the contract's English line is not printed next to a
+	// sentence that already says the same thing in the reader's language.
+	Restart string
 	// PrivacyFault is why the contract's egress declaration could not be used.
 	// It is not folded into Fault, which explains an empty block: a refused
 	// egress declaration empties nothing here, only the judging commands, whose
 	// own output is written for a program to read.
-	PrivacyFault string
+	PrivacyFault   string
+	PrivacyRestart string
 	// Degraded states that the snapshot behind this page could not read
 	// everything, so the content may be incomplete or held at an older
 	// generation; DegradedDetail carries the blocked paths and their errors.
@@ -123,20 +130,30 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 					</section>
 				}
-				if v.Fault != "" {
+				if v.Fault != "" || v.Restart != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
 						@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
 						<p class="y-homeempty" data-home-fault>
-							@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
+							if v.Restart != "" {
+								@browserDiagnostic(v.Restart, "")
+							}
+							if v.Fault != "" {
+								@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
+							}
 						</p>
 					</section>
 				}
-				if v.PrivacyFault != "" {
+				if v.PrivacyFault != "" || v.PrivacyRestart != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="privacy" aria-labelledby="home-privacy-title">
 						@nothingToShow(nothingNotice{Kind: "privacy", Title: wording.HomePrivacyTitle.In(c.Lang), TitleID: "home-privacy-title", Fault: true}) {
 							<p>{ wording.HomePrivacyLede.In(c.Lang) }</p>
 							<p>
-								@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
+								if v.PrivacyRestart != "" {
+									@browserDiagnostic(v.PrivacyRestart, "")
+								}
+								if v.PrivacyFault != "" {
+									@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
+								}
 							</p>
 						}
 					</section>
