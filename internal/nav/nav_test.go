@@ -90,7 +90,7 @@ func capturedModelWithJournal(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated, settlement)
+	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated, settlement, nil)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -194,6 +194,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
 		testContract(t).Settlement(),
+		nil,
 	)
 
 	modified := make(map[string]time.Time)
@@ -277,6 +278,7 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
 		testContract(t).Settlement(),
+		nil,
 	)
 	want := []NoteSummary{{
 		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
@@ -1689,6 +1691,7 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
 		testContract(t).Settlement(),
+		nil,
 	)
 
 	gotRoot := fileRelPaths(model.RootNotes())
@@ -2175,10 +2178,10 @@ func TestBuildReports(t *testing.T) {
 	}
 
 	want := []Report{
-		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
-		{Name: "Run report", RelPath: "System/reports/Run-Report.md", Date: "2026-07-04", Opening: "body"},
-		{Name: "2026-07-02 briefing.html", RelPath: "System/reports/daily-briefing/2026-07-02 briefing.html", Briefing: true, Date: "2026-07-02"},
-		{Name: "vault-check", RelPath: "System/reports/vault-check.md"},
+		{Name: "latest.html", Title: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
+		{Name: "Run-Report.md", Title: "Run report", RelPath: "System/reports/Run-Report.md", Date: "2026-07-04", Opening: "body"},
+		{Name: "2026-07-02 briefing.html", Title: "2026-07-02 briefing.html", RelPath: "System/reports/daily-briefing/2026-07-02 briefing.html", Briefing: true, Date: "2026-07-02"},
+		{Name: "vault-check.md", Title: "vault-check", RelPath: "System/reports/vault-check.md"},
 	}
 
 	got := buildReports(files, testContract(t).AuthoredDate())
@@ -2203,7 +2206,7 @@ func TestBuildReportsKeepsCapturedOrderAmongTheUndated(t *testing.T) {
 	want := []string{"zebra", "apple", "mango"}
 	names := make([]string, 0, len(got))
 	for _, report := range got {
-		names = append(names, report.Name)
+		names = append(names, report.Title)
 	}
 	if diff := cmp.Diff(want, names); diff != "" {
 		t.Errorf("undated report order mismatch (-want +got):\n%s", diff)
@@ -2224,7 +2227,7 @@ func TestBuildReportsKeepsCapturedOrderWithinOneDay(t *testing.T) {
 	want := []string{"zebra", "apple"}
 	names := make([]string, 0, len(got))
 	for _, report := range got {
-		names = append(names, report.Name)
+		names = append(names, report.Title)
 	}
 	if diff := cmp.Diff(want, names); diff != "" {
 		t.Errorf("same-day report order mismatch (-want +got):\n%s", diff)
@@ -2355,7 +2358,9 @@ func TestOpeningLine(t *testing.T) {
 }
 
 // TestBuildReportsUsesParsedNoteTitle keeps a parsed note's own title answer
-// on the row: frontmatter when present, otherwise the filename stem.
+// on the row where it has no heading to give: frontmatter when present,
+// otherwise the filename stem. Name stays the file's own name, which is not
+// what the row is called by.
 func TestBuildReportsUsesParsedNoteTitle(t *testing.T) {
 	t.Parallel()
 
@@ -2363,7 +2368,7 @@ func TestBuildReportsUsesParsedNoteTitle(t *testing.T) {
 		{path: "System/reports/notes.md", note: vault.Parse("System/reports/notes.md", []byte("just prose\n"))},
 	}
 	got := buildReports(files, testContract(t).AuthoredDate())
-	want := []Report{{Name: "notes", RelPath: "System/reports/notes.md", Opening: "just prose"}}
+	want := []Report{{Name: "notes.md", Title: "notes", RelPath: "System/reports/notes.md", Opening: "just prose"}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("buildReports parsed-note title mismatch (-want +got):\n%s", diff)
 	}

@@ -458,6 +458,7 @@ func buildPathUnder(t *testing.T, contract *schema.Contract, body string, extra 
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
 		contract.Settlement(),
+		nil,
 	)
 	paths := model.Paths()
 	if len(paths) != 1 {
