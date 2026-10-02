@@ -173,8 +173,8 @@ func knownFrontmatter(authority scanAuthority, noteType string) []string {
 
 // filename is the last path segment of a vault-relative, forward-slash path.
 func filename(path string) string {
-	if i := strings.LastIndexByte(path, '/'); i >= 0 {
-		return path[i+1:]
+	if _, after, found := strings.CutLast(path, "/"); found {
+		return after
 	}
 	return path
 }

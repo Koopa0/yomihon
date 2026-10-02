@@ -1547,8 +1547,8 @@ func (c *Contract) SkipsBasename(relPath string) bool {
 		return false
 	}
 	base := relPath
-	if i := strings.LastIndexByte(relPath, '/'); i >= 0 {
-		base = relPath[i+1:]
+	if _, after, found := strings.CutLast(relPath, "/"); found {
+		base = after
 	}
 	return slices.Contains(c.definition.Scan.SkipBasenames, base)
 }
