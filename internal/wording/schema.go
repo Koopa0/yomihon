@@ -16,7 +16,9 @@ type SchemaPart struct {
 
 // SchemaSentence is what a page says about one schema finding, given the rule
 // that fired and whatever that rule named: the frontmatter field at fault, the
-// value it carried, and the domain folder selected by the declared root.
+// value it carried, and the domain folder selected by the declared root. For
+// schema.frontmatter, target is the captured parser diagnostic; empty means
+// the required frontmatter block is absent.
 //
 // The finding carries a sentence of its own, and this is deliberately not it.
 // That one is written once, in one language, for a format other programs read;
@@ -33,6 +35,11 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 	text := func(p Phrase) SchemaPart { return SchemaPart{Text: p.In(lang)} }
 
 	switch ruleID {
+	case "schema.frontmatter":
+		if target == "" {
+			return []SchemaPart{text(schemaFrontmatterMissing)}
+		}
+		return []SchemaPart{text(schemaFrontmatterInvalid), code(target)}
 	case "schema.enum":
 		return []SchemaPart{code(field), text(schemaWrittenAs), code(target), text(schemaNotInList)}
 	case "schema.language":
@@ -68,6 +75,13 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 // whole sentences because the note's own words sit between them, and a
 // fragment still has to read as part of one sentence in both languages.
 var (
+	schemaFrontmatterMissing = both(
+		"這份筆記需要 frontmatter，但沒有 frontmatter 區塊。",
+		"This note requires frontmatter, but no frontmatter block is present.")
+	schemaFrontmatterInvalid = both(
+		"frontmatter 不是有效的 YAML。解析器指出：",
+		"The frontmatter is not valid YAML. The parser reported: ")
+
 	schemaWrittenAs = both(" 寫的 ", " is written as ")
 
 	schemaNotInList = both("不在 schema 的允許清單裡。", ", which is not in the schema's list.")

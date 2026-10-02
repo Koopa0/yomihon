@@ -2767,10 +2767,8 @@ func loadContractRequiringFrontmatter(t *testing.T) *schema.Contract {
 // judges, under a contract that allows a note without a block and one that
 // does not.
 //
-// The judge's own finding for the same shape is not said a second time: the rule
-// it falls under has no sentence on this page, and a page that printed the
-// fallback for a rule nobody wrote words for would be saying less than the
-// notice it sits beside.
+// The dedicated fence explanation already names this fault, so the schema
+// finding is not repeated as a missing or unreadable frontmatter block.
 func TestAFenceThatNeverClosesIsSaidOnThePage(t *testing.T) {
 	t.Parallel()
 
@@ -2837,7 +2835,7 @@ func TestAFenceThatNeverClosesIsSaidOnThePage(t *testing.T) {
 					}
 				}
 				if strings.Contains(body, "schema.frontmatter") {
-					t.Errorf("the page says the rule's name, a rule it has no words for, beside the notice that names the fault")
+					t.Errorf("the page repeats the schema rule beside the dedicated notice that names the unclosed fence")
 				}
 			})
 		}
