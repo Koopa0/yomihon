@@ -38,14 +38,17 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // client borrowed it — kept on the button so the client has one fewer copy of
 // a sentence the server already wrote there, and the moment a page restored
 // from the back/forward cache is being put in the state its cookie names, which
-// the stylesheet reads to hold its transitions still for that one write, and
-// the length of a fold, for which the stylesheet holds the panel's width.
+// the stylesheet reads to hold its transitions still for that one write, the
+// moment the rail's remembered filter is being applied, for which the
+// stylesheet holds the folds still too, and the length of a fold, for which the
+// stylesheet holds the panel's width.
 var clientOwned = []string{
 	"data-freshness",
 	"data-mermaid-error",
 	"data-nav",
 	"data-preview-open",
 	"data-rail-moving",
+	"data-rail-restoring",
 	"data-rail-settling",
 	"data-readaloud-idle",
 	"data-reading",
