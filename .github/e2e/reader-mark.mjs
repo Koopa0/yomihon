@@ -305,6 +305,14 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
   if (await page.locator('[data-mark-control]').count() === 0) {
     broken(`${path} carries no mark control`);
   }
+  // A transform during the article's arrival makes a fixed descendant
+  // relative to the article. Anchor decoys need the settled document, and
+  // fonts must finish before its positions are measured.
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    const article = document.querySelector('.y-article');
+    if (article) await Promise.all(article.getAnimations().map((animation) => animation.finished));
+  });
   await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
   const reached = {};
   if (anchorDecoys) {
@@ -365,12 +373,44 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
       node.dataset.markIdentity = 'f'.repeat(64);
     });
   }
+  const button = control.locator('[data-mark-button]');
+  if (anchorDecoys) {
+    // Sample during the actual press, before the module reads the position.
+    // A scope mutation is meaningful only when this eligible UI element is
+    // closer above the viewport than every authored candidate.
+    await button.evaluate((node) => {
+      node.addEventListener('click', () => {
+        const article = document.querySelector('.y-article');
+        const ui = document.getElementById('probe-reading-ui');
+        const top = Math.max(0, Math.round(window.scrollY));
+        const uiTop = Math.round(ui.getBoundingClientRect().top + window.scrollY);
+        const competitors = [...article.querySelectorAll('[id][data-mark-anchor]')]
+          .filter((element) => element !== ui && element.getClientRects().length > 0)
+          .map((element) => Math.round(element.getBoundingClientRect().top + window.scrollY))
+          .filter((elementTop) => elementTop <= top);
+        node.dataset.probeDecoy = JSON.stringify({
+          scoped: article.contains(ui) && !ui.closest('.y-prose'),
+          eligible: ui.hasAttribute('data-mark-anchor'),
+          visible: ui.getClientRects().length > 0,
+          top, uiTop,
+          nearestOther: Math.max(Number.NEGATIVE_INFINITY, ...competitors),
+        });
+      }, { capture: true, once: true });
+    });
+  }
   const posted = page.waitForResponse(
     (response) => new URL(response.url()).pathname === '/marks',
     { timeout: 4000 },
   ).catch(() => null);
-  await control.locator('[data-mark-button]').click();
+  await button.click();
   const response = await posted;
+  if (anchorDecoys) {
+    const geometry = JSON.parse(await button.getAttribute('data-probe-decoy') ?? 'null');
+    if (!geometry?.scoped || !geometry.eligible || !geometry.visible
+      || geometry.uiTop > geometry.top || geometry.nearestOther >= geometry.uiTop) {
+      broken(`${path}: UI anchor decoy was not the nearest eligible candidate at the press: ${JSON.stringify(geometry)}`);
+    }
+  }
   reached.anchor = new URLSearchParams(response?.request().postData() ?? '').get('anchor');
   // The confirmation is the page's own word that the round trip finished, so
   // the desk is not asked before the file exists. The element itself is in
