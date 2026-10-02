@@ -37,7 +37,7 @@ type speculationRule struct {
 // A string names a path, and the query is free. An object names path and query
 // and has to give both: an object that names only a query inherits the
 // document's own path, which would admit nothing.
-func (c speculationCondition) admits(t *testing.T, address string, stepLink bool) bool {
+func (c *speculationCondition) admits(t *testing.T, address string, stepLink bool) bool {
 	t.Helper()
 	parsed, err := url.Parse(address)
 	if err != nil {
@@ -54,15 +54,15 @@ func (c speculationCondition) admits(t *testing.T, address string, stepLink bool
 	}
 	switch {
 	case c.And != nil:
-		for _, inner := range c.And {
-			if !inner.admits(t, address, stepLink) {
+		for i := range c.And {
+			if !c.And[i].admits(t, address, stepLink) {
 				return false
 			}
 		}
 		return true
 	case c.Or != nil:
-		for _, inner := range c.Or {
-			if inner.admits(t, address, stepLink) {
+		for i := range c.Or {
+			if c.Or[i].admits(t, address, stepLink) {
 				return true
 			}
 		}
@@ -72,26 +72,31 @@ func (c speculationCondition) admits(t *testing.T, address string, stepLink bool
 	case c.SelectorMatches != "":
 		return stepLink
 	}
-	var pathPattern, queryPattern string
-	if err := json.Unmarshal(c.HrefMatches, &pathPattern); err == nil {
-		queryPattern = "*"
-	} else {
-		var pattern struct {
-			Pathname string `json:"pathname"`
-			Search   string `json:"search"`
-		}
-		if err := json.Unmarshal(c.HrefMatches, &pattern); err != nil {
-			t.Fatalf("href_matches %s is neither a string nor a pattern object: %v", c.HrefMatches, err)
-		}
-		if pattern.Pathname == "" {
-			t.Fatalf("href_matches %s names no pathname, so it would inherit the document's own", c.HrefMatches)
-		}
-		pathPattern, queryPattern = pattern.Pathname, pattern.Search
-		if queryPattern == "" {
-			t.Fatalf("href_matches %s names no search; an empty one would mean no query at all", c.HrefMatches)
-		}
-	}
+	pathPattern, queryPattern := hrefPatterns(t, c.HrefMatches)
 	return patternMatches(pathPattern, parsed.EscapedPath()) && patternMatches(queryPattern, parsed.RawQuery)
+}
+
+// hrefPatterns reads one href_matches value into the patterns for the path and
+// for the query of an address.
+func hrefPatterns(t *testing.T, raw json.RawMessage) (pathPattern, queryPattern string) {
+	t.Helper()
+	if err := json.Unmarshal(raw, &pathPattern); err == nil {
+		return pathPattern, "*"
+	}
+	var pattern struct {
+		Pathname string `json:"pathname"`
+		Search   string `json:"search"`
+	}
+	if err := json.Unmarshal(raw, &pattern); err != nil {
+		t.Fatalf("href_matches %s is neither a string nor a pattern object: %v", raw, err)
+	}
+	if pattern.Pathname == "" {
+		t.Fatalf("href_matches %s names no pathname, so it would inherit the document's own", raw)
+	}
+	if pattern.Search == "" {
+		t.Fatalf("href_matches %s names no search; an empty one would mean no query at all", raw)
+	}
+	return pattern.Pathname, pattern.Search
 }
 
 // patternMatches is a URL pattern component with only the wildcard: "*"
@@ -161,7 +166,7 @@ func TestSpeculationRulesReachOnlyReadingAddresses(t *testing.T) {
 	if len(rules.Prefetch) != 2 {
 		t.Fatalf("prefetch rules = %d, want 2", len(rules.Prefetch))
 	}
-	hover, load := rules.Prefetch[0], rules.Prefetch[1]
+	hover, load := &rules.Prefetch[0], &rules.Prefetch[1]
 
 	// Reads that a reader opens, query and fragment included.
 	fetched := []string{
