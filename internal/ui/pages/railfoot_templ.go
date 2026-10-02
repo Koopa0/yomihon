@@ -27,8 +27,8 @@ import (
 // how two of them would come to disagree about the same folder.
 //
 // The number is the health page's own, counted where that page counts its rows,
-// and the dot colours what the words beside it say, and also stands for a
-// standing notice, which the number does not count.
+// and the dot only colours what the words beside it already say: the number,
+// or, where nothing is found but the pages have stopped updating, that.
 func railFoot(v nav.Vault, lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -120,9 +120,9 @@ func railFoot(v nav.Vault, lang wording.Lang) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(libraryFindings(v.Findings, lang))
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(libraryFindings(v.Findings, v.Noticed, lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railfoot.templ`, Line: 32, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railfoot.templ`, Line: 32, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
