@@ -4650,15 +4650,16 @@ a.y-facetrow:hover {
   min-width: 0;
 }
 
+/* How many lessons a part or module holds, as a quiet figure beside its name
+   in the same way the rail counts are, rather than a badge: the heading already
+   says what it is. */
 .y-partcount {
-  background: var(--elevated);
-  border: 1px solid var(--border-faint);
-  border-radius: var(--r-sm);
   color: var(--fg-subtle);
   flex: none;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  padding: 3px 8px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
   white-space: nowrap;
 }
 
@@ -4858,10 +4859,12 @@ a.y-facetrow:hover {
 }
 
 
+/* The words end on a space and the arrow follows as inline text, the way the
+   rest of the interface sets "All of it →". A flex or grid box here would drop
+   that space, since the space is trailing whitespace inside a box of its own,
+   and leave the arrow touching the last word. */
 .y-syl-read {
-  align-items: center;
   color: var(--accent);
-  display: inline-flex;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);

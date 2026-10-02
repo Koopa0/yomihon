@@ -905,3 +905,55 @@ func TestTheKickerAboveACourseTitleEndsOnItsLastWord(t *testing.T) {
 		}
 	}
 }
+
+// TestACourseActionSpacesItsArrowFromItsWords holds the actions a course
+// offers to words, a space and the arrow, as the rest of the interface sets
+// its arrows. The words are written out rather than read back from the phrases
+// that fill them, so a phrase that lost its trailing space cannot agree with a
+// page that says the same thing.
+func TestACourseActionSpacesItsArrowFromItsWords(t *testing.T) {
+	t.Parallel()
+
+	walked := PathView{
+		Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md", ListenHref: "/listen/Maps/Path.md",
+		Parts: 1, Entries: 1,
+		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}},
+	}
+	cases := []struct {
+		name string
+		page func(wording.Lang) templ.Component
+		want map[wording.Lang][]string
+	}{
+		{
+			name: "syllabus",
+			page: func(lang wording.Lang) templ.Component { return Syllabus(walked, layouts.Chrome{Lang: lang}) },
+			want: map[wording.Lang][]string{
+				wording.ZhHant: {"閱讀筆記本文 ", "聆聽這門課 "},
+				wording.En:     {"Read the note itself ", "Listen to this course "},
+			},
+		},
+		{
+			name: "listen",
+			page: func(lang wording.Lang) templ.Component {
+				return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
+			},
+			want: map[wording.Lang][]string{
+				wording.ZhHant: {"回到課程 "},
+				wording.En:     {"Back to the course "},
+			},
+		},
+	}
+	for _, tc := range cases {
+		for lang, words := range tc.want {
+			var out bytes.Buffer
+			if err := tc.page(lang).Render(t.Context(), &out); err != nil {
+				t.Fatalf("render the %s page in %s: %v", tc.name, lang, err)
+			}
+			for _, w := range words {
+				if !strings.Contains(out.String(), w+`<span aria-hidden="true">→</span>`) {
+					t.Errorf("the %s page in %s does not set %q, a space and then the arrow", tc.name, lang, w)
+				}
+			}
+		}
+	}
+}
