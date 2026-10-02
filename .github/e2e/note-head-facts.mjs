@@ -238,10 +238,17 @@ try {
     const summary = page.locator('details.y-metarow summary, details.y-metarow > div.y-metarow__summary');
     if ((await summary.count()) !== 1) broken('the disclosure carries no summary line to click');
     let clickFailed = false;
+    let clickWhy = '';
     try {
       await summary.first().click({ timeout: 3000 });
-    } catch {
+    } catch (err) {
       clickFailed = true;
+      // Playwright names what stood in the way: an element intercepting the
+      // pointer, a target that never held still, or one never visible. The
+      // finding carries that line so a red run says which.
+      const lines = String(err.message).split('\n').map((line) => line.trim()).filter(Boolean);
+      const telling = lines.filter((line) => /intercept|stable|visible|viewport|detached/.test(line));
+      clickWhy = (telling.length > 0 ? telling.slice(-3) : lines.slice(0, 3)).join(' | ');
     }
     // Same fold, same content-visibility transition as case 1 above — the
     // flip to visible still needs a style-and-paint cycle after the click's
@@ -266,7 +273,7 @@ try {
     if (clickFailed) {
       fail(
         'the-closed-fold-opens-with-no-script-running',
-        'the disclosure carries a summary line, but nothing on the page lets a plain click reach it with no script running',
+        `the disclosure carries a summary line, but nothing on the page lets a plain click reach it with no script running: ${clickWhy}`,
       );
     }
 
