@@ -135,6 +135,9 @@ samp {
   line-height: 1.5rem;
   padding: 4px 12px;
   text-decoration: none;
+  /* A row's name that takes two lines splits them evenly. Left to fill the first
+     line, a Chinese title strands its last character alone on the second. */
+  text-wrap: balance;
   transition: background var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard);
 }
 
@@ -227,7 +230,8 @@ samp {
 .y-railgroup .ui-navitem,
 .y-railreports .ui-navitem,
 .y-citedby .ui-navitem,
-.y-basedon .ui-navitem {
+.y-basedon .ui-navitem,
+.y-pair .ui-navitem {
   border-radius: 0;
   box-shadow: inset 1px 0 0 var(--line);
   padding-left: 16px;
@@ -237,7 +241,8 @@ samp {
 .y-railgroup .ui-navitem:hover,
 .y-railreports .ui-navitem:hover,
 .y-citedby .ui-navitem:hover,
-.y-basedon .ui-navitem:hover {
+.y-basedon .ui-navitem:hover,
+.y-pair .ui-navitem:hover {
   background: transparent;
   box-shadow: inset 1px 0 0 var(--line-strong);
 }
@@ -247,6 +252,7 @@ samp {
 .y-railreports .ui-navitem.is-active,
 .y-citedby .ui-navitem.is-active,
 .y-basedon .ui-navitem.is-active,
+.y-pair .ui-navitem.is-active,
 .y-here .ui-navitem[aria-current='page'],
 .y-railgroup .ui-navitem[aria-current='page'],
 .y-railreports .ui-navitem[aria-current='page'] {
@@ -2579,7 +2585,7 @@ button.y-freshness__action {
 .y-homesearch:focus-within,
 .y-searchdialog__form:focus-within,
 .y-searchpage__form:focus-within {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--fg-subtle);
   outline-offset: -2px;
 }
 
@@ -2603,6 +2609,25 @@ button.y-freshness__action {
 .y-searchdialog__input:focus-visible,
 .y-searchpage__form input:focus-visible {
   outline: 0;
+}
+
+/* The browser's own clear control is drawn in the system's accent colour, which
+   is a blue nothing else in this interface uses. It keeps its place and its
+   behaviour; only the mark is redrawn, as a cross in the subtle ink. */
+.y-homesearch input::-webkit-search-cancel-button,
+.y-searchdialog__input::-webkit-search-cancel-button,
+.y-searchpage__form input::-webkit-search-cancel-button {
+  appearance: none;
+  background: linear-gradient(45deg, transparent 43%, var(--fg-subtle) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg-subtle) 43% 57%, transparent 57%);
+  cursor: pointer;
+  height: 14px;
+  width: 14px;
+}
+
+.y-homesearch input::-webkit-search-cancel-button:hover,
+.y-searchdialog__input::-webkit-search-cancel-button:hover,
+.y-searchpage__form input::-webkit-search-cancel-button:hover {
+  background: linear-gradient(45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%);
 }
 
 /* One glyph size for every way into search, the header's entry included. */
@@ -2916,7 +2941,7 @@ a.y-facetrow:hover {
 
 .y-searchpage__emptytitle {
   color: var(--fg);
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   font-weight: var(--fw-regular);
   margin: 0;
@@ -3829,7 +3854,7 @@ a.y-facetrow:hover {
 
 .y-homereadme__head h2 {
   color: var(--fg);
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-24);
   font-weight: var(--fw-regular);
   margin: 0;
@@ -4403,7 +4428,7 @@ a.y-facetrow:hover {
 
 .y-nothing__title {
   color: var(--fg);
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   font-weight: var(--fw-regular);
   line-height: var(--lh-tight);
@@ -4557,7 +4582,7 @@ a.y-facetrow:hover {
 .y-part__name {
   color: var(--fg);
   flex: 1;
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-24);
   min-width: 0;
 }
@@ -4715,7 +4740,7 @@ a.y-facetrow:hover {
   -webkit-box-orient: vertical;
   color: var(--fg);
   display: -webkit-box;
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -4925,6 +4950,20 @@ html {
    and the prose; a browser without it sets the text as written. */
 body {
   text-autospace: normal;
+}
+
+/* Code, a shortcut and a file's path are read one character at a time and
+   typed back, so none of them is given a gap the text does not have. */
+code,
+kbd,
+pre,
+samp,
+.y-fileinfo__list dd,
+.y-findings__path,
+.y-homenote__path,
+.y-notefacts a,
+.y-result__meta {
+  text-autospace: no-autospace;
 }
 
 /* CJK type has no italic. Asked for one, a browser slants the upright glyphs
@@ -5870,7 +5909,7 @@ body {
   align-items: center;
   color: var(--fg);
   display: flex;
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-24);
   font-weight: var(--fw-regular);
   gap: 10px;
