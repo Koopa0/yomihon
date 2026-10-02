@@ -157,7 +157,7 @@ type MonthGrid struct {
 // holds nor that it holds none, because a vault whose declaration could not be
 // read is not a vault that declared nothing.
 type JournalView struct {
-	Kicker  string
+	Count   string
 	Title   string
 	Lede    string
 	Fault   string
@@ -182,10 +182,10 @@ func NewJournalIndex(entries []nav.JournalEntry, month Month, closure nav.Closur
 		}
 	}
 	view := JournalView{
-		Kicker: plural(len(inMonth), wording.JournalCountOne, wording.JournalCountMany, lang),
-		Title:  wording.Journal.In(lang),
-		Lede:   wording.JournalIndexLede.In(lang),
-		Grid:   newMonthGrid(inMonth, entries, month, lang, articleLang),
+		Count: plural(len(inMonth), wording.JournalCountOne, wording.JournalCountMany, lang),
+		Title: wording.Journal.In(lang),
+		Lede:  wording.JournalIndexLede.In(lang),
+		Grid:  newMonthGrid(inMonth, entries, month, lang, articleLang),
 		Entries: Shelf{
 			Empty: monthEmptySentence(entries, lang),
 			Rows:  journalRows(inMonth, lang, articleLang),
@@ -366,6 +366,6 @@ func withholdJournal(v *JournalView, closure nav.Closure) {
 	if !closure.Closed() {
 		return
 	}
-	v.Kicker = ""
+	v.Count = ""
 	v.Entries.Empty = ""
 }

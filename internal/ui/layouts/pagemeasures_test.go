@@ -27,18 +27,21 @@ const (
 // TestThePageMeasuresAreTheNamedOnes fails the moment a fourth measure is
 // declared, a named one is renamed, or one changes value — whichever stylesheet
 // it is written in. A measure declared in a second sheet would otherwise be
-// invisible to a check that only read the token file.
+// invisible to a check that only read the token file. The reading measure is
+// declared twice, once for every article and once for an article tagged as
+// Latin text, and both values are held, so a third declaration of it anywhere
+// is a change this fails on too.
 func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 	t.Parallel()
 
-	want := map[string]string{
-		"--measure-answer": "720px",
-		"--measure-list":   "880px",
-		"--measure-read":   "calc(var(--fs-ed-17) * 38)",
+	want := map[string][]string{
+		"--measure-answer": {"720px"},
+		"--measure-list":   {"880px"},
+		"--measure-read":   {"calc(var(--fs-ed-17) * 31)", "calc(var(--fs-ed-17) * 38)"},
 	}
 
 	sheets := handWrittenStylesheets(t)
-	got := map[string]string{}
+	got := map[string][]string{}
 	pattern := regexp.MustCompile(`(--measure-[a-z0-9-]*)\s*:\s*([^;}]+)`)
 	for _, sheet := range sheets {
 		source, err := os.ReadFile(sheet) // #nosec G304 -- sheet came from walking the fixed stylesheetDir constant, not from any input outside this test
@@ -46,8 +49,11 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 			t.Fatalf("ReadFile(%q) error = %v", sheet, err)
 		}
 		for _, match := range pattern.FindAllStringSubmatch(withoutComments(string(source)), -1) {
-			got[match[1]] = strings.TrimSpace(match[2])
+			got[match[1]] = append(got[match[1]], strings.TrimSpace(match[2]))
 		}
+	}
+	for name := range got {
+		slices.Sort(got[name])
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("the declared page measures differ from the named ones (-want +got):\n%s", diff)
@@ -101,55 +107,42 @@ func TestEveryPageShellTakesItsOwnMeasure(t *testing.T) {
 // TestALatinArticleStopsItsTextAtAMeasureOfItsOwn holds the second line length
 // the reading column has. The column is sized for Han, and the same width runs
 // Latin text to about eighty-five characters, so an article positively tagged
-// as something other than Chinese, Japanese or Korean holds its text blocks to
-// a character count. Three things have to stay true together: the cap is
-// there, it carries the whole guard (an untagged article keeps the safe wide
-// line, and a CJK one keeps the width its characters were sized to), and it
-// names the blocks that are lines of text rather than the code, tables and
-// diagrams that are not.
+// as something other than Chinese, Japanese or Korean takes a narrower reading
+// measure. Three things have to stay true together: the measure is the
+// article's, so its title, code and way onward share the text's right edge
+// rather than a cap on the paragraphs leaving a second, wider one; it carries
+// the whole guard, so an untagged article keeps the safe wide line and a CJK
+// one keeps the width its characters were sized to; and it is counted in
+// reading ems, so it follows the reader's size choice.
 func TestALatinArticleStopsItsTextAtAMeasureOfItsOwn(t *testing.T) {
 	t.Parallel()
 
 	const guard = "[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko))"
-	wantBlocks := []string{".callout", ".y-reading", "blockquote", "ol", "p", "ul"}
-	blocks := regexp.MustCompile(`\.y-prose > :is\(([^)]*)\)`)
+	count := regexp.MustCompile(`^calc\(var\(--fs-ed-17\) \* (\d+)\)$`)
 
-	capped := 0
+	declared := 0
 	for _, rule := range componentRules(t) {
-		if !strings.Contains(rule.selector, ".y-prose") {
-			continue
-		}
-		for _, value := range rule.values("max-width") {
-			if !strings.HasSuffix(value, "ch") {
-				continue
+		for _, value := range rule.values("--measure-read") {
+			declared++
+			if rule.selector != ".y-article"+guard {
+				t.Errorf("rule %q redeclares the reading measure; want it only on .y-article%s, the article tagged as Latin text", rule.selector, guard)
 			}
-			if !strings.Contains(rule.selector, ".y-article"+guard) {
-				t.Errorf("rule %q caps prose at %s without the guard %q, so it would also narrow an article that declares no language or a CJK one",
-					rule.selector, value, guard)
-				continue
-			}
-			count, err := strconv.ParseFloat(strings.TrimSuffix(value, "ch"), 64)
-			if err != nil || count < 50 || count > 58 {
-				t.Errorf("rule %q caps prose at %s; want 50 to 58ch, which is 65 to 75 characters of this face", rule.selector, value)
-			}
-			match := blocks.FindStringSubmatch(rule.selector)
+			match := count.FindStringSubmatch(value)
 			if match == nil {
-				t.Errorf("rule %q does not name the text blocks it caps as a direct-child list", rule.selector)
+				t.Errorf("rule %q sets the reading measure to %q; want a count of reading ems, calc(var(--fs-ed-17) * N)", rule.selector, value)
 				continue
 			}
-			var got []string
-			for name := range strings.SplitSeq(match[1], ",") {
-				got = append(got, strings.TrimSpace(name))
+			ems, err := strconv.Atoi(match[1])
+			if err != nil || ems < 29 || ems > 33 {
+				t.Errorf("rule %q sets the reading measure to %s reading ems; want 29 to 33, which is 65 to 75 characters of this face on an average line", rule.selector, match[1])
 			}
-			slices.Sort(got)
-			if diff := cmp.Diff(wantBlocks, got); diff != "" {
-				t.Errorf("rule %q caps these blocks (-want +got):\n%s", rule.selector, diff)
-			}
-			capped++
+		}
+		if strings.Contains(rule.selector, guard) && strings.Contains(rule.selector, ".y-prose") && len(rule.values("max-width")) > 0 {
+			t.Errorf("rule %q caps a Latin article's prose on its own, which gives the article a second right edge beside its measure", rule.selector)
 		}
 	}
-	if capped != 1 {
-		t.Errorf("%d rules cap a Latin article's prose, want exactly 1", capped)
+	if declared != 1 {
+		t.Errorf("components.css redeclares the reading measure %d times, want exactly 1, for the Latin article", declared)
 	}
 }
 

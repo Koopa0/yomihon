@@ -46,6 +46,7 @@ const SITES = [
   'composing-enter-stays-with-the-input',
   'escape-focus-return',
   'toggle-focus-return',
+  'touch-open-leaves-the-filter-alone',
 ];
 
 class LockFired extends Error {
@@ -144,6 +145,12 @@ const MUTATIONS = {
   'suppress-open-focus': {
     target: 'open-focus-entry',
     apply: rewriteRuntime('drawer.js', '    focusFirst();', '    void 0;'),
+  },
+  // The filter taking focus on a touch screen, which raises the on-screen
+  // keyboard over the drawer the reader opened to look at.
+  'focus-the-filter-on-touch': {
+    target: 'touch-open-leaves-the-filter-alone',
+    apply: rewriteRuntime('drawer.js', "!(touch.matches && element.matches('[data-nav-filter]'))", 'true'),
   },
   'suppress-tab-containment': {
     target: 'open-tab-contained',
@@ -666,6 +673,29 @@ try {
     await page.$eval(TOGGLE, (toggle) => toggle.click());
     await closeState(page, 'toggle-focus-return', 'toggle click');
     await page.close();
+  }
+
+  // Case 3: on a touch screen opening the drawer still puts the reader inside
+  // it, but not in the filter, where focus would raise the on-screen keyboard
+  // over the list the reader came to look at.
+  {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    const page = await context.newPage();
+    const proof = await arm(page, ['touch-open-leaves-the-filter-alone']);
+    await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('html[data-js][data-nav="closed"]');
+    proveApplied(proof);
+    if (!(await page.evaluate(() => matchMedia('(pointer: coarse)').matches))) broken('the touch context does not report a coarse pointer');
+    if (await page.locator(FILTER).count() !== 1) broken('the drawer carries no filter, so there is nothing for focus to pass over');
+    await openDrawer(page);
+    const entered = await page.evaluate(({ railSelector, filterSelector }) => ({
+      inside: document.querySelector(railSelector).contains(document.activeElement),
+      filter: document.activeElement === document.querySelector(filterSelector),
+    }), { railSelector: RAIL, filterSelector: FILTER });
+    if (!entered.inside || entered.filter) {
+      fail('touch-open-leaves-the-filter-alone', `opening the drawer on a touch screen left focus inside=${entered.inside} on the filter=${entered.filter}, want inside and not the filter`);
+    }
+    await context.close();
   }
 
   console.log('PASS drawer-contract: no-JS navigation works; enhanced drawer focus is inert → contained → restored');

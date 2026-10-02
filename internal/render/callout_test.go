@@ -387,7 +387,7 @@ func TestABucketNamesItself(t *testing.T) {
 func TestAnUnrecognizedCalloutTypeKeepsTheNoteLook(t *testing.T) {
 	t.Parallel()
 
-	if got, want := calloutIcon(bucketUnknown), "ℹ"; got != want {
+	if got, want := calloutIcon(bucketUnknown), calloutIcon(bucketNote); got != want {
 		t.Errorf("calloutIcon(bucketUnknown) = %q, want %q", got, want)
 	}
 	if got, want := calloutClass(bucketUnknown), "note"; got != want {

@@ -282,7 +282,10 @@ templ healthEvidence(detail healthDetail) {
 templ healthGuide(v HealthView, tallies []healthTally, c layouts.Chrome) {
 	if len(tallies) > 0 {
 		<details class="y-findingsguide">
-			<summary class="y-findingsguide__head">{ wording.HealthGuideTitle.In(c.Lang) }</summary>
+			<summary class="y-findingsguide__head">
+				@chevron()
+				{ wording.HealthGuideTitle.In(c.Lang) }
+			</summary>
 			<dl class="y-findingsguide__list">
 				for _, tally := range tallies {
 					<dt class="y-findingsguide__term">

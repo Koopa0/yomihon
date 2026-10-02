@@ -1508,28 +1508,28 @@ func TestCalloutSerializationLocks(t *testing.T) {
 			name: "static callout",
 			body: "> [!note]\n> body text\n",
 			want: `<div class="callout callout-note"><p class="callout-title">` +
-				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</p>` +
+				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg>Note</p>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 		{
 			name: "foldable callout closed by default",
 			body: "> [!note]-\n> body text\n",
 			want: `<details class="callout callout-note"><summary class="callout-title">` +
-				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</summary>` +
+				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg>Note</summary>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></details>\n",
 		},
 		{
 			name: "foldable callout open by default",
 			body: "> [!note]+\n> body text\n",
 			want: `<details class="callout callout-note" open><summary class="callout-title">` +
-				`<span class="callout-icon" aria-hidden="true">ℹ</span>Note</summary>` +
+				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg>Note</summary>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></details>\n",
 		},
 		{
 			name: "static warning callout with an authored title",
 			body: "> [!warning] 自訂標題\n> body text\n",
 			want: `<div class="callout callout-warning"><p class="callout-title">` +
-				`<span class="callout-icon" aria-hidden="true">⚠</span>自訂標題</p>` +
+				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>自訂標題</p>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 		{
@@ -1540,7 +1540,7 @@ func TestCalloutSerializationLocks(t *testing.T) {
 			name: "static quote callout with an authored title",
 			body: "> [!quote] 口述紀錄\n> body text\n",
 			want: `<div class="callout callout-quote"><p class="callout-title">` +
-				`<span class="callout-icon" aria-hidden="true">❝</span>口述紀錄</p>` +
+				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17v-3.5C6 10 7.5 8 10 7"></path><path d="M6 13.5h3.5V17H6"></path><path d="M14 17v-3.5c0-3.5 1.5-5.5 4-6.5"></path><path d="M14 13.5h3.5V17H14"></path></svg>口述紀錄</p>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 	}
