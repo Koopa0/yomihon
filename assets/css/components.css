@@ -1380,6 +1380,40 @@ samp {
   padding: 42px var(--gutter-list) 120px;
 }
 
+/* A page arrives as a whole new document, so the block of content under the
+   header is the one thing that changes beneath a reader who pressed a link.
+   It comes in over the shared curve from a little faint and a little low,
+   which says the page changed without moving anything the reader is standing
+   on. Only that block moves. The header and the rails are the same on both
+   sides of the press and stay still, and <main> is left alone because a
+   transform on it would take every positioned descendant of the column with
+   it. The reading choices page is <main> itself, with no block inside it to
+   move, so it arrives without this.
+
+   The keyframes say only where the movement starts, and the fill is held
+   backwards, so once it ends nothing of it is left: a transform that stayed
+   would make the block the containing block of whatever is fixed inside it.
+   A page the browser put back from history, or prepared before the reader
+   asked for it, does not play it — there was no press to answer. Reduced
+   motion is answered by the blanket under the interface's own root. */
+@keyframes y-rise-in {
+  from {
+    opacity: 0.55;
+    transform: translateY(6px);
+  }
+}
+
+html:not([data-prerender], [data-nav='traverse']) :is(
+  .y-article,
+  .y-healthpage,
+  .y-home,
+  .y-listen,
+  .y-recovery,
+  .y-syl
+) {
+  animation: y-rise-in var(--dur-slow) var(--ease-standard) backwards;
+}
+
 /* ============================================================
    Center article
    ============================================================ */

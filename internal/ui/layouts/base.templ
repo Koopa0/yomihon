@@ -36,8 +36,23 @@ templ Base(c Chrome) {
 			// the mark here, before the first style, lays the page out as it will
 			// stay. A browser with scripting off never runs this and keeps the
 			// unscripted layout.
+			//
+			// The same lines say when this document is not the answer to a press,
+			// so the content's arrival is not played for it: a page the browser
+			// prepared before anyone asked for it, until the reader does ask, and
+			// one reached by going back or forward. Both are written as data
+			// attributes for the stylesheet, which is where the arrival lives.
 			<script nonce={ c.Nonce }>
-				document.documentElement.dataset.js = "on";
+				{
+					const d = document.documentElement;
+					d.dataset.js = "on";
+					const entry = performance.getEntriesByType("navigation")[0];
+					if (entry?.type === "back_forward") d.dataset.nav = "traverse";
+					if (document.prerendering) {
+						d.dataset.prerender = "";
+						document.onprerenderingchange = () => delete d.dataset.prerender;
+					}
+				}
 			</script>
 			// Every page change is a whole new document, and a browser may paint
 			// the header and the rail before the column they frame has arrived,
