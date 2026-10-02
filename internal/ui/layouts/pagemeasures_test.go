@@ -34,7 +34,7 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 	want := map[string]string{
 		"--measure-answer": "720px",
 		"--measure-list":   "880px",
-		"--measure-read":   "640px",
+		"--measure-read":   "calc(var(--fs-ed-17) * 38)",
 	}
 
 	sheets := handWrittenStylesheets(t)

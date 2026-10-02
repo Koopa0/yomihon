@@ -634,11 +634,18 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 		t.Errorf("the first lesson of the course offers a step back")
 	}
 	// The order's name is printed for every reader, not spoken only to
-	// assistive technology, and each link says it hands over a lesson.
+	// assistive technology, and each link says it hands over a lesson. The role
+	// is the words and then the direction arrow in a span of its own; the same
+	// two literals are what a folder's foot is later refused, so the pattern
+	// refused is one this page has been seen to print.
+	const (
+		prevCourseRole = `<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一課</span>`
+		nextCourseRole = `<span class="y-steps__role">下一課 <span class="y-steps__dir" aria-hidden="true">→</span></span>`
+	)
 	for _, want := range []string{
 		`aria-label="Go course 從此步往下"`,
 		`<p class="y-steps__source">Go course 從此步往下</p>`,
-		`<span class="y-steps__role">下一課</span>`,
+		nextCourseRole,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the step does not name the order it walks: missing %q", want)
@@ -664,7 +671,7 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	for _, want := range []string{
 		`href="/notes/Diary/2026-08-02%E8%AA%B2%E7%A8%8B%E7%AD%86%E8%A8%98.md" rel="next"`,
 		`<p class="y-steps__source">同資料夾的前後檔案</p>`,
-		`<span class="y-steps__role">下一份</span>`,
+		`<span class="y-steps__role">下一份 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("an entry no course teaches lost its folder line: missing %q", want)
@@ -676,8 +683,8 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	// called 課程筆記 must not read as the footer borrowing course words.
 	foot := stepsBlock(t, body)
 	for _, forbidden := range []string{
-		`<span class="y-steps__role">上一課</span>`,
-		`<span class="y-steps__role">下一課</span>`,
+		prevCourseRole,
+		nextCourseRole,
 		`<p class="y-steps__source">Go course 從此步往下</p>`,
 		`aria-label="Go course 從此步往下"`,
 	} {

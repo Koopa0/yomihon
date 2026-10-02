@@ -13,7 +13,8 @@ import (
 
 // TestThoughtDoorsStayInsideTheirPlaces locks the two places the doors live:
 // each heading of the contents list is one row that carries its own section
-// door, and the page-level door stands in the head's actions before the seam.
+// door, and the page-level door stands in the head's actions, before the prose
+// begins.
 // Every door is asserted against literal bytes, not the constants that draw it.
 func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 	t.Parallel()
@@ -75,23 +76,25 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 				t.Errorf("section doors = %d, rows = %d; a door outside a row makes a second row", got, len(rows))
 			}
 
-			seam := strings.Index(page, `class="y-seam"`)
+			// The head ends where the prose begins, so the prose's own opening is
+			// the end-of-head anchor: a door written after it is in the body.
+			prose := strings.Index(page, `<div class="y-prose">`)
 			detail := strings.Index(page, `class="y-metarow__detail"`)
 			headmeta := strings.Index(page, `class="y-headmeta"`)
-			if detail < 0 || detail >= headmeta || headmeta >= seam {
-				t.Fatalf("detail block at %d, headmeta block at %d, seam at %d; want all drawn in that order", detail, headmeta, seam)
+			if detail < 0 || detail >= headmeta || headmeta >= prose {
+				t.Fatalf("detail block at %d, headmeta block at %d, prose at %d; want all drawn in that order", detail, headmeta, prose)
 			}
 			const pageDoor = `href="/thought/Notes/Probe.md"`
 			if got := strings.Count(page, pageDoor); got != 2 {
 				t.Errorf("page doors = %d, want 2 (one per head block)", got)
 			}
-			if got := strings.Count(page[:seam], pageDoor); got != 2 {
-				t.Errorf("page doors before the seam = %d, want 2", got)
+			if got := strings.Count(page[:prose], pageDoor); got != 2 {
+				t.Errorf("page doors before the prose = %d, want 2", got)
 			}
 			if got := strings.Count(page[detail:headmeta], pageDoor); got != 1 {
 				t.Errorf("page doors in the y-metarow__detail block = %d, want 1", got)
 			}
-			if got := strings.Count(page[headmeta:seam], pageDoor); got != 1 {
+			if got := strings.Count(page[headmeta:prose], pageDoor); got != 1 {
 				t.Errorf("page doors in the y-headmeta block = %d, want 1", got)
 			}
 			if !strings.Contains(page, `class="y-metarow__raw" lang="`+tc.lang.Tag()+`" href="/thought/Notes/Probe.md">`+tc.page+`</a>`) {
