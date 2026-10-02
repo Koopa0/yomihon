@@ -1,6 +1,9 @@
 package schema
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestArticleLanguageDeclared(t *testing.T) {
 	t.Parallel()
@@ -68,6 +71,17 @@ func TestArticleLanguageResolve(t *testing.T) {
 		{name: "repeated separator", frontmatter: map[string]any{"lang": "ja--JP"}, want: "", wantErr: true},
 		{name: "non ASCII", frontmatter: map[string]any{"lang": "日本語"}, want: "", wantErr: true},
 		{name: "control", frontmatter: map[string]any{"lang": "ja\nJP"}, want: "", wantErr: true},
+		{name: "repeated singleton", frontmatter: map[string]any{"lang": "en-u-ca-u-nu"}, want: "", wantErr: true},
+		{name: "repeated singleton in mixed case", frontmatter: map[string]any{"lang": "en-U-ca-u-nu"}, want: "", wantErr: true},
+		// x/text accepts this tag and canonicalizes it to "aa-u-aa-u-100-000",
+		// which it canonicalizes again to "aa-u-aa-u-000-100".
+		{name: "repeated singleton with unstable canonical form", frontmatter: map[string]any{"lang": "AA-u-AA-AA-u-100-000"}, want: "", wantErr: true},
+		{name: "distinct singletons", frontmatter: map[string]any{"lang": "en-a-bbb-u-ca"}, want: "en-a-bbb-u-ca"},
+		// After x- every subtag is private-use text, so a subtag spelled like a
+		// singleton may repeat.
+		{name: "singleton repeated inside private use", frontmatter: map[string]any{"lang": "en-x-u-u"}, want: "en-x-u-u"},
+		{name: "singleton repeated inside private use in capitals", frontmatter: map[string]any{"lang": "en-X-U-u"}, want: "en-x-u-u"},
+		{name: "private use only", frontmatter: map[string]any{"lang": "x-private"}, want: "x-private"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -78,6 +92,22 @@ func TestArticleLanguageResolve(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("Resolve() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseLanguageTagNamesRepeatedSingleton(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{"en-u-ca-u-nu", "en-U-ca-u-nu", "AA-u-AA-AA-u-100-000"} {
+		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+			got, err := ParseLanguageTag(raw)
+			if err == nil {
+				t.Fatalf("ParseLanguageTag(%q) = %q, want an error", raw, got)
+			}
+			if want := `singleton "u" appears more than once`; !strings.Contains(err.Error(), want) {
+				t.Errorf("ParseLanguageTag(%q) error = %q, want it to say %q", raw, err, want)
 			}
 		})
 	}
