@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -24,19 +26,20 @@ import (
 func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 	t.Parallel()
 
-	// Two rules are answered somewhere other than a note page's own words, so
-	// a sentence here for either would be one nothing ever renders.
+	// Only the folder finding is outside the note page's wording surface.
 	saidElsewhere := map[string]string{
 		// Reached from the scan rather than from any note's frontmatter, so no
 		// note page can be asked to say it.
 		"schema.unmatched_knowledge_dir": "it is about the folder rather than a note",
-		// The panel that would carry it is not rendered at all when the
-		// frontmatter cannot be read, and the page says so through the surface
-		// that also carries the parser's own account of what failed.
-		"schema.frontmatter": "the note's conditions face already says it, with more detail",
 	}
 
-	checked := 0
+	var expected, checked []string
+	for _, ruleID := range ruleIDs {
+		id := string(ruleID)
+		if strings.HasPrefix(id, "schema.") && id != "schema.unmatched_knowledge_dir" {
+			expected = append(expected, id)
+		}
+	}
 	for _, ruleID := range ruleIDs {
 		id := string(ruleID)
 		if !strings.HasPrefix(id, "schema.") {
@@ -61,10 +64,10 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 				}
 			}
 		})
-		checked++
+		checked = append(checked, id)
 	}
-	if checked < 8 {
-		t.Errorf("only %d schema rules were checked; the registry scan found too few to prove anything", checked)
+	if diff := cmp.Diff(expected, checked); diff != "" {
+		t.Errorf("schema wording coverage omitted registered note rules (-registry +checked):\n%s", diff)
 	}
 }
 
