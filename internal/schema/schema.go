@@ -108,6 +108,7 @@ type Contract struct {
 	statusGroupByType map[string]string
 	statusesByGroup   map[string][]string
 	stageByTypeStatus map[lifecycleKey]Stage
+	settlement        Settlement
 }
 
 // Definition is a detached copy of the contract's declarative vocabulary and
@@ -186,6 +187,7 @@ type rawLifecycleStage struct {
 	Initial   *bool     `toml:"initial"`
 	From      *[]string `toml:"from"`
 	Owner     *[]string `toml:"owner"`
+	Settled   *bool     `toml:"settled"`
 }
 
 type lifecycleKey struct {
@@ -362,6 +364,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		return nil, err
 	}
 	foldDeclaredWords(contract, navigation)
+	contract.settlement = deriveSettlement(decoded.Lifecycle, contract.stages)
 	if err := validateContractSemantics(contract); err != nil {
 		return nil, err
 	}

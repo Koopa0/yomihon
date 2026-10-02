@@ -2341,6 +2341,24 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"Settled": func() string {
+			if c.Settled("ready") {
+				return "Settled() calls a status settled with no lifecycle behind it"
+			}
+			return ""
+		},
+		"DeclaresSettled": func() string {
+			if c.DeclaresSettled() {
+				return "DeclaresSettled() reports a declaration in a vault no contract governs"
+			}
+			return ""
+		},
+		"Settlement": func() string {
+			if got := c.Settlement(); got.Declared() || got.Settled("ready") {
+				return fmt.Sprintf("Settlement() = declared %v, ready settled %v, want neither: no contract declares anything here", got.Declared(), got.Settled("ready"))
+			}
+			return ""
+		},
 		"Transition": func() string {
 			if err := c.Transition("lesson", "draft", "ready"); !errors.Is(err, schema.ErrUnknownStatus) {
 				return fmt.Sprintf("Transition() error = %v, want one wrapping ErrUnknownStatus", err)
