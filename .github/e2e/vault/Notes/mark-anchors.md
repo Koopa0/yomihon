@@ -1,6 +1,8 @@
 ---
 title: Mark anchor bounds
-type: note
+type: lesson
+domain: golang
+slug: mark-anchor-bounds
 status: draft
 ---
 
