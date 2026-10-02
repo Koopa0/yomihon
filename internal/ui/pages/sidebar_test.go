@@ -848,20 +848,25 @@ func TestNewSidebarNoCurrentNote(t *testing.T) {
 // window, so the same response printed the new status twice and the old one
 // once, for one note, with nothing to say which was current.
 //
-// The repair is to drop the third copy rather than to synchronise it. A reader
-// standing on a note is already told its status by the faces that read it
-// live; a rail badge repeating an older answer beside them adds no fact and
-// can only disagree. Every other row keeps its badge — there the generation's
-// answer is the only one on offer and contradicts nothing.
+// The repair is to keep the third copy from showing rather than to synchronise
+// it. A reader standing on a note is already told its status by the faces that
+// read it live; a rail badge repeating an older answer beside them adds no
+// fact and can only disagree. Every other row keeps its badge — there the
+// generation's answer is the only one on offer and contradicts nothing.
+//
+// The current row's badge is drawn but reserved, which the stylesheet hides
+// while keeping its room. Leaving it out instead made the row's name wrap in a
+// different place on the note being read than on the lessons beside it.
 func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 	t.Parallel()
 	const current = "Writing/lessons/japanese/L01.md"
 	const other = "Writing/lessons/japanese/L02.md"
 	sb := Sidebar{CurrentPath: current}
 
-	// Both row renderers, because the rail draws the same badge twice: study
-	// path rows and map branch rows are separate templates over separate
-	// types, and fixing one leaves the other saying the thing this test forbids.
+	// Every row renderer, because the rail draws the same badge three times:
+	// study path rows, map branch rows and the book's rows are separate
+	// templates over separate types, and fixing one leaves the others saying
+	// the thing this test forbids.
 	rows := map[string]func(string) string{
 		"study path row": func(rel string) string {
 			t.Helper()
@@ -881,19 +886,37 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 			}
 			return buf.String()
 		},
+		"book row": func(rel string) string {
+			t.Helper()
+			var buf bytes.Buffer
+			entry := PathEntryView{Kind: nav.EntryResolved, RelPath: rel, Href: "/notes/" + rel, Name: "L", Status: "draft", Here: rel == current}
+			if err := bookRailEntry(layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render %s: %v", rel, err)
+			}
+			return buf.String()
+		},
 	}
 
+	const badge = `<span class="ui-navitem__count">draft</span>`
+	const reserved = `<span class="ui-navitem__count ui-navitem__count--reserved">draft</span>`
 	for name, render := range rows {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if got := render(current); strings.Contains(got, "draft") {
-				t.Errorf("the rail repeats the current note's status beside the faces that read it live:\n%s", got)
+			currentRow := render(current)
+			if !strings.Contains(currentRow, reserved) {
+				t.Errorf("the current note's row does not carry its badge as the reserved, hidden one, so the rail either repeats the status beside the faces that read it live or lets the name wrap differently here:\n%s", currentRow)
+			}
+			if strings.Contains(currentRow, badge) {
+				t.Errorf("the current note's row shows a badge the stylesheet does not hide:\n%s", currentRow)
 			}
 			otherRow := render(other)
-			if !strings.Contains(otherRow, "draft") {
+			if !strings.Contains(otherRow, badge) {
 				t.Errorf("a row that is not the current note lost the only status answer it had:\n%s", otherRow)
 			}
-			if !strings.Contains(render(current), "ui-navitem") {
+			if strings.Contains(otherRow, "--reserved") {
+				t.Errorf("a row that is not the current note has its badge hidden:\n%s", otherRow)
+			}
+			if !strings.Contains(currentRow, "ui-navitem") {
 				t.Error("the current note's row stopped rendering entirely")
 			}
 		})

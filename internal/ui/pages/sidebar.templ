@@ -215,10 +215,13 @@ templ pathGroupItems(sb Sidebar, c layouts.Chrome, pathRel string, chain []strin
 // names its lessons before they are written, so a row for an unwritten one is
 // the ordinary state of a course being taught rather than a fault in it.
 //
-// Neither this row nor a map's carries a status badge for the note being read.
+// Neither this row nor a map's shows a status badge for the note being read.
 // The page already states that status twice from a live read of the note's own
 // line, and the generation republishes on its own cadence, so a third copy
-// would disagree with both right after a transition.
+// would disagree with both right after a transition. The badge is still drawn,
+// hidden, because a row without it is wider for its name: the name wrapped in a
+// different place on the note being read than on the lessons beside it, and the
+// rows moved by a line each time the reader went from one to the next.
 templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 	if entry.Kind == nav.EntryResolved {
 		<a
@@ -228,8 +231,8 @@ templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
-			if entry.Status != "" && !sb.current(entry.RelPath) {
-				<span class="ui-navitem__count">{ entry.Status }</span>
+			if entry.Status != "" {
+				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ entry.Status }</span>
 			}
 		</a>
 	} else {
@@ -279,8 +282,8 @@ templ entryLink(sb Sidebar, c layouts.Chrome, entry nav.MapEntry) {
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
-			if entry.Status != "" && !sb.current(entry.RelPath) {
-				<span class="ui-navitem__count">{ entry.Status }</span>
+			if entry.Status != "" {
+				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ entry.Status }</span>
 			}
 		</a>
 	} else {
