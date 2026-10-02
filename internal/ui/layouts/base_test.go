@@ -43,7 +43,9 @@ func TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly(t *testing.T) {
 	}
 	html := buf.String()
 	const entry = `<script nonce="response-nonce" type="module" src="/static/yomihon.js"></script>`
-	const mark = `<script nonce="response-nonce">document.documentElement.dataset.js = 'on';</script>`
+	// The statement stands on its own line because that is how templ fmt lays
+	// out a script element, and the format check keeps it so.
+	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\tdocument.documentElement.dataset.js = \"on\";\n\t\t\t</script>"
 	if got := strings.Count(html, entry); got != 1 {
 		t.Errorf("Base() module entries = %d, want 1 exact %q; html = %q", got, entry, html)
 	}

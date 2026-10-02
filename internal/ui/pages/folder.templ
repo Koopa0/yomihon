@@ -20,7 +20,7 @@ templ Folder(v FolderView, c layouts.Chrome) {
 						<div class="y-crumbs">
 							for i, crumb := range v.Crumbs {
 								if i > 0 {
-									<span class="y-crumbs__sep" aria-hidden="true">·</span>
+									<span class="y-crumbs__sep" aria-hidden="true">/</span>
 								}
 								<a class="y-crumbs__link" href={ templ.URL(folderHref(crumb.RelPath)) }>{ crumb.Name }</a>
 							}

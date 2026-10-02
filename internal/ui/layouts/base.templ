@@ -36,7 +36,9 @@ templ Base(c Chrome) {
 			// the mark here, before the first style, lays the page out as it will
 			// stay. A browser with scripting off never runs this and keeps the
 			// unscripted layout.
-			<script nonce={ c.Nonce }>document.documentElement.dataset.js = 'on';</script>
+			<script nonce={ c.Nonce }>
+				document.documentElement.dataset.js = "on";
+			</script>
 			// Every page change is a whole new document, and a browser may paint
 			// the header and the rail before the column they frame has arrived,
 			// which reads as an empty column for a frame. This holds the first
@@ -108,8 +110,6 @@ templ header(c Chrome) {
 		<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
 			<span class="y-rubybtn__label y-rubybtn__label--long" aria-hidden="true">{ wording.FuriganaLabel.In(c.Lang) }</span>
 			<span class="y-rubybtn__label y-rubybtn__label--short" aria-hidden="true">{ wording.FuriganaLabelShort.In(c.Lang) }</span>
-			<span class="y-rubybtn__on">{ wording.On.In(c.Lang) }</span>
-			<span class="y-rubybtn__off">{ wording.Off.In(c.Lang) }</span>
 		</button>
 		// Six of the row's controls are somewhere to go or something to set
 		// rather than anything about the note in front of the reader. Below the

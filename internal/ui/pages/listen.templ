@@ -21,7 +21,6 @@ templ Listen(v ListenView, c layouts.Chrome) {
 					<a class="y-syl-read" href={ templ.URL(v.PathHref) }>
 						{ wording.ListenBackToCourse.In(c.Lang) }<span aria-hidden="true">→</span>
 					</a>
-					<div class="y-seam" aria-hidden="true"></div>
 					if len(v.Lessons) == 0 {
 						<p class="y-listen__none">{ wording.ListenNothingMarked.In(c.Lang) }</p>
 					} else {
