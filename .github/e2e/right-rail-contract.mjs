@@ -4,7 +4,8 @@
 // holds the order the reader meets them in: the note's own shape, then the
 // sources it declared, then what leads to it from the text of other notes, and
 // the ruling last — a small verb beside the reading rather than the frame
-// around it.
+// around it. Both rails sit against the window's edges however wide the window
+// is, and the right rail's text ends where the header's last control ends.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the long-TOC diagnostic fixture), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -15,7 +16,8 @@ const MUTATE = process.env.MUTATE || '';
 const SITE = 'rail-content-reachable';
 const ORDER_SITE = 'reading-precedes-the-ruling';
 const DOOR_SITE = 'contents-door-shares-its-row';
-const SITES = [SITE, ORDER_SITE, DOOR_SITE];
+const EDGE_SITE = 'rails-sit-at-the-window-edges';
+const SITES = [SITE, ORDER_SITE, DOOR_SITE, EDGE_SITE];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -29,6 +31,7 @@ class NotApplied extends Error {}
 const fail = (message) => { throw new LockFired(SITE, `FAIL right-rail-contract: ${message}`); };
 const failOrder = (message) => { throw new LockFired(ORDER_SITE, `FAIL right-rail-contract: ${message}`); };
 const failDoor = (message) => { throw new LockFired(DOOR_SITE, `FAIL right-rail-contract: ${message}`); };
+const failEdge = (message) => { throw new LockFired(EDGE_SITE, `FAIL right-rail-contract: ${message}`); };
 const broken = (message) => { throw new ProbeBroken(`BROKEN right-rail-contract: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED right-rail-contract: ${message}`); };
 
@@ -93,6 +96,19 @@ const reserveDoorStrip = async (page) => {
   return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page');
 };
 
+// Appends one rule to the product's own stylesheet. Each mutation of the rails'
+// place is a single rule that puts back what the layout stopped doing.
+const appendRule = (rule) => async (page) => {
+  let seen = 0;
+  await page.route('**/static/app.css', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    seen += 1;
+    await route.fulfill({ response, body: `${original}\n${rule}\n` });
+  });
+  return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page');
+};
+
 // The fixture's contract names no answer type, so its pages draw no thought
 // doors, and naming one would change the outline every other probe counts and
 // walks. The rows are the product's own, one per heading; each is given the
@@ -124,6 +140,18 @@ const MUTATIONS = {
   'put-the-ruling-first': {
     target: ORDER_SITE,
     apply: rulingFirst,
+  },
+  'centre-the-shell-again': {
+    target: EDGE_SITE,
+    apply: appendRule('.y-shell{margin-inline:auto;max-width:1280px}'),
+  },
+  'leave-the-right-rail-short-of-the-edge': {
+    target: EDGE_SITE,
+    apply: appendRule('.y-shell{padding-right:80px}'),
+  },
+  'pad-the-rail-past-the-header': {
+    target: EDGE_SITE,
+    apply: appendRule('.y-rail-right{padding-right:24px}'),
   },
 };
 
@@ -401,7 +429,53 @@ try {
     await phone.close();
   }
 
-  console.log('PASS right-rail-contract: the reading leads and the ruling closes the rail, every block stays reachable at 1600×768 and 1600×900, and each contents row holds its own door');
+  // Case: the rails are the window's edges. In a window wider than the three
+  // columns want, the left rail starts at the window's left side, the right rail
+  // ends at its right side, and what the right rail holds ends as far from that
+  // side as the header's last control does from it, so the two read as one line
+  // down the page. Measured at a width where a capped, centred shell would stand
+  // well in from both sides.
+  {
+    const wide = await browser.newContext({ viewport: { width: 1920, height: 900 } });
+    const page = await wide.newPage();
+    const proof = MUTATE && MUTATIONS[MUTATE].target === EDGE_SITE ? await MUTATIONS[MUTATE].apply(page) : null;
+    await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => document.fonts.ready);
+    if (proof) {
+      const issue = proof();
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
+    }
+    const edges = await page.evaluate(() => {
+      const left = document.querySelector('.y-rail-left');
+      const right = document.querySelector('.y-rail-right');
+      if (!left || !right || getComputedStyle(right).display === 'none') return null;
+      const viewport = document.documentElement.clientWidth;
+      const controls = [...document.querySelectorAll('.y-header a, .y-header button')]
+        .filter((element) => element.getClientRects().length > 0)
+        .map((element) => element.getBoundingClientRect().right);
+      const rail = right.getBoundingClientRect();
+      return {
+        viewport,
+        leftRailStart: left.getBoundingClientRect().left,
+        rightRailEnd: rail.right,
+        railTextEndFromEdge: viewport - (rail.right - parseFloat(getComputedStyle(right).paddingRight)),
+        headerEndFromEdge: viewport - Math.max(...controls),
+      };
+    });
+    if (!edges) broken(`${PAGE} draws no pair of rails at 1920 wide`);
+    if (Math.abs(edges.leftRailStart) > 0.5) {
+      failEdge(`the left rail starts ${edges.leftRailStart}px from the window's left side at 1920 wide, want 0: ${JSON.stringify(edges)}`);
+    }
+    if (Math.abs(edges.viewport - edges.rightRailEnd) > 0.5) {
+      failEdge(`the right rail ends ${edges.viewport - edges.rightRailEnd}px short of the window's right side at 1920 wide, want 0: ${JSON.stringify(edges)}`);
+    }
+    if (Math.abs(edges.railTextEndFromEdge - edges.headerEndFromEdge) > 0.5) {
+      failEdge(`the right rail's text ends ${edges.railTextEndFromEdge}px from the window's right side and the header's last control ${edges.headerEndFromEdge}px: ${JSON.stringify(edges)}`);
+    }
+    await wide.close();
+  }
+
+  console.log('PASS right-rail-contract: the reading leads and the ruling closes the rail, every block stays reachable at 1600×768 and 1600×900, each contents row holds its own door, and both rails stand against the window\'s edges at 1920');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
