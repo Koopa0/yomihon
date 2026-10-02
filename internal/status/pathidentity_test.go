@@ -10,8 +10,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestHandlerWritesOnlyTheNoteTheFormNamed holds the submitted path to the
@@ -104,7 +102,7 @@ func TestHandlerWritesOnlyTheNoteTheFormNamed(t *testing.T) {
 			code, _, _ := postStatus(t, srv, url.Values{
 				"path":             {tc.postPath},
 				"from":             {"draft"},
-				"to":               {schema.SealStatus},
+				"to":               {"ready"},
 				"content_identity": {formIdentity(body)},
 			})
 			if code != tc.wantCode {
@@ -136,14 +134,14 @@ func TestHandlerWritesANoteWhoseNameHoldsASpace(t *testing.T) {
 	code, _, _ := postStatus(t, srv, url.Values{
 		"path":             {spaced},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {formIdentity(body)},
 	})
 	if code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want %d", code, http.StatusSeeOther)
 	}
 	got := readVaultFile(t, root, spaced)
-	if !strings.Contains(got, "status: "+schema.SealStatus) {
+	if !strings.Contains(got, "status: ready") {
 		t.Errorf("the note named with a space was not the one written:\n%s", got)
 	}
 	assertVaultFileUnchanged(t, root, neighbour, body)
@@ -165,17 +163,17 @@ func TestHandlerReadsTheOtherFormFieldsAsSubmitted(t *testing.T) {
 	}{
 		{
 			name:     "a padded from is not the status the note carries",
-			form:     url.Values{"from": {" draft"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(body)}},
+			form:     url.Values{"from": {" draft"}, "to": {"ready"}, "content_identity": {formIdentity(body)}},
 			wantCode: http.StatusConflict,
 		},
 		{
 			name:     "a padded to is not a status the contract spells",
-			form:     url.Values{"from": {"draft"}, "to": {schema.SealStatus + " "}, "content_identity": {formIdentity(body)}},
+			form:     url.Values{"from": {"draft"}, "to": {"ready "}, "content_identity": {formIdentity(body)}},
 			wantCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:     "a padded identity is not an identity",
-			form:     url.Values{"from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {" " + formIdentity(body)}},
+			form:     url.Values{"from": {"draft"}, "to": {"ready"}, "content_identity": {" " + formIdentity(body)}},
 			wantCode: http.StatusUnprocessableEntity,
 		},
 	} {

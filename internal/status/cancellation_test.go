@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/koopa0/yomihon/internal/schema"
 )
 
 const heldRel = "Writing/lessons/japanese/Held.md"
@@ -46,7 +44,7 @@ func TestTheTwoRequestEntryPointsAnswerAGoneReaderRatherThanQueue(t *testing.T) 
 	parkedErr := make(chan error, 1)
 	var parked sync.WaitGroup
 	parked.Go(func() {
-		parkedErr <- writer.flip(t.Context(), heldRel, "draft", schema.SealStatus, internalLessonIdentity(),
+		parkedErr <- writer.flip(t.Context(), heldRel, "draft", "ready", internalLessonIdentity(),
 			flipHooks{afterLock: func() {
 				close(held)
 				<-release
@@ -71,7 +69,7 @@ func TestTheTwoRequestEntryPointsAnswerAGoneReaderRatherThanQueue(t *testing.T) 
 		{
 			name: "a flip",
 			call: func(ctx context.Context) error {
-				return writer.Flip(ctx, heldRel, "draft", schema.SealStatus, internalLessonIdentity())
+				return writer.Flip(ctx, heldRel, "draft", "ready", internalLessonIdentity())
 			},
 		},
 		{
@@ -172,7 +170,7 @@ func TestAuthorityAnswersBesideAFlipAndACloseWithoutRacing(t *testing.T) {
 		// Which of the flip and the close reaches the lock first is not this
 		// test's business, so a flip that finds the face already gone is one
 		// of the two right answers.
-		if err := writer.Flip(t.Context(), heldRel, "draft", schema.SealStatus, internalLessonIdentity()); err != nil &&
+		if err := writer.Flip(t.Context(), heldRel, "draft", "ready", internalLessonIdentity()); err != nil &&
 			!errors.Is(err, ErrClosed) {
 			t.Errorf("Flip() beside concurrent Authority reads = %v", err)
 		}

@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
-
-	"github.com/koopa0/yomihon/internal/schema"
 )
 
 func TestXattrIgnorableCoversListFailures(t *testing.T) {
@@ -91,7 +89,7 @@ func TestFlipProceedsWhenListingXattrsIsForbidden(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	listed := false
-	err := writer.flip(t.Context(), rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
+	err := writer.flip(t.Context(), rel, "draft", "ready", internalLessonIdentity(), flipHooks{
 		listXattrs: func(int) ([]string, error) {
 			listed = true
 			return nil, unix.EPERM
@@ -103,7 +101,7 @@ func TestFlipProceedsWhenListingXattrsIsForbidden(t *testing.T) {
 	if !listed {
 		t.Fatal("Flistxattr was not consulted")
 	}
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(original, "status: draft", "status: ready", 1)
 	got, readErr := os.ReadFile(path) // #nosec G304 -- path is a fixed name under t.TempDir
 	if readErr != nil {
 		t.Fatalf("read note: %v", readErr)
@@ -130,7 +128,7 @@ func TestFlipRefusesWhenListingXattrsFailsUnexpectedly(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	listed := false
-	err := writer.flip(t.Context(), rel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
+	err := writer.flip(t.Context(), rel, "draft", "ready", internalLessonIdentity(), flipHooks{
 		listXattrs: func(int) ([]string, error) {
 			listed = true
 			return nil, unix.EIO
@@ -205,7 +203,7 @@ func TestFlipRefusesWhenAttributesMoveWhileReplacing(t *testing.T) {
 			before := noteModTime(t, path)
 
 			moved := false
-			err := writer.flip(t.Context(), rel, "draft", schema.SealStatus, internalLessonIdentity(), tt.hooks(func() {
+			err := writer.flip(t.Context(), rel, "draft", "ready", internalLessonIdentity(), tt.hooks(func() {
 				moved = true
 				setXattr(t, path, attrName, newTag)
 				// A tag move that also moved the mtime would be refused by the
@@ -230,7 +228,7 @@ func TestFlipRefusesWhenAttributesMoveWhileReplacing(t *testing.T) {
 			}
 			want := original
 			if tt.wantErr == nil {
-				want = strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+				want = strings.Replace(original, "status: draft", "status: ready", 1)
 			}
 			got, readErr := os.ReadFile(path) // #nosec G304 -- path is a fixed name under t.TempDir
 			if readErr != nil {

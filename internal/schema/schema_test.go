@@ -1834,14 +1834,6 @@ func TestCapabilitiesExposeNoMutableBackingCollections(t *testing.T) {
 	}
 }
 
-func TestSealStatusPinned(t *testing.T) {
-	t.Parallel()
-
-	if got := schema.SealStatus; got != "ready" {
-		t.Errorf("SealStatus = %q, want %q", got, "ready")
-	}
-}
-
 func TestSystemDocumentGroupPinned(t *testing.T) {
 	t.Parallel()
 
@@ -2338,6 +2330,24 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"DeclaresInitial": func() string {
 			if c.DeclaresInitial("lesson", "draft") {
 				return "DeclaresInitial() assigns an explicit initial state without a contract"
+			}
+			return ""
+		},
+		"Settled": func() string {
+			if c.Settled("ready") {
+				return "Settled() calls a status settled with no lifecycle behind it"
+			}
+			return ""
+		},
+		"DeclaresSettled": func() string {
+			if c.DeclaresSettled() {
+				return "DeclaresSettled() reports a declaration in a vault no contract governs"
+			}
+			return ""
+		},
+		"Settlement": func() string {
+			if got := c.Settlement(); got.Declared() || got.Settled("ready") {
+				return fmt.Sprintf("Settlement() = declared %v, ready settled %v, want neither: no contract declares anything here", got.Declared(), got.Settled("ready"))
 			}
 			return ""
 		},

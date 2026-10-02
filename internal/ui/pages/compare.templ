@@ -78,7 +78,7 @@ templ compareColumn(v NoteView, anchor string, lang wording.Lang) {
 		<div class="y-compare__head" lang={ lang.Tag() }>
 			<a class="y-compare__alone" href={ templ.URL(notesHref(v.RelPath)) }>{ wording.CompareOpenAlone.In(lang) }</a>
 			if v.Status != "" {
-				<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+				<span class="ui-status">{ v.Status }</span>
 			}
 		</div>
 		@noteArticle(v, lang)

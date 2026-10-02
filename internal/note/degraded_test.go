@@ -216,10 +216,10 @@ func TestStatusFaceReadsTheFileNotTheGeneration(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET %s status = %d, want %d", rel, code, http.StatusOK)
 	}
-	if !strings.Contains(page, "ui-status--growing") {
+	if !strings.Contains(page, `<span class="ui-status">growing</span>`) {
 		t.Error("the status face does not show the status the file itself carries")
 	}
-	if strings.Contains(page, "ui-status--seedling") {
+	if strings.Contains(page, `<span class="ui-status">seedling</span>`) {
 		t.Error("the status face shows the generation's copy, which a transition would be built from")
 	}
 }

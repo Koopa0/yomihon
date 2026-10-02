@@ -41,7 +41,7 @@ func capturedModel(
 	resolver *graph.Index,
 ) *Model {
 	t.Helper()
-	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir(), testContract(t).ArticleLanguage(), testContract(t).AuthoredDate())
+	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir(), testContract(t).ArticleLanguage(), testContract(t).AuthoredDate(), testContract(t).Settlement())
 }
 
 func capturedModelWithJournal(
@@ -54,6 +54,7 @@ func capturedModelWithJournal(
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
 	dated schema.AuthoredDate,
+	settlement schema.Settlement,
 ) *Model {
 	t.Helper()
 	reader, err := vault.Open(root)
@@ -89,7 +90,7 @@ func capturedModelWithJournal(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated)
+	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated, settlement)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -192,6 +193,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		testContract(t).JournalDir(),
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
+		testContract(t).Settlement(),
 	)
 
 	modified := make(map[string]time.Time)
@@ -274,6 +276,7 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		testContract(t).JournalDir(),
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
+		testContract(t).Settlement(),
 	)
 	want := []NoteSummary{{
 		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
@@ -719,7 +722,7 @@ func TestJournalShelfFollowsTheDeclaredDirectory(t *testing.T) {
 
 	t.Run("undeclared", func(t *testing.T) {
 		t.Parallel()
-		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{}, schema.ArticleLanguage{}, schema.AuthoredDate{})
+		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{}, schema.ArticleLanguage{}, schema.AuthoredDate{}, schema.Settlement{})
 		if len(model.Journal()) != 0 {
 			t.Errorf("undeclared Journal = %v, want empty", model.Journal())
 		}
@@ -842,7 +845,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 	idx := resolver(t, "L/Entry A.md", "L/Entry B.md", "L/Entry C.md")
 	statusByPath := map[string]string{
 		"L/Entry A.md": "draft",
-		"L/Entry B.md": schema.SealStatus,
+		"L/Entry B.md": "ready",
 		// Entry C intentionally absent -> empty status badge.
 	}
 
@@ -871,7 +874,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 			Heading: "Data and the Hardware",
 			Level:   2,
 			Entries: []MapEntry{
-				{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
+				{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: "ready"},
 			},
 			Subbranches: []Branch{
 				{
@@ -879,7 +882,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 					Level:   3,
 					Entries: []MapEntry{
 						{Name: "Entry A", Target: "Entry A", RelPath: "L/Entry A.md", Status: "draft"},
-						{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: schema.SealStatus},
+						{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: "ready"},
 					},
 				},
 				{
@@ -921,7 +924,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		"jp/P01 Kana.md":  "draft",
 		"jp/L01 Intro.md": "draft",
 		"jp/L02 Next.md":  "draft",
-		"jp/L03 Verbs.md": schema.SealStatus,
+		"jp/L03 Verbs.md": "ready",
 	}
 
 	body := "# Doc Title (an H1, ignored)\n" +
@@ -991,7 +994,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 					Heading: "Verbs",
 					Level:   3,
 					Entries: []MapEntry{
-						{Name: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: schema.SealStatus},
+						{Name: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: "ready"},
 					},
 				},
 			},
@@ -1685,6 +1688,7 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 		schema.JournalDir{},
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
+		testContract(t).Settlement(),
 	)
 
 	gotRoot := fileRelPaths(model.RootNotes())

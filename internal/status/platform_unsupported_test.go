@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -43,7 +42,7 @@ func TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem(t *testing.T) {
 		t.Errorf("View().Transitions() = %v, want none on a platform without a durable install", got)
 	}
 
-	err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), testRel, "draft", "ready", [sha256.Size]byte{})
 	if !errors.Is(err, status.ErrDurabilityUnsupported) {
 		t.Fatalf("Flip() = %v, want %v before opening the target", err, status.ErrDurabilityUnsupported)
 	}
@@ -64,7 +63,7 @@ func TestUnsupportedPlatformPOSTIsAnUnchangedServiceRefusal(t *testing.T) {
 	code, location, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {wellFormedIdentity},
 	})
 	if code != http.StatusServiceUnavailable {

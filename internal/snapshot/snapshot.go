@@ -901,7 +901,7 @@ func buildGeneration(
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
-	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated)
+	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated, capabilities.Settlement)
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)

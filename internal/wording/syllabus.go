@@ -60,6 +60,12 @@ var (
 	ModuleTagFmt    = both("模組 %d", "Module %d")
 )
 
+// CourseUnsettledFmt is the one figure the course head gives beside the lesson
+// count: how many of those lessons are not at a status the contract settles. It
+// takes that count and says what is still to be finished, never how far a
+// reader has come, and the page draws nothing at all when no lesson is left.
+var CourseUnsettledFmt = both("其中 %d 課尚未定案", "%d not yet settled")
+
 // The syllabus's own rail.
 var (
 	StudyPathNav = both("學習路徑導覽", "Study path navigation")

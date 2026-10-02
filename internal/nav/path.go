@@ -23,10 +23,14 @@ type Path struct {
 	// or not, since a planned but unwritten lesson is still one of them.
 	// Nothing outside the projectable primary line counts here.
 	Planned int
-	// Ready is how many lessons sit at the reviewed status the contract names.
-	// It is not progress — a published lesson leaves it — and unlike Planned it
-	// counts every branch a surface draws, side branches included.
-	Ready int
+	// Unsettled is how many of the main line's lessons carry a status the
+	// contract does not declare settled: the lessons still to be finished. It
+	// counts out of the same lessons Planned counts, so it can never exceed
+	// it, and a lesson that reaches no note or states no status is not one of
+	// them. It is not progress — a lesson leaves it by being settled and
+	// returns to it by being reopened — and it is zero for a contract that
+	// declares no settled status at all, where every lesson would be one.
+	Unsettled int
 	// Diagnostics is everything the grammar left the author to decide, so a
 	// reading surface can tell a course that plans nothing from one whose
 	// structure could not be read.
@@ -151,9 +155,12 @@ type PathEntry struct {
 	// walk never reaches the row's branch. Line is a source location instead.
 	Number int
 
-	Kind       EntryKind
-	RelPath    string
-	Status     string
+	Kind    EntryKind
+	RelPath string
+	Status  string
+	// Settled is whether the contract declares Status settled, the resting
+	// state of a finished note, so a row shows no label for it.
+	Settled    bool
 	Language   string
 	Candidates []string
 }
@@ -185,7 +192,7 @@ func buildPath(
 	}
 	main, locals := projectStops(p.Groups)
 	p.Planned = main.planned
-	p.Ready = readyLessons(p.Groups)
+	p.Unsettled = main.unsettled
 	if len(main.stops) > 0 {
 		p.components = append(p.components, main.stops)
 	}
@@ -274,6 +281,7 @@ func buildPathEntry(
 		entry.RelPath = res.RelPath
 		known := facts[res.RelPath]
 		entry.Status = known.status
+		entry.Settled = known.settled
 		entry.Language = known.language
 		entry.Name = rowName(candidateLink(c), known.title)
 	}
@@ -313,10 +321,12 @@ func candidateLink(c *sequence.Candidate) sequence.Link {
 }
 
 // mainLine is the primary walk's result: how many lessons the course plans,
-// and the resolved stops a reader can actually open.
+// the resolved stops a reader can actually open, and how many of those are not
+// at a status the contract settles.
 type mainLine struct {
-	planned int
-	stops   []NoteRef
+	planned   int
+	unsettled int
+	stops     []NoteRef
 }
 
 // projectStops walks a path's groups in document order and separates what the
@@ -362,6 +372,9 @@ func (w *stopWalk) primary(g *PathGroup) {
 			item.Entry.Number = w.main.planned
 			if item.Entry.Openable() {
 				w.main.stops = append(w.main.stops, NoteRef{Name: item.Entry.Name, RelPath: item.Entry.RelPath, Language: item.Entry.Language})
+				if item.Entry.Status != "" && !item.Entry.Settled {
+					w.main.unsettled++
+				}
 			}
 		case item.Group != nil:
 			w.walk(item.Group)
@@ -396,29 +409,6 @@ func localStops(g *PathGroup) []NoteRef {
 		}
 	}
 	return stops
-}
-
-// readyLessons counts the lessons at the reviewed status across every branch a
-// surface draws, side branches included: a branch outside the course is drawn
-// by nobody and counted by nobody.
-func readyLessons(groups []*PathGroup) int {
-	n := 0
-	for _, g := range groups {
-		if !g.Drawn() {
-			continue
-		}
-		for _, item := range g.Items {
-			switch {
-			case item.Entry != nil:
-				if g.Teaches(item.Entry) && item.Entry.Kind == EntryResolved && item.Entry.Status == schema.SealStatus {
-					n++
-				}
-			case item.Group != nil:
-				n += readyLessons([]*PathGroup{item.Group})
-			}
-		}
-	}
-	return n
 }
 
 // pathPlacements records every projectable accepted, resolved entry of one path

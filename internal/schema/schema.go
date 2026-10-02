@@ -27,11 +27,6 @@ const (
 	ContractRelPath  = "System/schemas/vault-schema.toml"
 	supportedVersion = "1"
 
-	// SealStatus is the status of a note that has been reviewed and approved.
-	// It is pinned here rather than derived because no contract field singles
-	// the value out.
-	SealStatus = "ready"
-
 	// PublishedStatus records a completed publication outside the vault.
 	// Nothing here can attest one, so no control offers a transition to it and
 	// the write face refuses one; the value enters a note by hand.
@@ -108,6 +103,7 @@ type Contract struct {
 	statusGroupByType map[string]string
 	statusesByGroup   map[string][]string
 	stageByTypeStatus map[lifecycleKey]Stage
+	settlement        Settlement
 }
 
 // Definition is a detached copy of the contract's declarative vocabulary and
@@ -186,6 +182,7 @@ type rawLifecycleStage struct {
 	Initial   *bool     `toml:"initial"`
 	From      *[]string `toml:"from"`
 	Owner     *[]string `toml:"owner"`
+	Settled   *bool     `toml:"settled"`
 }
 
 type lifecycleKey struct {
@@ -362,6 +359,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		return nil, err
 	}
 	foldDeclaredWords(contract, navigation)
+	contract.settlement = deriveSettlement(decoded.Lifecycle, contract.stages)
 	if err := validateContractSemantics(contract); err != nil {
 		return nil, err
 	}

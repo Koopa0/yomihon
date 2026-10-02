@@ -244,6 +244,7 @@ func (v *NoteView) markOffer() *layouts.MarkOffer {
 		Path:     v.RelPath,
 		Identity: v.ContentIdentity,
 		Endpoint: v.MarkAddress,
+		Kept:     v.PlaceKept,
 	}
 }
 

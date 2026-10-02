@@ -343,12 +343,11 @@ func reportRawHref(name string) string {
 }
 
 // LifecycleItem is one row of the folder index's status distribution: a status
-// the contract declares, its live snapshot count, and whether it is the ready
-// accent's.
+// the contract declares and its live snapshot count. Every status is listed
+// here, settled or not, because the distribution is where each note is.
 type LifecycleItem struct {
-	Name   string
-	Count  int
-	Sealed bool
+	Name  string
+	Count int
 	// Unknown is set where no type carrying this status declares it, so the
 	// chip carries the note page's amber flag and stays a link.
 	Unknown bool

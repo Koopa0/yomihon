@@ -101,7 +101,7 @@ func loadModel(t *testing.T, root string) *nav.Model {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate())
+	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement())
 	return model
 }
 
@@ -448,7 +448,7 @@ func TestShowMarksTheLessonTheReaderCameFrom(t *testing.T) {
 			// The words beside every point stay the contract's whatever the
 			// mark does, so arriving from a lesson cannot turn the author's
 			// judgement of the material into a reading of the reader.
-			word := `<span class="ui-status ui-status--` + schema.SealStatus + `">` + schema.SealStatus + `</span>`
+			word := `<span class="ui-status">ready</span>`
 			if !strings.Contains(syllabusMain(t, body), word) {
 				t.Errorf("the course stopped printing the contract's own word beside a lesson; body = %q", body)
 			}

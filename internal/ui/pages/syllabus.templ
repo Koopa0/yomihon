@@ -36,8 +36,8 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 }
 
 // syllabusHead is the cover: the path kicker, the title, the map note's own
-// opening, the derived metarow (parts / modules / entries / ready), and the one
-// verb that opens the course. No path dek (subtitle) is rendered: there is no
+// opening, the derived metarow (parts / modules / lessons / how many are not yet
+// settled), and the one verb that opens the course. No path dek (subtitle) is rendered: there is no
 // backing field for it, and no data means no render — the same treatment the
 // reading page gives a note's subtitle.
 templ syllabusHead(v PathView, lang wording.Lang) {
@@ -60,12 +60,12 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 		}
 		<span aria-hidden="true">·</span>
 		<span>{ plural(v.Entries, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
-		<span class="y-syl-metaspacer"></span>
-		if v.Ready > 0 {
-			<span class="y-syl-ready">
-				<span class="y-navdot y-navdot--ready" aria-hidden="true"></span>
-				{ strconv.Itoa(v.Ready) } { v.SealTarget }
-			</span>
+		// The exception and not the rule: a course whose lessons are all settled
+		// says nothing here, and so does one whose contract settles no status,
+		// because the count would then be every lesson.
+		if v.Unsettled > 0 {
+			<span aria-hidden="true">·</span>
+			<span class="y-syl-unsettled" data-course-unsettled>{ fmt.Sprintf(wording.CourseUnsettledFmt.In(lang), v.Unsettled) }</span>
 		}
 	</div>
 	// The way to the note belongs to a path that has something to walk. On a
@@ -207,13 +207,24 @@ templ moduleHeadingContent(sec PathBranchView, lang wording.Lang) {
 // the location and not the page, because the page is the whole course. The
 // words beside the point are unchanged by it; where the reader stands is not a
 // claim about what they have finished.
+//
+// The status at the row's far end is the exception: a lesson at a settled
+// status prints none. The bookmark beside it is the reader's own, and marks the
+// one lesson they left off in.
 templ entryRow(l PathEntryView, lang wording.Lang) {
 	if l.Kind == nav.EntryResolved {
 		<a class={ "y-lesson", templ.KV("y-lesson--here", l.Here) } href={ templ.URL(l.Href) } { hereAttr(l.Here)... }>
-			<span class={ "y-navdot", templ.KV("y-navdot--ready", l.Sealed) } aria-hidden="true"></span>
+			<span class="y-navdot" aria-hidden="true"></span>
 			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
-			if l.Status != "" {
-				<span class={ "ui-status", "ui-status--" + l.Status }>{ l.Status }</span>
+			if l.Kept || l.labelled() {
+				<span class="y-lesson__aside">
+					if l.Kept {
+						@keptPlace(lang)
+					}
+					if l.labelled() {
+						<span class="ui-status">{ l.Status }</span>
+					}
+				</span>
 			}
 		</a>
 	} else {

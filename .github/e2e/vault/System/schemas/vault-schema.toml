@@ -65,3 +65,6 @@ status = "ready"
 applies_to = ["lesson"]
 from = ["draft"]
 owner = ["koopa"]
+# A reviewed lesson rests here, so the pages that print a status leave it
+# unmarked and mark only the lessons still at draft.
+settled = true

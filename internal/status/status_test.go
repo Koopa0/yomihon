@@ -342,7 +342,7 @@ func TestFlipRefusesSymlinkTarget(t *testing.T) {
 		t.Fatalf("symlink note: %v", err)
 	}
 
-	err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), testRel, "draft", "ready", [sha256.Size]byte{})
 	if err == nil {
 		t.Fatal("Flip(symlink) = nil, want refusal")
 	}
@@ -380,7 +380,7 @@ func TestFlipRefusesSymlinkDirectory(t *testing.T) {
 		t.Fatalf("symlink Writing: %v", err)
 	}
 
-	err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), testRel, "draft", "ready", [sha256.Size]byte{})
 	if err == nil {
 		t.Fatal("Flip(path through symlink directory) = nil, want refusal")
 	}
@@ -406,7 +406,7 @@ func TestFlipRefusesNonRegularTarget(t *testing.T) {
 		t.Fatalf("write directory marker: %v", err)
 	}
 
-	err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), testRel, "draft", "ready", [sha256.Size]byte{})
 	if err == nil {
 		t.Fatal("Flip(directory) = nil, want refusal")
 	}
@@ -442,7 +442,7 @@ func TestFlipClassifiesNonInstanceBeforeFilesystem(t *testing.T) {
 		t.Fatalf("write template note: %v", err)
 	}
 
-	err := writer.Flip(t.Context(), nonInstanceRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), nonInstanceRel, "draft", "ready", [sha256.Size]byte{})
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Fatalf("Flip(non-instance) = %v, want %v", err, status.ErrNonInstance)
 	}
@@ -454,11 +454,11 @@ func TestFlipClassifiesNonInstanceBeforeFilesystem(t *testing.T) {
 		t.Errorf("non-instance bytes changed (-want +got):\n%s", diff)
 	}
 
-	err = writer.Flip(t.Context(), "System/templates/Missing.md", "draft", schema.SealStatus, [sha256.Size]byte{})
+	err = writer.Flip(t.Context(), "System/templates/Missing.md", "draft", "ready", [sha256.Size]byte{})
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Errorf("Flip(nonexistent non-instance) = %v, want %v before stat", err, status.ErrNonInstance)
 	}
-	err = writer.Flip(t.Context(), "System/temporary/../templates/Normalized.md", "draft", schema.SealStatus, [sha256.Size]byte{})
+	err = writer.Flip(t.Context(), "System/temporary/../templates/Normalized.md", "draft", "ready", [sha256.Size]byte{})
 	if !errors.Is(err, status.ErrNonInstance) {
 		t.Errorf("Flip(normalized non-instance) = %v, want %v before stat", err, status.ErrNonInstance)
 	}
@@ -467,7 +467,7 @@ func TestFlipClassifiesNonInstanceBeforeFilesystem(t *testing.T) {
 	// not a path component, so the artifact match lets it through — and the
 	// knowledge layer, which the fixture draws around Writing, is what refuses
 	// it next. Two sentinels keep the two refusals apart.
-	err = writer.Flip(t.Context(), "System/templates-old/Missing.md", "draft", schema.SealStatus, [sha256.Size]byte{})
+	err = writer.Flip(t.Context(), "System/templates-old/Missing.md", "draft", "ready", [sha256.Size]byte{})
 	if errors.Is(err, status.ErrNonInstance) || !errors.Is(err, status.ErrOutsideKnowledgeScope) {
 		t.Errorf("Flip(component-boundary sibling) = %v, want %v rather than the non-instance gate", err, status.ErrOutsideKnowledgeScope)
 	}
@@ -494,7 +494,7 @@ func TestFlipRefusesADifferentlySpelledOnDiskName(t *testing.T) {
 		t.Skipf("this filesystem keeps the two spellings apart, so the bypass cannot arise here: %v", err)
 	}
 
-	err := writer.Flip(t.Context(), requestedRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), requestedRel, "draft", "ready", [sha256.Size]byte{})
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Flip(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, fs.ErrNotExist)
 	}
@@ -525,7 +525,7 @@ func TestFlipAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 		original := lessonContent("draft")
 		writeVaultFile(t, root, onDiskRel, original)
 
-		err := writer.Flip(t.Context(), requestedRel, "draft", schema.SealStatus, diskIdentity(original))
+		err := writer.Flip(t.Context(), requestedRel, "draft", "ready", diskIdentity(original))
 		if !errors.Is(err, fs.ErrNotExist) {
 			t.Fatalf("Flip(%q) against on-disk %q = %v, want %v", requestedRel, onDiskRel, err, fs.ErrNotExist)
 		}
@@ -553,7 +553,7 @@ func TestFlipAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 		original := lessonContent("draft")
 		writeVaultFile(t, root, onDiskRel, original)
 
-		err := writer.Flip(t.Context(), requestedRel, "draft", schema.SealStatus, diskIdentity(original))
+		err := writer.Flip(t.Context(), requestedRel, "draft", "ready", diskIdentity(original))
 		if err != nil {
 			t.Fatalf("Flip(%q) against on-disk %q = %v, want success", requestedRel, onDiskRel, err)
 		}
@@ -561,7 +561,7 @@ func TestFlipAgreesWithTheReaderAboutWhichNamesExist(t *testing.T) {
 		if readErr != nil {
 			t.Fatalf("read the on-disk file: %v", readErr)
 		}
-		if !strings.Contains(string(got), "status: "+schema.SealStatus) {
+		if !strings.Contains(string(got), "status: ready") {
 			t.Errorf("the NFD note was not flipped:\n%s", got)
 		}
 		nfdPath := filepath.Join(root, filepath.FromSlash(onDiskRel))
@@ -672,7 +672,7 @@ func TestFlipReportsAMissingNoteAsMissing(t *testing.T) {
 
 	writeNote(t, root, lessonContent("draft"))
 
-	err := writer.Flip(t.Context(), "Writing/lessons/japanese/Absent.md", "draft", schema.SealStatus, [sha256.Size]byte{})
+	err := writer.Flip(t.Context(), "Writing/lessons/japanese/Absent.md", "draft", "ready", [sha256.Size]byte{})
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Flip(missing note) = %v, want an error wrapping %v", err, fs.ErrNotExist)
 	}
@@ -728,7 +728,7 @@ func TestFlipRefusesNonInstancePaths(t *testing.T) {
 			if tt.request != "" {
 				request = tt.request
 			}
-			err := writer.Flip(t.Context(), request, "draft", schema.SealStatus, [sha256.Size]byte{})
+			err := writer.Flip(t.Context(), request, "draft", "ready", [sha256.Size]byte{})
 			if !errors.Is(err, status.ErrNonInstance) {
 				t.Fatalf("Flip(%q) = %v, want %v", request, err, status.ErrNonInstance)
 			}
@@ -747,7 +747,7 @@ func TestFlipValidatesPathBeforeClosure(t *testing.T) {
 	t.Parallel()
 	writer := newWriter(t, t.TempDir(), nil)
 	for _, rel := range []string{"", ".", "..", "../outside.md", "/absolute.md", `System\templates\T.md`} {
-		err := writer.Flip(t.Context(), rel, "draft", schema.SealStatus, [sha256.Size]byte{})
+		err := writer.Flip(t.Context(), rel, "draft", "ready", [sha256.Size]byte{})
 		if !errors.Is(err, status.ErrInvalidPath) {
 			t.Errorf("Flip(%q on closed service) = %v, want %v", rel, err, status.ErrInvalidPath)
 		}
@@ -781,7 +781,7 @@ func TestArtifactPolicyClosureIsDistinct(t *testing.T) {
 			if got := writer.Authority().Order(); got != nil {
 				t.Errorf("Order() = %v while artifact policy closes instance projections, want nil", got)
 			}
-			err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, [sha256.Size]byte{})
+			err := writer.Flip(t.Context(), testRel, "draft", "ready", [sha256.Size]byte{})
 			if !errors.Is(err, status.ErrArtifactPolicyUnavailable) {
 				t.Errorf("Flip() = %v, want %v", err, status.ErrArtifactPolicyUnavailable)
 			}
@@ -805,14 +805,14 @@ func TestFlipRefusals(t *testing.T) {
 			name:         "stale form: from does not match actual current status",
 			onDiskStatus: "draft",
 			from:         "imported",
-			to:           schema.SealStatus,
+			to:           "ready",
 			wantErr:      status.ErrStale,
 		},
 		{
 			name:         "illegal transition: skips a required intermediate status",
 			onDiskStatus: "imported",
 			from:         "imported",
-			to:           schema.SealStatus,
+			to:           "ready",
 			wantErr:      schema.ErrIllegalTransition,
 		},
 	}
@@ -955,7 +955,7 @@ func TestFlipRefusesUnsupportedStatusSyntax(t *testing.T) {
 				t.Fatalf("ObservedStatus() = (%q, %v), want the reader to see draft", observed, err)
 			}
 
-			err = writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(tt.content))
+			err = writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(tt.content))
 			if !errors.Is(err, status.ErrStatusSyntaxUnsupported) {
 				t.Fatalf("Flip() = %v, want %v", err, status.ErrStatusSyntaxUnsupported)
 			}
@@ -982,7 +982,7 @@ func TestFlipFailClosed(t *testing.T) {
 		name          string
 		rel, from, to string
 	}{
-		{"well-formed args", "Writing/lessons/japanese/L05.md", "draft", schema.SealStatus},
+		{"well-formed args", "Writing/lessons/japanese/L05.md", "draft", "ready"},
 		{"garbage args", "does/not/exist.md", "", ""},
 	}
 	for _, tt := range tests {
@@ -1037,7 +1037,7 @@ func TestTransitions(t *testing.T) {
 		//   ready:    from=[draft] owner=[koopa]
 		//   archived: from=[*] applies_to=[*] owner=[claude,koopa]
 		// and against its scan.knowledge_dirs, which names Writing alone.
-		{name: "lesson from draft", relPath: testRel, noteType: "lesson", current: "draft", want: []string{schema.SealStatus, "archived"}},
+		{name: "lesson from draft", relPath: testRel, noteType: "lesson", current: "draft", want: []string{"ready", "archived"}},
 		{name: "lesson from imported", relPath: testRel, noteType: "lesson", current: "imported", want: []string{"draft", "archived"}},
 		{name: "non-instance path", relPath: "System/templates/Lesson.md", noteType: "lesson", current: "draft", want: nil},
 		{name: "normalized non-instance path", relPath: "System/temporary/../templates/Lesson.md", noteType: "lesson", current: "draft", want: nil},
@@ -1107,14 +1107,14 @@ func TestUndeclaredKnowledgeDirsLeaveTheWriteFaceOpen(t *testing.T) {
 	body := lessonContent("draft")
 	writeVaultFile(t, root, outside, body)
 
-	want := []string{schema.SealStatus, "archived"}
+	want := []string{"ready", "archived"}
 	if diff := cmp.Diff(want, writer.Authority().Transitions(outside, "lesson", "draft")); diff != "" {
 		t.Errorf("Transitions(%q) under an undeclared layer mismatch (-want +got):\n%s", outside, diff)
 	}
-	if err := writer.Flip(t.Context(), outside, "draft", schema.SealStatus, vault.ContentIdentity([]byte(body))); err != nil {
+	if err := writer.Flip(t.Context(), outside, "draft", "ready", vault.ContentIdentity([]byte(body))); err != nil {
 		t.Fatalf("Flip(%q) under an undeclared layer = %v, want the note written", outside, err)
 	}
-	if got := readVaultFile(t, root, outside); !strings.Contains(got, "status: "+schema.SealStatus) {
+	if got := readVaultFile(t, root, outside); !strings.Contains(got, "status: ready") {
 		t.Errorf("the note under an undeclared layer was not written:\n%s", got)
 	}
 }
@@ -1315,7 +1315,7 @@ func TestFlipByteIdentical(t *testing.T) {
 
 			writeNote(t, root, tt.content)
 
-			if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(tt.content)); err != nil {
+			if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(tt.content)); err != nil {
 				t.Fatalf("Flip() = %v, want nil", err)
 			}
 
@@ -1385,7 +1385,7 @@ func TestFlipQuarantinesAbandonedTempFiles(t *testing.T) {
 		}
 	}
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
 		t.Fatalf("Flip() = %v, want nil", err)
 	}
 
@@ -1403,7 +1403,7 @@ func TestFlipQuarantinesAbandonedTempFiles(t *testing.T) {
 			t.Errorf("lstat %s = %v, want the entry left alone", path, statErr)
 		}
 	}
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(original, "status: draft", "status: ready", 1)
 	if got := readNote(t, root); got != want {
 		t.Errorf("note after flip = %q, want %q", got, want)
 	}
@@ -1430,13 +1430,13 @@ func TestFlipHappyPath(t *testing.T) {
 		"<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
 	writeNote(t, root, original)
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
 		t.Fatalf("Flip() = %v, want nil", err)
 	}
 
 	// The single highest-stakes assertion in this feature: everything but
 	// the status line's content must be byte-identical.
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(original, "status: draft", "status: ready", 1)
 	got := readNote(t, root)
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("file mismatch after flip (-want +got):\n%s", diff)
@@ -1460,7 +1460,7 @@ func TestFlipPreservesPermissionBits(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
 		t.Fatalf("Flip() = %v, want nil", err)
 	}
 	info, err := os.Stat(path)
@@ -1470,7 +1470,7 @@ func TestFlipPreservesPermissionBits(t *testing.T) {
 	if got := info.Mode().Perm(); got != 0o644 {
 		t.Errorf("Perm() after flip = %04o, want 0644", got)
 	}
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(original, "status: draft", "status: ready", 1)
 	if got := readNote(t, root); got != want {
 		t.Errorf("note after flip = %q, want %q", got, want)
 	}
@@ -1492,7 +1492,7 @@ func TestFlipRefusesHardLinkedNote(t *testing.T) {
 		t.Fatalf("hard-link the note: %v", err)
 	}
 
-	err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original))
+	err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original))
 	if !errors.Is(err, status.ErrHardLinked) {
 		t.Fatalf("Flip(hard-linked note) = %v, want %v", err, status.ErrHardLinked)
 	}
@@ -1543,7 +1543,7 @@ func TestFlipRefusesHardLinkedNoteBeforeUnsupportedRewrite(t *testing.T) {
 		t.Fatalf("ObservedStatus() = (%q, %v), want the reader to see draft", observed, err)
 	}
 
-	err = writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original))
+	err = writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original))
 	if !errors.Is(err, status.ErrHardLinked) {
 		t.Fatalf("Flip(hard-linked note with unsupported status syntax) = %v, want %v (not %v)", err, status.ErrHardLinked, status.ErrStatusSyntaxUnsupported)
 	}
@@ -1588,10 +1588,10 @@ func TestFlipWritesTheSelectedRootAfterPathReplacement(t *testing.T) {
 	}
 	writeNote(t, root, original)
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
 		t.Fatalf("Flip() after top-level replacement = %v, want nil", err)
 	}
-	wantSelected := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	wantSelected := strings.Replace(original, "status: draft", "status: ready", 1)
 	selected, err := os.ReadFile(filepath.Join(moved, filepath.FromSlash(testRel))) // #nosec G304 -- moved is a test-owned temporary directory
 	if err != nil {
 		t.Fatalf("read selected note: %v", err)
@@ -1625,7 +1625,7 @@ func TestFlipSerializesConcurrentFlips(t *testing.T) {
 	var errReady, errArchived error
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		errReady = writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(lessonContent("draft")))
+		errReady = writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(lessonContent("draft")))
 	})
 	wg.Go(func() {
 		errArchived = writer.Flip(t.Context(), testRel, "draft", "archived", diskIdentity(lessonContent("draft")))
@@ -1643,7 +1643,7 @@ func TestFlipSerializesConcurrentFlips(t *testing.T) {
 		t.Fatalf("exactly one concurrent Flip should succeed, got %d (errReady=%v, errArchived=%v)", succeeded, errReady, errArchived)
 	}
 
-	loser, wantStatus := errArchived, schema.SealStatus
+	loser, wantStatus := errArchived, "ready"
 	if errReady != nil {
 		loser, wantStatus = errReady, "archived"
 	}
@@ -1667,10 +1667,10 @@ func TestFlipSucceedsWithoutARepository(t *testing.T) {
 	original := lessonContent("draft")
 	writeNote(t, root, original)
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
 		t.Fatalf("Flip() in a plain folder = %v, want nil", err)
 	}
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(original, "status: draft", "status: ready", 1)
 	if got := readNote(t, root); got != want {
 		t.Errorf("note after flip = %q, want %q", got, want)
 	}
@@ -1691,10 +1691,10 @@ func TestFlipSucceedsOnAnUncommittedNote(t *testing.T) {
 	edited := committed + "<!-- an uncommitted edit -->\n"
 	writeNote(t, root, edited)
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(edited)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(edited)); err != nil {
 		t.Fatalf("Flip() on an uncommitted note = %v, want nil", err)
 	}
-	want := strings.Replace(edited, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(edited, "status: draft", "status: ready", 1)
 	if got := readNote(t, root); got != want {
 		t.Errorf("note after flip = %q, want the uncommitted edit kept and only the status line changed (want %q)", got, want)
 	}
@@ -1714,10 +1714,10 @@ func TestFlipLeavesAnExistingRepositoryUntouched(t *testing.T) {
 	commitAll(t, root)
 	before := commitCount(t, root)
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
 		t.Fatalf("Flip() = %v, want nil", err)
 	}
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(original, "status: draft", "status: ready", 1)
 	if got := readNote(t, root); got != want {
 		t.Errorf("note after flip = %q, want %q", got, want)
 	}
@@ -1919,7 +1919,7 @@ func TestTheSweepSaysWhatItSetAside(t *testing.T) {
 		t.Fatalf("age the abandoned temp: %v", err)
 	}
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
 		t.Fatalf("Flip() = %v, want nil", err)
 	}
 
@@ -1933,8 +1933,8 @@ func TestTheSweepSaysWhatItSetAside(t *testing.T) {
 	// The control: an ordinary flip with nothing to set aside says nothing at
 	// all, or the line above would be noise on every write.
 	logged.Reset()
-	after := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
-	if err := writer.Flip(t.Context(), testRel, schema.SealStatus, "archived", diskIdentity(after)); err != nil {
+	after := strings.Replace(original, "status: draft", "status: ready", 1)
+	if err := writer.Flip(t.Context(), testRel, "ready", "archived", diskIdentity(after)); err != nil {
 		t.Fatalf("second Flip() = %v, want nil", err)
 	}
 	if logged.Len() != 0 {

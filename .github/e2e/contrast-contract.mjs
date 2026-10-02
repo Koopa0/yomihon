@@ -1,7 +1,9 @@
 // Browser lock for legibility in both reading themes: the text tokens the
 // interface is built from, the syntax colours inside a code block, busy-search
-// ink after ancestor opacity is composited, a mark after its wash is, and the
-// line a focused search field draws against the surface it is drawn on.
+// ink after ancestor opacity is composited, a mark after its wash is, the
+// quiet word a course row prints for a status that needs noticing, the link
+// back to the reader's kept place, and the line a focused search field draws
+// against the surface it is drawn on.
 //
 // The least-prominent text tokens are used at 10-13px, including inside
 // elevated and hover surfaces, so they owe the normal-text WCAG AA ratio
@@ -41,6 +43,8 @@ const SITES = [
   'code-forced-colors',
   'dark-code-persists',
   'busy-search-aa',
+  'status-label-aa',
+  'kept-link-aa',
   'mark-aa',
   'mark-padding',
   'light-focus-outline',
@@ -200,6 +204,23 @@ const MUTATIONS = {
     target: 'mark-aa',
     contexts: ['search'],
     apply: weakenStylesheet('app.css', '.yomihon mark{color:inherit}'),
+  },
+  // The word a course row prints for a status that needs noticing is the
+  // faintest ink the interface has, on a row that is painted over by the
+  // hover wash. Faded past the line in the light theme, which is read first,
+  // it would be a word nobody could read beside the title it qualifies.
+  'fade-status-label': {
+    target: 'status-label-aa',
+    contexts: ['status'],
+    apply: weakenStylesheet('app.css', '.y-lesson .ui-status{color:oklch(0.80 0.01 107)}'),
+  },
+  // The way back to the kept place is set in the accent on the raised panel
+  // the desk gives it. A paler accent still reads as the same colour and no
+  // longer clears the line.
+  'fade-kept-link': {
+    target: 'kept-link-aa',
+    contexts: ['status'],
+    apply: weakenStylesheet('app.css', '.y-continue__note[href]{color:oklch(0.80 0.10 33)}'),
   },
   // Horizontal padding splits a stemmed word from its highlighted head.
   'pad-mark-inline': {
@@ -385,6 +406,80 @@ const measureCode = (page) => page.evaluate(() => {
   }
   return { measurements };
 });
+
+// Plants one production fixture on the page, reads the colour of the element
+// the selector names and the surface it is painted on — found by walking
+// outward until something opaque is reached — and answers with the contrast
+// between them. Each token named in groundTokens is a further surface the
+// element is painted over in another state, such as a row under the hover
+// wash, and is measured the same way.
+const measurePlanted = (page, theme, html, inkSelector, groundTokens) => page.evaluate(({ selectedTheme, markup, ink, tokens }) => {
+  document.documentElement.dataset.theme = selectedTheme;
+  const host = document.querySelector('.yomihon');
+  if (!host) return { issue: 'the shell .yomihon was not on the page' };
+  const fixture = document.createElement('div');
+  fixture.innerHTML = markup;
+  host.appendChild(fixture);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  try {
+    if (!context) return { issue: 'a 2D canvas context is unavailable' };
+    const SENTINEL = '#ff00ff';
+    const raster = (value) => {
+      context.fillStyle = SENTINEL;
+      context.fillStyle = value;
+      if (context.fillStyle === SENTINEL) return { issue: `the browser could not rasterize the colour ${value}` };
+      context.clearRect(0, 0, 1, 1);
+      context.fillRect(0, 0, 1, 1);
+      const pixel = context.getImageData(0, 0, 1, 1).data;
+      return { channels: [pixel[0], pixel[1], pixel[2]], alpha: pixel[3] };
+    };
+    const luminance = (channels) => {
+      const linear = channels.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+    };
+    const ratio = (left, right) => {
+      const a = luminance(left.channels);
+      const b = luminance(right.channels);
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    };
+
+    const element = fixture.querySelector(ink);
+    if (!element) return { issue: `the fixture had no ${ink} to measure` };
+    const foreground = raster(getComputedStyle(element).color);
+    if (foreground.issue) return { issue: foreground.issue };
+    if (foreground.alpha !== 255) return { issue: `the ink rasterized with alpha ${foreground.alpha}` };
+
+    const grounds = [];
+    let idle = null;
+    for (let el = element; el; el = el.parentElement) {
+      const painted = raster(getComputedStyle(el).backgroundColor);
+      if (painted.issue) return { issue: painted.issue };
+      if (painted.alpha === 255) {
+        idle = painted;
+        break;
+      }
+    }
+    if (!idle) return { issue: `nothing opaque was found behind ${ink}` };
+    grounds.push({ ground: 'idle', ratio: ratio(foreground, idle), color: `rgb(${foreground.channels.join(' ')})`, background: `rgb(${idle.channels.join(' ')})` });
+    const root = getComputedStyle(document.documentElement);
+    for (const token of tokens) {
+      const painted = raster(root.getPropertyValue(token).trim());
+      if (painted.issue) return { issue: painted.issue };
+      if (painted.alpha !== 255) return { issue: `${token} rasterized with alpha ${painted.alpha}` };
+      grounds.push({ ground: token, ratio: ratio(foreground, painted), color: `rgb(${foreground.channels.join(' ')})`, background: `rgb(${painted.channels.join(' ')})` });
+    }
+    return { grounds };
+  } finally {
+    fixture.remove();
+  }
+}, { selectedTheme: theme, markup: html, ink: inkSelector, tokens: groundTokens });
 
 // The busy result region used to fade every descendant word. This reading
 // multiplies ancestor opacities — only until the first opaque surface, which
@@ -838,6 +933,40 @@ try {
     await context.close();
   }
 
+  // The quiet word a course row prints beside a lesson that is not yet settled,
+  // and the link back to the place the reader kept, each wearing the production
+  // classes. The row is read idle and under the hover wash it is painted over;
+  // the link on the raised panel the desk gives it.
+  {
+    const context = await openContext(browser, 'status');
+    const page = await context.newPage();
+    const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+    if (!response || response.status() !== 200) broken(`status fixture navigation returned ${response?.status() ?? 'no response'}, want 200`);
+
+    proveApplied('status-label-aa', 'status');
+    const row = '<a class="y-lesson" href="#"><span class="y-navdot" aria-hidden="true"></span><span class="y-lesson__title">Alpha</span><span class="y-lesson__aside"><span class="ui-status">draft</span></span></a>';
+    for (const theme of ['light', 'dark']) {
+      const result = await measurePlanted(page, theme, row, '.ui-status', ['--overlay']);
+      if (result.issue) broken(`status label ${theme}: ${result.issue}`);
+      const weakest = result.grounds.reduce((left, right) => (left.ratio < right.ratio ? left : right));
+      if (weakest.ratio < AA) {
+        fail('status-label-aa', `status label ${theme} on ${weakest.ground}: ${weakest.ratio.toFixed(3)}:1 (${weakest.color} on ${weakest.background}), want at least ${AA}:1`);
+      }
+    }
+
+    proveApplied('kept-link-aa', 'status');
+    const link = '<section class="y-continue"><a class="y-continue__note" href="#"><span class="y-keptmark" aria-hidden="true"></span>Alpha</a></section>';
+    for (const theme of ['light', 'dark']) {
+      const result = await measurePlanted(page, theme, link, '.y-continue__note', []);
+      if (result.issue) broken(`kept link ${theme}: ${result.issue}`);
+      const [only] = result.grounds;
+      if (only.ratio < AA) {
+        fail('kept-link-aa', `kept link ${theme}: ${only.ratio.toFixed(3)}:1 (${only.color} on ${only.background}), want at least ${AA}:1`);
+      }
+    }
+    await context.close();
+  }
+
   // The focused search field, on both grounds a field sits on, in both themes.
   {
     const context = await openContext(browser, 'focus');
@@ -938,7 +1067,7 @@ try {
     await quiet.close();
   }
 
-  console.log('PASS contrast-contract: every text token, every highlighted word, busy-search ink through ancestor opacity, and every mark on the path line — idle, hovered, and busy — clears 4.5:1 in both themes, on screen, on paper, and with no script running; the focused search field draws a line on both its grounds that clears 3:1 in both themes');
+  console.log('PASS contrast-contract: every text token, every highlighted word, busy-search ink through ancestor opacity, and every mark on the path line — idle, hovered, and busy — clears 4.5:1 in both themes, on screen, on paper, and with no script running, as do the quiet status word on a course row and the link back to the kept place; the focused search field draws a line on both its grounds that clears 3:1 in both themes');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

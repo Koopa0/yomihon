@@ -43,10 +43,13 @@ type MapEntry struct {
 	// Name is what the map prints for the row: the alias its author wrote,
 	// else the resolved note's own title, else the link text. A row that
 	// addresses a heading or block keeps its link text unless it wrote an alias.
-	Name       string
-	Target     string
-	RelPath    string
-	Status     string
+	Name    string
+	Target  string
+	RelPath string
+	Status  string
+	// Settled is whether the contract declares Status settled, the resting
+	// state of a finished note, so a row shows no label for it.
+	Settled    bool
 	Language   string
 	Kind       EntryKind
 	Candidates []string
@@ -230,6 +233,7 @@ func resolveEntry(link sequence.Link, idx *graph.Index, facts map[string]noteFac
 		entry.RelPath = res.RelPath
 		known := facts[res.RelPath]
 		entry.Status = known.status
+		entry.Settled = known.settled
 		entry.Language = known.language
 		entry.Name = rowName(link, known.title)
 	}

@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"golang.org/x/sys/unix"
-
-	"github.com/koopa0/yomihon/internal/schema"
 )
 
 const probeXattrName = "user.probeTag"
@@ -30,7 +28,7 @@ func TestFlipPreservesExtendedAttributes(t *testing.T) {
 		t.Fatalf("Setxattr(%q): %v", probeXattrName, err)
 	}
 
-	if err := writer.Flip(t.Context(), testRel, "draft", schema.SealStatus, diskIdentity(original)); err != nil {
+	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
 		t.Fatalf("Flip() = %v, want nil", err)
 	}
 
@@ -42,7 +40,7 @@ func TestFlipPreservesExtendedAttributes(t *testing.T) {
 	if string(got[:n]) != probeXattrValue {
 		t.Errorf("Getxattr(%q) = %q, want %q", probeXattrName, got[:n], probeXattrValue)
 	}
-	want := strings.Replace(original, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(original, "status: draft", "status: ready", 1)
 	if read := readNote(t, root); read != want {
 		t.Errorf("note after flip = %q, want %q", read, want)
 	}

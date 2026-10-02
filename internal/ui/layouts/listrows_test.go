@@ -24,40 +24,60 @@ func onlyRule(t *testing.T, rules []cssRule, selector string) cssRule {
 	return found[0]
 }
 
-// TestAReadyWordRepeatedDownAListKeepsOnlyItsSquareInTheAccent holds the two
-// places a status repeats row after row, the lessons of a course and the notes
-// of a shelf. A filled accent badge on every row floods a page with the one
-// colour that is meant to mark a thing, so in a row the word is quiet text with
-// no fill and only the square is accented. The single badge on a note is a
-// different fact and keeps its fill, so it is held here too: a fix that quieted
-// the badge itself would pass the first half and fail the reader.
-func TestAReadyWordRepeatedDownAListKeepsOnlyItsSquareInTheAccent(t *testing.T) {
+// TestAStatusIsNeutralWhereverItIsDrawn holds the status word to the one look it
+// has. The badge on a note is a wash under muted ink, one fact about the page.
+// Down a list the word is the exception on a row and is quiet text: the faint
+// ink with no fill, padding or dot to hold one. Neither names the accent, and no
+// rule names a status, because which statuses need noticing is the contract's
+// to say and the vermilion belongs to the reader's own place. A fix that quieted
+// the badge itself would pass the list half and fail the reader.
+func TestAStatusIsNeutralWhereverItIsDrawn(t *testing.T) {
 	t.Parallel()
 
 	rules := componentRules(t)
 	for _, context := range []string{".y-lesson", ".y-homenote__meta"} {
 		t.Run(context, func(t *testing.T) {
 			t.Parallel()
-			word := onlyRule(t, rules, context+" .ui-status--ready")
+			word := onlyRule(t, rules, context+" .ui-status")
 			if diff := cmp.Diff([]string{"none"}, word.values("background")); diff != "" {
-				t.Errorf("the ready word in %s keeps a fill (-want +got):\n%s", context, diff)
+				t.Errorf("the status word in %s keeps a fill (-want +got):\n%s", context, diff)
 			}
 			if diff := cmp.Diff([]string{"var(--fg-subtle)"}, word.values("color")); diff != "" {
-				t.Errorf("the ready word in %s is not the quiet ink (-want +got):\n%s", context, diff)
+				t.Errorf("the status word in %s is not the quiet ink (-want +got):\n%s", context, diff)
 			}
-			square := onlyRule(t, rules, context+" .ui-status--ready::before")
-			if diff := cmp.Diff([]string{"var(--accent)"}, square.values("background")); diff != "" {
-				t.Errorf("the square before the ready word in %s lost the accent (-want +got):\n%s", context, diff)
+			if diff := cmp.Diff([]string{"0"}, word.values("padding")); diff != "" {
+				t.Errorf("the status word in %s keeps the badge's padding (-want +got):\n%s", context, diff)
+			}
+			dot := onlyRule(t, rules, context+" .ui-status::before")
+			if diff := cmp.Diff([]string{"none"}, dot.values("display")); diff != "" {
+				t.Errorf("the status word in %s keeps the badge's dot (-want +got):\n%s", context, diff)
 			}
 		})
 	}
 
-	badge := onlyRule(t, rules, ".ui-status--ready")
-	if diff := cmp.Diff([]string{"var(--accent-muted)"}, badge.values("background")); diff != "" {
-		t.Errorf("the ready badge on a note lost its fill (-want +got):\n%s", diff)
+	badge := onlyRule(t, rules, ".ui-status")
+	if diff := cmp.Diff([]string{"var(--wash)"}, badge.values("background")); diff != "" {
+		t.Errorf("the status badge on a note is not the neutral wash (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]string{"var(--accent-strong)"}, badge.values("color")); diff != "" {
-		t.Errorf("the ready badge on a note lost its ink (-want +got):\n%s", diff)
+	if diff := cmp.Diff([]string{"var(--fg-muted)"}, badge.values("color")); diff != "" {
+		t.Errorf("the status badge on a note is not the muted ink (-want +got):\n%s", diff)
+	}
+
+	read := 0
+	for _, rule := range rules {
+		if !strings.Contains(rule.selector, ".ui-status") {
+			continue
+		}
+		read++
+		if strings.Contains(rule.selector, ".ui-status--") {
+			t.Errorf("%q dresses one status by name, which copies the contract's vocabulary into the stylesheet", rule.selector)
+		}
+		if strings.Contains(rule.body, "accent") {
+			t.Errorf("%q draws a status in the accent, which marks the reader's own place and nothing the author wrote", rule.selector)
+		}
+	}
+	if read < 4 {
+		t.Fatalf("only %d rules name .ui-status, so the scan above read almost nothing", read)
 	}
 }
 

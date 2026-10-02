@@ -58,7 +58,15 @@ function positionNow() {
   return { anchor, offset: Math.max(0, top - anchorTop) };
 }
 
+// A press that kept the place is also the place now being in this note, so every
+// face of the control draws the bookmark the way the server draws it for a note
+// that already held one.
 function say(control, words, kept) {
+  if (kept) {
+    for (const face of document.querySelectorAll('[data-mark-control]')) {
+      face.dataset.markKept = '';
+    }
+  }
   const said = control.querySelector('[data-mark-said]');
   if (!said) return;
   said.dataset.replyTone = kept ? 'kept' : 'refused';

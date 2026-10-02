@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -67,7 +66,7 @@ func TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed(t *testing.T) {
 	form := url.Values{
 		"path":             {"Maps/study.md"},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {strings.Repeat("0", 64)},
 	}
 	write := httptest.NewRecorder()
