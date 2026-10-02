@@ -324,10 +324,10 @@
   --measure-answer: 720px;
   --gutter-answer: 24px;
 
-  /* The widest the three columns of a reading page grow to: the left rail, the
-     reading box and the right rail, side by side, and no further. Past it the
-     whole arrangement stands in the middle of the window, so the space beside
-     the text never becomes wider than the gutter the rails were drawn with. */
+  /* The widest a page with no rail grows to. Past it the page stands in the
+     middle of the window. A page with rails has no such width: its rails sit
+     against the window's edges and the room between them is the reading
+     column's. */
   --shell-max: 1280px;
 
   /* A notice, which is one heading and a sentence or two rather than an

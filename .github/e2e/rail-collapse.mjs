@@ -869,8 +869,8 @@ try {
       await page.locator(TOGGLE).click();
       await settled(page);
       const after = await geometry(page);
-      // Measured from the column's own edge: past the width the arrangement
-      // stops growing, it stands centred in the window, half a pixel in at 1281.
+      // Measured from the column's own edge, so the answer is the strip's
+      // width wherever the column stands.
       const mainFromRail = after.main.left - after.rail.left;
       if (Math.round(after.rail.width) !== STRIP || Math.round(mainFromRail) !== STRIP || after.body.display !== 'none') {
         fail('every-rail-page-folds', `${shape} (${path}) folded to rail ${after.rail.width}px, main ${mainFromRail}px from the column's edge, panel ${after.body.display}; want the strip, main ${STRIP}px in, no panel`);

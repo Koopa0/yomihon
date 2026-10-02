@@ -8,19 +8,21 @@ import (
 
 // TestTheLeftRailStartsItsTextCloseToItsEdge holds the inset every rail the
 // left column carries is drawn with. A title, a part heading or a summary sits
-// six pixels in from the column's edge, and fourteen in the drawer a phone
-// gets; a list's rule stands six further in, under a summary's chevron; and a
-// row's words stand twelve in from that rule, with its status dot on the rule
-// rather than in a slot beside the name. The three lengths are named once and
-// every rail — a course, a map, a book, a folder, the drawer — is drawn from
-// them, so they are held together and by value.
+// the header's inset in from the column's edge, twenty pixels, in the drawer a
+// phone gets as in the column beside the page; a list's rule stands six
+// further in, under a summary's chevron; and a row's words stand twelve in from
+// that rule, with its status dot on the rule rather than in a slot beside the
+// name. The three lengths are named once and every rail — a course, a map, a
+// book, a folder, the drawer — is drawn from them, so they are held together
+// and by value.
 func TestTheLeftRailStartsItsTextCloseToItsEdge(t *testing.T) {
 	t.Parallel()
 
 	rules := componentRules(t)
 
 	for token, want := range map[string][]string{
-		"--rail-pad-start":  {"6px", "14px"},
+		"--header-inset":    {"20px"},
+		"--rail-pad-start":  {"var(--header-inset)"},
 		"--rail-list-inset": {"6px"},
 		"--rail-row-inset":  {"12px"},
 	} {
