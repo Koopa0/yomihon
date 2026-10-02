@@ -852,6 +852,83 @@ samp {
   position: fixed;
 }
 
+/* Folded, the six are a menu rather than a row of marks: one 36px row each,
+   the control's name on the left and what it shows now on the right — the
+   size, the language it switches to, the theme's sun or moon. The name is the
+   words the control is already announced by, so what is seen and what is heard
+   are one string, and a size the script renames is renamed here too. */
+.y-headerfold:popover-open {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 0;
+  min-width: 248px;
+  padding: 6px;
+}
+
+/* Each row keeps the display its control already has — a link becomes a block
+   as a flex item, an icon button is already a flex box — so a rule elsewhere
+   that hides one of them still hides it here. */
+.y-headerfold:popover-open > :is(.y-healthlinkbtn, .y-prefslink, .y-iconbtn),
+.y-headerfold:popover-open .y-langbtn {
+  align-items: center;
+  border-radius: var(--r-md);
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  gap: 12px;
+  height: 36px;
+  justify-content: space-between;
+  line-height: 36px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.y-headerfold:popover-open > .y-iconbtn::before,
+.y-headerfold:popover-open .y-langbtn::before {
+  color: var(--fg);
+  content: attr(aria-label);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.y-headerfold:popover-open > .y-iconbtn > *,
+.y-headerfold:popover-open .y-langbtn > * {
+  color: var(--fg-subtle);
+  flex: none;
+}
+
+/* In the menu the page the reader is on is the row on the wash; the line under
+   the word is the row's way of saying it. */
+.y-headerfold:popover-open > [aria-current='page'] {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.y-headerfold:popover-open > [aria-current='page']::after {
+  content: none;
+}
+
+.y-headerfold:popover-open .y-headermark {
+  border-top: 1px solid var(--line-faint);
+  flex-basis: auto;
+  margin-top: 6px;
+  padding: 10px 4px 4px;
+}
+
+/* Keyboard help opened from the menu stands alone: the menu it was opened from
+   steps out of sight instead of showing round the help's edges behind it. It
+   is still open underneath, so Escape on the help backs out to it, and a press
+   anywhere else puts both away. */
+.y-headerfold:popover-open:has(> .y-kbdhelp:popover-open) {
+  visibility: hidden;
+}
+
+.y-kbdhelp:popover-open {
+  visibility: visible;
+}
+
 @media (min-width: 938px) {
   .y-foldbtn {
     display: none;
