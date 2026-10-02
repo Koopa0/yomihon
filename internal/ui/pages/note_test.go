@@ -588,7 +588,7 @@ func TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText(t *testing.T) {
 	if rowStart < 0 || prose < 0 || related < 0 || steps < 0 {
 		t.Fatalf("row@%d prose@%d related@%d steps@%d; every one of them has to render:\n%s", rowStart, prose, related, steps, article)
 	}
-	if !(rowStart < prose && prose < related && related < steps) {
+	if rowStart >= prose || prose >= related || related >= steps {
 		t.Fatalf("row@%d prose@%d related@%d steps@%d; want the row, the text, the notes beside it, then the way onward", rowStart, prose, related, steps)
 	}
 	row := article[rowStart:prose]

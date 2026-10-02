@@ -118,7 +118,7 @@ func TestALatinArticleStopsItsTextAtAMeasureOfItsOwn(t *testing.T) {
 	t.Parallel()
 
 	const guard = "[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko))"
-	count := regexp.MustCompile(`^calc\(var\(--fs-ed-17\) \* ([0-9]+)\)$`)
+	count := regexp.MustCompile(`^calc\(var\(--fs-ed-17\) \* (\d+)\)$`)
 
 	declared := 0
 	for _, rule := range componentRules(t) {

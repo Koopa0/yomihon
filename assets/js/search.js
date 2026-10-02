@@ -294,7 +294,8 @@ function chooseWithArrows(input, results) {
     list.setAttribute('role', 'listbox');
     input.setAttribute('aria-controls', list.id);
     for (const [at, row] of found.entries()) {
-      row.parentElement?.setAttribute('role', 'none');
+      const item = row.parentElement;
+      if (item) item.setAttribute('role', 'none');
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', 'false');
       row.id = `_y-search-hit-${at}`;

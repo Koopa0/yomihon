@@ -155,11 +155,12 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 	}
 }
 
-// destinationAttrs marks a header link to one of the interface's own pages as
-// the page the reader is on, which is what aria-current names; any other page
-// leaves the link unmarked.
-func (c Chrome) destinationAttrs(path string) templ.Attributes {
-	if c.Path != path {
+// destinationAttrs marks a header link to one of the interface's own pages,
+// at path, as the page the reader is on when the request's own path is that
+// page, which is what aria-current names; any other page leaves the link
+// unmarked.
+func destinationAttrs(here, path string) templ.Attributes {
+	if here != path {
 		return nil
 	}
 	return templ.Attributes{"aria-current": "page"}

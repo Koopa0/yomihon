@@ -115,9 +115,12 @@ var SingleKeyShortcutsNote = both(
 	"With these off, / and [ type the way the browser types them; ⌘K and Esc are unaffected.",
 )
 
-// SearchDialogChoose, SearchDialogEnter and SearchDialogEsc are the dialog's
-// own footer: the keys it answers to, shown rather than only announced.
+// SearchDialogChoose names what the arrow keys do in the dialog's own footer,
+// beside the two keys below: a choice among the rows, which Enter then opens.
 var SearchDialogChoose = both("選擇", "Choose")
+
+// SearchDialogEnter and SearchDialogEsc are the dialog's own footer: the two
+// keys it answers to, shown rather than only announced.
 var SearchDialogEnter = both("搜尋", "Search")
 var SearchDialogEsc = both("關閉", "Close")
 
