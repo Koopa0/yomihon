@@ -304,3 +304,25 @@ func TestHealthShapeStatesCompleteFindingsTotal(t *testing.T) {
 		}
 	}
 }
+
+func TestNavigationFaultShapeCountsWithoutJudgeWeight(t *testing.T) {
+	t.Parallel()
+	view := HealthView{NavigationFaults: []nav.CoreFault{{Note: nav.NoteRef{Name: "Course", RelPath: "Maps/Course.md"}, Reason: "navigation build failed: walk"}}}
+	page := renderHealth(t, &view)
+	shape := healthShapeLineRe.FindStringSubmatch(page)
+	if len(shape) != 2 {
+		t.Fatal("navigation fault has no shape line")
+	}
+	if healthShapeWeightRe.MatchString(shape[1]) {
+		t.Error("navigation failure acquired a judge severity")
+	}
+	if got := healthRowWeights(t, &view); len(got) != 1 || got[0] != -1 {
+		t.Errorf("navigation severity cells = %v, want one unweighed row", got)
+	}
+	if got := healthRowCounts(t, &view); len(got) != 1 || got[0] != 1 {
+		t.Errorf("navigation counts = %v, want [1]", got)
+	}
+	if !strings.Contains(shape[1], "<span>1") {
+		t.Errorf("fault shape does not count its readable file: %s", shape[1])
+	}
+}

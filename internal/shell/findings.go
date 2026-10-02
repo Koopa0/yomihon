@@ -19,6 +19,9 @@ import (
 // worked out a second time beside the rail is a number that disagrees with the
 // page the day either one changes.
 type Findings struct {
+	// NavigationFaults are readable notes with omitted navigation trees.
+	NavigationFaults []nav.CoreFault
+
 	// Unwritten are citations to names no file carries and no ledger declared.
 	Unwritten []snapshot.HealthLink
 	// TitleOnly are citations naming a note's title, which is never a name this
@@ -77,7 +80,7 @@ func (f *Findings) Total() int {
 	total := len(f.Blocked) + len(f.Skipped) +
 		len(f.Unwritten) + len(f.TitleOnly) +
 		len(f.StatusOutsideEnum) + len(f.StatusUnreachable) +
-		len(f.Collisions)
+		len(f.Collisions) + len(f.NavigationFaults)
 	for _, group := range f.Islands {
 		total += len(group.Notes)
 	}
@@ -101,6 +104,7 @@ func GatherFindings(lifecycle status.Authority, snap *snapshot.Generation) Findi
 	fresh := snap.Freshness()
 	outsideEnum, unreachable := statusFaults(lifecycle, snap)
 	return Findings{
+		NavigationFaults:      health.NavigationFaults,
 		Unwritten:             health.Unwritten,
 		TitleOnly:             health.TitleOnly,
 		Islands:               health.Islands,

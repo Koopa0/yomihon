@@ -248,3 +248,29 @@ func TestDeclaredNonDefaultGapMarkKeepsHarvestedNameOffUnwritten(t *testing.T) {
 		t.Fatalf("Nowhere is missing from Unwritten; the page is not evaluating: %+v", h.Unwritten)
 	}
 }
+
+func TestNavigationFaultMakesHealthNonempty(t *testing.T) {
+	t.Parallel()
+	health := Health{NavigationFaults: []nav.CoreFault{{Note: nav.NoteRef{Name: "Course", RelPath: "Maps/Course.md"}, Reason: "navigation build failed: failed"}}}
+	if health.Empty() {
+		t.Error("a navigation fault reads as empty Health")
+	}
+	if !(&Health{}).Empty() {
+		t.Error("empty Health has findings")
+	}
+}
+
+func TestHealthNavigationFaultsBelongToCaller(t *testing.T) {
+	t.Parallel()
+	fault := nav.CoreFault{Note: nav.NoteRef{Name: "Course", RelPath: "Maps/Course.md", Language: "ja"}, Reason: "navigation build failed: failed"}
+	generation := &Generation{health: Health{NavigationFaults: []nav.CoreFault{fault}}}
+	health := generation.Health()
+	health.NavigationFaults[0].Note.Name = "changed"
+	health.NavigationFaults[0].Reason = "changed"
+	if diff := cmp.Diff([]nav.CoreFault{fault}, generation.Health().NavigationFaults); diff != "" {
+		t.Errorf("captured fault changed (-want +got):\n%s", diff)
+	}
+	if (*Generation)(nil).Health().NavigationFaults != nil {
+		t.Error("absent generation carries faults")
+	}
+}

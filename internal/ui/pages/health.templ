@@ -14,6 +14,9 @@ import (
 // page can say what is wrong with itself, but nobody opens every note; these
 // are the same facts, gathered.
 type HealthView struct {
+	// NavigationFaults are readable notes whose navigation trees could not be built.
+	NavigationFaults []nav.CoreFault
+
 	// Unwritten are citations to names no file carries and no ledger declared.
 	Unwritten []snapshot.HealthLink
 	// TitleOnly are citations naming a note's title — the note exists, and the

@@ -86,7 +86,7 @@ func TestOrderingByWeightPlacesTheFileNothingCouldRead(t *testing.T) {
 	}
 }
 
-// TestOnlyTheUncitedNoteDrawsARowNoWeightWeighs is the sentence healthRules'
+// TestOnlyUncitedNotesAndNavigationFaultsAreUnweighed is the sentence healthRules'
 // comment makes, held mechanically. Every field of the view that puts findings
 // on the page is filled on its own and the weight cell read back, so a kind
 // that stops being weighed — or one that starts — shows up here rather than in
@@ -95,7 +95,7 @@ func TestOrderingByWeightPlacesTheFileNothingCouldRead(t *testing.T) {
 // It walks healthFindingFields, which TestEveryFieldOfTheHealthViewIsAccountedFor
 // already proves names every such field: an enumeration written out a second
 // time here could go short with nothing saying so.
-func TestOnlyTheUncitedNoteDrawsARowNoWeightWeighs(t *testing.T) {
+func TestOnlyUncitedNotesAndNavigationFaultsAreUnweighed(t *testing.T) {
 	t.Parallel()
 	var unweighed []string
 	for name, field := range healthFindingFields {
@@ -106,7 +106,7 @@ func TestOnlyTheUncitedNoteDrawsARowNoWeightWeighs(t *testing.T) {
 		}
 	}
 	slices.Sort(unweighed)
-	if diff := cmp.Diff([]string{"Islands"}, unweighed); diff != "" {
+	if diff := cmp.Diff([]string{"Islands", "NavigationFaults"}, unweighed); diff != "" {
 		t.Errorf("the fields drawing a row no weight weighs disagree with what healthRules' comment says (-comment +page):\n%s", diff)
 	}
 }

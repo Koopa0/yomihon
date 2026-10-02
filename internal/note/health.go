@@ -41,6 +41,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		StatusUnreachable:     healthStatusNotes(found.StatusUnreachable, articleLang),
 		FrontmatterUnreadable: healthNoteFindings(found.FrontmatterUnreadable, articleLang),
 		SchemaFaults:          healthNoteFindings(found.SchemaFaults, articleLang),
+		NavigationFaults:      healthNavigationFaults(found.NavigationFaults, articleLang),
 		InstanceScopeUnknown:  found.InstanceScopeUnknown,
 		// A folder that declared no vocabulary has no schema findings to
 		// report, and that is an answer rather than a failure — the view says
@@ -221,6 +222,15 @@ func healthCollisions(collisions []snapshot.HealthCollision, articleLang pages.A
 			candidates = append(candidates, noteRef(nav.NoteRef{Name: candidate, RelPath: candidate}, articleLang))
 		}
 		out = append(out, pages.HealthCollision{Name: collision.Name, Candidates: candidates})
+	}
+	return out
+}
+
+// healthNavigationFaults carries readable navigation notes with their authored language.
+func healthNavigationFaults(found []nav.CoreFault, articleLang pages.ArticleLanguageFor) []nav.CoreFault {
+	out := make([]nav.CoreFault, len(found))
+	for i, fault := range found {
+		out[i] = nav.CoreFault{Note: noteRef(fault.Note, articleLang), Reason: fault.Reason}
 	}
 	return out
 }
