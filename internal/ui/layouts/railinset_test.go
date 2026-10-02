@@ -7,24 +7,30 @@ import (
 )
 
 // TestTheLeftRailStartsItsTextCloseToItsEdge holds the inset every rail the
-// left column carries is drawn with. A title or a part heading sits ten pixels
-// in from the column's edge; a lesson's text sits a group margin, the shift a
-// row with a status takes, and a row inset further, and its status dot sits on
-// the row's own rule rather than in a slot beside the name. The numbers are one
-// rhythm: widening any one of them moves the text of every course, map, book
-// and folder rail, and of the drawer they become on a phone, by the same
-// amount, so they are held together and by value.
+// left column carries is drawn with. A title, a part heading or a summary sits
+// six pixels in from the column's edge, and fourteen in the drawer a phone
+// gets; a list's rule stands six further in, under a summary's chevron; and a
+// row's words stand twelve in from that rule, with its status dot on the rule
+// rather than in a slot beside the name. The three lengths are named once and
+// every rail — a course, a map, a book, a folder, the drawer — is drawn from
+// them, so they are held together and by value.
 func TestTheLeftRailStartsItsTextCloseToItsEdge(t *testing.T) {
 	t.Parallel()
 
 	rules := componentRules(t)
 
-	var pads []string
-	for _, rule := range rules {
-		pads = append(pads, rule.values("--rail-pad-start")...)
-	}
-	if diff := cmp.Diff([]string{"10px"}, pads); diff != "" {
-		t.Errorf("--rail-pad-start is declared with these values (-want +got):\n%s", diff)
+	for token, want := range map[string][]string{
+		"--rail-pad-start":  {"6px", "14px"},
+		"--rail-list-inset": {"6px"},
+		"--rail-row-inset":  {"12px"},
+	} {
+		var got []string
+		for _, rule := range rules {
+			got = append(got, rule.values(token)...)
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("%s is declared with these values, in source order (-want +got):\n%s", token, diff)
+		}
 	}
 
 	// The column's own box is the one rule outside every media query that sets
@@ -44,21 +50,20 @@ func TestTheLeftRailStartsItsTextCloseToItsEdge(t *testing.T) {
 	}
 
 	group := onlyRule(t, rules, ".y-railgroup")
-	if diff := cmp.Diff([]string{"2px 0 8px 2px"}, group.values("margin")); diff != "" {
-		t.Errorf("a group's margin is not the one that keeps its rows near the edge (-want +got):\n%s", diff)
+	if diff := cmp.Diff([]string{"2px 0 8px var(--rail-list-inset)"}, group.values("margin")); diff != "" {
+		t.Errorf("a group's rule does not stand at the list inset (-want +got):\n%s", diff)
+	}
+	lists := onlyRule(t, rules, ".y-rail-left .y-here > .ui-navitem")
+	if diff := cmp.Diff([]string{"var(--rail-list-inset)"}, lists.values("margin-left")); diff != "" {
+		t.Errorf("a folder's neighbourhood or the reports stand their rule somewhere else (-want +got):\n%s", diff)
 	}
 
 	row := onlyRule(t, rules, ".y-rail-left .ui-navitem")
-	if diff := cmp.Diff([]string{"12px"}, row.values("padding-left")); diff != "" {
+	if diff := cmp.Diff([]string{"var(--rail-row-inset)"}, row.values("padding-left")); diff != "" {
 		t.Errorf("a row in the left column insets its text by (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff([]string{"6px"}, row.values("column-gap")); diff != "" {
 		t.Errorf("a row in the left column sets its name and its status apart by (-want +got):\n%s", diff)
-	}
-
-	marked := onlyRule(t, rules, ".y-rail-left .ui-navitem:has(> .y-navdot)")
-	if diff := cmp.Diff([]string{"10px"}, marked.values("margin-inline-start")); diff != "" {
-		t.Errorf("a row with a status is not shifted in by the width its dot used to take (-want +got):\n%s", diff)
 	}
 	dot := onlyRule(t, rules, ".y-rail-left .ui-navitem > .y-navdot")
 	if diff := cmp.Diff([]string{"absolute"}, dot.values("position")); diff != "" {

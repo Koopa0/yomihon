@@ -266,23 +266,24 @@ samp {
   box-shadow: inset 2px 0 0 var(--fg);
 }
 
-/* A row in the left rail starts its text twelve pixels in from the rule that
+/* A row in the left rail starts its words a row's inset in from the rule that
    marks it. A row with a status carries it as a dot set on that rule, the way
    a stop sits on a line, so the dot takes no width beside the name; a row
-   whose entry names nothing sets its mark in the same place. Those rows stand
-   ten pixels further in than a plain list's, so a lesson's name starts where
-   it always has. The same inset holds in every rail the column carries (a
-   course, a map, a book, a folder) and in the drawer it becomes on a phone,
-   so a title or a lesson sits at the same place whichever of them is open. */
+   whose entry names nothing sets its mark in the same place. The same insets
+   hold in every rail the column carries (a course, a map, a book, a folder)
+   and in the drawer it becomes on a phone, so a title or a lesson sits at the
+   same place whichever of them is open. */
 .y-rail-left .ui-navitem {
   column-gap: 6px;
-  padding-left: 12px;
+  padding-left: var(--rail-row-inset);
   position: relative;
 }
 
-.y-rail-left .ui-navitem:has(> .y-navdot),
-.y-rail-left .ui-navitem:has(> .y-navmark) {
-  margin-inline-start: 10px;
+/* A folder's neighbourhood and the reports are lists the way a group's rows
+   are, so their rule stands at the same place under their heading. */
+.y-rail-left .y-here > .ui-navitem,
+.y-rail-left .y-railreports > .ui-navitem {
+  margin-left: var(--rail-list-inset);
 }
 
 .y-rail-left .ui-navitem > .y-navdot {
@@ -291,9 +292,10 @@ samp {
   position: absolute;
 }
 
-/* The mark is a glyph rather than a dot, so it is given the rail's ground to
-   stand on where it crosses the rule. */
-.y-rail-left .ui-navitem > .y-navmark {
+/* A row whose entry names nothing carries a warning glyph in the dot's place.
+   It is a glyph rather than a dot, so it is given the rail's ground to stand
+   on where it crosses the rule. */
+.y-rail-left .y-navitem--broken > .y-navmark {
   background: var(--rail-ground);
   inset-block-start: calc(4px + (1.5rem - 12px) / 2);
   inset-inline-start: -4px;
@@ -945,11 +947,25 @@ samp {
    The script reveals the row before the first paint; with no script it is never
    drawn, filter included, as the filter never was. Below the width where the
    column becomes a drawer the row is only the filter, as it was, and the
-   header's own button owns the act of opening it. */
+   header's own button owns the act of opening it.
+
+   Three lengths set every rail's left edge, so moving it is one change: where
+   the rail's titles, part heads and summaries start, how far in from there a
+   list's rule stands (under the centre of a summary's chevron, so the line
+   reads as running down out of it), and how far a row's words stand from that
+   rule. A phone's drawer starts its titles further from the glass. */
 :root {
   --rail-head-height: 44px;
+  --rail-list-inset: 6px;
   --rail-pad: 16px;
-  --rail-pad-start: 10px;
+  --rail-pad-start: 6px;
+  --rail-row-inset: 12px;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --rail-pad-start: 14px;
+  }
 }
 
 .y-railtoggle__button {
@@ -1076,7 +1092,7 @@ samp {
 }
 
 .y-railgroup {
-  margin: 2px 0 8px 2px;
+  margin: 2px 0 8px var(--rail-list-inset);
 }
 
 .y-railsep {
