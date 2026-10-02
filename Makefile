@@ -6,7 +6,7 @@
 # is a go.mod tool directive, so `go tool templ` is already the version this
 # module builds with and there is nothing to keep in step here. Nothing in the
 # product needs any of them: they are the gate's tools, not the reader's.
-GOLANGCI_LINT_VERSION := 2.13.2
+GOLANGCI_LINT_VERSION := 2.14.0
 GOSEC_VERSION := v2.29.0
 STATICCHECK_VERSION := v0.8.1
 ACTIONLINT_VERSION := v1.7.12
