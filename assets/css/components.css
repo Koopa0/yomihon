@@ -1809,6 +1809,18 @@ details.y-metarow {
 .y-prose a:hover {
   text-decoration-color: color-mix(in oklch, var(--fg) 60%, transparent);
 }
+/* A link that leaves the library opens in a tab of its own, and says so with a
+   small arrow after its words. The arrow is generated content with an empty
+   alternative, so it is a picture only: the sentence a listener is told is
+   written into the link itself. It is a box of its own so the link's underline
+   stops at the last word instead of running under the arrow. */
+.y-prose a[target='_blank']::after {
+  color: var(--fg-subtle);
+  content: '\2197' / '';
+  display: inline-block;
+  font-size: 0.75em;
+  margin-inline-start: 0.2em;
+}
 /* Footnotes — apparatus, not body. A reference is a small mark inside the
    sentence and the notes themselves collect at the foot of the piece, set
    quieter and tighter than the prose they annotate. Both ends are ordinary
