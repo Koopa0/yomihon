@@ -86,9 +86,9 @@ const MUTATIONS = {
       'the traverse guard',
     ),
   },
-  // The gate is the only thing between a reduced-motion reader and a transition:
-  // the blanket that switches animations off does not reach the generated
-  // pseudo-elements.
+  // The gate is what keeps a transition from existing at all for a reduced-motion
+  // reader. The blanket rule for the generated pseudo-elements only takes the
+  // motion out of one that was started anyway, and this site asks for none.
   'drop-the-reduced-motion-gate': {
     target: 'reduced-motion-is-a-cut',
     apply: rewriteStylesheet(
