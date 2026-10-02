@@ -353,6 +353,23 @@ samp {
   text-decoration-color: var(--line-strong);
 }
 
+/* On a note the badge is one fact about the page. Down a list it is the same
+   word on every row, and a red fill repeated that way floods the page with the
+   colour that is meant to mark one thing. A row's word is quiet text with no
+   fill or padding to hold one, and only the square keeps the accent, so the
+   state still reads at a glance without the rows shouting it. */
+.y-lesson .ui-status--ready,
+.y-homenote__meta .ui-status--ready {
+  background: none;
+  color: var(--fg-subtle);
+  padding: 0;
+}
+
+.y-lesson .ui-status--ready::before,
+.y-homenote__meta .ui-status--ready::before {
+  background: var(--accent);
+}
+
 /* ---- Content-type label (dot + name) ---- */
 .ui-type {
   align-items: center;
