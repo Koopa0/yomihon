@@ -21,10 +21,15 @@ body {
 }
 /* Chrome height, and the extra 16px every fragment landing pad adds so
    the marked line sits just under the bar rather than flush against it.
-   On :root so the skip link — a sibling of .yomihon — inherits it too. */
+   On :root so the skip link — a sibling of .yomihon — inherits it too.
+   The inset is how far the header's first and last controls stand from the
+   window's edge. The left rail's text starts, and the right rail's text ends,
+   the same distance from the edge, so each lines up with the header's end
+   beside it down the page. */
 :root {
   --header-height: 56px;
   --header-clearance: calc(var(--header-height) + 16px);
+  --header-inset: 20px;
 }
 
 /* Code is the one text a reader retypes character by character, so it has to
@@ -431,7 +436,7 @@ samp {
   flex: none;
   gap: 16px;
   height: var(--header-height);
-  padding: 0 20px;
+  padding: 0 var(--header-inset);
   position: sticky;
   top: 0;
   z-index: 30;
@@ -910,13 +915,16 @@ samp {
   --rail-right: 240px;
 }
 
+/* The rails are the window's own edges, as a desktop application's panes are,
+   and the reading column takes whatever width is left between them. Nothing
+   here centres or caps the shell: capped, it would leave both rails floating in
+   from the window's sides, short of the header's ends above them. The article
+   keeps its own measure and stands in the middle of the column. */
 .y-shell {
   align-items: start;
   display: grid;
   flex: 1;
   grid-template-columns: var(--rail-open) minmax(0, 1fr) var(--rail-right);
-  margin-inline: auto;
-  max-width: var(--shell-max);
   width: 100%;
 }
 /* The right rail exists to hold reading aids — the table of contents and the
@@ -952,18 +960,6 @@ samp {
   top: var(--header-height);
 }
 
-/* Past the width the three columns stop growing, the arrangement stands in the
-   middle of the window and the left rail would float with page ground on its
-   outer side. The panel runs on to the window's edge instead, drawn as a shadow
-   that spreads outward and is cut off above and below the rail, so the rail
-   itself stays the width it was designed at. */
-@media (min-width: 1281px) {
-  .y-rail-left {
-    box-shadow: -50vw 0 0 50vw var(--rail-ground);
-    clip-path: inset(0 0 0 -100vw);
-  }
-}
-
 /* The rail's first row: the button that folds the whole left column away and,
    beside it, the filter. It is one row, and it sticks to the top of the rail's
    own scroll box, because the rail scrolls by itself and neither the button nor
@@ -989,19 +985,16 @@ samp {
    the rail's titles, part heads and summaries start, how far in from there a
    list's rule stands (under the centre of a summary's chevron, so the line
    reads as running down out of it), and how far a row's words stand from that
-   rule. A phone's drawer starts its titles further from the glass. */
+   rule. The titles start the header's inset in from the window's edge, in the
+   drawer a phone opens as in the column beside the page, so they begin where
+   the header does. The button above them is the exception: it keeps to the
+   strip's own edge, for the reason given. */
 :root {
   --rail-head-height: 44px;
   --rail-list-inset: 6px;
   --rail-pad: 16px;
-  --rail-pad-start: 6px;
+  --rail-pad-start: var(--header-inset);
   --rail-row-inset: 12px;
-}
-
-@media (max-width: 900px) {
-  :root {
-    --rail-pad-start: 14px;
-  }
 }
 
 .y-railtoggle__button {
@@ -1064,7 +1057,7 @@ samp {
   gap: 32px;
   height: calc(100vh - var(--header-height));
   overflow-y: auto;
-  padding: 44px 24px 48px;
+  padding: 44px var(--header-inset) 48px 24px;
   position: sticky;
   top: var(--header-height);
 }
@@ -4043,16 +4036,18 @@ a.y-facetrow:hover {
   display: grid;
   flex: 1;
   grid-template-columns: var(--rail-open) minmax(0, 1fr);
-  margin-inline: auto;
-  max-width: var(--shell-max);
   width: 100%;
 }
 
 /* A page with no rail has the one column to fill. Left on the two tracks, its
    main would land in the track the rail would have had and be read at the width
-   of a sidebar. */
+   of a sidebar. With no rail to put against the window's edge it is the one
+   thing on the page, and it stands in the middle of the window rather than
+   running out to its sides. */
 .y-shell2:not(:has(> .y-rail-left)) {
   grid-template-columns: minmax(0, 1fr);
+  margin-inline: auto;
+  max-width: var(--shell-max);
 }
 
 /* Home — the quiet reading desk, ending in a link to the vault README. The
@@ -4647,13 +4642,19 @@ a.y-facetrow:hover {
 /* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
    that fills the reading column. The briefing HTML is served verbatim from
    /reports/<name>/raw and sandboxed (allow-scripts, never allow-same-origin);
-   yomihon styles only the frame, never the content inside it. */
+   yomihon styles only the frame, never the content inside it. The column is no
+   wider than the room the shell left beside the rail before the rail went to
+   the window's edge, and stands in the middle of what is left, so a wide window
+   puts space around the briefing instead of making the page wider. */
 .y-reportmain {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  justify-self: center;
+  max-width: calc(var(--shell-max) - var(--rail-open));
   overflow: hidden;
   padding: 22px 26px;
+  width: 100%;
 }
 
 .y-reporthead {
