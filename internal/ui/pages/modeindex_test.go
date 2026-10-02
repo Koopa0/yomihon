@@ -135,7 +135,7 @@ func TestEveryReportRowAnswersInTheDateColumn(t *testing.T) {
 	}
 }
 
-// TestTheFolderIndexCountsEveryFileOnTheShelf keeps the kicker's figure
+// TestTheFolderIndexCountsEveryFileOnTheShelf keeps the count's figure
 // counting every markdown note under a shelf folder and at the vault root.
 func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 	t.Parallel()
@@ -149,7 +149,7 @@ func TestTheFolderIndexCountsEveryFileOnTheShelf(t *testing.T) {
 
 	view := NewFolderIndex(buildModel(t), ContractGoverning, wording.ZhHant, nil)
 	if view.Count != "9 篇" {
-		t.Errorf("folder index kicker = %q, want it to name all %d files on the shelf", view.Count, files)
+		t.Errorf("folder index count = %q, want it to name all %d files on the shelf", view.Count, files)
 	}
 }
 
