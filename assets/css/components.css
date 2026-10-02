@@ -5215,6 +5215,95 @@ samp,
   }
 }
 
+/* ============================================================
+   Page change — the new text rises into place, the chrome holds still
+   ------------------------------------------------------------
+   Every link here is a whole new document. The browser can carry the
+   reader across that seam instead of cutting it, and the one thing worth
+   carrying is the reading column: what was being read leaves, and what has
+   arrived rises into the same place. Everything else on the page — the
+   header, the left rail, the page behind them — stays where it is.
+
+   The whole of it lives under one condition. A reader who has asked for
+   reduced motion gets no opt-in, so the change stays an instant cut, and
+   gets none of the names below either, which would otherwise leave the
+   header, the rail and the column each a stacking context for nothing. The
+   reduced-motion blanket further up never reaches this tree of generated
+   pseudo-elements, so this condition is the only thing that does the job.
+
+   Naming a region makes it a group of its own, and a group whose pixels
+   differ cross-fades into a double exposure. The header and the rail are
+   therefore cut rather than faded: their old snapshots never show, so what
+   the reader sees is the new chrome from the first frame and never both. The
+   page behind them is cut the same way. The rail is named only where it is in
+   flow; below the width where it becomes a drawer it waits off-screen, and a
+   name on an off-canvas fixed element is not worth the risk.
+
+   Back and Forward stay instant, and a transition that outlives its welcome
+   is ended: both are the page's own doing, in the script at the top of the
+   head. The page-change tokens live on :root because a custom property
+   reaches this pseudo-element tree by inheriting from the document root. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+
+  .y-header {
+    view-transition-name: y-header;
+  }
+
+  ::view-transition-old(root) {
+    animation: y-page-leave var(--dur-page-out) var(--ease-in) both;
+  }
+
+  ::view-transition-new(root) {
+    animation: y-page-rise var(--dur-page-in) var(--ease-out) var(--dur-page-gap) both;
+  }
+
+  ::view-transition-group(y-header),
+  ::view-transition-old(y-header),
+  ::view-transition-new(y-header),
+  ::view-transition-group(y-rail),
+  ::view-transition-old(y-rail),
+  ::view-transition-new(y-rail) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  ::view-transition-old(y-header),
+  ::view-transition-old(y-rail) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (min-width: 901px) {
+  .y-rail-left {
+    view-transition-name: y-rail;
+  }
+}
+
+@keyframes y-page-leave {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes y-page-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 
 /* ============================================================
    Compare (two notes side by side)
