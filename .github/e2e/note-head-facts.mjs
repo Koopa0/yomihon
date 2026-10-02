@@ -250,6 +250,28 @@ try {
       const telling = lines.filter((line) => /intercept|stable|visible|viewport|detached/.test(line));
       clickWhy = (telling.length > 0 ? telling.slice(-3) : lines.slice(0, 3)).join(' | ');
     }
+    if (clickFailed) {
+      // A target that never holds still is being moved by something. The
+      // finding lists every animation still running and where the line stood
+      // across six samples, so a red run shows what moved it. The samples are
+      // taken from here rather than from the page: with scripting off, a frame
+      // callback the page is asked to wait for never comes.
+      const tops = [];
+      for (let i = 0; i < 6; i += 1) {
+        const box = await summary.first().boundingBox({ timeout: 500 }).catch(() => null);
+        tops.push(box ? Math.round(box.y * 10) / 10 : 'none');
+        await page.waitForTimeout(50);
+      }
+      const running = await page
+        .evaluate(() =>
+          document
+            .getAnimations()
+            .map((a) => `${a.animationName || a.transitionProperty || a.constructor.name}:${a.playState}:${Math.round(Number(a.currentTime))}`)
+            .join(' '),
+        )
+        .catch((err) => `unreadable (${String(err.message).split('\n')[0]})`);
+      clickWhy = `${clickWhy}; tops ${tops.join(',')}; animations [${running}]`;
+    }
     // Same fold, same content-visibility transition as case 1 above — the
     // flip to visible still needs a style-and-paint cycle after the click's
     // attribute change, script or no script running the click itself, so
