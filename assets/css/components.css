@@ -3043,12 +3043,12 @@ button.y-freshness__action {
    the arrow keys all stand on the same faint wash, so the three ways of
    pointing at a hit look like one. */
 .y-searchdialog .y-result {
-  margin-inline: 0;
+  border-bottom: 0;
   padding: 12px;
 }
 
-.y-searchdialog .y-result::after {
-  content: none;
+.y-searchdialog .y-result:hover {
+  box-shadow: none;
 }
 
 .y-searchdialog .y-result:hover,
@@ -3330,28 +3330,14 @@ a.y-facetrow:hover {
 }
 
 /* A hit's words start under the field's own edge, and the wash a pointer
-   brings reaches past it, as a shelf row's does; the hairline between hits
-   stays on the words' edge. */
+   brings reaches past it, as a shelf row's does. */
 .y-result {
+  border-bottom: 1px solid var(--border-faint);
   border-radius: var(--r-md);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-inline: -12px;
-  padding: 16px 12px;
-  position: relative;
-}
-
-.y-result::after {
-  border-bottom: 1px solid var(--border-faint);
-  bottom: 0;
-  content: '';
-  inset-inline: 12px;
-  position: absolute;
-}
-
-.y-result:hover {
-  background: var(--wash);
+  padding: 16px 0;
 }
 
 .y-result__title {
@@ -4045,10 +4031,9 @@ a.y-facetrow:hover {
 }
 
 /* A shelf's rows start where its heading does, and the wash a pointer brings
-   reaches out past that edge rather than pushing the words in to make room. */
+   reaches out past that edge, as a shelf page's rows do. */
 .y-modeblock .ui-navitem {
-  margin-inline: -12px;
-  padding-inline: 12px;
+  padding-inline: 0;
 }
 
 /* The way to the whole shelf is one more line under its rows, in the rows'
@@ -4288,6 +4273,12 @@ a.y-facetrow:hover {
   .y-homeblock--lifecycle {
     grid-column: 1 / -1;
   }
+
+  /* Every shelf spans the row here, so the gutter between twelve tracks is
+     never seen, and eleven of them would hold the grid wider than a phone. */
+  .y-homegrid {
+    column-gap: 0;
+  }
 }
 
 /* The four mode index pages — one kind of thing, listed whole. They carry no
@@ -4323,29 +4314,29 @@ a.y-facetrow:hover {
 }
 
 /* A row's words start on the list's own edge, under the heading above it, and
-   the wash a pointer brings reaches past that edge rather than pushing the
-   words in to make room for itself. The hairline between rows stays on the
-   words' edge, so it is drawn inside the row rather than as its border. */
+   the wash a pointer brings reaches twelve pixels past that edge on either
+   side rather than pushing the words in to make room for itself. The reach is
+   painted, not laid out — the wash continued sideways as two shadows of
+   itself — so it widens nothing, and the hairline between rows stays on the
+   words' edge. */
+:root {
+  --bleed: 12px;
+}
+
 .y-row {
   align-items: baseline;
+  border-bottom: 1px solid var(--border-faint);
   border-radius: var(--r-md);
   display: flex;
   gap: 18px;
-  margin-inline: -12px;
-  padding: 14px 12px;
-  position: relative;
+  padding: 14px 0;
 }
 
-.y-row::after {
-  border-bottom: 1px solid var(--border-faint);
-  bottom: 0;
-  content: '';
-  inset-inline: 12px;
-  position: absolute;
-}
-
-.y-row:hover {
+.y-row:hover,
+.y-result:hover,
+.y-modeblock .ui-navitem:hover {
   background: var(--wash);
+  box-shadow: calc(-1 * var(--bleed)) 0 0 var(--wash), var(--bleed) 0 0 var(--wash);
 }
 
 .y-row__title {
