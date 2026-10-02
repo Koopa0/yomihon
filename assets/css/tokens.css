@@ -22,6 +22,13 @@
   --panel: oklch(0.988 0.003 106);
   --elevated: oklch(0.945 0.006 107);
   --overlay: oklch(0.915 0.008 107);
+  /* The left rail's ground: a lighter sheet beside the page in light, and the
+     page's own ground in dark, where a lighter panel read as a lit strip down
+     the side of a dark room. */
+  --rail-ground: var(--panel);
+  /* A switch that is on: a step down from the ink, so a control that is set
+     does not outweigh the words beside it. */
+  --switch-on: var(--fg-muted);
 
   /* ---- Text (sumi inks, 3 tiers: the faint tier is the subtle one under
      its older name, so the quietest text is one value that clears 4.5:1 on
@@ -81,6 +88,8 @@
   --panel: oklch(0.210 0.011 107);
   --elevated: oklch(0.262 0.013 107);
   --overlay: oklch(0.305 0.014 107);
+  --rail-ground: var(--bg);
+  --switch-on: var(--fg-subtle);
 
   --fg: oklch(0.962 0.004 106);
   --fg-muted: oklch(0.760 0.010 106);
@@ -134,6 +143,8 @@
     --panel: oklch(0.210 0.011 107);
     --elevated: oklch(0.262 0.013 107);
     --overlay: oklch(0.305 0.014 107);
+    --rail-ground: var(--bg);
+    --switch-on: var(--fg-subtle);
 
     --fg: oklch(0.962 0.004 106);
     --fg-muted: oklch(0.760 0.010 106);

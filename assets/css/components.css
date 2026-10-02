@@ -266,15 +266,41 @@ samp {
   box-shadow: inset 2px 0 0 var(--fg);
 }
 
-/* A row in the left rail starts its text one dot and one gap in from the rule
-   that marks the row, which is as far as the dot needs and no further: the
-   wider inset the shared rule above gives is what the right rail's rows were
-   drawn for. The same inset holds in every rail the column carries (a course,
-   a map, a book, a folder) and in the drawer it becomes on a phone, so a title
-   or a lesson sits at the same place whichever of them is open. */
+/* A row in the left rail starts its text twelve pixels in from the rule that
+   marks it. A row with a status carries it as a dot set on that rule, the way
+   a stop sits on a line, so the dot takes no width beside the name; a row
+   whose entry names nothing sets its mark in the same place. Those rows stand
+   ten pixels further in than a plain list's, so a lesson's name starts where
+   it always has. The same inset holds in every rail the column carries (a
+   course, a map, a book, a folder) and in the drawer it becomes on a phone,
+   so a title or a lesson sits at the same place whichever of them is open. */
 .y-rail-left .ui-navitem {
-  column-gap: 8px;
-  padding-left: 8px;
+  column-gap: 6px;
+  padding-left: 12px;
+  position: relative;
+}
+
+.y-rail-left .ui-navitem:has(> .y-navdot),
+.y-rail-left .ui-navitem:has(> .y-navmark) {
+  margin-inline-start: 10px;
+}
+
+.y-rail-left .ui-navitem > .y-navdot {
+  inset-block-start: calc(4px + (1.5rem - 6px) / 2);
+  inset-inline-start: -3px;
+  position: absolute;
+}
+
+/* The mark is a glyph rather than a dot, so it is given the rail's ground to
+   stand on where it crosses the rule. */
+.y-rail-left .ui-navitem > .y-navmark {
+  background: var(--rail-ground);
+  inset-block-start: calc(4px + (1.5rem - 12px) / 2);
+  inset-inline-start: -4px;
+  line-height: 12px;
+  position: absolute;
+  text-align: center;
+  width: 9px;
 }
 
 /* ---- Sidebar section label ---- */
@@ -641,8 +667,9 @@ samp {
    thumb are drawn on the button itself from the pressed state the page already
    carries, so what a reader sees and what a screen reader is told are one
    attribute. Off is a hollow track with the thumb at its start; on is a filled
-   ink track with the thumb at its end. Both states keep the track's edge at
-   3:1 against the page, so the control reads whichever way it is set. */
+   track a step down from the ink, with the thumb at its end, so a switch that
+   is set does not outweigh the words around it. Both states keep the track's
+   edge at 3:1 against the page, so the control reads whichever way it is set. */
 .y-rubybtn {
   --switch-inset: 8px;
   gap: 8px;
@@ -687,7 +714,7 @@ samp {
 }
 
 .y-rubybtn[aria-pressed='true']::before {
-  background: var(--fg);
+  background: var(--switch-on);
   box-shadow: none;
 }
 
@@ -863,7 +890,7 @@ samp {
    the header, each with its own overflow so a long tree scrolls without
    taking the reading column with it. */
 .y-rail-left {
-  background: var(--panel);
+  background: var(--rail-ground);
   border-right: 1px solid var(--line);
   height: calc(100vh - var(--header-height));
   overflow-y: auto;
@@ -879,7 +906,7 @@ samp {
    itself stays the width it was designed at. */
 @media (min-width: 1281px) {
   .y-rail-left {
-    box-shadow: -50vw 0 0 50vw var(--panel);
+    box-shadow: -50vw 0 0 50vw var(--rail-ground);
     clip-path: inset(0 0 0 -100vw);
   }
 }
@@ -917,7 +944,7 @@ samp {
 @media (min-width: 901px) {
   .y-railhead {
     align-items: center;
-    background: var(--panel);
+    background: var(--rail-ground);
     box-sizing: border-box;
     display: flex;
     gap: 6px;
@@ -6583,6 +6610,7 @@ samp,
 }
 
 .y-healthlinkbtn:hover {
+  background: var(--wash);
   color: var(--fg);
 }
 
@@ -6606,7 +6634,28 @@ samp,
 }
 
 .y-prefslink:hover {
+  background: var(--wash);
   color: var(--fg);
+}
+
+/* The page a header link leads to, while the reader is on it: the ink, and a
+   line under the word drawn inside the link's own box, so marking it moves
+   nothing in a row whose width is measured to the pixel. */
+.y-healthlinkbtn[aria-current='page'],
+.y-prefslink[aria-current='page'] {
+  color: var(--fg);
+  position: relative;
+}
+
+.y-healthlinkbtn[aria-current='page']::after,
+.y-prefslink[aria-current='page']::after {
+  background: var(--fg);
+  bottom: 0;
+  content: '';
+  height: 2px;
+  left: 8px;
+  position: absolute;
+  right: 8px;
 }
 /* The same page again, from the panel that explains how the interface behaves:
    a reader who opened this one was already asking that question. */

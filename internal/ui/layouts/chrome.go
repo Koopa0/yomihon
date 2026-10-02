@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -51,6 +53,10 @@ type Chrome struct {
 	// back on the page they were reading. The server validates it as a local
 	// path before following it.
 	ReturnTo string
+	// Path is this request's own path, which is not always where ReturnTo
+	// points: the reading choices return to the page that led to them. The
+	// header's own destinations read it to say so when the reader is on one.
+	Path string
 	// Mark is the note this request is reading, where the reader can be
 	// offered to keep the place they stopped at. Nil on every page that is not
 	// such a note, and the header then draws no such control. The page decides
@@ -145,7 +151,18 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 		// return, as the recovery page knows its note, overrides this
 		// afterwards.
 		ReturnTo: returnableAddress(r),
+		Path:     r.URL.Path,
 	}
+}
+
+// destinationAttrs marks a header link to one of the interface's own pages as
+// the page the reader is on, which is what aria-current names; any other page
+// leaves the link unmarked.
+func (c Chrome) destinationAttrs(path string) templ.Attributes {
+	if c.Path != path {
+		return nil
+	}
+	return templ.Attributes{"aria-current": "page"}
 }
 
 // returnableAddress is the address a control the server answers sends a reader
