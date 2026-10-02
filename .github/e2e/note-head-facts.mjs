@@ -239,8 +239,14 @@ try {
     if ((await summary.count()) !== 1) broken('the disclosure carries no summary line to click');
     let clickFailed = false;
     let clickWhy = '';
+    // force skips Playwright's own wait for the target to hold still. With
+    // scripting off, Linux Chrome stopped answering that wait once the article
+    // played its arrival, although the line sat at one place in every sample
+    // taken. A real click needs no such wait, and whether this one reached the
+    // fold is asserted below from the fold's own state, so a covered or
+    // unclickable summary still fails here.
     try {
-      await summary.first().click({ timeout: 3000 });
+      await summary.first().click({ timeout: 3000, force: true });
     } catch (err) {
       clickFailed = true;
       // Playwright names what stood in the way: an element intercepting the
