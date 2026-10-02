@@ -35,11 +35,13 @@ body {
    does not reach those joins; this property does. It is set on the elements
    Preflight puts in the mono face rather than on `.y-prose`, so the code that
    the diagnostics, the notices and the recovery detail quote reads the same
-   way the article's does. */
+   way the article's does. The same elements stay upright inside an italic
+   line: the mono face has no italic cut, so the browser would slant it itself. */
 code,
 kbd,
 pre,
 samp {
+  font-style: normal;
   font-variant-ligatures: none;
 }
 
@@ -3556,7 +3558,7 @@ a.y-facetrow:hover {
 /* ============================================================
    Syllabus page (study-path) — a full-page render of nav.Map.
    Two-column shell (no right rail). Reuses ui-status / ui-navitem /
-   y-metarow / y-seam / y-navdot; warning markers reuse y-navmark--warn.
+   y-metarow / y-navdot; warning markers reuse y-navmark--warn.
    The page says how long a course is and where in it the reader is
    standing; it has no figure for how much of one is behind them.
    ============================================================ */
@@ -3568,6 +3570,13 @@ a.y-facetrow:hover {
   margin-inline: auto;
   max-width: var(--shell-max);
   width: 100%;
+}
+
+/* A page with no rail has the one column to fill. Left on the two tracks, its
+   main would land in the track the rail would have had and be read at the width
+   of a sidebar. */
+.y-shell2:not(:has(> .y-rail-left)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* Home — the quiet reading desk, ending in a link to the vault README. The
@@ -4467,9 +4476,8 @@ a.y-facetrow:hover {
 
 .y-nothing--fault {
   background: var(--warn-bg);
-  border: 1px solid color-mix(in oklch, var(--warn) 35%, transparent);
-  border-radius: var(--r-sm);
-  padding: 16px 18px;
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
 }
 
 .y-nothing--fault .y-nothing__mark,
@@ -4483,17 +4491,39 @@ a.y-facetrow:hover {
   margin-top: 6px;
 }
 
-/* The notice draws its own box, so the card that used to hold a bare
-   paragraph would put a second one around it and leave the notice floating in
-   the middle of an otherwise empty panel. */
-.y-homeblock--faults:has(> .y-nothing) {
-  background: none;
+/* The desk's fault sections are one kind of news said four ways (a standing
+   notice, the contract's refusal, the egress declaration, a degraded read), so
+   they share one panel: a warning tint at the width of the column, left-aligned
+   like the rows above it, with the same gap between neighbours. The notice
+   component inside keeps its words and gives up its own tint. */
+.y-homeblock--faults {
+  background: var(--warn-bg);
   border: 0;
-  padding: 0;
+  border-radius: var(--r-lg);
+  margin-top: 16px;
+  padding: 20px 24px;
 }
 
 .y-homeblock--faults .y-nothing {
-  margin-top: 18px;
+  background: none;
+  border-radius: 0;
+  color: var(--fg-muted);
+  margin: 0;
+  max-width: none;
+  padding: 0;
+  text-align: left;
+}
+
+.y-homeblock--faults .y-nothing__title {
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  line-height: 1.5rem;
+}
+
+.y-homeblock--faults .y-homeempty {
+  color: var(--fg-muted);
 }
 
 /* The palette is a floating box rather than a page, and the notice sits inside
@@ -5914,6 +5944,18 @@ samp,
   font-weight: var(--fw-regular);
   gap: 10px;
   margin: 0;
+}
+
+/* A standing notice qualifies every row beneath it, so it is the one section on
+   the page that carries the warning tint. */
+.y-healthsection--notice {
+  background: var(--warn-bg);
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
+}
+
+.y-healthsection--notice .y-healthsection__lede {
+  color: var(--fg-muted);
 }
 
 .y-healthsection__lede {
