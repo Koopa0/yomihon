@@ -80,7 +80,11 @@ samp {
   min-height: 100vh;
 }
 
-.yomihon a {
+/* The shell hands every link the surrounding ink, and it does so at no weight
+   of its own: a component that names a link's colour with one class has to win
+   over this, and a reset as specific as a class and an element would quietly
+   win instead and leave the component's colour unpainted. */
+:where(.yomihon) a {
   color: inherit;
   text-decoration: none;
 }
@@ -94,8 +98,9 @@ samp {
   display: none;
 }
 
+/* The ring follows the control's own corners. Setting a radius here repainted
+   every rounded control with a different one the moment it took focus. */
 .yomihon :focus-visible {
-  border-radius: var(--r-sm);
   outline: 2px solid var(--fg-subtle);
   outline-offset: 2px;
 }
@@ -1254,7 +1259,7 @@ samp {
 }
 
 .y-railitem__full {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   display: block;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
@@ -2124,9 +2129,17 @@ button.y-freshness__action {
    link and takes the prose link ink. */
 .y-prose .embed__source,
 .y-prose .embed__note {
-  color: var(--fg-muted);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   margin: 0 0 8px;
+}
+
+/* An excerpt that opens on a heading starts at its provenance line, not a
+   section's worth of room below it: the room above a heading separates it from
+   the text before it, and inside an excerpt there is none. */
+.y-prose .embed__source + :is(h2, h3, h4, h5, h6) {
+  margin-top: 8px;
 }
 
 .y-prose .embed-media {
@@ -2320,8 +2333,13 @@ button.y-freshness__action {
 /* The contents list and the cited-by list are one anatomy: a hairline down the
    left edge, rows of 14px on a 24px line, and the row the reader is on picked
    out by a heavier ink rule over the hairline and the ink itself. The rule is
-   drawn inside each row so a row's height never moves with its state. */
-.y-toc__row > a:first-child {
+   drawn inside each row so a row's height never moves with its state.
+
+   The row's own link is named at no weight beyond the row, so the entry the
+   reader is on can repaint it with one class; a selector that counted the
+   element as well outweighed that class and left the entry looking like every
+   other one. */
+.y-toc__row > :where(a:first-child) {
   border-radius: 0;
   box-shadow: inset 1px 0 0 var(--line);
   color: var(--fg-subtle);
@@ -2330,7 +2348,7 @@ button.y-freshness__action {
   padding: 4px 12px 4px 16px;
 }
 
-.y-toc__row > a:first-child:hover {
+.y-toc__row > :where(a:first-child):hover {
   box-shadow: inset 1px 0 0 var(--line-strong);
   color: var(--fg);
 }
@@ -2350,12 +2368,18 @@ button.y-freshness__action {
   padding-left: 40px;
 }
 
+/* The section's own door shows under a pointer and takes no room until then:
+   it sits over the end of the row's first line, on the ground colour so it
+   covers whatever words run under it, and a title keeps the whole width to
+   wrap in. A reserved strip at rest made every long title break one word
+   early, for a control that was not on screen. */
 .y-toc__row {
   align-items: stretch;
   display: flex;
+  position: relative;
 }
 
-.y-toc__row > a:first-child {
+.y-toc__row > :where(a:first-child) {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -2363,15 +2387,19 @@ button.y-freshness__action {
 
 .y-toc__list .y-toc__door {
   align-items: center;
+  background: var(--bg);
   border-left: 0;
   color: var(--fg-subtle);
   display: flex;
-  flex: none;
+  height: 2rem;
+  inset-block-start: 0;
+  inset-inline-end: 0;
   justify-content: center;
   margin-left: 0;
-  min-width: 28px;
   opacity: 0;
   padding: 0;
+  position: absolute;
+  width: 28px;
 }
 
 .y-toc__door svg {
@@ -2388,10 +2416,15 @@ button.y-freshness__action {
   color: var(--fg);
 }
 
+/* A touch screen has no pointer to reveal the door with, so there it is always
+   drawn and keeps its own width beside the title. */
 @media (pointer: coarse) {
   .y-toc__list .y-toc__door {
-    min-width: 44px;
+    flex: none;
+    height: auto;
     opacity: 1;
+    position: static;
+    width: 44px;
   }
 }
 
@@ -2822,6 +2855,21 @@ button.y-freshness__action {
   padding: 40px var(--gutter-answer) 96px;
 }
 
+/* The page names itself, then offers the field, then answers: three steps a
+   measured distance apart, so the count is not read as part of the field's
+   frame and the field is not read as the title's underline. */
+.y-searchpage > .y-title {
+  margin-bottom: 24px;
+}
+
+/* An answer that is nothing starts where the answers would have, under the
+   field, rather than centred on a column the divisions beside it have made
+   narrower than the field. */
+.y-searchpage .y-nothing {
+  margin-inline: 0;
+  text-align: start;
+}
+
 /* The divisions beside the results. The page's own column is a reading
    measure, so the answer and what it is made of are laid out as a pair rather
    than by squeezing one into the other: the results keep the measure and the
@@ -2962,6 +3010,7 @@ a.y-facetrow:hover {
    division in, so it never asks for one; nothing here paints one out. */
 .y-searchpage__form {
   background: var(--panel);
+  margin-bottom: 16px;
 }
 /* The count line prints the query back, and a query can be one run with
    nowhere to break — the same thing that used to carry the notice below it off
@@ -4435,25 +4484,17 @@ a.y-facetrow:hover {
   gap: 10px;
   margin: 30px 0 0;
 }
-/* The seal ink is scarce on purpose: everywhere else it is a hairline, a
-   7px square, or ten-pixel type. Poured into a 38px slab on the two pages a
-   reader only ever reaches by accident, it stopped reading as the reserved
-   mark and started reading as an alarm — and on the dark ground it was a
-   bright salmon block, the loudest thing on the page. The button keeps the
-   colour and gives up the fill, which is the weight every other control here
-   carries.
-
-   The selector names the element as well as the class: the shell resets every
-   link inside it to the surrounding ink, and that reset is one step more
-   specific than a class alone. The colour written here before was therefore
-   never painted — the label took the article's ink onto the seal-ink fill and
-   sat there at 2.3:1, which is the real reason the slab read as wrong. */
+/* The seal ink is kept for one meaning, a note that is ready, so the way out
+   of a page a reader reached by accident is the plain outline every other
+   control here wears: ink on the ground, a hairline round it, and the faint
+   wash under a pointer. The first action is told from the second by its ink
+   and a firmer line, not by a colour that would read as an alarm. */
 .y-recovery__action {
   align-items: center;
-  background: var(--accent-faint);
-  border: 1px solid var(--accent);
-  border-radius: var(--r-sm);
-  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--fg);
   display: inline-flex;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
@@ -4464,20 +4505,16 @@ a.y-facetrow:hover {
 }
 
 .y-recovery__action:hover {
-  background: var(--accent-muted);
-  border-color: var(--accent-strong);
-  color: var(--accent-strong);
+  background: var(--wash);
 }
 
 .y-recovery__action--quiet {
-  background: var(--panel);
-  border-color: var(--border);
-  color: var(--fg);
+  border-color: var(--line);
+  color: var(--fg-muted);
 }
 
 .y-recovery__action--quiet:hover {
-  background: var(--elevated);
-  border-color: var(--border-strong);
+  color: var(--fg);
 }
 
 /* One notice for every surface that has nothing to show: a search that matched
@@ -4913,7 +4950,7 @@ a.y-facetrow:hover {
    that space, since the space is trailing whitespace inside a box of its own,
    and leave the arrow touching the last word. */
 .y-syl-read {
-  color: var(--accent);
+  color: var(--fg);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
@@ -6052,7 +6089,7 @@ samp,
 }
 
 .y-healthlink {
-  color: var(--accent);
+  color: var(--fg);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
   text-decoration: none;
@@ -6705,6 +6742,14 @@ samp,
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   margin: 18px 0 0;
+}
+
+/* Footnotes already close the piece with a hairline of their own, so the way
+   onward under them stands off by space alone; a second rule a few lines below
+   the first read as two endings. */
+.y-article:has(.footnotes) .y-steps {
+  border-top: 0;
+  margin-top: 48px;
 }
 
 /* The way onward, closing the article. The source line names the order the
