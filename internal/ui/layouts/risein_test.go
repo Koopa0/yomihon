@@ -83,7 +83,7 @@ func TestPageContentRisesIntoPlace(t *testing.T) {
 	if gate == nil {
 		t.Fatalf("the rule playing y-rise-in selects %q, which has no html:not(...) gate to read", selector)
 	}
-	for _, clause := range strings.Split(gate[1], ", ") {
+	for clause := range strings.SplitSeq(gate[1], ", ") {
 		if !regexp.MustCompile(`^\[data-[a-z]+(='[a-z]+')?\]$`).MatchString(clause) {
 			t.Errorf("rise gate clause %q is not a data attribute the head script wrote once; a condition that follows the reader replays the arrival when it matches again", clause)
 		}
