@@ -3,6 +3,7 @@ package mark_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -720,4 +721,62 @@ func TestTheRouteRefusesAVaultItIsNotGiven(t *testing.T) {
 		}
 	}()
 	mark.NewHandler(newFile(t), nil, slog.New(slog.DiscardHandler))
+}
+
+func TestAnchorShapeSharedByReaderMarks(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, anchor string
+		accepted     bool
+	}{
+		{"empty fallback", "", true},
+		{"heading", "topic-one", true},
+		{"block", "^safe", true},
+		{"ampersand", "a&b", true},
+		{"non-ASCII control remains accepted", "a" + string(rune(0x85)) + "b", true},
+		{"ASCII boundary", strings.Repeat("a", 256), true},
+		{"ASCII over boundary", strings.Repeat("a", 257), false},
+		{"CJK boundary", strings.Repeat("漢", 85) + "a", true},
+		{"CJK over boundary", strings.Repeat("漢", 86), false},
+		{"invalid UTF-8", string([]byte{0xff}), false},
+	}
+	for _, r := range "#?/\\\"'<>" {
+		cases = append(cases, struct {
+			name, anchor string
+			accepted     bool
+		}{fmt.Sprintf("delimiter %U", r), "a" + string(r) + "b", false})
+	}
+	for r := rune(0); r <= 0x20; r++ {
+		cases = append(cases, struct {
+			name, anchor string
+			accepted     bool
+		}{fmt.Sprintf("control or space %U", r), "a" + string(r) + "b", false})
+	}
+	cases = append(cases, struct {
+		name, anchor string
+		accepted     bool
+	}{"DEL", "a" + string(rune(0x7f)) + "b", false})
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			file := newFile(t)
+			place := aPlace()
+			place.Anchor = tt.anchor
+			uncertainty := anUncertainty()
+			uncertainty.Anchor = tt.anchor
+			_, uncertaintyErr := file.ToggleUncertainty(uncertainty, func(*mark.Uncertainty) bool { return true })
+			for name, err := range map[string]error{
+				"shape":        mark.ValidateAnchor(tt.anchor),
+				"continuation": file.SetContinuation(place),
+				"uncertainty":  uncertaintyErr,
+			} {
+				if tt.accepted && err != nil {
+					t.Errorf("%s rejected %q: %v", name, tt.anchor, err)
+				}
+				if !tt.accepted && !errors.Is(err, mark.ErrInvalid) {
+					t.Errorf("%s accepted %q or returned %v; want ErrInvalid", name, tt.anchor, err)
+				}
+			}
+		})
+	}
 }

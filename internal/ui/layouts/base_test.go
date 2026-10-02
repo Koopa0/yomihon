@@ -80,7 +80,7 @@ func TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry(t *t
 	if entryAt < firstStyle {
 		t.Errorf("Base() module entry at %d, first stylesheet at %d; the entry closes the body; html = %q", entryAt, firstStyle, html)
 	}
-	if !(markAt < rulesAt && rulesAt < entryAt) {
+	if markAt >= rulesAt || rulesAt >= entryAt {
 		t.Errorf("Base() script order is mark at %d, rules at %d, entry at %d; want the mark, then the rules, then the module entry; html = %q", markAt, rulesAt, entryAt, html)
 	}
 }
