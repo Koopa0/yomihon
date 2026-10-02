@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -863,6 +864,44 @@ func TestSyllabusSaysNothingIsOver(t *testing.T) {
 		}
 		if found := finishedInWords.FindAllString(html, -1); found != nil {
 			t.Errorf("the %s course page says %q, which reads as a claim that a lesson is behind the reader; html = %q", lang, found, html)
+		}
+	}
+}
+
+// TestTheKickerAboveACourseTitleEndsOnItsLastWord holds the line above a
+// course's title to the words it is made of. The kicker is a line of its own, so
+// a separator after the last word joins it to nothing and reads as a sentence
+// that stopped. Both pages that carry it are asked, in both languages, and the
+// words are written out rather than read back from the phrase: a lock that
+// compared the page with the constant that fills it would agree with whatever
+// the constant said.
+func TestTheKickerAboveACourseTitleEndsOnItsLastWord(t *testing.T) {
+	t.Parallel()
+
+	kicker := regexp.MustCompile(`<div class="y-syl-kicker">([^<]*)</div>`)
+	pages := map[string]func(wording.Lang) templ.Component{
+		"syllabus": func(lang wording.Lang) templ.Component {
+			return Syllabus(PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}, layouts.Chrome{Lang: lang})
+		},
+		"listen": func(lang wording.Lang) templ.Component {
+			return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
+		},
+	}
+	want := map[wording.Lang]string{wording.ZhHant: "學習路徑", wording.En: "Study path"}
+
+	for name, page := range pages {
+		for lang, words := range want {
+			var out bytes.Buffer
+			if err := page(lang).Render(t.Context(), &out); err != nil {
+				t.Fatalf("render the %s page in %s: %v", name, lang, err)
+			}
+			found := kicker.FindAllStringSubmatch(out.String(), -1)
+			if len(found) != 1 {
+				t.Fatalf("the %s page in %s carries %d kickers, want 1; html = %q", name, lang, len(found), out.String())
+			}
+			if got := found[0][1]; got != words {
+				t.Errorf("the %s page in %s opens on %q, want %q", name, lang, got, words)
+			}
 		}
 	}
 }
