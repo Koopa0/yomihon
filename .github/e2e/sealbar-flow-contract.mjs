@@ -11,6 +11,10 @@ const MUTATE = process.env.MUTATE || '';
 const ARTICLE = '.y-article';
 const SEALBAR = '.y-sealbar';
 const STEPS = '.y-steps';
+// The widest width the bar is still drawn at. From 1280px the three-column shell
+// carries the status in the right rail and hides the bar, so the mid reading is
+// taken one pixel under that.
+const MID_WIDTH = 1279;
 
 const SITES = [
   'not-fixed-position',
@@ -77,12 +81,17 @@ const rewriteDocument = (replacements, label) => async (page) => {
 const SEALBAR_OPEN = '<section class="y-sealbar"';
 const SEALBAR_CLOSE = '</section></article></main>';
 
+// The bar's own rule as the stylesheet serves it, minified. It is matched whole
+// because the wide layout carries a second rule for the same class that hides
+// it, and a needle short enough to match both would be refused as ambiguous.
+const SEALBAR_RULE = '.y-sealbar{border-top:1px solid var(--line);flex-wrap:wrap;align-items:center;gap:12px;margin-top:32px;padding:16px 0 0;display:flex}';
+
 const MUTATIONS = {
   'restore-fixed-bar': {
     target: 'not-fixed-position',
     apply: rewriteStylesheet(
-      '.y-sealbar{background:var(--panel);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
-      '.y-sealbar{position:fixed;left:0;right:0;bottom:0;z-index:36;background:var(--panel);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      SEALBAR_RULE,
+      SEALBAR_RULE.replace('{', '{position:fixed;left:0;right:0;bottom:0;z-index:36;'),
       'fixed sealbar',
     ),
   },
@@ -93,8 +102,8 @@ const MUTATIONS = {
   'stick-the-bar-to-the-fold': {
     target: 'below-fold-while-reading',
     apply: rewriteStylesheet(
-      '.y-sealbar{background:var(--panel);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
-      '.y-sealbar{position:sticky;bottom:0;z-index:36;background:var(--panel);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;gap:12px;margin-top:26px;padding:10px 16px;display:flex}',
+      SEALBAR_RULE,
+      SEALBAR_RULE.replace('{', '{position:sticky;bottom:0;z-index:36;'),
       'sticky sealbar',
     ),
   },
@@ -188,7 +197,7 @@ const runLocks = async () => {
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await assertFlowAtWidth(page, 1440, 900, 'wide 1440×900', { hiddenOK: true });
-    await assertFlowAtWidth(page, 1280, 900, 'mid 1280×900');
+    await assertFlowAtWidth(page, MID_WIDTH, 900, `mid ${MID_WIDTH}×900`);
     await assertFlowAtWidth(page, 390, 844, 'narrow 390×844');
     console.log('PASS sealbar-flow-contract: the seal bar is in flow at the article end at wide, mid and narrow widths');
   } finally {
@@ -204,7 +213,7 @@ const runMutation = async (mode) => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const prove = await mutation.apply(page);
     try {
-      await assertFlowAtWidth(page, 1280, 900, `mutated ${mode}`);
+      await assertFlowAtWidth(page, MID_WIDTH, 900, `mutated ${mode}`);
       console.log(`MUTATE-RESULT: missed ${mode}`);
       process.exit(0);
     } catch (err) {

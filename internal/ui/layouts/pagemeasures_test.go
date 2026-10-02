@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,7 +34,7 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 	want := map[string]string{
 		"--measure-answer": "720px",
 		"--measure-list":   "880px",
-		"--measure-read":   "640px",
+		"--measure-read":   "calc(var(--fs-ed-17) * 38)",
 	}
 
 	sheets := handWrittenStylesheets(t)
@@ -94,6 +95,61 @@ func TestEveryPageShellTakesItsOwnMeasure(t *testing.T) {
 				t.Errorf("no rule in components.css gives %s a max-width, so its line length is whatever its container is", shell.class)
 			}
 		})
+	}
+}
+
+// TestALatinArticleStopsItsTextAtAMeasureOfItsOwn holds the second line length
+// the reading column has. The column is sized for Han, and the same width runs
+// Latin text to about eighty-five characters, so an article positively tagged
+// as something other than Chinese, Japanese or Korean holds its text blocks to
+// a character count. Three things have to stay true together: the cap is
+// there, it carries the whole guard (an untagged article keeps the safe wide
+// line, and a CJK one keeps the width its characters were sized to), and it
+// names the blocks that are lines of text rather than the code, tables and
+// diagrams that are not.
+func TestALatinArticleStopsItsTextAtAMeasureOfItsOwn(t *testing.T) {
+	t.Parallel()
+
+	const guard = "[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko))"
+	wantBlocks := []string{".callout", ".y-reading", "blockquote", "ol", "p", "ul"}
+	blocks := regexp.MustCompile(`\.y-prose > :is\(([^)]*)\)`)
+
+	capped := 0
+	for _, rule := range componentRules(t) {
+		if !strings.Contains(rule.selector, ".y-prose") {
+			continue
+		}
+		for _, value := range rule.values("max-width") {
+			if !strings.HasSuffix(value, "ch") {
+				continue
+			}
+			if !strings.Contains(rule.selector, ".y-article"+guard) {
+				t.Errorf("rule %q caps prose at %s without the guard %q, so it would also narrow an article that declares no language or a CJK one",
+					rule.selector, value, guard)
+				continue
+			}
+			count, err := strconv.ParseFloat(strings.TrimSuffix(value, "ch"), 64)
+			if err != nil || count < 50 || count > 58 {
+				t.Errorf("rule %q caps prose at %s; want 50 to 58ch, which is 65 to 75 characters of this face", rule.selector, value)
+			}
+			match := blocks.FindStringSubmatch(rule.selector)
+			if match == nil {
+				t.Errorf("rule %q does not name the text blocks it caps as a direct-child list", rule.selector)
+				continue
+			}
+			var got []string
+			for name := range strings.SplitSeq(match[1], ",") {
+				got = append(got, strings.TrimSpace(name))
+			}
+			slices.Sort(got)
+			if diff := cmp.Diff(wantBlocks, got); diff != "" {
+				t.Errorf("rule %q caps these blocks (-want +got):\n%s", rule.selector, diff)
+			}
+			capped++
+		}
+	}
+	if capped != 1 {
+		t.Errorf("%d rules cap a Latin article's prose, want exactly 1", capped)
 	}
 }
 

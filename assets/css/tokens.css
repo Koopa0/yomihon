@@ -373,7 +373,7 @@
 }
 
 /* The two largest steps at a phone's width. A reading column of about 340px
-   carries a 38px title as four or five characters a line, and the step below it
+   carries a 36px title as four or five characters a line, and the step below it
    arrives nearly as wide. Both come down; the rest of the scale is already
    small enough that narrowing it would cost legibility rather than buy any.
    Each root gets its own pair rather than one shared behind a combined

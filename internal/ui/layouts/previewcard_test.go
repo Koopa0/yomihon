@@ -87,18 +87,24 @@ func TestTheHoverCardIsShortEnoughToReadWithoutScrollingIt(t *testing.T) {
 // TestTheLinkAnOpenCardBelongsToIsStillMarked holds the tie between a card and
 // the link it came from. Hovering marks the link, but the pointer has to leave
 // it to reach the card — and on a paragraph carrying several wikilinks the tie
-// would break at exactly the moment the reader starts reading.
+// would break at exactly the moment the reader starts reading. A link in the
+// prose is ink with an underline, so the mark is the underline's colour: the
+// link with a card open has to carry the same one a hovered link does.
 func TestTheLinkAnOpenCardBelongsToIsStillMarked(t *testing.T) {
 	t.Parallel()
 	css := previewStylesheet(t)
 	open := cssDeclarations(t, ruleBody(t, css, ".y-prose .wikilink[data-preview-open] {"))
-	hover := cssDeclarations(t, ruleBody(t, css, ".y-prose .wikilink:hover {"))
-	if hover["border-bottom-color"] == "" {
-		t.Fatal("a hovered wikilink no longer marks itself, so there is nothing for the open card's link to keep")
+	hover := cssDeclarations(t, ruleBody(t, css, ".y-prose a:hover {"))
+	rest := cssDeclarations(t, ruleBody(t, css, ".y-prose a {"))
+	if hover["text-decoration-color"] == "" {
+		t.Fatal("a hovered link no longer marks itself, so there is nothing for the open card's link to keep")
 	}
-	if open["border-bottom-color"] != hover["border-bottom-color"] {
+	if hover["text-decoration-color"] == rest["text-decoration-color"] {
+		t.Fatalf("a hovered link is marked %q, the same as one at rest, so the open card's link would be matching a mark that marks nothing", hover["text-decoration-color"])
+	}
+	if open["text-decoration-color"] != hover["text-decoration-color"] {
 		t.Errorf("a link with a card open is marked %q while a hovered one is marked %q; the tie between the card and its own link has to outlast the pointer leaving that link",
-			open["border-bottom-color"], hover["border-bottom-color"])
+			open["text-decoration-color"], hover["text-decoration-color"])
 	}
 	if open["anchor-name"] == "" {
 		t.Error("the link with a card open carries no anchor name, so the stylesheet has nothing to place the card against")

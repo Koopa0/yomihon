@@ -68,10 +68,11 @@ func noteDateLabel(v *NoteView, lang wording.Lang) string {
 }
 
 // headFactsShown reports whether the head has any fact to draw as a
-// description list: the same five fields noteFacts gates row by row, so a
-// note with none of them draws neither the disclosure nor the open copy.
+// description list: the same four fields noteFacts gates row by row, so a
+// note with none of them draws neither the disclosure nor the open copy. The
+// status is not among them; the status face states it.
 func (v *NoteView) headFactsShown() bool {
-	return v.Type != "" || v.Status != "" || v.Updated != "" || v.Language != "" || v.RelPath != ""
+	return v.Type != "" || v.Updated != "" || v.Language != "" || v.RelPath != ""
 }
 
 // authoredLanguageAttrs states the language the note's author wrote in, only

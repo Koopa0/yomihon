@@ -261,6 +261,17 @@ samp {
   box-shadow: inset 2px 0 0 var(--fg);
 }
 
+/* A row in the left rail starts its text one dot and one gap in from the rule
+   that marks the row, which is as far as the dot needs and no further: the
+   wider inset the shared rule above gives is what the right rail's rows were
+   drawn for. The same inset holds in every rail the column carries (a course,
+   a map, a book, a folder) and in the drawer it becomes on a phone, so a title
+   or a lesson sits at the same place whichever of them is open. */
+.y-rail-left .ui-navitem {
+  column-gap: 8px;
+  padding-left: 8px;
+}
+
 /* ---- Sidebar section label ---- */
 .ui-side__label {
   align-items: baseline;
@@ -351,6 +362,23 @@ samp {
   color: var(--fg-subtle);
   text-decoration: line-through;
   text-decoration-color: var(--line-strong);
+}
+
+/* On a note the badge is one fact about the page. Down a list it is the same
+   word on every row, and a red fill repeated that way floods the page with the
+   colour that is meant to mark one thing. A row's word is quiet text with no
+   fill or padding to hold one, and only the square keeps the accent, so the
+   state still reads at a glance without the rows shouting it. */
+.y-lesson .ui-status--ready,
+.y-homenote__meta .ui-status--ready {
+  background: none;
+  color: var(--fg-subtle);
+  padding: 0;
+}
+
+.y-lesson .ui-status--ready::before,
+.y-homenote__meta .ui-status--ready::before {
+  background: var(--accent);
 }
 
 /* ---- Content-type label (dot + name) ---- */
@@ -833,7 +861,7 @@ samp {
   border-right: 1px solid var(--line);
   height: calc(100vh - var(--header-height));
   overflow-y: auto;
-  padding: 6px var(--rail-pad) 48px;
+  padding: 6px var(--rail-pad) 48px var(--rail-pad-start);
   position: sticky;
   top: var(--header-height);
 }
@@ -873,6 +901,7 @@ samp {
 :root {
   --rail-head-height: 44px;
   --rail-pad: 16px;
+  --rail-pad-start: 10px;
 }
 
 .y-railtoggle__button {
@@ -887,7 +916,7 @@ samp {
     display: flex;
     gap: 6px;
     height: var(--rail-head-height);
-    margin: -6px calc(-1 * var(--rail-pad)) 4px;
+    margin: -6px calc(-1 * var(--rail-pad)) 4px calc(-1 * var(--rail-pad-start));
     padding: 0 var(--rail-pad) 0 4px;
     position: sticky;
     /* Held six pixels above the content edge, which is the rail's own top
@@ -997,7 +1026,7 @@ samp {
 }
 
 .y-railgroup {
-  margin: 2px 0 8px 5px;
+  margin: 2px 0 8px 2px;
 }
 
 .y-railsep {
@@ -1577,6 +1606,20 @@ details.y-metarow {
   line-height: var(--lh-latin);
 }
 
+/* The column is sized for Han: thirty-eight characters of it at the reading
+   size is 646px, and the same 646px carries about 85 Latin characters, well
+   past where a line stays easy to carry back to the start of the next. Where
+   the article is positively tagged non-CJK its text blocks stop at 54ch, which
+   is about 70 characters of this face: the figure is counted in ch rather than
+   pixels so it follows the reader's size and face choice. A ch is the width of
+   a zero, wider than the average letter, so the column's 67ch was never the
+   same thing as 67 characters. Code, tables, diagrams and images are not text
+   lines and keep the whole column; an article that declares no language, and
+   every CJK article, keep the full measure. */
+.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose > :is(p, ul, ol, blockquote, .callout, .y-reading) {
+  max-width: 54ch;
+}
+
 /* The head ends where the body begins: forty pixels of space and no rule. The
    head's own bottom margins are never more than that, so the two collapse into
    one gap whichever of them is the larger. */
@@ -1591,7 +1634,7 @@ details.y-metarow {
 .y-prose p {
   margin: var(--sp-block) 0 0;
 }
-/* Size, the section bar and the fragment landing pad follow the authored
+/* Size and the fragment landing pad follow the authored
    level the renderer stamps, not the HTML tag. The tag is one step down so
    the chrome title stays the only h1; the look has to stay where the author
    wrote it, or a #### that the shell emits as h5 reads as body prose and a
@@ -1599,7 +1642,7 @@ details.y-metarow {
    note's title stays on the page. Preflight resets headings to inherited
    size, so a level given no size of its own here read at body size —
    smaller than its own subsections. The # step sits between the page title
-   (--fs-ed-38) and authored ##.
+   (--fs-ed-36) and authored ##.
    Every level takes its size from the editorial scale, which the reader's
    size choice moves; a level set from the chrome scale instead stays where
    it is while the prose under it grows past it. Line-height is declared per
@@ -1663,12 +1706,20 @@ details.y-metarow {
    the same clearance as the rest. They stop at the body's size instead of
    shrinking a sixth time: read at the browser's own idea of an h5 and an h6
    they were the size of the paragraph beside them, in the paragraph's face
-   and weight, with less room above them than the paragraph had. The two are
-   told apart by weight and letter-spacing rather than by size, which is what
-   keeps the topmost level from having to grow to a size CJK cannot carry. */
+   and weight, with less room above them than the paragraph had. They take the
+   fourth level's measure and its room above and below, and the two are told
+   apart by weight rather than by size, which is what keeps the topmost level
+   from having to grow to a size CJK cannot carry. */
 .y-prose [data-level='5'],
 .y-prose [data-level='6'] {
+  color: var(--fg);
+  font-family: var(--font-read);
+  font-size: var(--fs-ed-17);
   font-weight: var(--fw-medium);
+  line-height: 1.647;
+  margin: var(--sp-h4) 0 var(--sp-after-h4);
+  scroll-margin-top: var(--header-clearance);
+  text-wrap: balance;
 }
 
 .y-prose [data-level='5'] {
@@ -1757,6 +1808,18 @@ details.y-metarow {
 
 .y-prose a:hover {
   text-decoration-color: color-mix(in oklch, var(--fg) 60%, transparent);
+}
+/* A link that leaves the library opens in a tab of its own, and says so with a
+   small arrow after its words. The arrow is generated content with an empty
+   alternative, so it is a picture only: the sentence a listener is told is
+   written into the link itself. It is a box of its own so the link's underline
+   stops at the last word instead of running under the arrow. */
+.y-prose a[target='_blank']::after {
+  color: var(--fg-subtle);
+  content: '\2197' / '';
+  display: inline-block;
+  font-size: 0.75em;
+  margin-inline-start: 0.2em;
 }
 /* Footnotes — apparatus, not body. A reference is a small mark inside the
    sentence and the notes themselves collect at the foot of the piece, set
@@ -4636,15 +4699,16 @@ a.y-facetrow:hover {
   min-width: 0;
 }
 
+/* How many lessons a part or module holds, as a quiet figure beside its name
+   in the same way the rail counts are, rather than a badge: the heading already
+   says what it is. */
 .y-partcount {
-  background: var(--elevated);
-  border: 1px solid var(--border-faint);
-  border-radius: var(--r-sm);
   color: var(--fg-subtle);
   flex: none;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  padding: 3px 8px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
   white-space: nowrap;
 }
 
@@ -4844,10 +4908,12 @@ a.y-facetrow:hover {
 }
 
 
+/* The words end on a space and the arrow follows as inline text, the way the
+   rest of the interface sets "All of it →". A flex or grid box here would drop
+   that space, since the space is trailing whitespace inside a box of its own,
+   and leave the arrow touching the last word. */
 .y-syl-read {
-  align-items: center;
   color: var(--accent);
-  display: inline-flex;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
@@ -5389,7 +5455,7 @@ samp,
      that scrollbar. The subtraction is the two sides of the rail's padding
      and its one-pixel edge. */
   html[data-rail-moving] .y-railbody {
-    min-width: calc(var(--rail-open) - 2 * var(--rail-pad) - 1px);
+    min-width: calc(var(--rail-open) - var(--rail-pad) - var(--rail-pad-start) - 1px);
   }
 
   html[data-rail='collapsed'] {

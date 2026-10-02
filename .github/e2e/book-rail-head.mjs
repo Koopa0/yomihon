@@ -1,8 +1,9 @@
 // Behavior lock for the head of a book rail: the course's name and its extent,
 // and nothing else. The name is the strong line and the extent is quiet meta
 // beneath it; a hairline closes the head; the part headings under it are
-// authored titles, so they read in the sans face and are not uppercased the way
-// an interface label is. The rail carries no previous/next pair: the article
+// authored titles, so they are set as sentence-case sans text and never as an
+// uppercase, tracked label. Every rail sets them that way, a book's and the
+// library sidebar's alike. The rail carries no previous/next pair: the article
 // foot is the one place a lesson offers the step onward.
 //
 // Go tests cannot see this: what matters is what the browser resolved the
@@ -19,7 +20,7 @@ const SITES = [
   'the-name-outranks-the-extent',
   'the-name-is-never-clipped',
   'part-headings-are-not-labels',
-  'other-rails-keep-the-label-face',
+  'every-rail-sets-part-heads-in-sans',
 ];
 // One unbroken run, far wider than the rail: only a title allowed to break
 // anywhere holds it, so a rule that stopped wrapping cannot hide behind a name
@@ -79,6 +80,9 @@ const appendRule = (rule) => async (page) => {
   return async () => (served === 0 ? 'the stylesheet was never requested, so the rule reached no page' : '');
 };
 
+// What a part heading used to be: mono capitals with tracking.
+const LABEL_FACE = 'font-family:var(--font-mono);letter-spacing:.08em;text-transform:uppercase';
+
 const MUTATIONS = {
   // Takes back the head's own styling: the name and the extent inherit the same
   // body face again.
@@ -88,13 +92,17 @@ const MUTATIONS = {
     target: 'the-name-is-never-clipped',
     apply: appendRule('.y-railbook__title{overflow:hidden;overflow-wrap:normal;text-overflow:ellipsis;white-space:nowrap}'),
   },
-  // Widens the override from book rails to every rail's part headings.
-  'widen-summary-override': {
-    target: 'other-rails-keep-the-label-face',
-    apply: editRule('.y-railbook .y-railsummary{', '.y-railsummary{'),
+  // Puts a book rail's part headings back on an uppercase, tracked mono label.
+  'label-face-in-book-rails': {
+    target: 'part-headings-are-not-labels',
+    apply: appendRule(`#nav-rail:has(.y-railbook) .y-railsummary{${LABEL_FACE}}`),
   },
-  // Puts part headings back on the interface label face.
-  'drop-summary-override': { target: 'part-headings-are-not-labels', apply: dropRule('.y-railbook .y-railsummary{') },
+  // The same label face on the rails that are not a book's, which the book
+  // rail's own measurement never reaches.
+  'label-face-in-other-rails': {
+    target: 'every-rail-sets-part-heads-in-sans',
+    apply: appendRule(`#nav-rail:not(:has(.y-railbook)) .y-railsummary{${LABEL_FACE}}`),
+  },
 };
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
@@ -117,6 +125,13 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   console.error(`book-rail-head: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
+
+// Whether a computed font stack is the sans stack the page declares and not the
+// mono one. The stack is read back from the page's own token, with the quoting
+// the two serialisations disagree about taken out, so the lock follows the face
+// the sheet names as sans rather than a family written into this file.
+const bare = (stack) => stack.replace(/["']/g, '').replace(/\s+/g, '');
+const isSans = (stack, sans) => sans !== '' && bare(stack) === bare(sans) && !/mono/i.test(stack);
 
 const measure = (page) =>
   page.evaluate((longName) => {
@@ -141,7 +156,7 @@ const measure = (page) =>
       transform: s.textTransform,
       spacing: s.letterSpacing,
       summaryFace: s.fontFamily,
-      spanFace: e.fontFamily,
+      sansFace: getComputedStyle(document.documentElement).getPropertyValue('--font-sans'),
       titleFits: title.scrollWidth <= title.clientWidth,
       documentFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
       steps: document.querySelectorAll('.y-railbook nav, #nav-rail .y-lessonsteps').length,
@@ -170,19 +185,22 @@ try {
     if (m.steps !== 0) {
       broken(`at ${width}px the book rail carries ${m.steps} step navigation(s); the foot is the one place a lesson offers the step onward`);
     }
-    if (!(m.titleSize > m.spanSize && m.titleWeight > m.spanWeight && m.titleSize > m.summarySize && m.titleWeight > m.summaryWeight)) {
+    // The name is larger than both lines under it, and heavier than the extent.
+    // A part heading is a title too, so it may weigh as much as the name does;
+    // it may not weigh more.
+    if (!(m.titleSize > m.spanSize && m.titleWeight > m.spanWeight && m.titleSize > m.summarySize && m.titleWeight >= m.summaryWeight)) {
       fail(
         'the-name-outranks-the-extent',
-        `at ${width}px the course name computes ${m.titleSize}px/${m.titleWeight} against the extent's ${m.spanSize}px/${m.spanWeight} and a part heading's ${m.summarySize}px/${m.summaryWeight}; the name must be larger and heavier than both`,
+        `at ${width}px the course name computes ${m.titleSize}px/${m.titleWeight} against the extent's ${m.spanSize}px/${m.spanWeight} and a part heading's ${m.summarySize}px/${m.summaryWeight}; the name must be larger than both lines under it, heavier than the extent and no lighter than a part heading`,
       );
     }
     if (m.hairline !== '1px') {
       fail('the-name-outranks-the-extent', `at ${width}px the head closes with a ${m.hairline} border, want a 1px hairline`);
     }
-    if (m.transform !== 'none' || m.spacing !== 'normal' || m.summaryFace === m.spanFace) {
+    if (m.transform !== 'none' || m.spacing !== 'normal' || !isSans(m.summaryFace, m.sansFace)) {
       fail(
         'part-headings-are-not-labels',
-        `at ${width}px a part heading inside the book rail resolves text-transform=${m.transform}, letter-spacing=${m.spacing}, face=${m.summaryFace}; it reads as an interface label`,
+        `at ${width}px a part heading inside the book rail resolves text-transform=${m.transform}, letter-spacing=${m.spacing}, face=${m.summaryFace}; it reads as an interface label, not as sentence-case sans text`,
       );
     }
     if (!m.titleFits) {
@@ -191,8 +209,8 @@ try {
     if (!m.documentFits) broken(`at ${width}px the page scrolls sideways`);
   }
 
-  // The other rails keep the interface label face: a book's override must not
-  // spread to the library sidebar that /health draws.
+  // The other rails set part headings the same way: the library sidebar that
+  // /health draws is not left on a label face of its own.
   await page.goto(`${BASE}/health`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => document.fonts.ready);
   if (proof) {
@@ -203,12 +221,21 @@ try {
     const el = document.querySelector('#nav-rail .y-railsummary');
     if (!el) return null;
     const s = getComputedStyle(el);
-    return { transform: s.textTransform, face: s.fontFamily, book: document.querySelectorAll('#nav-rail .y-railbook').length };
+    return {
+      transform: s.textTransform,
+      spacing: s.letterSpacing,
+      face: s.fontFamily,
+      sans: getComputedStyle(document.documentElement).getPropertyValue('--font-sans'),
+      book: document.querySelectorAll('#nav-rail .y-railbook').length,
+    };
   });
   if (other === null) broken('/health draws no sidebar part heading to measure');
   if (other.book !== 0) broken('/health draws a book rail, so it cannot stand for the other rails');
-  if (other.transform !== 'uppercase' || !other.face.includes('Mono')) {
-    fail('other-rails-keep-the-label-face', `a sidebar part heading outside a book rail resolves text-transform=${other.transform}, face=${other.face}; the label face is meant for it`);
+  if (other.transform !== 'none' || other.spacing !== 'normal' || !isSans(other.face, other.sans)) {
+    fail(
+      'every-rail-sets-part-heads-in-sans',
+      `a sidebar part heading outside a book rail resolves text-transform=${other.transform}, letter-spacing=${other.spacing}, face=${other.face}; every rail sets part headings as sentence-case sans text`,
+    );
   }
 
   // The name is a link, and reaching it from the keyboard has to show a ring.

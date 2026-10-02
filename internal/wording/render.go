@@ -43,6 +43,12 @@ var ExcerptWithheldFmt = both("找不到「%s」：〈%s〉裡沒有這個位址
 // it cannot say for itself is whose.
 var EmbedSourceFrom = both("出自 ", "From ")
 
+// OpensInNewTab says what following a link that leaves the library does. It is
+// the words between ParenOpen and ParenClose, carried out of sight after the
+// link's own text, because the arrow drawn beside the link is only a picture
+// of the same fact.
+var OpensInNewTab = both("另開分頁", "opens in a new tab")
+
 // ReadAloud names the control beside a paragraph of Japanese.
 var ReadAloud = both("朗讀這段日文", "Read this Japanese aloud")
 

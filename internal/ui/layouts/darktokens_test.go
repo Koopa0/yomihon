@@ -160,7 +160,7 @@ func TestEveryDarkRuleHasASystemTwin(t *testing.T) {
 
 	// A scan that found nothing proves nothing, and a parse that loses a block
 	// would report every rule inside it as absent rather than as twinned.
-	for _, want := range []string{"[data-theme='dark']", "[data-theme='dark'] .y-ico-moon", "[data-theme='dark'] .yomihon::after"} {
+	for _, want := range []string{"[data-theme='dark']", "[data-theme='dark'] .y-ico-moon", "[data-theme='dark'] .y-ico-sun"} {
 		if chosen[want] == nil {
 			t.Errorf("the scan did not find %q among the stored-dark rules %v; it is reading the wrong text and nothing below it means anything", want, slices.Sorted(maps.Keys(chosen)))
 		}

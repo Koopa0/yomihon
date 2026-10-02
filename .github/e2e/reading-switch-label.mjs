@@ -1,21 +1,22 @@
 // Browser lock for the control that shows and hides the readings over Japanese
-// text. The control names itself in two lengths and the stylesheet picks one by
-// width, so which words a reader actually sees is decided by CSS and cannot be
-// read off the server's bytes: the recorded pages pin both lengths and the
-// spoken name, and nothing in them can say which length is on screen.
+// text. The control is a switch with its name beside it, and the name comes in
+// two lengths: the stylesheet picks one by width, so which words a reader
+// actually sees is decided by CSS and cannot be read off the server's bytes.
 //
-// Three widths stand for the three bands the stylesheet draws. At each one the
+// Three widths stand for the bands the stylesheet draws. At each one the
 // control must show exactly one of its two lengths, that length must be the
 // one the band is for, and it must be contained in the name the browser
 // computes for the control — a reader who asks for a control by the words in
 // front of them is asking with the visible label, so a name that has drifted
 // away from it is a control they cannot reach by name.
 //
-// Where the row is narrowest the 開/關 word does not fit, and the label carries
-// the state by being struck through instead; that substitution is the whole
-// reason the narrow band is allowed to drop the word, so both halves are held
-// here. The run ends by asking the same three widths again in English — the
-// one language the recorded pages say nothing about.
+// Which way the switch is set is not a word. It is `aria-pressed` on the button,
+// which is what assistive technology reads, and the track drawn from that same
+// attribute, which is what a sighted reader reads; the name stays the same in
+// both states, because a control renamed by its own state is announced twice.
+// Both are held at each width, with the readings on and then off. The run ends
+// by asking the same three widths again in English — the one language the
+// recorded pages say nothing about.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -26,26 +27,26 @@ const MUTATE = process.env.MUTATE || '';
 // page what it says would agree with the page whatever the page said.
 const LONG_LABEL = '顯示讀音';
 const SHORT_LABEL = '讀音';
-const ON_WORD = '開';
-const OFF_WORD = '關';
 // The English side carries the same word at both lengths, with no short form.
 // It is held here because the recorded pages are all in Traditional Chinese,
 // so nothing else in the tree can say what the English control reads.
 const ENGLISH_LABEL = 'Readings';
 
 // One width per band the stylesheet draws, named by what the reader gets there.
+// The two bands are split at 720px; 390px is a phone, held apart from 620px so a
+// rule that only reaches a tablet cannot stand in for the narrow band.
 const BANDS = [
-  { width: 1280, label: LONG_LABEL, stateWord: true },
-  { width: 620, label: SHORT_LABEL, stateWord: true },
-  { width: 390, label: SHORT_LABEL, stateWord: false },
+  { width: 1280, label: LONG_LABEL },
+  { width: 620, label: SHORT_LABEL },
+  { width: 390, label: SHORT_LABEL },
 ];
 
 const SITES = [
   'one-label',
   'label-for-width',
   'label-in-name',
-  'state-word-placement',
-  'state-by-strike',
+  'state-announced',
+  'state-by-track',
 ];
 
 class LockFired extends Error {
@@ -66,9 +67,9 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED reading-swit
 
 // A rule injected at a selector that matches nothing styles nothing, and the
 // run would then blame the probe for a regression that was never installed.
-const injectRule = async (page, selector, declarations, media) => {
-  if (await page.locator(selector).count() === 0) {
-    notApplied(`no element matches ${selector}, so the injected rule styles nothing`);
+const injectRule = async (page, selector, declarations, media, owner = selector) => {
+  if (await page.locator(owner).count() === 0) {
+    notApplied(`no element matches ${owner}, so the injected rule styles nothing`);
   }
   const rule = `${selector} { ${declarations} }`;
   await page.addStyleTag({ content: media ? `@media ${media} { ${rule} }` : rule });
@@ -118,30 +119,50 @@ const MUTATIONS = {
     proof: async (page) => (await computedName(page)) === '切換振假名' ? '' : 'the computed name did not move',
     proofWidth: 1280,
   },
-  // The state word forced back in where the row cannot hold it.
-  'state-word-where-the-row-is-narrow': {
-    target: 'state-word-placement',
-    apply: (page) => injectRule(page, '.y-rubybtn__on', 'display: inline !important;', '(max-width: 520px)'),
-    proof: async (page) => ((await visibleStateWords(page)).length > 0 ? '' : 'no state word became visible'),
-    proofWidth: 390,
-  },
-  // The state word dropped where there is room for it, leaving the reading
-  // widths with no word for which way the switch is set.
-  'state-word-gone-where-the-row-is-wide': {
-    target: 'state-word-placement',
-    apply: (page) => injectRule(page, '.y-rubybtn__on, .y-rubybtn__off', 'display: none !important;'),
-    proof: async (page) => ((await visibleStateWords(page)).length === 0 ? '' : 'the state word is still visible'),
+  // The pressed state taken off the control however it is set, so what
+  // assistive technology reads says nothing about which way the switch is.
+  'pressed-state-stripped': {
+    target: 'state-announced',
+    apply: (page) => page.evaluate(() => {
+      const button = document.querySelector('.y-rubybtn');
+      const strip = () => button.removeAttribute('aria-pressed');
+      strip();
+      new MutationObserver(strip).observe(button, { attributes: true, attributeFilter: ['aria-pressed'] });
+    }),
+    proof: async (page) => (await page.locator('.y-rubybtn').getAttribute('aria-pressed')) === null ? '' : 'the control still carries aria-pressed',
     proofWidth: 1280,
   },
-  // The narrow band's substitute for the word, taken away.
-  'narrow-off-state-loses-its-strike': {
-    target: 'state-by-strike',
-    apply: (page) => injectRule(page, '.y-rubybtn__label', 'text-decoration: none !important;'),
+  // The pressed state pinned on, so it stops following the readings.
+  'pressed-state-stuck-on': {
+    target: 'state-announced',
+    apply: (page) => page.evaluate(() => {
+      const button = document.querySelector('.y-rubybtn');
+      const pin = () => { if (button.getAttribute('aria-pressed') !== 'true') button.setAttribute('aria-pressed', 'true'); };
+      pin();
+      new MutationObserver(pin).observe(button, { attributes: true, attributeFilter: ['aria-pressed'] });
+    }),
     proof: async (page) => {
-      const decoration = await page.locator('.y-rubybtn__label--short').evaluate((element) => getComputedStyle(element).textDecorationLine);
-      return decoration === 'none' ? '' : `the label still reads ${decoration}`;
+      // Switched off by the control itself, then read: a pin that had not taken
+      // hold would show the attribute following the readings.
+      await setReadings(page, 'off');
+      const pressed = await page.locator('.y-rubybtn').getAttribute('aria-pressed');
+      await setReadings(page, 'on');
+      return pressed === 'true' ? '' : `with the readings off the control carries aria-pressed=${pressed}`;
     },
-    proofWidth: 390,
+    proofWidth: 1280,
+  },
+  // The drawn track made the same in both states, so a sighted reader is left
+  // with a switch that does not show which way it is set.
+  'track-ignores-the-state': {
+    target: 'state-by-track',
+    apply: (page) => injectRule(page, '.y-rubybtn[aria-pressed]::before', 'background: var(--fg) !important; box-shadow: none !important;', undefined, '.y-rubybtn'),
+    proof: async (page) => {
+      await setReadings(page, 'off');
+      const fill = await trackFill(page);
+      await setReadings(page, 'on');
+      return fill !== TRANSPARENT ? '' : 'with the readings off the track is still unfilled';
+    },
+    proofWidth: 1280,
   },
 };
 
@@ -150,10 +171,15 @@ const visibleLabels = (page) => page.evaluate(() =>
     .filter((element) => getComputedStyle(element).display !== 'none')
     .map((element) => element.textContent));
 
-const visibleStateWords = (page) => page.evaluate(() =>
-  [...document.querySelectorAll('.y-rubybtn__on, .y-rubybtn__off')]
-    .filter((element) => getComputedStyle(element).display !== 'none')
-    .map((element) => element.textContent));
+// The fill the track is drawn with. An unset switch is a hollow track, which the
+// browser reports as a fully transparent background. The track fades between its
+// two fills, so it is read once every transition on the control has landed:
+// asked mid-fade it reports a colour that is neither state.
+const TRANSPARENT = 'rgba(0, 0, 0, 0)';
+const trackFill = (page) => page.locator('.y-rubybtn').evaluate(async (element) => {
+  await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
+  return getComputedStyle(element, '::before').backgroundColor;
+});
 
 // The name the browser computes, not the attribute someone wrote: an attribute
 // that has been removed leaves a name assembled from the contents, and reading
@@ -165,17 +191,22 @@ const computedName = async (page) => {
   return quoted[1].replaceAll('\\"', '"');
 };
 
+// Whether the browser reports the control as pressed in the accessibility tree,
+// which is where assistive technology reads it, rather than the attribute that
+// was written.
+const reportedPressed = async (page) => {
+  const snapshot = await page.locator('.y-rubybtn').ariaSnapshot();
+  const line = /^- button "(?:[^"\\]|\\.)*"(.*)$/.exec(snapshot.trim());
+  if (!line) broken(`the control did not read as a named button: ${JSON.stringify(snapshot)}`);
+  return line[1].includes('[pressed]');
+};
+
 // A listener does not hear case, so a spoken name that carries the visible
 // word under different capitalization — the button label's title case against
 // the accessible name's sentence case — still names the control by the words
 // in front of the reader. The fold makes no difference for the Chinese labels,
 // which carry no case at all.
 const nameCarriesLabel = (name, label) => name.toLowerCase().includes(label.toLowerCase());
-
-const strikesThrough = (page) => page.evaluate(() =>
-  [...document.querySelectorAll('.y-rubybtn__label')]
-    .filter((element) => getComputedStyle(element).display !== 'none')
-    .every((element) => getComputedStyle(element).textDecorationLine.includes('line-through')));
 
 // Readings are switched by pressing the control, which is the path a reader
 // takes; driving the attribute instead would assert against a value this probe
@@ -236,6 +267,7 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
+  const namesByBand = new Map();
   for (const band of BANDS) {
     await page.setViewportSize({ width: band.width, height: 900 });
     await page.waitForTimeout(80);
@@ -255,19 +287,26 @@ try {
         fail('label-in-name', `${where}: the visible ${JSON.stringify(shown[0])} is not inside the spoken name ${JSON.stringify(name)}`);
       }
 
-      const words = await visibleStateWords(page);
-      const wantWord = band.stateWord ? [readings === 'on' ? ON_WORD : OFF_WORD] : [];
-      if (JSON.stringify(words) !== JSON.stringify(wantWord)) {
-        fail('state-word-placement', `${where}: the state word reads ${JSON.stringify(words)}, want ${JSON.stringify(wantWord)}`);
+      // The state is told by the attribute and by what the browser reports from
+      // it, and the name does not move with it: both states are the one name.
+      const pressed = await page.locator('.y-rubybtn').getAttribute('aria-pressed');
+      const wantPressed = readings === 'on' ? 'true' : 'false';
+      if (pressed !== wantPressed) {
+        fail('state-announced', `${where}: aria-pressed is ${JSON.stringify(pressed)}, want ${JSON.stringify(wantPressed)}`);
       }
-      // Where the word is gone the strike is the only thing left saying which
-      // way the switch is set, so it has to follow the state exactly — struck
-      // through when the readings are off and plain when they are on.
-      if (!band.stateWord) {
-        const struck = await strikesThrough(page);
-        if (struck !== (readings === 'off')) {
-          fail('state-by-strike', `${where}: the label is ${struck ? 'struck through' : 'plain'} with no state word beside it`);
-        }
+      if ((await reportedPressed(page)) !== (readings === 'on')) {
+        fail('state-announced', `${where}: the accessibility tree reports the control as ${readings === 'on' ? 'not pressed' : 'pressed'}`);
+      }
+      const knownName = namesByBand.get(band.width);
+      if (knownName === undefined) namesByBand.set(band.width, name);
+      else if (knownName !== name) {
+        fail('state-announced', `${where}: the control is named ${JSON.stringify(name)}, but was ${JSON.stringify(knownName)} with the readings the other way; a name that follows the state is announced twice`);
+      }
+      // The sighted reader's half: the track is hollow when the readings are off
+      // and filled when they are on, drawn from the same attribute.
+      const fill = await trackFill(page);
+      if ((fill !== TRANSPARENT) !== (readings === 'on')) {
+        fail('state-by-track', `${where}: the track is ${fill === TRANSPARENT ? 'hollow' : `filled (${fill})`}, want ${readings === 'on' ? 'filled' : 'hollow'}`);
       }
     }
   }
@@ -300,7 +339,7 @@ try {
     }
   }
 
-  console.log('PASS reading-switch-label: the readings control shows one label per width band, the band\'s own label, inside the name it is spoken by, with the state carried by a word where there is room and by a strike where there is not');
+  console.log('PASS reading-switch-label: the readings control shows one label per width band, the band\'s own label, inside the name it is spoken by, with the state carried by aria-pressed and the drawn track rather than by a word or a rename');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

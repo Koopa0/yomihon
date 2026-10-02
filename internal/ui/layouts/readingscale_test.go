@@ -17,11 +17,10 @@ import (
 // said.
 var readingScaleSteps = []string{
 	"--fs-ed-17",
-	"--fs-ed-19",
 	"--fs-ed-20",
 	"--fs-ed-24",
 	"--fs-ed-30",
-	"--fs-ed-38",
+	"--fs-ed-36",
 }
 
 // The three roots the reader's size preference resolves against, and the rule
@@ -127,19 +126,21 @@ func TestReadingScaleIsDeclaredAtEveryTextSize(t *testing.T) {
 // readingLadder names the chain a reader's size choice must never invert: the
 // note title above the first heading level above the second, down to the
 // fourth, which must stay at or above the body paragraphs it introduces. The
-// fifth and sixth heading levels are left out on purpose — they share the
-// body's own size (headinglook_test.go owns that choice, told apart by weight
-// and letter-spacing rather than by a size a sixth heading would have to lose
-// to the paragraph below it), so an equal pair there is not an inversion.
+// fourth level and the body are the same step, so that pair is held to "not
+// smaller" rather than to a strict descent. The fifth and sixth heading levels
+// are left out on purpose — they share the body's own size
+// (headinglook_test.go owns that choice, told apart by weight rather than by a
+// size a sixth heading would have to lose to the paragraph below it), so an
+// equal pair there is not an inversion.
 var readingLadder = []struct {
 	level string
 	token string
 }{
-	{"title", "--fs-ed-38"},
+	{"title", "--fs-ed-36"},
 	{"L1", "--fs-ed-30"},
 	{"L2", "--fs-ed-24"},
 	{"L3", "--fs-ed-20"},
-	{"L4", "--fs-ed-19"},
+	{"L4", "--fs-ed-17"},
 	{"body", "--fs-ed-17"},
 }
 

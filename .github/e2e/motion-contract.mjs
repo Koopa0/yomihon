@@ -33,15 +33,22 @@ const SEARCH = '/search?q=a';
 const SHEET = '[data-concept-sheet]';
 const CONCEPT = '[data-concept]';
 
+// The widest a note is still drawn in its narrow form. The three-column shell
+// begins at 1280px, and from there the right rail carries the reading aids and
+// the facts stand open beside the title, so the disclosures that fold them are
+// not laid out; one pixel under is the widest width that has them.
+const NARROW_NOTE = 1279;
+
 // The four folds the interface owns, with the page and width each one is
 // actually reachable on. The metadata row and the no-return confirm ride the
-// note; the inline reading aids stand in for the right rail at and below
-// 1280px; the value column has a summary to press only below that width, since
+// note; the inline reading aids stand in for the right rail below 1280px, the
+// width the three-column shell begins at, so the widest the folded forms are
+// reachable at is 1279px; the value column has a summary to press only below that width, since
 // the search page holds it open and takes the control away where the results
 // have a column beside them.
 const FOLDS = [
-  { key: 'metadata row', path: null, width: 1280, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
-  { key: 'inline reading aids', path: null, width: 1280, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
+  { key: 'metadata row', path: null, width: NARROW_NOTE, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
+  { key: 'inline reading aids', path: null, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
   { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm', wrapper: '.y-statusconfirm::details-content' },
   { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
@@ -56,8 +63,8 @@ const FOLDS = [
 // this run skips over would let one walk past unseen.
 const RING_CANDIDATES = [
   { key: 'rail groups', path: null, width: 1280, selector: '.y-rail-left details', wrapper: '.y-rail-left details::details-content' },
-  { key: 'metadata row', path: null, width: 1280, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
-  { key: 'inline reading aids', path: null, width: 1280, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
+  { key: 'metadata row', path: null, width: NARROW_NOTE, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
+  { key: 'inline reading aids', path: null, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
   { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm', wrapper: '.y-statusconfirm::details-content' },
   { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
@@ -67,7 +74,7 @@ const RING_CANDIDATES = [
 // and the narrow width swaps the rail for a drawer and the reading aids for an
 // inline block, so it resolves different rules over the same markup.
 const QUIET_STOPS = [
-  { name: 'the note at 1280px', path: null, width: 1280, folds: ['details.y-metarow', 'details.y-toc-inline', 'details.y-statusconfirm'] },
+  { name: `the note at ${NARROW_NOTE}px`, path: null, width: NARROW_NOTE, folds: ['details.y-metarow', 'details.y-toc-inline', 'details.y-statusconfirm'] },
   { name: 'the note at 390px', path: null, width: 390, folds: ['details.y-metarow', 'details.y-toc-inline', 'details.y-statusconfirm'] },
   { name: 'the search page at 900px', path: SEARCH, width: 900, folds: ['details.y-facets'] },
 ];

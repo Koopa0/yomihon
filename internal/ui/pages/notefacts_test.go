@@ -17,8 +17,8 @@ import (
 var dlBlock = regexp.MustCompile(`(?s)<dl class="y-notefacts">.*?</dl>`)
 
 // TestNoteHeadFactsAreAllDtDdPairs is the acceptance line itself: every fact
-// the head shows is a dt/dd pair. Rather than enumerating the five fields by
-// name — a table that silently stops proving anything the day a sixth fact is
+// the head shows is a dt/dd pair. Rather than enumerating the four fields by
+// name — a table that silently stops proving anything the day a fifth fact is
 // added beside them instead of inside noteFacts — it derives how many pairs
 // are owed from how many of NoteView's own fact fields are populated, and
 // checks the rendered list against that count. A fact added to the head
@@ -42,8 +42,8 @@ func TestNoteHeadFactsAreAllDtDdPairs(t *testing.T) {
 		view NoteView
 		want int
 	}{
-		{name: "every fact declared", view: full, want: 5},
-		{name: "no language declared", view: func() NoteView { v := full; v.Language = ""; return v }(), want: 4},
+		{name: "every fact declared", view: full, want: 4},
+		{name: "no language declared", view: func() NoteView { v := full; v.Language = ""; return v }(), want: 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -89,13 +89,11 @@ func TestNoteHeadFactValues(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
-	// The status pair is asserted as an exact, untagged "draft" between its own
-	// <dd> and </dd> — the live control elsewhere on the page is the only door
-	// to changing it, so a status value wrapped in a link or a form here would
-	// open a second one, and the literal match below would stop matching.
+	// Each pair is asserted as an exact string between its own <dt> and </dd>,
+	// so a reordering or a value wrapped in something else stops matching.
 	for _, want := range []string{
+		`<dt lang="zh-Hant">更新於</dt><dd><time datetime="2026-07-10">2026-07-10</time></dd>`,
 		`<dt lang="zh-Hant">類型</dt><dd>lesson</dd>`,
-		`<dt lang="zh-Hant">狀態</dt><dd>draft</dd>`,
 		`<dt lang="zh-Hant">語言</dt><dd>ja</dd>`,
 		`<dt lang="zh-Hant">原始檔</dt><dd><a href="/raw/Writing/lessons/go/L01.md">Writing/lessons/go/L01.md</a></dd>`,
 	} {
@@ -103,19 +101,39 @@ func TestNoteHeadFactValues(t *testing.T) {
 			t.Errorf("want %q exactly twice (narrow and wide copies), found %d", want, strings.Count(html, want))
 		}
 	}
+	// The status is not a fact of the head: the status face states it, live,
+	// wherever it can be changed. A status row, or a control, inside the facts
+	// would be a second place that states it or a second door to changing it.
+	for i, block := range dlBlock.FindAllString(html, -1) {
+		for _, banned := range []string{"狀態", "draft", "<form", "<button"} {
+			if strings.Contains(block, banned) {
+				t.Errorf("copy %d of the head facts carries %q; the status is stated by the status face alone", i, banned)
+			}
+		}
+	}
 }
 
 // TestNoteHeadWithNoFactsDrawsNeitherCopy is the other side of headFactsShown:
-// a note with none of the five facts draws no disclosure and no open list,
+// a note with none of the four facts draws no disclosure and no open list,
 // rather than an empty dl either reader would have to open to learn is empty.
+// A status alone is not a fact of the head, so a note declaring only that is
+// bare too.
 func TestNoteHeadWithNoFactsDrawsNeitherCopy(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	if err := Note(NoteView{Title: "Bare"}, layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	if strings.Contains(html, "y-metarow") || strings.Contains(html, "y-headmeta") || strings.Contains(html, "y-notefacts") {
-		t.Errorf("a note declaring none of the five facts still drew head-fact markup:\n%s", html)
+	for name, view := range map[string]NoteView{
+		"nothing declared": {Title: "Bare"},
+		"a status alone":   {Title: "Bare", Status: "draft"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := Note(view, layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := buf.String()
+			if strings.Contains(html, "y-metarow") || strings.Contains(html, "y-headmeta") || strings.Contains(html, "y-notefacts") {
+				t.Errorf("a note declaring none of the four facts still drew head-fact markup:\n%s", html)
+			}
+		})
 	}
 }

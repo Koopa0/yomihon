@@ -135,7 +135,7 @@ func TestHTMLTurnsRemoteMarkdownImagesIntoExplicitLinks(t *testing.T) {
 		`<a href="//example.invalid/pixel.png" rel="external noreferrer" referrerpolicy="no-referrer">scheme relative</a>`,
 		`<img src="/raw/Diagrams/diagram.png" alt="local diagram">`,
 		`<img src="data:image/png;base64,iVBORw0KGgo=" alt="embedded pixel">`,
-		`<a href="https://example.invalid/read">explicit external link</a>`,
+		`<a href="https://example.invalid/read" target="_blank" rel="external noopener noreferrer" referrerpolicy="no-referrer">explicit external link<span class="y-offscreen">（另開分頁）</span></a>`,
 		`<a href="">dangerous link</a>`,
 	} {
 		if !strings.Contains(got, want) {

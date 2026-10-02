@@ -42,8 +42,8 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 			want: []string{
 				`<nav class="y-steps y-steps--course" lang="zh-Hant" aria-label="Go course 從此步往下">`,
 				`<p class="y-steps__source">Go course 從此步往下</p>`,
-				`<span class="y-steps__role">上一課</span>`,
-				`<span class="y-steps__role">下一課</span>`,
+				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一課</span>`,
+				`<span class="y-steps__role">下一課 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
 				`href="/notes/Writing/Setup.md" rel="prev"`,
 				`href="/notes/Writing/Basics.md" rel="next"`,
 			},
@@ -59,8 +59,8 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 			want: []string{
 				`<nav class="y-steps" lang="zh-Hant" aria-label="同資料夾的前後檔案">`,
 				`<p class="y-steps__source">同資料夾的前後檔案</p>`,
-				`<span class="y-steps__role">上一份</span>`,
-				`<span class="y-steps__role">下一份</span>`,
+				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一份</span>`,
+				`<span class="y-steps__role">下一份 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
 				`rel="prev"`,
 				`rel="next"`,
 			},
@@ -73,7 +73,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				StepsLabel:  "Go course 從此步往下",
 				StepsCourse: true,
 			},
-			want:      []string{`<p class="y-steps__source">Go course 從此步往下</p>`, `<span class="y-steps__role">下一課</span>`},
+			want:      []string{`<p class="y-steps__source">Go course 從此步往下</p>`, `<span class="y-steps__role">下一課 <span class="y-steps__dir" aria-hidden="true">→</span></span>`},
 			forbidden: []string{`rel="prev"`, "上一課"},
 		},
 	}

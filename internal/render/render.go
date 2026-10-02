@@ -231,7 +231,7 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 				// The extension is told only what to prefix the ids with, per body,
 				// so several bodies on one page do not share a first note's id.
 				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{},
+				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{},
 			),
 		),
 	}
