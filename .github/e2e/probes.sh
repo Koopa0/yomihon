@@ -67,6 +67,7 @@ probes=(
   "preference-restore.mjs|/notes/Notes/alpha.md"
   "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "preference-persistence.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
+  "prefetch-stale-preference.mjs|/notes/Writing/lessons/japanese/L01.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "health-table.mjs|/health"
   "reports-shelf.mjs|/reports"
