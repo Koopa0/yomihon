@@ -169,6 +169,15 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 			wantAsides: []string{"Course/S01.md", "Course/X01.md"},
 		},
 		{
+			// No course teaches it, so no order was declared for it and the
+			// folder's neighbour is the only one there is.
+			name:       "a note no course teaches keeps the folder",
+			current:    "Course/Z99.md",
+			wantPrev:   "Course/X01.md",
+			wantLabel:  "同資料夾的前後檔案",
+			wantCourse: false,
+		},
+		{
 			name:       "a side branch's first lesson can go back to where it hangs from",
 			current:    "Course/S01.md",
 			wantNext:   "Course/S02.md",
@@ -263,6 +272,8 @@ func buildStepsModel(t *testing.T) *nav.Model {
 		"Course/S01.md": lesson("S01"),
 		"Course/S02.md": lesson("S02"),
 		"Course/X01.md": lesson("X01"),
+		// In the same folder and taught by no course.
+		"Course/Z99.md": "---\ntitle: Z99\ntype: writing\n---\nbody\n",
 	}
 	for rel, content := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))
