@@ -26,9 +26,9 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 
 // clientOwned are the attributes the client sets on elements it created or on
 // the document root, so no server template ever writes one. Each is a piece of
-// runtime state rather than a fact about a note: whether scripting arrived,
-// whether the voice is available or speaking, whether the drawer is open,
-// whether the outline is mid-travel, what a freshness notice currently says,
+// runtime state rather than a fact about a note: whether the voice is
+// available or speaking, whether the drawer is open, whether the outline is
+// mid-travel, what a freshness notice currently says,
 // which link the hover card is currently anchored to — a pointer's position,
 // which uncertainty control the client has added to an authored card or sheet,
 // which no server can know and only the stylesheet acts on —
@@ -42,7 +42,6 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // the length of a fold, for which the stylesheet holds the panel's width.
 var clientOwned = []string{
 	"data-freshness",
-	"data-js",
 	"data-mermaid-error",
 	"data-nav",
 	"data-preview-open",

@@ -29,6 +29,14 @@ templ Base(c Chrome) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			// The drawer and every other scripted surface are styled under
+			// data-js, and the module that would set it runs after the first
+			// frame. Waiting for it laid a narrow screen out with the rail open
+			// across the page and then slid it away on every page change. Setting
+			// the mark here, before the first style, lays the page out as it will
+			// stay. A browser with scripting off never runs this and keeps the
+			// unscripted layout.
+			<script nonce={ c.Nonce }>document.documentElement.dataset.js = 'on';</script>
 			// Every page change is a whole new document, and a browser may paint
 			// the header and the rail before the column they frame has arrived,
 			// which reads as an empty column for a frame. This holds the first
