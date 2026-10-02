@@ -57,14 +57,38 @@ func InjectTTS(htmlOut string, lang wording.Lang) string {
 
 // MayMarkReadAloud reports whether a note's rendered page could carry a
 // read-aloud marker at all: the source says the marker's word, or embeds
-// another note, whose words arrive on this page and may say it. It is a
+// something that may be another note, whose words arrive on this page and may
+// say it. A picture or a PDF brings no words, so an embed of one does not
+// count; any other embed does, since a note's own name can hold a dot. It is a
 // necessary condition and not a sufficient one: the word can sit in prose or in
 // a comment the grammar does not claim, so a caller that needs the answer
 // renders the note and asks MarkedParagraphs. Its use is to spare a page that
 // only wants to know whether anything in a whole path is marked from rendering
-// every note in it when none of them could be.
+// every note in it when none of them could be. The one shape it misses is a
+// note whose own name ends in a picture's extension, embedded by that name.
 func MayMarkReadAloud(body string) bool {
-	return strings.Contains(body, readAloudWord) || strings.Contains(body, "![[")
+	return strings.Contains(body, readAloudWord) || embedsSomethingThatMayBeANote(body)
+}
+
+// embedsSomethingThatMayBeANote reports whether body writes an embed whose
+// target is not named as a picture or a PDF. The target is what stands before a
+// display width or a section in the embed's brackets.
+func embedsSomethingThatMayBeANote(body string) bool {
+	const open = "![["
+	for rest := body; ; {
+		at := strings.Index(rest, open)
+		if at < 0 {
+			return false
+		}
+		rest = rest[at+len(open):]
+		inner, _, _ := strings.Cut(rest, "]]")
+		target, _, _ := strings.Cut(inner, "|")
+		target, _, _ = strings.Cut(target, "#")
+		target = strings.TrimSpace(target)
+		if !IsPicture(target) && !IsPDF(target) {
+			return true
+		}
+	}
 }
 
 // MarkedParagraphs returns every paragraph an author marked to be read aloud,

@@ -328,6 +328,13 @@ func TestTheCoverOffersListeningExactlyWhereTheListeningPageHasSomethingToPlay(t
 			status: lessonTypes("lesson"),
 			want:   true,
 		},
+		{
+			name:   "a lesson that embeds only a picture",
+			body:   "![[diagram.png]]\n",
+			extra:  map[string]string{"Writing/lessons/golang/diagram.png": "not really a png"},
+			status: lessonTypes("lesson"),
+			want:   false,
+		},
 		{name: "a generation that names no lesson type", body: marked, status: nil, want: false},
 		{name: "a vault that files nothing as a lesson", body: marked, status: lessonTypes("nothing-is-a-lesson"), want: false},
 	}

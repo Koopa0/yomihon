@@ -348,6 +348,18 @@ func TestAnUnmarkedNoteIsNeverRenderedToFindOutIfItSpeaks(t *testing.T) {
 		{"the marker's own comment", "Before.\n\n<!-- read-aloud: ja -->\nあさ。\n", true},
 		{"an embed of another note, whose words may carry one", "![[Other note]]\n", true},
 		{"an embed of one section of another note", "![[Other note#Section]]\n", true},
+		{"an embed of a note whose name holds a dot", "![[Go 1.27 release notes]]\n", true},
+		{"an embed that names the note's file", "![[Other note.md]]\n", true},
+		{"an embed of a section of this very note", "![[#Section]]\n", true},
+		// A picture or a PDF brings no words, and a page full of figures is
+		// exactly where rendering every note to find nothing would cost most.
+		{"an embed of a picture", "![[diagram.png]]\n", false},
+		{"an embed of a picture at a width", "![[diagram.png|300]]\n", false},
+		{"an embed of a picture in capitals", "![[Diagram.PNG]]\n", false},
+		{"an embed of a drawing", "![[flow.svg]]\n", false},
+		{"an embed of a page of a PDF", "![[paper.pdf#page=2]]\n", false},
+		{"pictures and then a note", "![[a.png]] and ![[b.jpg|200]] and ![[Other note]]\n", true},
+		{"an embed never closed", "![[diagram.png\n", false},
 		{"plain prose", "あさ、ひる、よる。\n", false},
 		{"a link is not an embed", "See [[Other note]].\n", false},
 		{"an empty note", "", false},

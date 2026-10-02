@@ -435,16 +435,17 @@ func TestAPathOfNotesThatAreNotLessonsNamesNoLessonAnywhere(t *testing.T) {
 		prev     string
 		next     string
 		railPrev string
+		railNext string
 		// otherExtent and otherStep are the other noun's words for the same
 		// places, which no surface of this path may say. An empty otherStep
 		// is a noun whose step words are a prefix of the other's.
 		otherExtent string
 		otherStep   string
 	}{
-		{"items in Chinese", "Maps/Queue kit.md", "Concepts/Worker.md", wording.ZhHant, "3 篇", "上一篇", "下一篇", "上一篇：", "3 課", "一課"},
-		{"lessons in Chinese", "Maps/Lessons.md", "Writing/L02.md", wording.ZhHant, "3 課", "上一課", "下一課", "上一課：", "3 篇", "一篇"},
-		{"items in English", "Maps/Queue kit.md", "Concepts/Worker.md", wording.En, "3 items", "Previous", "Next", "Previous: ", "3 lessons", "lesson"},
-		{"lessons in English", "Maps/Lessons.md", "Writing/L02.md", wording.En, "3 lessons", "Previous lesson", "Next lesson", "Previous lesson: ", "3 items", ""},
+		{"items in Chinese", "Maps/Queue kit.md", "Concepts/Worker.md", wording.ZhHant, "3 篇", "上一篇", "下一篇", "上一篇：", "下一篇：", "3 課", "一課"},
+		{"lessons in Chinese", "Maps/Lessons.md", "Writing/L02.md", wording.ZhHant, "3 課", "上一課", "下一課", "上一課：", "下一課：", "3 篇", "一篇"},
+		{"items in English", "Maps/Queue kit.md", "Concepts/Worker.md", wording.En, "3 items", "Previous", "Next", "Previous: ", "Next: ", "3 lessons", "lesson"},
+		{"lessons in English", "Maps/Lessons.md", "Writing/L02.md", wording.En, "3 lessons", "Previous lesson", "Next lesson", "Previous lesson: ", "Next lesson: ", "3 items", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -479,8 +480,8 @@ func TestAPathOfNotesThatAreNotLessonsNamesNoLessonAnywhere(t *testing.T) {
 			if !strings.Contains(steps, tt.prev) || !strings.Contains(steps, tt.next) {
 				t.Errorf("the foot does not offer %q and %q; html = %q", tt.prev, tt.next, steps)
 			}
-			if !strings.Contains(drawer, tt.railPrev) {
-				t.Errorf("the sidebar's steps do not offer %q", tt.railPrev)
+			if !strings.Contains(drawer, tt.railPrev) || !strings.Contains(drawer, tt.railNext) {
+				t.Errorf("the sidebar's steps do not offer %q and %q", tt.railPrev, tt.railNext)
 			}
 			if !strings.Contains(index, tt.extent+"</span>") && !strings.Contains(index, tt.extent) {
 				t.Errorf("the path index does not state %q for %s", tt.extent, tt.path)
@@ -584,5 +585,47 @@ func TestTheRailDrawsASideBranchAfterTheLessonItHangsFrom(t *testing.T) {
 	want := []string{"L01", "L02", "BRANCH", "S01", "L03"}
 	if diff := cmp.Diff(want, order); diff != "" {
 		t.Errorf("the rail lists the book in the wrong order (-want +got):\n%s", diff)
+	}
+}
+
+// TestTheHeadNamesWhatIsUnsettledInTheNounThePathIsReadIn holds the exception
+// the head states after the extent. It is the one place the interface says a
+// count of entries in a sentence of its own, so it is the place a noun left
+// behind in one language would show.
+func TestTheHeadNamesWhatIsUnsettledInTheNounThePathIsReadIn(t *testing.T) {
+	t.Parallel()
+
+	contract := settledTestContract(t, "ready")
+	lessons := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[Arrays]]\n- [[GC]]\n")
+	items := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Queue]]\n- [[Worker]]\n- [[Gate]]\n", map[string]string{
+		"Writing/Queue.md":  "---\ntitle: Queue\ntype: concept\nstatus: draft\n---\nbody\n",
+		"Writing/Worker.md": "---\ntitle: Worker\ntype: concept\nstatus: ready\n---\nbody\n",
+		"Writing/Gate.md":   "---\ntitle: Gate\ntype: concept\nstatus: draft\n---\nbody\n",
+	})
+	settled := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[GC]]\n")
+
+	tests := []struct {
+		name string
+		path *nav.Path
+		lang wording.Lang
+		want string
+	}{
+		{"lessons in Chinese", &lessons, wording.ZhHant, "其中 1 課尚未定案"},
+		{"items in Chinese", &items, wording.ZhHant, "其中 2 篇尚未定案"},
+		{"lessons in English", &lessons, wording.En, "1 not yet settled"},
+		{"items in English", &items, wording.En, "2 not yet settled"},
+		{"nothing left to finish", &settled, wording.ZhHant, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := BuildPathView(tt.path, []nav.Path{*tt.path}, &CourseCover{})
+			if got := view.UnsettledNote(tt.lang); got != tt.want {
+				t.Errorf("UnsettledNote() = %q, want %q", got, tt.want)
+			}
+			if got := strings.Contains(renderCover(t, &view, tt.lang), `data-course-unsettled`); got != (tt.want != "") {
+				t.Errorf("the head draws the unsettled figure = %t, want %t", got, tt.want != "")
+			}
+		})
 	}
 }
