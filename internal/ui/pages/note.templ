@@ -597,7 +597,7 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 					<summary class="y-toc-inline__summary">
 						@chevron()
 						{ wording.BasedOn.In(lang) }
-						<span class="y-diagcount">{ strconv.Itoa(len(v.BasedOn)) }</span>
+						<span class="ui-navitem__count">{ strconv.Itoa(len(v.BasedOn)) }</span>
 					</summary>
 					@basedOnBlock(v, lang)
 				</details>
@@ -611,7 +611,7 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 						@chevron()
 						{ wording.CitedBy.In(lang) }
 						if len(v.CitedBy) > 0 {
-							<span class="y-diagcount">{ strconv.Itoa(len(v.CitedBy)) }</span>
+							<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
 						}
 					</summary>
 					@citedByBlock(v, lang)

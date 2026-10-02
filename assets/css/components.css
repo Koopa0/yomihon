@@ -266,7 +266,12 @@ samp {
   padding: 0;
 }
 
-.ui-side__label .ui-navitem__count {
+/* A count beside a heading reads the same wherever the heading stands: in the
+   rail's label, or in the summary that folds the same block into the narrow
+   column. It is a quiet figure, not a badge, so only the diagnostics' own
+   count (a warning) keeps a fill. */
+.ui-side__label .ui-navitem__count,
+.y-toc-inline__summary .ui-navitem__count {
   font-size: var(--fs-14);
   font-weight: var(--fw-regular);
   line-height: 1.5rem;
@@ -608,7 +613,7 @@ samp {
   font-family: var(--font-sans);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  line-height: 1;
+  line-height: 1.25rem;
 }
 
 .y-rubybtn__label--short {
@@ -1374,6 +1379,14 @@ samp {
   letter-spacing: var(--track-snug);
 }
 
+/* Han and kana fill the whole em, so a title that wraps needs more between its
+   lines than Latin's 44px on 36px does. */
+.y-title:lang(ja),
+.y-title:lang(ko),
+.y-title:lang(zh) {
+  line-height: 1.4;
+}
+
 .y-metarow {
   align-items: center;
   color: var(--fg-subtle);
@@ -1421,8 +1434,7 @@ details.y-metarow {
   display: block;
 }
 
-.y-metarow__summary,
-.y-metarow__detail {
+.y-metarow__summary {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -1430,6 +1442,10 @@ details.y-metarow {
 }
 
 .y-metarow__detail {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   margin-top: 10px;
 }
 
@@ -1506,8 +1522,22 @@ details.y-metarow {
   align-items: center;
   display: none;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  gap: 4px;
   margin: 16px 0 0;
+}
+
+/* The facts line is one row of its own, and wraps inside itself when the path
+   is long. The doors (open in Obsidian, leave a thought) stand together on the
+   row beneath, left-aligned, so a long path never pushes one of them alone onto
+   a line. The first door is pulled back by its own padding so the word, not the
+   button's edge, lines up with the title above. */
+.y-headmeta > .y-notefacts,
+.y-metarow__detail > .y-notefacts {
+  flex: 0 0 100%;
+}
+
+.y-notefacts + .y-metarow__raw {
+  margin-left: -10px;
 }
 
 /* The head ends where the body begins: forty pixels of space and no rule. The
@@ -1568,6 +1598,12 @@ details.y-metarow {
   font-size: var(--fs-ed-24);
   line-height: 1.3333;
   margin: var(--sp-h2) 0 var(--sp-after-h2);
+}
+
+.y-prose [data-level='2']:lang(ja),
+.y-prose [data-level='2']:lang(ko),
+.y-prose [data-level='2']:lang(zh) {
+  line-height: 1.4;
 }
 
 .y-prose [data-level='3'] {
@@ -2032,6 +2068,7 @@ button.y-freshness__action {
 .y-prose .callout-warning {
   background: var(--warn-bg);
 }
+
 .y-prose .callout-quote .callout-body {
   color: var(--fg-subtle);
 }
@@ -4881,6 +4918,32 @@ html {
   text-spacing-trim: space-first;
 }
 
+/* Han meeting a Latin letter or a digit with no space between them (a title like
+   "Go 並行" is typed with one, "第3課" is not) is set apart by the browser, so
+   the page is spaced the same whether or not the author typed the gap. The
+   property is inherited, so this one declaration reaches the chrome, the rails
+   and the prose; a browser without it sets the text as written. */
+body {
+  text-autospace: normal;
+}
+
+/* CJK type has no italic. Asked for one, a browser slants the upright glyphs
+   itself, which no type designer drew and which reads as a smear beside the
+   same line's real Latin italic. Where the language is CJK that synthesis is
+   switched off, so the Han stays upright and only the Latin takes the italic. */
+:lang(ja),
+:lang(ko),
+:lang(zh) {
+  font-synthesis-style: none;
+}
+
+/* Strict breaking keeps the characters that may not begin a line (closing
+   brackets, commas, full stops, the iteration and prolonged-sound marks) off
+   the start of one, which is the rule a Chinese reader expects of a book. */
+:lang(zh) {
+  line-break: strict;
+}
+
 /* phrase-aware Japanese line breaking, wherever content is language-tagged */
 .yomihon [lang='ja'] {
   word-break: auto-phrase;
@@ -5343,20 +5406,25 @@ html {
     display: inline-flex;
   }
 
+  /* The closed drawer waits just off the left edge, and a shadow drawn around
+     it reaches back across that edge into the page as a grey band. The shadow
+     belongs to the open drawer, where it lifts the panel off the page, and it
+     fades with the slide so a closing drawer does not leave it behind. */
   html[data-js] .y-rail-left {
     bottom: 0;
-    box-shadow: var(--shadow-2);
+    box-shadow: none;
     left: 0;
     max-height: none;
     position: fixed;
     top: var(--header-height);
     transform: translateX(-102%);
-    transition: transform var(--dur-slow) var(--ease-standard);
+    transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
     width: min(300px, 86vw);
     z-index: 45;
   }
 
   html[data-js][data-nav='open'] .y-rail-left {
+    box-shadow: var(--shadow-2);
     transform: none;
   }
 
