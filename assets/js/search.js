@@ -31,6 +31,9 @@ export function initSearch() {
     let activeController = null;
     let latestRequest = 0;
     let composing = false;
+    // Told whenever the rows stop being the ones a choice was made among. Only
+    // the palette makes choices; elsewhere there is nothing to forget.
+    let rowsChanged = () => {};
 
     function cancelPending() {
       clearTimeout(timer);
@@ -45,6 +48,7 @@ export function initSearch() {
       results.replaceChildren();
       results.dataset.resultCount = '0';
       status.textContent = '';
+      rowsChanged();
     }
 
     // The rows left on screen answer whichever query last reached the region.
@@ -88,6 +92,7 @@ export function initSearch() {
         const imported = document.importNode(fragment, true);
         results.replaceChildren(...imported.childNodes);
         results.dataset.resultCount = String(count);
+        rowsChanged();
         status.textContent = resultCount(status, query, count);
         if (syncsAddress) {
           // The results on screen just changed, so the address follows and a
@@ -145,6 +150,7 @@ export function initSearch() {
       schedule();
     });
     input.addEventListener('input', () => {
+      rowsChanged();
       if (!composing) schedule();
     });
     form.addEventListener('submit', cancelPending);
@@ -165,6 +171,7 @@ export function initSearch() {
       // noticing it — the rows went on standing for a search the reader had
       // already moved off. Asking again is the same debounce a keystroke uses,
       // and until it lands the rows say which query they do answer.
+      rowsChanged = chooseWithArrows(input, results);
       onReopen.set(region, () => {
         const query = input.value.trim();
         if (!query) return;
@@ -221,6 +228,77 @@ export function initSearch() {
     isOpen: () => Boolean(dialog?.open),
     toggle,
     closeAndRestoreFocus,
+  };
+}
+
+// chooseWithArrows makes the palette's field a combobox over its rows. Focus
+// stays in the field, where the reader is typing; ↑ and ↓ move a choice through
+// the rows, and Enter opens the chosen one. With nothing chosen, and always
+// with Shift held, Enter submits the form, which opens the full search page. The rows are the page's ordinary list of links; they are named a list
+// to choose from only here, each time they land. The returned function forgets
+// the choice and renames the rows, and is called whenever the rows or the query
+// change, so a choice made among one set of rows never opens a row of another.
+function chooseWithArrows(input, results) {
+  let chosen = -1;
+  const rows = () => [...results.querySelectorAll('a.y-result')];
+
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-expanded', 'false');
+
+  function choose(index) {
+    const found = rows();
+    chosen = index;
+    for (const [at, row] of found.entries()) row.setAttribute('aria-selected', String(at === index));
+    const row = found[index];
+    if (!row) {
+      input.removeAttribute('aria-activedescendant');
+      return;
+    }
+    input.setAttribute('aria-activedescendant', row.id);
+    row.scrollIntoView({ block: 'nearest' });
+  }
+
+  input.addEventListener('keydown', (event) => {
+    // A key that is still part of composing a word belongs to the input method.
+    if (event.isComposing) return;
+    const found = rows();
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (found.length === 0) return;
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      const start = step > 0 ? -1 : found.length;
+      choose((((chosen < 0 ? start : chosen) + step) % found.length + found.length) % found.length);
+    } else if (event.key === 'Enter' && !event.shiftKey && found[chosen]) {
+      event.preventDefault();
+      found[chosen].click();
+    } else if (event.key === 'Enter' && event.shiftKey) {
+      // A held Shift is not taken as a submit by every engine, and here it
+      // has to mean the whole search page whatever is chosen.
+      event.preventDefault();
+      input.form?.requestSubmit();
+    }
+  });
+
+  return () => {
+    chosen = -1;
+    input.removeAttribute('aria-activedescendant');
+    const list = results.querySelector('.y-results');
+    const found = rows();
+    input.setAttribute('aria-expanded', String(found.length > 0));
+    if (!list) {
+      input.removeAttribute('aria-controls');
+      return;
+    }
+    list.id = '_y-search-hits';
+    list.setAttribute('role', 'listbox');
+    input.setAttribute('aria-controls', list.id);
+    for (const [at, row] of found.entries()) {
+      row.parentElement?.setAttribute('role', 'none');
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', 'false');
+      row.id = `_y-search-hit-${at}`;
+    }
   };
 }
 

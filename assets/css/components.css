@@ -626,8 +626,11 @@ samp {
   min-height: 32px;
 }
 
+/* A box or a choice that is set is drawn in the ink: the seal ink is kept for
+   a note that is ready, and a control in that colour read as one more thing
+   being declared ready. */
 .y-shortcutpref__input {
-  accent-color: var(--accent);
+  accent-color: var(--fg);
   cursor: pointer;
   flex: none;
   height: 14px;
@@ -654,7 +657,7 @@ samp {
 }
 
 [data-single-key-shortcuts='on'] .y-shortcutpref__on {
-  color: var(--accent);
+  color: var(--fg);
   display: inline;
   font-weight: 500;
 }
@@ -988,6 +991,8 @@ samp {
   stroke: none;
 }
 
+/* The rail's first line sits on the line of the crumbs opposite it, so the two
+   columns start reading at the same height. */
 .y-rail-right {
   border-left: 1px solid var(--line);
   display: flex;
@@ -995,7 +1000,7 @@ samp {
   gap: 32px;
   height: calc(100vh - var(--header-height));
   overflow-y: auto;
-  padding: 32px 24px 48px;
+  padding: 44px 24px 48px;
   position: sticky;
   top: var(--header-height);
 }
@@ -1592,7 +1597,7 @@ details.y-metarow {
   align-items: center;
   display: none;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 8px 4px;
   margin: 16px 0 0;
 }
 
@@ -1944,6 +1949,37 @@ details.y-metarow {
 
 .y-prose .chroma {
   color: var(--fg);
+}
+
+/* The highlighter's own palette is a separate sheet drawn for a white page;
+   code here is set in the reading room's inks instead. Keywords are the ink a
+   step heavier, strings the sage, comments the quiet ink, numbers and named
+   constants the blue the room already uses for a topic, and functions and
+   built-ins a step down from the ink. Each is a token, so each follows the
+   theme with no rule of its own for dark, and the rules stand outside the
+   highlighter's layer, so they apply after both of its dark scopes. Paper
+   keeps the highlighter's light palette, which is what it was drawn for. */
+@media not print {
+  .chroma :is(.k, .kc, .kd, .kn, .kp, .kr, .kt) {
+    color: var(--fg);
+    font-weight: var(--fw-medium);
+  }
+
+  .chroma :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .se, .sh, .si, .sr, .ss, .sx, .dl) {
+    color: var(--sage);
+  }
+
+  .chroma :is(.c, .c1, .ch, .cm, .cp, .cpf, .cs) {
+    color: var(--fg-subtle);
+  }
+
+  .chroma :is(.m, .mb, .mf, .mh, .mi, .mo, .il, .no) {
+    color: var(--slot-topic);
+  }
+
+  .chroma :is(.nb, .nf) {
+    color: var(--fg-muted);
+  }
 }
 
 /* tables — a table wider than the column scrolls inside its own box (the
@@ -2445,6 +2481,36 @@ button.y-freshness__action {
   box-shadow: inset 1px 0 0 var(--line-strong);
   color: var(--fg);
 }
+/* In the reading aids only the contents' own name is a heading. Every other
+   block's name — the note to read beside this one, the sources, the notes
+   citing it, the note's health, and the status — is a label over a list, a
+   step smaller and quieter, so the eye finds the contents first. The aids'
+   links are one anatomy whatever list they are in: the quiet ink at rest and
+   the full ink under a pointer, the same as the contents' own rows. */
+:is(.y-rail-right, .y-toc-inline__body, .y-related, .y-sealbar) .ui-side__label {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+
+:is(.y-rail-right, .y-toc-inline__body, .y-related, .y-sealbar) .ui-side__label .ui-navitem__count {
+  font-size: var(--fs-13);
+}
+
+.y-rail-right .ui-side__label:has(+ .y-toc__list) {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+}
+
+:is(.y-rail-right, .y-toc-inline__body, .y-related) .ui-navitem {
+  color: var(--fg-subtle);
+}
+
+:is(.y-rail-right, .y-toc-inline__body, .y-related) .ui-navitem:hover {
+  color: var(--fg);
+}
+
 /* the scroll-spy's active entry (set by the enhancement script) */
 .y-toc__list .is-active {
   box-shadow: inset 2px 0 0 var(--fg);
@@ -2878,13 +2944,24 @@ button.y-freshness__action {
 .y-searchdialog::backdrop {
   background: var(--overlay-mask);
 }
-/* The field sits inside the panel rather than spanning it, because a line
-   across the top would be a second thing to read as an edge now that the
-   field has one of its own. Six pixels of inset puts its box on the same
-   column as the rows below it and its first character on the same column as
-   the status line and the footer. */
-.y-searchdialog__form {
-  margin: 12px 6px 0;
+/* In the palette the field is the panel's head rather than a box inside it:
+   it spans the panel, and one hairline under it parts the question from the
+   answers. It is the only field there and it opens focused, so it draws no
+   ring; a reader who has moved focus elsewhere and back still sees where it
+   is, by the hairline under it turning to the line every focused field
+   draws, which colours the edge without moving a glyph. */
+.y-searchdialog__form,
+.y-searchdialog__form:focus-within {
+  border-radius: 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+  height: 52px;
+  margin: 0;
+  outline: 0;
+  padding: 0 18px;
+}
+
+.y-searchdialog__form:focus-within {
+  box-shadow: inset 0 -2px 0 var(--fg-subtle);
 }
 
 .y-searchdialog .y-live-search__status {
@@ -2905,12 +2982,24 @@ button.y-freshness__action {
 }
 
 .y-searchdialog .y-results {
+  gap: 2px;
   margin-top: 10px;
 }
 /* One step in from the page's row: the panel is a glance rather than a place
-   to read, and a shorter row puts more of the answer inside it. */
+   to read, and a shorter row puts more of the answer inside it. The row a
+   pointer is over, the one the keyboard has reached, and the one chosen with
+   the arrow keys all stand on the same faint wash, so the three ways of
+   pointing at a hit look like one. */
 .y-searchdialog .y-result {
-  padding: 12px 4px;
+  border-bottom: 0;
+  border-radius: var(--r-md);
+  padding: 12px;
+}
+
+.y-searchdialog .y-result:hover,
+.y-searchdialog .y-result:focus-visible,
+.y-searchdialog .y-result[aria-selected='true'] {
+  background: var(--wash);
 }
 
 .y-searchdialog .y-searchpage__empty {
@@ -3052,7 +3141,7 @@ a.y-facetrow:hover {
 }
 
 .y-facetrow--active .y-facetrow__label::before {
-  color: var(--accent);
+  color: var(--fg);
   content: '\2713\00a0';
 }
 /* A row with nothing to ask for is a cell, and reads as one. */
@@ -3330,7 +3419,7 @@ a.y-facetrow:hover {
 
 .y-tts:hover {
   background: var(--overlay);
-  color: var(--accent);
+  color: var(--fg);
 }
 
 .y-tts[data-speaking] {
@@ -3365,44 +3454,72 @@ a.y-facetrow:hover {
   }
 }
 
+/* The read-aloud controls are a line of the page rather than a panel on it:
+   the moves are ghost buttons like the header's, and the speeds one segmented
+   group inside a single hairline, the chosen one on the faint wash in the
+   full ink. A frame round the whole bar made four verbs and a setting read as
+   a notice. */
 .y-ttsbar {
   align-items: center;
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
   color: var(--fg-muted);
   display: flex;
   flex-wrap: wrap;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  gap: 8px;
+  gap: 4px;
   margin: 22px 0 8px;
-  padding: 10px 12px;
 }
 
 .y-ttsbar__label {
-  color: var(--fg);
-  font-weight: var(--fw-medium);
-  margin-right: 2px;
+  color: var(--fg-subtle);
+  font-size: var(--fs-13);
+  margin: 0 6px 0 12px;
 }
 
 .y-ttsbar button {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
   cursor: pointer;
-  min-height: 30px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  min-height: 32px;
   padding: 0 10px;
 }
 
 .y-ttsbar button:hover:not(:disabled) {
-  background: var(--overlay);
+  background: var(--wash);
   color: var(--fg);
 }
 
+.y-ttsbar button[data-speech-rate] {
+  border-radius: 0;
+  box-shadow: inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
+  font-size: var(--fs-13);
+  min-height: 30px;
+  padding: 0 9px;
+}
+
+.y-ttsbar__label + button[data-speech-rate] {
+  border-end-start-radius: var(--r-md);
+  border-start-start-radius: var(--r-md);
+  box-shadow: inset 1px 0 0 var(--line), inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
+}
+
+.y-ttsbar button[data-speech-rate] + button[data-speech-rate] {
+  margin-inline-start: -4px;
+}
+
+.y-ttsbar button[data-speech-rate]:not(:has(+ button[data-speech-rate])) {
+  border-end-end-radius: var(--r-md);
+  border-start-end-radius: var(--r-md);
+  box-shadow: inset -1px 0 0 var(--line), inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
+}
+
 .y-ttsbar button[aria-pressed='true'] {
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--wash);
+  color: var(--fg);
 }
 /* Previous on the first paragraph and next on the last: the move is not there,
    and a control that looks live while refusing every press is worse than one
@@ -3438,12 +3555,22 @@ a.y-facetrow:hover {
   margin: 0 0 4px;
 }
 
+/* The practice opens a section of the lesson, so its name is set as the
+   lesson's own sections are. */
 .y-slotmachine__title {
   color: var(--fg);
-  font-family: var(--font-sans);
-  font-size: var(--fs-ed-20);
+  font-family: var(--font-read);
+  font-size: var(--fs-ed-24);
   font-weight: var(--fw-semibold);
+  line-height: 1.3333;
   margin: 0;
+  text-wrap: balance;
+}
+
+.y-slotmachine__title:lang(ja),
+.y-slotmachine__title:lang(ko),
+.y-slotmachine__title:lang(zh) {
+  line-height: 1.4;
 }
 
 .y-slotmachine__sub {
@@ -3498,16 +3625,30 @@ a.y-facetrow:hover {
   gap: 4px;
 }
 
+/* A slot's grammatical role is told by a small square of its colour beside
+   its name, the same square the role's words are tinted with below, rather
+   than by a coloured edge on the control that read as a warning bar. */
 .y-slotfield__label {
+  align-items: center;
   color: var(--fg-subtle);
+  display: inline-flex;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
+  gap: 6px;
+}
+
+.y-slotfield__label::before {
+  background: var(--c, var(--border-strong));
+  border-radius: 2px;
+  content: '';
+  flex: none;
+  height: 8px;
+  width: 8px;
 }
 
 .y-slotselect {
   background: var(--elevated);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--c, var(--border-strong));
   border-radius: var(--r-sm);
   color: var(--fg);
   cursor: pointer;
@@ -3616,31 +3757,8 @@ a.y-facetrow:hover {
   display: flex;
 }
 
-.y-slotbtn {
-  align-items: center;
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  color: var(--fg-subtle);
-  cursor: pointer;
-  display: inline-flex;
-  height: 34px;
-  justify-content: center;
-  padding: 0;
-  transition: color var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard);
-  width: 34px;
-}
-
-.y-slotbtn:hover {
-  border-color: var(--accent-muted);
-  color: var(--accent);
-}
-
-.y-slotbtn svg {
-  height: 16px;
-  width: 16px;
-}
-
+/* The two actions are the interface's own icon buttons; the class beside it
+   only says which of them waits for a voice to speak with. */
 .y-slotbtn[data-slot-action='speak'] {
   display: none;
 }
@@ -3650,7 +3768,7 @@ a.y-facetrow:hover {
 }
 
 /* The 8 grammatical-role colours: each class only assigns --c (a theme token),
-   so one token tints a slot's select border, its surface, and its ruby. */
+   so one token tints a slot's swatch, its surface, and its ruby. */
 .y-slot-topic {
   --c: var(--slot-topic);
 }
@@ -3829,9 +3947,12 @@ a.y-facetrow:hover {
   max-width: 600px;
 }
 
+/* The desk's shelves are sections of one page rather than cards laid on it:
+   each opens on a hairline and its heading, two to a row with a wide gutter
+   between, and nothing draws a box around a list a reader only scans. */
 .y-homegrid {
   display: grid;
-  gap: 14px;
+  gap: 40px 48px;
   grid-template-columns: repeat(12, minmax(0, 1fr));
 }
 
@@ -3842,11 +3963,9 @@ a.y-facetrow:hover {
 }
 
 .y-homeblock {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-top: 1px solid var(--line);
   min-width: 0;
-  padding: 20px 22px;
+  padding: 20px 0 0;
 }
 
 .y-homeblock--recent {
@@ -3868,6 +3987,22 @@ a.y-facetrow:hover {
 
 .y-modeblock h2 a:hover {
   color: var(--link);
+}
+
+/* A shelf's rows start where its heading does, and the wash a pointer brings
+   reaches out past that edge rather than pushing the words in to make room. */
+.y-modeblock .ui-navitem {
+  margin-inline: -12px;
+  padding-inline: 12px;
+}
+
+/* The way to the whole shelf is one more line under its rows, in the rows'
+   own size and a step quieter, and only as wide as its words. */
+.y-modeblock .y-shelfall {
+  color: var(--fg-muted);
+  display: inline-flex;
+  font-size: var(--fs-14);
+  margin-top: 4px;
 }
 /* The search row sits above the ways in, at the width of the page rather than
    as one more block beside them. */
@@ -4064,6 +4199,7 @@ a.y-facetrow:hover {
 
 .y-homesearch {
   background: var(--elevated);
+  border-radius: var(--r-md);
 }
 /* The way to the folder's own README closes the desk. It is set in the reading
    measure, and it begins where everything stacked above it begins: centred, its
@@ -4758,9 +4894,11 @@ a.y-facetrow:hover {
   flex: 1;
 }
 
+/* The count of ready lessons is a fact like the others on its line; only its
+   square carries the seal ink, as it does wherever the state is shown. */
 .y-syl-ready {
   align-items: center;
-  color: var(--accent);
+  color: var(--fg-subtle);
   display: inline-flex;
   gap: 6px;
 }
@@ -4796,7 +4934,7 @@ a.y-facetrow:hover {
 }
 
 .y-listen__title a:hover {
-  color: var(--accent);
+  color: var(--fg);
 }
 
 .y-part-block {
@@ -5397,7 +5535,7 @@ samp,
 }
 
 .y-compare__align[aria-pressed='true'] {
-  border-color: var(--accent);
+  border-color: var(--fg);
   color: var(--fg);
 }
 
@@ -6494,8 +6632,9 @@ samp,
    apart. It is also the one item that is not a step to somewhere else, which is
    why it is the only one with a ground of its own. */
 .y-pager__page[aria-current='page'] {
-  background: var(--accent-muted);
+  background: var(--wash);
   color: var(--fg);
+  font-weight: var(--fw-medium);
 }
 
 /* The undivided listing sits apart from the numbers: it is not another page,
@@ -6732,7 +6871,7 @@ samp,
 }
 
 .y-preffield__options input {
-  accent-color: var(--accent);
+  accent-color: var(--fg);
   cursor: pointer;
   flex: none;
   height: 14px;
@@ -6958,7 +7097,7 @@ samp,
 }
 
 .y-here__more:hover {
-  color: var(--accent);
+  color: var(--fg);
 }
 
 /* What the filter could not reach. It sits with the empty-result line because
@@ -6973,7 +7112,7 @@ samp,
 }
 
 .y-filter-partial a {
-  color: var(--accent);
+  color: var(--fg);
   text-decoration: none;
 }
 
@@ -7056,7 +7195,7 @@ samp,
 }
 
 .y-preview__sourcelink:hover {
-  color: var(--accent);
+  color: var(--fg);
 }
 
 .y-preview__sep {
