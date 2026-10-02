@@ -44,20 +44,12 @@ func listenView(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) pag
 		PathHref: pages.VaultHref("/syllabus/", current.RelPath),
 	}
 	for _, entry := range taught(current) {
-		// A lesson the course plans but nobody has written carries no vault
-		// path, so the generation answers for nothing and the row falls out
-		// here. Asking a second predicate whether the row was openable would be
-		// asking the same question twice and inviting the two to disagree.
-		note, ok := snap.Generation.Note(entry.RelPath)
-		if !ok || !snap.isLesson(note.Type) {
-			continue
-		}
 		// One region per lesson, taken from where the lesson stands in the
 		// course, so two readers of one course are served the same bytes. The
 		// lessons share a page, and footnote ids minted without it would
 		// collide between them.
 		region := "l" + strconv.Itoa(len(view.Lessons)+1) + "-"
-		marked := render.MarkedParagraphs(snap.Generation.RenderIn(region, entry.RelPath, note.Body, lang).HTML, lang)
+		marked := snap.markedIn(entry, region, lang)
 		if len(marked) == 0 {
 			continue
 		}
@@ -68,6 +60,36 @@ func listenView(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) pag
 		})
 	}
 	return view
+}
+
+// listenable reports whether the listening page for this course would play
+// anything: the question the course page asks before it offers the way there,
+// answered by the same reading of each lesson the page itself uses, so the
+// offer and the page cannot disagree. It stops at the first lesson that marks
+// a paragraph, and a lesson whose source never says the marker's word is not
+// rendered at all, so a course that marks nothing costs a search of its
+// sources rather than a render of each of them.
+func listenable(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) bool {
+	for _, entry := range taught(current) {
+		if len(snap.markedIn(entry, "l1-", lang)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// markedIn is the paragraphs one lesson the course teaches marks to be read
+// aloud, in the bytes the listening page prints them in. A lesson the course
+// plans but nobody has written carries no vault path, so the generation
+// answers for nothing and the row yields none; asking a second predicate
+// whether the row was openable would be asking the same question twice and
+// inviting the two to disagree.
+func (s *RequestSnapshot) markedIn(entry *nav.PathEntry, region string, lang wording.Lang) []string {
+	note, ok := s.Generation.Note(entry.RelPath)
+	if !ok || !s.isLesson(note.Type) || !render.MayMarkReadAloud(note.Body) {
+		return nil
+	}
+	return render.MarkedParagraphs(s.Generation.RenderIn(region, entry.RelPath, note.Body, lang).HTML, lang)
 }
 
 // taught walks the course in the order it is read and returns the rows it

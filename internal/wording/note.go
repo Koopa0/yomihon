@@ -38,13 +38,6 @@ var NoteStale = both(
 	"This file could not be read this time. What follows is the last version that could be, and may not be what the file says now. Once that clears, reloading in a few seconds picks up the newer one.",
 )
 
-// The rail's links to the lessons either side of this one inside a course. They
-// carry their own separator because the name follows immediately.
-var (
-	RailPreviousLesson = both("上一課：", "Previous lesson: ")
-	RailNextLesson     = both("下一課：", "Next lesson: ")
-)
-
 // The right rail and the blocks in it. CitedBy names body wikilinks only;
 // BasedOn is the author's based_on declaration, a different claim, so the two
 // labels stay visibly different rather than one number that mixes them.

@@ -54,12 +54,9 @@ var (
 	Newest       = both("最新", "Newest")
 )
 
-// OpenMap and OpenSyllabus are the links from a rail branch to the whole thing
-// it is a branch of.
-var (
-	OpenMap      = both("開啟地圖", "Open the map")
-	OpenSyllabus = both("開啟課綱", "Open the syllabus")
-)
+// OpenMap is the link from a rail branch to the whole map it is a branch of.
+// The link to a study path's own page is ContentsLink.
+var OpenMap = both("開啟地圖", "Open the map")
 
 // What the rail says when a projection it would have listed cannot be built.
 var (
@@ -72,11 +69,11 @@ var (
 	JournalUnavailable      = both("日誌目前無法使用。", "Journal is unavailable.")
 )
 
-// CourseOrderOf names a study path's own order for the lesson steps the
-// sidebar offers on pages that have no article foot. It carries the path's
-// title, so it is a format. The foot of the article names the step onward with
+// CourseOrderOf names a study path's own order for the steps the sidebar
+// offers on pages that have no article foot. It carries the path's title, so it
+// is a format. The foot of the article names the step onward with
 // CourseOnwardOf, so landmark navigation does not hear the same name twice.
-var CourseOrderOf = both("%s 課程順序", "%s course order")
+var CourseOrderOf = both("%s 的順序", "The order of %s")
 
 // CourseOnwardOf names the step onward from this note inside a study path,
 // which the foot of the article offers. The sidebar's steps name the path's
@@ -87,14 +84,26 @@ var CourseOnwardOf = both("%s 從此步往下", "%s onward from this step")
 // of this one inside its own folder.
 var FolderAdjacency = both("同資料夾的前後檔案", "The files either side of this one in its folder")
 
-// The step words at the foot of the article. Which pair is used says which
-// order arrived, because a course's declared order and a folder's can disagree
+// What the foot of a side branch's lesson offers, and what the lesson a branch
+// hangs from adds beside its own steps. A side branch is an aside in a book:
+// when it ends the reader goes on where they were, so its first lesson says
+// where it hangs from and its last says where to go on, which is the main line's
+// next lesson or, where the branch hangs from the last one, the contents. None
+// of them is a step in the course, so none of them is worded as one. The aside
+// beside the lesson a branch hangs from is named with BranchPrefix.
+var (
+	BranchBackTo     = both("回到", "Back to")
+	BranchOnward     = both("回到主線：", "Back to the main line: ")
+	BranchToContents = both("回到目錄", "Back to the contents")
+)
+
+// The step words at the foot of the article when the order is a folder's. A
+// path's own step words are UnitWords'. Which pair is used says which order
+// arrived, because a path's declared order and a folder's can disagree
 // completely and the words are all a sighted reader has to tell them apart.
 var (
-	PreviousLesson = both("上一課", "Previous lesson")
-	PreviousFile   = both("上一份", "Previous file")
-	NextLesson     = both("下一課", "Next lesson")
-	NextFile       = both("下一份", "Next file")
+	PreviousFile = both("上一份", "Previous file")
+	NextFile     = both("下一份", "Next file")
 )
 
 // What the rail says when its filter reached only what the rail was already

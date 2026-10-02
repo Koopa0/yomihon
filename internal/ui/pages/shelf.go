@@ -58,12 +58,18 @@ type Row struct {
 	// When is where the row sits in time, already in words, and is empty for an
 	// organisation that is not read by date. It leads the row, before the name,
 	// because a shelf ordered by date is scanned down that column and a reader
-	// looking for last week's report finds it there before reading a title.
+	// looking for last month's entry finds it there before reading a title.
+	// ByTitle moves it behind the name.
 	When string
 	// Opening is the document's own first line, lent to the listing so a row
 	// says what is inside it without being opened. It is empty where the
 	// document has none to lend, and a width with no room for it leaves it out.
 	Opening string
+	// ByTitle says the row is read for what the document is called, so the name
+	// opens it and the day follows. A shelf of reports is read for what each
+	// one answers; a journal is read by its days and leaves this off, which is
+	// why the day leads there.
+	ByTitle bool
 	// Mark is what this organisation measures a row by, already in words — a
 	// course's extent, a report's kind. An organisation that needs two writes
 	// them as one; where a row sits in time is not one of them, having a face

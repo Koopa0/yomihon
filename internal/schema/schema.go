@@ -371,6 +371,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		&tomlMeta,
 	)
 	contract.navigationRoles = contract.navigationRoles.withAnswerType(navigation, unknown.navigation, contract.definition.Enums.Type)
+	contract.navigationRoles = contract.navigationRoles.withLessonType(contract.LessonType())
 	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
 	contract.journalDir = resolveJournalDir(
 		navigation,

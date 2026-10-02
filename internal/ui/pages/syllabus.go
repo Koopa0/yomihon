@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -12,27 +13,35 @@ import (
 )
 
 // PathView is everything the study-path page needs: the current path's branches
-// with their totals and anchors, the switcher across every study path, and the
-// figures the header metarow reads. Navigation has already classified every
+// with their anchors, the switcher across every study path, and the figures the
+// header metarow reads. Navigation has already classified every
 // entry, so the page never resolves a wikilink.
 type PathView struct {
 	Title     string
 	RelPath   string
 	GuideHref string
-	// ListenHref is the same course as something to be listened to.
+	// ListenHref is the same path as something to be listened to, and is empty
+	// where nothing in it is marked to be read aloud: an offer whose page says
+	// there is nothing to hear is a dead end, so it is not made.
 	ListenHref string
 	Paths      []PathLink
 	Branches   []PathBranchView
+	// Appendix is what the author kept out of the course and listed beneath
+	// it: each section declared out of the sequence, in document order. It
+	// carries no counts and no order, and nothing in it is a stop on the walk.
+	Appendix []PathBranchView
 
-	// Entries is the course's planned lesson total, the main line only and a
-	// planned-but-unwritten lesson included. Unsettled is how many of them
-	// carry a status the contract does not settle: what is still to be
-	// finished, which says nothing about how far the reader has come. It is
-	// zero when every lesson is settled, and for a contract that settles no
-	// status, where it would say nothing.
-	Parts     int
-	Modules   int
+	// Unit is the noun the path's entries are counted and stepped in.
+	Unit nav.Unit
+	// Entries is the course's planned total, the main line only and a
+	// planned-but-unwritten entry included, and Branched how many the side
+	// branches list between them, which never join it. Unsettled is how many of
+	// the main line's entries carry a status the contract does not settle: what
+	// is still to be finished, which says nothing about how far the reader has
+	// come. It is zero when every entry is settled, and for a contract that
+	// settles no status, where it would say nothing.
 	Entries   int
+	Branched  int
 	Unsettled int
 
 	// Vault is the folder this course sits in, which the rail's foot states.
@@ -83,6 +92,10 @@ type CourseCover struct {
 	// KeptHref is where that place is, already built. The course decides
 	// whether to offer it, never where it leads.
 	KeptHref string
+	// Listenable is whether anything in the course is marked to be read aloud,
+	// which is the one thing that decides whether the cover offers the page
+	// that plays it.
+	Listenable bool
 }
 
 // CourseAction is the one verb a course cover offers: open a lesson. Which
@@ -128,21 +141,63 @@ func (a CourseAction) Verb(lang wording.Lang) string {
 }
 
 // PathBranchView is one branch of the course as the page draws it. A top-level
-// branch is a part, carrying the anchor the rail jumps to and a roman ordinal; a
-// nested one is a module numbered by sibling position. Items hold what the
-// branch lists in source order, so a side branch is placed where the author put
-// it rather than matched back to a lesson by name.
+// branch is a part, carrying the anchor the rail jumps to and its number; a
+// nested one is drawn under its parent by its heading alone. Items hold what the
+// branch lists in source order. A side branch hangs from the row it was nested
+// under, which is how the author attached it, and is carried by that row.
 type PathBranchView struct {
-	Anchor  string
+	Anchor string
+	// Ordinal is a part's number as a roman numeral, the compact form the
+	// rail's jump list uses. The cover's own heading says it in words with
+	// PartLabel, which is language dependent.
 	Ordinal string
+	// Num is a part's position among the parts, from one. Zero for a nested
+	// branch, which has no number of its own.
 	Num     int
 	Heading string
 	Depth   int
-	// Local marks a side branch: its own order and its own count, never part of
-	// the main line.
+	// Local marks a side branch: its own order, never part of the main line.
 	Local bool
-	Total int
 	Items []PathItemView
+}
+
+// PartLabel is a part's number as the cover's heading says it: a Chinese
+// heading reads 第一部 and an English one Part I. The numeral is the language's
+// own — Chinese counts parts in hanzi, as a book's table of contents does.
+func (v *PathBranchView) PartLabel(lang wording.Lang) string {
+	return fmt.Sprintf(wording.PartLabelFmt.In(lang), partNumeral(v.Num, lang))
+}
+
+// partNumeral is a part's number in the form the language's headings use: a
+// roman numeral in English, hanzi in Chinese. A number past what hanzi are
+// written for here, or one that is not positive, falls back to its digits
+// rather than panicking.
+func partNumeral(n int, lang wording.Lang) string {
+	if lang == wording.En {
+		return roman(n)
+	}
+	return hanziNumeral(n)
+}
+
+// hanziNumeral writes 1 through 99 the way a Chinese heading counts: 十 stands
+// alone for ten, and a leading 一 is dropped before 十.
+func hanziNumeral(n int) string {
+	const digits = "零一二三四五六七八九"
+	runes := []rune(digits)
+	switch {
+	case n < 1 || n > 99:
+		return strconv.Itoa(n)
+	case n < 10:
+		return string(runes[n])
+	case n == 10:
+		return "十"
+	case n < 20:
+		return "十" + string(runes[n-10])
+	case n%10 == 0:
+		return string(runes[n/10]) + "十"
+	default:
+		return string(runes[n/10]) + "十" + string(runes[n%10])
+	}
 }
 
 // PathItemView is one thing a branch lists: a row, or a nested branch. A value
@@ -186,6 +241,17 @@ type PathEntryView struct {
 	// the page. It is that note's own answer or empty, never a guess: a row
 	// that reached no note has nothing to have read a declaration from.
 	Language string
+	// Gloss is what the course's author wrote after the row's link, run in
+	// after the title as they typed it, and GlossLanguage the tag the course's
+	// own note declared, because the sentence is that author's and not the
+	// lesson's. Only the cover prints it.
+	Gloss         string
+	GlossLanguage string
+	// Branches are the side branches hanging from this row, in the order the
+	// author wrote them. They are drawn under the row they were nested under,
+	// inside the same list item, so the line the main line is read along
+	// passes beside them instead of stopping where they begin.
+	Branches []PathBranchView
 }
 
 // labelled reports whether the row prints its status: only an exception does,
@@ -290,12 +356,16 @@ func BuildPathView(current *nav.Path, all []nav.Path, cover *CourseCover) PathVi
 		Title:           current.Title,
 		RelPath:         current.RelPath,
 		GuideHref:       notesHref(current.RelPath),
-		ListenHref:      VaultHref("/listen/", current.RelPath),
 		Paths:           buildPaths(current.RelPath, all),
+		Unit:            current.Unit,
 		Entries:         current.Planned,
+		Branched:        current.Branched,
 		Unsettled:       current.Unsettled,
 		OpeningHTML:     cover.OpeningHTML,
 		OpeningLanguage: cover.OpeningLanguage,
+	}
+	if cover.Listenable {
+		v.ListenHref = VaultHref("/listen/", current.RelPath)
 	}
 	// A written marker outranks the rest, and an unrecognised rule outranks
 	// the no-marker reading, which would otherwise put words in the author's
@@ -315,16 +385,73 @@ func BuildPathView(current *nav.Path, all []nav.Path, cover *CourseCover) PathVi
 		}
 	}
 	for _, g := range current.Groups {
-		sv, ok := buildPathBranch(g, 0, v.Parts+1, cover)
+		if appendix, ok := buildAppendix(g, cover); ok {
+			v.Appendix = append(v.Appendix, appendix)
+			continue
+		}
+		sv, ok := buildPathBranch(g, 0, len(v.Branches)+1, cover)
 		if !ok {
 			continue
 		}
 		v.Branches = append(v.Branches, sv)
-		v.Parts++
-		v.Modules += countModules(&sv)
 	}
 	v.Action = courseAction(v.Branches, cover)
 	return v
+}
+
+// unitWords is the interface's words for the noun this path is read in.
+func unitWords(unit nav.Unit) wording.UnitWords {
+	switch unit {
+	case nav.UnitItem:
+		return wording.ItemWords
+	case nav.UnitLesson:
+		return wording.LessonWords
+	default:
+		return wording.LessonWords
+	}
+}
+
+// Extent is what the path says about its own size, one figure per phrase: the
+// course's total in the noun it is read in, then, where side branches exist,
+// how many entries they list between them. The branches' figure stands beside
+// the total and never inside it. The cover prints it under the title and the
+// reading rail under the book's name, so the two cannot count differently.
+func (v *PathView) Extent(lang wording.Lang) []string {
+	words := unitWords(v.Unit)
+	figures := []string{plural(v.Entries, words.CountOne, words.CountMany, lang)}
+	if v.Branched > 0 {
+		figures = append(figures, fmt.Sprintf(words.BranchedFmt.In(lang), v.Branched))
+	}
+	return figures
+}
+
+// UnsettledNote is the exception the head states after the extent, in the noun
+// the path is read in, or empty where there is none to state.
+func (v *PathView) UnsettledNote(lang wording.Lang) string {
+	if v.Unsettled == 0 {
+		return ""
+	}
+	return fmt.Sprintf(unitWords(v.Unit).UnsettledFmt.In(lang), v.Unsettled)
+}
+
+// buildAppendix draws a top-level section the author declared out of the
+// sequence as the list of rows it holds, each with its gloss. ok is false for
+// any other branch, and for one declared out that lists no row, which has
+// nothing to put under a heading. A branch carrying a structural error keeps
+// to the page's note, as it does everywhere: nothing about it is read.
+func buildAppendix(g *nav.PathGroup, cover *CourseCover) (PathBranchView, bool) {
+	if g.Role != sequence.RoleNone || g.Invalid {
+		return PathBranchView{}, false
+	}
+	sv := PathBranchView{Heading: g.Name}
+	for _, item := range g.Items {
+		if item.Entry == nil || item.Entry.State != sequence.EntryAccepted {
+			continue
+		}
+		entry := buildPathEntry(item.Entry, cover)
+		sv.Items = append(sv.Items, PathItemView{Entry: &entry})
+	}
+	return sv, len(sv.Items) > 0
 }
 
 // courseAction settles the cover's one verb against the course as drawn.
@@ -382,6 +509,13 @@ func firstLessonIn(branch *PathBranchView, local bool, want func(entry *PathEntr
 			if item.Entry.Href != "" && want(item.Entry, aside) {
 				return item.Entry
 			}
+			// What hangs from a row follows it, which is the order the author
+			// wrote them in.
+			for j := range item.Entry.Branches {
+				if found := firstLessonIn(&item.Entry.Branches[j], aside, want); found != nil {
+					return found
+				}
+			}
 		case item.Branch != nil:
 			if found := firstLessonIn(item.Branch, aside, want); found != nil {
 				return found
@@ -395,6 +529,11 @@ func firstLessonIn(branch *PathBranchView, local bool, want func(entry *PathEntr
 // a view. ok is false for a branch the course excludes that carries no declared
 // branch beneath it; a structural heading still draws, since dropping it would
 // orphan its parts. Sequence position is copied from navigation's walk.
+//
+// A side branch is carried by the row it was nested under. The row is found by
+// the identity navigation recorded for it, the span its source occupies, and
+// never by its name, since two rows can name one note. A side branch whose row
+// is not drawn here stays an item of its own, where the author wrote it.
 func buildPathBranch(g *nav.PathGroup, depth, num int, cover *CourseCover) (PathBranchView, bool) {
 	if !g.Drawn() {
 		return PathBranchView{}, false
@@ -404,13 +543,14 @@ func buildPathBranch(g *nav.PathGroup, depth, num int, cover *CourseCover) (Path
 		Depth:   depth,
 		Num:     num,
 		Local:   g.Role == sequence.RoleLocal,
-		Total:   g.Planned,
 	}
 	if depth == 0 {
 		sv.Anchor = "part-" + strconv.Itoa(num)
 		sv.Ordinal = roman(num)
 	}
-	children := 0
+	// anchors maps a drawn row's source span to its place among the items, so
+	// a side branch can be handed to the row it hangs from.
+	anchors := map[sequence.Span]int{}
 	for _, item := range g.Items {
 		switch {
 		case item.Entry != nil:
@@ -418,30 +558,22 @@ func buildPathBranch(g *nav.PathGroup, depth, num int, cover *CourseCover) (Path
 				continue
 			}
 			entry := buildPathEntry(item.Entry, cover)
+			anchors[item.Entry.Span] = len(sv.Items)
 			sv.Items = append(sv.Items, PathItemView{Entry: &entry})
 		case item.Group != nil:
-			children++
-			child, ok := buildPathBranch(item.Group, depth+1, children, cover)
+			child, ok := buildPathBranch(item.Group, depth+1, 0, cover)
 			if !ok {
-				children--
+				continue
+			}
+			if at, hangs := anchors[item.Group.AnchorSpan]; hangs && child.Local {
+				row := sv.Items[at].Entry
+				row.Branches = append(row.Branches, child)
 				continue
 			}
 			sv.Items = append(sv.Items, PathItemView{Branch: &child})
 		}
 	}
 	return sv, true
-}
-
-// countModules is how many branches sit beneath a part, at any depth, a side
-// branch included.
-func countModules(sv *PathBranchView) int {
-	n := 0
-	for _, item := range sv.Items {
-		if item.Branch != nil {
-			n += 1 + countModules(item.Branch)
-		}
-	}
-	return n
 }
 
 // buildPathEntry maps one nav entry onto a linked or warning study-path row. The
@@ -453,7 +585,14 @@ func countModules(sv *PathBranchView) int {
 // kept place: a row that reached no note is not a note anyone can have been
 // reading or left off in.
 func buildPathEntry(entry *nav.PathEntry, cover *CourseCover) PathEntryView {
-	v := PathEntryView{Name: entry.Name, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
+	v := PathEntryView{
+		Name:          entry.Name,
+		Kind:          entry.Kind,
+		Number:        entry.Number,
+		Language:      entry.Language,
+		Gloss:         entry.Gloss,
+		GlossLanguage: cover.OpeningLanguage,
+	}
 	if entry.Kind != nav.EntryResolved {
 		return v
 	}

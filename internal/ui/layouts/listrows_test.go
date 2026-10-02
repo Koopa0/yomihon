@@ -81,24 +81,24 @@ func TestAStatusIsNeutralWhereverItIsDrawn(t *testing.T) {
 	}
 }
 
-// TestACourseCountIsAFigureAndNotABadge holds the number of lessons beside a
-// part or a module to the treatment of the rail's own counts: ink and figures
-// and nothing drawn around them. The heading already says what the number is
-// counting, so a box around it states it a second time.
-func TestACourseCountIsAFigureAndNotABadge(t *testing.T) {
+// TestACoursesGlossRunsInWithItsTitleAndIsNeverABlock holds what makes the
+// author's sentence a continuation of the lesson's name: the run it sits in is
+// not clamped to a number of lines, which would cut the sentence off, and the
+// sentence itself is inline, so it follows the name on its line instead of
+// being a second line under it.
+func TestACoursesGlossRunsInWithItsTitleAndIsNeverABlock(t *testing.T) {
 	t.Parallel()
 
-	count := onlyRule(t, componentRules(t), ".y-partcount")
-	for _, property := range []string{"background", "border", "border-radius", "padding"} {
-		if got := count.values(property); len(got) > 0 {
-			t.Errorf(".y-partcount sets %s: %v, which draws the count as a badge", property, got)
+	rules := componentRules(t)
+	gloss := onlyRule(t, rules, ".y-gloss")
+	for _, value := range gloss.values("display") {
+		t.Errorf(".y-gloss is display: %s, which sets the sentence apart from its title as a line of its own", value)
+	}
+	text := onlyRule(t, rules, ".y-lesson__text")
+	for _, property := range []string{"-webkit-line-clamp", "line-clamp", "max-height", "overflow", "text-overflow"} {
+		if got := text.values(property); len(got) > 0 {
+			t.Errorf(".y-lesson__text sets %s: %v, which cuts the sentence a row's author wrote", property, got)
 		}
-	}
-	if diff := cmp.Diff([]string{"var(--fg-subtle)"}, count.values("color")); diff != "" {
-		t.Errorf(".y-partcount is not the quiet ink the rail's counts use (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff([]string{"tabular-nums"}, count.values("font-variant-numeric")); diff != "" {
-		t.Errorf(".y-partcount does not set its figures in tabular numerals (-want +got):\n%s", diff)
 	}
 }
 

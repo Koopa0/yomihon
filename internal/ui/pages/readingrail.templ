@@ -50,7 +50,7 @@ templ bookRail(rr ReadingRail, c layouts.Chrome) {
 		{{ view := rr.bookView() }}
 		<div class="y-railbook" data-book-path={ rr.book.RelPath }>
 			<a class="y-railbook__title" href={ templ.URL(syllabusHrefFrom(rr.book.RelPath, rr.CurrentPath)) }>{ rr.book.Title }</a>
-			<p class="y-railbook__span">{ plural(view.Parts, wording.PartCountOne, wording.PartCountMany, c.Lang) } · { plural(view.Entries, wording.LessonCountOne, wording.LessonCountMany, c.Lang) }</p>
+			<p class="y-railbook__span">{ joinMarks(view.Extent(c.Lang)...) }</p>
 			for _, sec := range view.Branches {
 				@bookRailBranch(rr, c, rr.book.RelPath, nil, sec)
 			}
@@ -76,11 +76,11 @@ templ bookRailBranch(rr ReadingRail, c layouts.Chrome, pathRel string, chain []s
 
 templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []string, sec PathBranchView) {
 	for _, run := range sec.Runs(c.Lang) {
-		if run.Branch != nil {
-			@bookRailBranch(rr, c, pathRel, chain, *run.Branch)
-		} else {
-			for _, entry := range run.Entries {
-				@bookRailEntry(c, entry)
+		for _, row := range run.railRows() {
+			if row.branch != nil {
+				@bookRailBranch(rr, c, pathRel, chain, *row.branch)
+			} else {
+				@bookRailEntry(c, *row.entry)
 			}
 		}
 	}
@@ -137,9 +137,9 @@ templ reportsRail(rr ReadingRail, c layouts.Chrome) {
 					href={ templ.URL(reportHref(rep.Name)) }
 					{ currentAttr(rr.current(rep.RelPath))... }
 				>
-					{ rep.Name }
+					{ ReportLabel(&rep) }
 					if rep.Latest {
-						<span class="y-navmark">{ wording.Newest.In(c.Lang) }</span>
+						<span class="y-navmark y-navmark--newest">{ wording.Newest.In(c.Lang) }</span>
 					}
 				</a>
 			} else {
@@ -148,7 +148,7 @@ templ reportsRail(rr ReadingRail, c layouts.Chrome) {
 					href={ templ.URL(notesHref(rep.RelPath)) }
 					{ currentAttr(rr.current(rep.RelPath))... }
 				>
-					{ rep.Name }
+					{ ReportLabel(&rep) }
 				</a>
 			}
 		}

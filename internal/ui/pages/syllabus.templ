@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"fmt"
 	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
 
@@ -29,57 +28,60 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 					for _, sec := range v.Branches {
 						@partBlock(sec, c.Lang)
 					}
+					for _, sec := range v.Appendix {
+						@appendixBlock(sec, c.Lang)
+					}
+					@syllabusFoot(v, c.Lang)
 				</div>
 			</main>
 		</div>
 	}
 }
 
-// syllabusHead is the cover: the path kicker, the title, the map note's own
-// opening, the derived metarow (parts / modules / lessons / how many are not yet
-// settled), and the one verb that opens the course. No path dek (subtitle) is rendered: there is no
-// backing field for it, and no data means no render — the same treatment the
-// reading page gives a note's subtitle.
+// syllabusHead is the cover: the path kicker, the title, the note's own
+// preface, the derived metarow (how large the course is, how much of it hangs
+// in side branches, how many of its entries are not yet settled), and the one
+// verb that opens the course with, where something is marked, the way to hear
+// it. No path dek (subtitle) is rendered: there is no backing field for it, and
+// no data means no render — the same treatment the reading page gives a note's
+// subtitle.
 templ syllabusHead(v PathView, lang wording.Lang) {
 	<div class="y-syl-kicker">{ wording.SyllabusKicker.In(lang) }</div>
 	<h1 class="y-title">{ v.Title }</h1>
-	// The author's own words about the course, taken from above the first
-	// heading of the note that declares it and printed unchanged. A note that
-	// opens straight on a heading has none, and nothing is drawn: the reader
-	// meets the counts one line sooner rather than an empty box.
+	// The author's own words about the course: what a note that opens on its
+	// title keeps under it, or what stands above the first heading of one that
+	// does not. They are printed unchanged. A note with neither has none, and
+	// nothing is drawn: the reader meets the counts one line sooner rather than
+	// an empty box.
 	if v.OpeningHTML != "" {
 		<div class="y-cover__opening y-prose" { authoredLanguageAttrs(v.OpeningLanguage)... }>
 			@templ.Raw(v.OpeningHTML)
 		</div>
 	}
 	<div class="y-metarow">
-		<span>{ plural(v.Parts, wording.PartCountOne, wording.PartCountMany, lang) }</span>
-		if v.Modules > 0 {
-			<span aria-hidden="true">·</span>
-			<span>{ plural(v.Modules, wording.ModuleCountOne, wording.ModuleCountMany, lang) }</span>
+		for i, figure := range v.Extent(lang) {
+			if i > 0 {
+				<span aria-hidden="true">·</span>
+			}
+			<span>{ figure }</span>
 		}
-		<span aria-hidden="true">·</span>
-		<span>{ plural(v.Entries, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
-		// The exception and not the rule: a course whose lessons are all settled
+		// The exception and not the rule: a course whose entries are all settled
 		// says nothing here, and so does one whose contract settles no status,
-		// because the count would then be every lesson.
-		if v.Unsettled > 0 {
+		// because the count would then be every entry.
+		if note := v.UnsettledNote(lang); note != "" {
 			<span aria-hidden="true">·</span>
-			<span class="y-syl-unsettled" data-course-unsettled>{ fmt.Sprintf(wording.CourseUnsettledFmt.In(lang), v.Unsettled) }</span>
+			<span class="y-syl-unsettled" data-course-unsettled>{ note }</span>
 		}
 	</div>
-	// The way to the note belongs to a path that has something to walk. On a
-	// note that declared no course the link used to sit above the explanation
-	// of why there is none. The condition is the one the body already asks
-	// before it explains itself, so the two halves of the page cannot give
-	// different answers about whether this path has a course.
-	if len(v.Branches) > 0 {
+	// The ways in belong to a path that has something to walk. The condition is
+	// the one the body already asks before it explains itself, so the two halves
+	// of the page cannot give different answers about whether this path has a
+	// course.
+	if len(v.Branches) > 0 && (v.Action.Href != "" || v.ListenHref != "") {
 		<div class="y-cover__ways">
-			// One verb, and it is the course's: open the first lesson, or go
+			// One verb, and it is the course's: open the first entry, or go
 			// back to the place the reader kept inside it. The token beside it
-			// says which without asking what language the page is in. The way
-			// to the note stays a plain link next to it — the reader has just
-			// read the note's opening, and that is where the rest of it is.
+			// says which without asking what language the page is in.
 			if v.Action.Href != "" {
 				<a
 					class="y-cover__open"
@@ -92,13 +94,24 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 					}
 				</a>
 			}
-			<a class="y-syl-read" href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
-			// The same course as something to be listened to. It sits beside
-			// the way to the note for the same reason and on the same
-			// condition: a path with nothing to walk has nothing to read
-			// aloud either.
-			<a class="y-syl-read" href={ templ.URL(v.ListenHref) }>{ wording.ListenThisCourse.In(lang) }<span aria-hidden="true">→</span></a>
+			// The same path as something to be listened to. It is offered only
+			// where a note in it is marked to be read aloud, so it never leads
+			// to a page that says there is nothing to hear.
+			if v.ListenHref != "" {
+				<a class="y-syl-read" href={ templ.URL(v.ListenHref) }>{ wording.ListenThisPath.In(lang) }<span aria-hidden="true">→</span></a>
+			}
 		</div>
+	}
+}
+
+// syllabusFoot is the last line of the contents: the way to the note the path
+// is drawn from, as a book ends its table of contents on where the rest is. It
+// belongs to a path that has a course for the same reason the ways in do.
+templ syllabusFoot(v PathView, lang wording.Lang) {
+	if len(v.Branches) > 0 {
+		<p class="y-cover__note">
+			<a class="y-syl-read" href={ templ.URL(v.GuideHref) }>{ wording.ReadTheGuide.In(lang) }<span aria-hidden="true">→</span></a>
+		</p>
 	}
 }
 
@@ -111,12 +124,67 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 templ partBlock(sec PathBranchView, lang wording.Lang) {
 	<section class="y-part-block">
 		<h2 class="y-part" id={ sec.Anchor }>
-			<span class="y-part__num">{ sec.Ordinal }</span>
+			<span class="y-part__num">{ sec.PartLabel(lang) }</span>
 			<span class="y-part__name">{ sec.Heading }</span>
-			<span class="y-partcount">{ plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
 		</h2>
 		@branchItems(sec, lang)
 	</section>
+}
+
+// appendixBlock is what the author kept out of the course and listed beneath
+// it, under their own heading: an unnumbered list of titles with the sentences
+// they wrote beside them. It has no count, no line through its rows and no step
+// to or from them, because none of it is a stop on the walk — only a place to
+// look something up, which a book's contents lists after its chapters.
+templ appendixBlock(sec PathBranchView, lang wording.Lang) {
+	<section class="y-part-block y-appendix">
+		<h2 class="y-part">
+			<span class="y-part__name">{ sec.Heading }</span>
+		</h2>
+		<ul class="y-reflist">
+			for _, item := range sec.Items {
+				if item.Entry != nil {
+					<li>
+						@refRow(*item.Entry, lang)
+					</li>
+				}
+			}
+		</ul>
+	</section>
+}
+
+// refRow is one row of the appendix: a link to the note with the author's
+// sentence run in after its title, or, for a row that reached no note, the same
+// words with the reason it could not be opened. It carries the marks the course
+// rows carry for which row the reader came from, and none for place or status:
+// an entry outside the course has neither a position nor a settled state of
+// its own to say here.
+templ refRow(l PathEntryView, lang wording.Lang) {
+	if l.Kind == nav.EntryResolved {
+		<a class="y-ref" href={ templ.URL(l.Href) } { hereAttr(l.Here)... }>
+			<span class="y-ref__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
+			@glossRunIn(l)
+		</a>
+	} else {
+		<span
+			class="y-ref y-ref--broken"
+			data-resolution={ entryResolutionCode(l.Kind) }
+			title={ entryResolutionTitle(l.Kind, lang) }
+		>
+			<span class="y-ref__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
+			@glossRunIn(l)
+			<span class="y-navmark y-navmark--warn">{ entryResolutionLabel(l.Kind, lang) }</span>
+		</span>
+	}
+}
+
+// glossRunIn is the author's sentence about a row, set after its title as the
+// same line of text and separated from it by a space, in the language the
+// path's note was written in. It draws nothing for a row that wrote none.
+templ glossRunIn(l PathEntryView) {
+	if l.Gloss != "" {
+		{ " " }<span class="y-gloss" { authoredLanguageAttrs(l.GlossLanguage)... }>{ l.Gloss }</span>
+	}
 }
 
 // moduleBlock renders a nested branch (a module). It recurses for any deeper
@@ -153,12 +221,21 @@ templ branchItems(sec PathBranchView, lang wording.Lang) {
 				for _, entry := range run.Entries {
 					<li value={ strconv.Itoa(entry.Number) }>
 						@entryRow(entry, lang)
+						// A side branch is drawn inside the item of the row it
+						// hangs from, which keeps the line the main line is read
+						// along running past it to the row that follows.
+						for _, branch := range entry.Branches {
+							@moduleBlock(branch, lang)
+						}
 					</li>
 				}
 			</ol>
 		} else {
 			for _, entry := range run.Entries {
 				@entryRow(entry, lang)
+				for _, branch := range entry.Branches {
+					@moduleBlock(branch, lang)
+				}
 			}
 		}
 	}
@@ -191,11 +268,8 @@ templ moduleHeading(sec PathBranchView, lang wording.Lang) {
 templ moduleHeadingContent(sec PathBranchView, lang wording.Lang) {
 	if sec.Local {
 		<span class="y-module__tag">{ wording.BranchTag.In(lang) }</span>
-	} else {
-		<span class="y-module__tag">{ fmt.Sprintf(wording.ModuleTagFmt.In(lang), sec.Num) }</span>
 	}
 	<span class="y-module__name">{ sec.Heading }</span>
-	<span class="y-partcount">{ plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
 	<span class="y-module__rule" aria-hidden="true"></span>
 }
 
@@ -215,7 +289,10 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 	if l.Kind == nav.EntryResolved {
 		<a class={ "y-lesson", templ.KV("y-lesson--here", l.Here) } href={ templ.URL(l.Href) } { hereAttr(l.Here)... }>
 			<span class="y-navdot" aria-hidden="true"></span>
-			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
+			<span class="y-lesson__text">
+				<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
+				@glossRunIn(l)
+			</span>
 			if l.Kept || l.labelled() {
 				<span class="y-lesson__aside">
 					if l.Kept {
@@ -234,7 +311,10 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 			title={ entryResolutionTitle(l.Kind, lang) }
 		>
 			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-			<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
+			<span class="y-lesson__text">
+				<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
+				@glossRunIn(l)
+			</span>
 			<span class="y-navmark y-navmark--warn">{ entryResolutionLabel(l.Kind, lang) }</span>
 		</span>
 	}
@@ -260,7 +340,6 @@ templ syllabusRail(v PathView, c layouts.Chrome) {
 					<a class="ui-navitem y-pathitem" href={ templ.URL("#" + sec.Anchor) }>
 						<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
 						<span class="y-pathitem__name">{ sec.Heading }</span>
-						<span class="y-pathcount">{ plural(sec.Total, wording.LessonCountOne, wording.LessonCountMany, lang) }</span>
 					</a>
 				}
 			}

@@ -97,6 +97,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 	current := "Writing/lessons/go/L01.md"
 	shelfIndex, shelfRecent, shelfStatuses := recordedShelfView(model)
 	course := newRecordedCourse(t, root, model)
+	branchModel := footVault(t)
 
 	type surface struct {
 		name      string
@@ -127,6 +128,23 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// verb changes and the lesson's own name comes to stand beside it, so
 		// both languages are recorded again: the word and the name sit on one
 		// line, and the line is where a longer word would show.
+		// The foot and the line above the title of a lesson on a side branch, the
+		// lesson a branch hangs from, and a branch with nowhere on the main line
+		// to go on to: the markup the ordinary course above, with no side
+		// branch, never reaches.
+		{"steps-branch-single", footOf(t, branchModel, "Writing/B1.md", wording.ZhHant)},
+		{"steps-branch-single-english", footOf(t, branchModel, "Writing/B1.md", wording.En)},
+		{"steps-branch-contents", footOf(t, branchModel, "Writing/E1.md", wording.ZhHant)},
+		{"steps-branch-anchor", footOf(t, branchModel, "Writing/C02.md", wording.ZhHant)},
+		{"articlehead-running", headOf(t, branchModel, "Writing/L1.md", wording.ZhHant)},
+		{"articlehead-running-english", headOf(t, branchModel, "Writing/L1.md", wording.En)},
+		// A course annotated the way its author writes one: a sentence beside each
+		// lesson, a side branch hanging from a lesson, an appendix after the
+		// last part, and something marked to be heard. The course above has
+		// none of these, so without this recording the markup that carries them
+		// is written into no file at all.
+		{"syllabus-page-annotated", Syllabus(annotatedCourse(t), recordedChrome())},
+		{"syllabus-page-annotated-english", Syllabus(annotatedCourse(t), recordedEnglishChrome())},
 		{"syllabus-page-continuing", Syllabus(course.view(recordedChrome().Lang, "Writing/lessons/go/L02.md"), recordedChrome())},
 		{"syllabus-page-continuing-english", Syllabus(course.view(wording.En, "Writing/lessons/go/L02.md"), recordedEnglishChrome())},
 		// The same course as something to be listened to, in both languages.
@@ -158,7 +176,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page-paged-english", Search(recordedPagedSearchView(model, wording.En), recordedEnglishChrome())},
 		{"health-page-paged", Health(recordedPagedHealthView(model), recordedChrome())},
 		{"health-page-paged-english", Health(recordedPagedHealthView(model), recordedEnglishChrome())},
-		{"report-page", Report(ReportView{Name: "2026-07-10.html", ReadingRail: NewReportReadingRail(recordedShell(model), "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
+		{"report-page", Report(ReportView{Name: "2026-07-10.html", Title: "接收者離開後 — Go 並行回顧", Label: "接收者離開後 — Go 並行回顧", ReadingRail: NewReportReadingRail(recordedShell(model), "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
 		{"preferences-page", Preferences(recordedPreferencesView(wording.ZhHant), recordedChrome())},
 		// The field legends are drawn in the label face now rather than sitting
 		// inside a bordered box, and that face is where an untranslated legend
@@ -684,25 +702,43 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 // recordedReportIndexView carries every answer a report row can give in the
 // column a reader scans, none of which the shared fixture vault has: a written
 // report with a day of its own and the line it opens with, a briefing named
-// for the day it covers, the briefing the vault keeps current, and a report
-// that wrote no day at all. They are already in the order the shelf puts them,
-// newest first, so the recording shows the row and not the sort.
+// for the day it covers, the briefing the vault keeps current, a report that
+// wrote no day at all, and two briefings that share a title and a day, which
+// only their file names can tell apart. They are already in the order the shelf
+// puts them, newest first, so the recording shows the row and not the sort.
 func recordedReportIndexView(lang wording.Lang) ListIndexView {
 	return NewReportIndex([]nav.Report{
-		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 		{
-			Name:    "Vault audit",
+			Name:     "latest.html",
+			Title:    "接收者離開後 — Go 並行回顧",
+			RelPath:  "System/reports/daily-briefing/latest.html",
+			Briefing: true,
+			Latest:   true,
+		},
+		{
+			Name:    "2026-07-10 vault audit.md",
+			Title:   "Vault audit",
 			RelPath: "System/reports/2026-07-10 vault audit.md",
 			Date:    "2026-07-10",
 			Opening: "Four notes went from draft to ready. Nothing was archived.",
 		},
 		{
-			Name:     "2026-07-02 briefing.html",
-			RelPath:  "System/reports/daily-briefing/2026-07-02 briefing.html",
-			Briefing: true,
-			Date:     "2026-07-02",
+			Name:      "2026-07-02 briefing.html",
+			Title:     "Daily briefing",
+			Qualifier: "2026-07-02 briefing.html",
+			RelPath:   "System/reports/daily-briefing/2026-07-02 briefing.html",
+			Briefing:  true,
+			Date:      "2026-07-02",
 		},
-		{Name: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
+		{
+			Name:      "2026-07-02 evening.html",
+			Title:     "Daily briefing",
+			Qualifier: "2026-07-02 evening.html",
+			RelPath:   "System/reports/daily-briefing/2026-07-02 evening.html",
+			Briefing:  true,
+			Date:      "2026-07-02",
+		},
+		{Name: "notes on the scan.md", Title: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},
 	}, lang, nil)
 }
 
@@ -1030,4 +1066,21 @@ func recordedCompareView() CompareView {
 			return b
 		}(),
 	}
+}
+
+// footOf and headOf are the foot and the running head of one lesson of the
+// branch course, drawn from the same calls the page makes.
+func footOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
+	t.Helper()
+	_, view := footView(model, current, lang)
+	return sequenceSteps(view, lang)
+}
+
+func headOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
+	t.Helper()
+	_, view := footView(model, current, lang)
+	if view.Running == nil {
+		t.Fatalf("%s has no running head, so the recording would hold the folder's breadcrumb", current)
+	}
+	return articleHead(view, lang)
 }

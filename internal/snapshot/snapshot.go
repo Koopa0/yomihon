@@ -55,6 +55,7 @@ const reconcileEvery = int(time.Hour / scanInterval)
 type Source interface {
 	ScanAvailable(context.Context) (vault.Scan, error)
 	ReadFile(context.Context, vault.Entry) ([]byte, error)
+	ReadPrefix(context.Context, vault.Entry, int64) ([]byte, error)
 }
 
 // Freshness is the published account of how the reading generation relates to
@@ -870,6 +871,9 @@ func buildGeneration(
 			return nil, nil, err
 		}
 		relPath := entry.Path()
+		if _, isBriefing := nav.BriefingName(relPath); isBriefing {
+			g.nameBriefing(ctx, source, entry, log)
+		}
 		note := vault.IsMarkdown(relPath)
 		want := wantedBytes(entry, note)
 		if !note {
@@ -903,7 +907,7 @@ func buildGeneration(
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
-	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated, capabilities.Settlement)
+	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated, capabilities.Settlement, g.htmlTitles)
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
@@ -1005,6 +1009,9 @@ type generation struct {
 	// products is what each note in parsed yields from its body, by path: the
 	// folder-wide projections read these rather than parsing a body themselves.
 	products map[string]noteProducts
+	// htmlTitles is what each briefing's own HTML calls it, by path, for the
+	// briefings whose head named one.
+	htmlTitles map[string]string
 	// reported is the Store's memory of the note parse panics already logged in
 	// full. A reading built outside a Store has none and logs every panic in full.
 	reported map[string][sha256.Size]byte
@@ -1023,6 +1030,7 @@ func newGeneration(entries int) *generation {
 		findings:     make(map[string][]judge.Finding),
 		skippedNotes: make(map[string]struct{}),
 		products:     make(map[string]noteProducts, entries),
+		htmlTitles:   make(map[string]string),
 	}
 }
 
@@ -1344,6 +1352,31 @@ func (g *generation) captureFile(relPath string, data []byte, indexable bool) {
 		return
 	}
 	g.files = append(g.files, lexical.DocumentFromFile(relPath, data))
+}
+
+// nameBriefing records what a briefing's own HTML calls itself, which the shelf
+// shows in place of its file name. Only the head of the file is read, whatever
+// its size: a briefing carries its fonts and pictures inline, so the whole file
+// can pass the size at which a file stops being read as text and still name
+// itself in its first lines. A briefing that names nothing, or whose head
+// cannot be read, simply stays under its file name. The failure is logged and
+// held against nothing: a name is a courtesy to the reader, and holding the
+// folder back for one file that will not open would stop every later change
+// from being published.
+func (g *generation) nameBriefing(ctx context.Context, source Source, entry vault.Entry, log *slog.Logger) {
+	head, err := source.ReadPrefix(ctx, entry, nav.HTMLTitleBytes)
+	if err != nil {
+		if ctx.Err() != nil {
+			// The build is being abandoned, and its caller says why.
+			return
+		}
+		log.Warn("briefing head unreadable; it is shown under its file name",
+			"path", entry.Path(), "error", err)
+		return
+	}
+	if title := nav.HTMLTitle(head); title != "" {
+		g.htmlTitles[entry.Path()] = title
+	}
 }
 
 // bytesWanted is why a generation reads one vault file, and what follows if not.
