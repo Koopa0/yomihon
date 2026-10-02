@@ -115,14 +115,14 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 							for _, rep := range sb.Model.Reports() {
 								if rep.Briefing {
 									<a class="ui-navitem" href={ templ.URL(reportHref(rep.Name)) }>
-										{ rep.Name }
+										{ ReportLabel(&rep) }
 										if rep.Latest {
-											<span class="y-navmark">{ wording.Newest.In(c.Lang) }</span>
+											<span class="y-navmark y-navmark--newest">{ wording.Newest.In(c.Lang) }</span>
 										}
 									</a>
 								} else {
 									<a class="ui-navitem" href={ templ.URL(notesHref(rep.RelPath)) }>
-										{ rep.Name }
+										{ ReportLabel(&rep) }
 									</a>
 								}
 							}

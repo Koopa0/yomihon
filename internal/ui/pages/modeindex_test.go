@@ -82,39 +82,97 @@ func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
 	}
 }
 
-// TestAReportRowLeadsWithItsDayThenNamesItsKind pins the four faces a report
-// row shows and which face each thing lands on. The day leads, because that is
-// what a reader scans a shelf of reports for. The kinds open differently — a
-// briefing's bytes are shown inside an isolated frame, a written report is a
-// note — so the kind is named on every row, and a reader knows which link they
-// are about to follow.
-func TestAReportRowLeadsWithItsDayThenNamesItsKind(t *testing.T) {
+// TestAReportRowOpensWithItsTitleThenItsDay pins the faces a report row shows
+// and which face each thing lands on. The row opens with what the report calls
+// itself — never the name of its file — and the day it is for follows. Only the
+// briefing is marked with its kind: its bytes are shown inside an isolated
+// frame, which tells a reader which link they are about to follow. A written
+// report is what every row of this shelf is, so it carries no mark.
+func TestAReportRowOpensWithItsTitleThenItsDay(t *testing.T) {
 	t.Parallel()
 
-	view := NewReportIndex([]nav.Report{
+	reports := []nav.Report{
 		{
-			Name:    "Vault audit",
+			Name:    "2026-07-10 vault audit.md",
+			Title:   "Vault audit",
 			RelPath: "System/reports/2026-07-10 vault audit.md",
 			Date:    "2026-07-10",
 			Opening: "Four notes went from draft to ready.",
 		},
-		{Name: "notes", RelPath: "System/reports/notes.md"},
-		{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
-	}, wording.ZhHant, nil)
-
-	want := []Row{
-		{
-			When:    "2026-07-10",
-			Text:    "Vault audit",
-			Opening: "Four notes went from draft to ready.",
-			Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
-			Mark:    "書庫筆記",
-		},
-		{When: "沒有寫日期", Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "書庫筆記"},
-		{When: "最新", Text: "latest.html", Href: "/reports/latest.html", Mark: "每日簡報"},
+		{Name: "notes.md", Title: "notes", RelPath: "System/reports/notes.md"},
+		{Name: "latest.html", Title: "接收者離開後 — Go 並行回顧", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 	}
-	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
-		t.Errorf("report rows mismatch (-want +got):\n%s", diff)
+
+	for _, tt := range []struct {
+		lang wording.Lang
+		want []Row
+	}{
+		{
+			lang: wording.ZhHant,
+			want: []Row{
+				{
+					When:    "2026-07-10",
+					Text:    "Vault audit",
+					Opening: "Four notes went from draft to ready.",
+					Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
+					ByTitle: true,
+				},
+				{When: "沒有寫日期", Text: "notes", Href: "/notes/System/reports/notes.md", ByTitle: true},
+				{When: "最新", Text: "接收者離開後 — Go 並行回顧", Href: "/reports/latest.html", Mark: "每日簡報", ByTitle: true},
+			},
+		},
+		{
+			lang: wording.En,
+			want: []Row{
+				{
+					When:    "2026-07-10",
+					Text:    "Vault audit",
+					Opening: "Four notes went from draft to ready.",
+					Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
+					ByTitle: true,
+				},
+				{When: "No date", Text: "notes", Href: "/notes/System/reports/notes.md", ByTitle: true},
+				{When: "Newest", Text: "接收者離開後 — Go 並行回顧", Href: "/reports/latest.html", Mark: "Daily briefing", ByTitle: true},
+			},
+		},
+	} {
+		view := NewReportIndex(reports, tt.lang, nil)
+		if diff := cmp.Diff(tt.want, view.Shelf.Rows); diff != "" {
+			t.Errorf("report rows in %v (-want +got):\n%s", tt.lang, diff)
+		}
+	}
+}
+
+// TestOnlyABriefingIsMarkedWithItsKind pins the one mark a report row can carry.
+// A briefing says it is a daily briefing, because that is what tells it from the
+// written reports beside it; a written report says nothing, because on a shelf of
+// reports "report" distinguishes nothing, and it is never called a note, which it
+// is not on this shelf. The words are written out so that a wording change fails
+// here rather than passing with its own constant.
+func TestOnlyABriefingIsMarkedWithItsKind(t *testing.T) {
+	t.Parallel()
+
+	reports := []nav.Report{
+		{Name: "a.md", Title: "A written report", RelPath: "System/reports/a.md", Date: "2026-07-10"},
+		{Name: "2026-07-09.html", Title: "A briefing", RelPath: "System/reports/daily-briefing/2026-07-09.html", Briefing: true, Date: "2026-07-09"},
+		{Name: "latest.html", Title: "The newest briefing", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
+	}
+	for _, tt := range []struct {
+		lang     wording.Lang
+		briefing string
+	}{
+		{wording.ZhHant, "每日簡報"},
+		{wording.En, "Daily briefing"},
+	} {
+		view := NewReportIndex(reports, tt.lang, nil)
+		var got []string
+		for _, row := range view.Shelf.Rows {
+			got = append(got, row.Mark)
+		}
+		want := []string{"", tt.briefing, tt.briefing}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("row marks in %v (-want +got):\n%s", tt.lang, diff)
+		}
 	}
 }
 
@@ -127,15 +185,73 @@ func TestEveryReportRowAnswersInTheDateColumn(t *testing.T) {
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		view := NewReportIndex([]nav.Report{
-			{Name: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
-			{Name: "Vault audit", RelPath: "System/reports/a.md", Date: "2026-07-10"},
-			{Name: "notes", RelPath: "System/reports/notes.md"},
+			{Name: "latest.html", Title: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
+			{Name: "a.md", Title: "Vault audit", RelPath: "System/reports/a.md", Date: "2026-07-10"},
+			{Name: "notes.md", Title: "notes", RelPath: "System/reports/notes.md"},
 		}, lang, nil)
 		for i, row := range view.Shelf.Rows {
 			if row.When == "" {
 				t.Errorf("row %d (%q) in %v says nothing in the date column", i, row.Text, lang)
 			}
 		}
+	}
+}
+
+// TestASharedReportTitleIsToldApartWhereItStandsAlone pins where a qualifier
+// is said. A row already shows the day, so a day that does the telling is not
+// repeated in its title; a file name is, because the day could not tell the two
+// apart. The rail, the tab and the frame show a title with no day beside it, so
+// the label always carries the qualifier.
+func TestASharedReportTitleIsToldApartWhereItStandsAlone(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		report    nav.Report
+		wantRow   string
+		wantLabel string
+	}{
+		{
+			name:      "a title nobody else carries",
+			report:    nav.Report{Title: "Daily briefing", Date: "2026-09-22"},
+			wantRow:   "Daily briefing",
+			wantLabel: "Daily briefing",
+		},
+		{
+			name:      "a day that tells it apart is not said twice in a row",
+			report:    nav.Report{Title: "Daily briefing", Date: "2026-09-22", Qualifier: "2026-09-22"},
+			wantRow:   "Daily briefing",
+			wantLabel: "Daily briefing · 2026-09-22",
+		},
+		{
+			name:      "a file name is said wherever the day could not tell it apart",
+			report:    nav.Report{Title: "Daily briefing", Date: "2026-09-22", Qualifier: "2026-09-22-pm.html"},
+			wantRow:   "Daily briefing · 2026-09-22-pm.html",
+			wantLabel: "Daily briefing · 2026-09-22-pm.html",
+		},
+		{
+			name:      "the latest briefing wears its own mark and needs nothing",
+			report:    nav.Report{Title: "Daily briefing", Latest: true, Briefing: true},
+			wantRow:   "Daily briefing",
+			wantLabel: "Daily briefing",
+		},
+		{
+			name:      "a report with no day is told apart by its file name",
+			report:    nav.Report{Title: "Daily briefing", Qualifier: "alpha.html"},
+			wantRow:   "Daily briefing · alpha.html",
+			wantLabel: "Daily briefing · alpha.html",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := reportRowTitle(&tt.report); got != tt.wantRow {
+				t.Errorf("reportRowTitle() = %q, want %q", got, tt.wantRow)
+			}
+			if got := ReportLabel(&tt.report); got != tt.wantLabel {
+				t.Errorf("ReportLabel() = %q, want %q", got, tt.wantLabel)
+			}
+		})
 	}
 }
 

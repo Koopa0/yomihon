@@ -267,6 +267,7 @@ func buildStepsModel(t *testing.T) *nav.Model {
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
 		contract.Settlement(),
+		nil,
 	)
 }
 

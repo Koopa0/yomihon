@@ -48,10 +48,12 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.ReportView{
 		Name:        rep.Name,
+		Title:       rep.Title,
+		Label:       pages.ReportLabel(&rep),
 		ReadingRail: pages.NewReportReadingRail(shell, rep.RelPath),
 		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
 	}
-	if err := pages.Report(view, layouts.ChromeFromRequest(r, rep.Name)).Render(r.Context(), w); err != nil {
+	if err := pages.Report(view, layouts.ChromeFromRequest(r, view.Label)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write report page", "name", rep.Name, "error", err)
 	}
 }
