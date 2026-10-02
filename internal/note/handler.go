@@ -388,6 +388,7 @@ func (h *Handler) reading(
 	// Last, so what a lesson's own controls were spliced in carrying is renamed
 	// with everything the render itself wrote.
 	render.Qualify(idPrefix, &result)
+	result.HTML = annotateMarkAnchors(result.HTML)
 
 	// The status face and the status shown beside the title are the same
 	// claim, so they come from the same read.
@@ -403,7 +404,13 @@ func (h *Handler) reading(
 	if marked {
 		readingRail.KeptNote = kept.RelPath
 	}
-	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(&readingRail, lang)
+	foot := pages.FooterSequence(&readingRail, lang)
+	// The line above the title names the book the note is a page of, where the
+	// rail resolved one; a note in no path keeps the folder's breadcrumb.
+	var running *pages.RunningHead
+	if head, ok := pages.RunningHeadOf(&readingRail); ok {
+		running = &head
+	}
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
 	view = pages.NoteView{
@@ -424,10 +431,17 @@ func (h *Handler) reading(
 		DeclaredBy:         declaredBy(snap, rel, &result, idPrefix, lang),
 		Pair:               pairOffer(snap, state.shell.Nav, n),
 		VaultHasLinks:      snap.AnyCitations(),
-		Prev:               footPrev,
-		Next:               footNext,
-		StepsLabel:         footLabel,
-		StepsCourse:        footCourse,
+		Prev:               foot.Prev,
+		Next:               foot.Next,
+		StepsLabel:         foot.Label,
+		StepsCourse:        foot.Course,
+		StepsUnit:          foot.Unit,
+		StepsPath:          foot.Path,
+		StepsBack:          foot.Back,
+		StepsOnward:        foot.Onward,
+		StepsToContents:    foot.ToContents,
+		StepsAsides:        foot.Asides,
+		Running:            running,
 		TOC:                result.TOC,
 		BodyHTML:           result.HTML,
 		TitleAnchor:        result.TitleAnchor,

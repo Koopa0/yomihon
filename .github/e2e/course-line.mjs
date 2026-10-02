@@ -1,8 +1,10 @@
 // Behavior lock for the course read as a line. A part joins the lessons of one
-// run with a single vertical rule through the column their marks sit in, and
-// the lesson the reader came from is the heavier point on it. Both halves are
-// invisible to a Go test: the rule is a pseudo-element with no node to assert
-// on, and whether it meets the marks is a number only a laid-out page has.
+// run with a single vertical rule through the column their marks sit in, the
+// rule carries on past a side branch hanging from one of them to meet the
+// lesson after it, and the lesson the reader came from is the heavier point on
+// it. All of it is invisible to a Go test: the rule is a pseudo-element with no
+// node to assert on, and whether it meets the marks is a number only a
+// laid-out page has.
 //
 // The walk is the reader's: open a lesson, take the way into its course that
 // the page drew, and look at what arrives. Then open the same course from its
@@ -19,6 +21,7 @@ const SITES = [
   'the-course-marks-the-lesson-it-was-reached-from',
   'a-course-reached-from-the-desk-marks-nobody',
   'the-line-joins-the-points',
+  'the-line-passes-the-side-branch',
   'the-course-fits-the-phone',
 ];
 
@@ -127,6 +130,16 @@ const MUTATIONS = {
       '0px',
     ),
   },
+  // Cuts the line where a side branch begins, so the lesson it hangs from and
+  // the one after it are two lines and not one.
+  'cut-the-line-at-the-branch': {
+    target: 'the-line-passes-the-side-branch',
+    apply: appendRule(
+      '.y-lessons>li:has(+li)>.y-module::before{border-left-width:0}',
+      () => getComputedStyle(document.querySelector('.y-lessons > li > .y-module'), '::before').borderLeftWidth,
+      '0px',
+    ),
+  },
   // Evens the marked point out with the rest, which leaves where the reader is
   // said only to a reader who can hear the page.
   'even-out-the-points': {
@@ -198,6 +211,39 @@ const readCourse = (page) =>
         isPoint,
       };
     });
+    // The stretch of the line beside a side branch, which the branch draws for
+    // the lesson it hangs from. It has to sit on the same column as the marks,
+    // run the whole height of the branch, and meet the end of that lesson's own
+    // rule above and the start of the next lesson's below.
+    const branch = document.querySelector('.y-lessons > li > .y-module--local');
+    let passing = null;
+    if (branch) {
+      const item = branch.parentElement;
+      const style = getComputedStyle(branch, '::before');
+      const box = branch.getBoundingClientRect();
+      const anchor = item.querySelector(':scope > .y-lesson');
+      const after = item.nextElementSibling ? item.nextElementSibling.querySelector(':scope > .y-lesson') : null;
+      const mark = anchor ? anchor.querySelector('.y-navdot, .y-navmark') : null;
+      const markBox = mark ? mark.getBoundingClientRect() : null;
+      const rule = (row) => {
+        const s = getComputedStyle(row, '::before');
+        const b = row.getBoundingClientRect();
+        const t = b.top + parseFloat(s.top);
+        return { top: t, bottom: t + parseFloat(s.height), rowTop: b.top, rowBottom: b.bottom };
+      };
+      const top = box.top + parseFloat(style.top);
+      passing = {
+        width: parseFloat(style.borderLeftWidth),
+        centreX: box.left + parseFloat(style.left) + parseFloat(style.borderLeftWidth) / 2,
+        top,
+        bottom: top + parseFloat(style.height),
+        blockTop: box.top,
+        blockBottom: box.bottom,
+        markCentreX: markBox ? markBox.left + markBox.width / 2 : null,
+        anchor: anchor ? rule(anchor) : null,
+        after: after ? rule(after) : null,
+      };
+    }
     // A box pinned to the viewport cannot be what is widening the document, so
     // the width it reports is the page's own to be judged against.
     const gauge = document.createElement('div');
@@ -205,7 +251,7 @@ const readCourse = (page) =>
     document.body.append(gauge);
     const viewport = gauge.getBoundingClientRect().width;
     gauge.remove();
-    return { rows, viewport, documentWidth: document.documentElement.scrollWidth };
+    return { rows, passing, viewport, documentWidth: document.documentElement.scrollWidth };
   });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -293,6 +339,41 @@ try {
         `the line beside ${JSON.stringify(row.text)} runs ${row.ruleTop.toFixed(1)}–${row.ruleBottom.toFixed(1)} and its point is at ${row.markCentreY.toFixed(1)}, so the line passes its own point by`,
       );
     }
+  }
+
+  // The line past a side branch: the fixture hangs one under its second lesson,
+  // inside that lesson's own list item, with a lesson after it.
+  const past = reached.passing;
+  if (past === null) broken('the course draws no side branch inside a list item, so there is no line to carry past it');
+  if (past.anchor === null || past.after === null) {
+    broken('the side branch has no lesson above it or no lesson after it, so the line past it joins nothing');
+  }
+  if (past.width < 1) {
+    fail('the-line-passes-the-side-branch', `the stretch of line beside the side branch is ${past.width}px wide, so the lesson above it and the one below are not joined`);
+  }
+  if (Math.abs(past.centreX - past.markCentreX) > 0.5) {
+    fail(
+      'the-line-passes-the-side-branch',
+      `the line past the side branch runs at x=${past.centreX} and the marks sit at x=${past.markCentreX}`,
+    );
+  }
+  if (past.top > past.blockTop + 0.5 || past.bottom < past.blockBottom - 0.5) {
+    fail(
+      'the-line-passes-the-side-branch',
+      `the line runs ${past.top.toFixed(1)}–${past.bottom.toFixed(1)} beside a side branch that occupies ${past.blockTop.toFixed(1)}–${past.blockBottom.toFixed(1)}, so it stops short of it`,
+    );
+  }
+  if (past.anchor.bottom < past.anchor.rowBottom - 1.5 || Math.abs(past.blockTop - past.anchor.rowBottom) > 1.5) {
+    fail(
+      'the-line-passes-the-side-branch',
+      `the line above the side branch ends at ${past.anchor.bottom.toFixed(1)} and its row ends at ${past.anchor.rowBottom.toFixed(1)}, with the branch starting at ${past.blockTop.toFixed(1)}`,
+    );
+  }
+  if (past.after.top > past.after.rowTop + 0.5 || Math.abs(past.after.rowTop - past.blockBottom) > 1.5) {
+    fail(
+      'the-line-passes-the-side-branch',
+      `the line below the side branch starts at ${past.after.top.toFixed(1)} on a row that begins at ${past.after.rowTop.toFixed(1)}, with the branch ending at ${past.blockBottom.toFixed(1)}`,
+    );
   }
 
   if (reached.documentWidth > reached.viewport) {

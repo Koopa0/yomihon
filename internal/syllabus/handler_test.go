@@ -101,7 +101,7 @@ func loadModel(t *testing.T, root string) *nav.Model {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement())
+	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement(), nil)
 	return model
 }
 
@@ -327,7 +327,7 @@ func TestNewHandlerPanicsOnNilProvider(t *testing.T) {
 // this for its own block; the course page kept the broken reading, and two
 // readers arrived at it from opposite directions: one saw lessons still
 // awaiting judgement called finished, the other read it as their own progress
-// through the course. What a part carries now is its entry total.
+// through the course. What the head carries now is the entry total, once.
 func TestShowReportsSizeNotCompletion(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -346,11 +346,15 @@ func TestShowReportsSizeNotCompletion(t *testing.T) {
 			t.Errorf("the progress bar came back (%q); body = %q", gone, body)
 		}
 	}
-	// The control: the part still carries a figure, so an empty assertion above
-	// cannot pass by the counts having vanished along with the claim.
+	// The control: the head still states the course's size, so an empty
+	// assertion above cannot pass by the counts having vanished along with the
+	// claim. The same figure is not printed again beside each part.
 	main := syllabusMain(t, body)
-	if !strings.Contains(main, `<span class="y-partcount">`) {
-		t.Errorf("the part lost its size; main = %q", main)
+	if !strings.Contains(main, `<span>4 課</span>`) {
+		t.Errorf("the head lost the course's size; main = %q", main)
+	}
+	if strings.Contains(main, "partcount") {
+		t.Errorf("a part states a size of its own beside the head's; main = %q", main)
 	}
 }
 

@@ -329,15 +329,29 @@ type NoteRef struct {
 	Language string
 }
 
-// Report is one file under System/reports/. Name is the note title for .md
-// reports and the HTML filename for briefings. Briefing marks the
-// daily-briefing/ HTML files (as opposed to the .md reports); Latest marks
-// latest.html.
+// Report is one file under System/reports/: a daily-briefing HTML file or a
+// Markdown report written directly in that folder. Briefing marks the former
+// and Latest marks latest.html, the briefing the vault keeps pointing at the
+// one it generated last.
 type Report struct {
-	Name     string
-	RelPath  string
-	Briefing bool
-	Latest   bool
+	// Name is the file's name, extension included. For a briefing it is also
+	// the key the report's address resolves against, so it is never a title.
+	Name string
+	// Title is what the shelf calls the report, and is never empty: what the
+	// report says it is. A briefing is called by its HTML <title>, else by its
+	// first <h1>; a written report by its frontmatter title, else by its first
+	// level-one heading. A report that says nothing is called by its file name
+	// (a written one without the .md), so a row always has words.
+	Title string
+	// Qualifier is the words that tell this report from the others that carry
+	// the same title, and is empty when none does. It is the report's day when
+	// that day is its own among them, and its file name otherwise, so two
+	// reports sharing a title are never left reading alike. The latest briefing
+	// has none: it carries its own mark and is a copy of the newest.
+	Qualifier string
+	RelPath   string
+	Briefing  bool
+	Latest    bool
 	// Date is the day this report is for, as an ISO 8601 calendar date, and is
 	// empty where neither the field the contract dates a note by nor the
 	// filename carried one. A report is dated by nature, so this is what the
@@ -369,9 +383,11 @@ func lifecycleRank(name string) int {
 
 // New constructs a navigation model from one captured vault projection: entries
 // supply the canonical paths and observed times, notes the parsed Markdown keyed
-// by canonical path. Every scanned path is on the shelf; notes and other files
-// are told apart when the page is built, and only notes are counted. New
-// neither enumerates nor reopens the vault.
+// by canonical path, and htmlTitles what each briefing's own HTML calls itself
+// (see HTMLTitle), keyed the same way. A briefing absent from htmlTitles, or
+// answering with nothing, is called by its file name. Every scanned path is on
+// the shelf; notes and other files are told apart when the page is built, and
+// only notes are counted. New neither enumerates nor reopens the vault.
 func New(
 	entries []vault.Entry,
 	notes map[string]*vault.Note,
@@ -383,6 +399,7 @@ func New(
 	articleLang schema.ArticleLanguage,
 	dated schema.AuthoredDate,
 	settlement schema.Settlement,
+	htmlTitles map[string]string,
 ) *Model {
 	if resolver == nil {
 		panic("nav: New requires a non-nil *graph.Index")
@@ -402,20 +419,24 @@ func New(
 			note = &cloned
 		}
 		files = append(files, capturedFile{
-			path:     path,
-			modified: entry.ModTime(),
-			note:     note,
+			path:      path,
+			modified:  entry.ModTime(),
+			note:      note,
+			htmlTitle: htmlTitles[path],
 		})
 	}
 	return newModel(files, resolver, roles, scope, policy, journal, articleLang, dated, settlement)
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
-// note is nil when the file is not Markdown or could not be read.
+// note is nil when the file is not Markdown or could not be read. htmlTitle is
+// what an HTML file's own markup called it, empty for any other file and for an
+// HTML file that called itself nothing.
 type capturedFile struct {
-	path     string
-	modified time.Time
-	note     *vault.Note
+	path      string
+	modified  time.Time
+	note      *vault.Note
+	htmlTitle string
 }
 
 func newModel(
@@ -465,6 +486,7 @@ func newModel(
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
 			path := buildPath(n, resolver, facts, policy)
+			path.Unit = unitOf(path.Groups, facts, roles)
 			// A contract that settles no status has no exceptions to count:
 			// every lesson with a status would be one.
 			if !settlement.Declared() {
@@ -495,14 +517,18 @@ func newModel(
 }
 
 // noteFacts is what a row that resolves to a note reads off it: the status
-// badge, the declared article language, and the declared title a course names
-// the lesson by. Each is empty when the note declares none. They travel as one
-// value so a builder cannot be handed one of them in place of another.
+// badge, the declared article language, the declared title a course names the
+// lesson by, and the type it declares. Each is empty when the note declares
+// none. They travel as one value so a builder cannot be handed one of them in
+// place of another.
 type noteFacts struct {
 	status   string
 	settled  bool
 	language string
 	title    string
+	// noteType is the type the note declares, which is how a course tells a
+	// row that is a lesson from one that is some other note.
+	noteType string
 }
 
 // collectNavigationNotes projects already parsed notes into entry badges and
@@ -528,7 +554,7 @@ func collectNavigationNotes(
 		// The declared title only: Note.Title falls back to the file stem,
 		// which would name a course row by its file again.
 		title, _ := n.Text("title")
-		facts[p] = noteFacts{status: n.Status(), settled: settlement.Settled(n.Status()), title: title}
+		facts[p] = noteFacts{status: n.Status(), settled: settlement.Settled(n.Status()), title: title, noteType: n.Type()}
 		// Membership is the vault's own declaration, not whether a note happens
 		// to carry a type: a note without frontmatter is still one its author
 		// wrote and still the newest thing they changed.
@@ -637,9 +663,9 @@ func byJournalRecency(a, b JournalEntry) int {
 
 // buildReports enumerates System/reports/: the .md reports directly in that
 // folder and the daily-briefing/ HTML briefings (marking latest.html), all on
-// one shelf ordered newest first. Written reports take the parsed note title
-// when one exists and fall back to the filename without its extension. README.md
-// files and any non-.md/.html files fall out naturally.
+// one shelf ordered newest first. Each is called by what it says it is — see
+// Report.Title — and a report that says nothing falls back on its file name.
+// README.md files and any non-.md/.html files fall out naturally.
 func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 	var reports []Report
 	for _, file := range files {
@@ -647,6 +673,7 @@ func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 		if name, ok := BriefingName(p); ok {
 			reports = append(reports, Report{
 				Name:     name,
+				Title:    cmp.Or(file.htmlTitle, name),
 				RelPath:  p,
 				Briefing: true,
 				Latest:   name == "latest.html",
@@ -659,12 +686,9 @@ func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 			continue
 		}
 		if !strings.Contains(rest, "/") && vault.IsMarkdown(rest) {
-			name := displayName(rest)
-			if file.note != nil {
-				name = file.note.Title()
-			}
 			reports = append(reports, Report{
-				Name:    name,
+				Name:    rest,
+				Title:   writtenReportTitle(file, displayName(rest)),
 				RelPath: p,
 				Date:    noteDay(file, dated),
 				Opening: openingLine(file),
@@ -672,7 +696,80 @@ func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 		}
 	}
 	slices.SortStableFunc(reports, byRecency)
+	qualifySharedTitles(reports)
 	return reports
+}
+
+// writtenReportTitle is what a Markdown report calls itself: the title its
+// frontmatter declares, else the first level-one heading its body opens on,
+// else the file's own name. Reading the heading is the report shelf's own
+// business — a note is called by its frontmatter title or its file everywhere
+// else — so Note.Title stays what it is and this reads past it.
+func writtenReportTitle(file capturedFile, stem string) string {
+	if file.note == nil {
+		return stem
+	}
+	if title, _ := file.note.Text("title"); title != "" {
+		return title
+	}
+	return cmp.Or(firstTitleHeading(file.note.Body), stem)
+}
+
+// firstTitleHeading is the words of the first level-one heading in body that
+// has any, read the way the page that displays the note reads headings: a
+// heading inside fenced code or an authored HTML block is not one, and a
+// heading underlined with = is. The words travel as the author typed them,
+// collapsed onto one line, as the line a report opens with does: a shelf that
+// stripped Markdown out of a title would be a second renderer.
+func firstTitleHeading(body string) string {
+	for _, heading := range graph.Headings(body, graph.LineSkipZones(body)) {
+		if heading.Level != 1 {
+			continue
+		}
+		if words := strings.Join(strings.Fields(heading.Text), " "); words != "" {
+			return words
+		}
+	}
+	return ""
+}
+
+// qualifySharedTitles gives each report that shares its title with another the
+// words that tell it apart, and leaves the report alone when its title is its
+// own. Nothing is dropped and no title changes: a daily briefing and the
+// latest.html copy of it carry one <title>, and a generator that names every
+// briefing the same names all of them the same.
+//
+// Titles are compared as the vault holds them, composed and case-sensitive —
+// two titles that print alike but are spelled differently are not guessed to
+// be one. A report's day tells it apart when no other report sharing its title
+// has that day; failing that, its file name does, because names in one folder
+// differ. The latest briefing is passed over: it wears its own mark.
+func qualifySharedTitles(reports []Report) {
+	groups := make(map[string][]int, len(reports))
+	for i := range reports {
+		key := vault.NormalizeNFC(reports[i].Title)
+		groups[key] = append(groups[key], i)
+	}
+	for _, group := range groups {
+		if len(group) < 2 {
+			continue
+		}
+		sharing := make(map[string]int, len(group))
+		for _, i := range group {
+			if !reports[i].Latest {
+				sharing[reports[i].Date]++
+			}
+		}
+		for _, i := range group {
+			switch report := &reports[i]; {
+			case report.Latest:
+			case report.Date != "" && sharing[report.Date] == 1:
+				report.Qualifier = report.Date
+			default:
+				report.Qualifier = report.Name
+			}
+		}
+	}
 }
 
 // noteDay is the day one captured file is for, and it answers for every listing
@@ -753,6 +850,8 @@ func openingLine(file capturedFile) string {
 // leaves it at the end. Two reports the comparison cannot separate — the same
 // day, or neither carrying one — keep the order the scan captured them in,
 // which is what makes the sort a stable one.
+//
+//nolint:gocritic // hugeParam: a sort comparator is handed its elements by value.
 func byRecency(a, b Report) int {
 	if a.Latest != b.Latest {
 		if a.Latest {

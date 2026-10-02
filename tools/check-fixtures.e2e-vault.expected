@@ -3,6 +3,7 @@ link.broken	Writing/lessons/japanese/L01.md
 link.section_missing	Notes/reading-fidelity.md
 map.disk_mismatch	Maps/branches.md
 map.disk_mismatch	Maps/study.md
+schema.enum	Notes/mark-anchors.md
 schema.enum	Notes/out-of-contract.md
 schema.provenance	Concepts/japanese/は.md
 schema.provenance	Notes/Audit cross block.md
@@ -17,6 +18,7 @@ schema.required	Notes/Audit cross block.md
 schema.required	Notes/alpha.md
 schema.required	Notes/beta.md
 schema.required	Notes/browser-boundary.md
+schema.required	Notes/mark-anchors.md
 schema.required	Notes/灰布帳冊.md
 schema.status_unreachable	Notes/seedling-inbox.md
 schema.unknown_key	Notes/alpha.md

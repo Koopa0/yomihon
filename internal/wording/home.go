@@ -49,14 +49,12 @@ var (
 	)
 )
 
-// The counts beside a status chip and a study path.
+// The count beside a status chip. A study path's own count is UnitWords'.
 // Chinese does not inflect a noun for number and English does, so each count
 // is a pair. A tally that reads "1 notes" is the first thing a reader notices.
 var (
-	NoteCountOne    = both("%d 篇筆記", "%d note")
-	NoteCountMany   = both("%d 篇筆記", "%d notes")
-	LessonCountOne  = both("%d 課", "%d lesson")
-	LessonCountMany = both("%d 課", "%d lessons")
+	NoteCountOne  = both("%d 篇筆記", "%d note")
+	NoteCountMany = both("%d 篇筆記", "%d notes")
 )
 
 // NoStructureRead marks a study-path card whose zero is a fault rather than

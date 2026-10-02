@@ -329,3 +329,54 @@ func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
 		})
 	}
 }
+
+// TestAnUnmarkedNoteIsNeverRenderedToFindOutIfItSpeaks holds the cheap question
+// a page asks before rendering a note to look for a marked paragraph: could its
+// bytes carry one at all. It must never say no to a note that does, because a
+// no is final — the note is then not rendered, and a paragraph it plays is
+// missed — and it may say yes to one that does not, which costs a render. The
+// two ways a rendered page comes to carry a marker are the marker's own
+// comment and the words of another note arriving through an embed.
+func TestAnUnmarkedNoteIsNeverRenderedToFindOutIfItSpeaks(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"the marker's own comment", "Before.\n\n<!-- read-aloud: ja -->\nあさ。\n", true},
+		{"an embed of another note, whose words may carry one", "![[Other note]]\n", true},
+		{"an embed of one section of another note", "![[Other note#Section]]\n", true},
+		{"an embed of a note whose name holds a dot", "![[Go 1.27 release notes]]\n", true},
+		{"an embed that names the note's file", "![[Other note.md]]\n", true},
+		{"an embed of a section of this very note", "![[#Section]]\n", true},
+		// A picture or a PDF brings no words, and a page full of figures is
+		// exactly where rendering every note to find nothing would cost most.
+		{"an embed of a picture", "![[diagram.png]]\n", false},
+		{"an embed of a picture at a width", "![[diagram.png|300]]\n", false},
+		{"an embed of a picture in capitals", "![[Diagram.PNG]]\n", false},
+		{"an embed of a drawing", "![[flow.svg]]\n", false},
+		{"an embed of a page of a PDF", "![[paper.pdf#page=2]]\n", false},
+		{"pictures and then a note", "![[a.png]] and ![[b.jpg|200]] and ![[Other note]]\n", true},
+		{"an embed never closed", "![[diagram.png\n", false},
+		{"plain prose", "あさ、ひる、よる。\n", false},
+		{"a link is not an embed", "See [[Other note]].\n", false},
+		{"an empty note", "", false},
+	} {
+		if got := render.MayMarkReadAloud(tt.body); got != tt.want {
+			t.Errorf("%s: MayMarkReadAloud(%q) = %t, want %t", tt.name, tt.body, got, tt.want)
+		}
+	}
+
+	// The control that ties the question to the grammar it asks about: a
+	// paragraph the grammar claims is always in a note the question lets
+	// through.
+	source := "<!-- read-aloud: ja -->\n<p>あさ。</p>"
+	if len(render.MarkedParagraphs(source, wording.ZhHant)) != 1 {
+		t.Fatalf("the grammar claims no paragraph in %q, so the control below proves nothing", source)
+	}
+	if !render.MayMarkReadAloud(source) {
+		t.Errorf("MayMarkReadAloud(%q) = false for a note the grammar claims a paragraph in", source)
+	}
+}

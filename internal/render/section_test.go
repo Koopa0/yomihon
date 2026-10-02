@@ -88,12 +88,11 @@ func TestExcerptReadsTheSectionsTheFenceReallyLeaves(t *testing.T) {
 	}
 }
 
-// A course prints its map note's own opening under the title, and a hover card
-// shows the same words when a link names no place inside the note. Both cuts
-// are Opening's, so the table below is the rule they share: the words above the
-// first heading, nothing where the note opens on one, and the whole of a note
-// that carries no heading at all.
-func TestOpeningIsTheWordsAboveTheFirstHeading(t *testing.T) {
+// A course prints its map note's own opening under the title. The table below
+// is that cut: the words above the first heading; for a note that opens on its
+// own title, the prose under it; nothing where the note opens on any other
+// heading; and the whole of a note that carries no heading at all.
+func TestOpeningIsWhatTheNoteSaysItIsBeforeItListsAnything(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -112,9 +111,65 @@ func TestOpeningIsTheWordsAboveTheFirstHeading(t *testing.T) {
 			want: "What this course is.\n\nWho it is for.\n",
 		},
 		{
-			name: "a note that opens on a heading",
-			body: "# Title\n\nUnder the title.\n\n## Part One\n",
+			// The note's own preface: its title stands above it and is printed
+			// by whoever shows the opening, so the words under it are what is
+			// left to say what the note is.
+			name: "a note that opens on its title opens with the prose under it",
+			body: "# Title\n\nUnder the title.\n\nAnd who it is for.\n\n## Part One\n",
+			want: "Under the title.\n\nAnd who it is for.\n",
+		},
+		{
+			name: "the preface of a title runs to the end of a note with no other heading",
+			body: "# Title\n\nOnly this.\n",
+			want: "Only this.\n",
+		},
+		{
+			name: "any heading ends the preface, not only one of the same level",
+			body: "# Title\n\nUnder the title.\n\n### Deeper\n\nNot the preface.\n",
+			want: "Under the title.\n",
+		},
+		{
+			name: "a second title ends the preface too",
+			body: "# One\n\nFirst.\n\n# Two\n\nSecond.\n",
+			want: "First.\n",
+		},
+		{
+			name: "a title followed at once by another heading has no preface",
+			body: "# Title\n\n## Part One\n\n- [[L01]]\n",
 			want: "",
+		},
+		{
+			name: "a title with nothing under it has no preface",
+			body: "# Title\n",
+			want: "",
+		},
+		{
+			// The underline is part of the heading and never of what follows.
+			name: "an underlined title keeps its underline out of the preface",
+			body: "Title\n=====\n\nUnder the title.\n\n## Part One\n",
+			want: "Under the title.\n",
+		},
+		{
+			name: "a title that wraps over two lines keeps all of it out of the preface",
+			body: "A long\ntitle\n=====\n\nUnder the title.\n\n## Part One\n",
+			want: "Under the title.\n",
+		},
+		{
+			name: "a comment under the title comes off",
+			body: "# Title\n\nShown %%hidden%% and shown.\n\n## Part One\n",
+			want: "Shown  and shown.\n",
+		},
+		{
+			// Only a title earns the second reading: a note that opens on a
+			// part has gone straight to what it lists.
+			name: "a note that opens on a level-2 heading has no opening",
+			body: "## Part One\n\nUnder the part.\n\n- [[L01]]\n",
+			want: "",
+		},
+		{
+			name: "words above the title are still the opening",
+			body: "Above.\n\n# Title\n\nUnder.\n\n## Part One\n",
+			want: "Above.\n",
 		},
 		{
 			name: "blank lines before that heading are not an opening",

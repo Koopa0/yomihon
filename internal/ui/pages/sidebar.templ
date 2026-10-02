@@ -55,10 +55,10 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 										<div class="y-lessonsteps__path">{ step.PathTitle }</div>
 									}
 									if step.Prev.RelPath != "" {
-										<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.RailPreviousLesson.In(c.Lang) }<span { authoredLanguageAttrs(step.Prev.Language)... }>{ step.Prev.Name }</span></a>
+										<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { unitWords(step.Unit).RailPrevious.In(c.Lang) }<span { authoredLanguageAttrs(step.Prev.Language)... }>{ step.Prev.Name }</span></a>
 									}
 									if step.Next.RelPath != "" {
-										<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.RailNextLesson.In(c.Lang) }<span { authoredLanguageAttrs(step.Next.Language)... }>{ step.Next.Name }</span> →</a>
+										<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ unitWords(step.Unit).RailNext.In(c.Lang) }<span { authoredLanguageAttrs(step.Next.Language)... }>{ step.Next.Name }</span> →</a>
 									}
 								</nav>
 							}
@@ -115,14 +115,14 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 							for _, rep := range sb.Model.Reports() {
 								if rep.Briefing {
 									<a class="ui-navitem" href={ templ.URL(reportHref(rep.Name)) }>
-										{ rep.Name }
+										{ ReportLabel(&rep) }
 										if rep.Latest {
-											<span class="y-navmark">{ wording.Newest.In(c.Lang) }</span>
+											<span class="y-navmark y-navmark--newest">{ wording.Newest.In(c.Lang) }</span>
 										}
 									</a>
 								} else {
 									<a class="ui-navitem" href={ templ.URL(notesHref(rep.RelPath)) }>
-										{ rep.Name }
+										{ ReportLabel(&rep) }
 									</a>
 								}
 							}
@@ -169,7 +169,7 @@ templ pathTree(sb Sidebar, c layouts.Chrome, p nav.Path) {
 			<span class="y-railitem__name">{ p.Title }</span>
 		</summary>
 		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(syllabusHref(p.RelPath)) }>{ wording.OpenSyllabus.In(c.Lang) }</a>
+			<a class="y-railitem__full" href={ templ.URL(syllabusHref(p.RelPath)) }>{ wording.ContentsLink.In(c.Lang) }</a>
 			for _, g := range p.Groups {
 				@pathGroupNode(sb, c, p.RelPath, childChain(nil, g.Name), g)
 			}

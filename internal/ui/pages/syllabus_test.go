@@ -88,18 +88,24 @@ func TestBuildPathView(t *testing.T) {
 	got := BuildPathView(&path, []nav.Path{path}, &CourseCover{})
 
 	want := PathView{
-		Title:      "Go path",
-		RelPath:    "Maps/Go path.md",
-		GuideHref:  "/notes/Maps/Go%20path.md",
-		ListenHref: "/listen/Maps/Go%20path.md",
+		Title:     "Go path",
+		RelPath:   "Maps/Go path.md",
+		GuideHref: "/notes/Maps/Go%20path.md",
+		// Nothing in the fixture is marked to be read aloud, so the cover
+		// offers no way to hear it.
 		Paths: []PathLink{
 			// The side branch is not part of the main line, so the planned
 			// total is five, not six.
 			{Title: "Go path", RelPath: "Maps/Go path.md", Entries: 5, Active: true},
 		},
-		Parts:   2,
-		Modules: 2, // the "Text" module under Data, and the side branch under GC
+		// Every row that resolved to a note resolved to a lesson, and the two
+		// that resolved to nothing a lesson could be abstain, so the course is
+		// read in lessons.
+		Unit:    nav.UnitLesson,
 		Entries: 5,
+		// The one row the side branch lists is counted beside the course and
+		// never in it.
+		Branched: 1,
 		// Arrays is the one main-line lesson at a status the contract does not
 		// settle. Tuning is draft too, but it hangs on a side branch, outside the
 		// five lessons Entries counts.
@@ -109,11 +115,8 @@ func TestBuildPathView(t *testing.T) {
 		Branches: []PathBranchView{
 			{
 				Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Data", Depth: 0,
-				// The part holds no rows of its own; its count is the module's,
-				// so the part heading and Home agree.
-				Total: 2,
 				Items: []PathItemView{{Branch: &PathBranchView{
-					Num: 1, Heading: "Text", Depth: 1, Total: 2,
+					Heading: "Text", Depth: 1,
 					Items: []PathItemView{
 						{Entry: &PathEntryView{Name: "Slices", RelPath: "Writing/Slices.md", Href: "/notes/Writing/Slices.md", Status: "ready", Settled: true, Number: 1}},
 						{Entry: &PathEntryView{Name: "Arrays", RelPath: "Writing/Arrays.md", Href: "/notes/Writing/Arrays.md", Status: "draft", Number: 2}},
@@ -122,20 +125,22 @@ func TestBuildPathView(t *testing.T) {
 			},
 			{
 				Anchor: "part-2", Ordinal: "II", Num: 2, Heading: "Memory", Depth: 0,
-				Total: 3,
 				Items: []PathItemView{
 					// The main line's numbering continues from the first part:
 					// the course has one declared order across its parts.
-					{Entry: &PathEntryView{Name: "GC", RelPath: "Writing/GC.md", Href: "/notes/Writing/GC.md", Status: "ready", Settled: true, Number: 3}},
-					// The side branch is drawn where the author put it: under
-					// the lesson it hangs from, before the next main lesson —
-					// and it numbers its own rows from one, never sharing the
-					// main line's count.
-					{Branch: &PathBranchView{
-						Num: 1, Heading: "選修", Depth: 1, Local: true, Total: 1,
-						Items: []PathItemView{
-							{Entry: &PathEntryView{Name: "Tuning", RelPath: "Writing/Tuning.md", Href: "/notes/Writing/Tuning.md", Status: "draft", Number: 1}},
-						},
+					//
+					// The side branch is carried by the lesson it hangs from,
+					// so it is drawn under that lesson and before the next main
+					// lesson — and it numbers its own rows from one, never
+					// sharing the main line's count.
+					{Entry: &PathEntryView{
+						Name: "GC", RelPath: "Writing/GC.md", Href: "/notes/Writing/GC.md", Status: "ready", Settled: true, Number: 3,
+						Branches: []PathBranchView{{
+							Heading: "選修", Depth: 1, Local: true,
+							Items: []PathItemView{
+								{Entry: &PathEntryView{Name: "Tuning", RelPath: "Writing/Tuning.md", Href: "/notes/Writing/Tuning.md", Status: "draft", Number: 1}},
+							},
+						}},
 					}},
 					// Warning rows keep their place and their number: a planned
 					// lesson is still one of the course's lessons.
@@ -157,7 +162,9 @@ func TestBuildPathView(t *testing.T) {
 // only in the pixels. It would catch a revert to a neutral container, a main
 // line whose numbering restarts at each part, a side branch borrowing the main
 // line's count, a warning row losing its place or number, and a branch
-// declared out of the course leaking back in.
+// declared out of the course leaking back in. A side branch is carried by the
+// item of the lesson it hangs from, so the list the main line is read along does
+// not end where the branch begins.
 func TestLessonsAreAnOrderedList(t *testing.T) {
 	t.Parallel()
 
@@ -190,8 +197,8 @@ func TestLessonsAreAnOrderedList(t *testing.T) {
 	}
 	html := out.String()
 
-	if got := strings.Count(html, `<ol class="y-lessons"`); got != 4 {
-		t.Errorf("the course renders %d ordered lists, want 4: one per uninterrupted run of lessons", got)
+	if got := strings.Count(html, `<ol class="y-lessons"`); got != 3 {
+		t.Errorf("the course renders %d ordered lists, want 3: the first part's run, the second part's run with the side branch inside it, and the side branch's own", got)
 	}
 	for _, want := range []string{
 		// Every fragment says which component it belongs to: the first
@@ -208,21 +215,33 @@ func TestLessonsAreAnOrderedList(t *testing.T) {
 		// non-interactive form.
 		`<li value="4"><span class="y-lesson y-lesson--broken" data-resolution="non-instance"`,
 		`<li value="5"><span class="y-lesson y-lesson--broken" data-resolution="unresolved"`,
-		// The side branch is a sibling after its run closes, never a list item:
-		// its heading stays in the document outline.
-		`</ol><div class="y-module y-module--local">`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("ordered course list is missing %q; html = %q", want, html)
 		}
 	}
-	// Both interrupted resumptions of the main line — after the second part's
-	// heading and after the side branch — carry the resuming name.
-	if got := strings.Count(html, `<ol class="y-lessons" aria-label="主線（接續）">`); got != 2 {
-		t.Errorf("the course renders %d resuming main-line lists, want 2; html = %q", got, html)
+	// The side branch sits inside the item of the lesson it hangs from, so the
+	// main line's run is not interrupted by it and the next lesson follows in
+	// the same list. Its heading stays in the document outline.
+	hung := regexp.MustCompile(`(?s)<li value="3">.*?<li value="4">`).FindString(html)
+	if !strings.Contains(hung, `<div class="y-module y-module--local">`) || !strings.Contains(hung, "Tuning") {
+		t.Errorf("the side branch is not drawn inside the item of the lesson it hangs from; that item reads %q", hung)
 	}
-	if strings.Contains(html, "Routine") {
-		t.Errorf("a branch declared out of the course reached its page; html = %q", html)
+	if strings.Contains(html, `</ol><div class="y-module y-module--local">`) {
+		t.Errorf("the side branch is drawn as a sibling after the list, which ends the main line's run where the branch begins")
+	}
+	// Only the interruption by the second part's heading resumes the main line.
+	if got := strings.Count(html, `<ol class="y-lessons" aria-label="主線（接續）">`); got != 1 {
+		t.Errorf("the course renders %d resuming main-line lists, want 1: only the second part's heading interrupts the run", got)
+	}
+	// A branch declared out of the course is listed beneath it as a reference,
+	// and it is never one of the course's lessons: no number, no point on the
+	// line, and no place in either list.
+	if strings.Contains(html, `class="y-lesson" href="/notes/Writing/Routine.md"`) {
+		t.Errorf("a branch declared out of the course joined the lessons; html = %q", html)
+	}
+	if !strings.Contains(html, `<a class="y-ref" href="/notes/Writing/Routine.md"`) {
+		t.Errorf("a branch declared out of the course is not listed beneath the contents; html = %q", html)
 	}
 }
 
@@ -249,8 +268,8 @@ func TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule(t *testing.T) {
 		t.Fatalf("the nested primary was not reported: %+v", path.Diagnostics)
 	}
 	view := BuildPathView(&path, []nav.Path{path}, &CourseCover{})
-	if view.Modules != 1 {
-		t.Errorf("Modules = %d, want 1: only the side branch, not the nested primary", view.Modules)
+	if view.Branched != 2 {
+		t.Errorf("Branched = %d, want 2: the side branch's own two rows, and nothing from the refused nested primary", view.Branched)
 	}
 	if view.Entries != 1 {
 		t.Errorf("Entries = %d, want 1: the main line still lists Slices alone", view.Entries)
@@ -297,14 +316,13 @@ func TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule(t *testing.T) {
 		`<ol class="y-lessons" aria-label="主線">`,
 		`<ol class="y-lessons" aria-label="支線：選修">`,
 		`<li value="2"><a class="y-lesson" href="/notes/Writing/Arrays.md"`,
-		"1 模組",
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the course is missing %q; html = %q", want, html)
 		}
 	}
 	for _, ban := range []string{
-		"模組 1",
+		"模組",
 		"深入",
 		`<a class="y-lesson" href="/notes/Writing/GC.md"`,
 		`<ol class="y-lessons" aria-label="支線：選修（接續）">`,
@@ -458,6 +476,7 @@ func buildPathUnder(t *testing.T, contract *schema.Contract, body string, extra 
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
 		contract.Settlement(),
+		nil,
 	)
 	paths := model.Paths()
 	if len(paths) != 1 {
@@ -502,9 +521,8 @@ func TestSyllabusSaysWhyItFoundNoCourse(t *testing.T) {
 	found := render(t, PathView{
 		Title:    "Path",
 		RelPath:  "Maps/Path.md",
-		Parts:    1,
 		Entries:  1,
-		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}},
+		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Part", Depth: 0}},
 	})
 	if strings.Contains(found, "沒有讀到任何課程結構") {
 		t.Errorf("a path that found its course still claims it found none:\n%s", found)
@@ -532,8 +550,8 @@ func TestSyllabusGuideClaimsNothingAboutTheNote(t *testing.T) {
 	empty := PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}
 	normal := PathView{
 		Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md",
-		Parts: 1, Entries: 1,
-		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}},
+		Entries:  1,
+		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Part", Depth: 0}},
 	}
 	claims := []string{
 		"課程目的", "每日節奏", "支線分工", "完成標準",
@@ -802,8 +820,8 @@ func TestAnEmptyCourseLeadsWithItsDiagnosticAndNotAnInvitation(t *testing.T) {
 	}
 	base := PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}
 	walked := base
-	walked.Parts, walked.Entries = 1, 1
-	walked.Branches = []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}}
+	walked.Entries = 1
+	walked.Branches = []PathBranchView{{Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Part", Depth: 0}}
 
 	if html := render(t, walked); strings.Contains(html, `class="y-syl-guide"`) || strings.Contains(html, "第一次使用這條路徑？") {
 		t.Errorf("a path with a declared course still greets the reader as if it were their first time; html = %q", html)
@@ -976,8 +994,8 @@ func TestACourseActionSpacesItsArrowFromItsWords(t *testing.T) {
 
 	walked := PathView{
 		Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md", ListenHref: "/listen/Maps/Path.md",
-		Parts: 1, Entries: 1,
-		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Heading: "Part", Depth: 0}},
+		Entries:  1,
+		Branches: []PathBranchView{{Anchor: "part-1", Ordinal: "I", Num: 1, Heading: "Part", Depth: 0}},
 	}
 	cases := []struct {
 		name string
@@ -988,8 +1006,8 @@ func TestACourseActionSpacesItsArrowFromItsWords(t *testing.T) {
 			name: "syllabus",
 			page: func(lang wording.Lang) templ.Component { return Syllabus(walked, layouts.Chrome{Lang: lang}) },
 			want: map[wording.Lang][]string{
-				wording.ZhHant: {"閱讀筆記本文 ", "聆聽這門課 "},
-				wording.En:     {"Read the note itself ", "Listen to this course "},
+				wording.ZhHant: {"整篇筆記 ", "聆聽 "},
+				wording.En:     {"The whole note ", "Listen "},
 			},
 		},
 		{
@@ -998,8 +1016,8 @@ func TestACourseActionSpacesItsArrowFromItsWords(t *testing.T) {
 				return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
 			},
 			want: map[wording.Lang][]string{
-				wording.ZhHant: {"回到課程 "},
-				wording.En:     {"Back to the course "},
+				wording.ZhHant: {"目錄 "},
+				wording.En:     {"Contents "},
 			},
 		},
 	}

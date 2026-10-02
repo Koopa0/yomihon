@@ -149,6 +149,13 @@ type Candidate struct {
 	Fragment bool
 	Line     int
 	Span     Span
+	// Gloss is what the author wrote after the link in the row's own first
+	// block, as the words a reader sees: emphasis marks, link syntax and
+	// Obsidian comments are gone, and the words, the dash or colon that joins
+	// them to the title, and their punctuation are as typed. It is empty for a
+	// row that wrote nothing after its link, and for every row that was not
+	// accepted.
+	Gloss string
 	// TargetSpan is where Target is written: the bytes of that one wikilink. A
 	// row can carry others, so a consumer matching a link it read itself back
 	// to this entry joins on these bytes. It is zero exactly when Target is empty.
@@ -461,15 +468,15 @@ func (p *parser) listItem(item *ast.ListItem, group *Group, localDepth int) {
 		p.report(RuleRoleMisplaced, line,
 			"a sequence marker on a row with no list beneath it declares nothing; a container declares the child list it opens",
 			strings.TrimSpace(own))
-		p.plainRow(hits, spans, name, line, own, group)
+		p.plainRow(item, hits, spans, name, line, own, group)
 	case declared:
 		p.container(item, child, group, name, role, hits, spans, line, own, localDepth)
 	case child != nil:
 		// The row's own entry comes first, in the order the author wrote them.
-		p.plainRow(hits, spans, name, line, own, group)
+		p.plainRow(item, hits, spans, name, line, own, group)
 		p.undeclaredChildList(item, child, group, localDepth)
 	default:
-		p.plainRow(hits, spans, name, line, own, group)
+		p.plainRow(item, hits, spans, name, line, own, group)
 	}
 }
 
@@ -696,7 +703,7 @@ func (p *parser) readChildren(child *ast.List, into *Group, localDepth int) {
 // plainRow records an ordinary row against its branch. Every row with a live
 // link in its target scope is a candidate, but only a canonical one is
 // accepted: choosing for the author would be a guess.
-func (p *parser) plainRow(hits []linkHit, spans []Span, name string, line int, own string, group *Group) {
+func (p *parser) plainRow(item *ast.ListItem, hits []linkHit, spans []Span, name string, line int, own string, group *Group) {
 	if len(hits) == 0 {
 		return
 	}
@@ -732,6 +739,7 @@ func (p *parser) plainRow(hits []linkHit, spans []Span, name string, line int, o
 		entry.Target = hits[0].target
 		entry.TargetSpan = hits[0].span()
 		entry.State = EntryAccepted
+		entry.Gloss = p.gloss(item, hits[0].stop)
 	}
 	p.rows[spans[0].Start] = entry
 	group.Items = append(group.Items, Item{Entry: entry})
@@ -746,6 +754,77 @@ func (p *parser) linkFirst(hit linkHit, first Span) bool {
 	}
 	at, ok := p.firstVisible(first)
 	return ok && at == hit.start
+}
+
+// gloss is the words a row's first block carries after offset from, which is
+// where the row's link ends. It reads the tree the grammar already parsed, so
+// a span of code keeps its characters, emphasis and link markup fall away
+// around the words they wrap, inline HTML contributes nothing because it holds
+// no text, and a break inside the block reads as the space the page would show. An Obsidian comment never reaches it: its bytes are cut
+// out of every run of text, as the page cuts them.
+func (p *parser) gloss(item *ast.ListItem, from int) string {
+	for c := item.FirstChild(); c != nil; c = c.NextSibling() {
+		if _, nested := c.(*ast.List); nested {
+			continue
+		}
+		if _, ok := linesRange(c); !ok {
+			return ""
+		}
+		var b strings.Builder
+		p.glossInto(&b, c, from)
+		return strings.TrimSpace(b.String())
+	}
+	return ""
+}
+
+// glossInto appends the visible words under node that start at or after from.
+func (p *parser) glossInto(b *strings.Builder, node ast.Node, from int) {
+	for c := node.FirstChild(); c != nil; c = c.NextSibling() {
+		switch n := c.(type) {
+		case *ast.Text:
+			if n.Segment.Stop <= from {
+				continue
+			}
+			b.WriteString(p.visibleText(max(n.Segment.Start, from), n.Segment.Stop))
+			if n.SoftLineBreak() || n.HardLineBreak() {
+				b.WriteByte(' ')
+			}
+		case *ast.CodeSpan:
+			if r, ok := inlineRange(n); ok && r.Start >= from {
+				b.WriteString(p.body[r.Start:r.Stop])
+			}
+		default:
+			p.glossInto(b, c, from)
+		}
+	}
+}
+
+// visibleText is the bytes of body[start:stop] that are not inside a zone the
+// page hides, so a comment written in the middle of a row's words costs the
+// reader nothing and a gloss never prints it.
+func (p *parser) visibleText(start, stop int) string {
+	var cuts []Span
+	for _, z := range p.zones {
+		if z.Start < stop && z.Stop > start {
+			cuts = append(cuts, z)
+		}
+	}
+	if len(cuts) == 0 {
+		return p.body[start:stop]
+	}
+	slices.SortFunc(cuts, func(a, b Span) int { return cmp.Compare(a.Start, b.Start) })
+	var out strings.Builder
+	at := start
+	for _, z := range cuts {
+		if z.Start > at {
+			out.WriteString(p.body[at:z.Start])
+		}
+		at = max(at, z.Stop)
+	}
+	if at < stop {
+		out.WriteString(p.body[at:stop])
+	}
+	return out.String()
 }
 
 // firstVisible is the offset of the first thing in a span a reader actually
