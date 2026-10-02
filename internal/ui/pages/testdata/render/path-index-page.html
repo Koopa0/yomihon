@@ -4,6 +4,7 @@
 					d.dataset.js = "on";
 					const entry = performance.getEntriesByType("navigation")[0];
 					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
+					else if (entry?.name.includes("#")) d.dataset.arrival = "place";
 					if (document.prerendering) {
 						d.dataset.prerender = "";
 						document.onprerenderingchange = () => delete d.dataset.prerender;

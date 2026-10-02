@@ -39,17 +39,23 @@ templ Base(c Chrome) {
 			//
 			// The same lines say when this document is not the answer to a press,
 			// so the content's arrival is not played for it: a page the browser
-			// prepared before anyone asked for it, until the reader does ask, and
-			// one reached by going back or forward. Both are written as data
-			// attributes for the stylesheet, which is where the arrival lives.
-			// The second is not called nav: the drawer already keeps that name on
-			// the root, and its first write would overwrite this one.
+			// prepared before anyone asked for it, until the reader does ask, one
+			// reached by going back or forward, and one opened at a place in it,
+			// whether by a heading's address or by a stretch of text, the second of
+			// which no script can read from the location but the navigation can.
+			// They are written once, as data attributes for the stylesheet, which
+			// is where the arrival lives; a condition the stylesheet worked out for
+			// itself would stop and start matching as the reader moved about the
+			// page, and play the arrival again each time. The way in is not called
+			// nav: the drawer already keeps that name on the root, and its first
+			// write would overwrite this one.
 			<script nonce={ c.Nonce }>
 				{
 					const d = document.documentElement;
 					d.dataset.js = "on";
 					const entry = performance.getEntriesByType("navigation")[0];
 					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
+					else if (entry?.name.includes("#")) d.dataset.arrival = "place";
 					if (document.prerendering) {
 						d.dataset.prerender = "";
 						document.onprerenderingchange = () => delete d.dataset.prerender;

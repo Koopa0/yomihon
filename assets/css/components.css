@@ -1538,9 +1538,14 @@ samp {
    would make the block the containing block of whatever is fixed inside it.
    A page the browser put back from history, or prepared before the reader
    asked for it, does not play it — there was no press to answer. Nor does a
-   page that opens at a place in it, an address with a fragment: the browser
-   scrolls to the place by where the block is while it is still low, and the
-   heading it was asked for would land a few pixels off once the block settled.
+   page that opens at a place in it, an address with a fragment, whether it
+   names a heading or a stretch of text: the browser scrolls to the place by
+   where the block is while it is still low, and what it was asked for would
+   land a few pixels off once the block settled.
+   All three are marks the head script writes once, and the rule reads only
+   those. A condition worked out here instead, the fragment's own target, say,
+   would stop matching when the reader jumped about the page and went back, and
+   the block would play the arrival again over text they were reading.
    Reduced motion is answered by the blanket under the interface's own root. */
 @keyframes y-rise-in {
   from {
@@ -1549,7 +1554,7 @@ samp {
   }
 }
 
-html:not([data-prerender], [data-arrival='traverse'], :has(:target)) :is(
+html:not([data-prerender], [data-arrival]) :is(
   .y-article,
   .y-healthpage,
   .y-home,

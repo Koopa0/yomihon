@@ -20,12 +20,13 @@ import (
 const riseTargets = ":is(.y-article, .y-healthpage, .y-home, .y-listen, .y-recovery, .y-syl)"
 
 // riseGate is what keeps the arrival from playing for a document that is not
-// the answer to a press, or that opens at a place in it. The two attributes are
-// the ones the head script writes, and the other test below holds the two
-// halves to each other. The third clause is the stylesheet's own: a fragment
-// scroll done while the block is still low would land the heading a few pixels
-// off.
-const riseGate = "html:not([data-prerender], [data-arrival='traverse'], :has(:target))"
+// the answer to a press, or that opens at a place in it. Both attributes are
+// the ones the head script writes, once, and the other test below holds the two
+// halves to each other. The gate reads only attributes: a condition the
+// stylesheet worked out for itself, such as the fragment's own target, stops
+// and starts matching as the reader moves about the page, which plays the
+// arrival again each time it starts.
+const riseGate = "html:not([data-prerender], [data-arrival])"
 
 // squeeze turns every run of white space into one space, so a rule is compared
 // by what it says and not by how it is laid out.
@@ -75,6 +76,18 @@ func TestPageContentRisesIntoPlace(t *testing.T) {
 	if body := css[open+1 : at+len(declaration)]; squeeze(body) != declaration {
 		t.Errorf("the rule playing y-rise-in carries %q, want only %q", squeeze(body), declaration)
 	}
+	// The gate is attributes and nothing else. A pseudo-class that follows the
+	// reader (:target, :has, :hover, :focus-within) would drop out of matching
+	// and back in, and the animation would start again each time it came back.
+	gate := regexp.MustCompile(`^html:not\((.*?)\) :is\(`).FindStringSubmatch(selector)
+	if gate == nil {
+		t.Fatalf("the rule playing y-rise-in selects %q, which has no html:not(...) gate to read", selector)
+	}
+	for _, clause := range strings.Split(gate[1], ", ") {
+		if !regexp.MustCompile(`^\[data-[a-z]+(='[a-z]+')?\]$`).MatchString(clause) {
+			t.Errorf("rise gate clause %q is not a data attribute the head script wrote once; a condition that follows the reader replays the arrival when it matches again", clause)
+		}
+	}
 	for _, refused := range []string{"main", ".y-main", ".y-header", ".y-rail", ".y-prefs", ".yomihon"} {
 		if strings.Contains(riseTargets, refused) {
 			t.Errorf("rise targets %q name %q, which must stay still while the content moves", riseTargets, refused)
@@ -101,6 +114,7 @@ func TestRiseGateNamesWhatTheHeadScriptWrites(t *testing.T) {
 	script := html[start:end]
 	for _, want := range []string{
 		`if (entry?.type === "back_forward") d.dataset.arrival = "traverse";`,
+		`else if (entry?.name.includes("#")) d.dataset.arrival = "place";`,
 		`if (document.prerendering) {`,
 		`d.dataset.prerender = "";`,
 		`document.onprerenderingchange = () => delete d.dataset.prerender;`,
@@ -109,7 +123,7 @@ func TestRiseGateNamesWhatTheHeadScriptWrites(t *testing.T) {
 			t.Errorf("head script lacks %q; script = %q", want, script)
 		}
 	}
-	for _, want := range []string{"[data-prerender]", "[data-arrival='traverse']", ":has(:target)"} {
+	for _, want := range []string{"[data-prerender]", "[data-arrival]"} {
 		if !strings.Contains(riseGate, want) {
 			t.Errorf("rise gate %q lacks %s, which the head script writes", riseGate, want)
 		}
