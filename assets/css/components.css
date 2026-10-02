@@ -1548,11 +1548,15 @@ details.y-metarow {
   margin-left: -10px;
 }
 
-/* The head ends where the body begins: forty pixels of space and no rule. The
-   head's own bottom margins are never more than that, so the two collapse into
-   one gap whichever of them is the larger. */
-.y-article > .y-prose {
-  margin-top: 40px;
+/* Where the facts are stacked in the narrow disclosure the path is the long one,
+   so it takes a line of its own instead of wrapping behind a separator that
+   would then open the next line. */
+.y-metarow__detail .y-notefacts > div:has(a) {
+  flex-basis: 100%;
+}
+
+.y-metarow__detail .y-notefacts > div:has(a)::before {
+  content: none;
 }
 
 /* ============================================================
@@ -1571,6 +1575,13 @@ details.y-metarow {
    a positive tag. */
 .y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose {
   line-height: var(--lh-latin);
+}
+
+/* The head ends where the body begins: forty pixels of space and no rule. The
+   head's own bottom margins are never more than that, so the two collapse into
+   one gap whichever of them is the larger. */
+.y-article > .y-prose {
+  margin-top: 40px;
 }
 
 .y-prose > :first-child {
@@ -2230,6 +2241,12 @@ button.y-freshness__action {
 
 .y-toc-inline .y-toc__list {
   margin: 4px 0 6px;
+}
+
+/* The summary already names the block it folds, with its count. The label the
+   same block carries in the rail would say it a second time directly beneath. */
+.y-toc-inline .ui-side__label {
+  display: none;
 }
 
 .y-toc__list {
@@ -4406,10 +4423,12 @@ a.y-facetrow:hover {
    came up short. It is one centred column at a reading measure, so the same
    kind of news reads as the same thing wherever a reader meets it. Centring is
    the measure plus auto inline margins, which holds at any width the window
-   takes; a fixed side margin would only be centred at one of them.
+   takes; a fixed side margin would only be centred at one of them. The desk's
+   fault sections are the one place it gives up the column: they stand in a
+   panel at the page's width and are set out below with the rest of the desk.
 
    An absence stays quiet — the page's own ink, one step down. A fault says so
-   in the warning colour and in a hairline box, which is the whole visual
+   in the warning colour and on a warning tint, which is the whole visual
    difference between "there is nothing here" and "something could not be
    read". */
 .y-nothing {
@@ -6732,7 +6751,7 @@ samp,
    The excerpt scrolls inside the card without taking the page with it. */
 .y-prose .wikilink[data-preview-open] {
   anchor-name: --y-preview-anchor;
-  border-bottom-color: var(--accent);
+  text-decoration-color: color-mix(in oklch, var(--fg) 60%, transparent);
 }
 
 /* A declared source owns the card the same way, and shows it with the row
