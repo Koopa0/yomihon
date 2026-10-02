@@ -41,10 +41,10 @@ templ Base(c Chrome) {
 			// because the announcement of an arrival is made before any deferred
 			// module has run. Back and Forward are never animated: a reader going
 			// back wants the page they left, and the browser's own restore is
-			// already instant. Any other change still unfinished after 600ms is
-			// ended rather than left holding the page, which is far longer than
-			// the motion itself takes and so only ever fires when something has
-			// stalled.
+			// already instant. Any other change is ended after 600ms, which is
+			// far longer than the motion itself takes, so it only ever does
+			// anything when the change has stalled; skipping one that has already
+			// finished does nothing, so the timer is never cleared.
 			<script nonce={ c.Nonce }>
 				document.documentElement.dataset.js = "on";
 				addEventListener("pagereveal", (event) => {
@@ -54,9 +54,7 @@ templ Base(c Chrome) {
 						transition.skipTransition();
 						return;
 					}
-					const watchdog = setTimeout(() => transition.skipTransition(), 600);
-					const settled = () => clearTimeout(watchdog);
-					transition.finished.then(settled, settled);
+					setTimeout(() => transition.skipTransition(), 600);
 				});
 			</script>
 			// Every page change is a whole new document, and a browser may paint

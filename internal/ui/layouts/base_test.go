@@ -58,9 +58,7 @@ func TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly(t *testing.T) {
 		"\t\t\t\t\t\ttransition.skipTransition();\n" +
 		"\t\t\t\t\t\treturn;\n" +
 		"\t\t\t\t\t}\n" +
-		"\t\t\t\t\tconst watchdog = setTimeout(() => transition.skipTransition(), 600);\n" +
-		"\t\t\t\t\tconst settled = () => clearTimeout(watchdog);\n" +
-		"\t\t\t\t\ttransition.finished.then(settled, settled);\n" +
+		"\t\t\t\t\tsetTimeout(() => transition.skipTransition(), 600);\n" +
 		"\t\t\t\t});\n" +
 		"\t\t\t</script>"
 	if got := strings.Count(html, entry); got != 1 {

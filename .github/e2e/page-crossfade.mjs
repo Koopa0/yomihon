@@ -101,8 +101,8 @@ const MUTATIONS = {
   'drop-the-watchdog': {
     target: 'a-stalled-transition-ends',
     apply: rewriteDocument(
-      'const watchdog = setTimeout(() => transition.skipTransition(), 600);',
-      'const watchdog = 0;',
+      'setTimeout(() => transition.skipTransition(), 600);',
+      '',
       'the watchdog',
     ),
   },

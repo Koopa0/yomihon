@@ -376,11 +376,8 @@ func TestCSSChangesPagesOnlyForReadersWhoAllowMotion(t *testing.T) {
 		return "", false
 	}
 	for _, name := range []string{"y-header", "y-rail"} {
-		for part, want := range map[string]string{
-			"group": "animation-duration: 0s",
-			"old":   "animation: none",
-			"new":   "animation: none",
-		} {
+		for _, part := range []string{"group", "old", "new"} {
+			const want = "animation: none"
 			selector := "::view-transition-" + part + "(" + name + ")"
 			body, ok := bodyFor(selector)
 			if !ok || !strings.Contains(body, want) {
@@ -414,7 +411,7 @@ func TestCSSChangesPagesOnlyForReadersWhoAllowMotion(t *testing.T) {
 	// is the page's own paper, not the document canvas, and the root group's
 	// own morph is not what decides how long the change lasts.
 	if body, ok := bodyFor("::view-transition-group(root)"); !ok ||
-		!strings.Contains(body, "background: var(--bg)") || !strings.Contains(body, "animation-duration: 0s") {
+		!strings.Contains(body, "background: var(--bg)") || !strings.Contains(body, "animation: none") {
 		t.Errorf("::view-transition-group(root) does not stand on the page's paper colour with no morph of its own under %q; its body is %q", gate, body)
 	}
 

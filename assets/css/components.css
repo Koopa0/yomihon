@@ -5269,7 +5269,7 @@ samp,
   }
 
   ::view-transition-group(root) {
-    animation-duration: 0s;
+    animation: none;
     background: var(--bg);
   }
 
@@ -5282,12 +5282,9 @@ samp,
   }
 
   ::view-transition-group(y-header),
-  ::view-transition-group(y-rail) {
-    animation-duration: 0s;
-  }
-
   ::view-transition-old(y-header),
   ::view-transition-new(y-header),
+  ::view-transition-group(y-rail),
   ::view-transition-old(y-rail),
   ::view-transition-new(y-rail) {
     animation: none;
