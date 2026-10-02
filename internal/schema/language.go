@@ -61,8 +61,27 @@ func (l ArticleLanguage) Resolve(frontmatter map[string]any) (string, error) {
 	return tag, nil
 }
 
-// ParseLanguageTag validates and canonicalizes one authored BCP 47 tag.
+// ParseLanguageTag validates and canonicalizes one authored BCP 47 tag. The
+// answer is a fixed point: parsing it again returns it unchanged. x/text does
+// not promise that for every tag it accepts, so a tag whose canonical form
+// changes when canonicalized again is rejected rather than emitted as an
+// article's language.
 func ParseLanguageTag(raw string) (string, error) {
+	canonical, err := canonicalLanguageTag(raw)
+	if err != nil {
+		return "", err
+	}
+	again, err := canonicalLanguageTag(canonical)
+	if err != nil || again != canonical {
+		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: its canonical form %q does not canonicalize to itself", articleLanguageField, canonical)
+	}
+	return canonical, nil
+}
+
+// canonicalLanguageTag is one pass of ParseLanguageTag: it validates raw and
+// returns x/text's canonical spelling of it, without checking that spelling is
+// stable.
+func canonicalLanguageTag(raw string) (string, error) {
 	if raw == "" {
 		return "", fmt.Errorf("frontmatter %q must not be empty", articleLanguageField)
 	}
@@ -79,9 +98,34 @@ func ParseLanguageTag(raw string) (string, error) {
 		}
 		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag", articleLanguageField)
 	}
+	if singleton, repeated := repeatedSingleton(raw); repeated {
+		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: singleton %q appears more than once", articleLanguageField, singleton)
+	}
 	tag, err := language.Parse(raw)
 	if err != nil {
 		return "", fmt.Errorf("frontmatter %q is not a valid BCP 47 language tag: %w", articleLanguageField, err)
 	}
 	return tag.String(), nil
+}
+
+// repeatedSingleton returns the first extension singleton, lower-cased, that
+// raw spells twice. BCP 47 lets each singleton appear once, but x/text accepts
+// a repeat. Everything after the private-use singleton x is free text in which
+// a one-character subtag is ordinary and may repeat, so the scan stops there.
+// raw must already be ASCII with no empty subtag.
+func repeatedSingleton(raw string) (singleton string, repeated bool) {
+	seen := make(map[string]bool)
+	for subtag := range strings.SplitSeq(strings.ToLower(raw), "-") {
+		if subtag == "x" {
+			break
+		}
+		if len(subtag) != 1 {
+			continue
+		}
+		if seen[subtag] {
+			return subtag, true
+		}
+		seen[subtag] = true
+	}
+	return "", false
 }
