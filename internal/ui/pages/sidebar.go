@@ -206,8 +206,8 @@ func hereLabel(dir string, lang wording.Lang) string {
 	if dir == "" {
 		return wording.VaultRoot.In(lang)
 	}
-	if i := strings.LastIndexByte(dir, '/'); i >= 0 {
-		return dir[i+1:]
+	if _, after, found := strings.CutLast(dir, "/"); found {
+		return after
 	}
 	return dir
 }
