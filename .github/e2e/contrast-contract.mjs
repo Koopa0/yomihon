@@ -72,10 +72,15 @@ const AA = 4.5;
 // not all sit on the same surface, and an indicator measured only on the
 // lighter of them would say nothing about the other.
 const NON_TEXT = 3;
+// Each field draws its focus line along one edge, and that edge is where the
+// line is looked for. The two page fields are boxes, outlined all round, and
+// are read across their left edge; the palette's field is the panel's head,
+// with no box of its own, and draws its line under it, so it is read upward
+// from its bottom edge.
 const FOCUS_FIELDS = [
-  { name: 'the desk field', path: '/', field: '.y-homesearch', input: '.y-homesearch input', ground: '--elevated' },
-  { name: 'the search page field', path: '/search', field: '.y-searchpage__form', input: '.y-searchpage__form input', ground: '--panel' },
-  { name: 'the palette field', path: '/', field: '.y-searchdialog__form', input: '.y-searchdialog__input', ground: '--panel', palette: true },
+  { name: 'the desk field', path: '/', field: '.y-homesearch', input: '.y-homesearch input', ground: '--elevated', edge: 'left' },
+  { name: 'the search page field', path: '/search', field: '.y-searchpage__form', input: '.y-searchpage__form input', ground: '--panel', edge: 'left' },
+  { name: 'the palette field', path: '/', field: '.y-searchdialog__form', input: '.y-searchdialog__input', ground: '--panel', edge: 'bottom', palette: true },
 ];
 
 class LockFired extends Error {
@@ -211,6 +216,13 @@ const MUTATIONS = {
     target: 'light-focus-outline',
     contexts: ['focus'],
     apply: weakenStylesheet('app.css', ':root[data-theme="light"] .y-homesearch:focus-within,:root[data-theme="light"] .y-searchdialog__form:focus-within,:root[data-theme="light"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
+  },
+  // The palette's field draws its focus as the line under it rather than an
+  // outline, so the outline modes above never reach it; this is its own.
+  'palette-focus-line-fades': {
+    target: 'light-focus-outline',
+    contexts: ['focus'],
+    apply: weakenStylesheet('app.css', '.y-searchdialog__form:focus-within{box-shadow:inset 0 -2px 0 var(--line)}'),
   },
   'focus-outline-fades-dark': {
     target: 'dark-focus-outline',
@@ -657,7 +669,7 @@ const measureFocusOutline = async (page, theme, field) => {
   if (!took) return { issue: `${field.field} never took focus, so no focused state was measured` };
 
   const shot = await page.locator(field.field).screenshot();
-  return page.evaluate(async (url) => {
+  return page.evaluate(async ({ url, edge }) => {
     const image = new Image();
     image.src = url;
     await image.decode();
@@ -669,18 +681,24 @@ const measureFocusOutline = async (page, theme, field) => {
     context.drawImage(image, 0, 0);
     const { data, width, height } = context.getImageData(0, 0, image.width, image.height);
 
-    // Rows clear of the rounded corners, columns inside the field's padding
-    // and short of its icon, so every sample is the line or the ground.
-    const top = 10;
-    const bottom = height - 10;
+    // Read across the left edge: rows clear of the rounded corners, columns
+    // inside the field's padding and short of its icon. Read up from the
+    // bottom edge: columns clear of the icon at the start and of the clear
+    // and close marks at the end, rows under the typed words. Either way every
+    // sample is the line or the ground. The samples are named columns below,
+    // which is what they are on the left edge and what the rows stand in for
+    // on the bottom one.
     const scan = 12;
-    if (bottom - top < 8) return { issue: `the field is ${height}px tall, too short to sample across` };
-    if (width < scan + 4) return { issue: `the field is ${width}px wide, too narrow to scan` };
-    const column = (x) => {
+    const sideways = edge === 'bottom';
+    const across = sideways ? [48, width - 96] : [10, height - 10];
+    if (across[1] - across[0] < 8) return { issue: `the field is ${sideways ? width : height}px across, too short to sample` };
+    if ((sideways ? height : width) < scan + 4) return { issue: `the field is ${sideways ? height : width}px deep, too narrow to scan` };
+    const pixel = (inward, along) => (sideways ? ((height - 1 - inward) * width + along) * 4 : (along * width + inward) * 4);
+    const column = (inward) => {
       const total = [0, 0, 0];
       let rows = 0;
-      for (let y = top; y < bottom; y += 1) {
-        const at = (y * width + x) * 4;
+      for (let along = across[0]; along < across[1]; along += 1) {
+        const at = pixel(inward, along);
         if (data[at + 3] !== 255) return null;
         total[0] += data[at];
         total[1] += data[at + 1];
@@ -692,7 +710,7 @@ const measureFocusOutline = async (page, theme, field) => {
     const columns = [];
     for (let x = 0; x < scan; x += 1) {
       const read = column(x);
-      if (!read) return { issue: `column ${x} of the field is not opaque` };
+      if (!read) return { issue: `${sideways ? 'row' : 'column'} ${x} in from the field's ${edge} edge is not opaque` };
       columns.push(read);
     }
     const mean = (samples) => [0, 1, 2].map((channel) => (
@@ -754,7 +772,7 @@ const measureFocusOutline = async (page, theme, field) => {
       }
     }
     return { band: last - first + 1, ratio, indicator: hex(strongest), ground: hex(ground) };
-  }, `data:image/png;base64,${shot.toString('base64')}`);
+  }, { url: `data:image/png;base64,${shot.toString('base64')}`, edge: field.edge });
 };
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });

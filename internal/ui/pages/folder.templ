@@ -27,7 +27,7 @@ templ Folder(v FolderView, c layouts.Chrome) {
 						</div>
 					}
 					<h1 class="y-title">{ v.Shelf.Title }</h1>
-					<p class="y-foldercount">{ v.Count }</p>
+					<p class="y-indexcount">{ v.Count }</p>
 					<a class="y-back" href={ templ.URL(indexHref(folderMode)) }>{ wording.BackToFolders.In(c.Lang) }</a>
 				</header>
 				if len(v.Shelf.Rows) == 0 {

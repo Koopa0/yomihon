@@ -190,6 +190,33 @@ func (v *NoteView) hasAids() bool {
 		v.citedByShown() || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.Pair.RelPath != "" || v.offersMark()
 }
 
+// inlineAidsShown reports whether the narrow layout draws its folded row of
+// reading aids above the prose. It is every aid hasAids counts except the
+// control for keeping a reading place, which the narrow layout carries in the
+// header's folded panel rather than in the row.
+func (v *NoteView) inlineAidsShown() bool {
+	return len(v.TOC) > 0 || v.diagCount() > 0 || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.relatedShown()
+}
+
+// relatedShown reports whether the article closes, at the widths without the
+// right rail, on the notes that stand beside this one: a note to read beside
+// it, or the answer about which notes link here.
+func (v *NoteView) relatedShown() bool {
+	return v.Pair.RelPath != "" || v.citedByShown()
+}
+
+// The two blocks at the end of the text are named so the folded row above the
+// prose can lead down to them. Authored section ids never contain an
+// underscore, so these cannot collide with a heading the note itself carries,
+// and the article's id space keeps two notes on one page apart.
+const (
+	relatedPairName  = "_y-pair"
+	relatedCitedName = "_y-cited"
+)
+
+func (v *NoteView) relatedPairID() string  { return v.IDPrefix + relatedPairName }
+func (v *NoteView) relatedCitedID() string { return v.IDPrefix + relatedCitedName }
+
 // offersMark reports whether this page can offer to keep the reader's place.
 // It needs the note's own address and the identity of the bytes being shown,
 // because the mark is both of those and a page missing either would store a

@@ -137,12 +137,12 @@ templ header(c Chrome) {
 			// under it: somewhere to go when not reading anything in particular.
 			// It used to disappear on a narrow window while the reading choices
 			// stayed, which made two answers out of one question; now both fold.
-			<a class="y-healthlinkbtn" href="/health">{ wording.HealthTitle.In(c.Lang) }</a>
+			<a class="y-healthlinkbtn" href="/health" { destinationAttrs(c.Path, "/health")... }>{ wording.HealthTitle.In(c.Lang) }</a>
 			// The way to the reading choices is a word rather than a gear, because
 			// a gear promises a machine and what is behind this one is seven
 			// sentences. It carries the page the reader is on, so applying a choice
 			// returns them to it.
-			<a class="y-prefslink" href={ templ.URL(preferencesHref(c.ReturnTo)) } data-carry-position>{ wording.PreferencesLink.In(c.Lang) }</a>
+			<a class="y-prefslink" href={ templ.URL(preferencesHref(c.ReturnTo)) } data-carry-position { destinationAttrs(c.Path, "/preferences")... }>{ wording.PreferencesLink.In(c.Lang) }</a>
 			// The three size names ride on the control in the page's own language,
 			// so the script that moves the size — on a press, or re-syncing after a
 			// back/forward-cache restore — renames the control from the same
@@ -285,6 +285,7 @@ templ searchDialog(lang wording.Lang) {
 		@LiveSearchStatus(lang)
 		<div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>
 		<div class="y-searchdialog__foot">
+			<span>↑↓ { wording.SearchDialogChoose.In(lang) }</span>
 			<span>↵ { wording.SearchDialogEnter.In(lang) }</span>
 			<span>esc { wording.SearchDialogEsc.In(lang) }</span>
 		</div>

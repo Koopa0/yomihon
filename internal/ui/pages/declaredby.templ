@@ -46,16 +46,3 @@ templ declaredByBlock(v NoteView, lang wording.Lang) {
 		</nav>
 	}
 }
-
-templ inlineDeclaredBy(v NoteView, lang wording.Lang) {
-	if len(v.DeclaredBy) > 0 {
-		<details class="y-toc-inline">
-			<summary class="y-toc-inline__summary">
-				@chevron()
-				{ wording.DeclaredBy.In(lang) }
-				<span class="ui-navitem__count">{ strconv.Itoa(len(v.DeclaredBy)) }</span>
-			</summary>
-			@declaredByBlock(v, lang)
-		</details>
-	}
-}

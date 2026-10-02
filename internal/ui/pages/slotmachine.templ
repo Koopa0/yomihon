@@ -58,10 +58,10 @@ templ slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) {
 		@slotOutput(p)
 		<p class="y-slotgloss">{ lesson.GlossInitial(p) }</p>
 		<div class="y-slotactions">
-			<button type="button" class="y-slotbtn" data-slot-action="speak" aria-label={ wording.SlotMachineSpeak.In(lang) }>
+			<button type="button" class="y-iconbtn y-slotbtn" data-slot-action="speak" aria-label={ wording.SlotMachineSpeak.In(lang) }>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
 			</button>
-			<button type="button" class="y-slotbtn" data-slot-action="shuffle" aria-label={ wording.SlotMachineShuffle.In(lang) }>
+			<button type="button" class="y-iconbtn y-slotbtn" data-slot-action="shuffle" aria-label={ wording.SlotMachineShuffle.In(lang) }>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="m15 15 6 6"></path><path d="M4 4l5 5"></path></svg>
 			</button>
 		</div>
@@ -73,9 +73,9 @@ templ slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) {
 // the fills. The inner button carries the closed face where the customizable
 // select is supported and is inert elsewhere; the colour class assigns --c.
 templ slotControl(key string, pos lesson.Position) {
-	<label class="y-slotfield">
+	<label class={ "y-slotfield", "y-slot-" + pos.Color }>
 		<span class="y-slotfield__label">{ pos.LabelZH }</span>
-		<select class={ "y-slotselect", "y-slot-" + pos.Color } data-slot-key={ key }>
+		<select class="y-slotselect" data-slot-key={ key }>
 			<button type="button"><selectedcontent></selectedcontent></button>
 			for i, f := range pos.Fills {
 				<option value={ strconv.Itoa(i) }><span lang="ja">{ f.JP }</span> — { f.ZH }</option>
