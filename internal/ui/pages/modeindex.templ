@@ -20,8 +20,8 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 						<p>{ v.Notice }</p>
 					}
 				}
-				if v.Fault != "" {
-					@indexFault(v.Fault, c)
+				if v.Fault != "" || v.Restart != "" {
+					@indexFault(v.Fault, v.Restart, c)
 				} else if len(v.Shelf.Rows) == 0 && v.Shelf.Empty != "" {
 					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
 				}
@@ -127,12 +127,20 @@ templ indexHead(kicker, title, lede string, lang wording.Lang) {
 }
 
 // indexFault states, in the one shape every surface uses for it, why a
-// projection this page would have listed is unavailable.
-templ indexFault(fault string, c layouts.Chrome) {
+// projection this page would have listed is unavailable. The fault is the
+// contract's own sentence, quoted; the restart is the dictionary's sentence for
+// a cause with words of its own, and takes the place of a quotation rather than
+// sitting beside one.
+templ indexFault(fault, restart string, c layouts.Chrome) {
 	<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="index-faults-title">
 		@homeBlockHead("index-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
 		<p class="y-homeempty" data-home-fault>
-			@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), fault)
+			if restart != "" {
+				@browserDiagnostic(restart, "")
+			}
+			if fault != "" {
+				@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), fault)
+			}
 		</p>
 	</section>
 }

@@ -1,0 +1,30 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// ContractChanged is the page a course's address answers with while the
+// contract that names the course is no longer the one yomihon read. It carries
+// no rail, as the course page and the listening page do not: the rail would
+// list what the changed contract can no longer vouch for, and say the cause in
+// the contract's own English where this page says it once, in the reader's
+// language, with the step that follows.
+templ ContractChanged(c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			<main id="main-content" tabindex="-1" class="y-main">
+				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="contract-changed-title">
+					@nothingToShow(nothingNotice{Kind: "contract-changed", Mark: wording.ContractChangedKicker.In(c.Lang), Title: wording.ContractChangedTitle.In(c.Lang), TitleID: "contract-changed-title", Page: true, Fault: true}) {
+						<p>{ ContractChangedSentence(c.Lang) }</p>
+					}
+					<nav class="y-recovery__actions" aria-label={ wording.LeaveThisPage.In(c.Lang) }>
+						<a class="y-recovery__action y-recovery__action--quiet" href="/">{ wording.BackHome.In(c.Lang) }</a>
+					</nav>
+				</article>
+			</main>
+		</div>
+	}
+}

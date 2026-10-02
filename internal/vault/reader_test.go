@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -262,6 +263,13 @@ func TestSourceWalkRejectsCanonicalCollisionInEveryScan(t *testing.T) {
 		err := walk.visit(t.Context(), "Caf\u00e9.md", testDirEntry{name: "Caf\u00e9.md", info: info}, nil)
 		if !errors.Is(err, ErrCanonicalCollision) {
 			t.Errorf("visit(canonical collision, completeness=%d) error = %v, want ErrCanonicalCollision", completeness, err)
+		}
+		collision, ok := errors.AsType[*CollisionError](err)
+		if !ok {
+			t.Fatalf("visit(canonical collision, completeness=%d) error %T carries no CollisionError, so it names no file", completeness, err)
+		}
+		if want := [2]string{cafeDecomposed, cafeComposed}; collision.Paths != want {
+			t.Errorf("visit(canonical collision, completeness=%d) paths = %q, want %q", completeness, collision.Paths, want)
 		}
 	}
 }
@@ -1271,14 +1279,79 @@ func TestReaderPreservesRawNFDLookupWithCanonicalNFCPath(t *testing.T) {
 	}
 }
 
+// The pair the collision tests share: one name as an NFC-normalizing sync writes
+// it, and the same name as a macOS-to-Linux copy or a git checkout leaves it.
+// They print as one glyph, which is the whole difficulty of repairing a folder
+// that holds both, and they are built from code points so that no editor can
+// normalize the pair into one.
+const (
+	cafeComposed   = "Caf" + string(rune(0xe9)) + ".md"
+	cafeDecomposed = "Cafe" + string(rune(0x301)) + ".md"
+)
+
+// TestReaderRejectsCanonicalPathCollision pins what the refusal carries. The
+// repair for two names with one canonical path is to delete or rename one of
+// them, and nobody can do that from "vault contains canonically colliding
+// paths" alone. The pair is reported in byte order whichever name the walk met
+// first, so the same folder reads the same way every time it is refused.
 func TestReaderRejectsCanonicalPathCollision(t *testing.T) {
 	t.Parallel()
-	seen := make(map[string]string)
-	if err := recordCanonicalPath(seen, "Notes/Cafe\u0301.md", "Notes/Caf\u00e9.md"); err != nil {
-		t.Fatalf("record first spelling: %v", err)
+
+	// The decomposed spelling sorts first: its fourth byte is the e, 0x65,
+	// where the composed one has the 0xc3 that opens the accented letter.
+	want := [2]string{"Notes/" + cafeDecomposed, "Notes/" + cafeComposed}
+	canonical := "Notes/" + cafeComposed
+	for _, tt := range []struct {
+		name  string
+		first string
+		then  string
+	}{
+		{name: "the composed name first", first: "Notes/" + cafeComposed, then: "Notes/" + cafeDecomposed},
+		{name: "the decomposed name first", first: "Notes/" + cafeDecomposed, then: "Notes/" + cafeComposed},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			seen := make(map[string]string)
+			if err := recordCanonicalPath(seen, tt.first, canonical); err != nil {
+				t.Fatalf("record first spelling %q: %v", tt.first, err)
+			}
+			err := recordCanonicalPath(seen, tt.then, canonical)
+			if !errors.Is(err, ErrCanonicalCollision) {
+				t.Fatalf("record canonical collision = %v, want ErrCanonicalCollision", err)
+			}
+			collision, ok := errors.AsType[*CollisionError](err)
+			if !ok {
+				t.Fatalf("the refusal %T carries no CollisionError, so it names no file", err)
+			}
+			if collision.Paths != want {
+				t.Errorf("collision paths = %q, want %q", collision.Paths, want)
+			}
+			for _, raw := range want {
+				if !strings.Contains(err.Error(), Spelled(raw)) {
+					t.Errorf("the refusal %q does not name %q", err, raw)
+				}
+			}
+		})
 	}
-	if err := recordCanonicalPath(seen, "Notes/Caf\u00e9.md", "Notes/Caf\u00e9.md"); !errors.Is(err, ErrCanonicalCollision) {
-		t.Fatalf("record canonical collision = %v, want ErrCanonicalCollision", err)
+}
+
+// TestSpelledTellsTwoNamesThatPrintAlikeApart holds the reason the refusal is
+// not just two quoted names. The two spellings above are one word on every
+// screen, so a message quoting them plainly shows the reader the same name
+// twice; the escapes beside them are where the two differ.
+func TestSpelledTellsTwoNamesThatPrintAlikeApart(t *testing.T) {
+	t.Parallel()
+
+	for raw, escapes := range map[string]string{
+		"Notes/" + cafeComposed:   `\u00e9`,
+		"Notes/" + cafeDecomposed: `e\u0301`,
+	} {
+		if got := Spelled(raw); !strings.Contains(got, escapes) {
+			t.Errorf("Spelled(%q) = %s, want the escapes %s beside it so it reads differently from its twin", raw, got, escapes)
+		}
+	}
+	if plain := Spelled("Notes/plain.md"); plain != `"Notes/plain.md"` {
+		t.Errorf("Spelled(ASCII path) = %s, want it quoted and nothing more", plain)
 	}
 }
 

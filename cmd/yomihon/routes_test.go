@@ -1034,8 +1034,10 @@ func writeContractDeclaring(t *testing.T, root, pathType string, mapTypes []stri
 	}
 }
 
-// readingPageIn asks for one page as a reader who has chosen lang.
-func readingPageIn(t *testing.T, site http.Handler, target string, lang wording.Lang) string {
+// pageIn asks for one page as a reader who has chosen lang and returns the
+// status it answered with beside the page, for a test whose subject is the
+// status as much as the words.
+func pageIn(t *testing.T, site http.Handler, target string, lang wording.Lang) (code int, page string) {
 	t.Helper()
 	recorder := httptest.NewRecorder()
 	request := siteRequest(t, http.MethodGet, target, nil)
@@ -1050,14 +1052,22 @@ func readingPageIn(t *testing.T, site http.Handler, target string, lang wording.
 			t.Errorf("close %s response: %v", target, err)
 		}
 	}()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("GET %s in %s = %d, want 200", target, lang, response.StatusCode)
-	}
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read %s response: %v", target, err)
 	}
-	return string(body)
+	return response.StatusCode, string(body)
+}
+
+// readingPageIn is pageIn for a page that must have been served: anything but a
+// 200 ends the test.
+func readingPageIn(t *testing.T, site http.Handler, target string, lang wording.Lang) string {
+	t.Helper()
+	code, page := pageIn(t, site, target, lang)
+	if code != http.StatusOK {
+		t.Fatalf("GET %s in %s = %d, want 200", target, lang, code)
+	}
+	return page
 }
 
 // emptySlot is the sentence a mode index draws in place of a listing. Reading

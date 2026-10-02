@@ -27,10 +27,16 @@ const (
 // a withheld projection lists nothing, and its shelf then says neither how much
 // it holds nor that it holds none, because a vault whose declaration could not
 // be read is not a vault that declared nothing.
+//
+// Restart is the one cause the page says in the reader's own words rather than
+// quoting: the contract changed after yomihon read it, and what follows is to
+// start yomihon again. It stands where Fault would, so the operator's English
+// line is not printed beside a sentence that already says it.
 type ListIndexView struct {
-	Mode   string
-	Kicker string
-	Fault  string
+	Mode    string
+	Kicker  string
+	Fault   string
+	Restart string
 	// Notice reports an unavailable input independent of the vault contract,
 	// such as the reader's own marks. It carries its complete translated words.
 	Notice string
@@ -124,7 +130,7 @@ func NewPathIndex(paths []nav.Path, roles schema.NavigationRoles, closure nav.Cl
 	view := listIndex(pathMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
 		"", emptySentence(contract, declarationSentence(roles.PathTypes(), lang), lang), rows)
-	view.Fault = closure.Diagnostic()
+	view.Fault, view.Restart = FaultOf(closure.Diagnostic(), closure.Reason(), lang)
 	withholdListing(&view, closure)
 	return view
 }
@@ -190,7 +196,7 @@ func ContractStateFrom(governed bool, snap *snapshot.Generation) ContractState {
 func emptySentence(contract ContractState, governed string, lang wording.Lang) string {
 	switch contract {
 	case ContractUnloaded:
-		return wording.JoinGuide(wording.IndexContractUnloaded, wording.IndexContractUnloadedNext, lang)
+		return wording.JoinGuide(wording.IndexContractUnloaded, wording.RestartYomihon, lang)
 	case ContractAbsent:
 		return wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, lang)
 	default:
@@ -258,7 +264,7 @@ func NewMapIndex(maps []nav.Map, roles schema.NavigationRoles, closure nav.Closu
 	view := listIndex(mapMode, wording.Maps.In(lang),
 		plural(len(maps), wording.MapCountOne, wording.MapCountMany, lang),
 		"", emptySentence(contract, declarationSentence(roles.MapTypes(), lang), lang), rows)
-	view.Fault = closure.Diagnostic()
+	view.Fault, view.Restart = FaultOf(closure.Diagnostic(), closure.Reason(), lang)
 	withholdListing(&view, closure)
 	return view
 }

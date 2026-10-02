@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -47,11 +48,16 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	//
 	// The rail no longer carries this on every page, because the rail is now
 	// the book being read, which makes this the only place it is said.
-	fault := statedOnce(
-		authority.Diagnostic(lang),
-		visibleNav.NavigationClosure().Diagnostic(),
-		visibleNav.ArtifactClosure().Diagnostic(),
+	//
+	// One cause is not quoted: a contract that changed after yomihon read it is
+	// said in the reader's own words, once, whichever of the three carries it.
+	fault, restart := statedAsFaults(lang,
+		faultCause{authority.Diagnostic(lang), authority.Claim().Reason()},
+		faultCause{visibleNav.NavigationClosure().Diagnostic(), visibleNav.NavigationClosure().Reason()},
+		faultCause{visibleNav.ArtifactClosure().Diagnostic(), visibleNav.ArtifactClosure().Reason()},
 	)
+	privacy := snap.PrivacyPolicy().Claim()
+	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
 	kept, hasMark := h.sources.Continuation()
 	open, openFault := h.openThoughtShelf(r.Context(), snap, lang, pages.OpenThoughtsHomeRows)
 	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
@@ -59,11 +65,14 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.HomeView{
 		Fault:             fault,
+		Restart:           restart,
 		OpenThoughts:      open,
 		OpenThoughtsFault: openFault,
-		PrivacyFault:      snap.PrivacyPolicy().Diagnostic(),
+		PrivacyFault:      privacyFault,
+		PrivacyRestart:    privacyRestart,
 		Degraded:          degradedNotice(&fresh, lang),
 		DegradedDetail:    blockedDetail(fresh.Blocked),
+		Notices:           folderNotices(fresh.Collision, lang),
 		Blocks:            blocks,
 		ReadmeMissing:     !hasReadme,
 		Continue:          continueRow(&kept, hasMark, snap, lang),
@@ -156,4 +165,27 @@ func statedOnce(causes ...string) string {
 		distinct = append(distinct, cause)
 	}
 	return strings.Join(distinct, "; ")
+}
+
+// faultCause is one reason a page withheld something: the operator's sentence
+// for it, and the reason behind that sentence, which is the value a page
+// branches on when the dictionary has words of its own for the cause.
+type faultCause struct {
+	diagnostic string
+	reason     schema.Reason
+}
+
+// statedAsFaults is statedOnce for causes that may have words of their own.
+// Each cause is divided by pages.FaultOf, the one place that decides which are
+// said in the reader's language and which are quoted; the quoted ones are
+// stated once as statedOnce states them, and the reader's sentence is returned
+// once however many of the causes carry it.
+func statedAsFaults(lang wording.Lang, causes ...faultCause) (quoted, said string) {
+	quotes := make([]string, 0, len(causes))
+	for _, c := range causes {
+		q, s := pages.FaultOf(c.diagnostic, c.reason, lang)
+		quotes = append(quotes, q)
+		said = cmp.Or(said, s)
+	}
+	return statedOnce(quotes...), said
 }

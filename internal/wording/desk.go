@@ -75,7 +75,10 @@ var (
 		"這個資料夾有契約，但 yomihon 是在啟動時讀契約的，當時還沒有這一份。",
 		"This folder has a contract, but yomihon reads the contract when it starts, and this one was not there then.",
 	)
-	IndexContractUnloadedNext = both(
+	// RestartYomihon is the step that follows when yomihon has read the contract
+	// once, at start, and what it holds is no longer the file on disk: a
+	// contract that arrived afterwards, and one whose bytes changed.
+	RestartYomihon = both(
 		"請重新啟動 yomihon。",
 		"Restart yomihon.",
 	)

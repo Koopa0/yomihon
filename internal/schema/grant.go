@@ -23,8 +23,9 @@ const (
 
 // Reason names, in a value a caller can branch on, why a declaration could not
 // be honoured. Most rejections carry only an operator's sentence; the
-// vault-level one reaches an ordinary reader's page, which is written in a
-// language chosen per request rather than when the contract was loaded.
+// vault-level one and the contract-changed one reach an ordinary reader's page,
+// which is written in a language chosen per request rather than when the
+// contract was loaded.
 type Reason uint8
 
 const (
@@ -35,6 +36,12 @@ const (
 	// loaded. Cause carries the loader's own error, so a surface can name the
 	// fault in whichever language it is speaking.
 	ReasonContractUnreadable
+	// ReasonContractChanged is a declaration whose source bytes moved after
+	// yomihon read them. The latch holds until the process is started again,
+	// even if the bytes are put back, so the only thing a reader can do about it
+	// is restart. The diagnostic stays the operator's English line for the log
+	// and for check; a page speaking to a reader says it from the dictionary.
+	ReasonContractChanged
 )
 
 // String names a rejection reason for a diagnostic, a log line or a panic.
@@ -47,6 +54,8 @@ func (r Reason) String() string {
 		return "unstated"
 	case ReasonContractUnreadable:
 		return "contract-unreadable"
+	case ReasonContractChanged:
+		return "contract-changed"
 	default:
 		panic("schema: unknown Reason: " + strconv.Itoa(int(r)))
 	}
@@ -73,6 +82,13 @@ func Rejected(diagnostic string) Claim {
 }
 
 func heldClaim() Claim { return Claim{outcome: grantHeld} }
+
+// changedClaim is the outcome for a declaration whose contract source changed
+// after startup, wherever that is noticed. It carries the reason beside the
+// operator's sentence so a surface branches on the value and never on the words.
+func changedClaim(diagnostic string) Claim {
+	return Claim{outcome: grantUnresolved, reason: ReasonContractChanged, diagnostic: diagnostic}
+}
 
 // A capability asks a Claim one of two questions, and which one is the
 // capability's own polarity. Trustworthy asks whether a projection over the set

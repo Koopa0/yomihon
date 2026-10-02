@@ -36,7 +36,9 @@ templ Base(c Chrome) {
 			// the mark here, before the first style, lays the page out as it will
 			// stay. A browser with scripting off never runs this and keeps the
 			// unscripted layout.
-			<script nonce={ c.Nonce }>document.documentElement.dataset.js = 'on';</script>
+			<script nonce={ c.Nonce }>
+				document.documentElement.dataset.js = "on";
+			</script>
 			// Every page change is a whole new document, and a browser may paint
 			// the header and the rail before the column they frame has arrived,
 			// which reads as an empty column for a frame. This holds the first

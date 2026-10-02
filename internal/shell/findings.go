@@ -50,6 +50,11 @@ type Findings struct {
 	// LastComplete is when the folder was last read whole, zero when no whole
 	// read has happened since start-up.
 	LastComplete time.Time
+	// Collision is the two files whose names fold to one path, as the
+	// filesystem spells them, or nil. It says whether the findings are current
+	// rather than being one, so it is not in Total; the health page draws it
+	// above its table rather than as a row in it.
+	Collision []string
 }
 
 // StatusNote is one note carrying a status its own type never declared, named
@@ -65,7 +70,9 @@ type StatusNote struct {
 // health table counts its own rows: several citations out of one note fold into
 // that note's row and are tallied there, so the fold cancels and every list
 // contributes the things found in it rather than the lines they are drawn on.
-// A note the schema said nine things about counts nine.
+// A note the schema said nine things about counts nine. A collision is not
+// counted: it is not a row of the table, and the rail and the table are one
+// instrument that states the same number.
 func (f *Findings) Total() int {
 	total := len(f.Blocked) + len(f.Skipped) +
 		len(f.Unwritten) + len(f.TitleOnly) +
@@ -106,6 +113,7 @@ func GatherFindings(lifecycle status.Authority, snap *snapshot.Generation) Findi
 		SchemaFaults:          health.SchemaFaults,
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
 		LastComplete:          fresh.LastComplete,
+		Collision:             fresh.Collision,
 	}
 }
 

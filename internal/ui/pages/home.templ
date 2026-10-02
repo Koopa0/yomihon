@@ -26,16 +26,27 @@ type HomeView struct {
 	OpenThoughts      Shelf
 	OpenThoughtsFault string
 	Fault             string
+	// Restart and PrivacyRestart are the reader's sentence for the one cause
+	// the dictionary has words of its own for: the contract changed after
+	// yomihon read it. Each stands where the quotation beside it would, in
+	// place of it, so the contract's English line is not printed next to a
+	// sentence that already says the same thing in the reader's language.
+	Restart string
 	// PrivacyFault is why the contract's egress declaration could not be used.
 	// It is not folded into Fault, which explains an empty block: a refused
 	// egress declaration empties nothing here, only the judging commands, whose
 	// own output is written for a program to read.
-	PrivacyFault string
+	PrivacyFault   string
+	PrivacyRestart string
 	// Degraded states that the snapshot behind this page could not read
 	// everything, so the content may be incomplete or held at an older
 	// generation; DegradedDetail carries the blocked paths and their errors.
 	Degraded       string
 	DegradedDetail string
+	// Notices are the standing facts about the folder that no unreadable file
+	// explains, such as updates having stopped. They are drawn first among
+	// the faults, since each says whether the desk above is current.
+	Notices []FolderNotice
 	// Blocks are the four ways in, in the order a reader meets them.
 	Blocks        []DeskBlock
 	ReadmeMissing bool
@@ -109,20 +120,39 @@ templ Home(v HomeView, c layouts.Chrome) {
 				</div>
 				// Below the four ways in the page stops being about reading and
 				// starts being about the vault's own health.
-				if v.Fault != "" {
+				for i, notice := range v.Notices {
+					<section class="y-homeblock y-homeblock--faults" data-home-block="notice" aria-labelledby={ "home-notice-title-" + strconv.Itoa(i) }>
+						@nothingToShow(nothingNotice{Kind: "notice", Title: notice.Title, TitleID: "home-notice-title-" + strconv.Itoa(i), Fault: true}) {
+							<p>
+								@browserDiagnostic(notice.Summary, notice.Detail)
+							</p>
+						}
+					</section>
+				}
+				if v.Fault != "" || v.Restart != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
 						@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))
 						<p class="y-homeempty" data-home-fault>
-							@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
+							if v.Restart != "" {
+								@browserDiagnostic(v.Restart, "")
+							}
+							if v.Fault != "" {
+								@browserDiagnostic(wording.HomeFaultsBrowser.In(c.Lang), v.Fault)
+							}
 						</p>
 					</section>
 				}
-				if v.PrivacyFault != "" {
+				if v.PrivacyFault != "" || v.PrivacyRestart != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="privacy" aria-labelledby="home-privacy-title">
 						@nothingToShow(nothingNotice{Kind: "privacy", Title: wording.HomePrivacyTitle.In(c.Lang), TitleID: "home-privacy-title", Fault: true}) {
 							<p>{ wording.HomePrivacyLede.In(c.Lang) }</p>
 							<p>
-								@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
+								if v.PrivacyRestart != "" {
+									@browserDiagnostic(v.PrivacyRestart, "")
+								}
+								if v.PrivacyFault != "" {
+									@browserDiagnostic(wording.HomePrivacyBrowser.In(c.Lang), v.PrivacyFault)
+								}
 							</p>
 						}
 					</section>

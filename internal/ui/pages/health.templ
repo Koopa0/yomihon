@@ -30,6 +30,11 @@ type HealthView struct {
 	// Blocked are vault sources the latest snapshot build could not read, so
 	// the pages either lack them or hold their older captured content.
 	Blocked []HealthBlockedSource
+	// Notices are the standing facts about the folder that no unreadable file
+	// explains, such as updates having stopped. Each says whether everything
+	// below it is current, so they are drawn above the findings and never
+	// paged or sorted away with them.
+	Notices []FolderNotice
 	// Skipped are paths the generation saw and did not index: a symbolic
 	// link the scan passed over, or a note over the source bound. They are
 	// separate from Blocked: nothing went wrong reading them, and no later
@@ -142,7 +147,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 						}
 					} else {
 						<p class="y-healthlede">{ wording.HealthReportsOnly.In(c.Lang) }</p>
-						@healthUnknown(wording.HealthInstanceScopeUnknown.In(c.Lang), v.InstanceScopeUnknown)
+						@templ.Join(healthNotices(v.Notices), healthUnknown(wording.HealthInstanceScopeUnknown.In(c.Lang), v.InstanceScopeUnknown))
 						@healthUnknown(wording.HealthSchemaScopeUnknown.In(c.Lang), v.SchemaScopeUnknown)
 						@healthFindings(v, c)
 					}
@@ -289,6 +294,20 @@ templ healthGuide(v HealthView, tallies []healthTally, c layouts.Chrome) {
 			</dl>
 		</details>
 	}
+}
+
+// healthNotice states a standing fact about the folder that the findings below
+// it cannot carry: they are as of the last reading the pages could make, and
+// the notice says why that reading is not the folder as it is now. It is a
+// section above the table rather than a row in it, because a row can be
+// sorted onto another page and this has to be seen.
+templ healthNotice(n FolderNotice) {
+	<section class="y-healthsection y-healthsection--notice" data-health-notice>
+		<h2 class="y-healthsection__title">{ n.Title }</h2>
+		<p class="y-healthsection__lede">
+			@browserDiagnostic(n.Summary, n.Detail)
+		</p>
+	</section>
 }
 
 // healthUnknown states that a group of findings could not be worked out, and

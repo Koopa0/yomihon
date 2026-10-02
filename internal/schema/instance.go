@@ -150,7 +150,7 @@ func (p ArtifactPolicy) Claim() Claim {
 		return Claim{}
 	}
 	if p.state.stale.Load() {
-		return Rejected(staleArtifactDiagnostic)
+		return changedClaim(staleArtifactDiagnostic)
 	}
 	return p.state.claim
 }
