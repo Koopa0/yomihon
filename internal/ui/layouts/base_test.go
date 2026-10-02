@@ -472,3 +472,45 @@ func textSizeButton(html string) string {
 	end := strings.Index(html[at:], ">")
 	return html[start : at+end+1]
 }
+
+// TestHeaderMarksTheDestinationTheReaderIsOn holds the two header links to the
+// interface's own pages. On the page one of them leads to, that link says so,
+// in the one way a reader who listens is told it as well as one who looks; on
+// any other page neither link claims it, the reading choices included, whose
+// address carries the page that led there rather than its own.
+func TestHeaderMarksTheDestinationTheReaderIsOn(t *testing.T) {
+	t.Parallel()
+	health := `<a class="y-healthlinkbtn" href="/health"`
+	tests := []struct {
+		name        string
+		chrome      Chrome
+		wantHealth  bool
+		wantSetting bool
+	}{
+		{name: "the health page", chrome: Chrome{Path: "/health", ReturnTo: "/health"}, wantHealth: true},
+		{name: "the reading choices", chrome: Chrome{Path: "/preferences", ReturnTo: "/notes/a.md"}, wantSetting: true},
+		{name: "a note", chrome: Chrome{Path: "/notes/a.md", ReturnTo: "/notes/a.md"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := Base(tt.chrome).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render base: %v", err)
+			}
+			html := buf.String()
+			healthAt := strings.Index(html, health)
+			settingAt := strings.Index(html, `<a class="y-prefslink"`)
+			if healthAt < 0 || settingAt < 0 {
+				t.Fatalf("the header lost a destination: health@%d settings@%d", healthAt, settingAt)
+			}
+			tag := func(at int) string { return html[at : at+strings.Index(html[at:], ">")] }
+			if got := strings.Contains(tag(healthAt), `aria-current="page"`); got != tt.wantHealth {
+				t.Errorf("health link marked current = %v, want %v: %s", got, tt.wantHealth, tag(healthAt))
+			}
+			if got := strings.Contains(tag(settingAt), `aria-current="page"`); got != tt.wantSetting {
+				t.Errorf("settings link marked current = %v, want %v: %s", got, tt.wantSetting, tag(settingAt))
+			}
+		})
+	}
+}

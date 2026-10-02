@@ -253,6 +253,9 @@ try {
   }
 
   // --- the note's 筆記狀況 -------------------------------------------------
+  // Below the width where the right rail is drawn: from 1280 up the rail holds
+  // the panel and the folded copy is not drawn at all.
+  await page.setViewportSize({ width: 1024, height: 800 });
   await page.goto(BASE + NOTE_PAGE, { waitUntil: 'domcontentloaded' });
 
   // At this width the rail is gone and the panel is a closed disclosure, which

@@ -41,6 +41,20 @@ const SHAPES = [
 
 const STRIP = 40;
 
+// The column's open widths: every shell's at the width where all three columns
+// stand, and the note shell's below it, where it gives up the right rail and
+// narrows to leave the text its room.
+const OPEN = 272;
+const NOTE_OPEN_NARROW = 248;
+const THREE_COLUMNS = 1280;
+
+// The reading measure of a note that declares no language, and a window in the
+// band where the column is open beside text narrower than that measure. From
+// the width where all three columns stand, the text is already at its measure
+// with the column shown, so folding the column there has nothing to give back.
+const MEASURE = 646;
+const FOLD_WIDTH = 940;
+
 const SITES = [
   'text-returns-to-the-measure',
   'choice-survives-a-reload',
@@ -295,7 +309,7 @@ const MUTATIONS = {
     target: 'no-script-draws-no-control',
     apply: rewriteDocument('<div class="y-railhead" hidden>', '<div class="y-railhead">'),
   },
-  // The 248px rail of the note shell reaching the shells that were 264px.
+  // The note shell's narrow rail reaching the shells that keep the wide one.
   'give-the-study-shell-the-narrow-rail': {
     target: 'every-shell-keeps-its-open-width',
     apply: injectStyle('.y-shell2{--rail-open:248px!important}', '.y-shell2'),
@@ -463,21 +477,21 @@ const run = async (site, work) => {
 
 try {
   await run('text-returns-to-the-measure', async () => {
-    const { page, context, checkProof } = await open('text-returns-to-the-measure', PAGE);
+    const { page, context, checkProof } = await open('text-returns-to-the-measure', PAGE, { width: FOLD_WIDTH });
     await checkProof();
     const before = await geometry(page);
-    if (!before.prose || before.prose.width >= 640) broken(`the fixture page's text is ${before.prose?.width}px wide with the column shown, so collapsing it could not widen the text`);
-    if (Math.round(before.rail.width) !== 264) broken(`the column is ${before.rail.width}px at 1281, want 264`);
+    if (!before.prose || before.prose.width >= MEASURE) broken(`the fixture page's text is ${before.prose?.width}px wide with the column shown at ${FOLD_WIDTH}, so collapsing it could not widen the text`);
+    if (Math.round(before.rail.width) !== NOTE_OPEN_NARROW) broken(`the column is ${before.rail.width}px at ${FOLD_WIDTH}, want ${NOTE_OPEN_NARROW}`);
     await key(page, '[');
     await settled(page);
     const after = await geometry(page);
-    if (Math.round(after.prose.width) !== 640) fail('text-returns-to-the-measure', `collapsing left the text ${after.prose.width}px wide, want 640`);
+    if (Math.round(after.prose.width) !== MEASURE) fail('text-returns-to-the-measure', `collapsing left the text ${after.prose.width}px wide, want ${MEASURE}`);
     if (Math.round(after.rail.width) !== STRIP) fail('text-returns-to-the-measure', `the folded column is ${after.rail.width}px wide, want the ${STRIP}px strip`);
     await key(page, '[');
     await settled(page);
     const back = await geometry(page);
-    if (Math.round(back.rail.width) !== 264 || Math.round(back.prose.width) !== Math.round(before.prose.width)) {
-      fail('text-returns-to-the-measure', `expanding again left the column ${back.rail.width}px and the text ${back.prose.width}px, want 264 and ${before.prose.width}`);
+    if (Math.round(back.rail.width) !== NOTE_OPEN_NARROW || Math.round(back.prose.width) !== Math.round(before.prose.width)) {
+      fail('text-returns-to-the-measure', `expanding again left the column ${back.rail.width}px and the text ${back.prose.width}px, want ${NOTE_OPEN_NARROW} and ${before.prose.width}`);
     }
     await context.close();
   });
@@ -498,8 +512,8 @@ try {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('html[data-js]');
     const reopened = await geometry(page);
-    if (reopened.state !== 'open' || Math.round(reopened.rail.width) !== 264) {
-      fail('choice-survives-a-reload', `after expanding and reloading the column is ${reopened.rail.width}px with rail=${reopened.state}, want 264 and open`);
+    if (reopened.state !== 'open' || Math.round(reopened.rail.width) !== OPEN) {
+      fail('choice-survives-a-reload', `after expanding and reloading the column is ${reopened.rail.width}px with rail=${reopened.state}, want ${OPEN} and open`);
     }
     await context.close();
   });
@@ -805,6 +819,13 @@ try {
   // the paragraph they are reading where it was. The page is lengthened by
   // repeating its own prose, since no fixture note is long enough to scroll to
   // the middle of.
+  //
+  // The paragraph read is one from the middle of the page, brought to the top
+  // edge of the window. Anchoring holds still the first thing the browser can
+  // see, so a block left straddling that edge would be held instead, and its
+  // own reflow would move the paragraph under it by a line whichever way the
+  // fold went: an outcome of where the window happened to stop, which a change
+  // to any block's height anywhere in the fixture could turn either way.
   await run('reading-position-survives', async () => {
     for (const width of [901, 1000, 1024]) {
       const { page, context, checkProof } = await open('reading-position-survives', '/notes/Notes/reading-fidelity.md', { width });
@@ -813,14 +834,12 @@ try {
         const prose = document.querySelector('.y-prose');
         const kids = [...prose.children];
         for (let i = 0; i < 30; i += 1) for (const kid of kids) prose.append(kid.cloneNode(true));
-        window.scrollTo(0, document.documentElement.scrollHeight / 2);
+        const paragraphs = [...prose.querySelectorAll(':scope > p')];
+        window.__reading = paragraphs[Math.floor(paragraphs.length / 2)];
+        window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY);
       });
       await page.waitForTimeout(150);
-      const before = await page.evaluate(() => {
-        const paragraph = [...document.querySelectorAll('.y-prose > p')].find((p) => p.getBoundingClientRect().bottom > 120);
-        window.__reading = paragraph;
-        return { top: paragraph.getBoundingClientRect().top, width: paragraph.getBoundingClientRect().width };
-      });
+      const before = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
       await key(page, '[');
       await settled(page);
       const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
@@ -829,7 +848,7 @@ try {
       // case, or the assertion below would pass for lack of anything to move. The
       // widths above it are asked whichever way they fall, because the measure's
       // edge sits within a few pixels of one of them and moves with the platform.
-      if (width === 901 && !(before.width < 640 && after.width > before.width)) {
+      if (width === 901 && !(before.width < MEASURE && after.width > before.width)) {
         broken(`at 901px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
       }
       if (Math.abs(after.top - before.top) > 2) {
@@ -850,8 +869,11 @@ try {
       await page.locator(TOGGLE).click();
       await settled(page);
       const after = await geometry(page);
-      if (Math.round(after.rail.width) !== STRIP || Math.round(after.main.left) !== STRIP || after.body.display !== 'none') {
-        fail('every-rail-page-folds', `${shape} (${path}) folded to rail ${after.rail.width}px, main from ${after.main.left}px, panel ${after.body.display}; want the strip, main at ${STRIP}, no panel`);
+      // Measured from the column's own edge: past the width the arrangement
+      // stops growing, it stands centred in the window, half a pixel in at 1281.
+      const mainFromRail = after.main.left - after.rail.left;
+      if (Math.round(after.rail.width) !== STRIP || Math.round(mainFromRail) !== STRIP || after.body.display !== 'none') {
+        fail('every-rail-page-folds', `${shape} (${path}) folded to rail ${after.rail.width}px, main ${mainFromRail}px from the column's edge, panel ${after.body.display}; want the strip, main ${STRIP}px in, no panel`);
       }
       await context.close();
     }
@@ -862,7 +884,14 @@ try {
     // document alone.
     const context = await browser.newContext({ viewport: { width: 1281, height: 800 } });
     const page = await context.newPage();
-    await page.route('**/yomihon.js', (route) => route.abort());
+    // Whether the runtime ran is told by its request having been refused. The
+    // root's script mark cannot tell it any more: the document sets that mark
+    // itself, before the first style, so it is there either way.
+    let held = false;
+    await page.route('**/yomihon.js', (route) => {
+      held = true;
+      return route.abort();
+    });
     const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
     const proof = mutation && mutation.target === 'control-revealed-before-runtime' ? await mutation.apply(page) : null;
     await page.goto(BASE + PAGE, { waitUntil: 'load' });
@@ -870,7 +899,7 @@ try {
       const issue = await proof();
       if (issue) notApplied(`${MUTATE}: ${issue}`);
     }
-    if (await page.evaluate(() => 'js' in document.documentElement.dataset)) broken('the runtime ran');
+    if (!held) broken('the runtime was never requested, so nothing shows it was held back');
     const shown = await page.locator(ROW).evaluate((row) => getComputedStyle(row).display !== 'none' && row.getClientRects().length > 0);
     if (!shown) fail('control-revealed-before-runtime', 'before the runtime has run the control is not drawn, so it would appear after the first paint');
     await context.close();
@@ -901,10 +930,10 @@ try {
   });
 
   // The open width of every shell is what it was before the fold existed: the
-  // note shell narrows to 248px at 1280 and below, and the study-path and
-  // shared-sidebar shells stay 264px at every width.
+  // note shell narrows below the width where all three columns stand, and the
+  // study-path and shared-sidebar shells keep the wide column at every width.
   await run('every-shell-keeps-its-open-width', async () => {
-    for (const width of [901, 1024, 1280, 1281]) {
+    for (const width of [901, 1024, THREE_COLUMNS - 1, THREE_COLUMNS, 1281]) {
       for (const [shape, path] of SHAPES) {
         const { page, context, checkProof } = await open('every-shell-keeps-its-open-width', path, { width });
         if (shape === 'study path' && width === 901) await checkProof();
@@ -912,7 +941,7 @@ try {
           const shell = document.querySelector('.y-shell, .y-shell2');
           return { note: shell.classList.contains('y-shell'), rail: document.querySelector('#nav-rail').getBoundingClientRect().width };
         });
-        const want = facts.note && width <= 1280 ? 248 : 264;
+        const want = facts.note && width < THREE_COLUMNS ? NOTE_OPEN_NARROW : OPEN;
         if (Math.round(facts.rail) !== want) {
           fail('every-shell-keeps-its-open-width', `${shape} (${path}) at ${width}px has an open rail ${facts.rail}px wide, want ${want}`);
         }

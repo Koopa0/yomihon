@@ -214,6 +214,7 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 		<div class="y-prose">
 			@templ.Raw(v.BodyHTML)
 		</div>
+		@relatedAids(v, lang)
 		@sequenceSteps(v, lang)
 		{ children... }
 	</article>
@@ -564,58 +565,100 @@ templ thoughtSectionLink(v NoteView, h render.TOCEntry, lang wording.Lang) {
 }
 
 // inlineAids keeps the reading aids reachable at widths where the right rail is
-// hidden. Wide viewports hide this block and show the rail instead.
+// hidden, as one closed row between the head and the first sentence. A stack of
+// four folds there pushed the prose a screen's third down on every note that had
+// them. The summary names every aid the page carries, with the length of each
+// list, and opening it gives the ones a reader reaches for before reading — the
+// contents, what is wrong with the note, the sources it declared and the notes
+// declared on it — and a way down to the two that wait at the end of the text.
+// Wide viewports hide this block and show the rail instead.
 templ inlineAids(v NoteView, lang wording.Lang) {
-	if v.hasAids() {
+	if v.inlineAidsShown() {
 		<div class="y-inlineaids" lang={ lang.Tag() }>
-			// The offer is one link, so it stands open rather than folding a
-			// disclosure over a single line.
-			@pairOffer(v, lang)
-			if len(v.TOC) > 0 {
-				<details class="y-toc-inline">
-					<summary class="y-toc-inline__summary">
-						@chevron()
-						{ wording.OnThisPage.In(lang) }
-					</summary>
-					@tocList(v, lang)
-				</details>
-			}
-			// This block sits between the title and the first sentence, so it
-			// folds like the contents above it and states only its count.
-			if v.diagCount() > 0 {
-				<details class="y-toc-inline">
-					<summary class="y-toc-inline__summary">
-						@chevron()
-						{ wording.NoteHealth.In(lang) }
-						<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
-					</summary>
-					@diagnostics(v, lang)
-				</details>
-			}
-			if len(v.BasedOn) > 0 {
-				<details class="y-toc-inline">
-					<summary class="y-toc-inline__summary">
-						@chevron()
-						{ wording.BasedOn.In(lang) }
-						<span class="ui-navitem__count">{ strconv.Itoa(len(v.BasedOn)) }</span>
-					</summary>
-					@basedOnBlock(v, lang)
-				</details>
-			}
-			@inlineDeclaredBy(v, lang)
-			// A fact about the library rather than a decoration the narrow
-			// layout can drop, so it folds like the two above it.
-			if v.citedByShown() {
-				<details class="y-toc-inline">
-					<summary class="y-toc-inline__summary">
-						@chevron()
-						{ wording.CitedBy.In(lang) }
-						if len(v.CitedBy) > 0 {
-							<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
+			<details class="y-toc-inline">
+				<summary class="y-toc-inline__summary">
+					@chevron()
+					<span class="y-toc-inline__parts">
+						if len(v.TOC) > 0 {
+							<span class="y-toc-inline__part">{ wording.OnThisPage.In(lang) }</span>
 						}
-					</summary>
+						if v.diagCount() > 0 {
+							<span class="y-toc-inline__part">
+								{ wording.NoteHealth.In(lang) }
+								<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
+							</span>
+						}
+						if len(v.BasedOn) > 0 {
+							<span class="y-toc-inline__part">
+								{ wording.BasedOn.In(lang) }
+								<span class="ui-navitem__count">{ strconv.Itoa(len(v.BasedOn)) }</span>
+							</span>
+						}
+						if len(v.DeclaredBy) > 0 {
+							<span class="y-toc-inline__part">
+								{ wording.DeclaredBy.In(lang) }
+								<span class="ui-navitem__count">{ strconv.Itoa(len(v.DeclaredBy)) }</span>
+							</span>
+						}
+						if v.Pair.RelPath != "" {
+							<span class="y-toc-inline__part">
+								{ wording.CompareOffer.In(lang) }
+								<span class="ui-navitem__count">1</span>
+							</span>
+						}
+						if v.citedByShown() {
+							<span class="y-toc-inline__part">
+								{ wording.CitedBy.In(lang) }
+								<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
+							</span>
+						}
+					</span>
+				</summary>
+				<div class="y-toc-inline__body">
+					// The summary opens on the contents' own name, so the list
+					// follows it without saying the name a second time.
+					if len(v.TOC) > 0 {
+						<nav aria-label={ wording.OnThisPage.In(lang) }>
+							@tocList(v, lang)
+						</nav>
+					}
+					@diagnostics(v, lang)
+					@basedOn(v, lang)
+					@declaredByBlock(v, lang)
+					if v.relatedShown() {
+						<p class="y-toc-inline__jump">
+							if v.Pair.RelPath != "" {
+								<a href={ templ.URL("#" + v.relatedPairID()) }>{ wording.CompareOffer.In(lang) } <span aria-hidden="true">↓</span></a>
+							}
+							if v.citedByShown() {
+								<a href={ templ.URL("#" + v.relatedCitedID()) }>{ wording.CitedBy.In(lang) } <span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span> <span aria-hidden="true">↓</span></a>
+							}
+						</p>
+					}
+				</div>
+			</details>
+		</div>
+	}
+}
+
+// relatedAids closes the article, at widths where the right rail is hidden,
+// with the notes that stand beside this one: the note to read beside it and the
+// notes whose text links here. They are what a reader who has finished looks
+// for next, so they wait at the end of the text rather than between the title
+// and the first sentence, and the folded row above the prose names them and
+// leads down to them.
+templ relatedAids(v NoteView, lang wording.Lang) {
+	if v.relatedShown() {
+		<div class="y-related" lang={ lang.Tag() }>
+			if v.Pair.RelPath != "" {
+				<div id={ v.relatedPairID() } class="y-related__block">
+					@pairOffer(v, lang)
+				</div>
+			}
+			if v.citedByShown() {
+				<div id={ v.relatedCitedID() } class="y-related__block">
 					@citedByBlock(v, lang)
-				</details>
+				</div>
 			}
 		</div>
 	}
@@ -813,7 +856,7 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 						<p class="y-diag__body">
 							{ renderDiagnosticSummary(d.Kind, lang) }
 							if d.Target != "" {
-								<code>{ diagnosticAddress(&d) }</code>
+								<code class="y-diag__target">{ diagnosticAddress(&d) }</code>
 							}
 							if d.Message != "" {
 								<code lang="en">{ d.Message }</code>
