@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -127,7 +126,7 @@ func validateUncertainty(kept *Uncertainty) error {
 	switch {
 	case kept == nil:
 		return fmt.Errorf("%w: no uncertainty mark", ErrInvalid)
-	case !utf8.ValidString(kept.RelPath) || !utf8.ValidString(kept.Anchor):
+	case !utf8.ValidString(kept.RelPath):
 		return fmt.Errorf("%w: the path or anchor is not valid UTF-8", ErrInvalid)
 	case kept.RelPath == "" || len(kept.RelPath) > maxRelPathBytes:
 		return fmt.Errorf("%w: the note path is empty or too long", ErrInvalid)
@@ -135,9 +134,11 @@ func validateUncertainty(kept *Uncertainty) error {
 		return fmt.Errorf("%w: the note path is not vault-relative", ErrInvalid)
 	case kept.RelPath != vault.NormalizeNFC(kept.RelPath):
 		return fmt.Errorf("%w: the note path is not written in NFC", ErrInvalid)
-	case len(kept.Anchor) > maxAnchorBytes || strings.ContainsFunc(kept.Anchor, isNotAnchorRune):
-		return fmt.Errorf("%w: the anchor is not a document id", ErrInvalid)
-	case kept.At.IsZero():
+	}
+	if err := ValidateAnchor(kept.Anchor); err != nil {
+		return err
+	}
+	if kept.At.IsZero() {
 		return fmt.Errorf("%w: the mark has no time", ErrInvalid)
 	}
 	return nil
