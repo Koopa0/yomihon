@@ -92,23 +92,33 @@ func (b calloutBucket) String() string {
 	}
 }
 
-// calloutIcon is a small, dependency-free (no icon font, no SVG asset)
-// glyph per bucket. A type this renderer does not recognize never reaches here
-// — it is turned back into a plain blockquote before a look is chosen — so
-// bucketUnknown shares the note glyph for the caller that stops recognizing
-// that, and a bucket nobody wrote a look for stops rather than quietly
-// borrowing one.
+// calloutIcon is the mark a bucket's title row opens with: a line drawing at
+// the size and stroke of the interface's own icons, written inline so it needs
+// no icon font and no asset of its own, and drawn in the title's colour. A text
+// glyph took whatever shape and weight the reader's fonts gave it, which set an
+// emoji beside one title and a hairline beside the next. A type this renderer
+// does not recognize never reaches here — it is turned back into a plain
+// blockquote before a look is chosen — so bucketUnknown shares the note's mark
+// for the caller that stops recognizing that, and a bucket nobody wrote a look
+// for stops rather than quietly borrowing one.
 func calloutIcon(bucket calloutBucket) string {
 	switch bucket {
 	case bucketWarning:
-		return "⚠"
+		return calloutSVG(`<path d="M12 3.5 2.5 20h19z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path>`)
 	case bucketQuote:
-		return "❝"
+		return calloutSVG(`<path d="M6 17v-3.5C6 10 7.5 8 10 7"></path><path d="M6 13.5h3.5V17H6"></path><path d="M14 17v-3.5c0-3.5 1.5-5.5 4-6.5"></path><path d="M14 13.5h3.5V17H14"></path>`)
 	case bucketNote, bucketUnknown:
-		return "ℹ"
+		return calloutSVG(`<circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path>`)
 	default:
 		panic("render: unknown calloutBucket: " + bucket.String())
 	}
+}
+
+// calloutSVG wraps one mark's strokes in the frame every callout mark shares.
+// It is hidden from assistive technology because the title beside it already
+// says what kind of callout this is.
+func calloutSVG(strokes string) string {
+	return `<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">` + strokes + `</svg>`
 }
 
 // calloutClass is the bucket's class-name suffix, paired with calloutIcon so
@@ -143,8 +153,7 @@ func calloutShell(bucket calloutBucket, defaultTitle, fold, title string) (open,
 		title = defaultTitle
 	}
 	bucketClass := calloutClass(bucket)
-	header := fmt.Sprintf(`<span class="callout-icon" aria-hidden="true">%s</span>%s`,
-		calloutIcon(bucket), html.EscapeString(title))
+	header := calloutIcon(bucket) + html.EscapeString(title)
 
 	if fold == "-" || fold == "+" {
 		openAttr := ""

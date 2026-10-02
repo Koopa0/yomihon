@@ -745,6 +745,18 @@ samp {
   .y-rubybtn__label--short {
     display: inline;
   }
+
+  /* Down to its glyph the search entrance is one icon among the row's icons,
+     and is drawn as they are: no frame at rest, the wash under a pointer. Only
+     its paint changes, so the row it stands in keeps its measured width. */
+  .y-searchbtn {
+    box-shadow: none;
+  }
+
+  .y-searchbtn:hover {
+    background: var(--wash);
+    box-shadow: none;
+  }
 }
 
 .y-ico-moon {
@@ -1831,7 +1843,7 @@ details.y-metarow {
 }
 
 .y-prose img {
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   height: auto;
   max-width: 100%;
 }
@@ -2014,7 +2026,19 @@ details.y-metarow {
   border-bottom: 1px solid var(--line-faint);
   color: var(--fg-muted);
   font-family: var(--font-serif);
+  font-size: var(--fs-15);
   padding: 10px 14px;
+}
+
+/* A table stands on the text's own edges: its first column starts where a
+   paragraph does and its last ends where one ends, so it does not read as a
+   box set a little inside the column. */
+.y-prose :is(th, td):first-child {
+  padding-inline-start: 0;
+}
+
+.y-prose :is(th, td):last-child {
+  padding-inline-end: 0;
 }
 
 .y-prose tr:last-child td {
@@ -2261,7 +2285,23 @@ button.y-freshness__action {
 }
 
 .y-prose .callout-icon {
-  font-style: normal;
+  flex: none;
+  height: 16px;
+  width: 16px;
+}
+
+/* A folded callout is one line, its title, so it is given the room of one: a
+   closed fold kept the open callout's padding and stood as a slab around a
+   single row. */
+/* stylelint-disable-next-line selector-no-qualifying-type -- a callout renders
+   as either a details or a div; only the details can be closed. */
+.y-prose details.callout:not([open]) {
+  padding: 12px 16px;
+}
+
+/* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
+.y-prose details.callout:not([open]) > .callout-title {
+  margin-bottom: 0;
 }
 
 .y-prose .callout-body {
@@ -2656,12 +2696,15 @@ button.y-freshness__action {
   flex-basis: 100%;
 }
 
+/* Open, the confirmation takes its row, and its summary stays the size of the
+   control a reader pressed rather than stretching across the row with it. */
 .y-statusconfirm__summary {
   align-items: center;
   display: flex;
   justify-content: center;
   list-style: none;
   user-select: none;
+  width: fit-content;
 }
 
 .y-statusconfirm__summary::marker {
@@ -2740,17 +2783,25 @@ button.y-freshness__action {
   width: 13px;
 }
 
+/* The card says what is wrong in the interface's face, small; only the address
+   a link was written to is set in the machine face, because that is the part a
+   reader copies to find the link in the note. */
 .y-diag__body {
   color: var(--fg-muted);
-  font-size: var(--fs-13);
-  line-height: 1.55;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  line-height: 1.125rem;
   margin: 0;
 }
 
 .y-diag__body code {
   color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: inherit;
+}
+
+.y-diag__body .y-diag__target {
   font-family: var(--font-mono);
-  font-size: var(--fs-12);
 }
 /* how a link naming a section was read, stated under the diagnostic it
    belongs to. It is a second paragraph rather than more of the first because
@@ -2758,8 +2809,9 @@ button.y-freshness__action {
    reader scanning for one should not have to read past the other. */
 .y-diag__split {
   color: var(--fg-muted);
-  font-size: var(--fs-13);
-  line-height: 1.55;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  line-height: 1.125rem;
   margin: 7px 0 0;
 }
 
@@ -2991,9 +3043,12 @@ button.y-freshness__action {
    the arrow keys all stand on the same faint wash, so the three ways of
    pointing at a hit look like one. */
 .y-searchdialog .y-result {
-  border-bottom: 0;
-  border-radius: var(--r-md);
+  margin-inline: 0;
   padding: 12px;
+}
+
+.y-searchdialog .y-result::after {
+  content: none;
 }
 
 .y-searchdialog .y-result:hover,
@@ -3044,13 +3099,6 @@ button.y-freshness__action {
   margin-bottom: 24px;
 }
 
-/* An answer that is nothing starts where the answers would have, under the
-   field, rather than centred on a column the divisions beside it have made
-   narrower than the field. */
-.y-searchpage .y-nothing {
-  margin-inline: 0;
-  text-align: start;
-}
 
 /* The divisions beside the results. The page's own column is a reading
    measure, so the answer and what it is made of are laid out as a pair rather
@@ -3086,9 +3134,9 @@ button.y-freshness__action {
 }
 
 .y-facetgroup__head {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
   font-weight: var(--fw-medium);
   margin: 0 0 4px;
 }
@@ -3281,17 +3329,29 @@ a.y-facetrow:hover {
   margin: 20px 0 0;
 }
 
+/* A hit's words start under the field's own edge, and the wash a pointer
+   brings reaches past it, as a shelf row's does; the hairline between hits
+   stays on the words' edge. */
 .y-result {
-  border-bottom: 1px solid var(--border-faint);
+  border-radius: var(--r-md);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 16px 4px;
+  margin-inline: -12px;
+  padding: 16px 12px;
+  position: relative;
 }
-/* No surface under a pointer — a hit is a line in a list, not a card that
-   lifts. The title answers instead, which is what a shelf row's title does. */
-.y-result:hover .y-result__title {
-  color: var(--link);
+
+.y-result::after {
+  border-bottom: 1px solid var(--border-faint);
+  bottom: 0;
+  content: '';
+  inset-inline: 12px;
+  position: absolute;
+}
+
+.y-result:hover {
+  background: var(--wash);
 }
 
 .y-result__title {
@@ -3355,12 +3415,13 @@ a.y-facetrow:hover {
 /* The reading is what a learner is here to read, so it is not allowed to be
    both the smallest and the faintest thing on the page. It takes the ink the
    prose beside it takes — a reading fainter than the word it explains asks the
-   reader to work hardest on the part they know least — and it is set in em, so
+   reader to work hardest on the part they know least — and the face the word
+   under it is set in, so the two read as one line of type. It is set in em, so
    it grows with the reader's own type choice instead of needing a rule per
    step. */
 .yomihon rt {
   color: var(--fg-muted);
-  font-family: var(--font-sans);
+  font-family: var(--font-read);
   font-size: 0.55em;
   font-weight: 400;
   user-select: none;
@@ -3929,12 +3990,6 @@ a.y-facetrow:hover {
   margin-bottom: 26px;
 }
 
-.y-home__kicker {
-  color: var(--fg-faint);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-}
-
 .y-home__head .y-title {
   margin-top: 10px;
 }
@@ -4243,15 +4298,23 @@ a.y-facetrow:hover {
   flex: 1;
 }
 
+/* The way back to the desk is a line a reader can hit: its own words at the
+   size of the links around it, a target as tall as a button, and the wash a
+   pointer brings reaching past the words rather than moving them. */
 .y-back {
-  color: var(--fg-faint);
-  display: inline-block;
+  align-items: center;
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  display: inline-flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  margin-top: 16px;
+  font-size: var(--fs-14);
+  margin: 16px -10px 0;
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .y-back:hover {
+  background: var(--wash);
   color: var(--fg);
 }
 
@@ -4259,20 +4322,30 @@ a.y-facetrow:hover {
   border-top: 1px solid var(--border);
 }
 
+/* A row's words start on the list's own edge, under the heading above it, and
+   the wash a pointer brings reaches past that edge rather than pushing the
+   words in to make room for itself. The hairline between rows stays on the
+   words' edge, so it is drawn inside the row rather than as its border. */
 .y-row {
   align-items: baseline;
-  border-bottom: 1px solid var(--border-faint);
+  border-radius: var(--r-md);
   display: flex;
   gap: 18px;
-  padding: 14px 4px;
+  margin-inline: -12px;
+  padding: 14px 12px;
+  position: relative;
+}
+
+.y-row::after {
+  border-bottom: 1px solid var(--border-faint);
+  bottom: 0;
+  content: '';
+  inset-inline: 12px;
+  position: absolute;
 }
 
 .y-row:hover {
-  background: var(--overlay);
-}
-
-.y-row:hover .y-row__title {
-  color: var(--link);
+  background: var(--wash);
 }
 
 .y-row__title {
@@ -4619,25 +4692,13 @@ a.y-facetrow:hover {
 
    The page for an address that names nothing opens with the shared notice, and
    what follows it — the address the reader typed, the step after, the ways out
-   — is the same column continued. Left where it was, it would have hung off the
-   side of a centred notice as if it belonged to a different page. The typed
-   address keeps its own alignment: a path is read from its first character. */
-.y-recovery:has(> .y-nothing) {
-  text-align: center;
-}
-
-.y-recovery:has(> .y-nothing) .y-recovery__detail,
-.y-recovery:has(> .y-nothing) .y-recovery__next {
-  margin-inline: auto;
-  max-width: var(--notice-column);
-}
-
+   — is the same column continued, on the same left edge. The address is one
+   line of the page in the machine face, quiet, rather than a box: it is the
+   thing the reader typed, read back, not a block of output to study. */
 .y-recovery:has(> .y-nothing) .y-recovery__detail pre {
-  text-align: left;
-}
-
-.y-recovery:has(> .y-nothing) .y-recovery__actions {
-  justify-content: center;
+  background: none;
+  border: 0;
+  padding: 0;
 }
 
 .y-recovery__kicker {
@@ -4749,12 +4810,13 @@ a.y-facetrow:hover {
 /* One notice for every surface that has nothing to show: a search that matched
    no note, an address that names none, a folder with no fault left to report, a
    shelf no declaration has filled, and the desk's notices about a reading that
-   came up short. It is one centred column at a reading measure, so the same
-   kind of news reads as the same thing wherever a reader meets it. Centring is
-   the measure plus auto inline margins, which holds at any width the window
-   takes; a fixed side margin would only be centred at one of them. The desk's
-   fault sections are the one place it gives up the column: they stand in a
-   panel at the page's width and are set out below with the rest of the desk.
+   came up short. It is one column at a reading measure, so the same
+   kind of news reads as the same thing wherever a reader meets it. It starts
+   where the page's own title and words start, on the column's left edge,
+   rather than centred in a column that a rail or a set of divisions beside it
+   has made narrower than the page. The desk's fault sections are the one place
+   it gives up the column: they stand in a panel at the page's width and are
+   set out below with the rest of the desk.
 
    An absence stays quiet — the page's own ink, one step down. A fault says so
    in the warning colour and on a warning tint, which is the whole visual
@@ -4765,13 +4827,13 @@ a.y-facetrow:hover {
   font-family: var(--font-serif);
   font-size: var(--fs-14);
   line-height: var(--lh-read);
-  margin: 24px auto 0;
+  margin: 24px 0 0;
   max-width: var(--notice-column);
   /* A vault path, a filter key, or a diagnostic from the operating system is
      one long run with nowhere to break, and at phone width it would otherwise
      carry the whole column off the side of the screen. */
   overflow-wrap: anywhere;
-  text-align: center;
+  text-align: start;
 }
 
 /* The word that stands where an icon would: the chrome draws none that means
@@ -4877,7 +4939,7 @@ a.y-facetrow:hover {
 /* The palette is a floating box rather than a page, and the notice sits inside
    its own padding. */
 .y-searchdialog .y-nothing {
-  margin: 18px auto 8px;
+  margin: 18px 12px 8px;
 }
 
 .y-syl-kicker {
@@ -5987,6 +6049,8 @@ samp,
     --warn-bg: transparent;
     --gold: #000;
     --gold-ink: #000;
+    --error: #000;
+    --error-bg: transparent;
     --sage: #000;
     --sage-bg: transparent;
     --success: #000;
@@ -6396,6 +6460,20 @@ samp,
   padding-right: 0;
   text-align: right;
 }
+
+/* The count column is read down its right edge, so its heading ends there too:
+   the arrow that offers another order stands before the word rather than
+   after it, and the word sits flush over the figures. */
+.y-findings__head--count .y-findings__sort {
+  align-items: baseline;
+  display: inline-flex;
+  flex-direction: row-reverse;
+  gap: 5px;
+}
+
+.y-findings__head--count .y-findings__sort::after {
+  margin-left: 0;
+}
 /* Every heading is a link that asks the server for the same table in another
    order, so the mark that says so belongs on all of them; the one the table is
    actually in carries the reader's own ink. */
@@ -6432,6 +6510,12 @@ samp,
   border-top: 1px solid var(--border-faint);
   padding: 11px 12px 11px 0;
   vertical-align: baseline;
+}
+
+/* The last column is the count, read down the table's right edge; its figures
+   end there, under the end of their heading, rather than a gutter short of it. */
+.y-findings tbody td:last-child {
+  padding-right: 0;
 }
 
 .y-findings__path {
@@ -6472,8 +6556,8 @@ samp,
    one colour at a glance. On screen they are pulled further apart by two more
    channels: the marker's shape — squared for error, the same value
    ui-status--ready uses for its heavier state, round for warn — and error's
-   ink, drawn from the correction tokens (訂正) rather than the warning ones,
-   never the same colour. Red stays ready's alone. The border is what a
+   ink, a hue of its own rather than a darker warning, never the same colour.
+   Red stays ready's alone. The border is what a
    printed page keeps no matter how a reader's printer treats background
    colour: the marker's dot is a background fill, and a printer that drops
    background graphics drops it with it. */
@@ -6502,9 +6586,9 @@ samp,
 }
 
 .y-severity--error {
-  background: color-mix(in oklch, var(--gold) 18%, transparent);
-  border-color: var(--gold);
-  color: var(--gold-ink);
+  background: var(--error-bg);
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .y-severity--error::before {
@@ -6532,12 +6616,12 @@ samp,
 
 .y-findingsguide__head {
   align-items: center;
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  gap: 8px;
+  font-size: var(--fs-14);
+  gap: 7px;
 }
 
 .y-findingsguide__head:hover {
@@ -7056,11 +7140,12 @@ samp,
   text-decoration: underline;
 }
 
-.y-foldercount {
+/* An index says how much it holds once, as a quiet fact under its title. */
+.y-home__head > .y-indexcount {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  margin: 18px 0 0;
+  font-size: var(--fs-14);
+  margin: 8px 0 0;
 }
 
 /* Footnotes already close the piece with a hairline of their own, so the way
@@ -7090,7 +7175,7 @@ samp,
   color: var(--fg-subtle);
   flex: 0 0 100%;
   font-family: var(--font-sans);
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   margin: 0;
   overflow-wrap: anywhere;
 }

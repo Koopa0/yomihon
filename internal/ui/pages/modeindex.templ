@@ -14,7 +14,7 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
 			<div class="y-home">
-				@indexHead(v.Kicker, v.Shelf.Title, v.Shelf.Lede, c.Lang)
+				@indexHead(v.Count, v.Shelf.Title, v.Shelf.Lede, c.Lang)
 				if v.Notice != "" {
 					@nothingToShow(nothingNotice{Kind: v.Mode, Fault: true}) {
 						<p>{ v.Notice }</p>
@@ -109,16 +109,16 @@ templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Ch
 	}
 }
 
-// indexHead is the head every mode index carries: how much of the mode there
-// is, the mode's name, and — when the listing needs one — the sentence saying
-// what a reader is looking at. A withheld page has no count to print, and an
-// empty kicker is not written.
-templ indexHead(kicker, title, lede string, lang wording.Lang) {
+// indexHead is the head every mode index carries: the mode's name, how much of
+// it there is as one quiet fact under the name, and — when the listing needs
+// one — the sentence saying what a reader is looking at. A withheld page has no
+// count to print, and an empty count is not written.
+templ indexHead(count, title, lede string, lang wording.Lang) {
 	<header class="y-home__head">
-		if kicker != "" {
-			<div class="y-home__kicker">{ kicker }</div>
-		}
 		<h1 class="y-title">{ title }</h1>
+		if count != "" {
+			<p class="y-indexcount">{ count }</p>
+		}
 		if lede != "" {
 			<p>{ lede }</p>
 		}

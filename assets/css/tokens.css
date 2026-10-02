@@ -53,6 +53,10 @@
   --warn-bg: oklch(0.560 0.120 70 / 0.10);
   --gold: oklch(0.660 0.098 82);   /* kintsugi seam thread */
   --gold-ink: oklch(0.461 0.100 82);   /* corrections (訂正) carry this, never 朱 */
+  /* A finding that blocks the folder: a muted plum, its own hue, so it is told
+     from a warning at a glance without borrowing the seal ink. */
+  --error: oklch(0.450 0.110 325);
+  --error-bg: oklch(0.550 0.120 325 / 0.10);
 
   /* ---- Growth track — muted sage (never out-shouts the accent) ---- */
   --sage: oklch(0.450 0.060 145);
@@ -107,6 +111,8 @@
   --warn-bg: oklch(0.800 0.130 80 / 0.14);
   --gold: oklch(0.735 0.098 84);
   --gold-ink: oklch(0.810 0.098 84);
+  --error: oklch(0.800 0.090 325);
+  --error-bg: oklch(0.700 0.110 325 / 0.15);
 
   --sage: oklch(0.820 0.065 148);
   --sage-bg: oklch(0.680 0.060 148 / 0.13);
@@ -162,6 +168,8 @@
     --warn-bg: oklch(0.800 0.130 80 / 0.14);
     --gold: oklch(0.735 0.098 84);
     --gold-ink: oklch(0.810 0.098 84);
+    --error: oklch(0.800 0.090 325);
+    --error-bg: oklch(0.700 0.110 325 / 0.15);
 
     --sage: oklch(0.820 0.065 148);
     --sage-bg: oklch(0.680 0.060 148 / 0.13);

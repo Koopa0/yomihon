@@ -29,7 +29,7 @@ func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	snap := h.sources.Snapshot().Capture()
 	shelf, fault := h.openThoughtShelf(r.Context(), snap, lang, 0)
-	view := pages.ListIndexView{Mode: "open-thoughts", Kicker: shelf.Count, Notice: fault, Shelf: shelf}
+	view := pages.ListIndexView{Mode: "open-thoughts", Count: shelf.Count, Notice: fault, Shelf: shelf}
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write open thoughts", "error", err)
 	}

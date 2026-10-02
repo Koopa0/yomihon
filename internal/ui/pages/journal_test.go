@@ -380,8 +380,8 @@ func TestWithheldJournalClaimsNothingAboutTheMonth(t *testing.T) {
 	if view.Fault == "" {
 		t.Error("a withheld journal states no reason")
 	}
-	if view.Kicker != "" {
-		t.Errorf("a withheld journal still measures the month: %q", view.Kicker)
+	if view.Count != "" {
+		t.Errorf("a withheld journal still measures the month: %q", view.Count)
 	}
 	if view.Entries.Empty != "" {
 		t.Errorf("a withheld journal still says the month holds nothing: %q", view.Entries.Empty)

@@ -34,7 +34,7 @@ const (
 // line is not printed beside a sentence that already says it.
 type ListIndexView struct {
 	Mode    string
-	Kicker  string
+	Count   string
 	Fault   string
 	Restart string
 	// Notice reports an unavailable input independent of the vault contract,
@@ -225,7 +225,7 @@ func declarationSentence(declaredTypes []string, lang wording.Lang) string {
 }
 
 // listIndex assembles a mode's page from the parts every one of them has. The
-// kicker is the shelf's own measure, and the title is the mode's name; reading
+// printed count is the shelf's own measure, and the title is the mode's name; reading
 // the count from the shelf is what keeps the two from disagreeing.
 //
 // A page that reads a declaration takes that declaration's closure and states
@@ -235,8 +235,8 @@ func declarationSentence(declaredTypes []string, lang wording.Lang) string {
 // page owes the reader is the reason, and that is what it carries.
 func listIndex(mode, title, count, lede, empty string, rows []Row) ListIndexView {
 	return ListIndexView{
-		Mode:   mode,
-		Kicker: modeKicker(count),
+		Mode:  mode,
+		Count: count,
 		Shelf: Shelf{
 			Title: title,
 			Lede:  lede,
@@ -436,12 +436,6 @@ func countNotes(files []nav.NoteRef, folders []nav.Folder) int {
 	return total
 }
 
-// modeKicker is the line above a mode index's title: how much of the mode
-// there is. The name sits in the heading below, once.
-func modeKicker(count string) string {
-	return count
-}
-
 // folderNoteCount is what a folder shows beside its name wherever it is listed:
 // the files it holds at every depth, so a row says how much is behind it before
 // anyone opens it.
@@ -504,7 +498,7 @@ func withholdListing(v *ListIndexView, closure nav.Closure) {
 		return
 	}
 	withhold(&v.Shelf)
-	v.Kicker = ""
+	v.Count = ""
 }
 
 // withhold takes back what a shelf would otherwise claim about an organisation
