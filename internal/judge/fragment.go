@@ -166,6 +166,7 @@ func collectBlockLines(body string, address []string) []string {
 	var out []string
 	inFence, fenceByte, fenceLen := false, byte(0), 0
 	lines := strings.Split(body, "\n")
+	owned := render.CodeSpanOwnedAddresses(address)
 	for i, line := range lines {
 		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
 		if inFence {
@@ -178,11 +179,13 @@ func collectBlockLines(body string, address []string) []string {
 			inFence, fenceByte, fenceLen = true, marker, n
 			continue
 		}
-		if render.UnanchorableLine(line) || render.CodeSpanOwnsBlockAddress(address, i) {
-			continue
-		}
+		// Almost no line holds a caret, so the test for one comes before the
+		// two questions that read the line's shape.
 		trimmed := strings.TrimRight(line, " \t")
 		if !strings.Contains(trimmed, "^") {
+			continue
+		}
+		if render.UnanchorableLine(line) || owned[i] {
 			continue
 		}
 		out = append(out, graph.FoldFragment(trimmed))

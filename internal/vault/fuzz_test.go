@@ -20,6 +20,7 @@ func FuzzParse(f *testing.F) {
 	f.Add([]byte("---\na: 1\na: 2\n---\nbody\n"))
 	f.Add([]byte("---\nbase: &base {title: Note}\nnote: {<<: *base}\n---\nbody\n"))
 	f.Add([]byte("---\ntitle: Note\n"))
+	f.Add([]byte("---\ntitle: Note\nstatus: draft\n--\n\nbody\n"))
 
 	f.Fuzz(func(t *testing.T, input []byte) {
 		if len(input) > 256<<10 {
@@ -33,6 +34,9 @@ func FuzzParse(f *testing.F) {
 			t.Fatalf("SplitFrontmatter(%q) is not deterministic", data)
 		}
 		checkFrontmatterSplit(t, data, block, found)
+		if found && OpensUnclosedFrontmatter(data) {
+			t.Errorf("OpensUnclosedFrontmatter(%q) = true for a block SplitFrontmatter closed", data)
+		}
 
 		const rel = "Writing/fuzz.md"
 		wantOwned := Parse(rel, bytes.Clone(data))

@@ -115,13 +115,23 @@ export function initSidebar() {
     }
   }
 
-  // Restore before the first paint of this rail so the reader never sees the
-  // unfiltered list flash past on the way to where they were.
+  // The remembered narrowing is applied when this module runs, which can be a
+  // frame after the rail first painted, so the rail may show the whole list for
+  // that frame before it is cut down. The cut is a restore, not the reader
+  // folding a group: the stylesheet is told to hold the folds and chevrons
+  // still while it is written, and the write is forced to take effect before
+  // the hold is lifted, so none of it plays out as motion.
   try {
     const remembered = sessionStorage.getItem(filterKey);
     if (remembered) {
-      input.value = remembered;
-      applyFilter();
+      rail.dataset.railRestoring = '';
+      try {
+        input.value = remembered;
+        applyFilter();
+        void rail.offsetWidth;
+      } finally {
+        delete rail.dataset.railRestoring;
+      }
     }
   } catch {
     // No stored narrowing is the same as never having narrowed.

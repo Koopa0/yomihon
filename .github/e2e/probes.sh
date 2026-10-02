@@ -35,13 +35,13 @@ probes=(
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"
   "right-rail-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "skip-link-contract.mjs|/notes/Notes/alpha.md"
-  "arrival-fade.mjs|/notes/Notes/reading-fidelity.md"
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
   "print-librarian-chrome.mjs|/notes/Notes/reading-fidelity.md"
   "print-fold-open.mjs|/notes/Notes/reading-fidelity.md"
   "heading-fragment.mjs|/notes/Notes/reading-fidelity.md"
   "preview-card.mjs|/notes/Notes/reading-fidelity.md"
   "task-list-marker.mjs|/notes/Notes/reading-fidelity.md"
+  "code-ligatures.mjs|/notes/Notes/reading-fidelity.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "rail-disclosure-state.mjs|/notes/Course/C02.md"
   "vault-sidebar.mjs|/search"
@@ -95,6 +95,7 @@ probes=(
   # gives this one a way on to follow. It drives the findings table itself.
   "pager-contract.mjs|/search?q=e"
   "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "reading-face.mjs|/notes/Notes/reading-fidelity.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads

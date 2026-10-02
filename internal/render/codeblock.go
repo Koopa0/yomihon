@@ -69,23 +69,35 @@ func paletteCSS(styleName string) string {
 
 // ChromaCSS is the highlighting stylesheet, computed once and cached. It carries
 // both palettes, light as the base and dark as a scoped override, because the
-// markup is theme-independent. The dark scope opens by returning every token to
-// the surrounding ink, since the palettes name different token sets, and sits
-// behind a print guard, so printing in dark mode gives light rules on paper.
+// markup is theme-independent. The dark override has the same two entrances as
+// the stylesheet's colour tokens: the root attribute a reader's stored choice
+// stamps, and the system's dark preference for a root carrying no light choice.
+// Both scopes are written from one string, so the entrances cannot disagree.
+// Each scope opens by returning every token to the surrounding ink, since the
+// palettes name different token sets, and both sit behind a print guard, so
+// printing in dark mode gives light rules on paper.
 var ChromaCSS = sync.OnceValue(func() string {
 	light, dark := paletteCSS(chromaLightStyleName), paletteCSS(chromaDarkStyleName)
 	if light == "" || dark == "" {
 		return ""
 	}
+	// Colour and background only: weight, slant and spacing say what kind of
+	// token this is, which does not change with the light in the room.
+	darkRules := ".chroma span { color: inherit; background-color: transparent; }\n" + dark
+
 	var b strings.Builder
 	b.WriteString("@layer " + codeLayerName + " {\n")
 	b.WriteString(light)
 	b.WriteString("@media not print {\n:root[data-theme=\"dark\"] {\n")
-	// Colour and background only: weight, slant and spacing say what kind of
-	// token this is, which does not change with the light in the room.
-	b.WriteString(".chroma span { color: inherit; background-color: transparent; }\n")
-	b.WriteString(dark)
-	b.WriteString("}\n}\n}\n")
+	b.WriteString(darkRules)
+	b.WriteString("}\n")
+	// An explicit light choice escapes through the :not() guard, so a stored
+	// choice keeps beating the system in both directions. The guard sits in a
+	// nested media query: "not print and (prefers-color-scheme: dark)" would
+	// negate the whole condition and dress every light screen in dark colours.
+	b.WriteString("@media (prefers-color-scheme: dark) {\n:root:not([data-theme=\"light\"]) {\n")
+	b.WriteString(darkRules)
+	b.WriteString("}\n}\n}\n}\n")
 	return b.String()
 })
 

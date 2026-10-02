@@ -141,6 +141,7 @@ func newServerWithMark(
 	writer := openStatusWriter(t, source, contract, governance)
 	h := note.New(&note.Sources{
 		Source:         source,
+		Contract:       contract,
 		VaultName:      shell.VaultName(source.Name()),
 		Status:         writer.Authority,
 		Snapshot:       store.Current,
@@ -2660,6 +2661,170 @@ func TestShowNoFrontmatter(t *testing.T) {
 	}
 	if strings.Contains(body, wording.ContractUnavailable.In(wording.ZhHant)) || strings.Contains(body, "fail-closed") {
 		t.Errorf("page shows the fail-closed notice even though the contract loaded; body = %q", body)
+	}
+}
+
+// TestShowNoFrontmatterFollowsContract holds the wiring from the contract's
+// no_frontmatter_is_legal declaration to the sentence a request serves for a
+// note with no frontmatter block: the page has to say the contract requires one
+// exactly when the contract says so, and say it is legal otherwise.
+func TestShowNoFrontmatterFollowsContract(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		contract *schema.Contract
+		want     string
+		notWant  string
+	}{
+		{
+			name:     "legal",
+			contract: loadContract(t),
+			want:     wording.NoFrontmatter.In(wording.ZhHant),
+			notWant:  wording.NoFrontmatterRequired.In(wording.ZhHant),
+		},
+		{
+			name:     "required",
+			contract: loadContractRequiringFrontmatter(t),
+			want:     wording.NoFrontmatterRequired.In(wording.ZhHant),
+			notWant:  wording.NoFrontmatter.In(wording.ZhHant),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			dir := filepath.Join(root, "Drills")
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "d1.md"), []byte("just a drill body\n"), 0o600); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			srv := newServerWithContract(t, root, tt.contract)
+
+			code, body := get(t, srv.Client(), srv.URL+"/notes/Drills/d1.md")
+			if code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", code)
+			}
+			if !strings.Contains(body, tt.want) {
+				t.Errorf("page missing %q; body = %q", tt.want, body)
+			}
+			if strings.Contains(body, tt.notWant) {
+				t.Errorf("page carries %q under the %s contract; body = %q", tt.notWant, tt.name, body)
+			}
+		})
+	}
+}
+
+// loadContractRequiringFrontmatter is the testdata contract with its scan
+// declaration turned against a note that carries no frontmatter block.
+func loadContractRequiringFrontmatter(t *testing.T) *schema.Contract {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	const legal = "no_frontmatter_is_legal = true"
+	modified := strings.Replace(string(data), legal, "no_frontmatter_is_legal = false", 1)
+	if modified == string(data) {
+		t.Fatal("frontmatter declaration replacement did not apply")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if writeErr := os.WriteFile(path, []byte(modified), 0o600); writeErr != nil { // #nosec G703 -- fixed basename under t.TempDir
+		t.Fatalf("write modified contract: %v", writeErr)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	if !contract.RequiresFrontmatter() {
+		t.Fatal("the modified contract does not require frontmatter")
+	}
+	return contract
+}
+
+// TestAFenceThatNeverClosesIsSaidOnThePage drives the shape the lost dash
+// makes through the real handler. The closing line of the block is gone, so no
+// reader finds a block, and the page used to answer that the note has no
+// frontmatter, which is legal. It says instead that the fence never closes, in
+// either language, on a note the contract judges and on one outside the layer it
+// judges, under a contract that allows a note without a block and one that
+// does not.
+//
+// The judge's own finding for the same shape is not said a second time: the rule
+// it falls under has no sentence on this page, and a page that printed the
+// fallback for a rule nobody wrote words for would be saying less than the
+// notice it sits beside.
+func TestAFenceThatNeverClosesIsSaidOnThePage(t *testing.T) {
+	t.Parallel()
+
+	const content = "---\ntitle: Unclosed\ntype: writing\nstatus: draft\n--\n\n# Body\n\nbody\n"
+	tests := []struct {
+		name     string
+		rel      string
+		contract func(t *testing.T) *schema.Contract
+	}{
+		{name: "a note the contract judges, contract allows no block", rel: "Writing/Unclosed.md", contract: loadContract},
+		{name: "a note the contract judges, contract wants a block", rel: "Writing/Unclosed.md", contract: loadContractRequiringFrontmatter},
+		{name: "a note outside the layer the contract judges", rel: "Drills/Unclosed.md", contract: loadContract},
+	}
+	for _, tt := range tests {
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			t.Run(tt.name+"/"+string(lang), func(t *testing.T) {
+				t.Parallel()
+				root := t.TempDir()
+				full := filepath.Join(root, filepath.FromSlash(tt.rel))
+				if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+					t.Fatalf("mkdir: %v", err)
+				}
+				if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+					t.Fatalf("write: %v", err)
+				}
+				srv := newServerWithContract(t, root, tt.contract(t))
+
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/notes/"+tt.rel, http.NoBody)
+				if err != nil {
+					t.Fatalf("new request: %v", err)
+				}
+				req.Header.Set("Cookie", wording.CookieName+"="+string(lang))
+				resp, err := srv.Client().Do(req)
+				if err != nil {
+					t.Fatalf("GET note: %v", err)
+				}
+				defer func() {
+					if closeErr := resp.Body.Close(); closeErr != nil {
+						t.Errorf("close response body: %v", closeErr)
+					}
+				}()
+				raw, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("read body: %v", err)
+				}
+				body := string(raw)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("status = %d, want 200", resp.StatusCode)
+				}
+
+				for _, want := range []string{
+					wording.FrontmatterNeverCloses.In(lang),
+					wording.StatusFrontmatterNeverCloses.In(lang),
+				} {
+					if !strings.Contains(body, want) {
+						t.Errorf("the page does not say %q", want)
+					}
+				}
+				for _, claim := range []wording.Lang{wording.ZhHant, wording.En} {
+					for _, absent := range []wording.Phrase{wording.NoFrontmatter, wording.NoFrontmatterRequired} {
+						if strings.Contains(body, absent.In(claim)) {
+							t.Errorf("the page calls a note whose fence never closes frontmatter-free: %q", absent.In(claim))
+						}
+					}
+				}
+				if strings.Contains(body, "schema.frontmatter") {
+					t.Errorf("the page says the rule's name, a rule it has no words for, beside the notice that names the fault")
+				}
+			})
+		}
 	}
 }
 

@@ -1,8 +1,11 @@
 package render_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -134,12 +137,13 @@ const (
 	lightKeywordColor = "#cf222e"
 	darkKeywordColor  = "#ff7b72"
 	darkScopeOpener   = `:root[data-theme="dark"]`
+	systemScopeOpener = `:root:not([data-theme="light"])`
 )
 
 // TestChromaCSSCarriesBothThemes covers the stylesheet's shape rather than its
 // appearance: one sheet has to answer for both themes, because the renderer is
-// never told which theme a request wants and the root attribute is the only
-// thing that knows.
+// never told which theme a request wants; only the root attribute and the
+// system's preference know.
 //
 // The reading surface stays the product's own panel in both themes, so the
 // whole sheet is layered and every unlayered product rule outranks it. Without
@@ -186,4 +190,76 @@ func TestChromaCSSCarriesBothThemes(t *testing.T) {
 	if strings.Contains(css, "forced-color-adjust") {
 		t.Errorf("the highlighting sheet must not take forced colours away from the browser:\n%s", css)
 	}
+}
+
+// TestChromaCSSDarkPaletteHasBothEntrances holds the highlighting sheet's two
+// dark entrances together. A reader who chose dark enters through the root
+// attribute; a reader who chose nothing on a dark system enters through the
+// system preference, which the stylesheet's colour tokens already honour. A
+// sheet that dressed only the first would draw the light palette's ink on the
+// dark panel for the second, which is most readers on a dark system: keyword
+// colours survive that, identifiers and punctuation do not.
+//
+// Each scope is read with the at-rules that enclose it, because the system
+// scope is only correct inside its own media query (outside it, a light system
+// would be dressed dark) and both are only correct inside the print guard.
+func TestChromaCSSDarkPaletteHasBothEntrances(t *testing.T) {
+	t.Parallel()
+	css := render.ChromaCSS()
+
+	const layer = "@layer yomihon-code"
+	wantEnclosing := map[string][]string{
+		darkScopeOpener:   {layer, "@media not print"},
+		systemScopeOpener: {layer, "@media not print", "@media (prefers-color-scheme: dark)"},
+	}
+	bodies := map[string]string{}
+	for opener, want := range wantEnclosing {
+		enclosing, body := scopeAt(t, css, opener)
+		if !slices.Equal(enclosing, want) {
+			t.Errorf("%s is enclosed by %q, want %q", opener, enclosing, want)
+		}
+		if !strings.Contains(body, darkKeywordColor) {
+			t.Errorf("%s carries no dark keyword colour %s:\n%s", opener, darkKeywordColor, body)
+		}
+		bodies[opener] = body
+	}
+	if diff := cmp.Diff(bodies[darkScopeOpener], bodies[systemScopeOpener]); diff != "" {
+		t.Errorf("the two dark entrances dress code differently (-attribute +system):\n%s", diff)
+	}
+}
+
+// scopeAt returns the at-rule preludes that enclose the first rule opening with
+// opener, outermost first, and the text between that rule's braces. Rules nest
+// here, so the end of the body is found by counting braces.
+func scopeAt(t *testing.T, css, opener string) (enclosing []string, body string) {
+	t.Helper()
+	at := strings.Index(css, opener+" {")
+	if at < 0 {
+		t.Fatalf("no scope %q in the highlighting sheet:\n%s", opener, css)
+	}
+	start := 0
+	for i, r := range css[:at] {
+		switch r {
+		case '{':
+			enclosing = append(enclosing, strings.TrimSpace(css[start:i]))
+			start = i + 1
+		case '}':
+			enclosing = enclosing[:len(enclosing)-1]
+			start = i + 1
+		}
+	}
+	open := at + len(opener) + 1
+	for depth, i := 0, open; i < len(css); i++ {
+		switch css[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return enclosing, css[open+1 : i]
+			}
+		}
+	}
+	t.Fatalf("scope %q is never closed:\n%s", opener, css)
+	return nil, ""
 }
