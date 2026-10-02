@@ -842,8 +842,8 @@ func (fb *folderBuilder) toFolder() Folder {
 // splitDir splits a slash path into its directory and base name; a path
 // with no slash (a vault-root file) has an empty directory.
 func splitDir(p string) (dir, base string) {
-	if i := strings.LastIndexByte(p, '/'); i >= 0 {
-		return p[:i], p[i+1:]
+	if before, after, found := strings.CutLast(p, "/"); found {
+		return before, after
 	}
 	return "", p
 }

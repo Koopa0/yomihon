@@ -6,14 +6,14 @@
 # is a go.mod tool directive, so `go tool templ` is already the version this
 # module builds with and there is nothing to keep in step here. Nothing in the
 # product needs any of them: they are the gate's tools, not the reader's.
-GOLANGCI_LINT_VERSION := 2.13.2
-GOSEC_VERSION := v2.28.0
+GOLANGCI_LINT_VERSION := 2.14.0
+GOSEC_VERSION := v2.29.0
 STATICCHECK_VERSION := v0.8.1
 ACTIONLINT_VERSION := v1.7.12
 SHELLCHECK_VERSION := 0.11.0
-GOVULNCHECK_VERSION := v1.5.0
+GOVULNCHECK_VERSION := v1.8.0
 BENCHSTAT_VERSION := v0.0.0-20260709024250-82a0b07e230d
-DEADCODE_VERSION := v0.49.0
+DEADCODE_VERSION := v0.50.0
 TAILWIND_VERSION := v4.1.17
 
 BENCH_BASELINE ?= /tmp/yomihon-bench-baseline.txt

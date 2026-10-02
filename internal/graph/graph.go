@@ -178,8 +178,8 @@ func resourceKeys(path string) []string {
 }
 
 func filename(path string) string {
-	if i := strings.LastIndexByte(path, '/'); i >= 0 {
-		return path[i+1:]
+	if _, after, found := strings.CutLast(path, "/"); found {
+		return after
 	}
 	return path
 }
