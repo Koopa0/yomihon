@@ -76,6 +76,10 @@ func TestArticleLanguageResolve(t *testing.T) {
 		// x/text accepts this tag and canonicalizes it to "aa-u-aa-u-100-000",
 		// which it canonicalizes again to "aa-u-aa-u-000-100".
 		{name: "repeated singleton with unstable canonical form", frontmatter: map[string]any{"lang": "AA-u-AA-AA-u-100-000"}, want: "", wantErr: true},
+		// No singleton repeats here, so only the fixed-point check rejects it:
+		// x/text drops the repeated -u key and accepts the tag, then rejects
+		// its own canonical form "en-t-ja-h0-hybrid-u-ca".
+		{name: "canonical form that does not parse again", frontmatter: map[string]any{"lang": "en-u-ca-ca-t-ja-h0-hybrid"}, want: "", wantErr: true},
 		{name: "distinct singletons", frontmatter: map[string]any{"lang": "en-a-bbb-u-ca"}, want: "en-a-bbb-u-ca"},
 		// After x- every subtag is private-use text, so a subtag spelled like a
 		// singleton may repeat.

@@ -9,21 +9,25 @@ import (
 )
 
 // FileKind is how a vault file that is not a note is presented: highlighted
-// source, a picture, the browser's document viewer, or — when nothing can show
-// it honestly — a page that says what it is and where its bytes are.
+// source, a Markdown file the contract skips read as a document, a picture, the
+// browser's document viewer, or — when nothing can show it honestly — a page
+// that says what it is and where its bytes are.
 type FileKind string
 
 // File presentation kinds select the least surprising native reading surface.
 const (
-	FileSource FileKind = "source"
-	FileImage  FileKind = "image"
-	FilePDF    FileKind = "pdf"
-	FileInfo   FileKind = "info"
+	FileSource   FileKind = "source"
+	FileDocument FileKind = "document"
+	FileImage    FileKind = "image"
+	FilePDF      FileKind = "pdf"
+	FileInfo     FileKind = "info"
 )
 
 // FileView is everything the file page needs. There is no status, transition or
 // diagnostic: the write face has no opinion about a file that is not a note.
 // SourceHTML is set only for FileSource and holds already-escaped output.
+// BodyHTML is set only for FileDocument and holds the rendered Markdown, the
+// same markup a note's reading column is given.
 type FileView struct {
 	Kind    FileKind
 	Title   string
@@ -35,6 +39,7 @@ type FileView struct {
 	ContentType string
 
 	SourceHTML string
+	BodyHTML   string
 
 	Sidebar Sidebar
 }
@@ -68,6 +73,8 @@ func fileKindLabel(kind FileKind, lang wording.Lang) string {
 	switch kind {
 	case FileSource:
 		return wording.FileKindSource.In(lang)
+	case FileDocument:
+		return wording.FileKindDocument.In(lang)
 	case FileImage:
 		return wording.FileKindImage.In(lang)
 	case FilePDF:
