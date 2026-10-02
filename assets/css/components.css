@@ -296,6 +296,7 @@ samp {
    count (a warning) keeps a fill. */
 .ui-side__label .ui-navitem__count,
 .y-toc-inline__summary .ui-navitem__count {
+  color: var(--fg-subtle);
   font-size: var(--fs-14);
   font-weight: var(--fw-regular);
   line-height: 1.5rem;
@@ -1614,15 +1615,18 @@ details.y-metarow {
 /* The column is sized for Han: thirty-eight characters of it at the reading
    size is 646px, and the same 646px carries about 85 Latin characters, well
    past where a line stays easy to carry back to the start of the next. Where
-   the article is positively tagged non-CJK its text blocks stop at 54ch, which
-   is about 70 characters of this face: the figure is counted in ch rather than
-   pixels so it follows the reader's size and face choice. A ch is the width of
-   a zero, wider than the average letter, so the column's 67ch was never the
-   same thing as 67 characters. Code, tables, diagrams and images are not text
-   lines and keep the whole column; an article that declares no language, and
-   every CJK article, keep the full measure. */
-.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose > :is(p, ul, ol, blockquote, .callout, .y-reading) {
-  max-width: 54ch;
+   the article is positively tagged non-CJK the whole article takes a measure
+   of thirty-one reading ems instead: about 70 characters of this face on an
+   average line and under 78 on the longest. It is the article's measure
+   rather than a cap on its paragraphs, so the title, the facts, the code, the
+   tables and the way onward share the text's right edge, and the article
+   stays centred in its track: capping the paragraphs alone left a second,
+   wider edge beside them and the text sitting off to the left of the space it
+   was given. Counted from the reading size, it follows the reader's size
+   choice. An article that declares no language, and every CJK article, keep
+   the full measure. */
+.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) {
+  --measure-read: calc(var(--fs-ed-17) * 31);
 }
 
 /* The head ends where the body begins: forty pixels of space and no rule. The
@@ -2295,34 +2299,96 @@ button.y-freshness__action {
    Right rail — TOC · status panel · diagnostics
    ============================================================ */
 /* Inline reading aids — the stand-in for the right rail at widths where the
-   rail is hidden: the table of contents as a closed native disclosure at the
-   top of the article, the diagnostics list beneath it. Wide viewports show
-   the rail and hide this block (the media rule sits with the other width
-   switches at the end of this sheet). */
-.y-inlineaids {
+   rail is hidden: one closed native disclosure between the head and the first
+   sentence, naming every aid the page carries, and the notes beside this one
+   at the end of the text. Wide viewports show the rail and hide both (the
+   media rule sits with the other width switches at the end of this sheet). */
+.y-inlineaids,
+.y-related {
   display: none;
 }
 
+/* One row on a forty-pixel pitch: the summary's own line and four pixels above
+   and below it, a whole target for a finger and no more room than the row
+   needs. A page with many aids wraps their names onto a second line rather
+   than cutting one short, with the chevron kept beside the first. */
 .y-toc-inline__summary {
-  align-items: center;
+  align-items: flex-start;
   color: var(--fg);
   display: flex;
   font-family: var(--font-sans);
   font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   gap: 7px;
+  line-height: 2rem;
+  padding: 4px 0;
+}
+
+.y-toc-inline__summary > .y-chevron {
+  margin-top: calc((2rem - 11px) / 2);
+}
+
+/* Every name is led by its separator, and the list is pulled back by one
+   separator's width and cut there, so the separator that would open a line —
+   the first, and the first of a wrapped line — falls outside what is drawn.
+   A line therefore never starts with a dot, wherever the row happens to wrap. */
+.y-toc-inline__parts {
+  --part-separator: 1.25rem;
+  clip-path: inset(0 0 0 var(--part-separator));
+  display: flex;
+  flex-wrap: wrap;
+  margin-inline-start: calc(-1 * var(--part-separator));
+  min-width: 0;
+}
+
+.y-toc-inline__part {
+  white-space: nowrap;
+}
+
+.y-toc-inline__part::before {
+  color: var(--fg-subtle);
+  content: '·' / '';
+  display: inline-block;
+  font-weight: var(--fw-regular);
+  text-align: center;
+  width: var(--part-separator);
+}
+
+.y-toc-inline__part .ui-navitem__count,
+.y-toc-inline__part .y-diagcount {
+  margin-left: 4px;
+}
+
+.y-toc-inline__body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 0 12px;
+}
+
+/* The two aids that wait at the end of the text are named in the summary, so
+   the open row leads down to them rather than leaving a name with nothing
+   under it. */
+.y-toc-inline__jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+}
+
+.y-toc-inline__jump a {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
   line-height: 1.5rem;
-  padding: 8px 0;
 }
 
-.y-toc-inline .y-toc__list {
-  margin: 4px 0 6px;
+.y-toc-inline__jump a:hover {
+  color: var(--fg);
 }
 
-/* The summary already names the block it folds, with its count. The label the
-   same block carries in the rail would say it a second time directly beneath. */
-.y-toc-inline .ui-side__label {
-  display: none;
+.y-related__block {
+  scroll-margin-top: var(--header-clearance);
 }
 
 .y-toc__list {
@@ -5339,10 +5405,15 @@ samp,
    would otherwise carry them is not drawn here, and one rail beside two notes
    could not say which of them it spoke for. */
 .y-compare__column .y-inlineaids {
+  display: block;
+  margin: 16px 0 0;
+}
+
+.y-compare__column .y-related {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  margin: 26px 0 6px;
+  gap: 24px;
+  margin-top: 56px;
 }
 
 .y-compare__head {
@@ -5438,10 +5509,15 @@ samp,
   }
 
   .y-inlineaids {
+    display: block;
+    margin: 16px 0 0;
+  }
+
+  .y-related {
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    margin: 26px 0 6px;
+    gap: 24px;
+    margin-top: 56px;
   }
 }
 /* The left column folded away, above the width where it is a drawer. What is
@@ -5766,6 +5842,7 @@ samp,
   .y-rail-left,
   .y-rail-right,
   .y-inlineaids,
+  .y-related,
   .y-searchdialog,
   .y-nav-scrim,
   .y-skiplink,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -547,6 +548,78 @@ func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
 	}
 	if !strings.Contains(got, ">2<") {
 		t.Errorf("the count is not stated on the closed disclosure:\n%s", got)
+	}
+}
+
+// TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText holds the shape
+// the reading aids take where the right rail is hidden. Four folds stacked
+// between the title and the first sentence pushed the prose a third of a screen
+// down, so every aid is named in one closed row and the two a reader looks for
+// once finished — the note to read beside this one and the notes citing it —
+// stand after the text instead, where the row leads down to them. The rail
+// carries the same blocks at the widths that show it, so they are not added to
+// the article twice there; that half is held by the stylesheet and the browser.
+func TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText(t *testing.T) {
+	t.Parallel()
+
+	view := NoteView{
+		Title:      "T",
+		RelPath:    "Notes/T.md",
+		TOC:        []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}},
+		Diagnostic: "unterminated string",
+		BasedOn:    []snapshot.DeclaredSource{{Name: "Book notes", RelPath: "Book notes.md"}},
+		DeclaredBy: []DeclaringNoteView{{Note: nav.NoteRef{Name: "Essay", RelPath: "Essay.md"}}},
+		Pair:       nav.NoteRef{Name: "Other half", RelPath: "Notes/Other.md"},
+		CitedBy:    []nav.NoteRef{{Name: "C01", RelPath: "C01.md"}, {Name: "C02", RelPath: "C02.md"}},
+		Next:       nav.NoteRef{Name: "Next", RelPath: "Notes/U.md"},
+		StepsLabel: "Notes",
+		BodyHTML:   "<p>body</p>",
+	}
+	var buf bytes.Buffer
+	if err := noteArticle(view, wording.En).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render noteArticle: %v", err)
+	}
+	article := buf.String()
+
+	rowStart := strings.Index(article, `<div class="y-inlineaids"`)
+	prose := strings.Index(article, `<div class="y-prose">`)
+	related := strings.Index(article, `<div class="y-related"`)
+	steps := strings.Index(article, `<nav class="y-steps`)
+	if rowStart < 0 || prose < 0 || related < 0 || steps < 0 {
+		t.Fatalf("row@%d prose@%d related@%d steps@%d; every one of them has to render:\n%s", rowStart, prose, related, steps, article)
+	}
+	if !(rowStart < prose && prose < related && related < steps) {
+		t.Fatalf("row@%d prose@%d related@%d steps@%d; want the row, the text, the notes beside it, then the way onward", rowStart, prose, related, steps)
+	}
+	row := article[rowStart:prose]
+	if n := strings.Count(row, "<details"); n != 1 {
+		t.Errorf("the aids above the prose are %d disclosures, want one row:\n%s", n, row)
+	}
+	if strings.Contains(row, "<details open") || strings.Contains(row, " open>") {
+		t.Errorf("the row of aids is drawn open, so it stands between the title and the text:\n%s", row)
+	}
+	summary, _, _ := strings.Cut(row, "</summary>")
+	for _, name := range []string{wording.OnThisPage.In(wording.En), wording.NoteHealth.In(wording.En), wording.BasedOn.In(wording.En), wording.DeclaredBy.In(wording.En), wording.CompareOffer.In(wording.En), wording.CitedBy.In(wording.En)} {
+		if !strings.Contains(summary, name) {
+			t.Errorf("the closed row does not name %q:\n%s", name, summary)
+		}
+	}
+	if strings.Contains(row, `class="y-pair"`) || strings.Contains(row, `class="y-citedby"`) {
+		t.Errorf("the note beside this one or the notes citing it still stand above the text:\n%s", row)
+	}
+	after := article[related:steps]
+	for _, block := range []string{`class="y-pair"`, `class="y-citedby"`} {
+		if !strings.Contains(after, block) {
+			t.Errorf("%s is not between the text and the way onward:\n%s", block, after)
+		}
+	}
+	for _, id := range []string{view.relatedPairID(), view.relatedCitedID()} {
+		if !strings.Contains(row, `href="#`+id+`"`) {
+			t.Errorf("the row does not lead down to #%s:\n%s", id, row)
+		}
+		if !strings.Contains(after, `id="`+id+`"`) {
+			t.Errorf("nothing after the text answers to #%s:\n%s", id, after)
+		}
 	}
 }
 
