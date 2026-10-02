@@ -35,7 +35,9 @@ func skippedDocumentVault(t *testing.T) string {
 			"# Maintainer notes\n\n"+
 			"- first item\n"+
 			"- second item\n\n"+
-			"See [the guide](guide.md), or leave through [the parent](../../out.md).\n"))
+			"See [the guide](guide.md), or leave through [the parent](../../out.md).\n\n"+
+			"![diagram](diagram.png)\n"))
+	write(t, filepath.Join(root, "Writing", "diagram.png"), []byte("\x89PNG\r\n\x1a\n fake pixels"))
 	write(t, filepath.Join(root, "Writing", "guide.md"), []byte(
 		"---\ntitle: The Guide\ntype: writing\nstatus: draft\n---\n# Guide heading\n\nA note that links [the parent](../../out.md).\n"))
 	write(t, filepath.Join(root, "Writing", "plain.txt"), []byte("plain text\n"))
@@ -146,6 +148,11 @@ func TestSkippedMarkdownOpensAsADocument(t *testing.T) {
 		t.Errorf("GET %s = %d; the link does not reach the note it names", dest.Path, code)
 	}
 
+	// A picture is resolved on the server, against the file's own folder.
+	if !strings.Contains(body, `src="/raw/Writing/diagram.png"`) || strings.Contains(body, "image-missing") {
+		t.Errorf("the picture is not resolved from the file's own folder:\n%s", body)
+	}
+
 	// A link that leaves the vault is written exactly as a note writes it: the
 	// renderer marks nothing for an ordinary Markdown link, so the document
 	// adds nothing a note would not.
@@ -169,7 +176,7 @@ func TestSkippedMarkdownChangesNothingElse(t *testing.T) {
 	srv := newServerWithContract(t, root, loadContract(t))
 
 	_, noteBody := pageIn(t, srv, "/notes/Writing/guide.md", wording.En)
-	for _, want := range []string{"y-sealbar", `action="/status"`, "y-rail-right", "y-toc"} {
+	for _, want := range []string{"y-sealbar", "y-statusform", `action="/status"`, "y-rail-right", "y-toc"} {
 		if !strings.Contains(noteBody, want) {
 			t.Errorf("the note page lost %q", want)
 		}
