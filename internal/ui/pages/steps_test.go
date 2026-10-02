@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -121,9 +123,16 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 // TestTheFootChoosesTheOrderItCanKnow pins FooterSequence's choice — and the
 // course flag that travels with it — against the real navigation build. These
 // lessons declare no domain of their own, so a note two courses teach falls
-// back to the folder, nothing having picked one course out; a side branch's
-// last lesson ends its branch rather than rejoining the main line; and the
-// main line steps over a side branch hanging inside it.
+// back to the folder, nothing having picked one course out; a lesson the course
+// teaches never does, whatever steps it has; a side branch's last lesson ends
+// its branch rather than rejoining the main line's steps; and the main line
+// steps over a side branch hanging inside it, which it offers beside its own
+// steps as an aside.
+//
+// What a side branch hands over at its ends is asserted with it: the first
+// lesson the way back to the lesson it hangs from, the last the way on to the
+// main line's next lesson, the lesson it hangs from the branches themselves.
+// None of them is a step, so Prev and Next are what they were without them.
 func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +144,9 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 		wantNext   string
 		wantLabel  string
 		wantCourse bool
+		wantBack   string
+		wantOnward string
+		wantAsides []string
 	}{
 		{
 			name:    "a note two courses teach keeps the folder",
@@ -145,31 +157,55 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 			wantCourse: false,
 		},
 		{
-			name:     "the main line steps over the side branch",
+			name:     "the main line steps over the side branch and points at it",
 			current:  "Course/C02.md",
 			wantPrev: "Course/C01.md",
 			// The folder's neighbour is S01; the course's is C03.
 			wantNext:   "Course/C03.md",
 			wantLabel:  "Branch course 從此步往下",
 			wantCourse: true,
+			// Both branches hang from it, in the order they were written, each
+			// by its first lesson.
+			wantAsides: []string{"Course/S01.md", "Course/X01.md"},
 		},
 		{
-			name:     "a side branch's last lesson closes it",
+			// No course teaches it, so no order was declared for it and the
+			// folder's neighbour is the only one there is.
+			name:       "a note no course teaches keeps the folder",
+			current:    "Course/Z99.md",
+			wantPrev:   "Course/X01.md",
+			wantLabel:  "同資料夾的前後檔案",
+			wantCourse: false,
+		},
+		{
+			name:       "a side branch's first lesson can go back to where it hangs from",
+			current:    "Course/S01.md",
+			wantNext:   "Course/S02.md",
+			wantLabel:  "Branch course 從此步往下",
+			wantCourse: true,
+			wantBack:   "Course/C02.md",
+		},
+		{
+			name:     "a side branch's last lesson closes it and goes on to the main line",
 			current:  "Course/S02.md",
 			wantPrev: "Course/S01.md",
-			// No next: the branch never rejoins the main line.
+			// No next: the branch never rejoins the main line's steps. The way on
+			// is its own, to the lesson after the one the branch hangs from.
 			wantNext:   "",
 			wantLabel:  "Branch course 從此步往下",
 			wantCourse: true,
+			wantOnward: "Course/C03.md",
 		},
 		{
-			name:     "a path stop with no walkable neighbour keeps the folder",
-			current:  "Course/X01.md",
-			wantPrev: "Course/S02.md",
-			// The local branch lists only X01; the course walk has no stop on either side.
-			wantNext:   "",
-			wantLabel:  "同資料夾的前後檔案",
-			wantCourse: false,
+			// The folder's neighbour is S02, which the course would have called
+			// previous: the branch's only lesson steps nowhere, and the foot is
+			// still the course's.
+			name:       "a branch of one lesson goes back and on and steps nowhere",
+			current:    "Course/X01.md",
+			wantLabel:  "Branch course 從此步往下",
+			wantCourse: true,
+			wantBack:   "Course/C02.md",
+			wantOnward: "Course/C03.md",
 		},
 	}
 	for _, tt := range tests {
@@ -188,6 +224,19 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 			}
 			if foot.Course != tt.wantCourse {
 				t.Errorf("FooterSequence(%q) course = %v, want %v", tt.current, foot.Course, tt.wantCourse)
+			}
+			if foot.Back.RelPath != tt.wantBack {
+				t.Errorf("FooterSequence(%q) back = %q, want %q", tt.current, foot.Back.RelPath, tt.wantBack)
+			}
+			if foot.Onward.RelPath != tt.wantOnward {
+				t.Errorf("FooterSequence(%q) onward = %q, want %q", tt.current, foot.Onward.RelPath, tt.wantOnward)
+			}
+			var asides []string
+			for _, a := range foot.Asides {
+				asides = append(asides, a.RelPath)
+			}
+			if diff := cmp.Diff(tt.wantAsides, asides); diff != "" {
+				t.Errorf("FooterSequence(%q) asides (-want +got):\n%s", tt.current, diff)
 			}
 		})
 	}
@@ -223,6 +272,8 @@ func buildStepsModel(t *testing.T) *nav.Model {
 		"Course/S01.md": lesson("S01"),
 		"Course/S02.md": lesson("S02"),
 		"Course/X01.md": lesson("X01"),
+		// In the same folder and taught by no course.
+		"Course/Z99.md": "---\ntitle: Z99\ntype: writing\n---\nbody\n",
 	}
 	for rel, content := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))

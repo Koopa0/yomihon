@@ -159,7 +159,12 @@ reported — and a child that declares itself `primary` or `local` there is
   figure no walk matches.
 - **`primary` and `local` never link to each other through prev/next.** The
   lesson after the one a side branch hangs from is the next main-line lesson;
-  the side branch does not rejoin.
+  the side branch does not rejoin the main line's steps. The pages say where a
+  branch hangs without making it a step: the branch's first lesson offers a
+  labelled way back to the lesson it hangs from, its last a labelled way on to
+  the main line's next lesson that can be opened (or to the contents, where it
+  hangs from the last), and the lesson it hangs from points at it in one quiet
+  line.
 - **An unresolved entry in a primary group still counts** toward the planned
   total, so a course can promise eight lessons while seven exist. Prev/next
   simply steps over it and joins the resolved entries on either side. That

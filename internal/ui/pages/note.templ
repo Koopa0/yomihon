@@ -51,15 +51,30 @@ type NoteView struct {
 
 	RenderDiagnostics []render.Diagnostic
 	// Prev and Next are the notes either side of this one in the sequence the
-	// foot of the article offers. StepsLabel names that sequence, printed and
-	// spoken alike — a course's step onward, or folder adjacency.
-	// StepsCourse says which order arrived, which picks the step words, and
-	// StepsUnit is the noun a course's steps are named in.
+	// foot of the article offers. StepsLabel names that sequence — a course's
+	// step onward, or folder adjacency — and is both the landmark's name and,
+	// for a folder, the line printed above the steps; a course prints StepsPath
+	// there instead. StepsCourse says which order arrived, which picks the step
+	// words, and StepsUnit is the noun a course's steps are named in.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
 	StepsLabel  string
 	StepsCourse bool
 	StepsUnit   nav.Unit
+	// StepsPath is the study path whose order the foot walks, printed as a link
+	// to its contents. A side branch's lesson carries the ways off the branch,
+	// StepsBack and StepsOnward or StepsToContents, and the lesson a branch hangs
+	// from the branches themselves, StepsAsides. None of them is a step: they
+	// are drawn beside Prev and Next and never in place of either.
+	StepsPath       nav.NoteRef
+	StepsBack       nav.NoteRef
+	StepsOnward     nav.NoteRef
+	StepsToContents bool
+	StepsAsides     []nav.NoteRef
+	// Running is the line above the title of a note the path walks, naming the
+	// path and the part; it is nil for a note in no path, which keeps the
+	// folder's breadcrumb.
+	Running *RunningHead
 	// VaultHasLinks says some note in this folder cites another. Where none
 	// does, an empty cited-by block on every page is furniture; where the
 	// folder does use links, an empty block is a finding and stays.
@@ -256,8 +271,9 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	}
 }
 
-// articleHead is the breadcrumb + title + the file row above the rendered
-// body, which follows it after a space rather than a rule.
+// articleHead is the line above the title — the running head of a note a path
+// walks, the folder's breadcrumb for any other — then the title and the file row
+// above the rendered body, which follows it after a space rather than a rule.
 //
 // The article around it speaks the note's own language, so the words here that
 // are yomihon's rather than the author's declare the interface language again.
@@ -265,7 +281,11 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 // because that row also prints the note's address, and a path a reader wrote in
 // Japanese is not the interface's to relabel.
 templ articleHead(v NoteView, lang wording.Lang) {
-	if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
+	if v.Running != nil {
+		<div class="y-crumbs y-crumbs--course">
+			<a class="y-crumbs__link" href={ templ.URL(v.Running.Href) }>{ v.Running.Text(lang) }</a>
+		</div>
+	} else if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
 		<div class="y-crumbs">
 			for i, seg := range crumbs {
 				if i > 0 {
@@ -508,23 +528,47 @@ templ citedByBlock(v NoteView, lang wording.Lang) {
 }
 
 // sequenceSteps closes the article with the way onward: a folder of dated
-// entries is a line, and so is a course of lessons. The label says which order
+// entries is a line, and so is a course of lessons. The foot says which order
 // arrived, so the arrow never claims one it is not walking, and it is printed
 // rather than only spoken, because a course's declared order and folder
-// adjacency can disagree completely. The printed label and the accessible name
-// render one field, so the two cannot drift apart.
+// adjacency can disagree completely.
+//
+// The folder's foot prints its label and names the landmark with the same
+// field, so the two cannot drift apart. A course's foot prints the path's title
+// as a link to its contents and names the landmark with the step onward, on
+// purpose: the sidebar already carries a landmark named for the course's order,
+// and a second landmark with the same words as the link inside it would be one
+// name heard twice.
 //
 // The foot's own words belong to the interface, and the two titles it names
 // belong to the notes they lead to, each carrying whatever language that note
 // declared and none where it declared nothing.
 templ sequenceSteps(v NoteView, lang wording.Lang) {
-	if v.Prev.RelPath != "" || v.Next.RelPath != "" {
+	if v.hasSteps() {
 		<nav class={ "y-steps", templ.KV("y-steps--course", v.StepsCourse) } lang={ lang.Tag() } aria-label={ v.StepsLabel }>
-			<p class="y-steps__source">{ v.StepsLabel }</p>
+			// A course names itself with a link to its contents, which is the
+			// way off the foot the book offers wherever the reader is; the
+			// folder's order is only named. The landmark's own name stays the
+			// step onward from this note, so it is not the link's words twice.
+			if v.StepsCourse && v.StepsPath.RelPath != "" {
+				<p class="y-steps__source"><a class="y-steps__path" href={ templ.URL(syllabusHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a></p>
+			} else {
+				<p class="y-steps__source">{ v.StepsLabel }</p>
+			}
+			// The left place is the step back, or on a side branch's first
+			// lesson, which has none, the way back to the lesson it hangs
+			// from. The right is the step on, or on its last lesson the way
+			// on to the main line. A lesson is never both a branch's first and
+			// a main-line lesson with a step back, so the two never compete.
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
 					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { stepWordPrev(v.StepsCourse, v.StepsUnit, lang) }</span>
 					<span class="y-steps__name" { authoredLanguageAttrs(v.Prev.Language)... }>{ v.Prev.Name }</span>
+				</a>
+			} else if v.StepsBack.RelPath != "" {
+				<a class="y-steps__link y-steps__link--prev y-steps__link--back" href={ templ.URL(notesHref(v.StepsBack.RelPath)) }>
+					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { wording.BranchBackTo.In(lang) }</span>
+					<span class="y-steps__name" { authoredLanguageAttrs(v.StepsBack.Language)... }>{ v.StepsBack.Name }</span>
 				</a>
 			}
 			if v.Next.RelPath != "" {
@@ -532,6 +576,23 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, v.StepsUnit, lang) } <span class="y-steps__dir" aria-hidden="true">→</span></span>
 					<span class="y-steps__name" { authoredLanguageAttrs(v.Next.Language)... }>{ v.Next.Name }</span>
 				</a>
+			} else if v.StepsOnward.RelPath != "" {
+				<a class="y-steps__link y-steps__link--next y-steps__link--onward" href={ templ.URL(notesHref(v.StepsOnward.RelPath)) }>
+					<span class="y-steps__role">{ wording.BranchOnward.In(lang) }</span>
+					<span class="y-steps__name" { authoredLanguageAttrs(v.StepsOnward.Language)... }>{ v.StepsOnward.Name } <span class="y-steps__dir" aria-hidden="true">→</span></span>
+				</a>
+			} else if v.StepsToContents && v.StepsPath.RelPath != "" {
+				<a class="y-steps__link y-steps__link--next y-steps__link--onward" href={ templ.URL(syllabusHrefFrom(v.StepsPath.RelPath, v.RelPath)) }>
+					<span class="y-steps__role">{ wording.BranchToContents.In(lang) }</span>
+				</a>
+			}
+			// The branches hanging from this lesson, as one quiet line each. They
+			// are beside the steps and not among them: the next lesson is still
+			// the main line's.
+			for _, aside := range v.StepsAsides {
+				<p class="y-steps__aside">
+					<span class="y-steps__asidelabel">{ wording.BranchPrefix.In(lang) }</span><a class="y-steps__asidelink" href={ templ.URL(notesHref(aside.RelPath)) } { authoredLanguageAttrs(aside.Language)... }>{ aside.Name }</a>
+				</p>
 			}
 		</nav>
 	}

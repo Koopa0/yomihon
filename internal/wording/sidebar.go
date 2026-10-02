@@ -84,6 +84,19 @@ var CourseOnwardOf = both("%s 從此步往下", "%s onward from this step")
 // of this one inside its own folder.
 var FolderAdjacency = both("同資料夾的前後檔案", "The files either side of this one in its folder")
 
+// What the foot of a side branch's lesson offers, and what the lesson a branch
+// hangs from adds beside its own steps. A side branch is an aside in a book:
+// when it ends the reader goes on where they were, so its first lesson says
+// where it hangs from and its last says where to go on, which is the main line's
+// next lesson or, where the branch hangs from the last one, the contents. None
+// of them is a step in the course, so none of them is worded as one. The aside
+// beside the lesson a branch hangs from is named with BranchPrefix.
+var (
+	BranchBackTo     = both("回到", "Back to")
+	BranchOnward     = both("回到主線：", "Back to the main line: ")
+	BranchToContents = both("回到目錄", "Back to the contents")
+)
+
 // The step words at the foot of the article when the order is a folder's. A
 // path's own step words are UnitWords'. Which pair is used says which order
 // arrived, because a path's declared order and a folder's can disagree

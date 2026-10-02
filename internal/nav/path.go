@@ -50,6 +50,38 @@ type Path struct {
 	// openable stop, then each projectable local branch in document order.
 	// Prev/next reads these and nothing else, so primary and local never link.
 	components [][]NoteRef
+	// info holds what each component's stops know beyond their order, one entry
+	// per component and in the same order. Nothing that walks the order reads
+	// it: it answers where a note sits, not what comes next.
+	info []componentInfo
+}
+
+// componentInfo is where the stops of one component sit in the path: the part
+// each belongs to, and what a side branch hands over at its ends. It is kept
+// apart from the order so that what a branch offers can never become a step.
+type componentInfo struct {
+	// parts is the name of the part each stop sits in, one per stop; a side
+	// branch's stops sit in the part of the lesson it hangs from.
+	parts []string
+	// asides maps a stop's index to the first lesson of each side branch that
+	// hangs from it, in the order the author wrote them. The main line only.
+	asides map[int][]NoteRef
+	// branch is set for a side branch and nil for the main line.
+	branch *branchExit
+}
+
+// branchExit is how a side branch is left. The way back is the main-line lesson
+// it hangs from and the way on the main-line lesson after that one, which is
+// the next lesson that can be opened and not the next row written.
+type branchExit struct {
+	// anchor is the lesson the branch hangs from, zero when no lesson that can
+	// be opened is there to go back to.
+	anchor NoteRef
+	// onward is the main-line lesson after the anchor, zero when there is none.
+	onward NoteRef
+	// anchored is whether the branch hangs from a row at all. A branch a heading
+	// opened hangs from nothing, so it has no lesson to go back to or on to.
+	anchored bool
 }
 
 // Unit is the noun a study path's entries are counted and stepped in. It
@@ -240,11 +272,22 @@ func buildPath(
 	p.Unsettled = main.unsettled
 	if len(main.stops) > 0 {
 		p.components = append(p.components, main.stops)
+		p.info = append(p.info, componentInfo{parts: main.parts, asides: main.asides})
 	}
 	for _, local := range locals {
-		if len(local) > 0 {
-			p.components = append(p.components, local)
+		if len(local.stops) == 0 {
+			continue
 		}
+		exit := &branchExit{anchored: local.anchored, anchor: local.anchor}
+		if local.anchored && local.after < len(main.stops) {
+			exit.onward = main.stops[local.after]
+		}
+		parts := make([]string, len(local.stops))
+		for i := range parts {
+			parts[i] = local.part
+		}
+		p.components = append(p.components, local.stops)
+		p.info = append(p.info, componentInfo{parts: parts, branch: exit})
 	}
 	return p
 }
@@ -373,6 +416,21 @@ type mainLine struct {
 	planned   int
 	unsettled int
 	stops     []NoteRef
+	// parts and asides are what componentInfo keeps for the main line: the part
+	// of each stop, and the side branches hanging from it.
+	parts  []string
+	asides map[int][]NoteRef
+}
+
+// localBranch is one side branch as the walk found it. after is how many main
+// stops came before the row it hangs from was passed, which is where the stop
+// after that row sits once the walk has reached it.
+type localBranch struct {
+	stops    []NoteRef
+	part     string
+	anchor   NoteRef
+	anchored bool
+	after    int
 }
 
 // projectStops walks a path's groups in document order and separates what the
@@ -383,19 +441,23 @@ type mainLine struct {
 //
 // branched is how many rows the projectable side branches list, which is a
 // figure about the branches and joins neither the main line's count nor its walk.
-func projectStops(groups []*PathGroup) (main mainLine, locals [][]NoteRef, branched int) {
+func projectStops(groups []*PathGroup) (main mainLine, locals []localBranch, branched int) {
 	walker := &stopWalk{}
 	for _, g := range groups {
+		// A part is a top-level branch, and every stop beneath it sits in it.
+		walker.part = g.Name
 		walker.walk(g)
 	}
 	return walker.main, walker.locals, walker.branched
 }
 
-// stopWalk carries the walk's result while it recurses.
+// stopWalk carries the walk's result while it recurses. part is the top-level
+// branch being walked.
 type stopWalk struct {
 	main     mainLine
-	locals   [][]NoteRef
+	locals   []localBranch
 	branched int
+	part     string
 }
 
 func (w *stopWalk) walk(g *PathGroup) {
@@ -403,8 +465,11 @@ func (w *stopWalk) walk(g *PathGroup) {
 	case g.Projectable && g.Role == sequence.RolePrimary:
 		w.primary(g)
 	case g.Projectable && g.Role == sequence.RoleLocal:
+		// Reached here a side branch has no row it hangs from: a heading
+		// opened it. One a list row opened is handed to local by the part
+		// that lists the row.
 		w.branched += g.Planned
-		w.locals = append(w.locals, localStops(g))
+		w.locals = append(w.locals, localBranch{stops: localStops(g), part: w.part})
 	case g.Carries:
 		w.descend(g)
 	}
@@ -413,6 +478,10 @@ func (w *stopWalk) walk(g *PathGroup) {
 // primary folds one main-line branch into the course: every accepted row is a
 // planned lesson carrying its position, and the resolved ones are walkable.
 func (w *stopWalk) primary(g *PathGroup) {
+	// rows maps the source span of each row passed in this branch to what a side
+	// branch hanging from it needs: the lesson the row is, when it can be
+	// opened, and how many main stops precede whatever comes after it.
+	rows := map[sequence.Span]rowPlace{}
 	for _, item := range g.Items {
 		switch {
 		case item.Entry != nil:
@@ -421,16 +490,68 @@ func (w *stopWalk) primary(g *PathGroup) {
 			}
 			w.main.planned++
 			item.Entry.Number = w.main.planned
+			here := rowPlace{}
 			if item.Entry.Openable() {
-				w.main.stops = append(w.main.stops, NoteRef{Name: item.Entry.Name, RelPath: item.Entry.RelPath, Language: item.Entry.Language})
+				ref := NoteRef{Name: item.Entry.Name, RelPath: item.Entry.RelPath, Language: item.Entry.Language}
+				here = rowPlace{stop: len(w.main.stops), ref: ref, openable: true}
+				w.main.stops = append(w.main.stops, ref)
+				w.main.parts = append(w.main.parts, w.part)
 				if item.Entry.Status != "" && !item.Entry.Settled {
 					w.main.unsettled++
 				}
 			}
+			here.after = len(w.main.stops)
+			rows[item.Entry.Span] = here
 		case item.Group != nil:
+			if item.Group.Projectable && item.Group.Role == sequence.RoleLocal {
+				w.local(item.Group, rows)
+				continue
+			}
 			w.walk(item.Group)
 		}
 	}
+}
+
+// rowPlace is what the walk remembers of a main-line row for the side branches
+// that hang from it.
+type rowPlace struct {
+	// stop is the row's index among the main stops, meaningful when openable.
+	stop     int
+	ref      NoteRef
+	openable bool
+	// after is how many main stops there were once the row was passed, so the
+	// stop after the row, when the walk reaches one, sits at that index.
+	after int
+}
+
+// local records a side branch a list row opened, with the row it hangs from
+// found by the span the grammar kept for it, never by name. A branch with no
+// lesson that can be opened is not a component, so it hands nothing over; one
+// whose row is not among the rows passed is recorded as hanging from nothing.
+func (w *stopWalk) local(g *PathGroup, rows map[sequence.Span]rowPlace) {
+	w.branched += g.Planned
+	branch := localBranch{stops: localStops(g), part: w.part}
+	if row, ok := rows[g.AnchorSpan]; ok {
+		branch.anchored = true
+		branch.after = row.after
+		if row.openable {
+			branch.anchor = row.ref
+			w.pointAt(row.stop, branch.stops)
+		}
+	}
+	w.locals = append(w.locals, branch)
+}
+
+// pointAt makes the main stop at index a place that points at a side branch
+// hanging from it, by the branch's first lesson.
+func (w *stopWalk) pointAt(stop int, branch []NoteRef) {
+	if len(branch) == 0 {
+		return
+	}
+	if w.main.asides == nil {
+		w.main.asides = map[int][]NoteRef{}
+	}
+	w.main.asides[stop] = append(w.main.asides[stop], branch[0])
 }
 
 // descend carries a branch that only groups other branches.
