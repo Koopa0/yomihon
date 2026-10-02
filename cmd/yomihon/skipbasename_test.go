@@ -76,8 +76,8 @@ func writeSkipBasenameLockVault(t *testing.T) string {
 
 // TestSkipBasenamesAreNotNotes is the Lock for #363. A basename the contract
 // names under scan.skip_basenames is not a note: the shelf, search, exists and
-// check all omit it, /notes/ serves it as a file (showFile), and /raw/ still
-// serves the bytes.
+// check all omit it, /notes/ opens it as a document with none of a note's
+// furniture, and /raw/ still serves the bytes.
 func TestSkipBasenamesAreNotNotes(t *testing.T) {
 	t.Parallel()
 
@@ -149,10 +149,15 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 
 	notesCode, shown := skipBasenameGET(t, site, "/notes/README.md")
 	if notesCode != http.StatusOK {
-		t.Errorf("GET /notes/README.md = %d, want 200 (showFile)", notesCode)
+		t.Errorf("GET /notes/README.md = %d, want 200 (a document)", notesCode)
 	}
-	if !strings.Contains(shown, `class="y-prose y-source"`) {
-		t.Errorf("GET /notes/README.md is not the showFile source view; page = %q", shown)
+	// Left out of the library, the file still reads: its body is rendered, not
+	// drawn as highlighted source, and its frontmatter is not part of the reading.
+	if !strings.Contains(shown, "<p>"+skipBasenameLockSentinel+"</p>") || strings.Contains(shown, "y-source") {
+		t.Errorf("GET /notes/README.md is not the document view; page = %q", shown)
+	}
+	if strings.Contains(shown, "Skip me") {
+		t.Errorf("GET /notes/README.md reads the frontmatter as part of the document; page = %q", shown)
 	}
 	if strings.Contains(shown, `y-statuspanel`) {
 		t.Errorf("GET /notes/README.md is a note page; page = %q", shown)
