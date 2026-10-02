@@ -34,11 +34,12 @@ func TestBaseStartsBodyWithSkipLink(t *testing.T) {
 
 // TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry pins
 // the three script elements a page carries, and the order they come in. The
-// one-line mark sets data-js before the first style so a scripted page is laid
-// out as it will stay; the speculation rules follow it, ahead of the
-// stylesheets, so the browser learns what to fetch as early as the head
-// allows; the module entry closes the body. A fourth element, or any of these
-// out of place, is a change to what every page runs.
+// mark sets data-js before the first style so a scripted page is laid out as it
+// will stay, and says whether this document is the answer to a press; the
+// speculation rules follow it, ahead of the stylesheets, so the browser learns
+// what to fetch as early as the head allows; the module entry closes the body.
+// A fourth element, or any of these out of place, is a change to what every
+// page runs.
 func TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -49,7 +50,7 @@ func TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry(t *t
 	const entry = `<script nonce="response-nonce" type="module" src="/static/yomihon.js"></script>`
 	// The statement stands on its own line because that is how templ fmt lays
 	// out a script element, and the format check keeps it so.
-	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\tdocument.documentElement.dataset.js = \"on\";\n\t\t\t</script>"
+	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tconst entry = performance.getEntriesByType(\"navigation\")[0];\n\t\t\t\t\tif (entry?.type === \"back_forward\") d.dataset.arrival = \"traverse\";\n\t\t\t\t\telse if (entry?.name.includes(\"#\")) d.dataset.arrival = \"place\";\n\t\t\t\t\tif (document.prerendering) {\n\t\t\t\t\t\td.dataset.prerender = \"\";\n\t\t\t\t\t\tdocument.onprerenderingchange = () => delete d.dataset.prerender;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</script>"
 	const rules = `<script type="speculationrules" nonce="response-nonce">` + `{"prefetch":`
 	if got := strings.Count(html, entry); got != 1 {
 		t.Errorf("Base() module entries = %d, want 1 exact %q; html = %q", got, entry, html)
@@ -78,6 +79,9 @@ func TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry(t *t
 	}
 	if entryAt < firstStyle {
 		t.Errorf("Base() module entry at %d, first stylesheet at %d; the entry closes the body; html = %q", entryAt, firstStyle, html)
+	}
+	if !(markAt < rulesAt && rulesAt < entryAt) {
+		t.Errorf("Base() script order is mark at %d, rules at %d, entry at %d; want the mark, then the rules, then the module entry; html = %q", markAt, rulesAt, entryAt, html)
 	}
 }
 
