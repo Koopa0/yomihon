@@ -398,3 +398,13 @@ func conceptSheetTitle(title string, lang wording.Lang) string {
 	}
 	return title
 }
+
+// hasSteps reports whether the foot has anything to draw: a step either way,
+// a way off a side branch, or a branch to point at. A foot with none draws no
+// landmark at all, so a lesson that stands alone in its course is not handed an
+// empty navigation block.
+func (v *NoteView) hasSteps() bool {
+	return v.Prev.RelPath != "" || v.Next.RelPath != "" ||
+		v.StepsBack.RelPath != "" || v.StepsOnward.RelPath != "" || v.StepsToContents ||
+		len(v.StepsAsides) > 0
+}

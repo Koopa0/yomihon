@@ -2,10 +2,9 @@ package wording
 
 // The syllabus: a study path read as a course rather than as a note.
 
-// SyllabusKicker names the kind above the path's own title. The page is still
-// a syllabus; OpenSyllabus keeps that name for the rail link into it. It is the
-// whole line, with nothing after it for a separator to join to, so it ends on
-// its last word.
+// SyllabusKicker names the kind above the path's own title. It is the whole
+// line, with nothing after it for a separator to join to, so it ends on its
+// last word.
 var SyllabusKicker = both("學習路徑", "Study path")
 
 // PathItemUnreadable stands where a course lists something the page could not
@@ -16,10 +15,20 @@ var PathItemUnreadable = both(
 	"這條路徑列了一項無法判讀的內容，這一頁沒有把它讀成課程或分部。",
 	"This path lists something that could not be read as either a lesson or a branch.")
 
-// ReadTheGuide is the way into the note this path is drawn from. The words
-// say where the author's own text lives and claim nothing about what that
-// text contains: the page has not read it.
-var ReadTheGuide = both("閱讀筆記本文 ", "Read the note itself ")
+// PartLabelFmt is a part's heading label, over its name on the cover. It takes
+// the part's number in the language's own numerals: hanzi in Chinese, roman in
+// English.
+var PartLabelFmt = both("第%s部", "Part %s")
+
+// ContentsLink names every link to the path's own page from somewhere else: the
+// page is the path's table of contents, whatever the path is made of, so it is
+// called that and never a course or a syllabus.
+var ContentsLink = both("目錄", "Contents")
+
+// ReadTheGuide is the way into the note this path is drawn from, set as the
+// last line of the contents. The words say where the author's own text lives
+// and claim nothing about what that text contains: the page has not read it.
+var ReadTheGuide = both("整篇筆記 ", "The whole note ")
 
 // The one verb a course offers: open the first lesson, or go back to the
 // lesson the reader kept a place in. They are the same act said two ways, and
@@ -34,18 +43,18 @@ var (
 	CourseContinueReading = both("繼續讀", "Continue reading")
 )
 
-// Listening to a course: the same lessons, as the paragraphs their authors
-// marked to be read aloud, one after the next. ListenTitleFmt takes the
-// course's own title. ListenNothingMarked is the whole page for a course whose
-// lessons mark nothing — a listening page with no paragraphs would otherwise
-// look like a page that failed to load.
+// Listening to a path: the same entries, as the paragraphs their authors
+// marked to be read aloud, one after the next. ListenTitleFmt takes the path's
+// own title. ListenNothingMarked is the whole page for a path whose notes mark
+// nothing — a listening page with no paragraphs would otherwise look like a
+// page that failed to load, and it is reached only by an address typed by hand,
+// since the contents offer the way here only where something is marked.
 var (
 	ListenTitleFmt      = both("朗讀《%s》", "Listen to %s")
-	ListenThisCourse    = both("聆聽這門課 ", "Listen to this course ")
-	ListenBackToCourse  = both("回到課程 ", "Back to the course ")
+	ListenThisPath      = both("聆聽 ", "Listen ")
 	ListenNothingMarked = both(
-		"這門課沒有標記朗讀的段落。",
-		"No paragraph in this course is marked to be read aloud.")
+		"這條路徑沒有標記朗讀的段落。",
+		"No passage in this path is marked to be read aloud.")
 )
 
 // A branch's own label. Local branches carry their heading; the main line does
@@ -57,14 +66,7 @@ var (
 	MainLine        = both("主線", "Main line")
 	MainContinued   = both("主線（接續）", "Main line (continued)")
 	BranchTag       = both("支線", "Branch")
-	ModuleTagFmt    = both("模組 %d", "Module %d")
 )
-
-// CourseUnsettledFmt is the one figure the course head gives beside the lesson
-// count: how many of those lessons are not at a status the contract settles. It
-// takes that count and says what is still to be finished, never how far a
-// reader has come, and the page draws nothing at all when no lesson is left.
-var CourseUnsettledFmt = both("其中 %d 課尚未定案", "%d not yet settled")
 
 // The syllabus's own rail.
 var (

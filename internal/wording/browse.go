@@ -83,14 +83,6 @@ var (
 	BackToFolders = both("返回資料夾", "Back to folders")
 )
 
-// The syllabus's own units, in the same pairs and for the same reason.
-var (
-	PartCountOne    = both("%d 部", "%d part")
-	PartCountMany   = both("%d 部", "%d parts")
-	ModuleCountOne  = both("%d 模組", "%d module")
-	ModuleCountMany = both("%d 模組", "%d modules")
-)
-
 // What the raw-bytes routes say when they cannot answer. These reach a reader
 // as a plain-text body rather than a page, so they are one line each.
 // SandboxUnavailable is the refusal both of those routes share: the file read

@@ -23,15 +23,19 @@ func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 	t.Parallel()
 
 	view := NewPathIndex([]nav.Path{
-		{Title: "Go path", RelPath: "Maps/Go path.md", Planned: 4},
-		{Title: "Unread structure", RelPath: "Maps/Broken.md", Diagnostics: []sequence.Diagnostic{{}}},
-		{Title: "Plans nothing", RelPath: "Maps/Empty.md"},
+		{Title: "Go path", RelPath: "Maps/Go path.md", Planned: 4, Unit: nav.UnitLesson},
+		{Title: "Unread structure", RelPath: "Maps/Broken.md", Unit: nav.UnitLesson, Diagnostics: []sequence.Diagnostic{{}}},
+		{Title: "Plans nothing", RelPath: "Maps/Empty.md", Unit: nav.UnitLesson},
+		// A path of notes that are not lessons is counted in items, in the same
+		// place and the same single figure.
+		{Title: "Queue kit", RelPath: "Maps/QueueKit.md", Planned: 2, Unit: nav.UnitItem},
 	}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 
 	want := []Row{
 		{Text: "Go path", Href: "/syllabus/Maps/Go%20path.md", Mark: "4 課"},
 		{Text: "Unread structure", Href: "/syllabus/Maps/Broken.md", Mark: "0 課 · 未讀到課程結構", Fault: true},
 		{Text: "Plans nothing", Href: "/syllabus/Maps/Empty.md", Mark: "0 課"},
+		{Text: "Queue kit", Href: "/syllabus/Maps/QueueKit.md", Mark: "2 篇"},
 	}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("study-path rows mismatch (-want +got):\n%s", diff)

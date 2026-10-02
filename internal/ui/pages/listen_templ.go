@@ -103,7 +103,7 @@ func Listen(v ListenView, c layouts.Chrome) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ListenBackToCourse.In(c.Lang))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ContentsLink.In(c.Lang) + " ")
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/listen.templ`, Line: 22, Col: 45}
 			}

@@ -97,6 +97,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 	current := "Writing/lessons/go/L01.md"
 	shelfIndex, shelfRecent, shelfStatuses := recordedShelfView(model)
 	course := newRecordedCourse(t, root, model)
+	branchModel := footVault(t)
 
 	type surface struct {
 		name      string
@@ -127,6 +128,23 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// verb changes and the lesson's own name comes to stand beside it, so
 		// both languages are recorded again: the word and the name sit on one
 		// line, and the line is where a longer word would show.
+		// The foot and the line above the title of a lesson on a side branch, the
+		// lesson a branch hangs from, and a branch with nowhere on the main line
+		// to go on to: the markup the ordinary course above, with no side
+		// branch, never reaches.
+		{"steps-branch-single", footOf(t, branchModel, "Writing/B1.md", wording.ZhHant)},
+		{"steps-branch-single-english", footOf(t, branchModel, "Writing/B1.md", wording.En)},
+		{"steps-branch-contents", footOf(t, branchModel, "Writing/E1.md", wording.ZhHant)},
+		{"steps-branch-anchor", footOf(t, branchModel, "Writing/C02.md", wording.ZhHant)},
+		{"articlehead-running", headOf(t, branchModel, "Writing/L1.md", wording.ZhHant)},
+		{"articlehead-running-english", headOf(t, branchModel, "Writing/L1.md", wording.En)},
+		// A course annotated the way its author writes one: a sentence beside each
+		// lesson, a side branch hanging from a lesson, an appendix after the
+		// last part, and something marked to be heard. The course above has
+		// none of these, so without this recording the markup that carries them
+		// is written into no file at all.
+		{"syllabus-page-annotated", Syllabus(annotatedCourse(t), recordedChrome())},
+		{"syllabus-page-annotated-english", Syllabus(annotatedCourse(t), recordedEnglishChrome())},
 		{"syllabus-page-continuing", Syllabus(course.view(recordedChrome().Lang, "Writing/lessons/go/L02.md"), recordedChrome())},
 		{"syllabus-page-continuing-english", Syllabus(course.view(wording.En, "Writing/lessons/go/L02.md"), recordedEnglishChrome())},
 		// The same course as something to be listened to, in both languages.
@@ -1048,4 +1066,21 @@ func recordedCompareView() CompareView {
 			return b
 		}(),
 	}
+}
+
+// footOf and headOf are the foot and the running head of one lesson of the
+// branch course, drawn from the same calls the page makes.
+func footOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
+	t.Helper()
+	_, view := footView(model, current, lang)
+	return sequenceSteps(view, lang)
+}
+
+func headOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
+	t.Helper()
+	_, view := footView(model, current, lang)
+	if view.Running == nil {
+		t.Fatalf("%s has no running head, so the recording would hold the folder's breadcrumb", current)
+	}
+	return articleHead(view, lang)
 }

@@ -159,7 +159,12 @@ reported — and a child that declares itself `primary` or `local` there is
   figure no walk matches.
 - **`primary` and `local` never link to each other through prev/next.** The
   lesson after the one a side branch hangs from is the next main-line lesson;
-  the side branch does not rejoin.
+  the side branch does not rejoin the main line's steps. The pages say where a
+  branch hangs without making it a step: the branch's first lesson offers a
+  labelled way back to the lesson it hangs from, its last a labelled way on to
+  the main line's next lesson that can be opened (or to the contents, where it
+  hangs from the last), and the lesson it hangs from points at it in one quiet
+  line.
 - **An unresolved entry in a primary group still counts** toward the planned
   total, so a course can promise eight lessons while seven exist. Prev/next
   simply steps over it and joins the resolved entries on either side. That
@@ -213,8 +218,10 @@ stays out of navigation:
 
 The course reads 8 lessons. The side branch shows as three, hanging under L03.
 L04 follows L03, because the container is L03's child and L04 is its sibling.
-L07 has no next lesson, because L08 is unwritten. The routine block is absent
-from navigation and reads normally on the page.
+L07 has no next lesson, because L08 is unwritten. The routine block is out of
+the course — no count, no prev/next, not in the rail — and reads normally on
+its own page; the course's page lists its rows after the last part, under the
+block's own heading, each with the words written after its link.
 
 That example is deliberately not clean: `check` reports one
 `map.disk_mismatch` for L08, and `--deny warn` on it exits 1. The italic

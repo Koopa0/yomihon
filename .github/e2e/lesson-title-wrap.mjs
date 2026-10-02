@@ -1,14 +1,17 @@
-// Behavior lock for a syllabus lesson name at phone width. The row used to
-// nowrap-ellipsis the title beside a whole status badge, so a course whose
-// names share a prefix became a column of identical stubs. The name wraps, and
-// every line it wraps to is inside the box the reader can see: a title cut
-// back to one visible line is the same column of stubs reached another way.
+// Behavior lock for the words of a syllabus lesson row at phone width: the
+// lesson's name and the sentence its author wrote after the link, which run on
+// as one piece of text. The row used to nowrap-ellipsis the title beside a whole
+// status badge, so a course whose names share a prefix became a column of
+// identical stubs. The text wraps, and every line it wraps to is inside the box
+// the reader can see: text cut back to one visible line is the same column of
+// stubs reached another way, and with a sentence in the row it would cut the
+// sentence off too.
 //
 // Go tests cannot see this. The probe grows a name against a real lesson row
 // until one more word would take a third line, stamps it there, and counts the
 // lines the browser laid out against the lines the box shows.
 //
-// Env: YOMIHON_BASE, PAGE_PATH (a syllabus page that paints .y-lesson__title),
+// Env: YOMIHON_BASE, PAGE_PATH (a syllabus page that paints .y-lesson__text),
 // and MUTATE. MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
@@ -46,7 +49,7 @@ const notApplied = (message) => {
 // noticed.
 const computedTitle = (page, property) =>
   page.evaluate((name) => {
-    const el = document.querySelector('.y-lesson__title');
+    const el = document.querySelector('.y-lesson__text');
     return el ? getComputedStyle(el).getPropertyValue(name) : '';
   }, property);
 
@@ -69,11 +72,11 @@ const appendRule = (rule, property, wanted) => async (page) => {
 };
 
 const MUTATIONS = {
-  // Puts the single-line ellipsis back on the title.
+  // Puts the single-line ellipsis back on the row's text.
   'restore-single-line-ellipsis': {
     target: 'title-fits-at-phone-width',
     apply: appendRule(
-      '.y-lesson__title{display:block;-webkit-line-clamp:unset;line-clamp:unset;white-space:nowrap;text-overflow:ellipsis}',
+      '.y-lesson__text{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
       'white-space',
       'nowrap',
     ),
@@ -83,7 +86,11 @@ const MUTATIONS = {
   // line of a name that lays out in two, and nothing about its width says so.
   'clamp-the-title-to-one-line': {
     target: 'every-line-of-the-title-is-visible',
-    apply: appendRule('.y-lesson__title{-webkit-line-clamp:1;line-clamp:1}', '-webkit-line-clamp', '1'),
+    apply: appendRule(
+      '.y-lesson__text{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;-webkit-line-clamp:1;line-clamp:1}',
+      '-webkit-line-clamp',
+      '1',
+    ),
   },
 };
 
@@ -111,7 +118,7 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 
 const measureTitle = (page) =>
   page.evaluate((words) => {
-    const el = document.querySelector('.y-lesson__title');
+    const el = document.querySelector('.y-lesson__text');
     if (!el) return null;
     // One line, measured on the row itself rather than parsed out of a
     // line-height, so every count below is in the units the browser laid out.
@@ -163,13 +170,13 @@ try {
   }
 
   const box = await measureTitle(page);
-  if (box === null) broken('the syllabus page paints no .y-lesson__title to measure');
+  if (box === null) broken('the syllabus page paints no .y-lesson__text to measure');
   if (!box.name) broken('the lesson row lays out no line to grow a name in, so nothing below can be counted');
   if (box.clientWidth <= 0) broken('the title box has no width, so overflow cannot be judged');
   if (box.scrollWidth > box.clientWidth) {
     fail(
       'title-fits-at-phone-width',
-      `at 375px .y-lesson__title scrollWidth=${box.scrollWidth} > clientWidth=${box.clientWidth}`,
+      `at 375px .y-lesson__text scrollWidth=${box.scrollWidth} > clientWidth=${box.clientWidth}`,
     );
   }
   // A box narrower than its name says the title refused to wrap; a box shorter
@@ -180,7 +187,7 @@ try {
   if (box.scrollHeight > box.clientHeight) {
     fail(
       'every-line-of-the-title-is-visible',
-      `at 375px .y-lesson__title lays ${JSON.stringify(box.name)} out on ${box.lines} lines and shows ${box.shown} of them, so the reader is handed a stub`,
+      `at 375px .y-lesson__text lays ${JSON.stringify(box.name)} out on ${box.lines} lines and shows ${box.shown} of them, so the reader is handed a stub`,
     );
   }
   // The two sentences above are about a name that needs a second line. If these

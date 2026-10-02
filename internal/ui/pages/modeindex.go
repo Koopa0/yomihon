@@ -111,7 +111,8 @@ func NewPathIndex(paths []nav.Path, roles schema.NavigationRoles, closure nav.Cl
 	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
-		extent := plural(studyPath.Planned, wording.LessonCountOne, wording.LessonCountMany, lang)
+		words := unitWords(studyPath.Unit)
+		extent := plural(studyPath.Planned, words.CountOne, words.CountMany, lang)
 		// A zero with grammar diagnostics behind it is a fault to repair; a
 		// zero without them is the author's answer.
 		unread := studyPath.Planned == 0 && len(studyPath.Diagnostics) > 0

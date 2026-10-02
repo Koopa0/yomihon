@@ -29,8 +29,12 @@ type ReadingRail struct {
 	// kept in a note the book does not teach marks nothing.
 	KeptNote string
 
-	book         *nav.Path
-	neighbors    nav.Neighbors
+	book      *nav.Path
+	neighbors nav.Neighbors
+	// place is where the note sits in the book: its part, and what a side
+	// branch hands over at its ends. It is the zero value for a note the book
+	// does not walk, which is the case neighbors.PathRelPath says.
+	place        nav.Place
 	hereDir      string
 	here         []nav.NoteRef
 	openBranches map[string]bool
@@ -73,6 +77,7 @@ func NewReadingRail(shell nav.Shell, currentPath, noteDomain string) ReadingRail
 			step := neighbors[i]
 			if step.PathRelPath == book.RelPath {
 				rr.neighbors = step
+				rr.place, _ = model.PathPlace(currentPath, book.RelPath)
 				break
 			}
 		}
@@ -119,6 +124,32 @@ func (r *ReadingRail) branchOpen(pathRel string, headings []string) bool {
 // CapabilityFaults lists closed navigation projections for the reading rail.
 func (r *ReadingRail) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 	return ModelCapabilityFaults(r.Model, lang)
+}
+
+// railRow is one stop of the book in the rail: a lesson, or a branch drawn
+// after the lesson it hangs from.
+type railRow struct {
+	entry  *PathEntryView
+	branch *PathBranchView
+}
+
+// railRows lists what the rail draws for a run, in the order it draws it: a
+// nested branch alone, or each lesson followed by the side branches hanging from
+// it, which is where the author wrote them. The rail draws a branch as a
+// disclosure of its own, so it is a row of its own here, and the order is
+// settled before the template walks it.
+func (r *PathRunView) railRows() []railRow {
+	if r.Branch != nil {
+		return []railRow{{branch: r.Branch}}
+	}
+	rows := make([]railRow, 0, len(r.Entries))
+	for i := range r.Entries {
+		rows = append(rows, railRow{entry: &r.Entries[i]})
+		for j := range r.Entries[i].Branches {
+			rows = append(rows, railRow{branch: &r.Entries[i].Branches[j]})
+		}
+	}
+	return rows
 }
 
 // bookView draws the teaching path into the page view the rail reuses. The note
