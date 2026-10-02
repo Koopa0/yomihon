@@ -281,15 +281,15 @@ func countBranches(branches []nav.Branch) int {
 // NewReportIndex builds the report index. A report is read for what it
 // answers, so the row opens with its title — what the report calls itself,
 // not the name of its file — then the day it is for, then the line the report
-// opens with, then which of the two kinds it is. The two kinds are named apart
-// because they are read apart: a briefing is a program's output, shown as
-// bytes inside an isolated frame, and a written report is opened and read as a
-// document. The day and the opening arrive already read; nothing here goes
-// looking for either.
+// opens with. A briefing alone says what it is: it is a program's output,
+// shown as bytes inside an isolated frame, and the mark tells a reader which
+// link they are about to follow. A written report is what every row on this
+// shelf is, so it is left unmarked. The day and the opening arrive already
+// read; nothing here goes looking for either.
 func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(reports))
 	for _, report := range reports {
-		href, kind := notesHref(report.RelPath), wording.WrittenReport.In(lang)
+		href, kind := notesHref(report.RelPath), ""
 		if report.Briefing {
 			href, kind = reportHref(report.Name), wording.DailyBriefing.In(lang)
 		}

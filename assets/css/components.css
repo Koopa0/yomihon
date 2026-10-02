@@ -219,9 +219,10 @@ samp {
 }
 
 /* Where a listing is read for what each document is called, the name opens the
-   row and the day and the kind follow it. The name is still what gives when the
-   corner is narrow, so it takes the room the two short faces leave and is
-   clipped with an ellipsis; the faces after it keep their own width. */
+   row and the day follows it, with the kind after that where the row has one.
+   The name is still what gives when the corner is narrow, so it takes the room
+   the short faces leave and is clipped with an ellipsis; the faces after it keep
+   their own width. */
 .ui-navitem--by-title > :first-child {
   flex: 1;
   min-width: 0;
@@ -4539,11 +4540,12 @@ a.y-facetrow:hover {
 
 /* A row on a shelf read for what each document is called. A report is read for
    what it answers, so the row opens with its title; the day it is for and the
-   kind it is hold the two fixed columns after it, and the opening runs under the
-   title, clipped to a single line. The columns have a width of their own
-   because the rows are separate grids: left to size themselves, the day would
-   start somewhere different on every row according to how long the kind beside
-   it is spelled. The hairline, the padding and the hover are the shelf's own. */
+   kind it is, where it has one, hold the two fixed columns after it, and the
+   opening runs under the title, clipped to a single line. The columns have a
+   width of their own because the rows are separate grids: left to size
+   themselves, the day would start somewhere different on every row according to
+   how long the kind beside it is spelled, or whether it has one. The hairline,
+   the padding and the hover are the shelf's own. */
 .y-row--by-title {
   align-items: baseline;
   column-gap: 18px;
@@ -4575,7 +4577,8 @@ a.y-facetrow:hover {
 
 /* A phone has no room for three columns. The title takes the full width and
    wraps instead of being squeezed into what the day and the kind leave, the
-   opening runs under it, and the day and the kind share the line below. */
+   opening runs under it, and the day and the kind, where there is one, share the
+   line below. */
 @media (max-width: 720px) {
   .y-row--by-title {
     grid-template-columns: minmax(0, 1fr) auto;

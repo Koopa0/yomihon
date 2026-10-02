@@ -1,7 +1,7 @@
 // Behaviour lock for the reports shelf. A report is read for what it answers
 // and the row is laid out around that: the title leads, the day follows, the
-// line the report opens with runs under the title, and the kind sits at the far
-// edge. Four claims a rendering test cannot reach, because all four are settled
+// line the report opens with runs under the title, and a briefing's kind sits at
+// the far edge. Four claims a rendering test cannot reach, because all four are settled
 // by the browser rather than by the bytes — where the title is drawn relative
 // to the day, that the opening really is held to one line rather than merely
 // told to be, that nothing on the page reaches past a phone's edge at the width

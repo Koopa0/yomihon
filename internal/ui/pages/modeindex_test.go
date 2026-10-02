@@ -80,11 +80,10 @@ func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
 
 // TestAReportRowOpensWithItsTitleThenItsDay pins the faces a report row shows
 // and which face each thing lands on. The row opens with what the report calls
-// itself — never the name of its file — and the day it is for follows. The
-// kinds open differently — a briefing's bytes are shown inside an isolated
-// frame, a written report is read as a document — so the kind is named on every
-// row, and a reader knows which link they are about to follow. A written report
-// is a report on this shelf, not "a vault note".
+// itself — never the name of its file — and the day it is for follows. Only the
+// briefing is marked with its kind: its bytes are shown inside an isolated
+// frame, which tells a reader which link they are about to follow. A written
+// report is what every row of this shelf is, so it carries no mark.
 func TestAReportRowOpensWithItsTitleThenItsDay(t *testing.T) {
 	t.Parallel()
 
@@ -112,10 +111,9 @@ func TestAReportRowOpensWithItsTitleThenItsDay(t *testing.T) {
 					Text:    "Vault audit",
 					Opening: "Four notes went from draft to ready.",
 					Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
-					Mark:    "報告",
 					ByTitle: true,
 				},
-				{When: "沒有寫日期", Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "報告", ByTitle: true},
+				{When: "沒有寫日期", Text: "notes", Href: "/notes/System/reports/notes.md", ByTitle: true},
 				{When: "最新", Text: "接收者離開後 — Go 並行回顧", Href: "/reports/latest.html", Mark: "每日簡報", ByTitle: true},
 			},
 		},
@@ -127,10 +125,9 @@ func TestAReportRowOpensWithItsTitleThenItsDay(t *testing.T) {
 					Text:    "Vault audit",
 					Opening: "Four notes went from draft to ready.",
 					Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
-					Mark:    "Written report",
 					ByTitle: true,
 				},
-				{When: "No date", Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "Written report", ByTitle: true},
+				{When: "No date", Text: "notes", Href: "/notes/System/reports/notes.md", ByTitle: true},
 				{When: "Newest", Text: "接收者離開後 — Go 並行回顧", Href: "/reports/latest.html", Mark: "Daily briefing", ByTitle: true},
 			},
 		},
@@ -138,6 +135,39 @@ func TestAReportRowOpensWithItsTitleThenItsDay(t *testing.T) {
 		view := NewReportIndex(reports, tt.lang, nil)
 		if diff := cmp.Diff(tt.want, view.Shelf.Rows); diff != "" {
 			t.Errorf("report rows in %v (-want +got):\n%s", tt.lang, diff)
+		}
+	}
+}
+
+// TestOnlyABriefingIsMarkedWithItsKind pins the one mark a report row can carry.
+// A briefing says it is a daily briefing, because that is what tells it from the
+// written reports beside it; a written report says nothing, because on a shelf of
+// reports "report" distinguishes nothing, and it is never called a note, which it
+// is not on this shelf. The words are written out so that a wording change fails
+// here rather than passing with its own constant.
+func TestOnlyABriefingIsMarkedWithItsKind(t *testing.T) {
+	t.Parallel()
+
+	reports := []nav.Report{
+		{Name: "a.md", Title: "A written report", RelPath: "System/reports/a.md", Date: "2026-07-10"},
+		{Name: "2026-07-09.html", Title: "A briefing", RelPath: "System/reports/daily-briefing/2026-07-09.html", Briefing: true, Date: "2026-07-09"},
+		{Name: "latest.html", Title: "The newest briefing", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
+	}
+	for _, tt := range []struct {
+		lang     wording.Lang
+		briefing string
+	}{
+		{wording.ZhHant, "每日簡報"},
+		{wording.En, "Daily briefing"},
+	} {
+		view := NewReportIndex(reports, tt.lang, nil)
+		var got []string
+		for _, row := range view.Shelf.Rows {
+			got = append(got, row.Mark)
+		}
+		want := []string{"", tt.briefing, tt.briefing}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("row marks in %v (-want +got):\n%s", tt.lang, diff)
 		}
 	}
 }
