@@ -126,19 +126,25 @@ func ledeSlice(body string) (slice string, narrowed bool) {
 	return strings.Join(lines[first.Line:end], "\n"), true
 }
 
-// Opening is what a note's author wrote before its first heading: the words
-// that say what the note is, ahead of whatever it goes on to list. A note that
-// opens on a heading has none and the answer is empty, which a surface renders
-// as nothing rather than as an empty box; a note carrying no heading at all is
-// all opening.
+// Opening is what a note's author wrote to say what the note is, ahead of
+// whatever it goes on to list. Where words come before the first heading they
+// are the opening. Where the note opens on its own title — a level-1 heading
+// with nothing above it — the opening is the prose under that title, up to the
+// next heading of any level, because that is where such a note keeps its
+// preface and the title is already printed by whoever shows this. A note that
+// opens on any other heading, or on a title followed at once by another
+// heading, has none, and the answer is empty, which a surface renders as
+// nothing rather than as an empty box; a note carrying no heading at all is all
+// opening.
 //
 // Obsidian's %% comments come off first, as they do before any other cut, so a
 // marker cannot arrive visible in the words a course prints under its title.
 //
-// It is the same cut the hover card makes over the same lines, and both ask
-// openingBefore for it. The card goes on to a second answer where this one is
-// empty — it has to show something of the note under the pointer — and that
-// fallback is the card's, not this.
+// Where words precede the first heading it is the same cut the hover card
+// makes over the same lines, and both ask openingBefore for it. The card goes
+// on to a second answer where this one is empty — it has to show something of
+// the note under the pointer, and for a note that opens on its title that is
+// the title with its prose — and that fallback is the card's, not this.
 func Opening(body string) string {
 	stripped, _ := stripBody(body)
 	lines := strings.Split(stripped.text, "\n")
@@ -146,7 +152,37 @@ func Opening(body string) string {
 	if len(headings) == 0 {
 		return openingBefore(lines, len(lines))
 	}
-	return openingBefore(lines, headings[0].Line)
+	if opening := openingBefore(lines, headings[0].Line); opening != "" {
+		return opening
+	}
+	if headings[0].Level != 1 {
+		return ""
+	}
+	return prefaceUnder(lines, headings)
+}
+
+// prefaceUnder is the prose between a note's opening title and the heading
+// after it, or the end of the note where there is none, with the blank lines
+// that follow the title left off. headings[0] is that title: marked on one
+// line, or underlined, in which case its words run over several lines and the
+// underline is one more that belongs to the heading and not to its preface.
+func prefaceUnder(lines []string, headings []graph.Heading) string {
+	title := headings[0]
+	start := title.Line + 1
+	if !graph.ATXHeading.MatchString(lines[title.Line]) {
+		start = title.Line + strings.Count(title.Text, "\n") + 2
+	}
+	stop := len(lines)
+	if len(headings) > 1 {
+		stop = headings[1].Line
+	}
+	for start < stop && graph.BlankLine(lines[start]) {
+		start++
+	}
+	if start >= stop {
+		return ""
+	}
+	return strings.Join(lines[start:stop], "\n")
 }
 
 // openingBefore is the lines up to first, or empty where they hold nothing but

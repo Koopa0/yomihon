@@ -2,6 +2,7 @@ package nav
 
 import (
 	"slices"
+	"strconv"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -23,6 +24,15 @@ type Path struct {
 	// or not, since a planned but unwritten lesson is still one of them.
 	// Nothing outside the projectable primary line counts here.
 	Planned int
+	// Branched is how many entries the course's side branches list between
+	// them, counted the way Planned is: accepted rows, resolved or not. It is
+	// kept apart from Planned because a side branch never joins the main line's
+	// count or its walk; a surface that wants to say a branch exists says this
+	// figure beside the course total, never inside it.
+	Branched int
+	// Unit is the noun the path's entries are counted and stepped in, decided
+	// once for the whole path from the types of the notes it lists.
+	Unit Unit
 	// Unsettled is how many of the main line's lessons carry a status the
 	// contract does not declare settled: the lessons still to be finished. It
 	// counts out of the same lessons Planned counts, so it can never exceed
@@ -40,6 +50,35 @@ type Path struct {
 	// openable stop, then each projectable local branch in document order.
 	// Prev/next reads these and nothing else, so primary and local never link.
 	components [][]NoteRef
+}
+
+// Unit is the noun a study path's entries are counted and stepped in. It
+// follows what the author arranged: a path of lessons is read in lessons, and
+// a path that lists any other kind of note in items, so a reading list or a set
+// of reference notes is never called a course. A path leaves lessons, the noun
+// a study path has always been counted in, only on evidence: a row that
+// resolved to a note that is not a lesson. The zero value is the lesson.
+type Unit uint8
+
+const (
+	// UnitLesson is the noun for a path none of whose entries is known to be
+	// anything else.
+	UnitLesson Unit = iota
+	// UnitItem is the noun for a path in which some entry resolved to a note
+	// that is not a lesson.
+	UnitItem
+)
+
+// String names a unit for a diagnostic or a log line.
+func (u Unit) String() string {
+	switch u {
+	case UnitLesson:
+		return "UnitLesson"
+	case UnitItem:
+		return "UnitItem"
+	default:
+		return "Unit(" + strconv.Itoa(int(u)) + ")"
+	}
 }
 
 // clone is a Path a caller may hold, with the whole branch tree copied so
@@ -148,6 +187,11 @@ type PathEntry struct {
 	Line   int
 	Span   sequence.Span
 	State  sequence.EntryState
+	// Gloss is what the author wrote after the row's link: the sentence a
+	// course prints beside the lesson's name, as they typed it. It is read off
+	// the row whether or not the row resolved, since it is the author's own
+	// words about a lesson that may not be written yet.
+	Gloss string
 
 	// Number is the row's position in the sequence its branch projects: the
 	// main line counts on through every primary branch, each side branch counts
@@ -190,8 +234,9 @@ func buildPath(
 	for _, g := range doc.Groups {
 		p.Groups = append(p.Groups, buildPathGroup(g, idx, facts, policy))
 	}
-	main, locals := projectStops(p.Groups)
+	main, locals, branched := projectStops(p.Groups)
 	p.Planned = main.planned
+	p.Branched = branched
 	p.Unsettled = main.unsettled
 	if len(main.stops) > 0 {
 		p.components = append(p.components, main.stops)
@@ -271,6 +316,7 @@ func buildPathEntry(
 		Line:   c.Line,
 		Span:   c.Span,
 		State:  c.State,
+		Gloss:  c.Gloss,
 	}
 	if c.State != sequence.EntryAccepted {
 		return entry
@@ -334,18 +380,22 @@ type mainLine struct {
 // main line end to end, each projectable local group is a component of its own,
 // a structural branch carries its descendants and contributes nothing itself,
 // and every other branch projects nothing, subtree included.
-func projectStops(groups []*PathGroup) (main mainLine, locals [][]NoteRef) {
+//
+// branched is how many rows the projectable side branches list, which is a
+// figure about the branches and joins neither the main line's count nor its walk.
+func projectStops(groups []*PathGroup) (main mainLine, locals [][]NoteRef, branched int) {
 	walker := &stopWalk{}
 	for _, g := range groups {
 		walker.walk(g)
 	}
-	return walker.main, walker.locals
+	return walker.main, walker.locals, walker.branched
 }
 
 // stopWalk carries the walk's result while it recurses.
 type stopWalk struct {
-	main   mainLine
-	locals [][]NoteRef
+	main     mainLine
+	locals   [][]NoteRef
+	branched int
 }
 
 func (w *stopWalk) walk(g *PathGroup) {
@@ -353,6 +403,7 @@ func (w *stopWalk) walk(g *PathGroup) {
 	case g.Projectable && g.Role == sequence.RolePrimary:
 		w.primary(g)
 	case g.Projectable && g.Role == sequence.RoleLocal:
+		w.branched += g.Planned
 		w.locals = append(w.locals, localStops(g))
 	case g.Carries:
 		w.descend(g)
@@ -409,6 +460,43 @@ func localStops(g *PathGroup) []NoteRef {
 		}
 	}
 	return stops
+}
+
+// unitOf names the noun a path's entries are counted in. Every row the course
+// counts that resolved to a note is asked what type that note declares, and
+// the path is read in items as soon as one of them is not the contract's lesson
+// type. A row that resolved to nothing — a lesson planned and not yet written,
+// a mistyped link, a note outside the governed set — has no type to give and
+// abstains: one broken link must not rename a whole book of lessons for as long
+// as it stays broken, and a path that has not yet shown anything to be other
+// than a lesson is the course it has always been called. Rows the course does
+// not count, such as a reference section the author kept out of it, are not
+// asked.
+func unitOf(groups []*PathGroup, facts map[string]noteFacts, roles schema.NavigationRoles) Unit {
+	unit := UnitLesson
+	var walk func(g *PathGroup)
+	walk = func(g *PathGroup) {
+		if !g.Projectable && !g.Carries {
+			return
+		}
+		for _, item := range g.Items {
+			switch {
+			case item.Entry != nil:
+				if !item.Entry.Openable() {
+					continue
+				}
+				if !roles.IsLessonType(facts[item.Entry.RelPath].noteType) {
+					unit = UnitItem
+				}
+			case item.Group != nil:
+				walk(item.Group)
+			}
+		}
+	}
+	for _, g := range groups {
+		walk(g)
+	}
+	return unit
 }
 
 // pathPlacements records every projectable accepted, resolved entry of one path

@@ -38,6 +38,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				Next:        nav.NoteRef{Name: "Basics", RelPath: "Writing/Basics.md"},
 				StepsLabel:  "Go course 從此步往下",
 				StepsCourse: true,
+				StepsUnit:   nav.UnitLesson,
 			},
 			want: []string{
 				`<nav class="y-steps y-steps--course" lang="zh-Hant" aria-label="Go course 從此步往下">`,
@@ -47,7 +48,24 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				`href="/notes/Writing/Setup.md" rel="prev"`,
 				`href="/notes/Writing/Basics.md" rel="next"`,
 			},
-			forbidden: []string{"上一份", "下一份"},
+			forbidden: []string{"上一份", "下一份", "上一篇", "下一篇"},
+		},
+		{
+			// A path of anything but lessons hands over items. The words are the
+			// same shape and a different noun, and a lesson is never promised.
+			name: "a path of items hands over items",
+			view: NoteView{
+				Prev:        nav.NoteRef{Name: "Queue", RelPath: "Concepts/Queue.md"},
+				Next:        nav.NoteRef{Name: "Worker", RelPath: "Concepts/Worker.md"},
+				StepsLabel:  "Queue kit 從此步往下",
+				StepsCourse: true,
+				StepsUnit:   nav.UnitItem,
+			},
+			want: []string{
+				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一篇</span>`,
+				`<span class="y-steps__role">下一篇 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
+			},
+			forbidden: []string{"上一課", "下一課", "上一份", "下一份"},
 		},
 		{
 			name: "a folder hands over neighbouring files",
@@ -72,6 +90,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				Next:        nav.NoteRef{Name: "Basics", RelPath: "Writing/Basics.md"},
 				StepsLabel:  "Go course 從此步往下",
 				StepsCourse: true,
+				StepsUnit:   nav.UnitLesson,
 			},
 			want:      []string{`<p class="y-steps__source">Go course 從此步往下</p>`, `<span class="y-steps__role">下一課 <span class="y-steps__dir" aria-hidden="true">→</span></span>`},
 			forbidden: []string{`rel="prev"`, "上一課"},
@@ -157,18 +176,18 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			resolved := NewReadingRail(nav.Shell{Nav: model}, tt.current, "")
-			prev, next, label, course := FooterSequence(&resolved, wording.ZhHant)
-			if prev.RelPath != tt.wantPrev {
-				t.Errorf("FooterSequence(%q) prev = %q, want %q", tt.current, prev.RelPath, tt.wantPrev)
+			foot := FooterSequence(&resolved, wording.ZhHant)
+			if foot.Prev.RelPath != tt.wantPrev {
+				t.Errorf("FooterSequence(%q) prev = %q, want %q", tt.current, foot.Prev.RelPath, tt.wantPrev)
 			}
-			if next.RelPath != tt.wantNext {
-				t.Errorf("FooterSequence(%q) next = %q, want %q", tt.current, next.RelPath, tt.wantNext)
+			if foot.Next.RelPath != tt.wantNext {
+				t.Errorf("FooterSequence(%q) next = %q, want %q", tt.current, foot.Next.RelPath, tt.wantNext)
 			}
-			if label != tt.wantLabel {
-				t.Errorf("FooterSequence(%q) label = %q, want %q", tt.current, label, tt.wantLabel)
+			if foot.Label != tt.wantLabel {
+				t.Errorf("FooterSequence(%q) label = %q, want %q", tt.current, foot.Label, tt.wantLabel)
 			}
-			if course != tt.wantCourse {
-				t.Errorf("FooterSequence(%q) course = %v, want %v", tt.current, course, tt.wantCourse)
+			if foot.Course != tt.wantCourse {
+				t.Errorf("FooterSequence(%q) course = %v, want %v", tt.current, foot.Course, tt.wantCourse)
 			}
 		})
 	}
@@ -261,9 +280,9 @@ func TestOnlyTheFootOffersTheCourseStep(t *testing.T) {
 	model := buildStepsModel(t)
 	current := "Course/C02.md"
 	resolved := NewReadingRail(nav.Shell{Nav: model}, current, "golang")
-	prev, next, label, course := FooterSequence(&resolved, wording.ZhHant)
-	if !course || label == "" {
-		t.Fatalf("FooterSequence(%q) did not choose a course foot: label=%q course=%v", current, label, course)
+	chosen := FooterSequence(&resolved, wording.ZhHant)
+	if !chosen.Course || chosen.Label == "" {
+		t.Fatalf("FooterSequence(%q) did not choose a course foot: label=%q course=%v", current, chosen.Label, chosen.Course)
 	}
 
 	var rail bytes.Buffer
@@ -275,7 +294,7 @@ func TestOnlyTheFootOffersTheCourseStep(t *testing.T) {
 	}
 
 	var foot bytes.Buffer
-	view := NoteView{Prev: prev, Next: next, StepsLabel: label, StepsCourse: course}
+	view := NoteView{Prev: chosen.Prev, Next: chosen.Next, StepsLabel: chosen.Label, StepsCourse: chosen.Course, StepsUnit: chosen.Unit}
 	if err := sequenceSteps(view, wording.ZhHant).Render(t.Context(), &foot); err != nil {
 		t.Fatalf("render sequence steps: %v", err)
 	}

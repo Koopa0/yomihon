@@ -5181,12 +5181,15 @@ a.y-facetrow:hover {
   scroll-margin-top: var(--header-clearance);
 }
 
+/* The part's number is a word of its own, 第一部 or Part I, set above the quiet
+   end of the ink scale and in the interface face, so it reads as a label on the
+   name beside it rather than as a stray mark in the margin. */
 .y-part__num {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   flex: none;
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  min-width: 24px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
 }
 
 .y-part__name {
@@ -5198,19 +5201,6 @@ a.y-facetrow:hover {
   min-width: 0;
 }
 
-/* How many lessons a part or module holds, as a quiet figure beside its name
-   in the same way the rail counts are, rather than a badge: the heading already
-   says what it is. */
-.y-partcount {
-  color: var(--fg-subtle);
-  flex: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.25rem;
-  white-space: nowrap;
-}
-
 .y-module {
   padding: 22px 0 0 38px;
 }
@@ -5220,6 +5210,25 @@ a.y-facetrow:hover {
   display: flex;
   gap: 10px;
   margin: 0 0 4px;
+}
+
+/* A side branch is drawn inside the item of the row it hangs from, so the line
+   the main line is read along has to pass it to reach the row that follows. The
+   branch draws the stretch of that line beside itself, on the same column the
+   rows' own rules sit in, and starts it flush with the row above and ends it
+   flush with the one below. Its own text sits to the right of the line. */
+.y-lessons > li:has(+ li) > .y-module {
+  position: relative;
+}
+
+.y-lessons > li:has(+ li) > .y-module::before {
+  border-left: 1px solid var(--border-strong);
+  bottom: 0;
+  content: '';
+  left: calc(var(--lesson-inset) + var(--lesson-gutter) / 2 - 0.5px);
+  position: absolute;
+  top: 0;
+  width: 0;
 }
 
 .y-module__tag {
@@ -5259,6 +5268,13 @@ a.y-facetrow:hover {
   font-size: var(--fs-12);
 }
 
+/* The two measures the line and the rows are laid out by, set on the page so a
+   row and the side branch beside it read the same two. */
+.y-syl {
+  --lesson-gutter: 20px;
+  --lesson-inset: 6px;
+}
+
 /* A part reads as a line: the rows of one run are joined by a single vertical
    rule through the column their marks already sit in, and each mark is a point
    on it. The rule is drawn by the rows themselves, so it needs no element of
@@ -5275,8 +5291,6 @@ a.y-facetrow:hover {
    between two rows: the line is what the part is read along, and at the
    weight of the row rules it was there to be found rather than seen. */
 .y-lesson {
-  --lesson-gutter: 20px;
-  --lesson-inset: 6px;
   align-items: center;
   border-bottom: 1px solid var(--border-faint);
   color: inherit;
@@ -5346,21 +5360,33 @@ a.y-facetrow:hover {
   height: 11px;
   width: 11px;
 }
-/* A phone row used to hide the words that decide which lesson to open
-   (nowrap + ellipsis beside a whole status badge). Two lines is enough to
-   tell "Slices- Strings and Slices" from its neighbours; the badge stays
-   on the auto track and must not wrap. The rail keeps its own ellipsis. */
+/* A row's words are one run of text: the lesson's name, then the sentence its
+   author wrote after the link, which carries on from it as a sentence does and
+   wraps with it. A phone row used to hide the words that decide which lesson
+   to open (nowrap + ellipsis beside a whole status badge), and the first fix
+   clamped the name to two lines; with the sentence in the same run nothing is
+   clipped at all, so every word the author put on the row is there to be read.
+   The badge stays on the auto track and must not wrap. The rail keeps its own
+   ellipsis. */
+.y-lesson__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .y-lesson__title {
-  -webkit-box-orient: vertical;
   color: var(--fg);
-  display: -webkit-box;
   font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  min-width: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
+}
+
+/* The author's sentence, set after the name in the same face one step smaller
+   and a step quieter, so that the name is what is read first and the sentence
+   follows it on the line instead of hanging beneath it as a second row. It is
+   inline on purpose: a box here would be the second line it replaces. */
+.y-gloss {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
 }
 
 /* What closes a row: the reader's own bookmark where they left off in this
@@ -5396,15 +5422,6 @@ a.y-facetrow:hover {
   white-space: nowrap;
 }
 
-.y-pathcount {
-  color: var(--fg-faint);
-  flex: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  margin-left: auto;
-  white-space: nowrap;
-}
-
 .y-syl-raillabel {
   padding: 0 8px 6px;
 }
@@ -5423,6 +5440,55 @@ a.y-facetrow:hover {
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
+}
+
+/* What the author kept out of the course and listed after it: titles with the
+   sentences they wrote, set as a plain list. Nothing here is a step, so it has
+   no marks and no line, and no number. */
+.y-appendix {
+  margin-top: 54px;
+}
+
+.y-reflist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.y-ref {
+  border-bottom: 1px solid var(--border-faint);
+  color: inherit;
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 11px 6px;
+  text-decoration: none;
+}
+
+.y-ref:hover {
+  background: var(--overlay);
+}
+
+.y-ref__title {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+}
+
+.y-ref--broken {
+  cursor: help;
+}
+
+.y-ref--broken:hover {
+  background: none;
+}
+
+.y-ref--broken .y-ref__title {
+  color: var(--fg-muted);
+}
+
+/* The way to the whole note ends the contents, as one quiet line. */
+.y-cover__note {
+  margin: 40px 0 0;
 }
 
 /* The cover: what a course is, before what it contains. The author's own
@@ -6054,6 +6120,14 @@ samp,
 
   .y-module {
     padding-left: 16px;
+  }
+
+  /* The line the main line is read along runs a little under sixteen pixels in
+     from the edge of a list item, and a side branch is drawn inside that item.
+     The part's other blocks start sixteen pixels in at this width, which would
+     put the branch's label across the line, so a branch starts further in. */
+  .y-lessons > li > .y-module {
+    padding-left: 30px;
   }
 
   .y-lessons {

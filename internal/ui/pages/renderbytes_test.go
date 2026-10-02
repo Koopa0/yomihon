@@ -127,6 +127,13 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// verb changes and the lesson's own name comes to stand beside it, so
 		// both languages are recorded again: the word and the name sit on one
 		// line, and the line is where a longer word would show.
+		// A course annotated the way its author writes one: a sentence beside each
+		// lesson, a side branch hanging from a lesson, an appendix after the
+		// last part, and something marked to be heard. The course above has
+		// none of these, so without this recording the markup that carries them
+		// is written into no file at all.
+		{"syllabus-page-annotated", Syllabus(annotatedCourse(t), recordedChrome())},
+		{"syllabus-page-annotated-english", Syllabus(annotatedCourse(t), recordedEnglishChrome())},
 		{"syllabus-page-continuing", Syllabus(course.view(recordedChrome().Lang, "Writing/lessons/go/L02.md"), recordedChrome())},
 		{"syllabus-page-continuing-english", Syllabus(course.view(wording.En, "Writing/lessons/go/L02.md"), recordedEnglishChrome())},
 		// The same course as something to be listened to, in both languages.

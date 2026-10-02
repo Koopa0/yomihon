@@ -8,11 +8,16 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
+// readAloudWord is the word that opens the comment an author places before a
+// paragraph to have it spoken. It is spelled once: the pattern below and the
+// cheap question MayMarkReadAloud asks both read it.
+const readAloudWord = "read-aloud"
+
 var (
 	// ttsMarkedParagraph is the authoring contract for a speakable paragraph: an
 	// author places <!-- read-aloud: ja --> immediately before it, and this pass
 	// consumes the comment into one read-aloud line.
-	ttsMarkedParagraph = regexp.MustCompile(`(?s)<!--\s*read-aloud:\s*ja\s*-->\s*<p>(.*?)</p>`)
+	ttsMarkedParagraph = regexp.MustCompile(`(?s)<!--\s*` + readAloudWord + `:\s*ja\s*-->\s*<p>(.*?)</p>`)
 	// rubyReading matches a ruby reading annotation, each closed by its own tag,
 	// so a caller stripping it keeps the base characters and drops the furigana.
 	// Only the tag name is anchored, so an annotation carrying attributes is
@@ -48,6 +53,42 @@ func InjectTTS(htmlOut string, lang wording.Lang) string {
 	return eachMarkedParagraph(htmlOut, func(inner, spoken string) string {
 		return readAloudBlock(inner, spoken, lang)
 	})
+}
+
+// MayMarkReadAloud reports whether a note's rendered page could carry a
+// read-aloud marker at all: the source says the marker's word, or embeds
+// something that may be another note, whose words arrive on this page and may
+// say it. A picture or a PDF brings no words, so an embed of one does not
+// count; any other embed does, since a note's own name can hold a dot. It is a
+// necessary condition and not a sufficient one: the word can sit in prose or in
+// a comment the grammar does not claim, so a caller that needs the answer
+// renders the note and asks MarkedParagraphs. Its use is to spare a page that
+// only wants to know whether anything in a whole path is marked from rendering
+// every note in it when none of them could be. The one shape it misses is a
+// note whose own name ends in a picture's extension, embedded by that name.
+func MayMarkReadAloud(body string) bool {
+	return strings.Contains(body, readAloudWord) || embedsSomethingThatMayBeANote(body)
+}
+
+// embedsSomethingThatMayBeANote reports whether body writes an embed whose
+// target is not named as a picture or a PDF. The target is what stands before a
+// display width or a section in the embed's brackets.
+func embedsSomethingThatMayBeANote(body string) bool {
+	const open = "![["
+	for rest := body; ; {
+		at := strings.Index(rest, open)
+		if at < 0 {
+			return false
+		}
+		rest = rest[at+len(open):]
+		inner, _, _ := strings.Cut(rest, "]]")
+		target, _, _ := strings.Cut(inner, "|")
+		target, _, _ = strings.Cut(target, "#")
+		target = strings.TrimSpace(target)
+		if !IsPicture(target) && !IsPDF(target) {
+			return true
+		}
+	}
 }
 
 // MarkedParagraphs returns every paragraph an author marked to be read aloud,

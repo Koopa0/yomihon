@@ -53,11 +53,13 @@ type NoteView struct {
 	// Prev and Next are the notes either side of this one in the sequence the
 	// foot of the article offers. StepsLabel names that sequence, printed and
 	// spoken alike — a course's step onward, or folder adjacency.
-	// StepsCourse says which order arrived, which picks the step words.
+	// StepsCourse says which order arrived, which picks the step words, and
+	// StepsUnit is the noun a course's steps are named in.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
 	StepsLabel  string
 	StepsCourse bool
+	StepsUnit   nav.Unit
 	// VaultHasLinks says some note in this folder cites another. Where none
 	// does, an empty cited-by block on every page is furniture; where the
 	// folder does use links, an empty block is a finding and stays.
@@ -521,13 +523,13 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 			<p class="y-steps__source">{ v.StepsLabel }</p>
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
-					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { stepWordPrev(v.StepsCourse, lang) }</span>
+					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { stepWordPrev(v.StepsCourse, v.StepsUnit, lang) }</span>
 					<span class="y-steps__name" { authoredLanguageAttrs(v.Prev.Language)... }>{ v.Prev.Name }</span>
 				</a>
 			}
 			if v.Next.RelPath != "" {
 				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
-					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, lang) } <span class="y-steps__dir" aria-hidden="true">→</span></span>
+					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, v.StepsUnit, lang) } <span class="y-steps__dir" aria-hidden="true">→</span></span>
 					<span class="y-steps__name" { authoredLanguageAttrs(v.Next.Language)... }>{ v.Next.Name }</span>
 				</a>
 			}
