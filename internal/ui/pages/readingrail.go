@@ -29,8 +29,12 @@ type ReadingRail struct {
 	// kept in a note the book does not teach marks nothing.
 	KeptNote string
 
-	book         *nav.Path
-	neighbors    nav.Neighbors
+	book      *nav.Path
+	neighbors nav.Neighbors
+	// place is where the note sits in the book: its part, and what a side
+	// branch hands over at its ends. It is the zero value for a note the book
+	// does not walk, which is the case neighbors.PathRelPath says.
+	place        nav.Place
 	hereDir      string
 	here         []nav.NoteRef
 	openBranches map[string]bool
@@ -73,6 +77,7 @@ func NewReadingRail(shell nav.Shell, currentPath, noteDomain string) ReadingRail
 			step := neighbors[i]
 			if step.PathRelPath == book.RelPath {
 				rr.neighbors = step
+				rr.place, _ = model.PathPlace(currentPath, book.RelPath)
 				break
 			}
 		}

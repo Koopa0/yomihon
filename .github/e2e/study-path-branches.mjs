@@ -27,6 +27,8 @@ const SITES = [
   'side-branch-under-its-lesson',
   'main-line-steps-over-the-side-branch',
   'side-branch-does-not-rejoin',
+  'side-branch-offers-a-labelled-way-back-and-on',
+  'a-lesson-names-its-book-above-its-title',
   'declared-out-stays-out',
   'declared-out-is-in-no-course',
   'general-maps-unchanged',
@@ -86,6 +88,17 @@ const MUTATIONS = {
   'send-the-main-line-into-the-side-branch': {
     target: 'main-line-steps-over-the-side-branch',
     apply: rewriteDocument(SECOND_LESSON, '/notes/Course/C03.md', '/notes/Course/S01.md', 'next step link'),
+  },
+  // The branch's only lesson is left with nothing but the step it never had:
+  // the labelled way on to the main line is gone.
+  'drop-the-way-on': {
+    target: 'side-branch-offers-a-labelled-way-back-and-on',
+    apply: rewriteDocument(SIDE_LESSON, 'y-steps__link--onward', 'y-steps__link--detached', 'side-branch article foot'),
+  },
+  // A lesson of the course loses the line that names its book.
+  'drop-the-running-head': {
+    target: 'a-lesson-names-its-book-above-its-title',
+    apply: rewriteDocument(SECOND_LESSON, 'y-crumbs--course', 'y-crumbs--plain', 'second lesson article head'),
   },
   'rejoin-the-side-branch': {
     target: 'side-branch-does-not-rejoin',
@@ -261,11 +274,58 @@ try {
     broken('the folder tree stopped listing the file, so this check no longer separates a folder from a course');
   }
 
-  // A side branch's last lesson closes it: it does not rejoin the main line.
+  // A side branch's last lesson closes it: it offers no next lesson in the
+  // course's order, so the branch does not rejoin the main line's steps.
   await page.goto(BASE + SIDE_LESSON, { waitUntil: 'domcontentloaded' });
   if (await page.locator('nav.y-steps a[rel="next"]').count() !== 0) {
     fail('side-branch-does-not-rejoin',
-      'the side branch\'s last lesson offers a next lesson, so the branch rejoined the course');
+      'the side branch\'s last lesson offers a next lesson, so the branch rejoined the course\'s steps');
+  }
+
+  // The branch's way off is labelled and is not a step: back to the lesson it
+  // hangs from, on to the main line's next lesson, neither of them a previous
+  // or a next in the course's order. The lesson it hangs from points at it.
+  const back = page.locator('nav.y-steps a.y-steps__link--back');
+  const onward = page.locator('nav.y-steps a.y-steps__link--onward');
+  if (await back.count() !== 1 || await onward.count() !== 1) {
+    fail('side-branch-offers-a-labelled-way-back-and-on',
+      `the side branch's only lesson offers ${await back.count()} ways back and ${await onward.count()} ways on, want 1 and 1`);
+  }
+  if ((await back.getAttribute('href')) !== SECOND_LESSON || (await onward.getAttribute('href')) !== '/notes/Course/C03.md') {
+    fail('side-branch-offers-a-labelled-way-back-and-on',
+      `the way back leads to ${await back.getAttribute('href')} and the way on to ${await onward.getAttribute('href')}, want C02 and C03`);
+  }
+  if (await back.getAttribute('rel') !== null || await onward.getAttribute('rel') !== null) {
+    fail('side-branch-offers-a-labelled-way-back-and-on', 'a way off the branch claims to be the previous or the next lesson');
+  }
+  await page.goto(BASE + SECOND_LESSON, { waitUntil: 'domcontentloaded' });
+  if (await page.locator(`nav.y-steps p.y-steps__aside a[href="${SIDE_LESSON}"]`).count() !== 1) {
+    fail('side-branch-offers-a-labelled-way-back-and-on', 'the lesson the side branch hangs from does not point at it');
+  }
+
+  // Every lesson of the course names its book above its title, as a link to the
+  // contents; a side branch's lesson says so. A note in no course keeps the
+  // folder's breadcrumb.
+  const headOf = async (path) => {
+    await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
+    return page.locator('.y-article .y-crumbs--course a.y-crumbs__link');
+  };
+  const mainHead = await headOf(SECOND_LESSON);
+  if (await mainHead.count() !== 1 || (await mainHead.innerText()).trim() !== 'Branch Course · 主線') {
+    fail('a-lesson-names-its-book-above-its-title',
+      `the second lesson's running head reads ${JSON.stringify(await mainHead.allInnerTexts())}, want "Branch Course · 主線"`);
+  }
+  if (!(await mainHead.getAttribute('href')).startsWith(COURSE_PAGE)) {
+    fail('a-lesson-names-its-book-above-its-title', 'the running head does not lead to the course contents');
+  }
+  const sideHead = await headOf(SIDE_LESSON);
+  if ((await sideHead.innerText()).trim() !== 'Branch Course · 主線 · 支線') {
+    fail('a-lesson-names-its-book-above-its-title',
+      `the side branch's running head reads ${JSON.stringify(await sideHead.allInnerTexts())}, want "Branch Course · 主線 · 支線"`);
+  }
+  await page.goto(BASE + ROUTINE_LESSON, { waitUntil: 'domcontentloaded' });
+  if (await page.locator('.y-article .y-crumbs--course').count() !== 0) {
+    fail('a-lesson-names-its-book-above-its-title', 'a lesson declared out of the course carries a running head naming it');
   }
 
   // Narrowing courses must not narrow maps: a general map still lists what it

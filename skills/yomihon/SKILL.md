@@ -358,7 +358,8 @@ case-sensitive, and exact about where they may be written:
 
 `primary` is the main line and the only thing the course count takes. `local`
 is a side branch, with its own order and no prev/next link to or from the main
-line; the page counts it beside the course, never in it. `none` leaves the
+line; the page counts it beside the course, never in it, and labels the way back
+from its first lesson and the way on from its last. `none` leaves the
 course entirely and still reads, and the course page lists its rows after the
 last part.
 Undeclared is unclassified, and unclassified projects nothing —

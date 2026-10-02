@@ -269,23 +269,42 @@ func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFaul
 // of this one in the order that won, what to call that order, and which kind it
 // is. Unit is the noun a course's steps are named in, and means nothing for a
 // folder's.
+//
+// The rest belongs to a course. Path is the path whose order it is, which the
+// foot names with a link to the contents. A side branch's lessons carry the
+// ways off it: Back on its first lesson, Onward or ToContents on its last. The
+// lesson a branch hangs from carries Asides, one for each branch. None of them
+// is Prev or Next, because none of them is a step in the course's order, and
+// the main line's own steps are what they were without the branches.
 type Foot struct {
 	Prev, Next nav.NoteRef
-	// Label names the order, printed and spoken alike.
+	// Label names the order, spoken as the foot's name.
 	Label string
 	// Course says the order is a study path's and not the folder's, which
 	// picks the step words.
 	Course bool
 	Unit   nav.Unit
+
+	Path       nav.NoteRef
+	Back       nav.NoteRef
+	Onward     nav.NoteRef
+	ToContents bool
+	Asides     []nav.NoteRef
 }
 
 // FooterSequence chooses which order the foot of the article offers, and what to
 // call it. The rail has already resolved which book, if any, the page is being
 // read inside, and the foot walks that same book: the foot is the one place a
 // page in a book offers a lesson onward, since the rail's head carries only the
-// course's name and extent. A page whose rail resolved no book — none teaches
-// this note, or several do and none of them is its own — keeps the folder,
-// whose alphabetical order a course's declared one can contradict completely.
+// course's name and extent.
+//
+// A note the book walks never gets the folder's order, even where the course
+// has no step to offer it: a course's declared order can contradict the
+// folder's alphabetical one completely, so a foot that fell back to it would
+// point the wrong way and call it previous. A lesson with no step then shows
+// nothing but what a branch hands it. A page whose rail resolved no book — none
+// teaches this note, or several do and none of them is its own — keeps the
+// folder, and so does the course's own note, which the book does not walk.
 // A course foot names the step onward, not the path's whole order.
 //
 // Foot.Course reports which order won, so the foot can print it: that and the
@@ -296,20 +315,60 @@ func FooterSequence(rail *ReadingRail, lang wording.Lang) Foot {
 		return Foot{}
 	}
 	step := rail.neighbors
-	// A book can list a note with no walkable stop on either side — planned
-	// rows and side branches drop out of the course walk — and an empty foot
-	// then leaves keyboard reading with nowhere to go inside the article.
-	if step.PathRelPath != "" && (step.Prev.RelPath != "" || step.Next.RelPath != "") {
+	if step.PathRelPath != "" {
 		return Foot{
-			Prev:   step.Prev,
-			Next:   step.Next,
-			Label:  fmt.Sprintf(wording.CourseOnwardOf.In(lang), step.PathTitle),
-			Course: true,
-			Unit:   step.Unit,
+			Prev:       step.Prev,
+			Next:       step.Next,
+			Label:      fmt.Sprintf(wording.CourseOnwardOf.In(lang), step.PathTitle),
+			Course:     true,
+			Unit:       step.Unit,
+			Path:       nav.NoteRef{Name: step.PathTitle, RelPath: step.PathRelPath},
+			Back:       rail.place.Back,
+			Onward:     rail.place.Onward,
+			ToContents: rail.place.ToContents,
+			Asides:     rail.place.Asides,
 		}
 	}
 	prev, next := rail.Model.FolderStep(rail.CurrentPath)
 	return Foot{Prev: prev, Next: next, Label: wording.FolderAdjacency.In(lang)}
+}
+
+// RunningHead is the line above the title of a note the reading rail resolved a
+// book for, the way a printed page carries the book's name at its top: the
+// path's own title, the part the note sits in, and for a lesson of a side branch
+// the word saying so. The whole line leads to the path's contents, with the
+// note marked on it.
+type RunningHead struct {
+	Title string
+	Href  string
+	// Part is empty where the note sits in no named part.
+	Part   string
+	Branch bool
+}
+
+// Text is the line as it reads, its parts joined by the middle dot the interface
+// puts between facts.
+func (h RunningHead) Text(lang wording.Lang) string {
+	branch := ""
+	if h.Branch {
+		branch = wording.BranchTag.In(lang)
+	}
+	return joinMarks(h.Title, h.Part, branch)
+}
+
+// RunningHeadOf answers the running head of the note the rail is for. ok is
+// false for a note the resolved book does not walk, and the page then keeps the
+// folder's breadcrumb: a note in no path has no book to be a page of.
+func RunningHeadOf(rail *ReadingRail) (head RunningHead, ok bool) {
+	if rail == nil || rail.neighbors.PathRelPath == "" {
+		return RunningHead{}, false
+	}
+	return RunningHead{
+		Title:  rail.neighbors.PathTitle,
+		Href:   syllabusHrefFrom(rail.neighbors.PathRelPath, rail.CurrentPath),
+		Part:   rail.place.Part,
+		Branch: rail.place.OnBranch,
+	}, true
 }
 
 // stepWordPrev and stepWordNext name a footer step for the order it walks: a
