@@ -1577,6 +1577,20 @@ details.y-metarow {
   line-height: var(--lh-latin);
 }
 
+/* The column is sized for Han: thirty-eight characters of it at the reading
+   size is 646px, and the same 646px carries about 85 Latin characters, well
+   past where a line stays easy to carry back to the start of the next. Where
+   the article is positively tagged non-CJK its text blocks stop at 54ch, which
+   is about 70 characters of this face: the figure is counted in ch rather than
+   pixels so it follows the reader's size and face choice. A ch is the width of
+   a zero, wider than the average letter, so the column's 67ch was never the
+   same thing as 67 characters. Code, tables, diagrams and images are not text
+   lines and keep the whole column; an article that declares no language, and
+   every CJK article, keep the full measure. */
+.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose > :is(p, ul, ol, blockquote, .callout, .y-reading) {
+  max-width: 54ch;
+}
+
 /* The head ends where the body begins: forty pixels of space and no rule. The
    head's own bottom margins are never more than that, so the two collapse into
    one gap whichever of them is the larger. */
