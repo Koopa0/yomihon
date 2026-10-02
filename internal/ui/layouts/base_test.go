@@ -33,8 +33,12 @@ func TestBaseStartsBodyWithSkipLink(t *testing.T) {
 }
 
 // TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly pins the two scripts a
-// page carries: the module entry, and the one-line mark that sets data-js
-// before the first style so a scripted page is laid out as it will stay.
+// page carries: the module entry, and the inline script in the head. The
+// inline script sets data-js before the first style, so a scripted page is laid
+// out as it will stay, and answers the page change the stylesheet opts into:
+// Back and Forward are skipped, and any other change still unfinished after
+// 600ms is ended. It lives here rather than in a module because the arrival is
+// announced before a deferred module has run.
 func TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -43,9 +47,22 @@ func TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly(t *testing.T) {
 	}
 	html := buf.String()
 	const entry = `<script nonce="response-nonce" type="module" src="/static/yomihon.js"></script>`
-	// The statement stands on its own line because that is how templ fmt lays
+	// Each statement stands on its own line because that is how templ fmt lays
 	// out a script element, and the format check keeps it so.
-	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\tdocument.documentElement.dataset.js = \"on\";\n\t\t\t</script>"
+	const mark = "<script nonce=\"response-nonce\">\n" +
+		"\t\t\t\tdocument.documentElement.dataset.js = \"on\";\n" +
+		"\t\t\t\taddEventListener(\"pagereveal\", (event) => {\n" +
+		"\t\t\t\t\tconst transition = event.viewTransition;\n" +
+		"\t\t\t\t\tif (!transition) return;\n" +
+		"\t\t\t\t\tif (window.navigation?.activation?.navigationType === \"traverse\") {\n" +
+		"\t\t\t\t\t\ttransition.skipTransition();\n" +
+		"\t\t\t\t\t\treturn;\n" +
+		"\t\t\t\t\t}\n" +
+		"\t\t\t\t\tconst watchdog = setTimeout(() => transition.skipTransition(), 600);\n" +
+		"\t\t\t\t\tconst settled = () => clearTimeout(watchdog);\n" +
+		"\t\t\t\t\ttransition.finished.then(settled, settled);\n" +
+		"\t\t\t\t});\n" +
+		"\t\t\t</script>"
 	if got := strings.Count(html, entry); got != 1 {
 		t.Errorf("Base() module entries = %d, want 1 exact %q; html = %q", got, entry, html)
 	}

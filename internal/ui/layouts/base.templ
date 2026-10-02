@@ -36,8 +36,28 @@ templ Base(c Chrome) {
 			// the mark here, before the first style, lays the page out as it will
 			// stay. A browser with scripting off never runs this and keeps the
 			// unscripted layout.
+			//
+			// The same script answers the page change the stylesheet opts into,
+			// because the announcement of an arrival is made before any deferred
+			// module has run. Back and Forward are never animated: a reader going
+			// back wants the page they left, and the browser's own restore is
+			// already instant. Any other change still unfinished after 600ms is
+			// ended rather than left holding the page, which is far longer than
+			// the motion itself takes and so only ever fires when something has
+			// stalled.
 			<script nonce={ c.Nonce }>
 				document.documentElement.dataset.js = "on";
+				addEventListener("pagereveal", (event) => {
+					const transition = event.viewTransition;
+					if (!transition) return;
+					if (window.navigation?.activation?.navigationType === "traverse") {
+						transition.skipTransition();
+						return;
+					}
+					const watchdog = setTimeout(() => transition.skipTransition(), 600);
+					const settled = () => clearTimeout(watchdog);
+					transition.finished.then(settled, settled);
+				});
 			</script>
 			// Every page change is a whole new document, and a browser may paint
 			// the header and the rail before the column they frame has arrived,
