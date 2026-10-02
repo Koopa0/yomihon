@@ -1622,7 +1622,7 @@ details.y-metarow {
 .y-prose p {
   margin: var(--sp-block) 0 0;
 }
-/* Size, the section bar and the fragment landing pad follow the authored
+/* Size and the fragment landing pad follow the authored
    level the renderer stamps, not the HTML tag. The tag is one step down so
    the chrome title stays the only h1; the look has to stay where the author
    wrote it, or a #### that the shell emits as h5 reads as body prose and a
@@ -1630,7 +1630,7 @@ details.y-metarow {
    note's title stays on the page. Preflight resets headings to inherited
    size, so a level given no size of its own here read at body size —
    smaller than its own subsections. The # step sits between the page title
-   (--fs-ed-38) and authored ##.
+   (--fs-ed-36) and authored ##.
    Every level takes its size from the editorial scale, which the reader's
    size choice moves; a level set from the chrome scale instead stays where
    it is while the prose under it grows past it. Line-height is declared per
@@ -1694,12 +1694,20 @@ details.y-metarow {
    the same clearance as the rest. They stop at the body's size instead of
    shrinking a sixth time: read at the browser's own idea of an h5 and an h6
    they were the size of the paragraph beside them, in the paragraph's face
-   and weight, with less room above them than the paragraph had. The two are
-   told apart by weight and letter-spacing rather than by size, which is what
-   keeps the topmost level from having to grow to a size CJK cannot carry. */
+   and weight, with less room above them than the paragraph had. They take the
+   fourth level's measure and its room above and below, and the two are told
+   apart by weight rather than by size, which is what keeps the topmost level
+   from having to grow to a size CJK cannot carry. */
 .y-prose [data-level='5'],
 .y-prose [data-level='6'] {
+  color: var(--fg);
+  font-family: var(--font-read);
+  font-size: var(--fs-ed-17);
   font-weight: var(--fw-medium);
+  line-height: 1.647;
+  margin: var(--sp-h4) 0 var(--sp-after-h4);
+  scroll-margin-top: var(--header-clearance);
+  text-wrap: balance;
 }
 
 .y-prose [data-level='5'] {
