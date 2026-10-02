@@ -72,10 +72,11 @@ func fixed(contentType string, body []byte) entry {
 }
 
 // stylesheetParts is the product stylesheet's source files, in the order they
-// are joined. The reset comes first so that every rule after it outranks it by
-// position as well as by layer, the font faces next so the tokens may name the
-// families they declare, the tokens before the components that read them, and
-// the components last.
+// are joined: the reset as the base, then the font faces, then the tokens, then
+// the components that read them. No rule's outcome depends on the order, since
+// the reset sits in its own cascade layer and every other rule is unlayered, but
+// a sheet read from the top should open with its base and end with the rules
+// that use it, and a part added later needs somewhere to go.
 var stylesheetParts = []string{
 	"css/reset.css",
 	"css/fonts.css",

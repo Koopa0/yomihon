@@ -109,10 +109,10 @@ var unjoinableAtRule = regexp.MustCompile(`@(?:import|charset|namespace)\b`)
 var cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
 
 // TestStylesheetIsItsPartsJoinedInOrder holds the one stylesheet the pages link
-// to against the four hand-written files it is made of. The order is spelled out
-// here rather than read from stylesheetParts, so that changing it in one place
-// is a failure and not two files agreeing with each other: the reset has to open
-// the sheet or it would land after, and beat, the rules it exists to sit under.
+// to against the four files it is made of: each present once, in the order the
+// sheet is read, base first and components last. The order is spelled out here
+// rather than read from stylesheetParts, so that changing it in one place is a
+// failure and not two files agreeing with each other.
 func TestStylesheetIsItsPartsJoinedInOrder(t *testing.T) {
 	t.Parallel()
 	order := []string{"css/reset.css", "css/fonts.css", "css/tokens.css", "css/components.css"}
@@ -141,7 +141,7 @@ func TestStylesheetIsItsPartsJoinedInOrder(t *testing.T) {
 	}
 
 	if !bytes.HasPrefix(served, parts[0]) {
-		t.Errorf("the served stylesheet does not begin with %s, so the reset can land after the rules it is meant to sit under", order[0])
+		t.Errorf("the served stylesheet does not begin with %s, so it no longer opens with its base", order[0])
 	}
 	rest := served
 	for i, part := range parts {
