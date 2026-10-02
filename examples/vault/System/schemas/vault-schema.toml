@@ -101,6 +101,13 @@ archived_status = "archived"
 #
 # Owner lists are declarative data. They gate nothing and any name works; they
 # record, for your own tooling's doctrine, whose step a status's onward move is.
+#
+# A row may also say settled = true: the status is where a finished note rests.
+# A surface that prints each note's status leaves a settled one unmarked and
+# marks only the notes not there yet, so a vault of finished notes is not
+# covered in labels. A status is settled when any row naming it says so, and a
+# contract that writes the key on no row settles nothing: every status is
+# marked.
 [[lifecycle]]
 status = "draft"
 applies_to = ["*"]
@@ -116,6 +123,7 @@ applies_to = ["*"]
 initial = false
 from = ["draft"]
 owner = ["author"]
+settled = true
 
 [[lifecycle]]
 status = "archived"
@@ -139,3 +147,4 @@ applies_to = ["note", "study-path", "moc", "concept", "inbox"]
 initial = false
 from = ["ready"]
 owner = ["author"]
+settled = true

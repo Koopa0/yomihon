@@ -31,6 +31,10 @@ The diagram shows transitions the contract allows, including `ready → publishe
 
 This restriction concerns the target, not a note already marked `published`. [[A published note]] carries that value, written by hand. Its status panel offers `archived` because this example contract allows `published → archived`, as the diagram shows. Other vaults offer the onward transitions their own contracts permit.
 
+## settled keeps a finished note unmarked
+
+A row can say `settled = true`. A reading page then prints a note's status only when the note is not at a settled one, so a finished library is not covered in labels and the few notes still to be done stand out. A contract that never writes the key marks every status.
+
 ## What a write is
 
 The button rewrites one line of a note's [[Frontmatter]]. If the file changed on disk while you were reading, the write is refused rather than applied to a version you never read.
