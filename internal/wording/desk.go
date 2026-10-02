@@ -115,10 +115,11 @@ var (
 
 // A report row says which of the two kinds it is, because the two are read
 // differently: a briefing is drawn by a program and shown here as bytes inside
-// an isolated frame, a written report is a note like any other.
+// an isolated frame, a written report is opened and read as a document. Both
+// are reports on this shelf, so neither is named for how it is stored.
 var (
 	DailyBriefing = both("每日簡報", "Daily briefing")
-	WrittenReport = both("書庫筆記", "Vault note")
+	WrittenReport = both("報告", "Written report")
 )
 
 // ReportUndated is what leads a report that carries no day, where the others

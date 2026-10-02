@@ -1278,6 +1278,14 @@ samp {
   color: var(--warn);
 }
 
+/* The word on the briefing the vault keeps current. A report is called by its
+   title, which runs longer than a file name does, so the title is what wraps
+   and the word keeps its line: "最新" broken across two lines reads as nothing. */
+.y-navmark--newest {
+  flex: none;
+  white-space: nowrap;
+}
+
 .y-navitem--broken {
   cursor: default;
 }
@@ -4666,9 +4674,20 @@ a.y-facetrow:hover {
 
 .y-reporttitle {
   color: var(--fg);
+  flex: 1 0 100%;
   font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The file the report is kept in, under what it calls itself: a fact about
+   where it lives, kept quiet so the title is what the head says. */
+.y-reportfile {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   min-width: 0;
   overflow-wrap: anywhere;
 }
