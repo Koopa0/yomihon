@@ -197,6 +197,14 @@ samp {
   color: var(--warn);
 }
 
+/* The row for the note being read keeps the room its status chip would take and
+   shows nothing in it, so its name has the same width as the rows around it and
+   wraps in the same place. Dropping the chip instead widened the name's column
+   and moved the text by a line between sibling lessons. */
+.ui-navitem__count--reserved {
+  visibility: hidden;
+}
+
 /* Where a listing is read by date, the day leads the row here as it does at
    full width, so the desk's corner of that shelf is scanned down the same
    column as the shelf's own page. The day and the kind at the far end are each
