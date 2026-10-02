@@ -78,15 +78,14 @@ func TestAProseMapRowCountsTheBranchesTheRailWouldDraw(t *testing.T) {
 	}
 }
 
-// TestAReportRowLeadsWithItsDayThenNamesItsKind pins the faces a report row
-// shows and which face each thing lands on. The day leads, because that is what
-// a reader scans a shelf of reports for, and the title follows — what the report
-// calls itself, never the name of its file. The kinds open differently — a
-// briefing's bytes are shown inside an isolated frame, a written report is read
-// as a document — so the kind is named on every row, and a reader knows which
-// link they are about to follow. A written report is a report on this shelf,
-// not "a vault note".
-func TestAReportRowLeadsWithItsDayThenNamesItsKind(t *testing.T) {
+// TestAReportRowOpensWithItsTitleThenItsDay pins the faces a report row shows
+// and which face each thing lands on. The row opens with what the report calls
+// itself — never the name of its file — and the day it is for follows. The
+// kinds open differently — a briefing's bytes are shown inside an isolated
+// frame, a written report is read as a document — so the kind is named on every
+// row, and a reader knows which link they are about to follow. A written report
+// is a report on this shelf, not "a vault note".
+func TestAReportRowOpensWithItsTitleThenItsDay(t *testing.T) {
 	t.Parallel()
 
 	reports := []nav.Report{
@@ -114,9 +113,10 @@ func TestAReportRowLeadsWithItsDayThenNamesItsKind(t *testing.T) {
 					Opening: "Four notes went from draft to ready.",
 					Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
 					Mark:    "報告",
+					ByTitle: true,
 				},
-				{When: "沒有寫日期", Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "報告"},
-				{When: "最新", Text: "接收者離開後 — Go 並行回顧", Href: "/reports/latest.html", Mark: "每日簡報"},
+				{When: "沒有寫日期", Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "報告", ByTitle: true},
+				{When: "最新", Text: "接收者離開後 — Go 並行回顧", Href: "/reports/latest.html", Mark: "每日簡報", ByTitle: true},
 			},
 		},
 		{
@@ -128,9 +128,10 @@ func TestAReportRowLeadsWithItsDayThenNamesItsKind(t *testing.T) {
 					Opening: "Four notes went from draft to ready.",
 					Href:    "/notes/System/reports/2026-07-10%20vault%20audit.md",
 					Mark:    "Written report",
+					ByTitle: true,
 				},
-				{When: "No date", Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "Written report"},
-				{When: "Newest", Text: "接收者離開後 — Go 並行回顧", Href: "/reports/latest.html", Mark: "Daily briefing"},
+				{When: "No date", Text: "notes", Href: "/notes/System/reports/notes.md", Mark: "Written report", ByTitle: true},
+				{When: "Newest", Text: "接收者離開後 — Go 並行回顧", Href: "/reports/latest.html", Mark: "Daily briefing", ByTitle: true},
 			},
 		},
 	} {

@@ -1,10 +1,10 @@
-// Behaviour lock for the reports shelf. A report is dated by nature and the
-// row is laid out around that: the day leads, the name follows, the line the
-// report opens with runs under it, and the kind sits at the far edge. Four
-// claims a rendering test cannot reach, because all four are settled by the
-// browser rather than by the bytes — where the day is drawn relative to the
-// name, that the opening really is held to one line rather than merely told
-// to be, that nothing on the page reaches past a phone's edge at the width
+// Behaviour lock for the reports shelf. A report is read for what it answers
+// and the row is laid out around that: the title leads, the day follows, the
+// line the report opens with runs under the title, and the kind sits at the far
+// edge. Four claims a rendering test cannot reach, because all four are settled
+// by the browser rather than by the bytes — where the title is drawn relative
+// to the day, that the opening really is held to one line rather than merely
+// told to be, that nothing on the page reaches past a phone's edge at the width
 // the rows are longest at, and that the days a reader sees really do run
 // newest first down the page.
 //
@@ -18,11 +18,11 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/reports';
 const MUTATE = process.env.MUTATE || '';
 const ANSWER_SITE = 'every-row-names-a-day';
-const LEAD_SITE = 'the-day-leads-the-row';
+const TITLE_SITE = 'the-title-leads-the-row';
 const ONELINE_SITE = 'the-opening-stays-one-line';
 const WIDTH_SITE = 'no-sideways-scroll';
 const ORDER_SITE = 'newest-first';
-const SITES = [ANSWER_SITE, LEAD_SITE, ONELINE_SITE, WIDTH_SITE, ORDER_SITE];
+const SITES = [ANSWER_SITE, TITLE_SITE, ONELINE_SITE, WIDTH_SITE, ORDER_SITE];
 
 // The two widths the shelf is read at: a phone, which is where the row has to
 // fold, and a laptop, which is where it has room for its three columns.
@@ -65,9 +65,14 @@ const appendStyle = (page, css) => {
 // was dropped from the template looks like from here.
 const hideTheDay = (page) => appendStyle(page, '.y-row__when{display:none}');
 
-// dropTheDayBelowTheName puts the day after everything else in the row, which
-// is where it lands the moment nothing places it.
-const dropTheDayBelowTheName = (page) => appendStyle(page, '.y-row--dated .y-row__when{grid-row:4}');
+// leadWithTheDay puts the day in the first column and the title in the second,
+// on the first line, which is the row the shelf had before the title opened it.
+const leadWithTheDay = (page) => appendStyle(
+  page,
+  '.y-row--by-title{grid-template-columns:auto minmax(0,1fr) auto}'
+    + '.y-row--by-title .y-row__when{grid-column:1;grid-row:1}'
+    + '.y-row--by-title .y-row__title{grid-column:2;grid-row:1}',
+);
 
 // letTheOpeningWrap takes the one-line hold off the opening, so a first
 // sentence runs down the page and the listing stops being a listing.
@@ -75,7 +80,7 @@ const letTheOpeningWrap = (page) => appendStyle(page, '.y-row__opening{white-spa
 
 // widenTheRows gives each row more width than a phone has, which is what any
 // content in it that cannot wrap would do.
-const widenTheRows = (page) => appendStyle(page, `.y-row--dated{min-width:${PHONE.width + 210}px}`);
+const widenTheRows = (page) => appendStyle(page, `.y-row--by-title{min-width:${PHONE.width + 210}px}`);
 
 // unsortTheShelf serves the same rows in the opposite order, which is the page
 // a shelf that had quietly stopped ordering by date would return.
@@ -107,7 +112,7 @@ const unsortTheShelf = (page) => {
 
 const MUTATIONS = {
   'hide-the-day': { target: ANSWER_SITE, apply: hideTheDay },
-  'drop-the-day-below-the-name': { target: LEAD_SITE, apply: dropTheDayBelowTheName },
+  'lead-with-the-day': { target: TITLE_SITE, apply: leadWithTheDay },
   'let-the-opening-wrap': { target: ONELINE_SITE, apply: letTheOpeningWrap },
   'widen-the-rows': { target: WIDTH_SITE, apply: widenTheRows },
   'unsort-the-shelf': { target: ORDER_SITE, apply: unsortTheShelf },
@@ -229,19 +234,20 @@ try {
       }
     }
 
-    // The day leads: never on a line below the name it belongs to, never to
-    // the right of it. At a phone's width it sits on the line above; with room
-    // it sits in the column beside, where the two share a baseline and the
-    // smaller of the two boxes starts a few pixels lower — which is why this
-    // asks whether the day has fallen past the name's line rather than
-    // comparing the tops of two boxes set in different sizes.
+    // The title leads: never on a line below the day it belongs to, never to
+    // the right of it. At a phone's width the day sits on a line beneath the
+    // title; with room it sits in the column beside, where the two share a
+    // baseline and the smaller of the two boxes starts a few pixels lower —
+    // which is why the vertical question is whether the title has fallen past
+    // the day's line rather than a comparison of the tops of two boxes set in
+    // different sizes.
     for (const [i, row] of shelf.rows.entries()) {
-      if (!row.title) broken(`row ${i} has no name at ${at}`);
-      if (row.when.box.top >= row.title.box.bottom) {
-        fail(LEAD_SITE, `row ${i}'s day starts at y=${row.when.box.top}, below the name that ends at y=${row.title.box.bottom}, so the row does not lead with the day, at ${at}`);
+      if (!row.title) broken(`row ${i} has no title at ${at}`);
+      if (row.title.box.top >= row.when.box.bottom) {
+        fail(TITLE_SITE, `row ${i}'s title starts at y=${row.title.box.top}, below the day that ends at y=${row.when.box.bottom}, so the row does not lead with its title, at ${at}`);
       }
-      if (row.when.box.left > row.title.box.left + 1) {
-        fail(LEAD_SITE, `row ${i}'s day starts at x=${row.when.box.left} and its name at x=${row.title.box.left}, so the name comes first, at ${at}`);
+      if (row.title.box.left > row.when.box.left + 1) {
+        fail(TITLE_SITE, `row ${i}'s title starts at x=${row.title.box.left} and its day at x=${row.when.box.left}, so the day comes first, at ${at}`);
       }
     }
 
@@ -284,7 +290,7 @@ try {
   }
 
   await page.close();
-  console.log(`PASS reports-shelf: ${counted} reports lead with their day, hold their opening to one line, and run newest first, with no sideways scroll at ${PHONE.width}px`);
+  console.log(`PASS reports-shelf: ${counted} reports lead with their title, hold their opening to one line, and run newest first, with no sideways scroll at ${PHONE.width}px`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

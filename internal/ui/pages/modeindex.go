@@ -278,9 +278,9 @@ func countBranches(branches []nav.Branch) int {
 	return total
 }
 
-// NewReportIndex builds the report index. A report is dated by nature — a daily
-// briefing, an audit run — so the row leads with its day, then its title — what
-// the report calls itself, not the name of its file — then the line the report
+// NewReportIndex builds the report index. A report is read for what it
+// answers, so the row opens with its title — what the report calls itself,
+// not the name of its file — then the day it is for, then the line the report
 // opens with, then which of the two kinds it is. The two kinds are named apart
 // because they are read apart: a briefing is a program's output, shown as
 // bytes inside an isolated frame, and a written report is opened and read as a
@@ -299,6 +299,7 @@ func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang Article
 			Opening:  report.Opening,
 			Href:     href,
 			Mark:     kind,
+			ByTitle:  true,
 			Language: rowLanguage(articleLang, report.RelPath),
 		})
 	}
