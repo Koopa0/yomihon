@@ -115,6 +115,11 @@ func TestHTMLTitleFallsBackToTheFirstHeading(t *testing.T) {
 			html: "<h1> </h1><title>T</title>",
 			want: "T",
 		},
+		{
+			name: "an empty heading is passed over for the next one",
+			html: "<h1> </h1><h1>Second</h1>",
+			want: "Second",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
