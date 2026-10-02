@@ -7434,6 +7434,18 @@ samp,
   overflow-wrap: anywhere;
 }
 
+/* The course's title in the source line is a way to its contents, and reads as
+   the quiet line it replaced until it is pointed at. */
+.y-steps__path {
+  color: inherit;
+  text-decoration: none;
+}
+
+.y-steps__path:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
 .y-steps__link {
   border-radius: var(--r-lg);
   color: var(--fg);
@@ -7476,6 +7488,28 @@ samp,
 .y-steps__dir {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
+}
+
+/* A side branch hanging from this lesson, as one quiet line under the steps. It
+   is beside them and never one of them, so it takes a row of its own and the
+   lesson's own previous and next keep the places they always had. */
+.y-steps__aside {
+  color: var(--fg-subtle);
+  flex: 0 0 100%;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.y-steps__asidelink {
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+
+.y-steps__asidelink:hover {
+  color: var(--fg);
+  text-decoration: underline;
 }
 
 /* The siblings block is a neighbourhood, not the folder — it says what it left
