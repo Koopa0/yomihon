@@ -31,6 +31,17 @@ var (
 	FileNotIndexed = both("這個檔案的內容不會被搜尋讀取。", "This file's contents are not read by search.")
 )
 
+// A Markdown file the contract leaves out of the library still opens as a
+// document. The line above it says what it is not: a note, so nothing about it
+// is indexed or checked.
+var (
+	FileKindDocument    = both("文件", "Document")
+	SkippedDocumentNote = both(
+		"這份文件不在書庫的索引與診斷範圍內。",
+		"This document is outside the library's index and diagnostics.",
+	)
+)
+
 // OpenReportAsWritten is the visible door to the iframe's own address: the
 // report as authored, outside the sandboxed shell.
 var OpenReportAsWritten = both("以原樣開啟", "Open as written")

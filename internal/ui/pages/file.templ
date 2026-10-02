@@ -6,7 +6,7 @@ import (
 )
 
 // File is the reading page for a vault file that is not a note: the shared
-// chrome, the file's own name as the title, and one of four bodies. It carries
+// chrome, the file's own name as the title, and one of five bodies. It carries
 // no right rail and no status bar, a file having no contents, no diagnostics
 // and no status.
 templ File(v FileView, c layouts.Chrome) {
@@ -21,6 +21,11 @@ templ File(v FileView, c layouts.Chrome) {
 						case FileSource:
 							<div class="y-prose y-source">
 								@templ.Raw(v.SourceHTML)
+							</div>
+						case FileDocument:
+							<p class="y-fileinfo__note">{ wording.SkippedDocumentNote.In(c.Lang) }</p>
+							<div class="y-prose">
+								@templ.Raw(v.BodyHTML)
 							</div>
 						case FileImage:
 							<div class="y-prose">
@@ -61,6 +66,9 @@ templ fileHead(v FileView, lang wording.Lang) {
 	<div class="y-metarow">
 		<span class="ui-type">{ fileKindLabel(v.Kind, lang) }</span>
 		<span>{ v.RelPath }</span>
+		if v.Kind == FileDocument {
+			<a class="y-metarow__raw" href={ templ.URL(rawHref(v.RelPath)) }>{ wording.RawFile.In(lang) }</a>
+		}
 	</div>
 }
 

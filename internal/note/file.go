@@ -83,7 +83,8 @@ func servable(rel string) bool {
 // showFile serves a vault file that is not a captured note. The extension
 // chooses a viewer for the kinds a browser renders natively; everything else
 // is decided by the bytes. Text within the comfort cap becomes a highlighted
-// source page, and anything left — opaque bytes, or text too large to render
+// source page, except a Markdown file the contract skips, which reads as a
+// document. Anything left — opaque bytes, or text too large to render
 // comfortably, including a markdown file over that bound — becomes an honest
 // information page pointing at the raw endpoint.
 //
@@ -141,6 +142,15 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 		view.ContentType = fileContentType(rel, data)
 		if !render.IsText(data) {
 			view.Kind = pages.FileInfo
+			break
+		}
+		if vault.IsMarkdown(rel) && snap.SkipsNote(rel) {
+			// Left out of the library by the contract, not unreadable: it reads
+			// as a document, through the same renderer a note's body goes
+			// through, so a link or a picture in it resolves as it would there.
+			// The frontmatter is not part of the reading, as on a note.
+			view.Kind = pages.FileDocument
+			view.BodyHTML = snap.Render(rel, vault.Parse(rel, data).Body, lang).HTML
 			break
 		}
 		view.Kind = pages.FileSource
