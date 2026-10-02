@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,6 +20,16 @@ const (
 	skippedNoteEn = "This document is outside the library's index and diagnostics."
 )
 
+// skippedReadme is the file the contract leaves out. Its frontmatter carries a
+// sentinel the reading must not show, and it has a heading, a list, a relative
+// link, a link leaving the vault, and a picture.
+const skippedReadme = "---\nreviewer: frontmatter-sentinel\n---\n" +
+	"# Maintainer notes\n\n" +
+	"- first item\n" +
+	"- second item\n\n" +
+	"See [the guide](guide.md), or leave through [the parent](../../out.md).\n\n" +
+	"![diagram](diagram.png)\n"
+
 // skippedDocumentVault holds one README the contract leaves out of the library
 // beside the note it links to. The README lives below the root so that a link
 // resolved against the vault root, rather than against the file, lands
@@ -30,13 +39,7 @@ func skippedDocumentVault(t *testing.T) string {
 	root := t.TempDir()
 	mkdir(t, filepath.Join(root, "Writing"))
 	mkdir(t, filepath.Join(root, "Elsewhere"))
-	write(t, filepath.Join(root, "Writing", "README.md"), []byte(
-		"---\nreviewer: frontmatter-sentinel\n---\n"+
-			"# Maintainer notes\n\n"+
-			"- first item\n"+
-			"- second item\n\n"+
-			"See [the guide](guide.md), or leave through [the parent](../../out.md).\n\n"+
-			"![diagram](diagram.png)\n"))
+	write(t, filepath.Join(root, "Writing", "README.md"), []byte(skippedReadme))
 	write(t, filepath.Join(root, "Writing", "diagram.png"), []byte("\x89PNG\r\n\x1a\n fake pixels"))
 	write(t, filepath.Join(root, "Writing", "guide.md"), []byte(
 		"---\ntitle: The Guide\ntype: writing\nstatus: draft\n---\n# Guide heading\n\nA note that links [the parent](../../out.md).\n"))
@@ -172,8 +175,7 @@ func TestSkippedMarkdownOpensAsADocument(t *testing.T) {
 // page, and the raw bytes are untouched.
 func TestSkippedMarkdownChangesNothingElse(t *testing.T) {
 	t.Parallel()
-	root := skippedDocumentVault(t)
-	srv := newServerWithContract(t, root, loadContract(t))
+	srv := newServerWithContract(t, skippedDocumentVault(t), loadContract(t))
 
 	_, noteBody := pageIn(t, srv, "/notes/Writing/guide.md", wording.En)
 	for _, want := range []string{"y-sealbar", "y-statusform", `action="/status"`, "y-rail-right", "y-toc"} {
@@ -195,13 +197,9 @@ func TestSkippedMarkdownChangesNothingElse(t *testing.T) {
 		t.Error("a skipped file over the size bound no longer gets its information page")
 	}
 
-	want, err := os.ReadFile(filepath.Join(root, "Writing", "README.md")) // #nosec G304 -- a path under this test's TempDir
-	if err != nil {
-		t.Fatalf("read fixture: %v", err)
-	}
 	code, header, raw := fetch(t, srv.Client(), srv.URL+"/raw/Writing/README.md")
-	if code != http.StatusOK || raw != string(want) {
-		t.Errorf("GET /raw/Writing/README.md = %d with %d bytes, want 200 with the file's %d bytes", code, len(raw), len(want))
+	if code != http.StatusOK || raw != skippedReadme {
+		t.Errorf("GET /raw/Writing/README.md = %d with %d bytes, want 200 with the file's %d bytes", code, len(raw), len(skippedReadme))
 	}
 	if got := header.Get("X-Content-Type-Options"); got != "nosniff" {
 		t.Errorf("raw response X-Content-Type-Options = %q, want nosniff", got)
