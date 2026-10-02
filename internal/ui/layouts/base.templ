@@ -29,6 +29,12 @@ templ Base(c Chrome) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			// Every page change is a whole new document, and a browser may paint
+			// the header and the rail before the column they frame has arrived,
+			// which reads as an empty column for a frame. This holds the first
+			// paint until the main landmark has been parsed. A browser that does
+			// not know the relation ignores it and paints as it always did.
+			<link rel="expect" href="#main-content" blocking="render"/>
 			<title>{ c.Title } — yomihon</title>
 			<link rel="icon" type="image/svg+xml" href="/static/yomihon-mark.svg"/>
 			<link rel="stylesheet" href="/static/app.css"/>
