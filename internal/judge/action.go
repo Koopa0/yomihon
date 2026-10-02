@@ -25,14 +25,26 @@ var errWithheldUnreadable = errors.New(
 	"vault scan failed: a file under a directory this vault's contract withholds from agent-facing output could not be read; naming it or the reason would describe ground the contract closed",
 )
 
-// actionHooks are the two seams a test drives an observation through: after the
-// scan is pinned, and after each note is read. Nothing in production sets
-// either, and no caller outside this package can — the moments they name are
-// inside the observation, which is why the coverage they buy cannot be had from
-// the binary that drives it.
+// errWithheldCollision is the whole answer about two names that fold to one
+// path when either lies under a directory the contract keeps out of
+// agent-facing output. The kind of failure is said, because a bare "scan
+// failed" sends the caller to look for a permission; the names are not, since
+// saying either would describe ground the contract closed. The sentence is
+// fixed, so every such pair reads the same.
+var errWithheldCollision = errors.New(
+	"vault scan failed: vault contains canonically colliding paths, and at least one lies under a directory this vault's contract withholds from agent-facing output; naming them would describe ground the contract closed",
+)
+
+// actionHooks are the seams a test drives an observation through: after the
+// scan is pinned, after each note is read, and in place of the parse a note's
+// bytes go through. Nothing in production sets any of them, and no caller
+// outside this package can — the moments they name are inside the observation,
+// which is why the coverage they buy cannot be had from the binary that drives
+// it. The parse seam exists because no third-party parser panics on demand.
 type actionHooks struct {
 	afterScan     func()
 	afterNoteRead func(string)
+	parseNote     func(rel string, data []byte, marks plannedMarks) note
 }
 
 // action is one complete, pinned observation used by a judge command. The
@@ -104,6 +116,10 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		hooks.afterScan()
 	}
 	marks := plannedMarksFrom(a.authority.contract)
+	parse := parseNoteWithMarks
+	if hooks.parseNote != nil {
+		parse = hooks.parseNote
+	}
 	for _, entry := range a.scan.Files() {
 		relPath := entry.Path()
 		if !vault.IsMarkdown(relPath) || a.authority.contract.SkipsBasename(relPath) {
@@ -121,7 +137,15 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		if hooks.afterNoteRead != nil {
 			hooks.afterNoteRead(relPath)
 		}
-		a.notes = append(a.notes, parseNoteWithMarks(relPath, data, marks))
+		parsed, parseErr := parseContained(parse, relPath, data, marks)
+		if parseErr != nil {
+			// The file opened and its parse panicked. It is the same hole an
+			// unopenable file is: nothing was read from it, so nothing is judged
+			// from it and the rules that answer from the whole vault stand down.
+			a.unreadable = append(a.unreadable, unreadableEntry{path: relPath, cause: parseErr})
+			continue
+		}
+		a.notes = append(a.notes, parsed)
 	}
 	// A judgement needs something to be about. Where every read failed there is
 	// nothing in hand to judge, and the caller is owed the refusal rather than a
@@ -132,6 +156,26 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		return nil, a.abort(a.unreadableRefusal())
 	}
 	return a, nil
+}
+
+// parseContained runs one note's parse and turns a panic inside it into the
+// error that note is reported unreadable with, so one file a parser cannot
+// survive costs that file rather than the run. Every panic is contained,
+// runtime errors included: an unhashable map key or a nil dereference inside a
+// parser is what this is for.
+func parseContained(
+	parse func(rel string, data []byte, marks plannedMarks) note,
+	rel string,
+	data []byte,
+	marks plannedMarks,
+) (parsed note, err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			parsed = note{}
+			err = fmt.Errorf("panic while parsing this note: %v", rec)
+		}
+	}()
+	return parse(rel, data, marks), nil
 }
 
 // readVoidsTheObservation reports whether a failed read ended the observation
@@ -174,7 +218,13 @@ func entryUnreadable(relPath string, cause error, authority scanAuthority) error
 // privacy policy canonicalizes what it is asked, so a decomposed spelling still
 // resolves to the directory the contract declared. A cause that names nothing
 // keeps the bare refusal rather than inventing a path to go looking with.
+//
+// Two names that fold to one path are a failure of their own kind, and the
+// repair is to rename one of them, so the refusal says that and names both.
 func scanStopped(cause error, authority scanAuthority) error {
+	if collision, ok := errors.AsType[*vault.CollisionError](cause); ok {
+		return collisionStopped(collision, authority)
+	}
 	pathErr, ok := errors.AsType[*fs.PathError](cause)
 	if !ok || !nameableVaultPath(pathErr.Path) {
 		return errVaultScan
@@ -183,6 +233,20 @@ func scanStopped(cause error, authority scanAuthority) error {
 		return errWithheldUnreadable
 	}
 	return fmt.Errorf("vault scan failed: %w", pathErr)
+}
+
+// collisionStopped is the refusal for a scan that met two names with one
+// canonical path. It names both only when the contract lets it describe both:
+// a name under a withheld directory is ground the contract closed, and so is
+// the other half of a pair that would confirm it, so either one withheld ends
+// the refusal at the kind of failure.
+func collisionStopped(collision *vault.CollisionError, authority scanAuthority) error {
+	for _, raw := range collision.Paths {
+		if !authority.egressAllowed(raw) {
+			return errWithheldCollision
+		}
+	}
+	return fmt.Errorf("vault scan failed: %w", collision)
 }
 
 // nameableVaultPath reports whether a path recovered from a failure names one

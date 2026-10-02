@@ -36,7 +36,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -129,8 +131,22 @@ func validate(c *Continuation) error {
 		return fmt.Errorf("%w: the note path is empty or too long", ErrInvalid)
 	case !fs.ValidPath(c.RelPath) || c.RelPath == ".":
 		return fmt.Errorf("%w: %q is not a local vault-relative path", ErrInvalid, c.RelPath)
+	case strings.ContainsFunc(c.RelPath, origin.EndsALine):
+		// fs.ValidPath lets a NUL or a line break through, and a path that
+		// holds a control character is not one line of text to put on the
+		// desk. Almost no note carries one in its name. A file whose own name
+		// does (a tab or a line break, which Linux and macOS allow) is still
+		// offered the control on its page, and pressing it is refused here
+		// with the rest; the cost is accepted because such names are very
+		// rare.
+		return fmt.Errorf("%w: %q carries a control character", ErrInvalid, c.RelPath)
 	case c.RelPath != vault.NormalizeNFC(c.RelPath):
 		return fmt.Errorf("%w: %q is not written in NFC", ErrInvalid, c.RelPath)
+	case !utf8.ValidString(c.Anchor):
+		// The path needs no case of its own: fs.ValidPath refuses invalid
+		// UTF-8. An anchor has only the character check below, which reads an
+		// invalid byte as U+FFFD and lets it by.
+		return fmt.Errorf("%w: the anchor is not valid UTF-8", ErrInvalid)
 	case len(c.Anchor) > maxAnchorBytes:
 		return fmt.Errorf("%w: the anchor is too long", ErrInvalid)
 	case strings.ContainsFunc(c.Anchor, isNotAnchorRune):

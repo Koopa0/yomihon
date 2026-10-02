@@ -439,12 +439,16 @@ func (h *Handler) reading(
 		// an embedded source can reach this page while it is open.
 		TranscludedIdentity: result.TranscludedIdentity,
 		NoFrontmatter:       state.noFrontmatter,
+		FrontmatterRequired: state.frontmatterRequired,
 		StatusUnknown:       state.statusUnknown,
 		StatusNotText:       state.statusNotText,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n.Type, lang),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n.Type, n.FrontmatterUnclosed, lang),
 		// The layer that withheld the transition set, when that is why it is
 		// empty, so the page names it instead of the schema.
 		OutsideKnowledgeScope: state.outsideLayer(),
+		// Said whatever the vault governs: it is a fact about the bytes, and
+		// it is the page's own to state, not a verdict borrowed from a contract.
+		FrontmatterUnclosed: n.FrontmatterUnclosed,
 	}
 	return view, conceptRefs
 }
@@ -478,13 +482,20 @@ func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (disp
 //
 // The folder comes from the same captured generation as the findings, so the
 // explanation names the folder the domain rule compared.
-func schemaNotices(findings []judge.Finding, domainFolder, noteType string, lang wording.Lang) [][]wording.SchemaPart {
+func schemaNotices(findings []judge.Finding, domainFolder, noteType string, fenceUnclosed bool, lang wording.Lang) [][]wording.SchemaPart {
 	if len(findings) == 0 {
 		return nil
 	}
 	notices := make([][]wording.SchemaPart, 0, len(findings))
 	for i := range findings {
 		f := &findings[i]
+		// The rule that reports a frontmatter block as unreadable has no sentence
+		// of its own here, and for a fence that never closes the page already
+		// says so in words that name the fence, so the finding is not said a
+		// second time as a rule nobody wrote words for.
+		if fenceUnclosed && f.RuleID == "schema.frontmatter" {
+			continue
+		}
 		folder := domainFolder
 		if f.RuleID == "schema.status_unreachable" {
 			folder = noteType
@@ -619,10 +630,11 @@ type governanceState struct {
 	// empty unless the write face applies to this note; the page falls back to
 	// the scan's value, which is the only answer available when nothing may be
 	// written and is then never contradicted by anything.
-	status          string
-	transitions     []pages.Transition
-	writeDiagnostic string
-	noFrontmatter   bool
+	status              string
+	transitions         []pages.Transition
+	writeDiagnostic     string
+	noFrontmatter       bool
+	frontmatterRequired bool
 	// statusNotText is set when the note wrote a status the reader did not
 	// take as text, so status above is empty and the page can say which of
 	// the two silences this is.
@@ -673,8 +685,11 @@ func (h *Handler) governance(
 			// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
 			// write.
 		case !n.HasFrontmatter:
-			// No block at all (e.g. drills): the absent sentence, no keys.
+			// No block at all (e.g. drills): the absent sentence, no keys. A note
+			// whose opening fence nothing closes lands here too, and the view
+			// carries that fact beside this one, which the face ranks first.
 			state.noFrontmatter = true
+			state.frontmatterRequired = h.sources.Contract.RequiresFrontmatter()
 		default:
 			// A present block, empty fence pair included: the no-status face
 			// when nothing readable was written there. No keys either until a

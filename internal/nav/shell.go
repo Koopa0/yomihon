@@ -35,6 +35,11 @@ type Vault struct {
 	// Findings is how many things the health page has to report about this
 	// folder, counted the same way that page counts its own rows.
 	Findings int
+	// Noticed is whether the pages have stopped updating because two names in
+	// the folder fold to one path. That is no row of the health table and is not
+	// in Findings, so the foot is told separately: with no findings it says so
+	// in words and its dot reads findings, instead of saying nothing is found.
+	Noticed bool
 }
 
 // WithoutInstanceProjections returns a shell whose navigation and topbar carry

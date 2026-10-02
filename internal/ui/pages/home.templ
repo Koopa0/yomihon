@@ -43,6 +43,10 @@ type HomeView struct {
 	// generation; DegradedDetail carries the blocked paths and their errors.
 	Degraded       string
 	DegradedDetail string
+	// Notices are the standing facts about the folder that no unreadable file
+	// explains, such as updates having stopped. They are drawn first among
+	// the faults, since each says whether the desk above is current.
+	Notices []FolderNotice
 	// Blocks are the four ways in, in the order a reader meets them.
 	Blocks        []DeskBlock
 	ReadmeMissing bool
@@ -117,6 +121,15 @@ templ Home(v HomeView, c layouts.Chrome) {
 				// Below this line the page stops being about reading and starts
 				// being about the vault's own health.
 				<div class="y-seam" aria-hidden="true"></div>
+				for i, notice := range v.Notices {
+					<section class="y-homeblock y-homeblock--faults" data-home-block="notice" aria-labelledby={ "home-notice-title-" + strconv.Itoa(i) }>
+						@nothingToShow(nothingNotice{Kind: "notice", Title: notice.Title, TitleID: "home-notice-title-" + strconv.Itoa(i), Fault: true}) {
+							<p>
+								@browserDiagnostic(notice.Summary, notice.Detail)
+							</p>
+						}
+					</section>
+				}
 				if v.Fault != "" || v.Restart != "" {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="faults" aria-labelledby="home-faults-title">
 						@homeBlockHead("home-faults-title", wording.HomeFaultsTitle.In(c.Lang), wording.HomeFaultsLede.In(c.Lang))

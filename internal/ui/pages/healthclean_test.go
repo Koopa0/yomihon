@@ -35,6 +35,7 @@ func TestHealthIsNotCleanWhileAnyListHasSomethingInIt(t *testing.T) {
 		{"frontmatter the schema rejects", HealthView{SchemaFaults: found}},
 		{"a scope that could not be worked out", HealthView{InstanceScopeUnknown: "why"}},
 		{"a vocabulary that could not be read", HealthView{SchemaScopeUnknown: "why"}},
+		{"changes that are not being published", HealthView{Notices: []FolderNotice{{}}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

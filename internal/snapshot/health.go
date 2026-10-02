@@ -39,12 +39,13 @@ type Health struct {
 	// resolves to none of them because the vault refuses to guess.
 	Collisions []HealthCollision
 
-	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
-	// so nothing they declare could be judged at all; SchemaFaults are the ones
-	// whose frontmatter reads and carries something the schema does not accept.
-	// They are gathered while the folder is read, with everything else here,
-	// because the rail's foot states how many findings stand against the folder
-	// and a walk over every note is not a thing to do on every page.
+	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML or
+	// opens a fence nothing closes, so nothing they declare could be judged at
+	// all; SchemaFaults are the ones whose frontmatter reads and carries
+	// something the schema does not accept. They are gathered while the folder
+	// is read, with everything else here, because the rail's foot states how
+	// many findings stand against the folder and a walk over every note is not
+	// a thing to do on every page.
 	FrontmatterUnreadable []HealthNoteFindings
 	SchemaFaults          []HealthNoteFindings
 }
@@ -147,7 +148,8 @@ func (h *Health) Empty() bool {
 
 // newHealth gathers the whole-folder view from projections this generation
 // already built, through the same extractor as every other link answer here.
-func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef) Health {
+// links is what each note cites, by path, as it was read when the note was.
+func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef) Health {
 	var h Health
 	var uncited []nav.NoteRef
 	titleReferenced := make(map[string]bool)
@@ -175,7 +177,7 @@ func newHealth(notes []*vault.Note, idx *graph.Index, planned judge.Planned, bac
 		}
 		from := nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath}
 		seen := make(map[string]bool)
-		for _, target := range judge.LinkTargets(n.Body) {
+		for _, target := range links[n.RelPath] {
 			res := idx.Resolve(target)
 			switch {
 			case res.Kind != graph.KindUnresolved || planned.Has(target) || seen[target]:

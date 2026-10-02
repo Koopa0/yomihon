@@ -274,10 +274,12 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 		t.Fatalf("read font provenance: %v", err)
 	}
 	want := map[string]string{
-		"fonts/Geist-Variable.woff2":             "c46b00cf667277d22cc237e58149520daec19542edc3f05e7daff4581dc23d2a",
-		"fonts/GeistMono-Variable.woff2":         "78b4deef94de1cc4b63ba58ba86fe9e64b7f41aa8c6a7e2eb534e281834e94dd",
-		"fonts/Newsreader-Italic-Variable.woff2": "d8c263970d52e0b94b3d5d4250d5962fe39f8f3b6fa9ad13b406d73ff3f4b036",
-		"fonts/Newsreader-Variable.woff2":        "ac6fa9ed533278f4c8fd3ae44a1fc78c7df736040237ab86fc1160d020af0af2",
+		"fonts/Geist-Variable.woff2":                      "c46b00cf667277d22cc237e58149520daec19542edc3f05e7daff4581dc23d2a",
+		"fonts/GeistMono-Variable.woff2":                  "78b4deef94de1cc4b63ba58ba86fe9e64b7f41aa8c6a7e2eb534e281834e94dd",
+		"fonts/Newsreader-Latin-Italic-Variable.woff2":    "48bc8861b9b2ca9300747cad4fd6a3b4ac3028d364df00bd1b72097baa75e509",
+		"fonts/Newsreader-Latin-Variable.woff2":           "62981321d9a3cc7a61a73792729043703fd6112da86e8ec848bb57f088578757",
+		"fonts/Newsreader-LatinExt-Italic-Variable.woff2": "d8c263970d52e0b94b3d5d4250d5962fe39f8f3b6fa9ad13b406d73ff3f4b036",
+		"fonts/Newsreader-LatinExt-Variable.woff2":        "ac6fa9ed533278f4c8fd3ae44a1fc78c7df736040237ab86fc1160d020af0af2",
 	}
 	for name, wantHash := range want {
 		data, readErr := Files.ReadFile(name)

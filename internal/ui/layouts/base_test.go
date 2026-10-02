@@ -32,7 +32,10 @@ func TestBaseStartsBodyWithSkipLink(t *testing.T) {
 	}
 }
 
-func TestBaseLoadsOneModuleEntry(t *testing.T) {
+// TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly pins the two scripts a
+// page carries: the module entry, and the one-line mark that sets data-js
+// before the first style so a scripted page is laid out as it will stay.
+func TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	if err := Base(Chrome{Title: "測試", Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -40,11 +43,23 @@ func TestBaseLoadsOneModuleEntry(t *testing.T) {
 	}
 	html := buf.String()
 	const entry = `<script nonce="response-nonce" type="module" src="/static/yomihon.js"></script>`
+	const mark = `<script nonce="response-nonce">document.documentElement.dataset.js = 'on';</script>`
 	if got := strings.Count(html, entry); got != 1 {
 		t.Errorf("Base() module entries = %d, want 1 exact %q; html = %q", got, entry, html)
 	}
-	if got := strings.Count(html, `<script`); got != 1 {
-		t.Errorf("Base() script elements = %d, want only the module entry; html = %q", got, html)
+	if got := strings.Count(html, mark); got != 1 {
+		t.Errorf("Base() scripted marks = %d, want 1 exact %q; html = %q", got, mark, html)
+	}
+	if got := strings.Count(html, `<script`); got != 2 {
+		t.Errorf("Base() script elements = %d, want the module entry and the scripted mark; html = %q", got, html)
+	}
+	markAt := strings.Index(html, mark)
+	firstStyle := strings.Index(html, `<link rel="stylesheet"`)
+	if firstStyle < 0 {
+		t.Fatalf("Base() has no stylesheet link, so the order of the mark cannot be checked; html = %q", html)
+	}
+	if markAt < 0 || markAt > firstStyle {
+		t.Errorf("Base() scripted mark at %d, first stylesheet at %d; the mark must come first so the first style already sees data-js; html = %q", markAt, firstStyle, html)
 	}
 }
 

@@ -1,12 +1,15 @@
 package pages
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -72,7 +75,7 @@ func TestTheFootAnswersInSentences(t *testing.T) {
 			t.Errorf("libraryName() = %q, want the folder's own name", got)
 		}
 		for _, findings := range []int{0, 1, 2} {
-			got := libraryFindings(findings, lang)
+			got := libraryFindings(findings, false, lang)
 			if got == "" {
 				t.Errorf("libraryFindings(%d, %q) is blank", findings, lang)
 			}
@@ -83,11 +86,79 @@ func TestTheFootAnswersInSentences(t *testing.T) {
 				t.Errorf("libraryFindings(%d, %q) = %q and does not carry the number", findings, lang, got)
 			}
 		}
-		if libraryFindings(1, lang) == libraryFindings(2, lang) {
+		if libraryFindings(1, false, lang) == libraryFindings(2, false, lang) {
 			t.Errorf("one finding and two read alike in %q", lang)
 		}
 	}
-	if libraryHealthState(0) == libraryHealthState(1) {
+	if libraryHealthState(0, false) == libraryHealthState(1, false) {
 		t.Error("a folder with nothing to answer for and one with something carry the same dot")
+	}
+}
+
+// footCount is the words the foot's count carries, read out of the rendered foot.
+var footCount = regexp.MustCompile(`<span class="y-railfoot__count">([^<]*)</span>`)
+
+func renderedFoot(t *testing.T, v nav.Vault, lang wording.Lang) (foot, count string) {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := railFoot(v, lang).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	found := footCount.FindStringSubmatch(buf.String())
+	if found == nil {
+		t.Fatalf("the foot carries no count: %q", buf.String())
+	}
+	return buf.String(), found[1]
+}
+
+// TestTheFootsDotNeverSaysClearOverANotice holds the one case where the number
+// and the state part ways. A standing notice is not in the findings count, so
+// the number stays the table's own; but a folder whose only trouble is that its
+// pages have stopped updating must not read "nothing found" in words with only
+// the dot's colour saying otherwise, which is a state carried by colour alone.
+// The words say it, in each language, and the dot agrees.
+func TestTheFootsDotNeverSaysClearOverANotice(t *testing.T) {
+	t.Parallel()
+
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		stopped := wording.NoticeNamesCollideTitle.In(lang)
+
+		foot, count := renderedFoot(t, nav.Vault{Name: "example-vault", Noticed: true}, lang)
+		if count != stopped {
+			t.Errorf("the count of a folder whose pages have stopped updating reads %q in %s, want %q", count, lang, stopped)
+		}
+		if strings.Contains(foot, wording.LibraryNoFindings.In(lang)) {
+			t.Errorf("the foot says nothing is found over a notice in %s: %q", lang, foot)
+		}
+		if !strings.Contains(foot, `data-health="findings"`) {
+			t.Errorf("the foot of a folder with a standing notice does not carry the findings dot in %s: %q", lang, foot)
+		}
+		if !strings.Contains(foot, `data-rail-foot-findings="0"`) {
+			t.Errorf("a notice moved the foot's number in %s, which is the table's and not the notice's: %q", lang, foot)
+		}
+
+		// Beside findings the number is the answer, and the dot already agrees.
+		foot, count = renderedFoot(t, nav.Vault{Name: "example-vault", Findings: 2, Noticed: true}, lang)
+		if want := libraryFindings(2, false, lang); count != want {
+			t.Errorf("the count of a folder with two findings and a notice reads %q in %s, want %q", count, lang, want)
+		}
+		if !strings.Contains(foot, `data-health="findings"`) {
+			t.Errorf("the foot with findings and a notice does not carry the findings dot in %s: %q", lang, foot)
+		}
+
+		// With no notice the foot is what it was.
+		foot, count = renderedFoot(t, nav.Vault{Name: "example-vault"}, lang)
+		if want := wording.LibraryNoFindings.In(lang); count != want {
+			t.Errorf("the count of a clear folder reads %q in %s, want %q", count, lang, want)
+		}
+		if !strings.Contains(foot, `data-health="clear"`) {
+			t.Errorf("the foot of a clear folder does not carry the clear dot in %s: %q", lang, foot)
+		}
+	}
+	if libraryHealthState(0, true) != "findings" || libraryHealthState(2, true) != "findings" {
+		t.Error("a standing notice does not make the dot read findings")
+	}
+	if libraryHealthState(0, false) != "clear" {
+		t.Error("a folder with no findings and no notice does not read clear, so the dot could never say it")
 	}
 }

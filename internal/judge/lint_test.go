@@ -1,12 +1,15 @@
 package judge
 
 import (
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -43,28 +46,8 @@ func TestLintFrontmatterAgreesWithTheCheckCommand(t *testing.T) {
 		t.Fatalf("the fixture reports no schema findings, so this test would pass on any implementation")
 	}
 
-	var notes []string
-	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(path, ".md") {
-			return walkErr
-		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return relErr
-		}
-		notes = append(notes, filepath.ToSlash(rel))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk the fixture: %v", err)
-	}
-
 	seen := 0
-	for _, rel := range notes {
-		data, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- a path this test just walked under its own fixture
-		if readErr != nil {
-			t.Fatalf("read %s: %v", rel, readErr)
-		}
+	for rel, data := range fixtureNotes(t, root) {
 		got, lintErr := LintFrontmatter(rel, data, contract)
 		if lintErr != nil {
 			t.Fatalf("LintFrontmatter(%s) error = %v", rel, lintErr)
@@ -133,6 +116,11 @@ func TestLintFrontmatterDomainRoots(t *testing.T) {
 		{name: "empty frontmatter", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\n---\nbody\n", want: []diagnostic{{"schema.required", "title", "", "title is required"}, {"schema.required", "type", "", "type is required"}, {"schema.required", "domain", "", "domain is required"}}},
 		{name: "top level empty frontmatter", roots: `["Writing"]`, path: "Writing/golang/L1.md", body: "---\n---\nbody\n", want: []diagnostic{{"schema.required", "title", "", "title is required"}, {"schema.required", "type", "", "type is required"}, {"schema.required", "domain", "", "domain is required"}}},
 		{name: "missing domain", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: strings.Replace(valid, "domain: golang\n", "", 1), want: []diagnostic{{"schema.required", "domain", "", "domain is required"}}},
+		{name: "unclosed fence legal", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\ntitle: L1\ntype: lesson\nstatus: draft\n--\n\nbody\n", want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter opens on line 1 and never closes"}}},
+		{name: "unclosed fence required", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\ntitle: L1\ntype: lesson\nstatus: draft\n--\n\nbody\n", requireFrontmatter: true, want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter opens on line 1 and never closes"}}},
+		{name: "unclosed fence outside knowledge", roots: `["Elsewhere/studies"]`, path: "Elsewhere/studies/japanese/L1.md", body: "---\ntitle: L1\n--\n"},
+		{name: "thematic break legal", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\n\nbody\n"},
+		{name: "thematic break required", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\n\nbody\n", requireFrontmatter: true, want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is missing"}}},
 		{name: "malformed frontmatter", roots: `["Writing/lessons"]`, path: "Writing/lessons/golang/L1.md", body: "---\ntitle: [\n---\n", want: []diagnostic{{"schema.frontmatter", "", "", "frontmatter is not valid YAML"}}},
 		{name: "non scalar domain", roots: `["Writing/lessons"]`, path: "Writing/lessons/japanese/L1.md", body: strings.Replace(valid, "domain: golang", "domain: [golang]", 1)},
 		{name: "skipped basename", roots: `["Writing/lessons"]`, path: "Writing/lessons/japanese/README.md", body: valid},
@@ -189,5 +177,185 @@ func TestLintFrontmatterDomainRoots(t *testing.T) {
 				t.Errorf("Check() disagrees with LintFrontmatter (-seam +command):\n%s", diff)
 			}
 		})
+	}
+}
+
+// fixtureNotes reads every markdown file under a fixture root, keyed by its
+// slash-form path relative to that root.
+func fixtureNotes(tb testing.TB, root string) map[string][]byte {
+	tb.Helper()
+	var rels []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(path, ".md") {
+			return walkErr
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		rels = append(rels, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		tb.Fatalf("walk the fixture: %v", err)
+	}
+	notes := make(map[string][]byte, len(rels))
+	for _, rel := range rels {
+		data, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))) // #nosec G304 -- a path this test just walked under its own fixture
+		if readErr != nil {
+			tb.Fatalf("read %s: %v", rel, readErr)
+		}
+		notes[rel] = data
+	}
+	return notes
+}
+
+// TestFrontmatterOnlyParseAgreesWithTheFullParse holds the parse the frontmatter
+// lint uses to the parse the check command uses. Over every fixture vault under
+// testdata, found on disk so that a vault added later is held to it without
+// anyone remembering to list it, a note read for its frontmatter alone must come
+// out as the note read whole, less the fields extracted from the body, and the
+// frontmatter lint must say what the whole parse makes the rules say.
+func TestFrontmatterOnlyParseAgreesWithTheFullParse(t *testing.T) {
+	t.Parallel()
+
+	entries, err := os.ReadDir("testdata")
+	if err != nil {
+		t.Fatalf("ReadDir(testdata) error = %v", err)
+	}
+	// Every field the body extraction fills. A field added to note and filled
+	// there is not listed, so it shows as a difference until someone decides
+	// whether the frontmatter lint reads it.
+	bodyFields := cmpopts.IgnoreFields(note{}, "wikilinks", "pathRefs", "plannedNames", "calloutTitles",
+		"sectionAnchors", "excerptSectionAnchors", "blockAnchorLines", "sequence")
+	vaults, linted, findings := 0, 0, 0
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "vault") {
+			continue
+		}
+		vaults++
+		root := judgeFixtureRoot(t, filepath.Join("testdata", entry.Name()))
+		contract, loadErr := schema.Load(root)
+		if loadErr != nil {
+			t.Fatalf("schema.Load(%s) error = %v", entry.Name(), loadErr)
+		}
+		for rel, data := range fixtureNotes(t, root) {
+			whole := parseNote(rel, data)
+			wantFindings, checkErr := checkSchema([]note{whole}, contract)
+			if checkErr != nil {
+				t.Fatalf("checkSchema(%s/%s) error = %v", entry.Name(), rel, checkErr)
+			}
+			sortFindings(wantFindings)
+			gotFindings, lintErr := LintFrontmatter(rel, data, contract)
+			if lintErr != nil {
+				t.Fatalf("LintFrontmatter(%s/%s) error = %v", entry.Name(), rel, lintErr)
+			}
+			if diff := cmp.Diff(wantFindings, gotFindings); diff != "" {
+				t.Errorf("LintFrontmatter(%s/%s) differs from the whole parse's findings (-whole +frontmatter only):\n%s", entry.Name(), rel, diff)
+			}
+
+			if diff := cmp.Diff(whole, parseFrontmatter(rel, data), cmp.AllowUnexported(note{}, fmValue{}), bodyFields); diff != "" {
+				t.Errorf("parseFrontmatter(%s/%s) differs from the whole parse outside its body fields (-whole +frontmatter only):\n%s", entry.Name(), rel, diff)
+			}
+			linted++
+			findings += len(gotFindings)
+		}
+	}
+	if vaults == 0 || linted == 0 || findings == 0 {
+		t.Errorf("compared %d notes in %d fixture vaults, with %d findings: nothing here would catch a divergence", linted, vaults, findings)
+	}
+}
+
+// lintProbePath and lintProbeFrontmatter are the note the cost locks measure: a
+// concept, so the slug rules, which only a lesson meets, are not part of what
+// each note costs.
+const (
+	lintProbePath        = "Concepts/golang/Probe.md"
+	lintProbeFrontmatter = "---\ntitle: Probe\ntype: concept\ndomain: golang\nstatus: seed\n---\n"
+)
+
+// lintContract loads the loader's own fixture contract with each substitution
+// applied, as contractFixture does, so a lock can vary one line of it.
+func lintContract(tb testing.TB, replacements ...[2]string) *schema.Contract {
+	tb.Helper()
+	root := tb.TempDir()
+	write(tb, root, schema.ContractRelPath, contractFixture(tb, nil, replacements...))
+	contract, err := schema.Load(root)
+	if err != nil {
+		tb.Fatalf("schema.Load() error = %v", err)
+	}
+	return contract
+}
+
+// denseBody is a body of at least size bytes in which every few lines hand the
+// body extraction something to do: wikilinks with and without a fragment, a
+// path reference, a block address, headings, a fence, a callout and a planned
+// name.
+func denseBody(size int) string {
+	const unit = "## Heading\n\nSee [[Goroutine]], [[Channel#Part]] and [a link](Concepts/golang/X.md), `code` ^anchor\n\n```go\nfunc f() {}\n```\n\n> [!note] Title\n> a planned [[Name]] (planned)\n\n"
+	return strings.Repeat(unit, size/len(unit)+1)
+}
+
+// TestLintFrontmatterCostDoesNotGrowWithTheBody holds the frontmatter lint to
+// reading the frontmatter. Its verdict never depends on the body, so a note of
+// 64 KB dense with links, headings and fences must cost what a note of 1 KB
+// does: a body extracted and then thrown away is the cost this guards. The
+// whole parse is measured on the same two notes, so the bodies are known to be
+// ones that extraction costs more on.
+func TestLintFrontmatterCostDoesNotGrowWithTheBody(t *testing.T) {
+	// Not parallel: testing.AllocsPerRun is unreliable while other tests run.
+	contract := lintContract(t)
+	small := []byte(lintProbeFrontmatter + denseBody(1<<10))
+	large := []byte(lintProbeFrontmatter + denseBody(64<<10))
+
+	lintAllocs := func(data []byte) float64 {
+		return testing.AllocsPerRun(20, func() {
+			if _, err := LintFrontmatter(lintProbePath, data, contract); err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+		})
+	}
+	smallLint, largeLint := lintAllocs(small), lintAllocs(large)
+	if smallLint == 0 || math.Abs(largeLint-smallLint) >= smallLint/10 {
+		t.Errorf("LintFrontmatter allocates %v for a 1 KB body and %v for a 64 KB body, want the two within 10%%", smallLint, largeLint)
+	}
+
+	parseAllocs := func(data []byte) float64 {
+		return testing.AllocsPerRun(1, func() { _ = parseNote(lintProbePath, data) })
+	}
+	if smallParse, largeParse := parseAllocs(small), parseAllocs(large); largeParse < 2*smallParse {
+		t.Errorf("the whole parse allocates %v for a 1 KB body and %v for a 64 KB body: these bodies would not show a lint that extracted them", smallParse, largeParse)
+	}
+}
+
+// TestFrontmatterLinterResolvesTheContractOnce holds the contract the rules read
+// to being resolved once for the notes a linter judges, not once per note. The
+// slug pattern here is a long alternation, so compiling it costs several times
+// what linting a note does, and a Lint that compiled it would cost about what a
+// one-shot LintFrontmatter does, which resolves the contract every call.
+func TestFrontmatterLinterResolvesTheContractOnce(t *testing.T) {
+	// Not parallel: testing.AllocsPerRun is unreliable while other tests run.
+	words := make([]string, 300)
+	for i := range words {
+		words[i] = "word" + strconv.Itoa(i)
+	}
+	contract := lintContract(t, [2]string{
+		`slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"`,
+		`slug_pattern = "^(` + strings.Join(words, "|") + `)$"`,
+	})
+	data := []byte(lintProbeFrontmatter + "body\n")
+	lint, err := NewFrontmatterLinter(contract)
+	if err != nil {
+		t.Fatalf("NewFrontmatterLinter() error = %v", err)
+	}
+
+	perNote := testing.AllocsPerRun(20, func() { _ = lint.Lint(lintProbePath, data) })
+	oneShot := testing.AllocsPerRun(20, func() {
+		if _, err := LintFrontmatter(lintProbePath, data, contract); err != nil {
+			t.Fatalf("LintFrontmatter() error = %v", err)
+		}
+	})
+	if perNote*2 > oneShot {
+		t.Errorf("Lint allocates %v per note and LintFrontmatter %v, want Lint under half of it", perNote, oneShot)
 	}
 }

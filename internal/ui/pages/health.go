@@ -566,6 +566,7 @@ func (v *HealthView) clean() bool {
 		len(v.StatusOutsideEnum) == 0 &&
 		len(v.StatusUnreachable) == 0 &&
 		len(v.FrontmatterUnreadable) == 0 && len(v.SchemaFaults) == 0 &&
+		len(v.Notices) == 0 &&
 		v.InstanceScopeUnknown == "" && v.SchemaScopeUnknown == ""
 }
 

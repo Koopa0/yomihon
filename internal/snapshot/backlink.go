@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -18,7 +17,8 @@ type Backlinks struct {
 
 // newBacklinks inverts one generation's citations. A citation counts only when
 // it resolves to exactly one other note, so an ambiguous name records nothing.
-func newBacklinks(notes []*vault.Note, idx *graph.Index) *Backlinks {
+// links is what each note cites, by path, as it was read when the note was.
+func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Index) *Backlinks {
 	b := &Backlinks{byTarget: make(map[string][]nav.NoteRef)}
 	if idx == nil {
 		return b
@@ -28,7 +28,7 @@ func newBacklinks(notes []*vault.Note, idx *graph.Index) *Backlinks {
 			continue
 		}
 		seen := make(map[string]bool)
-		for _, target := range judge.LinkTargets(n.Body) {
+		for _, target := range links[n.RelPath] {
 			res := idx.Resolve(target)
 			if res.Kind != graph.KindUnique || res.RelPath == n.RelPath || seen[res.RelPath] {
 				continue
