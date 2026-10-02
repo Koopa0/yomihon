@@ -49,6 +49,9 @@ type healthFindingField struct {
 // struct is exactly the thing being checked: a field added without a row would
 // derive into nothing and the check would pass over it in silence.
 var healthFindingFields = map[string]healthFindingField{
+	"NavigationFaults": {rows: 1, findings: 1, fill: func(v *HealthView) {
+		v.NavigationFaults = []nav.CoreFault{{Note: healthTestNote, Reason: "navigation build failed: walk"}}
+	}},
 	"Blocked": {rows: 1, findings: 1, fill: func(v *HealthView) {
 		v.Blocked = []HealthBlockedSource{{Path: "Sources/Raw.md", Reason: "permission denied"}}
 	}},
@@ -443,4 +446,45 @@ func sum(values []int) int {
 		total += value
 	}
 	return total
+}
+
+func TestNavigationFaultRowIsLinkedUnweighedAndExplained(t *testing.T) {
+	t.Parallel()
+	fault := nav.CoreFault{Note: nav.NoteRef{Name: "<Course & notes>", RelPath: "Maps/Course.md", Language: "ja"}, Reason: "navigation build failed: <script>alert(1)</script> & error"}
+	view := HealthView{NavigationFaults: []nav.CoreFault{fault}}
+	want := []healthRow{{Kind: healthNavigationFault, File: fault.Note, Detail: []healthDetail{{Text: fault.Reason, Machine: true}}, Count: 1}}
+	if diff := cmp.Diff(want, view.gather(wording.En)); diff != "" {
+		t.Errorf("navigation row (-want +got):\n%s", diff)
+	}
+	for _, chrome := range []struct {
+		lang         wording.Lang
+		title, guide string
+	}{
+		{wording.ZhHant, "導覽建構失敗", "這些筆記的導覽無法建構，因此未列入導覽。筆記仍可閱讀與搜尋，其他筆記的導覽仍可使用。"},
+		{wording.En, "Navigation could not be built", "Navigation could not be built for these notes, so their navigation entries are omitted. The notes remain readable and searchable; other notes’ navigation remains available."},
+	} {
+		lang := chrome.lang
+		var output bytes.Buffer
+		if err := Health(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &output); err != nil {
+			t.Fatal(err)
+		}
+		page := output.String()
+		for _, text := range []string{`href="/notes/Maps/Course.md"`, `lang="ja"`, "&lt;Course &amp; notes&gt;", "&lt;script&gt;alert(1)&lt;/script&gt; &amp; error", chrome.title, chrome.guide} {
+			if !strings.Contains(page, text) {
+				t.Errorf("%s page lacks %q", lang, text)
+			}
+		}
+		if strings.Contains(page, "<script>alert(1)</script>") {
+			t.Error("panic reason was not escaped")
+		}
+		if !slices.Contains(healthKinds, healthNavigationFault) {
+			t.Error("navigation kind omitted from the guide")
+		}
+		if got := healthNavigationFault.title(lang); got != chrome.title {
+			t.Errorf("navigation title = %q", got)
+		}
+		if got := view.kindLede(healthNavigationFault, lang); got != chrome.guide {
+			t.Errorf("navigation guide = %q", got)
+		}
+	}
 }

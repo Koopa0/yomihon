@@ -281,7 +281,9 @@ func (g *Generation) Health() Health {
 	if g == nil {
 		return Health{}
 	}
-	return g.health
+	health := g.health
+	health.NavigationFaults = slices.Clone(health.NavigationFaults)
+	return health
 }
 
 // AnyCitations reports whether any note in this generation cites another.
@@ -929,6 +931,7 @@ func buildGeneration(
 	// against the folder and a walk over every note is not a thing to do on
 	// every page.
 	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles)
+	health.NavigationFaults = navigation.CoreFaults()
 	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
 	gen := &Generation{
 		graph:          graphIndex,

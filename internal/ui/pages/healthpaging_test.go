@@ -203,3 +203,26 @@ func pagedHealthView(rows int) HealthView {
 		Sort: HealthByFinding,
 	}
 }
+
+func TestNavigationFaultsSurviveEverySortAndPage(t *testing.T) {
+	t.Parallel()
+	view := HealthView{}
+	for i := range pagedReport {
+		view.NavigationFaults = append(view.NavigationFaults, nav.CoreFault{Note: nav.NoteRef{Name: fmt.Sprintf("Course %02d", i), RelPath: fmt.Sprintf("Maps/Course-%02d.md", i)}, Reason: "navigation build failed: walk"})
+	}
+	for _, column := range healthColumns {
+		view.Sort, view.Page = column, AllPages
+		whole := healthRowFiles(t, &view)
+		if len(whole) != pagedReport {
+			t.Fatalf("%s: whole report has %d rows, want %d", column, len(whole), pagedReport)
+		}
+		var walked []string
+		for n := 1; n <= (pagedReport+healthPageSize-1)/healthPageSize; n++ {
+			view.Page = PageNumber(n)
+			walked = append(walked, healthRowFiles(t, &view)...)
+		}
+		if diff := cmp.Diff(whole, walked); diff != "" {
+			t.Errorf("%s paged fault set (-whole +walked):\n%s", column, diff)
+		}
+	}
+}

@@ -113,6 +113,7 @@ type healthKind int
 const (
 	healthBlocked healthKind = iota
 	healthSkipped
+	healthNavigationFault
 	healthUnwritten
 	healthTitleOnly
 	healthIsland
@@ -125,7 +126,7 @@ const (
 
 // healthKinds is every kind, in that order.
 var healthKinds = []healthKind{
-	healthBlocked, healthSkipped, healthUnwritten, healthTitleOnly, healthIsland,
+	healthBlocked, healthSkipped, healthNavigationFault, healthUnwritten, healthTitleOnly, healthIsland,
 	healthUnreadableFrontmatter, healthSchemaFault, healthStatusOutsideEnum,
 	healthStatusUnreachable, healthCollision,
 }
@@ -138,6 +139,8 @@ func (k healthKind) title(lang wording.Lang) string {
 		return wording.BlockedTitle.In(lang)
 	case healthSkipped:
 		return wording.SkippedTitle.In(lang)
+	case healthNavigationFault:
+		return wording.HealthNavigationTitle.In(lang)
 	case healthUnwritten:
 		return wording.UnwrittenTitle.In(lang)
 	case healthTitleOnly:
@@ -178,8 +181,8 @@ type healthRule struct {
 // that note, which differs from note to note, so it is set where the row is
 // made instead.
 //
-// One kind carries no weight at all: the note nothing cites. No rule reports
-// it, so its rows say nothing rather than a weight this page invented for them.
+// Two kinds carry no weight: uncited notes and navigation builds that failed.
+// No judge rule reports them, so their rows carry no invented weight.
 //
 // The broken-link entry is the weight that rule gives an untracked target. The
 // list this page gathers holds only those: a target under a gap heading or in
@@ -315,6 +318,7 @@ func (v *HealthView) rows(lang wording.Lang) []healthRow {
 func (v *HealthView) gather(lang wording.Lang) []healthRow {
 	out := slices.Concat(
 		v.sourceRows(lang),
+		v.navigationRows(),
 		v.citationRows(lang),
 		v.schemaRows(),
 		v.statusRows(lang),
@@ -539,6 +543,8 @@ func (v *HealthView) kindLede(kind healthKind, lang wording.Lang) string {
 		return v.blockedLede(lang)
 	case healthSkipped:
 		return wording.SkippedLede.In(lang)
+	case healthNavigationFault:
+		return wording.HealthNavigationLede.In(lang)
 	case healthUnwritten:
 		return wording.UnwrittenLede.In(lang)
 	case healthTitleOnly:
@@ -561,7 +567,7 @@ func (v *HealthView) kindLede(kind healthKind, lang wording.Lang) string {
 
 // clean reports whether the folder has nothing to answer for.
 func (v *HealthView) clean() bool {
-	return len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
+	return len(v.NavigationFaults) == 0 && len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
 		len(v.Collisions) == 0 && len(v.Blocked) == 0 && len(v.Skipped) == 0 &&
 		len(v.StatusOutsideEnum) == 0 &&
 		len(v.StatusUnreachable) == 0 &&
@@ -578,4 +584,13 @@ func (v *HealthView) blockedLede(lang wording.Lang) string {
 		return lede + wording.BlockedNeverComplete.In(lang)
 	}
 	return lede + fmt.Sprintf(wording.BlockedLastCompleteFmt.In(lang), v.LastComplete)
+}
+
+// navigationRows link each omitted tree to the note that remains readable.
+func (v *HealthView) navigationRows() []healthRow {
+	out := make([]healthRow, 0, len(v.NavigationFaults))
+	for _, fault := range v.NavigationFaults {
+		out = append(out, healthRow{Kind: healthNavigationFault, File: fault.Note, Detail: machineDetail(fault.Reason), Count: 1})
+	}
+	return out
 }

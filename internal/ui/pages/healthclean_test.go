@@ -23,6 +23,7 @@ func TestHealthIsNotCleanWhileAnyListHasSomethingInIt(t *testing.T) {
 		name string
 		view HealthView
 	}{
+		{"navigation build failed", HealthView{NavigationFaults: []nav.CoreFault{{}}}},
 		{"unwritten citation", HealthView{Unwritten: []snapshot.HealthLink{{}}}},
 		{"title-only citation", HealthView{TitleOnly: []snapshot.HealthTitleLink{{}}}},
 		{"an uncited note", HealthView{IslandCount: 1}},

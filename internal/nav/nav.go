@@ -48,6 +48,7 @@ func Close(claim schema.Claim) Closure { return Closure{claim: claim} }
 // Model is the complete navigation projection, built once and read-only
 // afterward.
 type Model struct {
+	coreFaults []CoreFault
 	// navigation records whether contract-derived paths and maps were withheld,
 	// and why. It is open when navigation roles were read cleanly and open when
 	// no contract ever named a path or map type.
@@ -425,7 +426,7 @@ func New(
 			htmlTitle: htmlTitles[path],
 		})
 	}
-	return newModel(files, resolver, roles, scope, policy, journal, articleLang, dated, settlement)
+	return newModel(files, resolver, roles, scope, policy, journal, articleLang, dated, settlement, coreWalkers{path: buildPath, mapping: parseMap})
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
@@ -449,6 +450,7 @@ func newModel(
 	articleLang schema.ArticleLanguage,
 	dated schema.AuthoredDate,
 	settlement schema.Settlement,
+	walkers coreWalkers,
 ) *Model {
 	paths := make([]string, 0, len(files))
 	for _, file := range files {
@@ -482,11 +484,18 @@ func newModel(
 	}
 
 	for _, n := range mapNotes {
+		ref := NoteRef{Name: n.Title(), RelPath: n.RelPath, Language: facts[n.RelPath].language}
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
-			path := buildPath(n, resolver, facts, policy)
-			path.Unit = unitOf(path.Groups, facts, roles)
+			var path Path
+			if fault := guardCoreWalk(ref, func() {
+				path = walkers.path(n, resolver, facts, policy)
+				path.Unit = unitOf(path.Groups, facts, roles)
+			}); fault != nil {
+				m.coreFaults = append(m.coreFaults, *fault)
+				continue
+			}
 			// A contract that settles no status has no exceptions to count:
 			// every lesson with a status would be one.
 			if !settlement.Declared() {
@@ -495,7 +504,12 @@ func newModel(
 			m.paths = append(m.paths, path)
 			continue
 		}
-		m.maps = append(m.maps, parseMap(n, resolver, facts, policy))
+		var mapping Map
+		if fault := guardCoreWalk(ref, func() { mapping = walkers.mapping(n, resolver, facts, policy) }); fault != nil {
+			m.coreFaults = append(m.coreFaults, *fault)
+			continue
+		}
+		m.maps = append(m.maps, mapping)
 	}
 	slices.SortStableFunc(m.maps, func(a, b Map) int {
 		if byDomain := cmp.Compare(a.Domain, b.Domain); byDomain != 0 {

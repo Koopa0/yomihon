@@ -19,6 +19,9 @@ import (
 // [[…]] citations and nothing else, so an ordinary markdown link to a missing
 // file is outside this picture and the page says which links it read.
 type Health struct {
+	// NavigationFaults are readable notes whose navigation trees could not be built.
+	NavigationFaults []nav.CoreFault
+
 	// InstanceScopeUnknown is why the citation and island lists could not be
 	// worked out, and empty when they could: the artifact policy this
 	// generation was handed was declared and could not be honoured.
@@ -143,7 +146,7 @@ type HealthCollision struct {
 
 // Empty reports whether the folder has nothing to answer for.
 func (h *Health) Empty() bool {
-	return len(h.Unwritten) == 0 && len(h.TitleOnly) == 0 && len(h.Islands) == 0 && len(h.Collisions) == 0
+	return len(h.NavigationFaults) == 0 && len(h.Unwritten) == 0 && len(h.TitleOnly) == 0 && len(h.Islands) == 0 && len(h.Collisions) == 0
 }
 
 // newHealth gathers the whole-folder view from projections this generation
