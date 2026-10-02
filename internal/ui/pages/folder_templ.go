@@ -63,7 +63,7 @@ func Folder(v FolderView, c layouts.Chrome) templ.Component {
 				}
 				for i, crumb := range v.Crumbs {
 					if i > 0 {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<span class=\"y-crumbs__sep\" aria-hidden=\"true\">·</span>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<span class=\"y-crumbs__sep\" aria-hidden=\"true\">/</span>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

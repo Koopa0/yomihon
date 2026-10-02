@@ -51,7 +51,7 @@ templ fileHead(v FileView, lang wording.Lang) {
 		<div class="y-crumbs">
 			for i, seg := range crumbs {
 				if i > 0 {
-					<span class="y-crumbs__sep" aria-hidden="true">·</span>
+					<span class="y-crumbs__sep" aria-hidden="true">/</span>
 				}
 				<a class="y-crumbs__link" href={ templ.URL(folderHref(seg.RelPath)) }>{ seg.Name }</a>
 			}
@@ -62,7 +62,6 @@ templ fileHead(v FileView, lang wording.Lang) {
 		<span class="ui-type">{ fileKindLabel(v.Kind, lang) }</span>
 		<span>{ v.RelPath }</span>
 	</div>
-	<div class="y-seam" aria-hidden="true"></div>
 }
 
 // fileInfo is what yomihon says when it cannot show a file: what it is, how big

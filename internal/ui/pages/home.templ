@@ -118,9 +118,8 @@ templ Home(v HomeView, c layouts.Chrome) {
 						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
 					}
 				</div>
-				// Below this line the page stops being about reading and starts
-				// being about the vault's own health.
-				<div class="y-seam" aria-hidden="true"></div>
+				// Below the four ways in the page stops being about reading and
+				// starts being about the vault's own health.
 				for i, notice := range v.Notices {
 					<section class="y-homeblock y-homeblock--faults" data-home-block="notice" aria-labelledby={ "home-notice-title-" + strconv.Itoa(i) }>
 						@nothingToShow(nothingNotice{Kind: "notice", Title: notice.Title, TitleID: "home-notice-title-" + strconv.Itoa(i), Fault: true}) {

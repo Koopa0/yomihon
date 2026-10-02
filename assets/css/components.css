@@ -35,11 +35,13 @@ body {
    does not reach those joins; this property does. It is set on the elements
    Preflight puts in the mono face rather than on `.y-prose`, so the code that
    the diagnostics, the notices and the recovery detail quote reads the same
-   way the article's does. */
+   way the article's does. The same elements stay upright inside an italic
+   line: the mono face has no italic cut, so the browser would slant it itself. */
 code,
 kbd,
 pre,
 samp {
+  font-style: normal;
   font-variant-ligatures: none;
 }
 
@@ -99,7 +101,7 @@ samp {
 }
 
 .yomihon ::selection {
-  background: var(--accent-muted);
+  background: var(--line-strong);
 }
 
 .yomihon *::-webkit-scrollbar {
@@ -118,33 +120,6 @@ samp {
   background: transparent;
 }
 
-/* grain — the one texture that keeps it off-clinical */
-.yomihon::after {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  content: '';
-  inset: 0;
-  mix-blend-mode: multiply;
-  opacity: 0.03;
-  pointer-events: none;
-  position: fixed;
-  z-index: 100;
-}
-
-[data-theme='dark'] .yomihon::after {
-  mix-blend-mode: overlay;
-  opacity: 0.055;
-}
-
-/* The dark desk's grain also has to reach a reader who chose nothing on a dark
-   system; multiply over a near-black page is the light desk's blend. An
-   explicit light choice escapes through the :not() guard. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .yomihon::after {
-    mix-blend-mode: overlay;
-    opacity: 0.055;
-  }
-}
-
 /* ============================================================
    DS components (only the ones this page uses)
    ============================================================ */
@@ -152,27 +127,31 @@ samp {
 /* ---- Sidebar nav item ---- */
 .ui-navitem {
   align-items: center;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   color: var(--fg-muted);
   cursor: pointer;
   display: flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   gap: 10px;
-  padding: 7px 10px;
+  line-height: 1.5rem;
+  padding: 4px 12px;
   text-decoration: none;
+  /* A row's name that takes two lines splits them evenly. Left to fill the first
+     line, a Chinese title strands its last character alone on the second. */
+  text-wrap: balance;
   transition: background var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard);
 }
 
 .ui-navitem:hover {
-  background: var(--overlay);
+  background: var(--wash);
   color: var(--fg);
 }
 
 .ui-navitem[aria-current='page'],
 .ui-navitem.is-active {
-  background: var(--accent-faint);
   color: var(--fg);
+  font-weight: var(--fw-medium);
 }
 
 .ui-navitem svg {
@@ -182,14 +161,12 @@ samp {
   width: 17px;
 }
 
-.ui-navitem.is-active svg {
-  color: var(--accent);
-}
-
 .ui-navitem__count {
-  color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
   margin-left: auto;
 }
 
@@ -212,10 +189,10 @@ samp {
    the name is what gives — clipped with an ellipsis rather than pushing the
    row off a phone or folding the kind beside it onto a second line. */
 .ui-navitem__when {
-  color: var(--fg-faint);
+  color: var(--fg-subtle);
   flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
 }
 
@@ -251,33 +228,77 @@ samp {
   margin-left: 0;
 }
 
+.y-here .ui-navitem,
+.y-railgroup .ui-navitem,
+.y-railreports .ui-navitem,
+.y-citedby .ui-navitem,
+.y-basedon .ui-navitem,
+.y-pair .ui-navitem {
+  border-radius: 0;
+  box-shadow: inset 1px 0 0 var(--line);
+  padding-left: 16px;
+}
+
+.y-here .ui-navitem:hover,
+.y-railgroup .ui-navitem:hover,
+.y-railreports .ui-navitem:hover,
+.y-citedby .ui-navitem:hover,
+.y-basedon .ui-navitem:hover,
+.y-pair .ui-navitem:hover {
+  background: transparent;
+  box-shadow: inset 1px 0 0 var(--line-strong);
+}
+
+.y-here .ui-navitem.is-active,
+.y-railgroup .ui-navitem.is-active,
+.y-railreports .ui-navitem.is-active,
+.y-citedby .ui-navitem.is-active,
+.y-basedon .ui-navitem.is-active,
+.y-pair .ui-navitem.is-active,
+.y-here .ui-navitem[aria-current='page'],
+.y-railgroup .ui-navitem[aria-current='page'],
+.y-railreports .ui-navitem[aria-current='page'] {
+  box-shadow: inset 2px 0 0 var(--fg);
+}
+
 /* ---- Sidebar section label ---- */
 .ui-side__label {
-  color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
+  align-items: baseline;
+  color: var(--fg);
+  display: flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  gap: 8px;
+  line-height: 1.5rem;
   padding: 0;
-  text-transform: uppercase;
-  white-space: nowrap;
+}
+
+/* A count beside a heading reads the same wherever the heading stands: in the
+   rail's label, or in the summary that folds the same block into the narrow
+   column. It is a quiet figure, not a badge, so only the diagnostics' own
+   count (a warning) keeps a fill. */
+.ui-side__label .ui-navitem__count,
+.y-toc-inline__summary .ui-navitem__count {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-regular);
+  line-height: 1.5rem;
+  margin-left: 0;
 }
 
 /* ---- Status badge (mono, dot + name; yomihon's 9 note statuses) ---- */
 .ui-status {
   align-items: center;
-  background: var(--elevated);
-  border: 1px solid transparent;
+  background: var(--wash);
   border-radius: var(--r-sm);
   color: var(--fg-muted);
   display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-weight: var(--fw-medium);
   gap: 6px;
-  letter-spacing: 0.01em;
-  line-height: 1;
-  padding: 3px 8px 3px 7px;
-  text-transform: lowercase;
+  line-height: 1.25rem;
+  padding: 2px 8px;
 }
 
 .ui-status::before {
@@ -290,42 +311,35 @@ samp {
 }
 
 .ui-status--captured {
-  background: var(--panel);
-  border-color: var(--border-faint);
-  color: var(--fg-faint);
+  background: var(--wash);
+  color: var(--fg-subtle);
 }
 
 .ui-status--cleaned {
-  background: var(--elevated);
-  border-color: var(--border-faint);
-  color: var(--fg-subtle);
+  background: var(--wash);
+  color: var(--fg-muted);
 }
 
 .ui-status--seedling,
 .ui-status--growing,
 .ui-status--evergreen {
   background: var(--sage-bg);
-  border-color: transparent;
   color: var(--sage);
 }
 
 .ui-status--imported {
-  background: var(--elevated);
-  border-color: var(--border-faint);
-  color: var(--fg-subtle);
+  background: var(--wash);
+  color: var(--fg-muted);
 }
 
 .ui-status--draft {
-  background: var(--elevated);
-  border-color: var(--border);
+  background: var(--wash);
   color: var(--fg-muted);
 }
 
 .ui-status--ready {
   background: var(--accent-muted);
-  border: 1.5px solid var(--accent);
-  color: var(--accent);
-  padding: 2.5px 8px 2.5px 7px;
+  color: var(--accent-strong);
 }
 
 .ui-status--ready::before {
@@ -333,11 +347,10 @@ samp {
 }
 
 .ui-status--archived {
-  background: var(--panel);
-  border-color: var(--border-faint);
-  color: var(--fg-faint);
+  background: var(--wash);
+  color: var(--fg-subtle);
   text-decoration: line-through;
-  text-decoration-color: var(--border-strong);
+  text-decoration-color: var(--line-strong);
 }
 
 /* ---- Content-type label (dot + name) ---- */
@@ -345,10 +358,9 @@ samp {
   align-items: center;
   color: var(--fg-muted);
   display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
   gap: 7px;
-  letter-spacing: 0.03em;
 }
 
 .ui-type::before {
@@ -362,15 +374,11 @@ samp {
 
 /* ---- Kbd ---- */
 .ui-kbd {
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: var(--r-sm);
-  color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
   line-height: 1;
-  padding: 2px 6px;
 }
 
 /* ---- Scrim + dialog (⌘K) ---- */
@@ -395,9 +403,9 @@ samp {
    ============================================================ */
 .y-header {
   align-items: center;
-  backdrop-filter: blur(10px);
-  background: color-mix(in oklch, var(--panel) 82%, transparent);
-  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  background: color-mix(in oklch, var(--bg) 85%, transparent);
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex: none;
   gap: 16px;
@@ -431,7 +439,7 @@ samp {
   color: var(--fg);
   display: inline-flex;
   font-family: var(--font-display);
-  font-size: var(--fs-18);
+  font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
   gap: 8px;
   letter-spacing: var(--track-snug);
@@ -452,31 +460,36 @@ samp {
 }
 
 .y-brand__tag {
-  color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.11em;
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
 }
 
 .y-searchbtn {
   align-items: center;
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--fg-subtle);
   cursor: pointer;
   display: flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   gap: 10px;
   height: 32px;
   min-width: 214px;
   padding: 0 10px 0 11px;
 }
 
+.y-searchbtn:hover {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--fg-muted);
+}
+
 .y-searchfallback {
   color: var(--fg-subtle);
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   white-space: nowrap;
 }
 
@@ -500,19 +513,22 @@ samp {
 .y-iconbtn {
   align-items: center;
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  border: 0;
+  border-radius: var(--r-md);
   color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
   flex: none;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   height: 32px;
   justify-content: center;
   width: 32px;
 }
 
 .y-iconbtn:hover {
-  background: var(--overlay);
+  background: var(--wash);
   color: var(--fg);
 }
 
@@ -520,9 +536,6 @@ samp {
   height: 16px;
   width: 16px;
 }
-/* The language control carries two letters rather than a glyph, so it borrows
-   the mono face the other lettered chrome uses and sits at the size those
-   labels sit at. */
 /* The language control rides inside a form so it works with no script; the
    form's own box dissolves so the button sits in the header row exactly as
    its sibling controls do. */
@@ -531,9 +544,9 @@ samp {
 }
 
 .y-langbtn {
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.04em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
 }
 
 .y-kbdpref {
@@ -576,9 +589,8 @@ samp {
 .y-shortcutpref__on,
 .y-shortcutpref__off {
   display: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.05em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 [data-single-key-shortcuts='on'] .y-shortcutpref__on {
@@ -591,53 +603,63 @@ samp {
   color: var(--fg-faint);
   display: inline;
 }
-/* The readings switch says what it does in words, and sits with the header's
-   other worded controls rather than with its icons: same face, same size as
-   the way into the reading choices beside it. */
+/* The readings control is a switch with its name beside it: the track and the
+   thumb are drawn on the button itself from the pressed state the page already
+   carries, so what a reader sees and what a screen reader is told are one
+   attribute. Off is a hollow track with the thumb at its start; on is a filled
+   ink track with the thumb at its end. Both states keep the track's edge at
+   3:1 against the page, so the control reads whichever way it is set. */
 .y-rubybtn {
-  gap: 7px;
-  padding: 0 11px;
+  --switch-inset: 8px;
+  gap: 8px;
+  padding: 0 var(--switch-inset) 0 10px;
+  position: relative;
   width: auto;
 }
 
 .y-rubybtn__label {
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  letter-spacing: 0.04em;
-  line-height: 1;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  line-height: 1.25rem;
 }
 
 .y-rubybtn__label--short {
   display: none;
 }
 
-.y-rubybtn__on,
-.y-rubybtn__off {
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.05em;
+.y-rubybtn::before {
+  background: transparent;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--fg-subtle);
+  content: '';
+  flex: none;
+  height: 20px;
+  order: 2;
+  transition: background var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
+  width: 32px;
 }
 
-.y-rubybtn__on {
-  color: var(--accent);
-  font-weight: 500;
+.y-rubybtn::after {
+  background: var(--fg-subtle);
+  border-radius: 50%;
+  content: '';
+  height: 14px;
+  position: absolute;
+  right: calc(var(--switch-inset) + 32px - 3px - 14px);
+  top: 9px;
+  transition: background var(--dur-base) var(--ease-standard), right var(--dur-base) var(--ease-standard);
+  width: 14px;
 }
 
-.y-rubybtn__off {
-  color: var(--fg-faint);
-}
-/* ruby/theme state is expressed by the root attribute — no JS needed for the glyph */
-.y-rubybtn__on,
-.y-rubybtn__off {
-  display: none;
+.y-rubybtn[aria-pressed='true']::before {
+  background: var(--fg);
+  box-shadow: none;
 }
 
-[data-ruby='on'] .y-rubybtn__on {
-  display: inline;
-}
-
-[data-ruby='off'] .y-rubybtn__off {
-  display: inline;
+.y-rubybtn[aria-pressed='true']::after {
+  background: var(--bg);
+  right: calc(var(--switch-inset) + 3px);
 }
 /* The row's spare width runs out a little below this point, and further down it
    is already shortening the wordmark to fit what is there; the longer label
@@ -648,8 +670,8 @@ samp {
    spoken name stay the same across the switch. */
 @media (max-width: 720px) {
   .y-rubybtn {
-    gap: 5px;
-    padding: 0 6px;
+    gap: 6px;
+    padding-left: 6px;
   }
 
   .y-rubybtn__label--long {
@@ -770,14 +792,18 @@ samp {
    Shell + rails
    ============================================================ */
 :root {
-  --rail-open: 264px;
+  --rail-open: 272px;
+  --rail-right: 240px;
 }
 
 .y-shell {
   align-items: start;
   display: grid;
   flex: 1;
-  grid-template-columns: var(--rail-open) minmax(0, 1fr) 316px;
+  grid-template-columns: var(--rail-open) minmax(0, 1fr) var(--rail-right);
+  margin-inline: auto;
+  max-width: var(--shell-max);
+  width: 100%;
 }
 /* The right rail exists to hold reading aids — the table of contents and the
    diagnostics list. A note with neither drops the rail's column entirely and
@@ -804,12 +830,24 @@ samp {
    taking the reading column with it. */
 .y-rail-left {
   background: var(--panel);
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--line);
   height: calc(100vh - var(--header-height));
   overflow-y: auto;
-  padding: 6px 10px 48px;
+  padding: 6px var(--rail-pad) 48px;
   position: sticky;
   top: var(--header-height);
+}
+
+/* Past the width the three columns stop growing, the arrangement stands in the
+   middle of the window and the left rail would float with page ground on its
+   outer side. The panel runs on to the window's edge instead, drawn as a shadow
+   that spreads outward and is cut off above and below the rail, so the rail
+   itself stays the width it was designed at. */
+@media (min-width: 1281px) {
+  .y-rail-left {
+    box-shadow: -50vw 0 0 50vw var(--panel);
+    clip-path: inset(0 0 0 -100vw);
+  }
 }
 
 /* The rail's first row: the button that folds the whole left column away and,
@@ -834,6 +872,7 @@ samp {
    header's own button owns the act of opening it. */
 :root {
   --rail-head-height: 44px;
+  --rail-pad: 16px;
 }
 
 .y-railtoggle__button {
@@ -848,8 +887,8 @@ samp {
     display: flex;
     gap: 6px;
     height: var(--rail-head-height);
-    margin: -6px -10px 4px;
-    padding: 0 10px 0 4px;
+    margin: -6px calc(-1 * var(--rail-pad)) 4px;
+    padding: 0 var(--rail-pad) 0 4px;
     position: sticky;
     /* Held six pixels above the content edge, which is the rail's own top
        padding: the row reaches the very top of the rail, so no row of the tree
@@ -888,13 +927,13 @@ samp {
 }
 
 .y-rail-right {
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 32px;
   height: calc(100vh - var(--header-height));
   overflow-y: auto;
-  padding: 26px 22px 48px;
+  padding: 32px 24px 48px;
   position: sticky;
   top: var(--header-height);
 }
@@ -914,14 +953,14 @@ samp {
 /* left-rail disclosure groups */
 .y-railsummary {
   align-items: center;
-  color: var(--fg-subtle);
+  color: var(--fg);
   display: flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  gap: 7px;
-  letter-spacing: 0.09em;
-  padding: 12px 8px 6px;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  gap: 5px;
+  line-height: 1.25rem;
+  padding: 16px 0 6px;
 }
 
 .y-railsummary--label {
@@ -937,42 +976,34 @@ samp {
   color: var(--fg);
   display: block;
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
+  line-height: 1.5rem;
   overflow-wrap: anywhere;
-  padding: 8px 10px 0;
+  padding: 8px 0 0;
   text-decoration: none;
   text-wrap: balance;
 }
 
 .y-railbook__span {
-  border-bottom: 1px solid var(--border-faint);
+  border-bottom: 1px solid var(--line-faint);
   color: var(--fg-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  margin: 0;
-  padding: 4px 10px 12px;
-}
-
-/* Part headings in a book are authored titles, not interface labels, so they
-   read in the sans face at a reading size. Folder, reports and library rails
-   keep the label face. */
-.y-railbook .y-railsummary {
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
-  letter-spacing: normal;
-  text-transform: none;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
+  margin: 0;
+  padding: 4px 0 12px;
 }
 
 .y-railgroup {
-  padding: 0 0 10px;
+  margin: 2px 0 8px 5px;
 }
 
 .y-railsep {
-  background: var(--border-faint);
+  background: var(--line-faint);
   height: 1px;
-  margin: 2px 8px;
+  margin: 2px 0;
 }
 
 .y-chevron {
@@ -1033,11 +1064,11 @@ samp {
 
 /* lifecycle status rows */
 .y-navdot {
-  background: var(--fg-faint);
+  background: var(--fg-subtle);
   border-radius: 50%;
   flex: none;
-  height: 7px;
-  width: 7px;
+  height: 6px;
+  width: 6px;
 }
 
 .y-navdot--ready {
@@ -1055,30 +1086,35 @@ samp {
 /* filter box — pure enhancement: ships hidden, and the sidebar's pre-paint
    script reveals it in the first frame; with no script it never appears */
 .y-filter {
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--line);
   box-sizing: border-box;
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   margin: 6px 0 4px;
   outline: none;
-  padding: 7px 10px;
+  padding: 6px 10px;
   width: 100%;
 }
 
 .y-filter::placeholder {
-  color: var(--fg-faint);
+  color: var(--fg-subtle);
+}
+
+.y-filter:focus {
+  box-shadow: inset 0 0 0 1px var(--fg-subtle);
 }
 /* the filter's designed no-match state — never a silently empty column */
 .y-filter-empty {
-  color: var(--fg-faint);
+  color: var(--fg-subtle);
   font-family: var(--font-serif);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
   font-style: italic;
   line-height: 1.6;
-  margin: 8px 8px 4px;
+  margin: 8px 0 4px;
 }
 
 /* "here" — the current note's same-directory siblings */
@@ -1089,34 +1125,34 @@ samp {
 }
 
 .y-here__label {
-  color: var(--fg-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  letter-spacing: 0.06em;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  line-height: 1.25rem;
   overflow: hidden;
-  padding: 10px 8px 5px;
+  padding: 12px 0 6px;
   text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
 /* map tree — nested heading disclosures */
 .y-tree {
-  border-left: 1px solid var(--border);
-  margin-left: 8px;
-  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  margin-left: 6px;
+  padding-left: 10px;
 }
 
 .y-navmark {
-  color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 /* the row that closes a narrowed shelf and hands the reader its own page */
 .y-shelfall {
-  color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 .y-navmark--warn {
@@ -1139,32 +1175,33 @@ samp {
 .y-navdiag p {
   color: var(--warn);
   font-family: var(--font-serif);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
   line-height: 1.5;
-  margin: 3px 8px 7px;
+  margin: 3px 0 7px;
 }
 
 /* a course summary (the study-path title) and a section summary (a heading) */
 .y-railitem,
 .y-treeitem {
   align-items: center;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   color: var(--fg-muted);
   cursor: pointer;
   display: flex;
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   gap: 7px;
+  line-height: 1.25rem;
   padding: 6px 8px;
 }
 
 .y-railitem {
   color: var(--fg);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-semibold);
 }
 
 .y-railitem:hover,
 .y-treeitem:hover {
-  background: var(--overlay);
+  background: var(--wash);
   color: var(--fg);
 }
 
@@ -1181,23 +1218,22 @@ samp {
 
 .y-lessonsteps__path {
   color: var(--fg-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
-  letter-spacing: 0.06em;
-  padding: 4px 8px 2px;
-  text-transform: uppercase;
+  font-weight: var(--fw-medium);
+  padding: 4px 0 2px;
 }
 
 .y-railitem__full {
   color: var(--fg-subtle);
   display: block;
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
   padding: 4px 8px 6px;
 }
 
 .y-railitem__full:hover {
-  color: var(--accent);
+  color: var(--fg);
 }
 
 /* the foot of the rail — which folder this is, how large it is, and what the
@@ -1211,18 +1247,19 @@ samp {
   /* The quiet ink is set on the block rather than on the link inside it: every
      anchor in this interface inherits its colour, and a rule naming one class
      is outranked by the rule that says so. */
-  color: var(--fg-faint);
+  color: var(--fg-subtle);
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 10px 8px 4px;
+  padding: 12px 0 4px;
 }
 
 .y-railfoot__name {
   color: var(--fg-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
-  letter-spacing: 0.04em;
+  font-weight: var(--fw-medium);
+  line-height: 1.25rem;
   /* A folder name is one word somebody chose and can be long. It wraps rather
      than ellipsing, because a truncated name is the one thing this line exists
      to say, and a rail that scrolls sideways has nothing to scroll back to. */
@@ -1230,16 +1267,20 @@ samp {
 }
 
 .y-railfoot__size {
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
 }
 
 .y-railfoot__health {
   align-items: center;
   display: flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
   gap: 6px;
+  line-height: 1.25rem;
   margin-top: 2px;
   min-width: 0;
 }
@@ -1248,18 +1289,8 @@ samp {
   color: var(--fg);
 }
 
-.y-railfoot__label {
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.y-railfoot__count {
-  margin-left: auto;
-  overflow-wrap: anywhere;
-}
-
 .y-railfoot__dot {
-  background: var(--fg-faint);
+  background: var(--fg-subtle);
   border-radius: 50%;
   flex: none;
   height: 6px;
@@ -1325,43 +1356,55 @@ samp {
    ============================================================ */
 .y-crumbs {
   align-items: center;
-  color: var(--fg-faint);
+  color: var(--fg-subtle);
   display: flex;
   flex-wrap: wrap;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
   gap: 8px;
-  letter-spacing: 0.06em;
+  line-height: 1.25rem;
 }
 
 .y-crumbs__sep {
-  opacity: 0.5;
+  color: var(--line-strong);
 }
 /* The title can be a link's destination — a note opening with a heading that
    repeats it hands its anchor here — so it keeps the same clearance from the
    sticky header that every heading in the prose has. */
 .y-title {
   color: var(--fg);
-  font-family: var(--font-kai);
-  font-size: var(--fs-ed-38);
-  font-weight: var(--fw-regular);
-  letter-spacing: 0.01em;
-  line-height: 1.25;
-  margin: 14px 0 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-36);
+  font-weight: var(--fw-medium);
+  line-height: 1.2222;
+  margin: 12px 0 0;
   overflow-wrap: anywhere;
   scroll-margin-top: var(--header-clearance);
   text-wrap: balance;
 }
 
+.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-title {
+  letter-spacing: var(--track-snug);
+}
+
+/* Han and kana fill the whole em, so a title that wraps needs more between its
+   lines than Latin's 44px on 36px does. */
+.y-title:lang(ja),
+.y-title:lang(ko),
+.y-title:lang(zh) {
+  line-height: 1.4;
+}
+
 .y-metarow {
   align-items: center;
-  color: var(--fg-faint);
+  color: var(--fg-subtle);
   display: flex;
   flex-wrap: wrap;
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  gap: 8px 14px;
-  margin: 20px 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  gap: 4px 12px;
+  line-height: 1.25rem;
+  margin: 16px 0 0;
 }
 /* a long unbroken title or path breaks mid-string instead of overflowing the
    column; min-width:0 lets the flex item shrink so the break can take effect */
@@ -1373,13 +1416,18 @@ samp {
    enough not to compete with the title above it and underlined so it reads as
    a link rather than another piece of metadata. */
 .y-metarow__raw {
+  border-radius: var(--r-md);
   color: var(--fg-muted);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  line-height: 1.25rem;
+  padding: 6px 10px;
+  text-decoration: none;
 }
 
 .y-metarow__raw:hover {
-  color: var(--accent);
+  background: var(--wash);
+  color: var(--fg);
 }
 /* On a note the same row folds, so the reader meets the title and then the
    prose. The element name qualifies it: the heads of a file yomihon cannot
@@ -1394,8 +1442,7 @@ details.y-metarow {
   display: block;
 }
 
-.y-metarow__summary,
-.y-metarow__detail {
+.y-metarow__summary {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -1403,6 +1450,10 @@ details.y-metarow {
 }
 
 .y-metarow__detail {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   margin-top: 10px;
 }
 
@@ -1418,46 +1469,60 @@ details.y-metarow {
    it is narrow (inside .y-metarow's disclosure); no separate narrow/wide
    variant of the list itself exists. */
 .y-notefacts {
-  color: var(--fg-faint);
+  align-items: baseline;
+  color: var(--fg-subtle);
   display: flex;
   flex-wrap: wrap;
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  gap: 6px 22px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  line-height: 1.25rem;
   margin: 0;
 }
 
 .y-notefacts > div {
   align-items: baseline;
   display: flex;
-  gap: 6px;
   min-width: 0;
 }
 
+.y-notefacts > div + div::before {
+  color: var(--line-strong);
+  content: '·' / '';
+  margin: 0 8px;
+}
+
 .y-notefacts dt {
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  border: 0;
+  clip-path: inset(50%);
+  display: inline-block;
+  height: 1px;
+  margin: 0 -1px 0 0;
+  overflow: hidden;
+  padding: 0;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .y-notefacts dd {
-  color: var(--fg-muted);
   margin: 0;
   overflow-wrap: anywhere;
 }
 
 .y-notefacts a {
-  color: var(--fg-muted);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  color: var(--fg-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  text-decoration: none;
 }
 
 .y-notefacts a:hover {
-  color: var(--accent);
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* The wide-open placement: the same facts, undisclosed, beside the title.
-   Hidden by default and shown only past the 1280/1281 split .y-rail-right and
+   Hidden by default and shown only from 1280 up, the split .y-rail-right and
    .y-inlineaids already use — the width where .y-metarow's own disclosure
    hides in turn (Responsive, below). Nothing has to turn it back off under
    that width: display: none is already its only rule outside that one query. */
@@ -1465,29 +1530,33 @@ details.y-metarow {
   align-items: center;
   display: none;
   flex-wrap: wrap;
-  gap: 10px 16px;
-  margin: 20px 0;
+  gap: 4px;
+  margin: 16px 0 0;
 }
 
-/* kintsugi seam — the one signature: a parted hairline mended with a vermilion thread */
-.y-seam {
-  background: linear-gradient(90deg, var(--border) 0 28.5%, transparent 28.5% 31.5%, var(--border) 31.5% 100%);
-  height: 1px;
-  margin: 4px 0 8px;
-  position: relative;
-  width: 100%;
+/* The facts line is one row of its own, and wraps inside itself when the path
+   is long. The doors (open in Obsidian, leave a thought) stand together on the
+   row beneath, left-aligned, so a long path never pushes one of them alone onto
+   a line. The first door is pulled back by its own padding so the word, not the
+   button's edge, lines up with the title above. */
+.y-headmeta > .y-notefacts,
+.y-metarow__detail > .y-notefacts {
+  flex: 0 0 100%;
 }
 
-.y-seam::after {
-  background: var(--accent);
-  border-radius: var(--r-sm);
-  content: '';
-  height: 3px;
-  left: 27.5%;
-  opacity: 0.85;
-  position: absolute;
-  top: -1px;
-  width: 5%;
+.y-notefacts + .y-metarow__raw {
+  margin-left: -10px;
+}
+
+/* Where the facts are stacked in the narrow disclosure the path is the long one,
+   so it takes a line of its own instead of wrapping behind a separator that
+   would then open the next line. */
+.y-metarow__detail .y-notefacts > div:has(a) {
+  flex-basis: 100%;
+}
+
+.y-metarow__detail .y-notefacts > div:has(a)::before {
+  content: none;
 }
 
 /* ============================================================
@@ -1498,6 +1567,21 @@ details.y-metarow {
   font-family: var(--font-read);
   font-size: var(--fs-ed-17);
   line-height: var(--lh-cjk);
+}
+
+/* Latin set on a 30px line, where the article says it is not Han, kana or
+   Hangul. Ruby needs the 2.0 line above, so an article that declares nothing
+   keeps it: the safe line is the default and the open one has to be earned by
+   a positive tag. */
+.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose {
+  line-height: var(--lh-latin);
+}
+
+/* The head ends where the body begins: forty pixels of space and no rule. The
+   head's own bottom margins are never more than that, so the two collapse into
+   one gap whichever of them is the larger. */
+.y-article > .y-prose {
+  margin-top: 40px;
 }
 
 .y-prose > :first-child {
@@ -1526,37 +1610,31 @@ details.y-metarow {
 .y-prose [data-level='1'] {
   font-size: var(--fs-ed-30);
   line-height: 1.4;
-  margin: var(--sp-h2) 0 0;
+  margin: var(--sp-h2) 0 var(--sp-after-h2);
 }
 
 .y-prose [data-level='2'] {
-  align-items: center;
-  display: flex;
   font-size: var(--fs-ed-24);
-  gap: 10px;
-  line-height: 1.4;
-  margin: var(--sp-h2) 0 0;
+  line-height: 1.3333;
+  margin: var(--sp-h2) 0 var(--sp-after-h2);
 }
 
-.y-prose [data-level='2']::before {
-  background: var(--fg-muted);
-  border-radius: 1px;
-  content: '';
-  flex: none;
-  height: 20px;
-  width: 4px;
+.y-prose [data-level='2']:lang(ja),
+.y-prose [data-level='2']:lang(ko),
+.y-prose [data-level='2']:lang(zh) {
+  line-height: 1.4;
 }
 
 .y-prose [data-level='3'] {
   font-size: var(--fs-ed-20);
   line-height: 1.4;
-  margin: var(--sp-h3) 0 0;
+  margin: var(--sp-h3) 0 var(--sp-after-h3);
 }
 
 .y-prose [data-level='4'] {
-  font-size: var(--fs-ed-19);
-  line-height: 1.5;
-  margin: var(--sp-h4) 0 0;
+  font-size: var(--fs-ed-17);
+  line-height: 1.647;
+  margin: var(--sp-h4) 0 var(--sp-after-h4);
 }
 
 .y-prose [data-level='1'],
@@ -1564,11 +1642,21 @@ details.y-metarow {
 .y-prose [data-level='3'],
 .y-prose [data-level='4'] {
   color: var(--fg);
-  font-family: var(--font-display);
+  font-family: var(--font-read);
   font-weight: var(--fw-semibold);
-  letter-spacing: var(--track-snug);
   scroll-margin-top: var(--header-clearance);
   text-wrap: balance;
+}
+
+.y-article[lang]:not(:lang(zh)):not(:lang(ja)):not(:lang(ko)) .y-prose [data-level] {
+  letter-spacing: var(--track-snug);
+}
+
+/* The gap under a heading belongs to the heading, not to the block that
+   follows it: that block's own top margin would otherwise win the collapse and
+   hold the heading as far from its text as from the text above. */
+.y-prose [data-level] + * {
+  margin-top: 0;
 }
 /* A link can name any heading, and a heading the header covers on arrival is
    one the reader has to scroll back up to find, so the deeper two are given
@@ -1580,13 +1668,7 @@ details.y-metarow {
    keeps the topmost level from having to grow to a size CJK cannot carry. */
 .y-prose [data-level='5'],
 .y-prose [data-level='6'] {
-  color: var(--fg);
-  font-family: var(--font-display);
-  font-size: var(--fs-ed-17);
-  line-height: var(--lh-read);
-  margin: var(--sp-h4) 0 0;
-  scroll-margin-top: var(--header-clearance);
-  text-wrap: balance;
+  font-weight: var(--fw-medium);
 }
 
 .y-prose [data-level='5'] {
@@ -1595,7 +1677,6 @@ details.y-metarow {
 
 .y-prose [data-level='6'] {
   font-weight: var(--fw-medium);
-  letter-spacing: var(--track-wide);
 }
 
 /* The size rows share specificity with `.y-prose > :first-child` (0,2,0) and
@@ -1662,22 +1743,21 @@ details.y-metarow {
   height: auto;
   max-width: 100%;
 }
-/* A link must be findable without seeing color. Wikilinks already say so with
-   a bottom border, so the underline goes to every other prose link, drawn at
-   the same weight so the two read as one family. */
+/* A link is ink with a quiet underline, so it is findable without colour and
+   the accent stays where it means something. The wikilink, the preview link and
+   the concept link are all this one link: the faults a wikilink can carry
+   change the line, never the ink. */
 .y-prose a {
-  color: var(--link);
-}
-/* stylelint-disable-next-line selector-no-qualifying-type -- the type is not
-   disambiguating two tagged elements here, it is bounding the rule to links:
-   .wikilink only ever sits on an anchor, so an unqualified :not(.wikilink)
-   would match every other element in the prose that lacks that class. */
-.y-prose a:not(.wikilink) {
+  color: var(--fg);
   text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--fg) 25%, transparent);
   text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
 }
 
+.y-prose a:hover {
+  text-decoration-color: color-mix(in oklch, var(--fg) 60%, transparent);
+}
 /* Footnotes — apparatus, not body. A reference is a small mark inside the
    sentence and the notes themselves collect at the foot of the piece, set
    quieter and tighter than the prose they annotate. Both ends are ordinary
@@ -1736,7 +1816,7 @@ details.y-metarow {
 
 /* inline code + fenced code (chroma) */
 .y-prose code {
-  background: var(--elevated);
+  background: var(--wash);
   border-radius: var(--r-sm);
   color: var(--fg);
   font-family: var(--font-mono);
@@ -1746,14 +1826,14 @@ details.y-metarow {
 
 .y-prose pre {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   font-family: var(--font-mono);
   font-size: var(--fs-13);
   line-height: 1.75;
   margin: var(--sp-block) 0 0;
   overflow-x: auto;
-  padding: 16px 18px;
+  padding: 16px 20px;
 }
 
 .y-prose pre code {
@@ -1786,21 +1866,20 @@ details.y-metarow {
 }
 
 .y-prose th {
-  background: var(--elevated);
-  border-bottom: 1.5px solid var(--border-strong);
+  border-bottom: 1px solid var(--line-strong);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
-  padding: 9px 14px;
+  padding: 8px 14px;
   text-align: left;
 }
 
 .y-prose td {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line-faint);
   color: var(--fg-muted);
   font-family: var(--font-serif);
-  padding: 11px 14px;
+  padding: 10px 14px;
 }
 
 .y-prose tr:last-child td {
@@ -1821,31 +1900,23 @@ details.y-metarow {
    highlighted head (`<mark>Goroutine</mark>s` is one word). */
 .yomihon mark {
   background: color-mix(in oklch, var(--gold) 26%, transparent);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   color: var(--gold-ink);
 }
 
 /* wikilinks — the renderer's real classes (a.wikilink / .wikilink-broken / .wikilink-ambiguous) */
-.y-prose .wikilink {
-  border-bottom: 1px solid var(--accent-muted);
-  color: var(--link);
-}
-
-.y-prose .wikilink:hover {
-  border-bottom-color: var(--accent);
-}
-
 .y-prose .wikilink-broken {
   border-bottom: 1px dashed var(--warn);
   color: var(--fg-muted);
   cursor: help;
-  text-underline-offset: 2px;
+  text-decoration: none;
 }
 
 .y-prose .wikilink-ambiguous {
-  border-bottom: 1px dotted var(--accent);
+  border-bottom: 1px dotted var(--fg-muted);
   color: var(--fg-muted);
   cursor: help;
+  text-decoration: none;
 }
 /* A picture whose file the vault does not hold. The browser draws its own
    broken-image mark and this says why: the same dashed warn line an unwritten
@@ -1864,6 +1935,7 @@ details.y-metarow {
    reserved for a name with no target at all. */
 .y-prose .wikilink-degraded {
   border-bottom: 1px dotted var(--fg-muted);
+  text-decoration: none;
 }
 
 .y-prose .wikilink-degraded:hover {
@@ -1872,7 +1944,7 @@ details.y-metarow {
 
 /* embeds */
 .y-prose .embed {
-  border-left: 3px solid var(--border-strong);
+  border-left: 2px solid var(--line-strong);
   margin: var(--sp-block) 0 0;
   padding: 2px 16px;
 }
@@ -1995,9 +2067,9 @@ button.y-freshness__action {
 }
 
 .y-prose .embed-media {
-  background: var(--elevated);
-  border: 1px dashed var(--border);
-  border-radius: var(--r-sm);
+  background: var(--wash);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
   color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-12);
@@ -2006,41 +2078,32 @@ button.y-freshness__action {
 
 /* callouts — renderer emits .callout / .callout-note / .callout-warning + title/icon/body */
 .y-prose .callout {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--fg-subtle);
-  border-radius: 0 var(--r-md) var(--r-md) 0;
+  background: var(--wash);
+  border-radius: var(--r-lg);
   margin: var(--sp-block) 0 0;
-  padding: 14px 18px;
+  padding: 16px 20px;
 }
 
 .y-prose .callout-warning {
-  border-left-color: var(--warn);
-}
-/* A quotation carries someone's words, so it takes the page's quotation
-   vocabulary — the plain strong rule a blockquote draws, on a quieter ground —
-   rather than an information note's tinted panel. */
-.y-prose .callout-quote {
-  background: var(--elevated);
-  border-left-color: var(--border-strong);
+  background: var(--warn-bg);
 }
 
 .y-prose .callout-quote .callout-body {
   color: var(--fg-subtle);
 }
-/* The title row is set in the body's serif rather than tracked-out mono
-   capitals: these titles are authored words — 口述紀錄, a person's name — and
-   uppercase-plus-letterspacing dressed them as machine labels while doing
-   nothing at all to CJK. */
+/* The title row is set in sentence case, never tracked capitals: these titles
+   are authored words — 口述紀錄, a person's name — and capitals with spacing
+   dressed them as machine labels while doing nothing at all to CJK. */
 .y-prose .callout-title {
   align-items: center;
-  color: var(--fg-subtle);
+  color: var(--fg);
   cursor: default;
   display: flex;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
   gap: 8px;
+  line-height: 1.25rem;
   margin: 0 0 6px;
 }
 /* stylelint-disable-next-line selector-no-qualifying-type -- a callout renders
@@ -2096,8 +2159,8 @@ button.y-freshness__action {
 /* mermaid placeholder / rendered svg */
 .y-prose .mermaid-diagram {
   background: var(--panel);
-  border: 1px dashed var(--border);
-  border-radius: var(--r-md);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
   color: var(--fg-subtle);
   font-family: var(--font-mono);
   font-size: var(--fs-13);
@@ -2166,57 +2229,64 @@ button.y-freshness__action {
 
 .y-toc-inline__summary {
   align-items: center;
-  color: var(--fg-faint);
+  color: var(--fg);
   display: flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
   gap: 7px;
-  letter-spacing: 0.06em;
+  line-height: 1.5rem;
   padding: 8px 0;
-  text-transform: uppercase;
 }
 
 .y-toc-inline .y-toc__list {
   margin: 4px 0 6px;
 }
 
+/* The summary already names the block it folds, with its count. The label the
+   same block carries in the rail would say it a second time directly beneath. */
+.y-toc-inline .ui-side__label {
+  display: none;
+}
+
 .y-toc__list {
-  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 1px;
 }
 
-.y-toc__list a {
-  border-left: 2px solid transparent;
+/* The contents list and the cited-by list are one anatomy: a hairline down the
+   left edge, rows of 14px on a 24px line, and the row the reader is on picked
+   out by a heavier ink rule over the hairline and the ink itself. The rule is
+   drawn inside each row so a row's height never moves with its state. */
+.y-toc__row > a:first-child {
+  border-radius: 0;
+  box-shadow: inset 1px 0 0 var(--line);
   color: var(--fg-subtle);
-  font-size: var(--fs-13);
-  margin-left: -1px;
-  padding: 5px 12px;
+  font-size: var(--fs-14);
+  line-height: 1.5rem;
+  padding: 4px 12px 4px 16px;
 }
 
-.y-toc__list a:hover {
+.y-toc__row > a:first-child:hover {
+  box-shadow: inset 1px 0 0 var(--line-strong);
   color: var(--fg);
 }
 /* the scroll-spy's active entry (set by the enhancement script) */
 .y-toc__list .is-active {
-  border-left-color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--fg);
   color: var(--fg);
+  font-weight: var(--fw-medium);
 }
 /* Indent follows the authored level the renderer stamps on each row, so a
    #### stays the deepest indent even though the shell writes it as h5. */
 .y-toc__list a[data-level='3'] {
-  padding-left: 22px;
+  padding-left: 28px;
 }
 
 .y-toc__list a[data-level='4'] {
-  padding-left: 32px;
+  padding-left: 40px;
 }
 
-/* One heading, one row: the heading's link takes the width and the section's
-   door is a trailing icon in the same row. The door is drawn only where the
-   pointer is on the row or focus is inside it, so a list of headings reads as
-   headings; a touch screen has no hover, so it is always drawn there. */
 .y-toc__row {
   align-items: stretch;
   display: flex;
@@ -2231,7 +2301,7 @@ button.y-freshness__action {
 .y-toc__list .y-toc__door {
   align-items: center;
   border-left: 0;
-  color: var(--fg-faint);
+  color: var(--fg-subtle);
   display: flex;
   flex: none;
   justify-content: center;
@@ -2252,7 +2322,7 @@ button.y-freshness__action {
 }
 
 .y-toc__list .y-toc__door:hover {
-  color: var(--accent);
+  color: var(--fg);
 }
 
 @media (pointer: coarse) {
@@ -2263,29 +2333,26 @@ button.y-freshness__action {
 }
 
 .y-statuspanel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  overflow: hidden;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
 }
 
 .y-statuspanel__head {
-  padding: 15px 16px 16px;
+  padding: 0;
 }
 
 .y-statuspanel__row {
   align-items: center;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .y-statuspanel__forms {
-  border-top: 1px solid var(--border);
   display: flex;
-  flex-direction: column;
-  gap: 9px;
-  padding: 14px 16px 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 0 0;
 }
 
 .y-statuspanel__notice {
@@ -2294,7 +2361,7 @@ button.y-freshness__action {
   font-size: var(--fs-13);
   line-height: 1.6;
   margin: 0;
-  padding: 15px 16px;
+  padding: 12px 0 0;
 }
 
 .y-statusform {
@@ -2304,25 +2371,34 @@ button.y-freshness__action {
 /* one plain transition control; every legal target renders identically */
 .y-xbtn {
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  color: var(--fg-subtle);
+  border: 0;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg-muted);
   cursor: pointer;
   font-family: var(--font-sans);
-  font-size: var(--fs-13);
-  height: 34px;
-  width: 100%;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  height: 32px;
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 .y-xbtn:hover {
-  background: var(--overlay);
+  background: var(--wash);
   color: var(--fg);
 }
 
 /* terminal-target confirm — the native disclosure that keeps the submit one
    interaction away; its summary wears the plain control's face */
 .y-statusconfirm {
-  width: 100%;
+  min-width: 0;
+}
+
+/* The confirmation reads as a sentence and a button, so once it is open its
+   form takes the whole row rather than sitting among the others. */
+.y-statusform:has(.y-statusconfirm[open]) {
+  flex-basis: 100%;
 }
 
 .y-statusconfirm__summary {
@@ -2345,7 +2421,7 @@ button.y-freshness__action {
 .y-statusconfirm__note {
   color: var(--fg-muted);
   font-family: var(--font-serif);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
   line-height: 1.6;
   margin: 8px 0;
 }
@@ -2367,45 +2443,40 @@ button.y-freshness__action {
 }
 
 .y-diagcount {
-  border: 1px solid var(--warn);
-  border-radius: 3px;
+  background: var(--warn-bg);
+  border-radius: var(--r-sm);
   color: var(--warn);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0;
-  padding: 0 5px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+  line-height: 1.25rem;
+  padding: 0 6px;
 }
 
 .y-diaglist {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   margin-top: 12px;
 }
 
 .y-diag {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-left: 2.5px solid var(--warn);
-  border-radius: 0 var(--r-md) var(--r-md) 0;
-  padding: 11px 13px;
-  transition: background var(--dur-base) var(--ease-standard);
-}
-
-.y-diag:hover {
   background: var(--warn-bg);
+  border-radius: var(--r-lg);
+  padding: 12px 14px;
 }
 
 .y-diag__label {
   align-items: center;
   color: var(--warn);
   display: flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
   gap: 7px;
-  letter-spacing: 0.06em;
-  margin-bottom: 5px;
-  text-transform: uppercase;
+  line-height: 1.25rem;
+  margin-bottom: 4px;
 }
 
 .y-diag__label svg {
@@ -2472,15 +2543,14 @@ button.y-freshness__action {
    ============================================================ */
 .y-sealbar {
   align-items: center;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 26px;
-  padding: 10px 16px;
+  margin-top: 32px;
+  padding: 16px 0 0;
 }
-@media (min-width: 1281px) {
+@media (min-width: 1280px) {
   .y-shell:not(.y-shell--rail-empty) .y-sealbar {
     display: none;
   }
@@ -2534,7 +2604,7 @@ button.y-freshness__action {
 .y-homesearch:focus-within,
 .y-searchdialog__form:focus-within,
 .y-searchpage__form:focus-within {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--fg-subtle);
   outline-offset: -2px;
 }
 
@@ -2558,6 +2628,25 @@ button.y-freshness__action {
 .y-searchdialog__input:focus-visible,
 .y-searchpage__form input:focus-visible {
   outline: 0;
+}
+
+/* The browser's own clear control is drawn in the system's accent colour, which
+   is a blue nothing else in this interface uses. It keeps its place and its
+   behaviour; only the mark is redrawn, as a cross in the subtle ink. */
+.y-homesearch input::-webkit-search-cancel-button,
+.y-searchdialog__input::-webkit-search-cancel-button,
+.y-searchpage__form input::-webkit-search-cancel-button {
+  appearance: none;
+  background: linear-gradient(45deg, transparent 43%, var(--fg-subtle) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg-subtle) 43% 57%, transparent 57%);
+  cursor: pointer;
+  height: 14px;
+  width: 14px;
+}
+
+.y-homesearch input::-webkit-search-cancel-button:hover,
+.y-searchdialog__input::-webkit-search-cancel-button:hover,
+.y-searchpage__form input::-webkit-search-cancel-button:hover {
+  background: linear-gradient(45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%);
 }
 
 /* One glyph size for every way into search, the header's entry included. */
@@ -2644,8 +2733,8 @@ button.y-freshness__action {
   background: var(--elevated);
   color: var(--fg-faint);
   display: flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   gap: 14px;
   padding: 10px 18px;
 }
@@ -2708,9 +2797,7 @@ button.y-freshness__action {
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
-  letter-spacing: 0.04em;
   margin: 0 0 4px;
-  text-transform: uppercase;
 }
 
 .y-facetlist {
@@ -2749,7 +2836,7 @@ a.y-facetrow:hover {
 .y-facetrow__count {
   color: var(--fg-faint);
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
 }
@@ -2820,7 +2907,7 @@ a.y-facetrow:hover {
    of the box. */
 .y-live-search__status {
   color: var(--fg-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   margin: 8px 4px 0;
   min-height: 1.4em;
@@ -2873,7 +2960,7 @@ a.y-facetrow:hover {
 
 .y-searchpage__emptytitle {
   color: var(--fg);
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   font-weight: var(--fw-regular);
   margin: 0;
@@ -2923,7 +3010,7 @@ a.y-facetrow:hover {
 .y-result__meta {
   color: var(--fg-faint);
   font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-size: var(--fs-12);
   overflow-wrap: anywhere;
 }
 
@@ -2933,8 +3020,8 @@ a.y-facetrow:hover {
 
 .y-result__kind {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 /* a status the contract does not declare — worn by a search hit, a landing-page
    row, and the distribution chip alike, so one fault reads as one thing
@@ -2948,7 +3035,7 @@ a.y-facetrow:hover {
   color: var(--warn);
   display: inline-block;
   font-family: var(--font-sans);
-  font-size: var(--fs-11);
+  font-size: var(--fs-12);
   line-height: 1.75;
   margin-left: 8px;
   padding: 0 6px;
@@ -2982,7 +3069,6 @@ a.y-facetrow:hover {
   font-family: var(--font-sans);
   font-size: 0.55em;
   font-weight: 400;
-  letter-spacing: 0.02em;
   user-select: none;
 }
 
@@ -3182,7 +3268,6 @@ a.y-facetrow:hover {
   font-family: var(--font-sans);
   font-size: var(--fs-ed-17);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.01em;
 }
 
 .y-slotcard__note {
@@ -3210,9 +3295,8 @@ a.y-facetrow:hover {
 
 .y-slotfield__label {
   color: var(--fg-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.04em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 .y-slotselect {
@@ -3491,7 +3575,7 @@ a.y-facetrow:hover {
 /* ============================================================
    Syllabus page (study-path) — a full-page render of nav.Map.
    Two-column shell (no right rail). Reuses ui-status / ui-navitem /
-   y-metarow / y-seam / y-navdot; warning markers reuse y-navmark--warn.
+   y-metarow / y-navdot; warning markers reuse y-navmark--warn.
    The page says how long a course is and where in it the reader is
    standing; it has no figure for how much of one is behind them.
    ============================================================ */
@@ -3500,6 +3584,16 @@ a.y-facetrow:hover {
   display: grid;
   flex: 1;
   grid-template-columns: var(--rail-open) minmax(0, 1fr);
+  margin-inline: auto;
+  max-width: var(--shell-max);
+  width: 100%;
+}
+
+/* A page with no rail has the one column to fill. Left on the two tracks, its
+   main would land in the track the rail would have had and be read at the width
+   of a sidebar. */
+.y-shell2:not(:has(> .y-rail-left)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* Home — the quiet reading desk, ending in a link to the vault README. The
@@ -3514,9 +3608,8 @@ a.y-facetrow:hover {
 
 .y-home__kicker {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.09em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 .y-home__head .y-title {
@@ -3626,8 +3719,8 @@ a.y-facetrow:hover {
 
 .y-homeblock__head p {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   margin: 0 0 0 auto;
   text-align: right;
 }
@@ -3684,7 +3777,7 @@ a.y-facetrow:hover {
 .y-homenote__path {
   color: var(--fg-faint);
   font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-size: var(--fs-12);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3699,8 +3792,8 @@ a.y-facetrow:hover {
 
 .y-homenote__meta time {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 .y-homechips {
@@ -3716,8 +3809,8 @@ a.y-facetrow:hover {
   border-radius: var(--r-sm);
   color: var(--fg-muted);
   display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   gap: 7px;
   padding: 7px 9px;
 }
@@ -3760,8 +3853,8 @@ a.y-facetrow:hover {
 .y-homepath__progress {
   color: var(--fg-faint);
   flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 .y-homesearch {
@@ -3787,7 +3880,7 @@ a.y-facetrow:hover {
 
 .y-homereadme__head h2 {
   color: var(--fg);
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-24);
   font-weight: var(--fw-regular);
   margin: 0;
@@ -3812,9 +3905,8 @@ a.y-facetrow:hover {
 .y-back {
   color: var(--fg-faint);
   display: inline-block;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   margin-top: 16px;
 }
 
@@ -3854,8 +3946,8 @@ a.y-facetrow:hover {
 .y-row__measure {
   color: var(--fg-faint);
   flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 /* A row reporting a hole in its own shelf. The colour has to be written here,
    after the measure it overrides: the shared warning colour is declared far
@@ -3882,8 +3974,8 @@ a.y-facetrow:hover {
 
 .y-row__when {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
   grid-column: 1;
   grid-row: 1;
@@ -3941,8 +4033,8 @@ a.y-facetrow:hover {
    where there is nothing on one side the other keeps its end. */
 .y-months {
   display: flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   gap: 12px;
   justify-content: space-between;
   margin-bottom: 14px;
@@ -3982,10 +4074,9 @@ a.y-facetrow:hover {
 
 .y-month__weekday {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-weight: var(--fw-regular);
-  letter-spacing: 0.06em;
   padding: 0 0 6px;
   text-align: left;
 }
@@ -4012,8 +4103,8 @@ a.y-facetrow:hover {
 .y-month__day {
   color: var(--fg-faint);
   display: block;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
 }
 
@@ -4029,7 +4120,7 @@ a.y-facetrow:hover {
   color: var(--link);
   display: block;
   font-family: var(--font-sans);
-  font-size: var(--fs-11);
+  font-size: var(--fs-12);
   min-height: 24px;
   overflow: hidden;
   padding-top: 3px;
@@ -4083,7 +4174,6 @@ a.y-facetrow:hover {
   font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   font-weight: 600;
-  letter-spacing: 0.01em;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -4149,10 +4239,8 @@ a.y-facetrow:hover {
 .y-fileinfo__list dt {
   align-self: baseline;
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 .y-fileinfo__list dd {
@@ -4213,9 +4301,8 @@ a.y-facetrow:hover {
 
 .y-recovery__kicker {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.08em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   margin: 0 0 10px;
 }
 
@@ -4336,10 +4423,12 @@ a.y-facetrow:hover {
    came up short. It is one centred column at a reading measure, so the same
    kind of news reads as the same thing wherever a reader meets it. Centring is
    the measure plus auto inline margins, which holds at any width the window
-   takes; a fixed side margin would only be centred at one of them.
+   takes; a fixed side margin would only be centred at one of them. The desk's
+   fault sections are the one place it gives up the column: they stand in a
+   panel at the page's width and are set out below with the rest of the desk.
 
    An absence stays quiet — the page's own ink, one step down. A fault says so
-   in the warning colour and in a hairline box, which is the whole visual
+   in the warning colour and on a warning tint, which is the whole visual
    difference between "there is nothing here" and "something could not be
    read". */
 .y-nothing {
@@ -4360,15 +4449,14 @@ a.y-facetrow:hover {
    "there is nothing here", so nothing is drawn. */
 .y-nothing__mark {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.08em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   margin: 0 0 10px;
 }
 
 .y-nothing__title {
   color: var(--fg);
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   font-weight: var(--fw-regular);
   line-height: var(--lh-tight);
@@ -4407,9 +4495,8 @@ a.y-facetrow:hover {
 
 .y-nothing--fault {
   background: var(--warn-bg);
-  border: 1px solid color-mix(in oklch, var(--warn) 35%, transparent);
-  border-radius: var(--r-sm);
-  padding: 16px 18px;
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
 }
 
 .y-nothing--fault .y-nothing__mark,
@@ -4423,17 +4510,39 @@ a.y-facetrow:hover {
   margin-top: 6px;
 }
 
-/* The notice draws its own box, so the card that used to hold a bare
-   paragraph would put a second one around it and leave the notice floating in
-   the middle of an otherwise empty panel. */
-.y-homeblock--faults:has(> .y-nothing) {
-  background: none;
+/* The desk's fault sections are one kind of news said four ways (a standing
+   notice, the contract's refusal, the egress declaration, a degraded read), so
+   they share one panel: a warning tint at the width of the column, left-aligned
+   like the rows above it, with the same gap between neighbours. The notice
+   component inside keeps its words and gives up its own tint. */
+.y-homeblock--faults {
+  background: var(--warn-bg);
   border: 0;
-  padding: 0;
+  border-radius: var(--r-lg);
+  margin-top: 16px;
+  padding: 20px 24px;
 }
 
 .y-homeblock--faults .y-nothing {
-  margin-top: 18px;
+  background: none;
+  border-radius: 0;
+  color: var(--fg-muted);
+  margin: 0;
+  max-width: none;
+  padding: 0;
+  text-align: left;
+}
+
+.y-homeblock--faults .y-nothing__title {
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  line-height: 1.5rem;
+}
+
+.y-homeblock--faults .y-homeempty {
+  color: var(--fg-muted);
 }
 
 /* The palette is a floating box rather than a page, and the notice sits inside
@@ -4444,10 +4553,8 @@ a.y-facetrow:hover {
 
 .y-syl-kicker {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 .y-syl .y-title {
@@ -4516,7 +4623,7 @@ a.y-facetrow:hover {
 .y-part__num {
   color: var(--fg-faint);
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   min-width: 24px;
 }
@@ -4524,7 +4631,7 @@ a.y-facetrow:hover {
 .y-part__name {
   color: var(--fg);
   flex: 1;
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-24);
   min-width: 0;
 }
@@ -4535,8 +4642,8 @@ a.y-facetrow:hover {
   border-radius: var(--r-sm);
   color: var(--fg-subtle);
   flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   padding: 3px 8px;
   white-space: nowrap;
 }
@@ -4555,9 +4662,8 @@ a.y-facetrow:hover {
 .y-module__tag {
   color: var(--fg-faint);
   flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.05em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 .y-module__name {
@@ -4586,7 +4692,7 @@ a.y-facetrow:hover {
 
 .y-lessons > li::marker {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
 }
 
@@ -4683,7 +4789,7 @@ a.y-facetrow:hover {
   -webkit-box-orient: vertical;
   color: var(--fg);
   display: -webkit-box;
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -4707,8 +4813,8 @@ a.y-facetrow:hover {
 .y-pathitem__num {
   color: var(--fg-faint);
   flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   min-width: 16px;
 }
 
@@ -4723,8 +4829,8 @@ a.y-facetrow:hover {
 .y-pathcount {
   color: var(--fg-faint);
   flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   margin-left: auto;
   white-space: nowrap;
 }
@@ -4886,6 +4992,46 @@ html {
   text-spacing-trim: space-first;
 }
 
+/* Han meeting a Latin letter or a digit with no space between them (a title like
+   "Go 並行" is typed with one, "第3課" is not) is set apart by the browser, so
+   the page is spaced the same whether or not the author typed the gap. The
+   property is inherited, so this one declaration reaches the chrome, the rails
+   and the prose; a browser without it sets the text as written. */
+body {
+  text-autospace: normal;
+}
+
+/* Code, a shortcut and a file's path are read one character at a time and
+   typed back, so none of them is given a gap the text does not have. */
+code,
+kbd,
+pre,
+samp,
+.y-fileinfo__list dd,
+.y-findings__path,
+.y-homenote__path,
+.y-notefacts a,
+.y-result__meta {
+  text-autospace: no-autospace;
+}
+
+/* CJK type has no italic. Asked for one, a browser slants the upright glyphs
+   itself, which no type designer drew and which reads as a smear beside the
+   same line's real Latin italic. Where the language is CJK that synthesis is
+   switched off, so the Han stays upright and only the Latin takes the italic. */
+:lang(ja),
+:lang(ko),
+:lang(zh) {
+  font-synthesis-style: none;
+}
+
+/* Strict breaking keeps the characters that may not begin a line (closing
+   brackets, commas, full stops, the iteration and prolonged-sound marks) off
+   the start of one, which is the rule a Chinese reader expects of a book. */
+:lang(zh) {
+  line-break: strict;
+}
+
 /* phrase-aware Japanese line breaking, wherever content is language-tagged */
 .yomihon [lang='ja'] {
   word-break: auto-phrase;
@@ -4958,7 +5104,7 @@ html {
 }
 
 /* Reading-position hairline — the header's bottom edge doubles as the
-   indicator: a vermilion fill rides the existing 1px seam, driven by the
+   indicator: a quiet ink fill rides the existing 1px hairline, driven by the
    reading column's scroll position through a named scroll timeline (the
    header is not a descendant of the scroller, so the scope is lifted to
    their common ancestor). It is scroll position, not completion — the
@@ -4971,7 +5117,7 @@ html {
 }
 
 .y-readline {
-  background: var(--accent);
+  background: var(--fg-subtle);
   bottom: -1px;
   height: 1px;
   left: 0;
@@ -5044,12 +5190,10 @@ html {
   color: var(--fg-subtle);
   cursor: pointer;
   display: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   margin: 8px 20px 0;
   padding: 6px 12px;
-  text-transform: uppercase;
 }
 
 [data-js] .y-compare__align {
@@ -5109,17 +5253,15 @@ html {
 
 .y-compare__alone {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
 }
 
 
 /* ============================================================
    Responsive
    ============================================================ */
-@media (min-width: 1281px) {
+@media (min-width: 1280px) {
   /* The same split .y-rail-right and .y-inlineaids already use: past it the
      facts stand open beside the title, so the disclosure that folds them at
      narrower widths is not also drawn. The selector repeats the type
@@ -5169,13 +5311,11 @@ html {
     color: var(--fg-subtle);
     display: inline-flex;
     font-family: var(--font-mono);
-    font-size: var(--fs-11);
-    letter-spacing: 0.06em;
+    font-size: var(--fs-12);
     max-width: 50%;
     overflow: hidden;
     padding: 12px 14px;
     text-overflow: ellipsis;
-    text-transform: uppercase;
     white-space: nowrap;
   }
 
@@ -5184,7 +5324,7 @@ html {
   }
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1279px) {
   .y-shell {
     --rail-open: 248px;
     grid-template-columns: var(--rail-open) minmax(0, 1fr);
@@ -5246,10 +5386,10 @@ html {
      panel at rest is as wide as the room it has, which is less than the column
      by the rail's padding, its edge, and the scrollbar when it scrolls, and a
      floor set from the column alone would push the panel's right side under
-     that scrollbar. The 21 is the two ten-pixel sides of the rail's padding
+     that scrollbar. The subtraction is the two sides of the rail's padding
      and its one-pixel edge. */
   html[data-rail-moving] .y-railbody {
-    min-width: calc(var(--rail-open) - 21px);
+    min-width: calc(var(--rail-open) - 2 * var(--rail-pad) - 1px);
   }
 
   html[data-rail='collapsed'] {
@@ -5257,7 +5397,7 @@ html {
   }
 
   html[data-rail='collapsed'] .y-shell:has(> .y-rail-left) {
-    grid-template-columns: var(--rail-strip) minmax(0, 1fr) 316px;
+    grid-template-columns: var(--rail-strip) minmax(0, 1fr) var(--rail-right);
   }
 
   html[data-rail='collapsed'] .y-shell--rail-empty:has(> .y-rail-left),
@@ -5292,7 +5432,7 @@ html {
   }
 }
 
-@media (min-width: 901px) and (max-width: 1280px) {
+@media (min-width: 901px) and (max-width: 1279px) {
   html[data-rail='collapsed'] .y-shell:has(> .y-rail-left) {
     grid-template-columns: var(--rail-strip) minmax(0, 1fr);
   }
@@ -5354,20 +5494,25 @@ html {
     display: inline-flex;
   }
 
+  /* The closed drawer waits just off the left edge, and a shadow drawn around
+     it reaches back across that edge into the page as a grey band. The shadow
+     belongs to the open drawer, where it lifts the panel off the page, and it
+     fades with the slide so a closing drawer does not leave it behind. */
   html[data-js] .y-rail-left {
     bottom: 0;
-    box-shadow: var(--shadow-2);
+    box-shadow: none;
     left: 0;
     max-height: none;
     position: fixed;
     top: var(--header-height);
     transform: translateX(-102%);
-    transition: transform var(--dur-slow) var(--ease-standard);
+    transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
     width: min(300px, 86vw);
     z-index: 45;
   }
 
   html[data-js][data-nav='open'] .y-rail-left {
+    box-shadow: var(--shadow-2);
     transform: none;
   }
 
@@ -5404,6 +5549,14 @@ html {
     padding-inline: 8px;
   }
 
+  .y-article,
+  .y-listen,
+  .y-prefs,
+  .y-recovery,
+  .y-syl {
+    --gutter-read: 20px;
+  }
+
   .y-brand {
     gap: 7px;
   }
@@ -5412,27 +5565,6 @@ html {
     display: none;
   }
 
-  .y-rubybtn {
-    gap: 0;
-  }
-  /* The state word does not fit at this width, so the label carries the state
-     instead of losing it: struck through is the reading it is hiding. A control
-     whose whole purpose is switching readings off has to say which way it is
-     set, and the passage under it cannot answer for it — a paragraph with no
-     kanji looks identical either way. */
-  [data-ruby='on'] .y-rubybtn__on,
-  [data-ruby='off'] .y-rubybtn__off {
-    display: none;
-  }
-
-  [data-ruby='on'] .y-rubybtn__label {
-    color: var(--accent);
-  }
-
-  [data-ruby='off'] .y-rubybtn__label {
-    color: var(--fg-faint);
-    text-decoration: line-through;
-  }
   /* The state word goes onto its own line so the controls keep one row each;
      everything else stays in the order it is written, which keeps stop beside
      the play, previous and next it belongs with. */
@@ -5551,7 +5683,7 @@ html {
      Obsidian metarow, and folder previous/next stay off the sheet. Course
      lesson-order prev/next may remain — it is part of the book. .y-headmeta is
      the same facts' wide-open copy, named here too: without it the width the
-     browser prints at (often past the 1280/1281 split) would show the facts
+     browser prints at (often 1280 or wider) would show the facts
      .y-metarow was just told to hide, doubling them on the sheet rather than
      dropping them from it. */
   .y-crumbs,
@@ -5700,8 +5832,9 @@ html {
    the panel was ever for. */
 .y-kbdhelp {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
   color: var(--fg);
   inset: auto;
   margin: 0;
@@ -5713,13 +5846,12 @@ html {
 }
 
 .y-kbdhelp__title {
-  color: var(--fg-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  font-weight: inherit;
-  letter-spacing: 0.09em;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  line-height: 1.25rem;
   margin: 0 0 10px;
-  text-transform: uppercase;
 }
 
 .y-kbdhelp__list {
@@ -5731,6 +5863,12 @@ html {
 
 .y-kbdhelp__list dt {
   white-space: nowrap;
+}
+
+.y-kbdhelp .ui-kbd {
+  background: var(--wash);
+  border-radius: var(--r-sm);
+  padding: 3px 6px;
 }
 
 .y-kbdhelp__list dd {
@@ -5758,7 +5896,7 @@ html {
    Declared sources hide when the note wrote none. */
 .y-citedby,
 .y-basedon {
-  margin-top: 22px;
+  margin-top: 0;
 }
 
 .y-basedon__groups,
@@ -5796,7 +5934,7 @@ html {
   color: var(--fg-subtle);
   font-size: var(--fs-13);
   line-height: 1.6;
-  margin: 4px 8px 0;
+  margin: 4px 0 0;
 }
 
 /* Whole-folder health: a reading page, not a dashboard. The file a finding is
@@ -5820,11 +5958,23 @@ html {
   align-items: center;
   color: var(--fg);
   display: flex;
-  font-family: var(--font-kai);
+  font-family: var(--font-serif);
   font-size: var(--fs-ed-24);
   font-weight: var(--fw-regular);
   gap: 10px;
   margin: 0;
+}
+
+/* A standing notice qualifies every row beneath it, so it is the one section on
+   the page that carries the warning tint. */
+.y-healthsection--notice {
+  background: var(--warn-bg);
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
+}
+
+.y-healthsection--notice .y-healthsection__lede {
+  color: var(--fg-muted);
 }
 
 .y-healthsection__lede {
@@ -5854,10 +6004,9 @@ html {
   color: var(--fg-faint);
   display: flex;
   flex-wrap: wrap;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   gap: 6px 10px;
-  letter-spacing: 0.06em;
   margin: 14px 0 0;
 }
 
@@ -5886,10 +6035,9 @@ html {
 .y-findings__head {
   border-bottom: 1px solid var(--border-strong);
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-weight: var(--fw-regular);
-  letter-spacing: 0.06em;
   padding: 0 12px 8px 0;
   vertical-align: bottom;
   white-space: nowrap;
@@ -5964,7 +6112,7 @@ html {
 
 .y-findings__count {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   padding-right: 0;
   text-align: right;
@@ -5987,11 +6135,10 @@ html {
   border-radius: var(--r-sm);
   color: var(--fg-subtle);
   display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-weight: var(--fw-medium);
   gap: 6px;
-  letter-spacing: 0.01em;
   line-height: 1;
   padding: 3px 8px 3px 7px;
 }
@@ -6039,7 +6186,7 @@ html {
   color: var(--fg-subtle);
   cursor: pointer;
   display: inline-flex;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   gap: 8px;
 }
@@ -6075,9 +6222,8 @@ html {
    this is only where in the list the reader is standing. */
 .y-healthrange {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   margin: 6px 0 0;
 }
 
@@ -6094,7 +6240,7 @@ html {
   border-top: 1px solid var(--border-faint);
   display: flex;
   flex-wrap: wrap;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   gap: 4px 6px;
   margin: 26px 0 0;
@@ -6210,7 +6356,7 @@ html {
     color: var(--fg-faint);
     content: attr(data-col);
     font-family: var(--font-mono);
-    font-size: var(--fs-11);
+    font-size: var(--fs-12);
   }
   /* The label owns the first column and everything the cell holds owns the
      second, however many pieces that is. A cell with a name and evidence under
@@ -6245,17 +6391,18 @@ html {
    can still reach it, which is not what the width it used to vanish at
    offered. */
 .y-healthlinkbtn {
-  border-radius: var(--r-sm);
-  color: var(--fg-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  padding: 5px 9px;
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  line-height: 1.25rem;
+  padding: 6px 8px;
   text-decoration: none;
   white-space: nowrap;
 }
 
 .y-healthlinkbtn:hover {
-  background: var(--overlay);
   color: var(--fg);
 }
 
@@ -6267,24 +6414,25 @@ html {
    disappear exactly when it is needed. On a narrow window it is the first
    thing in the folded group rather than absent. */
 .y-prefslink {
-  border-radius: var(--r-sm);
-  color: var(--fg-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  padding: 5px 9px;
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  line-height: 1.25rem;
+  padding: 6px 8px;
   text-decoration: none;
   white-space: nowrap;
 }
 
 .y-prefslink:hover {
-  background: var(--overlay);
   color: var(--fg);
 }
 /* The same page again, from the panel that explains how the interface behaves:
    a reader who opened this one was already asking that question. */
 .y-kbdhelp__prefs {
-  border-top: 1px solid var(--border-faint);
-  color: var(--accent);
+  border-top: 1px solid var(--line-faint);
+  color: var(--fg-muted);
   display: block;
   font-size: var(--fs-12);
   margin: 12px 0 0;
@@ -6322,13 +6470,11 @@ html {
 
 .y-preffield legend {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-weight: inherit;
-  letter-spacing: 0.06em;
   margin: 0;
   padding: 0;
-  text-transform: uppercase;
 }
 
 .y-preffield__note {
@@ -6428,12 +6574,10 @@ html {
 
 .y-prefs__shortcuts h2 {
   color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   font-weight: inherit;
-  letter-spacing: 0.06em;
   margin: 0;
-  text-transform: uppercase;
 }
 
 .y-prefs__shortcuts .y-kbdhelp__list {
@@ -6449,12 +6593,10 @@ html {
 
 .y-prefs__storage h2 {
   color: var(--fg-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: inherit;
-  letter-spacing: 0.09em;
   margin: 0;
-  text-transform: uppercase;
 }
 
 .y-prefs__storage ul {
@@ -6494,7 +6636,7 @@ html {
 
 .y-foldercount {
   color: var(--fg-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   margin: 18px 0 0;
 }
@@ -6505,38 +6647,39 @@ html {
    which one the reader is holding. It takes the full first row; the two links
    share the second. */
 .y-steps {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
   gap: 12px 16px;
   justify-content: space-between;
-  margin: 48px 0 0;
-  padding-top: 20px;
+  margin: 64px 0 0;
+  padding-top: 32px;
 }
 
 .y-steps__source {
-  color: var(--fg-faint);
+  color: var(--fg-subtle);
   flex: 0 0 100%;
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  letter-spacing: 0.06em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
   margin: 0;
   overflow-wrap: anywhere;
 }
 
 .y-steps__link {
-  align-items: baseline;
-  color: var(--fg-subtle);
+  border-radius: var(--r-lg);
+  color: var(--fg);
   display: flex;
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-17);
-  gap: 8px;
+  flex: 0 1 calc(50% - 8px);
+  flex-direction: column;
+  gap: 2px;
+  margin: -12px -16px;
   min-width: 0;
+  padding: 12px 16px;
   text-decoration: none;
 }
 
 .y-steps__link:hover {
-  color: var(--accent);
+  background: var(--wash);
 }
 
 .y-steps__link--next {
@@ -6545,23 +6688,25 @@ html {
 }
 
 .y-steps__role {
-  color: var(--fg-muted);
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  line-height: 1.25rem;
   white-space: nowrap;
 }
 
 .y-steps__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-family: var(--font-serif);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-medium);
+  line-height: 1.5rem;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .y-steps__dir {
-  color: var(--fg-faint);
-  flex: none;
-  font-family: var(--font-mono);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
 }
 
 /* The siblings block is a neighbourhood, not the folder — it says what it left
@@ -6569,7 +6714,7 @@ html {
 .y-here__more {
   color: var(--fg-subtle);
   display: block;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   padding: 6px 10px;
   text-decoration: none;
@@ -6606,7 +6751,7 @@ html {
    The excerpt scrolls inside the card without taking the page with it. */
 .y-prose .wikilink[data-preview-open] {
   anchor-name: --y-preview-anchor;
-  border-bottom-color: var(--accent);
+  text-decoration-color: color-mix(in oklch, var(--fg) 60%, transparent);
 }
 
 /* A declared source owns the card the same way, and shows it with the row
@@ -6662,9 +6807,8 @@ html {
    enough to read past on the way to the words, and the only thing on the card
    that is not the other note's. */
 .y-preview__source {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
-  letter-spacing: 0.04em;
   line-height: 1.5;
   margin: 0 0 10px;
 }
@@ -6703,7 +6847,7 @@ html {
    thing to send without a script. */
 .y-markset {
   display: none;
-  margin: 28px 0 0;
+  margin: 0;
 }
 
 [data-js] .y-markset {
@@ -6712,9 +6856,9 @@ html {
 
 .y-markset__note {
   color: var(--fg-subtle);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
-  line-height: 1.6;
+  line-height: 1.5;
   margin: 8px 0 0;
 }
 
