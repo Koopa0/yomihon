@@ -3,7 +3,7 @@
 					const d = document.documentElement;
 					d.dataset.js = "on";
 					const entry = performance.getEntriesByType("navigation")[0];
-					if (entry?.type === "back_forward") d.dataset.nav = "traverse";
+					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
 					if (document.prerendering) {
 						d.dataset.prerender = "";
 						document.onprerenderingchange = () => delete d.dataset.prerender;

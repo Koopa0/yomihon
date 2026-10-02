@@ -1394,8 +1394,11 @@ samp {
    backwards, so once it ends nothing of it is left: a transform that stayed
    would make the block the containing block of whatever is fixed inside it.
    A page the browser put back from history, or prepared before the reader
-   asked for it, does not play it — there was no press to answer. Reduced
-   motion is answered by the blanket under the interface's own root. */
+   asked for it, does not play it — there was no press to answer. Nor does a
+   page that opens at a place in it, an address with a fragment: the browser
+   scrolls to the place by where the block is while it is still low, and the
+   heading it was asked for would land a few pixels off once the block settled.
+   Reduced motion is answered by the blanket under the interface's own root. */
 @keyframes y-rise-in {
   from {
     opacity: 0.55;
@@ -1403,7 +1406,7 @@ samp {
   }
 }
 
-html:not([data-prerender], [data-nav='traverse']) :is(
+html:not([data-prerender], [data-arrival='traverse'], :has(:target)) :is(
   .y-article,
   .y-healthpage,
   .y-home,

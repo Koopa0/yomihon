@@ -20,9 +20,12 @@ import (
 const riseTargets = ":is(.y-article, .y-healthpage, .y-home, .y-listen, .y-recovery, .y-syl)"
 
 // riseGate is what keeps the arrival from playing for a document that is not
-// the answer to a press. The two attributes are the ones the head script
-// writes, and the other test below holds the two halves to each other.
-const riseGate = "html:not([data-prerender], [data-nav='traverse'])"
+// the answer to a press, or that opens at a place in it. The two attributes are
+// the ones the head script writes, and the other test below holds the two
+// halves to each other. The third clause is the stylesheet's own: a fragment
+// scroll done while the block is still low would land the heading a few pixels
+// off.
+const riseGate = "html:not([data-prerender], [data-arrival='traverse'], :has(:target))"
 
 // squeeze turns every run of white space into one space, so a rule is compared
 // by what it says and not by how it is laid out.
@@ -97,7 +100,7 @@ func TestRiseGateNamesWhatTheHeadScriptWrites(t *testing.T) {
 	}
 	script := html[start:end]
 	for _, want := range []string{
-		`if (entry?.type === "back_forward") d.dataset.nav = "traverse";`,
+		`if (entry?.type === "back_forward") d.dataset.arrival = "traverse";`,
 		`if (document.prerendering) {`,
 		`d.dataset.prerender = "";`,
 		`document.onprerenderingchange = () => delete d.dataset.prerender;`,
@@ -106,10 +109,46 @@ func TestRiseGateNamesWhatTheHeadScriptWrites(t *testing.T) {
 			t.Errorf("head script lacks %q; script = %q", want, script)
 		}
 	}
-	for _, want := range []string{"[data-prerender]", "[data-nav='traverse']"} {
+	for _, want := range []string{"[data-prerender]", "[data-arrival='traverse']", ":has(:target)"} {
 		if !strings.Contains(riseGate, want) {
 			t.Errorf("rise gate %q lacks %s, which the head script writes", riseGate, want)
 		}
+	}
+}
+
+// TestRiseGateAttributesBelongToTheHeadScriptAlone holds the two root
+// attributes to one writer. The head script runs first and the client modules
+// run after it, so a module that kept state under the same name would
+// overwrite the head script's answer and the arrival would play on a page it
+// was gated off. That is not hypothetical: the drawer keeps its state in
+// data-nav, which is why the history guard is not called that.
+func TestRiseGateAttributesBelongToTheHeadScriptAlone(t *testing.T) {
+	t.Parallel()
+	const dir = "../../../assets/js"
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir(%q) error = %v", dir, err)
+	}
+	var read int
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".js") {
+			continue
+		}
+		source, err := os.ReadFile(dir + "/" + entry.Name())
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", entry.Name(), err)
+		}
+		read++
+		for _, claimed := range []string{"prerender", "arrival"} {
+			for _, spelling := range []string{"dataset." + claimed, "data-" + claimed} {
+				if strings.Contains(string(source), spelling) {
+					t.Errorf("%s mentions %q; the head script alone writes the attribute the rise gate reads, and a module keeping state under the same name would overwrite it", entry.Name(), spelling)
+				}
+			}
+		}
+	}
+	if read == 0 {
+		t.Fatalf("no client modules found under %s, so nothing was checked", dir)
 	}
 }
 

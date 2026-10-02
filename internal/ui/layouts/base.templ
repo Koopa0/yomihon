@@ -42,12 +42,14 @@ templ Base(c Chrome) {
 			// prepared before anyone asked for it, until the reader does ask, and
 			// one reached by going back or forward. Both are written as data
 			// attributes for the stylesheet, which is where the arrival lives.
+			// The second is not called nav: the drawer already keeps that name on
+			// the root, and its first write would overwrite this one.
 			<script nonce={ c.Nonce }>
 				{
 					const d = document.documentElement;
 					d.dataset.js = "on";
 					const entry = performance.getEntriesByType("navigation")[0];
-					if (entry?.type === "back_forward") d.dataset.nav = "traverse";
+					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
 					if (document.prerendering) {
 						d.dataset.prerender = "";
 						document.onprerenderingchange = () => delete d.dataset.prerender;

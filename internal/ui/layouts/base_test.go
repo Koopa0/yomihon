@@ -46,7 +46,7 @@ func TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly(t *testing.T) {
 	const entry = `<script nonce="response-nonce" type="module" src="/static/yomihon.js"></script>`
 	// The statement stands on its own line because that is how templ fmt lays
 	// out a script element, and the format check keeps it so.
-	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tconst entry = performance.getEntriesByType(\"navigation\")[0];\n\t\t\t\t\tif (entry?.type === \"back_forward\") d.dataset.nav = \"traverse\";\n\t\t\t\t\tif (document.prerendering) {\n\t\t\t\t\t\td.dataset.prerender = \"\";\n\t\t\t\t\t\tdocument.onprerenderingchange = () => delete d.dataset.prerender;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</script>"
+	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tconst entry = performance.getEntriesByType(\"navigation\")[0];\n\t\t\t\t\tif (entry?.type === \"back_forward\") d.dataset.arrival = \"traverse\";\n\t\t\t\t\tif (document.prerendering) {\n\t\t\t\t\t\td.dataset.prerender = \"\";\n\t\t\t\t\t\tdocument.onprerenderingchange = () => delete d.dataset.prerender;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</script>"
 	if got := strings.Count(html, entry); got != 1 {
 		t.Errorf("Base() module entries = %d, want 1 exact %q; html = %q", got, entry, html)
 	}
