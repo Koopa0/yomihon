@@ -15,6 +15,9 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const OTHER = '/notes/Notes/alpha.md';
 const MUTATE = process.env.MUTATE || '';
+const REGRESSIONS_ONLY = process.env.READER_MARK_REGRESSIONS_ONLY === '1';
+const REGRESSION_SITE = process.env.READER_MARK_SITE || '';
+const ANCHOR_PAGE = '/notes/Notes/mark-anchors.md';
 
 // How far down the note the reader is taken before keeping the place. Far
 // enough that an anchor sits above the top of the window and that landing at
@@ -34,7 +37,13 @@ const LANDING_SLACK = 4;
 const FOLD_BUTTON = '[popovertarget="_y-header-fold"]';
 const FOLD_PANEL = '.y-headerfold';
 
+const ANCHOR_SITES = [
+  'an-invalid-block-keeps-the-accepted-predecessor',
+  'an-oversized-heading-keeps-the-accepted-predecessor',
+  'no-accepted-predecessor-keeps-the-document-offset',
+];
 const SITES = [
+  ...ANCHOR_SITES,
   'kept-place-is-offered-back',
   'following-it-lands-where-the-window-was',
   'a-missing-anchor-lands-at-the-top',
@@ -140,6 +149,17 @@ const dropSecondPost = () => async (page) => {
 };
 
 const MUTATIONS = {
+  ...Object.fromEntries(ANCHOR_SITES.map((site, index) => [
+    ['keep-an-invalid-block', 'keep-an-oversized-heading', 'keep-an-invalid-fallback'][index],
+    {
+      target: site,
+      apply: rewriteModule(
+        "      if (!element.hasAttribute('data-mark-anchor')) continue;",
+        '      /* keep refused anchor shapes too */',
+        'the server-stamped anchor eligibility guard',
+      ),
+    },
+  ])),
   'never-post-the-mark': {
     target: 'kept-place-is-offered-back',
     apply: rewriteModule(
@@ -285,6 +305,14 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
   if (await page.locator('[data-mark-control]').count() === 0) {
     broken(`${path} carries no mark control`);
   }
+  // A transform during the article's arrival makes a fixed descendant
+  // relative to the article. Anchor decoys need the settled document, and
+  // fonts must finish before its positions are measured.
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    const article = document.querySelector('.y-article');
+    if (article) await Promise.all(article.getAnimations().map((animation) => animation.finished));
+  });
   await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
   const reached = {};
   if (anchorDecoys) {
@@ -293,6 +321,7 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
       const prose = article.querySelector('.y-prose');
       const ui = document.createElement('span');
       ui.id = 'probe-reading-ui';
+      ui.setAttribute('data-mark-anchor', '');
       ui.textContent = 'UI';
       ui.style.position = 'fixed';
       ui.style.top = '0';
@@ -301,6 +330,7 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
       article.append(ui);
       const hidden = document.createElement('span');
       hidden.id = 'probe-hidden-reading-anchor';
+      hidden.setAttribute('data-mark-anchor', '');
       hidden.hidden = true;
       prose.append(hidden);
     });
@@ -343,12 +373,44 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
       node.dataset.markIdentity = 'f'.repeat(64);
     });
   }
+  const button = control.locator('[data-mark-button]');
+  if (anchorDecoys) {
+    // Sample during the actual press, before the module reads the position.
+    // A scope mutation is meaningful only when this eligible UI element is
+    // closer above the viewport than every authored candidate.
+    await button.evaluate((node) => {
+      node.addEventListener('click', () => {
+        const article = document.querySelector('.y-article');
+        const ui = document.getElementById('probe-reading-ui');
+        const top = Math.max(0, Math.round(window.scrollY));
+        const uiTop = Math.round(ui.getBoundingClientRect().top + window.scrollY);
+        const competitors = [...article.querySelectorAll('[id][data-mark-anchor]')]
+          .filter((element) => element !== ui && element.getClientRects().length > 0)
+          .map((element) => Math.round(element.getBoundingClientRect().top + window.scrollY))
+          .filter((elementTop) => elementTop <= top);
+        node.dataset.probeDecoy = JSON.stringify({
+          scoped: article.contains(ui) && !ui.closest('.y-prose'),
+          eligible: ui.hasAttribute('data-mark-anchor'),
+          visible: ui.getClientRects().length > 0,
+          top, uiTop,
+          nearestOther: Math.max(Number.NEGATIVE_INFINITY, ...competitors),
+        });
+      }, { capture: true, once: true });
+    });
+  }
   const posted = page.waitForResponse(
     (response) => new URL(response.url()).pathname === '/marks',
     { timeout: 4000 },
   ).catch(() => null);
-  await control.locator('[data-mark-button]').click();
+  await button.click();
   const response = await posted;
+  if (anchorDecoys) {
+    const geometry = JSON.parse(await button.getAttribute('data-probe-decoy') ?? 'null');
+    if (!geometry?.scoped || !geometry.eligible || !geometry.visible
+      || geometry.uiTop > geometry.top || geometry.nearestOther >= geometry.uiTop) {
+      broken(`${path}: UI anchor decoy was not the nearest eligible candidate at the press: ${JSON.stringify(geometry)}`);
+    }
+  }
   reached.anchor = new URLSearchParams(response?.request().postData() ?? '').get('anchor');
   // The confirmation is the page's own word that the round trip finished, so
   // the desk is not asked before the file exists. The element itself is in
@@ -383,6 +445,83 @@ const deskRow = async (page) => {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
+  if (REGRESSION_SITE && !ANCHOR_SITES.includes(REGRESSION_SITE)) {
+    broken(`unknown READER_MARK_SITE ${REGRESSION_SITE}`);
+  }
+  for (const [index, site] of ANCHOR_SITES.entries()) {
+    if (REGRESSION_SITE && REGRESSION_SITE !== site) continue;
+    for (const viewport of [VIEWPORT, NARROW]) {
+      const context = await browser.newContext({ viewport });
+      const page = await context.newPage();
+      const proof = await applyMutation(page, site);
+      await page.goto(BASE + ANCHOR_PAGE, { waitUntil: 'domcontentloaded' });
+      await page.evaluate(() => document.fonts.ready);
+      const target = ['^a/b?c', '漢'.repeat(100), '^before/start?position'][index];
+      const expectedAnchor = index === 2 ? '' : 'accepted-position';
+      const expected = await page.evaluate(({ id, predecessor }) => {
+        const element = document.getElementById(id);
+        const accepted = predecessor ? document.getElementById(predecessor) : null;
+        if (!element || (predecessor && !accepted)) return null;
+        const targetTop = Math.round(element.getBoundingClientRect().top + window.scrollY);
+        window.scrollTo(0, targetTop + 8);
+        const top = Math.max(0, Math.round(window.scrollY));
+        const preceding = [...document.querySelectorAll('.y-prose [id]')]
+          .filter((node) => node.getClientRects().length > 0)
+          .map((node) => ({ id: node.id, top: Math.round(node.getBoundingClientRect().top + window.scrollY) }))
+          .filter((node) => node.top <= top);
+        const closest = preceding.reduce((last, node) => (!last || node.top > last.top ? node : last), null);
+        const predecessorTop = accepted ? Math.round(accepted.getBoundingClientRect().top + window.scrollY) : 0;
+        return { top, offset: top - predecessorTop, closest: closest?.id, preceding };
+      }, { id: target, predecessor: expectedAnchor });
+      if (!expected || expected.closest !== target || expected.offset <= 0) {
+        broken(`${site}: fixture did not put the refused ID closest above the viewport: ${JSON.stringify(expected)}`);
+      }
+      if (index === 2 && expected.preceding.some((node) => node.id !== target)) {
+        broken(`${site}: fallback fixture has another ID above the window`);
+      }
+      if (viewport === NARROW) {
+        await page.locator(FOLD_BUTTON).click();
+        await page.locator(FOLD_PANEL).waitFor({ state: 'visible' });
+      }
+      const control = page.locator('[data-mark-control]:visible');
+      if (await control.count() !== 1) broken(`${site}: no unique visible mark control`);
+      // Sample in the capture listener for the actual press, before the mark
+      // module reads the position. Browser click preparation may scroll a
+      // control into view after an earlier measurement.
+      const button = control.locator('[data-mark-button]');
+      await button.evaluate((node, predecessor) => {
+        node.addEventListener('click', () => {
+          const accepted = predecessor ? document.getElementById(predecessor) : null;
+          const top = Math.max(0, Math.round(window.scrollY));
+          const anchorTop = accepted ? Math.round(accepted.getBoundingClientRect().top + window.scrollY) : 0;
+          node.dataset.probeOffset = String(top - anchorTop);
+        }, { capture: true, once: true });
+      }, expectedAnchor);
+      const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/marks');
+      await button.click();
+      const response = await posted;
+      checkProof(proof);
+      const submitted = new URLSearchParams(response.request().postData() ?? '');
+      const anchor = submitted.get('anchor');
+      const offset = Number(submitted.get('offset'));
+      expected.offset = Number(await button.getAttribute('data-probe-offset'));
+      if (response.status() !== 204 || anchor !== expectedAnchor || offset !== expected.offset) {
+        fail(site, `${viewport.width}px POST /marks = ${response.status()}, anchor ${JSON.stringify(anchor)}, offset ${offset}; want 204, ${JSON.stringify(expectedAnchor)}, ${expected.offset}`);
+      }
+      await control.locator('[data-mark-said]:not(:empty)').waitFor({ state: 'attached' });
+      const { row, present } = await deskRow(page);
+      if (!present) fail(site, 'the saved place is missing from the desk');
+      const href = await row.locator('[data-continue-link]').first().getAttribute('href');
+      if (!href) fail(site, 'the saved place carries no address');
+      const saved = new URL(href, BASE);
+      if (decodeURIComponent(saved.hash.slice(1)) !== expectedAnchor || Number(saved.searchParams.get('at')) !== expected.offset) {
+        fail(site, `persisted place ${href} differs from the accepted predecessor and offset`);
+      }
+      console.log(`PASS reader-mark: ${site} ${viewport.width}px HTTP204 anchor=${JSON.stringify(anchor)} offset=${offset}`);
+      await context.close();
+    }
+  }
+  if (!REGRESSIONS_ONLY) {
   // --- The kept place comes back on the desk ---------------------------
   {
     const context = await browser.newContext({ viewport: VIEWPORT });
@@ -636,7 +775,9 @@ try {
     await context.close();
   }
 
-  console.log(
+  }
+  if (REGRESSIONS_ONLY) console.log('PASS reader-mark: accepted-anchor regression cases');
+  else console.log(
     'PASS reader-mark: a kept place returns on the desk, lands where the window was,'
     + ' leaves a reader at the top when the anchor is gone, says when the note changed,'
     + ' is replaced by the next one, can be kept from the header on a phone without'

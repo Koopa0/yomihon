@@ -45,6 +45,7 @@ function positionNow() {
   let anchorTop = Number.NEGATIVE_INFINITY;
   if (article) {
     for (const element of article.querySelectorAll('.y-prose [id]')) {
+      if (!element.hasAttribute('data-mark-anchor')) continue;
       // A closed part of the note has IDs but no position in the document.
       if (element.getClientRects().length === 0) continue;
       const elementTop = documentTop(element);
