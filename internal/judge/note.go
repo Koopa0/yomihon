@@ -23,6 +23,13 @@ type note struct {
 	badFrontmatter bool
 	frontmatter    map[string]fmValue
 
+	// unclosedFrontmatter is set beside noFrontmatter for a note whose first
+	// line opens a fence and whose next line reads as a field, with no closing
+	// fence after them. The note has no block as far as every reader is
+	// concerned, and this is the one fact that tells it from a note that never
+	// wrote one.
+	unclosedFrontmatter bool
+
 	title      string
 	titleEn    string
 	aliases    []string
@@ -108,19 +115,36 @@ func parseNote(rel string, data []byte) note {
 // contract declared, so a vault that names English marks is extracted
 // against those marks rather than the loader default.
 func parseNoteWithMarks(rel string, data []byte, marks plannedMarks) note {
+	return readNote(rel, data, &marks)
+}
+
+// parseFrontmatter is parseNote for a reader that judges the frontmatter and
+// never looks at the body. It leaves every body field empty: no wikilink, path
+// reference, planned name, callout title, sequence or anchor is extracted,
+// because that extraction is most of the cost of a parse and none of a
+// frontmatter verdict. Whatever it does fill, it fills with the code parseNote
+// runs, so the frontmatter, its flags and its typed fields cannot differ.
+func parseFrontmatter(rel string, data []byte) note {
+	return readNote(rel, data, nil)
+}
+
+// readNote is the one parse behind both. It extracts the body only when it is
+// given the marks to extract it against; nil reads the frontmatter alone.
+func readNote(rel string, data []byte, marks *plannedMarks) note {
 	block, found := vault.SplitFrontmatter(data)
-	body := string(block.Body)
-	n := note{
-		path:          rel,
-		wikilinks:     extractWikilinksWith(body, block.BodyStartLine, marks.heading),
-		pathRefs:      extractPathRefs(body, block.BodyStartLine),
-		plannedNames:  extractPlannedNamesWith(body, marks),
-		calloutTitles: extractCalloutTitles(body, block.BodyStartLine),
-		sequence:      sequence.Parse(body, block.BodyStartLine),
+	n := note{path: rel}
+	if marks != nil {
+		body := string(block.Body)
+		n.wikilinks = extractWikilinksWith(body, block.BodyStartLine, marks.heading)
+		n.pathRefs = extractPathRefs(body, block.BodyStartLine)
+		n.plannedNames = extractPlannedNamesWith(body, *marks)
+		n.calloutTitles = extractCalloutTitles(body, block.BodyStartLine)
+		n.sequence = sequence.Parse(body, block.BodyStartLine)
+		n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurface(body)
 	}
-	n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurface(body)
 	if !found {
 		n.noFrontmatter = true
+		n.unclosedFrontmatter = vault.OpensUnclosedFrontmatter(data)
 		return n
 	}
 	var doc yaml.Node

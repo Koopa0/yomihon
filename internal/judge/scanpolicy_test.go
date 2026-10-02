@@ -85,8 +85,9 @@ owner = ["koopa"]
 // TestCheckHonoursNoFrontmatterDeclaration asserts a vault that says a note
 // without a frontmatter block is not legal gets told which notes have none,
 // while a vault that says nothing, or says such a note is legal, is left alone.
-// A file that opens a block and never closes it carries no readable block
-// either, so it is faulted the same way.
+// A file that opens a block and never closes it is not that case. It has a
+// block with no closing line, so every declaration is told so in words about
+// the fence, and none is told the block is missing.
 func TestCheckHonoursNoFrontmatterDeclaration(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -112,12 +113,16 @@ func TestCheckHonoursNoFrontmatterDeclaration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}
-			for _, path := range []string{"Notes/Raw.md", "Notes/Unclosed.md"} {
-				faulted := bytes.Contains(got, []byte(`"rule_id":"schema.frontmatter","severity":"error","path":"`+path+
-					`","message":"frontmatter is missing"`))
-				if faulted != tt.wantFault {
-					t.Errorf("%s faulted = %v, want %v; output:\n%s", path, faulted, tt.wantFault, got)
-				}
+			const fault = `"rule_id":"schema.frontmatter","severity":"error","path":"`
+			faulted := bytes.Contains(got, []byte(fault+`Notes/Raw.md","message":"frontmatter is missing"`))
+			if faulted != tt.wantFault {
+				t.Errorf("Notes/Raw.md faulted = %v, want %v; output:\n%s", faulted, tt.wantFault, got)
+			}
+			if !bytes.Contains(got, []byte(fault+`Notes/Unclosed.md","message":"frontmatter opens on line 1 and never closes"`)) {
+				t.Errorf("Notes/Unclosed.md was not told its fence never closes; output:\n%s", got)
+			}
+			if bytes.Contains(got, []byte(fault+`Notes/Unclosed.md","message":"frontmatter is missing"`)) {
+				t.Errorf("Notes/Unclosed.md was told its block is missing; output:\n%s", got)
 			}
 			if bytes.Contains(got, []byte("Notes/Whole.md")) {
 				t.Errorf("a note carrying a frontmatter block was faulted:\n%s", got)

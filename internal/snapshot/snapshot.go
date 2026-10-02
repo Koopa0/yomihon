@@ -814,6 +814,10 @@ func buildGeneration(
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
 	noteCount := markdownCount(entries)
+	// One contract judges every note of this build, so it is resolved once here
+	// rather than once per note. It is only built here: the verdict itself is
+	// drawn inside deriveNote, under the guard that contains a note's parse panic.
+	lint, lintErr := judge.NewFrontmatterLinter(contract)
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -843,7 +847,7 @@ func buildGeneration(
 			g.captureFile(relPath, data, want.indexable)
 			continue
 		}
-		if reason := g.readNote(relPath, data, capabilities.Language, contract, log); reason != "" {
+		if reason := g.readNote(relPath, data, capabilities.Language, contract, lint, lintErr, log); reason != "" {
 			// The bytes opened and the parse panicked: the note is recorded the
 			// way one the read could not open is, so the rest of the folder is
 			// still read and served.
@@ -1076,11 +1080,18 @@ type notePanic struct {
 // is recovered and returned as the fault, with nothing of the note produced.
 // Every panic is contained, runtime errors included: an unhashable map key or a
 // nil dereference inside a parser is exactly what this guards.
+//
+// lint and lintErr are the build's one frontmatter linter, resolved once for
+// every note, and the fault that resolving the contract met, if any. A linter
+// that could not be built says nothing, and lintErr travels with the note so
+// the verdict can be reported unavailable.
 func deriveNote(
 	relPath string,
 	data []byte,
 	languages schema.ArticleLanguage,
 	contract *schema.Contract,
+	lint judge.FrontmatterLinter,
+	lintErr error,
 ) (read noteRead, fault *notePanic) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -1089,7 +1100,7 @@ func deriveNote(
 	}()
 	read.parsed = parsers.note(relPath, data)
 	read.reading = newReading(read.parsed, data, languages)
-	read.findings, read.verdictErr = judge.LintFrontmatter(relPath, data, contract)
+	read.findings, read.verdictErr = lint.Lint(relPath, data), lintErr
 	read.products = noteProducts{
 		document: parsers.document(read.parsed),
 		planned:  parsers.planned(read.parsed.Body, contract),
@@ -1107,9 +1118,11 @@ func (g *generation) readNote(
 	data []byte,
 	languages schema.ArticleLanguage,
 	contract *schema.Contract,
+	lint judge.FrontmatterLinter,
+	lintErr error,
 	log *slog.Logger,
 ) (panicked string) {
-	read, fault := deriveNote(relPath, data, languages, contract)
+	read, fault := deriveNote(relPath, data, languages, contract, lint, lintErr)
 	if fault != nil {
 		g.reportPanic(relPath, data, fault, log)
 		return "panic while parsing this note: " + fault.value

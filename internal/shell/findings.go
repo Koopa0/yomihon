@@ -37,10 +37,11 @@ type Findings struct {
 	// while no lifecycle row with it applies to their type.
 	StatusOutsideEnum []StatusNote
 	StatusUnreachable []StatusNote
-	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
-	// so nothing they declare could be judged; SchemaFaults are the ones whose
-	// frontmatter reads and carries something the schema does not accept. Both
-	// are the generation's own, gathered once while the folder was read.
+	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML or
+	// opens a fence nothing closes, so nothing they declare could be judged;
+	// SchemaFaults are the ones whose frontmatter reads and carries something
+	// the schema does not accept. Both are the generation's own, gathered once
+	// while the folder was read.
 	FrontmatterUnreadable []snapshot.HealthNoteFindings
 	SchemaFaults          []snapshot.HealthNoteFindings
 	// InstanceScopeUnknown is why the citation and island lists could not be

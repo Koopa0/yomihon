@@ -442,10 +442,13 @@ func (h *Handler) reading(
 		FrontmatterRequired: state.frontmatterRequired,
 		StatusUnknown:       state.statusUnknown,
 		StatusNotText:       state.statusNotText,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n.Type, lang),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n.Type, n.FrontmatterUnclosed, lang),
 		// The layer that withheld the transition set, when that is why it is
 		// empty, so the page names it instead of the schema.
 		OutsideKnowledgeScope: state.outsideLayer(),
+		// Said whatever the vault governs: it is a fact about the bytes, and
+		// it is the page's own to state, not a verdict borrowed from a contract.
+		FrontmatterUnclosed: n.FrontmatterUnclosed,
 	}
 	return view, conceptRefs
 }
@@ -479,13 +482,20 @@ func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (disp
 //
 // The folder comes from the same captured generation as the findings, so the
 // explanation names the folder the domain rule compared.
-func schemaNotices(findings []judge.Finding, domainFolder, noteType string, lang wording.Lang) [][]wording.SchemaPart {
+func schemaNotices(findings []judge.Finding, domainFolder, noteType string, fenceUnclosed bool, lang wording.Lang) [][]wording.SchemaPart {
 	if len(findings) == 0 {
 		return nil
 	}
 	notices := make([][]wording.SchemaPart, 0, len(findings))
 	for i := range findings {
 		f := &findings[i]
+		// The rule that reports a frontmatter block as unreadable has no sentence
+		// of its own here, and for a fence that never closes the page already
+		// says so in words that name the fence, so the finding is not said a
+		// second time as a rule nobody wrote words for.
+		if fenceUnclosed && f.RuleID == "schema.frontmatter" {
+			continue
+		}
 		folder := domainFolder
 		if f.RuleID == "schema.status_unreachable" {
 			folder = noteType
@@ -675,7 +685,9 @@ func (h *Handler) governance(
 			// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
 			// write.
 		case !n.HasFrontmatter:
-			// No block at all (e.g. drills): the absent sentence, no keys.
+			// No block at all (e.g. drills): the absent sentence, no keys. A note
+			// whose opening fence nothing closes lands here too, and the view
+			// carries that fact beside this one, which the face ranks first.
 			state.noFrontmatter = true
 			state.frontmatterRequired = h.sources.Contract.RequiresFrontmatter()
 		default:
