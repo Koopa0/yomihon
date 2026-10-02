@@ -193,9 +193,9 @@ const MUTATIONS = {
         requests += 1;
         const response = await route.fetch();
         const original = await response.text();
-        const count = original.split('html[data-rail=collapsed]').length - 1;
+        const count = original.split("html[data-rail='collapsed']").length - 1;
         matches += count;
-        await route.fulfill({ response, body: original.replaceAll('html[data-rail=collapsed]', 'html[data-js][data-rail=collapsed]') });
+        await route.fulfill({ response, body: original.replaceAll("html[data-rail='collapsed']", "html[data-js][data-rail='collapsed']") });
       });
       return () => (requests >= 1 && matches >= 1 ? '' : `stylesheet requested ${requests} times, needle matched ${matches}`);
     },

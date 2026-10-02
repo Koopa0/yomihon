@@ -62,11 +62,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # assets/css/output.css and the templ-generated Go under internal/ui
-      # are committed source, kept current by the gate job's assets-drift
-      # check, so building the released binary needs no generation step
-      # here — only the four published platforms, cross-compiled without
-      # cgo the same way `make portable-build-check` already does.
+      # The templ-generated Go under internal/ui is committed source, kept
+      # current by the gate job's assets-drift check, and the stylesheets are
+      # embedded as written, so building the released binary needs no
+      # generation step here — only the four published platforms, cross-compiled
+      # without cgo the same way `make portable-build-check` already does.
       #
       # -trimpath keeps the runner's checkout path out of each binary, so a
       # rebuild of the tagged commit from a clean checkout in any directory,

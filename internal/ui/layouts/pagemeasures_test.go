@@ -174,7 +174,7 @@ func TestNoPageMeasureIsWrittenAsAPixelLiteral(t *testing.T) {
 }
 
 // handWrittenStylesheets is every sheet a person edits — the same set the
-// stylesheet lint reads, which is all of them but the minified projection.
+// stylesheet lint reads, which is all of them but the vendored reset.
 func handWrittenStylesheets(t *testing.T) []string {
 	t.Helper()
 	var sheets []string
@@ -182,7 +182,7 @@ func handWrittenStylesheets(t *testing.T) []string {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || filepath.Ext(path) != ".css" || filepath.Base(path) == "output.css" {
+		if entry.IsDir() || filepath.Ext(path) != ".css" || filepath.Base(path) == "reset.css" {
 			return nil
 		}
 		sheets = append(sheets, path)

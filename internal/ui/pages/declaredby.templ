@@ -29,7 +29,7 @@ templ declaredByBlock(v NoteView, lang wording.Lang) {
 				for _, ref := range v.DeclaredBy {
 					<li>
 						<a class="ui-navitem" href={ templ.URL(notesHref(ref.Note.RelPath)) } { authoredLanguageAttrs(ref.Note.Language)... }>{ ref.Note.Name }</a>
-						<ul class="ml-4" role="list">
+						<ul class="y-basedon__places" role="list">
 							for _, place := range ref.Locations {
 								<li>
 									if place.Href != "" {

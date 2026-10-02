@@ -86,18 +86,18 @@ const MUTATIONS = {
   },
   'leave-the-submit-on-the-enhanced-page': {
     target: 'apply-is-put-away-when-enhanced',
-    apply: rewriteCSS('[data-js] .y-prefs__fallback{display:none}', '', 'the submit put away under a running enhancement'),
+    apply: rewriteCSS('[data-js] .y-prefs__fallback {\n  display: none;\n}', '', 'the submit put away under a running enhancement'),
   },
   'leave-the-page-with-no-way-back': {
     target: 'the-way-back-is-there-instead',
-    apply: rewriteCSS('[data-js] .y-prefs__return{display:inline-block}', '', 'the way back shown under a running enhancement'),
+    apply: rewriteCSS('[data-js] .y-prefs__return {\n  display: inline-block;\n}', '', 'the way back shown under a running enhancement'),
   },
   // The submit is hidden by a rule that asks whether anything is running. Drop
   // the question and a browser running nothing loses the only control that
   // applies anything.
   'hide-the-submit-from-everyone': {
     target: 'no-javascript-fallback',
-    apply: rewriteCSS('[data-js] .y-prefs__fallback{display:none}', '.y-prefs__fallback{display:none}', 'the enhancement test on the submit'),
+    apply: rewriteCSS('[data-js] .y-prefs__fallback {', '.y-prefs__fallback {', 'the enhancement test on the submit'),
   },
 };
 

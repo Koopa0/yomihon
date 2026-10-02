@@ -112,10 +112,9 @@ The `verify` target in the Makefile is the list of what it runs.
 Beyond the Go toolchain, `make verify` needs:
 
 - `make tools`, which installs the pinned Go analysis tools into `GOBIN`.
-- Three tools that `go install` cannot provide. The Tailwind standalone
-  command-line interface and ShellCheck are pinned by version at the top of the
-  Makefile; Node's version lives in `.github/package.json` and the workflow,
-  with the lockfile under `.github/`.
+- Two tools that `go install` cannot provide. ShellCheck is pinned by version
+  at the top of the Makefile; Node's version lives in `.github/package.json` and
+  the workflow, with the lockfile under `.github/`.
 - A locally installed Google Chrome. The browser probes drive the Chrome you
   already have rather than downloading one.
 
@@ -263,13 +262,15 @@ all.
 
 ## Generated files and frozen formats
 
-templ and Tailwind generate what this table lists, and all of it is committed.
-Edit the source, regenerate, and commit the output with it:
+templ generates what this table lists, and all of it is committed. Edit the
+source, regenerate, and commit the output with it:
 
 | Generated | Source | Regenerate with |
 | --- | --- | --- |
 | `internal/ui/**/*_templ.go` | the matching `.templ` file | `go tool templ generate -path internal/ui` |
-| `assets/css/output.css` | `assets/css/input.css` and its imports | `make css` |
+
+The stylesheets under `assets/css/` are not generated: `internal/asset` joins
+them as they are, so editing one needs no regeneration.
 
 Continuous integration regenerates everything in the table and fails on any
 difference, so a hand edit is caught, not merged. `make fmt` formats the

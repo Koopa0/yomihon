@@ -442,6 +442,7 @@ samp {
    ============================================================ */
 .y-header {
   align-items: center;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   background: color-mix(in oklch, var(--bg) 85%, transparent);
   border-bottom: 1px solid var(--line);
@@ -2806,6 +2807,7 @@ button.y-freshness__action {
   display: flex;
   justify-content: center;
   list-style: none;
+  -webkit-user-select: none;
   user-select: none;
   width: fit-content;
 }
@@ -3513,6 +3515,7 @@ a.y-facetrow:hover {
   font-family: var(--font-read);
   font-size: 0.55em;
   font-weight: 400;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -4154,6 +4157,23 @@ a.y-facetrow:hover {
 .y-homesearchrow {
   display: block;
   margin: 0 0 22px;
+}
+
+/* The thought door shows the Markdown it composed in a field the reader can
+   select from but not edit, set in the mono face at body size. */
+.y-thought__field {
+  margin-top: 0.5rem;
+}
+
+.y-thought__markdown {
+  border: 1px solid;
+  border-radius: var(--r-md);
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  line-height: 1.5;
+  padding: 0.375rem 0.75rem;
+  width: 100%;
 }
 
 .y-homeblock__lede {
@@ -5824,7 +5844,7 @@ samp,
 .y-compare__align {
   background: none;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   color: var(--fg-subtle);
   cursor: pointer;
   display: none;
@@ -6577,6 +6597,10 @@ samp,
   margin-inline-start: 14px;
 }
 
+.y-basedon__places {
+  margin-left: 1rem;
+}
+
 .y-basedon .ui-navitem {
   overflow-wrap: anywhere;
 }
@@ -6593,6 +6617,7 @@ samp,
 }
 
 .y-basedon .wikilink-degraded {
+  -webkit-text-decoration: underline dotted;
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }

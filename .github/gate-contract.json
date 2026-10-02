@@ -4,7 +4,6 @@
     "tracked-paths-check",
     "mod-check",
     "fmt-check",
-    "css-check",
     "vet",
     "lint",
     "staticcheck",
@@ -33,7 +32,7 @@
       "name": "portable-core",
       "matrix": ["macos-15", "windows-latest"]
     },
-    {"name": "assets-drift", "owns": ["css-check"]},
+    {"name": "assets-drift"},
     {"name": "lint-frontend", "owns": ["frontend-check"]},
     {"name": "e2e-http", "owns": ["e2e-http-check"]},
     {"name": "fuzz", "owns": ["fuzz-smoke", "performance-smoke"]},

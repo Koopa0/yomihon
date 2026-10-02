@@ -1,7 +1,7 @@
 // Package asset serves yomihon's fixed, compile-time-known set of static
 // files: the vendored mermaid ES-module runtime, yomihon's own fixed native
-// client-module graph, the canonical brand mark, and the generated chroma
-// stylesheet.
+// client-module graph, the canonical brand mark, the product stylesheet
+// assembled from its hand-written parts, and the generated chroma stylesheet.
 //
 // Its entire security property rests on one invariant: registry (built
 // once, at package init, from what is compiled into the binary via
@@ -71,6 +71,19 @@ func fixed(contentType string, body []byte) entry {
 	return entry{contentType: contentType, body: body, etag: etagOf(body)}
 }
 
+// stylesheetParts is the product stylesheet's source files, in the order they
+// are joined: the reset as the base, then the font faces, then the tokens, then
+// the components that read them. No rule's outcome depends on the order, since
+// the reset sits in its own cascade layer and every other rule is unlayered, but
+// a sheet read from the top should open with its base and end with the rules
+// that use it, and a part added later needs somewhere to go.
+var stylesheetParts = []string{
+	"css/reset.css",
+	"css/fonts.css",
+	"css/tokens.css",
+	"css/components.css",
+}
+
 // registry is yomihon's entire static-asset name space, built once at
 // package init (see buildRegistry) and never mutated afterward.
 var registry = buildRegistry()
@@ -104,7 +117,7 @@ func buildRegistry() map[string]entry {
 	} {
 		embedFile(reg, name, "js/"+name, jsContentType)
 	}
-	embedFile(reg, "app.css", "css/output.css", cssContentType)
+	embedStylesheet(reg, "app.css", stylesheetParts)
 	embedFile(reg, "yomihon-mark.svg", "brand/yomihon-mark.svg", svgContentType)
 	embedTree(reg, "js/mermaid")
 	embedFonts(reg, "fonts")
@@ -123,6 +136,26 @@ func embedFile(reg map[string]entry, name, embeddedPath, contentType string) {
 		panic(fmt.Sprintf("asset: embedded file missing: %s: %v", embeddedPath, err))
 	}
 	reg[name] = fixed(contentType, b)
+}
+
+// embedStylesheet registers one stylesheet under name, made of the embedded
+// files in parts joined in the order given with a newline between each. It is
+// built once here, like every other entry, so the bytes a browser revalidates
+// against its tag are the bytes of the whole stylesheet and not of any part. A
+// missing part panics for the reason embedFile does.
+func embedStylesheet(reg map[string]entry, name string, parts []string) {
+	var sheet bytes.Buffer
+	for i, part := range parts {
+		b, err := assets.Files.ReadFile(part)
+		if err != nil {
+			panic(fmt.Sprintf("asset: embedded file missing: %s: %v", part, err))
+		}
+		if i > 0 {
+			sheet.WriteByte('\n')
+		}
+		sheet.Write(b)
+	}
+	reg[name] = fixed(cssContentType, sheet.Bytes())
 }
 
 // embedFonts registers every .woff2 under dir (self-hosted, vendored under

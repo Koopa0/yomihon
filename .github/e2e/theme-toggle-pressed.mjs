@@ -109,7 +109,7 @@ const MUTATIONS = {
   'system-dark-icon-reads-explicit-theme-only': {
     target: 'moon-shown-when-following-system-dark',
     apply: rewriteCSS(
-      '@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .y-ico-sun{display:none}:root:not([data-theme=light]) .y-ico-moon{display:block}}',
+      "@media (prefers-color-scheme: dark) {\n  :root:not([data-theme='light']) .y-ico-sun {\n    display: none;\n  }\n\n  :root:not([data-theme='light']) .y-ico-moon {\n    display: block;\n  }\n}",
       '',
       'system-dark icon media block',
     ),
@@ -117,8 +117,8 @@ const MUTATIONS = {
   'system-light-icon-reads-explicit-theme-only': {
     target: 'sun-shown-when-following-system-light',
     apply: rewriteCSS(
-      '[data-theme=dark] .y-ico-moon{display:block}',
-      '.y-ico-moon{display:block}',
+      "[data-theme='dark'] .y-ico-moon {\n  display: block;\n}",
+      '.y-ico-moon {\n  display: block;\n}',
       'moon shown only on an explicit dark choice',
     ),
   },

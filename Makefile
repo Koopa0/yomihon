@@ -1,11 +1,11 @@
 # The versions the gates below pin here. `make tools` installs the seven Go
-# ones; three more are not go-installable and are named so a clean clone knows
-# what to bring: the Tailwind standalone CLI at TAILWIND_VERSION, ShellCheck at
-# SHELLCHECK_VERSION, and Node with the lockfile under .github/ for the frontend
-# lint and the browser probes. templ is pinned elsewhere and deliberately — it
-# is a go.mod tool directive, so `go tool templ` is already the version this
-# module builds with and there is nothing to keep in step here. Nothing in the
-# product needs any of them: they are the gate's tools, not the reader's.
+# ones; two more are not go-installable and are named so a clean clone knows
+# what to bring: ShellCheck at SHELLCHECK_VERSION, and Node with the lockfile
+# under .github/ for the frontend lint and the browser probes. templ is pinned
+# elsewhere and deliberately — it is a go.mod tool directive, so `go tool templ`
+# is already the version this module builds with and there is nothing to keep in
+# step here. Nothing in the product needs any of them: they are the gate's
+# tools, not the reader's.
 GOLANGCI_LINT_VERSION := 2.14.0
 GOSEC_VERSION := v2.29.0
 STATICCHECK_VERSION := v0.8.1
@@ -14,7 +14,6 @@ SHELLCHECK_VERSION := 0.11.0
 GOVULNCHECK_VERSION := v1.8.0
 BENCHSTAT_VERSION := v0.0.0-20260709024250-82a0b07e230d
 DEADCODE_VERSION := v0.50.0
-TAILWIND_VERSION := v4.1.17
 
 BENCH_BASELINE ?= /tmp/yomihon-bench-baseline.txt
 BENCH_CURRENT ?= /tmp/yomihon-bench-current.txt
@@ -46,15 +45,15 @@ needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
 }
 endef
 
-.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-deps frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check css css-check verify verify-ci verify-spec clean
+.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-deps frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check verify verify-ci verify-spec clean
 
-build: gen css
+build: gen
 	go build -o bin/yomihon ./cmd/yomihon
 
 build-check:
 	go build ./assets ./cmd/... ./internal/...
 
-run: gen css
+run: gen
 	go run ./cmd/yomihon serve
 
 test:
@@ -200,20 +199,6 @@ gen:
 
 
 
-css:
-	tailwindcss -i assets/css/input.css -o assets/css/output.css --minify
-
-css-check:
-	@help=$$(NO_COLOR=1 tailwindcss --help 2>&1); case "$$help" in *"tailwindcss $(TAILWIND_VERSION)"*) ;; *) echo 'tailwindcss $(TAILWIND_VERSION) is required' >&2; exit 1;; esac
-	@set -eu; \
-	tmp=$$(mktemp "$${TMPDIR:-/tmp}/yomihon-css.XXXXXX"); \
-	trap 'rm -f "$$tmp"' 0 HUP INT TERM; \
-	tailwindcss -i assets/css/input.css -o "$$tmp" --minify >/dev/null; \
-	if ! cmp -s assets/css/output.css "$$tmp"; then \
-		diff -u assets/css/output.css "$$tmp"; \
-		exit 1; \
-	fi
-
 mod-check:
 	go mod tidy -diff
 	go mod verify
@@ -316,16 +301,16 @@ portable-build-check:
 performance-smoke:
 	@$(call owned-go-list); go test -run='^$$' -bench=. -benchtime=1x $$list
 
-# Hand-written stylesheet sources live recursively under assets/css. output.css
-# is the generated projection owned by the css/assets-drift gates, so lint the
-# inputs that create it rather than the minified output. Build an ordered argv
-# from a manifest so additions are discovered without relying on shell glob
-# ordering or breaking paths that contain spaces.
+# Stylesheet sources live recursively under assets/css. All are hand-written
+# except reset.css, the vendored reset, which is kept as upstream wrote it and so
+# cannot meet this lint. Build an ordered argv from a manifest so additions are
+# discovered without relying on shell glob ordering or breaking paths that
+# contain spaces.
 stylelint-check:
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-stylelint.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
-	find assets/css -type f -name '*.css' ! -path 'assets/css/output.css' -print > "$$tmp/unsorted"; \
+	find assets/css -type f -name '*.css' ! -path 'assets/css/reset.css' -print > "$$tmp/unsorted"; \
 	LC_ALL=C sort "$$tmp/unsorted" > "$$tmp/files"; \
 	[ -s "$$tmp/files" ] || { echo 'stylesheet source list is empty' >&2; exit 1; }; \
 	set --; \
@@ -360,7 +345,7 @@ deadcode-check:
 # where an alphabetical sort would put it — reports the advisory and
 # silences every later gate in that run. Keep it required; do not drop
 # it, and do not re-sort it forward.
-verify: tracked-paths-check mod-check fmt-check css-check vet lint staticcheck gosec test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke vuln
+verify: tracked-paths-check mod-check fmt-check vet lint staticcheck gosec test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke vuln
 .NOTPARALLEL: verify
 
 # CI runs this instead of verify so sibling jobs own the prerequisites they

@@ -33,6 +33,16 @@ in yomihon. Go module dependencies remain identified by `go.mod` and `go.sum`.
 - Licence: SIL Open Font License 1.1, reproduced in
   `assets/fonts/LICENSE.txt`
 
+## Tailwind CSS Preflight 4.1.17
+
+- Files: `assets/css/reset.css`
+- Source: `packages/tailwindcss/preflight.css` at tag v4.1.17 of
+  <https://github.com/tailwindlabs/tailwindcss>
+- Copyright: Tailwind Labs, Inc.
+- Licence: MIT, reproduced in the header of `assets/css/reset.css`
+- Changes: `--theme()` written as the `var()` it compiles to, and the rules
+  wrapped in one `@layer base` block; nothing else
+
 Exact hashes are machine-checked against `assets/fonts/SHA256SUMS` by
 `go test ./assets` (`TestThirdPartyAssetProvenance`); the limits of the
 retained provenance are recorded in `assets/fonts/README.md`.

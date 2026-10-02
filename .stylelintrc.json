@@ -2,7 +2,6 @@
   "extends": ["stylelint-config-recommended"],
   "plugins": ["stylelint-order", "@stylistic/stylelint-plugin"],
   "rules": {
-    "at-rule-no-unknown": [true, { "ignoreAtRules": ["theme", "source"] }],
     "no-descending-specificity": null,
     "no-duplicate-selectors": null,
 

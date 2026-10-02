@@ -16,13 +16,10 @@ Closes #
 What a reader can now do, or stop doing, and where. Name the packages or files
 you touched.
 
-`*_templ.go` and `assets/css/output.css` are built, not written. If you edited
-a `.templ` file, a stylesheet under `assets/css/`, or a module under
-`assets/js/`, run `make gen` and `make css` and commit what they produce: the
-gate rebuilds both and fails on the difference. `make gen` needs only the Go
-toolchain; `make css` needs the version-pinned Tailwind binary, which nothing
-here installs for you. If you cannot run one of them, open the pull request
-anyway and say so.
+`*_templ.go` is built, not written. If you edited a `.templ` file, run
+`make gen` and commit what it produces: the gate rebuilds it and fails on the
+difference. `make gen` needs only the Go toolchain. If you cannot run it, open
+the pull request anyway and say so.
 -->
 
 ## How it was verified
@@ -42,8 +39,8 @@ If your change alters no behavior — a typo, a comment, a rename — skip the
 locks.
 
 Then name the gate you ran, precisely. `make verify` is the gate CI runs, and
-it needs more than a Go toolchain: `make tools`, Node, the pinned Tailwind
-binary, ShellCheck, and an installed Chrome. A scoped
+it needs more than a Go toolchain: `make tools`, Node, ShellCheck, and an
+installed Chrome. A scoped
 `go test ./internal/status/` is worth reporting, but it is not a verify exit
 code.
 
