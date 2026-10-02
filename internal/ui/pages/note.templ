@@ -51,10 +51,11 @@ type NoteView struct {
 
 	RenderDiagnostics []render.Diagnostic
 	// Prev and Next are the notes either side of this one in the sequence the
-	// foot of the article offers. StepsLabel names that sequence, printed and
-	// spoken alike — a course's step onward, or folder adjacency.
-	// StepsCourse says which order arrived, which picks the step words, and
-	// StepsUnit is the noun a course's steps are named in.
+	// foot of the article offers. StepsLabel names that sequence — a course's
+	// step onward, or folder adjacency — and is both the landmark's name and,
+	// for a folder, the line printed above the steps; a course prints StepsPath
+	// there instead. StepsCourse says which order arrived, which picks the step
+	// words, and StepsUnit is the noun a course's steps are named in.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
 	StepsLabel  string
@@ -270,8 +271,9 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	}
 }
 
-// articleHead is the breadcrumb + title + the file row above the rendered
-// body, which follows it after a space rather than a rule.
+// articleHead is the line above the title — the running head of a note a path
+// walks, the folder's breadcrumb for any other — then the title and the file row
+// above the rendered body, which follows it after a space rather than a rule.
 //
 // The article around it speaks the note's own language, so the words here that
 // are yomihon's rather than the author's declare the interface language again.
@@ -526,11 +528,17 @@ templ citedByBlock(v NoteView, lang wording.Lang) {
 }
 
 // sequenceSteps closes the article with the way onward: a folder of dated
-// entries is a line, and so is a course of lessons. The label says which order
+// entries is a line, and so is a course of lessons. The foot says which order
 // arrived, so the arrow never claims one it is not walking, and it is printed
 // rather than only spoken, because a course's declared order and folder
-// adjacency can disagree completely. The printed label and the accessible name
-// render one field, so the two cannot drift apart.
+// adjacency can disagree completely.
+//
+// The folder's foot prints its label and names the landmark with the same
+// field, so the two cannot drift apart. A course's foot prints the path's title
+// as a link to its contents and names the landmark with the step onward, on
+// purpose: the sidebar already carries a landmark named for the course's order,
+// and a second landmark with the same words as the link inside it would be one
+// name heard twice.
 //
 // The foot's own words belong to the interface, and the two titles it names
 // belong to the notes they lead to, each carrying whatever language that note
