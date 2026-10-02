@@ -7,8 +7,11 @@ type Neighbors struct {
 	// PathTitle and PathRelPath name the syllabus the ordering came from.
 	PathTitle   string
 	PathRelPath string
-	Prev        NoteRef
-	Next        NoteRef
+	// Unit is the noun that path counts and steps in, so a step onward is
+	// called what the author arranged.
+	Unit Unit
+	Prev NoteRef
+	Next NoteRef
 }
 
 // PathNeighbors returns, for each study path that walks the note at relPath,
@@ -31,7 +34,7 @@ func (m *Model) PathNeighbors(relPath string) []Neighbors {
 			if at < 0 {
 				continue
 			}
-			n := Neighbors{PathTitle: path.Title, PathRelPath: path.RelPath}
+			n := Neighbors{PathTitle: path.Title, PathRelPath: path.RelPath, Unit: path.Unit}
 			if at > 0 {
 				n.Prev = stops[at-1]
 			}

@@ -127,7 +127,7 @@ func TestAnUnresolvedLessonIsNeverUnsettled(t *testing.T) {
 			{Entry: &PathEntry{Name: "Planned", State: sequence.EntryAccepted, Kind: EntryUnresolved, Status: "draft"}},
 		},
 	}
-	main, _ := projectStops([]*PathGroup{group})
+	main, _, _ := projectStops([]*PathGroup{group})
 	if main.unsettled != 1 {
 		t.Errorf("unsettled = %d, want 1; a row that reaches no note has no note to be unsettled", main.unsettled)
 	}

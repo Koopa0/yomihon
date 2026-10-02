@@ -105,6 +105,9 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// nothing — marks no row.
 	cover := pages.CourseCover{Here: vault.NormalizeNFC(r.URL.Query().Get(pages.SyllabusFromParam))}
 	cover.OpeningHTML, cover.OpeningLanguage = h.opening(request.Generation, rel, lang)
+	// The page that plays the course is offered only where it has something to
+	// play, which is asked of the same reading of each lesson that page makes.
+	cover.Listenable = listenable(current, &request, lang)
 	if request.Marked {
 		cover.KeptNote = request.Kept.RelPath
 		cover.KeptHref = pages.ResumeHref(request.Kept.RelPath, request.Kept.Anchor, request.Kept.Offset)

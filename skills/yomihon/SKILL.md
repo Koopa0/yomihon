@@ -357,13 +357,16 @@ case-sensitive, and exact about where they may be written:
     {sequence=primary}   {sequence=local}   {sequence=none}
 
 `primary` is the main line and the only thing the course count takes. `local`
-is a side branch, with its own order and its own count and no prev/next link to
-or from the main line. `none` leaves navigation entirely and still reads.
+is a side branch, with its own order and no prev/next link to or from the main
+line; the page counts it beside the course, never in it. `none` leaves the
+course entirely and still reads, and the course page lists its rows after the
+last part.
 Undeclared is unclassified, and unclassified projects nothing —
 `path.role_missing`, the commonest fault there is.
 
 Four habits carry most of it: declare a role on every branch that lists
-lessons; open a lesson row with its `[[link]]` and put the commentary after it;
+lessons; open a lesson row with its `[[link]]` and put the commentary after it
+(the course page prints it beside the lesson's name, as typed);
 keep a side branch one level deep, hanging off the lesson it belongs to; and do
 not rely on `check` for that last one, which it catches in some shapes and not
 others.

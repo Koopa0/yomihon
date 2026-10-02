@@ -42,6 +42,7 @@ type roleSets struct {
 	paths  map[string]struct{}
 	maps   map[string]struct{}
 	answer string
+	lesson string
 }
 
 // Claim reports how far the navigation declaration got.

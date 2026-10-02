@@ -121,6 +121,32 @@ func (r *ReadingRail) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 	return ModelCapabilityFaults(r.Model, lang)
 }
 
+// railRow is one stop of the book in the rail: a lesson, or a branch drawn
+// after the lesson it hangs from.
+type railRow struct {
+	entry  *PathEntryView
+	branch *PathBranchView
+}
+
+// railRows lists what the rail draws for a run, in the order it draws it: a
+// nested branch alone, or each lesson followed by the side branches hanging from
+// it, which is where the author wrote them. The rail draws a branch as a
+// disclosure of its own, so it is a row of its own here, and the order is
+// settled before the template walks it.
+func (r *PathRunView) railRows() []railRow {
+	if r.Branch != nil {
+		return []railRow{{branch: r.Branch}}
+	}
+	rows := make([]railRow, 0, len(r.Entries))
+	for i := range r.Entries {
+		rows = append(rows, railRow{entry: &r.Entries[i]})
+		for j := range r.Entries[i].Branches {
+			rows = append(rows, railRow{branch: &r.Entries[i].Branches[j]})
+		}
+	}
+	return rows
+}
+
 // bookView draws the teaching path into the page view the rail reuses. The note
 // being read is handed over as the row to mark, so the rail and the course page
 // both learn which row that is from the one comparison, and neither keeps a

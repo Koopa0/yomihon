@@ -403,7 +403,7 @@ func (h *Handler) reading(
 	if marked {
 		readingRail.KeptNote = kept.RelPath
 	}
-	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(&readingRail, lang)
+	foot := pages.FooterSequence(&readingRail, lang)
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
 	view = pages.NoteView{
@@ -424,10 +424,11 @@ func (h *Handler) reading(
 		DeclaredBy:         declaredBy(snap, rel, &result, idPrefix, lang),
 		Pair:               pairOffer(snap, state.shell.Nav, n),
 		VaultHasLinks:      snap.AnyCitations(),
-		Prev:               footPrev,
-		Next:               footNext,
-		StepsLabel:         footLabel,
-		StepsCourse:        footCourse,
+		Prev:               foot.Prev,
+		Next:               foot.Next,
+		StepsLabel:         foot.Label,
+		StepsCourse:        foot.Course,
+		StepsUnit:          foot.Unit,
 		TOC:                result.TOC,
 		BodyHTML:           result.HTML,
 		TitleAnchor:        result.TitleAnchor,

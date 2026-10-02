@@ -164,18 +164,24 @@ try {
       `the course index shows ${listed[1]} 課, want 4: the main line's three written lessons and the one still to be written, without the side branch or the routine block`);
   }
 
-  // The side branch is drawn where the author put it — inside the part, after
-  // the lesson it hangs from — labelled a side branch and carrying its own
-  // count, not the course's.
+  // The side branch is drawn where the author put it — inside the part, under
+  // the lesson it hangs from, in that lesson's own list item so the line the
+  // main line is read along can pass it — and labelled a side branch. It states
+  // no count of its own: the head counts it beside the course.
   await page.goto(BASE + COURSE_PAGE, { waitUntil: 'domcontentloaded' });
   const local = page.locator('main .y-module--local');
   if (await local.count() !== 1) {
     fail('side-branch-under-its-lesson', `the course page draws ${await local.count()} side branches, want 1`);
   }
   const localText = await local.innerText();
-  if (!localText.includes('支線') || !/1\s*課/.test(localText)) {
+  if (!localText.includes('支線')) {
     fail('side-branch-under-its-lesson',
-      `the side branch is not labelled a side branch with its own count: ${JSON.stringify(localText)}`);
+      `the side branch is not labelled a side branch: ${JSON.stringify(localText)}`);
+  }
+  const hung = page.locator('main li:has(> a.y-lesson[href="/notes/Course/C02.md"]) > .y-module--local');
+  if (await hung.count() !== 1) {
+    fail('side-branch-under-its-lesson',
+      `the side branch is not inside the list item of the lesson it hangs from (found ${await hung.count()} there)`);
   }
   const order = await page.locator('main a.y-lesson, main .y-module--local').evaluateAll((nodes) =>
     nodes.map((node) => (node.classList.contains('y-module--local') ? 'SIDE' : node.getAttribute('href'))));
@@ -184,10 +190,14 @@ try {
     fail('side-branch-under-its-lesson', `the side branch is not drawn under C02: ${JSON.stringify(order)}`);
   }
 
-  // A block declared out of the course is out of it: the course page never
-  // lists it, and it holds no place in the course.
-  if (await page.locator('main a[href="/notes/Course/R01.md"]').count() !== 0) {
+  // A block declared out of the course is out of it: the course page lists it
+  // beneath the contents as a reference, never as one of its lessons, and it
+  // holds no place in the course.
+  if (await page.locator('main a.y-lesson[href="/notes/Course/R01.md"]').count() !== 0) {
     fail('declared-out-stays-out', 'the course page lists a lesson from the block declared out of the course');
+  }
+  if (await page.locator('main .y-appendix a.y-ref[href="/notes/Course/R01.md"]').count() !== 1) {
+    broken('the block declared out of the course is not listed beneath the contents, so this check no longer separates a reference from a lesson');
   }
 
   // The main line steps over the side branch: the lesson after the one it

@@ -465,6 +465,7 @@ func newModel(
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
 			path := buildPath(n, resolver, facts, policy)
+			path.Unit = unitOf(path.Groups, facts, roles)
 			// A contract that settles no status has no exceptions to count:
 			// every lesson with a status would be one.
 			if !settlement.Declared() {
@@ -495,14 +496,18 @@ func newModel(
 }
 
 // noteFacts is what a row that resolves to a note reads off it: the status
-// badge, the declared article language, and the declared title a course names
-// the lesson by. Each is empty when the note declares none. They travel as one
-// value so a builder cannot be handed one of them in place of another.
+// badge, the declared article language, the declared title a course names the
+// lesson by, and the type it declares. Each is empty when the note declares
+// none. They travel as one value so a builder cannot be handed one of them in
+// place of another.
 type noteFacts struct {
 	status   string
 	settled  bool
 	language string
 	title    string
+	// noteType is the type the note declares, which is how a course tells a
+	// row that is a lesson from one that is some other note.
+	noteType string
 }
 
 // collectNavigationNotes projects already parsed notes into entry badges and
@@ -528,7 +533,7 @@ func collectNavigationNotes(
 		// The declared title only: Note.Title falls back to the file stem,
 		// which would name a course row by its file again.
 		title, _ := n.Text("title")
-		facts[p] = noteFacts{status: n.Status(), settled: settlement.Settled(n.Status()), title: title}
+		facts[p] = noteFacts{status: n.Status(), settled: settlement.Settled(n.Status()), title: title, noteType: n.Type()}
 		// Membership is the vault's own declaration, not whether a note happens
 		// to carry a type: a note without frontmatter is still one its author
 		// wrote and still the newest thing they changed.

@@ -213,8 +213,10 @@ stays out of navigation:
 
 The course reads 8 lessons. The side branch shows as three, hanging under L03.
 L04 follows L03, because the container is L03's child and L04 is its sibling.
-L07 has no next lesson, because L08 is unwritten. The routine block is absent
-from navigation and reads normally on the page.
+L07 has no next lesson, because L08 is unwritten. The routine block is out of
+the course — no count, no prev/next, not in the rail — and reads normally on
+its own page; the course's page lists its rows after the last part, under the
+block's own heading, each with the words written after its link.
 
 That example is deliberately not clean: `check` reports one
 `map.disk_mismatch` for L08, and `--deny warn` on it exits 1. The italic

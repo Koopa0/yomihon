@@ -265,6 +265,20 @@ func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFaul
 	}
 }
 
+// Foot is the way onward the foot of an article offers: the notes either side
+// of this one in the order that won, what to call that order, and which kind it
+// is. Unit is the noun a course's steps are named in, and means nothing for a
+// folder's.
+type Foot struct {
+	Prev, Next nav.NoteRef
+	// Label names the order, printed and spoken alike.
+	Label string
+	// Course says the order is a study path's and not the folder's, which
+	// picks the step words.
+	Course bool
+	Unit   nav.Unit
+}
+
 // FooterSequence chooses which order the foot of the article offers, and what to
 // call it. The rail has already resolved which book, if any, the page is being
 // read inside, and the foot walks that same book: the foot is the one place a
@@ -274,35 +288,43 @@ func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFaul
 // whose alphabetical order a course's declared one can contradict completely.
 // A course foot names the step onward, not the path's whole order.
 //
-// course reports which order won, so the foot can print it: that and the step
-// words are all a sighted reader has to tell a course from folder adjacency.
-func FooterSequence(rail *ReadingRail, lang wording.Lang) (prev, next nav.NoteRef, label string, course bool) {
+// Foot.Course reports which order won, so the foot can print it: that and the
+// step words are all a sighted reader has to tell a course from folder
+// adjacency.
+func FooterSequence(rail *ReadingRail, lang wording.Lang) Foot {
 	if rail == nil || rail.Model == nil || rail.CurrentPath == "" {
-		return prev, next, "", false
+		return Foot{}
 	}
 	step := rail.neighbors
 	// A book can list a note with no walkable stop on either side — planned
 	// rows and side branches drop out of the course walk — and an empty foot
 	// then leaves keyboard reading with nowhere to go inside the article.
 	if step.PathRelPath != "" && (step.Prev.RelPath != "" || step.Next.RelPath != "") {
-		return step.Prev, step.Next, fmt.Sprintf(wording.CourseOnwardOf.In(lang), step.PathTitle), true
+		return Foot{
+			Prev:   step.Prev,
+			Next:   step.Next,
+			Label:  fmt.Sprintf(wording.CourseOnwardOf.In(lang), step.PathTitle),
+			Course: true,
+			Unit:   step.Unit,
+		}
 	}
-	prev, next = rail.Model.FolderStep(rail.CurrentPath)
-	return prev, next, wording.FolderAdjacency.In(lang), false
+	prev, next := rail.Model.FolderStep(rail.CurrentPath)
+	return Foot{Prev: prev, Next: next, Label: wording.FolderAdjacency.In(lang)}
 }
 
 // stepWordPrev and stepWordNext name a footer step for the order it walks: a
-// course hands over a lesson, a folder merely the file beside this one.
-func stepWordPrev(course bool, lang wording.Lang) string {
+// course hands over what it is made of, a folder merely the file beside this
+// one.
+func stepWordPrev(course bool, unit nav.Unit, lang wording.Lang) string {
 	if course {
-		return wording.PreviousLesson.In(lang)
+		return unitWords(unit).Previous.In(lang)
 	}
 	return wording.PreviousFile.In(lang)
 }
 
-func stepWordNext(course bool, lang wording.Lang) string {
+func stepWordNext(course bool, unit nav.Unit, lang wording.Lang) string {
 	if course {
-		return wording.NextLesson.In(lang)
+		return unitWords(unit).Next.In(lang)
 	}
 	return wording.NextFile.In(lang)
 }

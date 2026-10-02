@@ -2,6 +2,7 @@ package syllabus_test
 
 import (
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -179,7 +180,7 @@ func TestACourseThatMarksNothingSaysSo(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET the listening page status = %d, want 200", code)
 	}
-	if !strings.Contains(page, "這門課沒有標記朗讀的段落。") {
+	if !strings.Contains(page, "這條路徑沒有標記朗讀的段落。") {
 		t.Errorf("a course with nothing marked says nothing about it; its own column reads %q", listenColumn(t, page))
 	}
 	for _, absent := range []string{"data-tts=", "data-readaloud-controls", "data-readaloud-bar"} {
@@ -270,5 +271,82 @@ func TestTheListeningPageNamesALessonAsTheCoursePageDoes(t *testing.T) {
 	want := []string{"Alias words", "Second: the title", "Writing/lessons/golang/Third"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("lesson headings (-want +got):\n%s", diff)
+	}
+}
+
+// agreementVault is a course of one lesson, written by build. The lesson's
+// body is whatever the case under test needs it to be, so the cover and the
+// listening page are asked about the same bytes.
+func agreementVault(t *testing.T, lessonBody string, extra map[string]string) string {
+	t.Helper()
+	root := t.TempDir()
+	files := map[string]string{
+		"Writing/lessons/golang/First.md": "---\ntitle: First\ntype: lesson\ndomain: golang\nstatus: ready\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n" + lessonBody,
+		"Maps/Path.md": "---\ntitle: Go path\ntype: study-path\ndomain: golang\nstatus: evergreen\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n" +
+			"## line | Line | 線 {sequence=primary}\n\n- [[First]]\n",
+	}
+	maps.Copy(files, extra)
+	for rel, content := range files {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	return root
+}
+
+// TestTheCoverOffersListeningExactlyWhereTheListeningPageHasSomethingToPlay
+// holds the offer to the page it leads to. The two are asked of the same
+// course and the same bytes and must agree, whichever way: a cover that offers
+// a page saying there is nothing to hear is a dead end, and a cover that hides
+// one that plays is a door nobody can find. The cases are the ways the answer
+// can fall — a marked paragraph, none at all, the marker's word in prose that
+// is not a marker, a marker that arrives through an embed of another note, and
+// a generation that names no lesson type, which teaches nothing.
+func TestTheCoverOffersListeningExactlyWhereTheListeningPageHasSomethingToPlay(t *testing.T) {
+	t.Parallel()
+
+	const marked = "<!-- read-aloud: ja -->\nいち。\n"
+	tests := []struct {
+		name   string
+		body   string
+		extra  map[string]string
+		status syllabus.LessonTypes
+		want   bool
+	}{
+		{name: "a lesson with a marked paragraph", body: marked, status: lessonTypes("lesson"), want: true},
+		{name: "lessons that mark nothing", body: "いち。\n", status: lessonTypes("lesson"), want: false},
+		{name: "the marker's word in prose that is no marker", body: "Write read-aloud: ja before a paragraph to have it spoken.\n", status: lessonTypes("lesson"), want: false},
+		{name: "a marker for a language the page does not speak", body: "<!-- read-aloud: zh -->\nいち。\n", status: lessonTypes("lesson"), want: false},
+		{
+			name:   "a marker that arrives through an embed",
+			body:   "![[Marked source]]\n",
+			extra:  map[string]string{"Writing/lessons/golang/Marked source.md": "---\ntitle: Marked source\ntype: lesson\ndomain: golang\nstatus: ready\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n" + marked},
+			status: lessonTypes("lesson"),
+			want:   true,
+		},
+		{name: "a generation that names no lesson type", body: marked, status: nil, want: false},
+		{name: "a vault that files nothing as a lesson", body: marked, status: lessonTypes("nothing-is-a-lesson"), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv := listenServer(t, agreementVault(t, tt.body, tt.extra), tt.status)
+
+			_, listenPage := get(t, srv.Client(), srv.URL+"/listen/Maps/Path.md")
+			plays := strings.Contains(listenPage, "data-tts=")
+			_, cover := get(t, srv.Client(), srv.URL+"/syllabus/Maps/Path.md")
+			offers := strings.Contains(cover, `href="/listen/Maps/Path.md"`)
+
+			if plays != tt.want {
+				t.Fatalf("the listening page plays something = %t, want %t; the case does not describe the bytes it was written for, so what the cover does proves nothing", plays, tt.want)
+			}
+			if offers != plays {
+				t.Errorf("the cover offers the listening page = %t while the page plays something = %t", offers, plays)
+			}
+		})
 	}
 }
