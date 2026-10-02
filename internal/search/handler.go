@@ -94,7 +94,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	asked := pages.ParsePageNumber(r.URL.Query().Get("page"))
 	// The page itself always has the column and the strip, so the first render
 	// never depends on the marker the live refreshes carry.
-	view := answerView(snap, q, h.query(snap.Index, q, lang, asked), lang, asked, true)
+	view := answerView(&snap, q, h.query(snap.Index, q, lang, asked), lang, asked, true)
 	view.Sidebar = pages.NewSidebar(snap.Shell, "")
 	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search page", q, err)
@@ -122,7 +122,7 @@ type answer struct {
 // The hits the index built run from the answer's start to the end of the page
 // asked for, so the stretch this page shows is the tail of them. A face with
 // no strip keeps what it was given and says how far the list was cut.
-func answerView(snap RequestSnapshot, q string, a *answer, lang wording.Lang, asked pages.PageNumber, onPage bool) pages.SearchView {
+func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, asked pages.PageNumber, onPage bool) pages.SearchView {
 	found := a.found.Results
 	var strip pages.Pager
 	if onPage {
@@ -249,7 +249,7 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	view := answerView(snap, q, answered, lang, asked, onPage)
+	view := answerView(&snap, q, answered, lang, asked, onPage)
 	if err := pages.SearchResults(view, lang).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search results", q, err)
 	}

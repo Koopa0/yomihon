@@ -21,9 +21,17 @@ func libraryName(name string, lang wording.Lang) string {
 
 // libraryFindings is what the foot says about the health page's number. Nothing
 // found is said in words rather than as a zero: a row of digits ending in 0
-// reads as a count that has not been taken yet, and this one has.
-func libraryFindings(findings int, lang wording.Lang) string {
+// reads as a count that has not been taken yet, and this one has. A folder with
+// no findings whose pages have stopped updating says that instead: the number
+// leaves a notice out because the notice is no row of the table, but "nothing
+// found" beside a page that says it has stopped updating would be the foot
+// contradicting it in words, and the dot's colour alone would be the only thing
+// telling the two apart.
+func libraryFindings(findings int, noticed bool, lang wording.Lang) string {
 	if findings == 0 {
+		if noticed {
+			return wording.NoticeNamesCollideTitle.In(lang)
+		}
 		return wording.LibraryNoFindings.In(lang)
 	}
 	return plural(findings, wording.LibraryFindingOne, wording.LibraryFindingMany, lang)
@@ -31,9 +39,11 @@ func libraryFindings(findings int, lang wording.Lang) string {
 
 // libraryHealthState is the dot's state, which the stylesheet colours. It is the
 // only place the two states are named, and the words beside the dot carry the
-// same answer, so the colour is never the only thing saying it.
-func libraryHealthState(findings int) string {
-	if findings == 0 {
+// same answer, so the colour is never the only thing saying it. A standing
+// notice makes it findings: it is no row of the table and is not in the number,
+// but the words say it in place of "nothing found".
+func libraryHealthState(findings int, noticed bool) string {
+	if findings == 0 && !noticed {
 		return "clear"
 	}
 	return "findings"

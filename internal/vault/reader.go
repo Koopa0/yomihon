@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -42,7 +43,41 @@ var errUnobservedParent = errors.New("vault parent directory was not observed in
 
 // ErrCanonicalCollision means two filesystem names normalize to the same
 // vault-relative NFC path. Such a tree cannot be projected without guessing.
+// A scan reports it as a [*CollisionError], which carries the two names.
 var ErrCanonicalCollision = errors.New("vault contains canonically colliding paths")
+
+// CollisionError is [ErrCanonicalCollision] with the two names that caused it.
+// The scan refuses the whole tree rather than guess, and the repair is to
+// delete or rename one of the two, which nobody can do without knowing which
+// two they are.
+type CollisionError struct {
+	// Paths are the two filesystem spellings as the directory lists them,
+	// slash-separated and relative to the vault root, in byte order. They are
+	// distinct strings that normalize to one path, so a listing prints them
+	// alike; [Spelled] is how a message tells them apart.
+	Paths [2]string
+}
+
+// Error names both paths, each written so that the pair can be told apart.
+func (e *CollisionError) Error() string {
+	return ErrCanonicalCollision.Error() + ": " + Spelled(e.Paths[0]) + " and " + Spelled(e.Paths[1])
+}
+
+// Unwrap lets errors.Is find [ErrCanonicalCollision] under the names.
+func (e *CollisionError) Unwrap() error { return ErrCanonicalCollision }
+
+// Spelled writes a vault path for a person who has to tell it from its twin.
+// Two names that differ only in normalization print identically — a composed
+// が and a decomposed か + U+3099 are the same glyph on every screen — so a
+// path holding anything beyond ASCII is followed by the same path in escapes,
+// where the two no longer look alike.
+func Spelled(raw string) string {
+	quoted := strconv.Quote(raw)
+	if escaped := strconv.QuoteToASCII(raw); escaped != quoted {
+		return quoted + " (" + escaped + ")"
+	}
+	return quoted
+}
 
 // readerToken is the identity one Reader hands to every Entry it produces, so
 // owns can tell its own Entry from another Reader's by comparing the two
@@ -574,7 +609,11 @@ func observedSource(rawPath string, directories map[string]fs.FileInfo, leaf fs.
 
 func recordCanonicalPath(seen map[string]string, raw, canonical string) error {
 	if previous, ok := seen[canonical]; ok && previous != raw {
-		return ErrCanonicalCollision
+		// Byte order rather than discovery order, so the same pair is reported
+		// the same way however the walk happened to reach it.
+		pair := [2]string{previous, raw}
+		slices.Sort(pair[:])
+		return &CollisionError{Paths: pair}
 	}
 	seen[canonical] = raw
 	return nil
