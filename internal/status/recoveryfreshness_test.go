@@ -4,8 +4,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestRecoveryPageHoldsItsWayBackOnlyWhenItKnowsTheVersion pins the second place
@@ -24,7 +22,7 @@ func TestRecoveryPageHoldsItsWayBackOnlyWhenItKnowsTheVersion(t *testing.T) {
 	// The page claims a status the file does not carry, so the write is refused
 	// after it has bound itself to these bytes.
 	_, _, refused := postStatus(t, srv, url.Values{
-		"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus},
+		"path": {testRel}, "from": {"imported"}, "to": {"ready"},
 		"content_identity": {identity},
 	})
 	if !strings.Contains(refused, `data-freshness-path="`+testRel+`"`) {
@@ -37,7 +35,7 @@ func TestRecoveryPageHoldsItsWayBackOnlyWhenItKnowsTheVersion(t *testing.T) {
 	// This one is refused before any version is read, so there is no version the
 	// invitation could wait for.
 	_, _, unbound := postStatus(t, srv, url.Values{
-		"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus},
+		"path": {testRel}, "from": {"draft"}, "to": {"ready"},
 	})
 	if strings.Contains(unbound, "data-freshness-") {
 		t.Errorf("a refusal with no version of its own still marks the page as watchable; body = %q", unbound)

@@ -396,6 +396,13 @@ func (h *Handler) reading(
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
 	readingRail := pages.NewReadingRail(state.shell, n.RelPath, n.Domain)
+	// The one place the reader kept, if any. Both the book beside this note and
+	// the control for keeping a place read it from here, so the two cannot
+	// disagree about where it is.
+	kept, marked := h.sources.Continuation()
+	if marked {
+		readingRail.KeptNote = kept.RelPath
+	}
 	footPrev, footNext, footLabel, footCourse := pages.FooterSequence(&readingRail, lang)
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
@@ -432,6 +439,7 @@ func (h *Handler) reading(
 		Transitions:        state.transitions,
 		ContentIdentity:    hex.EncodeToString(n.ContentIdentity[:]),
 		MarkAddress:        h.sources.MarkAddress,
+		PlaceKept:          marked && kept.RelPath == n.RelPath,
 		UncertaintyAddress: h.sources.UncertaintyAddress,
 		ThoughtDoor:        snap.NavigationRoles().AnswerType() != "" && thoughtSourceAvailable(snap, rel),
 		// The identity above covers the note's own bytes; what the render

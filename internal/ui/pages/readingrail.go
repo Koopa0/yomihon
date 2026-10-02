@@ -24,6 +24,10 @@ type ReadingRail struct {
 	Kind        ReadingRailKind
 	// Vault is the folder this rail is a rail of, which its foot states.
 	Vault nav.Vault
+	// KeptNote is the vault-relative note the reader kept a place in, empty
+	// where they kept none. The book marks the row of that lesson, and a place
+	// kept in a note the book does not teach marks nothing.
+	KeptNote string
 
 	book         *nav.Path
 	neighbors    nav.Neighbors
@@ -122,12 +126,12 @@ func (r *ReadingRail) CapabilityFaults(lang wording.Lang) []CapabilityFault {
 // both learn which row that is from the one comparison, and neither keeps a
 // second answer that could disagree with the other.
 //
-// Nothing else of the cover reaches here: the rail is the book beside the note
-// being read, and the opening and the verb that opens a course belong to the
-// page that is the course.
+// Nothing else of the cover reaches here beyond the reader's kept place: the
+// rail is the book beside the note being read, and the opening and the verb that
+// opens a course belong to the page that is the course.
 func (r *ReadingRail) bookView() PathView {
 	if r.book == nil {
 		return PathView{}
 	}
-	return BuildPathView(r.book, nil, &CourseCover{Here: r.CurrentPath})
+	return BuildPathView(r.book, nil, &CourseCover{Here: r.CurrentPath, KeptNote: r.KeptNote})
 }

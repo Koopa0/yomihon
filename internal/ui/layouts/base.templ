@@ -237,8 +237,12 @@ templ headerMark(mark *MarkOffer, lang wording.Lang) {
 		data-mark-endpoint={ mark.Endpoint }
 		data-mark-saved={ wording.MarkSaved.In(lang) }
 		data-mark-failed={ wording.MarkNotStored.In(lang) }
+		data-mark-kept?={ mark.Kept }
 	>
 		<button class="y-xbtn" type="button" data-mark-button>{ wording.MarkSetControl.In(lang) }</button>
+		if mark.Kept {
+			<span class="y-offscreen">{ wording.MarkSaved.In(lang) }</span>
+		}
 		@Reply("y-headermark__said", templ.Attributes{"data-mark-said": true})
 	</div>
 }

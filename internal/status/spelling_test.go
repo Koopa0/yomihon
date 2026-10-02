@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -26,7 +25,7 @@ func TestFlipRefusesWhenStoredDirOpenFails(t *testing.T) {
 		t.Fatalf("read seed: %v", err)
 	}
 
-	err = writer.flip(t.Context(), installRel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
+	err = writer.flip(t.Context(), installRel, "draft", "ready", internalLessonIdentity(), flipHooks{
 		descend: func(*os.Root, string, string) (*os.Root, error) {
 			return nil, fmt.Errorf("%w: %s", errPathNotRegular, installRel)
 		},

@@ -13,8 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/schema"
 )
 
 const installRel = "Writing/lessons/japanese/L05.md"
@@ -77,7 +75,7 @@ func TestFlipPreservesAnExternalEditRacingTheInstall(t *testing.T) {
 				t.Fatal("the external edit is identical to the note, so this proves nothing")
 			}
 
-			err := writer.flip(t.Context(), installRel, "draft", schema.SealStatus, internalLessonIdentity(), flipHooks{
+			err := writer.flip(t.Context(), installRel, "draft", "ready", internalLessonIdentity(), flipHooks{
 				beforeInstall: func() { editor.write(t, path, []byte(external)) },
 			})
 

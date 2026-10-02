@@ -61,8 +61,9 @@ func TestSyllabusUsesTheBranchTreeAsItsHeadingOutline(t *testing.T) {
 }
 
 // TestBuildPathView pins the pure transform's contract: a branch's total counts
-// linked and warning rows, Ready counts only resolved entries at ready, and
-// document order is preserved at every level. The fixture is two parts, one
+// linked and warning rows, Unsettled counts only the main line's resolved
+// lessons whose status the contract does not settle, and document order is
+// preserved at every level. The fixture is two parts, one
 // with a module and one with entries attached directly (no module), so the
 // tallies and the modules count are hand-derivable and non-tautological.
 func TestBuildPathView(t *testing.T) {
@@ -82,7 +83,7 @@ func TestBuildPathView(t *testing.T) {
 		"\t\t- [[Tuning]]\n" +
 		"- [[Template]]\n" +
 		"- [[Unwritten]]\n"
-	path := buildTestPath(t, body)
+	path := buildSettledTestPath(t, body)
 
 	got := BuildPathView(&path, []nav.Path{path}, &CourseCover{})
 
@@ -91,7 +92,6 @@ func TestBuildPathView(t *testing.T) {
 		RelPath:    "Maps/Go path.md",
 		GuideHref:  "/notes/Maps/Go%20path.md",
 		ListenHref: "/listen/Maps/Go%20path.md",
-		SealTarget: schema.SealStatus,
 		Paths: []PathLink{
 			// The side branch is not part of the main line, so the planned
 			// total is five, not six.
@@ -100,7 +100,10 @@ func TestBuildPathView(t *testing.T) {
 		Parts:   2,
 		Modules: 2, // the "Text" module under Data, and the side branch under GC
 		Entries: 5,
-		Ready:   2, // Slices + GC sit at ready; Arrays is draft
+		// Arrays is the one main-line lesson at a status the contract does not
+		// settle. Tuning is draft too, but it hangs on a side branch, outside the
+		// five lessons Entries counts.
+		Unsettled: 1,
 		// No place was kept, so the cover starts the course at its first stop.
 		Action: CourseAction{Href: "/notes/Writing/Slices.md"},
 		Branches: []PathBranchView{
@@ -112,7 +115,7 @@ func TestBuildPathView(t *testing.T) {
 				Items: []PathItemView{{Branch: &PathBranchView{
 					Num: 1, Heading: "Text", Depth: 1, Total: 2,
 					Items: []PathItemView{
-						{Entry: &PathEntryView{Name: "Slices", RelPath: "Writing/Slices.md", Href: "/notes/Writing/Slices.md", Status: schema.SealStatus, Sealed: true, Number: 1}},
+						{Entry: &PathEntryView{Name: "Slices", RelPath: "Writing/Slices.md", Href: "/notes/Writing/Slices.md", Status: "ready", Settled: true, Number: 1}},
 						{Entry: &PathEntryView{Name: "Arrays", RelPath: "Writing/Arrays.md", Href: "/notes/Writing/Arrays.md", Status: "draft", Number: 2}},
 					},
 				}}},
@@ -123,7 +126,7 @@ func TestBuildPathView(t *testing.T) {
 				Items: []PathItemView{
 					// The main line's numbering continues from the first part:
 					// the course has one declared order across its parts.
-					{Entry: &PathEntryView{Name: "GC", RelPath: "Writing/GC.md", Href: "/notes/Writing/GC.md", Status: schema.SealStatus, Sealed: true, Number: 3}},
+					{Entry: &PathEntryView{Name: "GC", RelPath: "Writing/GC.md", Href: "/notes/Writing/GC.md", Status: "ready", Settled: true, Number: 3}},
 					// The side branch is drawn where the author put it: under
 					// the lesson it hangs from, before the next main lesson —
 					// and it numbers its own rows from one, never sharing the
@@ -337,19 +340,79 @@ func TestRoman(t *testing.T) {
 	}
 }
 
-// buildTestPath writes a small vault holding one study path and the lessons it
+// buildTestPath builds the fixture course under a contract that declares no
+// settled status, so every status stays marked, as it did before the key.
+func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Path {
+	t.Helper()
+	return buildPathUnder(t, loadTestContract(t), body, extra...)
+}
+
+// buildSettledTestPath builds the same course under a contract that settles
+// ready, which is how an ordinary vault now reads: finished lessons unmarked.
+func buildSettledTestPath(t *testing.T, body string) nav.Path {
+	t.Helper()
+	return buildPathUnder(t, settledTestContract(t, "ready"), body)
+}
+
+func loadTestContract(t *testing.T) *schema.Contract {
+	t.Helper()
+	contract, err := schema.LoadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("schema.LoadFile = %v", err)
+	}
+	return contract
+}
+
+// settledTestContract is the shared test contract with settled written on the
+// lifecycle row of each named status. The rows are edited in text rather than
+// by a second contract file, so the two cannot drift apart, and a status that
+// names no row fails the test instead of settling nothing.
+func settledTestContract(t *testing.T, settled ...string) *schema.Contract {
+	t.Helper()
+	base, err := os.ReadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read the shared contract: %v", err)
+	}
+	const header = "\n[[lifecycle]]\n"
+	rows := strings.Split(string(base), header)
+	matched := map[string]bool{}
+	for i := 1; i < len(rows); i++ {
+		for _, status := range settled {
+			if strings.HasPrefix(rows[i], `status = "`+status+`"`) {
+				rows[i] = strings.TrimRight(rows[i], "\n") + "\nsettled = true\n"
+				matched[status] = true
+			}
+		}
+	}
+	for _, status := range settled {
+		if !matched[status] {
+			t.Fatalf("the shared contract has no lifecycle row for %q, so nothing would be settled", status)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err = os.WriteFile(path, []byte(strings.Join(rows, header)), 0o600); err != nil { // #nosec G703 -- a fixed contract path under this test's own temporary directory
+		t.Fatalf("write the settled contract: %v", err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("schema.LoadFile = %v", err)
+	}
+	return contract
+}
+
+// buildPathUnder writes a small vault holding one study path and the lessons it
 // names, then reads it back through the real navigation build. The page is
 // asserted against the interpretation the product actually produces, so a test
 // cannot agree with a projection the product would never make. extra files are
 // written beside the fixed fixture set.
-func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Path {
+func buildPathUnder(t *testing.T, contract *schema.Contract, body string, extra ...map[string]string) nav.Path {
 	t.Helper()
 	root := t.TempDir()
 	files := map[string]string{
 		"Maps/Go path.md":              "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n" + body,
-		"Writing/Slices.md":            "---\ntitle: Slices\ntype: lesson\nstatus: " + schema.SealStatus + "\n---\nbody\n",
+		"Writing/Slices.md":            "---\ntitle: Slices\ntype: lesson\nstatus: ready\n---\nbody\n",
 		"Writing/Arrays.md":            "---\ntitle: Arrays\ntype: lesson\nstatus: draft\n---\nbody\n",
-		"Writing/GC.md":                "---\ntitle: GC\ntype: lesson\nstatus: " + schema.SealStatus + "\n---\nbody\n",
+		"Writing/GC.md":                "---\ntitle: GC\ntype: lesson\nstatus: ready\n---\nbody\n",
 		"Writing/Tuning.md":            "---\ntitle: Tuning\ntype: lesson\nstatus: draft\n---\nbody\n",
 		"System/templates/Template.md": "---\ntitle: Template\ntype: lesson\nstatus: draft\n---\nbody\n",
 	}
@@ -389,15 +452,12 @@ func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Pa
 		notes[entry.Path()] = note
 		noteList = append(noteList, note)
 	}
-	contract, err := schema.LoadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("schema.LoadFile = %v", err)
-	}
 	model := nav.New(
 		scan.Files(), notes, graph.New(noteList, nil),
 		contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(),
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
+		contract.Settlement(),
 	)
 	paths := model.Paths()
 	if len(paths) != 1 {

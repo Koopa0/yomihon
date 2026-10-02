@@ -277,10 +277,13 @@ func (m *Model) WithoutInstanceProjections(closure Closure) *Model {
 // Modified is the scanner's captured time, zero only where the scan could not
 // stat a note that remained readable.
 type NoteSummary struct {
-	Title    string
-	RelPath  string
-	Type     string
-	Status   string
+	Title   string
+	RelPath string
+	Type    string
+	Status  string
+	// Settled is whether the contract declares Status settled, the resting
+	// state of a finished note, so a list shows no label for it.
+	Settled  bool
 	Modified time.Time
 }
 
@@ -379,6 +382,7 @@ func New(
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
 	dated schema.AuthoredDate,
+	settlement schema.Settlement,
 ) *Model {
 	if resolver == nil {
 		panic("nav: New requires a non-nil *graph.Index")
@@ -403,7 +407,7 @@ func New(
 			note:     note,
 		})
 	}
-	return newModel(files, resolver, roles, scope, policy, journal, articleLang, dated)
+	return newModel(files, resolver, roles, scope, policy, journal, articleLang, dated, settlement)
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
@@ -423,6 +427,7 @@ func newModel(
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
 	dated schema.AuthoredDate,
+	settlement schema.Settlement,
 ) *Model {
 	paths := make([]string, 0, len(files))
 	for _, file := range files {
@@ -443,7 +448,7 @@ func newModel(
 	// The recent-notes summary is collected in every contract state; paths and
 	// maps exist only as a contract's own classification, so either closed
 	// declaration ends the build with none of them.
-	facts, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
+	facts, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy, settlement)
 	for p, tag := range langs {
 		known := facts[p]
 		known.language = tag
@@ -459,7 +464,13 @@ func newModel(
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
-			m.paths = append(m.paths, buildPath(n, resolver, facts, policy))
+			path := buildPath(n, resolver, facts, policy)
+			// A contract that settles no status has no exceptions to count:
+			// every lesson with a status would be one.
+			if !settlement.Declared() {
+				path.Unsettled = 0
+			}
+			m.paths = append(m.paths, path)
 			continue
 		}
 		m.maps = append(m.maps, parseMap(n, resolver, facts, policy))
@@ -489,6 +500,7 @@ func newModel(
 // value so a builder cannot be handed one of them in place of another.
 type noteFacts struct {
 	status   string
+	settled  bool
 	language string
 	title    string
 }
@@ -501,6 +513,7 @@ func collectNavigationNotes(
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
+	settlement schema.Settlement,
 ) (facts map[string]noteFacts, mapNotes []*vault.Note, knowledgeNotes []NoteSummary) {
 	facts = make(map[string]noteFacts)
 	for _, file := range files {
@@ -515,7 +528,7 @@ func collectNavigationNotes(
 		// The declared title only: Note.Title falls back to the file stem,
 		// which would name a course row by its file again.
 		title, _ := n.Text("title")
-		facts[p] = noteFacts{status: n.Status(), title: title}
+		facts[p] = noteFacts{status: n.Status(), settled: settlement.Settled(n.Status()), title: title}
 		// Membership is the vault's own declaration, not whether a note happens
 		// to carry a type: a note without frontmatter is still one its author
 		// wrote and still the newest thing they changed.
@@ -525,6 +538,7 @@ func collectNavigationNotes(
 				RelPath:  p,
 				Type:     n.Type(),
 				Status:   n.Status(),
+				Settled:  settlement.Settled(n.Status()),
 				Modified: file.modified,
 			})
 		}

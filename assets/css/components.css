@@ -331,7 +331,13 @@ samp {
   margin-left: 0;
 }
 
-/* ---- Status badge (mono, dot + name; yomihon's 9 note statuses) ---- */
+/* ---- Status badge (dot + name) ----
+   The author's own word for a note, drawn the same whatever the word is: the
+   interface keeps no colour for any status, because which statuses are
+   settled is the contract's to say and a colour per name would be a second
+   copy of its vocabulary. On a note the badge is one fact about the page.
+   Down a list a status is the exception on a row, so it is quiet text with no
+   fill or padding to hold one and no dot. */
 .ui-status {
   align-items: center;
   background: var(--wash);
@@ -355,64 +361,17 @@ samp {
   width: 6px;
 }
 
-.ui-status--captured {
-  background: var(--wash);
-  color: var(--fg-subtle);
-}
-
-.ui-status--cleaned {
-  background: var(--wash);
-  color: var(--fg-muted);
-}
-
-.ui-status--seedling,
-.ui-status--growing,
-.ui-status--evergreen {
-  background: var(--sage-bg);
-  color: var(--sage);
-}
-
-.ui-status--imported {
-  background: var(--wash);
-  color: var(--fg-muted);
-}
-
-.ui-status--draft {
-  background: var(--wash);
-  color: var(--fg-muted);
-}
-
-.ui-status--ready {
-  background: var(--accent-muted);
-  color: var(--accent-strong);
-}
-
-.ui-status--ready::before {
-  border-radius: 1px;
-}
-
-.ui-status--archived {
-  background: var(--wash);
-  color: var(--fg-subtle);
-  text-decoration: line-through;
-  text-decoration-color: var(--line-strong);
-}
-
-/* On a note the badge is one fact about the page. Down a list it is the same
-   word on every row, and a red fill repeated that way floods the page with the
-   colour that is meant to mark one thing. A row's word is quiet text with no
-   fill or padding to hold one, and only the square keeps the accent, so the
-   state still reads at a glance without the rows shouting it. */
-.y-lesson .ui-status--ready,
-.y-homenote__meta .ui-status--ready {
+.y-lesson .ui-status,
+.y-homenote__meta .ui-status {
   background: none;
   color: var(--fg-subtle);
   padding: 0;
+  white-space: nowrap;
 }
 
-.y-lesson .ui-status--ready::before,
-.y-homenote__meta .ui-status--ready::before {
-  background: var(--accent);
+.y-lesson .ui-status::before,
+.y-homenote__meta .ui-status::before {
+  display: none;
 }
 
 /* ---- Content-type label (dot + name) ---- */
@@ -629,8 +588,8 @@ samp {
 }
 
 /* A box or a choice that is set is drawn in the ink: the seal ink is kept for
-   a note that is ready, and a control in that colour read as one more thing
-   being declared ready. */
+   the reader's own place, and a control in that colour read as one more thing
+   marking where they had stopped. */
 .y-shortcutpref__input {
   accent-color: var(--fg);
   cursor: pointer;
@@ -1241,11 +1200,6 @@ samp {
   flex: none;
   height: 6px;
   width: 6px;
-}
-
-.y-navdot--ready {
-  background: var(--accent);
-  border-radius: 1px;
 }
 
 .y-navicon {
@@ -3945,13 +3899,13 @@ a.y-facetrow:hover {
    dotted underline so the reader knows a grammar note is one click away. With
    JS off it is still the plain wikilink that navigates to the note. */
 .y-prose .concept-link {
-  border-bottom: 1px dashed var(--accent-muted);
+  border-bottom: 1px dashed var(--line-strong);
   cursor: help;
   text-underline-offset: 2px;
 }
 
 .y-prose .concept-link:hover {
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--fg);
 }
 
 /* ============================================================
@@ -4633,7 +4587,7 @@ a.y-facetrow:hover {
 /* An entry named for nothing but its own day has no words to add to the number
    above it, so it is drawn as the mark a calendar uses for one. */
 .y-month__entry--mark::before {
-  background: var(--accent);
+  background: var(--fg);
   border-radius: 50%;
   content: '';
   display: block;
@@ -4793,8 +4747,8 @@ a.y-facetrow:hover {
 }
 
 .y-recovery__state {
-  background: var(--accent-muted);
-  border-left: 3px solid var(--accent);
+  background: var(--elevated);
+  border-left: 3px solid var(--fg-subtle);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: var(--fs-14);
@@ -4803,7 +4757,6 @@ a.y-facetrow:hover {
 }
 
 .y-recovery__state[data-status-changed='false'] {
-  background: var(--elevated);
   border-left-color: var(--border-strong);
 }
 
@@ -4858,7 +4811,7 @@ a.y-facetrow:hover {
   gap: 10px;
   margin: 30px 0 0;
 }
-/* The seal ink is kept for one meaning, a note that is ready, so the way out
+/* The seal ink is kept for one meaning, the reader's own place, so the way out
    of a page a reader reached by accident is the plain outline every other
    control here wears: ink on the ground, a hairline round it, and the faint
    wash under a pointer. The first action is told from the second by its ink
@@ -5034,19 +4987,6 @@ a.y-facetrow:hover {
 
 .y-syl .y-title {
   margin-top: 12px;
-}
-
-.y-syl-metaspacer {
-  flex: 1;
-}
-
-/* The count of ready lessons is a fact like the others on its line; only its
-   square carries the seal ink, as it does wherever the state is shown. */
-.y-syl-ready {
-  align-items: center;
-  color: var(--fg-subtle);
-  display: inline-flex;
-  gap: 6px;
 }
 
 /* ============================================================
@@ -5248,17 +5188,16 @@ a.y-facetrow:hover {
 }
 
 /* The points are stops on the line and nothing more: drawn in the line's own
-   ink and all one shape, ready or not. Whether a lesson is ready is said once,
-   by the status at the row's other end, rather than twice down the same row. */
-.y-lesson .y-navdot,
-.y-lesson .y-navdot--ready {
+   ink and all one shape, whatever status the lesson is at. A status that needs
+   noticing is said once, at the row's other end, rather than twice down the
+   same row. */
+.y-lesson .y-navdot {
   background: var(--line-strong);
   border-radius: 50%;
 }
 /* Where the reader is standing is the heavier point: larger, and in the
    reading ink rather than the quiet one the other points keep. */
-.y-lesson--here .y-navdot,
-.y-lesson--here .y-navdot--ready {
+.y-lesson--here .y-navdot {
   background: var(--fg);
   height: 11px;
   width: 11px;
@@ -5280,8 +5219,13 @@ a.y-facetrow:hover {
   overflow-wrap: anywhere;
 }
 
-.y-lesson .ui-status {
-  white-space: nowrap;
+/* What closes a row: the reader's own bookmark where they left off in this
+   lesson, and the lesson's status where it needs noticing. They share the one
+   trailing track so the grid keeps its three columns. */
+.y-lesson__aside {
+  align-items: center;
+  display: inline-flex;
+  gap: 12px;
 }
 
 .y-lesson--broken {
@@ -6074,6 +6018,14 @@ samp,
   .y-brand__mark {
     display: none;
   }
+
+  /* A bookmark is a fill, and a fill is what forced colours takes away. The
+     reader's chosen highlight keeps it a shape to be seen. */
+  .y-keptmark,
+  [data-mark-kept] [data-mark-button]::before {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left {
@@ -6638,10 +6590,10 @@ samp,
 /* The weight the judging face gives a finding, in that face's own word. Error
    and warn used to share one ink and differ only by a border, which reads as
    one colour at a glance. On screen they are pulled further apart by two more
-   channels: the marker's shape — squared for error, the same value
-   ui-status--ready uses for its heavier state, round for warn — and error's
-   ink, a hue of its own rather than a darker warning, never the same colour.
-   Red stays ready's alone. The border is what a
+   channels: the marker's shape — squared for error, round for warn — and
+   error's ink, a hue of its own rather than a darker warning, never the same
+   colour. Neither borrows the vermilion, which marks the reader's own place
+   and nothing else. The border is what a
    printed page keeps no matter how a reader's printer treats background
    colour: the marker's dot is a background fill, and a printer that drops
    background graphics drops it with it. */
@@ -7492,6 +7444,34 @@ samp,
   margin: 8px 0 0;
 }
 
+/* The reader's own place, in the one accent the interface has: a bookmark. It is
+   drawn wherever the place that was kept is shown — beside the lesson that
+   holds it in a course and in the rail, on the link that returns to it, and on
+   the control that keeps it where the note already holds it — and nowhere else,
+   so the colour means one thing. A shape cut from a filled box, because paper
+   prints a fill and a border-drawn ribbon would not close. */
+.y-keptmark,
+[data-mark-kept] [data-mark-button]::before {
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+  display: inline-block;
+  flex: none;
+  height: 12px;
+  width: 8px;
+}
+
+[data-mark-kept] [data-mark-button]::before {
+  content: '';
+  margin-inline-end: 8px;
+  vertical-align: -1px;
+}
+
+.y-keptplace {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+}
+
 /* The way back to the place the reader kept, ahead of the four ways in. */
 .y-continue {
   background: var(--elevated);
@@ -7508,6 +7488,21 @@ samp,
   font-size: var(--fs-15);
   line-height: 1.5;
   margin: 8px 0 0;
+}
+
+/* The way back to the place is the reader's own, so it takes their colour. A
+   row whose note is gone is a sentence and keeps the ink. */
+.y-continue__note[href] {
+  color: var(--accent);
+}
+
+.y-continue__note[href]:hover {
+  text-decoration: underline;
+}
+
+.y-continue__note > .y-keptmark {
+  margin-inline-end: 8px;
+  vertical-align: -1px;
 }
 
 .y-continue__notice {

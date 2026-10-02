@@ -70,10 +70,13 @@ type Chrome struct {
 // posts to. The three travel together because the post needs all of them —
 // an address with no identity keeps a place in a note that may since have been
 // rewritten, and neither is worth anything without somewhere to send it.
+// Kept is whether the place already kept is in this very note, which the
+// control draws as the reader's own mark.
 type MarkOffer struct {
 	Path     string
 	Identity string
 	Endpoint string
+	Kept     bool
 }
 
 // The three answers the header's own controls need in words: the state a

@@ -62,8 +62,8 @@ templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Ch
 									<span class="y-homenote__path">{ n.RelPath }</span>
 								</span>
 								<span class="y-homenote__meta">
-									if n.Status != "" {
-										<span class={ "ui-status", "ui-status--" + n.Status }>{ n.Status }</span>
+									if n.Status != "" && !n.Settled {
+										<span class="ui-status">{ n.Status }</span>
 										if n.StatusOutsideEnum {
 											@statusOutsideEnumMark(c.Lang)
 										}

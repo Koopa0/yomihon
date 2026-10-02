@@ -37,6 +37,12 @@ var MarkNotStored = both(
 	"Your place was not written. Reading is unaffected.",
 )
 
+// MarkKeptHere is said, to a reader who cannot see the bookmark drawn beside
+// it, of the one lesson or note the place was kept in. It is a noun phrase that
+// follows the title it belongs to in a link, so it names the place and claims
+// nothing about how much of the course lies behind it.
+var MarkKeptHere = both("你留下待續位置的地方", "Where you left off")
+
 // ContinueReading titles the one row on the desk that returns a reader to
 // where they left off.
 var ContinueReading = both("繼續閱讀", "Continue reading")

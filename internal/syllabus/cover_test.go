@@ -213,3 +213,49 @@ func TestTheCourseStartsAtALessonThatCanBeOpened(t *testing.T) {
 		t.Errorf("the verb does not open the first lesson that exists: %s", action)
 	}
 }
+
+// TestTheCourseMarksTheLessonHoldingTheKeptPlace holds the reader's bookmark
+// from the request to the row: the one lesson the kept place is in carries it,
+// and a place kept in a note the course does not list, or none at all, marks
+// nothing.
+func TestTheCourseMarksTheLessonHoldingTheKeptPlace(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		kept   mark.Continuation
+		marked bool
+		want   string
+	}{
+		{name: "a place kept in a lesson this course lists", kept: mark.Continuation{RelPath: "Writing/lessons/golang/Third.md"}, marked: true, want: "Third"},
+		{name: "a place kept in a note this course does not list", kept: mark.Continuation{RelPath: "Elsewhere.md"}, marked: true},
+		{name: "no place kept", kept: mark.Continuation{}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeCourse(t, root, "\nAn opening.\n\n", "- [[First]]", "- [[Second]]", "- [[Third]]")
+			srv := newServerWithMark(t, root, &tt.kept, tt.marked)
+
+			_, body := get(t, srv.Client(), srv.URL+coursePage)
+			wantCount := 0
+			if tt.want != "" {
+				wantCount = 1
+			}
+			if got := strings.Count(body, `class="y-keptplace"`); got != wantCount {
+				t.Fatalf("%d lessons carry the bookmark, want %d", got, wantCount)
+			}
+			if tt.want == "" {
+				return
+			}
+			_, row, found := strings.Cut(body, `<a class="y-lesson" href="/notes/Writing/lessons/golang/`+tt.want+`.md"`)
+			if !found {
+				t.Fatalf("the course does not list the %s lesson", tt.want)
+			}
+			row, _, _ = strings.Cut(row, "</a>")
+			if !strings.Contains(row, `class="y-keptplace"`) {
+				t.Errorf("the bookmark is not on the %s lesson: %s", tt.want, row)
+			}
+		})
+	}
+}

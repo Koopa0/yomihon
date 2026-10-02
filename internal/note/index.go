@@ -9,7 +9,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
@@ -154,7 +153,6 @@ func (h *Handler) lifecycle(
 		items = append(items, pages.LifecycleItem{
 			Name:    s,
 			Count:   byStatus[s],
-			Sealed:  s == schema.SealStatus,
 			Unknown: !declared[s],
 		})
 	}
@@ -251,6 +249,7 @@ func recentShelfNotes(
 		// vocabulary rules on nothing rather than calling every value a fault.
 		if governed {
 			item.Status = n.Status
+			item.Settled = n.Settled
 			if rules && n.Status != "" {
 				item.StatusOutsideEnum = !authority.KnownStatus(n.Type, n.Status)
 			}

@@ -94,10 +94,10 @@ func TestProjectOpensInstanceStateOnAGovernedLifecycle(t *testing.T) {
 		t.Fatalf("LoadFile() error = %v", err)
 	}
 	counts := map[string]int{
-		"imported":        2,
-		"draft":           4,
-		schema.SealStatus: 3,
-		"beyond":          9,
+		"imported": 2,
+		"draft":    4,
+		"ready":    3,
+		"beyond":   9,
 	}
 	notes := make(map[string]string)
 	for noteStatus, n := range counts {

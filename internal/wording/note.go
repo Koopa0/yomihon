@@ -60,10 +60,12 @@ var (
 )
 
 // The status face: its label, and what it says in each state that offers no
-// control. StatusBar visibly names both the rail and article-end regions.
+// control. StatusBar visibly names both the rail and article-end regions, and
+// says whose word the status is: the author's own mark on the note, and nothing
+// the reader has done.
 var (
 	StatusLabel          = both("狀態", "Status")
-	StatusBar            = both("狀態與寫入", "Status and write")
+	StatusBar            = both("作者標記的狀態", "Status set by the author")
 	WriteFaceUnavailable = both("生命週期寫入目前無法使用。", "Lifecycle writes are unavailable.")
 	// NoFrontmatter is the sentence for a file that has no frontmatter block.
 	// A present but empty fence pair is a block with no status and uses

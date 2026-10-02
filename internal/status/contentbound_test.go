@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -68,7 +67,7 @@ func TestFlipRefusesRulingAgainstChangedContent(t *testing.T) {
 	code, location, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {renderedIdentity(rendered, "status: draft")},
 	})
 	if code != http.StatusConflict {
@@ -108,7 +107,7 @@ func TestFlipStaleStatusOutranksChangedContent(t *testing.T) {
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {renderedIdentity(rendered, "status: draft")},
 	})
 	if code != http.StatusConflict {
@@ -145,7 +144,7 @@ func TestFlipKeepsTheRenderedIdentityValidForTheNextFlip(t *testing.T) {
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {identity},
 	})
 	if code != http.StatusSeeOther {
@@ -154,7 +153,7 @@ func TestFlipKeepsTheRenderedIdentityValidForTheNextFlip(t *testing.T) {
 
 	code, _, body = postStatus(t, srv, url.Values{
 		"path":             {testRel},
-		"from":             {schema.SealStatus},
+		"from":             {"ready"},
 		"to":               {"archived"},
 		"content_identity": {identity},
 	})
@@ -183,10 +182,10 @@ func TestHandlerContentIdentityRequired(t *testing.T) {
 		name string
 		form url.Values
 	}{
-		{"absent", url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}}},
-		{"blank", url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {"  "}}},
-		{"not hex", url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {strings.Repeat("zz", 32)}}},
-		{"wrong length", url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {"abcdef"}}},
+		{"absent", url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}}},
+		{"blank", url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}, "content_identity": {"  "}}},
+		{"not hex", url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}, "content_identity": {strings.Repeat("zz", 32)}}},
+		{"wrong length", url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}, "content_identity": {"abcdef"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -222,7 +221,7 @@ func TestFlipStaleStatusKeepsItsOwnCopy(t *testing.T) {
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {renderedIdentity(rendered, "status: draft")},
 	})
 	if code != http.StatusConflict {
@@ -260,7 +259,7 @@ func TestFlipKeepsTheReasonWrittenBesideTheStatus(t *testing.T) {
 	code, location, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {renderedIdentity(rendered, "status: draft # 等原始資料")},
 	})
 	if code != http.StatusSeeOther {
@@ -269,7 +268,7 @@ func TestFlipKeepsTheReasonWrittenBesideTheStatus(t *testing.T) {
 	if location == "" {
 		t.Error("a successful flip wrote no redirect")
 	}
-	want := commentedLesson(schema.SealStatus, "等原始資料")
+	want := commentedLesson("ready", "等原始資料")
 	if got := readNote(t, root); got != want {
 		t.Errorf("note after the flip =\n%q\nwant\n%q", got, want)
 	}
@@ -299,7 +298,7 @@ func TestFlipRefusesWhenOnlyTheReasonBesideTheStatusChanged(t *testing.T) {
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {renderedIdentity(rendered, "status: draft # 等原始資料")},
 	})
 	if code != http.StatusConflict {

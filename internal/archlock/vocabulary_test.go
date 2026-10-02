@@ -4,7 +4,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,16 +26,21 @@ import (
 // vault names its own archived status under the supersession declaration, so a
 // package comparing against the word reads it from there and this check would
 // be asserting an owner that does not exist.
-var vaultVocabulary = []string{"lesson", "concept", "inbox", "draft", "ready", "published"}
+var vaultVocabulary = []string{
+	"lesson", "concept", "inbox",
+	"draft", "ready", "published",
+	"captured", "cleaned", "imported", "seedling", "growing", "evergreen",
+}
 
 // What this check does not reach, said here so nobody reads a green run as
 // more than it is. It compares whole string literals, so a word assembled from
 // pieces or carried inside a longer sentence goes by unseen; it reads the list
 // above, so a closed-set word nobody adds there is not looked for at all; and
-// it walks the .go source this repository ships, so tests, fixtures and the Go
-// inside a .templ file are outside it. Each of those could be closed and none of them is what went wrong: five
-// comparisons against a bare "lesson" is the shape that was actually written,
-// and it is the shape this catches.
+// it walks the .go source this repository ships, so tests and fixtures are
+// outside it. The Go inside a .templ file is read through the generated file
+// beside it, by the second check below. Each of those could be closed and none
+// of them is what went wrong: five comparisons against a bare "lesson" is the
+// shape that was actually written, and it is the shape this catches.
 
 // TestOnlyTheSchemaPackageSpellsTheVaultVocabulary walks the syntax rather than
 // the text, because the same characters are two different things: a comparison
@@ -51,36 +58,97 @@ func TestOnlyTheSchemaPackageSpellsTheVaultVocabulary(t *testing.T) {
 		if strings.HasPrefix(path, "internal/schema/") {
 			continue
 		}
-		file, err := parser.ParseFile(fset, filepath.Join(repoRoot, path), nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
 		checked++
-		// A struct tag is a string literal too, and it is left alone by the
-		// comparison rather than by a special case: a tag's literal is the
-		// whole tag text — `yaml:"lesson"` — which is never equal to the bare
-		// word. internal/lesson/slot.go carries exactly that tag, so this file
-		// staying green is the demonstration.
-		ast.Inspect(file, func(n ast.Node) bool {
-			lit, isLit := n.(*ast.BasicLit)
-			if !isLit || lit.Kind != token.STRING {
-				return true
-			}
-			value, err := strconv.Unquote(lit.Value)
-			if err != nil {
-				return true
-			}
-			for _, word := range vaultVocabulary {
-				if value == word {
-					pos := fset.Position(lit.Pos())
-					found = append(found, site{path: path, line: pos.Line, text: lit.Value})
-				}
-			}
-			return true
-		})
+		found = append(found, vocabularySites(t, fset, path)...)
 	}
 	if checked == 0 {
 		t.Fatal("no file outside internal/schema was parsed, so this check proved nothing")
 	}
 	report(t, "spells a word internal/schema owns; ask the contract for it instead", found)
+}
+
+// TestNoTemplateSpellsTheVaultVocabulary holds the pages to the same rule as the
+// packages behind them. A page decides which statuses to print by asking the
+// contract whether the status is settled, never by naming one, and the Go inside
+// a template is the place a status word is easiest to write without noticing:
+// `if status == "ready"` there compiles, renders and passes every test of a vault
+// that uses that word. The generated file is the Go compiler's own reading of the
+// template, so a literal written in a template shows up here as an ordinary one.
+func TestNoTemplateSpellsTheVaultVocabulary(t *testing.T) {
+	t.Parallel()
+
+	var found []site
+	fset := token.NewFileSet()
+	checked := 0
+	for _, path := range generatedTemplateFiles(t) {
+		checked++
+		found = append(found, vocabularySites(t, fset, path)...)
+	}
+	if checked < 10 {
+		t.Fatalf("only %d generated template files were parsed, so this check read almost no page", checked)
+	}
+	report(t, "spells a word internal/schema owns inside a template; ask the contract for it instead", found)
+}
+
+// vocabularySites returns every string literal in one file that is exactly one
+// of the words in vaultVocabulary. A struct tag is a string literal too, and it
+// is left alone by the comparison rather than by a special case: a tag's literal
+// is the whole tag text — `yaml:"lesson"` — which is never equal to the bare
+// word. internal/lesson/slot.go carries exactly that tag, so this file staying
+// green is the demonstration.
+func vocabularySites(t *testing.T, fset *token.FileSet, path string) []site {
+	t.Helper()
+
+	file, err := parser.ParseFile(fset, filepath.Join(repoRoot, path), nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	var found []site
+	ast.Inspect(file, func(n ast.Node) bool {
+		lit, isLit := n.(*ast.BasicLit)
+		if !isLit || lit.Kind != token.STRING {
+			return true
+		}
+		value, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		for _, word := range vaultVocabulary {
+			if value == word {
+				pos := fset.Position(lit.Pos())
+				found = append(found, site{path: path, line: pos.Line, text: lit.Value})
+			}
+		}
+		return true
+	})
+	return found
+}
+
+// generatedTemplateFiles lists the checked-in Go that templ generates from this
+// repository's templates. They are generated code and so outside productionFiles
+// and every lint, which is exactly why a literal inside one needs its own look.
+func generatedTemplateFiles(t *testing.T) []string {
+	t.Helper()
+
+	var paths []string
+	root := filepath.Join(repoRoot, "internal", "ui")
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), "_templ.go") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(repoRoot, p)
+		if relErr != nil {
+			return relErr
+		}
+		paths = append(paths, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk the templates: %v", err)
+	}
+	slices.Sort(paths)
+	return paths
 }

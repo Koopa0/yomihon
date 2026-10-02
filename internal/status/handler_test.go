@@ -80,7 +80,7 @@ func TestHandlerSuccess(t *testing.T) {
 	writeNote(t, root, lessonContent("draft"))
 	srv := newHandlerServer(t, writer)
 
-	code, location, _ := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("draft"))}})
+	code, location, _ := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}, "content_identity": {formIdentity(lessonContent("draft"))}})
 	if code != http.StatusSeeOther {
 		t.Errorf("status = %d, want %d", code, http.StatusSeeOther)
 	}
@@ -120,7 +120,7 @@ func TestHandlerRedirectsToTheNFCPath(t *testing.T) {
 		code, location, _ := postStatus(t, srv, url.Values{
 			"path":             {nfdRel},
 			"from":             {"draft"},
-			"to":               {schema.SealStatus},
+			"to":               {"ready"},
 			"content_identity": {formIdentity(body)},
 		})
 		if code != http.StatusSeeOther {
@@ -144,7 +144,7 @@ func TestHandlerRedirectsToTheNFCPath(t *testing.T) {
 		code, location, _ := postStatus(t, srv, url.Values{
 			"path":             {nfcRel},
 			"from":             {"draft"},
-			"to":               {schema.SealStatus},
+			"to":               {"ready"},
 			"content_identity": {formIdentity(body)},
 		})
 		if code != http.StatusSeeOther {
@@ -169,8 +169,8 @@ func TestHandlerMissingFields(t *testing.T) {
 		name string
 		form url.Values
 	}{
-		{"missing path", url.Values{"from": {"draft"}, "to": {schema.SealStatus}}},
-		{"missing from", url.Values{"path": {"a.md"}, "to": {schema.SealStatus}}},
+		{"missing path", url.Values{"from": {"draft"}, "to": {"ready"}}},
+		{"missing from", url.Values{"path": {"a.md"}, "to": {"ready"}}},
 		{"missing to", url.Values{"path": {"a.md"}, "from": {"draft"}}},
 	}
 	for _, tt := range tests {
@@ -193,7 +193,7 @@ func TestHandlerRejectsOversizedFormWithRecoveryPage(t *testing.T) {
 	form := url.Values{
 		"path": {strings.Repeat("x", 4097)},
 		"from": {"draft"},
-		"to":   {schema.SealStatus},
+		"to":   {"ready"},
 	}
 	code, _, body := postStatus(t, srv, form)
 	if code != http.StatusBadRequest {
@@ -213,7 +213,7 @@ func TestHandlerClosed(t *testing.T) {
 	writer := newWriter(t, root, nil) // no contract: fail-closed
 	srv := newHandlerServer(t, writer)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {"a.md"}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {wellFormedIdentity}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {"a.md"}, "from": {"draft"}, "to": {"ready"}, "content_identity": {wellFormedIdentity}})
 	if code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
 	}
@@ -228,7 +228,7 @@ func TestHandlerPathValidationPrecedesClosure(t *testing.T) {
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {"../outside.md"},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {wellFormedIdentity},
 	})
 	if code != http.StatusUnprocessableEntity {
@@ -250,7 +250,7 @@ func TestHandlerNonInstance(t *testing.T) {
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {"System/templates/Missing.md"},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {wellFormedIdentity},
 	})
 	if code != http.StatusUnprocessableEntity {
@@ -278,7 +278,7 @@ func TestHandlerRefusesANoteOutsideTheKnowledgeLayer(t *testing.T) {
 	code, _, page := postStatus(t, srv, url.Values{
 		"path":             {outside},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {formIdentity(body)},
 	})
 	if code != http.StatusUnprocessableEntity {
@@ -312,7 +312,7 @@ func TestHandlerArtifactPolicyUnavailable(t *testing.T) {
 			code, _, body := postStatus(t, srv, url.Values{
 				"path":             {testRel},
 				"from":             {"draft"},
-				"to":               {schema.SealStatus},
+				"to":               {"ready"},
 				"content_identity": {wellFormedIdentity},
 			})
 			if code != http.StatusServiceUnavailable {
@@ -358,7 +358,7 @@ func TestHandlerRejectsChangedContractSource(t *testing.T) {
 	code, _, body := postStatus(t, srv, url.Values{
 		"path":             {testRel},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {wellFormedIdentity},
 	})
 	if code != http.StatusServiceUnavailable {
@@ -379,7 +379,7 @@ func TestHandlerStale(t *testing.T) {
 	srv := newHandlerServer(t, writer)
 
 	// The page claims "imported"; the file actually says "draft".
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("draft"))}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {"ready"}, "content_identity": {formIdentity(lessonContent("draft"))}})
 	if code != http.StatusConflict {
 		t.Errorf("status = %d, want %d", code, http.StatusConflict)
 	}
@@ -407,7 +407,7 @@ func TestHandlerTargetRemovedAfterPageLoad(t *testing.T) {
 	}
 	srv := newHandlerServer(t, writer)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {wellFormedIdentity}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}, "content_identity": {wellFormedIdentity}})
 	if code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", code, http.StatusNotFound)
 	}
@@ -442,7 +442,7 @@ func TestHandlerUnsupportedStatusSyntax(t *testing.T) {
 	writeNote(t, root, content)
 	srv := newHandlerServer(t, writer)
 
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(content)}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"draft"}, "to": {"ready"}, "content_identity": {formIdentity(content)}})
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
 	}
@@ -527,7 +527,7 @@ func TestHandlerSymlinkTargetIsRefusedAsUnprocessable(t *testing.T) {
 			code, _, body := postStatus(t, srv, url.Values{
 				"path":             {testRel},
 				"from":             {"draft"},
-				"to":               {schema.SealStatus},
+				"to":               {"ready"},
 				"content_identity": {formIdentity(original)},
 			})
 			if code != http.StatusUnprocessableEntity {
@@ -567,7 +567,7 @@ func TestHandlerIllegalTransition(t *testing.T) {
 	srv := newHandlerServer(t, writer)
 
 	// imported -> ready skips the required "draft" stage.
-	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {schema.SealStatus}, "content_identity": {formIdentity(lessonContent("imported"))}})
+	code, _, body := postStatus(t, srv, url.Values{"path": {testRel}, "from": {"imported"}, "to": {"ready"}, "content_identity": {formIdentity(lessonContent("imported"))}})
 	if code != http.StatusUnprocessableEntity {
 		t.Errorf("status = %d, want %d", code, http.StatusUnprocessableEntity)
 	}
@@ -577,7 +577,7 @@ func TestHandlerIllegalTransition(t *testing.T) {
 	// \"lesson\"") must survive to the response, not just a fixed string
 	// that would be identical for every 422 regardless of cause.
 	decoded := html.UnescapeString(body)
-	for _, want := range []string{"transition not allowed by lifecycle", "imported", schema.SealStatus, "lesson"} {
+	for _, want := range []string{"transition not allowed by lifecycle", "imported", "ready", "lesson"} {
 		if !strings.Contains(decoded, want) {
 			t.Errorf("body = %q, want it to contain the schema's own rejection reason (missing %q)", body, want)
 		}
@@ -613,7 +613,7 @@ func TestAFlipNobodyIsWaitingForIsNotReportedAsAFailedWrite(t *testing.T) {
 	form := url.Values{
 		"path":             {"Writing/lessons/japanese/L05.md"},
 		"from":             {"draft"},
-		"to":               {schema.SealStatus},
+		"to":               {"ready"},
 		"content_identity": {formIdentity(lessonContent("draft"))},
 	}
 	gone, cancel := context.WithCancel(t.Context())

@@ -103,7 +103,11 @@ type NoteView struct {
 	// MarkAddress is where the control for keeping a reading place posts to.
 	// Empty where this process keeps no marks, and the control is then absent
 	// rather than offering a reader something with nowhere to go.
-	MarkAddress        string
+	MarkAddress string
+	// PlaceKept is whether the place the reader left off at is in this note.
+	// The control for keeping one then says so, so a reader who comes back to
+	// the note is told it already holds their place and not asked to guess.
+	PlaceKept          bool
 	UncertaintyAddress string
 	ThoughtDoor        bool
 	// TranscludedIdentity is the render's digest over what every embed here came
@@ -679,7 +683,7 @@ templ statusPanel(v NoteView, lang wording.Lang) {
 					<span class="ui-side__label" id={ v.IDPrefix + "status-panel-label" }>{ wording.StatusBar.In(lang) }</span>
 				</div>
 				if face != faceNonInstance && v.Status != "" {
-					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					<span class="ui-status">{ v.Status }</span>
 				}
 			</div>
 			if face == faceNonInstance {
@@ -895,7 +899,7 @@ templ statusBar(v NoteView, lang wording.Lang) {
 				case faceNoFrontmatter:
 					<p class="y-sealbar__notice">{ noFrontmatterLine(&v, lang) }</p>
 				case faceStatusUnknown:
-					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					<span class="ui-status">{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
 					@statusUnknownFlag(v, "y-sealbar__notice", lang)
 				case faceStatusNotText:
@@ -903,16 +907,16 @@ templ statusBar(v NoteView, lang wording.Lang) {
 				case faceStatusUnreadable:
 					@statusUnreadableFlag(v, "y-sealbar__notice", lang)
 				case faceOutsideScope:
-					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					<span class="ui-status">{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
 					<p class="y-sealbar__notice">{ wording.OutsideKnowledgeScope.In(lang) }</p>
 				case faceNoTransitions:
-					<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+					<span class="ui-status">{ v.Status }</span>
 					<span class="y-sealbar__spacer"></span>
 					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
 				default:
 					if v.Status != "" {
-						<span class={ "ui-status", "ui-status--" + v.Status }>{ v.Status }</span>
+						<span class="ui-status">{ v.Status }</span>
 					}
 					<span class="y-sealbar__spacer"></span>
 					@legalTransitionForms(v, lang)

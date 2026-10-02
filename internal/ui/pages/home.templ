@@ -58,10 +58,13 @@ type HomeView struct {
 // HomeNote is one item in the recently-changed block. Modified is the compact
 // display date; ModifiedAt is its machine-readable RFC 3339 value.
 type HomeNote struct {
-	Title      string
-	RelPath    string
-	Type       string
-	Status     string
+	Title   string
+	RelPath string
+	Type    string
+	Status  string
+	// Settled is whether the contract declares Status settled, the resting
+	// state of a finished note, so the row prints no status for it.
+	Settled    bool
 	Modified   string
 	ModifiedAt string
 
@@ -188,7 +191,7 @@ templ homeBlockHead(id, title, note string) {
 // lifecycleChipBody is what every chip shows, link or not, so a chip that is
 // not a link cannot drift into looking different from one that is.
 templ lifecycleChipBody(it LifecycleItem, lang wording.Lang) {
-	<span class={ "y-navdot", templ.KV("y-navdot--ready", it.Sealed) } aria-hidden="true"></span>
+	<span class="y-navdot" aria-hidden="true"></span>
 	<span>{ statusChipLabel(it.Name, lang) }</span>
 	if it.Unknown {
 		@statusOutsideEnumMark(lang)

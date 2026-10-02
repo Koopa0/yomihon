@@ -118,9 +118,9 @@ func TestBothStatusFacesDrawEveryWriteFaceState(t *testing.T) {
 				if lang == wording.ZhHant && !strings.Contains(html, tt.mark) {
 					t.Errorf("%s does not draw state %d: %q is missing", faceName, state, tt.mark)
 				}
-				label := "Status and write"
+				label := "Status set by the author"
 				if lang == wording.ZhHant {
-					label = "狀態與寫入"
+					label = "作者標記的狀態"
 				}
 				for _, want := range []string{
 					`aria-labelledby="` + faceName + `"`,

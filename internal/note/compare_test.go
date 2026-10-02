@@ -160,7 +160,7 @@ func TestACompareColumnLinksBackAndShowsItsStatus(t *testing.T) {
 			t.Errorf("no column links back to its own page: %s missing", back)
 		}
 	}
-	if got := strings.Count(body, `ui-status ui-status--draft`); got != 2 {
+	if got := strings.Count(body, `<span class="ui-status">draft</span>`); got != 2 {
 		t.Errorf("the page shows %d status words, want one per column", got)
 	}
 	if strings.Contains(body, `action="/status"`) {

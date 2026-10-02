@@ -111,7 +111,7 @@ func TestShowNoReturnTargetNeedsASecondInteraction(t *testing.T) {
 	t.Parallel()
 	body := lessonPage(t, "draft", loadContract(t))
 
-	for _, target := range []string{schema.SealStatus, "archived"} {
+	for _, target := range []string{"ready", "archived"} {
 		form := transitionFormMarkup(t, body, target)
 		if !strings.Contains(form, "<details") {
 			t.Fatalf("no-return target %q renders without a disclosure; one press submits it:\n%s", target, form)
@@ -142,7 +142,7 @@ func TestShowReturnableTargetKeepsTheQuietPress(t *testing.T) {
 	t.Parallel()
 	body := lessonPage(t, "draft", loadContractWithReturnPath(t))
 
-	for _, target := range []string{schema.SealStatus, "archived"} {
+	for _, target := range []string{"ready", "archived"} {
 		form := transitionFormMarkup(t, body, target)
 		if strings.Contains(form, "<details") {
 			t.Errorf("returnable target %q grew a confirm step:\n%s", target, form)
@@ -193,7 +193,7 @@ func TestFlipReceiptNamesTheRecoveryForAOneWayDoor(t *testing.T) {
 		srv := newServerWithContract(t, root, loadContract(t))
 
 		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
-		location := flipViaPage(t, srv, page, schema.SealStatus)
+		location := flipViaPage(t, srv, page, "ready")
 		_, landing := get(t, srv.Client(), srv.URL+location)
 		receipt := receiptParagraph(t, landing)
 		if !strings.Contains(receipt, recoveryDoor) {
@@ -211,7 +211,7 @@ func TestFlipReceiptNamesTheRecoveryForAOneWayDoor(t *testing.T) {
 		srv := newServerWithContract(t, root, loadContractWithReturnPath(t))
 
 		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
-		location := flipViaPage(t, srv, page, schema.SealStatus)
+		location := flipViaPage(t, srv, page, "ready")
 		_, landing := get(t, srv.Client(), srv.URL+location)
 		receipt := receiptParagraph(t, landing)
 		if strings.Contains(receipt, recoveryDoor) {

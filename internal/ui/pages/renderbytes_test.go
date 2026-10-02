@@ -674,7 +674,7 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 	return NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), recent, NewStatusDistribution(
 		[]LifecycleItem{
 			{Name: "draft", Count: 2, Href: statusHref("draft")},
-			{Name: "ready", Count: 1, Sealed: true, Href: statusHref("ready")},
+			{Name: "ready", Count: 1, Href: statusHref("ready")},
 		},
 		[]LifecycleItem{{Count: 1, Unknown: true, Label: "沒有寫狀態"}},
 		model.KnowledgeScoped(), recordedChrome().Lang,

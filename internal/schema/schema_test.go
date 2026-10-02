@@ -1834,14 +1834,6 @@ func TestCapabilitiesExposeNoMutableBackingCollections(t *testing.T) {
 	}
 }
 
-func TestSealStatusPinned(t *testing.T) {
-	t.Parallel()
-
-	if got := schema.SealStatus; got != "ready" {
-		t.Errorf("SealStatus = %q, want %q", got, "ready")
-	}
-}
-
 func TestSystemDocumentGroupPinned(t *testing.T) {
 	t.Parallel()
 

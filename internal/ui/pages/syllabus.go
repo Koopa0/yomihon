@@ -7,7 +7,6 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -22,17 +21,19 @@ type PathView struct {
 	GuideHref string
 	// ListenHref is the same course as something to be listened to.
 	ListenHref string
-	SealTarget string
 	Paths      []PathLink
 	Branches   []PathBranchView
 
 	// Entries is the course's planned lesson total, the main line only and a
-	// planned-but-unwritten lesson included; Ready is the subset at the
-	// reviewed status, which is not progress — a published lesson leaves it.
-	Parts   int
-	Modules int
-	Entries int
-	Ready   int
+	// planned-but-unwritten lesson included. Unsettled is how many of them
+	// carry a status the contract does not settle: what is still to be
+	// finished, which says nothing about how far the reader has come. It is
+	// zero when every lesson is settled, and for a contract that settles no
+	// status, where it would say nothing.
+	Parts     int
+	Modules   int
+	Entries   int
+	Unsettled int
 
 	// Vault is the folder this course sits in, which the rail's foot states.
 	// The reading rail builds one of these views for its own book and states
@@ -77,7 +78,7 @@ type CourseCover struct {
 	// KeptNote is the vault-relative note the reader kept a place in, empty
 	// where they kept none. It is matched against the course's own rows the way
 	// Here is, so a place kept in a note this course does not teach leaves the
-	// verb where it was.
+	// verb where it was and marks no row.
 	KeptNote string
 	// KeptHref is where that place is, already built. The course decides
 	// whether to offer it, never where it leads.
@@ -153,7 +154,7 @@ type PathItemView struct {
 }
 
 // PathEntryView is one linked or warning row. Only resolved rows have an href, a
-// status, a ready accent, or a language. Number is copied from navigation's
+// status, a marker for the reader's own place, or a language. Number is copied from navigation's
 // walk, the one owner of sequence position, and zero means the walk never
 // reaches the row.
 type PathEntryView struct {
@@ -165,12 +166,19 @@ type PathEntryView struct {
 	RelPath string
 	Href    string
 	Status  string
-	Sealed  bool
+	// Settled is whether the contract declares Status settled, the resting
+	// state of a finished lesson. The row prints its status only when it is
+	// not, so what a reader sees on a row is the exception.
+	Settled bool
 	// Here marks the lesson the reader is at. It says where they are standing,
 	// never how far they have come: the words beside the row stay the
 	// contract's, and a course carries no reading of its own about which
 	// lessons are behind the reader.
-	Here   bool
+	Here bool
+	// Kept marks the lesson holding the place the reader deliberately left off
+	// at. Like Here it says where they are, and never how much of the course is
+	// behind them.
+	Kept   bool
 	Kind   nav.EntryKind
 	Number int
 	// Language is the tag the note this row reached declared, carried so a
@@ -178,6 +186,12 @@ type PathEntryView struct {
 	// the page. It is that note's own answer or empty, never a guess: a row
 	// that reached no note has nothing to have read a declaration from.
 	Language string
+}
+
+// labelled reports whether the row prints its status: only an exception does,
+// a lesson at a status the contract settles being the ordinary state.
+func (e *PathEntryView) labelled() bool {
+	return e.Status != "" && !e.Settled
 }
 
 // PathRunView is one uninterrupted stretch of what a branch lists: a run of
@@ -277,10 +291,9 @@ func BuildPathView(current *nav.Path, all []nav.Path, cover *CourseCover) PathVi
 		RelPath:         current.RelPath,
 		GuideHref:       notesHref(current.RelPath),
 		ListenHref:      VaultHref("/listen/", current.RelPath),
-		SealTarget:      schema.SealStatus,
 		Paths:           buildPaths(current.RelPath, all),
 		Entries:         current.Planned,
-		Ready:           current.Ready,
+		Unsettled:       current.Unsettled,
 		OpeningHTML:     cover.OpeningHTML,
 		OpeningLanguage: cover.OpeningLanguage,
 	}
@@ -302,7 +315,7 @@ func BuildPathView(current *nav.Path, all []nav.Path, cover *CourseCover) PathVi
 		}
 	}
 	for _, g := range current.Groups {
-		sv, ok := buildPathBranch(g, 0, v.Parts+1, cover.Here)
+		sv, ok := buildPathBranch(g, 0, v.Parts+1, cover)
 		if !ok {
 			continue
 		}
@@ -382,7 +395,7 @@ func firstLessonIn(branch *PathBranchView, local bool, want func(entry *PathEntr
 // a view. ok is false for a branch the course excludes that carries no declared
 // branch beneath it; a structural heading still draws, since dropping it would
 // orphan its parts. Sequence position is copied from navigation's walk.
-func buildPathBranch(g *nav.PathGroup, depth, num int, here string) (PathBranchView, bool) {
+func buildPathBranch(g *nav.PathGroup, depth, num int, cover *CourseCover) (PathBranchView, bool) {
 	if !g.Drawn() {
 		return PathBranchView{}, false
 	}
@@ -404,11 +417,11 @@ func buildPathBranch(g *nav.PathGroup, depth, num int, here string) (PathBranchV
 			if !g.Teaches(item.Entry) {
 				continue
 			}
-			entry := buildPathEntry(item.Entry, here)
+			entry := buildPathEntry(item.Entry, cover)
 			sv.Items = append(sv.Items, PathItemView{Entry: &entry})
 		case item.Group != nil:
 			children++
-			child, ok := buildPathBranch(item.Group, depth+1, children, here)
+			child, ok := buildPathBranch(item.Group, depth+1, children, cover)
 			if !ok {
 				children--
 				continue
@@ -436,9 +449,10 @@ func countModules(sv *PathBranchView) int {
 // language travels with the rest of what a resolved target answered, because a
 // row that resolved to nothing read no note and so carries no declaration.
 //
-// Only a resolved row can be the one the reader is at: a row that reached no
-// note is not a note anyone can have been reading.
-func buildPathEntry(entry *nav.PathEntry, here string) PathEntryView {
+// Only a resolved row can be the one the reader is at or the one holding their
+// kept place: a row that reached no note is not a note anyone can have been
+// reading or left off in.
+func buildPathEntry(entry *nav.PathEntry, cover *CourseCover) PathEntryView {
 	v := PathEntryView{Name: entry.Name, Kind: entry.Kind, Number: entry.Number, Language: entry.Language}
 	if entry.Kind != nav.EntryResolved {
 		return v
@@ -446,8 +460,9 @@ func buildPathEntry(entry *nav.PathEntry, here string) PathEntryView {
 	v.RelPath = entry.RelPath
 	v.Href = notesHref(entry.RelPath)
 	v.Status = entry.Status
-	v.Sealed = entry.Status == schema.SealStatus
-	v.Here = here != "" && entry.RelPath == here
+	v.Settled = entry.Settled
+	v.Here = cover.Here != "" && entry.RelPath == cover.Here
+	v.Kept = cover.KeptNote != "" && entry.RelPath == cover.KeptNote
 	return v
 }
 

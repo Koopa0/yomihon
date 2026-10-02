@@ -135,6 +135,21 @@ func newServerWithMark(
 	kept func() (mark.Continuation, bool),
 ) *httptest.Server {
 	t.Helper()
+	return newServerKeepingPlaces(t, root, contract, governance, kept, "")
+}
+
+// newServerKeepingPlaces is newServerWithMark for a process that also keeps
+// places: markAddress is where the control for keeping one posts, and the
+// control is drawn only where that is not empty.
+func newServerKeepingPlaces(
+	t *testing.T,
+	root string,
+	contract *schema.Contract,
+	governance schema.Governance,
+	kept func() (mark.Continuation, bool),
+	markAddress string,
+) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, governance)
@@ -148,6 +163,7 @@ func newServerWithMark(
 		ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation:   kept,
+		MarkAddress:    markAddress,
 		Log:            log,
 	})
 	h.Register(mux)
@@ -1776,7 +1792,7 @@ func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
 		t.Fatalf("mkdir lessons: %v", err)
 	}
-	for name, statusName := range map[string]string{"Open": "draft", "Sealed": schema.SealStatus} {
+	for name, statusName := range map[string]string{"Open": "draft", "Sealed": "ready"} {
 		content := fmt.Sprintf("---\ntitle: %s\ntype: lesson\nstatus: %s\n---\n\nbody\n", name, statusName)
 		full := filepath.Join(lessonDir, name+".md")
 		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
@@ -2858,8 +2874,8 @@ func TestShowTransitions(t *testing.T) {
 	if len(transitions) != 2 {
 		t.Fatalf("Transitions() = %v, want two targets", transitions)
 	}
-	if !slices.Contains(transitions, schema.SealStatus) {
-		t.Fatalf("Transitions() = %v; fixture must keep a draft edge to %q for this test", transitions, schema.SealStatus)
+	if !slices.Contains(transitions, "ready") {
+		t.Fatalf("Transitions() = %v; fixture must keep a draft edge to %q for this test", transitions, "ready")
 	}
 	for _, target := range transitions {
 		want := `value="` + target + `"`
@@ -2870,13 +2886,13 @@ func TestShowTransitions(t *testing.T) {
 	// Drive the page's own ready-target form: the transition POSTed below
 	// carries exactly the hidden fields the page rendered, so a drift between
 	// the two would fail here rather than on a hand-built request.
-	beforeTarget, _, found := strings.Cut(body, `name="to" value="`+schema.SealStatus+`"`)
+	beforeTarget, _, found := strings.Cut(body, `name="to" value="ready"`)
 	if !found {
-		t.Fatalf("page missing a transition form for contract target %q", schema.SealStatus)
+		t.Fatalf("page missing a transition form for contract target %q", "ready")
 	}
 	start := strings.LastIndex(beforeTarget, "<form")
 	if start < 0 {
-		t.Fatalf("transition target %q is not inside a form; body = %q", schema.SealStatus, body)
+		t.Fatalf("transition target %q is not inside a form; body = %q", "ready", body)
 	}
 	end := strings.Index(body[start:], "</form>")
 	if end < 0 {
@@ -2924,7 +2940,7 @@ func TestShowTransitions(t *testing.T) {
 	if landingCode != http.StatusOK {
 		t.Fatalf("GET the redirect target = %d, want 200", landingCode)
 	}
-	for _, want := range []string{`role="status"`, "狀態已從", ">draft<", ">" + schema.SealStatus + "<"} {
+	for _, want := range []string{`role="status"`, "狀態已從", ">draft<", ">ready<"} {
 		if !strings.Contains(landing, want) {
 			t.Errorf("the page a successful flip lands on does not state the change (%q missing)", want)
 		}
@@ -2953,7 +2969,7 @@ func TestShowTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read flipped lesson: %v", err)
 	}
-	want := strings.Replace(lessonMD, "status: draft", "status: "+schema.SealStatus, 1)
+	want := strings.Replace(lessonMD, "status: draft", "status: ready", 1)
 	if string(got) != want {
 		t.Errorf("lesson after POST differs outside the one status line:\ngot:  %q\nwant: %q", got, want)
 	}
@@ -3034,7 +3050,7 @@ func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
 	t.Run("a hand typed origin on a note never flipped prints nothing", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
-		writeLesson(t, root, lessonWithStatus(schema.SealStatus))
+		writeLesson(t, root, lessonWithStatus("ready"))
 		srv := newServerWithContract(t, root, loadContract(t))
 
 		// draft -> ready is a move the contract admits, which used to be the
@@ -3052,7 +3068,7 @@ func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
 		srv := newServerWithContract(t, root, loadContract(t))
 
 		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
-		location := flipViaPage(t, srv, page, schema.SealStatus)
+		location := flipViaPage(t, srv, page, "ready")
 		landingCode, landing := get(t, srv.Client(), srv.URL+location)
 		if landingCode != http.StatusOK {
 			t.Fatalf("GET the redirect target = %d, want 200", landingCode)
@@ -3073,7 +3089,7 @@ func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
 		srv := newServerWithContract(t, root, loadContract(t))
 
 		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
-		firstLocation := flipViaPage(t, srv, page, schema.SealStatus)
+		firstLocation := flipViaPage(t, srv, page, "ready")
 		_, firstLanding := get(t, srv.Client(), srv.URL+firstLocation)
 		if !strings.Contains(firstLanding, receiptMarker) {
 			t.Fatalf("the first flip's landing does not state the change")
@@ -3751,7 +3767,7 @@ func TestFolderWithoutARepositoryStillOffersTransitions(t *testing.T) {
 	if n := strings.Count(page, `action="/status"`); n == 0 {
 		t.Errorf("page offers no transition control in a plain folder; a flip needs no repository")
 	}
-	if !strings.Contains(page, `name="to" value="`+schema.SealStatus+`"`) {
+	if !strings.Contains(page, `name="to" value="ready"`) {
 		t.Errorf("page is missing the draft note's onward transition; body = %q", page)
 	}
 }
@@ -3772,16 +3788,16 @@ func TestTransitionsArePlainControls(t *testing.T) {
 			name:   "draft note offers one-click forms",
 			status: "draft",
 			want: []string{
-				`name="to" value="` + schema.SealStatus + `"`,
+				`name="to" value="ready"`,
 				`name="to" value="archived"`,
-				"ui-status--draft",
+				`<span class="ui-status">draft</span>`,
 			},
 		},
 		{
 			name:   "ready note keeps the plain chip and its onward form",
-			status: schema.SealStatus,
+			status: "ready",
 			want: []string{
-				"ui-status--" + schema.SealStatus,
+				`<span class="ui-status">ready</span>`,
 				`name="to" value="archived"`,
 			},
 		},
@@ -3850,7 +3866,7 @@ func TestShowFlagsAStatusOutsideTheSchema(t *testing.T) {
 	}
 	for _, want := range []string{
 		wording.StatusValuePrefix.In(wording.ZhHant) + "<code>這是草稿</code> " + wording.StatusOutsideList.In(wording.ZhHant),
-		"ui-status--這是草稿",
+		`<span class="ui-status">這是草稿</span>`,
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page is missing %q", want)
