@@ -454,7 +454,10 @@ try {
       const left = document.querySelector('.y-rail-left');
       const right = document.querySelector('.y-rail-right');
       if (!left || !right || getComputedStyle(right).display === 'none') return null;
-      const viewport = document.documentElement.clientWidth;
+      // The header spans the page's own scroll box, so its right end is the
+      // window's right side as the reader sees it, with a classic scrollbar
+      // (drawn on Linux, overlaid on macOS) already taken out of the width.
+      const viewport = document.querySelector('.y-header').getBoundingClientRect().right;
       const controls = [...document.querySelectorAll('.y-header a, .y-header button')]
         .filter((element) => element.getClientRects().length > 0)
         .map((element) => element.getBoundingClientRect());

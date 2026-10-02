@@ -388,6 +388,7 @@ func (h *Handler) reading(
 	// Last, so what a lesson's own controls were spliced in carrying is renamed
 	// with everything the render itself wrote.
 	render.Qualify(idPrefix, &result)
+	result.HTML = annotateMarkAnchors(result.HTML)
 
 	// The status face and the status shown beside the title are the same
 	// claim, so they come from the same read.
