@@ -1,9 +1,13 @@
 package layouts
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/asset"
 )
 
 // TestTheHoverCardNeverWaitsForADiagramItWillNotGet holds the one state a card
@@ -50,20 +54,14 @@ func TestTheHoverCardNeverWaitsForADiagramItWillNotGet(t *testing.T) {
 		t.Error("the release is written before the wait it answers, so the cascade keeps the wait")
 	}
 
-	// And it has to survive the build, which is not the same question. Written
-	// with the declarations the rule below it already had, this rule was folded
-	// into that one and lost the two guards that give it its weight — leaving
-	// the authored stylesheet correct, this check green, and every card in the
-	// browser still waiting. What the reader receives is the built file, so the
-	// built file is asked too.
-	const built = "../../../assets/css/output.css"
-	stylesheet, err := os.ReadFile(built)
-	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", built, err)
-	}
+	// And it has to reach the browser, which is not the same question as being
+	// in the authored file. What the reader receives is the served stylesheet,
+	// the authored parts joined by the asset package, so that is asked too: a
+	// part left out of the join would leave the file correct, this check green
+	// and every card in the browser still waiting.
 	guarded := strings.TrimSuffix(released, " {")
-	if !strings.Contains(string(stylesheet), guarded) {
-		t.Errorf("the built stylesheet carries no rule reading %s, so whatever the authored one says the browser keeps the waiting state", guarded)
+	if !strings.Contains(servedStylesheet(t), guarded) {
+		t.Errorf("the served stylesheet carries no rule reading %s, so whatever the authored one says the browser keeps the waiting state", guarded)
 	}
 }
 
@@ -111,9 +109,25 @@ func TestTheLinkAnOpenCardBelongsToIsStillMarked(t *testing.T) {
 	}
 }
 
+// servedStylesheet is the stylesheet a browser is sent, with its comments
+// removed: what /static/app.css answers, asked through the route itself so that
+// a part missing from the join fails here even when its own file is right.
+func servedStylesheet(t *testing.T) string {
+	t.Helper()
+	mux := http.NewServeMux()
+	asset.Register(mux)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/app.css", http.NoBody))
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET /static/app.css status = %d, want %d", response.Code, http.StatusOK)
+	}
+	return cssComments.ReplaceAllString(response.Body.String(), "")
+}
+
 // previewStylesheet reads the authored stylesheet with its comments removed.
-// The authored file rather than the built one: what is under review is what a
-// person wrote, and that the build still agrees is the gate's own question.
+// The authored file rather than the served one: what is under review is what a
+// person wrote, and that the served sheet still carries it is asked separately
+// by servedStylesheet.
 func previewStylesheet(t *testing.T) string {
 	t.Helper()
 	const path = "../../../assets/css/components.css"

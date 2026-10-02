@@ -132,14 +132,14 @@ func Thought(v ThoughtView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</label><div class=\"mt-2\"><textarea id=\"thought-markdown\" readonly rows=\"8\" class=\"block w-full rounded-md border px-3 py-1.5 font-mono text-base\" data-thought-markdown>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</label><div class=\"y-thought__field\"><textarea id=\"thought-markdown\" readonly rows=\"8\" class=\"y-thought__markdown\" data-thought-markdown>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(v.Markdown)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/thought.templ`, Line: 25, Col: 161}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/thought.templ`, Line: 25, Col: 118}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

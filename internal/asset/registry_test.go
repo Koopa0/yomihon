@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -95,5 +96,67 @@ func TestBrandSVGRegistryIsExact(t *testing.T) {
 	}
 	if !bytes.Equal(registered.body, embedded) {
 		t.Error("registered brand mark body differs from the canonical embedded bytes")
+	}
+}
+
+// unjoinableAtRule matches the at-rules a stylesheet may only carry at its own
+// head: an @import or @charset in the middle of the served bundle is dropped by
+// the browser, along with whatever it was meant to bring in.
+var unjoinableAtRule = regexp.MustCompile(`@(?:import|charset|namespace)\b`)
+
+// cssComment matches one comment, which may mention those at-rules without
+// carrying one.
+var cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
+
+// TestStylesheetIsItsPartsJoinedInOrder holds the one stylesheet the pages link
+// to against the four hand-written files it is made of. The order is spelled out
+// here rather than read from stylesheetParts, so that changing it in one place
+// is a failure and not two files agreeing with each other: the reset has to open
+// the sheet or it would land after, and beat, the rules it exists to sit under.
+func TestStylesheetIsItsPartsJoinedInOrder(t *testing.T) {
+	t.Parallel()
+	order := []string{"css/reset.css", "css/fonts.css", "css/tokens.css", "css/components.css"}
+
+	mux := http.NewServeMux()
+	Register(mux)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/app.css", http.NoBody))
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET /static/app.css status = %d, want %d", response.Code, http.StatusOK)
+	}
+	served := response.Body.Bytes()
+
+	parts := make([][]byte, len(order))
+	total := len(order) - 1 // one newline between each pair of parts, and nothing else
+	for i, name := range order {
+		b, err := projectassets.Files.ReadFile(name)
+		if err != nil {
+			t.Fatalf("read embedded %s: %v", name, err)
+		}
+		if len(b) == 0 {
+			t.Fatalf("embedded %s is empty, so its place in the bundle proves nothing", name)
+		}
+		parts[i] = b
+		total += len(b)
+	}
+
+	if !bytes.HasPrefix(served, parts[0]) {
+		t.Errorf("the served stylesheet does not begin with %s, so the reset can land after the rules it is meant to sit under", order[0])
+	}
+	rest := served
+	for i, part := range parts {
+		at := bytes.Index(rest, part)
+		if at < 0 {
+			t.Errorf("the served stylesheet carries no %s after %s, so the parts are missing or out of order", order[i], strings.Join(order[:i], ", "))
+			break
+		}
+		rest = rest[at+len(part):]
+	}
+	if len(served) != total {
+		t.Errorf("the served stylesheet is %d bytes, want %d: the four parts and one newline between each, with nothing added or repeated", len(served), total)
+	}
+
+	for _, at := range unjoinableAtRule.FindAllString(cssComment.ReplaceAllString(string(served), ""), -1) {
+		t.Errorf("the served stylesheet carries %s outside a comment; joined mid-sheet it is ignored by the browser, so the part that wrote it has to be self-contained", at)
 	}
 }

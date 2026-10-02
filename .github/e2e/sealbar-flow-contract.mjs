@@ -81,17 +81,18 @@ const rewriteDocument = (replacements, label) => async (page) => {
 const SEALBAR_OPEN = '<section class="y-sealbar"';
 const SEALBAR_CLOSE = '</section></article></main>';
 
-// The bar's own rule as the stylesheet serves it, minified. It is matched whole
-// because the wide layout carries a second rule for the same class that hides
-// it, and a needle short enough to match both would be refused as ambiguous.
-const SEALBAR_RULE = '.y-sealbar{border-top:1px solid var(--line);flex-wrap:wrap;align-items:center;gap:12px;margin-top:32px;padding:16px 0 0;display:flex}';
+// The bar's own rule as the stylesheet serves it: the opening of the rule that
+// starts a line. The wide layout carries a second rule for the same class that
+// hides it, indented inside a media block, and a needle short enough to match
+// both would be refused as ambiguous.
+const SEALBAR_RULE = '\n.y-sealbar {\n';
 
 const MUTATIONS = {
   'restore-fixed-bar': {
     target: 'not-fixed-position',
     apply: rewriteStylesheet(
       SEALBAR_RULE,
-      SEALBAR_RULE.replace('{', '{position:fixed;left:0;right:0;bottom:0;z-index:36;'),
+      SEALBAR_RULE + '  position: fixed;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  z-index: 36;\n',
       'fixed sealbar',
     ),
   },
@@ -103,7 +104,7 @@ const MUTATIONS = {
     target: 'below-fold-while-reading',
     apply: rewriteStylesheet(
       SEALBAR_RULE,
-      SEALBAR_RULE.replace('{', '{position:sticky;bottom:0;z-index:36;'),
+      SEALBAR_RULE + '  position: sticky;\n  bottom: 0;\n  z-index: 36;\n',
       'sticky sealbar',
     ),
   },
@@ -119,8 +120,8 @@ const MUTATIONS = {
   'widen-the-article-foot': {
     target: 'follows-article-end',
     apply: rewriteStylesheet(
-      'padding:44px var(--gutter-read)120px',
-      'padding:44px var(--gutter-read)300px',
+      'padding: 44px var(--gutter-read) 120px',
+      'padding: 44px var(--gutter-read) 300px',
       'widened article foot',
     ),
   },

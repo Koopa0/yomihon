@@ -1,7 +1,7 @@
 /* ============================================================
-   yomihon — design tokens (the shippable @theme contract)
+   yomihon — design tokens
    ------------------------------------------------------------
-   Consolidates the design bundle: theme.css's @theme values +
+   Consolidates the design bundle: theme.css's values +
    colors_and_type.css's alias vocabulary, re-skinned to the product
    accent (theme-adaptive vermilion 朱, reserved for the reader's own place;
    the official mark carries its separately fixed approved vermilion) and the product type
@@ -212,6 +212,11 @@
   --font-mono: 'Geist Mono', ui-monospace, 'Noto Sans TC', monospace;
   --font-kai: 'LXGW WenKai TC', 'Kaiti TC', 'Kaiti SC', 'Noto Serif TC', 'Songti TC', 'Hiragino Mincho ProN', serif;
 
+  /* The reset reads these two names for the page's font and for code's, rather
+     than the product's tokens, so they are pointed at the tokens here. */
+  --default-font-family: var(--font-sans);
+  --default-mono-font-family: var(--font-mono);
+
   /* The face a reader's own choice sets their reading in. Having chosen
      nothing leaves the root without data-font and this base value answers: the
      明體 the charter reads in. A choice replaces this one value and none of
@@ -348,30 +353,6 @@
   --dur-base: 120ms;
   --dur-slow: 200ms;
   --dur-dwell: 1100ms;
-}
-
-/* ---- Tailwind @theme contract (inline: utilities resolve to the aliases
-   above, so the token vocabulary and any utility use stay in one source). ---- */
-@theme inline {
-  --color-bg: var(--bg);
-  --color-panel: var(--panel);
-  --color-elevated: var(--elevated);
-  --color-overlay: var(--overlay);
-  --color-fg: var(--fg);
-  --color-fg-muted: var(--fg-muted);
-  --color-fg-subtle: var(--fg-subtle);
-  --color-fg-faint: var(--fg-faint);
-  --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-warn: var(--warn);
-  --color-sage: var(--sage);
-  --color-gold: var(--gold);
-  --radius-sm: var(--r-sm);
-  --radius-md: var(--r-md);
-  --radius-lg: var(--r-lg);
-  --font-sans: var(--font-sans);
-  --font-serif: var(--font-serif);
-  --font-mono: var(--font-mono);
 }
 
 /* The reading column's editorial scale at the owner's chosen size. Only the

@@ -62,9 +62,9 @@ Never merge a pull request; opening it ends your work.
   believe a gate is wrong, leave it red and say so under "Needs a ruling".
 - New verification goes into a Go test or a registered `.github/e2e` probe with MUTATE modes; do not add standalone acceptance scripts, CI jobs, or anything that rewrites source files on disk.
 - `make verify` needs more than a Go toolchain. `make tools` installs the Go
-  analysis tools; the `Makefile` header pins the three that are not
-  go-installable — the Tailwind standalone command-line interface, ShellCheck,
-  and Node driven from the lockfile under `.github/` — and the browser probes
+  analysis tools; the `Makefile` header pins the two that are not
+  go-installable — ShellCheck and Node driven from the lockfile under
+  `.github/` — and the browser probes
   drive an installed Google Chrome. The agent environment's bootstrap prepares
   the build, not the gate, so install the gate's own tools before you call it
   green.
@@ -72,8 +72,7 @@ Never merge a pull request; opening it ends your work.
   say which you ran. Continuous integration runs the gate on every pull request,
   and `main` accepts nothing that fails it.
 - Do not hand-edit generated files. `make gen` regenerates `*_templ.go` from its
-  `.templ` source, and `make css` regenerates `assets/css/output.css` from
-  `assets/css/input.css`. The gate compares both against a fresh generation.
+  `.templ` source. The gate compares it against a fresh generation.
 
 ## What a lock may anchor on
 

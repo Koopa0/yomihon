@@ -337,6 +337,19 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 		}
 	}
 
+	// The vendored reset carries its own notice in its header, since there is
+	// no separate licence file beside a stylesheet; a refresh from upstream
+	// that drops the header would otherwise ship Tailwind's code without it.
+	reset, err := Files.ReadFile("css/reset.css")
+	if err != nil {
+		t.Fatalf("read vendored reset: %v", err)
+	}
+	for _, notice := range []string{"Copyright (c) Tailwind Labs, Inc.", "Permission is hereby granted, free of charge"} {
+		if !bytes.Contains(reset, []byte(notice)) {
+			t.Errorf("css/reset.css does not carry %q, which the MIT licence requires to travel with the code", notice)
+		}
+	}
+
 	// The licence obligation is met by the embedded texts above, which ship
 	// inside the binary. The summary notice is kept on the maintainer's machine
 	// with the rest of the governance prose rather than in history, so a clean
@@ -353,7 +366,7 @@ func TestThirdPartyAssetProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read third-party notices: %v", err)
 		}
-		for _, component := range []string{"Mermaid 11.15.0", "Geist and Geist Mono 1.500", "Newsreader 1.003"} {
+		for _, component := range []string{"Mermaid 11.15.0", "Geist and Geist Mono 1.500", "Newsreader 1.003", "Tailwind CSS Preflight 4.1.17"} {
 			if !bytes.Contains(notices, []byte(component)) {
 				t.Errorf("third-party notices do not name %s", component)
 			}

@@ -207,8 +207,8 @@ const MUTATIONS = {
   'keep-the-panel-face-hidden': {
     target: 'a-narrow-reader-can-keep-a-place',
     apply: rewriteStylesheet(
-      '[data-js] .y-headerfold:popover-open .y-headermark{display:block}',
-      '[data-js] .y-headerfold:popover-open .y-headermark{display:none}',
+      '[data-js] .y-headerfold:popover-open .y-headermark {\n  display: block;\n}',
+      '[data-js] .y-headerfold:popover-open .y-headermark {\n  display: none;\n}',
       'the rule that draws the control inside the open panel',
     ),
   },
@@ -230,8 +230,8 @@ const MUTATIONS = {
   'hide-the-way-back-when-narrow': {
     target: 'a-narrow-reader-is-offered-the-place-back',
     apply: rewriteStylesheet(
-      '.y-continue{',
-      '.y-continue{display:none;',
+      '.y-continue {',
+      '.y-continue {\n  display: none;',
       'the way back drawn on the desk',
     ),
   },

@@ -66,7 +66,7 @@ const editRule = (needle, replacement) => async (page) => {
 };
 
 // Takes a rule out by renaming its selector to one nothing matches.
-const dropRule = (needle) => editRule(needle, '.dropped-by-mutation{');
+const dropRule = (needle) => editRule(needle, '.dropped-by-mutation {');
 
 // Adds a rule after everything served, at equal specificity, so it wins.
 const appendRule = (rule) => async (page) => {
@@ -86,7 +86,7 @@ const LABEL_FACE = 'font-family:var(--font-mono);letter-spacing:.08em;text-trans
 const MUTATIONS = {
   // Takes back the head's own styling: the name and the extent inherit the same
   // body face again.
-  'drop-title-rule': { target: 'the-name-outranks-the-extent', apply: dropRule('.y-railbook__title{') },
+  'drop-title-rule': { target: 'the-name-outranks-the-extent', apply: dropRule('.y-railbook__title {') },
   // Stops the name wrapping: one line, cut off with an ellipsis.
   'clip-title': {
     target: 'the-name-is-never-clipped',

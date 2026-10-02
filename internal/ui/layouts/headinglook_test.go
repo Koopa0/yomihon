@@ -92,13 +92,7 @@ func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
 		t.Error("the opening-heading margin reset is written before the size rows it has to beat, so a first-child heading keeps its 48px")
 	}
 
-	const built = "../../../assets/css/output.css"
-	stylesheet, err := os.ReadFile(built)
-	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", built, err)
-	}
-	if !strings.Contains(string(stylesheet), ".y-prose>[data-level]:first-child") &&
-		!strings.Contains(string(stylesheet), `.y-prose > [data-level]:first-child`) {
-		t.Error("the built stylesheet carries no opening-heading margin reset, so whatever the authored one says a note that opens with a heading keeps its top margin")
+	if !strings.Contains(servedStylesheet(t), openingReset) {
+		t.Error("the served stylesheet carries no opening-heading margin reset, so whatever the authored one says a note that opens with a heading keeps its top margin")
 	}
 }

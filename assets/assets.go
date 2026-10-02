@@ -2,9 +2,9 @@
 // hand-written client-side files. This file — not internal/asset — is
 // where the go:embed directive has to live: an embed pattern can only
 // reach files at or below the declaring .go file's own directory (no
-// "../"), and this repo's static-asset directory convention (the
-// Makefile's css target, mirroring yomihon-dev's assets/{css,js,fonts})
-// fixes assets/ at the module root, not under internal/. internal/asset
+// "../"), and this repo's static-asset directory convention
+// (assets/{css,js,fonts}) fixes assets/ at the module root, not under
+// internal/. internal/asset
 // reads Files at package init to build its fixed, closed name→content
 // registry; it never reads this package's contents at request time.
 package assets
@@ -35,10 +35,12 @@ import "embed"
 //     path, then regenerate js/mermaid/SHA256SUMS from LICENSE and the
 //     complete .mjs inventory).
 //
-//   - css/output.css — the Tailwind v4 stylesheet, built by `make css`
-//     from css/input.css (@import tailwindcss + the design tokens + the
-//     product layer). Served at /static/app.css. Committed like the
-//     generated *_templ.go so `go build ./...` needs no prior css step.
+//   - css/reset.css, css/fonts.css, css/tokens.css, css/components.css — the
+//     hand-written stylesheets: the vendored reset, the self-hosted
+//     @font-face rules, the design tokens, and the product's components.
+//     internal/asset joins them in that order, once, into the one
+//     stylesheet it serves at /static/app.css; nothing generates or
+//     minifies it, so `go build ./...` needs no prior css step.
 //
 //   - brand/yomihon-mark.svg — the single canonical, hand-authored brand
 //     mark. The same embedded bytes are served to every product projection;
@@ -48,5 +50,5 @@ import "embed"
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine (D-brief: zero external requests).
 //
-//go:embed js/yomihon.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mark.js js/preview.js js/thought.js js/uncertainty.js js/mermaid css/output.css fonts brand/yomihon-mark.svg
+//go:embed js/yomihon.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mark.js js/preview.js js/thought.js js/uncertainty.js js/mermaid css/reset.css css/fonts.css css/tokens.css css/components.css fonts brand/yomihon-mark.svg
 var Files embed.FS

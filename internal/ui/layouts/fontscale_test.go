@@ -24,9 +24,8 @@ var fontSizePixelLiteral = regexp.MustCompile(`(?i)font-size\s*:\s*\d+(?:\.\d+)?
 // tokens.css itself is where the scale is spelled out, in rem rather than
 // px, so it is read too rather than assumed clean — the exemption is by
 // filename, not by a blanket skip, so a future scale entry mistakenly
-// written in px still trips this. output.css is tailwindcss's generated
-// minification of the same sources and is never hand-edited; stylelint-check
-// excludes it on the same grounds.
+// written in px still trips this. reset.css is the vendored reset, not a face
+// anyone here styles, and stylelint-check leaves it alone on the same grounds.
 //
 // Matching runs against the untouched source, with comment spans located
 // separately and subtracted, rather than against a comment-stripped copy: a
@@ -43,7 +42,7 @@ func TestNoFontSizeEscapesTheScale(t *testing.T) {
 	checked := 0
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || filepath.Ext(name) != ".css" || name == "output.css" {
+		if entry.IsDir() || filepath.Ext(name) != ".css" || name == "reset.css" {
 			continue
 		}
 		checked++
