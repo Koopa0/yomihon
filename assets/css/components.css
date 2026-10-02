@@ -218,6 +218,19 @@ samp {
   white-space: nowrap;
 }
 
+/* Where a listing is read for what each document is called, the name opens the
+   row and the day follows it, with the kind after that where the row has one.
+   The name is still what gives when the corner is narrow, so it takes the room
+   the short faces leave and is clipped with an ellipsis; the faces after it keep
+   their own width. */
+.ui-navitem--by-title > :first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* A kept location or authored source section identifies the row, so a narrow
    shelf must keep those words visible instead of clipping them like a title. */
 .ui-navitem--wrap {
@@ -1277,6 +1290,14 @@ samp {
 
 .y-navmark--warn {
   color: var(--warn);
+}
+
+/* The word on the briefing the vault keeps current. A report is called by its
+   title, which runs longer than a file name does, so the title is what wraps
+   and the word keeps its line: "最新" broken across two lines reads as nothing. */
+.y-navmark--newest {
+  flex: none;
+  white-space: nowrap;
 }
 
 .y-navitem--broken {
@@ -4466,9 +4487,9 @@ a.y-facetrow:hover {
   color: var(--warn);
 }
 
-/* A row on a shelf that is read by date. A report is dated by nature, so the
-   row leads with its day, then its name, then the line the report opens with,
-   then which kind of report it is. The day and the kind hold the two edges of
+/* A row on a shelf that is read by date, as the journal is. The row leads with
+   its day, then its name, and the line the document opens with and a mark at
+   the far edge where it has them. The day and the mark hold the two edges of
    the top line with the name between them; the opening runs under the name,
    clipped to a single line, because a listing whose rows are two sentences
    deep has stopped being a listing. The hairline, the padding and the hover
@@ -4512,7 +4533,7 @@ a.y-facetrow:hover {
   white-space: nowrap;
 }
 
-/* A phone has no room for three columns. The day and the kind keep the top
+/* A phone has no room for three columns. The day and the mark keep the top
    line between them — the day still leads the row — and the name and the
    opening take the full width beneath, where a title has the space to wrap
    instead of being squeezed into a third of it. */
@@ -4534,6 +4555,75 @@ a.y-facetrow:hover {
   .y-row__opening {
     grid-column: 1 / -1;
     grid-row: 3;
+  }
+}
+
+/* A row on a shelf read for what each document is called. A report is read for
+   what it answers, so the row opens with its title; the day it is for and the
+   kind it is, where it has one, hold the two fixed columns after it, and the
+   opening runs under the title, clipped to a single line. The columns have a
+   width of their own because the rows are separate grids: left to size
+   themselves, the day would start somewhere different on every row according to
+   how long the kind beside it is spelled, or whether it has one. The hairline,
+   the padding and the hover are the shelf's own. */
+.y-row--by-title {
+  align-items: baseline;
+  column-gap: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.5rem 6rem;
+  row-gap: 3px;
+}
+
+.y-row--by-title .y-row__title {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.y-row--by-title .y-row__when {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.y-row--by-title .y-row__measure {
+  grid-column: 3;
+  grid-row: 1;
+  text-align: right;
+}
+
+.y-row--by-title .y-row__opening {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+/* A phone has no room for three columns. The title takes the full width and
+   wraps instead of being squeezed into what the day and the kind leave, the
+   opening runs under it, and the day and the kind, where there is one, share the
+   line below. */
+@media (max-width: 720px) {
+  .y-row--by-title {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
+
+  .y-row--by-title .y-row__title {
+    grid-column: 1 / -1;
+  }
+
+  .y-row--by-title .y-row__opening {
+    grid-column: 1 / -1;
+    margin-top: 3px;
+  }
+
+  .y-row--by-title .y-row__when {
+    grid-column: 1;
+    grid-row: 3;
+    margin-top: 6px;
+  }
+
+  .y-row--by-title .y-row__measure {
+    grid-column: 2;
+    grid-row: 3;
+    margin-top: 6px;
   }
 }
 
@@ -4686,9 +4776,20 @@ a.y-facetrow:hover {
 
 .y-reporttitle {
   color: var(--fg);
+  flex: 1 0 100%;
   font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The file the report is kept in, under what it calls itself: a fact about
+   where it lives, kept quiet so the title is what the head says. */
+.y-reportfile {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
   min-width: 0;
   overflow-wrap: anywhere;
 }

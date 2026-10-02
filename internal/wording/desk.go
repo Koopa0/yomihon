@@ -113,13 +113,11 @@ var (
 	BranchCountMany = both("%d 枝", "%d branches")
 )
 
-// A report row says which of the two kinds it is, because the two are read
-// differently: a briefing is drawn by a program and shown here as bytes inside
-// an isolated frame, a written report is a note like any other.
-var (
-	DailyBriefing = both("每日簡報", "Daily briefing")
-	WrittenReport = both("書庫筆記", "Vault note")
-)
+// DailyBriefing is the mark on a briefing's row. A briefing is drawn by a
+// program and shown here as bytes inside an isolated frame, which is not how the
+// written reports beside it open. A written report is what every row on the
+// shelf is, so its row carries no mark of its own.
+var DailyBriefing = both("每日簡報", "Daily briefing")
 
 // ReportUndated is what leads a report that carries no day, where the others
 // lead with one. A shelf read by date needs an answer in that column from every

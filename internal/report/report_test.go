@@ -804,3 +804,135 @@ func TestRawServesAUTF16BriefingAsText(t *testing.T) {
 		}
 	}
 }
+
+// TestTheReportShellIsIntroducedByWhatTheBriefingCallsItself pins the page a
+// briefing opens on. The heading, the tab and the frame's accessible name carry
+// the title the briefing's own HTML gave, and the file it is kept in drops to a
+// quiet line beneath. The address still carries the file name: that is the key
+// the request resolves against, and a title is not one.
+func TestTheReportShellIsIntroducedByWhatTheBriefingCallsItself(t *testing.T) {
+	t.Parallel()
+
+	rr := get(t, newHandler(t, vaultWithBriefing(t)), "/reports/"+briefingName)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		`<h1 class="y-reporttitle">日次簡報 · test</h1>`,
+		`<p class="y-reportfile">` + briefingName + `</p>`,
+		`<title>日次簡報 · test — yomihon</title>`,
+		`title="日次簡報 · test"`,
+		`src="/reports/` + briefingName + `/raw"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the shell does not carry %q", want)
+		}
+	}
+	if strings.Contains(body, `<h1 class="y-reporttitle">`+briefingName) {
+		t.Error("the heading is the file name, not what the briefing calls itself")
+	}
+	// The rail beside the page lists the same report by the same words.
+	if _, rail, found := strings.Cut(body, "data-reading-reports"); !found ||
+		!strings.Contains(rail, `href="/reports/`+briefingName+`" aria-current="page">日次簡報 · test`) {
+		t.Errorf("the rail does not list the briefing by its title; body = %q", body)
+	}
+}
+
+// TestAHostileBriefingTitleIsEscapedEverywhereItIsPrinted pins the other half
+// of reading a title out of a file nobody vetted. The title is read as text and
+// decoded once, so markup inside it and an escaped reference both arrive as
+// characters; every place the page prints it escapes them again, and the one
+// the page's own scripts could be reached through — an attribute — carries no
+// raw angle bracket at all.
+func TestAHostileBriefingTitleIsEscapedEverywhereItIsPrinted(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	dir := filepath.Join(root, "System", "reports", "daily-briefing")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	const name = "hostile.html"
+	hostile := `<!doctype html><title><script>alert(1)</script> &amp;amp; "q" x</title><body>text</body>`
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(hostile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := newHandler(t, root)
+	rr := get(t, mux, "/reports/"+name)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	const escaped = `&lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &#34;q&#34; x`
+	for _, want := range []string{
+		`<h1 class="y-reporttitle">` + escaped + `</h1>`,
+		`<title>` + escaped + ` — yomihon</title>`,
+		`title="` + escaped + `"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the shell does not carry %q", want)
+		}
+	}
+	if strings.Contains(body, "<script>alert(1)") {
+		t.Error("the title reached the page as a script element")
+	}
+
+	// The shelf prints the same title in a row, and escapes it the same way.
+	shelf := get(t, mux, "/reports").Body.String()
+	if !strings.Contains(shelf, `<span class="y-row__title">`+escaped+`</span>`) {
+		t.Errorf("the shelf row does not carry the escaped title; body = %q", shelf)
+	}
+	if strings.Contains(shelf, "<script>alert(1)") {
+		t.Error("the title reached the shelf as a script element")
+	}
+}
+
+// TestBriefingsThatShareATitleAreToldApartWhereTheTitleStandsAlone pins the
+// pages a generator that names every briefing alike produces. The heading stays
+// the title — the file name sits right under it — while the tab, the frame's
+// accessible name and the rail, which show a title with nothing beside it, carry
+// the day that tells the two briefings apart.
+func TestBriefingsThatShareATitleAreToldApartWhereTheTitleStandsAlone(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	dir := filepath.Join(root, "System", "reports", "daily-briefing")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"2026-09-21.html", "2026-09-22.html"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("<title>Daily briefing</title>"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rr := get(t, newHandler(t, root), "/reports/2026-09-21.html")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		`<h1 class="y-reporttitle">Daily briefing</h1>`,
+		`<p class="y-reportfile">2026-09-21.html</p>`,
+		`<title>Daily briefing · 2026-09-21 — yomihon</title>`,
+		`title="Daily briefing · 2026-09-21"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the shell does not carry %q", want)
+		}
+	}
+	_, rail, found := strings.Cut(body, "data-reading-reports")
+	if !found {
+		t.Fatal("the shell has no report rail")
+	}
+	for _, want := range []string{
+		`aria-current="page">Daily briefing · 2026-09-21`,
+		`href="/reports/2026-09-22.html">Daily briefing · 2026-09-22`,
+	} {
+		if !strings.Contains(rail, want) {
+			t.Errorf("the rail does not carry %q; rail = %q", want, rail)
+		}
+	}
+}
