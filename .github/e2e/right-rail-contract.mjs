@@ -5,7 +5,8 @@
 // sources it declared, then what leads to it from the text of other notes, and
 // the ruling last — a small verb beside the reading rather than the frame
 // around it. Both rails sit against the window's edges however wide the window
-// is, and the right rail's text ends where the header's last control ends.
+// is, the left rail's text starts where the header's first control starts, and
+// the right rail's text ends where the header's last control ends.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the long-TOC diagnostic fixture), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -148,6 +149,10 @@ const MUTATIONS = {
   'leave-the-right-rail-short-of-the-edge': {
     target: EDGE_SITE,
     apply: appendRule('.y-shell{padding-right:80px}'),
+  },
+  'crowd-the-left-rail-against-the-edge': {
+    target: EDGE_SITE,
+    apply: appendRule(':root{--rail-pad-start:6px}'),
   },
   'pad-the-rail-past-the-header': {
     target: EDGE_SITE,
@@ -431,10 +436,10 @@ try {
 
   // Case: the rails are the window's edges. In a window wider than the three
   // columns want, the left rail starts at the window's left side, the right rail
-  // ends at its right side, and what the right rail holds ends as far from that
-  // side as the header's last control does from it, so the two read as one line
-  // down the page. Measured at a width where a capped, centred shell would stand
-  // well in from both sides.
+  // ends at its right side, and what each holds stands as far in from its side
+  // as the header's control at that side does, so each reads as one line down
+  // the page with the header above it. Measured at a width where a capped,
+  // centred shell would stand well in from both sides.
   {
     const wide = await browser.newContext({ viewport: { width: 1920, height: 900 } });
     const page = await wide.newPage();
@@ -452,22 +457,47 @@ try {
       const viewport = document.documentElement.clientWidth;
       const controls = [...document.querySelectorAll('.y-header a, .y-header button')]
         .filter((element) => element.getClientRects().length > 0)
-        .map((element) => element.getBoundingClientRect().right);
+        .map((element) => element.getBoundingClientRect());
+      // The first words the left rail's body draws, measured where the glyphs
+      // are rather than where their box begins. Text in a folded group or a
+      // hidden label has no box and is passed over.
+      const walker = document.createTreeWalker(left.querySelector('.y-railbody'), NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => (node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+      });
+      let words = null;
+      let wordsIn = '';
+      for (let node = walker.nextNode(); node && !words; node = walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const box = [...range.getClientRects()].find((rect) => rect.width > 1 && rect.height > 1);
+        if (box) {
+          words = box;
+          wordsIn = `${node.parentElement.tagName.toLowerCase()}.${node.parentElement.className}`;
+        }
+      }
+      if (!words) return { noRailText: true };
       const rail = right.getBoundingClientRect();
       return {
         viewport,
         leftRailStart: left.getBoundingClientRect().left,
+        leftRailTextStart: words.left,
+        leftRailTextIn: wordsIn,
+        headerStart: Math.min(...controls.map((box) => box.left)),
         rightRailEnd: rail.right,
         railTextEndFromEdge: viewport - (rail.right - parseFloat(getComputedStyle(right).paddingRight)),
-        headerEndFromEdge: viewport - Math.max(...controls),
+        headerEndFromEdge: viewport - Math.max(...controls.map((box) => box.right)),
       };
     });
     if (!edges) broken(`${PAGE} draws no pair of rails at 1920 wide`);
+    if (edges.noRailText) broken(`${PAGE} draws no words in the left rail, so where they start proves nothing`);
     if (Math.abs(edges.leftRailStart) > 0.5) {
       failEdge(`the left rail starts ${edges.leftRailStart}px from the window's left side at 1920 wide, want 0: ${JSON.stringify(edges)}`);
     }
     if (Math.abs(edges.viewport - edges.rightRailEnd) > 0.5) {
       failEdge(`the right rail ends ${edges.viewport - edges.rightRailEnd}px short of the window's right side at 1920 wide, want 0: ${JSON.stringify(edges)}`);
+    }
+    if (Math.abs(edges.leftRailTextStart - edges.headerStart) > 0.5) {
+      failEdge(`the left rail's words start ${edges.leftRailTextStart}px from the window's left side and the header's first control ${edges.headerStart}px: ${JSON.stringify(edges)}`);
     }
     if (Math.abs(edges.railTextEndFromEdge - edges.headerEndFromEdge) > 0.5) {
       failEdge(`the right rail's text ends ${edges.railTextEndFromEdge}px from the window's right side and the header's last control ${edges.headerEndFromEdge}px: ${JSON.stringify(edges)}`);
@@ -475,7 +505,7 @@ try {
     await wide.close();
   }
 
-  console.log('PASS right-rail-contract: the reading leads and the ruling closes the rail, every block stays reachable at 1600×768 and 1600×900, each contents row holds its own door, and both rails stand against the window\'s edges at 1920');
+  console.log('PASS right-rail-contract: the reading leads and the ruling closes the rail, every block stays reachable at 1600×768 and 1600×900, each contents row holds its own door, and both rails stand against the window\'s edges, each holding its text as far in as the header does, at 1920');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
