@@ -32,10 +32,14 @@ func TestBaseStartsBodyWithSkipLink(t *testing.T) {
 	}
 }
 
-// TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly pins the two scripts a
-// page carries: the module entry, and the one-line mark that sets data-js
-// before the first style so a scripted page is laid out as it will stay.
-func TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly(t *testing.T) {
+// TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry pins
+// the three script elements a page carries, and the order they come in. The
+// one-line mark sets data-js before the first style so a scripted page is laid
+// out as it will stay; the speculation rules follow it, ahead of the
+// stylesheets, so the browser learns what to fetch as early as the head
+// allows; the module entry closes the body. A fourth element, or any of these
+// out of place, is a change to what every page runs.
+func TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	if err := Base(Chrome{Title: "測試", Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -46,22 +50,34 @@ func TestBaseCarriesTheModuleEntryAndTheScriptedMarkOnly(t *testing.T) {
 	// The statement stands on its own line because that is how templ fmt lays
 	// out a script element, and the format check keeps it so.
 	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\tdocument.documentElement.dataset.js = \"on\";\n\t\t\t</script>"
+	const rules = `<script type="speculationrules" nonce="response-nonce">` + `{"prefetch":`
 	if got := strings.Count(html, entry); got != 1 {
 		t.Errorf("Base() module entries = %d, want 1 exact %q; html = %q", got, entry, html)
 	}
 	if got := strings.Count(html, mark); got != 1 {
 		t.Errorf("Base() scripted marks = %d, want 1 exact %q; html = %q", got, mark, html)
 	}
-	if got := strings.Count(html, `<script`); got != 2 {
-		t.Errorf("Base() script elements = %d, want the module entry and the scripted mark; html = %q", got, html)
+	if got := strings.Count(html, rules); got != 1 {
+		t.Errorf("Base() speculation rules = %d, want 1 element opening %q; html = %q", got, rules, html)
+	}
+	if got := strings.Count(html, `<script`); got != 3 {
+		t.Errorf("Base() script elements = %d, want the scripted mark, the speculation rules and the module entry; html = %q", got, html)
 	}
 	markAt := strings.Index(html, mark)
+	rulesAt := strings.Index(html, rules)
 	firstStyle := strings.Index(html, `<link rel="stylesheet"`)
+	entryAt := strings.Index(html, entry)
 	if firstStyle < 0 {
 		t.Fatalf("Base() has no stylesheet link, so the order of the mark cannot be checked; html = %q", html)
 	}
 	if markAt < 0 || markAt > firstStyle {
 		t.Errorf("Base() scripted mark at %d, first stylesheet at %d; the mark must come first so the first style already sees data-js; html = %q", markAt, firstStyle, html)
+	}
+	if rulesAt < markAt || rulesAt > firstStyle {
+		t.Errorf("Base() speculation rules at %d, mark at %d, first stylesheet at %d; the rules come after the mark and before the stylesheets; html = %q", rulesAt, markAt, firstStyle, html)
+	}
+	if entryAt < firstStyle {
+		t.Errorf("Base() module entry at %d, first stylesheet at %d; the entry closes the body; html = %q", entryAt, firstStyle, html)
 	}
 }
 
