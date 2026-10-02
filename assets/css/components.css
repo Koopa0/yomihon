@@ -4964,6 +4964,7 @@ a.y-facetrow:hover {
   flex: 1;
   font-family: var(--font-serif);
   font-size: var(--fs-ed-24);
+  font-weight: var(--fw-medium);
   min-width: 0;
 }
 
@@ -5099,19 +5100,22 @@ a.y-facetrow:hover {
   justify-self: center;
   position: relative;
 }
+
+/* The points are stops on the line and nothing more: drawn in the line's own
+   ink and all one shape, ready or not. Whether a lesson is ready is said once,
+   by the status at the row's other end, rather than twice down the same row. */
+.y-lesson .y-navdot,
+.y-lesson .y-navdot--ready {
+  background: var(--line-strong);
+  border-radius: 50%;
+}
 /* Where the reader is standing is the heavier point: larger, and in the
-   reading ink rather than the quiet one the other points keep. A point the
-   contract has already accented keeps that accent, because where the reader
-   stands and what the author said about the lesson are two different facts and
-   only the first of them is the size. */
-.y-lesson--here .y-navdot {
+   reading ink rather than the quiet one the other points keep. */
+.y-lesson--here .y-navdot,
+.y-lesson--here .y-navdot--ready {
   background: var(--fg);
   height: 11px;
   width: 11px;
-}
-
-.y-lesson--here .y-navdot--ready {
-  background: var(--accent);
 }
 /* A phone row used to hide the words that decide which lesson to open
    (nowrap + ellipsis beside a whole status badge). Two lines is enough to
@@ -6829,35 +6833,82 @@ samp,
   margin: 18px 0 0;
 }
 
+/* Each choice is one row: its name and what it changes on the left, the
+   control on the right, and a faint hairline between one choice and the next,
+   so the eye runs down the names and across to the setting. The words are the
+   interface's own, so they are set in its face rather than the reading one.
+   A phone has no room for two columns and stacks them.
+
+   The legend is floated, which is the one thing that makes a fieldset's legend
+   an ordinary box the grid can place; left to the browser it is drawn in the
+   fieldset's frame, above the grid. */
 .y-preffield {
   border: 0;
-  margin: 40px 0 0;
+  border-top: 1px solid var(--line-faint);
+  column-gap: 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 0;
   min-width: 0;
-  padding: 0;
+  padding: 20px 0;
+}
+
+.y-prefs__lede + form > .y-preffield:first-child {
+  margin-top: 24px;
 }
 
 .y-preffield legend {
-  color: var(--fg-faint);
+  color: var(--fg);
+  float: left;
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-weight: inherit;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  grid-column: 1;
+  line-height: 1.25rem;
   margin: 0;
   padding: 0;
 }
 
 .y-preffield__note {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
   font-size: var(--fs-13);
-  line-height: 1.7;
-  margin: 2px 0 0;
+  grid-column: 1;
+  line-height: 1.25rem;
+  margin: 4px 0 0;
 }
 
 .y-preffield__options {
+  align-self: center;
   display: flex;
   flex-wrap: wrap;
   gap: 8px 18px;
-  margin: 14px 0 0;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-content: flex-end;
+  margin: 0;
+}
+
+.y-preffield > .y-prefs__apply {
+  align-self: center;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .y-preffield {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .y-preffield__options,
+  .y-preffield > .y-prefs__apply {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+    justify-self: start;
+    margin-top: 12px;
+  }
 }
 
 .y-preffield__options label {
@@ -6882,6 +6933,7 @@ samp,
    up no room on a page where nothing has gone wrong — an empty block box is
    zero-height, so only its margin has to go. */
 .y-preffield__status {
+  grid-column: 1 / -1;
   margin: 12px 0 0;
 }
 /* The submit sits below the panels it applies rather than inside any one of
@@ -6937,14 +6989,16 @@ samp,
    behaves, so the list the header's own help popover carries earns the same
    heading here rather than sitting under nothing. */
 .y-prefs__shortcuts {
-  margin: 40px 0 0;
+  border-top: 1px solid var(--line-faint);
+  margin: 20px 0 0;
+  padding: 20px 0;
 }
 
 .y-prefs__shortcuts h2 {
-  color: var(--fg-faint);
+  color: var(--fg);
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-weight: inherit;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -6960,10 +7014,10 @@ samp,
 }
 
 .y-prefs__storage h2 {
-  color: var(--fg-subtle);
+  color: var(--fg);
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-weight: inherit;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -6984,10 +7038,10 @@ samp,
 }
 
 .y-prefs__storage p {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
   font-size: var(--fs-13);
-  line-height: 1.7;
+  line-height: 1.25rem;
   margin: 12px 0 0;
 }
 /* One folder seen whole. A reading page, not a file manager: no sizes, no
