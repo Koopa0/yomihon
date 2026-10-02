@@ -5,7 +5,8 @@
 // choice while focus stays in the field, Enter opens the chosen row at the
 // match it names, and with nothing chosen, or with Shift held, Enter is the
 // form's own submit. A key that is still part of composing a word is left to
-// the input method, and a choice never outlives the rows it was made among.
+// the input method, and a choice never outlives the rows it was made among or
+// the palette being closed.
 //
 // Go tests cannot see this: it is a handler on a live field over rows that a
 // fetch replaces.
@@ -26,6 +27,7 @@ const SITES = [
   'enter-without-a-choice-searches',
   'shift-enter-searches',
   'typing-forgets-the-choice',
+  'closing-forgets-the-choice',
   'composition-keeps-its-keys',
 ];
 
@@ -95,6 +97,12 @@ const MUTATIONS = {
   'keep-a-stale-choice': {
     target: 'typing-forgets-the-choice',
     apply: rewriteModule("    input.addEventListener('input', () => {\n      rowsChanged();", "    input.addEventListener('input', () => {"),
+  },
+  // A choice left standing while the palette is closed, so Enter on the way
+  // back in opens a row the reader chose before they left.
+  'keep-the-choice-across-a-close': {
+    target: 'closing-forgets-the-choice',
+    apply: rewriteModule('          cancelPending();\n          rowsChanged();\n', '          cancelPending();\n'),
   },
   // Arrow keys taken from an input method in the middle of a word.
   'take-keys-from-composition': {
@@ -245,6 +253,23 @@ try {
     await context.close();
   }
 
+  // Closing the palette forgets the choice, so the reader comes back to the
+  // field and the rows rather than to a row chosen before they left.
+  {
+    const { page, context } = await openWithRows();
+    await page.keyboard.press('ArrowDown');
+    if ((await choice(page)).selected[0] !== 'true') fail('arrows-move-the-choice', 'no row was chosen before the palette was closed');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.y-searchdialog')?.open);
+    await page.locator('[data-search-open]').click();
+    await page.waitForFunction((selector) => document.activeElement === document.querySelector(selector), INPUT);
+    const back = await choice(page);
+    if (back.active !== null || back.selected.includes('true')) {
+      fail('closing-forgets-the-choice', `reopening the palette found the old choice still standing: ${JSON.stringify(back)}`);
+    }
+    await context.close();
+  }
+
   // A key that is part of composing a word belongs to the input method.
   {
     const { page, context } = await openWithRows();
@@ -262,7 +287,7 @@ try {
     const issue = proof();
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
-  console.log('PASS search-keys: in the palette ↑ and ↓ move a choice with focus kept in the field, Enter opens the chosen row at its match, Enter alone and Shift+Enter search, typing forgets the choice, and composition keeps its keys');
+  console.log('PASS search-keys: in the palette ↑ and ↓ move a choice with focus kept in the field, Enter opens the chosen row at its match, Enter alone and Shift+Enter search, typing and closing forget the choice, and composition keeps its keys');
 } catch (err) {
   if (proof && !(err instanceof NotApplied)) {
     const issue = proof();

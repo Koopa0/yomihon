@@ -161,8 +161,13 @@ export function initSearch() {
       // had just asked for, and the palette would sit on the old rows with
       // nothing on its way. The announcement is about a dialog that is closed;
       // if it is open again by the time it lands, there is nothing to stop.
+      // A row chosen before closing is not still chosen on the way back in:
+      // the reader returns to the field, and Enter there searches again.
       region.addEventListener('close', () => {
-        if (!region.open) cancelPending();
+        if (!region.open) {
+          cancelPending();
+          rowsChanged();
+        }
       });
       // Closing leaves the rows where they are and stops whatever was on its
       // way to replace them. So the box and the rows can disagree by the time
