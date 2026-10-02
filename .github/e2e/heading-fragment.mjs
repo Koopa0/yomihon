@@ -247,7 +247,13 @@ const armArrival = (page) => page.addInitScript(() => {
     };
     setTimeout(finish, 500);
     const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(finish));
-    window.addEventListener('pagereveal', () => {
+    window.addEventListener('pagereveal', (event) => {
+      // An arrival that came through a page change is settled when the change
+      // is over, which is when the document is the thing on screen again.
+      if (event.viewTransition?.finished) {
+        event.viewTransition.finished.then(afterPaint, afterPaint);
+        return;
+      }
       afterPaint();
     }, { once: true });
   });

@@ -47,10 +47,11 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
   };
 };
 
-// Putting the navigation opt-in back is the regression this watches for. The
-// rule is appended rather than found, because the repair removed it and there
-// is nothing left to rewrite.
-const restoreNavigationTransition = async (page) => {
+// An opt-in that reaches a reader who asked for no motion is the regression
+// this watches for. The stylesheet declares one, under the condition that the
+// reader allows motion; the rule is appended outside any condition, which is
+// what a well-meant edit that moves it out of the gate looks like.
+const ungateNavigationTransition = async (page) => {
   let stylesheets = 0;
   await page.route('**/app.css', async (route) => {
     const response = await route.fetch();
@@ -58,13 +59,13 @@ const restoreNavigationTransition = async (page) => {
     stylesheets += 1;
     return route.fulfill({ response, body: `${original}\n@view-transition{navigation:auto}` });
   });
-  return () => (stylesheets === 0 ? 'the stylesheet was never requested, so the rule was never put back' : '');
+  return () => (stylesheets === 0 ? 'the stylesheet was never requested, so the rule was never put outside its gate' : '');
 };
 
 const MUTATIONS = {
-  'restore-the-navigation-transition': {
+  'ungate-the-navigation-transition': {
     target: 'an-arrival-paints',
-    apply: restoreNavigationTransition,
+    apply: ungateNavigationTransition,
   },
   // The defect itself: next stays the path alone, so the redirect has no
   // position to restore and the reader arrives at the top.
@@ -121,20 +122,29 @@ const waitSettled = (page) => page.evaluate(() => new Promise((resolve) => {
   setTimeout(finish, 600);
   const afterPaint = () => requestAnimationFrame(() => requestAnimationFrame(finish));
   afterPaint();
-  window.addEventListener('pagereveal', () => {
+  window.addEventListener('pagereveal', (event) => {
+    // An arrival that came through a page change is settled when the change
+    // is over, which is when the document is the thing on screen again.
+    if (event.viewTransition?.finished) {
+      event.viewTransition.finished.then(afterPaint, afterPaint);
+      return;
+    }
     afterPaint();
   }, { once: true });
 }));
 
 // Whether an arrival came through a navigation transition is a moment, and the
-// browser is free to skip that moment even where the opt-in is declared: on
-// this host it does so now and then, and a run landing on the skip reads a
-// restored rule as a pass. The declaration itself can be read at any time, so
-// the arriving document is also asked what its stylesheets say. Runs inside
-// the page. Group rules and imported sheets are walked because the opt-in is
-// legal under a media condition and inside a sheet another sheet pulls in; a
-// sheet whose rules cannot be read is skipped, and the count of readable ones
-// comes back so a page with nothing to read is named rather than passed.
+// browser is free to skip that moment even where the opt-in is declared: it
+// does so now and then. The declaration itself can be read at any time, so the
+// arriving document is also asked what its stylesheets say, and what it has to
+// say is that every opt-in sits under the condition that the reader allows
+// motion. A reader who asked for none is not given a transition by the
+// blanket that switches animations off, because that blanket does not reach
+// the pseudo-elements a transition creates. Runs inside the page. Group rules
+// and imported sheets are walked because the opt-in is legal under a media
+// condition and inside a sheet another sheet pulls in; a sheet whose rules
+// cannot be read is skipped, and the count of readable ones comes back so a
+// page with nothing to read is named rather than passed.
 const declaredNavigationTransitions = () => {
   const found = [];
   let readable = 0;
@@ -142,20 +152,25 @@ const declaredNavigationTransitions = () => {
   const rulesOf = (owner) => {
     try { return owner.cssRules; } catch { return null; }
   };
-  const walk = (rules) => {
+  const allowsMotion = (conditions) => conditions.some((condition) =>
+    /prefers-reduced-motion:\s*no-preference/.test(condition));
+  const walk = (rules, conditions) => {
     for (const rule of rules) {
       const optIn = (ViewTransitionRule && rule instanceof ViewTransitionRule)
         || rule.cssText.startsWith('@view-transition');
-      if (optIn && (rule.navigation === 'auto' || /navigation:\s*auto\b/.test(rule.cssText))) found.push(rule.cssText);
+      if (optIn && (rule.navigation === 'auto' || /navigation:\s*auto\b/.test(rule.cssText))) {
+        found.push({ text: rule.cssText, gated: allowsMotion(conditions) });
+      }
       const nested = rulesOf(rule.styleSheet ?? rule);
-      if (nested) walk(nested);
+      const own = rule.media ? [rule.media.mediaText] : [];
+      if (nested) walk(nested, [...conditions, ...own]);
     }
   };
   for (const sheet of [...document.styleSheets, ...(document.adoptedStyleSheets ?? [])]) {
     const rules = rulesOf(sheet);
     if (!rules) continue;
     readable += 1;
-    walk(rules);
+    walk(rules, []);
   }
   return { readable, found };
 };
@@ -273,16 +288,17 @@ try {
   if (declared.readable === 0) {
     broken(`the page reached by following a link at ${arrival.href} carries no stylesheet whose rules can be read, so nothing here can say whether it opts into navigation transitions`);
   }
-  if (declared.found.length > 0) {
+  const ungated = declared.found.filter((optIn) => !optIn.gated);
+  if (ungated.length > 0) {
     fail(
       'an-arrival-paints',
-      `the page reached by following a link declares ${declared.found.join(' ')} at ${arrival.href}; want no stylesheet opting the document into a navigation transition, whether or not this arrival used one`,
+      `the page reached by following a link declares ${ungated.map((optIn) => optIn.text).join(' ')} at ${arrival.href} outside the condition that the reader allows motion; want every opt-in under prefers-reduced-motion: no-preference`,
     );
   }
-  if (!arrival.painted || arrival.reveal !== true || arrival.transition !== false) {
+  if (!arrival.painted || arrival.reveal !== true) {
     fail(
       'an-arrival-paints',
-      `the page reached by following a link reports painted=${arrival.painted} revealed=${arrival.reveal} arrived-in-a-transition=${arrival.transition} at ${arrival.href}; want a page that was revealed, painted a frame, and came through no transition`,
+      `the page reached by following a link reports painted=${arrival.painted} revealed=${arrival.reveal} at ${arrival.href}; want a page that was revealed and painted a frame, whether or not it came through a transition`,
     );
   }
 
