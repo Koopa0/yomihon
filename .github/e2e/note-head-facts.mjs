@@ -238,10 +238,45 @@ try {
     const summary = page.locator('details.y-metarow summary, details.y-metarow > div.y-metarow__summary');
     if ((await summary.count()) !== 1) broken('the disclosure carries no summary line to click');
     let clickFailed = false;
+    let clickWhy = '';
+    // force skips Playwright's own wait for the target to hold still. With
+    // scripting off, Linux Chrome stopped answering that wait once the article
+    // played its arrival, although the line sat at one place in every sample
+    // taken. A real click needs no such wait, and whether this one reached the
+    // fold is asserted below from the fold's own state, so a covered or
+    // unclickable summary still fails here.
     try {
-      await summary.first().click({ timeout: 3000 });
-    } catch {
+      await summary.first().click({ timeout: 3000, force: true });
+    } catch (err) {
       clickFailed = true;
+      // Playwright names what stood in the way: an element intercepting the
+      // pointer, a target that never held still, or one never visible. The
+      // finding carries that line so a red run says which.
+      const lines = String(err.message).split('\n').map((line) => line.trim()).filter(Boolean);
+      const telling = lines.filter((line) => /intercept|stable|visible|viewport|detached/.test(line));
+      clickWhy = (telling.length > 0 ? telling.slice(-3) : lines.slice(0, 3)).join(' | ');
+    }
+    if (clickFailed) {
+      // A target that never holds still is being moved by something. The
+      // finding lists every animation still running and where the line stood
+      // across six samples, so a red run shows what moved it. The samples are
+      // taken from here rather than from the page: with scripting off, a frame
+      // callback the page is asked to wait for never comes.
+      const tops = [];
+      for (let i = 0; i < 6; i += 1) {
+        const box = await summary.first().boundingBox({ timeout: 500 }).catch(() => null);
+        tops.push(box ? Math.round(box.y * 10) / 10 : 'none');
+        await page.waitForTimeout(50);
+      }
+      const running = await page
+        .evaluate(() =>
+          document
+            .getAnimations()
+            .map((a) => `${a.animationName || a.transitionProperty || a.constructor.name}:${a.playState}:${Math.round(Number(a.currentTime))}`)
+            .join(' '),
+        )
+        .catch((err) => `unreadable (${String(err.message).split('\n')[0]})`);
+      clickWhy = `${clickWhy}; tops ${tops.join(',')}; animations [${running}]`;
     }
     // Same fold, same content-visibility transition as case 1 above — the
     // flip to visible still needs a style-and-paint cycle after the click's
@@ -266,7 +301,7 @@ try {
     if (clickFailed) {
       fail(
         'the-closed-fold-opens-with-no-script-running',
-        'the disclosure carries a summary line, but nothing on the page lets a plain click reach it with no script running',
+        `the disclosure carries a summary line, but nothing on the page lets a plain click reach it with no script running: ${clickWhy}`,
       );
     }
 
