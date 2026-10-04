@@ -64,15 +64,38 @@ const (
 )
 
 // foldRune is the per-character half of fold: the fullwidth ASCII block
-// narrows to its halfwidth counterpart, then simple lowercase. Width first so
-// a fullwidth letter and its ASCII counterpart meet before either is lowered.
+// narrows to its halfwidth counterpart, then a fixed simple-case representative.
+// Width first so a fullwidth letter and its ASCII counterpart meet before
+// either is case-folded.
 func foldRune(r rune) rune {
 	if r >= fullwidthASCIIMin && r <= fullwidthASCIIMax {
 		if n := width.LookupRune(r).Narrow(); n != 0 {
 			r = n
 		}
 	}
-	return unicode.ToLower(r)
+	if r <= unicode.MaxASCII {
+		return unicode.ToLower(r)
+	}
+	return simpleCaseRune(r)
+}
+
+// simpleCaseRune prefers the smallest letter in the orbit, lowered only if
+// that lowercase remains a member. Greek iota's smallest member is a combining
+// mark: emitting it after a vowel could create a new NFC contraction. Dotted
+// capital I instead has no simple lowercase peer and stays in its own orbit.
+func simpleCaseRune(r rune) rune {
+	smallest := r
+	for next := unicode.SimpleFold(r); next != r; next = unicode.SimpleFold(next) {
+		letter, chosenLetter := unicode.IsLetter(next), unicode.IsLetter(smallest)
+		if (letter && !chosenLetter) || (letter == chosenLetter && next < smallest) {
+			smallest = next
+		}
+	}
+	lower := unicode.ToLower(smallest)
+	if strings.EqualFold(string(smallest), string(lower)) {
+		return lower
+	}
+	return smallest
 }
 
 // nextRune returns the first rune at or after i, or zero at the end of s.

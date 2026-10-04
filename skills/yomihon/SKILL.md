@@ -328,7 +328,7 @@ Six filter keys:
 |---|---|
 | Case | **lowercase only.** `Type:lesson` is not a filter — it degrades to a literal token searched as text |
 | Repeated key | **AND.** Two `type:` filters both have to hold, so they are jointly unsatisfiable rather than last-wins |
-| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, lowercase). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `topic:` is membership of the folded topics |
+| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, Unicode simple case folding without multi-rune expansion). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `topic:` is membership of the folded topics |
 | Unknown prefix | named back to the reader with all six offered, and the term is searched as text rather than dropped |
 | Quoting | `"…"`, `「…」`, `『…』` — at the start of a field, or straight after a recognised key and its colon |
 | Indexed | title, aliases, declared topics, body plain text and the vault-relative path are free-text searchable; type, status, domain and slug are reachable only through their own filter. An alias hit is filed with the title hits |
