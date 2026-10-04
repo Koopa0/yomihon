@@ -6,7 +6,7 @@ English | [繁體中文](README.zh-TW.md)
 [![Go](https://img.shields.io/github/go-mod/go-version/koopa0/yomihon?style=flat)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
-**yomihon turns the Markdown you have already organised into something good to read.**
+**yomihon turns the Markdown you have already organised into a book that reads well.**
 
 [![A lesson in a study path: the course on the left with the current lesson marked, the lesson in the centre, and on the right the notes that cite it and a button to leave off here](.github/media/reading-en.png)](.github/media/reading-en.png)
 

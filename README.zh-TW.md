@@ -14,11 +14,11 @@
 
 ## 線上試讀
 
-[yomihon.koopa0.dev](https://yomihon.koopa0.dev) 開著本 repo 的[範例知識庫](examples/README.zh-TW.md)。所有訪客共用同一份筆記。每小時還原一次。
+[yomihon.koopa0.dev](https://yomihon.koopa0.dev) 上執行的是本 repo 的[範例知識庫](examples/README.zh-TW.md)。所有訪客共用同一份筆記。每小時還原一次。
 
 ## 安裝
 
-從最新版本[下載執行檔](https://github.com/koopa0/yomihon/releases/latest)，或在已有 Go 1.27 以上時安裝：
+從最新版本[下載執行檔](https://github.com/koopa0/yomihon/releases/latest)，或用 Go 1.27 以上的版本安裝：
 
 ```sh
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
