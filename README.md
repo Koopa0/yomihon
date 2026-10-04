@@ -10,7 +10,7 @@ English | [繁體中文](README.zh-TW.md)
 
 [![A lesson in a study path: the course on the left with the current lesson marked, the lesson in the centre, and on the right the notes that cite it and a button to leave off here](.github/media/reading-en.png)](.github/media/reading-en.png)
 
-A study path is a course, with its parts and the lesson you are on. Search, backlinks and reports come with it. yomihon runs on your machine, makes no network requests and never edits your text.
+A study path is a course, with its parts and the lesson you are on. Search, backlinks and reports are built in. yomihon runs on your machine, makes no network requests and never edits your text.
 
 ## Try it
 
@@ -37,10 +37,10 @@ Then open <http://127.0.0.1:9610>. yomihon reads any folder of Markdown as it is
 ## What it does
 
 - **Read.** Wikilinks, callouts, footnotes, tables, Mermaid diagrams, code and ruby render as written. Settings offer light, dark or the system's appearance, three text sizes, and serif, sans serif or Kaiti type. "Leave off here" keeps your place on this device. The home page links back to it.
-- **Learn.** A study path is a course: parts, the lesson you are on, the lessons before and after it, and optional side branches. Furigana can be hidden. A Japanese passage the author marks in a lesson can be read aloud. The example library has [a Go concurrency course](examples/vault/Notes/Books/Go%20並行入門.md) and [two Japanese dialogue lessons](examples/vault/Notes/Books/在圖書館讀日文.md).
+- **Learn.** A course lists its parts, marks the lesson you are on and links the lessons before and after it. A side branch is optional reading. Furigana can be hidden. A Japanese passage the author marks in a lesson can be read aloud. The example library has [a Go concurrency course](examples/vault/Notes/Books/Go%20並行入門.md) and [two Japanese dialogue lessons](examples/vault/Notes/Books/在圖書館讀日文.md).
 - **Find.** Search works in English, Chinese and Japanese. A note shows its sections and the notes that cite it beside the text. A map lists the notes under one subject.
 - **Reports.** Daily briefings (HTML) and written reports (Markdown) under `System/reports/` are listed together. A briefing opens in a sandbox.
-- **Check.** The health page lists wikilinks that point at nothing and notes no other note links to. With a contract, `yomihon check` lists broken links and frontmatter problems in a terminal.
+- **Check.** The health page lists wikilinks that point at nothing and notes no other note links to. `yomihon check` lists broken links and frontmatter problems in a terminal.
 
 The interface is available in English and Traditional Chinese. A note keeps the language it was written in.
 
