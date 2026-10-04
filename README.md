@@ -6,37 +6,25 @@ English | [繁體中文](README.zh-TW.md)
 [![Go](https://img.shields.io/github/go-mod/go-version/koopa0/yomihon?style=flat)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
-**Turn the Markdown you have already organised into a book worth reading.**
+**yomihon turns the Markdown you have already organised into something good to read.**
 
-[![yomihon's reading page: the course and the current lesson on the left, the article in the centre, and on the right its sections and the notes that cite it](.github/media/reading-en.png)](.github/media/reading-en.png)
+[![A lesson in a study path: the course on the left with the current lesson marked, the lesson in the centre, and on the right the notes that cite it and a button to leave off here](.github/media/reading-en.png)](.github/media/reading-en.png)
 
-yomihon reads a folder of Markdown as one book. A study path is a course, with
-chapters and the lesson you are on; every note has its sections and the notes
-that cite it beside the text; whatever is broken is said where it is. It runs
-on your machine and changes none of your words.
+A study path is a course, with its parts and the lesson you are on. Search, backlinks and reports come with it. yomihon runs on your machine, makes no network requests and never edits your text.
 
 ## Try it
 
-[yomihon.koopa0.dev](https://yomihon.koopa0.dev) is this reader over `examples/vault`,
-the sample notes in this repository. Those notes are shared: a status you move
-is the one the next reader finds, and every hour they are restored from this
-repository. Your own vault never leaves your machine; that is what the install
-below is for.
+[yomihon.koopa0.dev](https://yomihon.koopa0.dev) runs the [example library](examples/README.md) from this repository. Visitors share one copy of the notes. It is restored every hour.
 
 ## Install
 
-[Download a binary](https://github.com/koopa0/yomihon/releases/latest) from the
-latest release, or, with Go 1.27 or newer:
+[Download a binary](https://github.com/koopa0/yomihon/releases/latest) from the latest release, or install with Go 1.27 or newer:
 
 ```sh
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
 
-Reading works on macOS, Linux and Windows. Changing a note's status works on
-macOS and Linux; Windows refuses it.
-
-The example vault comes with the source, not the binary: take it from the
-release's source archive, or clone this repository.
+yomihon runs on macOS, Linux and Windows. The example library comes with the source, not the binary. Take it from the release's source archive or clone this repository.
 
 ## Use
 
@@ -44,46 +32,22 @@ release's source archive, or clone this repository.
 yomihon ~/notes
 ```
 
-Then open <http://127.0.0.1:9610>. Any folder works as it is;
-`yomihon examples/vault` opens an example vault with a contract, and shows what
-a contract adds. An agent that writes notes for a vault yomihon reads has a
-skill to read first: [`skills/`](skills/).
+Then open <http://127.0.0.1:9610>. yomihon reads any folder of Markdown as it is. Study paths, maps and `yomihon check` need a contract, `System/schemas/vault-schema.toml`. `yomihon examples/vault` opens a library that has one to copy. If an agent writes your notes, point it at [`skills/`](skills/) first.
 
 ## What it does
 
-- **Read.** Wikilinks, callouts, footnotes, tables, Mermaid, code and ruby
-  render as written. The page is set for long-form reading, Chinese and
-  Japanese first, with a light and a dark desk and three text sizes.
-- **Learn.** A study path is a course: chapter counts, previous and next, and
-  the lesson you are on. Furigana switches on and off; a passage marked for
-  reading aloud is spoken in its own language. The example vault carries
-  [a Go concurrency course in Traditional Chinese](examples/vault/Notes/Books/Go%20並行入門.md),
-  [two Japanese dialogue lessons](examples/vault/Notes/Books/在圖書館讀日文.md), and an
-  [English authoring companion](examples/vault/Notes/Reading%20yomihon.md).
-- **Find.** Full-text search with folder filters; backlinks and the note's own
-  sections stay beside the text. A result opens the note at the words it
-  found, not at the top.
-- **Check.** A health page lists links with no target, notes nothing cites, and
-  one name two files answer to; each note carries its own diagnostics; on the
-  command line it is `yomihon check`. It reports and repairs nothing.
-- **Reports.** Briefings kept under `System/reports/daily-briefing/` open in
-  the same room, sandboxed.
-- **Two languages.** The interface speaks English or Traditional Chinese; every
-  note keeps the language it was written in.
-- **Yours.** It binds to `127.0.0.1` only, makes no network call, and never
-  edits your prose. [What it keeps](docs/privacy/data-inventory.md), and
-  [what it does and does not defend](docs/security/threat-model.md).
+- **Read.** Wikilinks, callouts, footnotes, tables, Mermaid diagrams, code and ruby render as written. Settings offer light, dark or the system's appearance, three text sizes, and serif, sans serif or Kaiti type. "Leave off here" keeps your place on this device. The home page links back to it.
+- **Learn.** A study path is a course: parts, the lesson you are on, the lessons before and after it, and optional side branches. Furigana can be hidden. A Japanese passage the author marks in a lesson can be read aloud. The example library has [a Go concurrency course](examples/vault/Notes/Books/Go%20並行入門.md) and [two Japanese dialogue lessons](examples/vault/Notes/Books/在圖書館讀日文.md).
+- **Find.** Search works in English, Chinese and Japanese. A note shows its sections and the notes that cite it beside the text. A map lists the notes under one subject.
+- **Reports.** Daily briefings (HTML) and written reports (Markdown) under `System/reports/` are listed together. A briefing opens in a sandbox.
+- **Check.** The health page lists wikilinks that point at nothing and notes no other note links to. With a contract, `yomihon check` lists broken links and frontmatter problems in a terminal.
+
+The interface is available in English and Traditional Chinese. A note keeps the language it was written in.
 
 ## Status
 
-The [example library guide](examples/README.md) describes the books,
-the deliberate diagnostic examples and the features each reading task uses.
-
-Under development; expect the interface to change before the first stable
-release. Defects go to [Issues](https://github.com/koopa0/yomihon/issues),
-security problems to
-[GitHub's private advisory form](https://github.com/koopa0/yomihon/security/advisories/new).
+Under development; expect the interface to change before the first stable release. Defects go to [Issues](https://github.com/koopa0/yomihon/issues), security problems to [GitHub's private advisory form](https://github.com/koopa0/yomihon/security/advisories/new).
 
 ## Licence
 
-[MIT](LICENSE).
+yomihon is released under the [MIT licence](LICENSE).
