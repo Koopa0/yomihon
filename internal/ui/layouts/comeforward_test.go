@@ -170,10 +170,11 @@ func TestPageContentComesForward(t *testing.T) {
 }
 
 // TestArrivalOwnsItsTempo holds the arrival's duration and curve to the pair of
-// tokens made for it. They are literals, because a token that aliased
-// --dur-slow would move the drawer, the sheet and the palette whenever the
-// arrival was tuned, and they are used once, because a second user would move
-// with it.
+// tokens made for it. It checks whose tempo it is and not what the tempo is,
+// so any duration or curve may be tried in one line: each token is declared
+// once and is not an alias, because one that aliased --dur-slow would move the
+// drawer, the sheet and the palette whenever the arrival was tuned, and it is
+// read once, because a second reader would move with it.
 func TestArrivalOwnsItsTempo(t *testing.T) {
 	t.Parallel()
 	var tokens, components string
@@ -194,16 +195,16 @@ func TestArrivalOwnsItsTempo(t *testing.T) {
 		components = blankComments(string(source))
 	}
 
-	for _, token := range []struct{ name, shape string }{
-		{"--dur-arrival", `[0-9]+ms`},
-		{"--ease-arrival", `cubic-bezier\([0-9., ]+\)`},
-	} {
-		declared := regexp.MustCompile(`(?m)^\s*`+token.name+`: (`+token.shape+`);$`).FindAllString(tokens, -1)
-		if len(declared) != 1 {
-			t.Errorf("tokens.css declares %s as a literal %d times, want 1: %q", token.name, len(declared), declared)
+	for _, token := range []string{"--dur-arrival", "--ease-arrival"} {
+		declared := regexp.MustCompile(`(?m)^\s*`+token+`:\s*([^;]+);$`).FindAllStringSubmatch(tokens, -1)
+		switch {
+		case len(declared) != 1:
+			t.Errorf("tokens.css declares %s %d times, want 1", token, len(declared))
+		case strings.Contains(declared[0][1], "var("):
+			t.Errorf("tokens.css declares %s as %q, an alias; the arrival's tempo is its own, so tuning it moves nothing else", token, declared[0][1])
 		}
-		if got := strings.Count(components, "var("+token.name+")"); got != 1 {
-			t.Errorf("components.css reads %s %d times, want 1 (the arrival), because anything else reading it moves when the arrival is tuned", token.name, got)
+		if got := strings.Count(components, "var("+token+")"); got != 1 {
+			t.Errorf("components.css reads %s %d times, want 1 (the arrival), because anything else reading it moves when the arrival is tuned", token, got)
 		}
 	}
 }
