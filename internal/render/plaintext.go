@@ -78,10 +78,14 @@ type Block struct {
 // fence as the excerpt is a decision for the match, not this walk.
 func PlainBlocks(body string) (plain string, blocks []Block, fenceRanges [][2]int) {
 	source, rewritten := plainPreprocess(body)
+	return plainSourceBlocks(body, source, &rewritten, nil)
+}
+
+func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions *[]sourceEmission) (plain string, blocks []Block, fenceRanges [][2]int) {
 	src := []byte(source)
 	doc := plainParser.Parse(text.NewReader(src))
 
-	w := plainWalk{blockVerbatim: true, rewritten: rewritten}
+	w := plainWalk{blockVerbatim: true, rewritten: rewritten, emissions: emissions}
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
@@ -97,6 +101,13 @@ func PlainBlocks(body string) (plain string, blocks []Block, fenceRanges [][2]in
 	}
 	w.closeBlock()
 	w.flushReadings()
+	if emissions != nil {
+		raw := w.b.String()
+		lead := len(raw) - len(strings.TrimLeftFunc(raw, unicode.IsSpace))
+		for i := range *emissions {
+			(*emissions)[i].out -= lead
+		}
+	}
 	return w.result()
 }
 
@@ -146,15 +157,17 @@ type plainWalk struct {
 	// again. rewritten is what the preprocess rewrote, which the text carries
 	// and the page does not.
 	blockVerbatim bool
-	rewritten     rewrittenLines
+	rewritten     *rewrittenLines
 	// readings holds <rt>/<rtc> text until the block's base text has been
 	// closed, so a visible phrase is not split by its furigana. ruby is the
 	// stack of open <ruby> elements, innermost last, each recording which of
 	// its children the walk is inside; together they decide where the next
 	// text node goes, and an inner ruby's end restores the state of the one
 	// around it. <rp> is only a parenthesis fallback and is dropped.
-	readings strings.Builder
-	ruby     []rubyChild
+	readings         strings.Builder
+	emissions        *[]sourceEmission
+	readingEmissions []sourceEmission
+	ruby             []rubyChild
 }
 
 // rubyChild names which child of an open <ruby> the walk is inside: its base
@@ -297,22 +310,34 @@ func (w *plainWalk) recordFence(start int) {
 // display words, a callout's title beside an icon, or a whole other note,
 // where this text carries what the rewrite left behind.
 type rewrittenLines struct {
-	starts  []int
-	changed []bool
+	starts       []int
+	changed      []bool
+	literalRoles []bool
+	wikilinks    [][2]int
 }
 
-// covers reports whether the line holding off was one of them.
-func (r rewrittenLines) covers(off int) bool {
+// lineAt returns the index of the line holding off.
+func (r *rewrittenLines) lineAt(off int) int {
 	i, exact := slices.BinarySearch(r.starts, off)
 	if !exact {
 		// The search answers with the first line starting past off, so the
 		// line holding it is the one before that.
 		i--
 	}
-	if i < 0 || i >= len(r.changed) {
-		return false
-	}
-	return r.changed[i]
+	return i
+}
+
+// covers reports whether the line holding off was rewritten.
+func (r *rewrittenLines) covers(off int) bool {
+	i := r.lineAt(off)
+	return i >= 0 && i < len(r.changed) && r.changed[i]
+}
+
+// literalRoleAt names callout titles: their corpus rewrite may look like a
+// heading or a list, but the page shows their title as literal text.
+func (r *rewrittenLines) literalRoleAt(off int) bool {
+	i := r.lineAt(off)
+	return i >= 0 && i < len(r.literalRoles) && r.literalRoles[i]
 }
 
 // plainPreprocess rewrites the two Obsidian-dialect constructs goldmark has no
@@ -327,7 +352,8 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 	// and a fault in a note is the reading page's news to break.
 	body, _ = stripObsidianComments(body)
 	lines := strings.Split(body, "\n")
-	rewritten := rewrittenLines{starts: make([]int, len(lines)), changed: make([]bool, len(lines))}
+	rewritten := rewrittenLines{starts: make([]int, len(lines)), changed: make([]bool, len(lines)), literalRoles: make([]bool, len(lines))}
+	wikiLines := make([][][2]int, len(lines))
 	inFence := false
 	var fenceByte byte
 	var fenceLen int
@@ -341,7 +367,8 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 			if marker, n, _, ok := fenceOpen(line); ok {
 				inFence, fenceByte, fenceLen = true, marker, n
 			} else {
-				lines[i] = plainLine(line)
+				_, _, _, rewritten.literalRoles[i] = calloutStart(line)
+				lines[i] = plainLine(line, &wikiLines[i])
 				rewritten.changed[i] = lines[i] != line
 			}
 		}
@@ -349,6 +376,9 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 	off := 0
 	for i, line := range lines {
 		rewritten.starts[i] = off
+		for _, span := range wikiLines[i] {
+			rewritten.wikilinks = append(rewritten.wikilinks, [2]int{off + span[0], off + span[1]})
+		}
 		off += len(line) + 1 // the newline the join puts back
 	}
 	return strings.Join(lines, "\n"), rewritten
@@ -356,32 +386,44 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 
 // plainLine normalizes one non-fence line: it strips a callout marker (keeping
 // the title) and rewrites wikilinks to plain "target display" text.
-func plainLine(line string) string {
+func plainLine(line string, wikilinks *[][2]int) string {
 	if m := calloutStartPattern.FindStringSubmatch(line); m != nil {
 		// Drop the marker, keep the callout's title. The body lines that follow
 		// keep their quote marker and are collected as ordinary quoted text.
 		line = m[3]
 	}
-	return replaceWikilinksPlain(line)
+	return replaceWikilinksPlain(line, wikilinks)
 }
 
 // replaceWikilinksPlain replaces every [[...]]/![[...]] token in line with its
 // clean target and display text (deduplicated when they are equal), using the
 // same target/display split the renderer uses (graph.SplitWikilink).
-func replaceWikilinksPlain(line string) string {
-	return wikilinkToken.ReplaceAllStringFunc(line, func(token string) string {
-		inner := strings.TrimPrefix(token, "!")
-		inner = inner[2 : len(inner)-2] // strip the enclosing "[[" and "]]"
-		target, display, ok := graph.SplitWikilink(inner)
-		switch {
-		case !ok:
-			return display // e.g. [[#heading]] — a same-file anchor: display only
-		case target == display:
-			return target
-		default:
-			return target + " " + display
-		}
-	})
+func replaceWikilinksPlain(line string, wikilinks *[][2]int) string {
+	var out strings.Builder
+	last := 0
+	for _, loc := range wikilinkToken.FindAllStringIndex(line, -1) {
+		out.WriteString(line[last:loc[0]])
+		start := out.Len()
+		out.WriteString(plainWikilink(line[loc[0]:loc[1]]))
+		*wikilinks = append(*wikilinks, [2]int{start, out.Len()})
+		last = loc[1]
+	}
+	out.WriteString(line[last:])
+	return out.String()
+}
+
+func plainWikilink(token string) string {
+	inner := strings.TrimPrefix(token, "!")
+	inner = inner[2 : len(inner)-2] // strip the enclosing "[[" and "]]"
+	target, display, ok := graph.SplitWikilink(inner)
+	switch {
+	case !ok:
+		return display // e.g. [[#heading]] — a same-file anchor: display only
+	case target == display:
+		return target
+	default:
+		return target + " " + display
+	}
 }
 
 // walkPlain appends one AST node's contribution to w. It never returns an
@@ -418,7 +460,7 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		// records the span it wrote, so a later excerpt can decline it when
 		// the same words sit in prose. An indented code block is not a fence.
 		start := w.b.Len()
-		writeBlockLines(&w.b, n, source)
+		w.writeCodeLines(n, source)
 		if kind == ast.KindFencedCodeBlock {
 			w.recordFence(start)
 		}
@@ -431,7 +473,7 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		}
 	case ast.KindAutoLink:
 		if a, ok := n.(*ast.AutoLink); ok {
-			w.writeVisible(a.URL(source))
+			w.writeAutoLink(a, source)
 		}
 	}
 	return ast.WalkContinue, nil
@@ -472,9 +514,9 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 	if w.rewritten.covers(t.Segment.Start) {
 		w.blockVerbatim = false
 	}
-	w.writeVisible(t.Value(source))
+	w.writeSource(t.Segment, source)
 	if t.SoftLineBreak() || t.HardLineBreak() {
-		w.writeBreak()
+		w.writeSourceBreak(t.Segment.Stop, source)
 	}
 }
 
@@ -594,6 +636,13 @@ func (w *plainWalk) flushReadings() {
 			w.b.WriteByte('\n')
 		}
 	}
+	if w.emissions != nil {
+		for _, e := range w.readingEmissions {
+			e.out += w.b.Len()
+			*w.emissions = append(*w.emissions, e)
+		}
+		w.readingEmissions = nil
+	}
 	w.b.WriteString(w.readings.String())
 	w.readings.Reset()
 	w.blockVerbatim = false
@@ -630,14 +679,4 @@ func markupName(raw []byte) (name string, closing, selfClose bool) {
 		}
 	}
 	return strings.ToLower(inner[:nameEnd]), closing, selfClose
-}
-
-// writeBlockLines appends the raw source of a node's line segments (used for
-// code blocks, whose content is not held as child text nodes).
-func writeBlockLines(b *strings.Builder, n ast.Node, source []byte) {
-	lines := n.Lines()
-	for i := range lines.Len() {
-		seg := lines.At(i)
-		b.Write(seg.Value(source))
-	}
 }

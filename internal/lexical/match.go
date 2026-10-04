@@ -16,6 +16,9 @@ type Result struct {
 	Title   string
 	Status  string
 	Snippet string
+	// SnippetRuns carries display effects and original query evidence when
+	// the corpus includes syntax the destination consumes.
+	SnippetRuns []ExcerptRun
 
 	// Alias is the name that answered the query when it was not the title, in
 	// the note's own spelling, and empty otherwise. The row shows a title, so
@@ -549,25 +552,18 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		status, noteType = "", ""
 	}
 	var bodySnippet string
+	var bodyRuns []ExcerptRun
 	var terms landingTerms
 	var fromFence bool
 	if bodyEvidence {
-		var foldStart, foldEnd int
-		foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
-		bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
-		terms = e.landingAt(foldStart, foldEnd)
-		if !terms.crossing {
-			start, end := snippetBounds(e.PlainText, foldStart, foldEnd, e.fenceRanges)
-			if first, last, ok := firstSnippetMatch(e.PlainText[start:end], tokens); ok {
-				terms = e.landingAtSource(start+first, start+last)
-			}
-		}
+		bodySnippet, bodyRuns, terms, fromFence = e.bodyExcerpt(tokens)
 	}
 	return Result{
 		RelPath:       e.RelPath,
 		Title:         e.Title,
 		Status:        status,
 		Snippet:       bodySnippet,
+		SnippetRuns:   bodyRuns,
 		Alias:         alias,
 		Topic:         topic,
 		NoteType:      noteType,
@@ -581,6 +577,34 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		FromFence:     fromFence,
 		Language:      e.language,
 	}
+}
+
+func (e *entry) bodyExcerpt(tokens []string) (bodySnippet string, bodyRuns []ExcerptRun, terms landingTerms, fromFence bool) {
+	var foldStart, foldEnd int
+	foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
+	bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
+	terms = e.landingAt(foldStart, foldEnd)
+	if !terms.crossing {
+		start, end := snippetBounds(e.PlainText, foldStart, foldEnd, e.fenceRanges)
+		if first, last, ok := firstSnippetMatch(e.PlainText[start:end], tokens); ok {
+			terms = e.landingAtSource(start+first, start+last)
+		}
+	}
+	if len(e.displaySpans) > 0 {
+		start, end := snippetBounds(e.PlainText, foldStart, foldEnd, e.fenceRanges)
+		var first, last int
+		bodyRuns, first, last = e.displayedExcerpt(start, end, tokens)
+		var display strings.Builder
+		for _, run := range bodyRuns {
+			display.WriteString(run.Text)
+		}
+		bodySnippet = display.String()
+		terms = landingTerms{}
+		if first >= 0 {
+			terms = e.landingAtSource(first, last)
+		}
+	}
+	return bodySnippet, bodyRuns, terms, fromFence
 }
 
 // landingTerms is everything one body match gives a browser text directive:

@@ -151,6 +151,8 @@ type SearchResult struct {
 type SnippetRun struct {
 	Text string
 	Hit  bool
+	// Deleted preserves the author's retraction independently of a query hit.
+	Deleted bool
 }
 
 // SearchStepBack is one loosened search the empty page offers: a query the
@@ -405,7 +407,15 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 // Here the runs are the whole component, so nothing stands between them.
 templ hitRuns(runs []SnippetRun) {
 	for _, run := range runs {
-		if run.Hit {
+		if run.Deleted {
+			<del>
+				if run.Hit {
+					<mark>{ run.Text }</mark>
+				} else {
+					{ run.Text }
+				}
+			</del>
+		} else if run.Hit {
 			<mark>{ run.Text }</mark>
 		} else {
 			{ run.Text }

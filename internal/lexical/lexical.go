@@ -126,6 +126,10 @@ type Document struct {
 	// the caller did not know, which treats every hit as prose.
 	FenceRanges [][2]int
 
+	// DisplaySpans describe source characters an excerpt hides, replaces or
+	// draws as deleted; PlainText remains the searchable authority.
+	DisplaySpans []render.DisplaySpan
+
 	// File marks an entry that is not a note: a vault file shown as characters.
 	// It carries no frontmatter, so it answers no metadata projection, and it
 	// sorts after every note in a result list.
@@ -183,6 +187,7 @@ type entry struct {
 	blocks           []render.Block
 	fenceRanges      [][2]int
 	fenceFoldRanges  [][2]int
+	displaySpans     []render.DisplaySpan
 	isFile           bool
 	outsideKnowledge bool
 	metadataCapable  bool
@@ -319,6 +324,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		blocks:           blocks,
 		fenceRanges:      fenceRanges,
 		fenceFoldRanges:  fenceFoldRanges,
+		displaySpans:     remapDisplaySpans(d.PlainText, d.DisplaySpans),
 		isFile:           d.File,
 		outsideKnowledge: d.OutsideKnowledge,
 		// An unclaimed policy excludes nothing, so every readable note answers over
@@ -555,19 +561,20 @@ func pairedSpans(offs []int) [][2]int {
 // from frontmatter and PlainText from the render AST. A note with malformed
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
-	text, blocks, fences := render.PlainBlocks(n.Body)
+	projection := render.PlainProjection(n.Body)
 	return Document{
-		RelPath:     n.RelPath,
-		Title:       n.Title(),
-		NoteType:    n.Type(),
-		Domain:      n.Domain(),
-		Status:      n.Status(),
-		Slug:        n.Slug(),
-		Topics:      n.Strings("topics"),
-		Aliases:     n.Aliases(),
-		PlainText:   text,
-		Blocks:      blocks,
-		FenceRanges: fences,
+		RelPath:      n.RelPath,
+		Title:        n.Title(),
+		NoteType:     n.Type(),
+		Domain:       n.Domain(),
+		Status:       n.Status(),
+		Slug:         n.Slug(),
+		Topics:       n.Strings("topics"),
+		Aliases:      n.Aliases(),
+		PlainText:    projection.Text,
+		Blocks:       projection.Blocks,
+		FenceRanges:  projection.FenceRanges,
+		DisplaySpans: projection.DisplaySpans,
 		// A diagnostic here means the block was present and did not parse. A
 		// note that simply carries no frontmatter has none, and is not this.
 		FrontmatterUnreadable: n.FMDiagnostic != "",
@@ -575,8 +582,7 @@ func DocumentFromNote(n *vault.Note) Document {
 }
 
 // DocumentFromFile builds the index entry for a vault file that is not a note:
-// its title is the file's own name and its body is its whole text, exactly the
-// characters its page shows.
+// its title is the file's own name and its body is its whole source text.
 func DocumentFromFile(relPath string, data []byte) Document {
 	return Document{
 		RelPath:   relPath,
