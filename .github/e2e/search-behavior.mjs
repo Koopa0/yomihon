@@ -161,8 +161,8 @@ const MUTATIONS = {
     target: 'late-close-keeps-the-reopened-request',
     before: rewriteScript([
       {
-        needle: "      region.addEventListener('close', () => {\n        if (!region.open) cancelPending();\n      });",
-        replacement: "      region.addEventListener('close', cancelPending);",
+        needle: 'if (!region.open) {',
+        replacement: 'if (true) {',
       },
     ], 'the late-close guard'),
   },

@@ -653,6 +653,14 @@ samp {
    track a step down from the ink, with the thumb at its end, so a switch that
    is set does not outweigh the words around it. Both states keep the track's
    edge at 3:1 against the page, so the control reads whichever way it is set. */
+/* These quick setters depend on script. Without it, the native preferences
+   link remains the way to change the reading choices. */
+html:not([data-js]) .y-rubybtn,
+html:not([data-js]) .y-textsizebtn,
+html:not([data-js]) .y-themebtn {
+  display: none;
+}
+
 .y-rubybtn {
   --switch-inset: 8px;
   gap: 8px;
