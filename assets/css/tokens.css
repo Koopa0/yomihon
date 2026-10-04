@@ -351,16 +351,17 @@
      rather than an interface one.
      A page arriving is the one motion that is none of these. It answers a
      press in place instead of coming from an edge, so it keeps a duration and
-     a curve of its own. --ease-arrival decelerates hard, so most of the travel
-     is over in the first frames, and --dur-arrival is how long the settling is
+     a curve of its own. --ease-arrival starts moving at once but not at a
+     jump, and settles slowly, so the arrival reads as the page coming forward
+     rather than snapping in; --dur-arrival is how long that settling is
      allowed to take. Tuning how a page arrives therefore moves neither the
      drawer, the sheet nor the palette, which share the summoned surfaces'
      pair. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-arrival: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-arrival: cubic-bezier(0.33, 1, 0.68, 1);
   --dur-base: 120ms;
   --dur-slow: 200ms;
-  --dur-arrival: 280ms;
+  --dur-arrival: 320ms;
   --dur-dwell: 1100ms;
 }
 
