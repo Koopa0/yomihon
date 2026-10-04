@@ -40,9 +40,12 @@ templ Base(c Chrome) {
 			// The same lines say when this document is not the answer to a press,
 			// so the content's arrival is not played for it: a page the browser
 			// prepared before anyone asked for it, until the reader does ask, one
-			// reached by going back or forward, and one opened at a place in it,
-			// whether by a heading's address or by a stretch of text, the second of
-			// which no script can read from the location but the navigation can.
+			// reached by going back or forward, one reloaded, and one opened at a
+			// place in it, whether by a heading's address or by a stretch of text,
+			// the second of which no script can read from the location but the
+			// navigation can. A reload brings back the page already being read, at
+			// the place it was read, so nothing new arrives, and the arrival is a
+			// scale that would move the text the reader is looking at.
 			// They are written once, as data attributes for the stylesheet, which
 			// is where the arrival lives; a condition the stylesheet worked out for
 			// itself would stop and start matching as the reader moved about the
@@ -55,6 +58,7 @@ templ Base(c Chrome) {
 					d.dataset.js = "on";
 					const entry = performance.getEntriesByType("navigation")[0];
 					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
+					else if (entry?.type === "reload") d.dataset.arrival = "reload";
 					else if (entry?.name.includes("#")) d.dataset.arrival = "place";
 					if (document.prerendering) {
 						d.dataset.prerender = "";
