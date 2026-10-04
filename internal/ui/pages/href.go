@@ -85,6 +85,9 @@ const resumeOffsetParam = "at"
 // one, and follows the term it was measured from: the far end of a crossing
 // match, never the first stretch.
 func hitFragment(r *SearchResult) string {
+	if r.LandingAnchor != "" {
+		return "#" + url.PathEscape(r.LandingAnchor)
+	}
 	suffix := strings.TrimSpace(r.LandingSuffix)
 	if r.BlockCrossing {
 		prefix, start := landingTerm(r)

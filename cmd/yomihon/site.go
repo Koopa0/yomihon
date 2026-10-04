@@ -140,7 +140,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	searchProvider := func() search.RequestSnapshot {
 		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority, snap), Status: authority}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority, snap), Status: authority, HeadingAnchor: snap.HeadingAnchor}
 	}
 	reportProvider := func() report.RequestSnapshot {
 		snap := store.Current().Capture()

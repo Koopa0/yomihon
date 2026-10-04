@@ -18,6 +18,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/sequence"
 )
 
 // plainParser is a minimal goldmark parser used only to walk a note body for
@@ -56,6 +57,16 @@ type Block struct {
 	// does not carry. False is also the answer wherever the walk cannot tell,
 	// so a caller may act on a true and never on a false.
 	Verbatim bool
+
+	// ContextRanges are half-open byte ranges in PlainText whose characters
+	// stay adjacent on the reading page even when the whole block does not.
+	// Their edges are not necessarily word boundaries: removing markup can
+	// join the text on opposite sides of an edge.
+	ContextRanges [][2]int
+
+	// Heading is the complete name of an unchanged heading in this block.
+	// It names no anchor: only the rendered page can assign that identity.
+	Heading string
 }
 
 // PlainBlocks returns the searchable text of a note body, one Block per
@@ -81,7 +92,7 @@ func PlainBlocks(body string) (plain string, blocks []Block, fenceRanges [][2]in
 	src := []byte(source)
 	doc := plainParser.Parse(text.NewReader(src))
 
-	w := plainWalk{blockVerbatim: true, rewritten: rewritten}
+	w := plainWalk{blockVerbatim: true, blockContext: true, rewritten: rewritten}
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
@@ -146,6 +157,8 @@ type plainWalk struct {
 	// again. rewritten is what the preprocess rewrote, which the text carries
 	// and the page does not.
 	blockVerbatim bool
+	blockContext  bool
+	headingLevel  int
 	rewritten     rewrittenLines
 	// readings holds <rt>/<rtc> text until the block's base text has been
 	// closed, so a visible phrase is not split by its furigana. ruby is the
@@ -221,7 +234,7 @@ func shiftBlocks(blocks []Block, lead, length int) []Block {
 			out[n-1].Verbatim = out[n-1].Verbatim && b.Verbatim
 			continue
 		}
-		out = append(out, Block{End: adj, Verbatim: b.Verbatim})
+		out = append(out, Block{End: adj, Verbatim: b.Verbatim, ContextRanges: shiftRanges(b.ContextRanges, lead, length), Heading: b.Heading})
 	}
 	return out
 }
@@ -272,8 +285,44 @@ func (w *plainWalk) closeBlock() {
 		start = w.blocks[n-1].End
 	}
 	verbatim := w.blockVerbatim && w.readings.Len() == 0 && !spentByPage(s[start:end])
-	w.blocks = append(w.blocks, Block{End: end, Verbatim: verbatim})
+	var contexts [][2]int
+	if !verbatim && w.blockContext && w.readings.Len() == 0 {
+		contexts = localContextRanges(s, start, end, w.headingLevel)
+	}
+	var heading string
+	if w.headingLevel > 0 && len(contexts) == 1 && contexts[0] == [2]int{start, end} {
+		heading = strings.Join(strings.Fields(s[start:end]), " ")
+	}
+	w.blocks = append(w.blocks, Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading})
 	w.blockVerbatim = true
+	w.blockContext = true
+	w.headingLevel = 0
+}
+
+// localContextRanges keeps text between strike delimiters in its original
+// coordinates. Unknown constructs, highlights and consumed heading roles
+// offer no local context. A caller still has to find a real word boundary
+// inside a range rather than treating a removed delimiter as one.
+func localContextRanges(s string, start, end, headingLevel int) [][2]int {
+	body := s[start:end]
+	if strings.Contains(body, "==") || strings.ContainsAny(body, inlinePlaceholderRunes) ||
+		(headingLevel > 0 && sequence.HeadingName(body, headingLevel) != body) {
+		return nil
+	}
+	var ranges [][2]int
+	for at := start; at < end; {
+		i := strings.Index(s[at:end], "~~")
+		if i < 0 {
+			ranges = append(ranges, [2]int{at, end})
+			break
+		}
+		stop := at + i
+		if stop > at {
+			ranges = append(ranges, [2]int{at, stop})
+		}
+		at = stop + 2
+	}
+	return ranges
 }
 
 // recordFence notes the half-open span just written from a fenced code
@@ -402,6 +451,11 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	// rather than the one it closed.
 	if !reproducedByThePage(kind) {
 		w.blockVerbatim = false
+		if heading, ok := n.(*ast.Heading); ok {
+			w.headingLevel = heading.Level
+		} else {
+			w.blockContext = false
+		}
 	}
 	switch kind {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
@@ -471,6 +525,7 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 	}
 	if w.rewritten.covers(t.Segment.Start) {
 		w.blockVerbatim = false
+		w.blockContext = false
 	}
 	w.writeVisible(t.Value(source))
 	if t.SoftLineBreak() || t.HardLineBreak() {

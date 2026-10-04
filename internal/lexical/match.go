@@ -87,10 +87,14 @@ type Result struct {
 	// that is a dictionary boundary this index has no model of. A term the
 	// directive follows with a run that itself ends at a certain boundary is
 	// released from the requirement, so the match can end anywhere. Empty where
-	// the term already stands against such a boundary, and where the page does
-	// not reproduce the block as written, which is where a run beside a term
-	// is not a run the page carries in one piece.
+	// the term already stands against such a boundary, and where neither the
+	// whole block nor a local context range vouches for the term, the run and
+	// its ending boundary staying adjacent on the page.
 	LandingSuffix string
+
+	// LandingHeading names an unchanged heading holding this match. The
+	// reading surface resolves it against the rendered page's own anchors.
+	LandingHeading string
 
 	// BlockCrossing reports that the match continues past that first block,
 	// so a directive built from the whole phrase would find nothing.
@@ -564,22 +568,23 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		}
 	}
 	return Result{
-		RelPath:       e.RelPath,
-		Title:         e.Title,
-		Status:        status,
-		Snippet:       bodySnippet,
-		Alias:         alias,
-		Topic:         topic,
-		NoteType:      noteType,
-		File:          e.isFile,
-		Landing:       terms.first,
-		LandingBare:   terms.bare,
-		LandingEnd:    terms.last,
-		LandingPrefix: terms.prefix,
-		LandingSuffix: terms.suffix,
-		BlockCrossing: terms.crossing,
-		FromFence:     fromFence,
-		Language:      e.language,
+		RelPath:        e.RelPath,
+		Title:          e.Title,
+		Status:         status,
+		Snippet:        bodySnippet,
+		Alias:          alias,
+		Topic:          topic,
+		NoteType:       noteType,
+		File:           e.isFile,
+		Landing:        terms.first,
+		LandingBare:    terms.bare,
+		LandingEnd:     terms.last,
+		LandingPrefix:  terms.prefix,
+		LandingSuffix:  terms.suffix,
+		LandingHeading: terms.heading,
+		BlockCrossing:  terms.crossing,
+		FromFence:      fromFence,
+		Language:       e.language,
 	}
 }
 
@@ -598,6 +603,7 @@ type landingTerms struct {
 	bare     string
 	last     string
 	crossing bool
+	heading  string
 }
 
 // landingAt is the terms one folded body match offers. The exclusive end is
@@ -663,7 +669,13 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	terms.first = collapseFields(e.PlainText[start:bareEnd])
 	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
 	if !terms.crossing {
-		if verbatim && terms.first != "" {
+		for _, b := range e.blocks {
+			if b.End == firstEnd {
+				terms.heading = b.Heading
+				break
+			}
+		}
+		if terms.first != "" && (verbatim || e.contextSuffixAt(start, bareEnd, firstEnd)) {
 			terms.suffix = landingSuffix(e.PlainText, bareEnd, firstEnd)
 		}
 		return terms
@@ -682,6 +694,33 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 		terms.suffix = landingSuffix(e.PlainText, lastStop, lastEnd)
 	}
 	return terms
+}
+
+// contextSuffixAt vouches for the match and its following run in one local
+// range. A removed delimiter is not a word boundary, so the boundary after
+// the run must also be reproduced, unless it is the actual block end.
+func (e *entry) contextSuffixAt(start, from, blockEnd int) bool {
+	suffix := landingSuffix(e.PlainText, from, blockEnd)
+	if suffix == "" {
+		return false
+	}
+	stop := from + len(suffix)
+	if stop < blockEnd {
+		_, size := utf8.DecodeRuneInString(e.PlainText[stop:blockEnd])
+		stop += size
+	}
+	for _, b := range e.blocks {
+		if b.End != blockEnd {
+			continue
+		}
+		for _, span := range b.ContextRanges {
+			if span[0] <= start && stop <= span[1] {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }
 
 // wordEdges grows [start, end) out to the edges of the words it lies inside,

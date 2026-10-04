@@ -27,7 +27,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['match-in-view'];
+const SITES = ['match-in-view', 'heading-in-view', 'strike-in-view'];
 
 // The searched-for characters, the run the match follows inside its own
 // block, the part of that run the row names, the characters that follow the
@@ -75,6 +75,20 @@ const rewritePath = (path, needle, replacement, expected, label) => async (page)
 };
 
 const MUTATIONS = {
+  'replace-the-body-heading-with-text': {
+    target: 'heading-in-view',
+    apply: rewritePath('/search?q=' + encodeURIComponent('等待'),
+      '#' + encodeURIComponent('等待者應該放在哪裡'),
+      '#:~:text=' + encodeURIComponent('等待') + ',-' + encodeURIComponent('者應該放在哪裡'),
+      1, 'heading result'),
+  },
+  'drop-the-strike-landing': {
+    target: 'strike-in-view',
+    apply: rewritePath('/search?q=' + encodeURIComponent('取消'),
+      '#:~:text=' + encodeURIComponent('取消') + ',-' + encodeURIComponent('工作'),
+      '',
+      1, 'strike result'),
+  },
   // The regression itself: the directive carries the run the match follows,
   // cut to a character budget, which in this sentence opens inside 咖啡色.
   'name-the-cut-run': {
@@ -140,10 +154,22 @@ const wordCopies = (page, selector, word) => page.evaluate(([sel, w]) => {
   return found;
 }, [selector, word]);
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
-  const apply = MUTATE ? MUTATIONS[MUTATE].apply : null;
+  const apply = MUTATE && MUTATIONS[MUTATE].target === 'match-in-view' ? MUTATIONS[MUTATE].apply : null;
   const context = await browser.newContext({ viewport: { width: WIDTH, height: 900 } });
   const page = await context.newPage();
   proof = apply ? await apply(page) : null;
@@ -156,6 +182,7 @@ try {
   await link.click();
   await page.waitForURL(/%E7%81%B0%E5%B8%83%E5%B8%B3%E5%86%8A/);
   await page.waitForLoadState('load');
+  await arrived(page);
   // Settling is watched rather than assumed, because a directive that is
   // never honoured leaves the scroll at rest immediately and would otherwise
   // be measured before a working one had moved.
@@ -190,6 +217,51 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
   await context.close();
+  const cases = [
+    { site: 'heading-in-view', query: '等待' },
+    { site: 'strike-in-view', query: '取消' },
+  ];
+  for (const testCase of cases) {
+    if (MUTATE && MUTATIONS[MUTATE].target !== testCase.site) continue;
+    for (const width of [1280, 390]) for (const lang of ['zh-Hant', 'en']) for (const theme of ['light', 'dark']) {
+      const context = await browser.newContext({ viewport: { width, height: 900 } });
+      try {
+        await context.addCookies([
+          { name: 'yomihon_lang', value: lang, url: BASE },
+          { name: 'yomihon_theme', value: theme, url: BASE },
+        ]);
+        const page = await context.newPage();
+        proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+        await page.goto(BASE + '/search?q=' + encodeURIComponent(testCase.query), { waitUntil: 'load' });
+        const row = page.locator('a.y-result[href*="%E7%81%B0%E5%B8%83%E5%B8%B3%E5%86%8A"]');
+        if (await row.count() !== 1) broken('the context query does not offer exactly one fixture result');
+        const href = await row.getAttribute('href');
+        await row.click();
+        await page.waitForURL(/%E7%81%B0%E5%B8%83%E5%B8%B3%E5%86%8A/);
+        await page.waitForLoadState('load');
+        await arrived(page);
+        await page.evaluate(() => document.fonts.ready);
+        let previous = -1;
+        let scroll = 0;
+        for (let i = 0; i < 20; i += 1) {
+          await page.waitForTimeout(150);
+          scroll = await page.evaluate(() => Math.round(scrollY));
+          if (i > 3 && previous === scroll) break;
+          previous = scroll;
+        }
+        const copies = await wordCopies(page, 'main article .y-prose', testCase.query);
+        if (!copies || copies.length !== 1) broken('the prose does not hold exactly one copy of the context query');
+        const match = copies[0];
+        if (match.top + scroll <= 900) broken('the context fixture is inside the first screen, so a top-of-note landing proves nothing');
+        if (!match.inView) fail(testCase.site, `context result missed the prose: ${JSON.stringify({ width, lang, theme, href, scrollY: scroll, match })}`);
+        if (proof) {
+          const issue = proof();
+          if (issue) notApplied(`${MUTATE}: ${issue}`);
+        }
+      } finally { await context.close(); }
+    }
+  }
+  console.log(`PASS result-landing-cjk: heading and strike contexts land in prose at 1280px and 390px, in both languages and themes`);
   console.log(`PASS result-landing-cjk: a result click puts ${TERM} on screen at ${WIDTH}px`);
 } catch (err) {
   if (proof && !(err instanceof NotApplied)) {
