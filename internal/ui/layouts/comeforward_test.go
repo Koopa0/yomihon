@@ -272,11 +272,14 @@ func TestArrivalGateNamesWhatTheHeadScriptWrites(t *testing.T) {
 	if start < 0 || end < start {
 		t.Fatalf("Base() has no head script to read; html = %q", html)
 	}
-	script := html[start:end]
+	// Compared by what it says: the formatter wraps a long statement, and a
+	// wrap is not a change of meaning.
+	script := squeeze(html[start:end])
 	for _, want := range []string{
 		`if (entry?.type === "back_forward") d.dataset.arrival = "traverse";`,
 		`else if (entry?.type === "reload") d.dataset.arrival = "reload";`,
-		`else if (entry?.name.includes("#")) d.dataset.arrival = "place";`,
+		`const kept = new URLSearchParams(location.search).has("at");`,
+		`else if (kept || entry?.name.includes("#")) d.dataset.arrival = "place";`,
 		`if (document.prerendering) {`,
 		`d.dataset.prerender = "";`,
 		`document.onprerenderingchange = () => delete d.dataset.prerender;`,
@@ -288,6 +291,30 @@ func TestArrivalGateNamesWhatTheHeadScriptWrites(t *testing.T) {
 	for _, want := range []string{"[data-prerender]", "[data-arrival]"} {
 		if !strings.Contains(arrivalGate, want) {
 			t.Errorf("arrival gate %q lacks %s, which the head script writes", arrivalGate, want)
+		}
+	}
+}
+
+// TestArrivalPlaceNamesTheQueryAKeptPlaceCarries holds the head script's
+// reading of a returning reader to the two files that agree on the name. A kept
+// place travels as an anchor and a distance below it, and the distance rides in
+// a query that the page's own module spends once it has scrolled there; the
+// address is built in one package and read in another. The head script is a
+// third reader of that name, so renaming it on either side without it would
+// send a reader back to a long note with the arrival playing over text moved by
+// the scale, and no other test would notice.
+func TestArrivalPlaceNamesTheQueryAKeptPlaceCarries(t *testing.T) {
+	t.Parallel()
+	for _, reader := range []struct{ path, want string }{
+		{"../../../assets/js/mark.js", `const OFFSET_PARAM = 'at';`},
+		{"../pages/href.go", `const resumeOffsetParam = "at"`},
+	} {
+		source, err := os.ReadFile(reader.path)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", reader.path, err)
+		}
+		if !strings.Contains(string(source), reader.want) {
+			t.Errorf("%s lacks %q; the head script reads the same query name as %q in Base, so the three have to change together", reader.path, reader.want, `new URLSearchParams(location.search).has("at")`)
 		}
 	}
 }

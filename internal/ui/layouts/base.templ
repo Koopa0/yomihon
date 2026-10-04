@@ -41,11 +41,12 @@ templ Base(c Chrome) {
 			// so the content's arrival is not played for it: a page the browser
 			// prepared before anyone asked for it, until the reader does ask, one
 			// reached by going back or forward, one reloaded, and one opened at a
-			// place in it, whether by a heading's address or by a stretch of text,
-			// the second of which no script can read from the location but the
-			// navigation can. A reload brings back the page already being read, at
-			// the place it was read, so nothing new arrives, and the arrival is a
-			// scale that would move the text the reader is looking at.
+			// place in it: by a heading's address, by a stretch of text, which no
+			// script can read from the location but the navigation can, or by the
+			// distance below an anchor that a kept place carries in its query. A
+			// reload brings back the page already being read, at the place it was
+			// read, so nothing new arrives, and the arrival is a scale that would
+			// move the text the reader is looking at, as it would at any place.
 			// They are written once, as data attributes for the stylesheet, which
 			// is where the arrival lives; a condition the stylesheet worked out for
 			// itself would stop and start matching as the reader moved about the
@@ -57,9 +58,11 @@ templ Base(c Chrome) {
 					const d = document.documentElement;
 					d.dataset.js = "on";
 					const entry = performance.getEntriesByType("navigation")[0];
+					const kept = new URLSearchParams(location.search).has("at");
 					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
 					else if (entry?.type === "reload") d.dataset.arrival = "reload";
-					else if (entry?.name.includes("#")) d.dataset.arrival = "place";
+					else if (kept || entry?.name.includes("#"))
+						d.dataset.arrival = "place";
 					if (document.prerendering) {
 						d.dataset.prerender = "";
 						document.onprerenderingchange = () => delete d.dataset.prerender;

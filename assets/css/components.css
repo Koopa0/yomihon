@@ -1521,8 +1521,9 @@ samp {
    the browser put back from history, or reloaded in place, or prepared before
    the reader asked for it, does not play it: nothing new arrives, and the text
    is already where it was being read. Nor does a page that opens at a place in
-   it, an address with a fragment, whether it names a heading or a stretch of
-   text: the browser scrolls to the place by where the block is while it is
+   it: an address with a fragment, whether it names a heading or a stretch of
+   text, or one returning to a kept place, which carries its distance in the
+   query. The browser scrolls to the place by where the block is while it is
    still small, and what it was asked for would land a few pixels off once the
    block settled.
    All four are marks the head script writes once, and the rule reads only
