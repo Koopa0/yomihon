@@ -1,14 +1,15 @@
-// Sidebar disclosure state and filtering. Manual disclosure choices persist for
-// the session, and so does the filter: a reader narrowing a folder of dated
-// entries to one month and then opening a day found the box emptied and the
-// whole folder back, and retyped the same seven characters once per entry they
-// read. The narrowing is where they are, not what they just did.
 export function initSidebar() {
+  // Sidebar disclosure state and filtering. Manual disclosure choices persist for
+  // the session, and so does the filter: a reader narrowing a folder of dated
+  // entries to one month and then opening a day found the box emptied and the
+  // whole folder back, and retyped the same seven characters once per entry they
+  // read. The narrowing is where they are, not what they just did.
   const rail = document.querySelector('.y-rail-left');
   const input = rail?.querySelector('[data-nav-filter]');
   if (!input) {
     return { canFocusFilter: () => false, focusFilter() {} };
   }
+  if (rail.sidebarController) return rail.sidebarController;
 
   const storageKey = 'yomihon.nav';
   const filterKey = 'yomihon.nav.filter';
@@ -115,10 +116,9 @@ export function initSidebar() {
     }
   }
 
-  // The remembered narrowing is applied when this module runs, which can be a
-  // frame after the rail first painted, so the rail may show the whole list for
-  // that frame before it is cut down. The cut is a restore, not the reader
-  // folding a group: the stylesheet is told to hold the folds and chevrons
+  // The rail boundary applies remembered narrowing before the rail paints.
+  // The cut is a restore, not the reader folding a group: the stylesheet is
+  // told to hold the folds and chevrons
   // still while it is written, and the write is forced to take effect before
   // the hold is lifted, so none of it plays out as motion.
   try {
@@ -144,7 +144,7 @@ export function initSidebar() {
   input.addEventListener('keydown', (event) => {
     // Both keys below are an input method's own while it is composing: Enter
     // commits the word being formed and Escape abandons it. Reading them here
-    // first opened the top row on a word the reader had not finished choosing,
+    // first opened the top row on a word the reader was still choosing,
     // and the word went with the page. The event says whether a composition is
     // running, so the flag the live-search box has to keep does not belong
     // here — that box debounces its own input events, which is a different
@@ -176,8 +176,9 @@ export function initSidebar() {
     }
   });
 
-  return {
+  rail.sidebarController = {
     canFocusFilter: () => !input.hidden,
     focusFilter: () => input.focus(),
   };
+  return rail.sidebarController;
 }

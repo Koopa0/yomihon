@@ -1,6 +1,7 @@
 // yomihon client-runtime entry. Every imported module is inert until this file
-// calls its initializer; this is the single owner of capability composition and
-// boot order. The server-rendered page remains usable when the graph is absent.
+// calls its initializer. The rail initializes its sidebar at the parser boundary;
+// this entry acquires that controller and composes the remaining capabilities.
+// The server-rendered page remains usable when the graph is absent.
 import { initCompareAlign, initContents } from './contents.js';
 import { initDiagrams } from './diagrams.js';
 import { initDrawer } from './drawer.js';

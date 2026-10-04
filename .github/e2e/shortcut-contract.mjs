@@ -153,24 +153,7 @@ const MUTATIONS = {
   // takes focus off the box for no change the reader asked for.
   'answer-escape-from-a-filter-with-nothing-to-clear': {
     target: 'wide-filter-escape-moves-nothing',
-    apply: async (page) => {
-      let requests = 0;
-      let matches = 0;
-      await page.route('**/sidebar.js', async (route) => {
-        requests += 1;
-        const response = await route.fetch();
-        const original = await response.text();
-        const needle = '      if (!input.value.trim()) return;\n';
-        const count = original.split(needle).length - 1;
-        matches += count;
-        await route.fulfill({ response, body: count === 1 ? original.replace(needle, '') : original });
-      });
-      return () => {
-        if (requests !== 1) return `sidebar runtime was requested ${requests} times, want exactly 1`;
-        if (matches !== 1) return `filter-escape needle matched ${matches} times, want exactly 1`;
-        return '';
-      };
-    },
+    apply: rewriteDocument('      if (!input.value.trim()) return;\n', ''),
   },
   'disable-global-escape': {
     target: 'escape-dismisses',
