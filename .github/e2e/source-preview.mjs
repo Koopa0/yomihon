@@ -92,7 +92,7 @@ const MUTATIONS = {
   },
   'ignore-the-keyboard': {
     target: 'source-opens-on-focus',
-    apply: rewriteModule("link.addEventListener('focus', () => schedule(link, openDelay));", ''),
+    apply: rewriteModule("link.addEventListener('focus', (event) => schedule(link, openDelay, event.timeStamp));", ''),
   },
   // The card keeps its content and loses its place: no row names the anchor.
   'unanchor-the-source-row': {

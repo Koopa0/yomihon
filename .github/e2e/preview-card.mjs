@@ -199,7 +199,7 @@ const MUTATIONS = {
 	// The defect itself: nothing listens for the pointer arriving.
 	'never-listen-for-the-pointer': {
 		target: 'card-opens-on-hover',
-		apply: rewriteModule("link.addEventListener('pointerenter', () => schedule(link, openDelay));", ''),
+		apply: rewriteModule("link.addEventListener('pointerenter', (event) => schedule(link, openDelay, event.timeStamp));", ''),
 	},
 	// The card opens the instant a pointer touches a link, so crossing a
 	// paragraph of them flashes a card for each.
@@ -210,15 +210,15 @@ const MUTATIONS = {
 	// Reaching a link by keyboard stops asking the question a hover asks.
 	'ignore-the-keyboard': {
 		target: 'card-opens-on-focus',
-		apply: rewriteModule("link.addEventListener('focus', () => schedule(link, openDelay));", ''),
+		apply: rewriteModule("link.addEventListener('focus', (event) => schedule(link, openDelay, event.timeStamp));", ''),
 	},
 	// The keyboard stops waiting, so tabbing through a paragraph of links
 	// throws up one card per link on the way past.
 	'open-on-focus-with-no-delay': {
 		target: 'the-keyboard-waits-the-same-as-the-pointer',
 		apply: rewriteModule(
-			"link.addEventListener('focus', () => schedule(link, openDelay));",
-			"link.addEventListener('focus', () => schedule(link, 0));",
+			"link.addEventListener('focus', (event) => schedule(link, openDelay, event.timeStamp));",
+			"link.addEventListener('focus', (event) => schedule(link, 0, event.timeStamp));",
 		),
 	},
 	// The card keeps its content and loses its place: with no anchor it falls
@@ -273,7 +273,7 @@ const MUTATIONS = {
 	// The page moves under a card pinned to a link that is no longer there.
 	'ignore-the-page-moving': {
 		target: 'scrolling-dismisses-the-card',
-		apply: rewriteModule('if (!card.contains(event.target)) close();', ''),
+		apply: rewriteModule('if (!card.contains(event.target) && event.timeStamp >= askedAt) close();', ''),
 	},
 	// Focus follows the card, so a reader tabbing through the prose is put
 	// inside an excerpt and has to find their way back out of it.

@@ -1752,6 +1752,17 @@ details.y-metarow {
   line-height: var(--lh-cjk);
 }
 
+/* A long chapter keeps its words available to native find and fragment
+   arrivals while the browser defers work on blocks outside the viewport.
+   Until a block has been read, reserve a short paragraph's height; afterwards
+   use its remembered height without reserving space across the line. */
+.y-prose > * {
+  contain-intrinsic-block-size: auto 6em;
+  content-visibility: auto;
+  /* A keyboard focus ring reaches four pixels beyond the block's edge. */
+  overflow-clip-margin: 4px;
+}
+
 /* Latin set on a 30px line, where the article says it is not Han, kana or
    Hangul. Ruby needs the 2.0 line above, so an article that declares nothing
    keeps it: the safe line is the default and the open one has to be earned by
@@ -3532,6 +3543,9 @@ a.y-facetrow:hover {
    ============================================================ */
 .y-prose .y-reading {
   margin: var(--sp-block) 0 0;
+  /* The voice control stands thirty pixels into the gutter, with a four-pixel
+     focus ring outside it. Block containment must keep both available. */
+  overflow-clip-margin: 34px;
   position: relative;
 }
 
@@ -4017,6 +4031,11 @@ a.y-facetrow:hover {
 .y-conceptsheet__body {
   overflow-y: auto;
   padding: 18px 20px;
+}
+/* The sheet places a named section using the blocks' heights when it opens.
+   An offscreen estimate that changes afterward would move that destination. */
+.y-conceptsheet__body > * {
+  content-visibility: visible;
 }
 @media (max-width: 720px) {
   .y-conceptsheet {
@@ -6421,6 +6440,11 @@ samp,
      whole of the change. The interface's own disclosures are already off the
      sheet, which is why this is scoped to the prose. */
   .y-prose details::details-content {
+    content-visibility: visible;
+  }
+  /* Paper has no viewport to bring deferred blocks into, so every block of
+     the reading is laid out before the page is divided into sheets. */
+  .y-prose > * {
     content-visibility: visible;
   }
   /* What each finding means goes on the sheet with the findings. A printed

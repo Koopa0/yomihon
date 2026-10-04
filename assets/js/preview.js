@@ -35,6 +35,7 @@ export function initPreview() {
   const excerpts = new Map();
 
   let timer = null;
+  let askedAt = 0;
   let controller = null;
   let anchored = null;
   let exiting = null;
@@ -64,6 +65,7 @@ export function initPreview() {
   }
 
   function close() {
+    askedAt = 0;
     clearTimeout(timer);
     timer = null;
     controller?.abort();
@@ -139,7 +141,7 @@ export function initPreview() {
   // A hover is a question only once it has been held; a pointer crossing three
   // links on its way somewhere asked nothing. Tabbing through six of them is
   // the same crossing made with a keyboard, so it waits the same.
-  function schedule(link, delay) {
+  function schedule(link, delay, timeStamp) {
     if (link === anchored) return;
     // The note the reader is already on has nothing to preview, and a pointer
     // resting mid-selection is dragging over words rather than asking about a
@@ -147,6 +149,7 @@ export function initPreview() {
     if (link.pathname === location.pathname) return;
     if (!getSelection()?.isCollapsed) return;
     clearTimeout(timer);
+    askedAt = timeStamp;
     timer = setTimeout(() => {
       timer = null;
       open(link);
@@ -156,6 +159,7 @@ export function initPreview() {
   // The grace is what makes the card reachable: the pointer has to be able to
   // leave the link, cross the gap, and land in the card to scroll it.
   function release() {
+    askedAt = 0;
     clearTimeout(timer);
     timer = setTimeout(close, travelGrace);
   }
@@ -194,9 +198,9 @@ export function initPreview() {
   links.push(...sources);
 
   for (const link of links) {
-    link.addEventListener('pointerenter', () => schedule(link, openDelay));
+    link.addEventListener('pointerenter', (event) => schedule(link, openDelay, event.timeStamp));
     link.addEventListener('pointerleave', release);
-    link.addEventListener('focus', () => schedule(link, openDelay));
+    link.addEventListener('focus', (event) => schedule(link, openDelay, event.timeStamp));
     link.addEventListener('blur', close);
   }
 
@@ -214,7 +218,9 @@ export function initPreview() {
   document.addEventListener(
     'scroll',
     (event) => {
-      if (!card.contains(event.target)) close();
+      // Layout can queue a scroll before a hover that reaches us first. That
+      // earlier movement must not cancel the reader's newer question.
+      if (!card.contains(event.target) && event.timeStamp >= askedAt) close();
     },
     { capture: true, passive: true },
   );
