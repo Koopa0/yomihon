@@ -130,9 +130,8 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// reads from the current generation, captured together. Two calls could
 	// straddle a rebuild, and a page assembled from two generations states
 	// things about a vault that never existed at once.
-	// The folder the server was pointed at cannot change under a running
-	// process, so the name every rail's foot shows is taken once here rather
-	// than derived again at each surface that states it.
+	// The opened object and its startup name stay fixed even when the selecting
+	// path changes. The scanner reports that divergence separately.
 	vaultName := shell.VaultName(source.Name())
 	shellProvider := func() nav.Shell {
 		return shell.Project(vaultName, writer.Authority(), store.Current().Capture())

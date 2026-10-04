@@ -94,9 +94,10 @@ type readerToken [1]byte
 // Paths exposed to callers are NFC-normalized; filesystem lookup retains the
 // original directory-entry spelling in Entry.
 type Reader struct {
-	name  string
-	root  *os.Root
-	token *readerToken
+	name         string
+	selectedPath string
+	root         *os.Root
+	token        *readerToken
 }
 
 // File is an opened regular file selected through a Reader. Its descriptor
@@ -391,7 +392,8 @@ func Open(root string) (*Reader, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open vault root: %w", err)
 	}
-	absolute, err = filepath.EvalSymlinks(filepath.Clean(absolute))
+	selected := filepath.Clean(absolute)
+	absolute, err = filepath.EvalSymlinks(selected)
 	if err != nil {
 		return nil, fmt.Errorf("open vault root: %w", err)
 	}
@@ -399,7 +401,34 @@ func Open(root string) (*Reader, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open vault root: %w", err)
 	}
-	return &Reader{name: absolute, root: opened, token: &readerToken{}}, nil
+	return &Reader{name: absolute, selectedPath: selected, root: opened, token: &readerToken{}}, nil
+}
+
+// RootIdentity compares the originally selected lookup path to the directory
+// object pinned at startup. Same is meaningful only without an observation error.
+type RootIdentity struct {
+	SelectedPath string
+	OpenedName   string
+	Same         bool
+}
+
+// ObserveRoot checks whether the selected path still names the pinned directory.
+// OpenedName remains the startup name; it does not discover a renamed pathname.
+func (r *Reader) ObserveRoot() (RootIdentity, error) {
+	if r == nil || r.root == nil {
+		return RootIdentity{}, fmt.Errorf("observe vault root: reader is closed: %w", fs.ErrClosed)
+	}
+	identity := RootIdentity{SelectedPath: r.selectedPath, OpenedName: r.name}
+	opened, err := r.root.Stat(".")
+	if err != nil {
+		return identity, fmt.Errorf("observe vault root: stat opened directory: %w", err)
+	}
+	selected, err := os.Stat(r.selectedPath)
+	if err != nil {
+		return identity, fmt.Errorf("observe vault root: stat selected path: %w", err)
+	}
+	identity.Same = os.SameFile(opened, selected)
+	return identity, nil
 }
 
 // Name returns the clean, resolved path selected when the Reader was opened.

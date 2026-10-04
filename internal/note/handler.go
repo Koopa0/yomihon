@@ -59,9 +59,8 @@ type Sources struct {
 	// Contract supplies the field and lifecycle vocabulary a thought stub is
 	// written from; the note type it is for comes from the snapshot's roles.
 	Contract *schema.Contract
-	// VaultName is the folder's own name, taken once at start-up because the
-	// directory the server was pointed at cannot change under a running
-	// process. The rail's foot says it on every page.
+	// VaultName is the opened folder's startup name, fixed even when the
+	// selecting pathname changes. The scanner reports divergence separately.
 	VaultName string
 	Status    func() status.Authority
 	Snapshot  func() *snapshot.Generation
