@@ -265,7 +265,8 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 		// beside it: the two are read by line number together.
 		address = slices.Delete(slices.Clone(address), dropped, dropped+1)
 	}
-	res := r.renderBody(source, address, embedsAllowed, page, region)
+	col := &collector{page: page, relPath: relPath, body: body, onPage: region == hostRegion}
+	res := r.renderBody(source, address, embedsAllowed, col, region)
 	res.Diagnostics = appendUnclosedComment(res.Diagnostics, unclosedComment)
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
@@ -389,6 +390,12 @@ func (c *composition) claimBlockAnchor(id string) bool {
 type collector struct {
 	diags []Diagnostic
 	page  *composition
+	// relPath owns the source being read; body is the current note's original
+	// input, so local links do not consult another captured version of it.
+	relPath string
+	body    string
+	// onPage permits a fragment-only address; excerpts instead name their source.
+	onPage bool
 }
 
 func (c *collector) report(d *Diagnostic) { c.diags = append(c.diags, *d) }
@@ -425,10 +432,11 @@ func footnoteRegionPrefix(n ast.Node) []byte {
 // callout's body is not among them — it is the note's own text and is read by
 // the note's own parse. The body arrives with its Obsidian %% comments already
 // removed, and a second pass could reopen a marker ruled literal.
-func (r *Pipeline) render(body string, allowEmbed embedPolicy, page *composition) Result {
+func (r *Pipeline) render(relPath, body string, allowEmbed embedPolicy, page *composition) Result {
 	// An excerpt arrives already cut from a body whose comments came off where
 	// that cut was made, so these lines are the geometry this render was handed.
-	return r.renderBody(body, strings.Split(body, "\n"), allowEmbed, page, page.nextRegion())
+	col := &collector{page: page, relPath: relPath}
+	return r.renderBody(body, strings.Split(body, "\n"), allowEmbed, col, page.nextRegion())
 }
 
 // renderBody renders one body. address is that body's lines carrying the
@@ -436,8 +444,8 @@ func (r *Pipeline) render(body string, allowEmbed embedPolicy, page *composition
 // instead of the lines this leaves: the neutralisation below can empty a line
 // that held nothing but placeholder runes, and a run edge there is one nobody
 // typed.
-func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPolicy, page *composition, region string) Result {
-	col := &collector{page: page}
+func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPolicy, col *collector, region string) Result {
+	page := col.page
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
 	// authored copy before placeholders exist prevents source from selecting or
 	// relocating renderer-owned HTML during substituteBlocks.

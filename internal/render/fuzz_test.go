@@ -19,6 +19,7 @@ func (b fuzzTransclusions) Transclusion(path string) (string, bool) {
 func FuzzHTML(f *testing.F) {
 	for _, seed := range []string{
 		"",
+		"[[#Local|go]]\n\n## Local\n[[#Missing]]",
 		"plain <ruby>日<rt>にち</rt></ruby> text",
 		"# Duplicate title\n## 見出し\n[[missing|表示]]",
 		"```go\r\n[[literal]]\r\n> [!note] literal\r\n```",
