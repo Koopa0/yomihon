@@ -13,7 +13,7 @@ function speechLanguage(passage) {
   return declared && declared !== 'und' ? declared : 'ja-JP';
 }
 
-export function initLesson() {
+export function initLesson(enhanceCodeCopy) {
   let speechRate = 0.8;
   let speechGeneration = 0;
   let activeSpeakButton = null;
@@ -425,6 +425,7 @@ export function initLesson() {
         event.preventDefault();
         title.textContent = template.dataset.title || '';
         body.replaceChildren(template.content.cloneNode(true));
+        enhanceCodeCopy(body);
         // The markup cannot declare this one. The trigger is a link the
         // renderer wrote into the note's prose, and the attributes naming an
         // act belong to buttons — a button here would take away the plain

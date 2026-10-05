@@ -55,6 +55,7 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 	// an empty box.
 	if v.OpeningHTML != "" {
 		<div class="y-cover__opening y-prose" { authoredLanguageAttrs(v.OpeningLanguage)... }>
+			@layouts.CodeCopy(lang)
 			@templ.Raw(v.OpeningHTML)
 		</div>
 	}
