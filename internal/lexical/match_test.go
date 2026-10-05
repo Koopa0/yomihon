@@ -362,10 +362,10 @@ func TestSearchFilters(t *testing.T) {
 	}{
 		{"type equality", "type:lesson", []string{"Writing/Kafka.md"}},
 		{"status equality", "status:archived", []string{"Writing-old/Legacy.md"}},
-		{"domain matches two in rel_path order", "domain:golang", []string{"Writing-old/Legacy.md", "Writing/Kafka.md"}},
+		{"domain matches two in rel_path order", "domain:golang", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
 		{"slug equality", "slug:kafka-basics", []string{"Writing/Kafka.md"}},
 		{"topic membership single", "topic:focus", []string{"Concepts/Focus.md"}},
-		{"topic membership two", "topic:messaging", []string{"Writing-old/Legacy.md", "Writing/Kafka.md"}},
+		{"topic membership two", "topic:messaging", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -485,8 +485,11 @@ func TestSearchOrdering(t *testing.T) {
 func TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery(t *testing.T) {
 	t.Parallel()
 
-	containing := "Go Slice 共享底層陣列.md"
-	exact := "Go Slice.md"
+	// Separate folders make path order oppose title relevance even when
+	// filename stems place a shorter name before its longer prefix.
+	containing := "a/Go Slice 共享底層陣列.md"
+	exact := "z/Go Slice.md"
+	t.Log("invoked: exact-title rank independent of path order")
 	if vault.ComparePaths(containing, exact) >= 0 {
 		t.Fatal("the containing-title path must sort first, or this fixture cannot catch a missing tie-break")
 	}
@@ -499,7 +502,7 @@ func TestAnExactTitleLeadsATitleThatOnlyContainsTheQuery(t *testing.T) {
 	got := paths(searchResults(t, idx, Parse("Go Slice")))
 	want := []string{exact, containing}
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Search(Go Slice) order mismatch (-want +got):\n%s", diff)
+		t.Errorf("caught: Search(Go Slice) order mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -912,7 +915,7 @@ func TestSearchFiltersAnswerEitherCase(t *testing.T) {
 	}{
 		{"type", "type:lesson", "type:Lesson", []string{"Writing/Kafka.md"}},
 		{"status", "status:archived", "status:Archived", []string{"Writing-old/Legacy.md"}},
-		{"domain", "domain:golang", "domain:Golang", []string{"Writing-old/Legacy.md", "Writing/Kafka.md"}},
+		{"domain", "domain:golang", "domain:Golang", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
 		{"slug", "slug:kafka-basics", "slug:Kafka-Basics", []string{"Writing/Kafka.md"}},
 		{"topic", "topic:focus", "topic:Focus", []string{"Concepts/Focus.md"}},
 		{"folder", "folder:Writing", "folder:writing", []string{"Writing/Kafka.md"}},
