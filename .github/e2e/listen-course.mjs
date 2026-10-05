@@ -16,6 +16,18 @@ const BAR = '.y-ttsbar';
 const ANCHOR = '[data-readaloud-bar]';
 const LESSON = '.y-listen__lesson';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 // The fixture's two lessons and what each marks, written out rather than read
 // back off the page: an expectation gathered the way the page gathers it would
 // agree with the page however wrong both were.
@@ -123,7 +135,7 @@ const MUTATIONS = {
     target: 'the-page-fits-a-phone',
     apply: rewriteDocument(
       '<div class="y-listen">',
-      '<div class="y-listen"><div class="y-seam" style="width:2000px"></div>',
+      '<div class="y-listen"><div class="y-seam" style="width:2000px;height:1px"></div>',
       'the reading column',
     ),
   },
@@ -204,6 +216,7 @@ try {
     fail('the-bar-says-what-cannot-be-asked-for', `the bar says ${JSON.stringify(bar.limits)} about what the voice cannot be asked for, want the sentence naming the absent seek bar and elapsed time`);
   }
 
+  await arrived(page);
   const wide = await page.evaluate(() => {
     const over = [];
     for (const element of document.querySelectorAll('*')) {
