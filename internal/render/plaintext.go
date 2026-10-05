@@ -326,6 +326,7 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 	// The retrieval projections report nothing: a corpus entry is not a page,
 	// and a fault in a note is the reading page's news to break.
 	body, _ = stripObsidianComments(body)
+	body = expandInlineFootnotes(body)
 	lines := strings.Split(body, "\n")
 	rewritten := rewrittenLines{starts: make([]int, len(lines)), changed: make([]bool, len(lines))}
 	inFence := false

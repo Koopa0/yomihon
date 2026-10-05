@@ -449,6 +449,7 @@ func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPol
 		return r
 	}, body)
 	source, blocks, inline := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
+	source = expandInlineFootnotes(source)
 
 	// Parse and render as two steps rather than one Convert call, which is
 	// exactly what Convert does, so this region's id prefix can be attached to
