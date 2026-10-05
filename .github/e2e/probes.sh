@@ -29,6 +29,7 @@ probes=(
   "drawer-contract.mjs|/notes/Notes/alpha.md"
   "rail-foot.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
+  "mermaid-name.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "report-frame-contract.mjs|/reports/browser-boundary.html"
