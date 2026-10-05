@@ -6,8 +6,8 @@
 // showing, the excerpt a hover card shows of the note under the reader's
 // pointer, the language switch every page's footer posts to, and the catch-all
 // that answers a path the vault has nothing at. The last is
-// deliberately last: it exists so no request reaches the router's own
-// fallback, which answers in English and offers nowhere to go.
+// deliberately last: it gives an unknown GET path a page with a way onward.
+// LocalizedRouter handles the mux's separate method refusal.
 //
 // A vault file with no dedicated reader is shown here too, as an honest
 // stand-in page rather than as something this package pretends to render.
@@ -139,8 +139,8 @@ func New(d *Sources) *Handler {
 }
 
 // Register mounts the feature's routes. The bare "GET /" is the last pattern
-// any request can match, and it exists so that none of them reaches the
-// router's own fallback, which answers in English and offers nowhere to go.
+// a GET can match, so an unknown path keeps the reading shell. Method
+// refusals are answered separately by LocalizedRouter.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes/{path...}", h.show)
 	mux.HandleFunc("GET /thought/{path...}", h.thought)

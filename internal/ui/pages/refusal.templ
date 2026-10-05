@@ -1,0 +1,36 @@
+package pages
+
+import (
+ "github.com/koopa0/yomihon/internal/ui/layouts"
+ "github.com/koopa0/yomihon/internal/wording"
+)
+
+// RequestRefusedView names why an HTTP request was refused and carries the
+// same navigation the reader was using before it failed.
+type RequestRefusedView struct {
+ Title string
+ Lede string
+ Sidebar Sidebar
+}
+
+// RequestRefused renders a method or origin refusal as an ordinary recovery
+// page with safe links back into the reading room.
+templ RequestRefused(v RequestRefusedView,c layouts.Chrome) {
+ @layouts.Base(c) {
+  <div class="y-nav-scrim" data-nav-close></div>
+  <div class="y-shell2">
+   @sidebar(v.Sidebar,c)
+   <main id="main-content" tabindex="-1" class="y-main">
+    <article class="y-recovery" lang={c.Lang.Tag()} aria-labelledby="request-refused-title">
+     @nothingToShow(nothingNotice{Kind:"request",Mark:wording.RequestRefusedKicker.In(c.Lang),Title:v.Title,TitleID:"request-refused-title",Page:true}) {
+      <p>{v.Lede}</p>
+     }
+     <nav class="y-recovery__actions" aria-label={wording.LeaveThisPage.In(c.Lang)}>
+      <a class="y-recovery__action" href="/search">{wording.SearchNotes.In(c.Lang)}</a>
+      <a class="y-recovery__action y-recovery__action--quiet" href="/">{wording.BackHome.In(c.Lang)}</a>
+     </nav>
+    </article>
+   </main>
+  </div>
+ }
+}
