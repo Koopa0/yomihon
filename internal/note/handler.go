@@ -413,6 +413,7 @@ func (h *Handler) reading(
 	}
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
+	contract := h.enumContract(authority)
 	view = pages.NoteView{
 		Title:              n.Title,
 		RelPath:            n.RelPath,
@@ -463,8 +464,9 @@ func (h *Handler) reading(
 		NoFrontmatter:       state.noFrontmatter,
 		FrontmatterRequired: state.frontmatterRequired,
 		StatusUnknown:       state.statusUnknown,
+		AllowedStatuses:     enumValues(contract, "status", n.Type),
 		StatusNotText:       state.statusNotText,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n, lang),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n, lang, contract),
 		// The layer that withheld the transition set, when that is why it is
 		// empty, so the page names it instead of the schema.
 		OutsideKnowledgeScope: state.outsideLayer(),
@@ -504,7 +506,7 @@ func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (disp
 //
 // The folder comes from the same captured generation as the findings, so the
 // explanation names the folder the domain rule compared.
-func schemaNotices(findings []judge.Finding, domainFolder string, reading *snapshot.Reading, lang wording.Lang) [][]wording.SchemaPart {
+func schemaNotices(findings []judge.Finding, domainFolder string, reading *snapshot.Reading, lang wording.Lang, contract *schema.Contract) [][]wording.SchemaPart {
 	if len(findings) == 0 {
 		return nil
 	}
@@ -524,7 +526,11 @@ func schemaNotices(findings []judge.Finding, domainFolder string, reading *snaps
 		if f.RuleID == "schema.frontmatter" {
 			target = reading.FMDiagnostic
 		}
-		notices = append(notices, wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target, folder))
+		sentence := wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target, folder)
+		if f.RuleID == "schema.enum" {
+			sentence = append(sentence, wording.AllowedEnumValues(lang, deref(f.Field), enumValues(contract, deref(f.Field), reading.Type))...)
+		}
+		notices = append(notices, sentence)
 	}
 	return notices
 }

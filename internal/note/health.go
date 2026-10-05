@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -28,6 +29,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	found := shell.GatherFindings(authority, snap)
 	articleLang := articleLanguageLookup(snap)
+	contract := h.enumContract(authority)
 	view := pages.HealthView{
 		Unwritten:             healthLinks(found.Unwritten, articleLang),
 		TitleOnly:             healthTitleLinks(found.TitleOnly, articleLang),
@@ -37,10 +39,10 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		Blocked:               healthBlocked(found.Blocked),
 		Notices:               folderNotices(found.Collision, lang),
 		Skipped:               healthSkipped(found.Skipped),
-		StatusOutsideEnum:     healthStatusNotes(found.StatusOutsideEnum, articleLang),
-		StatusUnreachable:     healthStatusNotes(found.StatusUnreachable, articleLang),
+		StatusOutsideEnum:     healthStatusNotes(found.StatusOutsideEnum, articleLang, contract),
+		StatusUnreachable:     healthStatusNotes(found.StatusUnreachable, articleLang, nil),
 		FrontmatterUnreadable: healthNoteFindings(found.FrontmatterUnreadable, articleLang),
-		SchemaFaults:          healthNoteFindings(found.SchemaFaults, articleLang),
+		SchemaFaults:          healthEnumFindings(healthNoteFindings(found.SchemaFaults, articleLang), snap, lang, contract),
 		NavigationFaults:      healthNavigationFaults(found.NavigationFaults, articleLang),
 		InstanceScopeUnknown:  found.InstanceScopeUnknown,
 		// A folder that declared no vocabulary has no schema findings to
@@ -70,13 +72,14 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 // declared across to the page, each title marked with the language its author
 // wrote it in. The rows arrive in the index's own path order, which is the
 // order the rest of the page lists findings in.
-func healthStatusNotes(found []shell.StatusNote, articleLang pages.ArticleLanguageFor) []pages.HealthStatusNote {
+func healthStatusNotes(found []shell.StatusNote, articleLang pages.ArticleLanguageFor, contract *schema.Contract) []pages.HealthStatusNote {
 	out := make([]pages.HealthStatusNote, 0, len(found))
 	for _, row := range found {
 		out = append(out, pages.HealthStatusNote{
-			Note:   noteRef(row.Note, articleLang),
-			Type:   row.Type,
-			Status: row.Status,
+			Note:            noteRef(row.Note, articleLang),
+			Type:            row.Type,
+			Status:          row.Status,
+			AllowedStatuses: contract.StatusesInGroup(contract.StatusGroup(row.Type)),
 		})
 	}
 	return out
@@ -233,4 +236,28 @@ func healthNavigationFaults(found []nav.CoreFault, articleLang pages.ArticleLang
 		out[i] = nav.CoreFault{Note: noteRef(fault.Note, articleLang), Reason: fault.Reason}
 	}
 	return out
+}
+
+// healthEnumFindings adds the same field vocabulary the reading page names.
+// Other diagnostics stay on the note; only enum repair needs the whole list.
+func healthEnumFindings(rows []pages.HealthNoteFindings, snap *snapshot.Generation, lang wording.Lang, contract *schema.Contract) []pages.HealthNoteFindings {
+	for i := range rows {
+		reading, ok := snap.Note(rows[i].Note.RelPath)
+		if !ok {
+			continue
+		}
+		findings := snap.SchemaFindings(rows[i].Note.RelPath)
+		for j := range findings {
+			finding := &findings[j]
+			if finding.RuleID != "schema.enum" {
+				continue
+			}
+			field := deref(finding.Field)
+			parts := wording.AllowedEnumValues(lang, field, enumValues(contract, field, reading.Type))
+			if len(parts) > 0 {
+				rows[i].EnumNotices = append(rows[i].EnumNotices, parts)
+			}
+		}
+	}
+	return rows
 }
