@@ -1964,9 +1964,19 @@ details.y-metarow {
 
 .y-prose img {
   border-radius: var(--r-lg);
-  height: auto;
+  height: revert-layer;
   max-width: 100%;
 }
+
+/* The reset makes image height automatic. An authored height rolls back that
+   layer as well, leaving its HTML dimension; other pictures keep the reset's
+   intrinsic ratio. Width is still capped in the product rule above. */
+@layer base {
+  .y-prose img[height] {
+    height: revert-layer;
+  }
+}
+
 /* A link is ink with a quiet underline, so it is findable without colour and
    the accent stays where it means something. The wikilink, the preview link and
    the concept link are all this one link: the faults a wikilink can carry
