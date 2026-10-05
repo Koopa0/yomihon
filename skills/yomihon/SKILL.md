@@ -331,9 +331,10 @@ Six filter keys:
 | Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, lowercase). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `topic:` is membership of the folded topics |
 | Unknown prefix | named back to the reader with all six offered, and the term is searched as text rather than dropped |
 | Quoting | `"…"`, `「…」`, `『…』` — at the start of a field, or straight after a recognised key and its colon |
-| Indexed | title, aliases, declared topics, body plain text and the vault-relative path are free-text searchable; type, status, domain and slug are reachable only through their own filter. An alias hit is filed with the title hits |
+| Indexed | title, aliases, declared topics, frontmatter tags, body plain text and the vault-relative path are free-text searchable; type, status, domain and slug are reachable only through their own filter. An alias hit is filed with the title hits |
+| Tag shorthand | Frontmatter tags also answer bare words and one leading `#` as tag shorthand. Every token must match the same declared tag. The answering tag is shown in its original spelling; queries against other fields keep their literal hashes. There is no `tag:` filter or note-head tag display |
 | CJK | no segmenter: a folded literal substring, and a newline between two Han or Kana runes is dropped |
-| Ranking | eight fixed groups. Where the query was found decides the group — title, then body, then topics — and a note outranks a non-markdown file at each; last come the two groups matched on their path alone. Inside a group, notes in the directories the contract calls knowledge come before those outside, then vault reading order. A title that is exactly the query under that fold leads. There is no score |
+| Ranking | nine fixed groups: note title/alias, note body, note topic, note tag, file title, file body, file topic, note path and file path. Frontmatter tags rank below body and topic hits; inline tags are not indexed as metadata. Inside a group, notes in the directories the contract calls knowledge come before those outside, then vault reading order. A title that is exactly the query under that fold leads. There is no score |
 
 ## Study paths: sequence is declared, never inferred
 
