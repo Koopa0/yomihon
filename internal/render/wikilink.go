@@ -878,30 +878,44 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		}
 		return href + "#" + url.PathEscape(blockAnchorID(address)), fragmentPlaced
 	case link.Heading != "":
-		addressed := href + "#" + graph.SectionID(link.Heading)
-		body, ok := r.transclusions.Transclusion(relPath)
-		if !ok {
-			return addressed, fragmentPlaced
-		}
-		stripped, _ := stripObsidianComments(body)
-		if _, found := headingSlice(stripped, link.Heading); found > 0 {
-			return addressed, fragmentPlaced
-		}
-		if headingAnchorMayExist(stripped, link.Heading) {
-			return addressed, fragmentPlaced
-		}
-		if r.embedBringsHeading(stripped, link.Heading) {
-			return addressed, fragmentPlaced
-		}
-		col.report(&Diagnostic{
-			Kind:    DiagLinkSectionMissing,
-			Target:  link.Target,
-			Section: link.Heading,
-			Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
-		})
-		return addressed, fragmentSectionMissing
+		return r.headingHref(relPath, href, link, col)
 	}
 	return href, fragmentPlaced
+}
+
+// headingHref uses a path's assigned leaf id and a single name's existing
+// generous reading. Missing headings keep the authored address in either case.
+func (r *Pipeline) headingHref(relPath, href string, link graph.Wikilink, col *collector) (string, fragmentMiss) {
+	addressed := href + "#" + graph.SectionID(link.Heading)
+	if col.page.headingLookup {
+		return addressed, fragmentPlaced
+	}
+	body, ok := r.transclusions.Transclusion(relPath)
+	if !ok {
+		return addressed, fragmentPlaced
+	}
+	var found bool
+	if IsHeadingPath(link.Heading) {
+		var id string
+		id, found = r.HeadingPath(relPath, link.Heading)
+		if found {
+			addressed = href + "#" + id
+		}
+	} else {
+		stripped, _ := stripObsidianComments(body)
+		_, matches := headingSlice(stripped, link.Heading)
+		found = matches > 0 || headingAnchorMayExist(stripped, link.Heading) || r.embedBringsHeading(stripped, link.Heading)
+	}
+	if found {
+		return addressed, fragmentPlaced
+	}
+	col.report(&Diagnostic{
+		Kind:    DiagLinkSectionMissing,
+		Target:  link.Target,
+		Section: link.Heading,
+		Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
+	})
+	return addressed, fragmentSectionMissing
 }
 
 // renderWikilink renders a plain (non-embed) [[target|display]] as one open/close
@@ -917,8 +931,14 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 		if miss != fragmentPlaced {
 			return degradedLink(href, link, miss, col.page.lang)
 		}
+		preview := ""
+		if IsHeadingPath(link.Heading) && link.Block == "" {
+			if _, captured := r.transclusions.Transclusion(res.RelPath); captured && vault.IsMarkdown(res.RelPath) {
+				preview = ` data-preview-section="` + html.EscapeString(link.Heading) + `"`
+			}
+		}
 		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, attributeEscaper.Replace(href), html.EscapeString(link.Display))
+		return fmt.Sprintf(`<a href="%s" class="wikilink"%s>%s</a>`, attributeEscaper.Replace(href), preview, html.EscapeString(link.Display))
 	case graph.KindAmbiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,

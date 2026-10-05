@@ -103,6 +103,12 @@ func shellHeadingLevel(level int) int {
 // data-level and the contents list keep the authored level, so size, indent and
 // scroll-margin stay where the author wrote them.
 func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
+	return stampHeadings(htmlOut, reserved, nil)
+}
+
+// stampHeadings also keeps headings inside transclusions: a link can land on
+// them even though the page's contents list leaves them out.
+func stampHeadings(htmlOut, reserved string, all *[]TOCEntry) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
 	if reserved != "" {
@@ -152,6 +158,9 @@ func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 		seen[id] = true
 
 		rendered := shellHeadingLevel(level)
+		if all != nil {
+			*all = append(*all, TOCEntry{Level: level, Text: text, ID: id})
+		}
 		if !withinAny(transcluded, m[0], m[1]) {
 			toc = append(toc, TOCEntry{Level: level, Text: text, ID: id})
 		}

@@ -29,6 +29,7 @@ func FuzzHTML(f *testing.F) {
 		"before ![[target]] after",
 		"before %%hidden%% after\n```text %%literal info%%\n%%literal%%\n```",
 		"## 重複\n## 重複\n<h2>raw heading</h2>",
+		"[[target#Embedded#Child]]\n[[target#Embedded##Child]]\n![[target#Embedded#Child]]",
 	} {
 		f.Add(seed)
 	}
@@ -36,7 +37,7 @@ func FuzzHTML(f *testing.F) {
 	const targetPath = "target.md"
 	renderer := New(
 		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, nil),
-		fuzzTransclusions{targetPath: "## Embedded\nbody with ![[target]]"},
+		fuzzTransclusions{targetPath: "## Embedded\n### Child\nbody with ![[target]] and [[target#Embedded#Child]]"},
 		internalNoTitles{},
 		holdsEverything{},
 	)

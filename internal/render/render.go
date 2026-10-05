@@ -295,6 +295,9 @@ type composition struct {
 	base    string
 	regions int
 	blocks  map[string]bool
+	// headingLookup renders a destination's outline without following its
+	// links' fragments back into other outlines, which may cite this one.
+	headingLookup bool
 	// transcluded records what every embed this assembly read came to, in
 	// document order. Only something the separately parsed bodies share
 	// accounts for all.

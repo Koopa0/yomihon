@@ -64,6 +64,7 @@ const SITES = [
 	'the-keyboard-waits-the-same-as-the-pointer',
 	'card-anchored-to-its-link',
 	'card-shows-the-section-the-link-addressed',
+	'card-shows-the-child-in-the-authored-path',
 	'the-card-names-the-note-it-shows',
 	'card-scrolls-inside-itself',
 	'a-link-that-cannot-be-previewed-opens-nothing',
@@ -231,7 +232,11 @@ const MUTATIONS = {
 	// destination from the top and the promise the link made goes unkept.
 	'drop-the-fragment': {
 		target: 'card-shows-the-section-the-link-addressed',
-		apply: rewriteModule('const fragment = decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
+		apply: rewriteModule('const fragment = link.dataset.previewSection || decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
+	},
+	'drop-the-authored-heading-path': {
+		target: 'card-shows-the-child-in-the-authored-path',
+		apply: rewriteModule('link.dataset.previewSection || decodeURIComponent(link.hash.slice(1))', 'decodeURIComponent(link.hash.slice(1))'),
 	},
 	// The card grows to whatever it holds, so a long note pushes it off the
 	// screen instead of scrolling inside it.
@@ -538,6 +543,18 @@ const freezeClock = async (page) => {
 	await page.clock.pauseAt(now + PAUSE_MARGIN_MS);
 };
 
+const arrived = (page) => page.waitForFunction(
+	async () => {
+		if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+		await Promise.all(document.getAnimations()
+			.filter((animation) => animation.animationName === 'y-come-forward')
+			.map((animation) => animation.finished.catch(() => {})));
+		return true;
+	},
+	null,
+	{ timeout: 3000 },
+);
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
 	const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -561,6 +578,7 @@ try {
 	const page = await context.newPage();
 	const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
 	if (!response || response.status() !== 200) broken(`the source note returned ${response?.status() ?? 'no response'}, want 200`);
+	await arrived(page);
 	{
 		const state = await cardState(page);
 		if (!state.present) broken('the reading page carries no card element, so nothing below could ever open');
@@ -712,6 +730,24 @@ try {
 		await settles(page, false, 2000);
 	}
 
+	// The href answers the page's suffixed id; the card must still cut the
+	// source by ancestry, rather than ask for a heading called nested-child-2.
+	{
+		const nested = await only(page, 'second nested child');
+		if (await nested.getAttribute('href') !== '/notes/Notes/Glass%20Tide.md#nested-child-2') {
+			broken('the nested fixture does not address the second child id');
+		}
+		await pointerOnto(page, nested);
+		if (!(await settles(page, true, 4000))) broken('the resolved nested link opens no card');
+		const state = await cardState(page);
+		proveApplied('card-shows-the-child-in-the-authored-path', proof);
+		if (!state.proseText.includes('SECOND NESTED PASSAGE') || state.proseText.includes('FIRST NESTED PASSAGE')) {
+			fail('card-shows-the-child-in-the-authored-path', `the card lost the authored parent: ${JSON.stringify(state.proseText)}`);
+		}
+		await page.mouse.move(4, 4);
+		await settles(page, false, 2000);
+	}
+
 	// The whole-note link, whose destination is long enough that the card has
 	// to keep it inside itself.
 	const whole = await only(page, WHOLE_NOTE_LINK);
@@ -792,6 +828,7 @@ try {
 		if (!lessonResponse || lessonResponse.status() !== 200) {
 			broken(`the lesson returned ${lessonResponse?.status() ?? 'no response'}, want 200`);
 		}
+		await arrived(lesson);
 		const term = lesson.locator(`main a.concept-link:text-is("${CONCEPT_LINK}")`);
 		const found = await term.count();
 		if (found !== 1) {
@@ -873,6 +910,7 @@ try {
 	const tapping = await touch.newPage();
 	const touchResponse = await tapping.goto(BASE + PAGE, { waitUntil: 'networkidle' });
 	if (!touchResponse || touchResponse.status() !== 200) broken(`the source note returned ${touchResponse?.status() ?? 'no response'} to the touch context`);
+	await arrived(tapping);
 	const coarse = await tapping.evaluate(() => matchMedia('(pointer: coarse)').matches);
 	if (!coarse) broken('the touch context still reports a fine pointer, so this check would pass over an emulation that never happened');
 	const touchLink = tapping.locator(`main a:text-is("${SECTION_LINK}")`);

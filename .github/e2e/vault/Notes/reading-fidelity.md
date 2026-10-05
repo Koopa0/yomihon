@@ -97,3 +97,5 @@ An ordinary list still owes its disc.
 - an ordinary item
 
 [^scope]: Only the scope of this study is covered.
+
+[[Glass Tide#Second parent#Nested child|second nested child]]

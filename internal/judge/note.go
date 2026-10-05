@@ -30,6 +30,10 @@ type note struct {
 	// wrote one.
 	unclosedFrontmatter bool
 
+	// body is the captured, frontmatter-free source a heading path asks the
+	// renderer to read. Frontmatter-only lint does not retain or inspect it.
+	body string
+
 	title      string
 	titleEn    string
 	aliases    []string
@@ -135,6 +139,7 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 	n := note{path: rel}
 	if marks != nil {
 		body := string(block.Body)
+		n.body = body
 		n.wikilinks = extractWikilinksWith(body, block.BodyStartLine, marks.heading)
 		n.pathRefs = extractPathRefs(body, block.BodyStartLine)
 		n.plannedNames = extractPlannedNamesWith(body, *marks)
