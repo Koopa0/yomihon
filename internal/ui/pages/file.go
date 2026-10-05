@@ -37,6 +37,12 @@ type FileView struct {
 	// information page.
 	Size        int64
 	ContentType string
+	// SourceLimit identifies a Markdown file withheld from reading for size.
+	// Other files keep the information page's generic explanation.
+	SourceLimit int64
+	// SourceLimitFinding says this captured report has a size finding to link.
+	// Markdown documents excluded by the contract have none.
+	SourceLimitFinding bool
 
 	SourceHTML string
 	BodyHTML   string
@@ -47,6 +53,21 @@ type FileView struct {
 // byteUnits are the steps humanSize climbs; a vault never needs one above a
 // gigabyte.
 var byteUnits = []string{"KB", "MB", "GB"}
+
+// readingLimit names the binary bound without rounding it into the file's
+// display units. The value comes from the same check that withheld reading.
+func readingLimit(n int64) string {
+	value := float64(n)
+	unit := "bytes"
+	for _, next := range []string{"KiB", "MiB", "GiB"} {
+		if value < 1024 {
+			break
+		}
+		value /= 1024
+		unit = next
+	}
+	return fmt.Sprintf("%g %s", value, unit)
+}
 
 // humanSize renders a byte count the way a person reads one, keeping the exact
 // figure alongside it: "2.4 MB" on its own is a rounding, not a fact.

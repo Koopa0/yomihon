@@ -216,6 +216,8 @@ type healthDetail struct {
 // file, however many of that kind the file carries.
 type healthRow struct {
 	Kind healthKind
+	// ID addresses the size finding from its note's information page.
+	ID string
 	// File is the note the finding is about. A zero relative path means the
 	// finding is about a path that is no note, and FilePath carries it.
 	File     nav.NoteRef
@@ -345,11 +347,13 @@ func (v *HealthView) sourceRows(lang wording.Lang) []healthRow {
 	}
 	for _, source := range v.Skipped {
 		var detail []healthDetail
+		var id string
 		if source.Size > 0 {
+			id = sourceBoundHealthID(source.Path)
 			detail = append(detail, healthDetail{Text: humanSize(source.Size, lang)})
 		}
 		detail = append(detail, machineDetail(source.Reason)...)
-		out = append(out, healthRow{Kind: healthSkipped, FilePath: source.Path, Detail: detail, Count: 1})
+		out = append(out, healthRow{Kind: healthSkipped, ID: id, FilePath: source.Path, Detail: detail, Count: 1})
 	}
 	return out
 }
@@ -478,7 +482,8 @@ func machineDetail(text string) []healthDetail {
 // heading a reader checks against and the lines they count cannot disagree.
 func healthTallies(rows []healthRow) []healthTally {
 	total := make(map[healthKind]int, len(healthKinds))
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		total[row.Kind] += row.Count
 	}
 	out := make([]healthTally, 0, len(healthKinds))
@@ -518,7 +523,8 @@ func healthShapeOf(rows []healthRow) healthShape {
 	var total int
 	var byWeight [judge.SeverityError + 1]int
 	files := make(map[healthFileKey]struct{}, len(rows))
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		total += row.Count
 		if row.Weighed {
 			byWeight[row.Severity] += row.Count

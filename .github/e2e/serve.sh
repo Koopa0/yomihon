@@ -285,6 +285,8 @@ if ! reason="$(contract_log_error "$(<"$log")")"; then
 fi
 
 export YOMIHON_BASE="$base" YOMIHON_PORT="$port"
+# Only developer probes receive the disposable fixture path, never the server.
+export YOMIHON_FIXTURE_ROOT="$vault"
 if "$@"; then
   status=0
 else

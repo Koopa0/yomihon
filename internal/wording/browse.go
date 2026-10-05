@@ -24,11 +24,16 @@ var (
 		"這裡沒有這種檔案的閱讀器；原始檔仍可下載。",
 		"There is no reader here for this kind of file; the original file can still be downloaded.",
 	)
-	FileName       = both("名稱", "Name")
-	FileSize       = both("大小", "Size")
-	FileType       = both("類型", "Type")
-	OpenRawBytes   = both("開啟原始位元組", "Open the raw bytes")
-	FileNotIndexed = both("這個檔案的內容不會被搜尋讀取。", "This file's contents are not read by search.")
+	NoteOverReadingLimit = both(
+		"這篇筆記的大小是 %s，超過 %s 的閱讀上限；原始檔仍可下載。",
+		"This note is %s, over the %s reading limit; the original file can still be downloaded.",
+	)
+	NoteReadingLimitHealth = both("在健康報告查看這篇筆記", "View this note in the health report")
+	FileName               = both("名稱", "Name")
+	FileSize               = both("大小", "Size")
+	FileType               = both("類型", "Type")
+	OpenRawBytes           = both("開啟原始位元組", "Open the raw bytes")
+	FileNotIndexed         = both("這個檔案的內容不會被搜尋讀取。", "This file's contents are not read by search.")
 )
 
 // A Markdown file the contract leaves out of the library still opens as a

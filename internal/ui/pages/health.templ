@@ -197,7 +197,7 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 			</thead>
 			<tbody>
 				for _, row := range window {
-					<tr>
+					<tr { sourceBoundHealthAttrs(row.ID)... }>
 						<td class="y-findings__file" data-col={ wording.HealthColumnFile.In(c.Lang) }>
 							if row.File.RelPath != "" {
 								<a class="y-healthlink" href={ templ.URL(notesHref(row.File.RelPath)) }><span { authoredLanguageAttrs(row.File.Language)... }>{ row.File.Name }</span></a>
