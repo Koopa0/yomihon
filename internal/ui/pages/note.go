@@ -17,13 +17,13 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
 	case render.DiagImageMissing:
 		return wording.DiagImageMissing.In(lang)
-	case render.DiagWikilinkBroken:
+	case render.DiagWikilinkBroken, render.DiagMarkdownBroken:
 		return wording.DiagLinkNoTarget.In(lang)
 	case render.DiagWikilinkTitleOnly:
 		return wording.DiagLinkTitleOnly.In(lang)
 	case render.DiagTitleTruncatedAtHash:
 		return wording.DiagTitleCut.In(lang)
-	case render.DiagWikilinkAmbiguous:
+	case render.DiagWikilinkAmbiguous, render.DiagMarkdownAmbiguous:
 		return wording.DiagLinkManyTargets.In(lang)
 	case render.DiagUnknownCallout:
 		return wording.DiagUnknownCallout.In(lang)

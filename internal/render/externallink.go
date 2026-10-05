@@ -6,8 +6,9 @@ package render
 // readers: the attributes keep the destination from learning where it was
 // opened from, the stylesheet draws an arrow after it, and a sentence carried
 // out of sight names the behaviour for whoever is listening. A link to another
-// note, a wikilink, and every destination that is not an absolute http or https
-// address are written exactly as goldmark writes them.
+// note uses its resolved route, and an unusable Markdown path retains its
+// label with an explanation. Other local links and wikilinks keep their
+// existing rendering.
 
 import (
 	"html"
@@ -46,8 +47,8 @@ func (d defaultRenderers) Register(kind ast.NodeKind, fn renderer.NodeRendererFu
 	d[kind] = fn
 }
 
-// externalLinkRenderer overrides the two link kinds and hands everything that
-// stays in the library back to goldmark's own functions for them.
+// externalLinkRenderer overrides the two link kinds, delegates marked Markdown
+// refusals, and otherwise keeps goldmark's local-link rendering.
 type externalLinkRenderer struct {
 	link     renderer.NodeRendererFunc
 	autoLink renderer.NodeRendererFunc
@@ -70,6 +71,11 @@ func (r externalLinkRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegiste
 
 func (r externalLinkRenderer) renderLink(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
 	n, ok := node.(*ast.Link)
+	if ok {
+		if value, found := n.AttributeString(markdownFaultAttr); found {
+			return renderMarkdownFault(w, node, value, entering)
+		}
+	}
 	if !ok || !leavesTheLibrary(n.Destination) {
 		return r.link(w, source, node, entering)
 	}
@@ -112,6 +118,17 @@ func (r externalLinkRenderer) renderAutoLink(w util.BufWriter, source []byte, no
 		return ast.WalkStop, err
 	}
 	return ast.WalkContinue, nil
+}
+
+func renderMarkdownFault(w util.BufWriter, node ast.Node, value any, entering bool) (ast.WalkStatus, error) {
+	fault, valid := value.(markdownFault)
+	if !valid {
+		panic("render: invalid Markdown fault attribute")
+	}
+	if entering {
+		return ast.WalkContinue, writeStrings(w, `<span class="`, fault.class, `" title="`, html.EscapeString(fault.reason), `">`)
+	}
+	return ast.WalkContinue, writeStrings(w, `<span class="`+offscreenNoteClass+`">`, html.EscapeString(wording.ParenOpen.In(footnoteLang(node))), html.EscapeString(fault.reason), html.EscapeString(wording.ParenClose.In(footnoteLang(node))), `</span></span>`)
 }
 
 // opensInNewTabNote is the sentence a listener is told after the link's own

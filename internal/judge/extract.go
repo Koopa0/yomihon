@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"net/url"
 	"slices"
 	"strings"
 	"unicode"
@@ -41,8 +42,9 @@ type wikiLink struct {
 }
 
 // pathRef is one file reference that is not a wikilink: a markdown [text](path)
-// link (resolved relative to the citing note) or a backticked path token
-// (resolved relative to the vault root). code distinguishes the two.
+// link (resolved from its note, the root, or a whole path suffix) or a backticked
+// path token (resolved from the root or its note). code distinguishes the two;
+// target keeps the authored spelling for the diagnostic's identity.
 type pathRef struct {
 	target string
 	line   int
@@ -136,8 +138,8 @@ func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string)
 
 // extractPathRefs returns every checkable file reference in body: markdown
 // [text](path.md) links and backticked path.md tokens. URLs, anchors, and
-// percent-encoded or glob paths are left out, so only plain in-vault file
-// references remain. A reference inside an Obsidian %%...%% comment is skipped,
+// glob paths are left out. Markdown paths may be percent-encoded; code tokens
+// remain literal paths. A reference inside an Obsidian %%...%% comment is skipped,
 // the same way a commented-out wikilink is: commented-out content is not a live
 // reference, so it is not checked.
 func extractPathRefs(body string, bodyStartLine int) []pathRef {
@@ -535,16 +537,17 @@ func codeSpanText(n *ast.CodeSpan, src []byte) string {
 	return b.String()
 }
 
-// fileLink reports a markdown link destination that is a plain relative vault
-// note reference: it drops a #fragment or ?query, trims, and accepts only a
-// relative .md path.
+// fileLink admits a Markdown note path after decoding it once, retaining its
+// original spelling for later findings. A raw #fragment or ?query is omitted
+// before decoding so encoded delimiters remain filename characters.
 func fileLink(dest string) (string, bool) {
 	path := dest
 	if i := strings.IndexAny(dest, "#?"); i >= 0 {
 		path = dest[:i]
 	}
 	path = strings.TrimSpace(path)
-	if isRelativeMdRef(path) {
+	decoded, err := url.PathUnescape(path)
+	if err == nil && isMarkdownPathRef(decoded) {
 		return path, true
 	}
 	return "", false
@@ -562,18 +565,21 @@ func backtickPath(token string) (string, bool) {
 }
 
 // isRelativeMdRef reports whether path is a plain relative .md file reference
-// worth stat-ing: it names a Markdown note by the vault's one extension test
+// checked as a code token: it names a Markdown note by the vault's extension test
 // and is not a URL, a site-absolute or home path, a glob or placeholder, or
 // percent-encoded. An uppercase spelling such as "Note.MD" names a resource
 // here as it does to every other reader; a private fold on this one path made
 // the judge count references no other face called notes.
 func isRelativeMdRef(path string) bool {
+	return !strings.Contains(path, "%") && isMarkdownPathRef(path)
+}
+
+func isMarkdownPathRef(path string) bool {
 	return path != "" &&
 		vault.IsMarkdown(path) &&
 		!strings.HasPrefix(path, "/") &&
 		!strings.HasPrefix(path, "~") &&
 		!strings.Contains(path, "://") &&
-		!strings.Contains(path, "%") &&
 		!strings.Contains(path, "*") &&
 		!strings.Contains(path, "<") &&
 		!strings.Contains(path, ">")

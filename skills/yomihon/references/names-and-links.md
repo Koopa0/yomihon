@@ -108,25 +108,37 @@ reporting `embed.section_missing` or `embed.block_missing`.
 
 ## Links that are not wikilinks
 
-A plain Markdown link to a Markdown file inside the vault is checked too, and so
-is a backticked `Notes/Some note.md` token. A path that is not there is
-`link.broken.path`; one that climbs out of the vault root is `info` instead,
-because it cannot be looked up the same way on every machine. A remote
-destination is never fetched.
+A plain Markdown link resolves against the note's own folder, the vault root,
+and the shortest whole path suffix. The path is percent-decoded once before
+matching; its query and fragment keep their authored spelling. A bare filename
+may match any captured file with that filename, but a qualified path keeps its
+directory segments. Titles and aliases do not stand in for file paths. If two
+interpretations name different existing files, neither is chosen: the page
+keeps the label as text and names every candidate.
 
-**Spaces in the destination decide whether it is checked at all,** which matters
-in a vault whose filenames have spaces in them. Three spellings of one dead
-link behave three different ways:
+A unique Markdown note target leads to `/notes/`; a unique resource leads to
+`/raw/`. The source directory belongs to the note that wrote the link, including
+inside a transcluded excerpt. No Markdown link adds a wikilink graph edge.
+
+`check` applies the same resolution to links to Markdown files. A missing target
+or several targets draws `link.broken.path`; an explicit path that climbs out of
+the vault root remains `info`, because it cannot be looked up the same way on
+every machine. The finding retains the authored path, line and fingerprint.
+Private or unobserved hidden paths are withheld before membership is checked.
+Remote destinations are never fetched. Backticked `Notes/Some note.md` tokens
+retain their separate root-or-note-relative rule; percent-encoded code tokens
+remain outside that rule.
+
+Spaces matter to whether CommonMark parses a link:
 
 | Written | On the page | What `check` says |
 |---|---|---|
 | `[label](Nothing here.md)` | **not a link** — the whole thing stays as literal text | nothing, because there is no link to judge |
-| `[label](<Nothing here.md>)` | a link | `link.broken.path` |
-| `[label](Nothing%20here.md)` | a link | **nothing** — a percent-encoded path is left out of this rule |
+| `[label](<Nothing here.md>)` | label with a missing-target explanation | `link.broken.path` |
+| `[label](Nothing%20here.md)` | label with a missing-target explanation | `link.broken.path`, keeping `Nothing%20here.md` as its target |
 
-So the checked spelling is the angle-bracketed one. The other two are the pair
-worth remembering: one is silent because it never became a link, the other is
-silent while looking exactly right on the page.
+The latter two resolve identically when a unique file exists. Malformed percent
+escapes are not repaired on the page; their label remains with an explanation.
 
 ## Naming a link as owed rather than broken
 

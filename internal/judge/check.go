@@ -49,7 +49,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	idx := buildIndex(a.notes, a.unreadable, a.resources)
 
 	findings := runGraphRules(a, idx)
-	findings = append(findings, checkDiskRefs(a.notes, a.scan, a.authority)...)
+	findings = append(findings, checkDiskRefs(a.notes, a.scan, a.authority, idx)...)
 	schemaFindings, err := checkSchema(a.notes, a.authority.contract)
 	if err != nil {
 		return nil, err
