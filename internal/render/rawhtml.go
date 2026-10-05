@@ -11,6 +11,8 @@ import (
 	"github.com/yuin/goldmark/renderer"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/util"
+
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 var (
@@ -18,14 +20,8 @@ var (
 	safeMarkupEndTag  = regexp.MustCompile(`^</(?:ruby|rt|rp)[ \t\r\n]*>$`)
 	safeMarkupLangTag = regexp.MustCompile(`^<(?:ruby|rt|rp)[ \t\r\n]+lang=(?:"[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*"|'[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*')[ \t\r\n]*>$`)
 	safeReadAloudTag  = regexp.MustCompile(`^<!--[ \t\r\n]*read-aloud:[ \t\r\n]*ja[ \t\r\n]*-->$`)
-	// readAloudMarker matches the read-aloud marker by its shape, whatever value
-	// its author wrote after the colon. Only "ja" is spoken — the voice exists
-	// for the Japanese lessons — so this is the wider pattern that recognizes an
-	// instruction the renderer can read and cannot carry out. Recognizing it is
-	// what lets it be dropped: escaped instead, it becomes a text node in the
-	// reading column, coloured and laid out like a sentence the author wrote.
-	readAloudMarker = regexp.MustCompile(`(?s)^<!--[ \t\r\n]*read-aloud:.*-->$`)
-	trustedBlockTag = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
+	readAloudMarker   = regexp.MustCompile(`(?s)^<!--[ \t\r\n]*read-aloud:.*-->$`)
+	trustedBlockTag   = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
 )
 
 // safeMarkupRenderer is the note-body authority boundary. Authored HTML is still
@@ -87,40 +83,79 @@ func isAllowlistedMarkup(tag []byte) bool {
 // visitSafeMarkup is the one tag walk the body renderer and the heading fold
 // share. Each complete tag is kept, dropped, or escaped according to the
 // allowlist; the bytes between tags, and a tail with no closing '>', go to
-// text. Dropping an unrecognised read-aloud marker here is what keeps it out
-// of a heading's name the same way the page drops it from the body.
+// text. Comments are consumed through their own closer, including any tags
+// or greater-than signs inside, so none of their words reach heading names.
 func visitSafeMarkup(raw []byte, text, keep, escape func([]byte) error, drop func([]byte)) error {
+	original := raw
+	code := htmlCommentCode(string(original))
 	for len(raw) > 0 {
 		start := bytes.IndexByte(raw, '<')
 		if start < 0 {
 			return text(raw)
 		}
+		literal := literalHTMLComment(original, len(original)-len(raw)+start, code)
 		if start > 0 {
 			if err := text(raw[:start]); err != nil {
 				return err
 			}
 			raw = raw[start:]
 		}
-		end := bytes.IndexByte(raw, '>')
+		end := safeMarkupEnd(raw)
 		if end < 0 {
-			return text(raw)
+			return visitMarkupTail(markupToken{raw: raw, literal: literal}, text, drop)
 		}
-		tag := raw[:end+1]
-		switch {
-		case isAllowlistedMarkup(tag):
-			if err := keep(tag); err != nil {
-				return err
-			}
-		case readAloudMarker.Match(tag):
-			drop(tag)
-		default:
-			if err := escape(tag); err != nil {
-				return err
-			}
+		if err := visitMarkupToken(markupToken{raw: raw[:end+1], literal: literal}, keep, escape, drop); err != nil {
+			return err
 		}
 		raw = raw[end+1:]
 	}
 	return nil
+}
+
+func safeMarkupEnd(raw []byte) int {
+	if bytes.HasPrefix(raw, []byte("<!--")) {
+		span, closed := graph.HTMLCommentSpan(string(raw), 0)
+		if !closed {
+			return -1
+		}
+		return span.Stop - 1
+	}
+	return bytes.IndexByte(raw, '>')
+}
+
+type markupToken struct {
+	raw     []byte
+	literal bool
+}
+
+func literalHTMLComment(source []byte, open int, code []graph.Span) bool {
+	if !bytes.HasPrefix(source[open:], []byte("<!--")) {
+		return false
+	}
+	span, _ := graph.HTMLCommentSpan(string(source), open)
+	return span.Zero() || graph.In(code, open)
+}
+
+func visitMarkupToken(token markupToken, keep, escape func([]byte) error, drop func([]byte)) error {
+	switch {
+	case token.literal:
+		return escape(token.raw)
+	case isAllowlistedMarkup(token.raw):
+		return keep(token.raw)
+	case bytes.HasPrefix(token.raw, []byte("<!--")):
+		drop(token.raw)
+		return nil
+	default:
+		return escape(token.raw)
+	}
+}
+
+func visitMarkupTail(token markupToken, text func([]byte) error, drop func([]byte)) error {
+	if !token.literal && bytes.HasPrefix(token.raw, []byte("<!--")) {
+		drop(token.raw)
+		return nil
+	}
+	return text(token.raw)
 }
 
 // applySafeMarkup runs authored heading source through the same tag allowlist
@@ -153,9 +188,7 @@ func writeSafeMarkup(w util.BufWriter, raw []byte) error {
 		_, err := w.Write(p)
 		return err
 	}, escape, func([]byte) {
-		// An instruction addressed to the renderer, naming something it does
-		// not do. It is not the author's prose and showing it to a reader
-		// would be showing them the machinery, so it goes no further.
+		// A private remark does not become text on the reading page.
 	})
 }
 

@@ -164,6 +164,12 @@ func TestStripObsidianCommentsReportsUnclosedLine(t *testing.T) {
 func FuzzStripObsidianComments(f *testing.F) {
 	for _, seed := range []string{
 		"plain text",
+		"A<!-- %% [[Ghost]] -->B",
+		"A%% <!-- [[Ghost]] %%B",
+		"Before <!-- private > [[Ghost]] --> after",
+		"> Before\n> <!-- private\n> secret\n\nAfter",
+		"- Item\n  <!-- private\n  secret\n\nAfter",
+		"`begin\nmiddle <!-- literal --> end`",
 		"before %%hidden%% after",
 		"%%unclosed",
 		"one%%first%%%%second%%two",

@@ -162,14 +162,9 @@ func TestAReadAloudMarkerNamingAnotherLanguageLeavesNoTrace(t *testing.T) {
 	if n := strings.Count(render.InjectTTS(got, wording.ZhHant), `class="y-tts"`); n != 1 {
 		t.Errorf("the page offers %d speak buttons, want 1 — only the Japanese paragraph asked for one:\n%s", n, got)
 	}
-	// The narrowness is what makes the drop safe, so it is held here too. What
-	// is dropped is an instruction addressed to the renderer, recognised by the
-	// name it is addressed with. A comment an author wrote for themselves is
-	// still shown as text, the way this boundary shows every piece of authored
-	// markup it does not act on — widening the pattern to any comment at all
-	// would make a note's own words disappear with nothing said.
-	if !strings.Contains(got, "&lt;!-- an ordinary comment --&gt;") {
-		t.Errorf("an ordinary authored comment stopped being shown as text, so the drop is no longer confined to the marker it names:\n%s", got)
+	// Ordinary authored comments are private remarks, not reading text.
+	if strings.Contains(got, "ordinary comment") {
+		t.Errorf("an ordinary authored comment reached the reading text:\n%s", got)
 	}
 }
 
