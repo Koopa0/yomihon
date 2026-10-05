@@ -2065,7 +2065,7 @@ details.y-metarow {
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   font-family: var(--font-mono);
-  font-size: var(--fs-13);
+  font-size: var(--fs-ed-13);
   line-height: 1.75;
   margin: var(--sp-block) 0 0;
   overflow-x: auto;
@@ -2118,7 +2118,7 @@ details.y-metarow {
    renderer wraps every table in .y-tablewrap) so the article never scrolls */
 .y-prose table {
   border-collapse: collapse;
-  font-size: var(--fs-14);
+  font-size: var(--fs-ed-15);
   margin: var(--sp-block) 0 0;
   width: 100%;
 }
@@ -2136,7 +2136,7 @@ details.y-metarow {
   border-bottom: 1px solid var(--line-strong);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: inherit;
   font-weight: var(--fw-semibold);
   padding: 8px 14px;
   text-align: left;
@@ -2146,8 +2146,14 @@ details.y-metarow {
   border-bottom: 1px solid var(--line-faint);
   color: var(--fg-muted);
   font-family: var(--font-serif);
-  font-size: var(--fs-15);
+  font-size: inherit;
   padding: 10px 14px;
+}
+
+/* A table reading starts above ten pixels at the smallest editorial step,
+   and its relative size keeps growing with the word it explains. */
+.y-prose td rt {
+  font-size: 0.7em;
 }
 
 /* A table stands on the text's own edges: its first column starts where a
