@@ -62,7 +62,7 @@ const restoreChildShrink = async (page) => {
 // back above the reading without moving one byte of the document.
 const rulingFirst = async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
@@ -76,7 +76,7 @@ const rulingFirst = async (page) => {
 // folded into the row to end.
 const separateDoorRow = async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
@@ -88,7 +88,7 @@ const separateDoorRow = async (page) => {
 // Gives the door its own strip again beside the heading, drawn or not.
 const reserveDoorStrip = async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
@@ -101,7 +101,7 @@ const reserveDoorStrip = async (page) => {
 // place is a single rule that puts back what the layout stopped doing.
 const appendRule = (rule) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;

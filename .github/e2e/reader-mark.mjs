@@ -82,7 +82,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED reader-mark:
 // anything the day someone adds a step.
 const rewriteModule = (needle, replacement, label) => async (page) => {
   const perLoad = [];
-  await page.route('**/mark.js', async (route) => {
+  await page.route('**/mark.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     perLoad.push(original.split(needle).length - 1);
@@ -103,7 +103,7 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
 // is served the sheet more than once.
 const rewriteStylesheet = (needle, replacement, label) => async (page) => {
   const perLoad = [];
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     perLoad.push(original.split(needle).length - 1);

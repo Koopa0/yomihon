@@ -107,7 +107,7 @@ const sendTo = (token, href) => servedCourse(
 // stands in for, without touching the served stylesheet.
 const appendRule = (rule) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;

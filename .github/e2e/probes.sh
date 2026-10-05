@@ -30,6 +30,7 @@ probes=(
   "rail-foot.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
+  "asset-identity.mjs|/notes/Notes/alpha.md"
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "report-frame-contract.mjs|/reports/browser-boundary.html"
   "article-language-contract.mjs|/notes/Writing/lessons/japanese/L01.md"

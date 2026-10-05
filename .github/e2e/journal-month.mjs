@@ -47,7 +47,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED journal-mont
 // itself would have.
 const appendStyle = (page, css) => {
   let seen = 0;
-  return page.route('**/static/app.css', async (route) => {
+  return page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;

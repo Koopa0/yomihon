@@ -112,7 +112,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED motion-contr
 // product's own rules do not, so a rule of the same name cannot answer for it.
 const appendStylesheet = (rule, wanted) => async (context) => {
   let requests = 0;
-  await context.route('**/static/app.css', async (route) => {
+  await context.route('**/static/app.css{,?*}', async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();

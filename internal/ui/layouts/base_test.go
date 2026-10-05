@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -32,22 +33,24 @@ func TestBaseStartsBodyWithSkipLink(t *testing.T) {
 	}
 }
 
-// TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry pins
-// the three script elements a page carries, and the order they come in. The
+// TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry pins
+// the four script elements a page carries, and the order they come in. The
 // mark sets data-js before the first style so a scripted page is laid out as it
 // will stay, and says whether this document is the answer to a press; the
 // speculation rules follow it, ahead of the stylesheets, so the browser learns
-// what to fetch as early as the head allows; the module entry closes the body.
-// A fourth element, or any of these out of place, is a change to what every
+// what to fetch as early as the head allows; the import map names versioned
+// modules before the module entry closes the body.
+// Another element, or any of these out of place, is a change to what every
 // page runs.
-func TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry(t *testing.T) {
+func TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	if err := Base(Chrome{Title: "測試", Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render base: %v", err)
 	}
 	html := buf.String()
-	const entry = `<script nonce="response-nonce" type="module" src="/static/yomihon.js"></script>`
+	entry := `<script nonce="response-nonce" type="module" src="` + asset.URL("yomihon.js") + `"></script>`
+	const importMap = `<script type="importmap" nonce="response-nonce">`
 	// The statement stands on its own line because that is how templ fmt lays
 	// out a script element, and the format check keeps it so.
 	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tconst entry = performance.getEntriesByType(\"navigation\")[0];\n\t\t\t\t\tconst kept = new URLSearchParams(location.search).has(\"at\");\n\t\t\t\t\tif (entry?.type === \"back_forward\") d.dataset.arrival = \"traverse\";\n\t\t\t\t\telse if (entry?.type === \"reload\") d.dataset.arrival = \"reload\";\n\t\t\t\t\telse if (kept || entry?.name.includes(\"#\"))\n\t\t\t\t\t\td.dataset.arrival = \"place\";\n\t\t\t\t\tif (document.prerendering) {\n\t\t\t\t\t\td.dataset.prerender = \"\";\n\t\t\t\t\t\tdocument.onprerenderingchange = () => delete d.dataset.prerender;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</script>"
@@ -61,11 +64,15 @@ func TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry(t *t
 	if got := strings.Count(html, rules); got != 1 {
 		t.Errorf("Base() speculation rules = %d, want 1 element opening %q; html = %q", got, rules, html)
 	}
-	if got := strings.Count(html, `<script`); got != 3 {
-		t.Errorf("Base() script elements = %d, want the scripted mark, the speculation rules and the module entry; html = %q", got, html)
+	if got := strings.Count(html, importMap); got != 1 {
+		t.Errorf("Base() import maps = %d, want one element opening %q; html = %q", got, importMap, html)
+	}
+	if got := strings.Count(html, `<script`); got != 4 {
+		t.Errorf("Base() script elements = %d, want the scripted mark, the speculation rules, the import map and the module entry; html = %q", got, html)
 	}
 	markAt := strings.Index(html, mark)
 	rulesAt := strings.Index(html, rules)
+	mapAt := strings.Index(html, importMap)
 	firstStyle := strings.Index(html, `<link rel="stylesheet"`)
 	entryAt := strings.Index(html, entry)
 	if firstStyle < 0 {
@@ -80,8 +87,8 @@ func TestBaseCarriesOnlyTheScriptedMarkTheSpeculationRulesAndTheModuleEntry(t *t
 	if entryAt < firstStyle {
 		t.Errorf("Base() module entry at %d, first stylesheet at %d; the entry closes the body; html = %q", entryAt, firstStyle, html)
 	}
-	if markAt >= rulesAt || rulesAt >= entryAt {
-		t.Errorf("Base() script order is mark at %d, rules at %d, entry at %d; want the mark, then the rules, then the module entry; html = %q", markAt, rulesAt, entryAt, html)
+	if markAt >= rulesAt || rulesAt >= mapAt || mapAt >= entryAt {
+		t.Errorf("Base() script order is mark at %d, rules at %d, import map at %d, entry at %d; want mark, rules, map, entry; html = %q", markAt, rulesAt, mapAt, entryAt, html)
 	}
 }
 
@@ -92,16 +99,16 @@ func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
 		t.Fatalf("render base: %v", err)
 	}
 	html := buf.String()
-	const asset = "/static/yomihon-mark.svg"
-	const favicon = `<link rel="icon" type="image/svg+xml" href="` + asset + `">`
-	const headerMark = `<img class="y-brand__mark" src="` + asset + `" width="24" height="24" alt="" aria-hidden="true">`
+	const brandAsset = "/static/yomihon-mark.svg"
+	const favicon = `<link rel="icon" type="image/svg+xml" href="` + brandAsset + `">`
+	const headerMark = `<img class="y-brand__mark" src="` + brandAsset + `" width="24" height="24" alt="" aria-hidden="true">`
 	if got := strings.Count(html, favicon); got != 1 {
 		t.Errorf("Base() favicon projections = %d, want one exact %q; html = %q", got, favicon, html)
 	}
 	if got := strings.Count(html, headerMark); got != 1 {
 		t.Errorf("Base() header mark projections = %d, want one exact %q; html = %q", got, headerMark, html)
 	}
-	if got := strings.Count(html, asset); got != 2 {
+	if got := strings.Count(html, brandAsset); got != 2 {
 		t.Errorf("Base() canonical brand references = %d, want favicon plus header only; html = %q", got, html)
 	}
 	for _, forbidden := range []string{`rel="manifest"`, `apple-touch-icon`, `.ico`, `y-brand__dot`} {

@@ -48,7 +48,7 @@ const MUTATIONS = {
   'drop-entrance': {
     target: 'entrance-fade',
     apply: rewriteFetched(
-      '**/app.css',
+      '**/app.css{,?*}',
       /animation\s*:\s*y-reply-in\b/g,
       'animation:none',
       'flip receipt entrance animation',
@@ -57,7 +57,7 @@ const MUTATIONS = {
   'keep-motion-under-reduce': {
     target: 'reduced-motion',
     apply: rewriteFetched(
-      '**/app.css',
+      '**/app.css{,?*}',
       /\.y-reply:not\(:empty\)\s*\{/g,
       '.y-reply.y-reply:not(:empty){animation-duration:1s!important;',
       'the shared reply entrance duration',
@@ -66,7 +66,7 @@ const MUTATIONS = {
   'drop-address-cleanup': {
     target: 'address-cleanup',
     apply: rewriteFetched(
-      '**/freshness.js',
+      '**/freshness.js{,?*}',
       "  address.searchParams.delete('from');\n",
       '',
       'from query deletion',

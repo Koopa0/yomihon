@@ -91,7 +91,7 @@ const rewriteMarkup = (needle, replacement, label, transform = (body) => body) =
 // this file makes about script rather than about markup.
 const rewriteModule = (needle, replacement, label) => async (page) => {
   const perLoad = [];
-  await page.route('**/search.js', async (route) => {
+  await page.route('**/search.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     perLoad.push(original.split(needle).length - 1);
@@ -114,7 +114,7 @@ const distortScriptlessHeader = (selector, css) => async (page) => {
     'the disabled native search invoker',
   )(page);
   const perLoad = [];
-  await page.route('**/app.css', async (route) => {
+  await page.route('**/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const body = await response.text();
     perLoad.push((body.match(selector) || []).length);

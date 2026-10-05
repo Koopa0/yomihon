@@ -72,8 +72,8 @@ const rewriteAsset = (route, needle, replacement) => async (context) => {
       ? ''
       : `the needle ${JSON.stringify(needle)} matched ${matched === -1 ? 'nothing, because the asset was never fetched' : `${matched} times, want 1`}`;
 };
-const rewriteModule = (needle, replacement) => rewriteAsset('**/static/preview.js', needle, replacement);
-const rewriteStylesheet = (needle, replacement) => rewriteAsset('**/static/app.css', needle, replacement);
+const rewriteModule = (needle, replacement) => rewriteAsset('**/static/preview.js{,?*}', needle, replacement);
+const rewriteStylesheet = (needle, replacement) => rewriteAsset('**/static/app.css{,?*}', needle, replacement);
 
 const SOURCE_SELECTOR = "'.y-basedon:not([data-declared-by]) a.ui-navitem'";
 

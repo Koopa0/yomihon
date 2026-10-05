@@ -139,7 +139,7 @@ try {
     await seed(page, { [key]: true });
     await arm(page, 'inline-owner');
     let blocked = false;
-    await page.route('**/yomihon.js', (route) => { blocked = true; return route.abort(); });
+    await page.route('**/yomihon.js{,?*}', (route) => { blocked = true; return route.abort(); });
     await page.reload({ waitUntil: 'domcontentloaded' });
     if (!blocked) throw new Error('deferred-script control blocked nothing');
     prove();

@@ -33,22 +33,22 @@ const ENTRANCE_RULE = /\.y-reply:not\(:empty\)\s*\{/g;
 const REFUSED_RULE = /\.y-reply\[data-reply-tone\s*=\s*["']?refused["']?\]\s*\{/g;
 const MUTATIONS = {};
 for (const { name } of SURFACES) {
-  MUTATIONS[`hide-empty-${name}`] = { target: `${name}-empty`, asset: '**/static/app.css', needle: EMPTY_RULE, replacement: '$&display:none!important;' };
-  MUTATIONS[`drop-entrance-${name}`] = { target: `${name}-entrance`, asset: '**/static/app.css', needle: ENTRANCE_RULE, replacement: '$&animation:none!important;' };
-  MUTATIONS[`mute-refusal-${name}`] = { target: `${name}-refused`, asset: '**/static/app.css', needle: REFUSED_RULE, replacement: '$&color:var(--fg-muted)!important;' };
+  MUTATIONS[`hide-empty-${name}`] = { target: `${name}-empty`, asset: '**/static/app.css{,?*}', needle: EMPTY_RULE, replacement: '$&display:none!important;' };
+  MUTATIONS[`drop-entrance-${name}`] = { target: `${name}-entrance`, asset: '**/static/app.css{,?*}', needle: ENTRANCE_RULE, replacement: '$&animation:none!important;' };
+  MUTATIONS[`mute-refusal-${name}`] = { target: `${name}-refused`, asset: '**/static/app.css{,?*}', needle: REFUSED_RULE, replacement: '$&color:var(--fg-muted)!important;' };
   // Outrank the later .yomihon *:not(.y-readline) reduced-motion blanket;
   // equal specificity would let that guard repair the injected regression.
-  MUTATIONS[`keep-motion-${name}`] = { target: `${name}-reduce`, asset: '**/static/app.css', needle: ENTRANCE_RULE, replacement: '.y-reply.y-reply:not(:empty){animation-duration:1s!important;' };
+  MUTATIONS[`keep-motion-${name}`] = { target: `${name}-reduce`, asset: '**/static/app.css{,?*}', needle: ENTRANCE_RULE, replacement: '.y-reply.y-reply:not(:empty){animation-duration:1s!important;' };
   if (name !== 'preference') {
     MUTATIONS[`refuse-kept-${name}`] = {
-      target: `${name}-kept`, asset: '**/mark.js',
+      target: `${name}-kept`, asset: '**/mark.js{,?*}',
       needle: /said\.dataset\.replyTone = kept \? 'kept' : 'refused';/g,
       replacement: "said.dataset.replyTone = 'refused';",
     };
   }
 }
 MUTATIONS['broadcast-mark-reply'] = {
-  target: 'mark-scoped', asset: '**/mark.js',
+  target: 'mark-scoped', asset: '**/mark.js{,?*}',
   needle: /said\.textContent = words \?\? '';/g,
   replacement: "document.querySelectorAll('[data-mark-said]').forEach((line) => { line.textContent = words ?? ''; });",
 };

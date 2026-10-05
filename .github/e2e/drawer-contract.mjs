@@ -95,7 +95,7 @@ const rewriteDocument = (needle, replacement) => async (page) => {
 const rewriteRuntime = (moduleName, needle, replacement) => async (page) => {
   let matches = 0;
   let requests = 0;
-  await page.route(`**/${moduleName}`, async (route) => {
+  await page.route(`**/${moduleName}{,?*}`, async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();

@@ -82,7 +82,7 @@ const MUTATIONS = {
     target: 'return',
     apply: async (page) => {
       let served = 0;
-      await page.route('**/freshness.js', async (route) => {
+      await page.route('**/freshness.js{,?*}', async (route) => {
         const response = await route.fetch();
         served += 1;
         await route.fulfill({ response, body: `${await response.text()}\n;history.pushState(null, '', location.href);\n` });

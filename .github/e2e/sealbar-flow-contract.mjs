@@ -41,7 +41,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED sealbar-flow
 
 const rewriteStylesheet = (needle, replacement, label) => async (page) => {
   let matches = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches += original.split(needle).length - 1;

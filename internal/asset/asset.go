@@ -236,9 +236,10 @@ func serve(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", e.contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	// These names carry no build fingerprint, so a stored copy has to be asked
-	// about rather than trusted for a period: no-cache keeps the copy and
-	// revalidates every time, and the strong tag turns that question into a
+	// Bare names remain valid for vendored resources and old page references,
+	// so a stored copy has to be asked about rather than trusted for a period:
+	// no-cache keeps the copy and revalidates every time, and the strong tag
+	// turns that question into a
 	// bodiless 304. Without this the reader re-downloads every stylesheet,
 	// module and font on each navigation, and two of those block painting.
 	// The modification time is deliberately zero — bytes baked into the binary
