@@ -212,6 +212,13 @@
   --font-mono: 'Geist Mono', ui-monospace, 'Noto Sans TC', monospace;
   --font-kai: 'LXGW WenKai TC', 'Kaiti TC', 'Kaiti SC', 'Noto Serif TC', 'Songti TC', 'Hiragino Mincho ProN', serif;
 
+  /* Han characters share code points across languages but not their shapes.
+     Japanese prose needs a Japanese face before the Chinese fallbacks, while
+     the reader's three typeface choices keep distinct fallback stacks. */
+  --font-serif-ja: 'Newsreader', 'Noto Serif JP', 'Hiragino Mincho ProN', 'Noto Serif TC', 'Songti TC', Georgia, serif;
+  --font-sans-ja: 'Geist', 'Noto Sans JP', 'Hiragino Sans', 'Noto Sans TC', 'PingFang TC', system-ui, sans-serif;
+  --font-kai-ja: 'Noto Serif JP', 'Hiragino Mincho ProN', var(--font-kai);
+
   /* The reset reads these two names for the page's font and for code's, rather
      than the product's tokens, so they are pointed at the tokens here. */
   --default-font-family: var(--font-sans);
@@ -222,6 +229,7 @@
      明體 the charter reads in. A choice replaces this one value and none of
      the stacks above it, so choosing a face never rewrites a face. */
   --font-read: var(--font-serif);
+  --font-read-ja: var(--font-serif-ja);
 
   /* UI scale — the chrome sets in 12, 13 and 14; the larger steps are for a
      note's title on the desk, the search field and the wordmark. */
@@ -420,12 +428,15 @@
    headings and the code are set from are untouched. */
 :root[data-font='serif'] {
   --font-read: var(--font-serif);
+  --font-read-ja: var(--font-serif-ja);
 }
 
 :root[data-font='sans'] {
   --font-read: var(--font-sans);
+  --font-read-ja: var(--font-sans-ja);
 }
 
 :root[data-font='kai'] {
   --font-read: var(--font-kai);
+  --font-read-ja: var(--font-kai-ja);
 }
