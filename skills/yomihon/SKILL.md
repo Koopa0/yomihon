@@ -292,14 +292,16 @@ that:
 | `[[#Section]]` | **plain text** | a same-file anchor is not implemented and draws no diagnostic. What is left is the display half — `[[#Section]]` leaves `#Section`, and `[[#Section\|see below]]` leaves only `see below` |
 | `> [!quote] [[Note]]` | **plain text** | a recognised callout's title is escaped, not parsed; a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image there draws `callout.title_markup` — move the markup into the body |
 
-Recognised callout types, closed; each group separated by · shares one default
-title, used when the opening line names none. The title is plain text. Markdown
-and wikilinks work in a callout body. `success`, `check`, `done`, `important`
-and `tldr` fall through.
+Recognised built-in callout types; each group separated by · shares a tint
+and icon. Without an authored title, the callout uses its own type name with
+an initial capital (Tip, Bug, Faq). Titles are plain text. Markdown and
+wikilinks work in a callout body. Other type identifiers, including names
+with digits, hyphens or underscores, raise a diagnostic and remain plain
+blockquotes.
 
-`info` `note` `tip` `hint` `abstract` `summary` `todo` · `question` `help` `faq`
-· `example` · `quote` `cite` · `warning` `caution` `attention` · `danger`
-`error` `bug` `fail` `failure` `missing`
+`info` `note` `tip` `important` `hint` `abstract` `tldr` `summary` `todo`
+· `success` `check` `done` · `question` `help` `faq` · `example` · `quote` `cite`
+· `warning` `caution` `attention` · `danger` `error` `bug` `fail` `failure` `missing`
 
 ## What a lesson asks its reader
 
