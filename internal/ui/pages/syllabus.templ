@@ -19,7 +19,7 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@syllabusRail(v, c)
-			<main id="main-content" tabindex="-1" class="y-main">
+			<main id="_y-main" tabindex="-1" class="y-main">
 				<div class="y-syl">
 					@syllabusHead(v, c.Lang)
 					if len(v.Branches) == 0 {
@@ -327,9 +327,9 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 // progress bar.
 templ syllabusRail(v PathView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
-	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.StudyPathNav.In(lang) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.StudyPathNav.In(lang) }>
 		@railHead(c, false)
-		<div class="y-railbody" id="nav-rail-body">
+		<div class="y-railbody" id="_y-nav-rail-body">
 			<div class="ui-side__label y-syl-raillabel">{ wording.StudyPaths.In(lang) }</div>
 			for _, p := range v.Paths {
 				@pathSwitch(p)

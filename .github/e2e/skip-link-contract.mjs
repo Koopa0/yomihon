@@ -57,7 +57,7 @@ const MUTATIONS = {
   },
   'break-main-target': {
     target: 'main-receives-focus',
-    apply: rewriteDocument('href="#main-content"', 'href="#missing-content"', 'skip-link target'),
+    apply: rewriteDocument('class="y-skiplink" href="#_y-main"', 'class="y-skiplink" href="#missing-content"', 'skip-link target'),
   },
 };
 
@@ -95,7 +95,7 @@ try {
   }
 
   const skip = page.locator('body > a.y-skiplink');
-  const main = page.locator('main#main-content[tabindex="-1"]');
+  const main = page.locator('main#_y-main[tabindex="-1"]');
   if (await skip.count() !== 1) broken(`the page has ${await skip.count()} body-first skip links, want 1`);
   if (await main.count() !== 1) broken(`the page has ${await main.count()} focusable main targets, want 1`);
   const firstElement = await page.locator('body a, body button, body input, body select, body textarea, body [tabindex]:not([tabindex="-1"])').first().getAttribute('class');
@@ -128,8 +128,8 @@ try {
     active: document.activeElement === element,
     hash: location.hash,
   }));
-  if (!activation.active || activation.hash !== '#main-content') {
-    fail('main-receives-focus', `activating the skip link produced ${JSON.stringify(activation)}, want focused #main-content`);
+  if (!activation.active || activation.hash !== '#_y-main') {
+    fail('main-receives-focus', `activating the skip link produced ${JSON.stringify(activation)}, want focused #_y-main`);
   }
 
   console.log('PASS skip-link-contract: the first Tab reveals the skip link and activation focuses main content');

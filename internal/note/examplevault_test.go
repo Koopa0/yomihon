@@ -170,7 +170,7 @@ func TestShippedJapaneseLessonsCarryTheirPractice(t *testing.T) {
 			if len(trigger) != 2 {
 				t.Fatal("lesson lost its navigable concept-sheet trigger")
 			}
-			sheet := libraryElement(t, page, `<template id="concept-`+trigger[1]+`"`, "</template>")
+			sheet := libraryElement(t, page, `<template id="_y-concept-`+trigger[1]+`"`, "</template>")
 			if !strings.Contains(sheet, "句子是在安放一件物品，還是在說某個動作？") {
 				t.Error("concept trigger has no matching explanation in its sheet")
 			}

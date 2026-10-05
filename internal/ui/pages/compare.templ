@@ -51,7 +51,7 @@ templ Compare(v CompareView, c layouts.Chrome) {
 				// hidden and the stylesheet reveals it only where a script ran.
 				<button type="button" class="y-compare__align" data-compare-align aria-pressed="false">{ wording.CompareAlign.In(lang) }</button>
 			</nav>
-			<main id="main-content" tabindex="-1" class="y-compare" { compareReadAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
+			<main id="_y-main" tabindex="-1" class="y-compare" { compareReadAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
 				@compareColumn(v.A, CompareAnchorA, lang)
 				@compareColumn(v.B, CompareAnchorB, lang)
 			</main>

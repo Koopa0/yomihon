@@ -59,11 +59,11 @@ function prove() {
   if (proof && !proof()) throw new NotApplied('the mutation did not match exactly one initializer in every requested document');
 }
 function side(page) {
-  return page.locator('#nav-rail details[data-key]').filter({ has: page.locator(':scope > summary', { hasText: '支線' }) });
+  return page.locator('#_y-nav-rail details[data-key]').filter({ has: page.locator(':scope > summary', { hasText: '支線' }) });
 }
 async function fixture(page) {
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-  if (await side(page).count() !== 1 || await page.locator('#nav-rail details[data-chain]').count() === 0) {
+  if (await side(page).count() !== 1 || await page.locator('#_y-nav-rail details[data-chain]').count() === 0) {
     throw new Error('fixture needs one side branch and the current lesson ancestry');
   }
   return side(page).getAttribute('data-key');
@@ -90,7 +90,7 @@ try {
     check(await isOpen(page) === want, site, `reload lost saved open=${want}`);
     // Follow the next lesson's row in the chapter tree, preserving the same
     // browser tab.
-    await page.locator(`#nav-rail a.ui-navitem[href="${NEXT}"]`).click();
+    await page.locator(`#_y-nav-rail a.ui-navitem[href="${NEXT}"]`).click();
     await page.waitForURL(BASE + NEXT);
     prove();
     preserve(await isOpen(page) === want, `next lesson lost saved open=${want}`);
@@ -105,12 +105,12 @@ try {
     const context = await browser.newContext();
     const page = await context.newPage();
     await fixture(page);
-    const keys = await page.locator('#nav-rail details[data-chain]').evaluateAll((elements) => elements.map((e) => e.dataset.key));
+    const keys = await page.locator('#_y-nav-rail details[data-chain]').evaluateAll((elements) => elements.map((e) => e.dataset.key));
     await seed(page, Object.fromEntries(keys.map((key) => [key, false])));
     await arm(page, 'current-chain');
     await page.reload({ waitUntil: 'domcontentloaded' });
     prove();
-    check(await page.locator('#nav-rail details[data-chain]').evaluateAll((elements) => elements.every((e) => e.open)), 'current-chain', 'a stored closed choice hid the current lesson ancestry');
+    check(await page.locator('#_y-nav-rail details[data-chain]').evaluateAll((elements) => elements.every((e) => e.open)), 'current-chain', 'a stored closed choice hid the current lesson ancestry');
     await context.close();
   }
   // Invalid or inaccessible storage falls back to the server's native state.

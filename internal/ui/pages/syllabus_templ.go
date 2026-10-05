@@ -63,7 +63,7 @@ func Syllabus(v PathView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<main id=\"main-content\" tabindex=\"-1\" class=\"y-main\"><div class=\"y-syl\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<main id=\"_y-main\" tabindex=\"-1\" class=\"y-main\"><div class=\"y-syl\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1381,14 +1381,14 @@ func syllabusRail(v PathView, c layouts.Chrome) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		lang := c.Lang
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 101, "<aside class=\"y-rail-left\" id=\"nav-rail\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 101, "<aside class=\"y-rail-left\" id=\"_y-nav-rail\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(wording.StudyPathNav.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 330, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/syllabus.templ`, Line: 330, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 		if templ_7745c5c3_Err != nil {
@@ -1402,7 +1402,7 @@ func syllabusRail(v PathView, c layouts.Chrome) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, "<div class=\"y-railbody\" id=\"nav-rail-body\"><div class=\"ui-side__label y-syl-raillabel\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, "<div class=\"y-railbody\" id=\"_y-nav-rail-body\"><div class=\"ui-side__label y-syl-raillabel\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -420,7 +420,7 @@ export function initLesson() {
     document.addEventListener('click', (event) => {
       const trigger = event.target.closest('[data-concept]');
       if (trigger) {
-        const template = document.getElementById(`concept-${trigger.getAttribute('data-concept')}`);
+        const template = document.getElementById(`_y-concept-${trigger.getAttribute('data-concept')}`);
         if (!template) return;
         event.preventDefault();
         title.textContent = template.dataset.title || '';
