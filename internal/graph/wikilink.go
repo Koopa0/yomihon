@@ -17,16 +17,16 @@ func FoldFragment(s string) string {
 }
 
 // sectionIDDrop matches every run of characters a section id drops: anything
-// that is neither a Unicode letter nor a digit collapses to a single hyphen.
-var sectionIDDrop = regexp.MustCompile(`[^\p{L}\p{N}]+`)
+// that is not a Unicode letter, mark or number collapses to a single hyphen.
+var sectionIDDrop = regexp.MustCompile(`[^\p{L}\p{M}\p{N}]+`)
 
 // SectionID is the id a page stamps for a heading of this name, and therefore
-// the fragment a link has to carry to reach it: fold, keep letters and digits,
+// the fragment a link has to carry to reach it: fold, keep letters, marks and numbers,
 // collapse every other run to one hyphen, trim the ends, and fall back to
 // "section" when nothing is left. Keeping every Unicode letter is what lets a
 // CJK heading produce a usable id, and folding first is what keeps か+◌゙ん and
-// がん one id rather than two, since a combining mark left alone is not a letter
-// and would become a hyphen.
+// がん one id rather than two. Marks without a precomposed form stay in the id,
+// so Indic vowels, Thai tones and Japanese variation selectors remain distinct.
 //
 // Every face that stamps an id, follows one, or asks whether a note answers one
 // reads it from here, so a link and the heading it names cannot drift apart.
