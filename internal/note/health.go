@@ -177,7 +177,7 @@ func healthIslandCount(groups []snapshot.HealthIslandGroup) int {
 func healthBlocked(blocked []snapshot.BlockedSource) []pages.HealthBlockedSource {
 	out := make([]pages.HealthBlockedSource, 0, len(blocked))
 	for _, source := range blocked {
-		out = append(out, pages.HealthBlockedSource{Path: source.Path, Reason: source.Reason})
+		out = append(out, pages.HealthBlockedSource{Path: source.Path, Reason: source.Reason, ParsePanic: source.ParsePanic})
 	}
 	return out
 }

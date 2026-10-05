@@ -34,6 +34,10 @@ type NoteView struct {
 	// Stale is set where the file could not be read while this page was built,
 	// so the words below are the last ones read rather than the current ones.
 	Stale bool
+	// ParsePanic names a failed attempt to parse the current bytes, including
+	// while this reading is retained before a stale generation is published.
+	ParsePanic  bool
+	ParseReason string
 	// Updated is the display date the metarow carries and UpdatedAt its
 	// machine-readable value: the author's declared update where the
 	// frontmatter has a readable one, the file's recorded change time
@@ -334,7 +338,9 @@ templ articleHead(v NoteView, lang wording.Lang) {
 			@thoughtDoor(v, lang)
 		</div>
 	}
-	if v.Stale {
+	if v.ParsePanic {
+		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <q>{ v.ParseReason }</q></p>
+	} else if v.Stale {
 		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}
 }

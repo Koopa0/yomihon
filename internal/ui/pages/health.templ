@@ -105,6 +105,7 @@ type HealthNoteFindings struct {
 type HealthBlockedSource struct {
 	Path   string
 	Reason string
+	ParsePanic bool
 }
 
 // HealthSkippedSource is one path the generation saw and did not index, with
