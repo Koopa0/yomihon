@@ -241,7 +241,10 @@ func contractGuidance(err error) string {
 			"  lifecycle that check, coverage and exists judge against, and for the directories\n" +
 			"  whose contents must never leave this machine. A folder carrying no such file has\n" +
 			"  declared nothing, and these three commands have no vocabulary to answer in.\n" +
-			"  Reading and search need none of it: yomihon <dir>\n"
+			"  Reading and search need none of it: yomihon <dir>\n" +
+			"  /health shows link findings even when the folder has no contract.\n" +
+			"  A starter is examples/vault/System/schemas/vault-schema.toml in the source archive\n" +
+			"  at https://github.com/koopa0/yomihon/releases; choose your binary's release.\n"
 	case errors.Is(err, judge.ErrPrivacyAuthorityUnavailable):
 		return "  The contract is at " + schema.ContractRelPath + " and yomihon could not use it.\n" +
 			"  The reason is not printed here: this command's output is written for a program to\n" +
