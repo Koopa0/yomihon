@@ -233,7 +233,13 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
 		<div class="y-prose">
-			@templ.Raw(v.BodyHTML)
+			if strings.TrimSpace(v.BodyHTML) == "" {
+				@nothingToShow(nothingNotice{Kind: "note"}) {
+					<p lang={ lang.Tag() }>{ wording.NoteEmptyBody.In(lang) }</p>
+				}
+			} else {
+				@templ.Raw(v.BodyHTML)
+			}
 		</div>
 		@relatedAids(v, lang)
 		@sequenceSteps(v, lang)

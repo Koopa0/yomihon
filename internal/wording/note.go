@@ -30,6 +30,10 @@ var (
 	FileChangedOn = both("檔案變更於", "File changed")
 )
 
+// NoteEmptyBody states what the article would otherwise leave blank after the
+// renderer has consumed metadata and any duplicate opening title.
+var NoteEmptyBody = both("這篇筆記還沒有內容。", "This note has no content yet.")
+
 // NoteStale says the words below are the last ones that could be read, which a
 // reader comparing them against what they just wrote would otherwise read as a
 // lost edit.
