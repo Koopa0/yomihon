@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lexical"
 )
 
@@ -88,6 +89,39 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 	sortExistsMatches(matches)
 	sortExistsMatches(near)
 	return existsReport{Query: query, Matches: matches, NearMatches: near, Withheld: withheld}
+}
+
+// appendExistsPaths projects the complete captured resolver's answer onto
+// readable notes. Selection happens before privacy filtering: removing denied
+// or unreadable claimants would manufacture an answer the vault does not give.
+// An existing field row already explains that note, so only a location-only
+// answer gains a path row. Resources and unreadable identities supply no row.
+func appendExistsPaths(report *existsReport, notes []note, idx *graph.Index, authority scanAuthority) {
+	res := idx.Resolve(report.Query)
+	var paths []string
+	switch res.Kind {
+	case graph.KindUnique:
+		paths = []string{res.RelPath}
+	case graph.KindAmbiguous:
+		paths = res.Candidates
+	case graph.KindUnresolved:
+		return
+	}
+	for i := range notes {
+		n := &notes[i]
+		if !slices.Contains(paths, n.path) {
+			continue
+		}
+		if !authority.egressAllowed(n.path) {
+			report.Withheld = true
+			continue
+		}
+		if slices.ContainsFunc(report.Matches, func(m existsMatch) bool { return m.Path == n.path }) {
+			continue
+		}
+		report.Matches = append(report.Matches, existsMatch{Path: n.path, Field: "path", Value: n.path})
+	}
+	sortExistsMatches(report.Matches)
 }
 
 // noteMatches returns every field of n that exposes the normalized key: its
