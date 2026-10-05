@@ -2,7 +2,10 @@ package archlock
 
 import (
 	"errors"
+	"fmt"
+	"io/fs"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -35,6 +38,146 @@ var enginePackages = []string{
 var presentationPackages = []string{
 	"internal/ui/",
 	"internal/origin",
+}
+
+// The forbidden import roots above cover descendants too. Membership names
+// each package explicitly, so a new package requires a layer decision even
+// when it lives beneath an existing presentation directory.
+var presentationLayerPackages = []string{
+	"internal/origin",
+	"internal/ui/layouts",
+	"internal/ui/pages",
+}
+
+// Faces and adapters include the served endpoints and the build-time checks.
+// They may join engine and presentation concerns without making that join a
+// dependency of the vault's reading generation.
+var faceAdapterPackages = []string{
+	"internal/archlock",
+	"internal/asset",
+	"internal/mark",
+	"internal/note",
+	"internal/preference",
+	"internal/report",
+	"internal/search",
+	"internal/shell",
+	"internal/sourcebytes",
+	"internal/status",
+	"internal/syllabus",
+}
+
+type packageLayer struct {
+	name     string
+	packages []string
+}
+
+func packageLayers() []packageLayer {
+	return []packageLayer{
+		{"engine", enginePackages},
+		{"presentation", presentationLayerPackages},
+		{"faces/adapters", faceAdapterPackages},
+	}
+}
+
+// An import check over named engines cannot see a package nobody classified.
+// Every internal package must have exactly one declared role before the
+// direction of its dependencies can be reviewed.
+func TestEveryInternalPackageBelongsToExactlyOneLayer(t *testing.T) {
+	t.Parallel()
+	for _, problem := range layerMembershipProblems(internalPackagePaths(t, repoRoot), packageLayers()) {
+		t.Errorf("caught: %s", problem)
+	}
+}
+
+func layerMembershipProblems(packages []string, layers []packageLayer) []string {
+	actual := make(map[string]bool, len(packages))
+	for _, pkg := range packages {
+		actual[pkg] = true
+	}
+	var problems []string
+	membership := make(map[string][]string)
+	for _, layer := range layers {
+		for _, pkg := range layer.packages {
+			membership[pkg] = append(membership[pkg], layer.name)
+			if !actual[pkg] {
+				problems = append(problems, fmt.Sprintf("%s is declared in %s but is not an internal package", pkg, layer.name))
+			}
+		}
+	}
+	for _, pkg := range packages {
+		switch len(membership[pkg]) {
+		case 0:
+			problems = append(problems, pkg+" in no layer")
+		case 1:
+		default:
+			problems = append(problems, fmt.Sprintf("%s declared %d times (%s); want exactly one layer", pkg, len(membership[pkg]), strings.Join(membership[pkg], ", ")))
+		}
+	}
+	slices.Sort(problems)
+	return problems
+}
+
+// A wildcard go list drops packages whose files target another operating
+// system. Discover source directories first, then name each one explicitly;
+// -e retains those packages even when the host cannot build them. Compilation
+// errors are the build gate's concern; this check owns package membership.
+func internalPackagePaths(t *testing.T, root string) []string {
+	t.Helper()
+	dirs := make(map[string]bool)
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		name := entry.Name()
+		if entry.IsDir() {
+			if name == "testdata" || name == "vendor" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(name) != ".go" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, filepath.Dir(path))
+		if relErr != nil {
+			return relErr
+		}
+		dirs["./"+filepath.ToSlash(rel)] = true
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk internal package sources: %v", err)
+	}
+	if len(dirs) == 0 {
+		t.Fatal("no internal package source was found, so layer membership checks nothing")
+	}
+	paths := make([]string, 0, len(dirs))
+	for dir := range dirs {
+		paths = append(paths, dir)
+	}
+	slices.Sort(paths)
+	args := append([]string{"list", "-e", "-f", "{{.ImportPath}}"}, paths...)
+	cmd := exec.CommandContext(t.Context(), "go", args...) // #nosec G204 -- fixed Go inventory command over directories discovered beneath the supplied repository root
+	cmd.Dir = root
+	out, listErr := cmd.Output()
+	if listErr != nil {
+		if exit, ok := errors.AsType[*exec.ExitError](listErr); ok {
+			t.Fatalf("go list internal packages: %v\n%s", listErr, exit.Stderr)
+		}
+		t.Fatalf("go list internal packages: %v", listErr)
+	}
+	var packages []string
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		rel, internal := strings.CutPrefix(line, module+"/internal/")
+		if !internal || rel == "" {
+			t.Fatalf("go list returned %q, want a package under %s/internal/", line, module)
+		}
+		packages = append(packages, "internal/"+rel)
+	}
+	if len(packages) != len(paths) {
+		t.Fatalf("caught: go list returned %d packages for %d source directories", len(packages), len(paths))
+	}
+	return packages
 }
 
 // TestTheEnginePackagesCannotSeeTheReadingInterface keeps the direction of the
