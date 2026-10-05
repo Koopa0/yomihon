@@ -72,6 +72,7 @@ probes=(
   "prefetch-stale-preference.mjs|/notes/Writing/lessons/japanese/L01.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "health-table.mjs|/health"
+  "shell-columns.mjs|/health"
   "reports-shelf.mjs|/reports"
   # A month named outright rather than whichever one it is today, so what this
   # probe measures is the same measurement next month.
