@@ -157,3 +157,7 @@ var EmbedNotExpanded = both(
 // the return leads back to. A footnote cited once never asks, so these words
 // never appear.
 var FootnoteBacklinkFmt = both("返回第 %d 次引用", "Back to citation %d")
+
+// TaskWithoutText names a task whose first inline block contributes no words.
+// It is the interface's sentence, not a guess at what the author intended.
+var TaskWithoutText = both("沒有文字的待辦項目", "Task without text")

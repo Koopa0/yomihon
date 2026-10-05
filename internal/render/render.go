@@ -231,7 +231,7 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 				// The extension is told only what to prefix the ids with, per body,
 				// so several bodies on one page do not share a first note's id.
 				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{},
+				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
 			),
 		),
 	}
@@ -470,7 +470,8 @@ func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPol
 		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
 	}
 
-	return Result{HTML: substituteBlocks(buf.String(), blocks, inline), Diagnostics: col.diags}
+	named := nameTaskLabels(buf.String(), inline, page.lang)
+	return Result{HTML: substituteBlocks(named, blocks, inline), Diagnostics: col.diags}
 }
 
 // removeBodyFirstH1 drops a leading level-1 ATX heading when the page already
