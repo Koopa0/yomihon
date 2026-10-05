@@ -45,6 +45,8 @@ func main() {
 >
 > 容量為一也沒有幫助：緩衝區仍是空的。容量提供存放值的位置，不會替你發送。
 
+這個版本會以 `fatal error: all goroutines are asleep - deadlock!` 結束；runtime 只在所有 goroutine 都阻塞、又沒有能讓它們繼續的事件時報死結，仍有其他工作能執行的伺服器則可能只讓這個 goroutine 一直等著。
+
 ## 緩衝有容量
 
 `make(chan int, 2)` 可以暫存兩個值。若沒有人接收，前兩次發送可以完成，第三次仍會等待。緩衝能吸收短暫的速度差，不能解決永久不接收的問題。
