@@ -43,7 +43,12 @@ func headingWords(raw string) string {
 // grammar the course parser consumes, so the id is stamped from the words
 // without it, and a citation reaches the branch by the name a reader sees.
 func anchorSurface(body string) (sections, excerptSections map[string]bool, blockLines []string) {
-	stripped := withoutCommentZones(body)
+	facts := inspectBody(body, nil)
+	return anchorSurfaceFrom(body, facts.comments)
+}
+
+func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSections map[string]bool, blockLines []string) {
+	stripped := withoutCommentZones(body, comments)
 	sections = make(map[string]bool)
 	collectParsedHeadings(stripped, sections)
 	collectGenerousHeadings(stripped, sections)
@@ -60,9 +65,7 @@ func anchorSurface(body string) (sections, excerptSections map[string]bool, bloc
 // gluing the words on either side of a hidden passage into one line would make
 // a paragraph, a heading and the run a block address sits in out of text nobody
 // wrote that way.
-func withoutCommentZones(body string) string {
-	codeZones, _ := structure(body, nil)
-	zones := graph.CommentZones(body, codeZones)
+func withoutCommentZones(body string, zones []byteRange) string {
 	if len(zones) == 0 {
 		return body
 	}
