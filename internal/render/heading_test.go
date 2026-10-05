@@ -99,3 +99,32 @@ func TestAssignHeadingIDsDemotesBodyHeadingsUnderTheTitle(t *testing.T) {
 		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestNestHeadingsPreservesEverythingExceptTagLevels(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "the full outline keeps its addresses and authored levels",
+			body: `<h2 id="a-one" data-level="1"><em>One</em></h2><h3 id="a-two" data-level="2">Two</h3><h4 id="a-three" data-level="3">Three</h4><h5 id="a-four" data-level="4">Four</h5><h6 id="a-five" data-level="5">Five</h6><h6 id="a-six" data-level="6">Six</h6><a href="#a-one">back</a>`,
+			want: `<h3 id="a-one" data-level="1"><em>One</em></h3><h4 id="a-two" data-level="2">Two</h4><h5 id="a-three" data-level="3">Three</h5><h6 id="a-four" data-level="4">Four</h6><h6 id="a-five" data-level="5">Five</h6><h6 id="a-six" data-level="6">Six</h6><a href="#a-one">back</a>`,
+		},
+		{
+			name: "literal code and unrelated element names stay text",
+			body: `<p><code>&lt;h2&gt;literal&lt;/h2&gt;</code></p><hr><header>head</header><hgroup>group</hgroup>`,
+			want: `<p><code>&lt;h2&gt;literal&lt;/h2&gt;</code></p><hr><header>head</header><hgroup>group</hgroup>`,
+		},
+		{name: "empty body"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if diff := cmp.Diff(tt.want, NestHeadings(tt.body)); diff != "" {
+				t.Errorf("caught: nested heading bytes (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
