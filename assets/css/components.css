@@ -4040,6 +4040,7 @@ a.y-facetrow:hover {
     height: auto;
     margin: auto 0 0;
     max-height: 82dvh;
+    max-width: 100vw;
     width: 100vw;
   }
 }
@@ -4881,7 +4882,8 @@ a.y-facetrow:hover {
   overflow-wrap: anywhere;
 }
 
-.y-fileinfo__note {
+.y-fileinfo__note,
+.y-uncertainty__said {
   color: var(--fg-faint);
   font-family: var(--font-serif);
   font-size: var(--fs-13);
