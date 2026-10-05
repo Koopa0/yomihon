@@ -285,7 +285,7 @@ that:
 | `<!-- a remark -->` | **the comment, visible as text** | one word decides the fate of an HTML comment: `read-aloud`. A comment that opens with it is recognised and handled by the row below; every other comment is escaped onto the page and stays visible, so to hide a remark use `%%…%%` |
 | ` ```mermaid ` | a diagram | case-insensitive, and the whole info string must be that word; the source is carried twice so it still reads without JavaScript |
 | ` ```go ` | highlighted code | an unrecognised language falls back to plain text **silently, with no diagnostic** |
-| `<ruby>漢<rt>かん</rt></ruby>` | ruby text | `ruby`, `rt`, `rp`, `br` and a `lang=` attribute on the first three are the allowlist; any other tag is escaped and stays visible |
+| `<ruby>漢<rt>かん</rt></ruby>` | ruby text | bare `ruby`, `rt`, `rp`, `br`, `kbd`, `sub`, `sup`, `mark` and `u` are the allowlist; only the first three accept `lang=`. Any other tag or attribute is escaped and stays visible |
 | `![alt](pic.png)` | an image | a remote destination becomes an explicit link, never a request; a destination that is neither local nor http shows the alt text alone |
 | `## 標題` | a heading with an anchor | CJK letters and digits survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
 | `<!-- read-aloud: ja -->` | a speech control on the next paragraph | `ja` is the only value: a `read-aloud` comment naming any other language is **deleted from the page**, not escaped and not left visible, wherever it is written. `ja` raises a control only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; anywhere else it is passed through as a real HTML comment, which a browser does not draw, so it is invisible and does nothing |

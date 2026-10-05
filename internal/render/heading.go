@@ -42,9 +42,9 @@ func headingInnerText(inner string) string {
 
 // HeadingWords reduces a heading's markdown source to the words the page
 // stamps an id from. A wikilink contributes what it displays. Authored markup
-// then takes the same allowlist the body renderer uses: ruby stays a tag so
-// the reading can be dropped, and every other tag is escaped the way the page
-// already received it. The check face reads a heading through here too, so a
+// then takes the same allowlist the body renderer uses: inert formatting stays
+// markup, ruby readings can be dropped, and other tags remain escaped as the page
+// received them. The check face reads a heading through here too, so a
 // name copied off the contents list cannot be refused for using a second fold.
 func HeadingWords(raw string) string {
 	displayed := wikilinkToken.ReplaceAllStringFunc(raw, func(token string) string {

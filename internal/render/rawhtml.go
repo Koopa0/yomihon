@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	safeMarkupBareTag = regexp.MustCompile(`^<(?:ruby|rt|rp|br)[ \t\r\n]*/?>$`)
-	safeMarkupEndTag  = regexp.MustCompile(`^</(?:ruby|rt|rp)[ \t\r\n]*>$`)
+	safeMarkupBareTag = regexp.MustCompile(`^<(?:ruby|rt|rp|br|kbd|sub|sup|mark|u)[ \t\r\n]*/?>$`)
+	safeMarkupEndTag  = regexp.MustCompile(`^</(?:ruby|rt|rp|kbd|sub|sup|mark|u)[ \t\r\n]*>$`)
 	safeMarkupLangTag = regexp.MustCompile(`^<(?:ruby|rt|rp)[ \t\r\n]+lang=(?:"[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*"|'[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*')[ \t\r\n]*>$`)
 	safeReadAloudTag  = regexp.MustCompile(`^<!--[ \t\r\n]*read-aloud:[ \t\r\n]*ja[ \t\r\n]*-->$`)
 	// readAloudMarker matches the read-aloud marker by its shape, whatever value
