@@ -53,8 +53,31 @@ build: gen
 build-check:
 	go build ./assets ./cmd/... ./internal/...
 
+# Serve a fresh private example copy, so a status change cannot edit the checkout.
+# Edits to examples/vault reach this copy only after restarting make run.
 run: gen
-	go run ./cmd/yomihon serve
+	@set -eu; \
+	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-example.XXXXXX"); \
+	server=; \
+	cleanup() { rm -rf "$$tmp"; }; \
+	stop() { \
+		if [ -n "$$server" ]; then \
+			kill "-$$1" "$$server" 2>/dev/null || :; \
+			wait "$$server" || :; \
+		fi; \
+		exit "$$2"; \
+	}; \
+	trap cleanup 0; \
+	trap 'stop HUP 129' HUP; \
+	trap 'stop INT 130' INT; \
+	trap 'stop TERM 143' TERM; \
+	cp -R examples/vault "$$tmp/vault"; \
+	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
+	"$$tmp/yomihon" serve "$$tmp/vault" & \
+	server=$$!; \
+	if wait "$$server"; then status=0; else status=$$?; fi; \
+	server=; \
+	exit "$$status"
 
 test:
 	@$(call owned-go-list); go test -race -count=1 -shuffle=on $$list
