@@ -206,7 +206,6 @@ func inspectRepresentative(ctx context.Context, f *representativeFixture, gen *G
 
 func representativeReceipt(tb testing.TB, f *representativeFixture, gen *Generation) representativeMetrics {
 	tb.Helper()
-	tb.Log("invoked: representative source and published generation")
 	metrics, err := inspectRepresentative(tb.Context(), f, gen)
 	if err != nil {
 		tb.Fatal(err)
@@ -267,7 +266,6 @@ func TestRepresentativeSnapshotRejectsInvalidFixture(t *testing.T) {
 				writeBenchNote(t, f.root, representativePath, f.sources[representativePath])
 			}
 			store := representativeGeneration(t, f)
-			t.Log("invoked: representative invalid-source preflight")
 			if _, err := inspectRepresentative(t.Context(), f, store.Current()); err == nil || !strings.HasPrefix(err.Error(), "caught:") {
 				t.Fatalf("caught: invalid fixture was accepted: %v", err)
 			}

@@ -3,244 +3,64 @@ goarch: arm64
 pkg: github.com/koopa0/yomihon/internal/snapshot
 cpu: Apple M1
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  14571375 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5667112 B/op	   65189 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  14918667 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5629984 B/op	   65183 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  14741792 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5667136 B/op	   65188 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  16072292 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5667072 B/op	   65187 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  15032375 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5629728 B/op	   65181 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  13769375 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5592752 B/op	   65177 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  13045500 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5629680 B/op	   65180 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  13221666 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5667088 B/op	   65187 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  14658543 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5704272 B/op	   65192 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/initial-2 	       1	  16666000 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5629680 B/op	   65180 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  14744167 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5644160 B/op	   65198 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  13355250 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5607160 B/op	   65194 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  13012626 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5607032 B/op	   65193 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  13781791 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5718568 B/op	   65208 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  14811500 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5644352 B/op	   65199 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  14905042 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5607024 B/op	   65193 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  14026833 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5718528 B/op	   65208 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  14689375 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5644192 B/op	   65198 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  15088292 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5644192 B/op	   65198 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=100/rebuild-2 	       1	  15506167 ns/op	       101.0 files	       200.0 links	       100.0 notes	     35908 source-B	 5644192 B/op	   65198 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=100/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 151493292 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55735640 B/op	  644060 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 140255209 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55772680 B/op	  644064 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 144581583 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55884296 B/op	  644079 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 146178125 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55661208 B/op	  644049 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 143180499 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55698360 B/op	  644054 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 141628042 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55698392 B/op	  644054 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 158893000 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55735496 B/op	  644059 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 155656166 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55884320 B/op	  644081 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 137859875 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55698680 B/op	  644057 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/initial-2         	       1	 142934833 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55735544 B/op	  644059 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 131602042 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55829256 B/op	  644060 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 129541291 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55866160 B/op	  644063 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 140211668 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55791576 B/op	  644051 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 134941042 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55903408 B/op	  644068 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 128009542 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55903360 B/op	  644068 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 141658290 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55866192 B/op	  644064 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 131900583 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55828992 B/op	  644058 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 128596708 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55828944 B/op	  644058 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 128531791 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55866112 B/op	  644063 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2         	       1	 146209333 ns/op	      1001 files	      2000 links	      1000 notes	    337408 source-B	55903392 B/op	  644068 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=1000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 662511917 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276863040 B/op	 3216461 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 658342167 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276974696 B/op	 3216478 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 675820583 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276826152 B/op	 3216458 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 651369667 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276900312 B/op	 3216468 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 657323667 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276826152 B/op	 3216458 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 669509000 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276937656 B/op	 3216473 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 658670666 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277011960 B/op	 3216483 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 773791251 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276937688 B/op	 3216475 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 915506499 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276974592 B/op	 3216478 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/initial-2         	       1	 666723750 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	276937504 B/op	 3216473 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/initial-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	 656899708 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277442448 B/op	 3216447 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	 715348416 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277367560 B/op	 3216433 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	1310863917 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277367608 B/op	 3216433 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	1633477750 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277404840 B/op	 3216438 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	1090012666 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277367656 B/op	 3216433 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	1096580875 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277367864 B/op	 3216435 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	 759953667 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277442176 B/op	 3216445 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	1103634124 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277368320 B/op	 3216438 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	1130699333 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277404776 B/op	 3216438 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2         	       1	1085453042 ns/op	      5001 files	     10000 links	      5000 notes	   1677408 source-B	277367672 B/op	 3216433 allocs/op
---- BENCH: BenchmarkRepresentativeSnapshot/notes=5000/rebuild-2
-    bench_test.go:66: invoked: representative source and published generation
-    bench_test.go:92: invoked: representative source and published generation
 PASS
 ok  	github.com/koopa0/yomihon/internal/snapshot	90.399s

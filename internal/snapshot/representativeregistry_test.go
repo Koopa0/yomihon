@@ -54,7 +54,6 @@ func TestRepresentativeBenchmarkEntryAndOptIn(t *testing.T) {
 	}
 	run := func(args ...string) string {
 		t.Helper()
-		t.Log("invoked: compiled representative benchmark entry")
 		cmd := exec.CommandContext(t.Context(), binary, append([]string{"-test.run=^$"}, args...)...) // #nosec G204 -- current compiled test binary and fixed benchmark arguments
 		out, err := cmd.CombinedOutput()
 		if err != nil {
