@@ -284,8 +284,8 @@ const installReadingResponse = async (page, attacker, phase) => {
 					break;
 				}
 				case "break-application-entry": {
-					const needle = 'src="/static/yomihon.js"';
-					proof.mutationMatches = occurrences(body, needle);
+					const needle = /src="\/static\/yomihon\.js(?:\?v=[a-f0-9]{12})?"/g;
+					proof.mutationMatches = [...body.matchAll(needle)].length;
 					body = body.replace(
 						needle,
 						'src="/static/missing-browser-boundary.js"',

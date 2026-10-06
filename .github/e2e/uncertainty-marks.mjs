@@ -40,7 +40,7 @@ const fail = (site, message) => {
 // needle has to match exactly once in every load.
 const rewriteModule = (needle, replacement, label) => async (page) => {
   const perLoad = [];
-  await page.route('**/uncertainty.js', async (route) => {
+  await page.route('**/uncertainty.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     perLoad.push(original.split(needle).length - 1);

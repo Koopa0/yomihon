@@ -6,6 +6,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -20,6 +21,9 @@ import (
 type Chrome struct {
 	Title string // page title (before " — yomihon")
 	Nonce string // per-response nonce for application-owned scripts
+	// Assets selects the version values in static resource addresses. Its
+	// zero value binds them to the real registered bytes.
+	Assets asset.Versions
 	// Theme is the reader's stored choice: "light", "dark", or "" when they
 	// never made one. A choice is stamped on the root so the first paint is
 	// already right; no choice leaves the root unstamped and the stylesheet's

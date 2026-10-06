@@ -48,7 +48,7 @@ const MUTATIONS = {
   'drop-entrance': {
     target: 'entrance-fade',
     apply: rewriteFetched(
-      '**/app.css',
+      '**/app.css{,?*}',
       /animation\s*:\s*y-reply-in\b/g,
       'animation:none',
       'flip receipt entrance animation',
@@ -57,7 +57,7 @@ const MUTATIONS = {
   'keep-motion-under-reduce': {
     target: 'reduced-motion',
     apply: rewriteFetched(
-      '**/app.css',
+      '**/app.css{,?*}',
       /\.y-reply:not\(:empty\)\s*\{/g,
       '.y-reply.y-reply:not(:empty){animation-duration:1s!important;',
       'the shared reply entrance duration',
@@ -66,7 +66,7 @@ const MUTATIONS = {
   'drop-address-cleanup': {
     target: 'address-cleanup',
     apply: rewriteFetched(
-      '**/freshness.js',
+      '**/freshness.js{,?*}',
       "  address.searchParams.delete('from');\n",
       '',
       'from query deletion',
@@ -133,7 +133,7 @@ const injectReceipt = async (page) => {
     const response = await route.fetch();
     const original = await response.text();
     const receipt = '<p class="y-reply y-flipreceipt" role="status" aria-live="polite" aria-atomic="true" data-reply-tone="kept">fixture receipt</p>';
-    const main = /<main\b[^>]*\bid="main-content"[^>]*>/g;
+    const main = /<main\b[^>]*\bid="_y-main"[^>]*>/g;
     if ([...original.matchAll(main)].length !== 1) broken('the receipt fixture needs exactly one main landmark');
     const body = /class="[^"]*\by-flipreceipt\b/.test(original)
       ? original

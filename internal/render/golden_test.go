@@ -97,6 +97,7 @@ func TestTheRenderedBytesAreTheOnesTheGoldensHold(t *testing.T) {
 		// A region prefix, so the footnote ids a second body on one page would
 		// mint are frozen alongside everything else.
 		{name: "dialect", relPath: "Notes/Dialect.md", region: "sheet-"},
+		{name: "inlinefootnotes", relPath: "Notes/Inline Footnotes.md", region: "sheet-"},
 		// Two directories deep, so a source climbing out of the vault has
 		// somewhere to climb from.
 		{name: "assets", relPath: "Notes/Sub/Assets.md"},

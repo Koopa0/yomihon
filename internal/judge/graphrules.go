@@ -97,7 +97,7 @@ func plannedNamesSet(notes []note, authority scanAuthority) Planned {
 	return set
 }
 
-// linkHealth classifies every note's unresolved wikilinks. A study-path's links
+// linkHealth classifies every note's unresolved or suffix-ambiguous wikilinks. A study-path's links
 // are its course list, owned by the map rule, so they are not double-reported
 // here. A link whose target is some note's title is the title case; any other
 // unresolved link is broken.
@@ -122,7 +122,12 @@ func linkHealth(
 			if lessons[link.offset] {
 				continue
 			}
-			if idx.Resolve(link.target).Kind != graph.KindUnresolved {
+			// A name two files share is the collision rule's to report. A
+			// path suffix several files end with is a name none of them
+			// carries, so no collision reports it; the page links nothing and
+			// check reports the same broken link it always has.
+			res := idx.Resolve(link.target)
+			if res.Kind == graph.KindUnique || (res.Kind == graph.KindAmbiguous && idx.Claimed(link.target)) {
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
@@ -398,7 +403,9 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	if !ok {
 		return true
 	}
-	if idx.Resolve(target).Kind != graph.KindUnresolved {
+	// Several path suffixes matching is no name the collision rule reports,
+	// so the reference resolves to nothing here just as it did before.
+	if res := idx.Resolve(target); res.Kind == graph.KindUnique || (res.Kind == graph.KindAmbiguous && idx.Claimed(target)) {
 		return true
 	}
 	if _, listed := slugs[target]; listed {
@@ -511,7 +518,12 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Fin
 		case graph.KindUnique:
 			listed[res.RelPath] = true
 		case graph.KindAmbiguous:
-			// An ambiguous link resolves to some note; leave it to the collision rule.
+			// A name two files share is the collision rule's to report. A path
+			// suffix several files end with is a name none of them carries, so
+			// no collision reports it and the row lists a note that is missing.
+			if !idx.Claimed(link.target) {
+				out = append(out, syllabusListsMissing(syllabus, link))
+			}
 		case graph.KindUnresolved:
 			out = append(out, syllabusListsMissing(syllabus, link))
 		default:

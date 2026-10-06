@@ -167,7 +167,7 @@ try {
     // nothing blocks nothing, and this case would then watch the deferred
     // script run and call it proof that it never did.
     let blocked = false;
-    await page.route('**/yomihon.js', (route) => { blocked = true; return route.abort(); });
+    await page.route('**/yomihon.js{,?*}', (route) => { blocked = true; return route.abort(); });
     const applied = await arm(page, 'reveal-without-the-deferred-script');
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     if (!blocked) {
