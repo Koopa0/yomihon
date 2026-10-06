@@ -273,18 +273,6 @@ const boxOf = (locator) => locator.evaluate((element) => {
 const nestedArticle = (article) => article.replace(/<\/?h([1-6])(?=[ >])/g,
   (tag, level) => tag.slice(0, -1) + Math.min(Number(level) + 1, 6));
 
-const arrived = (page)=> page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
-
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   // Short enough that a note of the fixture's length overflows a column, so
@@ -300,7 +288,6 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
-  await arrived(page);
   const pageHeadings = await page.locator('h1').allTextContents();
   const titles = await page.locator('.y-compare__tabs a').allTextContents();
   const expectedTitle = `${titles[0]} 與 ${titles[1]} 對照閱讀`;
