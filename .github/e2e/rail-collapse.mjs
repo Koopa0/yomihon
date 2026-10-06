@@ -402,6 +402,27 @@ const recordTransitions = () => {
   }, true);
 };
 
+// The page has arrived: the block of content under the header has finished
+// coming forward. That arrival scales the block while it plays, so a box read
+// from inside it is a box the page is passing through and not the one it
+// settles at, and a baseline taken then differs from a measurement taken after
+// it by the scale at that moment. Nothing is waited for on a page the arrival
+// is gated off, which has no such animation, and only once the stylesheet is
+// applied can the answer be that there is none. The shimmer and the spinner
+// never finish, which is why the wait names the arrival and not every
+// animation.
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 // Opens a page in a context of its own. The mutation is applied only when the
 // site being run is the one it aims at, so every other page is the real one.
 const open = async (site, path, {
@@ -417,7 +438,10 @@ const open = async (site, path, {
   // With no script nothing else says the page has finished, and a stylesheet
   // still in flight would be measured as an unstyled page.
   await page.goto(BASE + path, { waitUntil: script ? 'domcontentloaded' : 'load' });
-  if (script && wait) await page.waitForSelector('html[data-js]');
+  if (script && wait) {
+    await page.waitForSelector('html[data-js]');
+    await arrived(page);
+  }
   return {
     page,
     context,

@@ -646,6 +646,14 @@ samp {
   color: var(--fg-faint);
   display: inline;
 }
+/* These quick setters depend on script. Without it, the native preferences
+   link remains the way to change the reading choices. */
+html:not([data-js]) .y-rubybtn,
+html:not([data-js]) .y-textsizebtn,
+html:not([data-js]) .y-themebtn {
+  display: none;
+}
+
 /* The readings control is a switch with its name beside it: the track and the
    thumb are drawn on the button itself from the pressed state the page already
    carries, so what a reader sees and what a screen reader is told are one
@@ -1494,32 +1502,47 @@ samp {
 
 /* A page arrives as a whole new document, so the block of content under the
    header is the one thing that changes beneath a reader who pressed a link.
-   It comes in over the shared curve from a little faint and a little low,
-   which says the page changed without moving anything the reader is standing
-   on. Only that block moves. The header and the rails are the same on both
-   sides of the press and stay still, and <main> is left alone because a
-   transform on it would take every positioned descendant of the column with
-   it. The reading choices page is <main> itself, with no block inside it to
-   move, so it arrives without this.
+   It comes forward: from a little faint and a little small, growing into
+   place over a curve that decelerates, which says the page changed without
+   sending anything up or down the way the reader scrolls. Only that block
+   moves. The header and the rails are the same on both sides of the press and
+   stay still, and <main> is left alone because a transform on it would take
+   every positioned descendant of the column with it. The reading choices page
+   is <main> itself, with no block inside it to move, so it arrives without
+   this. It carries no blur: a filter over a layer as tall as the column would
+   be repainted on every press, and it reads as a landing page, not a book.
+
+   A scale moves each point by its distance from the origin, and the column
+   can be thousands of pixels tall. From its own centre the first line of a
+   note three thousand pixels tall would travel about twenty pixels, against
+   two on a short page. The origin is therefore the centre of the part of the
+   column on screen when the page opens at the top, or the centre of the block
+   where the block is shorter than that, so the lines the reader is looking at
+   barely move and a short page and a long note arrive alike. That holds only
+   at the top. A page read lower down would have its text moved by twenty
+   pixels or more, and further the lower it is, so such a page does not play
+   the arrival at all.
 
    The keyframes say only where the movement starts, and the fill is held
-   backwards, so once it ends nothing of it is left: a transform that stayed
-   would make the block the containing block of whatever is fixed inside it.
-   A page the browser put back from history, or prepared before the reader
-   asked for it, does not play it — there was no press to answer. Nor does a
-   page that opens at a place in it, an address with a fragment, whether it
-   names a heading or a stretch of text: the browser scrolls to the place by
-   where the block is while it is still low, and what it was asked for would
-   land a few pixels off once the block settled.
-   All three are marks the head script writes once, and the rule reads only
+   backwards, so once it ends nothing of it is left: a scale that stayed would
+   make the block the containing block of whatever is fixed inside it. A page
+   the browser put back from history, or reloaded in place, or prepared before
+   the reader asked for it, does not play it: nothing new arrives, and the text
+   is already where it was being read. Nor does a page that opens at a place in
+   it: an address with a fragment, whether it names a heading or a stretch of
+   text, or one returning to a kept place, which carries its distance in the
+   query. The browser scrolls to the place by where the block is while it is
+   still small, and what it was asked for would land a few pixels off once the
+   block settled.
+   All four are marks the head script writes once, and the rule reads only
    those. A condition worked out here instead, the fragment's own target, say,
    would stop matching when the reader jumped about the page and went back, and
    the block would play the arrival again over text they were reading.
    Reduced motion is answered by the blanket under the interface's own root. */
-@keyframes y-rise-in {
+@keyframes y-come-forward {
   from {
-    opacity: 0.55;
-    transform: translateY(6px);
+    opacity: 0.5;
+    scale: 0.985;
   }
 }
 
@@ -1531,7 +1554,8 @@ html:not([data-prerender], [data-arrival]) :is(
   .y-recovery,
   .y-syl
 ) {
-  animation: y-rise-in var(--dur-slow) var(--ease-standard) backwards;
+  animation: y-come-forward var(--dur-arrival) var(--ease-arrival) backwards;
+  transform-origin: 50% min(50%, 45vh);
 }
 
 /* ============================================================
@@ -2223,7 +2247,9 @@ details.y-metarow {
 
 /* One sentence beside the action that earned it. Empty regions stay available
    to assistive technology; filling one starts the same entrance as an arrival
-   receipt. Caller classes only decide where the sentence sits. */
+   receipt. The entrance is a fade and nothing else, because a single line of
+   text that moves or changes size reads as a wobble. Caller classes only
+   decide where the sentence sits. */
 .y-reply {
   color: var(--fg-muted);
   font-family: var(--font-serif);
@@ -2249,11 +2275,7 @@ details.y-metarow {
 
 @keyframes y-reply-in {
   from {
-    transform: translateY(4px);
-  }
-
-  to {
-    transform: translateY(0);
+    opacity: 0;
   }
 }
 
@@ -5721,17 +5743,21 @@ samp,
    exit had nowhere to live and the surface vanished mid-curve. display
    and overlay stay in the list with allow-discrete so the element remains
    on the top layer while it fades; display alone would keep painting
-   frames after it had already left, behind the backdrop. */
+   frames after it had already left, behind the backdrop.
+   The palette answers a press in place, so it comes forward from its top
+   edge, a little small and faint and growing into place, and leaves the same
+   way back. */
 .y-searchdialog {
   opacity: 0;
-  transform: translateY(-6px);
-  transition: display var(--dur-slow) var(--ease-standard), overlay var(--dur-slow) var(--ease-standard), opacity var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
+  scale: 0.98;
+  transform-origin: top;
+  transition: display var(--dur-slow) var(--ease-standard), overlay var(--dur-slow) var(--ease-standard), opacity var(--dur-slow) var(--ease-standard), scale var(--dur-slow) var(--ease-standard);
   transition-behavior: allow-discrete;
 }
 
 .y-searchdialog[open] {
   opacity: 1;
-  transform: none;
+  scale: none;
 }
 /* The sheet is held against the right edge of the window, so it arrives from
    there: a short travel inward beside the fade, which says where the panel
@@ -5752,7 +5778,7 @@ samp,
 @starting-style {
   .y-searchdialog[open] {
     opacity: 0;
-    transform: translateY(-6px);
+    scale: 0.98;
   }
 
   .y-conceptsheet[open] {
