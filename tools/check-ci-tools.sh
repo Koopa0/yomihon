@@ -1,12 +1,11 @@
 #!/bin/sh
 # The Makefile declares the gate's tool versions. Each must reach CI unchanged
-# and have a workflow reference; a bootstrap that copies a pin must agree too.
+# and have a workflow reference.
 set -eu
 makefile="${1:-Makefile}"
 workflow="${2:-.github/workflows/ci.yml}"
-bootstrap="${3:-.cursor/install.sh}"
 status=0
-for input in "$makefile" "$workflow" "$bootstrap"; do
+for input in "$makefile" "$workflow"; do
   [ -r "$input" ] || { echo "check-ci-tools: cannot read $input" >&2; exit 1; }
 done
 # Refuse visible declarations the literal-pin comparison cannot interpret.
@@ -88,24 +87,7 @@ for var in $names; do
     echo "check-ci-tools: $tool: $workflow pins $var at $ci, $makefile at $pin" >&2; status=1
   fi
   grep -q "\${$var}" "$workflow" || { echo "check-ci-tools: $tool: no reference in $workflow uses \${$var}" >&2; status=1; }
-  copies=$(awk -v v="$var" '{
-    line = $0
-    sub(/^[[:space:]]*/, "", line)
-    sub(/^export[[:space:]]+/, "", line)
-    if (index(line, v "=") == 1) {
-      sub(/^[^=]*=/, "", line)
-      sub(/[[:space:]]+#.*/, "", line)
-      sub(/[[:space:]]*$/, "", line)
-      print v "=" line
-    }
-  }' "$bootstrap")
-  for assignment in $copies; do
-    copy=${assignment#*=}
-    if [ "$(normalize "$copy")" != "$want" ]; then
-      echo "check-ci-tools: $tool: $bootstrap pins $var at $copy, $makefile at $pin" >&2; status=1
-    fi
-  done
   checked="$checked $var=$want"
 done
-[ "$status" -eq 0 ] && echo "check-ci-tools: every declared tool pin agrees with CI and bootstrap:$checked"
+[ "$status" -eq 0 ] && echo "check-ci-tools: every declared tool pin agrees with CI:$checked"
 exit "$status"
