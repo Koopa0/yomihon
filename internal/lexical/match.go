@@ -28,6 +28,10 @@ type Result struct {
 	// reader typed.
 	Topic string
 
+	// Tag is the frontmatter tag that answered when stronger evidence did not,
+	// in the author's spelling. Tag-only hits have no body excerpt or landing.
+	Tag string
+
 	// NoteType is the note's own declared type, carried beside Status because a
 	// status value is declared per type. It is blanked with Status when the entry
 	// may not answer metadata projections.
@@ -172,9 +176,9 @@ type FacetValue struct {
 }
 
 // Search runs a parsed query against the index and returns results in the final
-// deterministic order, eight groups concatenated: a note's title hits, a note's
-// body hits, a note's topic hits, the same three over vault files that are not
-// notes, then the path-only hits, notes again before files. Each group keeps
+// deterministic order, nine groups concatenated: a note's title hits, a note's
+// body hits, a note's topic hits, a note's tag hits, the first three over vault
+// files that are not notes, then the path-only hits, notes again before files. Each group keeps
 // the vault's reading order, except that a fold-equal exact title leads the
 // title-note group, a knowledge-layer hit leads an outside-knowledge hit
 // inside the same group, and every text hit outranks every path-only hit.
@@ -220,7 +224,7 @@ func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 	}
 	answer.Results = make([]Result, len(hits))
 	for i, h := range hits {
-		answer.Results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias, h.topic)
+		answer.Results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias, h.topic, h.tag)
 	}
 	return answer, nil
 }
@@ -237,6 +241,7 @@ type hit struct {
 	// topic is the declared subject that answered the query when title, alias
 	// and body did not.
 	topic string
+	tag   string
 }
 
 // bucket names one answer group. This declaration order is the result order and
@@ -248,6 +253,7 @@ const (
 	titleNote bucket = iota
 	bodyNote
 	topicNote
+	tagNote
 	titleFile
 	bodyFile
 	topicFile
@@ -263,7 +269,7 @@ type resultBuckets struct {
 }
 
 // place files one filter-matching entry into its answer group by what the
-// tokens matched: the title, the body, a declared topic, or only the path. It
+// tokens matched: the title, the body, a declared topic or tag, or only the path. It
 // reports whether the entry was filed at all — matching every filter and none
 // of the terms is not a hit, and a caller counting what the query found has to
 // be able to tell the two apart.
@@ -284,6 +290,8 @@ func (b *resultBuckets) place(e *entry, tokens []string) bool {
 		// body so a mention in prose stays above the many notes that share a
 		// subject.
 		b.add(topicNote, topicFile, hit{entry: e, topic: topicAnswering(e, tokens)})
+	case tagAnswering(e, tokens) != "":
+		b.groups[tagNote] = append(b.groups[tagNote], hit{entry: e, tag: tagAnswering(e, tokens)})
 	case allContain(e.PathFold, tokens):
 		b.add(pathNote, pathFile, hit{entry: e})
 	default:
@@ -305,7 +313,7 @@ func (b *resultBuckets) add(note, file bucket, h hit) {
 // raiseExactTitles is the one tie-break inside the title-note group: a title
 // that is the query, under the same fold matching uses, leads every title that
 // merely contains it. Hits that share that answer keep the vault's reading
-// order. The other seven groups are not touched, and an empty token list is a
+// order. The other groups are not touched, and an empty token list is a
 // pure-filter query whose every match already sits here.
 func (b *resultBuckets) raiseExactTitles(tokens []string) {
 	if len(tokens) == 0 {
@@ -365,6 +373,44 @@ func topicAnswering(e *entry, tokens []string) string {
 		}
 	}
 	return ""
+}
+
+// tagTokens accepts one leading hash as tag shorthand without changing the
+// literal query used by titles, aliases, bodies, topics and paths.
+func tagTokens(tokens []string) []string {
+	out := make([]string, len(tokens))
+	for i, token := range tokens {
+		out[i] = strings.TrimPrefix(token, "#")
+		if out[i] == "" {
+			return nil
+		}
+	}
+	return out
+}
+
+func tagAnswering(e *entry, tokens []string) string {
+	if e.isFile || len(e.TagFolds) == 0 {
+		return ""
+	}
+	terms := tagTokens(tokens)
+	if len(terms) == 0 {
+		return ""
+	}
+	for i, folded := range e.TagFolds {
+		if allContain(folded, terms) {
+			return e.Tags[i]
+		}
+	}
+	return ""
+}
+
+// MarkTagHits uses the same shorthand as tag matching, so a hash-prefixed
+// query still marks the author's tag rather than hiding the reason for a hit.
+func MarkTagHits(tag string, tokens []string) []HitRun {
+	if tag == "" {
+		return nil
+	}
+	return MarkHits(tag, tagTokens(tokens))
 }
 
 // aliasAnswering returns the note's own spelling of the first alias that holds
@@ -543,7 +589,7 @@ func withinFolder(relPath, folder string) bool {
 
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
-func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, topic string) Result {
+func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, topic, tag string) Result {
 	status, noteType := e.Status, e.NoteType
 	if !metadataAvailable || !e.metadataCapable {
 		status, noteType = "", ""
@@ -570,6 +616,7 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		Snippet:       bodySnippet,
 		Alias:         alias,
 		Topic:         topic,
+		Tag:           tag,
 		NoteType:      noteType,
 		File:          e.isFile,
 		Landing:       terms.first,
