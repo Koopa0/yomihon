@@ -32,17 +32,9 @@ var enginePackages = []string{
 	"internal/wording",
 }
 
-// presentationPackages are what an engine package must not reach: the
-// templates, the page shell, and the middleware that decides a served
-// response's security headers.
-var presentationPackages = []string{
-	"internal/ui/",
-	"internal/origin",
-}
-
-// The forbidden import roots above cover descendants too. Membership names
-// each package explicitly, so a new package requires a layer decision even
-// when it lives beneath an existing presentation directory.
+// Presentation membership also owns the forbidden dependency roots. UI
+// packages share a directory boundary, so an engine cannot reach a newly
+// added UI descendant before its explicit membership decision is made.
 var presentationLayerPackages = []string{
 	"internal/origin",
 	"internal/ui/layouts",
@@ -69,6 +61,31 @@ var faceAdapterPackages = []string{
 type packageLayer struct {
 	name     string
 	packages []string
+}
+
+func presentationRoots(packages []string) []string {
+	roots := make([]string, 0, len(packages))
+	for _, pkg := range packages {
+		if pkg == "internal/ui" || strings.HasPrefix(pkg, "internal/ui/") {
+			pkg = "internal/ui"
+		}
+		roots = append(roots, pkg)
+	}
+	slices.Sort(roots)
+	return slices.Compact(roots)
+}
+
+func presentationDependencies(deps, roots []string) []string {
+	var forbidden []string
+	for _, dep := range deps {
+		rel := strings.TrimPrefix(dep, module+"/")
+		if slices.ContainsFunc(roots, func(root string) bool {
+			return rel == root || strings.HasPrefix(rel, root+"/")
+		}) {
+			forbidden = append(forbidden, rel)
+		}
+	}
+	return forbidden
 }
 
 func packageLayers() []packageLayer {
@@ -197,11 +214,10 @@ func TestTheEnginePackagesCannotSeeTheReadingInterface(t *testing.T) {
 	// A prefix that names nothing would pass every row without looking at
 	// anything, so ask first whether the forbidden layer is still there under
 	// the name this test spells.
+	roots := presentationRoots(presentationLayerPackages)
 	all := dependencies(t, module+"/cmd/yomihon")
-	for _, forbidden := range presentationPackages {
-		if !slices.ContainsFunc(all, func(dep string) bool {
-			return strings.HasPrefix(strings.TrimPrefix(dep, module+"/"), forbidden)
-		}) {
+	for _, forbidden := range roots {
+		if len(presentationDependencies(all, []string{forbidden})) == 0 {
 			t.Fatalf("nothing in this module is named %s any more, so every row below passes for the wrong reason", forbidden)
 		}
 	}
@@ -209,13 +225,8 @@ func TestTheEnginePackagesCannotSeeTheReadingInterface(t *testing.T) {
 	for _, pkg := range enginePackages {
 		t.Run(pkg, func(t *testing.T) {
 			t.Parallel()
-			for _, dep := range dependencies(t, module+"/"+pkg) {
-				rel := strings.TrimPrefix(dep, module+"/")
-				for _, forbidden := range presentationPackages {
-					if strings.HasPrefix(rel, forbidden) {
-						t.Errorf("%s reaches %s; the engine must not depend on the reading interface", pkg, rel)
-					}
-				}
+			for _, dep := range presentationDependencies(dependencies(t, module+"/"+pkg), roots) {
+				t.Errorf("%s reaches %s; the engine must not depend on the reading interface", pkg, dep)
 			}
 		})
 	}
@@ -250,7 +261,7 @@ func TestTheDictionaryNeverReadsARequest(t *testing.T) {
 func dependencies(t *testing.T, pkg string) []string {
 	t.Helper()
 
-	return listDeps(t, pkg, `{{if .Module}}{{if eq .Module.Path "`+module+`"}}{{.ImportPath}}{{"\n"}}{{end}}{{end}}`)
+	return listDeps(t, "..", pkg, `{{if .Module}}{{if eq .Module.Path "`+module+`"}}{{.ImportPath}}{{"\n"}}{{end}}{{end}}`)
 }
 
 // allDependencies lists every package building pkg links, this module's and the
@@ -259,14 +270,14 @@ func dependencies(t *testing.T, pkg string) []string {
 func allDependencies(t *testing.T, pkg string) []string {
 	t.Helper()
 
-	return listDeps(t, pkg, `{{.ImportPath}}{{"\n"}}`)
+	return listDeps(t, "..", pkg, `{{.ImportPath}}{{"\n"}}`)
 }
 
-func listDeps(t *testing.T, pkg, format string) []string {
+func listDeps(t *testing.T, root, pkg, format string) []string {
 	t.Helper()
 
 	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "-f", format, pkg) // #nosec G204 -- fixed Go invocation over a package path this file spells out
-	cmd.Dir = ".."
+	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {

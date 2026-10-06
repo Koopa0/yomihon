@@ -100,3 +100,69 @@ func TestInternalPackageInventoryIncludesEverySourceDirectory(t *testing.T) {
 		t.Errorf("caught: complete internal package inventory (-want +got):\n%s", diff)
 	}
 }
+
+// The expected roots are independent of the projection so dropping a
+// declared presentation package cannot silently change engine permissions.
+func TestPresentationRootsCoverTheDeclaredLayer(t *testing.T) {
+	t.Parallel()
+	if diff := cmp.Diff([]string{"internal/origin", "internal/ui"}, presentationRoots(presentationLayerPackages)); diff != "" {
+		t.Errorf("caught: complete presentation roots (-want +got):\n%s", diff)
+	}
+	for _, tt := range []struct {
+		name          string
+		members, want []string
+	}{
+		{"empty", nil, []string{}},
+		{"new ui descendant", []string{"internal/ui/fresh/deep"}, []string{"internal/ui"}},
+		{"ui directory", []string{"internal/ui"}, []string{"internal/ui"}},
+		{"duplicate ui roots", []string{"internal/ui/pages", "internal/ui/layouts", "internal/ui/pages"}, []string{"internal/ui"}},
+		{"near prefix", []string{"internal/uiish", "internal/originextra"}, []string{"internal/originextra", "internal/uiish"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if diff := cmp.Diff(tt.want, presentationRoots(tt.members)); diff != "" {
+				t.Errorf("caught: presentation root projection (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// A real dependency graph includes a new UI descendant that no declaration
+// names. The UI directory boundary must still forbid it, while similarly
+// named packages remain outside that boundary.
+func TestPresentationBoundaryIncludesNewUIDescendants(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	files := map[string]string{
+		"go.mod":                              "module " + module + "\n\ngo 1.27.0\n",
+		"internal/origin/origin.go":           "package origin\n",
+		"internal/origin/child/child.go":      "package child\n",
+		"internal/ui/fresh/deep/deep.go":      "package deep\n",
+		"internal/uiish/uiish.go":             "package uiish\n",
+		"internal/originextra/originextra.go": "package originextra\n",
+		"internal/engine/engine.go": `package engine
+import (
+ _ "github.com/koopa0/yomihon/internal/origin"
+ _ "github.com/koopa0/yomihon/internal/origin/child"
+ _ "github.com/koopa0/yomihon/internal/ui/fresh/deep"
+ _ "github.com/koopa0/yomihon/internal/uiish"
+ _ "github.com/koopa0/yomihon/internal/originextra"
+)
+`,
+	}
+	for rel, content := range files {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil { // #nosec G703 -- fixed fixture paths in a test-owned directory
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil { // #nosec G703 -- fixed fixture paths in a test-owned directory
+			t.Fatal(err)
+		}
+	}
+	deps := listDeps(t, root, module+"/internal/engine", `{{if .Module}}{{if eq .Module.Path "`+module+`"}}{{.ImportPath}}{{"\n"}}{{end}}{{end}}`)
+	t.Log("invoked: real presentation dependency fixture")
+	want := []string{"internal/origin", "internal/origin/child", "internal/ui/fresh/deep"}
+	if diff := cmp.Diff(want, presentationDependencies(deps, presentationRoots(presentationLayerPackages))); diff != "" {
+		t.Errorf("caught: complete presentation dependency boundary (-want +got):\n%s", diff)
+	}
+}
