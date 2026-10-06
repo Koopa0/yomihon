@@ -142,6 +142,12 @@ func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, a
 		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
 	}
+	if a.found.Total == 0 && a.diagnostic == "" {
+		view.LiteralOperators = a.parsed.LiteralOperatorTerms()
+		for _, s := range snap.Index.FolderSuggestions(q) {
+			view.FolderSuggestions = append(view.FolderSuggestions, pages.SearchStepBack{Query: s.Query, Count: s.Count})
+		}
+	}
 	if onPage && a.diagnostic == "" && snap.Shell.Governed {
 		view.Facets = facetViews(q, a.found.Facets, snap.Status, lang)
 	}

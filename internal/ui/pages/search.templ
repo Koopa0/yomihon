@@ -42,6 +42,11 @@ type SearchView struct {
 	// search it has made useless.
 	StepBacks []SearchStepBack
 
+	// LiteralOperators names terms searched as words despite their operator
+	// shape. FolderSuggestions repairs a basename to a counted full-path query.
+	LiteralOperators  []string
+	FolderSuggestions []SearchStepBack
+
 	// Facets is the column beside the results: what the current answer is made
 	// of, and the narrower search each part of it leads to. It is empty on the
 	// live-search dialog, which asks the same endpoint for the same rows and
@@ -368,6 +373,21 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 				// No live region marks either: nothing here is arriving, and the
 				// count beside the field is already announced.
 				@nothingToShow(nothingNotice{Kind: "search", Title: fmt.Sprintf(wording.NoResultsFmt.In(lang), v.Query)}) {
+					if len(v.LiteralOperators) > 0 {
+						<p class="y-nothing__hint" data-literal-operator>{ wording.LiteralOperatorSentence(lang, v.LiteralOperators) }</p>
+					}
+					if len(v.FolderSuggestions) > 0 {
+						<p class="y-nothing__hint" data-folder-suggestion>
+							{ wording.FolderSuggestionsLabel.In(lang) }
+							for i, step := range v.FolderSuggestions {
+								if i > 0 {
+									<span aria-hidden="true">・</span>
+								}
+								<a href={ templ.URL(searchHref(step.Query)) }>{ wording.StepBackOpen.In(lang) }{ step.Query }{ wording.StepBackClose.In(lang) }</a>
+								{ fmt.Sprintf(wording.StepBackCountFmt.In(lang), step.Count) }
+							}
+						</p>
+					}
 					if len(v.StepBacks) > 0 {
 						<p class="y-nothing__hint">
 							{ wording.StepBackLabel.In(lang) }
