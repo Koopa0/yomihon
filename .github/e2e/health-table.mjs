@@ -12,6 +12,18 @@
 // Env: YOMIHON_BASE, PAGE_PATH (the whole-folder page), and MUTATE.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/health';
 const MUTATE = process.env.MUTATE || '';
@@ -289,6 +301,7 @@ try {
   const page = await browser.newPage({ viewport: PHONE });
   const proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   if (proof) {
     const issue = proof();
     if (issue) notApplied(`${MUTATE}: ${issue}`);
@@ -360,6 +373,7 @@ try {
   const undivided = await page.locator('.y-pager__whole').first();
   if (await undivided.count() === 1) {
     await page.goto(new URL(await undivided.getAttribute('href'), page.url()).toString(), { waitUntil: 'domcontentloaded' });
+    await arrived(page);
     if (await page.locator('.y-pager').count() !== 0) {
       broken('the undivided report still draws a strip, so it is not the whole of it');
     }
@@ -379,6 +393,7 @@ try {
   }
   // Back to the page this probe is driven at, which everything below measures.
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
 
   // Error and warn used to share one colour and one marker shape, told apart
   // only by a border a glance can miss. The fixture has to carry one of each
@@ -406,6 +421,7 @@ try {
   await severity.click();
   await page.waitForURL((url) => url.toString() !== asked, { timeout: 15000 });
   await page.waitForLoadState('domcontentloaded');
+  await arrived(page);
   if (await page.locator('.y-findings tbody tr').count() === 0) {
     broken(`following the weight heading landed on ${page.url()}, which carries no findings table at all`);
   }
@@ -432,6 +448,7 @@ try {
   // by following it — from a fresh, unsorted visit, so the click has an order
   // to actually change.
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   const beforeShape = await readRows(page);
   const shapeLink = page.locator('.y-healthshape__weight').first();
   if (await shapeLink.count() === 0) broken('the fixture carries a weight, so the shape line must offer a weight link to follow');
@@ -439,6 +456,7 @@ try {
   await shapeLink.click();
   await page.waitForURL((url) => url.toString() !== askedShape, { timeout: 15000 });
   await page.waitForLoadState('domcontentloaded');
+  await arrived(page);
   const afterShape = await readRows(page);
   if (afterShape.length !== beforeShape.length) broken(`the reordered page holds ${afterShape.length} findings, was ${beforeShape.length}`);
   if (afterShape.every((row, i) => row.subject === beforeShape[i].subject)) {
