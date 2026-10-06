@@ -91,6 +91,24 @@ type heading struct {
 	gap   bool
 }
 
+// bodyStructure holds one body's code, comments and spoken headings. Its
+// slices stay read-only while the independent extractors borrow them.
+type bodyStructure struct {
+	skip     []byteRange
+	comments []byteRange
+	headings []heading
+}
+
+func inspectBody(body string, headingMarks []string) bodyStructure {
+	codeZones, headings := structure(body, headingMarks)
+	comments := graph.CommentZones(body, codeZones)
+	return bodyStructure{
+		skip:     slices.Concat(codeZones, comments),
+		comments: comments,
+		headings: spokenHeadings(headings, comments),
+	}
+}
+
 // rawLink is one [[...]] pair from the raw scan: the byte offset of the opening
 // bracket and the inner text between the brackets.
 type rawLink struct {
@@ -107,10 +125,12 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 }
 
 func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string) []wikiLink {
-	codeZones, headings := structure(body, headingMarks)
-	comments := graph.CommentZones(body, codeZones)
-	headings = spokenHeadings(headings, comments)
-	skip := slices.Concat(codeZones, comments)
+	facts := inspectBody(body, headingMarks)
+	return extractWikilinksFrom(body, bodyStartLine, &facts)
+}
+
+func extractWikilinksFrom(body string, bodyStartLine int, facts *bodyStructure) []wikiLink {
+	headings, skip := facts.headings, facts.skip
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
 		if graph.In(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
@@ -135,17 +155,9 @@ func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string)
 	return links
 }
 
-// extractPathRefs returns every checkable file reference in body: markdown
-// [text](path.md) links and backticked path.md tokens. URLs, anchors, and
-// glob paths are left out. Markdown paths may be percent-encoded; code tokens
-// remain literal paths. A reference inside an Obsidian %%...%% comment is skipped,
-// the same way a commented-out wikilink is: commented-out content is not a live
-// reference, so it is not checked.
-func extractPathRefs(body string, bodyStartLine int) []pathRef {
+func extractPathRefsFrom(body string, bodyStartLine int, comments []byteRange) []pathRef {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
-	codeZones, _ := structure(body, nil)
-	comments := graph.CommentZones(body, codeZones)
 	var refs []pathRef
 	walkNodes(doc, func(n ast.Node) {
 		switch node := n.(type) {
@@ -180,10 +192,13 @@ func extractPlannedNames(body string) []string {
 // is content the author took back, exactly as the link extraction reads them,
 // so a declaration that is merely shown cannot soften another note's link.
 func extractPlannedNamesWith(body string, marks plannedMarks) []string {
-	codeZones, headings := structure(body, marks.heading)
-	comments := graph.CommentZones(body, codeZones)
-	headings = spokenHeadings(headings, comments)
-	spoken := blankZones(body, slices.Concat(codeZones, comments))
+	facts := inspectBody(body, marks.heading)
+	return extractPlannedNamesFrom(body, marks, &facts)
+}
+
+func extractPlannedNamesFrom(body string, marks plannedMarks, facts *bodyStructure) []string {
+	headings := facts.headings
+	spoken := blankZones(body, facts.skip)
 	var names []string
 	var item *string
 	offset := 0

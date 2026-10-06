@@ -236,7 +236,7 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 				// The extension is told only what to prefix the ids with, per body,
 				// so several bodies on one page do not share a first note's id.
 				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{},
+				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
 			),
 		),
 	}
@@ -485,7 +485,8 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
 	}
 
-	htmlOut, blocks := substituteMarkedBlocks(buf.String(), marks.blocks, marks.inline, marks.anchors)
+	named := nameTaskLabels(buf.String(), marks.inline, page.lang)
+	htmlOut, blocks := substituteMarkedBlocks(named, marks.blocks, marks.inline, marks.anchors)
 	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
 }
 
