@@ -81,7 +81,7 @@ try {
             await route.fulfill({ response, body: injected === 1 ? body.replace(needle, needle + html) : body });
           });
           let matches = -1;
-          if (MUTATE) await context.route('**/static/diagrams.js', async (route) => {
+          if (MUTATE) await context.route('**/static/diagrams.js{,?*}', async (route) => {
             const response = await route.fetch();
             const body = await response.text();
             const mutation = MUTATIONS[MUTATE];

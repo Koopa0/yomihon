@@ -104,8 +104,8 @@ func TestBothStatusFacesDrawEveryWriteFaceState(t *testing.T) {
 		}
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 			for faceName, component := range map[string]templ.Component{
-				"status-panel-label": statusPanel(view, lang),
-				"status-bar-label":   statusBar(view, lang),
+				"_y-status-panel-label": statusPanel(view, lang),
+				"_y-status-bar-label":   statusBar(view, lang),
 			} {
 				var buf bytes.Buffer
 				if err := component.Render(t.Context(), &buf); err != nil {
@@ -267,8 +267,8 @@ func TestStatusActionsNameTheirTarget(t *testing.T) {
 			view := NoteView{Governed: true, Status: "ready", IDPrefix: prefix,
 				Transitions: []Transition{{To: "draft"}, {To: "archived", NoReturn: true}}}
 			for labelID, component := range map[string]templ.Component{
-				"status-panel-label": statusPanel(view, lang),
-				"status-bar-label":   statusBar(view, lang),
+				"_y-status-panel-label": statusPanel(view, lang),
+				"_y-status-bar-label":   statusBar(view, lang),
 			} {
 				var buf bytes.Buffer
 				if err := component.Render(t.Context(), &buf); err != nil {
