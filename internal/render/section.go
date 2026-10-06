@@ -350,7 +350,7 @@ func headingSourceText(raw string, level int) string {
 // how wide a block reference reaches, so the narrow reading is taken.
 func blockSlice(body strippedBody, block string) (string, bool) {
 	lines := strings.Split(body.text, "\n")
-	at := blockMarkerLine(lines, body.address, block)
+	at := blockMarkerLine(lines, body.address, UnanchorableLines(body.text), block)
 	if at < 0 {
 		return "", false
 	}
@@ -370,8 +370,9 @@ func blockSlice(body strippedBody, block string) (string, bool) {
 // code rather than an address, so the scan tracks fences as it walks. A caret
 // a code span owns is the same kind of quoted text, asked of the one predicate
 // the page and the check share, over the line geometry its author wrote rather
-// than over whatever the comment strip left.
-func blockMarkerLine(lines, address []string, block string) int {
+// than over whatever the comment strip left. unanchorable is
+// UnanchorableLines over the same lines.
+func blockMarkerLine(lines, address []string, unanchorable func(int, string) bool, block string) int {
 	want := graph.FoldFragment("^" + block)
 	owned := CodeSpanOwnedAddresses(address)
 	inFence, fenceByte, fenceLen := false, byte(0), 0
@@ -390,7 +391,7 @@ func blockMarkerLine(lines, address []string, block string) int {
 			inFence, fenceByte, fenceLen = true, open, n
 			continue
 		}
-		if UnanchorableLine(line) || owned[i] {
+		if unanchorable(i, line) || owned[i] {
 			continue
 		}
 		trimmed := graph.FoldFragment(strings.TrimRight(line, " \t"))
