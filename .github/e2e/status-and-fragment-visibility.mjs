@@ -11,12 +11,30 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH, and MUTATE.
 import { chromium } from 'playwright-core';
+import { readFile } from 'node:fs/promises';
+
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/search?q=status%3Adraft';
 const NOTE_PAGE = '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['search-flag-painted', 'fragment-split-painted'];
+
+// These fixture notes were independently checked to carry invalid statuses.
+// An enum finding on another field does not establish that warning contract.
+const WARNING_PATHS = ['Notes/mark-anchors.md', 'Notes/out-of-contract.md'];
+const WARNING_WORDS = '不在 schema 允許清單中';
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -60,6 +78,62 @@ const hideVia = (path, selector, label) => rewritePath(
   1,
   label,
 );
+
+// A row fault must change exactly one declared fixture row. Record the
+// application before removing a node, so disappearance cannot prove its own
+// application and a missing fixture refuses the mutation instead.
+const changeWarningRow = (path, fault) => async (page) => {
+  await page.addInitScript(({ wanted, change }) => {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (location.pathname !== '/search') return;
+      const links = [...document.querySelectorAll('a.y-result[href]')].filter((link) =>
+        decodeURIComponent(new URL(link.href).pathname) === `/notes/${wanted}`);
+      const record = { rows: links.length, flags: 0, changed: false };
+      window.__warningRowMutation = record;
+      if (links.length !== 1) return;
+      const link = links[0];
+      const flags = link.querySelectorAll('.y-outofenum');
+      record.flags = flags.length;
+      if (change === 'false-warning') {
+        const original = document.querySelector('.y-outofenum');
+        if (flags.length !== 0 || !original) return;
+        link.append(original.cloneNode(true));
+        record.changed = link.querySelectorAll('.y-outofenum').length === 1;
+        return;
+      }
+      if (flags.length !== 1) return;
+      const flag = flags[0];
+      if (change === 'hide') {
+        flag.style.setProperty('display', 'none', 'important');
+        record.changed = getComputedStyle(flag).display === 'none';
+      } else if (change === 'drop') {
+        flag.remove();
+        record.changed = !flag.isConnected;
+      } else if (change === 'remove-row') {
+        const row = link.closest('ol.y-results > li');
+        if (!row) return;
+        row.remove();
+        record.changed = !row.isConnected;
+      } else if (change === 'accessible-name') {
+        link.setAttribute('aria-label', 'fixture result without its warning');
+        record.changed = link.getAttribute('aria-label') === 'fixture result without its warning';
+      } else if (change === 'duplicate') {
+        link.append(flag.cloneNode(true));
+        record.changed = link.querySelectorAll('.y-outofenum').length === 2;
+      }
+    }, { once: true });
+  }, { wanted: path, change: fault });
+  let applied = false;
+  return async () => {
+    if (applied) return '';
+    const record = await page.evaluate(() => window.__warningRowMutation ?? null);
+    if (!record || record.rows !== 1 || !record.changed) {
+      return `${path}/${fault} did not change exactly one fixture row: ${JSON.stringify(record)}`;
+    }
+    applied = true;
+    return '';
+  };
+};
 
 // The out-of-enum mark is one component and one class wherever it is worn — a
 // search hit, a recent-list row, a distribution chip. These mutations suppress
@@ -116,6 +190,20 @@ const MUTATIONS = {
     target: 'fragment-split-painted',
     apply: rewritePath(NOTE_PAGE, '、章節 <code>補足</code>', '', 2, 'fragment-split section'),
   },
+};
+
+for (const [index, path] of WARNING_PATHS.entries()) {
+  for (const fault of ['hide', 'drop', 'remove-row', 'accessible-name']) {
+    MUTATIONS[`${fault}-warning-row-${index + 1}`] = {
+      target: 'search-flag-painted', at: 'search', apply: changeWarningRow(path, fault),
+    };
+  }
+}
+MUTATIONS['duplicate-a-warning'] = {
+  target: 'search-flag-painted', at: 'search', apply: changeWarningRow(WARNING_PATHS[0], 'duplicate'),
+};
+MUTATIONS['warn-on-a-declared-row'] = {
+  target: 'search-flag-painted', at: 'search', apply: changeWarningRow('Notes/cutover.md', 'false-warning'),
 };
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
@@ -230,26 +318,47 @@ try {
   // --- the search row -----------------------------------------------------
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
 
+  const canonical = await readFile(new URL('../../tools/check-fixtures.e2e-vault.expected', import.meta.url), 'utf8');
+  const enumPaths = canonical.split('\n').filter((line) => line.startsWith('schema.enum\t'))
+    .map((line) => line.slice('schema.enum\t'.length)).sort();
+  if (JSON.stringify(enumPaths) !== JSON.stringify(WARNING_PATHS)) {
+    broken(`the canonical enum-fixture set changed: ${JSON.stringify(enumPaths)}; requalify which notes carry invalid statuses`);
+  }
+  if (proof && MUTATIONS[MUTATE].at === 'search') {
+    const issue = await proof();
+    if (issue) notApplied(`${MUTATE}: ${issue}`);
+  }
   const rows = page.locator('ol.y-results > li');
-  const rowCount = await rows.count();
-  if (rowCount < 2) broken(`the fixture search returned ${rowCount} rows, want at least one flagged and one declared`);
-  const flags = page.locator('.y-outofenum');
-  if (await flags.count() !== 1) {
-    fail('search-flag-painted', `the results carry ${await flags.count()} out-of-enum warnings, want exactly 1 over ${rowCount} rows`);
+  const paths = await rows.evaluateAll((elements) => elements.map((row) => {
+    const links = row.querySelectorAll('a.y-result[href]');
+    if (links.length !== 1) return null;
+    const pathname = new URL(links[0].href).pathname;
+    return pathname.startsWith('/notes/') ? decodeURIComponent(pathname.slice('/notes/'.length)) : null;
+  }));
+  if (paths.length < 2 || paths.includes(null)) broken(`the result rows do not each identify one fixture note: ${JSON.stringify(paths)}`);
+  for (const path of WARNING_PATHS) {
+    const count = paths.filter((seen) => seen === path).length;
+    if (count !== 1) fail('search-flag-painted', `the results include ${count} rows for warning note ${path}, want exactly 1`);
   }
-
-  const seenFlag = await painted(flags.first());
-  if (!onScreen(seenFlag)) {
-    fail('search-flag-painted', `the out-of-enum warning is not on screen: ${JSON.stringify(seenFlag)}`);
+  const flagged = [];
+  let declared = 0;
+  for (const [index, path] of paths.entries()) {
+    const row = rows.nth(index);
+    const flags = row.locator('.y-outofenum');
+    const count = await flags.count();
+    const wanted = WARNING_PATHS.includes(path) ? 1 : 0;
+    if (count !== wanted) fail('search-flag-painted', `${path} carries ${count} out-of-enum warnings, want ${wanted}`);
+    if (wanted === 0) { declared += 1; continue; }
+    flagged.push(path);
+    const seen = await painted(flags);
+    if (!onScreen(seen)) fail('search-flag-painted', `${path}: the warning is not painted: ${JSON.stringify(seen)}`);
+    if (!seen.text.includes(WARNING_WORDS)) fail('search-flag-painted', `${path}: the warning omits what is wrong: ${JSON.stringify(seen.text)}`);
+    const named = row.getByRole('link', { name: new RegExp(WARNING_WORDS) });
+    if (await named.count() !== 1) fail('search-flag-painted', `${path}: the result link's accessible name omits the warning`);
   }
-  if (!seenFlag.text.includes('不在 schema 允許清單中')) {
-    fail('search-flag-painted', `the warning does not say what is wrong in words: ${JSON.stringify(seenFlag.text)}`);
-  }
-  // The words a reader sees and the words the link is announced by are the
-  // same words: a colour alone, or a name that omits them, is what this rules out.
-  const linkText = await flags.first().locator('xpath=ancestor::a[1]').evaluate((a) => a.textContent.replace(/\s+/g, ' ').trim());
-  if (!linkText.includes('不在 schema 允許清單中')) {
-    fail('search-flag-painted', `the row's accessible name drops the warning: ${JSON.stringify(linkText)}`);
+  if (declared === 0) broken('the search contains no declared-status row to reject a spurious warning');
+  if (JSON.stringify(flagged.sort()) !== JSON.stringify(WARNING_PATHS)) {
+    fail('search-flag-painted', `the flagged rows are ${JSON.stringify(flagged)}, want ${JSON.stringify(WARNING_PATHS)}`);
   }
 
   // --- the note's 筆記狀況 -------------------------------------------------
@@ -257,6 +366,7 @@ try {
   // the panel and the folded copy is not drawn at all.
   await page.setViewportSize({ width: 1024, height: 800 });
   await page.goto(BASE + NOTE_PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
 
   // At this width the rail is gone and the panel is a closed disclosure, which
   // is the state a reader meets it in: they open 筆記狀況 and read what is
@@ -290,13 +400,13 @@ try {
   }
 
   if (proof) {
-    const issue = proof();
+    const issue = await proof();
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
   console.log('PASS status-and-fragment-visibility: the out-of-enum warning and the link reading are both painted where a reader looks');
 } catch (err) {
   if (proof && !(err instanceof NotApplied)) {
-    const issue = proof();
+    const issue = await proof();
     if (issue) {
       console.error(`NOT-APPLIED status-and-fragment-visibility: ${MUTATE}: ${issue}`);
       console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
