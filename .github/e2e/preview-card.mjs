@@ -122,7 +122,7 @@ const notApplied = (message) => {
 // than passing as a mutation nobody noticed.
 const rewriteModule = (needle, replacement) => async (context) => {
 	let matched = -1;
-	await context.route('**/static/preview.js', async (route) => {
+	await context.route('**/static/preview.js{,?*}', async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
 		matched = original.split(needle).length - 1;
@@ -137,7 +137,7 @@ const rewriteModule = (needle, replacement) => async (context) => {
 // flag.
 const weakenStylesheet = (rule) => async (context) => {
 	let served = false;
-	await context.route('**/static/app.css', async (route) => {
+	await context.route('**/static/app.css{,?*}', async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
 		served = true;
@@ -334,7 +334,7 @@ const MUTATIONS = {
 	// shell, so the needle follows that tag.
 	're-anchor-the-excerpt': {
 		target: 'an-open-card-adds-no-second-place-with-one-name',
-		apply: rewriteFragment('<h3', '<h3 id="main-content"'),
+		apply: rewriteFragment('<h3', '<h3 id="_y-main"'),
 	},
 	// The card fills itself instead of asking the route that holds the
 	// excerpts. It looks like a working card and is showing something nothing

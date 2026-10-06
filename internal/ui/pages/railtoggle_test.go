@@ -49,11 +49,11 @@ func TestEveryRailCarriesTheFoldControlBesideItsPanel(t *testing.T) {
 					t.Fatalf("%d fold controls, want exactly one", got)
 				}
 				toggle := strings.Index(html, "data-rail-toggle")
-				body := strings.Index(html, `id="nav-rail-body"`)
+				body := strings.Index(html, `id="_y-nav-rail-body"`)
 				if body < 0 {
-					t.Fatal("the rail has no panel with id nav-rail-body")
+					t.Fatal("the rail has no panel with id _y-nav-rail-body")
 				}
-				if strings.Count(html, `id="nav-rail-body"`) != 1 {
+				if strings.Count(html, `id="_y-nav-rail-body"`) != 1 {
 					t.Error("the panel id is not unique")
 				}
 				if toggle > body {
@@ -64,7 +64,7 @@ func TestEveryRailCarriesTheFoldControlBesideItsPanel(t *testing.T) {
 				if strings.Contains(panel, "data-rail-toggle") {
 					t.Error("the fold control is inside the panel it hides")
 				}
-				if !strings.Contains(html, `aria-controls="nav-rail-body"`) {
+				if !strings.Contains(html, `aria-controls="_y-nav-rail-body"`) {
 					t.Error("the fold control does not name the panel")
 				}
 				if !strings.Contains(html, `<div class="y-railhead" hidden>`) {

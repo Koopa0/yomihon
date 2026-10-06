@@ -16,17 +16,19 @@ templ File(v FileView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell y-shell--rail-empty">
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main">
+			<main id="_y-main" tabindex="-1" class="y-main">
 				<article class="y-article">
 					@fileHead(v, c.Lang)
 					switch v.Kind {
 						case FileSource:
 							<div class="y-prose y-source">
+								@layouts.CodeCopy(c.Lang)
 								@templ.Raw(v.SourceHTML)
 							</div>
 						case FileDocument:
 							<p class="y-fileinfo__note">{ wording.SkippedDocumentNote.In(c.Lang) }</p>
 							<div class="y-prose">
+								@layouts.CodeCopy(c.Lang)
 								@templ.Raw(v.BodyHTML)
 							</div>
 						case FileImage:
