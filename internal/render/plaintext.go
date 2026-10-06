@@ -310,6 +310,16 @@ func (w *plainWalk) closeBlock() {
 		}
 		start = w.blocks[n-1].End
 	}
+	w.blocks = append(w.blocks, w.completedBlock(s, start, end))
+	w.blockVerbatim = true
+	w.blockContext = true
+	w.blockLiteral = true
+	w.headingLevel = 0
+}
+
+// completedBlock settles page equivalence after the whole block is written.
+// Heading words name the heading itself and never provide nearby context.
+func (w *plainWalk) completedBlock(s string, start, end int) Block {
 	verbatim := w.blockVerbatim && w.readings.Len() == 0 && !spentByPage(s[start:end])
 	var contexts [][2]int
 	if !verbatim && w.blockContext && w.readings.Len() == 0 {
@@ -322,11 +332,7 @@ func (w *plainWalk) closeBlock() {
 		// they vouch for nothing beside a match in it.
 		contexts = nil
 	}
-	w.blocks = append(w.blocks, Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading, Literal: literal})
-	w.blockVerbatim = true
-	w.blockContext = true
-	w.blockLiteral = true
-	w.headingLevel = 0
+	return Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading, Literal: literal}
 }
 
 // entityReference matches what CommonMark may read as an entity or numeric

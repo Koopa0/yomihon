@@ -168,7 +168,7 @@ func assertDroppedTitlePage(t *testing.T, page, title string) {
 				href = attr.Val
 			}
 		}
-		for _, class := range strings.Fields(classes) {
+		for class := range strings.FieldsSeq(classes) {
 			if class == "y-prose" {
 				prose++
 				inProse = true
