@@ -78,10 +78,15 @@ func TestReadAloudCommentBoundsAndCodeRemainAuthored(t *testing.T) {
 	if strings.Count(got, `data-tts="`) != 2 || !strings.Contains(got, `data-tts="First words."`) || !strings.Contains(got, `data-tts="Second words."`) {
 		t.Errorf("caught: adjacent markers swallowed prose or code gained controls: %s", got)
 	}
-	for _, kept := range []string{"<p>Not spoken.</p>", "&lt;!-- ordinary &gt; comment --&gt;", "<code>&lt;!-- read-aloud: zh-Hant --&gt;</code>", "Fenced words."} {
+	for _, kept := range []string{"<p>Not spoken.</p>", "<code>&lt;!-- read-aloud: zh-Hant --&gt;</code>", "Fenced words."} {
 		if !strings.Contains(got, kept) {
 			t.Errorf("caught: authored comment/code lost: %q in %s", kept, got)
 		}
+	}
+	// An ordinary comment is a private remark, hidden like %%, even when a
+	// greater-than sign inside it could pass for the end of a tag.
+	if strings.Contains(got, "ordinary") || strings.Contains(got, "comment --") {
+		t.Errorf("caught: an ordinary comment reached the page: %s", got)
 	}
 }
 
@@ -238,14 +243,9 @@ func TestAMalformedReadAloudMarkerLeavesNoTrace(t *testing.T) {
 	if n := strings.Count(render.InjectTTS(got, wording.ZhHant), `class="y-tts"`); n != 1 {
 		t.Errorf("the page offers %d speak buttons, want 1 — only the Japanese paragraph asked for one:\n%s", n, got)
 	}
-	// The narrowness is what makes the drop safe, so it is held here too. What
-	// is dropped is an instruction addressed to the renderer, recognised by the
-	// name it is addressed with. A comment an author wrote for themselves is
-	// still shown as text, the way this boundary shows every piece of authored
-	// markup it does not act on — widening the pattern to any comment at all
-	// would make a note's own words disappear with nothing said.
-	if !strings.Contains(got, "&lt;!-- an ordinary comment --&gt;") {
-		t.Errorf("an ordinary authored comment stopped being shown as text, so the drop is no longer confined to the marker it names:\n%s", got)
+	// Ordinary authored comments are private remarks, not reading text.
+	if strings.Contains(got, "ordinary comment") {
+		t.Errorf("an ordinary authored comment reached the reading text:\n%s", got)
 	}
 }
 
