@@ -23,11 +23,9 @@ func folderNotices(collision []string, root *snapshot.RootNotice, lang wording.L
 	}
 	if root != nil {
 		title, summary := wording.NoticeRootChangedTitle, wording.NoticeRootChanged
-		detail := wording.NoticeRootSelected.In(lang) + ": " + vault.Spelled(root.SelectedPath) + "; " +
-			wording.NoticeRootOpened.In(lang) + ": " + vault.Spelled(root.OpenedName)
-		if root.Unconfirmed != "" {
+		detail := wording.RootDetail(lang, vault.Spelled(root.SelectedPath), vault.Spelled(root.OpenedName))
+		if root.Unconfirmed {
 			title, summary = wording.NoticeRootUnconfirmedTitle, wording.NoticeRootUnconfirmed
-			detail += "; " + root.Unconfirmed
 		}
 		notices = append(notices, pages.FolderNotice{Title: title.In(lang), Summary: summary.In(lang), Detail: detail})
 	}

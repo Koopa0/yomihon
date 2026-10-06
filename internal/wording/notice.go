@@ -1,5 +1,7 @@
 package wording
 
+import "fmt"
+
 // What the pages say when the folder is not being published as it stands. A
 // notice has a title, which names the state, and a sentence, which says why and
 // what to do about it. The files a notice is about are shown beside the
@@ -21,11 +23,18 @@ var (
 		"目前無法確認選取的路徑是否仍指向啟動時開啟的資料夾。yomihon 仍使用原本開啟的資料夾；請恢復路徑的存取權，或重新啟動。",
 		"The selected path cannot currently be confirmed to name the folder opened at startup. yomihon still uses the originally opened folder. Restore access to the path or restart.",
 	)
-	NoticeRootSelected      = both("選取路徑", "Selected path")
-	NoticeRootOpened        = both("啟動時開啟的名稱", "Startup opened name")
 	NoticeNamesCollideTitle = both("頁面已停止更新", "Pages have stopped updating")
 	NoticeNamesCollide      = both(
 		"這個資料夾裡有兩個名稱視為同一個，只差在 Unicode 的正規化形式（例如 NFC 與 NFD）。yomihon 不會猜哪一個才對，所以第二個名稱出現之後新增或修改的內容，都不會出現在頁面上。刪除或改名其中一個；等到資料夾裡不再有這樣的一對名稱，頁面就會恢復更新。",
 		"Two names in this folder count as one: they differ only in Unicode normalization form (for example NFC and NFD). yomihon will not guess which one is meant, so nothing added or changed since the second name appeared is reaching the pages. Delete or rename one of them; the pages resume updating once no such pair remains.",
 	)
 )
+
+// RootDetail labels the selected path and startup name in the reader's language.
+// Both values already carry their filesystem spelling, including any escapes.
+func RootDetail(lang Lang, selected, opened string) string {
+	return fmt.Sprintf(both(
+		"選取路徑：%s；啟動時開啟的名稱：%s",
+		"Selected path: %s; Startup opened name: %s",
+	).In(lang), selected, opened)
+}

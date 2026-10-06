@@ -70,11 +70,12 @@ type ObservedSource interface {
 }
 
 // RootNotice reports a divergent or unconfirmed selected root identity.
-// Empty Unconfirmed means a successful comparison proved the objects differ.
+// Unconfirmed distinguishes an observation error from a confirmed difference.
+// The operational cause belongs to the warning log rather than reader-facing facts.
 type RootNotice struct {
 	SelectedPath string
 	OpenedName   string
-	Unconfirmed  string
+	Unconfirmed  bool
 }
 
 // Freshness is the published account of how the reading generation relates to
@@ -808,14 +809,14 @@ func (s *Store) observeRoot(ctx context.Context) bool {
 	if err != nil || !identity.Same {
 		root = &RootNotice{SelectedPath: identity.SelectedPath, OpenedName: identity.OpenedName}
 		if err != nil {
-			root.Unconfirmed = err.Error()
+			root.Unconfirmed = true
 		}
 	}
 	current := s.fresh.Load()
 	if root == nil && current.root == nil {
 		return true
 	}
-	if root != nil && (current.root == nil || (current.root.Unconfirmed == "") != (root.Unconfirmed == "")) {
+	if root != nil && (current.root == nil || current.root.Unconfirmed != root.Unconfirmed) {
 		message := "vault root identity changed; restart required"
 		if err != nil {
 			message = "vault root identity unconfirmed; restore access or restart"

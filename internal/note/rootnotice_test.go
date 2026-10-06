@@ -1,6 +1,8 @@
 package note_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"html"
 	"log/slog"
 	"net/http"
@@ -10,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/note"
@@ -34,7 +38,8 @@ func TestRootReplacementReachesBothPagesInBothLanguages(t *testing.T) {
 	if err := os.Mkdir(root, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	log := slog.New(slog.DiscardHandler)
+	var logged bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&logged, nil))
 	store, err := snapshot.New(t.Context(), reader, log, nil, schema.Governance{})
 	if err != nil {
 		t.Fatal(err)
@@ -57,21 +62,35 @@ func TestRootReplacementReachesBothPagesInBothLanguages(t *testing.T) {
 				t.Fatal(renameErr)
 			}
 		}
+		logged.Reset()
 		store, err = snapshot.New(t.Context(), reader, log, nil, schema.Governance{})
 		if err != nil {
 			t.Fatal(err)
+		}
+
+		rawError := ""
+		if state == "missing" {
+			_, observeErr := reader.ObserveRoot()
+			if observeErr == nil {
+				t.Fatal("missing lookup did not return the original cause")
+			}
+			rawError = observeErr.Error()
+			warnings := rootWarningRecords(t, logged.String())
+			t.Log("invoked: original root error WARN boundary")
+			want := []map[string]string{{"level": "WARN", "selected_path": root, "opened_root_name": reader.Name(), "error": rawError}}
+			if diff := cmp.Diff(want, warnings); diff != "" {
+				t.Fatalf("caught: root error WARN boundary (-want +got):\n%s", diff)
+			}
 		}
 		for _, tt := range []struct {
 			lang           string
 			title          string
 			summary        string
-			selectedLabel  string
-			openedLabel    string
 			unknownTitle   string
 			unknownSummary string
 		}{
-			{lang: "en", title: "Reading the startup folder", summary: "The selected path no longer points to the folder opened at startup. yomihon is still reading the original folder. Restart to open the folder now at the selected path.", selectedLabel: "Selected path", openedLabel: "Startup opened name", unknownTitle: "Folder identity cannot be confirmed", unknownSummary: "The selected path cannot currently be confirmed to name the folder opened at startup. yomihon still uses the originally opened folder. Restore access to the path or restart."},
-			{lang: "zh-Hant", title: "讀取的是啟動時的資料夾", summary: "選取的路徑已不再指向啟動時開啟的資料夾。yomihon 仍在讀取原本的資料夾；請重新啟動，開啟現在選取的資料夾。", selectedLabel: "選取路徑", openedLabel: "啟動時開啟的名稱", unknownTitle: "資料夾身分無法確認", unknownSummary: "目前無法確認選取的路徑是否仍指向啟動時開啟的資料夾。yomihon 仍使用原本開啟的資料夾；請恢復路徑的存取權，或重新啟動。"},
+			{lang: "en", title: "Reading the startup folder", summary: "The selected path no longer points to the folder opened at startup. yomihon is still reading the original folder. Restart to open the folder now at the selected path.", unknownTitle: "Folder identity cannot be confirmed", unknownSummary: "The selected path cannot currently be confirmed to name the folder opened at startup. yomihon still uses the originally opened folder. Restore access to the path or restart."},
+			{lang: "zh-Hant", title: "讀取的是啟動時的資料夾", summary: "選取的路徑已不再指向啟動時開啟的資料夾。yomihon 仍在讀取原本的資料夾；請重新啟動，開啟現在選取的資料夾。", unknownTitle: "資料夾身分無法確認", unknownSummary: "目前無法確認選取的路徑是否仍指向啟動時開啟的資料夾。yomihon 仍使用原本開啟的資料夾；請恢復路徑的存取權，或重新啟動。"},
 		} {
 			for _, path := range []string{"/", "/health"} {
 				t.Run(state+"/"+tt.lang+path, func(t *testing.T) {
@@ -105,10 +124,39 @@ func TestRootReplacementReachesBothPagesInBothLanguages(t *testing.T) {
 					if state == "missing" {
 						tt.title, tt.summary = tt.unknownTitle, tt.unknownSummary
 					}
-					for _, want := range []string{tt.title, tt.summary, tt.selectedLabel + ": " + strconv.Quote(root), tt.openedLabel + ": " + strconv.Quote(reader.Name())} {
+					t.Log("invoked: root notice GET", state, tt.lang, path)
+					detail := "Selected path: " + strconv.Quote(root) + "; Startup opened name: " + strconv.Quote(reader.Name())
+					if tt.lang == "zh-Hant" {
+						detail = "選取路徑：" + strconv.Quote(root) + "；啟動時開啟的名稱：" + strconv.Quote(reader.Name())
+					}
+					detailStart := strings.Index(section, `class="y-diagdetail"`)
+					if detailStart < 0 {
+						t.Fatal("root detail node absent")
+					}
+					valueStart := strings.IndexByte(section[detailStart:], '>')
+					if valueStart < 0 {
+						t.Fatal("root detail node never opens")
+					}
+					valueStart += detailStart + 1
+					valueEnd := strings.Index(section[valueStart:], "</code>")
+					if valueEnd < 0 {
+						t.Fatal("root detail node never closes")
+					}
+					actualDetail := html.UnescapeString(section[valueStart : valueStart+valueEnd])
+					t.Logf("observed: whole root detail=%q", actualDetail)
+					if diff := cmp.Diff(detail, actualDetail); diff != "" {
+						t.Errorf("caught: whole root detail (-want +got):\n%s", diff)
+					}
+					if state == "missing" && (strings.Contains(section, html.EscapeString(rawError)) || strings.Contains(section, "observe vault root:")) {
+						t.Errorf("caught: raw root error reached page: %s", section)
+					}
+					for _, want := range []string{tt.title, tt.summary} {
 						if !strings.Contains(section, html.EscapeString(want)) {
 							t.Errorf("localized root notice missing %q", want)
 						}
+					}
+					if strings.Contains(section, html.EscapeString(detail)+"; ") {
+						t.Errorf("caught: appended root detail cause: %s", section)
 					}
 					if strings.Contains(section, "vault<&>") {
 						t.Error("root detail was not escaped")
@@ -123,4 +171,26 @@ func TestRootReplacementReachesBothPagesInBothLanguages(t *testing.T) {
 			t.Fatalf("root notice changed per-note freshness in %s: %d %q", state, response.Code, response.Body.String())
 		}
 	}
+}
+
+func rootWarningRecords(t *testing.T, text string) []map[string]string {
+	t.Helper()
+	var warnings []map[string]string
+	decoder := json.NewDecoder(strings.NewReader(text))
+	for decoder.More() {
+		var record struct {
+			Message  string `json:"msg"`
+			Level    string `json:"level"`
+			Selected string `json:"selected_path"`
+			Opened   string `json:"opened_root_name"`
+			Error    string `json:"error"`
+		}
+		if err := decoder.Decode(&record); err != nil {
+			t.Fatal(err)
+		}
+		if record.Message == "vault root identity unconfirmed; restore access or restart" {
+			warnings = append(warnings, map[string]string{"level": record.Level, "selected_path": record.Selected, "opened_root_name": record.Opened, "error": record.Error})
+		}
+	}
+	return warnings
 }

@@ -17,6 +17,67 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
+// TestRootObservationCauseStaysInWarning keeps the scanner's original cause
+// available without making the reader's public state carry operational prose.
+func TestRootObservationCauseStaysInWarning(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(t.TempDir(), "vault")
+	writeNote(t, root, "Existing.md", "old object\n")
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+	var logged bytes.Buffer
+	store, err := New(t.Context(), reader, slog.New(slog.NewJSONHandler(&logged, nil)), nil, schema.Governance{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(root, root+".old"); err != nil {
+		t.Fatal(err)
+	}
+	_, observeErr := reader.ObserveRoot()
+	if observeErr == nil {
+		t.Fatal("missing selected path did not return its cause")
+	}
+	logged.Reset()
+	for range 3 {
+		store.rescan(t.Context())
+	}
+	t.Log("invoked: root scanner WARN cause")
+	var warnings []map[string]string
+	decoder := json.NewDecoder(&logged)
+	for decoder.More() {
+		var line struct {
+			Message        string `json:"msg"`
+			Level          string `json:"level"`
+			SelectedPath   string `json:"selected_path"`
+			OpenedRootName string `json:"opened_root_name"`
+			Error          string `json:"error"`
+		}
+		if err := decoder.Decode(&line); err != nil {
+			t.Fatal(err)
+		}
+		if line.Message == "vault root identity unconfirmed; restore access or restart" {
+			warnings = append(warnings, map[string]string{
+				"level": line.Level, "selected_path": line.SelectedPath,
+				"opened_root_name": line.OpenedRootName, "error": line.Error,
+			})
+		}
+	}
+	want := []map[string]string{{
+		"level": "WARN", "selected_path": root,
+		"opened_root_name": reader.Name(), "error": observeErr.Error(),
+	}}
+	if diff := cmp.Diff(want, warnings); diff != "" {
+		t.Fatalf("caught: scanner root WARN cause (-want +got):\n%s", diff)
+	}
+	public := &RootNotice{SelectedPath: root, OpenedName: reader.Name(), Unconfirmed: true}
+	if diff := cmp.Diff(public, store.Current().Freshness().Root); diff != "" {
+		t.Fatalf("caught: unconfirmed root state (-want +got):\n%s", diff)
+	}
+}
+
 func TestRootReplacementWarnsOnceEvenWhenPinnedFilesAreUnchanged(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "vault")
@@ -117,10 +178,10 @@ func TestRootNoticeTracksRecoveryAcrossRetainedAndRebuiltCaptures(t *testing.T) 
 		store.rescan(t.Context())
 	}
 	unknown := retained.Freshness().Root
-	if unknown == nil || unknown.Unconfirmed == "" {
+	if unknown == nil || !unknown.Unconfirmed {
 		t.Fatal("missing selected path was reported as confirmed")
 	}
-	unknown.Unconfirmed = ""
+	unknown.Unconfirmed = false
 	if diff := cmp.Diff(want, unknown); diff != "" {
 		t.Fatalf("unconfirmed root labels (-want +got):\n%s", diff)
 	}
