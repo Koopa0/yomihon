@@ -25,6 +25,18 @@
 // MUTATE=list prints them.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const DESTINATION = '/notes/Notes/Glass%20Tide.md';
@@ -274,6 +286,7 @@ try {
   {
     const page = await context.newPage();
     const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+    await arrived(page);
     if (!response || response.status() !== 200) broken(`the source note returned ${response?.status() ?? 'no response'}, want 200`);
     proveApplied('composed-ids-unique', proof);
 
@@ -301,6 +314,7 @@ try {
   // its own name has no body heading left to answer for it.
   const reader = await context.newPage();
   const response = await reader.goto(BASE + DESTINATION, { waitUntil: 'networkidle' });
+  await arrived(reader);
   if (!response || response.status() !== 200) broken(`the destination returned ${response?.status() ?? 'no response'}, want 200`);
   proveApplied('title-carries-its-anchor', proof);
 
@@ -367,6 +381,7 @@ try {
   {
     const page = await context.newPage();
     const response = await page.goto(BASE + OPENING, { waitUntil: 'networkidle' });
+    await arrived(page);
     if (!response || response.status() !== 200) broken(`the opening-heading note returned ${response?.status() ?? 'no response'}, want 200`);
     proveApplied('opening-heading-sits-flush', proof);
 
@@ -398,6 +413,7 @@ try {
     // through it measures the automation rather than the product.
     const page = await context.newPage();
     const source = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+    await arrived(page);
     if (!source || source.status() !== 200) broken(`the source note returned ${source?.status() ?? 'no response'}, want 200`);
 
     proveApplied('fragment-names-the-anchor', proof);
@@ -424,6 +440,7 @@ try {
       fail('back-returns-to-the-source', `following ${JSON.stringify(link.label)} did not move this tab (it is still at ${page.url()}), so the browser has no step to go back from`);
     }
 
+    await arrived(page);
     const arrival = await page.evaluate(() => {
       const target = document.querySelector(':target');
       return {
@@ -465,6 +482,7 @@ try {
       const page = await context.newPage();
       await armArrival(page);
       const source = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+      await arrived(page);
       if (!source || source.status() !== 200) broken(`the source note returned ${source?.status() ?? 'no response'}, want 200`);
 
       proveApplied('block-clears-the-header', proof);
@@ -487,6 +505,7 @@ try {
       }
 
       await waitArrival(page);
+      await arrived(page);
 
       const arrival = await page.evaluate((host) => {
         const target = document.querySelector(':target');
