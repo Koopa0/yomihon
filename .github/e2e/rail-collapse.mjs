@@ -20,8 +20,8 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const MUTATE = process.env.MUTATE || '';
 
-const RAIL = '#nav-rail';
-const BODY = '#nav-rail-body';
+const RAIL = '#_y-nav-rail';
+const BODY = '#_y-nav-rail-body';
 const TOGGLE = '[data-rail-toggle]';
 const ROW = '.y-railhead';
 const NAV_TOGGLE = '[data-nav-toggle]';
@@ -177,7 +177,7 @@ const MUTATIONS = {
   'drop-the-cookie-write': {
     target: 'choice-survives-a-reload',
     apply: rewriteAsset(
-      '**/preferences.js',
+      '**/preferences.js{,?*}',
       // Built in two pieces so the source names no template placeholder.
       '    document.cookie = `yomihon_$' + '{name}=$' + '{value};path=/;max-age=31536000;samesite=lax`;\n',
       '',
@@ -189,7 +189,7 @@ const MUTATIONS = {
     apply: async (page) => {
       let requests = 0;
       let matches = 0;
-      await page.route('**/app.css', async (route) => {
+      await page.route('**/app.css{,?*}', async (route) => {
         requests += 1;
         const response = await route.fetch();
         const original = await response.text();
@@ -203,28 +203,28 @@ const MUTATIONS = {
   // The key reaching the drawer at every width, the column never.
   'arm-the-drawer-key-at-every-width': {
     target: 'wide-key-leaves-the-drawer-alone',
-    apply: rewriteAsset('**/shortcuts.js', '      if (drawer.isNarrow()) {', '      if (true) {'),
+    apply: rewriteAsset('**/shortcuts.js{,?*}', '      if (drawer.isNarrow()) {', '      if (true) {'),
   },
   // The column key claiming the narrow widths too.
   'arm-the-column-key-at-every-width': {
     target: 'drawer-key-still-opens-at-900',
-    apply: rewriteAsset('**/shortcuts.js', '      if (drawer.isNarrow()) {', '      if (false) {'),
+    apply: rewriteAsset('**/shortcuts.js{,?*}', '      if (drawer.isNarrow()) {', '      if (false) {'),
   },
   // Focus asked of a filter inside a panel nobody can see.
   'focus-the-filter-without-opening-the-column': {
     target: 'slash-opens-the-column-first',
-    apply: rewriteAsset('**/shortcuts.js', '        rail.expand();\n', ''),
+    apply: rewriteAsset('**/shortcuts.js{,?*}', '        rail.expand();\n', ''),
   },
   // Focus left in a panel that has just left the tree.
   'leave-focus-in-the-panel': {
     target: 'focus-leaves-the-hidden-panel',
-    apply: rewriteAsset('**/preferences.js', '      railToggle?.focus();\n', ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', '      railToggle?.focus();\n', ''),
   },
   // The panel free to reflow while the column moves, so the position the rail
   // was saved at means something else by the time it is put back.
   'let-the-panel-reflow-while-moving': {
     target: 'rail-scroll-is-restored',
-    apply: rewriteAsset('**/rail.js', "    root.dataset.railMoving = '';\n", ''),
+    apply: rewriteAsset('**/rail.js{,?*}', "    root.dataset.railMoving = '';\n", ''),
   },
   // The control scrolling away with the tree.
   'unstick-the-control': {
@@ -234,7 +234,7 @@ const MUTATIONS = {
   // The rail coming back at the top.
   'forget-the-rail-scroll': {
     target: 'rail-scroll-is-restored',
-    apply: rewriteAsset('**/rail.js', '    rail.scrollTop = scrollTop;\n', ''),
+    apply: rewriteAsset('**/rail.js{,?*}', '    rail.scrollTop = scrollTop;\n', ''),
   },
   // The collapsed rule reaching below 901px, where it would empty the drawer.
   'collapsed-rule-leaks-below-901': {
@@ -245,17 +245,17 @@ const MUTATIONS = {
   // would have to undo on every crossing.
   'inert-the-folded-rail': {
     target: 'wide-fold-sets-no-inertness',
-    apply: rewriteAsset('**/rail.js', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    rail.inert = true;\n"),
+    apply: rewriteAsset('**/rail.js{,?*}', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    rail.inert = true;\n"),
   },
   // The drawer's state written when the column is folded.
   'fold-the-column-by-the-drawer-state': {
     target: 'crossing-900-leaves-nothing-stale',
-    apply: rewriteAsset('**/rail.js', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    document.documentElement.dataset.nav = 'open';\n"),
+    apply: rewriteAsset('**/rail.js{,?*}', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    document.documentElement.dataset.nav = 'open';\n"),
   },
   // The button's state left where it was.
   'leave-aria-expanded-stale': {
     target: 'state-is-told-by-the-control',
-    apply: rewriteAsset('**/preferences.js', "    railToggle.setAttribute('aria-expanded', String(!collapsed));\n", ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', "    railToggle.setAttribute('aria-expanded', String(!collapsed));\n", ''),
   },
   // The panel left standing in a column that is folded.
   'keep-the-panel-when-folded': {
@@ -327,18 +327,18 @@ const MUTATIONS = {
   // The restore's write left to animate.
   'animate-the-restore': {
     target: 'restore-does-not-animate',
-    apply: rewriteAsset('**/preferences.js', "    root.dataset.railSettling = '';\n", ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', "    root.dataset.railSettling = '';\n", ''),
   },
   // The restore forgetting to move focus out of a panel it hides.
   'restore-strands-focus': {
     target: 'restore-moves-focus-out',
-    apply: rewriteAsset('**/preferences.js', '    keepFocusOutOfFoldedRail(rail);\n', ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', '    keepFocusOutOfFoldedRail(rail);\n', ''),
   },
   // The key advertised whatever the setting.
   'leave-the-key-advertised': {
     target: 'off-shortcuts-do-not-advertise-the-key',
     apply: rewriteAsset(
-      '**/preferences.js',
+      '**/preferences.js{,?*}',
       "    if (keys) railToggle.setAttribute('aria-keyshortcuts', '[');\n    else railToggle.removeAttribute('aria-keyshortcuts');\n",
       "    railToggle.setAttribute('aria-keyshortcuts', '[');\n",
     ),
@@ -354,7 +354,7 @@ const MUTATIONS = {
     apply: async (page) => {
       await page.addInitScript(() => {
         window.addEventListener('DOMContentLoaded', () => {
-          document.querySelector('#nav-rail')?.addEventListener('click', () => document.querySelector('[data-rail-toggle]').click());
+          document.querySelector('#_y-nav-rail')?.addEventListener('click', () => document.querySelector('[data-rail-toggle]').click());
         }, { once: true });
       });
       return async () => '';
@@ -596,7 +596,7 @@ try {
     const { page, context, checkProof } = await open('focus-leaves-the-hidden-panel', PAGE, { width: 1024 });
     await checkProof();
     await page.locator(`${BODY} a[href]`).first().focus();
-    if (await page.evaluate(() => document.activeElement?.closest('#nav-rail-body') === null)) broken('focus did not enter the panel');
+    if (await page.evaluate(() => document.activeElement?.closest('#_y-nav-rail-body') === null)) broken('focus did not enter the panel');
     await key(page, '[');
     await settled(page);
     const g = await geometry(page);
@@ -621,7 +621,7 @@ try {
     const body = document.querySelector(selector);
     const rows = [...body.children];
     for (let i = 0; i < 12; i += 1) for (const row of rows) body.append(row.cloneNode(true));
-    const rail = document.querySelector('#nav-rail');
+    const rail = document.querySelector('#_y-nav-rail');
     return rail.scrollHeight - rail.clientHeight;
   }, BODY);
 
@@ -642,18 +642,18 @@ try {
     }
     const room = await makeRailScroll(page);
     if (room < 200) broken(`the rail could scroll only ${room}px after being lengthened`);
-    await page.evaluate(() => { document.querySelector('#nav-rail').scrollTop = 400; });
+    await page.evaluate(() => { document.querySelector('#_y-nav-rail').scrollTop = 400; });
     const offsets = await page.evaluate(({ row: rowSelector }) => {
-      const rail = document.querySelector('#nav-rail').getBoundingClientRect();
+      const rail = document.querySelector('#_y-nav-rail').getBoundingClientRect();
       const row = document.querySelector(rowSelector).getBoundingClientRect();
-      return { row: row.top, rail: rail.top, scrolled: document.querySelector('#nav-rail').scrollTop };
+      return { row: row.top, rail: rail.top, scrolled: document.querySelector('#_y-nav-rail').scrollTop };
     }, { row: ROW });
     if (offsets.scrolled < 300) broken(`the rail scrolled only ${offsets.scrolled}px`);
     if (Math.abs(offsets.row - offsets.rail) > 1) {
       fail('control-is-a-sticky-sibling', `with the tree scrolled ${offsets.scrolled}px the control is ${offsets.row - offsets.rail}px from the top of the rail, want it held there`);
     }
     const filterAt = await page.evaluate(() => {
-      const rail = document.querySelector('#nav-rail').getBoundingClientRect();
+      const rail = document.querySelector('#_y-nav-rail').getBoundingClientRect();
       const filter = document.querySelector('[data-nav-filter]').getBoundingClientRect();
       return { top: filter.top - rail.top, bottom: filter.bottom - rail.top };
     });
@@ -667,8 +667,8 @@ try {
     const { page, context, checkProof } = await open('rail-scroll-is-restored', PAGE, { width: 1024, height: 600 });
     await checkProof();
     await makeRailScroll(page);
-    await page.evaluate(() => { document.querySelector('#nav-rail').scrollTop = 500; });
-    const from = await page.evaluate(() => document.querySelector('#nav-rail').scrollTop);
+    await page.evaluate(() => { document.querySelector('#_y-nav-rail').scrollTop = 500; });
+    const from = await page.evaluate(() => document.querySelector('#_y-nav-rail').scrollTop);
     if (from < 300) broken(`the rail scrolled only ${from}px`);
     // Pressed from the page rather than by the driver, which scrolls a sticky
     // button's natural place into view before it clicks; a reader presses the
@@ -678,7 +678,7 @@ try {
     await settled(page);
     await press();
     await settled(page);
-    const to = await page.evaluate(() => document.querySelector('#nav-rail').scrollTop);
+    const to = await page.evaluate(() => document.querySelector('#_y-nav-rail').scrollTop);
     if (Math.abs(to - from) > 2) fail('rail-scroll-is-restored', `the rail was at ${from}px, is at ${to}px after folding and opening, want it put back`);
     await context.close();
   });
@@ -713,7 +713,7 @@ try {
     await page.waitForFunction(() => window.matchMedia('(max-width: 900px)').matches);
     // The drawer answers the change in a listener of its own, which may run a
     // frame after the query reads true; what is asked is where it settles.
-    await page.waitForFunction(() => document.querySelector('#nav-rail').inert === true, null, { timeout: 2000 }).catch(() => {});
+    await page.waitForFunction(() => document.querySelector('#_y-nav-rail').inert === true, null, { timeout: 2000 }).catch(() => {});
     g = await geometry(page);
     if (g.state !== 'collapsed' || g.nav !== 'closed' || g.inert !== true || g.hidden !== 'true') {
       fail('crossing-900-leaves-nothing-stale', `below 900 rail=${g.state} nav=${g.nav} inert=${g.inert} aria-hidden=${g.hidden}, want collapsed, closed, and a closed drawer`);
@@ -724,7 +724,7 @@ try {
     if (g.state !== 'collapsed') fail('crossing-900-leaves-nothing-stale', `opening the drawer set rail=${g.state}`);
     await page.setViewportSize({ width: 1281, height: 800 });
     await page.waitForFunction(() => !window.matchMedia('(max-width: 900px)').matches);
-    await page.waitForFunction(() => document.querySelector('#nav-rail').inert === false, null, { timeout: 2000 }).catch(() => {});
+    await page.waitForFunction(() => document.querySelector('#_y-nav-rail').inert === false, null, { timeout: 2000 }).catch(() => {});
     await settled(page);
     g = await geometry(page);
     if (g.inert !== false || g.hidden !== null || g.nav !== 'closed' || g.state !== 'collapsed') {
@@ -756,7 +756,7 @@ try {
     await checkProof();
     let g = await geometry(page);
     const name = g.label;
-    if (g.expanded !== 'true' || g.controls !== 'nav-rail-body' || !g.title.includes('[')) {
+    if (g.expanded !== 'true' || g.controls !== '_y-nav-rail-body' || !g.title.includes('[')) {
       fail('state-is-told-by-the-control', `shown: aria-expanded=${g.expanded} controls=${g.controls} title=${g.title}`);
     }
     const shownTitle = g.title;
@@ -778,7 +778,7 @@ try {
     await checkProof();
     const facts = await page.evaluate((body) => {
       const panel = document.querySelector(body);
-      const rail = document.querySelector('#nav-rail');
+      const rail = document.querySelector('#_y-nav-rail');
       return {
         display: getComputedStyle(panel).display,
         boxes: panel.getClientRects().length,
@@ -829,7 +829,7 @@ try {
     await checkProof();
     const durations = await page.evaluate(() => {
       const shell = document.querySelector('.y-shell:has(> .y-rail-left), .y-shell2:has(> .y-rail-left)');
-      return [getComputedStyle(shell).transitionDuration, getComputedStyle(document.querySelector('#nav-rail-body')).transitionDuration];
+      return [getComputedStyle(shell).transitionDuration, getComputedStyle(document.querySelector('#_y-nav-rail-body')).transitionDuration];
     });
     for (const duration of durations.flatMap((value) => value.split(','))) {
       if (Number.parseFloat(duration) > 0.01) fail('reduced-motion-stops-the-fold', `with reduced motion a fold transition lasts ${duration}`);
@@ -912,7 +912,7 @@ try {
     // root's script mark cannot tell it any more: the document sets that mark
     // itself, before the first style, so it is there either way.
     let held = false;
-    await page.route('**/yomihon.js', (route) => {
+    await page.route('**/yomihon.js{,?*}', (route) => {
       held = true;
       return route.abort();
     });
@@ -963,7 +963,7 @@ try {
         if (shape === 'study path' && width === 901) await checkProof();
         const facts = await page.evaluate(() => {
           const shell = document.querySelector('.y-shell, .y-shell2');
-          return { note: shell.classList.contains('y-shell'), rail: document.querySelector('#nav-rail').getBoundingClientRect().width };
+          return { note: shell.classList.contains('y-shell'), rail: document.querySelector('#_y-nav-rail').getBoundingClientRect().width };
         });
         const want = facts.note && width < THREE_COLUMNS ? NOTE_OPEN_NARROW : OPEN;
         if (Math.round(facts.rail) !== want) {
@@ -982,11 +982,11 @@ try {
     await checkProof();
     await makeRailScroll(page);
     const facts = await page.evaluate(() => {
-      const rail = document.querySelector('#nav-rail');
+      const rail = document.querySelector('#_y-nav-rail');
       return {
         gutter: rail.offsetWidth - rail.clientWidth - 1,
         room: rail.clientWidth,
-        body: document.querySelector('#nav-rail-body').getBoundingClientRect().right,
+        body: document.querySelector('#_y-nav-rail-body').getBoundingClientRect().right,
         filter: document.querySelector('[data-nav-filter]').getBoundingClientRect().right,
       };
     });
@@ -1015,7 +1015,7 @@ try {
       const at = await page.evaluate(() => {
         const active = document.activeElement;
         const head = document.querySelector('.y-railhead').getBoundingClientRect();
-        if (!active || !active.closest('#nav-rail-body')) return { done: true };
+        if (!active || !active.closest('#_y-nav-rail-body')) return { done: true };
         return { done: false, top: active.getBoundingClientRect().top, head: head.bottom, text: active.textContent.trim().slice(0, 30) };
       });
       if (at.done) break;
@@ -1100,7 +1100,7 @@ try {
       const style = getComputedStyle(button);
       const box = button.getBoundingClientRect();
       const reach = Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth);
-      return { focused: button.matches(':focus-visible'), left: box.left - reach, right: box.right + reach, room: document.querySelector('#nav-rail').clientWidth };
+      return { focused: button.matches(':focus-visible'), left: box.left - reach, right: box.right + reach, room: document.querySelector('#_y-nav-rail').clientWidth };
     });
     if (!ring.focused) broken('the button is not showing a focus ring');
     if (ring.left < 0 || ring.right > ring.room) fail('strip-ring-is-whole', `the ring spans ${ring.left}-${ring.right}px in a strip ${ring.room}px wide`);

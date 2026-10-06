@@ -73,7 +73,7 @@ const injectDiagram = async (page, diagramHTML = DIAGRAM_HTML) => {
 // proves a mutation changed the only production site it claims to exercise.
 const rewriteRuntime = (moduleName, needle, replacement) => async (page) => {
   let matches = -1;
-  await page.route(`**/${moduleName}`, async (route) => {
+  await page.route(`**/${moduleName}{,?*}`, async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches = occurrences(original, needle);
@@ -88,7 +88,7 @@ const rewriteRuntime = (moduleName, needle, replacement) => async (page) => {
 // whose second half silently found nothing reports itself rather than passing.
 const rewriteRuntimeTwice = (moduleName, first, second) => async (page) => {
   let matches = -1;
-  await page.route(`**/${moduleName}`, async (route) => {
+  await page.route(`**/${moduleName}{,?*}`, async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     const [a, b] = [occurrences(original, first[0]), occurrences(original, second[0])];

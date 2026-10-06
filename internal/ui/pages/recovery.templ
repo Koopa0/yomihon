@@ -33,7 +33,7 @@ templ StatusRecovery(v StatusRecoveryView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main y-recoverymain" { recoveryFreshnessAttrs(&v, c.Lang)... }>
+			<main id="_y-main" tabindex="-1" class="y-main y-recoverymain" { recoveryFreshnessAttrs(&v, c.Lang)... }>
 				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="recovery-title">
 					<p class="y-recovery__kicker">{ wording.LifecycleWrite.In(c.Lang) }</p>
 					<h1 id="recovery-title" class="y-title">{ v.Title(c.Lang) }</h1>

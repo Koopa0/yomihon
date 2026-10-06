@@ -262,8 +262,8 @@ func TestJournalOrdersByTheDayEachEntryIsFor(t *testing.T) {
 	// entries swap places between one reading and the next.
 	want := []string{
 		"Diary/2025-08-06.md",
-		"Diary/2025-08-05.md",
 		"Diary/2025-08-05 夜.md",
+		"Diary/2025-08-05.md",
 		"Diary/2025-08-04.md",
 		"Diary/loose thoughts.md",
 	}

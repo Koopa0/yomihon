@@ -142,6 +142,12 @@ func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, a
 		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
 	}
+	if a.found.Total == 0 && a.diagnostic == "" {
+		view.LiteralOperators = a.parsed.LiteralOperatorTerms()
+		for _, s := range snap.Index.FolderSuggestions(q) {
+			view.FolderSuggestions = append(view.FolderSuggestions, pages.SearchStepBack{Query: s.Query, Count: s.Count})
+		}
+	}
 	if onPage && a.diagnostic == "" && snap.Shell.Governed {
 		view.Facets = facetViews(q, a.found.Facets, snap.Status, lang)
 	}
@@ -386,7 +392,7 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 			Title:         r.Title,
 			Language:      r.Language,
 			Snippet:       r.Snippet,
-			SnippetRuns:   snippetRuns(r.Snippet, tokens),
+			SnippetRuns:   bodyRuns(r, tokens),
 			PathRuns:      snippetRuns(r.RelPath, tokens),
 			AliasRuns:     snippetRuns(r.Alias, tokens),
 			TopicRuns:     snippetRuns(r.Topic, tokens),
@@ -409,6 +415,17 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 		}
 	}
 	return out
+}
+
+func bodyRuns(result *lexical.Result, tokens []string) []pages.SnippetRun {
+	if result.SnippetRuns == nil {
+		return snippetRuns(result.Snippet, tokens)
+	}
+	runs := make([]pages.SnippetRun, len(result.SnippetRuns))
+	for i, run := range result.SnippetRuns {
+		runs[i] = pages.SnippetRun{Text: run.Text, Hit: run.Hit, Deleted: run.Deleted}
+	}
+	return runs
 }
 
 // snippetRuns dresses one piece of matched text for the page. Where the query

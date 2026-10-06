@@ -50,7 +50,7 @@ func TestConceptSheetKeepsPunctuationDistinctConceptsSeparate(t *testing.T) {
 		if !strings.Contains(page, `data-concept="`+tt.id+`"`) {
 			t.Errorf("reading page is missing trigger ID %q", tt.id)
 		}
-		if !strings.Contains(page, `<template id="concept-`+tt.id+`"`) {
+		if !strings.Contains(page, `<template id="_y-concept-`+tt.id+`"`) {
 			t.Errorf("reading page is missing template ID %q", tt.id)
 		}
 		if !strings.Contains(page, tt.body) {

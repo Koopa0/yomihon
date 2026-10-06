@@ -381,7 +381,7 @@ func (v *NoteView) showsFlipReceipt() bool {
 // schemaNoticesName is what a note's block of schema findings is called. One
 // note renders at most one such block, so the name needs nothing to tell it
 // from a second.
-const schemaNoticesName = "schema-notices"
+const schemaNoticesName = "_y-schema-notices"
 
 // schemaNoticesID is where this note's block of findings answers: the fixed
 // name, inside the id space this article occupies. A page showing two notes

@@ -15,7 +15,7 @@ type ThoughtView struct {
 
 templ Thought(v ThoughtView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<main id="main-content" tabindex="-1" class="y-main y-deskmain">
+		<main id="_y-main" tabindex="-1" class="y-main y-deskmain">
 			<div class="y-home">
 				<h1 class="y-title">{ wording.ThoughtDoor.In(c.Lang) }</h1>
 				<p><a class="ui-navitem" href={ templ.URL(v.SourceHref) }>{ v.SourceTitle }</a></p>

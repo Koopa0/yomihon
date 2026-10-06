@@ -708,7 +708,7 @@ func TestShowWriteClosureDiagnosticsRemainDistinct(t *testing.T) {
 
 func noteMain(t *testing.T, page string) string {
 	t.Helper()
-	openAt := strings.Index(page, `<main id="main-content" tabindex="-1" class="y-main"`)
+	openAt := strings.Index(page, `<main id="_y-main" tabindex="-1" class="y-main"`)
 	if openAt < 0 {
 		t.Fatal("note page has no main reading surface")
 	}
@@ -1249,7 +1249,7 @@ func TestShowConceptSheet(t *testing.T) {
 		t.Errorf("concept trigger lost its navigable href (no-JS fallback); body = %q", page)
 	}
 	// The concept was pre-rendered into a hidden template + the shared dialog.
-	for _, want := range []string{`<template id="concept-`, `Marks the topic of the sentence.`, `data-concept-sheet`, `data-concept-body`} {
+	for _, want := range []string{`<template id="_y-concept-`, `Marks the topic of the sentence.`, `data-concept-sheet`, `data-concept-body`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("concept sheet missing %q", want)
 		}
@@ -1374,7 +1374,7 @@ func TestHome(t *testing.T) {
 	}
 	// The desk is where a reader chooses what to read, so there is nothing yet
 	// being read for a rail to be. The reading surfaces behind it mount one.
-	for _, absent := range []string{`class="y-rail-left"`, `id="nav-rail"`} {
+	for _, absent := range []string{`class="y-rail-left"`, `id="_y-nav-rail"`} {
 		if strings.Contains(pageHTML, absent) {
 			t.Errorf("the desk mounts a left rail (%s); the rail is the thing being read", absent)
 		}
