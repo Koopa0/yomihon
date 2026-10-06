@@ -324,7 +324,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 			h.showUnreadable(w, r, r.URL.Path, rel, authority, snap)
 			return
 		}
-		h.sources.Log.Warn("note is absent from the request snapshot", "path", rel)
 		h.showNotFound(w, r, r.URL.Path, authority, snap)
 		return
 	}

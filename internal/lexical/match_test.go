@@ -548,36 +548,35 @@ func TestAPureFilterKeepsReadingOrder(t *testing.T) {
 	}
 }
 
-// TestTheEightAnswerGroupsComeBackInRankedOrder pins the whole of the result
-// order in one query. Title, body and topic — notes then files — then the
-// notes and files matched only by where they live. The fixtures are laid out
-// so their path order is the exact reverse of their group order, which is
-// what makes the assertion discriminate between the two.
-func TestTheEightAnswerGroupsComeBackInRankedOrder(t *testing.T) {
+// TestTheNineAnswerGroupsComeBackInRankedOrder pins the complete group order,
+// including synthetic file topics. Paths deliberately reverse the evidence
+// order, so reading order cannot accidentally satisfy the rank assertion.
+func TestTheNineAnswerGroupsComeBackInRankedOrder(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
 		{RelPath: "a-kafka/data.txt", Title: "data.txt", PlainText: "opaque", File: true},
 		{RelPath: "b-kafka/inside.md", Title: "Inside", PlainText: "unrelated"},
 		{RelPath: "c-topic.txt", Title: "plain.txt", Topics: []string{"kafka"}, PlainText: "opaque", File: true},
-		{RelPath: "d-topic.md", Title: "Subject", Topics: []string{"kafka"}, PlainText: "unrelated"},
-		{RelPath: "e/notes.txt", Title: "notes.txt", PlainText: "mentions kafka once", File: true},
-		{RelPath: "f/kafka.txt", Title: "kafka.txt", PlainText: "plain", File: true},
-		{RelPath: "g/note.md", Title: "Streaming", PlainText: "a kafka pipeline"},
-		{RelPath: "h/note.md", Title: "Kafka guide", PlainText: "nothing else"},
+		{RelPath: "d/notes.txt", Title: "notes.txt", PlainText: "mentions kafka once", File: true},
+		{RelPath: "e/kafka.txt", Title: "kafka.txt", PlainText: "plain", File: true},
+		{RelPath: "f-tag.md", Title: "Declared", Tags: []string{"kafka"}, PlainText: "unrelated"},
+		{RelPath: "g-topic.md", Title: "Subject", Topics: []string{"kafka"}, PlainText: "unrelated"},
+		{RelPath: "h/note.md", Title: "Streaming", PlainText: "a kafka pipeline"},
+		{RelPath: "i/note.md", Title: "Kafka guide", PlainText: "nothing else"},
 	}, validArtifactPolicy(t))
-
 	want := []string{
-		"h/note.md",         // a note named by the query
-		"g/note.md",         // a note whose prose says it
-		"d-topic.md",        // a note only its declared topic matches
-		"f/kafka.txt",       // a file named by the query
-		"e/notes.txt",       // a file whose characters say it
-		"c-topic.txt",       // a file only a declared topic matches
-		"b-kafka/inside.md", // a note only its address matches
-		"a-kafka/data.txt",  // a file only its address matches
+		"i/note.md", "h/note.md", "g-topic.md", "f-tag.md",
+		"e/kafka.txt", "d/notes.txt", "c-topic.txt", "b-kafka/inside.md", "a-kafka/data.txt",
+	}
+	if int(bucketCount) != len(want) {
+		t.Fatalf("complete answer group count = %d, want %d", bucketCount, len(want))
 	}
 	if diff := cmp.Diff(want, paths(searchResults(t, idx, Parse("kafka")))); diff != "" {
-		t.Errorf("Search(kafka) group order mismatch (-want +got):\n%s", diff)
+		t.Errorf("caught: Search(kafka) group order mismatch (-want +got):\n%s", diff)
+	}
+	limited, err := idx.Search(Parse("kafka"), 0)
+	if err != nil || limited.Total != 9 || len(limited.Results) != 0 {
+		t.Errorf("Search(kafka, 0) = (%+v, %v), want total 9 with no materialized results", limited, err)
 	}
 }
 

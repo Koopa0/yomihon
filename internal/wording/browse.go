@@ -28,6 +28,7 @@ var (
 	FileSize       = both("大小", "Size")
 	FileType       = both("類型", "Type")
 	OpenRawBytes   = both("開啟原始位元組", "Open the raw bytes")
+	DownloadFile   = both("下載檔案", "Download the file")
 	FileNotIndexed = both("這個檔案的內容不會被搜尋讀取。", "This file's contents are not read by search.")
 )
 
