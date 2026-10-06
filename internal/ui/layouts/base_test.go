@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -49,14 +48,16 @@ func TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry(t *testing.T
 		t.Fatalf("render base: %v", err)
 	}
 	html := buf.String()
-	entry := `<script nonce="response-nonce" type="module" src="` + asset.URL("yomihon.js") + `"></script>`
+	// The version value itself is the asset registry's to pin; here only the
+	// entry's place and its versioned address matter.
+	const entry = `<script nonce="response-nonce" type="module" src="/static/yomihon.js?v=`
 	const importMap = `<script type="importmap" nonce="response-nonce">`
 	// The statement stands on its own line because that is how templ fmt lays
 	// out a script element, and the format check keeps it so.
 	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tconst entry = performance.getEntriesByType(\"navigation\")[0];\n\t\t\t\t\tconst kept = new URLSearchParams(location.search).has(\"at\");\n\t\t\t\t\tif (entry?.type === \"back_forward\") d.dataset.arrival = \"traverse\";\n\t\t\t\t\telse if (entry?.type === \"reload\") d.dataset.arrival = \"reload\";\n\t\t\t\t\telse if (kept || entry?.name.includes(\"#\"))\n\t\t\t\t\t\td.dataset.arrival = \"place\";\n\t\t\t\t\tif (document.prerendering) {\n\t\t\t\t\t\td.dataset.prerender = \"\";\n\t\t\t\t\t\tdocument.onprerenderingchange = () => delete d.dataset.prerender;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</script>"
 	const rules = `<script type="speculationrules" nonce="response-nonce">` + `{"prefetch":`
 	if got := strings.Count(html, entry); got != 1 {
-		t.Errorf("Base() module entries = %d, want 1 exact %q; html = %q", got, entry, html)
+		t.Errorf("Base() module entries = %d, want 1 opening %q; html = %q", got, entry, html)
 	}
 	if got := strings.Count(html, mark); got != 1 {
 		t.Errorf("Base() scripted marks = %d, want 1 exact %q; html = %q", got, mark, html)

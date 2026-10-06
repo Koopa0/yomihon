@@ -22,7 +22,7 @@ func TestVersionedAssetURLChangesWithTheServedBytes(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := versionedURL("app.css", fixed(cssContentType, []byte(tt.body))); got != tt.want {
+			if got := (Versions{}).versionedURL("app.css", fixed(cssContentType, []byte(tt.body))); got != tt.want {
 				t.Errorf("caught: versioned URL for %q = %q, want %q", tt.body, got, tt.want)
 			}
 		})
@@ -31,7 +31,7 @@ func TestVersionedAssetURLChangesWithTheServedBytes(t *testing.T) {
 
 func TestClientImportMapCoversEveryRegisteredOwnModule(t *testing.T) {
 	t.Parallel()
-	got := decodedModuleImports(t, ImportMap())
+	got := decodedModuleImports(t, (Versions{}).ImportMap())
 	want := make(map[string]string)
 	for name, e := range registry {
 		if strings.Contains(name, "/") || !strings.HasSuffix(name, ".js") {

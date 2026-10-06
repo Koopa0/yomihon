@@ -14,15 +14,10 @@ type Versions struct {
 	Token string // empty uses the served-byte hash
 }
 
-// URL identifies the registered bytes in the address itself. A cache that
-// overrides revalidation still has to fetch a new address when a build changes
-// those bytes. Unknown names are a template's programmer error, not a request.
-func URL(name string) string {
-	return (Versions{}).URL(name)
-}
-
-// URL projects a registered asset's address using this version selection.
-// Unknown names remain a template's programmer error, never a request lookup.
+// URL identifies the registered bytes in the address itself, using this
+// version selection. A cache that overrides revalidation still has to fetch a
+// new address when a build changes those bytes. Unknown names are a
+// template's programmer error, not a request.
 func (v Versions) URL(name string) string {
 	e, known := registry[name]
 	if !known {
@@ -35,10 +30,6 @@ type urlName string
 
 func (n urlName) String() string { return string(n) }
 
-func versionedURL(name string, e entry) string {
-	return (Versions{}).versionedURL(name, e)
-}
-
 func (v Versions) versionedURL(name string, e entry) string {
 	token := v.Token
 	if token == "" {
@@ -49,17 +40,12 @@ func (v Versions) versionedURL(name string, e entry) string {
 
 var clientImportMap = buildClientImportMap(registry)
 
-// ImportMap is the immutable JSON projection of the registered native client
-// modules. Relative imports resolve to these absolute path keys, so the
-// modules reached through the entry receive the same byte identities too.
-// The vendored Mermaid facade remains unversioned; its chunks keep their
-// authored content-hash filenames.
-func ImportMap() string {
-	return (Versions{}).ImportMap()
-}
-
-// ImportMap projects every registered native client module with this version
-// selection. Changing the token cannot change module membership.
+// ImportMap is the JSON projection of every registered native client module
+// with this version selection. Relative imports resolve to these absolute path
+// keys, so the modules reached through the entry receive the same byte
+// identities too. Changing the token cannot change module membership. The
+// vendored Mermaid facade remains unversioned; its chunks keep their authored
+// content-hash filenames.
 func (v Versions) ImportMap() string {
 	if v.Token == "" {
 		return clientImportMap
