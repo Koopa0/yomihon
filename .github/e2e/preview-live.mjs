@@ -51,7 +51,7 @@ const arrived = (page) => page.waitForFunction(
 
 const rewriteHeldBody = async (context) => {
   let matches = -1;
-  await context.route('**/static/preview.js', async (route) => {
+  await context.route('**/static/preview.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     const needle = `  async function excerpt(url, signal) {
@@ -82,7 +82,7 @@ const rewriteHeldBody = async (context) => {
 
 const rewriteAbort = async (context) => {
   let matches = -1;
-  await context.route('**/static/preview.js', async (route) => {
+  await context.route('**/static/preview.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     const needle = '    controller?.abort();';
