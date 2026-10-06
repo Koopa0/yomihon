@@ -114,8 +114,15 @@ try {
           const style = getComputedStyle(body);
           const s = getComputedStyle(said);
           const n = getComputedStyle(scope);
+          // The sheet docks to the box a fixed element fills, which is what a
+          // scrollbar or a reserved gutter shrinks; a window width is not.
+          const edge = document.createElement('div');
+          edge.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
+          document.body.append(edge);
+          const block = edge.getBoundingClientRect();
+          edge.remove();
           return {
-            viewport: document.documentElement.clientWidth,
+            viewport: block.right, blockLeft: block.left,
             left: d.left, right: d.right, width: d.width,
             inset: b.left + Number.parseFloat(style.paddingLeft),
             buttonLeft: button.getBoundingClientRect().left,
@@ -137,7 +144,7 @@ try {
         };
         check('phone-width', width > 720
           ? Math.abs(result.width - 460) < 0.1 && Math.abs(result.right - result.viewport) < 0.1
-          : Math.abs(result.left) < 0.1 && Math.abs(result.right - result.viewport) < 0.1,
+          : Math.abs(result.left - result.blockLeft) < 0.1 && Math.abs(result.right - result.viewport) < 0.1,
         `sheet [${result.left}, ${result.right}] width=${result.width}, viewport=${result.viewport}`);
         check('control-inset', result.inside && Math.abs(result.buttonLeft - result.inset) < 0.1,
           `inside=${result.inside}, button left=${result.buttonLeft}, content left=${result.inset}`);
