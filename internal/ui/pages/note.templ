@@ -922,7 +922,8 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 					<div class="y-diag">
 						<div class="y-diag__label">frontmatter</div>
 						<p class="y-diag__body">
-							@browserDiagnostic(wording.FrontmatterNotYAML.In(lang), v.Diagnostic)
+							{{ summary, detail := wording.FrontmatterExplanation(lang, v.Diagnostic) }}
+							@browserDiagnostic(summary, detail)
 						</p>
 					</div>
 				}

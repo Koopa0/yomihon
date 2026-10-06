@@ -4,8 +4,8 @@
   "terminals": [
     {
       "name": "yomihon serve",
-      "command": "test -x bin/yomihon || go build -o bin/yomihon ./cmd/yomihon; exec bin/yomihon serve examples/vault",
-      "description": "Serves the bundled example vault on http://127.0.0.1:9610. Rebuilds the binary first if it is missing."
+      "command": "make run",
+      "description": "Serves a fresh temporary copy of the bundled example vault on http://127.0.0.1:9610. Changes to examples/vault appear after restarting."
     }
   ],
   "ports": [
