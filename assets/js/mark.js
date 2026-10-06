@@ -130,12 +130,20 @@ function land() {
   const apply = () => {
     window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
   };
+  // A block outside the window waits to be laid out and stands at a
+  // placeholder height until it is, while the distance was kept against the
+  // blocks' real heights. Every block is laid out while landing, and once a
+  // frame has passed each one remembers its real height when it waits again.
+  document.documentElement.dataset.markLanding = '';
   apply();
   // The column's own measurements settle a frame or two after this file first
   // runs — a web font arrives, a diagram takes its height — and a position
   // applied before that lands against a page that has since moved.
   requestAnimationFrame(() => {
-    requestAnimationFrame(apply);
+    requestAnimationFrame(() => {
+      apply();
+      delete document.documentElement.dataset.markLanding;
+    });
   });
   window.addEventListener(
     'pagereveal',

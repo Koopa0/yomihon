@@ -291,6 +291,12 @@ const MUTATIONS = {
     target: 'reading-position-survives',
     apply: injectStyle('html,body,.y-main{overflow-anchor:none!important}', 'html'),
   },
+  // Blocks above the reader left deferred through the fold, holding heights
+  // laid out at the old width, so the paragraph being read moves.
+  'defer-prose-through-the-fold': {
+    target: 'reading-position-survives',
+    apply: rewriteAsset('**/app.css', 'html[data-rail-moving] .y-prose > *,\n', ''),
+  },
   // Only the note shell folding.
   'fold-only-the-note-shell': {
     target: 'every-rail-page-folds',

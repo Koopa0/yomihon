@@ -1787,6 +1787,17 @@ details.y-metarow {
   overflow-clip-margin: 4px;
 }
 
+/* A deferred block keeps the height it had at the width it was last laid out
+   at, or the placeholder if it never was. While the column folds, every block
+   is laid out at each width, so the browser keeps the paragraph being read
+   where it was; the blocks then defer again at heights true for the new
+   measure. A mark's distance below its anchor was measured against laid-out
+   blocks, so landing on it lays them out too. */
+html[data-rail-moving] .y-prose > *,
+html[data-mark-landing] .y-prose > * {
+  content-visibility: visible;
+}
+
 /* Latin set on a 30px line, where the article says it is not Han, kana or
    Hangul. Ruby needs the 2.0 line above, so an article that declares nothing
    keeps it: the safe line is the default and the open one has to be earned by
