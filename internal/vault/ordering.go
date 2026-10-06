@@ -2,7 +2,9 @@ package vault
 
 import (
 	"cmp"
+	"path"
 	"strings"
+	"unicode"
 )
 
 // chineseDigits maps the numeral characters that can open or continue a number.
@@ -16,21 +18,41 @@ var chineseDigits = map[rune]int{
 // larger than a thousand appears in a lesson number, so the rest stays text.
 var chineseUnits = map[rune]int{'十': 10, '百': 100, '千': 1000}
 
-// ComparePaths orders two vault paths the way their reader would, and is the
-// one order every list of them sorts by. A run of digits compares as the number
-// it spells, because comparing code points puts 第三課 before 第二課 and 第10課
-// between 第1課 and 第2課. Where one path spells a number at a position and the
-// other does not, the number goes last. Code points cannot answer that question
-// consistently, since they put 2 ahead of a Latin letter and a Latin letter
-// ahead of 一, while 一 read as a number is worth less than 2 — three answers
-// that close a cycle, and a cycle lets the sort return any order it likes. Last
-// rather than first because a numeral opening an ordinary word is read as a
-// number here as well, so ranking numbers first would move 零值設計 and 四技資源
-// to the head of the folders their readers know them from. Anything that is not
-// a number compares by code point, and two paths matching all the way through
-// are settled by comparing their bytes, so distinct paths never compare equal
-// and the order is total.
+// ComparePaths orders every list of vault paths by each segment's stem, then
+// extension. Case is folded with Unicode simple folding, and runs of digits
+// retain their numeric reading. Numbers sort after text: mixing code-point
+// order with numeric order would let Latin letters, Chinese numerals and ASCII
+// digits close a cycle. The original bytes settle a tie only after every
+// segment agrees, so case and leading zeros cannot outrank a later filename.
 func ComparePaths(a, b string) int {
+	left, right := a, b
+	for {
+		as, at, amore := strings.Cut(left, "/")
+		bs, bt, bmore := strings.Cut(right, "/")
+		aext, bext := path.Ext(as), path.Ext(bs)
+		if c := comparePathPart(strings.TrimSuffix(as, aext), strings.TrimSuffix(bs, bext)); c != 0 {
+			return c
+		}
+		if c := comparePathPart(aext, bext); c != 0 {
+			return c
+		}
+		if amore != bmore {
+			if amore {
+				return 1
+			}
+			return -1
+		}
+		if !amore {
+			return strings.Compare(a, b)
+		}
+		left, right = at, bt
+	}
+}
+
+// comparePathPart leaves equal numeric spellings and folded letters tied until
+// the whole path has been read. Resolving that tie here would let Part01/z
+// precede Part1/b on the spelling of the folder rather than its note's name.
+func comparePathPart(a, b string) int {
 	ar, br := []rune(a), []rune(b)
 	i, j := 0, 0
 	for i < len(ar) && j < len(br) {
@@ -53,7 +75,7 @@ func ComparePaths(a, b string) int {
 			}
 			return -1
 		}
-		if c := cmp.Compare(ar[i], br[j]); c != 0 {
+		if c := cmp.Compare(foldPathRune(ar[i]), foldPathRune(br[j])); c != 0 {
 			return c
 		}
 		i++
@@ -63,7 +85,17 @@ func ComparePaths(a, b string) int {
 	if c := cmp.Compare(len(ar)-i, len(br)-j); c != 0 {
 		return c
 	}
-	return strings.Compare(a, b)
+	return 0
+}
+
+// foldPathRune chooses one rune for the whole simple-fold orbit. A single
+// lowercase conversion leaves final sigma separate from ordinary sigma.
+func foldPathRune(r rune) rune {
+	least := r
+	for next := unicode.SimpleFold(r); next != r; next = unicode.SimpleFold(next) {
+		least = min(least, next)
+	}
+	return least
 }
 
 // numberAt reads the number beginning at rs[i], returning its value and how
@@ -88,7 +120,7 @@ func isASCIIDigit(r rune) bool {
 }
 
 // asciiNumberAt reads a run of decimal digits. Leading zeros carry no value, so
-// 007 and 7 compare equal and the code-point fallback settles them.
+// 007 and 7 compare equal and the whole-path byte fallback settles them.
 func asciiNumberAt(rs []rune, i int) (value, width int) {
 	n := 0
 	for i+n < len(rs) && isASCIIDigit(rs[i+n]) {

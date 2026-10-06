@@ -33,7 +33,7 @@ func TestPageMainRegionsAreSkipTargets(t *testing.T) {
 			if err := tt.page.Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s page: %v", tt.name, err)
 			}
-			const target = `<main id="main-content" tabindex="-1"`
+			const target = `<main id="_y-main" tabindex="-1"`
 			if html := buf.String(); !strings.Contains(html, target) {
 				t.Errorf("%s page has no focusable skip target %q; html = %q", tt.name, target, html)
 			}

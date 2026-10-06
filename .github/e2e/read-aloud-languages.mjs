@@ -27,7 +27,7 @@ const rewrite = (path, needle, replacement) => async (page) => {
     if (requests !== 1 || matches !== 1) throw new NotApplied(`needle requested ${requests} times and matched ${matches} times, want 1 each`);
   };
 };
-const script = (needle, replacement) => rewrite('**/lesson.js', needle, replacement);
+const script = (needle, replacement) => rewrite('**/lesson.js{,?*}', needle, replacement);
 const document = (needle, replacement) => rewrite(BASE + PAGE, needle, replacement);
 const MUTATIONS = {
   'change-wrapper-language': { target: 'wrapper-language', apply: document('<div class="y-reading" lang="fr">', '<div class="y-reading" lang="en">') },

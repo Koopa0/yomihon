@@ -9,16 +9,16 @@ import (
 // readingRail is the narrow left navigation on a reading surface: one map
 // chosen by what is being read, never by the address the reader arrived from.
 templ readingRail(rr ReadingRail, c layouts.Chrome) {
-	<aside class="y-rail-left" id="nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
 		@railHead(c, true)
-		<div class="y-railbody" id="nav-rail-body">
+		<div class="y-railbody" id="_y-nav-rail-body">
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
 			<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
 			if rr.Model != nil {
 				if faults := rr.CapabilityFaults(c.Lang); len(faults) > 0 {
 					<div class="y-railsep" aria-hidden="true"></div>
-					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="sidebar-navigation-diagnostics-title">
-						<h2 class="y-railsummary y-railsummary--label" id="sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
+					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="_y-sidebar-navigation-diagnostics-title">
+						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
 						for _, fault := range faults {
 							<p>
 								@browserDiagnostic(fault.Summary, fault.Detail)

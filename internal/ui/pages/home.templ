@@ -85,7 +85,7 @@ type HomeNote struct {
 // nothing being read here.
 templ Home(v HomeView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<main id="main-content" tabindex="-1" class="y-main y-deskmain">
+		<main id="_y-main" tabindex="-1" class="y-main y-deskmain">
 			<div class="y-home">
 				<header class="y-home__head">
 					<h1 class="y-title">{ wording.HomeTitle.In(c.Lang) }</h1>
