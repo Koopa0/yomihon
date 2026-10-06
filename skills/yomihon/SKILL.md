@@ -251,14 +251,16 @@ is refused. It is set by hand.
 
 | | |
 |---|---|
-| Resolves against | four forms of the note's location — filename stem, filename, vault-relative path stem, that path — plus any `aliases` |
+| Exact lookup | four forms of the note's location — filename stem, filename, vault-relative path stem, that path — plus any `aliases` |
+| Slash target with no exact claimant | complete path suffix at a `/` boundary, such as `[[Atlas/README]]` for `Notes/Projects/Atlas/README.md`; one candidate links, several stay ambiguous |
 | Never resolves against | the frontmatter `title`. A link written against a title finds nothing; `check` names it `link.title_not_alias` and tells you which note you meant |
-| Two files, one name | every `[[link]]` to it is ambiguous and yomihon refuses to guess: `collision.name`, nothing links, a span lists the candidates. Two notes declaring one alias is `collision.alias` |
+| Two files, one name | every `[[link]]` to it is ambiguous and yomihon refuses to guess: nothing links, a span lists the candidates. Original key collisions produce `collision.name`; suffix lookup adds no collision keys. Two notes declaring one alias is `collision.alias` |
 | Normalisation | trimmed, NFC, compared without regard to case, so `[[L01]]` and `[[l01]]` are one key and two files differing only in case collide |
 
 Give a note a name unique in the vault; add an alias when a second spelling
-should work; link by full vault-relative path when a generic name is
-unavoidable. Fragments, embeds, and how to mark a link as owed rather than
+should work; use a distinguishing parent-folder suffix or the full vault-relative
+path when a generic name is unavoidable. Existing keys and aliases win before
+suffix lookup. Fragments, embeds, and how to mark a link as owed rather than
 broken are in `references/names-and-links.md`.
 
 ## What the renderer treats specially

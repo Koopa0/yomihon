@@ -83,24 +83,25 @@ templ Base(c Chrome) {
 			// which reads as an empty column for a frame. This holds the first
 			// paint until the main landmark has been parsed. A browser that does
 			// not know the relation ignores it and paints as it always did.
-			<link rel="expect" href="#main-content" blocking="render"/>
+			<link rel="expect" href="#_y-main" blocking="render"/>
 			<title>{ c.Title } — yomihon</title>
 			<link rel="icon" type="image/svg+xml" href="/static/yomihon-mark.svg"/>
 			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/Geist-Variable.woff2" crossorigin/>
 			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/GeistMono-Variable.woff2" crossorigin/>
 			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/Newsreader-Latin-Variable.woff2" crossorigin/>
-			<link rel="stylesheet" href="/static/app.css"/>
-			<link rel="stylesheet" href="/static/chroma.css"/>
+			<link rel="stylesheet" href={ templ.URL(c.Assets.URL("app.css")) }/>
+			<link rel="stylesheet" href={ templ.URL(c.Assets.URL("chroma.css")) }/>
+			@importMapScript(c.Nonce, c.Assets)
 		</head>
 		<body>
-			<a class="y-skiplink" href="#main-content">{ wording.SkipToContent.In(c.Lang) }</a>
+			<a class="y-skiplink" href="#_y-main">{ wording.SkipToContent.In(c.Lang) }</a>
 			<div class="yomihon">
 				@header(c)
 				// Overlay ids use underscores, which authored SectionID values cannot contain.
 				@searchDialog(c.Lang)
 				{ children... }
 			</div>
-			<script nonce={ c.Nonce } type="module" src="/static/yomihon.js"></script>
+			<script nonce={ c.Nonce } type="module" src={ templ.URL(c.Assets.URL("yomihon.js")) }></script>
 		</body>
 	</html>
 }
@@ -126,7 +127,7 @@ templ Base(c Chrome) {
 // nothing anywhere to switch them back on.
 templ header(c Chrome) {
 	<header class="y-header">
-		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label={ wording.ToggleNavigation.In(c.Lang) } aria-expanded="false" aria-controls="nav-rail">
+		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label={ wording.ToggleNavigation.In(c.Lang) } aria-expanded="false" aria-controls="_y-nav-rail">
 			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
 		</button>
 		<div class="y-brand">
@@ -206,7 +207,7 @@ templ header(c Chrome) {
 				// and the control can sit under that sentence in its current state.
 				<div class="y-kbdpref">
 					<label class="y-shortcutpref">
-						<input class="y-shortcutpref__input" type="checkbox" data-single-key-shortcuts-toggle aria-describedby="kbd-pref-note" checked?={ c.SingleKeyShortcutsEnabled }/>
+						<input class="y-shortcutpref__input" type="checkbox" data-single-key-shortcuts-toggle aria-describedby="_y-kbd-pref-note" checked?={ c.SingleKeyShortcutsEnabled }/>
 						<span class="y-shortcutpref__label">{ wording.SingleKeyShortcuts.In(c.Lang) }</span>
 						<span class="y-shortcutpref__on" aria-hidden="true">{ wording.CurrentlyOn.In(c.Lang) }</span>
 						<span class="y-shortcutpref__off" aria-hidden="true">{ wording.CurrentlyOff.In(c.Lang) }</span>
@@ -214,7 +215,7 @@ templ header(c Chrome) {
 					// The two keys that keep working either way are named as well,
 					// because "off" reads as "no keyboard" unless the sentence says
 					// otherwise.
-					<p class="y-kbdpref__note" id="kbd-pref-note">{ wording.SingleKeyShortcutsNote.In(c.Lang) }</p>
+					<p class="y-kbdpref__note" id="_y-kbd-pref-note">{ wording.SingleKeyShortcutsNote.In(c.Lang) }</p>
 				</div>
 				// A reader who opened this panel came looking for how the interface
 				// behaves, and the rest of that answer is one page away.

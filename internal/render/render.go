@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -205,6 +206,9 @@ type Pipeline struct {
 	titles        Titles
 	files         Files
 	md            goldmark.Markdown
+	// outlines holds each captured note's displayed headings by path, drawn
+	// the first time a heading path names that note.
+	outlines sync.Map
 }
 
 // New builds a rendering pipeline from one generation's link resolver and
@@ -231,16 +235,22 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 		transclusions: transclusions,
 		titles:        titles,
 		files:         files,
-		md: goldmark.New(
-			goldmark.WithExtensions(
-				extension.GFM,
-				// The extension is told only what to prefix the ids with, per body,
-				// so several bodies on one page do not share a first note's id.
-				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
-			),
-		),
+		md:            pageMarkdown(),
 	}
+}
+
+// pageMarkdown creates each consumer's parser from the page grammar. Parser
+// contexts and delimiter observations belong to that consumer's single parse.
+func pageMarkdown() goldmark.Markdown {
+	return goldmark.New(
+		goldmark.WithExtensions(
+			extension.GFM,
+			// The extension is told only what to prefix the ids with, per body,
+			// so several bodies on one page do not share a first note's id.
+			extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
+			highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
+		),
+	)
 }
 
 // HTML renders one note's body: the markdown pipeline, plus the passes that
@@ -301,6 +311,12 @@ type composition struct {
 	base    string
 	regions int
 	blocks  map[string]bool
+	// headingLookup renders a destination's outline without following its
+	// links' fragments back into other outlines, which may cite this one.
+	headingLookup bool
+	// hostOutline is the displayed headings of the note being read, drawn
+	// from its own body the first time one of its links names a path.
+	hostOutline *[]TOCEntry
 	// transcluded records what every embed this assembly read came to, in
 	// document order. Only something the separately parsed bodies share
 	// accounts for all.
@@ -475,6 +491,7 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 		return r
 	}, body)
 	source, marks := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
+	source = expandInlineFootnotes(source)
 
 	// Parse and render as two steps rather than one Convert call, which is
 	// exactly what Convert does, so this region's id prefix can be attached to
@@ -482,6 +499,7 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
 	r.resolveMarkdownLinks(doc, input.path, col)
+	markHeadingNotes(doc)
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
 	doc.SetAttributeString(footnoteLangAttr, []byte(page.lang))
 	attachHighlightReporter(doc, col)
