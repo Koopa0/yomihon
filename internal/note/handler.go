@@ -184,7 +184,7 @@ func (h *Handler) showNotFound(
 	authority status.Authority,
 	snap *snapshot.Generation,
 ) {
-	h.showMissing(w, r, asked, false, authority, snap)
+	h.showMissing(w, r, asked, false, snapshot.BlockedSource{}, authority, snap)
 }
 
 // showUnreadable answers a note the generation captured but could not read:
@@ -193,11 +193,22 @@ func (h *Handler) showNotFound(
 func (h *Handler) showUnreadable(
 	w http.ResponseWriter,
 	r *http.Request,
-	asked string,
+	asked, rel string,
 	authority status.Authority,
 	snap *snapshot.Generation,
 ) {
-	h.showMissing(w, r, asked, true, authority, snap)
+	h.showMissing(w, r, asked, true, blockedSource(snap, rel), authority, snap)
+}
+
+// blockedSource names the captured path's failure without treating the words
+// an error wrote as its type. A retained reading can carry the same failure.
+func blockedSource(snap *snapshot.Generation, rel string) snapshot.BlockedSource {
+	for _, source := range snap.Freshness().Blocked {
+		if source.Path == rel {
+			return source
+		}
+	}
+	return snapshot.BlockedSource{}
 }
 
 func (h *Handler) showMissing(
@@ -205,6 +216,7 @@ func (h *Handler) showMissing(
 	r *http.Request,
 	asked string,
 	unreadable bool,
+	cause snapshot.BlockedSource,
 	authority status.Authority,
 	snap *snapshot.Generation,
 ) {
@@ -212,12 +224,17 @@ func (h *Handler) showMissing(
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
+		ParsePanic: cause.ParsePanic,
+		Reason:     cause.Reason,
 		Sidebar:    pages.NewSidebar(pageShell, ""),
 	}
 	lang := origin.Language(r)
 	title := wording.NotFoundKicker.In(lang)
 	if unreadable {
 		title = wording.NotReadableKicker.In(lang)
+		if cause.ParsePanic {
+			title = wording.ParseFailedKicker.In(lang)
+		}
 	}
 	if err := pages.WriteNotFound(r.Context(), w, view, layouts.ChromeFromRequest(r, title)); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write not-found page", "path", asked, "error", err)
@@ -304,7 +321,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		// the reader would be sent to clear.
 		if _, isFile := snap.Entry(rel); isFile {
 			h.sources.Log.Warn("note captured in scan but unreadable in this generation", "path", rel)
-			h.showUnreadable(w, r, r.URL.Path, authority, snap)
+			h.showUnreadable(w, r, r.URL.Path, rel, authority, snap)
 			return
 		}
 		h.showNotFound(w, r, r.URL.Path, authority, snap)
@@ -412,6 +429,7 @@ func (h *Handler) reading(
 	}
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
+	cause := blockedSource(snap, rel)
 	view = pages.NoteView{
 		Title:              n.Title,
 		RelPath:            n.RelPath,
@@ -424,6 +442,8 @@ func (h *Handler) reading(
 		ObsidianHref:       pages.ObsidianHref(h.sources.Source.Name(), n.RelPath),
 		Diagnostic:         n.FMDiagnostic,
 		Stale:              n.Stale,
+		ParsePanic:         cause.ParsePanic,
+		ParseReason:        cause.Reason,
 		RenderDiagnostics:  noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
 		CitedBy:            snap.CitedBy(rel),
 		BasedOn:            declaredSources,

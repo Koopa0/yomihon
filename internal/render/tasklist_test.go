@@ -142,7 +142,7 @@ func TestTaskBlockEmbedsKeepOnlyTheirOwnWordsInTheName(t *testing.T) {
 						t.Errorf("caught: task label contains expanded blocks or controls: %q", label)
 					}
 				}
-				if !strings.Contains(body, `<a href="Target.md">link</a>`) {
+				if !strings.Contains(body, `<a href="/notes/Target.md">link</a>`) {
 					t.Errorf("caught: authored link no longer remains independent: %q", body)
 				}
 				if strings.ContainsAny(body, "\ue000\ue001\ue002\ue003") {
