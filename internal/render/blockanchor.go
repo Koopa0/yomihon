@@ -199,7 +199,7 @@ func inlineRunBreaks(above, below string) bool {
 // signal the speech pass reads. A caret a code span owns never arrives here:
 // that question is asked of the source the author wrote, which the scan holds
 // and this already-converted line no longer is.
-func markBlockAnchor(line string, page *composition, inline *[]string, claim bool) string {
+func markBlockAnchor(line string, page *composition, marks *markers, claim bool) string {
 	trimmed, m := blockAddressIn(line)
 	if m == nil {
 		return line
@@ -208,6 +208,10 @@ func markBlockAnchor(line string, page *composition, inline *[]string, claim boo
 	id := blockAnchorID(address)
 	var anchor string
 	if claim && page.claimBlockAnchor(id) {
+		if marks.anchors == nil {
+			marks.anchors = make(map[int]string)
+		}
+		marks.anchors[len(marks.inline)] = id
 		anchor = `<span id="` + html.EscapeString(id) + `">` +
 			html.EscapeString(address) + `</span>`
 	} else {
@@ -218,6 +222,6 @@ func markBlockAnchor(line string, page *composition, inline *[]string, claim boo
 		// alone.
 		anchor = `<span>` + html.EscapeString(address) + `</span>`
 	}
-	*inline = append(*inline, anchor)
-	return trimmed[:m[2]] + placeholderFor(len(*inline)-1, anchor) + line[len(trimmed):]
+	marks.inline = append(marks.inline, anchor)
+	return trimmed[:m[2]] + placeholderFor(len(marks.inline)-1, anchor) + line[len(trimmed):]
 }
