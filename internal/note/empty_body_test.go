@@ -17,12 +17,17 @@ func TestReadingNamesAnEmptyRenderedBody(t *testing.T) {
 		name    string
 		content string
 		empty   bool
+		visible string
+		hidden  string
 	}{
 		{name: "zero bytes", empty: true},
 		{name: "whitespace", content: " \t\n\r\n", empty: true},
 		{name: "frontmatter only", content: "---\ntitle: Empty\nlanguage: ja\n---\n", empty: true},
 		{name: "frontmatter and whitespace", content: "---\ntitle: Empty\n---\n \t\n", empty: true},
 		{name: "title consumed by article head", content: "# Empty\n", empty: true},
+		{name: "closed comment", content: "%%A hidden draft paragraph.%%\n", empty: true},
+		{name: "unclosed comment", content: "%%\nA whole draft paragraph I wrote but never closed the comment.\n", hidden: "A whole draft paragraph I wrote but never closed the comment."},
+		{name: "visible prefix before unclosed comment", content: "Visible prose.\n\n%%Hidden prose.\n", visible: "Visible prose.", hidden: "Hidden prose."},
 		{name: "body", content: "A body to read.\n"},
 		{name: "image body", content: "![An illustration](asset.png)\n"},
 	} {
@@ -71,6 +76,12 @@ func TestReadingNamesAnEmptyRenderedBody(t *testing.T) {
 				}
 				if got != want {
 					t.Errorf("caught: empty-body sentence count = %d, want %d for %q", got, want, test.content)
+				}
+				if test.visible != "" && !strings.Contains(string(body), test.visible) {
+					t.Errorf("caught: visible prose missing %q", test.visible)
+				}
+				if test.hidden != "" && strings.Contains(string(body), test.hidden) {
+					t.Errorf("caught: hidden comment prose disclosed %q", test.hidden)
 				}
 			})
 		}

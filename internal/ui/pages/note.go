@@ -165,6 +165,17 @@ const speakButtonMarker = `data-tts="`
 // that half works.
 const practiceSpeakMarker = `data-slot-action="speak"`
 
+// hasUnclosedComment keeps a hidden draft distinct from a note with no words:
+// its diagnostic already explains why the reader cannot see its content.
+func (v *NoteView) hasUnclosedComment() bool {
+	for _, diagnostic := range v.RenderDiagnostics {
+		if diagnostic.Kind == render.DiagCommentUnclosed {
+			return true
+		}
+	}
+	return false
+}
+
 // diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
 // (0 or 1) plus every render diagnostic.
 func (v *NoteView) diagCount() int {
