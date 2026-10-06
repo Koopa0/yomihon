@@ -15,6 +15,18 @@
 // and MUTATE. MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/syllabus/Maps/study.md';
 const MUTATE = process.env.MUTATE || '';
@@ -160,6 +172,7 @@ try {
   const page = await context.newPage();
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   // Every number below is a line count in disguise, and a line count taken
   // while the page is still holding a fallback face is a number about a face
   // no reader will see.
