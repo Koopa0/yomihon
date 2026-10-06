@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"io"
 	"net/url"
 	"regexp"
 	"strings"
@@ -194,6 +195,18 @@ func renderSafeImage(w util.BufWriter, source []byte, node ast.Node, entering bo
 }
 
 func writeLocalImage(w util.BufWriter, source []byte, node ast.Node, destination []byte) error {
+	var label bytes.Buffer
+	if err := writeImageLabel(&label, source, node); err != nil {
+		return err
+	}
+	alt := label.String()
+	size := ""
+	if separator := strings.LastIndex(alt, "|"); separator >= 0 {
+		size = imageSizeAttributes(alt[separator+1:])
+		if size != "" {
+			alt = alt[:separator]
+		}
+	}
 	if _, err := w.WriteString(`<img src="`); err != nil {
 		return err
 	}
@@ -203,10 +216,10 @@ func writeLocalImage(w util.BufWriter, source []byte, node ast.Node, destination
 	if _, err := w.WriteString(`" alt="`); err != nil {
 		return err
 	}
-	if err := writeImageLabel(w, source, node); err != nil {
+	if _, err := w.WriteString(alt); err != nil {
 		return err
 	}
-	_, err := w.WriteString(`">`)
+	_, err := w.WriteString(`"` + size + `>`)
 	return err
 }
 
@@ -254,7 +267,7 @@ func linkableRemoteImage(raw []byte) bool {
 	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
 }
 
-func writeImageLabel(w util.BufWriter, source []byte, n ast.Node) error {
+func writeImageLabel(w io.Writer, source []byte, n ast.Node) error {
 	for child := n.FirstChild(); child != nil; child = child.NextSibling() {
 		switch child := child.(type) {
 		case *ast.Text:

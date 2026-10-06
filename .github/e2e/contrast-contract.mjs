@@ -109,7 +109,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED contrast-con
 // needing an importance flag to do it.
 const weakenStylesheet = (asset, rule) => async (context) => {
   let requests = 0;
-  await context.route(`**/static/${asset}`, async (route) => {
+  await context.route(`**/static/${asset}{,?*}`, async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();

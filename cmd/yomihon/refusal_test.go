@@ -96,7 +96,7 @@ func TestRoutingRefusalsKeepTheReadingShell(t *testing.T) {
 						title, lede = "This request did not pass the origin check", "Try again from the reading page."
 					}
 				}
-				for _, fragment := range []string{`<html lang="` + language + `"`, `id="main-content"`, `class="y-shell2"`, `id="request-refused-title"`, title, lede, `href="/search"`, `href="/"`} {
+				for _, fragment := range []string{`<html lang="` + language + `"`, `id="_y-main"`, `class="y-shell2"`, `id="request-refused-title"`, title, lede, `href="/search"`, `href="/"`} {
 					if !strings.Contains(body, fragment) {
 						t.Errorf("refused response lacks %q", fragment)
 					}

@@ -45,7 +45,7 @@ const targetsOf = (mutation) => (Array.isArray(mutation.target) ? mutation.targe
 const rewriteSearch = (needle, replacement) => async (page) => {
   let requests = 0;
   let matches = 0;
-  await page.route('**/search.js', async (route) => {
+  await page.route('**/search.js{,?*}', async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
@@ -162,7 +162,7 @@ const focusInfo = (page) => page.evaluate((bodyLink) => {
     tag: active.tagName,
     searchOpen: active.hasAttribute('data-search-open'),
     inHeader: Boolean(active.closest('.y-header')),
-    inMain: Boolean(active.closest('#main-content')),
+    inMain: Boolean(active.closest('#_y-main')),
     inProse: Boolean(active.closest('.y-prose')),
     href: active.getAttribute('href'),
     matchesBody: active.matches(bodyLink),
@@ -194,7 +194,7 @@ const skipToMainThenBodyLink = async (page) => {
   }
   await page.keyboard.press('Enter');
   await frames(page);
-  if (!(await matches(page, '#main-content'))) {
+  if (!(await matches(page, '#_y-main'))) {
     broken('activating the skip link did not focus main, so later Tabs are not walking the article');
   }
   await tabUntil(page, BODY_LINK, 'the authored body wikilink');

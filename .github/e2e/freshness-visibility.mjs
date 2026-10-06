@@ -40,7 +40,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED freshness-vi
 
 const rewriteModule = (needle, replacement, label) => async (page) => {
   let matches = 0;
-  await page.route('**/freshness.js', async (route) => {
+  await page.route('**/freshness.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches += original.split(needle).length - 1;

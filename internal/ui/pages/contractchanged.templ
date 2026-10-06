@@ -15,7 +15,7 @@ templ ContractChanged(c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			<main id="main-content" tabindex="-1" class="y-main">
+			<main id="_y-main" tabindex="-1" class="y-main">
 				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="contract-changed-title">
 					@nothingToShow(nothingNotice{Kind: "contract-changed", Mark: wording.ContractChangedKicker.In(c.Lang), Title: wording.ContractChangedTitle.In(c.Lang), TitleID: "contract-changed-title", Page: true, Fault: true}) {
 						<p>{ ContractChangedSentence(c.Lang) }</p>
