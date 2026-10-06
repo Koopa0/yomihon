@@ -3,8 +3,11 @@
 					const d = document.documentElement;
 					d.dataset.js = "on";
 					const entry = performance.getEntriesByType("navigation")[0];
+					const kept = new URLSearchParams(location.search).has("at");
 					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
-					else if (entry?.name.includes("#")) d.dataset.arrival = "place";
+					else if (entry?.type === "reload") d.dataset.arrival = "reload";
+					else if (kept || entry?.name.includes("#"))
+						d.dataset.arrival = "place";
 					if (document.prerendering) {
 						d.dataset.prerender = "";
 						document.onprerenderingchange = () => delete d.dataset.prerender;
@@ -41,4 +44,4 @@
 					}
 				});
 		})();
-	</script><main id="main-content" tabindex="-1" class="y-main"><article class="y-healthpage"><h1 class="y-title">Health</h1><div class="y-nothing" data-nothing="health"><div class="y-nothing__says"><p>Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, no name is claimed by two files, and every status is in the schema&#39;s list. Frontmatter missing a required field is not this page&#39;s business — for those, run <code lang="en">yomihon check</code>.</p></div></div></article></main><aside class="y-rail-right" aria-label="Reading aids"></aside></div></div><script nonce="response-nonce" type="module" src="/static/yomihon.js"></script></body></html>
+	</script><main id="main-content" tabindex="-1" class="y-main"><article class="y-healthpage"><h1 class="y-title">Health</h1><div class="y-nothing" data-nothing="health"><div class="y-nothing__says"><p>Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, no name is claimed by two files, and every status is in the schema&#39;s list. Frontmatter missing a required field is not this page&#39;s business — for those, run <code lang="en">yomihon check</code>.</p></div></div></article></main></div></div><script nonce="response-nonce" type="module" src="/static/yomihon.js"></script></body></html>

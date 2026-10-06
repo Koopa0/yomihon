@@ -1,5 +1,7 @@
 # Example library
 
+English | [繁體中文](README.zh-TW.md)
+
 Run `yomihon examples/vault`. The home page offers two books:
 
 - [Go concurrency, first steps](vault/Notes/Books/Go%20並行入門.md): a five-lesson main line, from starting a goroutine to a fixed number of workers; timeout handling is optional reading.
