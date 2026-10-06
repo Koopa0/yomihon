@@ -205,14 +205,14 @@ try {
     if (MODE && (!(error instanceof Caught) || error.site !== MUTATIONS[MODE].site)) throw new NotApplied(`wrong failure boundary: ${error.message}`);
     if (error instanceof Caught) {
       console.error(`caught: code-copy ${error.site}: ${error.message}`);
-      if (MODE) console.error(`MUTATE-RESULT: caught ${MODE}`);
+      if (MODE) console.log(`MUTATE-RESULT: caught ${MODE}`);
       exit = 1;
     } else {
       throw error;
     }
   } catch (failure) {
     console.error(`not-applied: code-copy ${failure.message}`);
-    if (MODE) console.error(`MUTATE-RESULT: not-applied ${MODE}`);
+    if (MODE) console.log(`MUTATE-RESULT: not-applied ${MODE}`);
     exit = 2;
   }
 } finally {
