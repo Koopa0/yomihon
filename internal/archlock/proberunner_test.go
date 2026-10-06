@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -394,6 +396,7 @@ func (f *probeRunnerFixture) run(t *testing.T, args []string, withBase bool) (re
 			result.Success = append(result.Success, line)
 		}
 	}
+	t.Logf("invoked: copied production runner args=%q status=%d trace=%d", args, result.Status, len(result.Trace))
 	return result, string(output)
 }
 
@@ -415,4 +418,241 @@ func expectedProbeTrace(entries []string, mutate bool, overrides map[string][]st
 		}
 	}
 	return trace
+}
+
+// The union is compared with child declarations, not with another sharder.
+// Uneven lists and a growing registry expose omissions hidden by equal counts.
+func TestProbeMutationShards(t *testing.T) {
+	entries, source := probeRunnerSource(t)
+	t.Run("whole registry", func(t *testing.T) { checkProbeShardUnion(t, entries, source, nil, nil) })
+	t.Run("bounded registry", func(t *testing.T) {
+		bounded := append(slices.Clone(entries[:10]), entries[len(entries)-2:]...)
+		prefix, body, found := strings.Cut(string(source), "\nprobes=(\n")
+		if !found {
+			t.Fatal("registry start unavailable")
+		}
+		_, suffix, found := strings.Cut(body, "\n)\n")
+		if !found {
+			t.Fatal("registry end unavailable")
+		}
+		var lines []string
+		for _, entry := range bounded {
+			lines = append(lines, "  \""+entry+"\"")
+		}
+		changed := []byte(prefix + "\nprobes=(\n" + strings.Join(lines, "\n") + "\n)\n" + suffix)
+		checkProbeShardUnion(t, bounded, changed, nil, nil)
+	})
+	t.Run("growing registry", func(t *testing.T) {
+		extra := []string{"future-a.mjs|/future?a=one", "future-b.mjs|/future?b=two"}
+		grown := append(slices.Clone(entries[:len(entries)-2]), extra...)
+		grown = append(grown, entries[len(entries)-2:]...)
+		before := "  \"" + entries[len(entries)-2] + "\""
+		after := "  \"" + extra[0] + "\"\n  \"" + extra[1] + "\"\n" + before
+		if strings.Count(string(source), before) != 1 {
+			t.Fatal("growth fixture has no unique registry site")
+		}
+		changed := []byte(strings.Replace(string(source), before, after, 1))
+		checkProbeShardUnion(t, grown, changed, nil, nil)
+	})
+	t.Run("discovery errors retain later work", func(t *testing.T) {
+		first, _, _ := strings.Cut(entries[0], "|")
+		second, _, _ := strings.Cut(entries[1], "|")
+		third, _, _ := strings.Cut(entries[2], "|")
+		replies := []probeReply{{probe: first, mode: "list", status: 9, stdout: new("unusable\n")}, {probe: second, mode: "list", stdout: new("")}, {probe: third, mode: "list", stdout: new("same\nsame\nother\n")}}
+		overrides := map[string][]string{first: {}, second: {}, third: {"same", "other"}}
+		checkProbeShardUnion(t, entries, source, overrides, replies)
+	})
+}
+
+func checkProbeShardUnion(t *testing.T, entries []string, source []byte, overrides map[string][]string, replies []probeReply) {
+	t.Helper()
+	modes := map[string][]string{}
+	for _, entry := range entries {
+		probe, _, _ := strings.Cut(entry, "|")
+		modes[probe] = []string{"zeta", "alpha"}
+	}
+	first, _, _ := strings.Cut(entries[0], "|")
+	modes[first] = []string{"m0", "m1", "m2", "m3", "m4", "m5", "m6"}
+	maps.Copy(modes, overrides)
+	var want, discovery []string
+	for _, entry := range entries {
+		probe, page, _ := strings.Cut(entry, "|")
+		discovery = append(discovery, probe+"||list")
+		for _, mode := range modes[probe] {
+			want = append(want, probe+"|"+page+"|"+mode)
+		}
+	}
+	counts := map[string]int{}
+	owners := map[string]int{}
+	loads := []int{}
+	tailNames := []string{"course-cover.mjs", "reader-mark.mjs"}
+	for shard := 1; shard <= 4; shard++ {
+		fixture := newProbeRunnerFixture(t, entries, source)
+		for probe, names := range modes {
+			fixture.reply(t, probeReply{probe: probe, mode: "list", stdout: new(strings.Join(names, "\n") + "\n")})
+		}
+		for _, reply := range replies {
+			fixture.reply(t, reply)
+		}
+		got, output := fixture.run(t, []string{"--mutate", "--shard", strconv.Itoa(shard)}, true)
+		wantStatus := 0
+		if len(replies) > 0 {
+			wantStatus = 1
+		}
+		if got.Status != wantStatus {
+			t.Errorf("caught: shard %d status=%d, want %d; %s", shard, got.Status, wantStatus, output)
+		}
+		if len(got.Trace) < len(discovery) {
+			t.Fatalf("caught: shard %d did not discover the whole registry: %v", shard, got.Trace)
+		}
+		if diff := cmp.Diff(discovery, got.Trace[:len(discovery)]); diff != "" {
+			t.Fatalf("caught: shard discovery order (-want +got):\n%s", diff)
+		}
+		selected := got.Trace[len(discovery):]
+		loads = append(loads, len(selected))
+		position := 0
+		tail := false
+		for _, item := range selected {
+			probe, _, _ := strings.Cut(item, "|")
+			isTail := slices.Contains(tailNames, probe)
+			if isTail && shard != 4 {
+				t.Errorf("caught: tail %q owned by shard %d", probe, shard)
+			}
+			if tail && !isTail {
+				t.Errorf("caught: ordinary work follows kept place: %q", item)
+			}
+			tail = tail || isTail
+			relative := slices.Index(want[position:], item)
+			if relative < 0 {
+				t.Errorf("caught: extra, duplicate or out-of-order work %q", item)
+			} else {
+				position += relative + 1
+			}
+			counts[item]++
+			owners[item] = shard
+		}
+		if len(replies) > 0 {
+			expectedFailures := []string{strings.Split(entries[0], "|")[0] + " MUTATE=list exited 9, cannot discover mutation modes", strings.Split(entries[1], "|")[0] + " MUTATE=list names no runnable mutation modes", strings.Split(entries[2], "|")[0] + " MUTATE=list repeats mutation mode 'same'"}
+			if diff := cmp.Diff(expectedFailures, got.Failures); diff != "" {
+				t.Errorf("caught: discovery failures lost (-want +got):\n%s", diff)
+			}
+		} else if len(got.Failures) > 0 || len(got.Success) != 1 || !strings.Contains(output, "shard "+strconv.Itoa(shard)+": "+strconv.Itoa(len(selected))+" mode(s)") {
+			t.Errorf("caught: shard summary mismatch: %#v; %s", got, output)
+		}
+	}
+	expected := map[string]int{}
+	for _, item := range want {
+		expected[item] = 1
+	}
+	if diff := cmp.Diff(expected, counts); diff != "" {
+		t.Errorf("caught: complete shard union/multiplicity (-want +got):\n%s", diff)
+	}
+	if slices.Max(loads)-slices.Min(loads) > 1 {
+		t.Errorf("caught: avoidable mode imbalance: %v", loads)
+	}
+	if len(replies) == 0 {
+		for i, shard := range []int{1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 4} {
+			item := want[i]
+			if owners[item] != shard {
+				t.Errorf("caught: deterministic tail-prefilled ownership %q=%d, want %d", item, owners[item], shard)
+			}
+		}
+	}
+	t.Logf("invoked: complete source-derived shard union %d modes", len(want))
+}
+
+func TestProbeMutationShardFailures(t *testing.T) {
+	entries, source := probeRunnerSource(t)
+	first, _, _ := strings.Cut(entries[0], "|")
+	modes := []string{}
+	for i := range 30 {
+		modes = append(modes, "m"+strconv.Itoa(i))
+	}
+	cases := []struct {
+		mode   string
+		reply  probeReply
+		reason string
+	}{
+		{"m0", probeReply{status: 0}, "exited 0, want 1"},
+		{"m3", probeReply{status: 2}, "exited 2, want 1"},
+		{"m6", probeReply{status: 7}, "exited 7, want 1"},
+		{"m9", probeReply{status: 1, stdout: new("")}, "missing exact stdout line 'MUTATE-RESULT: caught m9'"},
+		{"m12", probeReply{status: 1, stdout: new("MUTATE-RESULT: caught other\n")}, "missing exact stdout line 'MUTATE-RESULT: caught m12'"},
+		{"m16", probeReply{status: 1, stdout: new("MUTATE-RESULT: caught m16-longer\n")}, "missing exact stdout line 'MUTATE-RESULT: caught m16'"},
+		{"m20", probeReply{status: 1, stdout: new(""), stderr: "MUTATE-RESULT: caught m20\n"}, "missing exact stdout line 'MUTATE-RESULT: caught m20'"},
+	}
+	fixture := newProbeRunnerFixture(t, entries, source)
+	fixture.reply(t, probeReply{probe: first, mode: "list", stdout: new(strings.Join(modes, "\n") + "\n")})
+	expectedFailures := []string{}
+	for _, tt := range cases {
+		reply := tt.reply
+		reply.probe = first
+		reply.mode = tt.mode
+		fixture.reply(t, reply)
+		expectedFailures = append(expectedFailures, first+" MUTATE="+tt.mode+": "+tt.reason)
+	}
+	got, output := fixture.run(t, []string{"--mutate", "--shard", "1"}, true)
+	restored := newProbeRunnerFixture(t, entries, source)
+	restored.reply(t, probeReply{probe: first, mode: "list", stdout: new(strings.Join(modes, "\n") + "\n")})
+	positive, _ := restored.run(t, []string{"--mutate", "--shard", "1"}, true)
+	if got.Status != 1 || len(got.Success) != 0 {
+		t.Errorf("caught: selected failures reported success: %#v; %s", got, output)
+	}
+	if diff := cmp.Diff(expectedFailures, got.Failures); diff != "" {
+		t.Errorf("caught: complete child-status/marker failures (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(positive.Trace, got.Trace); diff != "" {
+		t.Errorf("caught: child failure stopped later selected work (-want +got):\n%s", diff)
+	}
+	if positive.Status != 0 || len(got.Trace) <= len(entries)+len(cases) {
+		t.Errorf("caught: positive or continuation missing: %#v", positive)
+	}
+}
+
+func TestProbeMutationShardSelectors(t *testing.T) {
+	entries, source := probeRunnerSource(t)
+	cases := [][]string{{"--shard", "1"}, {"--mutate", "--shard"}, {"--mutate", "--shard", ""}, {"--mutate", "--shard", "0"}, {"--mutate", "--shard", "5"}, {"--mutate", "--shard", "-1"}, {"--mutate", "--shard", "01"}, {"--mutate", "--shard", "1.0"}, {"--mutate", "--shard", "x"}, {"--mutate", "--shard", "1", "--shard", "2"}, {"--mutate", "--shard", "1", "extra"}, {"--mutate", "--mutate"}, {"extra"}}
+	for i, args := range cases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			fixture := newProbeRunnerFixture(t, entries, source)
+			got, output := fixture.run(t, args, true)
+			if got.Status != 2 || len(got.Trace) != 0 || !strings.Contains(output, "usage:") {
+				t.Errorf("caught: noncanonical selector ran work: args=%q result=%#v", args, got)
+			}
+		})
+	}
+}
+
+func TestProbeMutationShardRegistry(t *testing.T) {
+	entries, source := probeRunnerSource(t)
+	cases := []struct {
+		name    string
+		entries []string
+	}{
+		{name: "empty"},
+		{name: "duplicate", entries: append([]string{entries[0]}, entries...)},
+		{name: "wrong kept-place suffix", entries: append(append(slices.Clone(entries[:len(entries)-2]), entries[len(entries)-1]), entries[len(entries)-2])},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			prefix, body, found := strings.Cut(string(source), "\nprobes=(\n")
+			if !found {
+				t.Fatal("registry start unavailable")
+			}
+			_, suffix, found := strings.Cut(body, "\n)\n")
+			if !found {
+				t.Fatal("registry end unavailable")
+			}
+			var lines []string
+			for _, entry := range tt.entries {
+				lines = append(lines, "  \""+entry+"\"")
+			}
+			changed := []byte(prefix + "\nprobes=(\n" + strings.Join(lines, "\n") + "\n)\n" + suffix)
+			fixture := newProbeRunnerFixture(t, tt.entries, changed)
+			got, output := fixture.run(t, []string{"--mutate", "--shard", "1"}, true)
+			if got.Status != 1 || len(got.Trace) != 0 || !strings.Contains(output, "FAIL probes.sh:") {
+				t.Errorf("caught: invalid whole registry admitted: %#v; %s", got, output)
+			}
+		})
+	}
 }

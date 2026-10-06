@@ -359,8 +359,16 @@ jobs:
   # a needle written against one branch no longer matched the script it landed
   # beside, and only a run by hand revealed it.
   e2e-mutations:
+    name: e2e-mutations (${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
-    # Measured 19 minutes for 48 probes on 2026-09-18; raised from 20 to 40 so the next probe has room and the trend stays visible.
+    # The 2026-10-06 single-job run 37413701577 on e7beb3ee was cancelled
+    # after 39m50s in the mutation step (40m16s including setup), not completed.
+    # Four mode-balanced shards target under ten minutes each; measure their
+    # actual hosted job and mutation-step durations before claiming that target.
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -379,4 +387,4 @@ jobs:
         run: google-chrome --version
 
       - name: Prove every probe catches the regression it watches for
-        run: make mutation-check
+        run: make mutation-check MUTATION_SHARD=${{ matrix.shard }}
