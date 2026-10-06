@@ -9,8 +9,8 @@ import (
 	"github.com/koopa0/yomihon/internal/lexical"
 )
 
-// The exists oracle answers "does a note for this name already exist?" for a
-// dedup check before writing. It is deliberately wider than the resolver,
+// The exists oracle answers "does a note for this name, including a vault path
+// or path suffix, already exist?" for a dedup check before writing. It is deliberately wider than the resolver,
 // matching filename, title, alias and English title, and each hit reports which
 // field matched. A false "no" would make a caller write a duplicate, so it
 // over-recalls. Fold-equal names — a fullwidth colon beside its ASCII twin —
