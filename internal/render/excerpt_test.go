@@ -151,7 +151,7 @@ func FuzzPlainProjection(f *testing.F) {
 }
 
 func TestPageDisplayGrammar(t *testing.T) {
-	const body = "## ~~Old~~ ==New== {sequence=primary}\n\n- [x] ~~Task~~ {sequence=local}\n\nText[^n]\n\n[^n]: ~~Foot~~ ==Bright==\n\n| Left | Right |\n|---|---|\n|~~Cell~~|==Value==|\n\n<ruby>漢<rt>かん</rt></ruby>\n\n```\n~~literal~~ ==literal==\n```\n"
+	const body = "## ~~Old~~ ==New== {sequence=primary}\n\n- [x] ~~Task~~\n- Row {sequence=local}\n\nText[^n]\n\n[^n]: ~~Foot~~ ==Bright==\n\n| Left | Right |\n|---|---|\n|~~Cell~~|==Value==|\n\n<ruby>漢<rt>かん</rt></ruby>\n\n```\n~~literal~~ ==literal==\n```\n"
 	t.Run("page", func(t *testing.T) {
 		t.Log("invoked: page/display grammar page consumer")
 		output := New(graph.BuildFromNotes(nil, nil), noBodies{}, anyTitle{}, holdsEverything{}).HTML("Notes/Fixture.md", "", body, wording.En).HTML
