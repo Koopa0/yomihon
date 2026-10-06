@@ -155,6 +155,15 @@ func (idx *Index) Claimed(name string) bool {
 	return len(idx.names[NormalizeKey(name)]) > 0
 }
 
+// Names reports whether target names a note: it resolves to one file, or to
+// several that share the name itself, which the collision rule reports.
+// Several path-suffix matches name nothing, so every reader of a link treats
+// them as the broken link check reports.
+func (idx *Index) Names(target string) bool {
+	res := idx.Resolve(target)
+	return res.Kind == KindUnique || (res.Kind == KindAmbiguous && idx.Claimed(target))
+}
+
 // Collisions reports every name more than one file answers to, mapped to the
 // paths claiming it. Such a name resolves to nothing — the index refuses to
 // choose. The returned map and slices belong to the caller.
