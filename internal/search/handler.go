@@ -43,10 +43,6 @@ type RequestSnapshot struct {
 	// Status is the read-only status vocabulary a result row rules against.
 	// It may be absent, and rows then name statuses without ruling on them.
 	Status StatusVocabulary
-
-	// HeadingAnchor reads the rendered heading identities from the same
-	// captured generation as Index. It is optional for index-only callers.
-	HeadingAnchor func(relPath, heading string, lang wording.Lang) string
 }
 
 // StatusVocabulary is the read-only half of the status projection, declared
@@ -145,14 +141,6 @@ func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, a
 		StepBacks:         stepBackViews(snap.Index, q, a.found.Results, a.diagnostic),
 		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
-	}
-	if snap.HeadingAnchor != nil {
-		for i := range found {
-			result := &found[i]
-			if result.LandingHeading != "" {
-				view.Results[i].LandingAnchor = snap.HeadingAnchor(result.RelPath, result.LandingHeading, lang)
-			}
-		}
 	}
 	if onPage && a.diagnostic == "" && snap.Shell.Governed {
 		view.Facets = facetViews(q, a.found.Facets, snap.Status, lang)

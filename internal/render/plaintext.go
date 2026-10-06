@@ -64,9 +64,10 @@ type Block struct {
 	// join the text on opposite sides of an edge.
 	ContextRanges [][2]int
 
-	// Heading is the complete name of an unchanged heading in this block.
-	// It names no anchor: only the rendered page can assign that identity.
-	Heading string
+	// Heading reports that the block is a heading the page shows exactly as
+	// written. The page's contents list repeats those words, so text inside
+	// the heading alone cannot tell the list's copy from the body's.
+	Heading bool
 }
 
 // PlainBlocks returns the searchable text of a note body, one Block per
@@ -289,10 +290,7 @@ func (w *plainWalk) closeBlock() {
 	if !verbatim && w.blockContext && w.readings.Len() == 0 {
 		contexts = localContextRanges(s, start, end, w.headingLevel)
 	}
-	var heading string
-	if w.headingLevel > 0 && len(contexts) == 1 && contexts[0] == [2]int{start, end} {
-		heading = strings.Join(strings.Fields(s[start:end]), " ")
-	}
+	heading := w.headingLevel > 0 && len(contexts) == 1 && contexts[0] == [2]int{start, end}
 	w.blocks = append(w.blocks, Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading})
 	w.blockVerbatim = true
 	w.blockContext = true

@@ -14,7 +14,12 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-func TestProductionCJKSearchLandings(t *testing.T) {
+// TestProductionSearchLandings follows the address each result row offers on
+// every public search route. A hit inside a heading names the section's first
+// words after it, because the contents list repeats the heading and stands
+// above the prose on a narrow page; the list's copy is followed by the next
+// entry's name, so only the body's copy answers the whole directive.
+func TestProductionSearchLandings(t *testing.T) {
 	t.Parallel()
 
 	const worker = "Lessons/go/G05 固定數量的 worker.md"
@@ -28,17 +33,14 @@ func TestProductionCJKSearchLandings(t *testing.T) {
 		files[path] = string(body)
 	}
 	files["Notes/Repeated.md"] = "## 重複者。\n\n## 重複者。\n"
-	files["Notes/Composed.md"] = "## cafe\u0301等待者。\n"
-	files["Notes/Host.md"] = "![[Embedded]]\n\n## 同名等待者。\n"
-	files["Notes/Embedded.md"] = "## 同名等待者。\n"
+	files["Notes/Inkwell.md"] = "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry.\n"
 	site := homeSite(t, files)
 	link := regexp.MustCompile(`<a class="y-result" href="([^"]+)">`)
 	tests := []struct{ name, query, path, fragment string }{
-		{"public heading", "等待", worker, "#等待者應該放在哪裡"},
+		{"public heading", "等待", worker, "#:~:text=%E7%AD%89%E5%BE%85%E8%80%85%E6%87%89%E8%A9%B2%E6%94%BE%E5%9C%A8%E5%93%AA%E8%A3%A1%EF%BC%9F,-%E8%8B%A5%E6%8A%8A%20wg.Wait%28%29%20%E8%88%87"},
+		{"english heading", "inkwell", "Notes/Inkwell.md", "#:~:text=inkwell%20waits,-The%20shelf%20keeps"},
 		{"public strike", "取消", pipeline, "#:~:text=%E5%8F%96%E6%B6%88,-%E5%B7%A5%E4%BD%9C"},
-		{"repeated heading does not invent an anchor", "重複", "Notes/Repeated.md", "#:~:text=%E9%87%8D%E8%A4%87,-%E8%80%85"},
-		{"normalized heading", "café等待", "Notes/Composed.md", "#café等待者"},
-		{"actual rendered id after an embed", "同名等待", "Notes/Host.md", "#同名等待者-2"},
+		{"heading followed by a heading names no section", "重複", "Notes/Repeated.md", "#:~:text=%E9%87%8D%E8%A4%87,-%E8%80%85"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -62,11 +64,7 @@ func TestProductionCJKSearchLandings(t *testing.T) {
 							got = append(got, parts[1])
 						}
 					}
-					fragment := strings.TrimPrefix(tt.fragment, "#")
-					want := []string{fragment}
-					if strings.HasPrefix(tt.fragment, "#") && !strings.HasPrefix(tt.fragment, "#:~:") {
-						want = []string{url.PathEscape(fragment)}
-					}
+					want := []string{strings.TrimPrefix(tt.fragment, "#")}
 					if diff := cmp.Diff(want, got); diff != "" {
 						t.Errorf("GET %s (%s) %s landing (-want +got):\n%s", route, lang, tt.path, diff)
 					}

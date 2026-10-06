@@ -397,7 +397,7 @@ func remapPlainOffsets(raw string, blocks []render.Block, fences [][2]int) (mapp
 			end = len(raw)
 		}
 		cur.advanceTo(end)
-		mapped = appendUniqueBlock(mapped, render.Block{End: cur.n, Verbatim: b.Verbatim, Heading: vault.NormalizeNFC(b.Heading)})
+		mapped = appendUniqueBlock(mapped, render.Block{End: cur.n, Verbatim: b.Verbatim, Heading: b.Heading})
 		if len(b.ContextRanges) > 0 && cur.n > 0 {
 			contexts = append(contexts, contextMapping{block: len(mapped) - 1, first: first, count: len(b.ContextRanges)})
 		}
@@ -515,7 +515,7 @@ func appendUniqueBlock(out []render.Block, block render.Block) []render.Block {
 	}
 	if n := len(out); n > 0 && out[n-1].End == block.End {
 		out[n-1].Verbatim = out[n-1].Verbatim && block.Verbatim
-		out[n-1].Heading = ""
+		out[n-1].Heading = false
 		return out
 	}
 	return append(out, block)
@@ -613,6 +613,12 @@ func pairedSpans(offs []int) [][2]int {
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
 	text, blocks, fences := render.PlainBlocks(n.Body)
+	if len(blocks) > 0 && render.DropsTitleHeading(n.Title(), n.Body) {
+		// That heading opens the body, so it is the first block. The page
+		// shows it as the title instead, and neither the body nor the
+		// contents list carries a copy to tell apart.
+		blocks[0].Heading = false
+	}
 	return Document{
 		RelPath:     n.RelPath,
 		Title:       n.Title(),

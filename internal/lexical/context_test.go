@@ -46,3 +46,41 @@ func TestLandingContextInsideChangedBlocks(t *testing.T) {
 		})
 	}
 }
+
+// TestHeadingHitNamesTheSectionOpening pins what a hit inside a heading
+// names. The contents list repeats an unchanged heading's words, so the
+// stretch runs to the heading's end and the run after it is the section's
+// first words, which the list's copy is never followed by. Where the next
+// block is not reproduced as written — another heading above all — there is
+// no such run, and the hit keeps the terms any other block gives it.
+func TestHeadingHitNamesTheSectionOpening(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, body, query string
+		bare, suffix      string
+	}{
+		{name: "cjk heading", body: "## 等待者應該放在哪裡？\n\n若把 `wg.Wait()` 與 `close(results)` 移回 `main`。\n", query: "等待", bare: "等待者應該放在哪裡？", suffix: "若把 wg.Wait() 與"},
+		{name: "english heading", body: "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry all winter.\n", query: "inkwell", bare: "inkwell waits", suffix: "The shelf keeps"},
+		{name: "unspaced opening stops at a certain boundary", body: "## 等待者\n\n若把等待移回主程式之前會發生什麼事情呢如果一直寫下去，就這樣。\n", query: "等待者", bare: "等待者", suffix: "若把等待移回主程式之前會發生什麼事情呢如果一直寫下去"},
+		{name: "a heading follows", body: "## 等待者\n\n### 下一節\n\n正文。\n", query: "等待", bare: "等待", suffix: "者"},
+		{name: "the next block is changed by the page", body: "## 等待者\n\n~~加一格~~ 它。\n", query: "等待", bare: "等待", suffix: "者"},
+		{name: "nothing follows", body: "## 等待者\n", query: "等待", bare: "等待", suffix: "者"},
+		{name: "a changed heading", body: "## 等待者 {sequence=primary}\n\n正文。\n", query: "等待", bare: "等待"},
+		{name: "the title heading the page drops", body: "# heading\n\nOpening words here.\n", query: "heading", bare: "heading"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := DocumentFromNote(vault.Parse("Notes/heading.md", []byte(tt.body)))
+			idx := NewIndex([]Document{doc}, validArtifactPolicy(t))
+			got := searchResults(t, idx, Parse(tt.query))
+			if len(got) != 1 {
+				t.Fatalf("Search(%q) = %v, want one result", tt.query, got)
+			}
+			if diff := cmp.Diff(struct{ Bare, Suffix string }{tt.bare, tt.suffix}, struct{ Bare, Suffix string }{got[0].LandingBare, got[0].LandingSuffix}); diff != "" {
+				t.Errorf("Search(%q) heading landing (-want +got):\n%s", tt.query, diff)
+			}
+		})
+	}
+}

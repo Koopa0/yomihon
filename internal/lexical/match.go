@@ -96,10 +96,6 @@ type Result struct {
 	// its ending boundary staying adjacent on the page.
 	LandingSuffix string
 
-	// LandingHeading names an unchanged heading holding this match. The
-	// reading surface resolves it against the rendered page's own anchors.
-	LandingHeading string
-
 	// BlockCrossing reports that the match continues past that first block,
 	// so a directive built from the whole phrase would find nothing.
 	BlockCrossing bool
@@ -614,24 +610,23 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		}
 	}
 	return Result{
-		RelPath:        e.RelPath,
-		Title:          e.Title,
-		Status:         status,
-		Snippet:        bodySnippet,
-		Alias:          alias,
-		Topic:          topic,
-		Tag:            tag,
-		NoteType:       noteType,
-		File:           e.isFile,
-		Landing:        terms.first,
-		LandingBare:    terms.bare,
-		LandingEnd:     terms.last,
-		LandingPrefix:  terms.prefix,
-		LandingSuffix:  terms.suffix,
-		LandingHeading: terms.heading,
-		BlockCrossing:  terms.crossing,
-		FromFence:      fromFence,
-		Language:       e.language,
+		RelPath:       e.RelPath,
+		Title:         e.Title,
+		Status:        status,
+		Snippet:       bodySnippet,
+		Alias:         alias,
+		Topic:         topic,
+		Tag:           tag,
+		NoteType:      noteType,
+		File:          e.isFile,
+		Landing:       terms.first,
+		LandingBare:   terms.bare,
+		LandingEnd:    terms.last,
+		LandingPrefix: terms.prefix,
+		LandingSuffix: terms.suffix,
+		BlockCrossing: terms.crossing,
+		FromFence:     fromFence,
+		Language:      e.language,
 	}
 }
 
@@ -650,7 +645,6 @@ type landingTerms struct {
 	bare     string
 	last     string
 	crossing bool
-	heading  string
 }
 
 // landingAt is the terms one folded body match offers. The exclusive end is
@@ -716,11 +710,14 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	terms.first = collapseFields(e.PlainText[start:bareEnd])
 	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
 	if !terms.crossing {
-		for _, b := range e.blocks {
-			if b.End == firstEnd {
-				terms.heading = b.Heading
-				break
-			}
+		if opening := e.sectionOpening(firstEnd); opening != "" && terms.first != "" {
+			// The stretch runs on to the heading's end so the run after it
+			// is the section's own opening, which the contents list's copy
+			// of the heading is not followed by.
+			terms.first = collapseFields(e.PlainText[start:firstEnd])
+			terms.bare = collapseFields(e.PlainText[bareStart:firstEnd])
+			terms.suffix = opening
+			return terms
 		}
 		if terms.first != "" && (verbatim || e.contextSuffixAt(start, bareEnd, firstEnd)) {
 			terms.suffix = landingSuffix(e.PlainText, bareEnd, firstEnd)
@@ -741,6 +738,50 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 		terms.suffix = landingSuffix(e.PlainText, lastStop, lastEnd)
 	}
 	return terms
+}
+
+// sectionOpening is the run a directive names after a match inside a heading
+// the page shows as written: the first words of the block that follows it.
+// The contents list repeats the heading's own words, and on a narrow page the
+// list stands above the prose, so any run taken from inside the heading is
+// answered by the list's copy first. The list's copy is followed by the next
+// entry's name, never by a paragraph, so the section's own opening tells the
+// two apart. Empty where the heading's block is not such a heading, or where
+// the next block is not reproduced as written — a heading among them, since a
+// heading is the one thing the list does follow a heading with.
+func (e *entry) sectionOpening(headingEnd int) string {
+	for i, b := range e.blocks {
+		if b.End != headingEnd {
+			continue
+		}
+		if !b.Heading || i+1 == len(e.blocks) || !e.blocks[i+1].Verbatim {
+			return ""
+		}
+		return landingOpening(e.PlainText[headingEnd:e.blocks[i+1].End])
+	}
+	return ""
+}
+
+// landingOpening is the first few words of a block, stopping where a run
+// ends at a certain boundary: before a hard line break, and within the word
+// and character budget a preceding run keeps. A first word over that budget
+// is cut at its first certain boundary instead, the way a following run is.
+func landingOpening(block string) string {
+	block = strings.TrimLeftFunc(block, unicode.IsSpace)
+	if i := strings.IndexByte(block, '\n'); i >= 0 {
+		block = block[:i]
+	}
+	words := strings.Fields(block)
+	if len(words) > landingPrefixWords {
+		words = words[:landingPrefixWords]
+	}
+	for len(words) > 0 && utf8.RuneCountInString(strings.Join(words, " ")) > landingPrefixRunes {
+		words = words[:len(words)-1]
+	}
+	if len(words) > 0 {
+		return strings.Join(words, " ")
+	}
+	return landingSuffix(block, 0, len(block))
 }
 
 // contextSuffixAt vouches for the match and its following run in one local

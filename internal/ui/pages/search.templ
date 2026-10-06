@@ -110,11 +110,6 @@ type SearchResult struct {
 	// crossing match has nothing locatable in its first block.
 	Landing string
 
-	// LandingAnchor is a unique heading id from the captured rendered body.
-	// A heading appears in the contents list too, so text alone cannot choose
-	// the body copy at widths where that list stands above the prose.
-	LandingAnchor string
-
 	// LandingBare is the stretch to name where no words go ahead of it in the
 	// directive: Landing grown out to the edges of the words it lies inside,
 	// because a browser looks for a run introduced by nothing only where a

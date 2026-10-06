@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -517,28 +516,6 @@ func (g *Generation) SkipsNote(canonicalPath string) bool {
 // the answer to "relative to what", which nothing in the body supplies.
 func (g *Generation) Render(relPath, body string, lang wording.Lang) render.Result {
 	return g.RenderIn("", relPath, body, lang)
-}
-
-// HeadingAnchor resolves a search heading against this generation's actual
-// rendered body. A repeated name supplies no identity: text copied into the
-// contents list cannot decide which body heading the reader meant.
-func (g *Generation) HeadingAnchor(relPath, heading string, lang wording.Lang) string {
-	note, ok := g.Note(relPath)
-	if !ok || heading == "" {
-		return ""
-	}
-	var anchor string
-	for _, row := range g.Render(relPath, note.Body, lang).TOC {
-		name := vault.NormalizeNFC(strings.Join(strings.Fields(row.Text), " "))
-		if name != heading {
-			continue
-		}
-		if anchor != "" {
-			return ""
-		}
-		anchor = row.ID
-	}
-	return anchor
 }
 
 // RenderIn is Render for a body sharing a page with another, naming the region

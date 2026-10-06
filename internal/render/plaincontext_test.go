@@ -1,7 +1,6 @@
 package render_test
 
 import (
-	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -13,10 +12,11 @@ import (
 func TestPlainBlockLocalContexts(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name, body, plain, heading string
-		ranges                     [][2]int
+		name, body, plain string
+		heading           bool
+		ranges            [][2]int
 	}{
-		{name: "ordinary heading", body: "## 等待者應該放在哪裡？\n", plain: "等待者應該放在哪裡？", heading: "等待者應該放在哪裡？", ranges: [][2]int{{0, len("等待者應該放在哪裡？")}}},
+		{name: "ordinary heading", body: "## 等待者應該放在哪裡？\n", plain: "等待者應該放在哪裡？", heading: true, ranges: [][2]int{{0, len("等待者應該放在哪裡？")}}},
 		{name: "strike keeps the source delimiters", body: "~~取消工作。~~\n", plain: "~~取消工作。~~", ranges: [][2]int{{2, 2 + len("取消工作。")}}},
 		{name: "trimming shifts coordinates", body: "\n\n~~取消工作。~~\n\n", plain: "~~取消工作。~~", ranges: [][2]int{{2, 2 + len("取消工作。")}}},
 		{name: "consumed role offers no context", body: "## 等待者 {sequence=primary}\n", plain: "等待者 {sequence=primary}"},
@@ -61,8 +61,8 @@ func FuzzPlainBlockContexts(f *testing.F) {
 					t.Fatalf("PlainBlocks(%q) context %v splits a rune", body, span)
 				}
 			}
-			if block.Heading != "" && block.Heading != strings.Join(strings.Fields(plain[low:block.End]), " ") {
-				t.Fatalf("PlainBlocks(%q) heading %q differs from its own block", body, block.Heading)
+			if block.Heading && (len(block.ContextRanges) != 1 || block.ContextRanges[0][1] != block.End) {
+				t.Fatalf("PlainBlocks(%q) heading block %+v is not one unchanged range", body, block)
 			}
 			low = block.End
 		}
