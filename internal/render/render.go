@@ -270,7 +270,7 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 		// beside it: the two are read by line number together.
 		address = slices.Delete(slices.Clone(address), dropped, dropped+1)
 	}
-	res := r.renderBody(bodyInput{path: relPath, text: source, address: address}, embedsAllowed, page, region)
+	res := r.renderBody(bodyInput{path: relPath, text: source, address: address, original: body, onPage: region == hostRegion}, embedsAllowed, page, region)
 	res.Diagnostics = appendUnclosedComment(res.Diagnostics, unclosedComment)
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
@@ -394,6 +394,12 @@ func (c *composition) claimBlockAnchor(id string) bool {
 type collector struct {
 	diags []Diagnostic
 	page  *composition
+	// relPath owns the source being read; body is the current note's original
+	// input, so local links do not consult another captured version of it.
+	relPath string
+	body    string
+	// onPage permits a fragment-only address; excerpts instead name their source.
+	onPage bool
 }
 
 func (c *collector) report(d *Diagnostic) { c.diags = append(c.diags, *d) }
@@ -442,6 +448,11 @@ type bodyInput struct {
 	path    string
 	text    string
 	address []string
+	// original is the note's own text before preprocessing, set only for the
+	// page's host body, so a same-note heading link reads that note and no other
+	// captured version of it. onPage permits a fragment-only address.
+	original string
+	onPage   bool
 }
 
 // renderBody renders one body. address is that body's lines carrying the
@@ -451,7 +462,7 @@ type bodyInput struct {
 // typed.
 func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *composition, region string) Result {
 	body, address := input.text, input.address
-	col := &collector{page: page}
+	col := &collector{page: page, relPath: input.path, body: input.original, onPage: input.onPage}
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
 	// authored copy before placeholders exist prevents source from selecting or
 	// relocating renderer-owned HTML during substituteBlocks.
