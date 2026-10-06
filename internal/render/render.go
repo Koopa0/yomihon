@@ -281,7 +281,7 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 		// beside it: the two are read by line number together.
 		address = slices.Delete(slices.Clone(address), dropped, dropped+1)
 	}
-	res := r.renderBody(bodyInput{path: relPath, text: source, address: address, original: body, onPage: region == hostRegion}, embedsAllowed, page, region)
+	res := r.renderBody(&bodyInput{path: relPath, text: source, address: address, original: body, onPage: region == hostRegion}, embedsAllowed, page, region)
 	res.Diagnostics = appendUnclosedComment(res.Diagnostics, unclosedComment)
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
@@ -456,7 +456,7 @@ func footnoteRegionPrefix(n ast.Node) []byte {
 func (r *Pipeline) render(body, relPath string, allowEmbed embedPolicy, page *composition) Result {
 	// An excerpt arrives already cut from a body whose comments came off where
 	// that cut was made, so these lines are the geometry this render was handed.
-	return r.renderBody(bodyInput{path: relPath, text: body, address: strings.Split(body, "\n")}, allowEmbed, page, page.nextRegion())
+	return r.renderBody(&bodyInput{path: relPath, text: body, address: strings.Split(body, "\n")}, allowEmbed, page, page.nextRegion())
 }
 
 // bodyInput keeps a body's captured owner beside its text and line geometry.
@@ -477,7 +477,7 @@ type bodyInput struct {
 // instead of the lines this leaves: the neutralisation below can empty a line
 // that held nothing but placeholder runes, and a run edge there is one nobody
 // typed.
-func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *composition, region string) Result {
+func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *composition, region string) Result {
 	body, address := input.text, input.address
 	col := &collector{page: page, relPath: input.path, body: input.original, onPage: input.onPage}
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
