@@ -17,7 +17,7 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
 	case render.DiagImageMissing:
 		return wording.DiagImageMissing.In(lang)
-	case render.DiagWikilinkBroken:
+	case render.DiagWikilinkBroken, render.DiagMarkdownBroken:
 		return wording.DiagLinkNoTarget.In(lang)
 	case render.DiagWikilinkTitleOnly:
 		return wording.DiagLinkTitleOnly.In(lang)

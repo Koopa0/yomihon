@@ -192,18 +192,30 @@ func TestClassifyPathRefChecksPrivacyBeforeFilesystem(t *testing.T) {
 			inspected = true
 			return true
 		}
-		if finding, ok := classifyPathRefWithContains(
+		if finding, ok := classifyCapturedPathRef(
 			&source,
 			"Notes",
 			ref,
-			authority,
-			contains,
+			diskRefContext{authority: authority, contains: contains},
 		); ok {
-			t.Errorf("classifyPathRefWithContains(%+v) = %+v, want no private finding", ref, finding)
+			t.Errorf("classifyCapturedPathRef(%+v) = %+v, want no private finding", ref, finding)
 		}
 		if inspected {
-			t.Errorf("classifyPathRefWithContains(%+v) inspected membership before the privacy gate", ref)
+			t.Errorf("classifyCapturedPathRef(%+v) inspected membership before the privacy gate", ref)
 		}
+	}
+	inspected := false
+	finding, found := classifyCapturedPathRef(&source, "Notes", pathRef{target: "existing.md"}, diskRefContext{
+		authority: authority, contains: func(p string) bool {
+			inspected = true
+			if p != "Notes/existing.md" {
+				t.Errorf("authorized membership observed %q, want Notes/existing.md", p)
+			}
+			return true
+		},
+	})
+	if found || !inspected {
+		t.Errorf("authorized existing target: inspected=%t finding=%+v, want membership observed without a finding", inspected, finding)
 	}
 }
 
@@ -293,15 +305,16 @@ func TestClassifyPathRefStaysSilentOutsideTheScan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			finding, ok := classifyPathRefWithContains(
-				&source, "Writing", pathRef{target: tt.target, code: tt.code}, authority, contains,
+			finding, ok := classifyCapturedPathRef(
+				&source, "Writing", pathRef{target: tt.target, code: tt.code},
+				diskRefContext{authority: authority, contains: contains},
 			)
 			if ok != tt.wantFinding {
-				t.Fatalf("classifyPathRefWithContains(%q) reported %t, want %t (finding = %+v)",
+				t.Fatalf("classifyCapturedPathRef(%q) reported %t, want %t (finding = %+v)",
 					tt.target, ok, tt.wantFinding, finding)
 			}
 			if ok && !strings.Contains(finding.Evidence, "does not exist") {
-				t.Errorf("classifyPathRefWithContains(%q) evidence = %q, want it to state the absence",
+				t.Errorf("classifyCapturedPathRef(%q) evidence = %q, want it to state the absence",
 					tt.target, finding.Evidence)
 			}
 		})
