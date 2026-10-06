@@ -322,3 +322,39 @@ func TestFirstShownNoteExcerptWindow(t *testing.T) {
 		}
 	}
 }
+
+// TestFirstShownNoteExcerptPrefersProseOverFence holds the display path to the
+// rule the plain path already keeps: a note that carries a highlight is chosen
+// for through its shown text, and a d2 fence that holds the query first must
+// still lose to the prose line further down. The same note without the
+// highlight takes the plain path, so the two paths have to answer alike.
+func TestFirstShownNoteExcerptPrefersProseOverFence(t *testing.T) {
+	const prose = "The prose claim survives."
+	for name, opening := range map[string]string{"display spans": "==bright== Opening.", "plain": "Bright opening."} {
+		source := "---\ntitle: Fixture\ntype: guide\ndomain: golang\nlang: en\n---\n\n" + opening + "\n\n```d2\nclaim -> other\n```\n\n" + prose + "\n"
+		mux := excerptMux(t, "Notes/go/Fixture.md", source)
+		for _, route := range []string{"/search?", "/search/results?facets=0&", "/search/results?facets=1&"} {
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, route+"q=claim", http.NoBody))
+			if rr.Code != 200 {
+				t.Fatalf("%s %s: status=%d", name, route, rr.Code)
+			}
+			body := rr.Body.String()
+			got := readExcerpt(t, body)
+			href := resultHref(t, body)
+			t.Logf("invoked: prose-over-fence %s route=%s text=%q marks=%+v href=%q", name, route, got.Text, got.Marks, href)
+			if !strings.Contains(got.Text, prose) || strings.Contains(got.Text, "->") {
+				t.Errorf("caught: %s %s excerpt = %q, want the prose line and not the fence", name, route, got.Text)
+			}
+			if diff := cmp.Diff([]excerptMark{{Text: "claim"}}, got.Marks); diff != "" {
+				t.Errorf("caught: %s %s marks (-want +got):\n%s", name, route, diff)
+			}
+			if want := "/notes/Notes/go/Fixture.md#:~:text=The%20prose-,claim"; href != want {
+				t.Errorf("caught: %s %s prose landing href = %q, want %q", name, route, href, want)
+			}
+			if strings.Contains(body, `class="y-result__source"`) {
+				t.Errorf("caught: %s %s row is named a fence excerpt although the prose answered", name, route)
+			}
+		}
+	}
+}
