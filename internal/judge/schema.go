@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"cmp"
 	"fmt"
 	"maps"
 	"reflect"
@@ -249,7 +248,7 @@ func (r *lintRun) knowledge(n *note) []Finding {
 	out = append(out, r.required(n)...)
 	// A type outside the contract resolves to no group and reads against the
 	// general note group; it already carries its own finding.
-	group := cmp.Or(r.contract.StatusGroup(n.noteType), "note")
+	group := r.contract.JudgedStatusGroup(n.noteType)
 	if st, ok := fmScalar(n.frontmatter, "status"); ok && !r.statusDeclared(group, st) {
 		reason := "is not a valid status"
 		if group != "note" {

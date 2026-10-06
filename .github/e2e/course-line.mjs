@@ -14,6 +14,18 @@
 // MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Course/C01.md';
 const MUTATE = process.env.MUTATE || '';
@@ -145,9 +157,12 @@ const MUTATIONS = {
   'even-out-the-points': {
     target: 'the-course-marks-the-lesson-it-was-reached-from',
     apply: appendRule(
-      '.y-lesson--here .y-navdot{width:7px;height:7px}',
-      () => getComputedStyle(document.querySelector('.y-lesson--here .y-navdot')).width,
-      '7px',
+      '.y-lesson--here .y-navdot{width:6px;height:6px}',
+      () => {
+        const point = getComputedStyle(document.querySelector('.y-lesson--here .y-navdot'));
+        return `${point.width}/${point.height}`;
+      },
+      '6px/6px',
     ),
   },
   // Widens the course past the phone it is being read on.
@@ -272,6 +287,7 @@ try {
   }
 
   await page.goto(BASE + wayIn, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   await page.evaluate(() => document.fonts.ready);
   const reached = await readCourse(page);
   if (reached.rows.length < 3) {
@@ -385,6 +401,7 @@ try {
 
   // The same course by its own address, which is how the desk links to it.
   await page.goto(BASE + COURSE_PATH, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   await page.evaluate(() => document.fonts.ready);
   const plain = await readCourse(page);
   await proveApplied('plain');

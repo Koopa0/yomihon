@@ -1,8 +1,10 @@
 package wording
 
+import "strings"
+
 // SchemaPart is one piece of what a page says about a schema finding: either
-// words in the reader's own language, or one of the note's own words, shown
-// the way the note wrote it.
+// words in the reader's own language, or a value the note or contract declared,
+// kept as text.
 //
 // The sentence arrives in pieces because the note's words are the reader's
 // evidence and have to survive as text rather than be folded into a sentence
@@ -39,6 +41,9 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		if target == "" {
 			return []SchemaPart{text(schemaFrontmatterMissing)}
 		}
+		if unsupportedFrontmatter(target) {
+			return []SchemaPart{text(FrontmatterUnsupportedYAML)}
+		}
 		return []SchemaPart{text(schemaFrontmatterInvalid), code(target)}
 	case "schema.enum":
 		return []SchemaPart{code(field), text(schemaWrittenAs), code(target), text(schemaNotInList)}
@@ -69,6 +74,21 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		}
 	}
 	return []SchemaPart{text(schemaUnknownRuleStart), code(ruleID), text(schemaUnknownRuleEnd)}
+}
+
+// FrontmatterExplanation keeps ordinary parser evidence intact, while a YAML
+// runtime failure is explained through the authored forms the reader can fix.
+// The captured diagnostic includes the vault reader's prefix; an identical
+// phrase inside an ordinary YAML error is still evidence and stays unchanged.
+func FrontmatterExplanation(lang Lang, diagnostic string) (summary, detail string) {
+	if unsupportedFrontmatter(diagnostic) {
+		return FrontmatterUnsupportedYAML.In(lang), ""
+	}
+	return FrontmatterNotYAML.In(lang), diagnostic
+}
+
+func unsupportedFrontmatter(diagnostic string) bool {
+	return strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: runtime error:")
 }
 
 // The pieces the sentences above are made of. They are fragments rather than
@@ -141,4 +161,31 @@ var (
 	HealthSchemaLede = both(
 		"這些筆記的 frontmatter 讀得出來，但有 schema 不接受的地方。每一篇的細節在它自己的頁面上。",
 		"These notes' frontmatter reads, and something in it is not what the schema accepts. Each note's own page says which.")
+)
+
+// AllowedEnumValues names a field's whole declared vocabulary as text pieces.
+// An absent vocabulary supplies no advice; a declared empty one names none.
+func AllowedEnumValues(lang Lang, field string, values []string) []SchemaPart {
+	if values == nil {
+		return nil
+	}
+	parts := []SchemaPart{{Text: schemaAllowedStart.In(lang)}, {Text: field, Code: true}, {Text: schemaAllowedMiddle.In(lang)}}
+	if len(values) == 0 {
+		return append(parts, SchemaPart{Text: schemaAllowedNone.In(lang)})
+	}
+	for i, value := range values {
+		if i > 0 {
+			parts = append(parts, SchemaPart{Text: schemaAllowedSeparator.In(lang)})
+		}
+		parts = append(parts, SchemaPart{Text: value, Code: true})
+	}
+	return append(parts, SchemaPart{Text: schemaAllowedEnd.In(lang)})
+}
+
+var (
+	schemaAllowedSeparator = both("、", ", ")
+	schemaAllowedStart     = both(" 允許的 ", " Allowed ")
+	schemaAllowedMiddle    = both(" 值：", " values: ")
+	schemaAllowedEnd       = both("。", ".")
+	schemaAllowedNone      = both("無。", "none.")
 )

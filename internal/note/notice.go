@@ -3,25 +3,33 @@ package note
 import (
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // folderNotices words what the pages owe their reader about the folder as a
-// whole, in the reader's language, for the surfaces that draw it. Today that is
-// one fact: two names fold to one path, so the scan is refused and the pages
-// have stopped updating. A surface that was handed it and did not draw it would
-// be the silence this exists to end, so a pair is never dropped.
-func folderNotices(collision []string, lang wording.Lang) []pages.FolderNotice {
-	if len(collision) == 0 {
-		return nil
+// whole, in the reader's language. Independent identity and collision problems
+// coexist, so neither notice displaces the other.
+func folderNotices(collision []string, root *snapshot.RootNotice, lang wording.Lang) []pages.FolderNotice {
+	var notices []pages.FolderNotice
+	if len(collision) != 0 {
+		notices = append(notices, pages.FolderNotice{
+			Title:   wording.NoticeNamesCollideTitle.In(lang),
+			Summary: wording.NoticeNamesCollide.In(lang),
+			Detail:  noticeFiles(collision),
+		})
 	}
-	return []pages.FolderNotice{{
-		Title:   wording.NoticeNamesCollideTitle.In(lang),
-		Summary: wording.NoticeNamesCollide.In(lang),
-		Detail:  noticeFiles(collision),
-	}}
+	if root != nil {
+		title, summary := wording.NoticeRootChangedTitle, wording.NoticeRootChanged
+		detail := wording.RootDetail(lang, vault.Spelled(root.SelectedPath), vault.Spelled(root.OpenedName))
+		if root.Unconfirmed {
+			title, summary = wording.NoticeRootUnconfirmedTitle, wording.NoticeRootUnconfirmed
+		}
+		notices = append(notices, pages.FolderNotice{Title: title.In(lang), Summary: summary.In(lang), Detail: detail})
+	}
+	return notices
 }
 
 // noticeFiles names the files a notice is about as the filesystem spells them.

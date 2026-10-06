@@ -12,10 +12,10 @@ import (
 )
 
 // headSource is the vault a generation reads, with the reads of a briefing's
-// head recorded and refusable. It holds the reader beside the embedded Source
+// head recorded and refusable. It holds the reader beside the embedded ObservedSource
 // so the test says what it asks of the reader and not of the interface.
 type headSource struct {
-	Source
+	ObservedSource
 
 	reader *vault.Reader
 	asked  map[string]int64
@@ -37,7 +37,7 @@ func headStore(t *testing.T, root string, refuse error) (*Store, *headSource) {
 		t.Fatalf("vault.Open: %v", err)
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
-	source := &headSource{Source: reader, reader: reader, asked: map[string]int64{}, refuse: refuse}
+	source := &headSource{ObservedSource: reader, reader: reader, asked: map[string]int64{}, refuse: refuse}
 	contract := testContract(t, root)
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
