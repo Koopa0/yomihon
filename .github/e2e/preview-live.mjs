@@ -105,6 +105,17 @@ const published = async (context, path, status, marker) => {
   throw new Broken(`server never published ${status} containing ${marker} at ${path}`);
 };
 
+const unpublished = async (path) => {
+  const deadline = Date.now() + 12000;
+  while (Date.now() < deadline) {
+    const response = await fetch(BASE + path);
+    await response.text();
+    if (response.status === 404) return;
+    await pause(100);
+  }
+  throw new Broken(`server still publishes ${path} after cleanup`);
+};
+
 const cardText = (page) => page.locator('[data-preview-card]').innerText();
 const open = async (page, link) => {
   await link.hover();
@@ -277,6 +288,14 @@ try {
         console.error(`preview-live cleanup: ${error.message}`);
         process.exitCode = 2;
       }
+    }
+  }
+  for (const file of created) {
+    try {
+      await unpublished(`/notes/Notes/${basename(file)}`);
+    } catch (error) {
+      console.error(`preview-live cleanup: ${error.message}`);
+      process.exitCode = 2;
     }
   }
 }

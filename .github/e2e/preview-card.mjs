@@ -388,18 +388,6 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 
 const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
 
-const arrived = (page) => page.waitForFunction(
-	async () => {
-		if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-		await Promise.all(document.getAnimations()
-			.filter((animation) => animation.animationName === 'y-come-forward')
-			.map((animation) => animation.finished.catch(() => {})));
-		return true;
-	},
-	null,
-	{ timeout: 3000 },
-);
-
 // Only the assertion a mode aims at proves that mode applied. Asking anywhere
 // else would report not-applied for a mutation working perfectly where it was
 // written to work.
@@ -600,7 +588,6 @@ try {
 	const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
 	await arrived(page);
 	if (!response || response.status() !== 200) broken(`the source note returned ${response?.status() ?? 'no response'}, want 200`);
-	await arrived(page);
 	{
 		const state = await cardState(page);
 		if (!state.present) broken('the reading page carries no card element, so nothing below could ever open');
@@ -845,7 +832,6 @@ try {
 		if (!lessonResponse || lessonResponse.status() !== 200) {
 			broken(`the lesson returned ${lessonResponse?.status() ?? 'no response'}, want 200`);
 		}
-		await arrived(lesson);
 		const term = lesson.locator(`main a.concept-link:text-is("${CONCEPT_LINK}")`);
 		const found = await term.count();
 		if (found !== 1) {
@@ -928,7 +914,6 @@ try {
 	const touchResponse = await tapping.goto(BASE + PAGE, { waitUntil: 'networkidle' });
 	await arrived(tapping);
 	if (!touchResponse || touchResponse.status() !== 200) broken(`the source note returned ${touchResponse?.status() ?? 'no response'} to the touch context`);
-	await arrived(tapping);
 	const coarse = await tapping.evaluate(() => matchMedia('(pointer: coarse)').matches);
 	if (!coarse) broken('the touch context still reports a fine pointer, so this check would pass over an emulation that never happened');
 	const touchLink = tapping.locator(`main a:text-is("${SECTION_LINK}")`);
