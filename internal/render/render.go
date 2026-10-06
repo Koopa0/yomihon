@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -204,6 +205,9 @@ type Pipeline struct {
 	titles        Titles
 	files         Files
 	md            goldmark.Markdown
+	// outlines holds each captured note's displayed headings by path, drawn
+	// the first time a heading path names that note.
+	outlines sync.Map
 }
 
 // New builds a rendering pipeline from one generation's link resolver and
@@ -303,6 +307,9 @@ type composition struct {
 	// headingLookup renders a destination's outline without following its
 	// links' fragments back into other outlines, which may cite this one.
 	headingLookup bool
+	// hostOutline is the displayed headings of the note being read, drawn
+	// from its own body the first time one of its links names a path.
+	hostOutline *[]TOCEntry
 	// transcluded records what every embed this assembly read came to, in
 	// document order. Only something the separately parsed bodies share
 	// accounts for all.

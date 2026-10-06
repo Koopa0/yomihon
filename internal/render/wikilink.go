@@ -927,7 +927,7 @@ func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.
 	var found bool
 	if IsHeadingPath(link.Heading) {
 		var id string
-		id, found = r.HeadingPath(relPath, link.Heading)
+		id, found = r.headingPathLeaf(relPath, localPage, link.Heading, col)
 		if found {
 			addressed = href + "#" + id
 		}
@@ -946,6 +946,15 @@ func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.
 		Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
 	})
 	return addressed, fragmentSectionMissing
+}
+
+// headingPathLeaf resolves a heading path within the page being read against
+// that page's own body, and any other against the destination's captured one.
+func (r *Pipeline) headingPathLeaf(relPath string, localPage bool, heading string, col *collector) (id string, found bool) {
+	if localPage {
+		return leafID(r.hostOutline(col), heading)
+	}
+	return r.HeadingPath(relPath, heading)
 }
 
 // renderWikilink renders a plain (non-embed) [[target|display]] as one open/close
@@ -995,8 +1004,11 @@ func (r *Pipeline) resolvedWikilink(relPath string, link graph.Wikilink, col *co
 	if miss != fragmentPlaced {
 		return degradedLink(href, link, miss, col.page.lang)
 	}
+	// A heading path's leaf id can carry a suffix the source never wrote, so a
+	// preview of another note is told the authored path. A link within the page
+	// is never previewed.
 	preview := ""
-	if IsHeadingPath(link.Heading) && link.Block == "" && link.Target != "" {
+	if IsHeadingPath(link.Heading) && link.Block == "" && strings.HasPrefix(href, "/notes/") {
 		if _, captured := r.transclusions.Transclusion(relPath); captured && vault.IsMarkdown(relPath) {
 			preview = ` data-preview-section="` + html.EscapeString(link.Heading) + `"`
 		}

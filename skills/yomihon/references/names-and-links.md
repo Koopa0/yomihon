@@ -87,7 +87,8 @@ already occurs elsewhere. A repeated complete path takes the first match.
 `![[Note#Parent#Child]]` cuts that child's source section, with the same
 top-level heading boundaries as a single-name embed. An absent path keeps the
 existing missing-section diagnostic. Empty path segments retain the literal
-single-name reading, including a heading whose text ends in `#`.
+single-name reading, including a heading whose text ends in `#`. Within a
+note, `[[#Parent#Child]]` reads the same way against that note's own headings.
 
 ### What a block address is, exactly
 

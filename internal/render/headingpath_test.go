@@ -167,3 +167,50 @@ func TestHeadingPathExcerptsChooseTheFirstMatchingBranch(t *testing.T) {
 		})
 	}
 }
+
+// A heading path within the note being read resolves against the body on the
+// page, not a captured copy of it, and leads to the leaf's own id with no note
+// in front of it, as a single same-note name does.
+func TestSameNoteHeadingPathUsesTheRenderedBody(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, transclusions{"note.md": "## A\n### B\n"})
+	body := "[[#Other#B|second]] and [[#A#B|first]] and [[#A#C|missing]]\n\n## A\n### B\n## Other\n### B\n"
+	got := r.HTML("note.md", "", body, wording.En)
+	for _, want := range []string{
+		`<a href="#b-2" class="wikilink">second</a>`,
+		`<a href="#b" class="wikilink">first</a>`,
+		`<a href="#a-c" class="wikilink wikilink-degraded"`,
+		`<h4 id="b-2"`,
+	} {
+		if !strings.Contains(got.HTML, want) {
+			t.Errorf("same-note heading path HTML missing %q:\n%s", want, got.HTML)
+		}
+	}
+	if strings.Contains(got.HTML, "data-preview-section") {
+		t.Errorf("a link within the page was offered a preview:\n%s", got.HTML)
+	}
+	want := []render.Diagnostic{{Kind: render.DiagLinkSectionMissing, Section: "A#C", Message: `no heading in "note.md" matched "A#C"; the address is left as written and may land at the top of the note`}}
+	if diff := cmp.Diff(want, got.Diagnostics); diff != "" {
+		t.Errorf("same-note heading path diagnostics (-want +got):\n%s", diff)
+	}
+}
+
+// A same-note path written in a transcluded excerpt names the note it came
+// from, and each destination's outline answers only for that destination.
+func TestHeadingPathOutlinesStayWithTheirNote(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "N.md"}, {RelPath: "M.md"}}, nil, transclusions{
+		"N.md": "[[#Other#B|inside]]\n\n## A\n### B\n## Other\n### B\n",
+		"M.md": "## Other\n### B\n",
+	})
+	got := r.HTML("source.md", "", "![[N]]\n\n[[N#Other#B|n]] [[M#Other#B|m]]\n", wording.En)
+	for _, want := range []string{
+		`<a href="/notes/N.md#b-2" class="wikilink" data-preview-section="Other#B">inside</a>`,
+		`<a href="/notes/N.md#b-2" class="wikilink" data-preview-section="Other#B">n</a>`,
+		`<a href="/notes/M.md#b" class="wikilink" data-preview-section="Other#B">m</a>`,
+	} {
+		if !strings.Contains(got.HTML, want) {
+			t.Errorf("heading path HTML missing %q:\n%s", want, got.HTML)
+		}
+	}
+}
