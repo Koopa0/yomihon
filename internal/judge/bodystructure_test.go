@@ -126,9 +126,9 @@ func extractCalloutTitles(body string, bodyStartLine int) []calloutTitle {
 }
 
 // extractPathRefs returns every checkable file reference in body: markdown
-// [text](path.md) links and backticked path.md tokens. URLs, anchors, and
-// percent-encoded or glob paths are left out, so only plain in-vault file
-// references remain. A reference inside an Obsidian %%...%% comment is skipped,
+// [text](path.md) links, decoded once, and backticked path.md tokens. URLs,
+// anchors, glob paths and malformed escapes are left out, so only in-vault
+// file references remain. A reference inside an Obsidian %%...%% comment is skipped,
 // the same way a commented-out wikilink is: commented-out content is not a live
 // reference, so it is not checked.
 func extractPathRefs(body string, bodyStartLine int) []pathRef {

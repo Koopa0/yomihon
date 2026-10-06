@@ -1615,6 +1615,19 @@ func (c *Contract) StatusGroup(noteType string) string {
 	return ""
 }
 
+// JudgedStatusGroup returns the status group the checker uses for this type.
+// An undeclared type reads against the general note group without gaining
+// lifecycle authority. A vault without a contract supplies no judging group.
+func (c *Contract) JudgedStatusGroup(noteType string) string {
+	if c == nil || c.version == "" {
+		return ""
+	}
+	if group := c.StatusGroup(noteType); group != "" {
+		return group
+	}
+	return "note"
+}
+
 // Statuses returns the legal status values for a declared note type. An empty
 // note type selects the default "note" group; an undeclared type returns nil,
 // and so does a vault no contract governs.

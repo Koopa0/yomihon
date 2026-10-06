@@ -1,6 +1,7 @@
 // yomihon client-runtime entry. Every imported module is inert until this file
 // calls its initializer; this is the single owner of capability composition and
 // boot order. The server-rendered page remains usable when the graph is absent.
+import { initCodeCopy } from './codecopy.js';
 import { initCompareAlign, initContents } from './contents.js';
 import { initDiagrams } from './diagrams.js';
 import { initDrawer } from './drawer.js';
@@ -32,7 +33,8 @@ function init() {
   const rail = initRail(preferences);
   const search = initSearch();
   initShortcuts({ drawer, rail, sidebar, search });
-  initLesson();
+  const enhanceCodeCopy = initCodeCopy();
+  initLesson(enhanceCodeCopy);
   initMark();
   initThought();
   initUncertainty();

@@ -1,0 +1,14 @@
+package layouts
+
+import "github.com/koopa0/yomihon/internal/wording"
+
+// CodeCopy is an inert, localized prototype. The client clones it beside a
+// readable block rather than putting control text inside the code it copies.
+templ CodeCopy(lang wording.Lang) {
+	<template data-codecopy-template>
+		<div class="y-codecopy" lang={ lang.Tag() }>
+			<button type="button" class="y-xbtn" data-codecopy-button data-codecopy-copied={ wording.CodeCopied.In(lang) } data-codecopy-failed={ wording.CodeCopyFailed.In(lang) }>{ wording.CodeCopy.In(lang) }</button>
+			@Reply("y-codecopy__reply", templ.Attributes{"data-codecopy-reply": true})
+		</div>
+	</template>
+}

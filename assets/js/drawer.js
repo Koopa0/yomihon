@@ -3,7 +3,7 @@
 export function initDrawer() {
   const root = document.documentElement;
   const media = window.matchMedia('(max-width: 900px)');
-  const rail = document.querySelector('#nav-rail');
+  const rail = document.querySelector('#_y-nav-rail');
   const toggleButton = document.querySelector('[data-nav-toggle]');
   // What leaves the accessibility tree while the drawer acts as a modal. The
   // test is whether the region paints under the scrim: anything covered is
@@ -19,7 +19,7 @@ export function initDrawer() {
   // entry: it is display:none at every width the drawer exists, which is
   // already out of the tree.
   const background = [
-    document.querySelector('#main-content'),
+    document.querySelector('#_y-main'),
     document.querySelector('.y-skiplink'),
     document.querySelector('.y-sealbar'),
   ].filter(Boolean);

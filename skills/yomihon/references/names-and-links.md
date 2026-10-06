@@ -106,27 +106,53 @@ expanded further. An embed whose section or block is not found shows nothing of
 the note — a notice names the address that failed and links the note —
 reporting `embed.section_missing` or `embed.block_missing`.
 
+For a picture, `![[pic.png|300]]` declares its width and
+`![[pic.png|300x200]]` declares width and height in whole pixels. Any other
+nonempty alias, such as `![[pic.png|some alt]]`, is its alternative text;
+a size or absent alias keeps the filename as alternative text. A local
+Markdown image uses `![alt|300](pic.png)` or `![alt|300x200](pic.png)`:
+only a valid final size suffix comes off its alternative text. An ordinary
+pipe in Markdown alternative text stays text. The reading column caps image
+width. Width and height remain HTML dimension hints; after the image loads,
+automatic height keeps its natural aspect ratio, including when the hints
+declare a different ratio.
+Note embeds keep their existing alias behavior. Remote images remain explicit
+links and are never loaded.
+
 ## Links that are not wikilinks
 
-A plain Markdown link to a Markdown file inside the vault is checked too, and so
-is a backticked `Notes/Some note.md` token. A path that is not there is
-`link.broken.path`; one that climbs out of the vault root is `info` instead,
-because it cannot be looked up the same way on every machine. A remote
-destination is never fetched.
+A plain Markdown link resolves only against the folder of the note that wrote
+it. The pathname is percent-decoded exactly once, then dot segments are cleaned
+and Unicode is normalized to NFC. Captured membership is exact and
+case-sensitive. Root, basename and suffix matches, titles and aliases do not
+stand in for the authored relative path. The raw query and fragment retain
+their authored spelling; encoded delimiters remain filename characters.
 
-**Spaces in the destination decide whether it is checked at all,** which matters
-in a vault whose filenames have spaces in them. Three spellings of one dead
-link behave three different ways:
+An existing Markdown note target leads to `/notes/`; an existing resource leads
+to `/raw/`. Embedded bodies use their own source directory. No Markdown link
+adds a wikilink graph edge.
+
+The page and `check` diagnose valid relative Markdown-note paths only. A missing
+target draws `link.broken.path`; a valid `.md` path climbing out of the vault
+retains its informational finding. Malformed escapes, non-note resources,
+site-absolute paths and uppercase `.MD` targets remain outside that diagnostic
+domain. Findings retain the authored target spelling, line and fingerprint.
+Private source findings are filtered before full or scoped CLI output; target
+authorization and scan exclusions precede membership. An unrelated private
+same-named file does not influence a local reference. Remote destinations are
+never fetched. Backticked `Notes/Some note.md` tokens retain their separate
+root-or-note-relative rule; percent-encoded code tokens remain outside it.
+
+Spaces matter to whether CommonMark parses a link:
 
 | Written | On the page | What `check` says |
 |---|---|---|
 | `[label](Nothing here.md)` | **not a link** — the whole thing stays as literal text | nothing, because there is no link to judge |
-| `[label](<Nothing here.md>)` | a link | `link.broken.path` |
-| `[label](Nothing%20here.md)` | a link | **nothing** — a percent-encoded path is left out of this rule |
+| `[label](<Nothing here.md>)` | label with a missing-target explanation | `link.broken.path` |
+| `[label](Nothing%20here.md)` | label with a missing-target explanation | `link.broken.path`, keeping `Nothing%20here.md` as its target |
 
-So the checked spelling is the angle-bracketed one. The other two are the pair
-worth remembering: one is silent because it never became a link, the other is
-silent while looking exactly right on the page.
+The latter two resolve identically when a unique file exists. Malformed percent
+escapes are left as the Markdown renderer emits them and are not diagnosed.
 
 ## Naming a link as owed rather than broken
 

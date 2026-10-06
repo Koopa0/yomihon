@@ -27,7 +27,8 @@ type Query struct {
 	// unknownKeys are the words written before a colon that this grammar does not
 	// accept, in input order and without repeats. The term is still searched for
 	// as text; this is what lets a page say the constraint was not one it knows.
-	unknownKeys []string
+	unknownKeys      []string
+	literalOperators []string
 }
 
 // Tokens returns the folded bare terms in input order.
@@ -45,6 +46,12 @@ func (q *Query) Filters() []Filter {
 // case: nothing in the query looked like a constraint that was not one.
 func (q *Query) UnknownFilterKeys() []string {
 	return slices.Clone(q.unknownKeys)
+}
+
+// LiteralOperatorTerms names unquoted terms a reader might have intended as
+// operators. They still belong to Tokens and are searched for literally.
+func (q *Query) LiteralOperatorTerms() []string {
+	return slices.Clone(q.literalOperators)
 }
 
 // RequiresMetadata reports whether evaluating the query needs frontmatter.
@@ -141,6 +148,10 @@ func Parse(q string) *Query {
 		}
 		if reading == readAsUnknownFilter && !slices.Contains(out.unknownKeys, key) {
 			out.unknownKeys = append(out.unknownKeys, key)
+		}
+		if field.quotedFrom < 0 && (field.text == "OR" || (len(field.text) > 1 && strings.HasPrefix(field.text, "-"))) &&
+			!slices.Contains(out.literalOperators, field.text) {
+			out.literalOperators = append(out.literalOperators, field.text)
 		}
 		out.tokens = append(out.tokens, fold(field.text))
 	}

@@ -1,8 +1,10 @@
 package wording
 
 import (
+	"fmt"
 	"maps"
 	"slices"
+	"strings"
 )
 
 // The search face: the page, its live fragment, and what it says when it
@@ -35,12 +37,37 @@ var (
 
 // The empty result, and the way back out of it.
 var (
-	NoResultsFmt     = both("找不到「%s」的結果。", "Nothing matches %q.")
-	StepBackLabel    = both("改用較短的詞：", "Try a shorter query: ")
-	StepBackOpen     = both("「", "\"")
-	StepBackClose    = both("」", "\"")
-	StepBackCountFmt = both("（%d 筆）", " (%d)")
+	NoResultsFmt           = both("找不到「%s」的結果。", "Nothing matches %q.")
+	StepBackLabel          = both("改用較短的詞：", "Try a shorter query: ")
+	StepBackOpen           = both("「", "\"")
+	StepBackClose          = both("」", "\"")
+	StepBackCountFmt       = both("（%d 筆）", " (%d)")
+	FolderSuggestionsLabel = both("folder 篩選器要填從書庫根目錄起算的路徑。你是指：", "folder: takes a path from the vault root. Did you mean: ")
 )
+
+// The terms a query held in an operator's shape but searched for as words.
+// Each term carries its own quotes, so two terms are not read as one term
+// that happens to contain a comma, and the sentence agrees with how many
+// terms it names.
+var (
+	literalOperatorTermFmt = both("「%s」", "%q")
+	literalOperatorFmt     = both("%s不是搜尋運算子，已當一般文字搜尋。", "%s is not a search operator; it was searched for as ordinary text.")
+	literalOperatorsFmt    = both("%s都不是搜尋運算子，已當一般文字搜尋。", "%s are not search operators; they were searched for as ordinary text.")
+)
+
+// LiteralOperatorSentence explains, in lang, that terms were searched for as
+// ordinary words although they look like operators.
+func LiteralOperatorSentence(lang Lang, terms []string) string {
+	quoted := make([]string, len(terms))
+	for i, term := range terms {
+		quoted[i] = fmt.Sprintf(literalOperatorTermFmt.In(lang), term)
+	}
+	sentence := literalOperatorFmt
+	if len(terms) > 1 {
+		sentence = literalOperatorsFmt
+	}
+	return fmt.Sprintf(sentence.In(lang), strings.Join(quoted, ListSeparator.In(lang)))
+}
 
 // What search covers, said where a reader has just been told it found nothing.
 // The second form is for a library with no lifecycle to filter by, where the

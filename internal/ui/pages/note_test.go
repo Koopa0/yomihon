@@ -340,7 +340,7 @@ func TestStatusBarMirrorsTheStatusPanelGuard(t *testing.T) {
 			}
 			if tt.wantStatusBar {
 				html := buf.String()
-				want := `<section class="y-sealbar" lang="zh-Hant" aria-labelledby="status-bar-label"`
+				want := `<section class="y-sealbar" lang="zh-Hant" aria-labelledby="_y-status-bar-label"`
 				if !strings.Contains(html, want) {
 					t.Errorf("status bar is not a named region: missing %q", want)
 				}
@@ -437,14 +437,14 @@ func TestTransitionButtonsAreDescribedByTheSchemaNotices(t *testing.T) {
 			t.Fatalf("render: %v", err)
 		}
 		html := buf.String()
-		if got := strings.Count(html, ` id="schema-notices"`); got != 1 {
-			t.Fatalf("the schema-notices id appears %d times, want exactly 1 block for the buttons to point at", got)
+		if got := strings.Count(html, ` id="_y-schema-notices"`); got != 1 {
+			t.Fatalf("the _y-schema-notices id appears %d times, want exactly 1 block for the buttons to point at", got)
 		}
 		forms := strings.Count(html, `name="to"`)
 		if forms == 0 {
 			t.Fatal("no transition form rendered, so nothing below checks the description wiring")
 		}
-		if got := strings.Count(html, `aria-describedby="schema-notices"`); got != forms {
+		if got := strings.Count(html, `aria-describedby="_y-schema-notices"`); got != forms {
 			t.Errorf("%d of %d transition submits name the notices block as their description", got, forms)
 		}
 	})
@@ -457,8 +457,8 @@ func TestTransitionButtonsAreDescribedByTheSchemaNotices(t *testing.T) {
 			t.Fatalf("render: %v", err)
 		}
 		html := buf.String()
-		if strings.Contains(html, "schema-notices") {
-			t.Errorf("a page with no findings still carries a schema-notices reference or id:\n%s", html)
+		if strings.Contains(html, "_y-schema-notices") {
+			t.Errorf("a page with no findings still carries a _y-schema-notices reference or id:\n%s", html)
 		}
 	})
 }
@@ -495,18 +495,18 @@ func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
 		t.Fatal("the article is not closed")
 	}
 
-	if !strings.Contains(article, `id="schema-notices"`) {
+	if !strings.Contains(article, `id="_y-schema-notices"`) {
 		t.Fatalf("the schema notices block is not in the reading column:\n%s", article)
 	}
 	if strings.Contains(article, `aside class="y-rail-right"`) {
 		t.Fatal("the reading column should not contain the right rail")
 	}
 	railStart := strings.Index(html, `<aside class="y-rail-right"`)
-	if railStart >= 0 && strings.Contains(html[railStart:], `id="schema-notices"`) {
+	if railStart >= 0 && strings.Contains(html[railStart:], `id="_y-schema-notices"`) {
 		t.Errorf("the schema notices block still renders inside the right rail")
 	}
 	proseStart := strings.Index(article, `<div class="y-prose">`)
-	noticeStart := strings.Index(article, `id="schema-notices"`)
+	noticeStart := strings.Index(article, `id="_y-schema-notices"`)
 	if proseStart < 0 || noticeStart < 0 || noticeStart > proseStart {
 		t.Errorf("the schema notices block must sit above the prose; notice@%d prose@%d", noticeStart, proseStart)
 	}

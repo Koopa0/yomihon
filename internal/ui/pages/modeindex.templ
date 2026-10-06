@@ -12,7 +12,7 @@ import (
 // is how one mode can say more without a second page shape existing.
 templ ListIndex(v ListIndexView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<main id="main-content" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
+		<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
 			<div class="y-home">
 				@indexHead(v.Count, v.Shelf.Title, v.Shelf.Lede, c.Lang)
 				if v.Notice != "" {

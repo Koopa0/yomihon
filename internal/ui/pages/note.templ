@@ -19,8 +19,11 @@ import (
 // OutsideKnowledgeScope, NoFrontmatter and FrontmatterUnclosed drive the two
 // status faces.
 type NoteView struct {
-	Title   string
-	RelPath string
+	// NestedTitle places this note under a page heading rather than making
+	// it the page heading itself. Its body must already occupy that level.
+	NestedTitle bool
+	Title       string
+	RelPath     string
 	// Language is what the note is written in, as the note declares it. The
 	// language the page's own words are in arrives with the chrome, so one
 	// page cannot hold two answers to it.
@@ -34,6 +37,10 @@ type NoteView struct {
 	// Stale is set where the file could not be read while this page was built,
 	// so the words below are the last ones read rather than the current ones.
 	Stale bool
+	// ParsePanic names a failed attempt to parse the current bytes, including
+	// while this reading is retained before a stale generation is published.
+	ParsePanic  bool
+	ParseReason string
 	// Updated is the display date the metarow carries and UpdatedAt its
 	// machine-readable value: the author's declared update where the
 	// frontmatter has a readable one, the file's recorded change time
@@ -164,6 +171,8 @@ type NoteView struct {
 	// contract's declared list for its type, which both faces flag rather than
 	// implying the contract defines nothing onward.
 	StatusUnknown bool
+	// AllowedStatuses is the captured contract vocabulary for this note type.
+	AllowedStatuses []string
 	// StatusNotText is set where the note wrote a status the reader did not
 	// take as text, so Status is empty for a reason the page can name rather
 	// than reporting the field as one nobody wrote.
@@ -204,7 +213,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@readingRail(v.ReadingRail, c)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
+			<main id="_y-main" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
 				@flipReceipt(v, lang)
 				@noteArticle(v, lang) {
 					@statusBar(v, lang)
@@ -223,17 +232,24 @@ templ Note(v NoteView, c layouts.Chrome) {
 // copy of this would be free to drift from the one a reader sees on the note's
 // own page.
 //
-// The write face is what the two uses differ by, and they differ structurally:
-// the note's own page passes it in, a column beside another note passes nothing.
-// Nothing here asks which page it is on.
+// The write face differs structurally: the note's own page passes it in, a
+// column beside another note passes nothing. A nested title and body occupy
+// one level below their enclosing page heading.
 templ noteArticle(v NoteView, lang wording.Lang) {
 	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { uncertaintyAttrs(&v, lang)... }>
 		@articleHead(v, lang)
 		@frontmatterUnclosedNotice(v, lang)
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
+		@layouts.CodeCopy(lang)
 		<div class="y-prose">
-			@templ.Raw(v.BodyHTML)
+			if strings.TrimSpace(v.BodyHTML) == "" && !v.hasUnclosedComment() {
+				@nothingToShow(nothingNotice{Kind: "note"}) {
+					<p lang={ lang.Tag() }>{ wording.NoteEmptyBody.In(lang) }</p>
+				}
+			} else {
+				@templ.Raw(v.BodyHTML)
+			}
 		</div>
 		@relatedAids(v, lang)
 		@sequenceSteps(v, lang)
@@ -255,7 +271,7 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
-			<template id={ "concept-" + c.ID } data-title={ conceptSheetTitle(c.Title, lang) }>
+			<template id={ "_y-concept-" + c.ID } data-title={ conceptSheetTitle(c.Title, lang) }>
 				@templ.Raw(c.HTML)
 			</template>
 		}
@@ -266,6 +282,7 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
 			</div>
+			@layouts.CodeCopy(lang)
 			<div class="y-conceptsheet__body y-prose" data-concept-body></div>
 		</dialog>
 	}
@@ -297,7 +314,13 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	}
 	// A jump has to land on the words it named, so the anchor goes on the
 	// visible heading rather than a hidden marker beside it.
-	if v.TitleAnchor != "" {
+	if v.NestedTitle {
+		if v.TitleAnchor != "" {
+			<h2 id={ v.TitleAnchor } class="y-title">{ v.Title }</h2>
+		} else {
+			<h2 class="y-title">{ v.Title }</h2>
+		}
+	} else if v.TitleAnchor != "" {
 		<h1 id={ v.TitleAnchor } class="y-title">{ v.Title }</h1>
 	} else {
 		<h1 class="y-title">{ v.Title }</h1>
@@ -334,7 +357,9 @@ templ articleHead(v NoteView, lang wording.Lang) {
 			@thoughtDoor(v, lang)
 		</div>
 	}
-	if v.Stale {
+	if v.ParsePanic {
+		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code></p>
+	} else if v.Stale {
 		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}
 }
@@ -740,10 +765,10 @@ templ relatedAids(v NoteView, lang wording.Lang) {
 templ statusPanel(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
-		<section class="y-statuspanel" aria-labelledby={ v.IDPrefix + "status-panel-label" } data-status-state={ face.token() }>
+		<section class="y-statuspanel" aria-labelledby={ v.IDPrefix + "_y-status-panel-label" } data-status-state={ face.token() }>
 			<div class="y-statuspanel__head">
 				<div class="y-statuspanel__row">
-					<span class="ui-side__label" id={ v.IDPrefix + "status-panel-label" }>{ wording.StatusBar.In(lang) }</span>
+					<span class="ui-side__label" id={ v.IDPrefix + "_y-status-panel-label" }>{ wording.StatusBar.In(lang) }</span>
 				</div>
 				if face != faceNonInstance && v.Status != "" {
 					<span class="ui-status">{ v.Status }</span>
@@ -795,13 +820,7 @@ templ schemaNotices(v NoteView, lang wording.Lang) {
 		<div id={ v.schemaNoticesID() } lang={ lang.Tag() }>
 			for _, notice := range v.SchemaNotices {
 				<p class="y-statuspanel__notice y-statusflag">
-					for _, part := range notice {
-						if part.Code {
-							<code>{ part.Text }</code>
-						} else {
-							{ part.Text }
-						}
-					}
+					@schemaParts(notice)
 				</p>
 			}
 		</div>
@@ -834,7 +853,9 @@ templ statusFrontmatterUnclosedFlag(v NoteView, noticeClass string, lang wording
 // would imply the contract defines nothing onward from a value it never
 // defined.
 templ statusUnknownFlag(v NoteView, noticeClass string, lang wording.Lang) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }</p>
+	<p class={ noticeClass, "y-statusflag" }>
+		{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }@schemaParts(wording.AllowedEnumValues(lang, "status", v.AllowedStatuses))
+	</p>
 }
 
 // statusUnreadableFlag states that this note's frontmatter yielded no status to
@@ -949,8 +970,8 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 templ statusBar(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
-		<section class="y-sealbar" lang={ lang.Tag() } aria-labelledby={ v.IDPrefix + "status-bar-label" } data-status-state={ face.token() }>
-			<span class="ui-side__label" id={ v.IDPrefix + "status-bar-label" }>{ wording.StatusBar.In(lang) }</span>
+		<section class="y-sealbar" lang={ lang.Tag() } aria-labelledby={ v.IDPrefix + "_y-status-bar-label" } data-status-state={ face.token() }>
+			<span class="ui-side__label" id={ v.IDPrefix + "_y-status-bar-label" }>{ wording.StatusBar.In(lang) }</span>
 			switch face {
 				case faceNonInstance:
 					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(lang) }</p>
@@ -1004,6 +1025,18 @@ templ flipReceipt(v NoteView, lang wording.Lang) {
 			if v.FlipNoReturn {
 				{ frontmatterDoorLine(&v, lang) }
 			}
+		}
+	}
+}
+
+// schemaParts keeps authored values and localized words separate while templ
+// escapes both; a declaration is evidence rather than executable markup.
+templ schemaParts(parts []wording.SchemaPart) {
+	for _, part := range parts {
+		if part.Code {
+			<code>{ part.Text }</code>
+		} else {
+			{ part.Text }
 		}
 	}
 }

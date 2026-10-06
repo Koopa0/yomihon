@@ -26,6 +26,14 @@ var HealthReportsOnly = both(
 // The lede over unreadable files, which changes with whether a complete read
 // has ever happened. The reader needs to know how old the rest of the page is.
 var (
+	ParseBlockedLede = both(
+		"這些檔案已開啟，但筆記內容無法解析。請依各列引用的解析器訊息檢查筆記內容；頁面缺了它們，或停在較舊的版本。",
+		"These files opened, but their note content could not be parsed. Check their content against the quoted parser messages in each row; the pages are missing them or stopped at an older version.",
+	)
+	MixedBlockedLede = both(
+		"有些檔案打不開；另一些已開啟，但筆記內容無法解析。各列說明失敗原因；頁面缺了它們，或停在較舊的版本。",
+		"Some files could not be opened; others opened but their note content could not be parsed. Each row names the cause; the pages are missing them or stopped at an older version.",
+	)
 	BlockedLede = both(
 		"這一次讀取時打不開這些檔案，頁面顯示的內容缺了它們，或停在較舊的版本。",
 		"These files could not be opened on this read, so what the pages show is missing them or stopped at an older version.",

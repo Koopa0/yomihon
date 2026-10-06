@@ -58,7 +58,7 @@ const notApplied = (message) => {
 // regression nobody noticed.
 const appendRule = (rule, read, wanted) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
@@ -80,7 +80,7 @@ const appendRule = (rule, read, wanted) => async (page) => {
 const removeDeclaration = (declaration) => async (page) => {
   let requests = 0;
   let matches = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
