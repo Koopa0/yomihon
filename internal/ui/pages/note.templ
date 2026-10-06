@@ -339,7 +339,7 @@ templ articleHead(v NoteView, lang wording.Lang) {
 		</div>
 	}
 	if v.ParsePanic {
-		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <q>{ v.ParseReason }</q></p>
+		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code></p>
 	} else if v.Stale {
 		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}

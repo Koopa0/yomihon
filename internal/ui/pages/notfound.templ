@@ -35,7 +35,7 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 					if v.Unreadable && v.ParsePanic {
 						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.ParseFailedKicker.In(c.Lang), Title: wording.ParseFailedTitle.In(c.Lang), TitleID: "notfound-title", Page: true, Fault: true}) {
 							<p>{ wording.ParseFailedLede.In(c.Lang) }</p>
-							<p><q>{ v.Reason }</q></p>
+							<p><code lang="en">{ v.Reason }</code></p>
 						}
 					} else if v.Unreadable {
 						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.NotReadableKicker.In(c.Lang), Title: wording.NotReadableTitle.In(c.Lang), TitleID: "notfound-title", Page: true, Fault: true}) {

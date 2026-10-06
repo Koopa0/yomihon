@@ -51,8 +51,8 @@ func TestParseFailureNamesTheNoteContent(t *testing.T) {
 					t.Errorf("caught: parse page contains %q", wrong)
 				}
 			}
-			if !strings.Contains(page, "<q>") {
-				t.Error("caught: parser message is not quoted")
+			if !strings.Contains(page, `<code lang="en">`+html.EscapeString(parserMessage)+`</code>`) {
+				t.Error("caught: parser message is not escaped English code")
 			}
 		})
 	}
@@ -154,8 +154,8 @@ func TestRetainedParseFailureNamesTheCurrentContent(t *testing.T) {
 					if !strings.Contains(page, want) {
 						t.Errorf("caught: %s retained page lost parse diagnosis", name)
 					}
-					if !strings.Contains(page, html.EscapeString(parserMessage)) || !strings.Contains(page, "<q>") {
-						t.Errorf("caught: %s retained page lost quoted escaped parser message", name)
+					if !strings.Contains(page, `<code lang="en">`+html.EscapeString(parserMessage)+`</code>`) {
+						t.Errorf("caught: %s retained page lost escaped English code parser message", name)
 					}
 					if strings.Contains(page, "This file could not be read this time") || strings.Contains(page, "這個檔案這一次讀不進來") {
 						t.Errorf("caught: %s retained page has generic read diagnosis", name)
