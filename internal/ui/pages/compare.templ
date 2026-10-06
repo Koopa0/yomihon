@@ -55,7 +55,7 @@ templ Compare(v CompareView, c layouts.Chrome) {
 				<button type="button" class="y-compare__align" data-compare-align aria-pressed="false">{ wording.CompareAlign.In(lang) }</button>
 			</nav>
 			<h1 class="y-offscreen" lang={ lang.Tag() }>{ fmt.Sprintf(wording.CompareTitleFmt.In(lang), v.A.Title, v.B.Title) }</h1>
-			<main id="main-content" tabindex="-1" class="y-compare" { compareReadAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
+			<main id="_y-main" tabindex="-1" class="y-compare" { compareReadAloudAttrs(&v, lang)... } data-preview-endpoint="/preview/">
 				@compareColumn(v.A, CompareAnchorA, lang)
 				@compareColumn(v.B, CompareAnchorB, lang)
 			</main>
