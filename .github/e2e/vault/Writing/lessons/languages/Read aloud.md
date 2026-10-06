@@ -3,6 +3,7 @@ title: Read aloud languages
 type: lesson
 domain: japanese
 status: draft
+slug: read-aloud-languages
 ---
 
 <!-- read-aloud: ja -->
