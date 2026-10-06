@@ -29,7 +29,7 @@ type existsReport struct {
 	Query   string        `json:"query"`
 	Matches []existsMatch `json:"matches"`
 	// NearMatches are notes that answer under the search index's fold
-	// (fullwidth ASCII narrowed, then lowercase) but not under the resolver
+	// (fullwidth ASCII narrowed, then Unicode simple case folding) but not under the resolver
 	// key. They are omitted when the second pass finds nothing, so an
 	// ordinary answer's bytes stay unchanged — the same omitempty contract
 	// Withheld already ships under.

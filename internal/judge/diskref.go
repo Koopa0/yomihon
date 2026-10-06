@@ -3,6 +3,7 @@ package judge
 import (
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -23,7 +24,7 @@ func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority) []Fin
 			noteDir = n.path[:idx]
 		}
 		for _, pref := range n.pathRefs {
-			if f, ok := classifyPathRef(n, noteDir, pref, scan, authority); ok {
+			if f, ok := classifyCapturedPathRef(n, noteDir, pref, diskRefContext{authority: authority, contains: scan.Contains}); ok {
 				out = append(out, f)
 			}
 		}
@@ -31,35 +32,30 @@ func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority) []Fin
 	return out
 }
 
-// classifyPathRef resolves one reference and, when it is dead, returns the
-// finding. A backticked token is written vault-root-relative and accepted if it
-// exists either root-relative or note-relative; a markdown link is
-// note-relative, and one that escapes the root is reported external rather than
-// stat'd.
-func classifyPathRef(
-	n *note,
-	noteDir string,
-	pref pathRef,
-	scan vault.Scan,
-	authority scanAuthority,
-) (Finding, bool) {
-	return classifyPathRefWithContains(n, noteDir, pref, authority, scan.Contains)
+type diskRefContext struct {
+	authority scanAuthority
+	contains  func(string) bool
 }
 
-// classifyPathRefWithContains keeps privacy authorization ahead of every
-// membership observation. The injected predicate lets the lock test prove a
-// denied target is rejected without consulting the captured file domain.
-func classifyPathRefWithContains(
-	n *note,
-	noteDir string,
-	pref pathRef,
-	authority scanAuthority,
-	contains func(string) bool,
-) (Finding, bool) {
+func classifyCapturedPathRef(n *note, noteDir string, pref pathRef, observation diskRefContext) (Finding, bool) {
 	if pref.code {
-		return classifyCodeRef(n, noteDir, pref, authority, contains)
+		return classifyCodeRef(n, noteDir, pref, observation.authority, observation.contains)
 	}
-	return classifyProseRef(n, noteDir, pref, authority, contains)
+	if !observation.authority.egressAllowed(n.path) {
+		return Finding{}, false
+	}
+	result := graph.ResolveMarkdown(n.path, pref.target, observation.authority.egressAllowed, observation.contains)
+	if !result.Checkable || result.Withheld {
+		return Finding{}, false
+	}
+	if result.Outside {
+		return externalRef(n, pref), true
+	}
+	if result.Kind == graph.KindUnique {
+		return Finding{}, false
+	}
+
+	return deadInRoot(n, pref, result.Relative), true
 }
 
 // classifyCodeRef judges a reference written inside code, which may name either
@@ -87,30 +83,6 @@ func classifyCodeRef(
 		return Finding{}, false
 	}
 	return deadInRoot(n, pref, rootRel), true
-}
-
-// classifyProseRef judges a reference written in prose, which names a path
-// relative to the note that carries it.
-func classifyProseRef(
-	n *note,
-	noteDir string,
-	pref pathRef,
-	authority scanAuthority,
-	contains func(string) bool,
-) (Finding, bool) {
-	rel, ok := resolveWithinRoot(noteDir, pref.target)
-	if !ok {
-		return externalRef(n, pref), true
-	}
-	if !authority.egressAllowed(rel) || contains(rel) {
-		return Finding{}, false
-	}
-	// The scan never visits a hidden path, so calling such a link broken would
-	// report the scan's own boundary as a missing file.
-	if vault.OutsideScan(rel) {
-		return Finding{}, false
-	}
-	return deadInRoot(n, pref, rel), true
 }
 
 // resolveWithinRoot resolves dest against baseDir — both vault-relative and

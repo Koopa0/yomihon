@@ -98,6 +98,9 @@ type SearchResult struct {
 	// the query word appears nowhere on the row.
 	TopicRuns []SnippetRun
 
+	// TagRuns names the frontmatter tag that answered a tag-only query.
+	TagRuns []SnippetRun
+
 	// File marks a hit that is a vault file rather than a note, named on the row
 	// so a missing status does not read as a note's status gone missing.
 	File bool
@@ -333,6 +336,13 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 										<span class="y-result__topic">
 											{ wording.ResultTopicLabel.In(lang) }
 											@hitRuns(r.TopicRuns)
+										</span>
+									}
+									if len(r.TagRuns) > 0 {
+										<span class="y-result__sep" aria-hidden="true">·</span>
+										<span class="y-result__tag">
+											{ wording.ResultTagLabel.In(lang) }
+											@hitRuns(r.TagRuns)
 										</span>
 									}
 									if len(r.AliasRuns) > 0 {
