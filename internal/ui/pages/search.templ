@@ -374,7 +374,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 				// count beside the field is already announced.
 				@nothingToShow(nothingNotice{Kind: "search", Title: fmt.Sprintf(wording.NoResultsFmt.In(lang), v.Query)}) {
 					if len(v.LiteralOperators) > 0 {
-						<p class="y-nothing__hint" data-literal-operator>{ fmt.Sprintf(wording.LiteralOperatorFmt.In(lang), strings.Join(v.LiteralOperators, wording.ListSeparator.In(lang))) }</p>
+						<p class="y-nothing__hint" data-literal-operator>{ wording.LiteralOperatorSentence(lang, v.LiteralOperators) }</p>
 					}
 					if len(v.FolderSuggestions) > 0 {
 						<p class="y-nothing__hint" data-folder-suggestion>

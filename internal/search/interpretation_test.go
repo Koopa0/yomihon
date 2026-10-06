@@ -69,6 +69,46 @@ func TestEmptySearchExplainsLiteralOperators(t *testing.T) {
 	}
 }
 
+// TestEmptySearchQuotesEachLiteralTerm reads the explanation a reader is
+// given, word for word: each term sits inside its own quotes, so two terms are
+// never read as one term holding a comma, and the sentence agrees in number
+// with how many terms it names.
+func TestEmptySearchQuotesEachLiteralTerm(t *testing.T) {
+	t.Parallel()
+	idx := lexical.NewIndex([]lexical.Document{
+		{RelPath: "Notes/go/worker.md", Title: "Worker", PlainText: "goroutine channel"},
+	}, validArtifactPolicy(t))
+	tests := []struct {
+		query string
+		want  map[wording.Lang]string
+	}{
+		{query: "goroutine -channel", want: map[wording.Lang]string{
+			wording.ZhHant: "「-channel」不是搜尋運算子，已當一般文字搜尋。",
+			wording.En:     `"-channel" is not a search operator; it was searched for as ordinary text.`,
+		}},
+		{query: "goroutine -channel OR missing", want: map[wording.Lang]string{
+			wording.ZhHant: "「-channel」、「OR」都不是搜尋運算子，已當一般文字搜尋。",
+			wording.En:     `"-channel", "OR" are not search operators; they were searched for as ordinary text.`,
+		}},
+	}
+	sentence := regexp.MustCompile(`(?s)<p[^>]*data-literal-operator[^>]*>(.*?)</p>`)
+	for _, tt := range tests {
+		for lang, want := range tt.want {
+			for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+				body := interpretationPage(t, idx, route+url.Values{"q": {tt.query}}.Encode(), lang)
+				m := sentence.FindStringSubmatch(body)
+				if m == nil {
+					t.Errorf("GET %s %q (%s): no literal explanation", route, tt.query, lang)
+					continue
+				}
+				if got := html.UnescapeString(strings.TrimSpace(m[1])); got != want {
+					t.Errorf("GET %s %q (%s) literal explanation = %q, want %q", route, tt.query, lang, got, want)
+				}
+			}
+		}
+	}
+}
+
 func TestEmptySearchOffersFullFolderPaths(t *testing.T) {
 	t.Parallel()
 	idx := lexical.NewIndex([]lexical.Document{
