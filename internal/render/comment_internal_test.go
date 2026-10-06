@@ -10,7 +10,8 @@ func TestStripObsidianCommentsPreservesFenceOpeningLine(t *testing.T) {
 
 	body := "```text %%literal info%%\n%%literal body%%\n```\nafter %%hidden%%"
 	want := "```text %%literal info%%\n%%literal body%%\n```\nafter "
-	got, line := stripObsidianComments(body)
+	got, unclosed := stripObsidianComments(body)
+	line := unclosed.line
 	if got != want {
 		t.Errorf("stripObsidianComments() = %q, want %q", got, want)
 	}
@@ -150,7 +151,8 @@ func TestStripObsidianCommentsReportsUnclosedLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, line := stripObsidianComments(tt.body)
+			got, unclosed := stripObsidianComments(tt.body)
+			line := unclosed.line
 			if got != tt.want {
 				t.Errorf("stripObsidianComments(%q) = %q, want %q", tt.body, got, tt.want)
 			}
@@ -164,6 +166,12 @@ func TestStripObsidianCommentsReportsUnclosedLine(t *testing.T) {
 func FuzzStripObsidianComments(f *testing.F) {
 	for _, seed := range []string{
 		"plain text",
+		"A<!-- %% [[Ghost]] -->B",
+		"A%% <!-- [[Ghost]] %%B",
+		"Before <!-- private > [[Ghost]] --> after",
+		"> Before\n> <!-- private\n> secret\n\nAfter",
+		"- Item\n  <!-- private\n  secret\n\nAfter",
+		"`begin\nmiddle <!-- literal --> end`",
 		"before %%hidden%% after",
 		"%%unclosed",
 		"one%%first%%%%second%%two",
@@ -187,9 +195,10 @@ func FuzzStripObsidianComments(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, body string) {
-		got, line := stripObsidianComments(body)
-		if second, secondLine := stripObsidianComments(body); second != got || secondLine != line {
-			t.Fatalf("stripObsidianComments() is not deterministic: first %q/%d, second %q/%d", got, line, second, secondLine)
+		got, unclosed := stripObsidianComments(body)
+		line := unclosed.line
+		if second, secondUnclosed := stripObsidianComments(body); second != got || secondUnclosed != unclosed {
+			t.Fatalf("stripObsidianComments() is not deterministic: first %q/%v, second %q/%v", got, unclosed, second, secondUnclosed)
 		}
 		if len(got) > len(body) {
 			t.Fatalf("stripObsidianComments() length = %d, want at most input length %d", len(got), len(body))

@@ -284,7 +284,7 @@ that:
 | `text. ^my-id` | a block address a link can reach | works on a heading, an ordinary paragraph and a callout's body line; refused on a recognised callout's opening line and on a table row; the caret stays in the id |
 | `==text==` | a highlight | exactly two `=` on each side. A single `=` is literal; surplus `=` also stay literal, outside the mark on the left and inside it on the right, so `===x===` gives `=<mark>x=</mark>` |
 | `%%hidden%%` | nothing | unclosed runs to the end of the body, with a diagnostic naming the body line it opened on |
-| `<!-- a remark -->` | **the comment, visible as text** | one word decides the fate of an HTML comment: `read-aloud`. A comment that opens with it is recognised and handled by the row below; every other comment is escaped onto the page and stays visible, so to hide a remark use `%%…%%` |
+| `<!-- a remark -->` | hidden, like `%%…%%` | both spellings hide a remark from the reading page, search text and link extraction. Delimiters shown inside code remain literal. A `read-aloud` marker keeps its handling in the row below |
 | ` ```mermaid ` | a diagram | case-insensitive, and the whole info string must be that word; the source is carried twice so it still reads without JavaScript |
 | ` ```go ` | highlighted code | an unrecognised language falls back to plain text **silently, with no diagnostic** |
 | TeX math (`$…$`, `$$…$$`) | not rendered as math | read as ordinary Markdown, so backslash escapes apply. Use a fenced code block to preserve TeX source |
