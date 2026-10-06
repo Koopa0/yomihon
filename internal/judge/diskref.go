@@ -15,7 +15,7 @@ import (
 
 // checkDiskRefs resolves every note's path references against the action's
 // complete captured membership and returns the findings.
-func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority, idx *graph.Index) []Finding {
+func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -24,7 +24,7 @@ func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority, idx *
 			noteDir = n.path[:idx]
 		}
 		for _, pref := range n.pathRefs {
-			if f, ok := classifyCapturedPathRef(n, noteDir, pref, diskRefContext{index: idx, authority: authority, contains: scan.Contains}); ok {
+			if f, ok := classifyCapturedPathRef(n, noteDir, pref, diskRefContext{authority: authority, contains: scan.Contains}); ok {
 				out = append(out, f)
 			}
 		}
@@ -33,7 +33,6 @@ func checkDiskRefs(notes []note, scan vault.Scan, authority scanAuthority, idx *
 }
 
 type diskRefContext struct {
-	index     *graph.Index
 	authority scanAuthority
 	contains  func(string) bool
 }
@@ -45,8 +44,8 @@ func classifyCapturedPathRef(n *note, noteDir string, pref pathRef, observation 
 	if !observation.authority.egressAllowed(n.path) {
 		return Finding{}, false
 	}
-	result := observation.index.ResolveMarkdown(n.path, pref.target, observation.authority.egressAllowed, observation.contains)
-	if !result.Local || result.Invalid || result.Withheld {
+	result := graph.ResolveMarkdown(n.path, pref.target, observation.authority.egressAllowed, observation.contains)
+	if !result.Checkable || result.Withheld {
 		return Finding{}, false
 	}
 	if result.Outside {
@@ -55,13 +54,7 @@ func classifyCapturedPathRef(n *note, noteDir string, pref pathRef, observation 
 	if result.Kind == graph.KindUnique {
 		return Finding{}, false
 	}
-	if result.Kind == graph.KindAmbiguous {
-		finding := deadInRoot(n, pref, result.Relative)
-		finding.Message = "link to " + pref.target + " names several files"
-		finding.Evidence = "several targets: " + strings.Join(result.Candidates, ", ")
-		finding.CollisionMembers = result.Candidates
-		return finding, true
-	}
+
 	return deadInRoot(n, pref, result.Relative), true
 }
 

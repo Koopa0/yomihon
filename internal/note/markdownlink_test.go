@@ -13,7 +13,7 @@ func TestMarkdownTargetsReachTheRegisteredReadingRoutes(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	files := map[string]string{
-		"Inbox/sub/Source.md":  "# Source\n\n[root](Areas/Vacuum%20note.md) [shortest](Vacuum%20note.md) [relative](../../Areas/Vacuum%20note.md) [asset](manual.txt) [colon](Docs/a%3Ab.md)\n\n[**choose**](Other.md) [missing](Absent.md)\n\n## 待補\n\n- [[Absent.md]]\n",
+		"Inbox/sub/Source.md":  "# Source\n\n[relative](../../Areas/Vacuum%20note.md) [asset](../../Areas/manual.txt) [colon](../../Docs/a%3Ab.md)\n\n[**choose**](Other.md) [missing](Absent.md)\n\n## 待補\n\n- [[Absent.md]]\n",
 		"Areas/Vacuum note.md": "# Target\n\nTARGET-720\n",
 		"Areas/manual.txt":     "RESOURCE-720\n",
 		"Inbox/sub/Other.md":   "local\n",
@@ -51,7 +51,7 @@ func TestMarkdownTargetsReachTheRegisteredReadingRoutes(t *testing.T) {
 			if !strings.Contains(text, `<html lang="`+lang+`"`) {
 				t.Fatalf("interface language %s was not rendered", lang)
 			}
-			if response.StatusCode != http.StatusOK || strings.Count(text, `href="/notes/Areas/Vacuum%20note.md"`) != 3 || !strings.Contains(text, `href="/raw/Areas/manual.txt"`) || !strings.Contains(text, `href="/notes/Docs/a:b.md"`) || !strings.Contains(text, `class="wikilink-ambiguous"`) || !strings.Contains(text, "<strong>choose</strong>") {
+			if response.StatusCode != http.StatusOK || strings.Count(text, `href="/notes/Areas/Vacuum%20note.md"`) != 1 || !strings.Contains(text, `href="/raw/Areas/manual.txt"`) || !strings.Contains(text, `href="/notes/Docs/a:b.md"`) || !strings.Contains(text, `href="/notes/Inbox/sub/Other.md"`) || !strings.Contains(text, "<strong>choose</strong>") {
 				t.Fatalf("assembled Markdown routes/status mismatch (%d):\n%s", response.StatusCode, text)
 			}
 			if strings.Contains(text, "markdown-broken") || strings.Contains(text, "markdown-ambiguous") {

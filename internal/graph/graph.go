@@ -57,7 +57,6 @@ func (k Kind) String() string {
 // vault-relative paths holding it. Read-only once built.
 type Index struct {
 	names map[string][]string
-	paths []string
 }
 
 // NoteInput is what BuildFromNotes needs of one markdown note: its
@@ -88,7 +87,6 @@ func New(notes []*vault.Note, resources []string) *Index {
 func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 	idx := &Index{names: make(map[string][]string)}
 	for _, n := range notes {
-		idx.paths = append(idx.paths, n.RelPath)
 		for _, key := range noteKeys(n.RelPath) {
 			idx.add(key, n.RelPath)
 		}
@@ -97,7 +95,6 @@ func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 		}
 	}
 	for _, res := range resources {
-		idx.paths = append(idx.paths, res)
 		for _, key := range resourceKeys(res) {
 			idx.add(key, res)
 		}
@@ -106,8 +103,6 @@ func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 		slices.Sort(members)
 		idx.names[key] = members
 	}
-	slices.Sort(idx.paths)
-	idx.paths = slices.Compact(idx.paths)
 	return idx
 }
 

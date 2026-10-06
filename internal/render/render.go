@@ -60,8 +60,6 @@ type DiagnosticKind string
 const (
 	// DiagMarkdownBroken means a local Markdown path has no captured target.
 	DiagMarkdownBroken DiagnosticKind = "markdown-broken"
-	// DiagMarkdownAmbiguous means a local Markdown path names several files.
-	DiagMarkdownAmbiguous DiagnosticKind = "markdown-ambiguous"
 	// DiagWikilinkBroken means a [[wikilink]] or ![[embed]] target does
 	// not resolve to any note or file.
 	DiagWikilinkBroken DiagnosticKind = "wikilink-broken"

@@ -45,64 +45,40 @@ func TestMarkdownCheckSerializesTheWrittenPath(t *testing.T) {
 	}
 }
 
-func TestMarkdownCheckSharesAllTargetInterpretations(t *testing.T) {
+func TestMarkdownCheckIsRelativeAndExact(t *testing.T) {
 	t.Parallel()
-	for _, tt := range []struct {
-		name, destination string
-		private           bool
-		wantEvidence      string
-	}{
-		{name: "encoded root", destination: "Areas/Other%20note.md"},
-		{name: "encoded shortest", destination: "Other%20note.md"},
-		{name: "encoded relative", destination: "../../Areas/Other%20note.md"},
-		{name: "several shortest", destination: "Other.md", wantEvidence: "several targets: Areas/Other.md, Concepts/golang/Other.md"},
-		{name: "private shortest claimant", destination: "Other.md", private: true},
+	for _, tt := range []struct{ name, destination, want string }{
+		{"root spelling remains relative", "Areas/Other%20note.md", "Concepts/golang/Areas/Other note.md does not exist in the vault"},
+		{"basename is not rescued", "Other%20note.md", "Concepts/golang/Other note.md does not exist in the vault"},
+		{"explicit relative", "../../Areas/Other%20note.md", ""},
+		{"unrelated public and private claimants", "./Other.md", ""},
+		{"wrong case", "other.md", "Concepts/golang/other.md does not exist in the vault"},
+		{"NFC equivalent", "cafe%CC%81.md", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			write(t, root, "Concepts/golang/Source.md", "[link]("+tt.destination+")\n")
-			write(t, root, "Areas/Other note.md", "target\n")
-			write(t, root, "Areas/Other.md", "target\n")
-			write(t, root, "Concepts/golang/Other.md", "target\n")
-			var private []string
-			if tt.private {
-				write(t, root, "Restricted/Other.md", "private\n")
-				private = []string{"Restricted"}
+			for _, p := range []string{"Areas/Other note.md", "Areas/Other.md", "Concepts/golang/Other.md", "Restricted/Other.md", "Concepts/golang/café.md"} {
+				write(t, root, p, "target\n")
 			}
-			writeTestContract(t, root, private)
+			writeTestContract(t, root, []string{"Restricted"})
 			findings, err := Check(t.Context(), root)
 			if err != nil {
-				t.Fatalf("Check: %v", err)
+				t.Fatal(err)
 			}
-			var evidence []string
-			for _, finding := range findings {
-				if finding.RuleID == "link.broken.path" {
-					evidence = append(evidence, finding.Evidence)
+			var got []string
+			for _, f := range findings {
+				if f.RuleID == "link.broken.path" {
+					got = append(got, f.Evidence)
 				}
 			}
 			var want []string
-			if tt.wantEvidence != "" {
-				want = []string{tt.wantEvidence}
+			if tt.want != "" {
+				want = []string{tt.want}
 			}
-			if diff := cmp.Diff(want, evidence); diff != "" {
-				t.Errorf("Markdown target verdict (-want +got):\n%s", diff)
-			}
-			if tt.wantEvidence != "" {
-				var pathFindings []Finding
-				for _, finding := range findings {
-					if finding.RuleID == "link.broken.path" {
-						pathFindings = append(pathFindings, finding)
-					}
-				}
-				var wire bytes.Buffer
-				if err := WriteJSONL(&wire, pathFindings); err != nil {
-					t.Fatal(err)
-				}
-				wantWire := `{"rule_id":"link.broken.path","severity":"warn","path":"Concepts/golang/Source.md","line":1,"message":"link to Other.md names several files","evidence":"several targets: Areas/Other.md, Concepts/golang/Other.md","suggested_action":"fix the path, restore the file, or remove the reference","source_rule":"yomihon","target":"Other.md","collision_members":["Areas/Other.md","Concepts/golang/Other.md"],"fingerprint":"v1:fbe142ac386454dc"}` + "\n"
-				if diff := cmp.Diff(wantWire, wire.String()); diff != "" {
-					t.Errorf("ambiguous Markdown JSONL (-want +got):\n%s", diff)
-				}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("relative Markdown verdict (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -152,7 +128,7 @@ func TestMarkdownPrivateSourceNeverInspectsTheTarget(t *testing.T) {
 	authority := loadTestAuthority(t, root)
 	source := note{path: "Restricted/source.md"}
 	finding, found := classifyCapturedPathRef(&source, "Restricted", pathRef{target: "../Public/Other.md"}, diskRefContext{
-		index: graph.BuildFromNotes(nil, []string{"Public/Other.md"}), authority: authority, contains: func(p string) bool {
+		authority: authority, contains: func(p string) bool {
 			t.Errorf("private source inspected target %q", p)
 			return true
 		},
@@ -164,8 +140,7 @@ func TestMarkdownPrivateSourceNeverInspectsTheTarget(t *testing.T) {
 
 func TestMarkdownUnreadableCapturedFileStillOwnsItsPath(t *testing.T) {
 	t.Parallel()
-	idx := buildIndex(nil, []unreadableEntry{{path: "Notes/unreadable.md"}}, nil)
-	got := idx.ResolveMarkdown("Host/source.md", "unreadable.md", func(string) bool { return true }, func(p string) bool {
+	got := graph.ResolveMarkdown("Notes/source.md", "unreadable.md", func(string) bool { return true }, func(p string) bool {
 		return p == "Notes/unreadable.md"
 	})
 	if got.Kind != graph.KindUnique || got.RelPath != "Notes/unreadable.md" {
@@ -190,5 +165,45 @@ func TestMarkdownCheckWithholdsTheReportWhenTheCallerCancels(t *testing.T) {
 	findings, err = Check(ctx, root)
 	if err == nil || findings != nil {
 		t.Errorf("cancelled Markdown scan returned findings=%+v error=%v, want a refusal without a report", findings, err)
+	}
+}
+
+func TestMarkdownPrivateSourcesStayOutOfPublicCheck(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeTestContract(t, root, []string{"Restricted"})
+	write(t, root, "Concepts/golang/Public.md", "[public](Public%20missing.md)\n")
+	write(t, root, "Restricted/source.md", "[private](../Concepts/golang/Secret%20missing.md)\n")
+	findings, err := Check(t.Context(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire bytes.Buffer
+	if err := WriteJSONL(&wire, findings); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(wire.String(), "Restricted") || strings.Contains(wire.String(), "Secret") || !strings.Contains(wire.String(), "Public%20missing.md") {
+		t.Errorf("Check privacy lost: %s", wire.String())
+	}
+	for _, tt := range []struct {
+		name  string
+		all   bool
+		paths []string
+	}{
+		{name: "default"}, {name: "all", all: true}, {name: "scoped", paths: []string{"Concepts"}}, {name: "all scoped", all: true, paths: []string{"Concepts"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			stdout, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, All: tt.all, Paths: tt.paths})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if exit != 0 {
+				t.Fatalf("RunCheck exit=%d, want 0", exit)
+			}
+			if bytes.Contains(stdout, []byte("Restricted")) || bytes.Contains(stdout, []byte("Secret")) || !bytes.Contains(stdout, []byte("Public%20missing.md")) {
+				t.Errorf("RunCheck private source escaped/full public report lost: %s", stdout)
+			}
+		})
 	}
 }

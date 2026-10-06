@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // The private journal must not change what an agent-readable report says about a
@@ -184,7 +182,6 @@ func TestClassifyPathRefChecksPrivacyBeforeFilesystem(t *testing.T) {
 	writeTestContract(t, root, []string{"Restricted"})
 	authority := loadTestAuthority(t, root)
 	source := note{path: "Notes/public.md"}
-	index := graph.BuildFromNotes(nil, []string{"Restricted/secret.md", "Notes/existing.md"})
 	refs := []pathRef{
 		{target: "../Restricted/secret.md"},
 		{target: "Restricted/secret.md", code: true},
@@ -199,7 +196,7 @@ func TestClassifyPathRefChecksPrivacyBeforeFilesystem(t *testing.T) {
 			&source,
 			"Notes",
 			ref,
-			diskRefContext{index: index, authority: authority, contains: contains},
+			diskRefContext{authority: authority, contains: contains},
 		); ok {
 			t.Errorf("classifyCapturedPathRef(%+v) = %+v, want no private finding", ref, finding)
 		}
@@ -209,7 +206,7 @@ func TestClassifyPathRefChecksPrivacyBeforeFilesystem(t *testing.T) {
 	}
 	inspected := false
 	finding, found := classifyCapturedPathRef(&source, "Notes", pathRef{target: "existing.md"}, diskRefContext{
-		index: index, authority: authority, contains: func(p string) bool {
+		authority: authority, contains: func(p string) bool {
 			inspected = true
 			if p != "Notes/existing.md" {
 				t.Errorf("authorized membership observed %q, want Notes/existing.md", p)
@@ -310,7 +307,7 @@ func TestClassifyPathRefStaysSilentOutsideTheScan(t *testing.T) {
 			t.Parallel()
 			finding, ok := classifyCapturedPathRef(
 				&source, "Writing", pathRef{target: tt.target, code: tt.code},
-				diskRefContext{index: graph.BuildFromNotes(nil, []string{".hidden.md", ".claude/skills/share-rewrite/SKILL.md", "Writing/.config/notes.md"}), authority: authority, contains: contains},
+				diskRefContext{authority: authority, contains: contains},
 			)
 			if ok != tt.wantFinding {
 				t.Fatalf("classifyCapturedPathRef(%q) reported %t, want %t (finding = %+v)",

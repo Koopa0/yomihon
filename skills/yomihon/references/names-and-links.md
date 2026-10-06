@@ -108,26 +108,27 @@ reporting `embed.section_missing` or `embed.block_missing`.
 
 ## Links that are not wikilinks
 
-A plain Markdown link resolves against the note's own folder, the vault root,
-and the shortest whole path suffix. The path is percent-decoded once before
-matching; its query and fragment keep their authored spelling. A bare filename
-may match any captured file with that filename, but a qualified path keeps its
-directory segments. Titles and aliases do not stand in for file paths. If two
-interpretations name different existing files, neither is chosen: the page
-keeps the label as text and names every candidate.
+A plain Markdown link resolves only against the folder of the note that wrote
+it. The pathname is percent-decoded exactly once, then dot segments are cleaned
+and Unicode is normalized to NFC. Captured membership is exact and
+case-sensitive. Root, basename and suffix matches, titles and aliases do not
+stand in for the authored relative path. The raw query and fragment retain
+their authored spelling; encoded delimiters remain filename characters.
 
-A unique Markdown note target leads to `/notes/`; a unique resource leads to
-`/raw/`. The source directory belongs to the note that wrote the link, including
-inside a transcluded excerpt. No Markdown link adds a wikilink graph edge.
+An existing Markdown note target leads to `/notes/`; an existing resource leads
+to `/raw/`. Embedded bodies use their own source directory. No Markdown link
+adds a wikilink graph edge.
 
-`check` applies the same resolution to links to Markdown files. A missing target
-or several targets draws `link.broken.path`; an explicit path that climbs out of
-the vault root remains `info`, because it cannot be looked up the same way on
-every machine. The finding retains the authored path, line and fingerprint.
-Private or unobserved hidden paths are withheld before membership is checked.
-Remote destinations are never fetched. Backticked `Notes/Some note.md` tokens
-retain their separate root-or-note-relative rule; percent-encoded code tokens
-remain outside that rule.
+The page and `check` diagnose valid relative Markdown-note paths only. A missing
+target draws `link.broken.path`; a valid `.md` path climbing out of the vault
+retains its informational finding. Malformed escapes, non-note resources,
+site-absolute paths and uppercase `.MD` targets remain outside that diagnostic
+domain. Findings retain the authored target spelling, line and fingerprint.
+Private source findings are filtered before full or scoped CLI output; target
+authorization and scan exclusions precede membership. An unrelated private
+same-named file does not influence a local reference. Remote destinations are
+never fetched. Backticked `Notes/Some note.md` tokens retain their separate
+root-or-note-relative rule; percent-encoded code tokens remain outside it.
 
 Spaces matter to whether CommonMark parses a link:
 

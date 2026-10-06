@@ -18,7 +18,7 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 		return wording.DiagTitleOnlyNote.In(lang)
 	case render.DiagTitleTruncatedAtHash:
 		return wording.DiagTitleCutNote.In(lang)
-	case render.DiagWikilinkAmbiguous, render.DiagMarkdownAmbiguous:
+	case render.DiagWikilinkAmbiguous:
 		return pathDiagnosticSummary(kind, lang)
 	case render.DiagUnknownCallout:
 		return wording.DiagCalloutNote.In(lang)
@@ -57,8 +57,6 @@ func pathDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string
 	switch kind {
 	case render.DiagMarkdownBroken:
 		return wording.DiagMarkdownMissingNote.In(lang)
-	case render.DiagMarkdownAmbiguous:
-		return wording.DiagMarkdownSeveralNote.In(lang)
 	case render.DiagWikilinkBroken:
 		return wording.DiagUnwrittenNote.In(lang)
 	case render.DiagWikilinkAmbiguous:

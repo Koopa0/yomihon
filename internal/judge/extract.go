@@ -1,7 +1,6 @@
 package judge
 
 import (
-	"net/url"
 	"slices"
 	"strings"
 	"unicode"
@@ -541,16 +540,11 @@ func codeSpanText(n *ast.CodeSpan, src []byte) string {
 // original spelling for later findings. A raw #fragment or ?query is omitted
 // before decoding so encoded delimiters remain filename characters.
 func fileLink(dest string) (string, bool) {
-	path := dest
-	if i := strings.IndexAny(dest, "#?"); i >= 0 {
-		path = dest[:i]
+	result := graph.ParseMarkdownPath("source.md", dest)
+	if !result.Checkable {
+		return "", false
 	}
-	path = strings.TrimSpace(path)
-	decoded, err := url.PathUnescape(path)
-	if err == nil && isMarkdownPathRef(decoded) {
-		return path, true
-	}
-	return "", false
+	return strings.TrimSuffix(dest, result.Suffix), true
 }
 
 // backtickPath reports a backticked token that is a relative vault .md path.

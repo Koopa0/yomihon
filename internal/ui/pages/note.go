@@ -23,7 +23,7 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return wording.DiagLinkTitleOnly.In(lang)
 	case render.DiagTitleTruncatedAtHash:
 		return wording.DiagTitleCut.In(lang)
-	case render.DiagWikilinkAmbiguous, render.DiagMarkdownAmbiguous:
+	case render.DiagWikilinkAmbiguous:
 		return wording.DiagLinkManyTargets.In(lang)
 	case render.DiagUnknownCallout:
 		return wording.DiagUnknownCallout.In(lang)

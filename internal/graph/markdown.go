@@ -3,63 +3,56 @@ package graph
 import (
 	"net/url"
 	"path"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// MarkdownResolution is the reading of a local Markdown destination. Relative
-// is its note-relative spelling even when no captured file answers to it.
-// Suffix preserves the authored query and fragment without decoding either.
+// MarkdownResolution is a once-decoded path relative to the authoring note.
+// Checkable names the Markdown-note domain shared by the page and judge.
+// Suffix keeps the authored query and fragment without decoding either.
 type MarkdownResolution struct {
 	Resolution
 
-	Local    bool
-	Invalid  bool
-	Outside  bool
-	Withheld bool
-	Relative string
-	Suffix   string
+	Local     bool
+	Invalid   bool
+	Checkable bool
+	Outside   bool
+	Withheld  bool
+	Relative  string
+	Suffix    string
 }
 
-// ResolveMarkdown collects every captured file a Markdown path can name. Its
-// interpretations are note-relative, vault-root and whole path suffixes; two
-// different files remain ambiguous even when one interpretation came first.
-// Authorization precedes each membership observation, including absent paths.
-func (idx *Index) ResolveMarkdown(source, destination string, allowed, contains func(string) bool) MarkdownResolution {
-	if allowed == nil || contains == nil {
-		panic("graph: ResolveMarkdown requires authorization and membership")
+// ResolveMarkdown resolves only the note-relative path using exact captured
+// membership. Target authorization finishes before membership is observed.
+func ResolveMarkdown(source, destination string, allowed, contains func(string) bool) MarkdownResolution {
+	if allowed == nil {
+		panic("graph: ResolveMarkdown requires a non-nil allowed")
 	}
-	result, interpretations, shortest := markdownReadings(source, destination)
+	if contains == nil {
+		panic("graph: ResolveMarkdown requires a non-nil contains")
+	}
+	result := ParseMarkdownPath(source, destination)
 	if !result.Local || result.Invalid || result.Outside {
 		return result
 	}
-	candidates, authorized := idx.markdownCandidates(interpretations, shortest, allowed)
-	if !authorized {
+	if vault.OutsideScan(result.Relative) || !allowed(result.Relative) {
 		result.Withheld = true
 		return result
 	}
-	// Every authorization check finishes before membership is observed. A
-	// private interpretation cannot turn a public one into a guessed answer.
-	candidates = slices.DeleteFunc(candidates, func(candidate string) bool { return !contains(candidate) })
-	slices.Sort(candidates)
-	candidates = slices.Compact(candidates)
-	switch len(candidates) {
-	case 0:
-	case 1:
-		result.Kind, result.RelPath = KindUnique, candidates[0]
-	default:
-		result.Kind, result.Candidates = KindAmbiguous, candidates
+	if contains(result.Relative) {
+		result.Kind, result.RelPath = KindUnique, result.Relative
 	}
 	return result
 }
 
-func markdownReadings(source, destination string) (result MarkdownResolution, interpretations []string, shortest string) {
+// ParseMarkdownPath separates the raw suffix, decodes the pathname once and
+// normalizes its note-relative spelling to NFC. It observes no membership.
+func ParseMarkdownPath(source, destination string) (result MarkdownResolution) {
 	raw, suffix := markdownPathAndSuffix(destination)
 	if !markdownLocalPath(raw) {
-		return result, nil, ""
+		return result
 	}
 	result.Local, result.Suffix = true, suffix
 	decoded, err := url.PathUnescape(raw)
@@ -67,52 +60,12 @@ func markdownReadings(source, destination string) (result MarkdownResolution, in
 		return r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == '\\'
 	}) {
 		result.Invalid = true
-		return result, nil, ""
+		return result
 	}
-	noteRelative := path.Clean(path.Join(path.Dir(source), decoded))
-	if rooted, found := strings.CutPrefix(decoded, "/"); found {
-		noteRelative = path.Clean(rooted)
-	}
-	result.Relative = vault.NormalizeNFC(noteRelative)
-	if !markdownWithinRoot(noteRelative) {
-		result.Outside = true
-		return result, nil, ""
-	}
-	shortest = path.Clean(strings.TrimPrefix(decoded, "/"))
-	interpretations = []string{result.Relative}
-	if markdownWithinRoot(shortest) {
-		interpretations = append(interpretations, vault.NormalizeNFC(shortest))
-	}
-	return result, interpretations, shortest
-}
-
-func (idx *Index) markdownCandidates(interpretations []string, shortest string, allowed func(string) bool) ([]string, bool) {
-	for _, candidate := range interpretations {
-		if vault.OutsideScan(candidate) || !allowed(candidate) {
-			return nil, false
-		}
-	}
-	var candidates []string
-	for _, candidate := range idx.paths {
-		if !markdownCandidate(candidate, interpretations, shortest) {
-			continue
-		}
-		if vault.OutsideScan(candidate) || !allowed(candidate) {
-			return nil, false
-		}
-		candidates = append(candidates, candidate)
-	}
-	return candidates, true
-}
-
-func markdownCandidate(candidate string, interpretations []string, shortest string) bool {
-	key := NormalizeKey(candidate)
-	for _, reading := range interpretations {
-		if key == NormalizeKey(reading) {
-			return true
-		}
-	}
-	return markdownWithinRoot(shortest) && (key == NormalizeKey(shortest) || strings.HasSuffix(key, "/"+NormalizeKey(shortest)))
+	result.Checkable = vault.IsMarkdown(decoded) && !strings.ContainsAny(decoded, "*<>")
+	result.Relative = vault.NormalizeNFC(path.Clean(path.Join(path.Dir(source), decoded)))
+	result.Outside = !markdownWithinRoot(result.Relative)
+	return result
 }
 
 func markdownWithinRoot(candidate string) bool {
@@ -120,13 +73,8 @@ func markdownWithinRoot(candidate string) bool {
 }
 
 func markdownLocalPath(value string) bool {
-	if value == "" || strings.HasPrefix(value, "//") || markdownHasScheme(value) || strings.HasPrefix(value, "~") {
+	if value == "" || strings.HasPrefix(value, "/") || markdownHasScheme(value) || strings.HasPrefix(value, "~") {
 		return false
-	}
-	for _, route := range []string{"/notes/", "/raw/", "/static/"} {
-		if strings.HasPrefix(value, route) {
-			return false
-		}
 	}
 	return true
 }

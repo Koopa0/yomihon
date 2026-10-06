@@ -11,6 +11,7 @@ package render
 // existing rendering.
 
 import (
+	"fmt"
 	"html"
 	"strings"
 
@@ -123,7 +124,7 @@ func (r externalLinkRenderer) renderAutoLink(w util.BufWriter, source []byte, no
 func renderMarkdownFault(w util.BufWriter, node ast.Node, value any, entering bool) (ast.WalkStatus, error) {
 	fault, valid := value.(markdownFault)
 	if !valid {
-		panic("render: invalid Markdown fault attribute")
+		return ast.WalkStop, fmt.Errorf("render: Markdown fault attribute has type %T, want markdownFault", value)
 	}
 	if entering {
 		return ast.WalkContinue, writeStrings(w, `<span class="`, fault.class, `" title="`, html.EscapeString(fault.reason), `">`)
