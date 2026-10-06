@@ -1863,15 +1863,15 @@ func TestShelfFolders(t *testing.T) {
 		{Name: "System", RelPath: "System", Subfolders: []Folder{
 			{Name: "nested", RelPath: "System/nested", Notes: []NoteRef{{Name: "repair", RelPath: "System/nested/repair.md"}}},
 		}},
-		{Name: "ConceptsExtra", RelPath: "ConceptsExtra", Notes: []NoteRef{{Name: "other", RelPath: "ConceptsExtra/other.md"}}},
-		{Name: "Outside", RelPath: "Outside", Subfolders: []Folder{
-			{Name: "cOnCePtS", RelPath: "Outside/cOnCePtS", Notes: []NoteRef{{Name: "other", RelPath: "Outside/cOnCePtS/other.md"}}},
-		}},
 		{Name: "cOnCePtS", RelPath: "cOnCePtS", Notes: []NoteRef{
 			{Name: "9-start", RelPath: "cOnCePtS/9-start.md"},
 			{Name: "10-end", RelPath: "cOnCePtS/10-end.md"},
 		}, Subfolders: []Folder{
 			{Name: "lessons", RelPath: "cOnCePtS/lessons", Notes: []NoteRef{{Name: "guide", RelPath: "cOnCePtS/lessons/guide.md"}}},
+		}},
+		{Name: "ConceptsExtra", RelPath: "ConceptsExtra", Notes: []NoteRef{{Name: "other", RelPath: "ConceptsExtra/other.md"}}},
+		{Name: "Outside", RelPath: "Outside", Subfolders: []Folder{
+			{Name: "cOnCePtS", RelPath: "Outside/cOnCePtS", Notes: []NoteRef{{Name: "other", RelPath: "Outside/cOnCePtS/other.md"}}},
 		}},
 	}
 	tests := []struct {
@@ -1882,7 +1882,7 @@ func TestShelfFolders(t *testing.T) {
 		{
 			name:  "declared first segment folds case without matching prefixes or descendants",
 			scope: loadCapabilityContract(t, "", "").KnowledgeScope(),
-			want:  []Folder{allFolders[0], allFolders[4]},
+			want:  []Folder{allFolders[0], allFolders[2]},
 		},
 		{name: "unavailable scope retains all folders", want: allFolders},
 	}
