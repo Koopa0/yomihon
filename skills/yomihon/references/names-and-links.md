@@ -79,6 +79,17 @@ look identical in the source and behave differently in the browser.
 A note's own headings become anchors with CJK intact; a repeated heading slug
 gets `-2`, `-3` appended until it is free.
 
+`[[Note#Parent#Child]]` names Child beneath Parent, rather than a heading
+called `Parent#Child`. Earlier names must occur among the child's active
+ancestors in order; intermediate headings and skipped levels are allowed.
+The link uses the child's actual page id, including a suffix when that name
+already occurs elsewhere. A repeated complete path takes the first match.
+`![[Note#Parent#Child]]` cuts that child's source section, with the same
+top-level heading boundaries as a single-name embed. An absent path keeps the
+existing missing-section diagnostic. Empty path segments retain the literal
+single-name reading, including a heading whose text ends in `#`. Within a
+note, `[[#Parent#Child]]` reads the same way against that note's own headings.
+
 ### What a block address is, exactly
 
 A block address is the caret **and** the word: you end a line with `^my-id`,

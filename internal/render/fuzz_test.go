@@ -34,6 +34,7 @@ func FuzzHTML(f *testing.F) {
 		"before ![[target]] after",
 		"before %%hidden%% after\n```text %%literal info%%\n%%literal%%\n```",
 		"## 重複\n## 重複\n<h2>raw heading</h2>",
+		"[[target#Embedded#Child]]\n[[target#Embedded##Child]]\n![[target#Embedded#Child]]",
 		"Inline^[**bold** and `]` and [link](#h)] then ordinary[^n].\n\n[^n]: definition\n",
 		"^[未閉合\n```text\n^[literal]\n",
 		"^[note] [^yomihon-inline-footnote-1]\n\n[^yomihon-inline-footnote-1]: authored\n",
@@ -44,7 +45,7 @@ func FuzzHTML(f *testing.F) {
 	const targetPath = "target.md"
 	renderer := New(
 		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, []string{"p.png"}),
-		fuzzTransclusions{targetPath: "## Embedded\nbody with ![[target]]"},
+		fuzzTransclusions{targetPath: "## Embedded\n### Child\nbody with ![[target]] and [[target#Embedded#Child]]"},
 		internalNoTitles{},
 		holdsEverything{},
 	)
