@@ -39,7 +39,7 @@ const arrived = (page) => page.waitForFunction(
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['match-in-view', 'heading-in-view', 'strike-in-view'];
+const SITES = ['match-in-view', 'heading-in-view', 'english-heading-in-view', 'strike-in-view'];
 
 // The searched-for characters, the run the match follows inside its own
 // block, the part of that run the row names, the characters that follow the
@@ -50,6 +50,13 @@ const BLOCK_RUN = '那本咖啡色封皮的舊冊子在星期四早晨被翻開�
 const NAMED_RUN = BLOCK_RUN.slice(BLOCK_RUN.indexOf('，') + 1);
 const CUT_RUN = BLOCK_RUN.slice(BLOCK_RUN.length - 30);
 const WIDTH = 1600;
+
+// A hit inside a heading names the heading through its end and then the
+// section's first words. The contents list repeats the heading and, at the
+// narrow width, stands above the prose; its copy is followed by the next
+// entry's name, so without those words the browser lands on the list.
+const HEADING_SECTION_OPENING = '這一節只談收尾的順序。';
+const ENGLISH_SECTION_OPENING = 'The shelf keeps';
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -87,12 +94,19 @@ const rewritePath = (path, needle, replacement, expected, label) => async (page)
 };
 
 const MUTATIONS = {
-  'replace-the-body-heading-with-text': {
+  'drop-the-heading-context': {
     target: 'heading-in-view',
     apply: rewritePath('/search?q=' + encodeURIComponent('等待'),
-      '#' + encodeURIComponent('等待者應該放在哪裡'),
-      '#:~:text=' + encodeURIComponent('等待') + ',-' + encodeURIComponent('者應該放在哪裡'),
+      ',-' + encodeURIComponent(HEADING_SECTION_OPENING),
+      '',
       1, 'heading result'),
+  },
+  'drop-the-english-heading-context': {
+    target: 'english-heading-in-view',
+    apply: rewritePath('/search?q=inkwell',
+      ',-' + encodeURIComponent(ENGLISH_SECTION_OPENING),
+      '',
+      1, 'english heading result'),
   },
   'drop-the-strike-landing': {
     target: 'strike-in-view',
@@ -166,18 +180,6 @@ const wordCopies = (page, selector, word) => page.evaluate(([sel, w]) => {
   return found;
 }, [selector, word]);
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
-
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
@@ -231,6 +233,7 @@ try {
   await context.close();
   const cases = [
     { site: 'heading-in-view', query: '等待' },
+    { site: 'english-heading-in-view', query: 'inkwell' },
     { site: 'strike-in-view', query: '取消' },
   ];
   for (const testCase of cases) {
