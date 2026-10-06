@@ -43,6 +43,18 @@
 // Env: YOMIHON_BASE, PAGE_PATH (the report's own search), and MUTATE.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const REPORT_QUERY = 'れ、';
 const PAGE = process.env.PAGE_PATH || `/search?q=${encodeURIComponent(REPORT_QUERY)}`;
@@ -257,6 +269,7 @@ const land = async (browser, testCase, width, furigana, apply) => {
   await link.click();
   await page.waitForURL(NOTE);
   await page.waitForLoadState('load');
+  await arrived(page);
   let scroll = -1;
   for (let i = 0; i < 20; i += 1) {
     await page.waitForTimeout(150);
