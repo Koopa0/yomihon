@@ -8,10 +8,13 @@ import (
 // NotFoundView is what a reader who asked for something that is not here needs
 // to see. Asked is the path they typed, echoed back escaped like any other note
 // text. Unreadable distinguishes a file that exists and could not be read from a
-// path that names nothing: one needs a permission fixed, the other a typo.
+// path that names nothing. ParsePanic says its bytes opened but could not be
+// parsed; Reason carries that parser's words.
 type NotFoundView struct {
 	Asked      string
 	Unreadable bool
+	ParsePanic bool
+	Reason     string
 	Sidebar    Sidebar
 }
 
@@ -29,7 +32,12 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 					// A file that exists and could not be read is a fault and
 					// takes the fault colour; an address that names nothing is
 					// an absence and stays quiet.
-					if v.Unreadable {
+					if v.Unreadable && v.ParsePanic {
+						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.ParseFailedKicker.In(c.Lang), Title: wording.ParseFailedTitle.In(c.Lang), TitleID: "notfound-title", Page: true, Fault: true}) {
+							<p>{ wording.ParseFailedLede.In(c.Lang) }</p>
+							<p><code lang="en">{ v.Reason }</code></p>
+						}
+					} else if v.Unreadable {
 						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.NotReadableKicker.In(c.Lang), Title: wording.NotReadableTitle.In(c.Lang), TitleID: "notfound-title", Page: true, Fault: true}) {
 							<p>{ wording.NotReadableLede.In(c.Lang) }</p>
 						}
@@ -46,7 +54,11 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 					}
 					<section class="y-recovery__next" aria-labelledby="notfound-next-title">
 						<h2 id="notfound-next-title">{ wording.WhatNext.In(c.Lang) }</h2>
-						<p>{ wording.NotFoundNext.In(c.Lang) }</p>
+						if v.Unreadable && v.ParsePanic {
+							<p>{ wording.ParseFailedNext.In(c.Lang) }</p>
+						} else {
+							<p>{ wording.NotFoundNext.In(c.Lang) }</p>
+						}
 					</section>
 					<nav class="y-recovery__actions" aria-label={ wording.LeaveThisPage.In(c.Lang) }>
 						<a class="y-recovery__action" href="/search">{ wording.SearchNotes.In(c.Lang) }</a>

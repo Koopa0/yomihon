@@ -5,7 +5,6 @@ import (
 	"html"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -128,27 +127,16 @@ func TestSkippedMarkdownOpensAsADocument(t *testing.T) {
 		})
 	}
 
-	// The link is resolved from the file's own folder, the way a browser
-	// resolves it from the page's address. A README at the root could not tell
-	// that from a link resolved against the vault root; this one cannot.
+	// A skipped document still resolves links from its own folder, against the
+	// captured file inventory. The emitted canonical route reaches that note.
 	_, body := pageIn(t, srv, target, wording.En)
-	if !strings.Contains(body, `<a href="guide.md">the guide</a>`) {
-		t.Fatalf("the relative link is not written as authored:\n%s", body)
+	const destination = "/notes/Writing/guide.md"
+	if !strings.Contains(body, `<a href="`+destination+`">the guide</a>`) {
+		t.Fatalf("the relative link does not name its canonical reading route:\n%s", body)
 	}
-	page, err := url.Parse(srv.URL + target)
-	if err != nil {
-		t.Fatalf("parse page address: %v", err)
-	}
-	dest, err := page.Parse("guide.md")
-	if err != nil {
-		t.Fatalf("resolve the link against the page: %v", err)
-	}
-	if dest.Path != "/notes/Writing/guide.md" {
-		t.Fatalf("the link resolves to %s, want /notes/Writing/guide.md", dest.Path)
-	}
-	code, guide := pageIn(t, srv, dest.Path, wording.En)
+	code, guide := pageIn(t, srv, destination, wording.En)
 	if code != http.StatusOK || !strings.Contains(guide, "The Guide") {
-		t.Errorf("GET %s = %d; the link does not reach the note it names", dest.Path, code)
+		t.Errorf("GET %s = %d; the link does not reach the note it names", destination, code)
 	}
 
 	// A picture is resolved on the server, against the file's own folder.
@@ -156,10 +144,9 @@ func TestSkippedMarkdownOpensAsADocument(t *testing.T) {
 		t.Errorf("the picture is not resolved from the file's own folder:\n%s", body)
 	}
 
-	// A link that leaves the vault is written exactly as a note writes it: the
-	// renderer marks nothing for an ordinary Markdown link, so the document
-	// adds nothing a note would not.
-	const leaving = `<a href="../../out.md">the parent</a>`
+	// A link outside the vault has the same noninteractive refusal in a
+	// skipped document and a note, so it cannot become a browser route.
+	const leaving = `<span class="wikilink-broken" title="&#34;../../out.md&#34; leaves the vault; the link text remains">the parent`
 	if !strings.Contains(body, leaving) {
 		t.Errorf("the document does not write a link leaving the vault as a note does; want %s", leaving)
 	}

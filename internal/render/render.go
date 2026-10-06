@@ -58,6 +58,8 @@ type Files interface {
 type DiagnosticKind string
 
 const (
+	// DiagMarkdownBroken means a local Markdown path has no captured target.
+	DiagMarkdownBroken DiagnosticKind = "markdown-broken"
 	// DiagWikilinkBroken means a [[wikilink]] or ![[embed]] target does
 	// not resolve to any note or file.
 	DiagWikilinkBroken DiagnosticKind = "wikilink-broken"
@@ -268,8 +270,7 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 		// beside it: the two are read by line number together.
 		address = slices.Delete(slices.Clone(address), dropped, dropped+1)
 	}
-	col := &collector{page: page, relPath: relPath, body: body, onPage: region == hostRegion}
-	res := r.renderBody(source, address, embedsAllowed, col, region)
+	res := r.renderBody(bodyInput{path: relPath, text: source, address: address, original: body, onPage: region == hostRegion}, embedsAllowed, page, region)
 	res.Diagnostics = appendUnclosedComment(res.Diagnostics, unclosedComment)
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
@@ -435,11 +436,23 @@ func footnoteRegionPrefix(n ast.Node) []byte {
 // callout's body is not among them — it is the note's own text and is read by
 // the note's own parse. The body arrives with its Obsidian %% comments already
 // removed, and a second pass could reopen a marker ruled literal.
-func (r *Pipeline) render(relPath, body string, allowEmbed embedPolicy, page *composition) Result {
+func (r *Pipeline) render(body, relPath string, allowEmbed embedPolicy, page *composition) Result {
 	// An excerpt arrives already cut from a body whose comments came off where
 	// that cut was made, so these lines are the geometry this render was handed.
-	col := &collector{page: page, relPath: relPath}
-	return r.renderBody(body, strings.Split(body, "\n"), allowEmbed, col, page.nextRegion())
+	return r.renderBody(bodyInput{path: relPath, text: body, address: strings.Split(body, "\n")}, allowEmbed, page, page.nextRegion())
+}
+
+// bodyInput keeps a body's captured owner beside its text and line geometry.
+// An embedded body resolves its Markdown paths against its own file.
+type bodyInput struct {
+	path    string
+	text    string
+	address []string
+	// original is the note's own text before preprocessing, set only for the
+	// page's host body, so a same-note heading link reads that note and no other
+	// captured version of it. onPage permits a fragment-only address.
+	original string
+	onPage   bool
 }
 
 // renderBody renders one body. address is that body's lines carrying the
@@ -447,8 +460,9 @@ func (r *Pipeline) render(relPath, body string, allowEmbed embedPolicy, page *co
 // instead of the lines this leaves: the neutralisation below can empty a line
 // that held nothing but placeholder runes, and a run edge there is one nobody
 // typed.
-func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPolicy, col *collector, region string) Result {
-	page := col.page
+func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *composition, region string) Result {
+	body, address := input.text, input.address
+	col := &collector{page: page, relPath: input.path, body: input.original, onPage: input.onPage}
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
 	// authored copy before placeholders exist prevents source from selecting or
 	// relocating renderer-owned HTML during substituteBlocks.
@@ -466,6 +480,7 @@ func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPol
 	// the document the footnote extension will ask about.
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
+	r.resolveMarkdownLinks(doc, input.path, col)
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
 	doc.SetAttributeString(footnoteLangAttr, []byte(page.lang))
 	attachHighlightReporter(doc, col)
