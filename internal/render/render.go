@@ -168,6 +168,9 @@ type Result struct {
 	HTML        string
 	Diagnostics []Diagnostic
 	TOC         []TOCEntry
+	// Blocks lists the canonical ids of this note's emitted block anchors, in
+	// document order. Hidden definitions and transcluded markers carry none.
+	Blocks []string
 	// TitleAnchor is the id the page's visible title has to carry, set only when
 	// this render removed an authored opening heading saying the same thing. That
 	// heading was a place a link could name, so the anchor moves to where its
@@ -459,7 +462,7 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 		}
 		return r
 	}, body)
-	source, blocks, inline := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
+	source, marks := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
 
 	// Parse and render as two steps rather than one Convert call, which is
 	// exactly what Convert does, so this region's id prefix can be attached to
@@ -482,7 +485,8 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
 	}
 
-	return Result{HTML: substituteBlocks(buf.String(), blocks, inline), Diagnostics: col.diags}
+	htmlOut, blocks := substituteMarkedBlocks(buf.String(), marks.blocks, marks.inline, marks.anchors)
+	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
 }
 
 // removeBodyFirstH1 drops a leading level-1 ATX heading when the page already
