@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 
 	"github.com/a-h/templ"
 
@@ -343,7 +344,12 @@ func (v *HealthView) gather(lang wording.Lang) []healthRow {
 func (v *HealthView) sourceRows(lang wording.Lang) []healthRow {
 	out := make([]healthRow, 0, len(v.Blocked)+len(v.Skipped))
 	for _, source := range v.Blocked {
-		out = append(out, healthRow{Kind: healthBlocked, FilePath: source.Path, Detail: machineDetail(source.Reason), Count: 1})
+		detail := machineDetail(source.Reason)
+		if source.ParsePanic {
+			detail = []healthDetail{{Text: wording.ParseFailedKicker.In(lang)}}
+			detail = append(detail, machineDetail(strconv.Quote(source.Reason))...)
+		}
+		out = append(out, healthRow{Kind: healthBlocked, FilePath: source.Path, Detail: detail, Count: 1})
 	}
 	for _, source := range v.Skipped {
 		var detail []healthDetail
@@ -588,6 +594,18 @@ func (v *HealthView) clean() bool {
 // current the page behind it is.
 func (v *HealthView) blockedLede(lang wording.Lang) string {
 	lede := wording.BlockedLede.In(lang)
+	parsed := 0
+	for _, source := range v.Blocked {
+		if source.ParsePanic {
+			parsed++
+		}
+	}
+	if parsed > 0 {
+		lede = wording.MixedBlockedLede.In(lang)
+		if parsed == len(v.Blocked) {
+			lede = wording.ParseBlockedLede.In(lang)
+		}
+	}
 	if v.LastComplete == "" {
 		return lede + wording.BlockedNeverComplete.In(lang)
 	}

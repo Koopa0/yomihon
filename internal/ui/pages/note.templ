@@ -19,8 +19,11 @@ import (
 // OutsideKnowledgeScope, NoFrontmatter and FrontmatterUnclosed drive the two
 // status faces.
 type NoteView struct {
-	Title   string
-	RelPath string
+	// NestedTitle places this note under a page heading rather than making
+	// it the page heading itself. Its body must already occupy that level.
+	NestedTitle bool
+	Title       string
+	RelPath     string
 	// Language is what the note is written in, as the note declares it. The
 	// language the page's own words are in arrives with the chrome, so one
 	// page cannot hold two answers to it.
@@ -34,6 +37,10 @@ type NoteView struct {
 	// Stale is set where the file could not be read while this page was built,
 	// so the words below are the last ones read rather than the current ones.
 	Stale bool
+	// ParsePanic names a failed attempt to parse the current bytes, including
+	// while this reading is retained before a stale generation is published.
+	ParsePanic  bool
+	ParseReason string
 	// Updated is the display date the metarow carries and UpdatedAt its
 	// machine-readable value: the author's declared update where the
 	// frontmatter has a readable one, the file's recorded change time
@@ -225,9 +232,9 @@ templ Note(v NoteView, c layouts.Chrome) {
 // copy of this would be free to drift from the one a reader sees on the note's
 // own page.
 //
-// The write face is what the two uses differ by, and they differ structurally:
-// the note's own page passes it in, a column beside another note passes nothing.
-// Nothing here asks which page it is on.
+// The write face differs structurally: the note's own page passes it in, a
+// column beside another note passes nothing. A nested title and body occupy
+// one level below their enclosing page heading.
 templ noteArticle(v NoteView, lang wording.Lang) {
 	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { uncertaintyAttrs(&v, lang)... }>
 		@articleHead(v, lang)
@@ -235,7 +242,13 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
 		<div class="y-prose">
-			@templ.Raw(v.BodyHTML)
+			if strings.TrimSpace(v.BodyHTML) == "" && !v.hasUnclosedComment() {
+				@nothingToShow(nothingNotice{Kind: "note"}) {
+					<p lang={ lang.Tag() }>{ wording.NoteEmptyBody.In(lang) }</p>
+				}
+			} else {
+				@templ.Raw(v.BodyHTML)
+			}
 		</div>
 		@relatedAids(v, lang)
 		@sequenceSteps(v, lang)
@@ -299,7 +312,13 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	}
 	// A jump has to land on the words it named, so the anchor goes on the
 	// visible heading rather than a hidden marker beside it.
-	if v.TitleAnchor != "" {
+	if v.NestedTitle {
+		if v.TitleAnchor != "" {
+			<h2 id={ v.TitleAnchor } class="y-title">{ v.Title }</h2>
+		} else {
+			<h2 class="y-title">{ v.Title }</h2>
+		}
+	} else if v.TitleAnchor != "" {
 		<h1 id={ v.TitleAnchor } class="y-title">{ v.Title }</h1>
 	} else {
 		<h1 class="y-title">{ v.Title }</h1>
@@ -336,7 +355,9 @@ templ articleHead(v NoteView, lang wording.Lang) {
 			@thoughtDoor(v, lang)
 		</div>
 	}
-	if v.Stale {
+	if v.ParsePanic {
+		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code></p>
+	} else if v.Stale {
 		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}
 }

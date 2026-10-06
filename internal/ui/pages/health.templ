@@ -106,8 +106,9 @@ type HealthNoteFindings struct {
 // HealthBlockedSource is one path the snapshot build could not read, with the
 // error it returned.
 type HealthBlockedSource struct {
-	Path   string
-	Reason string
+	Path       string
+	Reason     string
+	ParsePanic bool
 }
 
 // HealthSkippedSource is one path the generation saw and did not index, with
@@ -159,7 +160,6 @@ templ Health(v HealthView, c layouts.Chrome) {
 					}
 				</article>
 			</main>
-			<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(c.Lang) }></aside>
 		</div>
 	}
 }

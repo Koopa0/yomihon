@@ -1,0 +1,1 @@
+{"rule_id":"link.broken.path","severity":"warn","path":"Writing/Source.md","line":8,"message":"link to Absent%20note.md resolves to no file","evidence":"Writing/Absent note.md does not exist in the vault","suggested_action":"fix the path, restore the file, or remove the reference","source_rule":"yomihon","target":"Absent%20note.md","fingerprint":"v1:2fd7031b720e02e0"}

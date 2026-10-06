@@ -27,6 +27,8 @@ import (
 func FuzzSplitFrontmatter(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("no frontmatter body\n"))
+	f.Add([]byte("\xef\xbb\xbf# Heading\n"))
+	f.Add([]byte("\xef\xbb\xbf---\r\ntitle: x\r\n---\r\nbody\r\n"))
 	f.Add([]byte("---\ntitle: x\n---\nbody\n"))
 	f.Add([]byte("---\r\ntitle: x\r\n---\r\nbody\r\n"))
 	f.Add([]byte("---\ntitle: x\n...\nbody\n"))
@@ -51,6 +53,10 @@ func FuzzSplitFrontmatter(f *testing.F) {
 			t.Fatalf("vault.SplitFrontmatter is not deterministic for %q", data)
 		}
 
+		wantUnsplit := data
+		if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) {
+			wantUnsplit = data[3:]
+		}
 		if !found {
 			if bodyLine != 1 {
 				t.Errorf("vault.SplitFrontmatter(%q) not found: bodyLine = %d, want 1", data, bodyLine)
@@ -58,8 +64,8 @@ func FuzzSplitFrontmatter(f *testing.F) {
 			if fm != nil {
 				t.Errorf("vault.SplitFrontmatter(%q) not found: fm = %q, want nil", data, fm)
 			}
-			if !bytes.Equal(body, data) {
-				t.Errorf("vault.SplitFrontmatter(%q) not found: body = %q, want the whole input", data, body)
+			if !bytes.Equal(body, wantUnsplit) {
+				t.Errorf("vault.SplitFrontmatter(%q) not found: body = %q, want input after one leading byte-order mark %q", data, body, wantUnsplit)
 			}
 			return
 		}
@@ -101,11 +107,16 @@ func FuzzSplitFrontmatter(f *testing.F) {
 // openingFenceLen is the length of the opening frontmatter fence at the very
 // start of data, or 0 when there is none.
 func openingFenceLen(data []byte) int {
+	mark := 0
+	if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) {
+		mark = 3
+		data = data[3:]
+	}
 	switch {
 	case bytes.HasPrefix(data, []byte("---\n")):
-		return len("---\n")
+		return mark + len("---\n")
 	case bytes.HasPrefix(data, []byte("---\r\n")):
-		return len("---\r\n")
+		return mark + len("---\r\n")
 	default:
 		return 0
 	}
