@@ -113,14 +113,14 @@ const rewriteResponse = async (page, url, replacements, label) => {
 
 const rewriteHome = (replacements, label) => (page) => rewriteResponse(page, BASE + PAGE, replacements, label);
 const rewriteSearchPage = (replacements, label) => (page) => rewriteResponse(page, BASE + '/search', replacements, label);
-const rewriteScript = (replacements, label, moduleName = 'search.js') => (page) => rewriteResponse(page, `**/${moduleName}`, replacements, label);
+const rewriteScript = (replacements, label, moduleName = 'search.js') => (page) => rewriteResponse(page, `**/${moduleName}{,?*}`, replacements, label);
 
 // Appending to the product's own stylesheet lands outside the layer it
 // declares, so the appended rule outranks the one it stands in for without an
 // importance flag.
 const appendToStylesheet = (rule, label) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
@@ -134,7 +134,7 @@ const appendToStylesheet = (rule, label) => async (page) => {
 // reach what the first one wrote.
 const announceThroughAReplacementTemplate = (page) => rewriteResponse(
   page,
-  '**/search.js',
+  '**/search.js{,?*}',
   [{
     needle: "template.replace(/\\{query\\}|\\{count\\}/g, (mark) => (mark === '{query}' ? query : String(count)))",
     replacement: "template.replace('{query}', query).replace('{count}', String(count))",
@@ -146,7 +146,7 @@ const announceThroughAReplacementTemplate = (page) => rewriteResponse(
 // for a search the reader has already moved off.
 const reopenWithoutAsking = (page) => rewriteResponse(
   page,
-  '**/search.js',
+  '**/search.js{,?*}',
   // The check now hangs off the dialog's own announcement that it has opened,
   // which is the one thing every way in has in common — a press the browser
   // performed from the markup, the chord, or the module's own fallback. So the

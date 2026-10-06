@@ -309,6 +309,9 @@ func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionH
 		return preparedCommand{}, err
 	}
 	report := existsLookup(a.notes, o.Name, a.authority)
+	if strings.Contains(o.Name, "/") {
+		appendExistsPaths(&report, a.notes, buildIndex(a.notes, a.unreadable, a.resources), a.authority)
+	}
 	// "A note answers to this name" survives a folder with a hole in it: the
 	// note that answers was read. "No note does" is the same conclusion the
 	// whole-vault rules make, and it is the one a caller writes a new note on

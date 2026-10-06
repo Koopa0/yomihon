@@ -64,14 +64,14 @@ func TestEnumGuidanceReadsTheContractOnEveryReadingSurface(t *testing.T) {
 						}
 						t.Log("hit: real GET vocabulary consumer reached")
 						page := enumGuidancePage(t, srv.Client(), srv.URL+"/notes/"+rel, lang)
-						notices := enumElements(page, func(n *html.Node) bool { return enumAttribute(n, "id") == "schema-notices" })
+						notices := enumElements(page, func(n *html.Node) bool { return enumAttribute(n, "id") == "_y-schema-notices" })
 						if len(notices) != 1 {
 							t.Fatalf("schema notice blocks = %d, want 1", len(notices))
 						}
 						assertEnumList(t, notices[0], tc.field, want, lang)
 						if tc.field == "status" && contract.DeclaresType(tc.kind) {
 							panels := enumElements(page, func(n *html.Node) bool {
-								return enumHasClass(n, "y-statusflag") && strings.Contains(enumText(n), tc.value) && !enumHasAncestor(n, "id", "schema-notices")
+								return enumHasClass(n, "y-statusflag") && strings.Contains(enumText(n), tc.value) && !enumHasAncestor(n, "id", "_y-schema-notices")
 							})
 							if len(panels) != 2 {
 								t.Fatalf("wide/narrow status flags = %d, want 2", len(panels))

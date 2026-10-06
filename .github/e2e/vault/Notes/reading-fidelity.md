@@ -124,3 +124,5 @@ A repeated quote still gives every child its own control.
 - [ ] ![[task-child]]
 
 [^scope]: Only the scope of this study is covered.
+
+[[Glass Tide#Second parent#Nested child|second nested child]]
