@@ -403,7 +403,7 @@ func remapPlainOffsets(raw string, blocks []render.Block, fences [][2]int) (mapp
 			end = len(raw)
 		}
 		cur.advanceTo(end)
-		mapped = appendUniqueBlock(mapped, render.Block{End: cur.n, Verbatim: b.Verbatim, Heading: b.Heading})
+		mapped = appendUniqueBlock(mapped, render.Block{End: cur.n, Verbatim: b.Verbatim, Heading: b.Heading, Literal: b.Literal})
 		if len(b.ContextRanges) > 0 && cur.n > 0 {
 			contexts = append(contexts, contextMapping{block: len(mapped) - 1, first: first, count: len(b.ContextRanges)})
 		}
@@ -522,6 +522,7 @@ func appendUniqueBlock(out []render.Block, block render.Block) []render.Block {
 	if n := len(out); n > 0 && out[n-1].End == block.End {
 		out[n-1].Verbatim = out[n-1].Verbatim && block.Verbatim
 		out[n-1].Heading = false
+		out[n-1].Literal = out[n-1].Literal && block.Literal
 		return out
 	}
 	return append(out, block)

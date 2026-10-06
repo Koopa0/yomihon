@@ -7,6 +7,7 @@ package render
 
 import (
 	"bytes"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -66,8 +67,17 @@ type Block struct {
 
 	// Heading reports that the block is a heading the page shows exactly as
 	// written. The page's contents list repeats those words, so text inside
-	// the heading alone cannot tell the list's copy from the body's.
+	// the heading alone cannot tell the list's copy from the body's. Such a
+	// block offers no ContextRanges for the same reason.
 	Heading bool
+
+	// Literal reports that the block's source holds none of the constructs
+	// whose page text is not their source text: an entity reference, a
+	// backslash escape, a link, an autolink or a bare address the page links,
+	// inline HTML, or a footnote reference. Words read from such a block may
+	// be named beside a match in another block, which Verbatim alone does not
+	// vouch for. False wherever the walk cannot tell.
+	Literal bool
 }
 
 // PlainBlocks returns the searchable text of a note body, one Block per
@@ -97,7 +107,7 @@ func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions
 	src := []byte(source)
 	doc := plainParser.Parse(text.NewReader(src))
 
-	w := plainWalk{blockVerbatim: true, blockContext: true, rewritten: rewritten, emissions: emissions}
+	w := plainWalk{blockVerbatim: true, blockContext: true, blockLiteral: true, rewritten: rewritten, emissions: emissions}
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
@@ -170,6 +180,7 @@ type plainWalk struct {
 	// and the page does not.
 	blockVerbatim bool
 	blockContext  bool
+	blockLiteral  bool
 	headingLevel  int
 	rewritten     *rewrittenLines
 	// readings holds <rt>/<rtc> text until the block's base text has been
@@ -246,9 +257,10 @@ func shiftBlocks(blocks []Block, lead, length int) []Block {
 		}
 		if n := len(out); n > 0 && out[n-1].End >= adj {
 			out[n-1].Verbatim = out[n-1].Verbatim && b.Verbatim
+			out[n-1].Literal = out[n-1].Literal && b.Literal
 			continue
 		}
-		out = append(out, Block{End: adj, Verbatim: b.Verbatim, ContextRanges: shiftRanges(b.ContextRanges, lead, length), Heading: b.Heading})
+		out = append(out, Block{End: adj, Verbatim: b.Verbatim, ContextRanges: shiftRanges(b.ContextRanges, lead, length), Heading: b.Heading, Literal: b.Literal})
 	}
 	return out
 }
@@ -303,11 +315,36 @@ func (w *plainWalk) closeBlock() {
 	if !verbatim && w.blockContext && w.readings.Len() == 0 {
 		contexts = localContextRanges(s, start, end, w.headingLevel)
 	}
-	heading := w.headingLevel > 0 && len(contexts) == 1 && contexts[0] == [2]int{start, end}
-	w.blocks = append(w.blocks, Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading})
+	literal := w.blockLiteral && w.readings.Len() == 0 && !sourceUnlikeItsPage(s[start:end])
+	heading := w.headingLevel > 0 && literal && len(contexts) == 1 && contexts[0] == [2]int{start, end}
+	if w.headingLevel > 0 {
+		// A heading's own words are what its contents-list copy repeats, so
+		// they vouch for nothing beside a match in it.
+		contexts = nil
+	}
+	w.blocks = append(w.blocks, Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading, Literal: literal})
 	w.blockVerbatim = true
 	w.blockContext = true
+	w.blockLiteral = true
 	w.headingLevel = 0
+}
+
+// entityReference matches what CommonMark may read as an entity or numeric
+// character reference. It accepts names that are not entities as well, which
+// only ever withholds a Literal verdict.
+var entityReference = regexp.MustCompile(`&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{0,31});`)
+
+// sourceUnlikeItsPage reports that a block's text may hold characters the
+// page shows differently: an entity reference the page decodes, a backslash
+// the page drops from an escape, or an address the page's linkify turns into
+// a link with words of its own. This walk's parser links nothing bare, so
+// the address is looked for in the text; anything resembling one counts.
+func sourceUnlikeItsPage(s string) bool {
+	if strings.ContainsRune(s, '\\') || strings.ContainsRune(s, '@') || entityReference.MatchString(s) {
+		return true
+	}
+	lower := strings.ToLower(s)
+	return strings.Contains(lower, "://") || strings.Contains(lower, "www.")
 }
 
 // localContextRanges keeps text between strike delimiters in its original
@@ -499,6 +536,10 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		}
 	}
 	switch kind {
+	case ast.KindLink, ast.KindAutoLink, ast.KindRawHTML, ast.KindHTMLBlock, east.KindFootnoteLink:
+		w.blockLiteral = false
+	}
+	switch kind {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
 		// The tags are not content. Text between them arrives as separate text
 		// nodes rather than children, so skipping here drops only the tags.
@@ -567,6 +608,7 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 	if w.rewritten.covers(t.Segment.Start) {
 		w.blockVerbatim = false
 		w.blockContext = false
+		w.blockLiteral = false
 	}
 	w.writeSource(t.Segment, source)
 	if t.SoftLineBreak() || t.HardLineBreak() {

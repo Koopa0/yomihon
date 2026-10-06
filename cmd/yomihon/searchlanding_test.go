@@ -2,6 +2,7 @@ package main
 
 import (
 	"html"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -18,7 +19,9 @@ import (
 // every public search route. A hit inside a heading names the section's first
 // words after it, because the contents list repeats the heading and stands
 // above the prose on a narrow page; the list's copy is followed by the next
-// entry's name, so only the body's copy answers the whole directive.
+// entry's name, so only the body's copy answers the whole directive. Where no
+// prose follows, the previous block's last words go ahead of the heading
+// instead, which the list's copy is preceded by the previous entry's name.
 func TestProductionSearchLandings(t *testing.T) {
 	t.Parallel()
 
@@ -32,44 +35,92 @@ func TestProductionSearchLandings(t *testing.T) {
 		}
 		files[path] = string(body)
 	}
-	files["Notes/Repeated.md"] = "## 重複者。\n\n## 重複者。\n"
 	files["Notes/Inkwell.md"] = "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry.\n"
+	files["Notes/Before.md"] = "## First\n\nIntro words here.\n\n## Where the quill waits\n\n## Next\n"
 	site := homeSite(t, files)
-	link := regexp.MustCompile(`<a class="y-result" href="([^"]+)">`)
 	tests := []struct{ name, query, path, fragment string }{
 		{"public heading", "等待", worker, "#:~:text=%E7%AD%89%E5%BE%85%E8%80%85%E6%87%89%E8%A9%B2%E6%94%BE%E5%9C%A8%E5%93%AA%E8%A3%A1%EF%BC%9F,-%E8%8B%A5%E6%8A%8A%20wg.Wait%28%29%20%E8%88%87"},
 		{"english heading", "inkwell", "Notes/Inkwell.md", "#:~:text=inkwell%20waits,-The%20shelf%20keeps"},
 		{"public strike", "取消", pipeline, "#:~:text=%E5%8F%96%E6%B6%88,-%E5%B7%A5%E4%BD%9C"},
-		{"heading followed by a heading names no section", "重複", "Notes/Repeated.md", "#:~:text=%E9%87%8D%E8%A4%87,-%E8%80%85"},
+		{"heading followed by a heading names the prose before it", "quill", "Notes/Before.md", "#:~:text=Intro%20words%20here.-,Where%20the%20quill%20waits"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
-					body := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
-					var got []string
-					for _, m := range link.FindAllStringSubmatch(body, -1) {
-						href := html.UnescapeString(m[1])
-						parts := strings.SplitN(href, "#", 2)
-						decoded, err := url.PathUnescape(parts[0])
-						if err != nil {
-							t.Fatal(err)
-						}
-						if decoded == "/notes/"+tt.path {
-							if len(parts) != 2 {
-								t.Errorf("GET %s %s has no landing fragment", route, tt.path)
-								continue
-							}
-							got = append(got, parts[1])
-						}
+			assertLandingOnEveryRoute(t, site, tt.query, tt.path, tt.fragment)
+		})
+	}
+}
+
+// TestGatedHeadingHitsKeepTheDirectiveMainEmits pins the heading hits that
+// get no section context, each to the directive the index gave them before
+// section context existed, byte for byte. A block whose source holds, among
+// others, an entity reference, a backslash escape, a link or a bare address
+// is shown by the page in other characters, so its words would name a
+// run the page does not have, and the directive would find nothing. The
+// same holds for a heading written that way. And a run the contents list's
+// copy could answer as well — an opening that also starts the body, a closing
+// that also ends the previous entry's name, or one ahead of the first entry,
+// which follows the list's own label — tells the two copies apart no
+// better than the heading alone. Each want was read off the index before
+// section context, by the same requests against the same notes.
+func TestGatedHeadingHitsKeepTheDirectiveMainEmits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ name, body, query, fragment string }{
+		{"an entity reference opens the section", "## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "#:~:text=inkwell"},
+		{"a backslash escape opens the section", "## Where the inkwell waits\n\nThe snake\\_case name.\n", "inkwell", "#:~:text=inkwell"},
+		{"a link opens the section", "## Where the inkwell waits\n\n[Go docs](https://go.dev) explains it.\n", "inkwell", "#:~:text=inkwell"},
+		{"a bare address opens the section", "## Where the inkwell waits\n\nhttps://go.dev explains it.\n", "inkwell", "#:~:text=inkwell"},
+		{"the heading holds an entity reference", "## X &amp; place\n\nThe shelf keeps it dry.\n", "place", "#:~:text=place"},
+		{"an entity reference closes the block before", "## First\n\nTom &amp; Jerry run.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=inkwell"},
+		{"the opening also starts the body", "Shared opening words.\n\n## Zebra place\n\nShared opening words again.\n", "zebra", "#:~:text=Zebra"},
+		{"the heading is the first entry", "Intro words here.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=inkwell"},
+		{"the closing also ends the previous entry", "## Alpha\n\nIntro Alpha\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=inkwell"},
+	}
+	files := map[string]string{}
+	for _, tt := range tests {
+		files["Notes/"+tt.name+".md"] = tt.body
+	}
+	site := homeSite(t, files)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assertLandingOnEveryRoute(t, site, tt.query, "Notes/"+tt.name+".md", tt.fragment)
+		})
+	}
+}
+
+var resultLink = regexp.MustCompile(`<a class="y-result" href="([^"]+)">`)
+
+// assertLandingOnEveryRoute checks the one fragment path's row offers for
+// query, in both interface languages, on the full search page, the dialog's
+// results and the faceted results.
+func assertLandingOnEveryRoute(t *testing.T, site http.Handler, query, path, fragment string) {
+	t.Helper()
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+			body := readingPageIn(t, site, route+url.Values{"q": {query}}.Encode(), lang)
+			var got []string
+			for _, m := range resultLink.FindAllStringSubmatch(body, -1) {
+				href := html.UnescapeString(m[1])
+				parts := strings.SplitN(href, "#", 2)
+				decoded, err := url.PathUnescape(parts[0])
+				if err != nil {
+					t.Fatal(err)
+				}
+				if decoded == "/notes/"+path {
+					if len(parts) != 2 {
+						t.Errorf("GET %s %s has no landing fragment", route, path)
+						continue
 					}
-					want := []string{strings.TrimPrefix(tt.fragment, "#")}
-					if diff := cmp.Diff(want, got); diff != "" {
-						t.Errorf("GET %s (%s) %s landing (-want +got):\n%s", route, lang, tt.path, diff)
-					}
+					got = append(got, parts[1])
 				}
 			}
-		})
+			want := []string{strings.TrimPrefix(fragment, "#")}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("GET %s (%s) %s landing (-want +got):\n%s", route, lang, path, diff)
+			}
+		}
 	}
 }

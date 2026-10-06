@@ -17,13 +17,11 @@ func TestLandingContextInsideChangedBlocks(t *testing.T) {
 		query  string
 		suffix string
 	}{
-		{name: "ordinary heading", body: "## 等待者應該放在哪裡？\n", query: "等待", suffix: "者應該放在哪裡"},
 		{name: "struck sentence", body: "~~加一格 buffer 就能取消工作。~~ 它只能暫存一個值。\n", query: "取消", suffix: "工作"},
 		{name: "after a struck sentence", body: "~~撤回。~~取消工作。\n", query: "取消", suffix: "工作"},
-		{name: "nfd before the heading", body: "cafe\u0301cafe\u0301cafe\u0301。\n\n## 等待者應該放在哪裡？\n", query: "等待", suffix: "者應該放在哪裡"},
+		{name: "nfd before the struck sentence", body: "cafe\u0301cafe\u0301cafe\u0301。\n\n~~取消工作。~~\n", query: "取消", suffix: "工作"},
 		{name: "nfd inside the context", body: "~~取消cafe\u0301工作。~~\n", query: "取消", suffix: "café工作"},
 		{name: "trimmed leading space", body: "\n\n~~取消工作。~~\n\n", query: "取消", suffix: "工作"},
-		{name: "heading with a consumed role", body: "## 等待者 {sequence=primary}\n", query: "等待"},
 		{name: "ruby reading in the same block", body: "<ruby>今日<rt>きょう</rt></ruby>取消工作。\n", query: "取消"},
 		{name: "rewritten wikilink in the same block", body: "[[來源]]取消工作。\n", query: "取消"},
 		{name: "a consumed highlight", body: "==取消工作。==\n", query: "取消"},
@@ -48,26 +46,27 @@ func TestLandingContextInsideChangedBlocks(t *testing.T) {
 }
 
 // TestHeadingHitNamesTheSectionOpening pins what a hit inside a heading
-// names. The contents list repeats an unchanged heading's words, so the
-// stretch runs to the heading's end and the run after it is the section's
-// first words, which the list's copy is never followed by. Where the next
-// block is not reproduced as written — another heading above all — there is
-// no such run, and the hit keeps the terms any other block gives it.
+// names. The contents list repeats an unchanged heading's words, so a run
+// beside the match comes from outside the heading: the section's first words
+// after it, which the list's copy is never followed by, or else the previous
+// block's last words, which it is never preceded by. A heading hit given
+// neither keeps the directive any other heading hit has, and is not pinned
+// here; TestGatedHeadingHitsKeepTheDirectiveMainEmits pins that directive
+// where the gate is what withheld the context.
 func TestHeadingHitNamesTheSectionOpening(t *testing.T) {
 	t.Parallel()
 
+	type landing struct{ Prefix, Landing, Bare, Suffix string }
 	tests := []struct {
 		name, body, query string
-		bare, suffix      string
+		want              landing
 	}{
-		{name: "cjk heading", body: "## 等待者應該放在哪裡？\n\n若把 `wg.Wait()` 與 `close(results)` 移回 `main`。\n", query: "等待", bare: "等待者應該放在哪裡？", suffix: "若把 wg.Wait() 與"},
-		{name: "english heading", body: "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry all winter.\n", query: "inkwell", bare: "inkwell waits", suffix: "The shelf keeps"},
-		{name: "unspaced opening stops at a certain boundary", body: "## 等待者\n\n若把等待移回主程式之前會發生什麼事情呢如果一直寫下去，就這樣。\n", query: "等待者", bare: "等待者", suffix: "若把等待移回主程式之前會發生什麼事情呢如果一直寫下去"},
-		{name: "a heading follows", body: "## 等待者\n\n### 下一節\n\n正文。\n", query: "等待", bare: "等待", suffix: "者"},
-		{name: "the next block is changed by the page", body: "## 等待者\n\n~~加一格~~ 它。\n", query: "等待", bare: "等待", suffix: "者"},
-		{name: "nothing follows", body: "## 等待者\n", query: "等待", bare: "等待", suffix: "者"},
-		{name: "a changed heading", body: "## 等待者 {sequence=primary}\n\n正文。\n", query: "等待", bare: "等待"},
-		{name: "the title heading the page drops", body: "# heading\n\nOpening words here.\n", query: "heading", bare: "heading"},
+		{name: "cjk heading", body: "## 等待者應該放在哪裡？\n\n若把 `wg.Wait()` 與 `close(results)` 移回 `main`。\n", query: "等待", want: landing{Landing: "等待者應該放在哪裡？", Bare: "等待者應該放在哪裡？", Suffix: "若把 wg.Wait() 與"}},
+		{name: "english heading", body: "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry all winter.\n", query: "inkwell", want: landing{Landing: "inkwell waits", Bare: "inkwell waits", Suffix: "The shelf keeps"}},
+		{name: "unspaced opening stops at a certain boundary", body: "## 等待者\n\n若把等待移回主程式之前會發生什麼事情呢如果一直寫下去，就這樣。\n", query: "等待者", want: landing{Landing: "等待者", Bare: "等待者", Suffix: "若把等待移回主程式之前會發生什麼事情呢如果一直寫下去"}},
+		{name: "a heading follows, prose before", body: "## First\n\nIntro words here.\n\n## Where the inkwell waits\n\n## Next\n", query: "inkwell", want: landing{Prefix: "Intro words here.", Landing: "Where the inkwell waits", Bare: "Where the inkwell waits"}},
+		{name: "a cjk heading follows, prose before", body: "## 前言\n\n先讀這段。\n\n## 等待者\n\n### 下一節\n", query: "等待", want: landing{Prefix: "先讀這段。", Landing: "等待者", Bare: "等待者"}},
+		{name: "the title heading the page drops", body: "# heading\n\nOpening words here.\n", query: "heading", want: landing{Landing: "heading", Bare: "heading"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -78,7 +77,7 @@ func TestHeadingHitNamesTheSectionOpening(t *testing.T) {
 			if len(got) != 1 {
 				t.Fatalf("Search(%q) = %v, want one result", tt.query, got)
 			}
-			if diff := cmp.Diff(struct{ Bare, Suffix string }{tt.bare, tt.suffix}, struct{ Bare, Suffix string }{got[0].LandingBare, got[0].LandingSuffix}); diff != "" {
+			if diff := cmp.Diff(tt.want, landing{got[0].LandingPrefix, got[0].Landing, got[0].LandingBare, got[0].LandingSuffix}); diff != "" {
 				t.Errorf("Search(%q) heading landing (-want +got):\n%s", tt.query, diff)
 			}
 		})

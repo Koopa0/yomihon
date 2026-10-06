@@ -739,13 +739,21 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	terms.first = collapseFields(e.PlainText[start:bareEnd])
 	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
 	if !terms.crossing {
-		if opening := e.sectionOpening(firstEnd); opening != "" && terms.first != "" {
+		if headingStart, before, after := e.sectionContext(firstEnd); terms.first != "" && after != "" {
 			// The stretch runs on to the heading's end so the run after it
 			// is the section's own opening, which the contents list's copy
 			// of the heading is not followed by.
 			terms.first = collapseFields(e.PlainText[start:firstEnd])
 			terms.bare = collapseFields(e.PlainText[bareStart:firstEnd])
-			terms.suffix = opening
+			terms.suffix = after
+			return terms
+		} else if terms.first != "" && before != "" {
+			// A run named ahead of a term is read only where it ends right
+			// at the term, so the stretch is the whole heading, from the
+			// edge the previous block's words stand against to its end.
+			terms.prefix = before
+			terms.first = collapseFields(e.PlainText[headingStart:firstEnd])
+			terms.bare = terms.first
 			return terms
 		}
 		if terms.first != "" && (verbatim || e.contextSuffixAt(start, bareEnd, firstEnd)) {
@@ -769,26 +777,120 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	return terms
 }
 
-// sectionOpening is the run a directive names after a match inside a heading
-// the page shows as written: the first words of the block that follows it.
-// The contents list repeats the heading's own words, and on a narrow page the
-// list stands above the prose, so any run taken from inside the heading is
-// answered by the list's copy first. The list's copy is followed by the next
-// entry's name, never by a paragraph, so the section's own opening tells the
-// two apart. Empty where the heading's block is not such a heading, or where
-// the next block is not reproduced as written — a heading among them, since a
-// heading is the one thing the list does follow a heading with.
-func (e *entry) sectionOpening(headingEnd int) string {
+// sectionContext is the run a directive names beside a match inside a
+// heading the page shows as written, so that the body's copy of the heading
+// answers it and the contents list's copy does not. The list repeats the
+// heading's own words, and on a narrow page it stands above the prose, so any
+// run taken from inside the heading is answered by the list's copy first.
+//
+// The run after the heading is the first words of the next block: the
+// list's copy is followed by the next entry's name instead, or, after its
+// last entry, by the page's other reading aids where it has any and then by
+// the body's first block. Failing that, the run before the
+// heading is the last words of the previous block, where the list's copy
+// follows the previous entry's name. Each is taken only from a block the
+// page shows as written in source and in order (Verbatim and Literal), and
+// only where the list cannot answer it too. Both empty means the hit keeps
+// the terms any other block gives it. headingStart is where the heading's
+// text begins.
+func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after string) {
 	for i, b := range e.blocks {
 		if b.End != headingEnd {
+			headingStart = b.End
 			continue
 		}
-		if !b.Heading || i+1 == len(e.blocks) || !e.blocks[i+1].Verbatim {
-			return ""
+		if !b.Heading {
+			return headingStart, "", ""
 		}
-		return landingOpening(e.PlainText[headingEnd:e.blocks[i+1].End])
+		if i+1 < len(e.blocks) && e.shownAsWritten(i+1) {
+			opening := landingOpening(e.PlainText[headingEnd:e.blocks[i+1].End])
+			if opening != "" && !e.opensAnotherBlock(opening, i+1) {
+				return headingStart, "", opening
+			}
+		}
+		if i > 0 && e.shownAsWritten(i-1) {
+			closing := landingPrefix(e.PlainText[e.blockStart(i-1):e.blocks[i-1].End])
+			if closing != "" && e.closingFollowsAnEntry(closing, i-1) {
+				return headingStart, closing, ""
+			}
+		}
+		return headingStart, "", ""
 	}
-	return ""
+	return 0, "", ""
+}
+
+// shownAsWritten reports that block i's words reach the page as its source
+// spells them and in that order, so they can be named beside a term from
+// another block.
+func (e *entry) shownAsWritten(i int) bool {
+	return e.blocks[i].Verbatim && e.blocks[i].Literal
+}
+
+// blockStart is where block i's text begins.
+func (e *entry) blockStart(i int) int {
+	if i == 0 {
+		return 0
+	}
+	return e.blocks[i-1].End
+}
+
+// opensAnotherBlock reports that the text from the start of some block other
+// than block own reads, the way a browser compares (white space as one space,
+// letters in either case), as opening. The next entry's name starts a block,
+// and so does the body's first block, which the last entry's copy is
+// followed by once the page's other reading aids have been passed; an
+// opening that also starts a block could be answered beside the list's copy.
+// What those aids say is the page's, not the note's, so it is not asked.
+func (e *entry) opensAnotherBlock(opening string, own int) bool {
+	words := strings.Fields(opening)
+	for i := range e.blocks {
+		if i != own && readsAs(e.PlainText[e.blockStart(i):], words) {
+			return true
+		}
+	}
+	return false
+}
+
+// readsAs reports that text opens with words, white space between them read
+// as one space and case ignored. The last word need only open a word of
+// text, which only ever counts more texts as a match.
+func readsAs(text string, words []string) bool {
+	for i, w := range words {
+		text = strings.TrimLeftFunc(text, unicode.IsSpace)
+		if len(text) < len(w) || !strings.EqualFold(text[:len(w)], w) {
+			return false
+		}
+		text = text[len(w):]
+		if i < len(words)-1 {
+			if r, _ := utf8.DecodeRuneInString(text); text == "" || !unicode.IsSpace(r) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// closingFollowsAnEntry reports that a contents entry the closing words of
+// block prev cannot end is known to stand before the heading's own entry.
+// The walk back from prev passes only over blocks the page shows as written,
+// none of which adds an entry, to the heading that names the section prev
+// sits in; that heading's words are the ones the list writes ahead of the
+// heading's copy. Reaching the note's start, or a block that could hide an
+// entry — a heading the page changes, an embed — leaves the entry before it
+// unknown, as is the first entry's, which follows the list's own label.
+func (e *entry) closingFollowsAnEntry(closing string, prev int) bool {
+	for i := prev - 1; i >= 0; i-- {
+		b := e.blocks[i]
+		if b.Heading {
+			name := strings.ToLower(collapseFields(e.PlainText[e.blockStart(i):b.End]))
+			lower := strings.ToLower(closing)
+			return !strings.HasSuffix(lower, name) && !strings.HasSuffix(name, lower)
+		}
+		if !b.Verbatim {
+			return false
+		}
+	}
+	return false
 }
 
 // landingOpening is the first few words of a block, stopping where a run
