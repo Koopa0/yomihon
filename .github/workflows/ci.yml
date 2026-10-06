@@ -360,8 +360,12 @@ jobs:
   # beside, and only a run by hand revealed it.
   e2e-mutations:
     runs-on: ubuntu-latest
-    # Measured 19 minutes for 48 probes on 2026-09-18; raised from 20 to 40 so the next probe has room and the trend stays visible.
-    timeout-minutes: 40
+    # Measured 19 minutes for 48 probes on 2026-09-18. Once the runner finished
+    # every probe and mode instead of stopping at the first failure, 77 probes
+    # outran 40 minutes on 2026-10-06 and the job was cancelled with no verdict.
+    # 75 leaves room until the job is split into shards; a cancelled run is no
+    # verdict at all, so the ceiling must sit above the measured length.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 

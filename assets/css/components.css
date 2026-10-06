@@ -5288,10 +5288,12 @@ a.y-facetrow:hover {
 
 .y-module__name {
   color: var(--fg-muted);
-  flex: none;
+  flex: 0 1 auto;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .y-module__rule {
