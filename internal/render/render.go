@@ -524,7 +524,8 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 // heading because the page's title already says it. A reader of the page then
 // meets those words only as the title, never as a heading of the body.
 func DropsTitleHeading(title, body string) bool {
-	_, _, dropped := removeBodyFirstH1(title, body)
+	stripped, _ := stripBody(body)
+	_, _, dropped := removeBodyFirstH1(title, stripped.text)
 	return dropped >= 0
 }
 

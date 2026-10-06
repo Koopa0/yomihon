@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -92,6 +93,106 @@ func TestGatedHeadingHitsKeepTheDirectiveMainEmits(t *testing.T) {
 }
 
 var resultLink = regexp.MustCompile(`<a class="y-result" href="([^"]+)">`)
+
+func TestDroppedTitleKeepsMainLanding(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ name, body, query, href string }{
+		{"comment-before-title", "%% prefatory comment %%\n# comment-before-title\n\nOpening words here.\n", "comment-before-title", "/notes/Notes/comment-before-title.md#:~:text=comment%2Dbefore%2Dtitle"},
+		{"unsafe-next-known-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "/notes/Notes/unsafe-next-known-prior.md#:~:text=Prior%20words%20here.-,Where%20the%20inkwell%20waits"},
+		{"safe-plain-control", "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry.\n", "inkwell", "/notes/Notes/safe-plain-control.md#:~:text=inkwell%20waits,-The%20shelf%20keeps"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			path := "Notes/" + tt.name + ".md"
+			site := homeSite(t, map[string]string{path: tt.body})
+			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+				if tt.name == "comment-before-title" {
+					page := readingPageIn(t, site, "/notes/"+path, lang)
+					assertDroppedTitlePage(t, page, tt.name)
+					t.Logf("invoked: dropped title page lang=%s status=200 title=1 bodyH1=0 toc=0", lang)
+				}
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+					page := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
+					matches := resultLink.FindAllStringSubmatch(page, -1)
+					if len(matches) != 1 {
+						t.Fatalf("GET %s case=%s (%s) has %d result rows, want one", route, tt.name, lang, len(matches))
+					}
+					got := html.UnescapeString(matches[0][1])
+					address, _, _ := strings.Cut(got, "#")
+					decoded, err := url.PathUnescape(address)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if decoded != "/notes/"+path {
+						t.Fatalf("GET %s case=%s (%s) path = %q, want %q", route, tt.name, lang, decoded, "/notes/"+path)
+					}
+					t.Logf("invoked: dropped title GET case=%s lang=%s route=%s status=200", tt.name, lang, route)
+					if diff := cmp.Diff(tt.href, got); diff != "" {
+						t.Errorf("caught: dropped-title href case=%s lang=%s route=%s (-want +got):\n%s", tt.name, lang, route, diff)
+					}
+				}
+			}
+		})
+	}
+}
+
+func assertDroppedTitlePage(t *testing.T, page, title string) {
+	t.Helper()
+	doc, err := nethtml.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var text func(*nethtml.Node) string
+	text = func(n *nethtml.Node) string {
+		if n.Type == nethtml.TextNode {
+			return n.Data
+		}
+		var out strings.Builder
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			out.WriteString(text(child))
+		}
+		return out.String()
+	}
+	prose, titleMatches, bodyH1, tocLinks := 0, 0, 0, 0
+	opening := false
+	var walk func(*nethtml.Node, bool)
+	walk = func(n *nethtml.Node, inProse bool) {
+		classes, href := "", ""
+		for _, attr := range n.Attr {
+			if attr.Key == "class" {
+				classes = attr.Val
+			}
+			if attr.Key == "href" {
+				href = attr.Val
+			}
+		}
+		for _, class := range strings.Fields(classes) {
+			if class == "y-prose" {
+				prose++
+				inProse = true
+				opening = strings.Contains(text(n), "Opening words here.")
+			}
+			if class == "y-title" && strings.TrimSpace(text(n)) == title {
+				titleMatches++
+			}
+		}
+		if inProse && n.Type == nethtml.ElementNode && n.Data == "h1" {
+			bodyH1++
+		}
+		if n.Type == nethtml.ElementNode && n.Data == "a" && href == "#"+title {
+			tocLinks++
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child, inProse)
+		}
+	}
+	walk(doc, false)
+	if prose != 1 || titleMatches != 1 || bodyH1 != 0 || tocLinks != 0 || !opening {
+		t.Fatalf("page title/prose premise: prose=%d title=%d bodyH1=%d tocLinks=%d opening=%v", prose, titleMatches, bodyH1, tocLinks, opening)
+	}
+}
 
 // assertLandingOnEveryRoute checks the one fragment path's row offers for
 // query, in both interface languages, on the full search page, the dialog's
