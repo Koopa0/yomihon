@@ -952,7 +952,7 @@ func TestOneOwnerScansALine(t *testing.T) {
 		{"an ATX heading the scan recognises", `^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`, "internal/graph/"},
 		{"the HTML block tags a line scan can open without paragraph state", `address|article|aside|base|basefont|blockquote`, "internal/graph/"},
 		{"the scan's running HTML-block close test", "htmlCloses func(string) bool", "internal/graph/"},
-		{"an Obsidian callout's opening line", `^\s*>\s*\[!([A-Za-z]+)\]([+-]?)\s?(.*)$`, "internal/render/"},
+		{"an Obsidian callout's opening line", `^\s*>\s*\[!([A-Za-z0-9_-]+)\]([+-]?)\s?(.*)$`, "internal/render/"},
 		{"the single leading quote marker a line scan peels", `^\s*>\s?`, "internal/graph/"},
 		{"a backtick fence the scan opens", "strings.HasPrefix(t, \"```\")", "internal/graph/"},
 		{"a tilde fence the scan opens", `strings.HasPrefix(t, "~~~")`, "internal/graph/"},
@@ -961,7 +961,7 @@ func TestOneOwnerScansALine(t *testing.T) {
 		{"the pairing of a closed Obsidian comment mark", "stop = off + end + len(closer)", "internal/graph/"},
 		{"the function that refuses a line no block address can survive on", "func UnanchorableLine(line string) bool", "internal/render/"},
 		{"the function that refuses a caret a code span owns as an address", "func CodeSpanOwnedAddresses(lines []string) []bool", "internal/render/"},
-		{"the first group of callout types the page answers to", `"info", "note", "tip", "hint", "abstract", "summary", "todo"`, "internal/render/"},
+		{"the first group of callout types the page answers to", `"info", "note", "tip", "important", "hint", "abstract", "tldr", "summary", "todo"`, "internal/render/"},
 	} {
 		t.Run(spelling.what, func(t *testing.T) {
 			t.Parallel()

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -39,9 +40,16 @@ import (
 // the parse on four, every disagreement a list whose own indented prose the test
 // called code.
 func (r *Pipeline) indentedCodeLines(body string) map[int]bool {
+	return codeBlockLines(r.md.Parser(), body)
+}
+
+// codeBlockLines reports which lines of body p reads as an indented code
+// block. It takes the parser rather than owning one, so each reading — the
+// page's, the search text's — asks the parser that will read the same body.
+func codeBlockLines(p parser.Parser, body string) map[int]bool {
 	var spans [][2]int
 	//nolint:errcheck // the visitor never returns an error, so the walk cannot fail
-	_ = ast.Walk(r.md.Parser().Parse(text.NewReader([]byte(body))), func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(p.Parse(text.NewReader([]byte(body))), func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if _, ok := n.(*ast.CodeBlock); ok && entering {
 			if ls := n.Lines(); ls != nil && ls.Len() > 0 {
 				spans = append(spans, [2]int{ls.At(0).Start, ls.At(ls.Len() - 1).Stop})
@@ -342,7 +350,7 @@ func headingSourceText(raw string, level int) string {
 // how wide a block reference reaches, so the narrow reading is taken.
 func blockSlice(body strippedBody, block string) (string, bool) {
 	lines := strings.Split(body.text, "\n")
-	at := blockMarkerLine(lines, body.address, block)
+	at := blockMarkerLine(lines, body.address, UnanchorableLines(body.text), block)
 	if at < 0 {
 		return "", false
 	}
@@ -362,8 +370,9 @@ func blockSlice(body strippedBody, block string) (string, bool) {
 // code rather than an address, so the scan tracks fences as it walks. A caret
 // a code span owns is the same kind of quoted text, asked of the one predicate
 // the page and the check share, over the line geometry its author wrote rather
-// than over whatever the comment strip left.
-func blockMarkerLine(lines, address []string, block string) int {
+// than over whatever the comment strip left. unanchorable is
+// UnanchorableLines over the same lines.
+func blockMarkerLine(lines, address []string, unanchorable func(int, string) bool, block string) int {
 	want := graph.FoldFragment("^" + block)
 	owned := CodeSpanOwnedAddresses(address)
 	inFence, fenceByte, fenceLen := false, byte(0), 0
@@ -382,7 +391,7 @@ func blockMarkerLine(lines, address []string, block string) int {
 			inFence, fenceByte, fenceLen = true, open, n
 			continue
 		}
-		if UnanchorableLine(line) || owned[i] {
+		if unanchorable(i, line) || owned[i] {
 			continue
 		}
 		trimmed := graph.FoldFragment(strings.TrimRight(line, " \t"))
