@@ -67,7 +67,7 @@ const notApplied = (message) => {
 // than passing as a regression nobody noticed.
 const appendRule = (rule, read, wanted) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;

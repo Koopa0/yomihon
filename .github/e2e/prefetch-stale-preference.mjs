@@ -70,7 +70,7 @@ const MUTATIONS = {
   'keep-the-rules-after-a-change': {
     target: 'chosen-theme-reaches-the-next-page',
     apply: rewrite(
-      '**/preferences.js',
+      '**/preferences.js{,?*}',
       `document.querySelector('script[type="speculationrules"]')?.remove();`,
       `document.querySelector('script[type="speculationrules"]');`,
       'rule removal',

@@ -75,18 +75,29 @@ func codeBlockLines(p parser.Parser, body string) map[int]bool {
 	return quoted
 }
 
-// headingSlice returns the section of body that heading names: the first heading
-// whose text folds to the same slug, through to the line before the next heading
-// of the same or a higher level, deeper ones included. A repeated name takes the
-// first, as Obsidian's reading view does. The name folds through the section id
-// over heading text reduced the way the anchor pass reduces it, so the destination's
-// own table of contents lists the spellings an embed accepts.
+// headingSlice returns the source section a name or ancestry path addresses,
+// through to the line before the next heading of the same or a higher level,
+// deeper ones included. Repeated matches take the first. Path components match
+// active parents in order, with intervening levels allowed. Each name folds
+// through the section id over heading text reduced the way the anchor pass
+// reduces it, keeping the same source boundaries as a single-name excerpt.
 func headingSlice(body, heading string) (slice string, matches int) {
 	want := graph.SectionID(heading)
 	lines := strings.Split(body, "\n")
 	headings := graph.Headings(body, graph.LineSkipZones(body))
+	var pathMatches map[int]bool
+	if IsHeadingPath(heading) {
+		entries := make([]TOCEntry, len(headings))
+		for i, h := range headings {
+			entries[i] = TOCEntry{Level: h.Level, Text: headingSourceText(h.Text, h.Level)}
+		}
+		pathMatches = make(map[int]bool)
+		for _, i := range matchingHeadingPath(entries, heading) {
+			pathMatches[i] = true
+		}
+	}
 	for i, h := range headings {
-		if graph.SectionID(headingSourceText(h.Text, h.Level)) != want {
+		if pathMatches != nil && !pathMatches[i] || pathMatches == nil && graph.SectionID(headingSourceText(h.Text, h.Level)) != want {
 			continue
 		}
 		matches++

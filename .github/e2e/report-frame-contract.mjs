@@ -41,7 +41,7 @@ const notApplied = (message) => {
 
 const stripReportFrameHeight = async (page) => {
 	let seen = 0;
-	await page.route("**/static/app.css", async (route) => {
+	await page.route("**/static/app.css{,?*}", async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
 		seen += 1;
@@ -58,7 +58,7 @@ const stripReportFrameHeight = async (page) => {
 
 const hideReportRawLink = async (page) => {
 	let seen = 0;
-	await page.route("**/static/app.css", async (route) => {
+	await page.route("**/static/app.css{,?*}", async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
 		seen += 1;
