@@ -15,6 +15,18 @@
 // Env: YOMIHON_BASE, PAGE_PATH (the claim note), and MUTATE.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/source-locations-claim.md';
 const SOURCE = '/notes/Notes/source-locations-source.md';
@@ -137,6 +149,7 @@ const followLocation = async (page, list, label, id, site, passage) => {
   await list.getByRole('link', { name: label }).click();
   try {
     await page.waitForURL((url) => url.pathname === SOURCE && decodeURIComponent(url.hash.slice(1)) === id, { timeout: 5000 });
+    await arrived(page);
     await headingInView(page, id);
   } catch {
     fail(site, `${label} did not land on #${id}; the page is at ${page.url()} scrolled to ${await page.evaluate(() => scrollY)}`);
@@ -164,6 +177,7 @@ const journey = async (browser, width) => {
   try {
     const claimUrl = BASE + PAGE;
     const response = await page.goto(claimUrl);
+    await arrived(page);
     if (!response || response.status() !== 200) broken(`${PAGE} returned ${response?.status() ?? 'no response'}, want 200`);
     await page.waitForSelector('html[data-js]');
     if (proof) {
