@@ -57,7 +57,7 @@ func TestMarkdownTargetsReachTheRegisteredReadingRoutes(t *testing.T) {
 			if strings.Contains(text, "markdown-broken") || strings.Contains(text, "markdown-ambiguous") {
 				t.Errorf("internal diagnostic name reached the page:\n%s", text)
 			}
-			missingSummary := "這個 Markdown 連結沒有唯一可用的書庫目標；已留下文字並標示原因。"
+			missingSummary := "這個 Markdown 連結沒有可用的書庫目標；已留下文字並標示原因。"
 			if lang == "en" {
 				missingSummary = "This Markdown link has no usable vault target; its text remains with an explanation."
 			}

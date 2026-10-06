@@ -41,7 +41,7 @@ type wikiLink struct {
 }
 
 // pathRef is one file reference that is not a wikilink: a markdown [text](path)
-// link (resolved from its note, the root, or a whole path suffix) or a backticked
+// link (resolved relative to its note after one percent-decode) or a backticked
 // path token (resolved from the root or its note). code distinguishes the two;
 // target keeps the authored spelling for the diagnostic's identity.
 type pathRef struct {

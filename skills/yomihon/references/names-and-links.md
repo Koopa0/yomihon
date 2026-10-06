@@ -139,7 +139,7 @@ Spaces matter to whether CommonMark parses a link:
 | `[label](Nothing%20here.md)` | label with a missing-target explanation | `link.broken.path`, keeping `Nothing%20here.md` as its target |
 
 The latter two resolve identically when a unique file exists. Malformed percent
-escapes are not repaired on the page; their label remains with an explanation.
+escapes are left as the Markdown renderer emits them and are not diagnosed.
 
 ## Naming a link as owed rather than broken
 

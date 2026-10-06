@@ -11,7 +11,7 @@ var StatusOutsideEnumChip = both("不在 schema 允許清單中", "Not in the sc
 // fault in the fewest words that still distinguish it from its neighbours.
 var (
 	MarkdownOutsideFmt        = both("「%s」超出書庫範圍，已留下連結文字", "\"%s\" leaves the vault; the link text remains")
-	DiagMarkdownMissingNote   = both("這個 Markdown 連結沒有唯一可用的書庫目標；已留下文字並標示原因。", "This Markdown link has no usable vault target; its text remains with an explanation.")
+	DiagMarkdownMissingNote   = both("這個 Markdown 連結沒有可用的書庫目標；已留下文字並標示原因。", "This Markdown link has no usable vault target; its text remains with an explanation.")
 	DiagImageMissing          = both("圖片的檔案不在書庫裡", "Picture whose file the vault does not hold")
 	DiagLinkNoTarget          = both("連結沒有目標", "Link with no target")
 	DiagLinkManyTargets       = both("連結有多個目標", "Link with several targets")
