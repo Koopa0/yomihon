@@ -14,6 +14,18 @@
 // Env: YOMIHON_BASE, PAGE_PATH (the reports shelf), and MUTATE.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/reports';
 const MUTATE = process.env.MUTATE || '';
@@ -196,6 +208,7 @@ try {
   const page = await browser.newPage({ viewport: PHONE });
   const proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   if (proof) {
     const issue = proof();
     if (issue) notApplied(`${MUTATE}: ${issue}`);

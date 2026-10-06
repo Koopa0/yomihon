@@ -6,6 +6,18 @@
 // Env: YOMIHON_BASE, PAGE_PATH (the schema-notice probe fixture), and MUTATE.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/schema-notice-probe.md';
 const MUTATE = process.env.MUTATE || '';
@@ -196,6 +208,7 @@ try {
     // because that silence is what a reader of this loop has to be shown.
     await page.setViewportSize({ width, height: 800 });
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await arrived(page);
     const reported = await page.evaluate(() => window.innerWidth);
     if (reported !== width) {
       broken(`this iteration asks about ${width}px and the page reports ${reported}px of window, so it is not the width it says it is`);
