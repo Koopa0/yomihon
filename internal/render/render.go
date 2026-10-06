@@ -482,6 +482,7 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
 	r.resolveMarkdownLinks(doc, input.path, col)
+	markHeadingNotes(doc)
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
 	doc.SetAttributeString(footnoteLangAttr, []byte(page.lang))
 	attachHighlightReporter(doc, col)

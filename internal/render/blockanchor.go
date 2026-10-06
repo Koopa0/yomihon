@@ -16,8 +16,10 @@ import (
 
 // blockMarkerTail matches the address a line ends with: a caret opening a word,
 // taking the rest of the line with it. A caret glued to the end of a word is part
-// of that word, the same reading the excerpt scan takes.
-var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^\S+)\z`)
+// of that word, the same reading the excerpt scan takes. A caret followed by a
+// bracket opens an inline footnote, never an address, so `Para ^[note]` is a
+// note whether its text holds a space or not.
+var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^[^\s\[]\S*)\z`)
 
 // blockAddressIn finds the address line ends with. It answers nil when the line
 // ends in none; otherwise m is blockMarkerTail's match on trimmed, the line

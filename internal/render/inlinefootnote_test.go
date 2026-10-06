@@ -1,6 +1,7 @@
 package render_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -132,5 +133,88 @@ func TestInlineFootnotesPreserveSearchBlockProvenance(t *testing.T) {
 	}
 	if diff := cmp.Diff([][2]int{{37, 44}}, fences); diff != "" {
 		t.Errorf("PlainBlocks() fence ranges mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// The generated definitions never change how an authored line is read: with
+// the note's number and its list taken off, the page is the page the author
+// would get without writing the note at all.
+func TestInlineFootnoteDefinitionsLeaveAuthoredBlocksAlone(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	reference := regexp.MustCompile(`<sup id="fnref:\d+"><a href="#fn:\d+" class="footnote-ref" role="doc-noteref">\d+</a></sup>`)
+	list := regexp.MustCompile(`(?s)<div class="footnotes" role="doc-endnotes">.*</div>\n?\z`)
+	for _, tt := range []struct{ name, body string }{
+		{"indented code at the start", "    code\n\nText^[note].\n"},
+		{"indented code at the start, no blank line after", "    code\nText^[note].\n"},
+		{"unclosed fence in a list item", "- item^[note]\n  ```\n  open\n"},
+		{"unclosed fence at the margin", "Text^[note].\n\n```text\nopen\n"},
+		{"unclosed raw block", "Text^[note].\n\n<pre>\nraw\n"},
+		{"raw block with no blank line to end it", "Text^[note].\n<div>\nraw"},
+		{"quote", "> quoted^[note]\n> more"},
+		{"list", "- a^[note]\n- b"},
+		{"table", "| a |\n|---|\n| b^[note] |"},
+		{"authored definition last", "Text^[note][^a].\n\n[^a]: authored\n    continued"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Notes/F.md", "", tt.body, wording.En).HTML
+			if !strings.Contains(got, `<li id="fn:1">`) || !strings.Contains(got, "<p>note&#160;") {
+				t.Fatalf("HTML(%q) lost the inline note's definition:\n%s", tt.body, got)
+			}
+			without := r.HTML("Notes/F.md", "", strings.ReplaceAll(tt.body, "^[note]", ""), wording.En).HTML
+			strip := func(s string) string {
+				s = list.ReplaceAllString(reference.ReplaceAllString(s, ""), "")
+				return strings.TrimRight(s, "\n")
+			}
+			if diff := cmp.Diff(strip(without), strip(got)); diff != "" {
+				t.Errorf("HTML(%q) moved authored content (-without note +with note):\n%s", tt.body, diff)
+			}
+		})
+	}
+}
+
+// A heading's inline note is cited there, not part of the section's name: the
+// id, the contents entry and the name a link or the check face reads all stay
+// what they were before the note was written.
+func TestInlineFootnoteInAHeadingKeepsTheSectionName(t *testing.T) {
+	t.Parallel()
+	body := "## Heading^[note]\n\ntext\n"
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "N.md"}}, nil, transclusions{"N.md": body})
+	got := r.HTML("N.md", "", body, wording.En)
+	if !strings.Contains(got.HTML, `<h3 id="heading" data-level="2">Heading<span class="y-heading-note"><sup id="fnref:1">`) {
+		t.Errorf("heading with an inline note:\n%s", got.HTML)
+	}
+	if diff := cmp.Diff([]render.TOCEntry{{Level: 2, Text: "Heading", ID: "heading"}}, got.TOC); diff != "" {
+		t.Errorf("contents entry (-want +got):\n%s", diff)
+	}
+	if words := render.HeadingWords("Heading^[note]"); words != "Heading" {
+		t.Errorf("HeadingWords(inline note) = %q, want %q", words, "Heading")
+	}
+	link := r.HTML("C.md", "", "[[N#Heading]] [[N#Heading note]]\n", wording.En)
+	if !strings.Contains(link.HTML, `<a href="/notes/N.md#heading" class="wikilink">N#Heading</a>`) {
+		t.Errorf("link to the section's name:\n%s", link.HTML)
+	}
+	if len(link.Diagnostics) != 1 || link.Diagnostics[0].Kind != render.DiagLinkSectionMissing || link.Diagnostics[0].Section != "Heading note" {
+		t.Errorf("link diagnostics = %+v, want the note's words to name no section", link.Diagnostics)
+	}
+}
+
+// A caret followed by a bracket opens an inline note whatever its text holds;
+// it is never a block address.
+func TestInlineFootnoteAtTheEndOfALineIsNotABlockAddress(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	for _, body := range []string{"Para ^[note]\n", "Para ^[a b]\n", "^[note]\n"} {
+		t.Run(body, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Notes/F.md", "", body, wording.En)
+			if !strings.Contains(got.HTML, `<sup id="fnref:1">`) || strings.Contains(got.HTML, `<span id="^`) || strings.Contains(got.HTML, "^[") {
+				t.Errorf("HTML(%q) took the note as an address:\n%s", body, got.HTML)
+			}
+		})
+	}
+	if got := r.HTML("Notes/F.md", "", "Para ^[note] ^real\n", wording.En); !strings.Contains(got.HTML, `<span id="^real">`) || !strings.Contains(got.HTML, `<sup id="fnref:1">`) {
+		t.Errorf("a real address after an inline note:\n%s", got.HTML)
 	}
 }
