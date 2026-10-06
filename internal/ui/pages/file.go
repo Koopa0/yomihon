@@ -43,6 +43,9 @@ type FileView struct {
 	// SourceLimitFinding says this captured report has a size finding to link.
 	// Markdown documents excluded by the contract have none.
 	SourceLimitFinding bool
+	// SourceLimitDocument says the contract leaves this Markdown file out of
+	// the library, so the size sentence names it a document, not a note.
+	SourceLimitDocument bool
 	// RawDownload reflects the raw route's attachment policy, so the link
 	// promises the action the browser will take.
 	RawDownload bool

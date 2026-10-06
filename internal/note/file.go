@@ -128,6 +128,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 		if vault.IsMarkdown(rel) {
 			view.SourceLimit = render.MaxSourceBytes
 			view.SourceLimitFinding = sourceLimitFinding(snap, rel)
+			view.SourceLimitDocument = snap.SkipsNote(rel)
 		}
 		head, readErr := h.sources.Source.ReadPrefix(r.Context(), entry, sniffBytes)
 		if readErr != nil {

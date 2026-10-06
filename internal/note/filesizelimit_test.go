@@ -98,10 +98,21 @@ func TestOversizeMarkdownExplainsItsLimit(t *testing.T) {
 func TestExcludedOversizeMarkdownHasNoHealthRow(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, skippedDocumentVault(t), loadContract(t))
-	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		body := sizeLimitPage(t, srv.Client(), srv.URL+"/notes/Elsewhere/README.md", string(lang))
+	// The contract leaves this file out of the library, so below the bound it
+	// opens as a document; over the bound it must not be called a note.
+	for _, tt := range []struct {
+		lang       wording.Lang
+		want, note string
+	}{
+		{lang: wording.ZhHant, want: "這份文件的大小是 1.0 MB（1,048,577 位元組），超過 1 MiB 的閱讀上限；原始檔仍可下載。", note: "這篇筆記"},
+		{lang: wording.En, want: "This document is 1.0 MB (1,048,577 bytes), over the 1 MiB reading limit; the original file can still be downloaded.", note: "This note is"},
+	} {
+		body := sizeLimitPage(t, srv.Client(), srv.URL+"/notes/Elsewhere/README.md", string(tt.lang))
 		if strings.Contains(body, "health-source-bound-") {
 			t.Error("excluded Markdown links to an absent health finding")
+		}
+		if text := html.UnescapeString(body); !strings.Contains(text, tt.want) || strings.Contains(text, tt.note) {
+			t.Errorf("caught: excluded oversize Markdown in %s is not named a document: want %q and no %q", tt.lang, tt.want, tt.note)
 		}
 	}
 }

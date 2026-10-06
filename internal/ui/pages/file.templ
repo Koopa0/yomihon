@@ -77,7 +77,11 @@ templ fileHead(v FileView, lang wording.Lang) {
 templ fileInfo(v FileView, lang wording.Lang) {
 	<div class="y-fileinfo">
 		if v.SourceLimit > 0 {
-			<p class="y-fileinfo__lead">{ fmt.Sprintf(wording.NoteOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)) }</p>
+			if v.SourceLimitDocument {
+				<p class="y-fileinfo__lead">{ fmt.Sprintf(wording.DocumentOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)) }</p>
+			} else {
+				<p class="y-fileinfo__lead">{ fmt.Sprintf(wording.NoteOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)) }</p>
+			}
 			if v.SourceLimitFinding {
 				<p><a href={ templ.URL(sourceBoundHealthHref(v.RelPath)) }>{ wording.NoteReadingLimitHealth.In(lang) }</a></p>
 			}
