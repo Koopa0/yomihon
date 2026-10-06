@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 
 	"github.com/a-h/templ"
 
@@ -202,6 +203,8 @@ var healthRules = map[healthKind]healthRule{
 // them — a link target, a status value, the error a read returned — and the
 // note they point at where there is one.
 type healthDetail struct {
+	// Parts separates declared values from localized enum guidance.
+	Parts []wording.SchemaPart
 	// Text is shown as written, in whatever language its author wrote it.
 	Text string
 	// Machine marks text a machine produced, which is set in the machinery's
@@ -341,7 +344,12 @@ func (v *HealthView) gather(lang wording.Lang) []healthRow {
 func (v *HealthView) sourceRows(lang wording.Lang) []healthRow {
 	out := make([]healthRow, 0, len(v.Blocked)+len(v.Skipped))
 	for _, source := range v.Blocked {
-		out = append(out, healthRow{Kind: healthBlocked, FilePath: source.Path, Detail: machineDetail(source.Reason), Count: 1})
+		detail := machineDetail(source.Reason)
+		if source.ParsePanic {
+			detail = []healthDetail{{Text: wording.ParseFailedKicker.In(lang)}}
+			detail = append(detail, machineDetail(strconv.Quote(source.Reason))...)
+		}
+		out = append(out, healthRow{Kind: healthBlocked, FilePath: source.Path, Detail: detail, Count: 1})
 	}
 	for _, source := range v.Skipped {
 		var detail []healthDetail
@@ -392,17 +400,19 @@ func (v *HealthView) citationRows(lang wording.Lang) []healthRow {
 	return out
 }
 
-// schemaRows are the notes the schema had something to say about. What it said
-// stays on each note's own page — two accounts of one file in two places is how
-// the two start disagreeing — so the row carries how many things were said and
-// how heavy the heaviest was, and the reader opens the note to read them.
+// schemaRows carries the schema's count and weight, with declared vocabularies
+// for enum repair. Other details stay on the note's own page.
 func (v *HealthView) schemaRows() []healthRow {
 	out := make([]healthRow, 0, len(v.FrontmatterUnreadable)+len(v.SchemaFaults))
 	for _, found := range v.FrontmatterUnreadable {
 		out = append(out, healthRow{Kind: healthUnreadableFrontmatter, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count})
 	}
 	for _, found := range v.SchemaFaults {
-		out = append(out, healthRow{Kind: healthSchemaFault, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count})
+		row := healthRow{Kind: healthSchemaFault, File: found.Note, Severity: found.Severity, Weighed: true, Count: found.Count}
+		for _, parts := range found.EnumNotices {
+			row.Detail = append(row.Detail, healthDetail{Parts: parts})
+		}
+		out = append(out, row)
 	}
 	return out
 }
@@ -421,7 +431,11 @@ func (v *HealthView) statusRows(lang wording.Lang) []healthRow {
 	} {
 		for _, found := range kind.found {
 			detail := healthDetail{Text: fmt.Sprintf(wording.StatusAndTypeFmt.In(lang), found.Status, found.Type)}
-			out = append(out, healthRow{Kind: kind.kind, File: found.Note, Detail: []healthDetail{detail}, Count: 1})
+			row := healthRow{Kind: kind.kind, File: found.Note, Detail: []healthDetail{detail}, Count: 1}
+			if parts := wording.AllowedEnumValues(lang, "status", found.AllowedStatuses); len(parts) > 0 {
+				row.Detail = append(row.Detail, healthDetail{Parts: parts})
+			}
+			out = append(out, row)
 		}
 	}
 	return out
@@ -580,6 +594,18 @@ func (v *HealthView) clean() bool {
 // current the page behind it is.
 func (v *HealthView) blockedLede(lang wording.Lang) string {
 	lede := wording.BlockedLede.In(lang)
+	parsed := 0
+	for _, source := range v.Blocked {
+		if source.ParsePanic {
+			parsed++
+		}
+	}
+	if parsed > 0 {
+		lede = wording.MixedBlockedLede.In(lang)
+		if parsed == len(v.Blocked) {
+			lede = wording.ParseBlockedLede.In(lang)
+		}
+	}
 	if v.LastComplete == "" {
 		return lede + wording.BlockedNeverComplete.In(lang)
 	}

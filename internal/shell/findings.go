@@ -58,6 +58,8 @@ type Findings struct {
 	// rather than being one, so it is not in Total; the health page draws it
 	// above its table rather than as a row in it.
 	Collision []string
+	// Root reports selected-path identity trouble without adding a finding row.
+	Root *snapshot.RootNotice
 }
 
 // StatusNote is one note carrying a status its own type never declared, named
@@ -118,6 +120,7 @@ func GatherFindings(lifecycle status.Authority, snap *snapshot.Generation) Findi
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
 		LastComplete:          fresh.LastComplete,
 		Collision:             fresh.Collision,
+		Root:                  fresh.Root,
 	}
 }
 

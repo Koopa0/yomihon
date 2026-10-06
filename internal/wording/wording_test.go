@@ -1,18 +1,20 @@
 package wording
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 )
 
-var verb = regexp.MustCompile(`%[-+# 0-9.*]*[a-zA-Z]`)
+var verb = regexp.MustCompile(`^%[-+# 0]*(?:[0-9]+)?(?:\.[0-9]*)?(?:\[([0-9]+)\])?([a-zA-Z])`)
 
 // pair is one phrase as it is written, named by the variable it is assigned to.
 type pair struct {
@@ -32,7 +34,12 @@ func TestBothLanguagesTakeTheSameValues(t *testing.T) {
 	phrases := writtenPhrases(t)
 	carrying := 0
 	for _, p := range phrases {
-		zh, en := takes(p.zhHant), takes(p.en)
+		zh, zhErr := takes(p.zhHant)
+		en, enErr := takes(p.en)
+		if zhErr != nil || enErr != nil {
+			t.Errorf("%s format cannot be checked: Traditional Chinese: %v; English: %v", p.name, zhErr, enErr)
+			continue
+		}
 		if len(zh) > 0 {
 			carrying++
 		}
@@ -119,21 +126,49 @@ func writtenPhrases(t *testing.T) []pair {
 // spelling. A value the sentence quotes in one language and the verb quotes in
 // the other is the same value either way: %q and %s both take a string, and
 // holding them to the same letter reports a difference that is not there.
-func takes(format string) []string {
-	var kinds []string
-	for _, v := range verb.FindAllString(format, -1) {
-		switch v[len(v)-1] {
-		case 's', 'q', 'v':
-			kinds = append(kinds, "string")
-		case 'd':
-			kinds = append(kinds, "int")
-		case 'f', 'e', 'g':
-			kinds = append(kinds, "float")
-		default:
-			kinds = append(kinds, v)
+// An explicit index selects a value rather than a position in the sentence;
+// the next implicit verb continues from that index. Unsupported directives
+// are refused so a format this reader cannot understand never looks empty.
+func takes(format string) (map[int][]string, error) {
+	kinds := make(map[int][]string)
+	argument := 1
+	for {
+		start := strings.IndexByte(format, '%')
+		if start < 0 {
+			return kinds, nil
 		}
+		format = format[start:]
+		if strings.HasPrefix(format, "%%") {
+			format = format[2:]
+			continue
+		}
+		match := verb.FindStringSubmatch(format)
+		if match == nil {
+			return nil, fmt.Errorf("unsupported format directive at %q", format)
+		}
+		if match[1] != "" {
+			index, err := strconv.Atoi(match[1])
+			if err != nil || index < 1 {
+				return nil, fmt.Errorf("invalid argument index %q", match[1])
+			}
+			argument = index
+		}
+		kind := match[2]
+		switch kind {
+		case "s", "q", "v":
+			kind = "string"
+		case "d":
+			kind = "int"
+		case "f", "e", "g":
+			kind = "float"
+		}
+		if !slices.Contains(kinds[argument], kind) {
+			kinds[argument] = append(kinds[argument], kind)
+			slices.Sort(kinds[argument])
+		}
+		argument++
+		format = format[len(match[0]):]
 	}
-	return kinds
 }
 
 func literal(e ast.Expr) (string, bool) {

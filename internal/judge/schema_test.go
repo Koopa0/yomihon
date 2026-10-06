@@ -572,6 +572,7 @@ func TestUndeclaredTypeStatusReadsAgainstTheNoteGroup(t *testing.T) {
 		t.Fatalf("checkSchema() error = %v", err)
 	}
 
+	t.Log("hit: checker fallback consumer reached")
 	var statusFindings []Finding
 	for i := range findings {
 		if findings[i].RuleID == "schema.enum" && findings[i].Field != nil && *findings[i].Field == "status" {
@@ -579,13 +580,13 @@ func TestUndeclaredTypeStatusReadsAgainstTheNoteGroup(t *testing.T) {
 		}
 	}
 	if len(statusFindings) != 1 {
-		t.Fatalf("status findings = %+v, want exactly one, on the note whose status the note group rejects", statusFindings)
+		t.Fatalf("caught: status findings = %+v, want exactly one, on the note whose status the note group rejects", statusFindings)
 	}
 	if got, want := statusFindings[0].Path, "Concepts/Invalid.md"; got != want {
 		t.Errorf("status finding path = %q, want %q", got, want)
 	}
 	if got, want := statusFindings[0].Message, `status "bogus" is not a valid status`; got != want {
-		t.Errorf("status message = %q, want %q", got, want)
+		t.Errorf("caught: status message = %q, want %q", got, want)
 	}
 }
 
