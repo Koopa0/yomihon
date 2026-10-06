@@ -1975,6 +1975,7 @@ details.y-metarow {
   height: auto;
   max-width: 100%;
 }
+
 /* A link is ink with a quiet underline, so it is findable without colour and
    the accent stays where it means something. The wikilink, the preview link and
    the concept link are all this one link: the faults a wikilink can carry
@@ -2078,6 +2079,26 @@ details.y-metarow {
   margin: var(--sp-block) 0 0;
   overflow-x: auto;
   padding: 16px 20px;
+}
+
+.y-codecopy {
+  display: none;
+}
+
+:root[data-js='on'] .y-codecopy {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: var(--sp-block);
+}
+
+.y-codecopy + pre {
+  margin-top: 8px;
+}
+
+.y-codecopy__reply {
+  margin: 0;
 }
 
 .y-prose pre code {
@@ -5725,6 +5746,30 @@ samp,
   word-break: auto-phrase;
 }
 
+/* A language switch must set the face on the text itself: a paragraph inherits
+   its parent's already-computed family, not a newly chosen font variable.
+   Code and controls keep their own faces even inside a Japanese passage. */
+.y-prose:lang(ja),
+.y-prose :where(p, rt, [data-level], [lang]):lang(ja):not(:where(code, pre, kbd, samp, button, input, select, textarea, code *, pre *, kbd *, samp *, button *, select *, textarea *)) {
+  font-family: var(--font-read-ja);
+}
+
+/* An explicitly different language inside Japanese prose returns to the
+   reader's ordinary stack instead of inheriting Japanese glyph shapes. */
+.y-prose [lang]:not(:lang(ja)):not(:where(code, pre, kbd, samp, button, input, select, textarea, code *, pre *, kbd *, samp *, button *, select *, textarea *)) {
+  font-family: var(--font-read);
+}
+
+/* Prose components keep their declared serif or sans role when their
+   authored language asks for Japanese glyph shapes. */
+.y-prose :where(.footnotes, th, .embed__source, .embed__note, .callout-title):lang(ja) {
+  font-family: var(--font-sans-ja);
+}
+
+.y-prose :where(td, .callout-body):lang(ja) {
+  font-family: var(--font-serif-ja);
+}
+
 /* Arrival echo — a brief wash on the heading a jump lands on, whether the
    reader came from the table of contents, a footnote, or a link in another
    note. The eye arrives the moment the jump does, so the echo plays at once;
@@ -6379,6 +6424,7 @@ samp,
      only way these rules can be sure they win against whatever screen-only
      rule came before them, regardless of its own specificity. */
   /* Machinery that only answers to a pointer leaves no trace on paper. */
+  .y-codecopy,
   .y-header,
   .y-rail-left,
   .y-rail-right,

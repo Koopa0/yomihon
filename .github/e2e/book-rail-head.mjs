@@ -95,13 +95,13 @@ const MUTATIONS = {
   // Puts a book rail's part headings back on an uppercase, tracked mono label.
   'label-face-in-book-rails': {
     target: 'part-headings-are-not-labels',
-    apply: appendRule(`#nav-rail:has(.y-railbook) .y-railsummary{${LABEL_FACE}}`),
+    apply: appendRule(`#_y-nav-rail:has(.y-railbook) .y-railsummary{${LABEL_FACE}}`),
   },
   // The same label face on the rails that are not a book's, which the book
   // rail's own measurement never reaches.
   'label-face-in-other-rails': {
     target: 'every-rail-sets-part-heads-in-sans',
-    apply: appendRule(`#nav-rail:not(:has(.y-railbook)) .y-railsummary{${LABEL_FACE}}`),
+    apply: appendRule(`#_y-nav-rail:not(:has(.y-railbook)) .y-railsummary{${LABEL_FACE}}`),
   },
 };
 
@@ -159,7 +159,7 @@ const measure = (page) =>
       sansFace: getComputedStyle(document.documentElement).getPropertyValue('--font-sans'),
       titleFits: title.scrollWidth <= title.clientWidth,
       documentFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-      steps: document.querySelectorAll('.y-railbook nav, #nav-rail .y-lessonsteps').length,
+      steps: document.querySelectorAll('.y-railbook nav, #_y-nav-rail .y-lessonsteps').length,
     };
   }, LONG_NAME);
 
@@ -218,7 +218,7 @@ try {
     if (issue) throw new NotApplied(`NOT-APPLIED book-rail-head: ${MUTATE}: ${issue}`);
   }
   const other = await page.evaluate(() => {
-    const el = document.querySelector('#nav-rail .y-railsummary');
+    const el = document.querySelector('#_y-nav-rail .y-railsummary');
     if (!el) return null;
     const s = getComputedStyle(el);
     return {
@@ -226,7 +226,7 @@ try {
       spacing: s.letterSpacing,
       face: s.fontFamily,
       sans: getComputedStyle(document.documentElement).getPropertyValue('--font-sans'),
-      book: document.querySelectorAll('#nav-rail .y-railbook').length,
+      book: document.querySelectorAll('#_y-nav-rail .y-railbook').length,
     };
   });
   if (other === null) broken('/health draws no sidebar part heading to measure');

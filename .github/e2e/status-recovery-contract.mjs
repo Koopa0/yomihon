@@ -159,8 +159,8 @@ const MUTATIONS = {
   'drop-main-tabindex': {
     target: 'focusable-main',
     apply: rewriteStatusBody(
-      '<main id="main-content" tabindex="-1" class="y-main y-recoverymain">',
-      '<main id="main-content" class="y-main y-recoverymain">',
+      '<main id="_y-main" tabindex="-1" class="y-main y-recoverymain">',
+      '<main id="_y-main" class="y-main y-recoverymain">',
       'focusable recovery main',
     ),
   },
@@ -295,7 +295,7 @@ try {
     fail('no-store-response', `recovery Cache-Control is ${JSON.stringify(cacheControl)}, want "no-store"`);
   }
 
-  const main = page.locator('main#main-content[tabindex="-1"]');
+  const main = page.locator('main#_y-main[tabindex="-1"]');
   if (await main.count() !== 1) fail('focusable-main', `recovery page has ${await main.count()} focusable main landmarks, want 1`);
   await main.focus();
   if (!await main.evaluate((element) => document.activeElement === element)) {

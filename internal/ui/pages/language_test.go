@@ -70,7 +70,7 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 			html := buf.String()
 			for _, want := range []string{
 				`<article class="y-article" lang="ja">`,
-				`<div id="schema-notices" lang="` + tt.tag + `">`,
+				`<div id="_y-schema-notices" lang="` + tt.tag + `">`,
 				// The head's dt is yomihon's own word for the fact and declares
 				// the interface language; the dd right after it is the note's own
 				// path and carries none — the literal string between them is the
@@ -80,7 +80,7 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 				`<a class="y-metarow__raw" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
 				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
 				`<nav class="y-steps y-steps--course" lang="` + tt.tag + `" aria-label="Japanese course">`,
-				`<section class="y-sealbar" lang="` + tt.tag + `" aria-labelledby="status-bar-label"`,
+				`<section class="y-sealbar" lang="` + tt.tag + `" aria-labelledby="_y-status-bar-label"`,
 				`<span class="y-steps__name" lang="ja">L00 はじめに</span>`,
 				`<span class="y-steps__name">L02</span>`,
 			} {
