@@ -62,6 +62,12 @@ export async function initDiagrams(preferences) {
         const alternative = document.createElement('span');
         alternative.className = 'y-offscreen';
         alternative.textContent = source;
+        alternative.id = `${id}-source`;
+        // Mermaid retains an author's title and description. A drawing without
+        // those words takes its name from the source already kept beside it.
+        if (!svgElement.getAttribute('aria-label')?.trim() && !svgElement.getAttribute('aria-labelledby')?.trim()) {
+          svgElement.setAttribute('aria-labelledby', alternative.id);
+        }
         element.replaceChildren(alternative);
         element.appendChild(document.importNode(svgElement, true));
       } catch (error) {

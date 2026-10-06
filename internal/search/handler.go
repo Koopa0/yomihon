@@ -390,6 +390,7 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 			PathRuns:      snippetRuns(r.RelPath, tokens),
 			AliasRuns:     snippetRuns(r.Alias, tokens),
 			TopicRuns:     snippetRuns(r.Topic, tokens),
+			TagRuns:       viewRuns(lexical.MarkTagHits(r.Tag, tokens)),
 			File:          r.File,
 			Landing:       r.Landing,
 			LandingBare:   r.LandingBare,
@@ -413,7 +414,10 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 // snippetRuns dresses one piece of matched text for the page. Where the query
 // fell is the index's answer; what a matched stretch looks like is this page's.
 func snippetRuns(text string, tokens []string) []pages.SnippetRun {
-	marked := lexical.MarkHits(text, tokens)
+	return viewRuns(lexical.MarkHits(text, tokens))
+}
+
+func viewRuns(marked []lexical.HitRun) []pages.SnippetRun {
 	if len(marked) == 0 {
 		return nil
 	}

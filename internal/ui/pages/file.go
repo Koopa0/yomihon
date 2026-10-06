@@ -37,6 +37,9 @@ type FileView struct {
 	// information page.
 	Size        int64
 	ContentType string
+	// RawDownload reflects the raw route's attachment policy, so the link
+	// promises the action the browser will take.
+	RawDownload bool
 
 	SourceHTML string
 	BodyHTML   string

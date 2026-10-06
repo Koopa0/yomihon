@@ -83,3 +83,19 @@ func TestTheReadAloudBarsWordsTravelWithThePage(t *testing.T) {
 		}
 	})
 }
+
+func TestReadAloudCopyNamesTextInBothInterfaceLanguages(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		lang                          wording.Lang
+		button, controls, unavailable string
+	}{
+		{wording.ZhHant, "朗讀這段文字", "朗讀控制", "目前無法播放語音"},
+		{wording.En, "Read this aloud", "Read-aloud controls", "Speech is unavailable right now"},
+	} {
+		attrs := readAloudAttrs(`<div class="y-reading" lang="fr"><button data-tts="Bonjour."></button></div>`, tt.lang)
+		if attrs["data-readaloud-controls"] != tt.controls || attrs["data-readaloud-unavailable"] != tt.unavailable || wording.ReadAloud.In(tt.lang) != tt.button {
+			t.Errorf("caught: read-aloud copy still names one language: %s attrs=%v button=%q", tt.lang, attrs, wording.ReadAloud.In(tt.lang))
+		}
+	}
+}

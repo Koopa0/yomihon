@@ -1,6 +1,6 @@
 ---
 title: goroutine 的生命週期
-aliases: [goroutine lifetime]
+aliases: [goroutine lifetime, goroutine leak, 洩漏]
 type: concept
 status: ready
 domain: go

@@ -1,9 +1,7 @@
 package note
 
 import (
-	"html"
 	"net/url"
-	"regexp"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
@@ -11,11 +9,6 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
-
-// declaredBlockSpan reads only the span shape the renderer gives a block
-// address. Arbitrary element ids, escaped code examples and unanchored marker
-// spans do not establish a source location.
-var declaredBlockSpan = regexp.MustCompile(`<span id="([^"]+)">([^<]*)</span>`)
 
 // declaredBy keeps the declaring note and the places it names separate: the
 // note opens its own file, while each location returns to this rendered source.
@@ -26,7 +19,7 @@ func declaredBy(snap *snapshot.Generation, rel string, result *render.Result, id
 	if len(declarations) == 0 {
 		return nil
 	}
-	anchors := declaredSourceAnchors(result, idPrefix)
+	anchors := declaredSourceAnchors(result)
 	whole := pages.ResumeHref(rel, "", 0)
 	if result != nil && result.TitleAnchor != "" {
 		whole = "#" + url.PathEscape(result.TitleAnchor)
@@ -59,9 +52,9 @@ func declaredBy(snap *snapshot.Generation, rel string, result *render.Result, id
 }
 
 // declaredSourceAnchors takes headings from the rendered outline and blocks
-// from their generated spans. The visible marker must name the same folded
-// address as its id, so an unrelated span cannot stand in for a named block.
-func declaredSourceAnchors(result *render.Result, idPrefix string) map[string]bool {
+// from the renderer's emitted-anchor list, so markup presentation does not
+// decide whether a named source location exists.
+func declaredSourceAnchors(result *render.Result) map[string]bool {
 	anchors := make(map[string]bool)
 	if result == nil {
 		return anchors
@@ -72,12 +65,8 @@ func declaredSourceAnchors(result *render.Result, idPrefix string) map[string]bo
 	for _, heading := range result.TOC {
 		anchors[heading.ID] = true
 	}
-	for _, match := range declaredBlockSpan.FindAllStringSubmatch(result.HTML, -1) {
-		id := html.UnescapeString(match[1])
-		marker := html.UnescapeString(match[2])
-		if len(marker) > 1 && marker[0] == '^' && id == idPrefix+graph.FoldFragment(marker) {
-			anchors[id] = true
-		}
+	for _, id := range result.Blocks {
+		anchors[id] = true
 	}
 	return anchors
 }
