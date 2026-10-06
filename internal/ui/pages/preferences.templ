@@ -89,7 +89,7 @@ type PreferenceOption struct {
 // already have to say in order to be refused correctly.
 templ Preferences(v PreferencesView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<main id="main-content" tabindex="-1" class="y-prefs">
+		<main id="_y-main" tabindex="-1" class="y-prefs">
 			<h1 class="y-title">{ wording.PreferencesTitle.In(c.Lang) }</h1>
 			<p class="y-prefs__lede">{ wording.PreferencesLede.In(c.Lang) }</p>
 			<form method="post" action="/preferences" data-prefs data-prefs-settings={ v.Settings }>

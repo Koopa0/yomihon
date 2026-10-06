@@ -17,12 +17,12 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const MUTATE = process.env.MUTATE || '';
-const RAIL = '#nav-rail';
+const RAIL = '#_y-nav-rail';
 const TOGGLE = '[data-nav-toggle]';
 const SCRIM = '[data-nav-close]';
 const FILTER = '[data-nav-filter]';
 const SKIP_LINK = '.y-skiplink';
-const MAIN = '#main-content';
+const MAIN = '#_y-main';
 // The status write bar is a sibling of the shell, not part of the article, and it
 // is visible at exactly the widths where the drawer exists. It paints under the
 // scrim, so it belongs in the same enumeration as the other covered regions.
@@ -350,7 +350,7 @@ try {
     if (await page.$eval('html', (root) => root.hasAttribute('data-nav'))) {
       fail('server-nav-state-free', 'server markup stamped data-nav even though only the enhancement runtime owns drawer state');
     }
-    if (!(await page.$(RAIL))) broken('the no-JS page has no #nav-rail');
+    if (!(await page.$(RAIL))) broken('the no-JS page has no #_y-nav-rail');
     const link = page.locator(`${RAIL} a[href]:not([aria-current="page"])`).first();
     if (await link.count() !== 1) broken('the no-JS rail has no non-current navigation link to exercise');
     const hit = await link.evaluate((el) => {
@@ -510,7 +510,7 @@ try {
     // with a link when the rail offers none, so step-without-checking-focus-
     // landed remains a runtime lock rather than a shape the fixture outgrew.
     await page.evaluate(() => {
-      const rail = document.querySelector('#nav-rail');
+      const rail = document.querySelector('#_y-nav-rail');
       if (!rail || rail.querySelector('[data-e2e-focus-refusal]')) return;
       let refused = 0;
       for (const row of rail.querySelectorAll('a[href]')) {
@@ -527,7 +527,7 @@ try {
     const refusedRows = await page.evaluate(() => {
       const before = document.activeElement;
       let refused = 0;
-      for (const row of document.querySelectorAll('#nav-rail a[href]')) {
+      for (const row of document.querySelectorAll('#_y-nav-rail a[href]')) {
         row.focus();
         if (document.activeElement !== row) refused += 1;
       }
@@ -540,7 +540,7 @@ try {
     const focusableRows = await page.evaluate(() => {
       const before = document.activeElement;
       let count = 0;
-      for (const row of document.querySelectorAll('#nav-rail a[href]')) {
+      for (const row of document.querySelectorAll('#_y-nav-rail a[href]')) {
         row.focus();
         if (document.activeElement === row) count += 1;
       }
@@ -556,7 +556,7 @@ try {
         index += 1;
         element.dataset.e2eWalk = String(index);
       }
-      return document.querySelectorAll('#nav-rail *').length + 5;
+      return document.querySelectorAll('#_y-nav-rail *').length + 5;
     });
     const walkKey = () => page.evaluate(() => document.activeElement?.dataset?.e2eWalk ?? 'none');
     const exitKey = await page.$eval(TOGGLE, (toggle) => toggle.dataset.e2eWalk);

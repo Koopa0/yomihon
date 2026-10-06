@@ -1975,6 +1975,7 @@ details.y-metarow {
   height: auto;
   max-width: 100%;
 }
+
 /* A link is ink with a quiet underline, so it is findable without colour and
    the accent stays where it means something. The wikilink, the preview link and
    the concept link are all this one link: the faults a wikilink can carry
