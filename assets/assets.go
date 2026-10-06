@@ -48,7 +48,7 @@ import "embed"
 //
 //   - fonts/ — the self-hosted woff2 (Geist, Geist Mono, Newsreader),
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
-//     request ever leaves the machine (D-brief: zero external requests).
+//     request ever leaves the machine.
 //
 //go:embed js/yomihon.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mark.js js/preview.js js/thought.js js/uncertainty.js js/mermaid css/reset.css css/fonts.css css/tokens.css css/components.css fonts brand/yomihon-mark.svg
 var Files embed.FS
