@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 )
 
@@ -88,18 +87,22 @@ func dispatch(argv []string) (command string, args []string) {
 // path and no environment variable — because those two already answer the
 // question between them, and a third is only somewhere for them to disagree.
 func serveRoot(args []string) (string, error) {
-	switch {
-	case len(args) == 0:
-		return os.Getwd()
-	case len(args) == 1 && !strings.HasPrefix(args[0], "-"):
-		return args[0], nil
-	case len(args) == 2 && args[0] == "--root":
-		if args[1] == "" {
-			return "", errors.New("--root needs a directory")
-		}
-		return args[1], nil
-	default:
+	parsed, err := parseCommandArgs(args)
+	if err != nil {
+		return "", err
+	}
+	if parsed.format != nil || parsed.all || len(parsed.deny) > 0 || parsed.baseline != "" ||
+		parsed.rootCount > 1 || len(parsed.positionals) > 1 ||
+		(parsed.rootCount > 0 && len(parsed.positionals) > 0) {
 		return "", errors.New("usage: yomihon [dir] — or yomihon serve [dir] — or yomihon serve --root <dir>")
+	}
+	switch {
+	case parsed.rootCount > 0:
+		return parsed.root, nil
+	case len(parsed.positionals) == 1:
+		return parsed.positionals[0], nil
+	default:
+		return os.Getwd()
 	}
 }
 

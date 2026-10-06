@@ -49,8 +49,8 @@ var EmbedSourceFrom = both("出自 ", "From ")
 // of the same fact.
 var OpensInNewTab = both("另開分頁", "opens in a new tab")
 
-// ReadAloud names the control beside a paragraph of Japanese.
-var ReadAloud = both("朗讀這段日文", "Read this Japanese aloud")
+// ReadAloud names the control beside an explicitly marked paragraph.
+var ReadAloud = both("朗讀這段文字", "Read this aloud")
 
 // The read-aloud bar, which only exists once speech is available, so the page
 // carries its words rather than the browser building them. A sentence written
@@ -68,13 +68,13 @@ var ReadAloud = both("朗讀這段日文", "Read this Japanese aloud")
 var (
 	ReadAloudStop        = both("停止", "Stop")
 	ReadAloudStopThis    = both("停止朗讀", "Stop reading aloud")
-	ReadAloudControls    = both("日文朗讀控制", "Japanese read-aloud controls")
+	ReadAloudControls    = both("朗讀控制", "Read-aloud controls")
 	ReadAloudSpeed       = both("朗讀速度", "Reading speed")
 	ReadAloudRateFmt     = both("速度 {rate}×", "Speed {rate}×")
 	ReadAloudStopped     = both("已停止", "Stopped")
 	ReadAloudPlaying     = both("播放中", "Playing")
 	ReadAloudFinished    = both("播放完成", "Finished")
-	ReadAloudUnavailable = both("目前無法播放日語語音", "Japanese speech is unavailable right now")
+	ReadAloudUnavailable = both("目前無法播放語音", "Speech is unavailable right now")
 	ReadAloudPlayAll     = both("連續朗讀", "Play through")
 	ReadAloudPrevious    = both("上一段", "Previous")
 	ReadAloudNext        = both("下一段", "Next")

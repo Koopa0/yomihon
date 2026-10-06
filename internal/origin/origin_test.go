@@ -499,6 +499,9 @@ func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			header := tt.header(t)
+			if got := header.Get("Permissions-Policy"); got != wirePermissionsPolicy {
+				t.Errorf("caught: committed Permissions-Policy = %q, want %q", got, wirePermissionsPolicy)
+			}
 			if got := header.Get("Cache-Control"); got != "private, no-cache" {
 				t.Errorf("committed Cache-Control = %q, want %q", got, "private, no-cache")
 			}

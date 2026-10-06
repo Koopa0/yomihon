@@ -34,6 +34,8 @@ yomihon ~/notes
 
 Then open <http://127.0.0.1:9610>. yomihon reads any folder of Markdown as it is. Study paths, maps and `yomihon check` need a contract, `System/schemas/vault-schema.toml`. `yomihon examples/vault` opens a library that has one to copy. If an agent writes your notes, point it at [`skills/`](skills/) first.
 
+To turn your notes into a course, follow [Make a course](docs/authoring.md). It covers the starter contract, lesson files, the main line and an optional side branch.
+
 ## What it does
 
 - **Read.** Wikilinks, callouts, footnotes, tables, Mermaid diagrams, code and ruby render as written. Settings offer light, dark or the system's appearance, three text sizes, and serif, sans serif or Kaiti type. "Leave off here" keeps your place on this device. The home page links back to it.
