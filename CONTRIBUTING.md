@@ -182,10 +182,11 @@ the code is.
 
 Three proposals are worth pricing before you write them:
 
-- **A new dependency.** `go.mod` names eight direct requirements and each earned
+- **A new dependency.** `go.mod` names ten direct requirements and each earned
   its place: goldmark and chroma to render, templ for the templates, a TOML
-  decoder for the vault contract, a YAML decoder for frontmatter, two
-  `golang.org/x` libraries, and go-cmp for the tests. The client side is vanilla
+  decoder for the vault contract, a YAML decoder for frontmatter, three
+  `golang.org/x` libraries for runtime behavior, and go-cmp plus
+  `golang.org/x/mod` for the tests. The client side is vanilla
   JavaScript in flat native modules, with one exception: the Mermaid renderer,
   vendored under `assets/js/mermaid` as pre-built modules with their own license
   and checksums. That is the bar for a third-party client library, and the only
