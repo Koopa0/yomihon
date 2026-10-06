@@ -122,7 +122,7 @@ const notApplied = (message) => {
 // than passing as a mutation nobody noticed.
 const rewriteModule = (needle, replacement) => async (context) => {
 	let matched = -1;
-	await context.route('**/static/preview.js', async (route) => {
+	await context.route('**/static/preview.js{,?*}', async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
 		matched = original.split(needle).length - 1;
@@ -137,7 +137,7 @@ const rewriteModule = (needle, replacement) => async (context) => {
 // flag.
 const weakenStylesheet = (rule) => async (context) => {
 	let served = false;
-	await context.route('**/static/app.css', async (route) => {
+	await context.route('**/static/app.css{,?*}', async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
 		served = true;

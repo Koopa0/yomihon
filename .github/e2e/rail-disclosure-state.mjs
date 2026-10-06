@@ -110,7 +110,7 @@ async function armDisclosureWrite(page, site) {
   const mode = MUTATE && MUTATIONS[MUTATE].target === site ? MUTATIONS[MUTATE] : null;
   let requests = 0;
   let invalid = false;
-  await page.route('**/sidebar.js', async (route) => {
+  await page.route('**/sidebar.js{,?*}', async (route) => {
     const response = await route.fetch();
     let source = await response.text();
     requests += 1;
@@ -244,7 +244,7 @@ try {
     await seed(page, { [key]: true });
     await arm(page, 'inline-owner');
     let blocked = false;
-    await page.route('**/yomihon.js', (route) => { blocked = true; return route.abort(); });
+    await page.route('**/yomihon.js{,?*}', (route) => { blocked = true; return route.abort(); });
     await page.reload({ waitUntil: 'domcontentloaded' });
     if (!blocked) throw new Error('deferred-script control blocked nothing');
     prove();

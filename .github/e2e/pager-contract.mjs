@@ -82,7 +82,7 @@ const rewrite = (page, pathname, substitute) => {
 // regression written into the stylesheet itself would.
 const appendStyle = (page, css) => {
   let seen = 0;
-  return page.route('**/static/app.css', async (route) => {
+  return page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
