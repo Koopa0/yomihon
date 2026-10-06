@@ -6804,6 +6804,10 @@ samp,
   width: 100%;
 }
 
+.y-findings__target {
+  scroll-margin-top: var(--header-clearance);
+}
+
 .y-findings__head {
   border-bottom: 1px solid var(--border-strong);
   color: var(--fg-faint);

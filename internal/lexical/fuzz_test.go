@@ -22,6 +22,8 @@ func FuzzParse(f *testing.F) {
 	f.Add(`"semantic retrieval" type:lesson`)
 	f.Add("「深度 工作」 『読本』")
 	f.Add(`don"t ""  読本」 "unclosed`)
+	f.Add("goroutine -channel OR -channel")
+	f.Add(`"OR" 「-flag」 topic:-flag`)
 
 	f.Fuzz(func(t *testing.T, raw string) {
 		first := Parse(raw)

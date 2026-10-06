@@ -57,7 +57,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED slot-announc
 const rewriteScript = (needle, replacement, label) => async (page) => {
   let requests = 0;
   let matches = 0;
-  await page.route('**/lesson.js', async (route) => {
+  await page.route('**/lesson.js{,?*}', async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();

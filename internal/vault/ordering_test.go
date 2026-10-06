@@ -44,7 +44,7 @@ func TestPathsSortTheWayTheirNumbersRead(t *testing.T) {
 			want:  []string{"2026-07-28.md", "2026-07-29.md", "2026-07-30.md"},
 		},
 		{
-			name:  "paths carrying no number keep the order they always had",
+			name:  "paths carrying no number follow folded letter order",
 			paths: []string{"運弓筆記.md", "曲目/巴哈.md", "Notes/query-planner.md"},
 			want:  []string{"Notes/query-planner.md", "曲目/巴哈.md", "運弓筆記.md"},
 		},
@@ -107,7 +107,8 @@ func TestComparisonIsTotal(t *testing.T) {
 	t.Parallel()
 	paths := []string{
 		"第一課.md", "第1課.md", "第01課.md", "第一課.md", "abc", "", "十", "十十", "百",
-		"一期一會.md", "2.md",
+		"一期一會.md", "2.md", "A/z.md", "a/b.md", "K.md", "k.md", "K.md",
+		"Σ.md", "ς.md", "σ.md", "Part01/z.md", "Part1/b.md", "a/", "a", "a\xff", "a\uFFFD",
 	}
 	for _, a := range paths {
 		for _, b := range paths {

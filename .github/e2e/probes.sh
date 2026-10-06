@@ -31,6 +31,7 @@ probes=(
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
   "mermaid-name.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
+  "asset-identity.mjs|/notes/Notes/alpha.md"
   "image-size.mjs|/notes/Notes/image-sizes.md"
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "report-frame-contract.mjs|/reports/browser-boundary.html"
@@ -79,6 +80,7 @@ probes=(
   "prefetch-stale-preference.mjs|/notes/Writing/lessons/japanese/L01.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "health-table.mjs|/health"
+  "source-limit.mjs|/health"
   "shell-columns.mjs|/health"
   "reports-shelf.mjs|/reports"
   # A month named outright rather than whichever one it is today, so what this

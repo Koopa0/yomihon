@@ -177,7 +177,7 @@ const MUTATIONS = {
   'drop-the-cookie-write': {
     target: 'choice-survives-a-reload',
     apply: rewriteAsset(
-      '**/preferences.js',
+      '**/preferences.js{,?*}',
       // Built in two pieces so the source names no template placeholder.
       '    document.cookie = `yomihon_$' + '{name}=$' + '{value};path=/;max-age=31536000;samesite=lax`;\n',
       '',
@@ -189,7 +189,7 @@ const MUTATIONS = {
     apply: async (page) => {
       let requests = 0;
       let matches = 0;
-      await page.route('**/app.css', async (route) => {
+      await page.route('**/app.css{,?*}', async (route) => {
         requests += 1;
         const response = await route.fetch();
         const original = await response.text();
@@ -203,28 +203,28 @@ const MUTATIONS = {
   // The key reaching the drawer at every width, the column never.
   'arm-the-drawer-key-at-every-width': {
     target: 'wide-key-leaves-the-drawer-alone',
-    apply: rewriteAsset('**/shortcuts.js', '      if (drawer.isNarrow()) {', '      if (true) {'),
+    apply: rewriteAsset('**/shortcuts.js{,?*}', '      if (drawer.isNarrow()) {', '      if (true) {'),
   },
   // The column key claiming the narrow widths too.
   'arm-the-column-key-at-every-width': {
     target: 'drawer-key-still-opens-at-900',
-    apply: rewriteAsset('**/shortcuts.js', '      if (drawer.isNarrow()) {', '      if (false) {'),
+    apply: rewriteAsset('**/shortcuts.js{,?*}', '      if (drawer.isNarrow()) {', '      if (false) {'),
   },
   // Focus asked of a filter inside a panel nobody can see.
   'focus-the-filter-without-opening-the-column': {
     target: 'slash-opens-the-column-first',
-    apply: rewriteAsset('**/shortcuts.js', '        rail.expand();\n', ''),
+    apply: rewriteAsset('**/shortcuts.js{,?*}', '        rail.expand();\n', ''),
   },
   // Focus left in a panel that has just left the tree.
   'leave-focus-in-the-panel': {
     target: 'focus-leaves-the-hidden-panel',
-    apply: rewriteAsset('**/preferences.js', '      railToggle?.focus();\n', ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', '      railToggle?.focus();\n', ''),
   },
   // The panel free to reflow while the column moves, so the position the rail
   // was saved at means something else by the time it is put back.
   'let-the-panel-reflow-while-moving': {
     target: 'rail-scroll-is-restored',
-    apply: rewriteAsset('**/rail.js', "    root.dataset.railMoving = '';\n", ''),
+    apply: rewriteAsset('**/rail.js{,?*}', "    root.dataset.railMoving = '';\n", ''),
   },
   // The control scrolling away with the tree.
   'unstick-the-control': {
@@ -234,7 +234,7 @@ const MUTATIONS = {
   // The rail coming back at the top.
   'forget-the-rail-scroll': {
     target: 'rail-scroll-is-restored',
-    apply: rewriteAsset('**/rail.js', '    rail.scrollTop = scrollTop;\n', ''),
+    apply: rewriteAsset('**/rail.js{,?*}', '    rail.scrollTop = scrollTop;\n', ''),
   },
   // The collapsed rule reaching below 901px, where it would empty the drawer.
   'collapsed-rule-leaks-below-901': {
@@ -245,17 +245,17 @@ const MUTATIONS = {
   // would have to undo on every crossing.
   'inert-the-folded-rail': {
     target: 'wide-fold-sets-no-inertness',
-    apply: rewriteAsset('**/rail.js', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    rail.inert = true;\n"),
+    apply: rewriteAsset('**/rail.js{,?*}', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    rail.inert = true;\n"),
   },
   // The drawer's state written when the column is folded.
   'fold-the-column-by-the-drawer-state': {
     target: 'crossing-900-leaves-nothing-stale',
-    apply: rewriteAsset('**/rail.js', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    document.documentElement.dataset.nav = 'open';\n"),
+    apply: rewriteAsset('**/rail.js{,?*}', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    document.documentElement.dataset.nav = 'open';\n"),
   },
   // The button's state left where it was.
   'leave-aria-expanded-stale': {
     target: 'state-is-told-by-the-control',
-    apply: rewriteAsset('**/preferences.js', "    railToggle.setAttribute('aria-expanded', String(!collapsed));\n", ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', "    railToggle.setAttribute('aria-expanded', String(!collapsed));\n", ''),
   },
   // The panel left standing in a column that is folded.
   'keep-the-panel-when-folded': {
@@ -327,18 +327,18 @@ const MUTATIONS = {
   // The restore's write left to animate.
   'animate-the-restore': {
     target: 'restore-does-not-animate',
-    apply: rewriteAsset('**/preferences.js', "    root.dataset.railSettling = '';\n", ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', "    root.dataset.railSettling = '';\n", ''),
   },
   // The restore forgetting to move focus out of a panel it hides.
   'restore-strands-focus': {
     target: 'restore-moves-focus-out',
-    apply: rewriteAsset('**/preferences.js', '    keepFocusOutOfFoldedRail(rail);\n', ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', '    keepFocusOutOfFoldedRail(rail);\n', ''),
   },
   // The key advertised whatever the setting.
   'leave-the-key-advertised': {
     target: 'off-shortcuts-do-not-advertise-the-key',
     apply: rewriteAsset(
-      '**/preferences.js',
+      '**/preferences.js{,?*}',
       "    if (keys) railToggle.setAttribute('aria-keyshortcuts', '[');\n    else railToggle.removeAttribute('aria-keyshortcuts');\n",
       "    railToggle.setAttribute('aria-keyshortcuts', '[');\n",
     ),
@@ -912,7 +912,7 @@ try {
     // root's script mark cannot tell it any more: the document sets that mark
     // itself, before the first style, so it is there either way.
     let held = false;
-    await page.route('**/yomihon.js', (route) => {
+    await page.route('**/yomihon.js{,?*}', (route) => {
       held = true;
       return route.abort();
     });

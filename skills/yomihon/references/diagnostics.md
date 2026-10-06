@@ -280,3 +280,21 @@ write any script that depends on it. `check` and `coverage` make the opposite
 trade — they never report a withheld note at all, not even with `--all` — which
 is why this one command has to be described separately rather than lumped in
 with them.
+
+A name containing a `/` is also read as a vault path or path suffix, through
+the same resolver a link uses. A readable public note it reaches, and that no
+other field row already reports, answers with a `path` row whose
+`path` and `value` both hold the note's full vault path:
+
+```
+$ yomihon exists --root <vault> --format json Atlas/Postgres
+{"query":"Atlas/Postgres","matches":[{"path":"Notes/Projects/Atlas/Postgres.md","field":"path","value":"Notes/Projects/Atlas/Postgres.md"}]}
+$ echo $?
+0
+```
+
+Several notes ending with the same suffix each get a `path` row, and a
+withheld one among them adds only `"withheld":true`. A path query like this
+one, which earlier versions answered with exit 1, now exits 0 when a note
+answers it, so a script that gated a write on it no longer writes a second
+note at a path that already exists.

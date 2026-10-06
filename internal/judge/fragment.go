@@ -210,10 +210,17 @@ func fragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Ind
 		unread[entry.path] = true
 	}
 	var out []Finding
+	paths := fragmentPaths{idx: idx, notes: byPath, unread: unread}
 	for i := range notes {
 		n := &notes[i]
 		for l := range n.wikilinks {
 			link := &n.wikilinks[l]
+			if link.block == "" && render.IsHeadingPath(link.heading) {
+				if f, reported := paths.finding(n, link); reported {
+					out = append(out, f)
+				}
+				continue
+			}
 			if f, reported := fragmentFinding(n, link, idx, byPath, unread); reported {
 				out = append(out, f)
 			}
