@@ -285,12 +285,19 @@ that:
 | `<!-- a remark -->` | **the comment, visible as text** | one word decides the fate of an HTML comment: `read-aloud`. A comment that opens with it is recognised and handled by the row below; every other comment is escaped onto the page and stays visible, so to hide a remark use `%%…%%` |
 | ` ```mermaid ` | a diagram | case-insensitive, and the whole info string must be that word; the source is carried twice so it still reads without JavaScript |
 | ` ```go ` | highlighted code | an unrecognised language falls back to plain text **silently, with no diagnostic** |
+| TeX math (`$…$`, `$$…$$`) | not rendered as math | read as ordinary Markdown, so backslash escapes apply. Use a fenced code block to preserve TeX source |
 | `<ruby>漢<rt>かん</rt></ruby>` | ruby text | `ruby`, `rt`, `rp`, `br` and a `lang=` attribute on the first three are the allowlist; any other tag is escaped and stays visible |
 | `![alt](pic.png)` | an image | a remote destination becomes an explicit link, never a request; a destination that is neither local nor http shows the alt text alone |
 | `## 標題` | a heading with an anchor | CJK letters and digits survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
 | `<!-- read-aloud: zh-Hant -->` | a speech control on the next paragraph | accepts any well-formed BCP 47 tag, such as `ja`, `zh-Hant`, `en` or `fr`, and gives the paragraph its canonical language. A malformed value is **deleted from the page**, not escaped or visible. Controls appear only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; elsewhere a valid marker remains an invisible HTML comment. A device without an available speech voice uses the existing unavailable message |
 | `[[#Section]]` | **plain text** | a same-file anchor is not implemented and draws no diagnostic. What is left is the display half — `[[#Section]]` leaves `#Section`, and `[[#Section\|see below]]` leaves only `see below` |
 | `> [!quote] [[Note]]` | **plain text** | a recognised callout's title is escaped, not parsed; a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image there draws `callout.title_markup` — move the markup into the body |
+
+For example, this fenced code block keeps every TeX backslash:
+
+```text
+a\,b\;c\{d\}e\\f
+```
 
 Recognised callout types, closed; each group separated by · shares one default
 title, used when the opening line names none. The title is plain text. Markdown
