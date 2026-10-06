@@ -16,22 +16,26 @@ func FoldFragment(s string) string {
 	return strings.ToLower(vault.NormalizeNFC(s))
 }
 
-// sectionIDDrop matches every run of characters a section id drops: anything
-// that is not a Unicode letter, mark or number collapses to a single hyphen.
-var sectionIDDrop = regexp.MustCompile(`[^\p{L}\p{M}\p{N}]+`)
+// sectionIDKeep matches every run of characters a section id keeps: Unicode
+// letters and numbers, each with the combining marks written on it. A mark
+// belongs to the character before it, so one left behind by a dropped symbol
+// is dropped with it. Enclosing marks and the text and emoji presentation
+// selectors only restyle a symbol, so they are never kept.
+var sectionIDKeep = regexp.MustCompile(`(?:[\p{L}\p{N}][^\P{M}\p{Me}\x{FE0E}\x{FE0F}]*)+`)
 
 // SectionID is the id a page stamps for a heading of this name, and therefore
-// the fragment a link has to carry to reach it: fold, keep letters, marks and numbers,
-// collapse every other run to one hyphen, trim the ends, and fall back to
+// the fragment a link has to carry to reach it: fold, keep letters and numbers
+// with their marks, join the kept runs with one hyphen, and fall back to
 // "section" when nothing is left. Keeping every Unicode letter is what lets a
 // CJK heading produce a usable id, and folding first is what keeps か+◌゙ん and
 // がん one id rather than two. Marks without a precomposed form stay in the id,
-// so Indic vowels, Thai tones and Japanese variation selectors remain distinct.
+// so Indic vowels, Thai tones and Japanese variation selectors remain distinct,
+// while an emoji heading keeps the id its words alone give it.
 //
 // Every face that stamps an id, follows one, or asks whether a note answers one
 // reads it from here, so a link and the heading it names cannot drift apart.
 func SectionID(name string) string {
-	id := strings.Trim(sectionIDDrop.ReplaceAllString(FoldFragment(name), "-"), "-")
+	id := strings.Join(sectionIDKeep.FindAllString(FoldFragment(name), -1), "-")
 	if id == "" {
 		return "section"
 	}

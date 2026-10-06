@@ -912,7 +912,7 @@ func TestOneOwnerFoldsAFragment(t *testing.T) {
 
 	for _, spelling := range []struct{ what, bytes string }{
 		{"the fold that decides which spellings of a name are one name", "strings.ToLower(vault.NormalizeNFC("},
-		{"the run of characters a section id collapses", `[^\p{L}\p{N}]+`},
+		{"the run of characters a section id keeps", `[\p{L}\p{N}][^\P{M}\p{Me}\x{FE0E}\x{FE0F}]*`},
 	} {
 		t.Run(spelling.what, func(t *testing.T) {
 			t.Parallel()

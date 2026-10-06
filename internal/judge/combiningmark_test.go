@@ -11,7 +11,7 @@ func TestFragmentMarksRemainDistinct(t *testing.T) {
 	for _, tt := range []struct{ name, heading, missing string }{
 		{"Hindi spacing mark", "की", "कि"},
 		{"Thai nonspacing mark", "ปู่", "ปู"},
-		{"enclosing mark", "A\u20dd", "A"},
+		{"Kana combining mark", "か\u309a", "か"},
 		{"supplementary variation selector", "葛\U000e0100城", "葛城"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
