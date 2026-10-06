@@ -32,15 +32,25 @@ list=$$(go list $(1) ./assets ./cmd/... ./internal/...); \
 endef
 
 define require-go-tool
-path=$$(command -v $(1)) || { echo '$(1) is required at $(3); run: make tools' >&2; exit 1; }; \
-go version -m "$$path" | awk '$$1 == "mod" && $$2 == "$(2)" && $$3 == "$(3)" { found = 1 } END { exit !found }' || { \
-	echo '$(1) must be built from $(2) $(3); run: make tools' >&2; \
+set -eu; \
+path=$$(command -v $(1)) || { \
+	bin=$$(GOTOOLCHAIN=local go env GOBIN); \
+	if [ -z "$$bin" ]; then \
+		workspace=$$(GOTOOLCHAIN=local go env GOPATH); \
+		bin="$${workspace%%:*}/bin"; \
+	fi; \
+	echo "$(1) is required at $(3); go install places it at $$bin/$(1). Add $$bin to PATH, or run: make tools" >&2; \
 	exit 1; \
 }; \
-built=$$(go version -m "$$path" | awk 'NR == 1 { sub(/^go/, "", $$2); print $$2 }'); \
-needed=$$(awk '$$1 == "go" { print $$2; exit }' go.mod); \
-[ "$$(printf '%s\n%s\n' "$$needed" "$$built" | sort -V | head -n 1)" = "$$needed" ] || { \
-	echo "$(1) was built with go$$built and cannot read go$$needed source. The pinned version is right; the toolchain that built it is not, which is why the failure reads as a broken tool rather than a stale install. Run: make tools" >&2; \
+info=$$(go version -m "$$path") || { echo "cannot read the build metadata of $$path; run: make tools" >&2; exit 1; }; \
+built=$$(printf '%s\n' "$$info" | awk 'NR == 1 { print $$NF }'); \
+printf '%s\n' "$$info" | awk '$$1 == "mod" && $$2 == "$(2)" && $$3 == "$(3)" { found = 1 } END { exit !found }' || { \
+	echo "$$path was built with $$built and must be built from $(2) $(3); run: make tools" >&2; \
+	exit 1; \
+}; \
+needed=$$(awk '$$1 == "go" { split($$2, v, "."); printf "%s.%s.%s\n", v[1], v[2], (v[3] == "" ? "0" : v[3]); exit }' go.mod); \
+[ "$$(printf '%s\n%s\n' "go$$needed" "$$built" | sed -E 's/^(go[0-9]+\.[0-9]+)(beta|rc)/\1.0~\2/' | sort -V | head -n 1)" = "go$$needed" ] || { \
+	echo "$$path was built with $$built and cannot read go$$needed source. The pinned version is right; the toolchain that built it is not, which is why the failure reads as a broken tool rather than a stale install. Run: make tools" >&2; \
 	exit 1; \
 }
 endef
@@ -156,13 +166,22 @@ vuln:
 	@$(call require-go-tool,govulncheck,golang.org/x/vuln,$(GOVULNCHECK_VERSION))
 	@$(call owned-go-list); govulncheck $$list
 
+# Versioned go install can choose the tool's minimum Go instead of this module's.
+# Override that choice only for an older local Go; an equal or newer local Go
+# keeps its selection and can install from its cache without a forced download.
 tools:
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)
-	go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
-	go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
-	go install github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
-	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
-	go install golang.org/x/perf/cmd/benchstat@$(BENCHSTAT_VERSION)
+	@set -eu; \
+	needed=$$(awk '$$1 == "go" { split($$2, v, "."); printf "%s.%s.%s\n", v[1], v[2], (v[3] == "" ? "0" : v[3]); exit }' go.mod); \
+	local=$$(GOTOOLCHAIN=local go env GOVERSION); \
+	if [ "$$(printf '%s\n%s\n' "go$$needed" "$$local" | sed -E 's/^(go[0-9]+\.[0-9]+)(beta|rc)/\1.0~\2/' | sort -V | head -n 1)" != "go$$needed" ]; then \
+		export GOTOOLCHAIN="go$$needed"; \
+	fi; \
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION); \
+	go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION); \
+	go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION); \
+	go install github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION); \
+	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION); \
+	go install golang.org/x/perf/cmd/benchstat@$(BENCHSTAT_VERSION); \
 	go install golang.org/x/tools/cmd/deadcode@$(DEADCODE_VERSION)
 
 workflow-check:
