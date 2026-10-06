@@ -18,13 +18,10 @@ var (
 	safeMarkupBareTag = regexp.MustCompile(`^<(?:ruby|rt|rp|br)[ \t\r\n]*/?>$`)
 	safeMarkupEndTag  = regexp.MustCompile(`^</(?:ruby|rt|rp)[ \t\r\n]*>$`)
 	safeMarkupLangTag = regexp.MustCompile(`^<(?:ruby|rt|rp)[ \t\r\n]+lang=(?:"[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*"|'[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*')[ \t\r\n]*>$`)
-	safeReadAloudTag  = regexp.MustCompile(`^<!--[ \t\r\n]*read-aloud:[ \t\r\n]*ja[ \t\r\n]*-->$`)
 	// readAloudMarker matches the read-aloud marker by its shape, whatever value
-	// its author wrote after the colon. Only "ja" is spoken — the voice exists
-	// for the Japanese lessons — so this is the wider pattern that recognizes an
-	// instruction the renderer can read and cannot carry out. Recognizing it is
-	// what lets it be dropped: escaped instead, it becomes a text node in the
-	// reading column, coloured and laid out like a sentence the author wrote.
+	// its author wrote after the colon. An invalid declaration is still an
+	// instruction rather than prose, so it is dropped instead of escaped into
+	// the reading column.
 	readAloudMarker = regexp.MustCompile(`(?s)^<!--[ \t\r\n]*read-aloud:.*-->$`)
 	trustedBlockTag = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
 )
@@ -81,8 +78,9 @@ func renderSafeRawHTML(w util.BufWriter, source []byte, node ast.Node, entering 
 }
 
 func isAllowlistedMarkup(tag []byte) bool {
+	_, readAloud := readAloudLanguage(string(tag))
 	return safeMarkupBareTag.Match(tag) || safeMarkupEndTag.Match(tag) || safeMarkupLangTag.Match(tag) ||
-		safeReadAloudTag.Match(tag) || trustedBlockTag.Match(tag)
+		readAloud || trustedBlockTag.Match(tag)
 }
 
 // visitSafeMarkup is the one tag walk the body renderer and the heading fold
@@ -102,7 +100,7 @@ func visitSafeMarkup(raw []byte, text, keep, escape func([]byte) error, drop fun
 			}
 			raw = raw[start:]
 		}
-		end := bytes.IndexByte(raw, '>')
+		end := safeMarkupEnd(raw)
 		if end < 0 {
 			return text(raw)
 		}
@@ -122,6 +120,18 @@ func visitSafeMarkup(raw []byte, text, keep, escape func([]byte) error, drop fun
 		raw = raw[end+1:]
 	}
 	return nil
+}
+
+// A malformed language may contain an angle bracket. Its instruction still
+// ends at the first comment boundary, so none becomes authored prose.
+func safeMarkupEnd(raw []byte) int {
+	if bytes.HasPrefix(raw, []byte("<!--")) {
+		commentEnd := bytes.Index(raw, []byte("-->"))
+		if commentEnd >= 0 && readAloudMarker.Match(raw[:commentEnd+3]) {
+			return commentEnd + 2
+		}
+	}
+	return bytes.IndexByte(raw, '>')
 }
 
 // applySafeMarkup runs authored heading source through the same tag allowlist

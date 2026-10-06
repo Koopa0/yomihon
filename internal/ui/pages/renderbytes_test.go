@@ -528,7 +528,7 @@ type recordedCourse struct {
 func recordedListenView() ListenView {
 	reading := func(spoken, inner string) string {
 		return `<div class="y-reading" lang="ja"><button class="y-tts" type="button" data-tts="` + spoken +
-			`" lang="zh-Hant" aria-label="朗讀這段日文"><svg aria-hidden="true"></svg></button><p lang="ja">` + inner + `</p></div>`
+			`" lang="zh-Hant" aria-label="朗讀這段文字"><svg aria-hidden="true"></svg></button><p lang="ja">` + inner + `</p></div>`
 	}
 	return ListenView{
 		Title:    "朗讀《Go path》",

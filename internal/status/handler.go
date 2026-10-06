@@ -165,7 +165,7 @@ func recoveryFor(err error) *recovery {
 	if r := recoveryForInstall(err); r != nil {
 		return r
 	}
-	if r := recoveryForIrregularEntry(err); r != nil {
+	if r := recoveryForFileRefusal(err); r != nil {
 		return r
 	}
 	if r := recoveryForUngoverned(err); r != nil {
@@ -253,14 +253,20 @@ func recoveryFor(err error) *recovery {
 	}
 }
 
-// recoveryForIrregularEntry maps the refusals for a path whose shape the
-// write face declines to follow, or nil when err is none of them. The named
+// recoveryForFileRefusal maps the refusals for a file whose shape or captured
+// write permissions forbid replacement, or nil when err is none of them. The
 // note is left unchanged — a hard link found inside the install window is
 // refused after a temp has been prepared beside it, and that temp is
 // discarded — so the unchanged page is truthful.
-func recoveryForIrregularEntry(err error) *recovery {
+func recoveryForFileRefusal(err error) *recovery {
 	var summary, next wording.Phrase
 	switch {
+	case errors.Is(err, ErrReadOnly):
+		return &recovery{
+			code:       http.StatusForbidden,
+			summary:    wording.NoteReadOnly,
+			nextAction: wording.NoteReadOnlyNext,
+		}
 	case errors.Is(err, errNotRegular):
 		summary, next = wording.TargetNotRegular, wording.TargetNotRegularNext
 	case errors.Is(err, errPathNotRegular):
