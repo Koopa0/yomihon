@@ -67,14 +67,14 @@ const hideVia = (path, selector, label) => rewritePath(
 const MUTATIONS = {
   'hide-notice': {
     target: 'notice-painted',
-    apply: hideVia(PAGE, '#schema-notices', 'schema-notice hide style'),
+    apply: hideVia(PAGE, '#_y-schema-notices', 'schema-notice hide style'),
   },
   'clip-notice-out-of-sight': {
     target: 'notice-painted',
     apply: rewritePath(
       PAGE,
       '</head>',
-      '<style>#schema-notices{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
+      '<style>#_y-schema-notices{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
       1,
       'schema-notice clip style',
     ),
@@ -84,14 +84,14 @@ const MUTATIONS = {
     apply: rewritePath(
       PAGE,
       '</head>',
-      '<style>@media (max-width:600px){#schema-notices{display:none!important}}</style></head>',
+      '<style>@media (max-width:600px){#_y-schema-notices{display:none!important}}</style></head>',
       1,
       'schema-notice phone-width hide style',
     ),
   },
   'drop-describedby': {
     target: 'notice-describedby',
-    apply: rewritePath(PAGE, ' aria-describedby="schema-notices"', '', 2, 'schema-notice describedby'),
+    apply: rewritePath(PAGE, ' aria-describedby="_y-schema-notices"', '', 2, 'schema-notice describedby'),
   },
 };
 
@@ -154,9 +154,9 @@ const onScreen = (seen) => seen.width > 1 && seen.height > 1 && seen.inViewport
 // two iterations is a phone and a failure that does not name which window it
 // was read in is a failure a reader has to reproduce to understand.
 const assertNoticeVisible = async (page, site, width) => {
-  const block = page.locator('#schema-notices');
+  const block = page.locator('#_y-schema-notices');
   if (await block.count() !== 1) {
-    fail(site, `at ${width}px the page carries ${await block.count()} #schema-notices blocks, want exactly 1`);
+    fail(site, `at ${width}px the page carries ${await block.count()} #_y-schema-notices blocks, want exactly 1`);
   }
   const seen = await painted(block);
   if (!onScreen(seen)) {
@@ -165,14 +165,14 @@ const assertNoticeVisible = async (page, site, width) => {
   if (!seen.text.includes('mystery_key') || !seen.text.includes('不是 schema 認得的欄位')) {
     fail(site, `at ${width}px the notice does not name the unknown key in words: ${JSON.stringify(seen.text)}`);
   }
-  const rail = page.locator('aside.y-rail-right #schema-notices');
+  const rail = page.locator('aside.y-rail-right #_y-schema-notices');
   if (await rail.count() !== 0) {
     fail(site, `at ${width}px the notice still renders inside the right rail`);
   }
 };
 
 const assertDescribedBy = async (page) => {
-  const submit = page.locator('.y-sealbar button[type="submit"][aria-describedby="schema-notices"]').first();
+  const submit = page.locator('.y-sealbar button[type="submit"][aria-describedby="_y-schema-notices"]').first();
   if (await submit.count() !== 1) {
     fail('notice-describedby', `the sealbar carries ${await submit.count()} described submits, want exactly 1`);
   }

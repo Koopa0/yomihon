@@ -43,7 +43,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED print-fold-o
 
 const weakenStylesheet = (rule) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;

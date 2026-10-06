@@ -56,7 +56,7 @@ const notApplied = (message) => {
 // has to match the blanket's own !important.
 const appendStylesheet = (rule) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
@@ -74,7 +74,7 @@ const appendStylesheet = (rule) => async (page) => {
 // The same for the lesson module, which is where the sheet is opened.
 const rewriteLesson = (needle, replacement) => async (page) => {
   let matched = -1;
-  await page.route('**/static/lesson.js', async (route) => {
+  await page.route('**/static/lesson.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matched = original.split(needle).length - 1;
@@ -99,7 +99,7 @@ const rewriteDocument = (needle, replacement) => async (page) => {
 
 const rewritePreview = (needle, replacement) => async (page) => {
   let matched = -1;
-  await page.route('**/static/preview.js', async (route) => {
+  await page.route('**/static/preview.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matched = original.split(needle).length - 1;

@@ -11,7 +11,7 @@
 export function initRail(preferences) {
   const root = document.documentElement;
   const media = window.matchMedia('(max-width: 900px)');
-  const rail = document.querySelector('#nav-rail');
+  const rail = document.querySelector('#_y-nav-rail');
   const button = document.querySelector('[data-rail-toggle]');
   if (!rail || !button) {
     return { available: () => false, isCollapsed: () => false, toggle() {}, expand() {}, collapse() {} };

@@ -52,7 +52,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED search-keys:
 const rewriteModule = (needle, replacement) => async (page) => {
   let requests = 0;
   let matches = 0;
-  await page.route('**/search.js', async (route) => {
+  await page.route('**/search.js{,?*}', async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();

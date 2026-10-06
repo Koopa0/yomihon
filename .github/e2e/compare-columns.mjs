@@ -70,7 +70,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED compare-colu
 // layout rule is taken away without touching the tree.
 const weakenStylesheet = (rule) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
@@ -103,7 +103,7 @@ const rewritePage = (needle, replacement, what) => async (page) => {
 const rewriteScript = (needle, replacement, what) => async (page) => {
   let applied = false;
   let served = 0;
-  await page.route('**/static/contents.js', async (route) => {
+  await page.route('**/static/contents.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     served += 1;
