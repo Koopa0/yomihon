@@ -59,6 +59,9 @@ var (
 	// identity the caller read: something outside the status line was edited
 	// after the page rendered. The status line's own divergence is ErrStale.
 	ErrContentChanged = errors.New("note content changed after it was read")
+	// ErrReadOnly means the captured note's owner-write permission is clear.
+	// Reading remains available, but the note cannot be replaced by a flip.
+	ErrReadOnly = errors.New("note is read-only")
 	// ErrStatusLine means the frontmatter block does not contain exactly one
 	// line beginning with "status:". yomihon reports; a human edits the file.
 	ErrStatusLine = errors.New("frontmatter does not have exactly one status line")
@@ -697,6 +700,9 @@ func (w *Writer) install(
 	rewritten []byte,
 	hooks flipHooks,
 ) error {
+	if source.file.Mode().Perm()&0o200 == 0 {
+		return ErrReadOnly
+	}
 	err := replaceRegularFile(
 		w.root,
 		rel,

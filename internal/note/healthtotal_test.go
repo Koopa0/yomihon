@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -76,5 +77,47 @@ func TestTheRailFootStatesWhatTheHealthTableHolds(t *testing.T) {
 	}
 	if claimed != drawn {
 		t.Errorf("the rail foot claims %d findings and the table's %d lines hold %d", claimed, len(rows), drawn)
+	}
+}
+
+func TestHealthAndRailDoNotCountNavigationEntriesAsIslands(t *testing.T) {
+	t.Parallel()
+	for _, unlisted := range []bool{false, true} {
+		name := "complete course"
+		if unlisted {
+			name = "unlisted lesson"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			notes := map[string]string{
+				"Maps/Course.md":    "---\ntitle: Course\ntype: study-path\ndomain: golang\nstatus: archived\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n## Unit\n- [[Listed]]\n",
+				"Maps/Overview.md":  "---\ntitle: Overview\ntype: moc\ndomain: golang\nstatus: archived\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n- [[Listed]]\n",
+				"Writing/Listed.md": "---\ntitle: Listed\nslug: listed\ntype: lesson\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nLesson text.\n",
+			}
+			want := 0
+			if unlisted {
+				want = 1
+				notes["Writing/Unlisted.md"] = "---\ntitle: Unlisted\nslug: unlisted\ntype: lesson\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nLesson text.\n"
+			}
+			srv := newServerWithContract(t, writeNotes(t, notes), loadHomeContract(t))
+			for _, route := range []string{"/health?page=all", "/notes/Writing/Listed.md"} {
+				code, page := get(t, srv.Client(), srv.URL+route)
+				if code != http.StatusOK {
+					t.Fatalf("GET %s status = %d, want 200", route, code)
+				}
+				if got := railFootClaim(t, page); got != want {
+					t.Errorf("caught: %s rail count = %d, want %d", route, got, want)
+				}
+				if strings.HasPrefix(route, "/health") {
+					rows := rowCount.FindAllStringSubmatch(page, -1)
+					if len(rows) != want {
+						t.Errorf("caught: health table rows = %d, want %d", len(rows), want)
+					}
+					if unlisted && !strings.Contains(page, `href="/notes/Writing/Unlisted.md"`) {
+						t.Error("caught: unlisted lesson is missing from Health")
+					}
+				}
+			}
+		})
 	}
 }
