@@ -114,9 +114,10 @@ const (
 	// page is certain to lack. That is why it is a separate kind from a missing
 	// block, which withdraws the author's address.
 	DiagLinkSectionMissing DiagnosticKind = "link-section-missing"
-	// DiagCommentUnclosed means a "%%" comment marker never met a second one, so
-	// everything after it is hidden from the page. Obsidian hides it too, so the
-	// words are not restored; the reader is told where the silence begins.
+	// DiagCommentUnclosed means a "%%" or "<!--" comment marker never met its
+	// closer, so everything after it is hidden from the page. Obsidian hides it
+	// too, so the words are not restored; the reader is told where the silence
+	// begins.
 	DiagCommentUnclosed DiagnosticKind = "comment-unclosed"
 	// DiagImageMissing means a note showed a picture from a path inside the
 	// vault and the vault holds no file there. The image is left where the

@@ -1094,7 +1094,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 // off, so no later pass can reopen a marker this one ruled literal.
 func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped string, matches int) {
 	stripped, unclosed := stripBody(body)
-	if unclosed != 0 {
+	if unclosed.line != 0 {
 		unclosedDiagnostic := unclosedCommentDiagnostic(unclosed)
 		col.report(&unclosedDiagnostic)
 	}

@@ -21,28 +21,36 @@ type strippedBody struct {
 }
 
 // stripBody hides body's comments and records what that cost the line geometry.
-// unclosedLine is stripObsidianComments's, unchanged.
-func stripBody(body string) (stripped strippedBody, unclosedLine int) {
-	text, unclosedLine := stripObsidianComments(body)
+// unclosed is stripObsidianComments's, unchanged.
+func stripBody(body string) (stripped strippedBody, unclosed unclosedComment) {
+	text, unclosed := stripObsidianComments(body)
 	return strippedBody{
 		text:    text,
 		address: BlockAddressLines(strings.Split(body, "\n"), text),
-	}, unclosedLine
+	}, unclosed
+}
+
+// unclosedComment is a comment that never met its closer and so hides the rest
+// of the body: the 1-based body line its marker was written on, and that
+// marker. A zero line means no such comment.
+type unclosedComment struct {
+	line   int
+	marker string
 }
 
 // stripObsidianComments removes %% and HTML comment regions while preserving the
 // delimiters and contents of fenced code blocks. An unclosed comment runs to the
-// end of its Markdown container or the body. unclosedLine is the 1-based line the
-// still-open %% marker was written on, or 0 when none remains, so a
-// page that went quiet can name where the silence starts.
-func stripObsidianComments(body string) (stripped string, unclosedLine int) {
+// end of its Markdown container or the body. unclosed names one that runs to the
+// end of the body, so a page that went quiet can name where the silence starts.
+// Only one can: whichever opens first swallows any later opener.
+func stripObsidianComments(body string) (stripped string, unclosed unclosedComment) {
 	lines := strings.Split(body, "\n")
 	state := commentState{htmlCode: htmlCommentCode(body), limits: graph.HTMLCommentLimits(body)}
 	offset := 0
 	inFence := false
 	var fenceByte byte
 	var fenceLen int
-	pending := 0
+	pending, htmlPending := 0, 0
 
 	for i, line := range lines {
 		at := offset
@@ -77,6 +85,9 @@ func stripObsidianComments(body string) (stripped string, unclosedLine int) {
 		case openedHere:
 			pending = i + 1
 		}
+		if openedHere && state.closing == "-->" && state.unclosed {
+			htmlPending = i + 1
+		}
 		if state.closing != "" {
 			continue
 		}
@@ -86,12 +97,20 @@ func stripObsidianComments(body string) (stripped string, unclosedLine int) {
 			fenceLen = n
 		}
 	}
-	return strings.Join(lines, "\n"), pending
+	stripped = strings.Join(lines, "\n")
+	switch {
+	case pending != 0:
+		return stripped, unclosedComment{line: pending, marker: "%%"}
+	case htmlPending != 0:
+		return stripped, unclosedComment{line: htmlPending, marker: "<!--"}
+	}
+	return stripped, unclosedComment{}
 }
 
 type commentState struct {
 	closing    string
 	stop       int
+	unclosed   bool
 	quoteDepth int
 	htmlCode   []graph.Span
 	limits     map[int]int
@@ -177,6 +196,9 @@ func (s *commentState) htmlAt(line, body string, offset, mark int) (kept string,
 		return "", end, false
 	}
 	s.closing, s.stop = "-->", span.Stop
+	// A comment its Markdown container ends keeps the words after that
+	// container; one that never closes hides every word after it, as %% does.
+	s.unclosed = !closed && span.Stop == len(body)
 	start := strings.LastIndex(body[:open], "\n") + 1
 	s.quoteDepth = strings.Count(htmlCommentQuotePrefix(body[start:open]), ">")
 	return "", len(line), true
@@ -239,19 +261,19 @@ func stripObsidianCommentLine(line, body string, offset int, state *commentState
 // the line number beside the marker itself, which is what a reader needs to find
 // where their words stopped appearing. Each body is scanned once, where it is
 // first read, so no second pass can reopen what the first ruled literal.
-func unclosedCommentDiagnostic(line int) Diagnostic {
+func unclosedCommentDiagnostic(unclosed unclosedComment) Diagnostic {
 	return Diagnostic{
 		Kind:    DiagCommentUnclosed,
-		Target:  "%%",
-		Message: fmt.Sprintf("an unclosed %%%% comment opened at line %d of the note body hides everything after it", line),
+		Target:  unclosed.marker,
+		Message: fmt.Sprintf("an unclosed %s comment opened at line %d of the note body hides everything after it", unclosed.marker, unclosed.line),
 	}
 }
 
 // appendUnclosedComment adds that report when a marker was left open, and adds
 // nothing for a body whose markers all matched — which is nearly every body.
-func appendUnclosedComment(diagnostics []Diagnostic, line int) []Diagnostic {
-	if line == 0 {
+func appendUnclosedComment(diagnostics []Diagnostic, unclosed unclosedComment) []Diagnostic {
+	if unclosed.line == 0 {
 		return diagnostics
 	}
-	return append(diagnostics, unclosedCommentDiagnostic(line))
+	return append(diagnostics, unclosedCommentDiagnostic(unclosed))
 }

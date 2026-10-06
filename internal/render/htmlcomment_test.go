@@ -26,7 +26,6 @@ func TestHTMLCommentsHideTheirContentsAndLinks(t *testing.T) {
 		{name: "HTML opener inside percent", body: "A%% <!-- [[Ghost]] %%B", want: "<p>AB</p>\n"},
 		{name: "fence inside comment", body: "A\n<!--\n```\n[[Ghost]]\n```\n-->\nB", want: "<p>A</p>\n<p>B</p>\n"},
 		{name: "short empty", body: "A<!-->B<!--->C", want: "<p>ABC</p>\n"},
-		{name: "unclosed", body: "A<!-- private\n[[Ghost]]", want: "<p>A</p>\n"},
 		{name: "escaped", body: `A\<!-- literal -->B`, want: "<p>A&lt;!-- literal --&gt;B</p>\n"},
 		{name: "code span", body: "`<!-- literal -->`", want: "<p><code>&lt;!-- literal --&gt;</code></p>\n"},
 		{name: "fenced code", body: "```text\n<!-- literal -->\n```", want: "<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">&lt;!-- literal --&gt;\n</span></span></code></pre>"},
@@ -49,6 +48,61 @@ func TestHTMLCommentsHideTheirContentsAndLinks(t *testing.T) {
 	}
 	if !strings.Contains(embedded.HTML, "Embedded  words.") {
 		t.Errorf("embedded visible words lost: %s", embedded.HTML)
+	}
+}
+
+// An HTML comment that never closes hides every word after it, as an unclosed
+// %% does, so the page says where that silence starts instead of just stopping.
+func TestUnclosedHTMLCommentNamesItsLine(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, transclusions{"Target.md": "Embedded\n\nwords <!-- todo\n\nhidden"})
+	tests := []struct{ name, body, want, message string }{
+		{
+			name:    "opened in prose",
+			body:    "Text <!-- todo\n\nfirst\n\nsecond\n\nthird\n",
+			want:    "<p>Text</p>\n",
+			message: "an unclosed <!-- comment opened at line 1 of the note body hides everything after it",
+		},
+		{
+			name:    "opened after visible paragraphs",
+			body:    "First.\n\nA<!-- private\n[[Ghost]]",
+			want:    "<p>First.</p>\n<p>A</p>\n",
+			message: "an unclosed <!-- comment opened at line 3 of the note body hides everything after it",
+		},
+		{
+			name:    "opened as a block",
+			body:    "First.\n\n<!-- private\n\nsecret\n",
+			want:    "<p>First.</p>\n",
+			message: "an unclosed <!-- comment opened at line 3 of the note body hides everything after it",
+		},
+		{
+			name:    "embedded",
+			body:    "![[Target]]",
+			message: "an unclosed <!-- comment opened at line 3 of the note body hides everything after it",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Note.md", "", tt.body, wording.ZhHant)
+			if tt.want != "" {
+				if diff := cmp.Diff(tt.want, got.HTML); diff != "" {
+					t.Errorf("unclosed HTML comment (-want +got):\n%s", diff)
+				}
+			}
+			if strings.Contains(got.HTML, "hidden") || strings.Contains(got.HTML, "secret") || strings.Contains(got.HTML, "Ghost") {
+				t.Errorf("unclosed comment words reached the page: %s", got.HTML)
+			}
+			var reported []render.Diagnostic
+			for _, d := range got.Diagnostics {
+				if d.Kind == render.DiagCommentUnclosed {
+					reported = append(reported, d)
+				}
+			}
+			if len(reported) != 1 || reported[0].Target != "<!--" || reported[0].Message != tt.message {
+				t.Errorf("unclosed HTML comment diagnostics = %+v, want one at %q saying %q", got.Diagnostics, "<!--", tt.message)
+			}
+		})
 	}
 }
 
