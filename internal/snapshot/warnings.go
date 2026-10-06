@@ -15,6 +15,10 @@ const (
 	warningHead    = "head"
 )
 
+type sidecarSource string
+
+func (s sidecarSource) String() string { return string(s) }
+
 type warningKey struct {
 	path     string
 	kind     string
