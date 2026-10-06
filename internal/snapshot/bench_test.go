@@ -1,12 +1,16 @@
 package snapshot
 
 import (
+	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
+
+var representativeBench = flag.Bool("snapshot-bench", false, "include representative snapshot initial/rebuild benchmarks")
 
 // BenchmarkBuildSnapshot measures one scan-and-rebuild of all three derived
 // models over a small fixed vault written once to a temp directory. It reads
@@ -43,6 +47,58 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 		); err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// BenchmarkRepresentativeSnapshot exercises the same synchronous initial build
+// and reconciliation method the server uses. The larger fixture sizes are
+// explicitly enabled so routine tests and the CI smoke keep their small vault.
+func BenchmarkRepresentativeSnapshot(b *testing.B) {
+	if !*representativeBench {
+		b.Skip("representative snapshots require -snapshot-bench")
+	}
+	for _, notes := range representativeSizes {
+		b.Run(fmt.Sprintf("notes=%d", notes), func(b *testing.B) {
+			for _, phase := range []string{"initial", "rebuild"} {
+				b.Run(phase, func(b *testing.B) {
+					f := newRepresentativeFixture(b, notes)
+					store := representativeGeneration(b, f)
+					receipt := representativeReceipt(b, f, store.Current())
+					const edited = "Concepts/golang/Note-00000.md"
+					original := f.sources[edited]
+					longer := false
+					b.ReportAllocs()
+					for b.Loop() {
+						if phase == "initial" {
+							store = representativeGeneration(b, f)
+							b.StopTimer()
+						} else {
+							b.StopTimer()
+							previous := store.Current()
+							suffix := "\nA small edit.\n"
+							if longer {
+								suffix = "\nA slightly longer edit.\n"
+							}
+							longer = !longer
+							f.sources[edited] = original + suffix
+							writeBenchNote(b, f.root, edited, f.sources[edited])
+							b.StartTimer()
+							store.rescan(b.Context())
+							b.StopTimer()
+							if store.Current() == previous {
+								b.Fatal("caught: benchmark edit did not publish a replacement generation")
+							}
+						}
+						representativeReceipt(b, f, store.Current())
+						b.StartTimer()
+					}
+					b.ReportMetric(float64(receipt.Notes), "notes")
+					b.ReportMetric(float64(receipt.Files), "files")
+					b.ReportMetric(float64(receipt.SourceBytes), "source-B")
+					b.ReportMetric(float64(receipt.Links), "links")
+				})
+			}
+		})
 	}
 }
 

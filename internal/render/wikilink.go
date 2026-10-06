@@ -187,9 +187,17 @@ var blockMarkupMarker = regexp.MustCompile("\ue002\\d+\ue003")
 // selects; bytes that merely resemble a marker pass through as written. Redeemed
 // markup is spliced and never rescanned.
 func substituteBlocks(htmlOut string, blocks, inline []string) string {
+	out, _ := substituteMarkedBlocks(htmlOut, blocks, inline, nil)
+	return out
+}
+
+// substituteMarkedBlocks returns anchors only when their private marker is
+// redeemed. Parsing may discard a definition or move a footnote, so planting
+// an anchor alone establishes neither its presence nor its document order.
+func substituteMarkedBlocks(htmlOut string, blocks, inline []string, anchors map[int]string) (rendered string, emitted []string) {
 	htmlOut = partParagraphsAtBlockMarkup(htmlOut)
 	if len(blocks) == 0 && len(inline) == 0 {
-		return htmlOut
+		return htmlOut, nil
 	}
 	var out strings.Builder
 	grown := len(htmlOut)
@@ -227,19 +235,29 @@ func substituteBlocks(htmlOut string, blocks, inline []string) string {
 			}
 			nextComment = nextMark(htmlOut, blockMarkOpen, max(pos, cand+1))
 		case nextInline:
-			if markup, end, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, false); ok {
+			if markup, end, idx, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, false); ok {
 				splice(cand, end, markup)
+				emitted = appendEmittedAnchor(emitted, anchors[idx])
 			}
 			nextInline = nextMark(htmlOut, inlineMarkOpen, max(pos, cand+1))
 		default:
-			if markup, end, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, true); ok {
+			if markup, end, idx, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, true); ok {
 				splice(cand, end, markup)
+				emitted = appendEmittedAnchor(emitted, anchors[idx])
 			}
 			nextWide = nextMark(htmlOut, wideMarkOpen, max(pos, cand+1))
 		}
 	}
 	out.WriteString(htmlOut[pos:])
-	return out.String()
+	return out.String(), emitted
+}
+
+// appendEmittedAnchor leaves ordinary inline markup out of the anchor list.
+func appendEmittedAnchor(emitted []string, id string) []string {
+	if id != "" {
+		return append(emitted, id)
+	}
+	return emitted
 }
 
 // leftmostMark picks the leftmost pending marker opening among the three
@@ -302,17 +320,17 @@ func redeemBlockAt(doc string, cand int, blocks []string, used []bool) (markup s
 // redeemInlineAt is redeemBlockAt for the two private-use marker pairs. wide
 // selects the pair, and a marker redeems only when its markup's shape agrees, so
 // an index travelling under one pair is never surrendered to the other.
-func redeemInlineAt(doc string, cand int, inline []string, used []bool, wide bool) (markup string, end int, ok bool) {
+func redeemInlineAt(doc string, cand int, inline []string, used []bool, wide bool) (markup string, end, index int, ok bool) {
 	open, closing := inlineMarkOpen, inlineMarkClose
 	if wide {
 		open, closing = wideMarkOpen, wideMarkClose
 	}
 	idx, n, matched := markerIndex(doc[cand+len(open):], closing)
 	if !matched || idx >= len(inline) || used[idx] || markerIsBlockShaped(inline[idx]) != wide {
-		return "", 0, false
+		return "", 0, 0, false
 	}
 	used[idx] = true
-	return inline[idx], cand + len(open) + n, true
+	return inline[idx], cand + len(open) + n, idx, true
 }
 
 // partParagraphsAtBlockMarkup opens every paragraph around the block-markup
@@ -465,7 +483,7 @@ func looksRisky(line string) bool {
 // once across everything that note holds. At most one risky-fence diagnostic is
 // recorded per scan: a callout's body is scanned on its own, and a transcluded
 // embed is a call of its own, so each has its own budget.
-func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPolicy, col *collector) (out string, blocks, inline []string) {
+func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPolicy, col *collector) (out string, marks *markers) {
 	st := &preprocessState{
 		lines:   strings.Split(body, "\n"),
 		address: address,
@@ -477,7 +495,7 @@ func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPol
 	// last line, so a block still open there has nothing left to swallow and the
 	// end of the document ends it. Writing a close here would put a line the
 	// author never typed into their last block.
-	return strings.Join(st.kept, "\n"), st.marks.blocks, st.marks.inline
+	return strings.Join(st.kept, "\n"), st.marks
 }
 
 // scan reads st's lines to their end, consuming each dialect construct it
@@ -523,7 +541,7 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 			// because a span can run past the end of one; the answer does not
 			// widen to indented code.
 			if !owned[st.i] {
-				line = markBlockAnchor(line, col.page, &st.marks.inline, allowEmbed == embedsAllowed)
+				line = markBlockAnchor(line, col.page, st.marks, allowEmbed == embedsAllowed)
 			}
 			st.kept = append(st.kept, line)
 			st.i++
@@ -539,6 +557,8 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 type markers struct {
 	blocks []string
 	inline []string
+	// anchors binds a claimed block id to the inline marker that emits it.
+	anchors map[int]string
 }
 
 // plantBlock files markup that stands on its own line and answers with the
@@ -774,10 +794,13 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 		}
 		inner := raw[2 : len(raw)-2]
 		link, ok := graph.ParseWikilink(inner)
-		if !ok {
-			// [[#heading]] or [[^block]] stripped to empty: a same-file
-			// anchor jump, not a cross-file link — render the original
-			// display text as plain text, don't attempt to resolve it.
+		localHeading := !ok && !embed && link.Heading != "" && link.Block == "" && vault.IsMarkdown(col.relPath)
+		if localHeading && link.Display == "" {
+			link.Display = "#" + link.Heading
+		}
+		if !ok && !localHeading {
+			// Local blocks and embeds keep their plain-text fallback. Only a
+			// same-note heading is a page link without a cross-file target.
 			return html.EscapeString(link.Display)
 		}
 		if embed {
@@ -854,6 +877,10 @@ func rawHref(p string) string {
 // uncaptured body, and anything that is not a note gets no fragment at all.
 func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collector) (string, fragmentMiss) {
 	href := notesHref(relPath)
+	localPage := link.Target == "" && relPath == col.relPath && col.onPage
+	if localPage {
+		href = ""
+	}
 	if !vault.IsMarkdown(relPath) {
 		return href, fragmentPlaced
 	}
@@ -880,6 +907,9 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 	case link.Heading != "":
 		addressed := href + "#" + graph.SectionID(link.Heading)
 		body, ok := r.transclusions.Transclusion(relPath)
+		if localPage {
+			body, ok = col.body, true
+		}
 		if !ok {
 			return addressed, fragmentPlaced
 		}
@@ -910,15 +940,13 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 // that placed exactly one file gets a fragment; a name placing several is not
 // answered here, since this renderer never picks one of them.
 func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
+	if link.Target == "" {
+		return r.resolvedWikilink(col.relPath, link, col)
+	}
 	res := r.idx.Resolve(link.Target)
 	switch res.Kind {
 	case graph.KindUnique:
-		href, miss := r.sectionHref(res.RelPath, link, col)
-		if miss != fragmentPlaced {
-			return degradedLink(href, link, miss, col.page.lang)
-		}
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, attributeEscaper.Replace(href), html.EscapeString(link.Display))
+		return r.resolvedWikilink(res.RelPath, link, col)
 	case graph.KindAmbiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
@@ -944,6 +972,17 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	default:
 		panic("render: unknown graph.Kind: " + res.Kind.String())
 	}
+}
+
+// resolvedWikilink renders a link to one known note, including the current
+// body whose identity the caller already holds without a filename lookup.
+func (r *Pipeline) resolvedWikilink(relPath string, link graph.Wikilink, col *collector) string {
+	href, miss := r.sectionHref(relPath, link, col)
+	if miss != fragmentPlaced {
+		return degradedLink(href, link, miss, col.page.lang)
+	}
+	//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
+	return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, attributeEscaper.Replace(href), html.EscapeString(link.Display))
 }
 
 // renderEmbed renders ![[target]] for the parsed link. A unique markdown-note
@@ -1025,7 +1064,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			matches: matches,
 			slice:   slice,
 		})
-		inner := r.render(slice, embedsDenied, col.page)
+		inner := r.render(slice, res.RelPath, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		heldBack := false
 		for _, d := range inner.Diagnostics {

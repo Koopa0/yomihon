@@ -111,6 +111,7 @@ func TestTheRenderedBytesAreTheOnesTheGoldensHold(t *testing.T) {
 		// marker quoted in code, stays.
 		{name: "sequencerow", relPath: "Notes/Sequence Row.md"},
 		{name: "htmlcomments", relPath: "Notes/HTML Comments.md"},
+		{name: "tasklist", relPath: "Notes/Task List.md"},
 	}
 
 	for _, tt := range tests {

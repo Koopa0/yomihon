@@ -282,15 +282,22 @@ that:
 | `text. ^my-id` | a block address a link can reach | works on a heading, an ordinary paragraph and a callout's body line; refused on a recognised callout's opening line and on a table row; the caret stays in the id |
 | `==text==` | a highlight | exactly two `=` on each side. A single `=` is literal; surplus `=` also stay literal, outside the mark on the left and inside it on the right, so `===x===` gives `=<mark>x=</mark>` |
 | `%%hidden%%` | nothing | unclosed runs to the end of the body, with a diagnostic naming the body line it opened on |
-| `<!-- a remark -->` | hidden, like `%%…%%` | both spellings hide a remark from the reading page, search text and link extraction. Delimiters shown inside code remain literal. The recognized `read-aloud: ja` marker keeps its handling in the row below |
+| `<!-- a remark -->` | hidden, like `%%…%%` | both spellings hide a remark from the reading page, search text and link extraction. Delimiters shown inside code remain literal. A `read-aloud` marker keeps its handling in the row below |
 | ` ```mermaid ` | a diagram | case-insensitive, and the whole info string must be that word; the source is carried twice so it still reads without JavaScript |
 | ` ```go ` | highlighted code | an unrecognised language falls back to plain text **silently, with no diagnostic** |
+| TeX math (`$…$`, `$$…$$`) | not rendered as math | read as ordinary Markdown, so backslash escapes apply. Use a fenced code block to preserve TeX source |
 | `<ruby>漢<rt>かん</rt></ruby>` | ruby text | `ruby`, `rt`, `rp`, `br` and a `lang=` attribute on the first three are the allowlist; any other tag is escaped and stays visible |
 | `![alt](pic.png)` | an image | a remote destination becomes an explicit link, never a request; a destination that is neither local nor http shows the alt text alone |
 | `## 標題` | a heading with an anchor | CJK letters and digits survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
-| `<!-- read-aloud: ja -->` | a speech control on the next paragraph | `ja` is the only value: a `read-aloud` comment naming any other language is **deleted from the page**, not escaped and not left visible, wherever it is written. `ja` raises a control only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; anywhere else it is passed through as a real HTML comment, which a browser does not draw, so it is invisible and does nothing |
-| `[[#Section]]` | **plain text** | a same-file anchor is not implemented and draws no diagnostic. What is left is the display half — `[[#Section]]` leaves `#Section`, and `[[#Section\|see below]]` leaves only `see below` |
+| `<!-- read-aloud: zh-Hant -->` | a speech control on the next paragraph | accepts any well-formed BCP 47 tag, such as `ja`, `zh-Hant`, `en` or `fr`, and gives the paragraph its canonical language. A malformed value is **deleted from the page**, not escaped or visible. Controls appear only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; elsewhere a valid marker remains an invisible HTML comment. A device without an available speech voice uses the existing unavailable message |
+| `[[#Section]]` | **same-page link** | a heading in the current note takes the same id as its contents entry; an alias keeps its authored label. A missing section keeps its address, renders degraded, and draws a page diagnostic. In a transcluded excerpt the link names the source note. Same-note block references and embeds still draw only their display text; the judge does not check same-note links |
 | `> [!quote] [[Note]]` | **plain text** | a recognised callout's title is escaped, not parsed; a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image there draws `callout.title_markup` — move the markup into the body |
+
+For example, this fenced code block keeps every TeX backslash:
+
+```text
+a\,b\;c\{d\}e\\f
+```
 
 Recognised callout types, closed; each group separated by · shares one default
 title, used when the opening line names none. The title is plain text. Markdown
@@ -328,12 +335,13 @@ Six filter keys:
 |---|---|
 | Case | **lowercase only.** `Type:lesson` is not a filter — it degrades to a literal token searched as text |
 | Repeated key | **AND.** Two `type:` filters both have to hold, so they are jointly unsatisfiable rather than last-wins |
-| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, lowercase). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `topic:` is membership of the folded topics |
+| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, Unicode simple case folding without multi-rune expansion). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `topic:` is membership of the folded topics |
 | Unknown prefix | named back to the reader with all six offered, and the term is searched as text rather than dropped |
 | Quoting | `"…"`, `「…」`, `『…』` — at the start of a field, or straight after a recognised key and its colon |
-| Indexed | title, aliases, declared topics, body plain text and the vault-relative path are free-text searchable; type, status, domain and slug are reachable only through their own filter. An alias hit is filed with the title hits |
+| Indexed | title, aliases, declared topics, frontmatter tags, body plain text and the vault-relative path are free-text searchable; type, status, domain and slug are reachable only through their own filter. An alias hit is filed with the title hits |
+| Tag shorthand | Frontmatter tags also answer bare words and one leading `#` as tag shorthand. Every token must match the same declared tag. The answering tag is shown in its original spelling; queries against other fields keep their literal hashes. There is no `tag:` filter or note-head tag display |
 | CJK | no segmenter: a folded literal substring, and a newline between two Han or Kana runes is dropped |
-| Ranking | eight fixed groups. Where the query was found decides the group — title, then body, then topics — and a note outranks a non-markdown file at each; last come the two groups matched on their path alone. Inside a group, notes in the directories the contract calls knowledge come before those outside, then vault reading order. A title that is exactly the query under that fold leads. There is no score |
+| Ranking | nine fixed groups: note title/alias, note body, note topic, note tag, file title, file body, file topic, note path and file path. Frontmatter tags rank below body and topic hits; inline tags are not indexed as metadata. Inside a group, notes in the directories the contract calls knowledge come before those outside, then vault reading order. A title that is exactly the query under that fold leads. There is no score |
 
 ## Study paths: sequence is declared, never inferred
 

@@ -44,6 +44,8 @@ func main() {
 > 普通函式呼叫會在 `n := <-in` 等待。`main` 尚未走到 `in <- 21`，又沒有其他發送者，因此無法繼續。
 >
 > 容量為一也沒有幫助：緩衝區仍是空的。容量提供存放值的位置，不會替你發送。
+>
+> 兩種改法都會以 `fatal error: all goroutines are asleep - deadlock!` 結束；runtime 只在所有 goroutine 都阻塞、又沒有能讓它們繼續的事件時報死結，仍有其他工作能執行的伺服器則可能只讓這個 goroutine 一直等著。
 
 ## 緩衝有容量
 
