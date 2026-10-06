@@ -29,6 +29,7 @@ probes=(
   "drawer-contract.mjs|/notes/Notes/alpha.md"
   "rail-foot.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
+  "mermaid-name.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
   "asset-identity.mjs|/notes/Notes/alpha.md"
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
@@ -57,6 +58,7 @@ probes=(
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
+  "read-aloud-languages.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
@@ -73,6 +75,7 @@ probes=(
   "prefetch-stale-preference.mjs|/notes/Writing/lessons/japanese/L01.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "health-table.mjs|/health"
+  "shell-columns.mjs|/health"
   "reports-shelf.mjs|/reports"
   # A month named outright rather than whichever one it is today, so what this
   # probe measures is the same measurement next month.
@@ -100,6 +103,7 @@ probes=(
   "pager-contract.mjs|/search?q=e"
   "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
+  "reading-scale.mjs|/notes/Notes/reading-scale.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads
@@ -162,40 +166,83 @@ for i in "${!leaves_a_place[@]}"; do
     fail "${leaves_a_place[$i]} leaves a kept reading place behind and has to sit among the last ${#leaves_a_place[@]} probes, but position $((tail_start + i + 1)) holds ${at}"
 done
 
+# Bash 3.2 with nounset refuses expansion of an empty array. Keep the count
+# separately and expand the ordered failure records only when it is positive.
+failures=()
+failure_count=0
+
+record_failure() {
+  failures+=("$*")
+  failure_count=$((failure_count + 1))
+}
+
+finish_run() {
+  if [ "$failure_count" -gt 0 ]; then
+    printf 'FAIL probes.sh: %s failure(s):\n' "$failure_count" >&2
+    printf '  %s\n' "${failures[@]}" >&2
+    return 1
+  fi
+  echo "probes.sh: $1"
+}
+
 run_locks() {
-  local entry
+  local entry status
   for entry in "${probes[@]}"; do
-    PAGE_PATH="${entry#*|}" node "${here}/${entry%%|*}"
+    if MUTATE='' PAGE_PATH="${entry#*|}" node "${here}/${entry%%|*}"; then
+      status=0
+    else
+      status=$?
+    fi
+    if [ "$status" -ne 0 ]; then
+      record_failure "${entry%%|*} plain exited ${status}, want 0"
+    fi
   done
-  echo "probes.sh: every lock passed"
+  finish_run "every lock passed"
 }
 
 run_mutations() {
-  local entry probe page modes mode out status
+  local entry probe page modes mode out status mode_count reason
   for entry in "${probes[@]}"; do
     probe="${entry%%|*}"
     page="${entry#*|}"
-    # A probe that cannot even name its modes — a refused table, a syntax error —
-    # would otherwise stop this script with the interpreter's message and no clue
-    # which probe it came from.
-    if ! modes="$(MUTATE=list node "${here}/${probe}")"; then
-      fail "${probe} could not name its mutation modes"
+    # Discovery failure leaves this probe's modes unknowable, but the next
+    # probe can still name and exercise its own modes.
+    if modes="$(MUTATE=list node "${here}/${probe}")"; then
+      status=0
+    else
+      status=$?
     fi
-    [ -n "$modes" ] || fail "${probe} names no mutation modes, so nothing shows it can fail"
+    if [ "$status" -ne 0 ]; then
+      record_failure "${probe} MUTATE=list exited ${status}, cannot discover mutation modes"
+      continue
+    fi
+    mode_count=0
     while IFS= read -r mode; do
       [ -n "$mode" ] || continue
+      mode_count=$((mode_count + 1))
       echo "--- ${probe} MUTATE=${mode}"
       if out="$(PAGE_PATH="$page" MUTATE="$mode" node "${here}/${probe}")"; then status=0; else status=$?; fi
       printf '%s\n' "$out"
-      [ "$status" -eq 1 ] || fail "${probe} MUTATE=${mode} exited ${status}, want 1 (0: the regression walked past the probe; 2: the mutation matched nothing)"
+      reason=""
+      if [ "$status" -ne 1 ]; then
+        reason="exited ${status}, want 1"
+      fi
       # Whole-line, so the marker names this mode and no other: one mode's name
       # can be a prefix of another's, and a substring match would let the marker
       # for palette-fill-partial answer for palette-fill.
-      printf '%s\n' "$out" | grep -qxF "MUTATE-RESULT: caught ${mode}" ||
-        fail "${probe} MUTATE=${mode} exited 1 without a line reading exactly 'MUTATE-RESULT: caught ${mode}', so its exit code proves nothing"
+      if ! printf '%s\n' "$out" | grep -xF "MUTATE-RESULT: caught ${mode}" >/dev/null; then
+        if [ -n "$reason" ]; then reason="${reason}; "; fi
+        reason="${reason}missing exact stdout line 'MUTATE-RESULT: caught ${mode}'"
+      fi
+      if [ -n "$reason" ]; then
+        record_failure "${probe} MUTATE=${mode}: ${reason}"
+      fi
     done <<<"$modes"
+    if [ "$mode_count" -eq 0 ]; then
+      record_failure "${probe} MUTATE=list names no runnable mutation modes"
+    fi
   done
-  echo "probes.sh: every mutation was caught"
+  finish_run "every mutation was caught"
 }
 
 case "${1:-}" in

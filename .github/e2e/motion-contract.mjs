@@ -26,6 +26,18 @@
 // MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
@@ -511,6 +523,7 @@ try {
     const response = await page.goto(BASE + (fold.path ?? PAGE), { waitUntil: 'load' });
     if (!response || response.status() !== 200) broken(`the page carrying the ${fold.key} answered ${response?.status() ?? 'nothing'}, want 200`);
     await confirm(page, 'moving');
+    if (fold.selector === 'details.y-metarow' || fold.selector === 'details.y-toc-inline') await arrived(page);
     const reading = await cutAndRing(page, fold);
     if (reading.missing) broken(`the ${fold.key} is not on the page at ${fold.width}px`);
     if (reading.noRow) broken(`the ${fold.key} holds nothing a keyboard can reach, so it cannot say whether a ring survives`);

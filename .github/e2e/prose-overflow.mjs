@@ -22,6 +22,18 @@
 // MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/browser-boundary.md';
 const MUTATE = process.env.MUTATE || '';
@@ -209,6 +221,7 @@ try {
     const page = await context.newPage();
     const proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await arrived(page);
     // Every width below is a measurement of laid-out text, and text measured
     // while the page still holds a fallback face is a measurement of a face no
     // reader will see.

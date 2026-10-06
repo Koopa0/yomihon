@@ -13,6 +13,18 @@
 // watched regression.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/go/L01.md';
 const MUTATE = process.env.MUTATE || '';
@@ -134,6 +146,7 @@ try {
     const page = await context.newPage();
     const proof = MUTATE === 'stretch-the-facts-past-the-phone' ? await MUTATIONS[MUTATE].apply(page) : null;
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    await arrived(page);
     await page.evaluate(() => document.fonts.ready);
     // The disclosure starts closed, and closed content is not laid out at
     // all — a width rule on it would move nothing on the page and prove
@@ -221,6 +234,7 @@ try {
     // probe clicks is well past one screen down and needs the stylesheet
     // settled before its position is trustworthy.
     await page.goto(BASE + PAGE, { waitUntil: 'load' });
+    await arrived(page);
 
     const details = page.locator('details.y-metarow');
     if ((await details.count()) !== 1) broken(`${PAGE} draws ${await details.count()} details.y-metarow, want exactly 1`);

@@ -59,7 +59,7 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	}
 	idx := graph.New(notes, nil)
 	planned := judge.NewPlanned(noteBodies(notes), nil)
-	h := newHealth(notes, linksOf(notes), idx, planned, newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes))
+	h := newHealth(notes, linksOf(notes), idx, planned, newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
 
 	wantTitleOnly := []HealthTitleLink{{
 		From:   nav.NoteRef{Name: "cites title", RelPath: "Concepts/cites title.md"},
@@ -94,7 +94,7 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 		parse(t, "root.md", "e\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes))
+	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
 
 	want := []HealthIslandGroup{
 		{Dir: "Sources/course", Notes: []nav.NoteRef{
@@ -148,7 +148,7 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 				notes = []*vault.Note{target, citer}
 			}
 			idx := graph.New(notes, nil)
-			h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes))
+			h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
 
 			// The citer alone: nothing writes its name down anywhere, while the
 			// target's name is written in the citer either way round.
@@ -212,7 +212,7 @@ func TestHealthReportsSharedNamesNobodyHasLinkedTo(t *testing.T) {
 		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]]\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes))
+	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
 
 	// The names carrying the extension are absent on purpose: two files sharing
 	// "cited.md" necessarily share "cited", and one repair stated twice reads

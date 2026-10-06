@@ -14,6 +14,18 @@
 // and MUTATE. MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
@@ -159,6 +171,7 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     const proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
     await page.goto(BASE + PAGE, { waitUntil: 'load' });
+    await arrived(page);
     await page.evaluate(() => document.fonts.ready);
     return { page, proof };
   };
