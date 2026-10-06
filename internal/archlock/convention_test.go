@@ -912,7 +912,7 @@ func TestOneOwnerFoldsAFragment(t *testing.T) {
 
 	for _, spelling := range []struct{ what, bytes string }{
 		{"the fold that decides which spellings of a name are one name", "strings.ToLower(vault.NormalizeNFC("},
-		{"the run of characters a section id collapses", `[^\p{L}\p{N}]+`},
+		{"the run of characters a section id keeps", `[\p{L}\p{N}][^\P{M}\p{Me}\x{FE0E}\x{FE0F}]*`},
 	} {
 		t.Run(spelling.what, func(t *testing.T) {
 			t.Parallel()
@@ -958,7 +958,7 @@ func TestOneOwnerScansALine(t *testing.T) {
 		{"a tilde fence the scan opens", `strings.HasPrefix(t, "~~~")`, "internal/graph/"},
 		{"a fence-close line the scan recognises", `strings.Count(t, string(marker)) == len(t)`, "internal/graph/"},
 		{"an unpaired Obsidian comment running to the end of the body", "Span{Start: start, Stop: len(body)}", "internal/graph/"},
-		{"the pairing of a closed Obsidian comment mark", "Stop: marks[k+1] + 2", "internal/graph/"},
+		{"the pairing of a closed Obsidian comment mark", "stop = off + end + len(closer)", "internal/graph/"},
 		{"the function that refuses a line no block address can survive on", "func UnanchorableLine(line string) bool", "internal/render/"},
 		{"the function that refuses a caret a code span owns as an address", "func CodeSpanOwnedAddresses(lines []string) []bool", "internal/render/"},
 		{"the first group of callout types the page answers to", `"info", "note", "tip", "hint", "abstract", "summary", "todo"`, "internal/render/"},
