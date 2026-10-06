@@ -82,6 +82,28 @@ func StripAnchors(htmlOut string) string {
 	return anchorAddress.ReplaceAllString(anchorAttribute.ReplaceAllString(htmlOut, ""), "")
 }
 
+// NestHeadings places an already rendered note one level below its current
+// title. Only the heading tag names change; section addresses, authored levels,
+// text and every other byte stay intact. The heading tags are renderer-owned:
+// authored code and unsafe markup have already been escaped. HTML has no h7,
+// so the deepest headings stay at h6.
+func NestHeadings(htmlOut string) string {
+	return renderedHeadingTag.ReplaceAllStringFunc(htmlOut, func(tag string) string {
+		at := 2
+		if tag[1] == '/' {
+			at = 3
+		}
+		if tag[at] == '6' {
+			return tag
+		}
+		return tag[:at] + string(tag[at]+1) + tag[at+1:]
+	})
+}
+
+// A renderer-owned heading opening or closing ends its name before an
+// attribute or bracket, so a longer element name is never taken for a heading.
+var renderedHeadingTag = regexp.MustCompile(`</?h[1-6][ >]`)
+
 // shellHeadingLevel is the HTML heading level a body heading occupies inside
 // the note shell. The page title is already <h1 class="y-title">, so every
 // authored heading steps down one; h6 stays h6 because HTML has no h7.

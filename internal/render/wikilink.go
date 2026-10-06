@@ -794,10 +794,13 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 		}
 		inner := raw[2 : len(raw)-2]
 		link, ok := graph.ParseWikilink(inner)
-		if !ok {
-			// [[#heading]] or [[^block]] stripped to empty: a same-file
-			// anchor jump, not a cross-file link — render the original
-			// display text as plain text, don't attempt to resolve it.
+		localHeading := !ok && !embed && link.Heading != "" && link.Block == "" && vault.IsMarkdown(col.relPath)
+		if localHeading && link.Display == "" {
+			link.Display = "#" + link.Heading
+		}
+		if !ok && !localHeading {
+			// Local blocks and embeds keep their plain-text fallback. Only a
+			// same-note heading is a page link without a cross-file target.
 			return html.EscapeString(link.Display)
 		}
 		if embed {
@@ -874,6 +877,10 @@ func rawHref(p string) string {
 // uncaptured body, and anything that is not a note gets no fragment at all.
 func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collector) (string, fragmentMiss) {
 	href := notesHref(relPath)
+	localPage := link.Target == "" && relPath == col.relPath && col.onPage
+	if localPage {
+		href = ""
+	}
 	if !vault.IsMarkdown(relPath) {
 		return href, fragmentPlaced
 	}
@@ -900,6 +907,9 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 	case link.Heading != "":
 		addressed := href + "#" + graph.SectionID(link.Heading)
 		body, ok := r.transclusions.Transclusion(relPath)
+		if localPage {
+			body, ok = col.body, true
+		}
 		if !ok {
 			return addressed, fragmentPlaced
 		}
@@ -930,15 +940,13 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 // that placed exactly one file gets a fragment; a name placing several is not
 // answered here, since this renderer never picks one of them.
 func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
+	if link.Target == "" {
+		return r.resolvedWikilink(col.relPath, link, col)
+	}
 	res := r.idx.Resolve(link.Target)
 	switch res.Kind {
 	case graph.KindUnique:
-		href, miss := r.sectionHref(res.RelPath, link, col)
-		if miss != fragmentPlaced {
-			return degradedLink(href, link, miss, col.page.lang)
-		}
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, attributeEscaper.Replace(href), html.EscapeString(link.Display))
+		return r.resolvedWikilink(res.RelPath, link, col)
 	case graph.KindAmbiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
@@ -964,6 +972,17 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	default:
 		panic("render: unknown graph.Kind: " + res.Kind.String())
 	}
+}
+
+// resolvedWikilink renders a link to one known note, including the current
+// body whose identity the caller already holds without a filename lookup.
+func (r *Pipeline) resolvedWikilink(relPath string, link graph.Wikilink, col *collector) string {
+	href, miss := r.sectionHref(relPath, link, col)
+	if miss != fragmentPlaced {
+		return degradedLink(href, link, miss, col.page.lang)
+	}
+	//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
+	return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, attributeEscaper.Replace(href), html.EscapeString(link.Display))
 }
 
 // renderEmbed renders ![[target]] for the parsed link. A unique markdown-note
@@ -1045,7 +1064,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			matches: matches,
 			slice:   slice,
 		})
-		inner := r.render(slice, embedsDenied, col.page)
+		inner := r.render(slice, res.RelPath, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		heldBack := false
 		for _, d := range inner.Diagnostics {
