@@ -5746,6 +5746,30 @@ samp,
   word-break: auto-phrase;
 }
 
+/* A language switch must set the face on the text itself: a paragraph inherits
+   its parent's already-computed family, not a newly chosen font variable.
+   Code and controls keep their own faces even inside a Japanese passage. */
+.y-prose:lang(ja),
+.y-prose :where(p, rt, [data-level], [lang]):lang(ja):not(:where(code, pre, kbd, samp, button, input, select, textarea, code *, pre *, kbd *, samp *, button *, select *, textarea *)) {
+  font-family: var(--font-read-ja);
+}
+
+/* An explicitly different language inside Japanese prose returns to the
+   reader's ordinary stack instead of inheriting Japanese glyph shapes. */
+.y-prose [lang]:not(:lang(ja)):not(:where(code, pre, kbd, samp, button, input, select, textarea, code *, pre *, kbd *, samp *, button *, select *, textarea *)) {
+  font-family: var(--font-read);
+}
+
+/* Prose components keep their declared serif or sans role when their
+   authored language asks for Japanese glyph shapes. */
+.y-prose :where(.footnotes, th, .embed__source, .embed__note, .callout-title):lang(ja) {
+  font-family: var(--font-sans-ja);
+}
+
+.y-prose :where(td, .callout-body):lang(ja) {
+  font-family: var(--font-serif-ja);
+}
+
 /* Arrival echo — a brief wash on the heading a jump lands on, whether the
    reader came from the table of contents, a footnote, or a link in another
    note. The eye arrives the moment the jump does, so the echo plays at once;
