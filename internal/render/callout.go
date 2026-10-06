@@ -11,9 +11,13 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
-// An opener has a blockquote prefix: four leading spaces or a tab show code.
+// An opener may stand at any indent, because a callout nested in a list item
+// sits at that item's content column. Whether four spaces or a tab show the
+// line as code depends on the container around it, which only a parse knows,
+// so each reader asks its parser for the indented code lines before treating a
+// match as a callout.
 var (
-	calloutStartPattern = regexp.MustCompile(`^ {0,3}>\s*\[!([A-Za-z0-9_-]+)\]([+-]?)\s?(.*)$`)
+	calloutStartPattern = regexp.MustCompile(`^\s*>\s*\[!([A-Za-z0-9_-]+)\]([+-]?)\s?(.*)$`)
 	quotePrefix         = graph.QuotePrefix
 )
 

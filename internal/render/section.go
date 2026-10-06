@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -39,9 +40,16 @@ import (
 // the parse on four, every disagreement a list whose own indented prose the test
 // called code.
 func (r *Pipeline) indentedCodeLines(body string) map[int]bool {
+	return codeBlockLines(r.md.Parser(), body)
+}
+
+// codeBlockLines reports which lines of body p reads as an indented code
+// block. It takes the parser rather than owning one, so each reading — the
+// page's, the search text's — asks the parser that will read the same body.
+func codeBlockLines(p parser.Parser, body string) map[int]bool {
 	var spans [][2]int
 	//nolint:errcheck // the visitor never returns an error, so the walk cannot fail
-	_ = ast.Walk(r.md.Parser().Parse(text.NewReader([]byte(body))), func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(p.Parse(text.NewReader([]byte(body))), func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if _, ok := n.(*ast.CodeBlock); ok && entering {
 			if ls := n.Lines(); ls != nil && ls.Len() > 0 {
 				spans = append(spans, [2]int{ls.At(0).Start, ls.At(ls.Len() - 1).Stop})

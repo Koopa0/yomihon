@@ -191,3 +191,38 @@ func TestCalloutNewTypesInTransclusions(t *testing.T) {
 		})
 	}
 }
+
+// A callout nested in a list item stands at the item's content column, which
+// can be four spaces or more from the margin without being code. The page, the
+// search text and the block-address check all have to read it as the callout
+// it is, while the same opener at the margin's four spaces stays code.
+func TestCalloutNestedInAListIsStillACallout(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	for _, tt := range []struct{ name, body, class, title string }{
+		{"warning two levels deep", "- a\n  - b\n    > [!warning] Deep\n    > nested body\n", "callout-warning", "Deep</p>"},
+		{"new type two levels deep", "- a\n  - b\n    > [!success]\n    > nested body\n", "callout-note", "Success</p>"},
+		{"ordered item", "1. a\n\n   1. b\n\n      > [!tip] Deeper\n      > nested body\n", "callout-note", "Deeper</p>"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("note.md", "", tt.body, wording.En)
+			if !strings.Contains(got.HTML, `<div class="callout `+tt.class+`">`) || !strings.Contains(got.HTML, tt.title) || strings.Contains(got.HTML, "[!") || len(got.Diagnostics) != 0 {
+				t.Errorf("nested callout was not recognised: %+v", got)
+			}
+			if plain := render.PlainText(tt.body); strings.Contains(plain, "[!") || !strings.Contains(plain, "nested body") {
+				t.Errorf("nested callout search text = %q", plain)
+			}
+		})
+	}
+	t.Run("unknown type nested", func(t *testing.T) {
+		t.Parallel()
+		got := r.HTML("note.md", "", "- a\n  - b\n    > [!nonesuch] Deep\n", wording.En)
+		if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagUnknownCallout || got.Diagnostics[0].Target != "nonesuch" {
+			t.Errorf("nested unknown callout diagnostics = %+v", got.Diagnostics)
+		}
+	})
+	if !render.UnanchorableLine("    > [!warning] Deep ^address") {
+		t.Error("a nested callout's title was accepted as a block address")
+	}
+}
