@@ -23,6 +23,18 @@
 // Env: YOMIHON_BASE, PAGE_PATH, and MUTATE.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/search?q=%22alpha%20beta%20gamm%22';
 const MUTATE = process.env.MUTATE || '';
@@ -179,6 +191,7 @@ const land = async (browser, apply) => {
   await link.click();
   await page.waitForURL(/Audit%20cross%20block/);
   await page.waitForLoadState('load');
+  await arrived(page);
   const seen = {
     href,
     scrollY: await settle(page),
