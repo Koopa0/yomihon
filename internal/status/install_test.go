@@ -402,8 +402,26 @@ func TestProbeFailureDoesNotPinTheFilesystem(t *testing.T) {
 	// directory is otherwise untouched: 0500 keeps the traverse bit the probe
 	// needs to look inside while removing the write bit it needs to create
 	// them, which is exactly the failure under test.
+	t.Cleanup(func() {
+		if chmodErr := os.Chmod(dir, 0o700); chmodErr != nil { // #nosec G302 -- restoring this test's owner-only temporary directory
+			t.Errorf("restoring %s during cleanup: %v", dir, chmodErr)
+		}
+	})
 	if chmodErr := os.Chmod(dir, 0o500); chmodErr != nil { // #nosec G302 -- a directory mode, not a file mode; this test's own TempDir
 		t.Fatalf("making %s unwritable: %v", dir, chmodErr)
+	}
+	// Privileges or filesystem permissions can leave creation possible after
+	// chmod. That would measure the environment rather than a failed probe.
+	if file, createErr := parent.Create("probe-write-permission"); createErr == nil {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Errorf("closing write-permission check: %v", closeErr)
+		}
+		if removeErr := parent.Remove("probe-write-permission"); removeErr != nil {
+			t.Errorf("removing write-permission check: %v", removeErr)
+		}
+		t.Fatal("this process can still write to a directory it took write permission from, so the failed probe under test cannot be observed here")
+	} else if !errors.Is(createErr, os.ErrPermission) {
+		t.Fatalf("checking directory write permission: %v", createErr)
 	}
 	if failed := selectRung(parent, installHooks{}); failed != rungRename {
 		t.Fatalf("selectRung on an unwritable directory = %v, want %v; the probe was expected to fail here", failed, rungRename)

@@ -11,7 +11,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strings"
+	"strconv"
 	"syscall"
 )
 
@@ -37,6 +37,10 @@ func main() {
 		}
 		log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 		if err := run(log, root); err != nil {
+			if portErr, ok := errors.AsType[*portError](err); ok {
+				fmt.Fprintf(os.Stderr, "yomihon: %v\n", portErr)
+				os.Exit(2)
+			}
 			log.Error("yomihon exited", "error", err)
 			os.Exit(1)
 		}
@@ -83,18 +87,22 @@ func dispatch(argv []string) (command string, args []string) {
 // path and no environment variable — because those two already answer the
 // question between them, and a third is only somewhere for them to disagree.
 func serveRoot(args []string) (string, error) {
-	switch {
-	case len(args) == 0:
-		return os.Getwd()
-	case len(args) == 1 && !strings.HasPrefix(args[0], "-"):
-		return args[0], nil
-	case len(args) == 2 && args[0] == "--root":
-		if args[1] == "" {
-			return "", errors.New("--root needs a directory")
-		}
-		return args[1], nil
-	default:
+	parsed, err := parseCommandArgs(args)
+	if err != nil {
+		return "", err
+	}
+	if parsed.format != nil || parsed.all || len(parsed.deny) > 0 || parsed.baseline != "" ||
+		parsed.rootCount > 1 || len(parsed.positionals) > 1 ||
+		(parsed.rootCount > 0 && len(parsed.positionals) > 0) {
 		return "", errors.New("usage: yomihon [dir] — or yomihon serve [dir] — or yomihon serve --root <dir>")
+	}
+	switch {
+	case parsed.rootCount > 0:
+		return parsed.root, nil
+	case len(parsed.positionals) == 1:
+		return parsed.positionals[0], nil
+	default:
+		return os.Getwd()
 	}
 }
 
@@ -131,6 +139,14 @@ type config struct {
 	noConfigDir string
 }
 
+// portError identifies a setting the operator can correct before startup,
+// rather than a failure of the listener or the vault it was asked to read.
+type portError struct{ value string }
+
+func (e *portError) Error() string {
+	return fmt.Sprintf("YOMIHON_PORT %q must be an integer from 0 to 65535", e.value)
+}
+
 func loadConfig(root string) (config, error) {
 	cfg := config{root: root, port: os.Getenv("YOMIHON_PORT")}
 	if cfg.port == "" {
@@ -147,6 +163,10 @@ func loadConfig(root string) (config, error) {
 	}
 	if !info.IsDir() {
 		return config{}, fmt.Errorf("vault root %q is not a directory", cfg.root)
+	}
+	port, err := strconv.Atoi(cfg.port)
+	if err != nil || port < 0 || port > 65535 {
+		return config{}, &portError{value: cfg.port}
 	}
 	return cfg, nil
 }

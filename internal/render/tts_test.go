@@ -1,6 +1,7 @@
 package render_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -8,6 +9,93 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/wording"
 )
+
+func TestReadAloudLanguagesReachBothReaders(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct{ written, tag string }{
+		{"ja", "ja"}, {"zh-Hant", "zh-Hant"}, {"en", "en"},
+		{"fr", "fr"}, {"ZH-hant", "zh-Hant"}, {"und", "und"},
+	} {
+		t.Run(tt.written, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, nil, nil, nil)
+			body := "<!-- read-aloud: " + tt.written + " -->\nA marked paragraph.\n"
+			out := r.HTML("Writing/lesson.md", "", body, wording.En).HTML
+			t.Log("invoked: read-aloud language boundary")
+			injected := render.InjectTTS(out, wording.En)
+			for _, want := range []string{`<div class="y-reading" lang="` + tt.tag + `">`, `<p lang="` + tt.tag + `">A marked paragraph.</p>`, `data-tts="A marked paragraph."`, `lang="en" aria-label="Read this aloud"`} {
+				if !strings.Contains(injected, want) {
+					t.Errorf("caught: authored marker language/control missing: want %q in %s", want, injected)
+				}
+			}
+			gathered := render.MarkedParagraphs(out, wording.En)
+			if len(gathered) != 1 || gathered[0] != strings.TrimSuffix(injected, "\n") {
+				t.Errorf("caught: gathered language disagrees: gathered=%q injected=%q", gathered, injected)
+			}
+		})
+	}
+}
+
+func TestMalformedReadAloudMarkersPreserveAuthoredText(t *testing.T) {
+	t.Parallel()
+	for _, tag := range []string{"", "en_US", "en-u-ca-gregory-u-nu-latn", "日文", `en" onclick="bad`, "en--US", "en>US", "en<script>"} {
+		t.Run(tag, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, nil, nil, nil)
+			out := r.HTML("Writing/lesson.md", "", "<!-- read-aloud: "+tag+" -->\nKept authored text.\n", wording.En).HTML
+			t.Log("invoked: malformed marker boundary")
+			if out != "\n<p>Kept authored text.</p>\n" || render.InjectTTS(out, wording.En) != out || len(render.MarkedParagraphs(out, wording.En)) != 0 {
+				t.Errorf("caught: malformed marker admitted or prose lost: %q", out)
+			}
+		})
+	}
+}
+
+func TestReadAloudLanguageOwnsEmptyParagraph(t *testing.T) {
+	t.Parallel()
+	for _, tag := range []string{"en", "zh-Hant", "fr", "und"} {
+		t.Run(tag, func(t *testing.T) {
+			t.Parallel()
+			in := "<!-- read-aloud: " + tag + ` --><p><ruby><rt>reading only</rt></ruby></p>`
+			want := `<p lang="` + tag + `"><ruby><rt>reading only</rt></ruby></p>`
+			t.Log("invoked: empty marker boundary")
+			if got := render.InjectTTS(in, wording.En); got != want {
+				t.Errorf("caught: empty paragraph language lost: got %q want %q", got, want)
+			}
+			if got := render.MarkedParagraphs(in, wording.En); len(got) != 0 {
+				t.Errorf("empty speech became playable: %q", got)
+			}
+		})
+	}
+}
+
+func TestReadAloudCommentBoundsAndCodeRemainAuthored(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	const body = "<!-- read-aloud: en>US -->\nNot spoken.\n\n<!-- read-aloud: en -->\nFirst words.\n\n<!-- read-aloud: fr -->\nSecond words.\n\n<!-- ordinary > comment -->\n\n`<!-- read-aloud: zh-Hant -->`\n\n```html\n<!-- read-aloud: und -->\nFenced words.\n```\n"
+	out := r.HTML("Writing/lesson.md", "", body, wording.En).HTML
+	got := render.InjectTTS(out, wording.En)
+	if strings.Count(got, `data-tts="`) != 2 || !strings.Contains(got, `data-tts="First words."`) || !strings.Contains(got, `data-tts="Second words."`) {
+		t.Errorf("caught: adjacent markers swallowed prose or code gained controls: %s", got)
+	}
+	for _, kept := range []string{"<p>Not spoken.</p>", "&lt;!-- ordinary &gt; comment --&gt;", "<code>&lt;!-- read-aloud: zh-Hant --&gt;</code>", "Fenced words."} {
+		if !strings.Contains(got, kept) {
+			t.Errorf("caught: authored comment/code lost: %q in %s", kept, got)
+		}
+	}
+}
+
+func FuzzReadAloudMarker(f *testing.F) {
+	for _, tag := range []string{"ja", "zh-Hant", "en_US", "und", `en"><script>`} {
+		f.Add(tag)
+	}
+	f.Fuzz(func(t *testing.T, tag string) {
+		r := newRenderer(t, nil, nil, nil)
+		out := r.HTML("Writing/lesson.md", "", fmt.Sprintf("<!-- read-aloud: %s -->\nAuthored.\n", tag), wording.En).HTML
+		render.InjectTTS(out, wording.En)
+		render.MarkedParagraphs(out, wording.En)
+	})
+}
 
 func TestInjectTTSSkipsUnmarkedRubyParagraph(t *testing.T) {
 	t.Parallel()
@@ -32,7 +120,7 @@ func TestInjectTTSWrapsExplicitRubylessParagraph(t *testing.T) {
 	for _, want := range []string{
 		`<div class="y-reading" lang="ja">`,
 		`data-tts="あさ、ひる、よる。"`,
-		`lang="zh-Hant" aria-label="朗讀這段日文"`,
+		`lang="zh-Hant" aria-label="朗讀這段文字"`,
 		`<p lang="ja">あさ、ひる、よる。</p>`,
 	} {
 		if !strings.Contains(got, want) {
@@ -103,21 +191,9 @@ func TestInjectTTSLeavesUnmarkedDocumentUnchanged(t *testing.T) {
 	}
 }
 
-// TestAReadAloudMarkerNamingAnotherLanguageLeavesNoTrace is the lock on what a
-// marker the renderer cannot honour does to the page. Read-aloud exists for the
-// Japanese lessons and speaks Japanese; a marker naming any other language asks
-// for something no voice here delivers. The authored-markup boundary used to
-// know only the one spelling it honours, so every other one fell through to the
-// escape and landed in the prose as the characters it was typed with — a text
-// node inside the reading column, coloured and laid out like a sentence,
-// sitting between two paragraphs where the author had written an instruction.
-//
-// The marker is recognised by its shape and an unfulfillable one is dropped
-// without a word. Whether an unfulfillable marker should instead be reported to
-// its author is one ruling for every marker the renderer can read and not obey,
-// and it has not been taken; until it is, the reader is the one who must not
-// have to see this.
-func TestAReadAloudMarkerNamingAnotherLanguageLeavesNoTrace(t *testing.T) {
+// A malformed instruction disappears without taking its authored paragraph
+// with it. Ordinary comments remain escaped text at the same boundary.
+func TestAMalformedReadAloudMarkerLeavesNoTrace(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
 
@@ -125,7 +201,7 @@ func TestAReadAloudMarkerNamingAnotherLanguageLeavesNoTrace(t *testing.T) {
 		"<!-- read-aloud: ja -->",
 		"きょうは晴れです。",
 		"",
-		"<!-- read-aloud: en -->",
+		"<!-- read-aloud: en_US -->",
 		"A paragraph the marker before it asks for in a voice this does not have.",
 		"",
 		"<!-- an ordinary comment -->",
@@ -142,7 +218,7 @@ func TestAReadAloudMarkerNamingAnotherLanguageLeavesNoTrace(t *testing.T) {
 	// The one that cannot leaves nothing at all: not a comment a later pass
 	// could act on, and above all not text a reader can see. Both spellings are
 	// checked because escaping is exactly what turned it into prose.
-	for _, trace := range []string{"read-aloud: en", "read-aloud:&#32;en", "&lt;!-- read-aloud"} {
+	for _, trace := range []string{"read-aloud: en_US", "read-aloud:&#32;en_US", "&lt;!-- read-aloud"} {
 		if strings.Contains(got, trace) {
 			t.Errorf("an unfulfillable read-aloud marker left %q on the page:\n%s", trace, got)
 		}
