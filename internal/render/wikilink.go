@@ -719,6 +719,11 @@ func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 // line. An unknown type records a diagnostic and reports false, leaving the line
 // to goldmark's own blockquote parsing so nothing is silently dropped.
 func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, col *collector) bool {
+	// A line an indented code block holds is shown as written, so a callout
+	// opener on it is syntax on display: neither a callout nor an unknown type.
+	if st.quoted[st.i] {
+		return false
+	}
 	typ, fold, title, ok := calloutStart(st.lines[st.i])
 	if !ok {
 		return false
@@ -1124,7 +1129,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 // off, so no later pass can reopen a marker this one ruled literal.
 func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped string, matches int) {
 	stripped, unclosed := stripBody(body)
-	if unclosed != 0 {
+	if unclosed.line != 0 {
 		unclosedDiagnostic := unclosedCommentDiagnostic(unclosed)
 		col.report(&unclosedDiagnostic)
 	}

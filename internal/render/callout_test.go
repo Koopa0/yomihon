@@ -283,22 +283,23 @@ func TestAnUnclosedBlockAtTheEndOfANoteIsLeftAlone(t *testing.T) {
 func TestTheCalloutVocabularyNamesEachTypeOnce(t *testing.T) {
 	t.Parallel()
 
-	group := map[string]string{}
-	for _, vocabulary := range calloutVocabulary {
-		if vocabulary.title == "" {
-			t.Errorf("the %q group carries no default title, so a callout written with no title of its own renders headless", vocabulary.types)
-		}
+	group := map[string]int{}
+	for index, vocabulary := range calloutVocabulary {
 		if len(vocabulary.types) == 0 {
 			t.Error("a callout group names no types, so nothing can ever render as it")
 		}
 		for _, typ := range vocabulary.types {
 			if previous, taken := group[typ]; taken {
-				t.Errorf("[!%s] is named by both the %q and the %q groups; the first one wins silently, "+
+				t.Errorf("[!%s] is named by both groups %d and %d; the first one wins silently, "+
 					"so the second is dead and that callout renders as something its author did not ask for",
-					typ, previous, vocabulary.title)
+					typ, previous, index)
 				continue
 			}
-			group[typ] = vocabulary.title
+			group[typ] = index
+			if typ == "" {
+				t.Error("an empty callout type has no title or identifier")
+				continue
+			}
 			// calloutStart lowercases what the author wrote before anything
 			// looks it up, so an entry carrying a capital is unreachable: it
 			// sits in the table and no callout can ever match it.
@@ -306,8 +307,10 @@ func TestTheCalloutVocabularyNamesEachTypeOnce(t *testing.T) {
 				t.Errorf("[!%s] is spelled with a capital in the vocabulary, and a callout's type is "+
 					"lowercased before the lookup, so nothing will ever match this entry", typ)
 			}
-			if bucket, _ := calloutBucketOf(typ); bucket == bucketUnknown {
+			if bucket, title := calloutBucketOf(typ); bucket == bucketUnknown {
 				t.Errorf("[!%s] is in the vocabulary and classifies as unknown, so it renders as a plain blockquote", typ)
+			} else if title == "" {
+				t.Errorf("[!%s] has no default title", typ)
 			}
 		}
 	}

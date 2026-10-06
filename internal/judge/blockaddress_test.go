@@ -77,6 +77,39 @@ var blockAddressBodies = []struct {
 		addressed: false,
 	},
 	{
+		// Four spaces after a blank line make an indented code block, so the
+		// page shows the opener as written and stamps the address at its end.
+		// A known type's opener is refused an address only where it is a
+		// callout, whose opening line is consumed as the title.
+		name:      "a callout opener an indented code block shows as written",
+		body:      "para\n\n    > [!success] X ^probe\n",
+		addressed: true,
+	},
+	{
+		name:      "a callout opener an indented code block shows as written, older type",
+		body:      "para\n\n    > [!note] X ^probe\n",
+		addressed: true,
+	},
+	{
+		name:      "a table row an indented code block shows as written",
+		body:      "para\n\n    | a | b ^probe\n",
+		addressed: true,
+	},
+	{
+		// The same opener at the top level is a callout, whose opening line
+		// is its title and carries no address on any face.
+		name:      "a callout opener outside code",
+		body:      "para\n\n> [!success] X ^probe\n",
+		addressed: false,
+	},
+	{
+		// Four spaces deep in a nested list item is that item's content
+		// column, not code, so the opener there is a callout too.
+		name:      "a callout opener nested in a list item",
+		body:      "- a\n  - b\n    > [!success] X ^probe\n",
+		addressed: false,
+	},
+	{
 		name:      "a leading H1 repeating the title, above an ordinary address",
 		title:     "Target",
 		body:      "# Target\n\nan ordinary paragraph ^probe\n",
