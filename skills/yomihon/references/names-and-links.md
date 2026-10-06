@@ -42,6 +42,34 @@ nothing here shows the title trap — write a note whose `title` and filename
 differ, link it by the title, and you get `link.title_not_alias`, a finding
 that names the note you meant and offers the two repairs.
 
+## Parent folders can distinguish a filename
+
+The four location keys and aliases are checked first, as one union: an exact
+alias or full path wins even when deeper paths end the same way. Only when no
+key claims a slash-containing target does yomihon try complete path suffixes,
+using the same trim, NFC and case fold.
+
+| Written target | Captured files | Answer |
+|---|---|---|
+| `Atlas/README` or `Atlas/README.md` | `Notes/Projects/Atlas/README.md` | that canonical note path |
+| `Projects/Atlas/README` | `Notes/Projects/Atlas/README.md` | that canonical note path |
+| `Atlas/README` | `A/Atlas/README.md`, `B/Atlas/README.md` | ambiguous; no file is chosen |
+| `Atlas/README` | `Notes/NotAtlas/README.md` | no match; a complete `/` boundary is required |
+| `Atlas/chart.svg` | `Assets/Atlas/chart.svg` | that resource; its extension is required |
+
+This does not clean `..`, collapse doubled slashes, decode percent escapes,
+convert backslashes or fold fullwidth letters. A title remains outside link
+resolution. A suffix is a lookup fallback, not a new alias or collision key.
+
+`yomihon exists` keeps its wider metadata answers: filename, title, aliases and
+declared English title. A slash query also uses the shared location resolver;
+a readable public note with no existing exact field row gets `field: "path"`,
+with both `path` and `value` holding its canonical full captured path. An
+existing alias row stays an alias. Resources and unreadable paths participate
+in selection but produce no note row. A denied readable match contributes only
+`withheld: true`; near matches remain near matches, and an incomplete corpus
+still cannot authorize a negative answer.
+
 ## The three answers
 
 A name resolves to exactly one file, to several, or to none. yomihon never
@@ -50,7 +78,7 @@ picks between several:
 | Outcome | What the page shows | What `check` says |
 |---|---|---|
 | one file | an ordinary link | nothing |
-| several | nothing is linked; the name is marked ambiguous and the candidates are listed in place | `collision.name`, once for the whole collision, with every path in `collision_members` |
+| several | nothing is linked; the name is marked ambiguous and the candidates are listed in place | original key collisions produce `collision.name`, once for the whole collision, with every path in `collision_members`; suffix fallback adds no collision keys, so a link several path suffixes match is `link.broken` |
 | none | the link is marked where it sits, with the reason | `link.broken` — or `link.title_not_alias` when the name is some note's title |
 
 Two notes declaring the same alias is `collision.alias`, and has the same
@@ -59,7 +87,9 @@ answer to names neither.
 
 The repairs, in the order to try them: give the note a name unique in the
 vault; add an `aliases` entry when a second spelling genuinely should work;
-link by full vault-relative path when a generic name is unavoidable.
+use enough parent folders to distinguish a suffix, or link by full
+vault-relative path when a generic name is unavoidable. Check that no existing
+key or alias claims the spelling first.
 
 ## Fragments
 
@@ -78,6 +108,17 @@ look identical in the source and behave differently in the browser.
 
 A note's own headings become anchors with CJK intact; a repeated heading slug
 gets `-2`, `-3` appended until it is free.
+
+`[[Note#Parent#Child]]` names Child beneath Parent, rather than a heading
+called `Parent#Child`. Earlier names must occur among the child's active
+ancestors in order; intermediate headings and skipped levels are allowed.
+The link uses the child's actual page id, including a suffix when that name
+already occurs elsewhere. A repeated complete path takes the first match.
+`![[Note#Parent#Child]]` cuts that child's source section, with the same
+top-level heading boundaries as a single-name embed. An absent path keeps the
+existing missing-section diagnostic. Empty path segments retain the literal
+single-name reading, including a heading whose text ends in `#`. Within a
+note, `[[#Parent#Child]]` reads the same way against that note's own headings.
 
 ### What a block address is, exactly
 
