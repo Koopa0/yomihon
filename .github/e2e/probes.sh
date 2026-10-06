@@ -43,6 +43,7 @@ probes=(
   "print-fold-open.mjs|/notes/Notes/reading-fidelity.md"
   "heading-fragment.mjs|/notes/Notes/reading-fidelity.md"
   "preview-card.mjs|/notes/Notes/reading-fidelity.md"
+  "preview-live.mjs|/notes/Notes/alpha.md"
   "task-list-marker.mjs|/notes/Notes/reading-fidelity.md"
   "code-ligatures.mjs|/notes/Notes/reading-fidelity.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"

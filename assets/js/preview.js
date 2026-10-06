@@ -32,7 +32,6 @@ export function initPreview() {
 
   const openDelay = 250;
   const travelGrace = 120;
-  const excerpts = new Map();
 
   let timer = null;
   let controller = null;
@@ -53,13 +52,10 @@ export function initPreview() {
   }
 
   async function excerpt(url, signal) {
-    const held = excerpts.get(url.href);
-    if (held !== undefined) return held;
     const response = await fetch(url, { headers: { Accept: 'text/html' }, signal });
     const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
     const body = parsed.querySelector('[data-preview-body]');
     if (!body) throw new Error(`preview response for ${url.pathname} carries no body`);
-    excerpts.set(url.href, body);
     return body;
   }
 
@@ -113,8 +109,8 @@ export function initPreview() {
     try {
       const body = await excerpt(url, requestController.signal);
       if (controller !== requestController) return;
-      // Imported rather than adopted: the parsed document is what the cache
-      // holds, and moving its node into this page would empty the entry.
+      // Only the fragment is imported from the separately parsed response;
+      // its surrounding document never becomes part of this reading page.
       card.replaceChildren(document.importNode(body, true));
       hideGen += 1;
       if (anchored && anchored !== link) anchored.removeAttribute('data-preview-open');
