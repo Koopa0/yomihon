@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -15,9 +16,10 @@ const readAloudWord = "read-aloud"
 
 var (
 	// ttsMarkedParagraph is the authoring contract for a speakable paragraph: an
-	// author places <!-- read-aloud: ja --> immediately before it, and this pass
+	// author places a language marker immediately before it, and this pass
 	// consumes the comment into one read-aloud line.
-	ttsMarkedParagraph = regexp.MustCompile(`(?s)<!--\s*` + readAloudWord + `:\s*ja\s*-->\s*<p>(.*?)</p>`)
+	ttsMarkedParagraph       = regexp.MustCompile(`(?s)(<!--\s*` + readAloudWord + `:[^<>]*?-->)\s*<p>(.*?)</p>`)
+	readAloudLanguagePattern = regexp.MustCompile(`^<!--[ \t\r\n]*` + readAloudWord + `:[ \t\r\n]*([^<>]*?)[ \t\r\n]*-->$`)
 	// rubyReading matches a ruby reading annotation, each closed by its own tag,
 	// so a caller stripping it keeps the base characters and drops the furigana.
 	// Only the tag name is anchored, so an annotation carrying attributes is
@@ -44,14 +46,14 @@ var (
 // the repo's other inline SVGs).
 const ttsSpeaker = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`
 
-// InjectTTS gives each explicitly marked Japanese paragraph a speak button whose
+// InjectTTS gives each explicitly marked paragraph a speak button whose
 // data-tts attribute holds the segment's spoken text, computed here with the
 // furigana stripped, so the front end never crawls the DOM for it. It only adds a
 // control. Ruby is reading apparatus rather than a language declaration, so a
 // paragraph merely containing it stays untouched and the author opts in.
 func InjectTTS(htmlOut string, lang wording.Lang) string {
-	return eachMarkedParagraph(htmlOut, func(inner, spoken string) string {
-		return readAloudBlock(inner, spoken, lang)
+	return eachMarkedParagraph(htmlOut, func(inner, spoken, tag string) string {
+		return readAloudBlock(inner, spoken, tag, lang)
 	})
 }
 
@@ -99,8 +101,8 @@ func embedsSomethingThatMayBeANote(body string) bool {
 // belongs to the note, which is not on this page.
 func MarkedParagraphs(htmlOut string, lang wording.Lang) []string {
 	var found []string
-	eachMarkedParagraph(htmlOut, func(inner, spoken string) string {
-		found = append(found, readAloudBlock(footnoteReference.ReplaceAllString(inner, "<sup>$1</sup>"), spoken, lang))
+	eachMarkedParagraph(htmlOut, func(inner, spoken, tag string) string {
+		found = append(found, readAloudBlock(footnoteReference.ReplaceAllString(inner, "<sup>$1</sup>"), spoken, tag, lang))
 		return ""
 	})
 	return found
@@ -111,25 +113,42 @@ func MarkedParagraphs(htmlOut string, lang wording.Lang) []string {
 // replace, whether or not the paragraph contains ruby. A paragraph the grammar
 // cannot claim is left as the author's own and never reaches replace — nothing
 // asks twice and gets two answers.
-func eachMarkedParagraph(htmlOut string, replace func(inner, spoken string) string) string {
+func eachMarkedParagraph(htmlOut string, replace func(inner, spoken, tag string) string) string {
 	return ttsMarkedParagraph.ReplaceAllStringFunc(htmlOut, func(marked string) string {
-		inner := ttsMarkedParagraph.FindStringSubmatch(marked)[1]
+		parts := ttsMarkedParagraph.FindStringSubmatch(marked)
+		tag, valid := readAloudLanguage(parts[1])
+		if !valid {
+			return marked
+		}
+		inner := parts[2]
 		if nestedParaOpen.MatchString(inner) {
 			return marked
 		}
 		spoken := spokenText(inner)
 		if spoken == "" {
-			return `<p lang="ja">` + inner + `</p>`
+			return `<p lang="` + tag + `">` + inner + `</p>`
 		}
-		return replace(inner, spoken)
+		return replace(inner, spoken, tag)
 	})
 }
 
+// readAloudLanguage shares the schema's canonical tag authority between safe
+// markup admission and the paragraph traversal. A marker owns no HTML beyond
+// its comment; only a validated tag may become a language attribute.
+func readAloudLanguage(marker string) (string, bool) {
+	parts := readAloudLanguagePattern.FindStringSubmatch(marker)
+	if parts == nil {
+		return "", false
+	}
+	tag, err := schema.ParseLanguageTag(strings.Trim(parts[1], " \t\r\n"))
+	return tag, err == nil
+}
+
 // readAloudBlock is the element a marked paragraph becomes: the wrapper, the
-// speaker, and the paragraph, which gains lang=ja for assistive technology.
-func readAloudBlock(inner, spoken string, lang wording.Lang) string {
-	return `<div class="y-reading" lang="ja">` + speakButton(spoken, lang) +
-		`<p lang="ja">` + inner + `</p></div>`
+// speaker, and the paragraph, both declaring their authored language.
+func readAloudBlock(inner, spoken, tag string, lang wording.Lang) string {
+	return `<div class="y-reading" lang="` + tag + `">` + speakButton(spoken, lang) +
+		`<p lang="` + tag + `">` + inner + `</p></div>`
 }
 
 // spokenText reduces a segment's inner HTML to its spoken form: a trailing

@@ -164,16 +164,16 @@ var PrefSaveRefused = both(
 var (
 	PrefStorageTitle = both("這個瀏覽器記著什麼", "What this browser remembers")
 	PrefStorageNote  = both(
-		"設定存成這個位址上的 cookie，側欄的狀態只活到分頁關閉；沒有任何一項離開這台機器。",
-		"Settings are cookies on this address; the sidebar's own values die with the tab; none of it leaves this machine.",
+		"設定存成這個位址上的 cookie，側欄各區的展開狀態與篩選字只活到分頁關閉；沒有任何一項離開這台機器。",
+		"Settings are cookies on this address; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
 	)
 	PrefStorageCookies = both(
-		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵",
-		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts",
+		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵、側欄",
+		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts, sidebar",
 	)
 	PrefStorageSession = both(
-		"分頁內的值：側欄展開狀態、側欄篩選字",
-		"Per-tab values: sidebar expansion, sidebar filter text",
+		"分頁內的值：側欄各區的展開狀態、側欄篩選字",
+		"Per-tab values: sidebar section disclosure, sidebar filter text",
 	)
 )
 

@@ -154,7 +154,7 @@ func panicSource(tb testing.TB, root string) *recordingSource {
 		tb.Fatal(err)
 	}
 	tb.Cleanup(func() { closeReader(tb, reader) })
-	return &recordingSource{Source: reader, reads: make(map[string]int), fail: make(map[string]int)}
+	return &recordingSource{ObservedSource: reader, reads: make(map[string]int), fail: make(map[string]int)}
 }
 
 const (

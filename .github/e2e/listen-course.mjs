@@ -9,6 +9,18 @@
 // MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/listen/Maps/listen.md';
 const MUTATE = process.env.MUTATE || '';
@@ -121,11 +133,28 @@ const MUTATIONS = {
   // Something in the reading column is wider than the phone it is read on.
   'a-wide-block-in-the-column': {
     target: 'the-page-fits-a-phone',
-    apply: rewriteDocument(
-      '<div class="y-listen">',
-      '<div class="y-listen"><div class="y-seam" style="width:2000px"></div>',
-      'the reading column',
-    ),
+    apply: async (page) => {
+      const documentProof = await rewriteDocument(
+        '<div class="y-listen">',
+        '<div class="y-listen"><div class="y-seam" style="width:2000px;height:1px"></div>',
+        'the reading column',
+      )(page);
+      return async () => {
+        const issue = documentProof();
+        if (issue) return issue;
+        const block = page.locator('.y-listen > .y-seam');
+        if (await block.count() !== 1) return 'the wide mutation has no unique block in the listening column';
+        const box = await block.evaluate((element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return { width: style.width, height: style.height, paintedWidth: rect.width, paintedHeight: rect.height };
+        });
+        if (box.width !== '2000px' || box.height !== '1px' || box.paintedWidth !== 2000 || box.paintedHeight !== 1) {
+          return `the wide mutation has no nonempty 2000px block: ${JSON.stringify(box)}`;
+        }
+        return '';
+      };
+    },
   },
 };
 
@@ -165,10 +194,11 @@ try {
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 
   const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   if (!response || response.status() !== 200) broken(`${PAGE} returned ${response?.status() ?? 'no response'}, want 200`);
   await page.waitForSelector(BAR, { state: 'attached', timeout: 3000 });
   if (proof) {
-    const issue = proof();
+    const issue = await proof();
     if (issue) notApplied(`${MUTATE}: ${issue}`);
     mutationApplied = true;
   }
