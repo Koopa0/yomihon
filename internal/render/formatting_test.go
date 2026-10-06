@@ -61,7 +61,7 @@ func TestInertFormattingTagsRefuseAttributes(t *testing.T) {
 		{name: "superscript language", body: `Before <sup lang="en">2</sup> after`, want: "<p>Before &lt;sup lang=&quot;en&quot;&gt;2</sup> after</p>\n"},
 		{name: "highlight style", body: "Before <mark style=color:red>word</mark> after", want: "<p>Before &lt;mark style=color:red&gt;word</mark> after</p>\n"},
 		{name: "underline id", body: "Before <u id=sample>word</u> after", want: "<p>Before &lt;u id=sample&gt;word</u> after</p>\n"},
-		{name: "closing attribute", body: "Before <kbd>key</kbd class=sample> after", want: "<p>Before <kbd>key&lt;/kbd class=sample&gt; after</p>\n"},
+		{name: "closing attribute", body: "Before <kbd>key</kbd class=sample> after", want: "<p>Before &lt;kbd&gt;key&lt;/kbd class=sample&gt; after</p>\n"},
 		{name: "outside ruled set", body: "Before <small>small</small> <s>strike</s> after", want: "<p>Before &lt;small&gt;small&lt;/small&gt; &lt;s&gt;strike&lt;/s&gt; after</p>\n"},
 		{name: "nested unsafe", body: "Before <kbd><button onclick=bad()>key</button></kbd> after", want: "<p>Before <kbd>&lt;button onclick=bad()&gt;key&lt;/button&gt;</kbd> after</p>\n"},
 	}
@@ -76,5 +76,47 @@ func TestInertFormattingTagsRefuseAttributes(t *testing.T) {
 				t.Errorf("attributed keyboard markup became active: %s", got.HTML)
 			}
 		})
+	}
+}
+
+// TestAFormattingOpenerNeedsItsCloser holds the container rule: an opener is
+// markup only when a closer of its own name follows it in the same paragraph,
+// cell, heading or HTML block. Anything else is shown as the text it is, so no
+// element the author opened can outlive the place they wrote it.
+func TestAFormattingOpenerNeedsItsCloser(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	tests := []struct{ name, body, want string }{
+		{name: "unclosed in a paragraph", body: "para <u>open\n\nLater.", want: "<p>para &lt;u&gt;open</p>\n<p>Later.</p>\n"},
+		{name: "self-closing", body: "self <u/>closing", want: "<p>self &lt;u/&gt;closing</p>\n"},
+		{name: "second opener unclosed", body: "<u>a</u> and <u>b", want: "<p><u>a</u> and &lt;u&gt;b</p>\n"},
+		{name: "inner opener claims the closer", body: "<mark>a <mark>b</mark>", want: "<p>&lt;mark&gt;a <mark>b</mark></p>\n"},
+		{name: "closer of another name", body: "<u>a</mark>", want: "<p>&lt;u&gt;a</mark></p>\n"},
+		{name: "closer before opener", body: "</kbd>a<kbd>", want: "<p></kbd>a&lt;kbd&gt;</p>\n"},
+		{name: "closer outside emphasis", body: "**<sup>a**</sup>", want: "<p><strong><sup>a</strong></sup></p>\n"},
+		{name: "closer inside an image description", body: "<u>a ![x</u>](p.png)", want: "<p>&lt;u&gt;a <img src=\"/raw/p.png\" alt=\"x\"></p>\n"},
+		{name: "closer in the next paragraph", body: "<sub>a\n\nb</sub>", want: "<p>&lt;sub&gt;a</p>\n<p>b</sub></p>\n"},
+		{name: "unclosed html block", body: "<u>\nblock\n\nafter", want: "&lt;u&gt;\nblock\n<p>after</p>\n"},
+		{name: "paired html block", body: "<u>\nblock</u>\n\nafter", want: "<u>\nblock</u>\n<p>after</p>\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Note.md", "", tt.body, wording.ZhHant)
+			if diff := cmp.Diff(tt.want, got.HTML); diff != "" {
+				t.Errorf("unpaired formatting (-want +got):\n%s", diff)
+			}
+		})
+	}
+
+	table := r.HTML("Note.md", "", "| <u>a | b</u> |\n|---|---|\n| c | d |\n", wording.ZhHant).HTML
+	if strings.Contains(table, "<u>") || !strings.Contains(table, "&lt;u&gt;a") {
+		t.Errorf("an opener paired with a closer in another cell: %s", table)
+	}
+
+	for raw, want := range map[string]string{"A <u>b": "A <u>b", "A <u>b</u>": "A b", "A <u/>b": "A <u/>b"} {
+		if got := render.HeadingWords(raw); got != want {
+			t.Errorf("HeadingWords(%q) = %q, want %q, the words the page shows", raw, got, want)
+		}
 	}
 }
