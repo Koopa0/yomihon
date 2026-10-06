@@ -15,10 +15,10 @@ import (
 
 var railModuleDeclaration = regexp.MustCompile(`(?m)^[\t ]*(?:import|export)\b`)
 
-// sidebarDeclaration projects the one import-free factory, whose final export
+// railFilterDeclaration projects the one import-free factory, whose final export
 // is the module's only declaration beyond the plain function. Header comments
 // are preserved. A closing script token would escape even inside a JS string.
-func sidebarDeclaration(source string) (string, error) {
+func railFilterDeclaration(source string) (string, error) {
 	if strings.Contains(strings.ToLower(source), "</script") {
 		return "", errors.New("rail filter source contains an HTML closing script token")
 	}
@@ -45,13 +45,13 @@ func sidebarDeclaration(source string) (string, error) {
 	}
 }
 
-func sidebarInitializer(nonce string) templ.Component {
+func railFilterInitializer(nonce string) templ.Component {
 	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
 		source, err := assets.Files.ReadFile("js/rail-filter.js")
 		if err != nil {
 			return fmt.Errorf("read rail filter source: %w", err)
 		}
-		declaration, err := sidebarDeclaration(string(source))
+		declaration, err := railFilterDeclaration(string(source))
 		if err != nil {
 			return fmt.Errorf("project rail filter source: %w", err)
 		}

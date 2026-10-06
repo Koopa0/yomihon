@@ -207,7 +207,7 @@ func settleRail(c layouts.Chrome, filter bool) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if filter {
-			templ_7745c5c3_Err = sidebarInitializer(c.Nonce).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = railFilterInitializer(c.Nonce).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

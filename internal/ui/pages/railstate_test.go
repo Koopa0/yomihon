@@ -2,18 +2,22 @@ package pages
 
 import (
 	"bytes"
+	"errors"
 	"html"
+	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/assets"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
-func TestRailSidebarProjection(t *testing.T) {
+func TestRailFilterProjection(t *testing.T) {
 	t.Parallel()
 	source, err := assets.Files.ReadFile("js/rail-filter.js")
 	if err != nil {
@@ -61,7 +65,7 @@ func TestRailSidebarProjection(t *testing.T) {
 			if diff := cmp.Diff(strings.TrimSpace(declaration), body); diff != "" {
 				t.Errorf("caught: whole filtering projection mismatch (-want +got):\n%s", diff)
 			}
-			if strings.Contains(body, "addEventListener") || strings.Contains(body, "sidebarController") || strings.Contains(body, "sessionStorage.setItem") {
+			if strings.Contains(body, "addEventListener") || strings.Contains(body, "sessionStorage.setItem") {
 				t.Error("caught: deferred interaction was copied into the prepaint filter")
 			}
 			text := output.String()
@@ -75,7 +79,7 @@ func TestRailSidebarProjection(t *testing.T) {
 	}
 }
 
-func TestSidebarDeclaration(t *testing.T) {
+func TestRailFilterDeclaration(t *testing.T) {
 	t.Parallel()
 	body := "function initRailFilter(rail, input) {\n}\n"
 	export := "export { initRailFilter };\n"
@@ -100,7 +104,7 @@ func TestSidebarDeclaration(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := sidebarDeclaration(tt.source)
+			got, err := railFilterDeclaration(tt.source)
 			var message string
 			if err != nil {
 				message = err.Error()
@@ -110,6 +114,78 @@ func TestSidebarDeclaration(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("caught: declaration body mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+type projectionErrorWriter struct{ err error }
+
+func (w projectionErrorWriter) Write([]byte) (int, error) { return 0, w.err }
+
+func TestRailProjectionReturnsWriteError(t *testing.T) {
+	want := errors.New("write refused")
+	if err := railFilterInitializer("probe-nonce").Render(t.Context(), projectionErrorWriter{want}); !errors.Is(err, want) {
+		t.Fatalf("caught: rail projection lost its write error: %v", err)
+	}
+}
+
+func TestUnfilteredRailHasNoFilteringProjection(t *testing.T) {
+	var output bytes.Buffer
+	if err := syllabusRail(PathView{}, layouts.Chrome{Nonce: "probe-nonce"}).Render(t.Context(), &output); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "function initSidebar()") || strings.Contains(output.String(), "function initRailFilter(") {
+		t.Fatal("caught: an unfiltered syllabus carries filtering source")
+	}
+}
+
+func TestRailFilterCallerSet(t *testing.T) {
+	var callers []string
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".templ") {
+			continue
+		}
+		data, err := os.ReadFile(entry.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "@settleRail(") {
+			callers = append(callers, entry.Name())
+		}
+	}
+	if !slices.Equal(callers, []string{"readingrail.templ", "sidebar.templ", "syllabus.templ"}) {
+		t.Fatalf("caught: settlement caller set changed: %v", callers)
+	}
+	c := layouts.Chrome{Nonce: "probe-nonce"}
+	input := regexp.MustCompile(`<input\b[^>]*\bdata-nav-filter\b`)
+	for _, tt := range []struct {
+		name      string
+		component templ.Component
+		filtered  bool
+	}{
+		{"sidebar", sidebar(Sidebar{}, c), true},
+		{"book", readingRail(ReadingRail{Kind: ReadingRailBook}, c), true},
+		{"folder", readingRail(ReadingRail{Kind: ReadingRailFolder}, c), true},
+		{"reports", readingRail(ReadingRail{Kind: ReadingRailReports}, c), true},
+		{"syllabus", syllabusRail(PathView{}, c), false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			if err := tt.component.Render(t.Context(), &b); err != nil {
+				t.Fatal(err)
+			}
+			text := b.String()
+			want := 0
+			if tt.filtered {
+				want = 1
+			}
+			if input.MatchString(text) != tt.filtered || strings.Count(text, "function initRailFilter(rail, input)") != want || strings.Count(text, "railFilterState?.restore();") != want {
+				t.Fatal("caught: caller filter declaration and projection membership disagree")
 			}
 		})
 	}

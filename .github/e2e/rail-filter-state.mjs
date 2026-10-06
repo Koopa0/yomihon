@@ -8,14 +8,13 @@ const PAGE = process.env.PAGE_PATH || '/notes/Course/C02.md';
 const NEXT = '/notes/Course/C03.md';
 const MUTATE = process.env.MUTATE || '';
 const FILTER = '.y-rail-left [data-nav-filter]';
-const SITES = ['early-owner', 'remembered-raw', 'restore-hold', 'controller-lifetime', 'clear-state', 'whole-row-set', 'filter-behavior', 'notice-inventory', 'reach-count', 'reach-locale', 'reach-query', 'filter-persistence'];
+const SITES = ['early-owner', 'remembered-raw', 'restore-hold', 'clear-state', 'whole-row-set', 'filter-behavior', 'notice-inventory', 'reach-count', 'reach-locale', 'reach-query', 'filter-persistence'];
 const MUTATIONS = {
   'omit-inline-call': { target: 'early-owner', needle: /if \(input\) initRailFilter\(rail, input\);/g, replacement: 'void 0;' },
   'defer-filter-restore': { target: 'early-owner', needle: /document\.querySelector\("\.y-rail-left"\)\?\.railFilterState\?\.restore\(\);/g, replacement: 'void 0;' },
   'omit-remembered-value': { target: 'remembered-raw', needle: /input\.value = remembered;/g, replacement: 'void remembered;' },
   'omit-restoring-hold': { target: 'restore-hold', needle: /rail\.dataset\.railRestoring = '';/g, replacement: 'void 0;' },
   'omit-restoring-flush': { target: 'restore-hold', needle: /void rail\.offsetWidth;/g, replacement: 'void 0;' },
-  'bypass-retained-controller': { target: 'controller-lifetime', source: 'sidebar.js', needle: /if \(rail\.sidebarController\) return rail\.sidebarController;/g, replacement: 'if (false) return rail.sidebarController;' },
   'bypass-retained-filter-state': { target: 'clear-state', source: 'rail-filter.js', needle: /if \(rail\.railFilterState\) return rail\.railFilterState;/g, replacement: 'if (false) return rail.railFilterState;' },
   'lose-original-defaults': { target: 'clear-state', needle: /serverOpen\.set\(details, details\.open\);/g, replacement: 'serverOpen.set(details, false);' },
   'drop-current-ancestry': { target: 'clear-state', needle: /if \(details\.hasAttribute\('data-chain'\)\) return true;/g, replacement: 'if (false) return true;' },
@@ -127,7 +126,7 @@ async function open(site, options = {}) {
       await route.fulfill({ response, body });
     });
   }
-  if (options.blocked !== false) await page.route('**/yomihon.js', (route) => { blocked += 1; return route.abort(); });
+  if (options.blocked !== false) await page.route('**/yomihon.js{,?*}', (route) => { blocked += 1; return route.abort(); });
   await page.goto(BASE + (options.path || PAGE), { waitUntil: 'domcontentloaded' });
   function prove(reentry = false) {
     if (mode) {
@@ -144,7 +143,7 @@ async function open(site, options = {}) {
     if (options.blocked !== false) control(blocked > 0, 'the actual deferred yomihon.js request was not intercepted');
     if (options.setup) control(documents > 0, 'bounded document inputs were never applied');
   }
-  if (!['early-owner', 'remembered-raw', 'restore-hold'].includes(site) && await page.locator(FILTER).count()) await secondInit(page);
+  if (!['early-owner', 'remembered-raw', 'restore-hold'].includes(site) && await page.locator(FILTER).count()) await startSidebar(page);
   prove(true);
   return { page, context, prove };
 }
@@ -154,12 +153,21 @@ const snapshot = (page) => page.locator('.y-rail-left').evaluate((rail) => ({
   groups: [...rail.querySelectorAll('details, .y-here')].map((group) => ({ key: group.dataset.key || null, hidden: group.hidden, open: group.tagName === 'DETAILS' ? group.open : null })),
   empty: rail.querySelector('[data-filter-empty]')?.hidden,
 }));
-async function secondInit(page) {
+// The deferred entry is blocked, so this stands in for it: the document's own
+// initialization is the one call a real page makes.
+async function startSidebar(page) {
   return page.evaluate(async () => {
     const { initSidebar } = await import('/static/sidebar.js');
-    const first = initSidebar();
-    const second = initSidebar();
-    return first === second && first === document.querySelector('.y-rail-left').sidebarController;
+    initSidebar();
+  });
+}
+// The parsed rail has already initialized the filter, so the module's own
+// initialization is a second caller of the shared factory.
+async function reenterFilter(page) {
+  return page.evaluate(async () => {
+    const { initRailFilter } = await import('/static/rail-filter.js');
+    const rail = document.querySelector('.y-rail-left');
+    return initRailFilter(rail, rail.querySelector('[data-nav-filter]')) === rail.railFilterState;
   });
 }
 async function reachState(page) {
@@ -191,18 +199,8 @@ try {
     await context.close();
   }
   {
-    const { page, context, prove } = await open('controller-lifetime', { remembered: 'Needle', setup: { defaults: true, reach: [{ count: 1, dir: 'Module 2' }] } });
-    const retained = await secondInit(page);
-    prove(true);
-    check(retained, 'controller-lifetime', 'second native-module initialization replaced the retained document controller');
-    await fill(page, '');
-    control(await page.locator('details[data-key="probe-open"]').evaluate((element) => element.open), 'second init recaptured a filtered closed state as the original open default');
-    control(!(await page.locator('details[data-key="probe-closed"]').evaluate((element) => element.open)), 'second init recaptured a filtered open state as the original closed default');
-    await context.close();
-  }
-  {
     const { page, context } = await open('clear-state', { remembered: 'Needle', disclosure: '{"probe-closed":false}', setup: { defaults: true } });
-    await secondInit(page);
+    check(await reenterFilter(page), 'clear-state', 'a second initialization replaced the retained filter state');
     await page.evaluate(() => {
       const choices = JSON.parse(sessionStorage.getItem('yomihon.nav'));
       document.querySelectorAll('#nav-rail details[data-chain]').forEach((group) => { choices[group.dataset.key] = false; });
@@ -240,7 +238,7 @@ try {
   {
     const { page, context } = await open('notice-inventory', { setup: { reach: [{ count: 1, dir: 'Module 2' }] } });
     await fill(page, 'missing-token');
-    await secondInit(page);
+    await reenterFilter(page);
     await fill(page, '\u641c\u5c0b\u5168\u90e8');
     check(!(await page.locator('[data-filter-empty]').evaluate((element) => element.hidden)) && (await reachState(page)).links === 1, 'notice-inventory', 'a derived search notice became an original row or duplicated its exit after repeated initialization/input');
     await fill(page, '');
@@ -285,14 +283,14 @@ try {
   for (const disclosure of [undefined, '{bad', 'null', 'false', '{"probe-closed":"true"}']) {
     const { page, context } = await open('', { disclosure, setup: { defaults: true } });
     await fill(page, 'Needle');
-    await secondInit(page);
+    await reenterFilter(page);
     await fill(page, '');
     control(await page.locator('details[data-key="probe-open"]').evaluate((element) => element.open) && !(await page.locator('details[data-key="probe-closed"]').evaluate((element) => element.open)), `${String(disclosure)} did not retain the original disclosure defaults`);
     await context.close();
   }
   {
     const { page, context } = await open('', { remembered: 'Kept', disclosure: '{"probe-closed":true}', setup: { defaults: true } });
-    await secondInit(page);
+    await reenterFilter(page);
     await fill(page, 'Needle');
     await fill(page, '');
     control(await page.locator('details[data-key="probe-closed"]').evaluate((element) => element.open), 'second initialization/input/clear lost a stored open choice');

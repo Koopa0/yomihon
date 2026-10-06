@@ -60,7 +60,7 @@ templ railHead(c layouts.Chrome, filter bool) {
 // settleRail applies the same tab-session choices to every navigation rail.
 templ settleRail(c layouts.Chrome, filter bool) {
 	if filter {
-		@sidebarInitializer(c.Nonce)
+		@railFilterInitializer(c.Nonce)
 	}
 	// The pre-paint settle reveals the filter box and reapplies the reader's
 	// persisted disclosure toggles before the sidebar first paints, so nothing

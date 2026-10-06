@@ -1,17 +1,16 @@
+// Sidebar disclosure state and filtering. Manual disclosure choices persist for
+// the session, and so does the filter: a reader narrowing a folder of dated
+// entries to one month and then opening a day found the box emptied and the
+// whole folder back, and retyped the same seven characters once per entry they
+// read. The narrowing is where they are, not what they just did.
 import { initRailFilter } from './rail-filter.js';
 
 export function initSidebar() {
-  // Sidebar disclosure state and filtering. Manual disclosure choices persist for
-  // the session, and so does the filter: a reader narrowing a folder of dated
-  // entries to one month and then opening a day found the box emptied and the
-  // whole folder back, and retyped the same seven characters once per entry they
-  // read. The narrowing is where they are, not what they just did.
   const rail = document.querySelector('.y-rail-left');
   const input = rail?.querySelector('[data-nav-filter]');
   if (!input) {
     return { canFocusFilter: () => false, focusFilter() {} };
   }
-  if (rail.sidebarController) return rail.sidebarController;
 
   const storageKey = 'yomihon.nav';
   const filterKey = 'yomihon.nav.filter';
@@ -78,9 +77,8 @@ export function initSidebar() {
     }
   });
 
-  rail.sidebarController = {
+  return {
     canFocusFilter: () => !input.hidden,
     focusFilter: () => input.focus(),
   };
-  return rail.sidebarController;
 }
