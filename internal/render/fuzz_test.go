@@ -34,6 +34,9 @@ func FuzzHTML(f *testing.F) {
 		"before ![[target]] after",
 		"before %%hidden%% after\n```text %%literal info%%\n%%literal%%\n```",
 		"## 重複\n## 重複\n<h2>raw heading</h2>",
+		"Inline^[**bold** and `]` and [link](#h)] then ordinary[^n].\n\n[^n]: definition\n",
+		"^[未閉合\n```text\n^[literal]\n",
+		"^[note] [^yomihon-inline-footnote-1]\n\n[^yomihon-inline-footnote-1]: authored\n",
 	} {
 		f.Add(seed)
 	}

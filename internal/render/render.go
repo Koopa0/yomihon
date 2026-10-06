@@ -480,6 +480,7 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 		return r
 	}, body)
 	source, marks := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
+	source = expandInlineFootnotes(source)
 
 	// Parse and render as two steps rather than one Convert call, which is
 	// exactly what Convert does, so this region's id prefix can be attached to
@@ -487,6 +488,7 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
 	r.resolveMarkdownLinks(doc, input.path, col)
+	markHeadingNotes(doc)
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
 	doc.SetAttributeString(footnoteLangAttr, []byte(page.lang))
 	attachHighlightReporter(doc, col)
