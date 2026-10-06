@@ -216,7 +216,9 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	report.New(source, reportProvider, log).Register(mux)
 	asset.Register(mux)
 
-	handler := http.NewCrossOriginProtection().Handler(mux)
+	crossOrigin := http.NewCrossOriginProtection()
+	crossOrigin.SetDenyHandler(http.HandlerFunc(readers.CrossOriginDenied))
+	handler := crossOrigin.Handler(readers.LocalizedRouter(mux))
 	watchCtx, cancel := context.WithCancel(ctx)
 	site := &readingSite{
 		handler:   origin.LoopbackOnly(handler),
