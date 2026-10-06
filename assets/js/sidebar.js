@@ -31,7 +31,11 @@ export function initSidebar() {
     if (filtering || !details.dataset?.key || details.hasAttribute('data-chain')) return;
     const stored = readDisclosureState();
     stored[details.dataset.key] = details.open;
-    sessionStorage.setItem(storageKey, JSON.stringify(stored));
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(stored));
+    } catch {
+      // A refused write leaves the native disclosure usable on this page.
+    }
   }, true);
 
   function restingState(details) {

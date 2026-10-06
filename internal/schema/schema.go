@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 
@@ -684,7 +685,7 @@ func resolvePrivacyPolicy(
 // A table's key reaches a Go field by its exact name and, failing that, by one
 // differing only in case; the table is walked in map order, so two spellings
 // that fold together have no fixed winner and whichever loses is dropped
-// without a word. Sibling names are compared with strings.EqualFold, the
+// without a word. Sibling names follow strings.EqualFold identity, the
 // comparison the decoder makes. Keys read into a map keep both spellings and
 // are refused anyway: the vault's vocabulary has one place to be written down.
 func validateDistinctKeys(data []byte) error {
@@ -718,16 +719,38 @@ func foldedKeyPairs(prefix string, table map[string]any) []string {
 // siblingsThatFold names the pairs, among one table's own sorted keys, that
 // the decoder resolves to the same field.
 func siblingsThatFold(prefix string, names []string) []string {
+	groups := make(map[string][]string, len(names))
+	folded := make([]string, len(names))
+	for i, name := range names {
+		key := simpleFoldKey(name)
+		folded[i] = key
+		groups[key] = append(groups[key], name)
+	}
+
 	var pairs []string
 	for i, name := range names {
-		for _, other := range names[i+1:] {
-			if strings.EqualFold(name, other) {
-				pairs = append(pairs, fmt.Sprintf("%s and %s",
-					strconv.Quote(prefix+name), strconv.Quote(prefix+other)))
-			}
+		// Keep the original name order even when different fold groups
+		// interleave; each name reports only its remaining group members.
+		others := groups[folded[i]][1:]
+		groups[folded[i]] = others
+		for _, other := range others {
+			pairs = append(pairs, fmt.Sprintf("%s and %s",
+				strconv.Quote(prefix+name), strconv.Quote(prefix+other)))
 		}
 	}
 	return pairs
+}
+
+// simpleFoldKey chooses one rune from each Unicode simple-fold orbit. It
+// preserves strings.EqualFold identity: full folding would conflate ß and ss.
+func simpleFoldKey(name string) string {
+	return strings.Map(func(r rune) rune {
+		least := r
+		for folded := unicode.SimpleFold(r); folded != r; folded = unicode.SimpleFold(folded) {
+			least = min(least, folded)
+		}
+		return least
+	}, name)
 }
 
 // foldedKeyPairsUnder walks the tables a value holds. Rows of a list are walked
