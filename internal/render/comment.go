@@ -50,7 +50,6 @@ func stripObsidianComments(body string) (stripped string, unclosed unclosedComme
 	inFence := false
 	var fenceByte byte
 	var fenceLen int
-	pending, htmlPending := 0, 0
 
 	for i, line := range lines {
 		at := offset
@@ -79,15 +78,7 @@ func stripObsidianComments(body string) (stripped string, unclosed unclosedComme
 
 		var openedHere bool
 		lines[i], openedHere = stripObsidianCommentLine(line, body, at, &state)
-		switch {
-		case state.closing != "%%":
-			pending = 0
-		case openedHere:
-			pending = i + 1
-		}
-		if openedHere && state.closing == "-->" && state.unclosed {
-			htmlPending = i + 1
-		}
+		unclosed.follow(&state, i+1, openedHere)
 		if state.closing != "" {
 			continue
 		}
@@ -97,14 +88,22 @@ func stripObsidianComments(body string) (stripped string, unclosed unclosedComme
 			fenceLen = n
 		}
 	}
-	stripped = strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), unclosed
+}
+
+// follow updates the record after one line is stripped: a comment opened on it
+// that the rest of the body cannot close becomes the record, and a %% that met
+// its partner leaves none. A line still inside the recorded comment changes
+// nothing.
+func (u *unclosedComment) follow(state *commentState, line int, openedHere bool) {
 	switch {
-	case pending != 0:
-		return stripped, unclosedComment{line: pending, marker: "%%"}
-	case htmlPending != 0:
-		return stripped, unclosedComment{line: htmlPending, marker: "<!--"}
+	case openedHere && state.closing == "%%":
+		*u = unclosedComment{line: line, marker: "%%"}
+	case openedHere && state.closing == "-->" && state.unclosed:
+		*u = unclosedComment{line: line, marker: "<!--"}
+	case state.closing != "%%" && u.marker == "%%":
+		*u = unclosedComment{}
 	}
-	return stripped, unclosedComment{}
 }
 
 type commentState struct {
