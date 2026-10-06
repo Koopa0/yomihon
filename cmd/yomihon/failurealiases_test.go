@@ -19,7 +19,7 @@ import (
 
 const failureVaultRoot = "../../examples/vault"
 
-const deadlockExplanation = "這個版本會以 fatal error: all goroutines are asleep - deadlock! 結束；runtime 只在所有 goroutine 都阻塞、又沒有能讓它們繼續的事件時報死結，仍有其他工作能執行的伺服器則可能只讓這個 goroutine 一直等著。"
+const deadlockExplanation = "兩種改法都會以 fatal error: all goroutines are asleep - deadlock! 結束；runtime 只在所有 goroutine 都阻塞、又沒有能讓它們繼續的事件時報死結，仍有其他工作能執行的伺服器則可能只讓這個 goroutine 一直等著。"
 
 func TestShippedFailureAliasesHaveOneOwner(t *testing.T) {
 	t.Parallel()
@@ -157,8 +157,34 @@ func TestShippedFailureWordsReachTheConcepts(t *testing.T) {
 			doc := failureWordPage(t, srv.Client(), srv.URL+pages.VaultHref("/notes/", lesson), lang)
 			found := 0
 			for node := range doc.Descendants() {
-				if node.Type == html.ElementNode && node.Data == "p" && failureWordText(node) == deadlockExplanation {
-					found++
+				if node.Type != html.ElementNode || node.Data != "p" || failureWordText(node) != deadlockExplanation {
+					continue
+				}
+				found++
+				var answer *html.Node
+				for parent := node.Parent; parent != nil; parent = parent.Parent {
+					if parent.Type == html.ElementNode && parent.Data == "details" && failureWordClass(parent, "callout") {
+						answer = parent
+						break
+					}
+				}
+				if answer == nil {
+					t.Error("caught: runtime explanation is outside the collapsed answer")
+					continue
+				}
+				for _, attr := range answer.Attr {
+					if attr.Key == "open" {
+						t.Error("caught: runtime explanation reveals an open answer")
+					}
+				}
+				var paragraphs []*html.Node
+				for child := range answer.Descendants() {
+					if child.Type == html.ElementNode && child.Data == "p" {
+						paragraphs = append(paragraphs, child)
+					}
+				}
+				if len(paragraphs) != 3 || paragraphs[2] != node {
+					t.Error("caught: runtime explanation is not the answer's third paragraph")
 				}
 			}
 			if found != 1 {
