@@ -41,12 +41,14 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // the stylesheet reads to hold its transitions still for that one write, the
 // moment the rail's remembered filter is being applied, for which the
 // stylesheet holds the folds still too, and the length of a fold, for which the
-// stylesheet holds the panel's width.
+// stylesheet holds the panel's width, and the prose prefix a kept place
+// temporarily lays out before landing against its authored heights.
 var clientOwned = []string{
 	"data-freshness",
 	"data-mermaid-error",
 	"data-nav",
 	"data-preview-open",
+	"data-prose-measuring",
 	"data-rail-moving",
 	"data-rail-restoring",
 	"data-rail-settling",

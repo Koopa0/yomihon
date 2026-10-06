@@ -96,6 +96,26 @@ async function keep(control) {
   say(control, kept ? control.dataset.markSaved : control.dataset.markFailed, kept);
 }
 
+// A kept offset was measured against real prose. Lay out just its prefix
+// again before using it on a fresh document, leaving the rest deferred.
+function layOutProse(blocks, boundary) {
+  const measured = [];
+  for (const block of blocks) {
+    block.dataset.proseMeasuring = '';
+    measured.push(block);
+    if (block.getBoundingClientRect().bottom + window.scrollY >= boundary()) break;
+  }
+  return () => {
+    for (const block of measured) delete block.dataset.proseMeasuring;
+  };
+}
+
+function afterLayout() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+}
+
 // land finishes an arrival the address asked for. The browser has already gone
 // to the fragment; what is left is the distance below it, measured from the
 // same anchor the mark was taken against.
@@ -130,20 +150,41 @@ function land() {
   const apply = () => {
     window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
   };
-  apply();
-  // The column's own measurements settle a frame or two after this file first
-  // runs — a web font arrives, a diagram takes its height — and a position
-  // applied before that lands against a page that has since moved.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(apply);
-  });
-  window.addEventListener(
-    'pagereveal',
-    () => {
+  const controller = new AbortController();
+  let releaseLayout = () => {};
+  const cancel = () => {
+    controller.abort();
+    releaseLayout();
+  };
+  // A later reader gesture owns the window; an arrival still waiting for a
+  // font or layout must not put the reader back over that choice.
+  for (const kind of ['wheel', 'touchstart', 'pointerdown', 'keydown', 'pagehide']) {
+    window.addEventListener(kind, cancel, { once: true, passive: true, signal: controller.signal });
+  }
+  let generation = 0;
+  const restore = async () => {
+    const current = ++generation;
+    await document.fonts.ready;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    if (controller.signal.aborted || current !== generation) return;
+    const blocks = readingColumn()?.querySelector('.y-prose')?.children ?? [];
+    const boundary = () => (anchor ? documentTop(anchor) : 0) + offset;
+    releaseLayout();
+    const release = layOutProse(blocks, boundary);
+    releaseLayout = release;
+    try {
+      await afterLayout();
+      if (controller.signal.aborted || current !== generation) return;
       apply();
-    },
-    { once: true },
-  );
+      await afterLayout();
+    } finally {
+      if (current === generation) cancel();
+    }
+  };
+  restore();
+  window.addEventListener('pagereveal', restore, { once: true, signal: controller.signal });
 }
 
 export function initMark() {

@@ -1787,6 +1787,12 @@ details.y-metarow {
   overflow-clip-margin: 4px;
 }
 
+/* A kept place measures its prefix against authored heights, then releases
+   those blocks back to the browser's normal offscreen work deferral. */
+.y-prose > [data-prose-measuring] {
+  content-visibility: visible;
+}
+
 /* Latin set on a 30px line, where the article says it is not Han, kana or
    Hangul. Ruby needs the 2.0 line above, so an article that declares nothing
    keeps it: the safe line is the default and the open one has to be earned by

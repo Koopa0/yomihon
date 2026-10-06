@@ -30,6 +30,7 @@ const MUTATE = process.env.MUTATE || '';
 const REGRESSIONS_ONLY = process.env.READER_MARK_REGRESSIONS_ONLY === '1';
 const REGRESSION_SITE = process.env.READER_MARK_SITE || '';
 const ANCHOR_PAGE = '/notes/Notes/mark-anchors.md';
+const LONG_PAGE = '/notes/Notes/mark-long-offset.md';
 
 // How far down the note the reader is taken before keeping the place. Far
 // enough that an anchor sits above the top of the window and that landing at
@@ -54,8 +55,13 @@ const ANCHOR_SITES = [
   'an-oversized-heading-keeps-the-accepted-predecessor',
   'no-accepted-predecessor-keeps-the-document-offset',
 ];
-const SITES = [
+const REGRESSION_SITES = [
   ...ANCHOR_SITES,
+  'a-long-offset-keeps-the-reading-content',
+  'a-reader-gesture-cancels-a-delayed-arrival',
+];
+const SITES = [
+  ...REGRESSION_SITES,
   'kept-place-is-offered-back',
   'following-it-lands-where-the-window-was',
   'a-missing-anchor-lands-at-the-top',
@@ -161,6 +167,22 @@ const dropSecondPost = () => async (page) => {
 };
 
 const MUTATIONS = {
+  'ignore-the-reader-during-arrival': {
+    target: 'a-reader-gesture-cancels-a-delayed-arrival',
+    apply: rewriteModule(
+      'window.addEventListener(kind, cancel, { once: true, passive: true, signal: controller.signal });',
+      '/* let the delayed arrival overwrite the reader */',
+      'the reader gesture that cancels a pending arrival',
+    ),
+  },
+  'land-with-placeholder-heights': {
+    target: 'a-long-offset-keeps-the-reading-content',
+    apply: rewriteModule(
+      'const release = layOutProse(blocks, boundary);',
+      'const release = () => {};',
+      'the actual measured prose span before landing',
+    ),
+  },
   ...Object.fromEntries(ANCHOR_SITES.map((site, index) => [
     ['keep-an-invalid-block', 'keep-an-oversized-heading', 'keep-an-invalid-fallback'][index],
     {
@@ -457,7 +479,7 @@ const deskRow = async (page) => {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  if (REGRESSION_SITE && !ANCHOR_SITES.includes(REGRESSION_SITE)) {
+  if (REGRESSION_SITE && !REGRESSION_SITES.includes(REGRESSION_SITE)) {
     broken(`unknown READER_MARK_SITE ${REGRESSION_SITE}`);
   }
   for (const [index, site] of ANCHOR_SITES.entries()) {
@@ -534,6 +556,143 @@ try {
       await context.close();
     }
   }
+  // Read an actual paragraph across a fresh document. Equal scrollY alone
+  // cannot tell a laid-out reading from one using shorter skipped blocks.
+  const longSite = 'a-long-offset-keeps-the-reading-content';
+  if (!REGRESSION_SITE || REGRESSION_SITE === longSite) {
+    for (const viewport of [VIEWPORT, NARROW]) {
+      const context = await browser.newContext({ viewport });
+      const page = await context.newPage();
+      const proof = await applyMutation(page, longSite);
+      await page.goto(BASE + LONG_PAGE, { waitUntil: 'domcontentloaded' });
+      await arrived(page);
+      await page.evaluate(() => document.fonts.ready);
+      const kept = await page.evaluate(async () => {
+        const paragraphs = [...document.querySelectorAll('.y-prose > p')];
+        if (paragraphs.length !== 140 || !paragraphs[50].textContent.startsWith('Reading paragraph 050.')) {
+          throw new Error('BROKEN reader-mark: long fixture paragraph set differs');
+        }
+        // A reader may already have traversed these blocks. Warm their real
+        // heights, then return to the production auto declaration before saving.
+        const style = document.createElement('style');
+        style.textContent = '.y-prose > * { content-visibility: visible; }';
+        document.head.append(style);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        style.remove();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const target = paragraphs[50];
+        window.scrollTo(0, target.getBoundingClientRect().top + scrollY);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const anchor = document.getElementById('accepted-start');
+        if (!anchor?.hasAttribute('data-mark-anchor')) throw new Error('BROKEN reader-mark: long fixture lacks accepted heading');
+        return {
+          text: target.textContent, top: target.getBoundingClientRect().top,
+          y: Math.round(scrollY), offset: Math.round(scrollY) - Math.round(anchor.getBoundingClientRect().top + scrollY),
+          visibility: getComputedStyle(target).contentVisibility,
+        };
+      });
+      if (kept.visibility !== 'auto' || Math.abs(kept.top) > LANDING_SLACK || kept.offset < 10000) {
+        broken(`long fixture is not a warmed auto-layout span: ${JSON.stringify(kept)}`);
+      }
+      if (viewport.width === NARROW.width) {
+        await page.locator(FOLD_BUTTON).click();
+        await page.locator(FOLD_PANEL).waitFor({ state: 'visible' });
+      }
+      const control = page.locator('[data-mark-control]:visible');
+      const identity = await control.getAttribute('data-mark-identity');
+      const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/marks');
+      await control.locator('[data-mark-button]').click();
+      const response = await posted;
+      checkProof(proof);
+      const submitted = new URLSearchParams(response.request().postData() ?? '');
+      if (response.status() !== 204 || submitted.get('anchor') !== 'accepted-start'
+        || Number(submitted.get('offset')) !== kept.offset || submitted.get('identity') !== identity) {
+        fail(longSite, `caught: long mark record disagrees with the laid-out input: HTTP${response.status()} ${submitted}`);
+      }
+      const { row, present } = await deskRow(page);
+      if (!present) fail(longSite, 'caught: long reading has no persisted desk row');
+      const link = row.locator('[data-continue-link]').first();
+      const href = await link.getAttribute('href');
+      const saved = new URL(href || '', BASE);
+      if (saved.pathname !== LONG_PAGE || saved.hash !== '#accepted-start' || Number(saved.searchParams.get('at')) !== kept.offset) {
+        fail(longSite, `caught: long persisted link differs: ${href}`);
+      }
+      await link.click();
+      await page.waitForLoadState('domcontentloaded');
+      await arrived(page);
+      await page.evaluate(() => document.fonts.ready);
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      checkProof(proof);
+      const landed = await page.evaluate(() => {
+        const paragraphs = [...document.querySelectorAll('.y-prose > p')];
+        const target = paragraphs[50];
+        return {
+          text: target?.textContent, top: target?.getBoundingClientRect().top,
+          at: new URL(location.href).searchParams.has('at'),
+          temporary: document.querySelectorAll('[data-prose-measuring]').length,
+          tail: getComputedStyle(paragraphs.at(-1)).contentVisibility,
+        };
+      });
+      if (landed.text !== kept.text || Math.abs(landed.top - kept.top) > LANDING_SLACK || landed.at) {
+        fail(longSite, `caught: long-offset reading content moved ${landed.top - kept.top}px at ${viewport.width}px`);
+      }
+      if (landed.temporary !== 0 || landed.tail !== 'auto') {
+        fail(longSite, `caught: long landing left temporary layout or stopped deferring its tail: ${JSON.stringify(landed)}`);
+      }
+      console.log(`PASS reader-mark: ${longSite} ${viewport.width}px HTTP204 paragraph=050 offset=${kept.offset}`);
+      await context.close();
+    }
+  }
+
+  const gestureSite = 'a-reader-gesture-cancels-a-delayed-arrival';
+  if (!REGRESSION_SITE || REGRESSION_SITE === gestureSite) {
+    const positions = [];
+    for (const carriesOffset of [false, true]) {
+      const context = await browser.newContext({ viewport: NARROW });
+      const page = await context.newPage();
+      const proof = await applyMutation(page, gestureSite);
+      let releaseFonts;
+      const gate = new Promise((resolve) => { releaseFonts = resolve; });
+      let offeredFonts = 0;
+      await page.route('**/static/fonts/**', async (route) => {
+        offeredFonts += 1;
+        await gate;
+        await route.continue();
+      });
+      try {
+        const address = `${BASE}${LONG_PAGE}${carriesOffset ? '?at=10000' : ''}#accepted-start`;
+        await page.goto(address, { waitUntil: 'domcontentloaded' });
+        await arrived(page);
+        await page.waitForFunction(() => document.fonts.status === 'loading');
+        if (carriesOffset) await page.waitForFunction(() => !new URL(location.href).searchParams.has('at'));
+        if (offeredFonts === 0) broken('delayed arrival did not offer a real local font load');
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.mouse.wheel(0, 400);
+        await page.waitForFunction(() => scrollY >= 300);
+        const chosen = await page.evaluate(() => scrollY);
+        releaseFonts();
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          for (let frame = 0; frame < 6; frame += 1) {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+        });
+        checkProof(proof);
+        const reached = await page.evaluate(() => ({
+          y: scrollY, temporary: document.querySelectorAll('[data-prose-measuring]').length,
+        }));
+        positions.push({ chosen, ...reached });
+      } finally {
+        releaseFonts();
+        await context.close();
+      }
+    }
+    if (Math.abs(positions[1].y - positions[0].y) > LANDING_SLACK || positions[1].temporary !== 0) {
+      fail(gestureSite, `caught: delayed arrival overwrote the reader gesture: ${JSON.stringify(positions)}`);
+    }
+    console.log(`PASS reader-mark: ${gestureSite} real wheel, delayed local fonts, cleanup`);
+  }
+
   if (!REGRESSIONS_ONLY) {
   // --- The kept place comes back on the desk ---------------------------
   {

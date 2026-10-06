@@ -200,6 +200,7 @@ const setSpecimen = (page, style) =>
       specimen.textContent = text;
       prose.append(specimen);
       void specimen.offsetHeight;
+      specimen.scrollIntoView({ block: 'center', behavior: 'instant' });
       // A face that fails to load rejects the load. What this reads is which
       // face drew the glyphs, so the rejection is not the finding: the
       // fallback it leaves behind is, and the assertion below reports that.

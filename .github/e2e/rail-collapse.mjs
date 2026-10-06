@@ -863,7 +863,16 @@ try {
         window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY);
       });
       await page.waitForTimeout(150);
+      // Revealing auto-layout blocks can settle the first approximate scroll
+      // above this paragraph. Align the same paragraph after that layout, so
+      // the assertion really follows the read line described by this case.
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        await page.evaluate(() => window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY));
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        if (Math.abs(await page.evaluate(() => window.__reading.getBoundingClientRect().top)) <= 2) break;
+      }
       const before = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
+      if (Math.abs(before.top) > 2) broken(`at ${width}px the paragraph is ${before.top}px from the read line before folding`);
       await key(page, '[');
       await settled(page);
       const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
