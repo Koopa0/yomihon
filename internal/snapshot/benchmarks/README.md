@@ -1,7 +1,8 @@
 # Recorded representative baseline
 
-[baseline.txt](baseline.txt) is the unedited Go benchmark output measured from
-source commit `729e0c5e0de022aa887873b1cf61416596a65698` on 2026-10-06.
+[baseline.txt](baseline.txt) is the Go benchmark output measured from
+source commit `729e0c5e0de022aa887873b1cf61416596a65698` on 2026-10-06, with the
+harness's trace lines removed; no measured line was changed.
 The later documentation commit adds this record without changing any measured
 Go source. Regeneration and comparison instructions are in
 [the benchmark guide](../BENCHMARKS.md).
