@@ -58,8 +58,9 @@ About those rows:
 - **A local reader may see any vault file, private paths included**, because
   local reading is the product. Agent output is filtered instead: the
   contract's `[privacy]` never-egress directories are scanned so links resolve,
-  and never described. An `exists` report may carry a bare `withheld` flag,
-  naming no path, field, or value.
+  and never described. An `exists` report on a name, including a vault path or
+  path suffix, may carry a bare `withheld` flag, naming no path, field, or
+  value.
 - **`obsidian://open` links carry the note's absolute path inside the page.**
   Following one hands that URI to the local Obsidian application; no network
   request is made.

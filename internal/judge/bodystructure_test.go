@@ -66,6 +66,7 @@ func separateBodyExtractions(data []byte, marks plannedMarks) note {
 	n := parseFrontmatter("Notes/source.md", data)
 	block, _ := vault.SplitFrontmatter(data)
 	body := string(block.Body)
+	n.body = body
 	n.wikilinks = extractWikilinksWith(body, block.BodyStartLine, marks.heading)
 	n.pathRefs = extractPathRefs(body, block.BodyStartLine)
 	n.plannedNames = extractPlannedNamesWith(body, marks)
