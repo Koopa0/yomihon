@@ -112,6 +112,9 @@ var ResultAliasLabel = both("又稱 ", "also called ")
 // on the row with nothing the reader typed.
 var ResultTopicLabel = both("主題： ", "topic: ")
 
+// ResultTagLabel names the frontmatter tag that explains a tag-only result.
+var ResultTagLabel = both("標籤： ", "tag: ")
+
 // ResultSourceLabel names a hit whose deciding excerpt is fenced source
 // rather than a sentence the note wrote. The word sits on the row with
 // the alias and the topic, so the excerpt itself stays the fence's own

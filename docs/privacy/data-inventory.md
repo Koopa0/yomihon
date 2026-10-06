@@ -28,6 +28,15 @@ this document.
 
 About those rows:
 
+- **A read-only note is not replaced.** A status flip checks the captured
+  file's owner-write bit after the existing note and transition validation.
+  If that bit is clear, the note and its siblings stay unchanged: no status
+  temporary file is prepared and no success receipt is minted, even when the
+  directory is writable. Readable notes still show their current status.
+  Change permissions outside yomihon and reload before choosing a transition.
+  This honors the owner's intent; it is not an effective ACL/group-access
+  check or protection against a malicious process running as the same user.
+
 - **The two reader-state files stay outside the vault.** Their directory name
   is a digest of the resolved absolute vault root, so two vaults keep separate
   files and the directory name spells no path. `reader.json`, when present,

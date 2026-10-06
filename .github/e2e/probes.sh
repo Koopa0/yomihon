@@ -58,6 +58,7 @@ probes=(
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
+  "read-aloud-languages.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "course-line.mjs|/notes/Course/C01.md"
@@ -74,6 +75,7 @@ probes=(
   "prefetch-stale-preference.mjs|/notes/Writing/lessons/japanese/L01.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "health-table.mjs|/health"
+  "shell-columns.mjs|/health"
   "reports-shelf.mjs|/reports"
   # A month named outright rather than whichever one it is today, so what this
   # probe measures is the same measurement next month.
