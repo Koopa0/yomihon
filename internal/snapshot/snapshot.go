@@ -1421,7 +1421,11 @@ func (g *generation) captureFile(relPath string, data []byte, indexable bool) {
 	if !indexable || !render.IsText(data) {
 		return
 	}
-	g.files = append(g.files, lexical.DocumentFromFile(relPath, data))
+	document := lexical.DocumentFromFile(relPath, data)
+	if _, registered := nav.BriefingName(relPath); registered {
+		document = lexical.DocumentFromBriefing(relPath, data)
+	}
+	g.files = append(g.files, document)
 }
 
 // nameBriefing records what a briefing's own HTML calls itself, which the shelf
