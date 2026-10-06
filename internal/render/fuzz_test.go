@@ -44,10 +44,8 @@ func FuzzHTML(f *testing.F) {
 
 	const targetPath = "target.md"
 	renderer := New(
-		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, nil),
-		fuzzTransclusions{targetPath: "## Embedded\n### Child\nbody with ![[target]] and [[target#Embedded#Child]]"},
 		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, []string{"p.png"}),
-		fuzzTransclusions{targetPath: "## Embedded\nbody with ![[target]]"},
+		fuzzTransclusions{targetPath: "## Embedded\n### Child\nbody with ![[target]] and [[target#Embedded#Child]]"},
 		internalNoTitles{},
 		holdsEverything{},
 	)
