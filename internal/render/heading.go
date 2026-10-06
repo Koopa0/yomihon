@@ -45,17 +45,27 @@ func headingInnerText(inner string) string {
 // HeadingWords reduces a heading's markdown source to the words the page
 // stamps an id from. A wikilink contributes what it displays, and an inline
 // footnote nothing, since the page names the section without its number.
-// Authored markup then takes the same allowlist the body renderer uses: ruby
-// stays a tag so the reading can be dropped, and every other tag is escaped the
-// way the page already received it. The check face reads a heading through here too, so a
-// name copied off the contents list cannot be refused for using a second fold.
+// Authored markup then takes the same allowlist the body renderer uses: inert
+// formatting stays markup, ruby readings can be dropped, and other tags remain
+// escaped as the page received them. The check face reads a heading through
+// here too, so a name copied off the contents list cannot be refused for using
+// a second fold.
 func HeadingWords(raw string) string {
-	displayed := wikilinkToken.ReplaceAllStringFunc(withoutInlineFootnotes(raw), func(token string) string {
-		inner := strings.TrimPrefix(token, "!")
+	source := withoutInlineFootnotes(raw)
+	var displayed, parseable strings.Builder
+	last := 0
+	for _, at := range wikilinkToken.FindAllStringIndex(source, -1) {
+		displayed.WriteString(source[last:at[0]])
+		parseable.WriteString(source[last:at[0]])
+		inner := strings.TrimPrefix(source[at[0]:at[1]], "!")
 		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
-		return display
-	})
-	return headingInnerText(applySafeMarkup(displayed))
+		displayed.WriteString(display)
+		parseable.WriteString(strings.Repeat("x", len(display)))
+		last = at[1]
+	}
+	displayed.WriteString(source[last:])
+	parseable.WriteString(source[last:])
+	return headingInnerText(applySafeMarkup(headingMarkup(displayed.String(), parseable.String())))
 }
 
 // The two halves of a place inside a document, as this package writes them:
