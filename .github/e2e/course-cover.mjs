@@ -20,6 +20,18 @@
 // every watched regression.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/syllabus/Maps/branches.md';
 const MUTATE = process.env.MUTATE || '';
@@ -207,6 +219,7 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 // measuring the one that was there before.
 const keepThePlace = async (page, path) => {
   await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   const control = page.locator('[data-mark-control]:visible');
   if (await control.count() !== 1) {
     broken(`${path} shows ${await control.count()} mark controls at this width, want exactly 1`);
@@ -331,6 +344,7 @@ try {
   const small = await narrow.newPage();
   if (MUTATE) await MUTATIONS[MUTATE].apply(small);
   await small.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(small);
   await small.evaluate(() => document.fonts.ready);
   const box = await small.evaluate(({ name, token }) => {
     const action = document.querySelector('[data-course-action]');

@@ -220,7 +220,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	handler := http.NewCrossOriginProtection().Handler(mux)
 	watchCtx, cancel := context.WithCancel(ctx)
 	site := &readingSite{
-		handler:   origin.LoopbackOnly(origin.Protect(handler)),
+		handler:   origin.LoopbackOnly(handler),
 		snapshots: store,
 		writer:    writer,
 		source:    source,
@@ -231,6 +231,12 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 }
 
 func (site *readingSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	origin.Protect(http.HandlerFunc(site.serveHTTP)).ServeHTTP(w, r)
+}
+
+// serveHTTP admits a request only while its reading capabilities remain open.
+// The public entry wraps admission too, so refusals carry the browser policy.
+func (site *readingSite) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	site.requestMu.Lock()
 	if site.closing {
 		site.requestMu.Unlock()

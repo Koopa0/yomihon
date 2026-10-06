@@ -119,6 +119,10 @@ func FuzzSnippet(f *testing.F) {
 	f.Add("３羽の鳥と３つ。２週間後に Ｇｏ の並行。", "3羽", 0, 0)
 	f.Add("心（こころ）", "心(こころ)", 0, 0)
 	f.Add("Ｇｏ の並行処理", "Go", 0, 0)
+	f.Add("here ΟΔΟΣ there", "οδος", 0, 0)
+	f.Add(strings.Repeat("ſ", 120)+" ſtop tail", "stop", 0, 0)
+	f.Add("before ϐ after", "β", 0, 0)
+	f.Add("ΑΙ then ι", "αι", 0, 0)
 	// A fence-only window: the oracle covers the excerpt as rendered, so an
 	// injected prefix would push a full window over the 250-rune budget.
 	f.Add("```d2\ndirection: right\n```\n\nThe source owns jobs.", "owns jobs", 0, 32)
