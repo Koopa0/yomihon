@@ -140,6 +140,8 @@ type liveAttempt struct {
 type BlockedSource struct {
 	Path   string
 	Reason string
+	// ParsePanic distinguishes opened bytes whose parser panicked from a read failure.
+	ParsePanic bool
 }
 
 // Generation is one immutable reading generation, every projection built from
@@ -958,7 +960,7 @@ func buildGeneration(
 				return nil, nil, contextErr
 			}
 			log.Warn("vault source unavailable in snapshot generation", "path", relPath, "error", err)
-			g.unread(carried, relPath, note, want, err.Error())
+			g.unread(carried, relPath, note, want, err.Error(), false)
 			continue
 		}
 		if !note {
@@ -969,7 +971,7 @@ func buildGeneration(
 			// The bytes opened and the parse panicked: the note is recorded the
 			// way one the read could not open is, so the rest of the folder is
 			// still read and served.
-			g.unread(carried, relPath, note, want, reason)
+			g.unread(carried, relPath, note, want, reason, true)
 		}
 	}
 
@@ -1340,9 +1342,9 @@ func carriedFrom(previous *Generation) carriedGeneration {
 // unread records a source this reading wanted and could not use, whether its
 // read failed or its parse panicked: it is named in the blocked list when the
 // reading surface depends on it, and given whatever the fallback held for it.
-func (g *generation) unread(from carriedGeneration, relPath string, note bool, want bytesWanted, reason string) {
+func (g *generation) unread(from carriedGeneration, relPath string, note bool, want bytesWanted, reason string, parsePanic bool) {
 	if want.holdsBackGeneration {
-		g.blocked = append(g.blocked, BlockedSource{Path: relPath, Reason: reason})
+		g.blocked = append(g.blocked, BlockedSource{Path: relPath, Reason: reason, ParsePanic: parsePanic})
 	}
 	g.carry(from, relPath, note, want)
 }
