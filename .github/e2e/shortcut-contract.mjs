@@ -69,10 +69,10 @@ const fail = (site, message) => {
 const broken = (message) => { throw new ProbeBroken(`BROKEN shortcut-contract: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED shortcut-contract: ${message}`); };
 
-const rewriteScript = (needle, replacement) => async (page) => {
+const rewriteScript = (needle, replacement, moduleName = 'shortcuts.js') => async (page) => {
   let requests = 0;
   let matches = 0;
-  await page.route('**/shortcuts.js', async (route) => {
+  await page.route(`**/${moduleName}`, async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
@@ -153,7 +153,7 @@ const MUTATIONS = {
   // takes focus off the box for no change the reader asked for.
   'answer-escape-from-a-filter-with-nothing-to-clear': {
     target: 'wide-filter-escape-moves-nothing',
-    apply: rewriteDocument('      if (!input.value.trim()) return;\n', ''),
+    apply: rewriteScript('      if (!input.value.trim()) return;\n', '', 'sidebar.js'),
   },
   'disable-global-escape': {
     target: 'escape-dismisses',

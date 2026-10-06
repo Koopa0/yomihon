@@ -3,7 +3,9 @@ package pages
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -11,38 +13,54 @@ import (
 	"github.com/koopa0/yomihon/assets"
 )
 
-// The rail runs the embedded initializer before parsing the article. Keeping
-// its complete source here makes later module calls share the same behavior.
-var sidebarSource = func() string {
-	source, err := assets.Files.ReadFile("js/sidebar.js")
-	if err != nil {
-		panic(err)
-	}
-	declaration, err := sidebarDeclaration(string(source))
-	if err != nil {
-		panic(err)
-	}
-	return declaration
-}()
+var railModuleDeclaration = regexp.MustCompile(`(?m)^[\t ]*(?:import|export)\b`)
 
-// sidebarDeclaration accepts only the fixed initializer's compiled source.
-// A closing script token would escape the HTML body even inside a JS string.
+// sidebarDeclaration projects the one import-free factory, whose final export
+// is the module's only declaration beyond the plain function. Header comments
+// are preserved. A closing script token would escape even inside a JS string.
 func sidebarDeclaration(source string) (string, error) {
-	if !strings.HasPrefix(source, "export function initSidebar() {") {
-		return "", errors.New("sidebar source must begin with its exported initializer")
-	}
 	if strings.Contains(strings.ToLower(source), "</script") {
-		return "", errors.New("sidebar source contains an HTML closing script token")
+		return "", errors.New("rail filter source contains an HTML closing script token")
 	}
-	return strings.TrimPrefix(source, "export "), nil
+	const export = "export { initRailFilter };"
+	source = strings.TrimSpace(source)
+	if !strings.HasSuffix(source, "\n"+export) {
+		return "", errors.New("rail filter source must end with its single factory export")
+	}
+	body := strings.TrimSuffix(source, "\n"+export)
+	declaration := strings.TrimSpace(body)
+	for {
+		switch {
+		case strings.HasPrefix(declaration, "//"):
+			_, declaration, _ = strings.Cut(declaration, "\n")
+		case strings.HasPrefix(declaration, "/*"):
+			_, declaration, _ = strings.Cut(declaration, "*/")
+		default:
+			if !strings.HasPrefix(declaration, "function initRailFilter(rail, input) {") || !strings.HasSuffix(declaration, "}") || railModuleDeclaration.MatchString(declaration) {
+				return "", errors.New("rail filter source must contain only its plain import-free factory")
+			}
+			return body, nil
+		}
+		declaration = strings.TrimSpace(declaration)
+	}
 }
 
 func sidebarInitializer(nonce string) templ.Component {
 	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
-		_, err := io.WriteString(w, `<script nonce="`+templ.EscapeString(nonce)+`">(() => {
+		source, err := assets.Files.ReadFile("js/rail-filter.js")
+		if err != nil {
+			return fmt.Errorf("read rail filter source: %w", err)
+		}
+		declaration, err := sidebarDeclaration(string(source))
+		if err != nil {
+			return fmt.Errorf("project rail filter source: %w", err)
+		}
+		_, err = io.WriteString(w, `<script nonce="`+templ.EscapeString(nonce)+`">(() => {
 "use strict";
-`+sidebarSource+`
-initSidebar();
+`+declaration+`
+const rail = document.querySelector('.y-rail-left');
+const input = rail?.querySelector('[data-nav-filter]');
+if (input) initRailFilter(rail, input);
 })();</script>`)
 		return err
 	})

@@ -188,25 +188,25 @@ const MUTATIONS = {
   },
   'suppress-filter-escape-layer': {
     target: 'filter-escape-layering',
-    apply: rewriteDocument('      event.stopPropagation();', '      void 0;'),
+    apply: rewriteRuntime('sidebar.js', '      event.stopPropagation();', '      void 0;'),
   },
   // The filter reading its keys while an input method is still composing with
   // them, which is how Enter stopped meaning "commit this word".
   'read-filter-keys-while-composing': {
     target: 'composing-enter-stays-with-the-input',
-    apply: rewriteDocument('    if (event.isComposing) return;\n', ''),
+    apply: rewriteRuntime('sidebar.js', '    if (event.isComposing) return;\n', ''),
   },
   // The filter answering an Escape it has nothing to answer with, which is
   // what made the drawer's own exit key need pressing twice.
   'swallow-escape-from-an-empty-filter': {
     target: 'empty-filter-escape-closes-the-drawer',
-    apply: rewriteDocument('      if (!input.value.trim()) return;\n', ''),
+    apply: rewriteRuntime('sidebar.js', '      if (!input.value.trim()) return;\n', ''),
   },
   // The same predicate spelled the other way, which is how a box of spaces
   // kept costing a second press after the empty one had stopped.
   'test-emptiness-without-trimming': {
     target: 'empty-filter-escape-closes-the-drawer',
-    apply: rewriteDocument('      if (!input.value.trim()) return;', '      if (!input.value) return;'),
+    apply: rewriteRuntime('sidebar.js', '      if (!input.value.trim()) return;', '      if (!input.value) return;'),
   },
   'suppress-escape-focus-return': {
     target: 'escape-focus-return',

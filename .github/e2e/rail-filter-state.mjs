@@ -1,5 +1,6 @@
 // The parsed rail owns remembered narrowing even if the deferred entry fails.
-// These observations are at DOMContentLoaded; frame/shift evidence is separate.
+// The early case also samples real frames and layout-shift entries; deferred
+// interaction uses the same retained state after explicit module acquisition.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -9,11 +10,13 @@ const MUTATE = process.env.MUTATE || '';
 const FILTER = '.y-rail-left [data-nav-filter]';
 const SITES = ['early-owner', 'remembered-raw', 'restore-hold', 'controller-lifetime', 'clear-state', 'whole-row-set', 'filter-behavior', 'notice-inventory', 'reach-count', 'reach-locale', 'reach-query', 'filter-persistence'];
 const MUTATIONS = {
-  'omit-inline-call': { target: 'early-owner', needle: /\binitSidebar\(\);/g, replacement: 'void 0;' },
+  'omit-inline-call': { target: 'early-owner', needle: /if \(input\) initRailFilter\(rail, input\);/g, replacement: 'void 0;' },
+  'defer-filter-restore': { target: 'early-owner', needle: /document\.querySelector\("\.y-rail-left"\)\?\.railFilterState\?\.restore\(\);/g, replacement: 'void 0;' },
   'omit-remembered-value': { target: 'remembered-raw', needle: /input\.value = remembered;/g, replacement: 'void remembered;' },
   'omit-restoring-hold': { target: 'restore-hold', needle: /rail\.dataset\.railRestoring = '';/g, replacement: 'void 0;' },
   'omit-restoring-flush': { target: 'restore-hold', needle: /void rail\.offsetWidth;/g, replacement: 'void 0;' },
-  'bypass-retained-controller': { target: 'controller-lifetime', reentry: true, needle: /if \(rail\.sidebarController\) return rail\.sidebarController;/g, replacement: 'if (false) return rail.sidebarController;' },
+  'bypass-retained-controller': { target: 'controller-lifetime', source: 'sidebar.js', needle: /if \(rail\.sidebarController\) return rail\.sidebarController;/g, replacement: 'if (false) return rail.sidebarController;' },
+  'bypass-retained-filter-state': { target: 'clear-state', source: 'rail-filter.js', needle: /if \(rail\.railFilterState\) return rail\.railFilterState;/g, replacement: 'if (false) return rail.railFilterState;' },
   'lose-original-defaults': { target: 'clear-state', needle: /serverOpen\.set\(details, details\.open\);/g, replacement: 'serverOpen.set(details, false);' },
   'drop-current-ancestry': { target: 'clear-state', needle: /if \(details\.hasAttribute\('data-chain'\)\) return true;/g, replacement: 'if (false) return true;' },
   'omit-unresolved-rows': { target: 'whole-row-set', needle: /const rows = \[\.\.\.rail\.querySelectorAll\('a, span\.ui-navitem'\)\];/g, replacement: "const rows = [...rail.querySelectorAll('a')];" },
@@ -23,10 +26,10 @@ const MUTATIONS = {
   'lose-singular-wording': { target: 'reach-locale', needle: /unreached === 1 \? partial\.dataset\.filterPartialOne : partial\.dataset\.filterPartialMany/g, replacement: 'partial.dataset.filterPartialMany' },
   'lose-search-label': { target: 'reach-locale', needle: /link\.textContent = partial\.dataset\.filterSearchall \?\? '';/g, replacement: "link.textContent = '';" },
   'unquote-folder-query': { target: 'reach-query', needle: /`folder:"\$\{dir\}" \$\{query\}`/g, replacement: `\`folder:\${dir} \${query}\`` },
-  'forget-input': { target: 'filter-persistence', needle: /if \(input\.value\) sessionStorage\.setItem\(filterKey, input\.value\);/g, replacement: 'if (input.value) void 0;' },
+  'forget-input': { target: 'filter-persistence', source: 'sidebar.js', needle: /if \(input\.value\) sessionStorage\.setItem\(filterKey, input\.value\);/g, replacement: 'if (input.value) void 0;' },
 };
 class LockFired extends Error {
-  constructor(site, message) { super(`FAIL rail-filter-state: ${message}`); this.site = site; }
+  constructor(site, message) { super(`caught: rail-filter-state: ${message}`); this.site = site; }
 }
 class NotApplied extends Error {}
 const check = (condition, site, message) => { if (!condition) throw new LockFired(site, message); };
@@ -63,11 +66,26 @@ async function open(site, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   if (options.lang) await context.addCookies([{ name: 'yomihon_lang', value: options.lang, url: BASE }]);
   await context.addInitScript(({ remembered, disclosure, refuse }) => {
+    if (window.top !== window) return;
     if (remembered !== undefined) sessionStorage.setItem('yomihon.nav.filter', remembered);
     if (disclosure !== undefined) sessionStorage.setItem('yomihon.nav', disclosure);
     if (refuse === 'read') Object.defineProperty(window, 'sessionStorage', { get() { throw new DOMException('blocked', 'SecurityError'); } });
     if (refuse === 'write') Storage.prototype.setItem = function setItem() { throw new DOMException('blocked', 'SecurityError'); };
     window.restoreSamples = [];
+    window.railFrames = [];
+    window.railShifts = [];
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (!entry.hadRecentInput) window.railShifts.push({ value: entry.value, startTime: entry.startTime, sources: (entry.sources || []).map((source) => { const element = source.node instanceof Element ? source.node : source.node?.parentElement; return { tag: element?.tagName, id: element?.id, rail: element ? Boolean(element.closest('.y-rail-left')) : null, previous: source.previousRect.toJSON(), current: source.currentRect.toJSON() }; }) });
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+    const sampleFrame = (time) => {
+      const rail = document.querySelector('.y-rail-left');
+      const input = rail?.querySelector('[data-nav-filter]');
+      if (input && window.railFrames.length < 12) window.railFrames.push({ time, value: input.value, visible: [...rail.querySelectorAll('a, span.ui-navitem')].filter((row) => !row.hidden && !row.closest('[data-filter-partial]')).map((row) => row.textContent.trim()) });
+      if (window.railFrames.length < 12) requestAnimationFrame(sampleFrame);
+    };
+    requestAnimationFrame(sampleFrame);
     const value = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
     Object.defineProperty(HTMLInputElement.prototype, 'value', { ...value, set(next) {
       if (this.hasAttribute('data-nav-filter')) window.restoreSamples.push({ type: 'value', held: this.closest('.y-rail-left').hasAttribute('data-rail-restoring'), value: next });
@@ -91,7 +109,7 @@ async function open(site, options = {}) {
   if (options.setup || mode) {
     await page.route(`${BASE}/**`, async (route) => {
       const document = route.request().resourceType() === 'document';
-      const reentry = mode?.reentry && new URL(route.request().url()).pathname === '/static/sidebar.js';
+      const reentry = mode?.source && new URL(route.request().url()).pathname === `/static/${mode.source}`;
       if (!document && !reentry) return route.continue();
       const response = await route.fetch();
       let body = await response.text();
@@ -101,7 +119,7 @@ async function open(site, options = {}) {
         control(end >= 0 && body.includes('data-filter-partial-one='), 'bounded inputs need the real server rail and locale templates');
         body = body.slice(0, end) + inputRows(options.setup) + body.slice(end);
       }
-      if (mode) {
+      if (mode && (mode.source ? reentry : document)) {
         const matches = [...body.matchAll(mode.needle)].length;
         matchesByConsumption[document ? 'document' : 'reentry'].push(matches);
         if (matches === 1) body = body.replace(mode.needle, mode.replacement);
@@ -113,7 +131,7 @@ async function open(site, options = {}) {
   await page.goto(BASE + (options.path || PAGE), { waitUntil: 'domcontentloaded' });
   function prove(reentry = false) {
     if (mode) {
-      for (const consumption of reentry && mode.reentry ? ['document', 'reentry'] : ['document']) {
+      for (const consumption of mode.source ? (reentry ? ['reentry'] : []) : ['document']) {
         const matches = matchesByConsumption[consumption];
         if (matches.length === 0 || matches.some((count) => count !== 1)) throw new NotApplied(`${MUTATE}: ${consumption} matched ${JSON.stringify(matches)}, want exactly one site per consumed response`);
         if (!reported.has(consumption)) {
@@ -126,7 +144,8 @@ async function open(site, options = {}) {
     if (options.blocked !== false) control(blocked > 0, 'the actual deferred yomihon.js request was not intercepted');
     if (options.setup) control(documents > 0, 'bounded document inputs were never applied');
   }
-  prove();
+  if (!['early-owner', 'remembered-raw', 'restore-hold'].includes(site) && await page.locator(FILTER).count()) await secondInit(page);
+  prove(true);
   return { page, context, prove };
 }
 const fill = (page, value) => page.locator(FILTER).fill(value);
@@ -151,6 +170,11 @@ try {
     const { page, context } = await open('early-owner', { remembered: 'C02' });
     const value = await page.locator(FILTER).inputValue();
     check(value === 'C02' && await page.locator('#nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), 'early-owner', `remembered narrowing depends on the deferred entry: input=${JSON.stringify(value)}, want "C02" with the other lesson hidden`);
+    await page.waitForFunction(() => window.railFrames.length >= 3);
+    const frames = await page.evaluate(() => ({ frames: window.railFrames, shifts: window.railShifts, paints: performance.getEntriesByType('paint').map((entry) => ({ name: entry.name, startTime: entry.startTime })) }));
+    check(frames.frames.every((frame) => frame.value === 'C02' && JSON.stringify(frame.visible) === JSON.stringify(['C02 draft'])), 'early-owner', `a sampled rail frame was unfiltered: ${JSON.stringify(frames)}`);
+    control(frames.paints.some((paint) => paint.name === 'first-contentful-paint'), 'fixture did not positively paint');
+    console.log(`FRAME-EVIDENCE: ${JSON.stringify(frames)}`);
     await context.close();
   }
   {

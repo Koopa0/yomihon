@@ -103,6 +103,7 @@ func buildRegistry() map[string]entry {
 		"drawer.js",
 		"rail.js",
 		"sidebar.js",
+		"rail-filter.js",
 		"contents.js",
 		"freshness.js",
 		"langform.js",
