@@ -437,8 +437,8 @@ func TestSplitFrontmatterStepsOverAByteOrderMark(t *testing.T) {
 			wantContentStart: 8, wantBodyLine: 4,
 		},
 		{
-			name: "mark with no fence after it stays body", data: mark + "just body\n",
-			wantFound: false, wantContent: "", wantBody: mark + "just body\n",
+			name: "mark with no fence precedes the body", data: mark + "just body\n",
+			wantFound: false, wantContent: "", wantBody: "just body\n",
 			wantContentStart: 0, wantBodyLine: 1,
 		},
 		{
