@@ -194,3 +194,58 @@ func TestTaskCodeEntitiesRemainAuthoredWords(t *testing.T) {
 		t.Errorf("caught: literal code entity was mistaken for empty task text: %q", result.HTML)
 	}
 }
+
+func TestHeadingTasksStayOutsideFollowingLabels(t *testing.T) {
+	heading := regexp.MustCompile(`(?s)<h[1-6]\b[^>]*>(.*?)</h[1-6]>`)
+	labels := regexp.MustCompile(`(?s)<label class="y-task">.*?</label>`)
+	for _, task := range []struct {
+		marker string
+		input  string
+	}{
+		{marker: " ", input: `<input disabled="" type="checkbox">`},
+		{marker: "x", input: `<input checked="" disabled="" type="checkbox">`},
+		{marker: "X", input: `<input checked="" disabled="" type="checkbox">`},
+		{marker: "/", input: `<input disabled="" type="checkbox" data-task="/">`},
+		{marker: "-", input: `<input disabled="" type="checkbox" data-task="-">`},
+		{marker: ">", input: `<input disabled="" type="checkbox" data-task="&gt;">`},
+	} {
+		marker := task.marker
+		for _, second := range []string{"Before words after", "Before ![[Child]] after"} {
+			for _, lang := range []wording.Lang{wording.En, wording.ZhHant} {
+				for _, region := range []string{"", "compare-a-"} {
+					name := marker + second + string(lang) + region
+					t.Run(name, func(t *testing.T) {
+						r := newRenderer(t, []graph.NoteInput{{RelPath: "Child.md"}}, nil, transclusions{"Child.md": "- [x] Child task\n"})
+						source := "- # [" + marker + "] heading\n- [ ] " + second + "\n"
+						result := r.HTMLIn(region, "Host.md", "", source, lang)
+						for _, body := range []string{result.HTML, render.StripAnchors(result.HTML)} {
+							t.Logf("invoked: heading-task-boundary marker=%q second=%q lang=%q region=%q html=%q", marker, second, lang, region, body)
+							match := heading.FindStringSubmatch(body)
+							if len(match) != 2 || !strings.Contains(match[1], task.input) || !strings.Contains(match[1], "heading") {
+								t.Fatalf("caught: heading lost authored words/control fields: %q", body)
+							}
+							if strings.Contains(match[1], "<label") {
+								t.Errorf("caught: heading opened a label whose block cannot close it: %q", match[1])
+							}
+							want := `<label class="y-task"><input disabled="" type="checkbox"> Before words after</label>`
+							if strings.Contains(second, "![[") {
+								want = `<label class="y-task"><input disabled="" type="checkbox"> <span class="y-offscreen">Before after</span></label>`
+							}
+							if !strings.Contains(body, want) {
+								t.Errorf("caught: following task lost its own name: %q, want %q", body, want)
+							}
+							if strings.Count(body, `<label class="y-task">`) != strings.Count(body, "</label>") {
+								t.Errorf("caught: task labels are unbalanced across item boundary: %q", body)
+							}
+							for _, label := range labels.FindAllString(body, -1) {
+								if strings.Contains(label, "</li>") || strings.Contains(label, "<div") || strings.Count(label, "<label") != 1 || strings.Count(label, "<input") != 1 {
+									t.Errorf("caught: task label crossed item/block/control boundary: %q", label)
+								}
+							}
+						}
+					})
+				}
+			}
+		}
+	}
+}

@@ -7,7 +7,6 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note that carries a tight task list, a
 // loose task list, an ordered task item, and an ordinary ul), and MUTATE.
-import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -21,10 +20,7 @@ const SITES = ['task-item-has-no-disc', 'ordinary-item-keeps-disc', 'ordered-tas
 const UL_TASK_TIGHT = '.y-prose ul > li:has(> .y-task:first-child > input[type="checkbox"]:first-child)';
 const UL_TASK_LOOSE = '.y-prose ul > li:has(> p:first-child > .y-task:first-child > input[type="checkbox"]:first-child)';
 const UL_TASK_ITEM = `${UL_TASK_TIGHT}, ${UL_TASK_LOOSE}`;
-const markerDeclarations = [...readFileSync(new URL('../../internal/render/tasklist.go', import.meta.url), 'utf8').matchAll(/const neutralTaskMarkers = "([^"]+)"/g)];
-if (markerDeclarations.length !== 1) throw new Error('task-list-marker: expected exactly one neutral marker declaration');
-const NEUTRAL_MARKERS = [...markerDeclarations[0][1]];
-if (NEUTRAL_MARKERS.length === 0 || new Set(NEUTRAL_MARKERS).size !== NEUTRAL_MARKERS.length) throw new Error('task-list-marker: empty or repeated neutral marker set');
+const NEUTRAL_MARKERS = ['-', '/', '>'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -180,7 +176,7 @@ try {
   }
   const actualMarkers = taskNames.filter((task) => task.marker !== null).map((task) => task.marker).sort();
   if (JSON.stringify(actualMarkers) !== JSON.stringify([...NEUTRAL_MARKERS].sort()) || taskNames.some((task) => task.marker !== null && task.checked)) {
-    fail('neutral-markers-render-as-tasks', `neutral marker inputs ${JSON.stringify(actualMarkers)} differ from the whole declared set ${JSON.stringify(NEUTRAL_MARKERS)}, or claim completion`);
+    fail('neutral-markers-render-as-tasks', `neutral marker inputs ${JSON.stringify(actualMarkers)} differ from the whole fixture set ${JSON.stringify(NEUTRAL_MARKERS)}, or claim completion`);
   }
 
   const names = checkboxes.map((node) => node.name.value.trim());

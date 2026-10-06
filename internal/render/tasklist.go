@@ -81,7 +81,12 @@ func renderTaskCheckBox(w util.BufWriter, _ []byte, node ast.Node, entering bool
 	if !ok {
 		return ast.WalkContinue, nil
 	}
-	if err := writeStrings(w, `<label class="y-task"><input `); err != nil {
+	if parent := n.Parent(); parent.Kind() == ast.KindParagraph || parent.Kind() == ast.KindTextBlock {
+		if err := writeStrings(w, `<label class="y-task">`); err != nil {
+			return ast.WalkStop, err
+		}
+	}
+	if err := writeStrings(w, `<input `); err != nil {
 		return ast.WalkStop, err
 	}
 	if n.IsChecked {
@@ -139,27 +144,64 @@ var (
 // then left intact for the ordinary, single-pass embed substitution. The same
 // fold detects names made empty by rendered character references or inert tags.
 func nameTaskLabels(body string, inline []string, lang wording.Lang) string {
-	return taskLabelMarkup.ReplaceAllStringFunc(body, func(label string) string {
-		parts := taskLabelMarkup.FindStringSubmatch(label)
-		own := parts[2]
-		block := blockMarkupMarker.MatchString(own)
-		words := blockMarkupMarker.ReplaceAllString(own, " ")
-		words = substituteBlocks(words, nil, inline)
-		// The first-party image renderer escapes its alt attribute. Keep that
-		// authored wording while the shared fold removes the remaining markup.
-		words = taskImageAlt.ReplaceAllString(words, "$1")
-		words = strings.Join(strings.Fields(headingInnerText(words)), " ")
-		language := ""
-		if words == "" {
-			words = wording.TaskWithoutText.In(lang)
-			language = ` lang="` + lang.Tag() + `"`
-			if !block {
-				return `<label class="y-task">` + parts[1] + ` <span` + language + `>` + html.EscapeString(words) + `</span>` + strings.TrimSpace(own) + `</label>`
+	const opener = `<label class="y-task">`
+	const closer = `</label>`
+	var named strings.Builder
+	for body != "" {
+		start := strings.Index(body, opener)
+		if start < 0 {
+			named.WriteString(body)
+			break
+		}
+		named.WriteString(body[:start])
+		tail := body[start+len(opener):]
+		closeAt := strings.Index(tail, closer)
+		end := len(tail)
+		if closeAt >= 0 {
+			end = closeAt
+		}
+		for _, boundary := range []string{"<label", "</li>"} {
+			if next := strings.Index(tail, boundary); next >= 0 && next < end {
+				end = next
+				closeAt = -1
 			}
 		}
-		if !block {
-			return label
+		if closeAt < 0 {
+			named.WriteString(opener)
+			named.WriteString(tail[:end])
+			body = tail[end:]
+			continue
 		}
-		return `<label class="y-task">` + parts[1] + ` <span class="y-offscreen"` + language + `>` + html.EscapeString(words) + `</span></label>` + own
-	})
+		end += len(closer)
+		named.WriteString(nameTaskLabel(opener+tail[:end], inline, lang))
+		body = tail[end:]
+	}
+	return named.String()
+}
+
+func nameTaskLabel(label string, inline []string, lang wording.Lang) string {
+	parts := taskLabelMarkup.FindStringSubmatch(label)
+	if len(parts) != 3 {
+		return label
+	}
+	own := parts[2]
+	block := blockMarkupMarker.MatchString(own)
+	words := blockMarkupMarker.ReplaceAllString(own, " ")
+	words = substituteBlocks(words, nil, inline)
+	// The first-party image renderer escapes its alt attribute. Keep that
+	// authored wording while the shared fold removes the remaining markup.
+	words = taskImageAlt.ReplaceAllString(words, "$1")
+	words = strings.Join(strings.Fields(headingInnerText(words)), " ")
+	language := ""
+	if words == "" {
+		words = wording.TaskWithoutText.In(lang)
+		language = ` lang="` + lang.Tag() + `"`
+		if !block {
+			return `<label class="y-task">` + parts[1] + ` <span` + language + `>` + html.EscapeString(words) + `</span>` + strings.TrimSpace(own) + `</label>`
+		}
+	}
+	if !block {
+		return label
+	}
+	return `<label class="y-task">` + parts[1] + ` <span class="y-offscreen"` + language + `>` + html.EscapeString(words) + `</span></label>` + own
 }
