@@ -46,6 +46,50 @@ const rewriteDocument = (needle, replacement, label) => async (page) => {
   };
 };
 
+// Match the declared anchor and its attributes, never the render blocker
+// that also names #main-content. The tag scan consumes quoted attribute values
+// as a unit, so text inside another attribute cannot masquerade as href.
+const skipTarget = (document) => {
+  const sites = [];
+  for (const tag of document.matchAll(/<a\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi)) {
+    const attributes = [...tag[0].matchAll(/\s+([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)];
+    const classes = attributes.filter((attribute) => attribute[1].toLowerCase() === 'class');
+    const targets = attributes.filter((attribute) => attribute[1].toLowerCase() === 'href');
+    if (classes.length !== 1 || targets.length !== 1) continue;
+    const value = (attribute) => attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
+    if (!value(classes[0]).split(/\s+/).includes('y-skiplink') || value(targets[0]) !== '#main-content') continue;
+    const target = targets[0];
+    const changed = tag[0].slice(0, target.index)
+      + target[0].replace(/=[\s\S]*$/, '="#missing-content"')
+      + tag[0].slice(target.index + target[0].length);
+    sites.push({ index: tag.index, original: tag[0], changed });
+  }
+  if (sites.length !== 1) return { body: document, count: sites.length };
+  const site = sites[0];
+  return {
+    body: document.slice(0, site.index) + site.changed + document.slice(site.index + site.original.length),
+    count: sites.length,
+  };
+};
+
+const rewriteSkipTarget = async (page) => {
+  let requests = 0;
+  let matches = 0;
+  await page.route(BASE + PAGE, async (route) => {
+    requests += 1;
+    const response = await route.fetch();
+    const original = await response.text();
+    const changed = skipTarget(original);
+    matches += changed.count;
+    await route.fulfill({ response, body: changed.body });
+  });
+  return () => {
+    if (requests !== 1) return `skip-link target document was requested ${requests} times, want exactly 1`;
+    if (matches !== 1) return `skip-link target matched ${matches} anchors, want exactly 1`;
+    return '';
+  };
+};
+
 const MUTATIONS = {
   'hide-focused-link': {
     target: 'first-focus-visible',
@@ -57,7 +101,7 @@ const MUTATIONS = {
   },
   'break-main-target': {
     target: 'main-receives-focus',
-    apply: rewriteDocument('href="#main-content"', 'href="#missing-content"', 'skip-link target'),
+    apply: rewriteSkipTarget,
   },
 };
 
