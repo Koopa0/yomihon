@@ -99,6 +99,7 @@ probes=(
   "pager-contract.mjs|/search?q=e"
   "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
+  "reading-scale.mjs|/notes/Notes/reading-scale.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads
