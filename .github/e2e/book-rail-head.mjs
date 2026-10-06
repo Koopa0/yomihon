@@ -51,7 +51,7 @@ const broken = (message) => {
 const editRule = (needle, replacement) => async (page) => {
   let served = 0;
   let matches = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     served += 1;
@@ -71,7 +71,7 @@ const dropRule = (needle) => editRule(needle, '.dropped-by-mutation {');
 // Adds a rule after everything served, at equal specificity, so it wins.
 const appendRule = (rule) => async (page) => {
   let served = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     served += 1;

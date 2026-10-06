@@ -125,6 +125,11 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 		view.ContentType = fileContentType(rel, nil)
 	case entry.Size() > render.MaxSourceBytes:
 		view.Kind = pages.FileInfo
+		if vault.IsMarkdown(rel) {
+			view.SourceLimit = render.MaxSourceBytes
+			view.SourceLimitFinding = sourceLimitFinding(snap, rel)
+			view.SourceLimitDocument = snap.SkipsNote(rel)
+		}
 		head, readErr := h.sources.Source.ReadPrefix(r.Context(), entry, sniffBytes)
 		if readErr != nil {
 			h.respondFileReadError(w, rel, "read vault file prefix", readErr, lang)
@@ -161,6 +166,17 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 	if err := pages.File(view, layouts.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "render file page", "path", rel, "error", err)
 	}
+}
+
+// sourceLimitFinding links only a finding this captured report actually has.
+// An excluded Markdown document can exceed the same bound without being one.
+func sourceLimitFinding(snap *snapshot.Generation, rel string) bool {
+	for _, source := range snap.Skipped() {
+		if source.Path == rel && source.Size > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // raw serves a vault file's bytes unchanged, under the containment the report

@@ -1,7 +1,6 @@
 package note
 
 import (
-	"cmp"
 	"maps"
 	"net/http"
 	"slices"
@@ -14,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -220,7 +220,7 @@ func recentShelfNotes(
 	slices.SortStableFunc(notes, func(a, b nav.NoteSummary) int {
 		switch {
 		case a.Modified.Equal(b.Modified):
-			return cmp.Compare(a.RelPath, b.RelPath)
+			return vault.ComparePaths(a.RelPath, b.RelPath)
 		case a.Modified.After(b.Modified):
 			return -1
 		default:

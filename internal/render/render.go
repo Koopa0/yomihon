@@ -230,16 +230,22 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 		transclusions: transclusions,
 		titles:        titles,
 		files:         files,
-		md: goldmark.New(
-			goldmark.WithExtensions(
-				extension.GFM,
-				// The extension is told only what to prefix the ids with, per body,
-				// so several bodies on one page do not share a first note's id.
-				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
-			),
-		),
+		md:            pageMarkdown(),
 	}
+}
+
+// pageMarkdown creates each consumer's parser from the page grammar. Parser
+// contexts and delimiter observations belong to that consumer's single parse.
+func pageMarkdown() goldmark.Markdown {
+	return goldmark.New(
+		goldmark.WithExtensions(
+			extension.GFM,
+			// The extension is told only what to prefix the ids with, per body,
+			// so several bodies on one page do not share a first note's id.
+			extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
+			highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
+		),
+	)
 }
 
 // HTML renders one note's body: the markdown pipeline, plus the passes that

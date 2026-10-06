@@ -89,8 +89,9 @@ templ Base(c Chrome) {
 			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/Geist-Variable.woff2" crossorigin/>
 			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/GeistMono-Variable.woff2" crossorigin/>
 			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/Newsreader-Latin-Variable.woff2" crossorigin/>
-			<link rel="stylesheet" href="/static/app.css"/>
-			<link rel="stylesheet" href="/static/chroma.css"/>
+			<link rel="stylesheet" href={ templ.URL(c.Assets.URL("app.css")) }/>
+			<link rel="stylesheet" href={ templ.URL(c.Assets.URL("chroma.css")) }/>
+			@importMapScript(c.Nonce, c.Assets)
 		</head>
 		<body>
 			<a class="y-skiplink" href="#_y-main">{ wording.SkipToContent.In(c.Lang) }</a>
@@ -100,7 +101,7 @@ templ Base(c Chrome) {
 				@searchDialog(c.Lang)
 				{ children... }
 			</div>
-			<script nonce={ c.Nonce } type="module" src="/static/yomihon.js"></script>
+			<script nonce={ c.Nonce } type="module" src={ templ.URL(c.Assets.URL("yomihon.js")) }></script>
 		</body>
 	</html>
 }
