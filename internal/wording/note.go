@@ -42,6 +42,12 @@ var NoteStale = both(
 	"This file could not be read this time. What follows is the last version that could be, and may not be what the file says now. Once that clears, reloading in a few seconds picks up the newer one.",
 )
 
+// NoteParseStale distinguishes content a parser rejected from a failed file read.
+var NoteParseStale = both(
+	"檔案已開啟，但目前的筆記內容無法解析。下面保留上一次讀到的內容。請依解析器的訊息檢查筆記內容，修正並存檔後重新整理。",
+	"The file opened, but its current note content could not be parsed. What follows is the last readable version. Check the note's content against the parser's message, save a correction, and reload.",
+)
+
 // The right rail and the blocks in it. CitedBy names body wikilinks only;
 // BasedOn is the author's based_on declaration, a different claim, so the two
 // labels stay visibly different rather than one number that mixes them.

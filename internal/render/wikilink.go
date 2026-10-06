@@ -1045,7 +1045,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			matches: matches,
 			slice:   slice,
 		})
-		inner := r.render(slice, embedsDenied, col.page)
+		inner := r.render(slice, res.RelPath, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		heldBack := false
 		for _, d := range inner.Diagnostics {
