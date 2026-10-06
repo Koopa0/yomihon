@@ -20,7 +20,7 @@ templ RequestRefused(v RequestRefusedView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main">
+			<main id="_y-main" tabindex="-1" class="y-main">
 				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="request-refused-title">
 					@nothingToShow(nothingNotice{Kind: "request", Mark: wording.RequestRefusedKicker.In(c.Lang), Title: v.Title, TitleID: "request-refused-title", Page: true}) {
 						<p>{ v.Lede }</p>

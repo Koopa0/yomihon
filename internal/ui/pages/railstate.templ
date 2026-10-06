@@ -32,7 +32,7 @@ templ railHead(c layouts.Chrome, filter bool) {
 			data-title-hide={ wording.HideRail.In(c.Lang) }
 			data-title-show={ wording.ShowRail.In(c.Lang) }
 			data-title-key={ wording.RailKeyHint.In(c.Lang) }
-			aria-controls="nav-rail-body"
+			aria-controls="_y-nav-rail-body"
 			aria-expanded={ strconv.FormatBool(c.Rail != "collapsed") }
 			if c.SingleKeyShortcutsEnabled {
 				aria-keyshortcuts="["

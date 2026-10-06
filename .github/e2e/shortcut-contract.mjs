@@ -72,7 +72,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED shortcut-con
 const rewriteScript = (needle, replacement, moduleName = 'shortcuts.js') => async (page) => {
   let requests = 0;
   let matches = 0;
-  await page.route(`**/${moduleName}`, async (route) => {
+  await page.route(`**/${moduleName}{,?*}`, async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
@@ -191,7 +191,7 @@ const MUTATIONS = {
     apply: async (page) => {
       let requests = 0;
       let matches = 0;
-      await page.route('**/preferences.js', async (route) => {
+      await page.route('**/preferences.js{,?*}', async (route) => {
         requests += 1;
         const response = await route.fetch();
         const original = await response.text();
@@ -213,7 +213,7 @@ const MUTATIONS = {
     apply: async (page) => {
       let requests = 0;
       let matches = 0;
-      await page.route('**/preferences.js', async (route) => {
+      await page.route('**/preferences.js{,?*}', async (route) => {
         requests += 1;
         const response = await route.fetch();
         const original = await response.text();

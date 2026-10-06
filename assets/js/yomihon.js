@@ -2,6 +2,7 @@
 // calls its initializer. The rail captures and restores filter state at the parser
 // boundary; this entry attaches interactions and composes the remaining capabilities.
 // The server-rendered page remains usable when the graph is absent.
+import { initCodeCopy } from './codecopy.js';
 import { initCompareAlign, initContents } from './contents.js';
 import { initDiagrams } from './diagrams.js';
 import { initDrawer } from './drawer.js';
@@ -33,7 +34,8 @@ function init() {
   const rail = initRail(preferences);
   const search = initSearch();
   initShortcuts({ drawer, rail, sidebar, search });
-  initLesson();
+  const enhanceCodeCopy = initCodeCopy();
+  initLesson(enhanceCodeCopy);
   initMark();
   initThought();
   initUncertainty();

@@ -43,6 +43,7 @@ func TestEveryRegisteredAssetServesItsExactEntry(t *testing.T) {
 func TestProductScriptRegistryIsExact(t *testing.T) {
 	t.Parallel()
 	want := []string{
+		"codecopy.js",
 		"contents.js",
 		"diagrams.js",
 		"drawer.js",

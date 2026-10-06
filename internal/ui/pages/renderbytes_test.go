@@ -16,6 +16,9 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/assets"
+
+	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/lexical"
@@ -404,6 +407,7 @@ func recordedChrome() layouts.Chrome {
 	return layouts.Chrome{
 		Title:                     "L01",
 		Nonce:                     "response-nonce",
+		Assets:                    asset.Versions{Token: "recorded0000"},
 		Theme:                     "light",
 		Ruby:                      "on",
 		TextSize:                  "m",
@@ -1083,4 +1087,40 @@ func headOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) t
 		t.Fatalf("%s has no running head, so the recording would hold the folder's breadcrumb", current)
 	}
 	return articleHead(view, lang)
+}
+
+// TestRecordedChromeUsesStableAssetVersions keeps unrelated asset byte edits
+// from changing the recording while the production head locks real hashes.
+func TestRecordedChromeUsesStableAssetVersions(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	if err := layouts.Base(recordedChrome()).Render(t.Context(), &buf); err != nil {
+		t.Fatal(err)
+	}
+	files, err := assets.Files.ReadDir("js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int{
+		"app.css":    1,
+		"chroma.css": 1,
+		"yomihon.js": 1,
+	}
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".js") {
+			want[file.Name()]++
+		}
+	}
+	addresses := regexp.MustCompile(`/static/([^"?]+)\?v=([^"&]+)`)
+	got := make(map[string]int)
+	for _, address := range addresses.FindAllStringSubmatch(buf.String(), -1) {
+		got[address[1]]++
+		if address[2] != "recorded0000" {
+			t.Errorf("caught: recorded asset %q version = %q, want recorded0000", address[1], address[2])
+		}
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("caught: recorded asset declarations (-want +got):\n%s", diff)
+	}
+	t.Log("invoked: complete recorded Chrome asset declarations")
 }
