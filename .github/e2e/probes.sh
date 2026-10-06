@@ -60,6 +60,7 @@ probes=(
   "read-aloud-languages.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
+  "branch-title-wrap.mjs|/syllabus/Maps/branches.md"
   "course-line.mjs|/notes/Course/C01.md"
   "book-rail-head.mjs|/notes/Course/C02.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
