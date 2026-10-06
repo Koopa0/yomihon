@@ -369,7 +369,8 @@ jobs:
     # after 39m50s in the mutation step (40m16s including setup), not completed.
     # Four mode-balanced shards target under ten minutes each; measure their
     # actual hosted job and mutation-step durations before claiming that target.
-    timeout-minutes: 40
+    # Keep the inherited 75-minute ceiling while hosted shard times are measured.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
