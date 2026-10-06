@@ -45,9 +45,10 @@ func comparedNote(prefix, title, relPath, language string) NoteView {
 // reader holding two notes side by side is reading each of those notes, not a
 // second rendering of them that is free to drift. Each column is compared
 // against the article component rendered on its own in the id space that column
-// occupies, so the one thing the two uses differ by is the write face — which a
-// column drops structurally, by passing nothing where the note's own page
-// passes the status bar in.
+// occupies. A column drops the write face structurally, by passing nothing
+// where the note's own page passes the status bar in. It also sits one heading
+// level below the comparison, while its authored levels and section addresses
+// stay unchanged.
 //
 // The article counts are asserted first: without them a comparison of two empty
 // strings would pass while the page drew nothing at all.
@@ -71,6 +72,8 @@ func TestACompareColumnIsTheNotesOwnArticle(t *testing.T) {
 		t.Errorf("the note page's article is not the component it draws (-component +page):\n%s", diff)
 	}
 	for ordinal, column := range []NoteView{a, b} {
+		column.NestedTitle = true
+		column.BodyHTML = render.NestHeadings(column.BodyHTML)
 		want := renderedBytes(t, t.Context(), noteArticle(column, lang))
 		if diff := cmp.Diff(want, articleAt(t, compared, ordinal)); diff != "" {
 			t.Errorf("column %d is not %s read alone (-component +column):\n%s", ordinal, column.Title, diff)
@@ -150,4 +153,28 @@ func articleAt(t *testing.T, page string, ordinal int) string {
 		t.Fatalf("an article on the page never closes")
 	}
 	return rest[:end+len("</article>")]
+}
+
+func TestCompareHeadingKeepsAuthoredTitlesAsText(t *testing.T) {
+	t.Parallel()
+	view := CompareView{
+		A: NoteView{Title: "<b>A</b>"},
+		B: NoteView{Title: "B & C"},
+	}
+	page := renderedBytes(t, t.Context(), Compare(view, recordedChrome()))
+	const want = `<h1 class="y-offscreen" lang="zh-Hant">&lt;b&gt;A&lt;/b&gt; 與 B &amp; C 對照閱讀</h1>`
+	if !strings.Contains(page, want) {
+		t.Errorf("caught: comparison heading did not keep authored titles as escaped text, want %q", want)
+	}
+}
+
+func TestCompareColumnCanRenderAgainWithoutDeepeningItsOutline(t *testing.T) {
+	t.Parallel()
+	view := comparedNote("a-", "Original", "Writing/Original.md", "en")
+	column := compareColumn(view, CompareAnchorA, wording.En)
+	first := renderedBytes(t, t.Context(), column)
+	second := renderedBytes(t, t.Context(), column)
+	if diff := cmp.Diff(first, second); diff != "" {
+		t.Errorf("caught: repeated column rendering changed its outline (-first +second):\n%s", diff)
+	}
 }
