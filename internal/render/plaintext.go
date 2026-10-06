@@ -442,6 +442,11 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 	inFence := false
 	var fenceByte byte
 	var fenceLen int
+	// Which lines are indented code is a parse's answer, asked only once a
+	// line looks like a callout opener, since no other rewrite here depends
+	// on it.
+	var code map[int]bool
+	parsed := false
 	for i, line := range lines {
 		switch {
 		case inFence:
@@ -451,11 +456,15 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 		default:
 			if marker, n, _, ok := fenceOpen(line); ok {
 				inFence, fenceByte, fenceLen = true, marker, n
-			} else {
-				_, _, _, rewritten.literalRoles[i] = calloutStart(line)
-				lines[i] = plainLine(line, &wikiLines[i])
-				rewritten.changed[i] = lines[i] != line
+				continue
 			}
+			_, _, _, opener := calloutStart(line)
+			if !parsed && opener {
+				code, parsed = codeBlockLines(plainParser, body), true
+			}
+			rewritten.literalRoles[i] = opener && !code[i]
+			lines[i] = plainLine(line, code[i], &wikiLines[i])
+			rewritten.changed[i] = lines[i] != line
 		}
 	}
 	off := 0
@@ -470,9 +479,11 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 }
 
 // plainLine normalizes one non-fence line: it strips a callout marker (keeping
-// the title) and rewrites wikilinks to plain "target display" text.
-func plainLine(line string, wikilinks *[][2]int) string {
-	if m := calloutStartPattern.FindStringSubmatch(line); m != nil {
+// the title) and rewrites wikilinks to plain "target display" text. A line an
+// indented code block holds keeps its marker, because the page shows it as
+// written.
+func plainLine(line string, code bool, wikilinks *[][2]int) string {
+	if m := calloutStartPattern.FindStringSubmatch(line); m != nil && !code {
 		// Drop the marker, keep the callout's title. The body lines that follow
 		// keep their quote marker and are collected as ordinary quoted text.
 		line = m[3]

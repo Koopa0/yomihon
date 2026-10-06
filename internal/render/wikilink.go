@@ -719,6 +719,11 @@ func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 // line. An unknown type records a diagnostic and reports false, leaving the line
 // to goldmark's own blockquote parsing so nothing is silently dropped.
 func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, col *collector) bool {
+	// A line an indented code block holds is shown as written, so a callout
+	// opener on it is syntax on display: neither a callout nor an unknown type.
+	if st.quoted[st.i] {
+		return false
+	}
 	typ, fold, title, ok := calloutStart(st.lines[st.i])
 	if !ok {
 		return false

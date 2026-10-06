@@ -1421,14 +1421,16 @@ func TestCalloutTypeTable(t *testing.T) {
 	tests := []struct {
 		typ, bucketClass, title string
 	}{
-		{"info", "note", "Note"}, {"note", "note", "Note"}, {"tip", "note", "Note"},
-		{"hint", "note", "Note"}, {"abstract", "note", "Note"}, {"summary", "note", "Note"},
-		{"todo", "note", "Note"},
-		{"question", "note", "Question"}, {"help", "note", "Question"}, {"faq", "note", "Question"},
-		{"example", "note", "Example"}, {"quote", "quote", "Quote"}, {"cite", "quote", "Quote"},
-		{"warning", "warning", "Warning"}, {"caution", "warning", "Warning"}, {"attention", "warning", "Warning"},
-		{"danger", "warning", "Danger"}, {"error", "warning", "Danger"}, {"bug", "warning", "Danger"},
-		{"fail", "warning", "Danger"}, {"failure", "warning", "Danger"}, {"missing", "warning", "Danger"},
+		{"info", "note", "Info"}, {"note", "note", "Note"}, {"tip", "note", "Tip"},
+		{"hint", "note", "Hint"}, {"abstract", "note", "Abstract"}, {"summary", "note", "Summary"},
+		{"todo", "note", "Todo"},
+		{"important", "note", "Important"}, {"tldr", "note", "Tldr"},
+		{"success", "note", "Success"}, {"check", "note", "Check"}, {"done", "note", "Done"},
+		{"question", "note", "Question"}, {"help", "note", "Help"}, {"faq", "note", "Faq"},
+		{"example", "note", "Example"}, {"quote", "quote", "Quote"}, {"cite", "quote", "Cite"},
+		{"warning", "warning", "Warning"}, {"caution", "warning", "Caution"}, {"attention", "warning", "Attention"},
+		{"danger", "warning", "Danger"}, {"error", "warning", "Error"}, {"bug", "warning", "Bug"},
+		{"fail", "warning", "Fail"}, {"failure", "warning", "Failure"}, {"missing", "warning", "Missing"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.typ, func(t *testing.T) {
@@ -1439,7 +1441,7 @@ func TestCalloutTypeTable(t *testing.T) {
 			if !strings.Contains(got.HTML, wantClass) {
 				t.Errorf("[!%s] HTML missing %q:\n%s", tt.typ, wantClass, got.HTML)
 			}
-			if !strings.Contains(got.HTML, tt.title) {
+			if !strings.Contains(got.HTML, ">"+tt.title+"</p>") {
 				t.Errorf("[!%s] HTML missing default title %q:\n%s", tt.typ, tt.title, got.HTML)
 			}
 			if len(got.Diagnostics) != 0 {
