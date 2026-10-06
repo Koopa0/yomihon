@@ -285,6 +285,7 @@ func TestRunCheckPathSuffixConsumers(t *testing.T) {
 		"embed.section_missing@Atlas/README#Absent->Notes/Projects/Atlas/README.md",
 		"link.block_missing@Atlas/README#^absent->Notes/Projects/Atlas/README.md",
 		"link.broken@Nope/README->",
+		"link.broken@Shared/Twin->",
 		"link.section_missing@Atlas/README#Absent->Notes/Projects/Atlas/README.md",
 		"provenance.unresolved@based_on:no note, alias, or lesson slug matches the reference->",
 	}

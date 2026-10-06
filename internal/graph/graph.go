@@ -148,6 +148,13 @@ func (idx *Index) Resolve(name string) Resolution {
 	}
 }
 
+// Claimed reports whether a location key or an alias claims name. A name that
+// resolves only through path suffixes is not claimed: no file carries it, so
+// several suffix matches are no collision of names.
+func (idx *Index) Claimed(name string) bool {
+	return len(idx.names[NormalizeKey(name)]) > 0
+}
+
 // Collisions reports every name more than one file answers to, mapped to the
 // paths claiming it. Such a name resolves to nothing — the index refuses to
 // choose. The returned map and slices belong to the caller.

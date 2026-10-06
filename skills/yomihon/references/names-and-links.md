@@ -78,7 +78,7 @@ picks between several:
 | Outcome | What the page shows | What `check` says |
 |---|---|---|
 | one file | an ordinary link | nothing |
-| several | nothing is linked; the name is marked ambiguous and the candidates are listed in place | original key collisions produce `collision.name`, once for the whole collision, with every path in `collision_members`; suffix fallback adds no collision keys |
+| several | nothing is linked; the name is marked ambiguous and the candidates are listed in place | original key collisions produce `collision.name`, once for the whole collision, with every path in `collision_members`; suffix fallback adds no collision keys, so a link several path suffixes match is `link.broken` |
 | none | the link is marked where it sits, with the reason | `link.broken` — or `link.title_not_alias` when the name is some note's title |
 
 Two notes declaring the same alias is `collision.alias`, and has the same
