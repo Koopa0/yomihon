@@ -4,6 +4,18 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';
 const cases = [
@@ -54,6 +66,7 @@ try {
           });
         }
         await page.goto(BASE + '/notes/Notes/Audit%20cross%20block.md');
+        await arrived(page);
         const target = page.locator('main article p').filter({ hasText: 'The ledger entry closes with lanthanum here.' });
         assert.equal(await target.count(), 1, 'fixture must identify one intended passage');
         assert.ok(await target.evaluate(e => e.getBoundingClientRect().top > innerHeight), 'fixture target must begin below the screen');
@@ -66,6 +79,7 @@ try {
         const href = await row.getAttribute('href');
         await row.click();
         await page.waitForLoadState('load');
+        await arrived(page);
         await page.waitForFunction(() => {
           const p = [...document.querySelectorAll('main article p')].find(e => e.textContent.includes('The ledger entry closes with lanthanum here.'));
           const box = p.getBoundingClientRect();
