@@ -157,6 +157,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 		view.SourceHTML = render.SourceHTML(name, string(data))
 	}
 
+	view.RawDownload = markupDocument(view.ContentType)
 	if err := pages.File(view, layouts.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "render file page", "path", rel, "error", err)
 	}

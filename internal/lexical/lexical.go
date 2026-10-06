@@ -64,15 +64,38 @@ const (
 )
 
 // foldRune is the per-character half of fold: the fullwidth ASCII block
-// narrows to its halfwidth counterpart, then simple lowercase. Width first so
-// a fullwidth letter and its ASCII counterpart meet before either is lowered.
+// narrows to its halfwidth counterpart, then a fixed simple-case representative.
+// Width first so a fullwidth letter and its ASCII counterpart meet before
+// either is case-folded.
 func foldRune(r rune) rune {
 	if r >= fullwidthASCIIMin && r <= fullwidthASCIIMax {
 		if n := width.LookupRune(r).Narrow(); n != 0 {
 			r = n
 		}
 	}
-	return unicode.ToLower(r)
+	if r <= unicode.MaxASCII {
+		return unicode.ToLower(r)
+	}
+	return simpleCaseRune(r)
+}
+
+// simpleCaseRune prefers the smallest letter in the orbit, lowered only if
+// that lowercase remains a member. Greek iota's smallest member is a combining
+// mark: emitting it after a vowel could create a new NFC contraction. Dotted
+// capital I instead has no simple lowercase peer and stays in its own orbit.
+func simpleCaseRune(r rune) rune {
+	smallest := r
+	for next := unicode.SimpleFold(r); next != r; next = unicode.SimpleFold(next) {
+		letter, chosenLetter := unicode.IsLetter(next), unicode.IsLetter(smallest)
+		if (letter && !chosenLetter) || (letter == chosenLetter && next < smallest) {
+			smallest = next
+		}
+	}
+	lower := unicode.ToLower(smallest)
+	if strings.EqualFold(string(smallest), string(lower)) {
+		return lower
+	}
+	return smallest
 }
 
 // nextRune returns the first rune at or after i, or zero at the end of s.
@@ -109,6 +132,8 @@ type Document struct {
 	// the way it reaches an alias: leaving them out made a note findable by
 	// fewer names than it follows.
 	Topics []string
+	// Tags are frontmatter retrieval words, not a schema vocabulary.
+	Tags []string
 	// Aliases are the other names the note declared. They are the names a
 	// wikilink resolves by, so leaving them out made this program findable by
 	// fewer names than it follows.
@@ -182,6 +207,8 @@ type entry struct {
 	// declared Colour Theory is not rewritten as colour theory.
 	Topics           []string
 	TopicFolds       []string
+	Tags             []string
+	TagFolds         []string
 	PlainText        string
 	PlainFold        string
 	blocks           []render.Block
@@ -296,6 +323,12 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		topics[i] = vault.NormalizeNFC(t)
 		topicFolds[i] = fold(topics[i])
 	}
+	tags := make([]string, len(d.Tags))
+	tagFolds := make([]string, len(d.Tags))
+	for i, tag := range d.Tags {
+		tags[i] = vault.NormalizeNFC(tag)
+		tagFolds[i] = fold(tags[i])
+	}
 	aliases := make([]string, len(d.Aliases))
 	aliasFolds := make([]string, len(d.Aliases))
 	for i, a := range d.Aliases {
@@ -319,6 +352,8 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		SlugFold:         fold(slug),
 		Topics:           topics,
 		TopicFolds:       topicFolds,
+		Tags:             tags,
+		TagFolds:         tagFolds,
 		PlainText:        plain,
 		PlainFold:        plainFold,
 		blocks:           blocks,
@@ -570,6 +605,7 @@ func DocumentFromNote(n *vault.Note) Document {
 		Status:       n.Status(),
 		Slug:         n.Slug(),
 		Topics:       n.Strings("topics"),
+		Tags:         n.Strings("tags"),
 		Aliases:      n.Aliases(),
 		PlainText:    projection.Text,
 		Blocks:       projection.Blocks,
