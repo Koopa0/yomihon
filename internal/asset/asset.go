@@ -99,6 +99,7 @@ func buildRegistry() map[string]entry {
 	}
 	for _, name := range []string{
 		"yomihon.js",
+		"codecopy.js",
 		"preferences.js",
 		"drawer.js",
 		"rail.js",

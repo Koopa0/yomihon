@@ -19,13 +19,18 @@ func (b fuzzTransclusions) Transclusion(path string) (string, bool) {
 func FuzzHTML(f *testing.F) {
 	for _, seed := range []string{
 		"",
+		"[[#Local|go]]\n\n## Local\n[[#Missing]]",
 		"plain <ruby>日<rt>にち</rt></ruby> text",
+		"- [ ] task\n- [x] complete\n- [/] progress\n- [-] cancelled\n- [>] forwarded\n- [?] literal",
+		"- [ ]\n\n- [x] <br>\n\n- [/] outer\n  - [>] nested\n\n  next paragraph",
 		"# Duplicate title\n## 見出し\n[[missing|表示]]",
 		"```go\r\n[[literal]]\r\n> [!note] literal\r\n```",
 		"```go\nunclosed [[literal]]",
 		"> [!unknown] Title\n> body with **formatting**",
 		"```mermaid\ngraph TD; A-->B\n```",
 		"![[missing embed]] and [[unterminated",
+		"![[p.png|300x200]] ![[p.png|300\" onerror=\"oops]] ![**alt**|300](p.png)",
+		"![alt|part|0](p.png) ![remote|300](https://example.org/p.png)",
 		"before ![[target]] after",
 		"before %%hidden%% after\n```text %%literal info%%\n%%literal%%\n```",
 		"## 重複\n## 重複\n<h2>raw heading</h2>",
@@ -35,7 +40,7 @@ func FuzzHTML(f *testing.F) {
 
 	const targetPath = "target.md"
 	renderer := New(
-		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, nil),
+		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, []string{"p.png"}),
 		fuzzTransclusions{targetPath: "## Embedded\nbody with ![[target]]"},
 		internalNoTitles{},
 		holdsEverything{},

@@ -52,7 +52,7 @@ func ContractChanged(c layouts.Chrome) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"y-nav-scrim\" data-nav-close></div><div class=\"y-shell2\"><main id=\"main-content\" tabindex=\"-1\" class=\"y-main\"><article class=\"y-recovery\" lang=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"y-nav-scrim\" data-nav-close></div><div class=\"y-shell2\"><main id=\"_y-main\" tabindex=\"-1\" class=\"y-main\"><article class=\"y-recovery\" lang=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -578,7 +578,7 @@ func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
 			if !strings.Contains(body, `class="y-recovery"`) {
 				t.Errorf("GET %s does not answer with the shared not-found page", tt.target)
 			}
-			if !strings.Contains(body, `id="nav-rail"`) {
+			if !strings.Contains(body, `id="_y-nav-rail"`) {
 				t.Errorf("GET %s answers without the reading shell, so the reader has nowhere to go", tt.target)
 			}
 		})

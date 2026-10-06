@@ -1,0 +1,147 @@
+package note_test
+
+import (
+	"html"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/note"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/shell"
+	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+const parseFailureHTTPReason = "panic while parsing this note: <script>alert(1)</script> & parser token"
+
+func parseFailureHTTPServer(t *testing.T, root string) (*httptest.Server, *snapshot.Store) {
+	t.Helper()
+	log := slog.New(slog.DiscardHandler)
+	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+	mux := http.NewServeMux()
+	note.New(&note.Sources{Source: source, Status: writer.Authority, Snapshot: store.Current, VaultName: shell.VaultName(source.Name()), ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log}).Register(mux)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return server, store
+}
+
+func parseFailureHTTPGet(t *testing.T, server *httptest.Server, addr, lang string, status int) string {
+	t.Helper()
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+addr, http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.AddCookie(&http.Cookie{Name: wording.CookieName, Value: lang})
+	response, err := server.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if response.StatusCode != status {
+		t.Fatalf("caught: GET %s status=%d, want %d", addr, response.StatusCode, status)
+	}
+	t.Logf("invoked: HTTP GET %s %s status=%d", lang, addr, status)
+	return string(data)
+}
+
+func assertParseFailureHTTP(t *testing.T, page, want, reason string) {
+	t.Helper()
+	if !strings.Contains(html.UnescapeString(page), want) {
+		t.Errorf("caught: HTTP parse diagnosis missing %q", want)
+	}
+	evidence := `<code lang="en">` + html.EscapeString(reason) + `</code>`
+	if !strings.Contains(page, evidence) {
+		t.Error("caught: HTTP parser evidence lost escaped English code")
+	}
+	for _, wrong := range []string{"a permission", "權限設定", "This file could not be read this time", "這個檔案這一次讀不進來", "These files could not be opened on this read", "這一次讀取時打不開這些檔案", "<script>alert(1)</script>"} {
+		if strings.Contains(page, wrong) {
+			t.Errorf("caught: HTTP parser failure contains %q", wrong)
+		}
+	}
+}
+
+func TestParseFailureReachesEveryReadingSurface(t *testing.T) {
+	snapshot.InstallParseFailureHTTPFixture(t)
+	t.Log("invoked: snapshot parser HTTP fixture")
+	for _, language := range []struct{ name, note, health, recovery, absent string }{
+		{name: "zh-Hant", note: "檔案已開啟，但目前的筆記內容無法解析。", health: "這些檔案已開啟，但筆記內容無法解析。", recovery: "這篇筆記的文字無法解析", absent: "這裡沒有東西"},
+		{name: "en", note: "The file opened, but its current note content could not be parsed.", health: "These files opened, but their note content could not be parsed.", recovery: "This note's text could not be parsed", absent: "Nothing is here"},
+	} {
+		t.Run(language.name, func(t *testing.T) {
+			root := writeNotes(t, map[string]string{"Writing/Alpha.md": "---\ntitle: Alpha\n---\nLAST GOOD ALPHA\n", "Writing/Beta.md": "---\ntitle: Beta\n---\nHEALTHY BETA\n"})
+			server, store := parseFailureHTTPServer(t, root)
+			t.Run("initial", func(t *testing.T) {
+				page := parseFailureHTTPGet(t, server, "/notes/Writing/Alpha.md", language.name, 200)
+				if !strings.Contains(page, "LAST GOOD ALPHA") || strings.Contains(page, language.note) {
+					t.Fatal("caught: healthy first generation has no readable body or a false parse diagnosis")
+				}
+			})
+			if err := os.WriteFile(filepath.Join(root, "Writing", "Alpha.md"), []byte("---\ntitle: Alpha\n---\nPARSE_FAILURE_HTTP_POISON changed body\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			snapshot.RescanParseFailureHTTPFixture(t.Context(), store)
+			for _, surface := range []struct{ name, addr, from, to string }{
+				{name: "retained", addr: "/notes/Writing/Alpha.md"},
+				{name: "compare-a", addr: "/compare/Writing/Alpha.md?with=Writing%2FBeta.md", from: columnAMark, to: columnBMark},
+				{name: "compare-b", addr: "/compare/Writing/Beta.md?with=Writing%2FAlpha.md", from: columnBMark, to: "</main>"},
+			} {
+				t.Run(surface.name, func(t *testing.T) {
+					page := parseFailureHTTPGet(t, server, surface.addr, language.name, 200)
+					if surface.from != "" {
+						otherFrom, otherTo := columnBMark, "</main>"
+						if surface.from == columnBMark {
+							otherFrom, otherTo = columnAMark, columnBMark
+						}
+						healthy := columnOf(t, page, otherFrom, otherTo)
+						if !strings.Contains(healthy, "HEALTHY BETA") || strings.Contains(healthy, parseFailureHTTPReason) || strings.Contains(healthy, language.note) {
+							t.Error("caught: healthy compare sibling lost body or inherited parser failure")
+						}
+						page = columnOf(t, page, surface.from, surface.to)
+					}
+					assertParseFailureHTTP(t, page, language.note, parseFailureHTTPReason)
+					if !strings.Contains(page, "LAST GOOD ALPHA") || strings.Contains(page, "PARSE_FAILURE_HTTP_POISON changed body") {
+						t.Error("caught: retained reading did not preserve the last good body")
+					}
+				})
+			}
+			t.Run("health", func(t *testing.T) {
+				page := parseFailureHTTPGet(t, server, "/health", language.name, 200)
+				assertParseFailureHTTP(t, page, language.health, `"`+parseFailureHTTPReason+`"`)
+				if !strings.Contains(page, "Writing/Alpha.md") {
+					t.Error("caught: Health omitted the failed source path")
+				}
+			})
+			t.Run("healthy", func(t *testing.T) {
+				page := parseFailureHTTPGet(t, server, "/notes/Writing/Beta.md", language.name, 200)
+				if !strings.Contains(page, "HEALTHY BETA") || strings.Contains(page, language.note) || strings.Contains(page, parseFailureHTTPReason) {
+					t.Error("caught: healthy sibling lost body or acquired parser diagnosis")
+				}
+			})
+			startupRoot := writeNotes(t, map[string]string{"Writing/Poison.md": "---\ntitle: Poison\n---\nPARSE_FAILURE_HTTP_POISON\n"})
+			startup, _ := parseFailureHTTPServer(t, startupRoot)
+			t.Run("recovery", func(t *testing.T) {
+				assertParseFailureHTTP(t, parseFailureHTTPGet(t, startup, "/notes/Writing/Poison.md", language.name, 404), language.recovery, parseFailureHTTPReason)
+			})
+			t.Run("absent", func(t *testing.T) {
+				page := parseFailureHTTPGet(t, startup, "/notes/Writing/Absent.md", language.name, 404)
+				if !strings.Contains(page, language.absent) || strings.Contains(page, parseFailureHTTPReason) || strings.Contains(html.UnescapeString(page), language.recovery) {
+					t.Error("caught: absent note was blamed on a parser failure")
+				}
+			})
+		})
+	}
+}
