@@ -29,10 +29,15 @@ func FuzzHTML(f *testing.F) {
 		"> [!unknown] Title\n> body with **formatting**",
 		"```mermaid\ngraph TD; A-->B\n```",
 		"![[missing embed]] and [[unterminated",
+		"![[p.png|300x200]] ![[p.png|300\" onerror=\"oops]] ![**alt**|300](p.png)",
+		"![alt|part|0](p.png) ![remote|300](https://example.org/p.png)",
 		"before ![[target]] after",
 		"before %%hidden%% after\n```text %%literal info%%\n%%literal%%\n```",
 		"## 重複\n## 重複\n<h2>raw heading</h2>",
 		"[[target#Embedded#Child]]\n[[target#Embedded##Child]]\n![[target#Embedded#Child]]",
+		"Inline^[**bold** and `]` and [link](#h)] then ordinary[^n].\n\n[^n]: definition\n",
+		"^[未閉合\n```text\n^[literal]\n",
+		"^[note] [^yomihon-inline-footnote-1]\n\n[^yomihon-inline-footnote-1]: authored\n",
 	} {
 		f.Add(seed)
 	}
@@ -41,6 +46,8 @@ func FuzzHTML(f *testing.F) {
 	renderer := New(
 		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, nil),
 		fuzzTransclusions{targetPath: "## Embedded\n### Child\nbody with ![[target]] and [[target#Embedded#Child]]"},
+		graph.BuildFromNotes([]graph.NoteInput{{RelPath: targetPath}}, []string{"p.png"}),
+		fuzzTransclusions{targetPath: "## Embedded\nbody with ![[target]]"},
 		internalNoTitles{},
 		holdsEverything{},
 	)

@@ -117,6 +117,19 @@ expanded further. An embed whose section or block is not found shows nothing of
 the note — a notice names the address that failed and links the note —
 reporting `embed.section_missing` or `embed.block_missing`.
 
+For a picture, `![[pic.png|300]]` declares its width and
+`![[pic.png|300x200]]` declares width and height in whole pixels. Any other
+nonempty alias, such as `![[pic.png|some alt]]`, is its alternative text;
+a size or absent alias keeps the filename as alternative text. A local
+Markdown image uses `![alt|300](pic.png)` or `![alt|300x200](pic.png)`:
+only a valid final size suffix comes off its alternative text. An ordinary
+pipe in Markdown alternative text stays text. The reading column caps image
+width. Width and height remain HTML dimension hints; after the image loads,
+automatic height keeps its natural aspect ratio, including when the hints
+declare a different ratio.
+Note embeds keep their existing alias behavior. Remote images remain explicit
+links and are never loaded.
+
 ## Links that are not wikilinks
 
 A plain Markdown link resolves only against the folder of the note that wrote

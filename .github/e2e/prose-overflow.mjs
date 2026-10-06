@@ -78,7 +78,7 @@ const notApplied = (message) => {
 // the shape of a self-test that quietly died against a rewritten source.
 const overrideProperty = (rule, selector, property, wanted) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;

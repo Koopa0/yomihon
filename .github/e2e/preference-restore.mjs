@@ -44,7 +44,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED preference-r
 
 const rewriteModule = (needle, replacement, label) => async (page) => {
   let matches = 0;
-  await page.route('**/preferences.js', async (route) => {
+  await page.route('**/preferences.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches += original.split(needle).length - 1;

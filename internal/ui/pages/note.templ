@@ -213,7 +213,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@readingRail(v.ReadingRail, c)
-			<main id="main-content" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
+			<main id="_y-main" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
 				@flipReceipt(v, lang)
 				@noteArticle(v, lang) {
 					@statusBar(v, lang)
@@ -241,6 +241,7 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 		@frontmatterUnclosedNotice(v, lang)
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
+		@layouts.CodeCopy(lang)
 		<div class="y-prose">
 			if strings.TrimSpace(v.BodyHTML) == "" && !v.hasUnclosedComment() {
 				@nothingToShow(nothingNotice{Kind: "note"}) {
@@ -270,7 +271,7 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
-			<template id={ "concept-" + c.ID } data-title={ conceptSheetTitle(c.Title, lang) }>
+			<template id={ "_y-concept-" + c.ID } data-title={ conceptSheetTitle(c.Title, lang) }>
 				@templ.Raw(c.HTML)
 			</template>
 		}
@@ -281,6 +282,7 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
 			</div>
+			@layouts.CodeCopy(lang)
 			<div class="y-conceptsheet__body y-prose" data-concept-body></div>
 		</dialog>
 	}
@@ -763,10 +765,10 @@ templ relatedAids(v NoteView, lang wording.Lang) {
 templ statusPanel(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
-		<section class="y-statuspanel" aria-labelledby={ v.IDPrefix + "status-panel-label" } data-status-state={ face.token() }>
+		<section class="y-statuspanel" aria-labelledby={ v.IDPrefix + "_y-status-panel-label" } data-status-state={ face.token() }>
 			<div class="y-statuspanel__head">
 				<div class="y-statuspanel__row">
-					<span class="ui-side__label" id={ v.IDPrefix + "status-panel-label" }>{ wording.StatusBar.In(lang) }</span>
+					<span class="ui-side__label" id={ v.IDPrefix + "_y-status-panel-label" }>{ wording.StatusBar.In(lang) }</span>
 				</div>
 				if face != faceNonInstance && v.Status != "" {
 					<span class="ui-status">{ v.Status }</span>
@@ -968,8 +970,8 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 templ statusBar(v NoteView, lang wording.Lang) {
 	if v.showsStatusFace() {
 		{{ face := statusFace(&v) }}
-		<section class="y-sealbar" lang={ lang.Tag() } aria-labelledby={ v.IDPrefix + "status-bar-label" } data-status-state={ face.token() }>
-			<span class="ui-side__label" id={ v.IDPrefix + "status-bar-label" }>{ wording.StatusBar.In(lang) }</span>
+		<section class="y-sealbar" lang={ lang.Tag() } aria-labelledby={ v.IDPrefix + "_y-status-bar-label" } data-status-state={ face.token() }>
+			<span class="ui-side__label" id={ v.IDPrefix + "_y-status-bar-label" }>{ wording.StatusBar.In(lang) }</span>
 			switch face {
 				case faceNonInstance:
 					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(lang) }</p>

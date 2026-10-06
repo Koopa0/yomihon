@@ -63,8 +63,8 @@ const rewriteResource = (glob, needle, replacement, label) => async (page) => {
     return '';
   };
 };
-const rewriteModule = (needle, replacement, label) => rewriteResource('**/preferences.js', needle, replacement, label);
-const rewriteCSS = (needle, replacement, label) => rewriteResource('**/app.css', needle, replacement, label);
+const rewriteModule = (needle, replacement, label) => rewriteResource('**/preferences.js{,?*}', needle, replacement, label);
+const rewriteCSS = (needle, replacement, label) => rewriteResource('**/app.css{,?*}', needle, replacement, label);
 
 // The line being rewritten is itself a template string, so its placeholders
 // are built rather than written: spelled out, they would read as this file's

@@ -124,7 +124,7 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main id=\"main-content\" tabindex=\"-1\" class=\"y-main y-deskmain\"><div class=\"y-home\"><header class=\"y-home__head\"><h1 class=\"y-title\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main id=\"_y-main\" tabindex=\"-1\" class=\"y-main y-deskmain\"><div class=\"y-home\"><header class=\"y-home__head\"><h1 class=\"y-title\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -1058,9 +1058,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 		return ambiguousTarget(target, source, res.Candidates, col.page.lang)
 	case graph.KindUnique:
 		if IsPicture(res.RelPath) {
-			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
-			return fmt.Sprintf(`<img src="%s" alt="%s">`,
-				attributeEscaper.Replace(rawHref(res.RelPath)), html.EscapeString(path.Base(res.RelPath)))
+			return pictureEmbed(res.RelPath, link)
 		}
 		if !vault.IsMarkdown(res.RelPath) {
 			return mediaStub(res.RelPath, col.page.lang)

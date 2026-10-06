@@ -14,7 +14,7 @@ templ Listen(v ListenView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			<main id="main-content" tabindex="-1" class="y-main" { listenAttrs(v, c.Lang)... }>
+			<main id="_y-main" tabindex="-1" class="y-main" { listenAttrs(v, c.Lang)... }>
 				<div class="y-listen">
 					<div class="y-syl-kicker">{ wording.SyllabusKicker.In(c.Lang) }</div>
 					<h1 class="y-title">{ v.Title }</h1>

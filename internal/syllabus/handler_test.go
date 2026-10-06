@@ -231,7 +231,7 @@ func TestShow(t *testing.T) {
 // ambiguous curriculum row guessed a target.
 func syllabusMain(t *testing.T, body string) string {
 	t.Helper()
-	const opening = `<main id="main-content" tabindex="-1" class="y-main">`
+	const opening = `<main id="_y-main" tabindex="-1" class="y-main">`
 	_, after, ok := strings.Cut(body, opening)
 	if !ok {
 		t.Fatalf("syllabus response missing %q; body = %q", opening, body)
