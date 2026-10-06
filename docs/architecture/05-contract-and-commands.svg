@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1090" viewBox="0 0 1600 1090" role="img" aria-labelledby="title description">
+<title id="title">Contract and commands</title><desc id="description">The contract supplies typed reading and lifecycle declarations. CLI output has an additional privacy gate and source revalidation; local reading is a separate boundary.</desc>
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#5B7081" stroke-width="1.8"/></marker>
+<marker id="write-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#986626" stroke-width="1.8"/></marker>
+</defs>
+<rect width="1600" height="1090" fill="#FFFFFF"/>
+<g font-family="DejaVu Sans, Arial, sans-serif" fill="#152B3C">
+<rect x="560" y="55" width="480" height="135" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M561,69 V176" stroke="#237869" stroke-width="3.5"/>
+<text x="583" y="100.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Vault contract</text>
+<text x="583" y="135.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Types · lifecycle · policies</text>
+<text x="583" y="162.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">vault-schema.toml</text>
+<rect x="580" y="280" width="440" height="110" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M581,294 V376" stroke="#23699A" stroke-width="3.5"/>
+<text x="603" y="326.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Schema capabilities</text>
+<text x="603" y="361.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Loaded declarations</text>
+<polyline points="800,190 800,280" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="800,390 800,447 250,447 250,505" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="800,390 800,447 800,447 800,505" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="800,390 800,447 1350,447 1350,505" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="55" y="505" width="390" height="140" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M56,519 V631" stroke="#23699A" stroke-width="3.5"/>
+<text x="78" y="566.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Reading projections</text>
+<text x="78" y="601.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Course roles · metadata</text>
+<rect x="605" y="505" width="390" height="140" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M606,519 V631" stroke="#986626" stroke-width="3.5"/>
+<text x="628" y="566.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Status writer</text>
+<text x="628" y="601.0" font-size="19" font-weight="400" fill="#506574" text-anchor="start">Artifact scope · transitions</text>
+<rect x="1155" y="505" width="390" height="140" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1156,519 V631" stroke="#23699A" stroke-width="3.5"/>
+<text x="1178" y="566.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">CLI judge</text>
+<text x="1178" y="601.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">check · coverage · exists</text>
+<rect x="55" y="825" width="390" height="115" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M56,839 V926" stroke="#23699A" stroke-width="3.5"/>
+<text x="78" y="873.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Reading interface</text>
+<text x="78" y="908.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Local content</text>
+<rect x="605" y="825" width="390" height="115" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M606,839 V926" stroke="#986626" stroke-width="3.5"/>
+<text x="628" y="873.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Status value</text>
+<text x="628" y="908.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Governed note</text>
+<rect x="1155" y="720" width="390" height="115" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1156,734 V821" stroke="#986626" stroke-width="3.5"/>
+<text x="1178" y="768.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Output gate</text>
+<text x="1178" y="803.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Privacy + source revalidation</text>
+<rect x="1155" y="940" width="390" height="105" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1156,954 V1031" stroke="#237869" stroke-width="3.5"/>
+<text x="1178" y="983.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Command output</text>
+<text x="1178" y="1018.5" font-size="19" font-weight="400" fill="#506574" text-anchor="start">JSON / human-readable</text>
+<polyline points="250,645 250,825" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="290" y="741" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">render</text>
+<polyline points="800,645 800,825" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="945" y="741" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">revalidate, then write</text>
+<polyline points="1350,645 1350,720" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1350,835 1350,940" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+</g></svg>

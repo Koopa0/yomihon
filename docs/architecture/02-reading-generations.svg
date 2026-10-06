@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="970" viewBox="0 0 1600 970" role="img" aria-labelledby="title description">
+<title id="title">Reading generations</title><desc id="description">Scans capture files and build complete derived generations. Incomplete reads retry before degraded publication. Each request captures a published generation.</desc>
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#5B7081" stroke-width="1.8"/></marker>
+<marker id="write-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#986626" stroke-width="1.8"/></marker>
+</defs>
+<rect width="1600" height="970" fill="#FFFFFF"/>
+<g font-family="DejaVu Sans, Arial, sans-serif" fill="#152B3C">
+<rect x="50" y="55" width="1500" height="575" rx="14" fill="#F5F8FA" stroke="#C9D6DE" stroke-width="1.5"/>
+<text x="78" y="96" font-size="25" font-weight="600" fill="#152B3C" text-anchor="start">Rebuild</text>
+<rect x="50" y="685" width="1500" height="225" rx="14" fill="#F5F8FA" stroke="#C9D6DE" stroke-width="1.5"/>
+<text x="78" y="726" font-size="25" font-weight="600" fill="#152B3C" text-anchor="start">Read</text>
+<rect x="95" y="155" width="270" height="120" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M96,169 V261" stroke="#23699A" stroke-width="3.5"/>
+<text x="118" y="206.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Scan</text>
+<text x="118" y="241.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Identity + metadata</text>
+<rect x="435" y="155" width="300" height="120" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M436,169 V261" stroke="#23699A" stroke-width="3.5"/>
+<text x="458" y="206.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Capture sources</text>
+<text x="458" y="241.0" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Bodies + parsed products</text>
+<rect x="805" y="155" width="320" height="120" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M806,169 V261" stroke="#23699A" stroke-width="3.5"/>
+<text x="828" y="206.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Derive views</text>
+<text x="828" y="241.0" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Links · search · navigation</text>
+<rect x="1205" y="155" width="300" height="120" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1206,169 V261" stroke="#23699A" stroke-width="3.5"/>
+<text x="1228" y="206.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Candidate</text>
+<text x="1228" y="241.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Reading generation</text>
+<polyline points="365,215 435,215" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="735,215 805,215" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1125,215 1205,215" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="95" y="385" width="355" height="160" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M96,399 V531" stroke="#986626" stroke-width="3.5"/>
+<text x="118" y="442.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Scan refused</text>
+<text x="118" y="477.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Keep published generation</text>
+<text x="118" y="504.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Collision or scan error</text>
+<rect x="510" y="385" width="450" height="160" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M511,399 V531" stroke="#986626" stroke-width="3.5"/>
+<text x="533" y="442.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Incomplete build</text>
+<text x="533" y="477.5" font-size="19" font-weight="400" fill="#506574" text-anchor="start">Retry; initially retain current</text>
+<text x="533" y="504.5" font-size="19" font-weight="400" fill="#506574" text-anchor="start">After 3 attempts: publish degraded</text>
+<rect x="1035" y="385" width="470" height="160" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1036,399 V531" stroke="#237869" stroke-width="3.5"/>
+<text x="1058" y="456.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Complete build</text>
+<text x="1058" y="491.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Publish candidate</text>
+<polyline points="230,275 230,385" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1355,275 1355,331 735,331 735,385" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1355,275 1355,385" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1175" y="755" width="330" height="110" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1176,769 V851" stroke="#237869" stroke-width="3.5"/>
+<text x="1198" y="801.0" font-size="22" font-weight="600" fill="#152B3C" text-anchor="start">Published generation</text>
+<text x="1198" y="836.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Atomic pointer swap</text>
+<rect x="675" y="755" width="350" height="110" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M676,769 V851" stroke="#23699A" stroke-width="3.5"/>
+<text x="698" y="801.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Capture once</text>
+<text x="698" y="836.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Request-local handle</text>
+<rect x="95" y="755" width="440" height="110" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M96,769 V851" stroke="#23699A" stroke-width="3.5"/>
+<text x="118" y="801.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Reading view</text>
+<text x="118" y="836.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Content + derived projections</text>
+<polyline points="1355,545 1355,755" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="735,545 735,612 1210,612 1210,755" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="971" y="596" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">degraded candidate</text>
+<polyline points="1175,810 1025,810" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="675,810 535,810" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+</g></svg>

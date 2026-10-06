@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1030" viewBox="0 0 1600 1030" role="img" aria-labelledby="title description">
+<title id="title">Reading pipeline</title><desc id="description">Captured note bodies and the generation resolver feed a bounded Markdown pipeline. The output combines HTML, headings and diagnostics with the reading interface.</desc>
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#5B7081" stroke-width="1.8"/></marker>
+<marker id="write-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#986626" stroke-width="1.8"/></marker>
+</defs>
+<rect width="1600" height="1030" fill="#FFFFFF"/>
+<g font-family="DejaVu Sans, Arial, sans-serif" fill="#152B3C">
+<rect x="480" y="60" width="650" height="850" rx="14" fill="#F5F8FA" stroke="#C9D6DE" stroke-width="1.5"/>
+<text x="508" y="101" font-size="25" font-weight="600" fill="#152B3C" text-anchor="start">Markdown pipeline</text>
+<rect x="60" y="185" width="340" height="120" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M61,199 V291" stroke="#23699A" stroke-width="3.5"/>
+<text x="83" y="236.0" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Captured body</text>
+<text x="83" y="271.0" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Authored Markdown</text>
+<rect x="60" y="410" width="340" height="235" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M61,424 V631" stroke="#23699A" stroke-width="3.5"/>
+<text x="83" y="491.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Generation</text>
+<text x="83" y="526.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Link resolver</text>
+<text x="83" y="553.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Embed bodies</text>
+<text x="83" y="580.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Resource identities</text>
+<rect x="535" y="165" width="540" height="100" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M536,179 V251" stroke="#23699A" stroke-width="3.5"/>
+<text x="558" y="223.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Protect code + comments</text>
+<rect x="535" y="325" width="540" height="105" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M536,339 V416" stroke="#23699A" stroke-width="3.5"/>
+<text x="558" y="368.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Resolve links + excerpts</text>
+<text x="558" y="403.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">One-level transclusion</text>
+<rect x="535" y="490" width="540" height="115" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M536,504 V591" stroke="#23699A" stroke-width="3.5"/>
+<text x="558" y="538.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Render HTML</text>
+<text x="558" y="573.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Goldmark · Chroma · inert markup</text>
+<rect x="535" y="670" width="540" height="115" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M536,684 V771" stroke="#23699A" stroke-width="3.5"/>
+<text x="558" y="718.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Build anchors + TOC</text>
+<text x="558" y="753.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Local asset URLs</text>
+<polyline points="400,245 447,245 447,215 535,215" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="400,527 447,527 447,377 535,377" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="805,265 805,325" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="805,430 805,490" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="805,605 805,670" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1215" y="585" width="315" height="200" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1216,599 V771" stroke="#237869" stroke-width="3.5"/>
+<text x="1238" y="662.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Reading view</text>
+<text x="1238" y="697.5" font-size="19" font-weight="400" fill="#506574" text-anchor="start">templ shell + HTML</text>
+<text x="1238" y="724.5" font-size="19" font-weight="400" fill="#506574" text-anchor="start">TOC + diagnostics</text>
+<polyline points="1075,725 1215,725" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1215" y="865" width="315" height="120" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1216,879 V971" stroke="#23699A" stroke-width="3.5"/>
+<text x="1238" y="902.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Browser controls</text>
+<text x="1238" y="937.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Mermaid · speech</text>
+<text x="1238" y="964.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Preview · reading aids</text>
+<polyline points="1372,785 1372,865" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+</g></svg>
