@@ -646,6 +646,14 @@ samp {
   color: var(--fg-faint);
   display: inline;
 }
+/* These quick setters depend on script. Without it, the native preferences
+   link remains the way to change the reading choices. */
+html:not([data-js]) .y-rubybtn,
+html:not([data-js]) .y-textsizebtn,
+html:not([data-js]) .y-themebtn {
+  display: none;
+}
+
 /* The readings control is a switch with its name beside it: the track and the
    thumb are drawn on the button itself from the pressed state the page already
    carries, so what a reader sees and what a screen reader is told are one
