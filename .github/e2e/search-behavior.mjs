@@ -10,6 +10,18 @@
 // MUTATE. MUTATE=list prints every self-test mode.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
@@ -161,8 +173,8 @@ const MUTATIONS = {
     target: 'late-close-keeps-the-reopened-request',
     before: rewriteScript([
       {
-        needle: "      region.addEventListener('close', () => {\n        if (!region.open) cancelPending();\n      });",
-        replacement: "      region.addEventListener('close', cancelPending);",
+        needle: 'if (!region.open) {',
+        replacement: 'if (true) {',
       },
     ], 'the late-close guard'),
   },
@@ -517,6 +529,7 @@ const start = async (browser, site, {
   if (clock) await page.clock.install({ time: new Date('2026-07-11T00:00:00Z') });
   const armed = await arm(page, site);
   await page.goto(BASE + path, { waitUntil: 'load' });
+  await arrived(page);
   if (clock) await page.clock.pauseAt(new Date('2026-07-11T00:01:00Z'));
   await armed.afterLoad();
   armed.prove('load');
