@@ -55,6 +55,16 @@ request says which.
 You need Go 1.27 or newer, and nothing else for a plain build: the generated Go
 and the stylesheet are committed.
 
+For tests and the full gate, bring the following in addition to Go:
+
+- **Race-enabled tests:** On Linux and Windows, `make test` needs cgo enabled
+  and a C compiler for the race detector; macOS needs neither for that detector.
+
+- **Test user:** Run the tests as an unprivileged user: some permission fixtures fail
+  rather than skip when the process can bypass file permissions.
+
+- **Gate JSON:** The full gate also needs `jq` to read its JSON contract.
+
 1.  Clone the repository and build the binary.
 
     ```bash
@@ -98,7 +108,8 @@ make test          # the Go tests, race-enabled, shuffled, no cached results
 make lint          # golangci-lint at the version the Makefile pins
 ```
 
-`make test` needs only a Go toolchain.
+`make test` uses the race detector and permission fixtures, so the test
+prerequisites above also apply to this fast loop.
 
 ### The gate
 
@@ -110,6 +121,14 @@ machine does not tell you those passed.
 The `verify` target in the Makefile is the list of what it runs.
 
 Beyond the Go toolchain, `make verify` needs:
+
+- **Race-enabled tests:** On Linux and Windows, `make test` needs cgo enabled
+  and a C compiler for the race detector; macOS needs neither for that detector.
+
+- **Test user:** Run the tests as an unprivileged user: some permission fixtures fail
+  rather than skip when the process can bypass file permissions.
+
+- **Gate JSON:** The full gate also needs `jq` to read its JSON contract.
 
 - `make tools`, which installs the pinned Go analysis tools into `GOBIN`.
 - Two tools that `go install` cannot provide. ShellCheck is pinned by version
@@ -163,10 +182,11 @@ the code is.
 
 Three proposals are worth pricing before you write them:
 
-- **A new dependency.** `go.mod` names eight direct requirements and each earned
+- **A new dependency.** `go.mod` names ten direct requirements and each earned
   its place: goldmark and chroma to render, templ for the templates, a TOML
-  decoder for the vault contract, a YAML decoder for frontmatter, two
-  `golang.org/x` libraries, and go-cmp for the tests. The client side is vanilla
+  decoder for the vault contract, a YAML decoder for frontmatter, three
+  `golang.org/x` libraries for runtime behavior, and go-cmp plus
+  `golang.org/x/mod` for the tests. The client side is vanilla
   JavaScript in flat native modules, with one exception: the Mermaid renderer,
   vendored under `assets/js/mermaid` as pre-built modules with their own license
   and checksums. That is the bar for a third-party client library, and the only

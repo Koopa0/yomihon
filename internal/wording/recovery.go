@@ -1,5 +1,15 @@
 package wording
 
+// Read-only intent belongs to the note's owner; the reading interface never
+// changes filesystem permissions to complete a refused status action.
+var (
+	NoteReadOnly     = both("這篇筆記是唯讀的。", "This note is read-only.")
+	NoteReadOnlyNext = both(
+		"請在 yomihon 外變更這篇筆記的檔案權限，允許擁有者寫入，再重新載入筆記。",
+		"Change this note's file permissions outside yomihon to allow its owner to write, then reload the note.",
+	)
+)
+
 // The write face's refusals. Each is a pair: what happened, and what the reader
 // can do about it. Nothing here asks them to press the same button again —
 // where a retry is the wrong move the sentence says so, because a refusal a

@@ -1,6 +1,7 @@
 package note
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -118,5 +119,31 @@ func TestDeclaredByRejectsCodeAndAuthoredHTMLBlockAnchors(t *testing.T) {
 	}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("declaredBy() trusted an unrendered anchor (-want +got):\n%s", diff)
+	}
+}
+
+func TestDeclaredByBlockLocationsIgnoreSpanPresentation(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNote(t, root, "Source.md", "Actual block. ^existing\n")
+	writeNote(t, root, "Thought.md", "---\nbased_on: '[[Source#^existing]]'\n---\nThought.\n")
+	snap := plainVaultView(t, root)
+	source, ok := snap.Note("Source.md")
+	if !ok {
+		t.Fatal("source absent")
+	}
+	for _, prefix := range []string{"", "right-"} {
+		result := snap.Render(source.RelPath, source.Body, wording.En)
+		render.Qualify(prefix, &result)
+		needle := `<span id="` + prefix + `^existing">`
+		if strings.Count(result.HTML, needle) != 1 {
+			t.Fatal("expected one renderer-owned block span")
+		}
+		result.HTML = strings.Replace(result.HTML, needle, `<span class="block-address" id="`+prefix+`^existing">`, 1)
+		got := declaredBy(snap, source.RelPath, &result, prefix, wording.En)
+		want := []pages.DeclaringNoteView{{Note: nav.NoteRef{Name: "Thought", RelPath: "Thought.md"}, Locations: []pages.DeclaredPlaceView{{Label: "#^existing", Href: "#" + prefix + "%5Eexisting"}}}}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("block span presentation changed the source location (-want +got):\n%s", diff)
+		}
 	}
 }

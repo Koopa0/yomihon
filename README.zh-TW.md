@@ -34,6 +34,8 @@ yomihon ~/notes
 
 接著開啟 <http://127.0.0.1:9610>。任何 Markdown 資料夾都能直接讀。學習路徑、地圖與 `yomihon check` 需要契約 `System/schemas/vault-schema.toml`。`yomihon examples/vault` 開啟的知識庫附有一份，可以照著改。如果由 agent 替你寫筆記，請先讓它讀 [`skills/`](skills/)。
 
+想把筆記排成一門課，請看[做一門課](docs/authoring.zh-TW.md)，從取得入門契約、寫課文，到排主線與選讀支線。
+
 ## 它做什麼
 
 - **讀。** wikilink、callout、註腳、表格、Mermaid 圖、程式碼與 ruby，照作者寫的呈現。設定頁可選亮色、暗色或跟隨系統，三段字級，明體、黑體或楷體。「留下待續位置」把你讀到的地方記在這台裝置上。首頁會列出這個位置，點一下就能回去。
