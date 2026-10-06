@@ -137,19 +137,6 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-// Geometry below belongs to the content after its arrival has finished.
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
-
 // articleWord measures a range around one word inside the article, so the
 // answer is where the reader's evidence sits rather than where its paragraph
 // does. It reports every copy it finds: a fixture that grew a second one would

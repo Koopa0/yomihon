@@ -250,3 +250,75 @@ func excerptText(n *html.Node) string {
 	visit(n)
 	return b.String()
 }
+
+func TestFirstShownExcerptWindow(t *testing.T) {
+	t.Parallel()
+	hidden := "<style>.claim{" + strings.Repeat("padding:0;", 80) + "}</style>"
+	tests := []struct {
+		name, source, query, shown, href string
+		marks                            []string
+	}{
+		{"first shown", hidden + "<p>Our claim survives.</p>", "claim", "Our claim survives.", "/reports/fixture.html#:~:text=claim", []string{"claim"}},
+		{"hidden only opening", hidden + "<p>The shown opening survives.</p>", "claim", "The shown opening survives.", "/reports/fixture.html", nil},
+		{"NFC prefix", hidden + "<p>cafe\u0301 claim survives.</p>", "claim", "café claim survives.", "/reports/fixture.html#:~:text=claim", []string{"claim"}},
+		{"CJK softwrap", "<style>漢字{" + strings.Repeat("padding:0;", 80) + "}</style><p>前言 漢\n字 後記。</p>", "漢字", "前言 漢 字 後記。", "/reports/fixture.html#:~:text=%E6%BC%A2%20%E5%AD%97", []string{"漢 字"}},
+		{"width folded", hidden + "<p>Our ＣＬＡＩＭ survives.</p>", "claim", "Our ＣＬＡＩＭ survives.", "/reports/fixture.html#:~:text=%EF%BC%A3%EF%BC%AC%EF%BC%A1%EF%BC%A9%EF%BC%AD", []string{"ＣＬＡＩＭ"}},
+		{"visible decoy", "<p>Opening decoy.</p>" + hidden + "<p>Our claim survives.</p>", "claim", "Our claim survives.", "/reports/fixture.html#:~:text=claim", []string{"claim"}},
+		{"replacement cannot borrow landing", hidden + "<p>&amp; & later</p>", "&", "& & later", "/reports/fixture.html", []string{"&", "&"}},
+		{"source-only replacement", hidden + "<p>&amp; later</p>", "amp", "& later", "/reports/fixture.html", nil},
+		{"joined display has no evidence", "<style>ab" + strings.Repeat("x", 800) + "</style><p>a<i>b</i> tail</p>", "ab", "ab tail", "/reports/fixture.html", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			mux := excerptMux(t, "System/reports/daily-briefing/fixture.html", tt.source)
+			for _, route := range []string{"/search?", "/search/results?facets=0&", "/search/results?facets=1&"} {
+				rr := httptest.NewRecorder()
+				mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, route+"q="+url.QueryEscape(tt.query+" folder:System/reports/daily-briefing"), http.NoBody))
+				if rr.Code != http.StatusOK {
+					t.Fatalf("GET %s status = %d, want 200", route, rr.Code)
+				}
+				got := readExcerpt(t, rr.Body.String())
+				var marks []string
+				for _, mark := range got.Marks {
+					marks = append(marks, mark.Text)
+				}
+				href := resultHref(t, rr.Body.String())
+				t.Logf("invoked: first-shown HTTP route=%s text=%q marks=%q href=%q", route, got.Text, marks, href)
+				if !strings.Contains(got.Text, tt.shown) {
+					t.Errorf("caught: first shown text absent: got %q, want contains %q", got.Text, tt.shown)
+				}
+				if diff := cmp.Diff(tt.marks, marks); diff != "" {
+					t.Errorf("caught: source-backed marks (-want +got):\n%s", diff)
+				}
+				if href != tt.href {
+					t.Errorf("caught: selected occurrence href = %q, want %q", href, tt.href)
+				}
+			}
+		})
+	}
+}
+
+func TestFirstShownNoteExcerptWindow(t *testing.T) {
+	source := "---\ntitle: Fixture\ntype: guide\ndomain: golang\nlang: en\n---\n\n## Header {sequence=primary}\n\n" + strings.Repeat("Quiet words remain. ", 80) + "Our primary claim survives.\n"
+	mux := excerptMux(t, "Notes/go/Fixture.md", source)
+	for _, route := range []string{"/search?", "/search/results?facets=0&", "/search/results?facets=1&"} {
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, route+"q=primary", http.NoBody))
+		if rr.Code != 200 {
+			t.Fatalf("status=%d", rr.Code)
+		}
+		got := readExcerpt(t, rr.Body.String())
+		href := resultHref(t, rr.Body.String())
+		if want := "/notes/Notes/go/Fixture.md#:~:text=words%20remain.%20Our-,primary"; href != want {
+			t.Errorf("caught: shown note href = %q, want %q", href, want)
+		}
+		t.Logf("invoked: first-shown HTTP note route=%s text=%q marks=%+v", route, got.Text, got.Marks)
+		if !strings.Contains(got.Text, "Our primary claim survives.") {
+			t.Errorf("caught: first shown note text absent: got %q", got.Text)
+		}
+		if diff := cmp.Diff([]excerptMark{{Text: "primary"}}, got.Marks); diff != "" {
+			t.Errorf("caught: first shown note marks (-want+got): %s", diff)
+		}
+	}
+}

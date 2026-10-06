@@ -6,6 +6,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestPlainProjectionDisplay(t *testing.T) {
@@ -143,6 +146,41 @@ func FuzzPlainProjection(f *testing.F) {
 			if !utf8.ValidString(p.Text[:span.Start]) || !utf8.ValidString(p.Text[:span.End]) {
 				t.Fatalf("span splits a rune: %+v in %q", span, p.Text)
 			}
+		}
+	})
+}
+
+func TestPageDisplayGrammar(t *testing.T) {
+	const body = "## ~~Old~~ ==New== {sequence=primary}\n\n- [x] ~~Task~~ {sequence=local}\n\nText[^n]\n\n[^n]: ~~Foot~~ ==Bright==\n\n| Left | Right |\n|---|---|\n|~~Cell~~|==Value==|\n\n<ruby>漢<rt>かん</rt></ruby>\n\n```\n~~literal~~ ==literal==\n```\n"
+	t.Run("page", func(t *testing.T) {
+		t.Log("invoked: page/display grammar page consumer")
+		output := New(graph.BuildFromNotes(nil, nil), noBodies{}, anyTitle{}, holdsEverything{}).HTML("Notes/Fixture.md", "", body, wording.En).HTML
+		for _, markup := range []string{"<del>Old</del>", "<mark>New</mark>", "<del>Task</del>", "<del>Foot</del>", "<mark>Bright</mark>", "<del>Cell</del>", "<mark>Value</mark>", "<table>", `type="checkbox"`, "<ruby>", "~~literal~~ ==literal=="} {
+			if !strings.Contains(output, markup) {
+				t.Errorf("caught: page grammar missing %q: %s", markup, output)
+			}
+		}
+	})
+	t.Run("display", func(t *testing.T) {
+		t.Log("invoked: page/display grammar projection consumer")
+		projection := PlainProjection(body)
+		plain, blocks, fences := PlainBlocks(body)
+		if projection.Text != plain || !cmp.Equal(blocks, projection.Blocks) || !cmp.Equal(fences, projection.FenceRanges) {
+			t.Fatal("caught: display grammar changed the independent corpus/blocks/fences")
+		}
+		shown, deleted := projectionDisplay(t, &projection)
+		for _, hidden := range []string{"{sequence=primary}", "{sequence=local}", "~~Old~~", "==New==", "~~Task~~", "~~Foot~~", "==Bright==", "~~Cell~~", "==Value=="} {
+			if strings.Contains(shown, hidden) {
+				t.Errorf("caught: display grammar left %q in %q", hidden, shown)
+			}
+		}
+		for _, text := range []string{"Old", "Task", "Foot", "Cell"} {
+			if !strings.Contains(deleted, text) {
+				t.Errorf("caught: display grammar lost retraction %q in %q", text, deleted)
+			}
+		}
+		if !strings.Contains(shown, "~~literal~~ ==literal==") {
+			t.Errorf("caught: display grammar changed literal code: %q", shown)
 		}
 	})
 }

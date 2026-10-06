@@ -627,6 +627,24 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 }
 
 func (e *entry) bodyExcerpt(tokens []string) (bodySnippet string, bodyRuns []ExcerptRun, terms landingTerms, fromFence bool) {
+	if len(e.displaySpans) > 0 {
+		centre := e.shownExcerptCentre(tokens)
+		start, end := snippetSourceBounds(e.PlainText, centre.start, centre.end, e.fenceRanges)
+		displayTokens := tokens
+		if !centre.found {
+			displayTokens = nil
+		}
+		var first, last int
+		bodyRuns, first, last = e.displayedExcerpt(start, end, displayTokens)
+		var display strings.Builder
+		for _, run := range bodyRuns {
+			display.WriteString(run.Text)
+		}
+		if centre.found && !centre.replaced && first < last {
+			terms = e.landingAtSource(centre.start, centre.end)
+		}
+		return display.String(), bodyRuns, terms, centre.fromFence
+	}
 	var foldStart, foldEnd int
 	foldStart, foldEnd, fromFence = earliestOffset(e.PlainFold, tokens, e.fenceFoldRanges)
 	bodySnippet = snippetAt(e.PlainText, foldStart, foldEnd, e.fenceRanges)
@@ -637,20 +655,7 @@ func (e *entry) bodyExcerpt(tokens []string) (bodySnippet string, bodyRuns []Exc
 			terms = e.landingAtSource(start+first, start+last)
 		}
 	}
-	if len(e.displaySpans) > 0 {
-		start, end := snippetBounds(e.PlainText, foldStart, foldEnd, e.fenceRanges)
-		var first, last int
-		bodyRuns, first, last = e.displayedExcerpt(start, end, tokens)
-		var display strings.Builder
-		for _, run := range bodyRuns {
-			display.WriteString(run.Text)
-		}
-		bodySnippet = display.String()
-		terms = landingTerms{}
-		if first >= 0 {
-			terms = e.landingAtSource(first, last)
-		}
-	}
+
 	return bodySnippet, bodyRuns, terms, fromFence
 }
 
@@ -1010,6 +1015,10 @@ func snippetBounds(plain string, foldStart, foldEnd int, fences [][2]int) (start
 	}
 	off := sourceOffsetOfFold(plain, foldStart)
 	matchEnd := sourceEndOfFold(plain, foldEnd)
+	return snippetSourceBounds(plain, off, matchEnd, fences)
+}
+
+func snippetSourceBounds(plain string, off, matchEnd int, fences [][2]int) (start, end int) {
 	matchEnd = max(matchEnd, off)
 	matchEnd = min(matchEnd, len(plain))
 	// Neither boundary may move past the match it was placed around: a match buried

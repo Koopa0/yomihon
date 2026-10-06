@@ -257,16 +257,24 @@ func (o *delimiterObservation) literalMatch(open, closeSpan [2]int) bool {
 	return false
 }
 
+// SetParserOption wraps the already registered delimiters in place. Keeping
+// their priorities avoids a competing unobserved parser consuming the pair.
+func (o *delimiterObservation) SetParserOption(config *parser.Config) {
+	for i, item := range config.InlineParsers {
+		delegate, ok := item.Value.(parser.InlineParser)
+		if ok && (delegate == extension.NewStrikethroughParser() || delegate == defaultHighlightParser) {
+			config.InlineParsers[i].Value = observedInlineParser{delegate: delegate, observation: o}
+		}
+	}
+}
+
 func noteDisplayEffects(source []byte, rewritten *rewrittenLines) []DisplaySpan {
 	observation := delimiterObservation{lengths: make(map[*parser.Delimiter]int), rewritten: rewritten}
-	md := goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote, extension.Linkify, safeMarkupExtension{}))
-	md.Parser().AddOptions(parser.WithInlineParsers(
-		util.Prioritized(observedInlineParser{delegate: extension.NewStrikethroughParser(), observation: &observation}, 500),
-		util.Prioritized(observedInlineParser{delegate: defaultHighlightParser, observation: &observation}, 500),
-	))
+	md := pageMarkdown()
+	md.Parser().AddOptions(&observation)
 	roleText := &roleTextRenderer{}
 	goldmarkhtml.NewRenderer().RegisterFuncs(roleText)
-	md.Renderer().AddOptions(renderer.WithNodeRenderers(util.Prioritized(extension.NewStrikethroughHTMLRenderer(), 500), util.Prioritized(highlightHTMLRenderer{}, 500), util.Prioritized(roleText, 500)))
+	md.Renderer().AddOptions(renderer.WithNodeRenderers(util.Prioritized(roleText, 500)))
 	doc := md.Parser().Parse(text.NewReader(source))
 	// The walk's callback cannot fail. Rendering is limited to each heading's
 	// inline children or one list row's own children, solely for the page's role

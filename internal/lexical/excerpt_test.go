@@ -327,3 +327,39 @@ func FuzzDisplayRanges(f *testing.F) {
 		}
 	})
 }
+
+func TestShownExcerptSelection(t *testing.T) {
+	t.Parallel()
+	hidden := "<style>.claim{" + strings.Repeat("padding:0;", 80) + "}</style>"
+	tests := []struct {
+		name, source, query, shown, landing string
+		marks                               []string
+	}{
+		{"visible decoy before hidden hit", "<p>Opening decoy.</p>" + hidden + "<p>Our claim survives.</p>", "claim", "Our claim survives.", "claim", []string{"claim"}},
+		{"first replacement cannot borrow later landing", hidden + "<p>&amp; & later</p>", "&", "& & later", "", []string{"&", "&"}},
+		{"source-only replacement spelling", hidden + "<p>&amp; later</p>", "amp", "& later", "", nil},
+		{"decoded value has no source evidence", "<style>≂" + strings.Repeat("x", 800) + "</style><p>&NotEqualTilde; later</p>", "≂", "≂̸ later", "", nil},
+		{"hidden evidence does not mark joined letters", "<style>ab" + strings.Repeat("x", 800) + "</style><p>a<i>b</i> tail</p>", "ab", "ab tail", "", nil},
+		{"hidden-only near ceiling", "<style>claim" + strings.Repeat("x", render.MaxSourceBytes-100) + "</style><p>The shown opening survives.</p>", "claim", "The shown opening survives.", "", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			document := DocumentFromBriefing("System/reports/daily-briefing/fixture.html", []byte(tt.source))
+			got := displayedAnswer(t, &document, tt.query)
+			t.Logf("invoked: shown-selection case=%s query=%q text=%q landing=%q", tt.name, tt.query, got.Text, got.Landing)
+			if !strings.Contains(got.Text, tt.shown) {
+				t.Errorf("caught: shown excerpt = %q, want contains %q", got.Text, tt.shown)
+			}
+			if diff := cmp.Diff(tt.marks, got.Marks); diff != "" {
+				t.Errorf("caught: source-backed marks (-want +got):\n%s", diff)
+			}
+			if got.Landing != tt.landing {
+				t.Errorf("caught: selected landing = %q, want %q", got.Landing, tt.landing)
+			}
+			if tt.landing == "" && (got.Bare != "" || got.Prefix != "") {
+				t.Errorf("caught: ineligible selected occurrence borrowed landing context: %+v", got)
+			}
+		})
+	}
+}

@@ -1,5 +1,7 @@
 ---
-type: concept
+title: Excerpt landing
+type: guide
+domain: golang
 ---
 # Excerpt landing
 
