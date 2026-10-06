@@ -320,7 +320,7 @@ func TestTheCoverOffersListeningExactlyWhereTheListeningPageHasSomethingToPlay(t
 		{name: "a lesson with a marked paragraph", body: marked, status: lessonTypes("lesson"), want: true},
 		{name: "lessons that mark nothing", body: "いち。\n", status: lessonTypes("lesson"), want: false},
 		{name: "the marker's word in prose that is no marker", body: "Write read-aloud: ja before a paragraph to have it spoken.\n", status: lessonTypes("lesson"), want: false},
-		{name: "a marker for a language the page does not speak", body: "<!-- read-aloud: zh -->\nいち。\n", status: lessonTypes("lesson"), want: false},
+		{name: "a malformed language marker", body: "<!-- read-aloud: en_US -->\nいち。\n", status: lessonTypes("lesson"), want: false},
 		{
 			name:   "a marker that arrives through an embed",
 			body:   "![[Marked source]]\n",
@@ -355,5 +355,44 @@ func TestTheCoverOffersListeningExactlyWhereTheListeningPageHasSomethingToPlay(t
 				t.Errorf("the cover offers the listening page = %t while the page plays something = %t", offers, plays)
 			}
 		})
+	}
+}
+
+func TestMixedAuthoredLanguagesReachCourseListeningInOrder(t *testing.T) {
+	t.Parallel()
+	const body = "<!-- read-aloud: ja -->\n朝。\n\n<!-- read-aloud: ZH-hant -->\n早安。\n\n<!-- read-aloud: en_US -->\nExcluded words.\n\n<!-- read-aloud: en -->\nGood morning.\n\n<!-- read-aloud: fr -->\nBonjour.\n\n<!-- read-aloud: und -->\nNeutral words.\n"
+	const head = "---\ntitle: Withheld\ndomain: golang\nstatus: ready\ncreated: 2026-06-01\nupdated: 2026-06-01\n"
+	extra := map[string]string{
+		"Writing/lessons/golang/Concept.md": head + "type: concept\n---\n\n<!-- read-aloud: fr -->\nConcept words.\n",
+		"System/templates/Template.md":      head + "type: lesson\n---\n\n<!-- read-aloud: en -->\nTemplate words.\n",
+		"Writing/lessons/golang/Aside.md":   head + "type: lesson\n---\n\n<!-- read-aloud: zh-Hant -->\nUnsequenced words.\n",
+		"Maps/Path.md":                      "---\ntitle: Mixed course\ntype: study-path\ndomain: golang\n---\n\n## Lessons {sequence=primary}\n\n- [[First]]\n- [[Concept]]\n- [[System/templates/Template]]\n- [[Missing]]\n\n## Aside {sequence=none}\n\n- [[Aside]]\n",
+	}
+	srv := listenServer(t, agreementVault(t, body, extra), lessonTypes("lesson"))
+	code, page := get(t, srv.Client(), srv.URL+"/listen/Maps/Path.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET listening status = %d", code)
+	}
+	t.Log("invoked: read-aloud course language boundary")
+	var spoken []string
+	for _, match := range spokenText.FindAllStringSubmatch(page, -1) {
+		spoken = append(spoken, match[1])
+	}
+	if diff := cmp.Diff([]string{"朝。", "早安。", "Good morning.", "Bonjour.", "Neutral words."}, spoken); diff != "" {
+		t.Errorf("caught: course language order/prose mismatch:\n%s", diff)
+	}
+	for _, tag := range []string{"ja", "zh-Hant", "en", "fr", "und"} {
+		if !strings.Contains(page, `<div class="y-reading" lang="`+tag+`">`) || !strings.Contains(page, `<p lang="`+tag+`">`) {
+			t.Errorf("caught: course own language lost: %q", tag)
+		}
+	}
+	for _, withheld := range []string{"Excluded words.", "Concept words.", "Template words.", "Unsequenced words."} {
+		if strings.Contains(page, withheld) {
+			t.Errorf("caught: excluded course paragraph became playable: %q", withheld)
+		}
+	}
+	code, cover := get(t, srv.Client(), srv.URL+"/syllabus/Maps/Path.md")
+	if code != http.StatusOK || !strings.Contains(cover, `href="/listen/Maps/Path.md"`) {
+		t.Error("caught: mixed language course offer disagrees with playable output")
 	}
 }

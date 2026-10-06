@@ -73,6 +73,13 @@ var (
 	FrontmatterNotYAML    = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
 )
 
+// FrontmatterUnsupportedYAML names the authored forms that can make the YAML
+// decoder fail at runtime, without quoting its Go implementation details.
+var FrontmatterUnsupportedYAML = both(
+	"frontmatter 使用了 yomihon 讀不進來的 YAML 寫法：合併鍵（<<），或把串列、對應表當作鍵。請直接編輯 frontmatter，改用一般的文字鍵。",
+	"The frontmatter uses a YAML form yomihon cannot read: a merge key (<<), or a list or mapping used as a key. Edit the frontmatter directly to use ordinary text keys.",
+)
+
 // StatusFrontmatterNeverCloses is the status face for a note whose first line
 // opens a frontmatter fence that nothing closes. It is not the sentence for no
 // frontmatter, which says the note is fine: the block is there, only its

@@ -277,10 +277,10 @@ func snippetFor(t *testing.T, idx *Index, query string) string {
 	return answer.Results[0].Snippet
 }
 
-// MarkHits locates matches on a lowercased copy of the snippet, and
-// lowercasing does not preserve length: Ⱥ grows from two bytes to three, a
+// MarkHits locates matches on a simple-case-folded copy of the snippet, and
+// case folding does not preserve byte length: Ⱥ grows from two bytes to three, a
 // byte that is not valid UTF-8 becomes the three-byte replacement character,
-// and Turkish İ shrinks from two bytes to one. An offset found on the folded
+// and long s ſ shrinks from two bytes to one. An offset found on the folded
 // copy therefore cannot index the original directly — growing folds pushed a
 // match past the end of the snippet and the page panicked; shrinking folds
 // marked the wrong bytes and cut characters in half. The runs must land on
@@ -312,20 +312,20 @@ func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
 			},
 		},
 		{
-			name:    "a letter whose lowercase is shorter does not drag the mark onto the wrong bytes",
-			snippet: "İİİİ zap",
+			name:    "a letter whose simple fold is shorter does not drag the mark onto the wrong bytes",
+			snippet: "ſſſſ zap",
 			tokens:  []string{"zap"},
 			want: []HitRun{
-				{Text: "İİİİ "},
+				{Text: "ſſſſ "},
 				{Text: "zap", Hit: true},
 			},
 		},
 		{
 			name:    "a match on the shrinking letter itself marks the whole character",
-			snippet: "İ 筆記",
-			tokens:  []string{"i"},
+			snippet: "ſ 筆記",
+			tokens:  []string{"s"},
 			want: []HitRun{
-				{Text: "İ", Hit: true},
+				{Text: "ſ", Hit: true},
 				{Text: " 筆記"},
 			},
 		},
@@ -351,22 +351,22 @@ func TestMarkHitsSurviveAFoldThatChangesLength(t *testing.T) {
 // The matched offset is found on a folded copy and used against the original.
 // A fold that is not length-preserving can land it inside a character, and
 // counting characters outward from a broken start would carry the break into
-// what the reader sees. Turkish İ folds to two bytes' worth of nothing like
-// itself, which is the shape of that failure.
+// what the reader sees. Long s ſ loses one byte under simple case folding,
+// making a folded offset unsafe as an index into the original.
 func TestSnippetSurvivesAFoldThatMovesABoundary(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
-		// The İ folds one byte shorter, so every offset found after it points
+		// The ſ folds one byte shorter, so every offset found after it points
 		// one byte early in the original. The character before the match is
 		// multi-byte on purpose: with an ASCII space there, landing a byte
 		// early still lands on a boundary and the failure hides.
-		// The İ folds one byte shorter, so every offset found after it points a
+		// The ſ folds one byte shorter, so every offset found after it points a
 		// byte early in the original — inside a character, since what follows
 		// is Han. The match sits far enough in that subtracting a byte budget
 		// from that offset lands mid-character too; nearer the start the
 		// subtraction clamps to zero and the break has nowhere to show.
-		{RelPath: "a.md", Title: "t", PlainText: "İ" + strings.Repeat("今天出門散步看見一隻貓在牆上睡覺，", 6) + "天氣很好，回家以後泡了一壺茶。"},
+		{RelPath: "a.md", Title: "t", PlainText: "ſ" + strings.Repeat("今天出門散步看見一隻貓在牆上睡覺，", 6) + "天氣很好，回家以後泡了一壺茶。"},
 	}, validArtifactPolicy(t))
 
 	got := snippetFor(t, idx, "天氣")
@@ -547,8 +547,8 @@ func TestADotInsideATokenEndsNoSentence(t *testing.T) {
 // TestSnippetHoldsTheMatchWhenTheFoldChangesLength holds the window on the
 // hit rather than merely on a valid boundary.
 //
-// The offset is found on the folded copy and lowercasing does not preserve
-// length: Ⱥ grows from two bytes to three and İ shrinks from two to one. Used
+// The offset is found on the folded copy and case folding does not preserve
+// length: Ⱥ grows from two bytes to three and ſ shrinks from two to one. Used
 // as an index into the note's own bytes, that offset drifts one byte per such
 // character, and once the drift exceeds the window's own radius the snippet
 // slides clear of the term the reader searched for — a result whose evidence
@@ -560,7 +560,7 @@ func TestSnippetHoldsTheMatchWhenTheFoldChangesLength(t *testing.T) {
 
 	const (
 		grows   = "Ⱥ" // Ⱥ, three bytes once lowercased
-		shrinks = "İ" // İ, one byte once lowercased
+		shrinks = "ſ" // ſ, one byte after simple case folding
 	)
 	tail := strings.Repeat("x", 400)
 
@@ -617,12 +617,12 @@ func TestTheTwoFoldMappingsAgree(t *testing.T) {
 	for _, s := range []string{
 		"",
 		"plain ascii",
-		"Ⱥ grows and İ shrinks",
-		strings.Repeat("Ⱥİ", 8),
+		"Ⱥ grows and ſ shrinks",
+		strings.Repeat("Ⱥſ", 8),
 		"ǰ ﬁ ﬄ ǅ Ǆ",             // folds that change width in either direction
 		"甲乙丙丁 mixed with ASCII", // multi-byte characters that fold to themselves
 		"\xff\xfe not utf-8",    // bytes that decode as the replacement character
-		"İ",
+		"ſ",
 		"Ⱥ",
 		// A line break the fold drops, which moves every offset after it.
 		"本品不建議用於\n兒童使用。",
@@ -970,7 +970,7 @@ func TestFirstExcerptMarkKeepsItsSourceInterval(t *testing.T) {
 		{"overlap", "The ledger holds lanthanum here.", []string{"nthanu", "nthanum here"}, "nthanum here"},
 		{"collapsed whitespace", "before\tlanthanum\n\t here after", []string{"nthanum here"}, "nthanum\n\t here"},
 		{"unicode space", "before\u3000lanthanum\u3000here after", []string{" lanthanum here "}, "lanthanum\u3000here"},
-		{"folded character", "İİ before lanthanum here", []string{"nthanum"}, "nthanum"},
+		{"folded character", "ſſ before lanthanum here", []string{"nthanum"}, "nthanum"},
 		{"repeated text", "unmatched before lanthanum here and lanthanum later", []string{"nthanum"}, "nthanum"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

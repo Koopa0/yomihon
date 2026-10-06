@@ -25,9 +25,38 @@ func TestTheParserOwnsTheValuesItReturns(t *testing.T) {
 		t.Fatal(err)
 	}
 	input[1] = "changed"
-	want := commandArgs{root: "vault", deny: []string{"warn"}, positionals: []string{"note"}}
+	want := commandArgs{root: "vault", rootCount: 1, deny: []string{"warn"}, positionals: []string{"note"}}
 	if diff := cmp.Diff(want, got, cmp.AllowUnexported(commandArgs{})); diff != "" {
 		t.Errorf("parseCommandArgs mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCommandTerminatorPreservesPositionals(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		args []string
+		want commandArgs
+	}{
+		{name: "dash named note", args: []string{"--", "-name"}, want: commandArgs{positionals: []string{"-name"}}},
+		{name: "every remaining word is positional", args: []string{"first", "--", "--root=other", "--", "--all"}, want: commandArgs{positionals: []string{"first", "--root=other", "--", "--all"}}},
+		{name: "an empty terminator", args: []string{"--"}},
+		{name: "root flags before the terminator keep the last value", args: []string{"--root=first", "--root", "second", "--", "-name"}, want: commandArgs{root: "second", rootCount: 2, positionals: []string{"-name"}}},
+		{name: "a flag still consumes its value", args: []string{"--root", "--", "name"}, want: commandArgs{root: "--", rootCount: 1, positionals: []string{"name"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parseCommandArgs(tc.args)
+			if err != nil {
+				t.Fatalf("parseCommandArgs(%q): %v", tc.args, err)
+			}
+			for i := range tc.args {
+				tc.args[i] = "changed"
+			}
+			if diff := cmp.Diff(tc.want, got, cmp.AllowUnexported(commandArgs{})); diff != "" {
+				t.Errorf("parsed positionals mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -305,6 +334,31 @@ func TestTheTypedWordsReachTheEngine(t *testing.T) {
 	t.Parallel()
 
 	root := judgeableVault(t)
+	writeFile(t, root, "Writing/-name.md", "# Dash named note\n")
+
+	t.Run("exists accepts a dash named note after the terminator", func(t *testing.T) {
+		t.Parallel()
+		var stdout, stderr bytes.Buffer
+		exit := runCommand(t.Context(), "exists", []string{"--root", root, "--format=json", "--", "-name"}, &stdout, &stderr, false)
+		if exit != 0 || stderr.Len() != 0 {
+			t.Fatalf("exists -- -name exit = %d, stderr = %q, want 0 and empty", exit, stderr.String())
+		}
+		type match struct {
+			Path string `json:"path"`
+		}
+		type existsReport struct {
+			Query   string  `json:"query"`
+			Matches []match `json:"matches"`
+		}
+		var report existsReport
+		if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+			t.Fatalf("decode exists output: %v", err)
+		}
+		want := existsReport{Query: "-name", Matches: []match{{Path: "Writing/-name.md"}}}
+		if diff := cmp.Diff(want, report); diff != "" {
+			t.Errorf("exists -- -name report mismatch (-want +got):\n%s", diff)
+		}
+	})
 
 	t.Run("the named folder and the machine format reach exists", func(t *testing.T) {
 		t.Parallel()

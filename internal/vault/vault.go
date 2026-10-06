@@ -209,12 +209,12 @@ type FrontmatterSplit struct {
 // SplitFrontmatter separates a leading YAML frontmatter block from the body. A
 // block opens with a "---" line and closes with the next "---" or "..." line;
 // LF and CRLF are accepted, as is a closing fence at EOF, and an unterminated
-// opening fence is body text. A byte-order mark before the fence — some editors
-// write one — is stepped over but never removed, so the offsets stay measured
-// against the original bytes and a status write disturbs nothing else.
+// opening fence is body text. One leading byte-order mark belongs to the file,
+// so both readers step over it. The input stays untouched and offsets stay
+// measured against its original bytes, so a status write disturbs nothing else.
 func SplitFrontmatter(data []byte) (FrontmatterSplit, bool) {
-	block := FrontmatterSplit{Body: data, BodyStartLine: 1}
 	opening, _ := bytes.CutPrefix(data, []byte("\xef\xbb\xbf"))
+	block := FrontmatterSplit{Body: opening, BodyStartLine: 1}
 	rest, found := bytes.CutPrefix(opening, []byte("---\n"))
 	if !found {
 		if rest, found = bytes.CutPrefix(opening, []byte("---\r\n")); !found {
