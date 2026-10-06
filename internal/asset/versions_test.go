@@ -95,3 +95,41 @@ func decodedModuleImports(t *testing.T, data string) map[string]string {
 	}
 	return value.Imports
 }
+
+func TestFixedVersionsPreservePathsAndRegistryMembershipAcrossByteChanges(t *testing.T) {
+	t.Parallel()
+	versions := Versions{Token: "recorded0000"}
+	for _, body := range []string{"first", "second"} {
+		t.Run(body, func(t *testing.T) {
+			t.Parallel()
+			reg := map[string]entry{
+				"yomihon.js":          fixed(jsContentType, []byte("first")),
+				"child.js":            fixed(jsContentType, []byte(body)),
+				"app.css":             fixed(cssContentType, []byte(body)),
+				"chunks/child.js":     fixed(jsContentType, []byte(body)),
+				"mermaid.esm.min.mjs": fixed(jsContentType, []byte(body)),
+				"wrong.js":            fixed("text/plain", []byte(body)),
+			}
+			want := map[string]string{
+				"/static/yomihon.js": "/static/yomihon.js?v=recorded0000",
+				"/static/child.js":   "/static/child.js?v=recorded0000",
+			}
+			if diff := cmp.Diff(want, decodedModuleImports(t, versions.buildClientImportMap(reg))); diff != "" {
+				t.Errorf("caught: fixed complete import map (-want +got):\n%s", diff)
+			}
+			if got := versions.versionedURL("app.css", reg["app.css"]); got != "/static/app.css?v=recorded0000" {
+				t.Errorf("caught: fixed CSS address = %q, want /static/app.css?v=recorded0000", got)
+			}
+		})
+	}
+}
+
+func TestVersionsNamesTheUnknownRegisteredAsset(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if got := recover(); got != "asset: unknown URL name: missing.css" {
+			t.Errorf("caught: unknown registered name panic = %v, want asset: unknown URL name: missing.css", got)
+		}
+	}()
+	(Versions{Token: "recorded0000"}).URL("missing.css")
+}

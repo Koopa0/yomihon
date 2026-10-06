@@ -110,7 +110,7 @@ async function armDisclosureWrite(page, site) {
   const mode = MUTATE && MUTATIONS[MUTATE].target === site ? MUTATIONS[MUTATE] : null;
   let requests = 0;
   let invalid = false;
-  await page.route('**/sidebar.js', async (route) => {
+  await page.route('**/sidebar.js{,?*}', async (route) => {
     const response = await route.fetch();
     let source = await response.text();
     requests += 1;

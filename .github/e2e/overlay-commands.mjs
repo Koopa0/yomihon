@@ -132,7 +132,7 @@ const distortScriptlessHeader = (selector, css) => async (page) => {
 // contain that one rule, so a missing rule cannot look like a caught mutant.
 const rewriteCapabilityRule = (replace) => async (page) => {
   const perLoad = [];
-  await page.route('**/app.css', async (route) => {
+  await page.route('**/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const body = await response.text();
     const hits = [...body.matchAll(SCRIPT_ONLY_RULE)].length;

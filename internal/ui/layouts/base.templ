@@ -3,7 +3,6 @@ package layouts
 import (
 	"strconv"
 
-	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -87,9 +86,9 @@ templ Base(c Chrome) {
 			<link rel="expect" href="#main-content" blocking="render"/>
 			<title>{ c.Title } — yomihon</title>
 			<link rel="icon" type="image/svg+xml" href="/static/yomihon-mark.svg"/>
-			<link rel="stylesheet" href={ templ.URL(asset.URL("app.css")) }/>
-			<link rel="stylesheet" href={ templ.URL(asset.URL("chroma.css")) }/>
-			@importMapScript(c.Nonce)
+			<link rel="stylesheet" href={ templ.URL(c.Assets.URL("app.css")) }/>
+			<link rel="stylesheet" href={ templ.URL(c.Assets.URL("chroma.css")) }/>
+			@importMapScript(c.Nonce, c.Assets)
 		</head>
 		<body>
 			<a class="y-skiplink" href="#main-content">{ wording.SkipToContent.In(c.Lang) }</a>
@@ -99,7 +98,7 @@ templ Base(c Chrome) {
 				@searchDialog(c.Lang)
 				{ children... }
 			</div>
-			<script nonce={ c.Nonce } type="module" src={ templ.URL(asset.URL("yomihon.js")) }></script>
+			<script nonce={ c.Nonce } type="module" src={ templ.URL(c.Assets.URL("yomihon.js")) }></script>
 		</body>
 	</html>
 }

@@ -19,11 +19,31 @@ import (
 
 // A cache may replace the origin's revalidation policy. Its lookup key must
 // therefore carry the identity of the exact bytes the page asks it to serve.
-func TestBaseVersionsStylesheetsAndTheWholeClientModuleGraph(t *testing.T) {
+func TestBaseVersions(t *testing.T) {
 	t.Parallel()
+	checkBaseVersions(t, asset.Versions{}, "")
+}
+
+func TestBaseUsesOnlyTheFixedVersionValues(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, token, query string
+	}{
+		{"recording", "recorded0000", "v=recorded0000"},
+		{"HTML delimiters", `</script>&"`, "v=%3C%2Fscript%3E%26%22"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checkBaseVersions(t, asset.Versions{Token: tt.token}, tt.query)
+		})
+	}
+}
+
+func checkBaseVersions(t *testing.T, versions asset.Versions, query string) {
+	t.Helper()
 	var buf bytes.Buffer
 	const nonce = "response-nonce"
-	if err := Base(Chrome{Title: "asset versions", Nonce: nonce}).Render(t.Context(), &buf); err != nil {
+	if err := Base(Chrome{Title: "asset versions", Nonce: nonce, Assets: versions}).Render(t.Context(), &buf); err != nil {
 		t.Fatal(err)
 	}
 	doc, err := html.Parse(bytes.NewReader(buf.Bytes()))
@@ -47,11 +67,11 @@ func TestBaseVersionsStylesheetsAndTheWholeClientModuleGraph(t *testing.T) {
 		switch {
 		case node.Data == "link" && attrs["rel"] == "stylesheet":
 			styles++
-			assertServedAssetVersion(t, mux, attrs["href"])
+			assertServedAssetVersion(t, mux, attrs["href"], query)
 		case node.Data == "script" && attrs["type"] == "module":
 			entries++
 			entryAt = position
-			assertServedAssetVersion(t, mux, attrs["src"])
+			assertServedAssetVersion(t, mux, attrs["src"], query)
 		case node.Data == "script" && attrs["type"] == "importmap":
 			maps++
 			mapAt = position
@@ -105,7 +125,7 @@ func TestBaseVersionsStylesheetsAndTheWholeClientModuleGraph(t *testing.T) {
 			t.Errorf("caught: import map omits client module %q", key)
 			continue
 		}
-		assertServedAssetVersion(t, mux, value)
+		assertServedAssetVersion(t, mux, value, query)
 		parsed, err := url.Parse(value)
 		if err != nil {
 			t.Fatal(err)
@@ -117,9 +137,10 @@ func TestBaseVersionsStylesheetsAndTheWholeClientModuleGraph(t *testing.T) {
 	if examined == 0 || len(imports) != examined {
 		t.Errorf("caught: import map has %d members, want every one of %d embedded client modules and nothing else", len(imports), examined)
 	}
+	t.Log("invoked: complete Base registry asset projection")
 }
 
-func assertServedAssetVersion(t *testing.T, mux *http.ServeMux, address string) {
+func assertServedAssetVersion(t *testing.T, mux *http.ServeMux, address, query string) {
 	t.Helper()
 	parsed, err := url.Parse(address)
 	if err != nil {
@@ -134,9 +155,12 @@ func assertServedAssetVersion(t *testing.T, mux *http.ServeMux, address string) 
 		t.Fatalf("caught: GET %q status = %d, want 200", address, response.Code)
 	}
 	sum := sha256.Sum256(response.Body.Bytes())
-	want := hex.EncodeToString(sum[:])[:12]
-	if parsed.Scheme != "" || parsed.Host != "" || parsed.Fragment != "" || parsed.RawQuery != "v="+want {
-		t.Errorf("caught: asset URL %q does not carry the served-byte hash %q", address, want)
+	want := "v=" + hex.EncodeToString(sum[:])[:12]
+	if query != "" {
+		want = query
+	}
+	if parsed.Scheme != "" || parsed.Host != "" || parsed.Fragment != "" || parsed.RawQuery != want {
+		t.Errorf("caught: asset URL %q does not carry the expected version query %q", address, want)
 	}
 }
 
@@ -144,7 +168,7 @@ func TestImportMapScriptKeepsTheNonceInsideOneAttribute(t *testing.T) {
 	t.Parallel()
 	const nonce = `response"><script>alert(1)</script>`
 	var buf bytes.Buffer
-	if err := importMapScript(nonce).Render(t.Context(), &buf); err != nil {
+	if err := importMapScript(nonce, asset.Versions{}).Render(t.Context(), &buf); err != nil {
 		t.Fatal(err)
 	}
 	doc, err := html.Parse(bytes.NewReader(buf.Bytes()))

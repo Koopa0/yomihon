@@ -9,6 +9,6 @@ import (
 // An import map is JSON data signed by the same page nonce as its module
 // entry. The JSON encoder escapes HTML delimiters; the nonce is an attribute
 // value and must be escaped separately.
-func importMapScript(nonce string) templ.Component {
-	return templ.Raw(`<script type="importmap" nonce="` + templ.EscapeString(nonce) + `">` + asset.ImportMap() + `</script>`)
+func importMapScript(nonce string, versions asset.Versions) templ.Component {
+	return templ.Raw(`<script type="importmap" nonce="` + templ.EscapeString(nonce) + `">` + versions.ImportMap() + `</script>`)
 }
