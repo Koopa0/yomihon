@@ -113,7 +113,7 @@ func TestTheFoldersAndTheRailMarkOnlyTheNotesNotYetSettled(t *testing.T) {
 // railOf is the left rail of a reading page: the book beside the note.
 func railOf(t *testing.T, page string) string {
 	t.Helper()
-	_, rail, found := strings.Cut(page, `id="nav-rail"`)
+	_, rail, found := strings.Cut(page, `id="_y-nav-rail"`)
 	if !found {
 		t.Fatal("the page has no left rail")
 	}

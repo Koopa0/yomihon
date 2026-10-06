@@ -26,7 +26,7 @@ func TestBaseStartsBodyWithSkipLink(t *testing.T) {
 		t.Fatalf("render base: %v", err)
 	}
 	html := buf.String()
-	want := `<body><a class="y-skiplink" href="#main-content">跳至主要內容</a>`
+	want := `<body><a class="y-skiplink" href="#_y-main">跳至主要內容</a>`
 	if !strings.Contains(html, want) {
 		t.Errorf("Base() does not start the body with %q; html = %q", want, html)
 	}
@@ -158,7 +158,7 @@ func TestBaseRendersSingleKeyShortcutPreference(t *testing.T) {
 			for _, want := range []string{
 				`data-single-key-shortcuts="` + tt.wantState + `"`,
 				`data-single-key-shortcuts-toggle`,
-				`aria-describedby="kbd-pref-note"`,
+				`aria-describedby="_y-kbd-pref-note"`,
 				`>單鍵快捷鍵<`,
 				`>目前開啟<`,
 				`>目前關閉<`,

@@ -133,7 +133,7 @@ const injectReceipt = async (page) => {
     const response = await route.fetch();
     const original = await response.text();
     const receipt = '<p class="y-reply y-flipreceipt" role="status" aria-live="polite" aria-atomic="true" data-reply-tone="kept">fixture receipt</p>';
-    const main = /<main\b[^>]*\bid="main-content"[^>]*>/g;
+    const main = /<main\b[^>]*\bid="_y-main"[^>]*>/g;
     if ([...original.matchAll(main)].length !== 1) broken('the receipt fixture needs exactly one main landmark');
     const body = /class="[^"]*\by-flipreceipt\b/.test(original)
       ? original
