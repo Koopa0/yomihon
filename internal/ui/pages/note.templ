@@ -241,6 +241,7 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 		@frontmatterUnclosedNotice(v, lang)
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
+		@layouts.CodeCopy(lang)
 		<div class="y-prose">
 			if strings.TrimSpace(v.BodyHTML) == "" && !v.hasUnclosedComment() {
 				@nothingToShow(nothingNotice{Kind: "note"}) {
@@ -281,6 +282,7 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 				</button>
 			</div>
+			@layouts.CodeCopy(lang)
 			<div class="y-conceptsheet__body y-prose" data-concept-body></div>
 		</dialog>
 	}

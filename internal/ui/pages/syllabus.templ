@@ -54,6 +54,7 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 	// nothing is drawn: the reader meets the counts one line sooner rather than
 	// an empty box.
 	if v.OpeningHTML != "" {
+		@layouts.CodeCopy(lang)
 		<div class="y-cover__opening y-prose" { authoredLanguageAttrs(v.OpeningLanguage)... }>
 			@templ.Raw(v.OpeningHTML)
 		</div>

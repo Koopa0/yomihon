@@ -2081,6 +2081,26 @@ details.y-metarow {
   padding: 16px 20px;
 }
 
+.y-codecopy {
+  display: none;
+}
+
+:root[data-js='on'] .y-codecopy {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: var(--sp-block);
+}
+
+.y-codecopy + pre {
+  margin-top: 8px;
+}
+
+.y-codecopy__reply {
+  margin: 0;
+}
+
 .y-prose pre code {
   background: none;
   color: inherit;
@@ -6380,6 +6400,7 @@ samp,
      only way these rules can be sure they win against whatever screen-only
      rule came before them, regardless of its own specificity. */
   /* Machinery that only answers to a pointer leaves no trace on paper. */
+  .y-codecopy,
   .y-header,
   .y-rail-left,
   .y-rail-right,

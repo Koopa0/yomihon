@@ -20,11 +20,13 @@ templ File(v FileView, c layouts.Chrome) {
 					switch v.Kind {
 						case FileSource:
 							<div class="y-prose y-source">
+								@layouts.CodeCopy(c.Lang)
 								@templ.Raw(v.SourceHTML)
 							</div>
 						case FileDocument:
 							<p class="y-fileinfo__note">{ wording.SkippedDocumentNote.In(c.Lang) }</p>
 							<div class="y-prose">
+								@layouts.CodeCopy(c.Lang)
 								@templ.Raw(v.BodyHTML)
 							</div>
 						case FileImage:
