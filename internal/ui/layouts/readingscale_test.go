@@ -16,6 +16,8 @@ import (
 // a list the sheet supplies would agree with the sheet no matter what the sheet
 // said.
 var readingScaleSteps = []string{
+	"--fs-ed-13",
+	"--fs-ed-15",
 	"--fs-ed-17",
 	"--fs-ed-20",
 	"--fs-ed-24",

@@ -166,6 +166,9 @@ type Result struct {
 	HTML        string
 	Diagnostics []Diagnostic
 	TOC         []TOCEntry
+	// Blocks lists the canonical ids of this note's emitted block anchors, in
+	// document order. Hidden definitions and transcluded markers carry none.
+	Blocks []string
 	// TitleAnchor is the id the page's visible title has to carry, set only when
 	// this render removed an authored opening heading saying the same thing. That
 	// heading was a place a link could name, so the anchor moves to where its
@@ -231,7 +234,7 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 				// The extension is told only what to prefix the ids with, per body,
 				// so several bodies on one page do not share a first note's id.
 				extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{},
+				highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
 			),
 		),
 	}
@@ -456,7 +459,7 @@ func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPol
 		}
 		return r
 	}, body)
-	source, blocks, inline := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
+	source, marks := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
 
 	// Parse and render as two steps rather than one Convert call, which is
 	// exactly what Convert does, so this region's id prefix can be attached to
@@ -478,7 +481,9 @@ func (r *Pipeline) renderBody(body string, address []string, allowEmbed embedPol
 		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
 	}
 
-	return Result{HTML: substituteBlocks(buf.String(), blocks, inline), Diagnostics: col.diags}
+	named := nameTaskLabels(buf.String(), marks.inline, page.lang)
+	htmlOut, blocks := substituteMarkedBlocks(named, marks.blocks, marks.inline, marks.anchors)
+	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
 }
 
 // removeBodyFirstH1 drops a leading level-1 ATX heading when the page already

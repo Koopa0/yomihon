@@ -187,9 +187,17 @@ var blockMarkupMarker = regexp.MustCompile("\ue002\\d+\ue003")
 // selects; bytes that merely resemble a marker pass through as written. Redeemed
 // markup is spliced and never rescanned.
 func substituteBlocks(htmlOut string, blocks, inline []string) string {
+	out, _ := substituteMarkedBlocks(htmlOut, blocks, inline, nil)
+	return out
+}
+
+// substituteMarkedBlocks returns anchors only when their private marker is
+// redeemed. Parsing may discard a definition or move a footnote, so planting
+// an anchor alone establishes neither its presence nor its document order.
+func substituteMarkedBlocks(htmlOut string, blocks, inline []string, anchors map[int]string) (rendered string, emitted []string) {
 	htmlOut = partParagraphsAtBlockMarkup(htmlOut)
 	if len(blocks) == 0 && len(inline) == 0 {
-		return htmlOut
+		return htmlOut, nil
 	}
 	var out strings.Builder
 	grown := len(htmlOut)
@@ -227,19 +235,29 @@ func substituteBlocks(htmlOut string, blocks, inline []string) string {
 			}
 			nextComment = nextMark(htmlOut, blockMarkOpen, max(pos, cand+1))
 		case nextInline:
-			if markup, end, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, false); ok {
+			if markup, end, idx, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, false); ok {
 				splice(cand, end, markup)
+				emitted = appendEmittedAnchor(emitted, anchors[idx])
 			}
 			nextInline = nextMark(htmlOut, inlineMarkOpen, max(pos, cand+1))
 		default:
-			if markup, end, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, true); ok {
+			if markup, end, idx, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, true); ok {
 				splice(cand, end, markup)
+				emitted = appendEmittedAnchor(emitted, anchors[idx])
 			}
 			nextWide = nextMark(htmlOut, wideMarkOpen, max(pos, cand+1))
 		}
 	}
 	out.WriteString(htmlOut[pos:])
-	return out.String()
+	return out.String(), emitted
+}
+
+// appendEmittedAnchor leaves ordinary inline markup out of the anchor list.
+func appendEmittedAnchor(emitted []string, id string) []string {
+	if id != "" {
+		return append(emitted, id)
+	}
+	return emitted
 }
 
 // leftmostMark picks the leftmost pending marker opening among the three
@@ -302,17 +320,17 @@ func redeemBlockAt(doc string, cand int, blocks []string, used []bool) (markup s
 // redeemInlineAt is redeemBlockAt for the two private-use marker pairs. wide
 // selects the pair, and a marker redeems only when its markup's shape agrees, so
 // an index travelling under one pair is never surrendered to the other.
-func redeemInlineAt(doc string, cand int, inline []string, used []bool, wide bool) (markup string, end int, ok bool) {
+func redeemInlineAt(doc string, cand int, inline []string, used []bool, wide bool) (markup string, end, index int, ok bool) {
 	open, closing := inlineMarkOpen, inlineMarkClose
 	if wide {
 		open, closing = wideMarkOpen, wideMarkClose
 	}
 	idx, n, matched := markerIndex(doc[cand+len(open):], closing)
 	if !matched || idx >= len(inline) || used[idx] || markerIsBlockShaped(inline[idx]) != wide {
-		return "", 0, false
+		return "", 0, 0, false
 	}
 	used[idx] = true
-	return inline[idx], cand + len(open) + n, true
+	return inline[idx], cand + len(open) + n, idx, true
 }
 
 // partParagraphsAtBlockMarkup opens every paragraph around the block-markup
@@ -465,7 +483,7 @@ func looksRisky(line string) bool {
 // once across everything that note holds. At most one risky-fence diagnostic is
 // recorded per scan: a callout's body is scanned on its own, and a transcluded
 // embed is a call of its own, so each has its own budget.
-func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPolicy, col *collector) (out string, blocks, inline []string) {
+func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPolicy, col *collector) (out string, marks *markers) {
 	st := &preprocessState{
 		lines:   strings.Split(body, "\n"),
 		address: address,
@@ -477,7 +495,7 @@ func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPol
 	// last line, so a block still open there has nothing left to swallow and the
 	// end of the document ends it. Writing a close here would put a line the
 	// author never typed into their last block.
-	return strings.Join(st.kept, "\n"), st.marks.blocks, st.marks.inline
+	return strings.Join(st.kept, "\n"), st.marks
 }
 
 // scan reads st's lines to their end, consuming each dialect construct it
@@ -523,7 +541,7 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 			// because a span can run past the end of one; the answer does not
 			// widen to indented code.
 			if !owned[st.i] {
-				line = markBlockAnchor(line, col.page, &st.marks.inline, allowEmbed == embedsAllowed)
+				line = markBlockAnchor(line, col.page, st.marks, allowEmbed == embedsAllowed)
 			}
 			st.kept = append(st.kept, line)
 			st.i++
@@ -539,6 +557,8 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 type markers struct {
 	blocks []string
 	inline []string
+	// anchors binds a claimed block id to the inline marker that emits it.
+	anchors map[int]string
 }
 
 // plantBlock files markup that stands on its own line and answers with the

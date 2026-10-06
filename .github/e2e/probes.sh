@@ -29,6 +29,7 @@ probes=(
   "drawer-contract.mjs|/notes/Notes/alpha.md"
   "rail-foot.mjs|/notes/Notes/alpha.md"
   "mermaid-fallback.mjs|/notes/Notes/alpha.md"
+  "mermaid-name.mjs|/notes/Notes/alpha.md"
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "report-frame-contract.mjs|/reports/browser-boundary.html"
@@ -56,8 +57,10 @@ probes=(
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
+  "read-aloud-languages.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
+  "branch-title-wrap.mjs|/syllabus/Maps/branches.md"
   "course-line.mjs|/notes/Course/C01.md"
   "book-rail-head.mjs|/notes/Course/C02.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -72,6 +75,7 @@ probes=(
   "prefetch-stale-preference.mjs|/notes/Writing/lessons/japanese/L01.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "health-table.mjs|/health"
+  "shell-columns.mjs|/health"
   "reports-shelf.mjs|/reports"
   # A month named outright rather than whichever one it is today, so what this
   # probe measures is the same measurement next month.
@@ -99,6 +103,7 @@ probes=(
   "pager-contract.mjs|/search?q=e"
   "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
+  "reading-scale.mjs|/notes/Notes/reading-scale.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads
