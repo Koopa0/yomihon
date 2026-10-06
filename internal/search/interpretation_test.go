@@ -124,7 +124,7 @@ func TestEmptySearchOffersFullFolderPaths(t *testing.T) {
 						t.Errorf("GET %s %q folder offers (-want +got):\n%s", route, tt.query, diff)
 					}
 					if len(tt.links) > 0 {
-						sentence := "從資料庫根目錄起算的路徑"
+						sentence := "從書庫根目錄起算的路徑"
 						if lang == wording.En {
 							sentence = "path from the vault root"
 						}

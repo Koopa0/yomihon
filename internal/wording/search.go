@@ -41,7 +41,7 @@ var (
 	StepBackClose          = both("」", "\"")
 	StepBackCountFmt       = both("（%d 筆）", " (%d)")
 	LiteralOperatorFmt     = both("「%s」不是搜尋運算子，已當一般文字搜尋。", "%q is not a search operator; it was searched for as ordinary text.")
-	FolderSuggestionsLabel = both("folder 篩選器要填從資料庫根目錄起算的路徑。你是指：", "folder: takes a path from the vault root. Did you mean: ")
+	FolderSuggestionsLabel = both("folder 篩選器要填從書庫根目錄起算的路徑。你是指：", "folder: takes a path from the vault root. Did you mean: ")
 )
 
 // What search covers, said where a reader has just been told it found nothing.
