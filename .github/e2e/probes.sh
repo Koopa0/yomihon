@@ -5,6 +5,7 @@
 #
 #   probes.sh            # the locks themselves, all expected to pass
 #   probes.sh --mutate   # each probe's self-tests, all expected to be caught
+#   probes.sh --mutate --shard N   # one of four balanced parts of that run
 #
 # The second form enforces the contract every probe owes. `MUTATE=list` names a
 # probe's modes; running one of them injects the regression that probe exists to
@@ -17,7 +18,7 @@ set -euo pipefail
 
 
 usage() {
-  echo "usage: probes.sh [--mutate] [--shard 1|2|3|4]" >&2
+  echo "usage: probes.sh [--mutate [--shard 1|2|3|4]]" >&2
   exit 2
 }
 

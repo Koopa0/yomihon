@@ -216,7 +216,7 @@ func TestProbeRunnerPreflight(t *testing.T) {
 		message     string
 	}{
 		{name: "missing base", withoutBase: true, status: 1, message: "probes.sh needs a running server"},
-		{name: "unknown command", args: []string{"--unknown"}, status: 2, message: "usage: probes.sh [--mutate]"},
+		{name: "unknown command", args: []string{"--unknown"}, status: 2, message: "usage: probes.sh [--mutate [--shard 1|2|3|4]]"},
 		{name: "missing probe", remove: true, status: 1, message: "the table names probes that are not here"},
 		{name: "unlisted probe", extra: true, status: 1, message: "these probe files are driven by nothing"},
 	}

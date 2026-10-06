@@ -145,14 +145,9 @@ vulnerability database, and `frontend-check`, which runs `npm ci`. Two stages
 drive a browser: `browser-check` and `mutation-check`, each of which installs
 those npm dependencies first and leaves the lint to `frontend-check`.
 
-Local `make verify` includes the complete mutation run. CI runs that
-prerequisite in four separate jobs, each with a fresh fixture copy; its other
-prerequisites remain owned by their existing jobs. On 2026-10-06, the old single
-mutation job on `e7beb3ee` (run [37413701577](https://github.com/Koopa0/yomihon/actions/runs/37413701577))
-was cancelled after 39 minutes 50 seconds in the mutation step, or 40 minutes
-16 seconds including setup. This is a cancellation measurement, not a completed
-gate duration. The four jobs target under ten minutes each; their actual hosted
-job and mutation-step times must establish that result.
+Local `make verify` includes the complete mutation run, which takes more than
+forty minutes on a shared Linux runner. CI splits it into four jobs, each with a
+fresh fixture copy; the other prerequisites stay in their existing jobs.
 
 Read its exit code, not its last screen. `make verify | tail` reports the exit
 code of `tail`, and a gate whose red you piped away has told you nothing. If you
@@ -255,8 +250,7 @@ its own work. Ordinary modes balance across four deterministic owners; probes
 that keep a reading place execute last in shard four. Discovery errors and
 mutation failures are collected, later selected work still runs, and the final
 status remains nonzero. Invalid shard values fail with usage status 2. The
-tracked ruleset import declares all four contexts; the maintainer switches the
-live required contexts together with merging the workflow change.
+tracked ruleset import declares all four contexts.
 
 Nothing injects a regression for you on the Go side; there the proof is yours to
 run and to paste into the pull request.
