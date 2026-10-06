@@ -308,7 +308,7 @@ func TestTheCalloutVocabularyNamesEachTypeOnce(t *testing.T) {
 					"lowercased before the lookup, so nothing will ever match this entry", typ)
 			}
 			if bucket, title := calloutBucketOf(typ); bucket == bucketUnknown {
-				t.Errorf("[!%s] is in the vocabulary and classifies as unknown, so it renders as a plain blockquote", typ)
+				t.Errorf("[!%s] is in the vocabulary and classifies as unknown, so it emits an unexpected diagnostic", typ)
 			} else if title == "" {
 				t.Errorf("[!%s] has no default title", typ)
 			}
@@ -346,7 +346,7 @@ func TestUnanchorableLineFollowsTheCalloutVocabulary(t *testing.T) {
 		probed++
 		line := "> [!" + typ + "] Title ^addr"
 		if UnanchorableLine(line) {
-			t.Errorf("a [!%s] title was refused; the page treats an unknown type as a blockquote and stamps the address", typ)
+			t.Errorf("a [!%s] title was refused; the page preserves an unknown type's opening address", typ)
 		}
 	}
 	if probed == 0 {
@@ -382,11 +382,8 @@ func TestABucketNamesItself(t *testing.T) {
 
 // TestAnUnrecognizedCalloutTypeKeepsTheNoteLook holds the half that must not
 // move. A callout type outside the vocabulary is classified as bucketUnknown
-// and turned back into a plain blockquote before a look is chosen, so nothing
-// asks these two about it today — but that filter sits a long way from here,
-// and a reader who wrote "> [!speculation]" must never meet a stopped page for
-// it. The look bucketUnknown gets if it ever arrives is the note's, which is
-// what it got when both of these ended in a default.
+// and uses the neutral note shell. A reader who wrote "> [!speculation]"
+// still gets its diagnostic without a stopped page or an invented tint.
 func TestAnUnrecognizedCalloutTypeKeepsTheNoteLook(t *testing.T) {
 	t.Parallel()
 

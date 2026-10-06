@@ -279,9 +279,9 @@ that:
 | `[[Note#^id]]` | a link to that block | the fragment is **withdrawn**, the link leads to the whole note, `link.block_missing` |
 | `![[Note]]` | the note's body, inline | one level deep only: an embed inside an embed is not expanded |
 | `![[Note#Heading]]` | an excerpt | nothing is shown; the block names the address that failed and links the note |
-| `> [!warning] Title` | a tinted callout | a type outside the list below → a plain blockquote with `[!type]` visible. The note page names it under the page's own diagnostics; `check` has no rule for it |
+| `> [!warning] Title` | a tinted callout | a type outside the list below → a neutral note-style callout with its authored title, or its type name when untitled. The note page names it under the page's own diagnostics; `check` has no rule for it |
 | `> [!tip]-` / `> [!tip]+` | a native `<details>`, closed / open | — |
-| `text. ^my-id` | a block address a link can reach | works on a heading, an ordinary paragraph and a callout's body line; refused on a recognised callout's opening line and on a table row; the caret stays in the id |
+| `text. ^my-id` | a block address a link can reach | works on a heading, an ordinary paragraph, a callout's body line and an unknown callout's opening line; refused on a recognised callout's opening line and on a table row; the caret stays in the id |
 | `==text==` | a highlight | exactly two `=` on each side. A single `=` is literal; surplus `=` also stay literal, outside the mark on the left and inside it on the right, so `===x===` gives `=<mark>x=</mark>` |
 | `%%hidden%%` | nothing | unclosed runs to the end of the body, with a diagnostic naming the body line it opened on |
 | `<!-- a remark -->` | hidden, like `%%…%%` | both spellings hide a remark from the reading page, search text and link extraction. Delimiters shown inside code remain literal. A `read-aloud` marker keeps its handling in the row below |
@@ -305,8 +305,9 @@ Recognised built-in callout types; each group separated by · shares a tint
 and icon. Without an authored title, the callout uses its own type name with
 an initial capital (Tip, Bug, Faq). Titles are plain text. Markdown and
 wikilinks work in a callout body. Other type identifiers, including names
-with digits, hyphens or underscores, raise a diagnostic and remain plain
-blockquotes.
+with digits, hyphens or underscores, raise a diagnostic and use the neutral
+note-style shell. Their titles stay literal, their opening block addresses
+remain reachable, and the same type-derived default title applies.
 
 `info` `note` `tip` `important` `hint` `abstract` `tldr` `summary` `todo`
 · `success` `check` `done` · `question` `help` `faq` · `example` · `quote` `cite`
