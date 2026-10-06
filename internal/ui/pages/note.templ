@@ -19,8 +19,11 @@ import (
 // OutsideKnowledgeScope, NoFrontmatter and FrontmatterUnclosed drive the two
 // status faces.
 type NoteView struct {
-	Title   string
-	RelPath string
+	// NestedTitle places this note under a page heading rather than making
+	// it the page heading itself. Its body must already occupy that level.
+	NestedTitle bool
+	Title       string
+	RelPath     string
 	// Language is what the note is written in, as the note declares it. The
 	// language the page's own words are in arrives with the chrome, so one
 	// page cannot hold two answers to it.
@@ -227,9 +230,9 @@ templ Note(v NoteView, c layouts.Chrome) {
 // copy of this would be free to drift from the one a reader sees on the note's
 // own page.
 //
-// The write face is what the two uses differ by, and they differ structurally:
-// the note's own page passes it in, a column beside another note passes nothing.
-// Nothing here asks which page it is on.
+// The write face differs structurally: the note's own page passes it in, a
+// column beside another note passes nothing. A nested title and body occupy
+// one level below their enclosing page heading.
 templ noteArticle(v NoteView, lang wording.Lang) {
 	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { uncertaintyAttrs(&v, lang)... }>
 		@articleHead(v, lang)
@@ -307,7 +310,13 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	}
 	// A jump has to land on the words it named, so the anchor goes on the
 	// visible heading rather than a hidden marker beside it.
-	if v.TitleAnchor != "" {
+	if v.NestedTitle {
+		if v.TitleAnchor != "" {
+			<h2 id={ v.TitleAnchor } class="y-title">{ v.Title }</h2>
+		} else {
+			<h2 class="y-title">{ v.Title }</h2>
+		}
+	} else if v.TitleAnchor != "" {
 		<h1 id={ v.TitleAnchor } class="y-title">{ v.Title }</h1>
 	} else {
 		<h1 class="y-title">{ v.Title }</h1>
