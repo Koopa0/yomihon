@@ -1,8 +1,11 @@
 package lexical
 
 import (
+	"path"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // StepBack is one looser query the empty page may offer: a real search this
@@ -55,7 +58,9 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 
 	// The joined bare terms are the query as asked only when nothing was
 	// quoted; for a quoted phrase that same join is the first loosening.
-	seen := map[string]bool{}
+	// A lone disjunction word repeats the misunderstanding that made the
+	// original search empty rather than helping the reader loosen it.
+	seen := map[string]bool{"OR": true}
 	if !quoted {
 		seen[strings.Join(bare, " ")] = true
 	}
@@ -82,6 +87,50 @@ func (idx *Index) StepBacks(raw string) []StepBack {
 		}
 	}
 	return out
+}
+
+// FolderSuggestions repairs a short folder name to a real vault-relative
+// path. Each offer preserves the other terms and constraints and has already
+// found results; matching itself still uses the original path-prefix rule.
+func (idx *Index) FolderSuggestions(raw string) []StepBack {
+	if idx == nil {
+		return nil
+	}
+	var out []StepBack
+	seen := map[string]bool{}
+	for _, f := range Parse(raw).Filters() {
+		if f.Key != "folder" || f.Value == "" || strings.Contains(f.Value, "/") {
+			continue
+		}
+		for _, folder := range idx.foldersNamed(f.Value) {
+			candidate, ok := WithFilter(WithoutFilter(raw, f), Filter{Key: "folder", Value: folder})
+			if !ok || seen[candidate] {
+				continue
+			}
+			seen[candidate] = true
+			answer, err := idx.Search(Parse(candidate), 0)
+			if err == nil && answer.Total > 0 {
+				out = append(out, StepBack{Query: candidate, Count: answer.Total})
+			}
+		}
+	}
+	return out
+}
+
+func (idx *Index) foldersNamed(name string) []string {
+	seen := map[string]bool{}
+	var folders []string
+	for _, e := range idx.entries {
+		for folder := path.Dir(e.RelPath); folder != "." && folder != "/"; folder = path.Dir(folder) {
+			if fold(path.Base(folder)) != fold(name) || seen[folder] {
+				continue
+			}
+			seen[folder] = true
+			folders = append(folders, folder)
+		}
+	}
+	slices.SortFunc(folders, vault.ComparePaths)
+	return folders
 }
 
 // respellFilter writes a filter back the way a reader would have to type it. The
