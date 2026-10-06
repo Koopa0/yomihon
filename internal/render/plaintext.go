@@ -25,7 +25,7 @@ import (
 // nodes; linkify is off, so a bare URL stays a plain text node indexed verbatim.
 // Footnotes are on because a definition whose text has no spaces — every CJK one —
 // otherwise parses as a link reference definition and no search could find it.
-var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote)).Parser()
+var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote, taskListExtension{})).Parser()
 
 // PlainText returns the searchable plain text of a note body: prose, headings,
 // table cells, task text, code-fence contents and the base and reading of

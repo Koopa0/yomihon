@@ -20,6 +20,8 @@ func FuzzHTML(f *testing.F) {
 	for _, seed := range []string{
 		"",
 		"plain <ruby>日<rt>にち</rt></ruby> text",
+		"- [ ] task\n- [x] complete\n- [/] progress\n- [-] cancelled\n- [>] forwarded\n- [?] literal",
+		"- [ ]\n\n- [x] <br>\n\n- [/] outer\n  - [>] nested\n\n  next paragraph",
 		"# Duplicate title\n## 見出し\n[[missing|表示]]",
 		"```go\r\n[[literal]]\r\n> [!note] literal\r\n```",
 		"```go\nunclosed [[literal]]",
