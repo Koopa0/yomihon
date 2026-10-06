@@ -58,6 +58,26 @@ type Source interface {
 	ReadPrefix(context.Context, vault.Entry, int64) ([]byte, error)
 }
 
+// RootObserver observes the selected path without changing the read capability.
+type RootObserver interface {
+	ObserveRoot() (vault.RootIdentity, error)
+}
+
+// ObservedSource supplies both generation reads and live root reconciliation.
+type ObservedSource interface {
+	Source
+	RootObserver
+}
+
+// RootNotice reports a divergent or unconfirmed selected root identity.
+// Unconfirmed distinguishes an observation error from a confirmed difference.
+// The operational cause belongs to the warning log rather than reader-facing facts.
+type RootNotice struct {
+	SelectedPath string
+	OpenedName   string
+	Unconfirmed  bool
+}
+
 // Freshness is the published account of how the reading generation relates to
 // the folder on disk. Both degraded states are otherwise invisible: a startup
 // view may omit a source so reading stays available, and a failing rebuild
@@ -86,6 +106,8 @@ type Freshness struct {
 	// so a surface that shows them has to tell them apart itself. Nil means no
 	// scan is being refused for that.
 	Collision []string
+	// Root is a standing directory identity problem, independent of file reads.
+	Root *RootNotice
 }
 
 // buildFacts is one generation's own fixed account of itself: when it finished
@@ -111,6 +133,7 @@ type liveAttempt struct {
 	// that fold to one path. A scan that completes always clears it before any
 	// build stores a record of its own, so a build never has to carry it.
 	collision []string
+	root      *RootNotice
 }
 
 // BlockedSource is one vault path a build wanted, with why it could not have it.
@@ -270,6 +293,10 @@ func (g *Generation) Freshness() Freshness {
 	}
 	out.FailedRetries = attempt.failedRetries
 	out.Collision = slices.Clone(attempt.collision)
+	if attempt.root != nil {
+		root := *attempt.root
+		out.Root = &root
+	}
 	for _, source := range attempt.blocked {
 		if !slices.ContainsFunc(out.Blocked, func(known BlockedSource) bool { return known.Path == source.Path }) {
 			out.Blocked = append(out.Blocked, source)
@@ -521,6 +548,7 @@ type Store struct {
 	fresh atomic.Pointer[liveAttempt]
 
 	source       Source
+	rootObserver RootObserver
 	log          *slog.Logger
 	now          func() time.Time
 	capabilities schema.Capabilities
@@ -573,7 +601,7 @@ type Store struct {
 // arrive with none, and only the second is a fault.
 func New(
 	ctx context.Context,
-	source Source,
+	source ObservedSource,
 	log *slog.Logger,
 	contract *schema.Contract,
 	governance schema.Governance,
@@ -599,6 +627,7 @@ func New(
 	}
 	store := &Store{
 		source:       source,
+		rootObserver: source,
 		log:          log,
 		now:          time.Now,
 		capabilities: capabilities,
@@ -623,6 +652,7 @@ func New(
 		store.incompleteSincePublish = 1
 	}
 	store.fresh.Store(&liveAttempt{blocked: blocked})
+	store.observeRoot(ctx)
 	gen.freshness = &store.fresh
 	store.ptr.Store(gen)
 	store.logBuild("vault snapshot built", gen, scan)
@@ -684,6 +714,9 @@ func validateArtifactSource(
 }
 
 func (s *Store) rescan(ctx context.Context) {
+	if !s.observeRoot(ctx) {
+		return
+	}
 	scan, err := s.source.ScanAvailable(ctx)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -739,7 +772,7 @@ func (s *Store) rescan(ctx context.Context) {
 		return
 	}
 	// Cleared before the swap, so a reader of the new generation sees no stale trouble.
-	s.fresh.Store(&liveAttempt{})
+	s.fresh.Store(&liveAttempt{root: s.fresh.Load().root})
 	builtAt := s.now()
 	candidate.built = buildFacts{builtAt: builtAt, complete: true, lastComplete: builtAt}
 	candidate.freshness = &s.fresh
@@ -761,6 +794,41 @@ func collidingPair(err error) []string {
 		return slices.Clone(collision.Paths[:])
 	}
 	return nil
+}
+
+// observeRoot updates the independent live notice before any scan fast path.
+// Only the scanner writes it, and a confirmed match resets the warning episode.
+// It returns whether reconciliation may continue after the observation.
+func (s *Store) observeRoot(ctx context.Context) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	identity, err := s.rootObserver.ObserveRoot()
+	if ctx.Err() != nil {
+		return false
+	}
+	var root *RootNotice
+	if err != nil || !identity.Same {
+		root = &RootNotice{SelectedPath: identity.SelectedPath, OpenedName: identity.OpenedName}
+		if err != nil {
+			root.Unconfirmed = true
+		}
+	}
+	current := s.fresh.Load()
+	if root == nil && current.root == nil {
+		return true
+	}
+	if root != nil && (current.root == nil || current.root.Unconfirmed != root.Unconfirmed) {
+		message := "vault root identity changed; restart required"
+		if err != nil {
+			message = "vault root identity unconfirmed; restore access or restart"
+		}
+		s.log.Warn(message, "selected_path", identity.SelectedPath, "opened_root_name", identity.OpenedName, "error", err)
+	}
+	next := *current
+	next.root = root
+	s.fresh.Store(&next)
+	return true
 }
 
 // setCollision puts the pair a scan named in the live account, or takes it out
@@ -814,7 +882,7 @@ func (s *Store) noteIncomplete(scan vault.Scan, blocked []BlockedSource) {
 	s.incompleteScan = scan
 	s.nextRetry = s.now().Add(retryDelay(s.consecutiveIncomplete))
 	s.retry = true
-	s.fresh.Store(&liveAttempt{blocked: blocked, failedRetries: s.consecutiveIncomplete})
+	s.fresh.Store(&liveAttempt{blocked: blocked, failedRetries: s.consecutiveIncomplete, root: s.fresh.Load().root})
 	s.log.Warn("vault snapshot incomplete; retaining previous generation",
 		"scan_problems", len(scan.Problems()),
 		"scan_skipped", len(scan.Skipped()),

@@ -12,13 +12,13 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-type parseCauseReadFailure struct{ Source }
+type parseCauseReadFailure struct{ ObservedSource }
 
 func (s parseCauseReadFailure) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
 	if entry.Path() == panicPoisoned {
 		return nil, errors.New("panic while parsing this note: a read error")
 	}
-	return s.Source.ReadFile(ctx, entry)
+	return s.ObservedSource.ReadFile(ctx, entry)
 }
 
 func TestBlockedCauseComesFromTheParserBoundary(t *testing.T) {
