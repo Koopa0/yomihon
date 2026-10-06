@@ -171,6 +171,8 @@ type NoteView struct {
 	// contract's declared list for its type, which both faces flag rather than
 	// implying the contract defines nothing onward.
 	StatusUnknown bool
+	// AllowedStatuses is the captured contract vocabulary for this note type.
+	AllowedStatuses []string
 	// StatusNotText is set where the note wrote a status the reader did not
 	// take as text, so Status is empty for a reason the page can name rather
 	// than reporting the field as one nobody wrote.
@@ -816,13 +818,7 @@ templ schemaNotices(v NoteView, lang wording.Lang) {
 		<div id={ v.schemaNoticesID() } lang={ lang.Tag() }>
 			for _, notice := range v.SchemaNotices {
 				<p class="y-statuspanel__notice y-statusflag">
-					for _, part := range notice {
-						if part.Code {
-							<code>{ part.Text }</code>
-						} else {
-							{ part.Text }
-						}
-					}
+					@schemaParts(notice)
 				</p>
 			}
 		</div>
@@ -855,7 +851,9 @@ templ statusFrontmatterUnclosedFlag(v NoteView, noticeClass string, lang wording
 // would imply the contract defines nothing onward from a value it never
 // defined.
 templ statusUnknownFlag(v NoteView, noticeClass string, lang wording.Lang) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }</p>
+	<p class={ noticeClass, "y-statusflag" }>
+		{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }@schemaParts(wording.AllowedEnumValues(lang, "status", v.AllowedStatuses))
+	</p>
 }
 
 // statusUnreadableFlag states that this note's frontmatter yielded no status to
@@ -1025,6 +1023,18 @@ templ flipReceipt(v NoteView, lang wording.Lang) {
 			if v.FlipNoReturn {
 				{ frontmatterDoorLine(&v, lang) }
 			}
+		}
+	}
+}
+
+// schemaParts keeps authored values and localized words separate while templ
+// escapes both; a declaration is evidence rather than executable markup.
+templ schemaParts(parts []wording.SchemaPart) {
+	for _, part := range parts {
+		if part.Code {
+			<code>{ part.Text }</code>
+		} else {
+			{ part.Text }
 		}
 	}
 }
