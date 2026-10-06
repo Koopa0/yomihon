@@ -1,5 +1,7 @@
 package wording
 
+import "strings"
+
 // SchemaPart is one piece of what a page says about a schema finding: either
 // words in the reader's own language, or a value the note or contract declared,
 // kept as text.
@@ -39,6 +41,9 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		if target == "" {
 			return []SchemaPart{text(schemaFrontmatterMissing)}
 		}
+		if unsupportedFrontmatter(target) {
+			return []SchemaPart{text(FrontmatterUnsupportedYAML)}
+		}
 		return []SchemaPart{text(schemaFrontmatterInvalid), code(target)}
 	case "schema.enum":
 		return []SchemaPart{code(field), text(schemaWrittenAs), code(target), text(schemaNotInList)}
@@ -69,6 +74,21 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		}
 	}
 	return []SchemaPart{text(schemaUnknownRuleStart), code(ruleID), text(schemaUnknownRuleEnd)}
+}
+
+// FrontmatterExplanation keeps ordinary parser evidence intact, while a YAML
+// runtime failure is explained through the authored forms the reader can fix.
+// The captured diagnostic includes the vault reader's prefix; an identical
+// phrase inside an ordinary YAML error is still evidence and stays unchanged.
+func FrontmatterExplanation(lang Lang, diagnostic string) (summary, detail string) {
+	if unsupportedFrontmatter(diagnostic) {
+		return FrontmatterUnsupportedYAML.In(lang), ""
+	}
+	return FrontmatterNotYAML.In(lang), diagnostic
+}
+
+func unsupportedFrontmatter(diagnostic string) bool {
+	return strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: runtime error:")
 }
 
 // The pieces the sentences above are made of. They are fragments rather than
