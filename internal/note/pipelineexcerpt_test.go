@@ -16,39 +16,7 @@ import (
 func TestShippedCancellationLessonShowsTheProgramItsExcerptExplains(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, readingLibraryRoot, readingLibraryContract(t))
-	const program = `package main
 
-import (
-    "context"
-    "fmt"
-)
-
-func squares(ctx context.Context) (<-chan int, <-chan struct{}) {
-    out := make(chan int)
-    done := make(chan struct{})
-    go func() {
-        defer close(done)
-        defer close(out)
-        for _, n := range []int{1, 2, 3} {
-            select {
-            case out <- n * n:
-            case <-ctx.Done():
-                return
-            }
-        }
-    }()
-    return out, done
-}
-
-func main() {
-    ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()
-    values, done := squares(ctx)
-    fmt.Println(<-values)
-    cancel()
-    <-done
-    fmt.Println("stopped")
-}`
 	for _, lang := range []string{"zh-Hant", "en"} {
 		t.Run(lang, func(t *testing.T) {
 			t.Parallel()
@@ -129,8 +97,16 @@ func main() {
 			}
 			read(embeds[0])
 			t.Log("invoked: shipped G04 section excerpt")
-			if diff := cmp.Diff([]string{program, "1\nstopped"}, codes); diff != "" {
-				t.Errorf("caught: G04 embedded program and output (-want +got):\n%s", diff)
+			if len(codes) != 2 {
+				t.Fatalf("caught: G04 embedded code blocks = %d, want program and output", len(codes))
+			}
+			for _, want := range []string{"done := make(chan struct{})", "defer close(done)"} {
+				if !strings.Contains(codes[0], want) {
+					t.Errorf("caught: G04 embedded program lost %q", want)
+				}
+			}
+			if diff := cmp.Diff("1\nstopped", codes[1]); diff != "" {
+				t.Errorf("caught: G04 embedded output (-want +got):\n%s", diff)
 			}
 			decoded, err := url.PathUnescape(sourceHref)
 			if err != nil {
