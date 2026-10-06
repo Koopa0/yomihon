@@ -66,6 +66,13 @@ func Qualify(prefix string, res *Result) {
 		}
 		res.TOC = toc
 	}
+	if len(res.Blocks) > 0 {
+		blocks := slices.Clone(res.Blocks)
+		for i := range blocks {
+			blocks[i] = prefix + blocks[i]
+		}
+		res.Blocks = blocks
+	}
 }
 
 // qualifyPlaces renames the places one body's HTML carries and the references

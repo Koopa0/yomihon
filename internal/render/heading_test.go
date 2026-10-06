@@ -45,19 +45,16 @@ func TestEmbedSpans(t *testing.T) {
 	}
 }
 
-// TestHeadingWordsDropsAnUnspokenReadAloudMarker locks the read-aloud
-// branch of the shared tag walk. An instruction the renderer cannot carry
-// out is dropped from the body; a heading that names a section must drop
-// it too, or the marker becomes part of the id. The ja form is
-// allowlisted and then stripped as a tag; this row is the unmarked
-// language, which only the drop arm handles. Deleting that arm leaves
-// the escaped comment in the heading's words.
+// Marker instructions are never words in a heading, including malformed
+// values that carry angles. Body and heading share this markup boundary.
 func TestHeadingWordsDropsAnUnspokenReadAloudMarker(t *testing.T) {
 	t.Parallel()
 
-	got := HeadingWords("Spoken <!-- read-aloud: fr --> title")
-	if got != "Spoken  title" {
-		t.Errorf("an unspoken read-aloud marker stayed in the heading name: got %q", got)
+	for _, marker := range []string{"ja", "zh-Hant", "fr", "en_US", "en>US", "en<script>"} {
+		got := HeadingWords("Spoken <!-- read-aloud: " + marker + " --> title")
+		if got != "Spoken  title" {
+			t.Errorf("caught: marker stayed in heading words: tag %q got %q", marker, got)
+		}
 	}
 }
 

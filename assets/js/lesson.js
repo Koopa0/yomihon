@@ -1,16 +1,16 @@
-// Lesson-only enhancements: shared Japanese speech, sentence controls, slot
+// Lesson-only enhancements: authored speech, sentence controls, slot
 // practice, and native concept sheets. The authored lesson remains readable
 // when this module is absent or speech is unavailable.
 // speechLanguage reads the voice off the passage the server already marked,
 // rather than naming a language here that the server names too. It is given the
 // passage, never the button: a button's own lang belongs to its label, which is
-// interface Chinese wrapped around Japanese text, and a sentence spoken in the
+// interface language wrapped around authored text, and a sentence spoken in the
 // language of the label around it is the wrong voice. A paragraph's passage is
 // what encloses its button; the practice card's is the line it rewrites, which
 // the server marks Japanese however the chrome around it is written.
 function speechLanguage(passage) {
   const declared = passage?.closest?.('[lang]')?.getAttribute('lang');
-  return declared && declared !== 'und' ? declared : 'ja-JP';
+  return declared || 'ja-JP';
 }
 
 export function initLesson() {
@@ -127,7 +127,7 @@ export function initLesson() {
   // paragraph this is, and the voice starting is not news on top of that. The
   // giving up is the default, so a speaker added later has to say it belongs to
   // the walk before it can keep one alive.
-  function speakJapanese(text, trigger = null, passage = trigger?.parentElement, fromBar = false) {
+  function speakText(text, trigger = null, passage = trigger?.parentElement, fromBar = false) {
     if (!text || !('speechSynthesis' in window)) return;
     if (!fromBar) {
       endRun();
@@ -139,9 +139,8 @@ export function initLesson() {
     stopSpeech();
     const generation = speechGeneration;
     const utterance = new SpeechSynthesisUtterance(text);
-    // The note says what language it is in; reading it aloud in another one is
-    // not a smaller version of the feature, it is the wrong words. A note that
-    // declares nothing falls back to the passage's own marker.
+    // Each passage owns its speech language independently of article language
+    // and the interface language on its control.
     utterance.lang = speechLanguage(passage);
     utterance.rate = speechRate;
     if (trigger) {
@@ -186,7 +185,7 @@ export function initLesson() {
     // The passage is left to the default — the element enclosing this
     // paragraph's own speaker — so a note read through resolves the voice once
     // for each paragraph rather than once for the note.
-    speakJapanese(button.getAttribute('data-tts'), button, undefined, true);
+    speakText(button.getAttribute('data-tts'), button, undefined, true);
     announceProgress(index);
     refreshRunControls();
   }
@@ -308,7 +307,7 @@ export function initLesson() {
         // The cursor follows a reader who presses a paragraph's own speaker, so
         // next afterwards means the paragraph after that one.
         cursor = readingButtons.indexOf(button);
-        speakJapanese(button.getAttribute('data-tts'), button);
+        speakText(button.getAttribute('data-tts'), button);
         refreshRunControls();
       });
     });
@@ -381,7 +380,7 @@ export function initLesson() {
     // instead of cancelling and starting the same sentence over again, and it
     // carries the speaking state and the stop label while it runs.
     speakButton?.addEventListener('click', () => {
-      speakJapanese(
+      speakText(
         data.template.replace(/\{([A-Za-z0-9]+)\}/g, (_, key) => fill(key)?.jp || ''),
         speakButton,
         card.querySelector('.y-slotoutput'),
