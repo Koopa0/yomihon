@@ -403,7 +403,9 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	if !ok {
 		return true
 	}
-	if idx.Resolve(target).Kind != graph.KindUnresolved {
+	// Several path suffixes matching is no name the collision rule reports,
+	// so the reference resolves to nothing here just as it did before.
+	if res := idx.Resolve(target); res.Kind == graph.KindUnique || (res.Kind == graph.KindAmbiguous && idx.Claimed(target)) {
 		return true
 	}
 	if _, listed := slugs[target]; listed {
@@ -516,7 +518,12 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Fin
 		case graph.KindUnique:
 			listed[res.RelPath] = true
 		case graph.KindAmbiguous:
-			// An ambiguous link resolves to some note; leave it to the collision rule.
+			// A name two files share is the collision rule's to report. A path
+			// suffix several files end with is a name none of them carries, so
+			// no collision reports it and the row lists a note that is missing.
+			if !idx.Claimed(link.target) {
+				out = append(out, syllabusListsMissing(syllabus, link))
+			}
 		case graph.KindUnresolved:
 			out = append(out, syllabusListsMissing(syllabus, link))
 		default:

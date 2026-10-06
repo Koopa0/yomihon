@@ -34,7 +34,10 @@ func TestCapturedSnapshotPathSuffix(t *testing.T) {
 			t.Errorf("caught: ambiguous suffix became a backlink: %+v", refs)
 		}
 	}
-	wantHealth := []HealthLink{{From: nav.NoteRef{Name: "Citer", RelPath: "Concepts/Citer.md"}, Target: "Nope/Page"}}
+	// Several paths ending with a link is no collision the health page lists,
+	// so the link is unwritten there, as check reports it broken.
+	citer := nav.NoteRef{Name: "Citer", RelPath: "Concepts/Citer.md"}
+	wantHealth := []HealthLink{{From: citer, Target: "Nope/Page"}, {From: citer, Target: "Shared/Twin"}}
 	if diff := cmp.Diff(wantHealth, g.Health().Unwritten); diff != "" {
 		t.Errorf("caught: suffix health missing-link set changed: %s", diff)
 	}
