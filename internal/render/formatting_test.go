@@ -1,11 +1,13 @@
 package render_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -118,5 +120,35 @@ func TestAFormattingOpenerNeedsItsCloser(t *testing.T) {
 		if got := render.HeadingWords(raw); got != want {
 			t.Errorf("HeadingWords(%q) = %q, want %q, the words the page shows", raw, got, want)
 		}
+	}
+}
+
+// TestAHeadingPairsOnlyTheTagsThePageParses holds the heading's name to the id
+// the page stamps on it. A closer written in a code span, after a backslash, or
+// inside a link's label is text on the page, not a tag, so it cannot claim an
+// opener there; a name that paired over the raw bytes would drop words the
+// reader sees and send a link copied off the contents list to the top of the
+// note.
+func TestAHeadingPairsOnlyTheTagsThePageParses(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	stamped := regexp.MustCompile(`<h[1-6][^>]* id="([^"]*)"`)
+	for _, heading := range []string{
+		"<u>head `</u>`",
+		"`<u>` head </u>",
+		`<u>a \</u>`,
+		"<u>[[Other|x</u>]]",
+	} {
+		t.Run(heading, func(t *testing.T) {
+			t.Parallel()
+			page := r.HTML("Note.md", "", "## "+heading, wording.En).HTML
+			m := stamped.FindStringSubmatch(page)
+			if m == nil {
+				t.Fatalf("the page stamped no heading id: %s", page)
+			}
+			if named := graph.SectionID(render.HeadingWords(heading)); named != m[1] {
+				t.Errorf("SectionID(HeadingWords(%q)) = %q, but the page stamps id %q: %s", heading, named, m[1], page)
+			}
+		})
 	}
 }

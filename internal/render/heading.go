@@ -51,12 +51,22 @@ func headingInnerText(inner string) string {
 // here too, so a name copied off the contents list cannot be refused for using
 // a second fold.
 func HeadingWords(raw string) string {
-	displayed := wikilinkToken.ReplaceAllStringFunc(withoutInlineFootnotes(raw), func(token string) string {
-		inner := strings.TrimPrefix(token, "!")
+	source := withoutInlineFootnotes(raw)
+	var displayed, parseable strings.Builder
+	last := 0
+	for _, at := range wikilinkToken.FindAllStringIndex(source, -1) {
+		displayed.WriteString(source[last:at[0]])
+		parseable.WriteString(source[last:at[0]])
+		inner := strings.TrimPrefix(source[at[0]:at[1]], "!")
 		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
-		return display
-	})
-	return headingInnerText(applySafeMarkup(displayed))
+		displayed.WriteString(display)
+		parseable.WriteString(strings.Repeat("x", len(display)))
+		last = at[1]
+	}
+	displayed.WriteString(source[last:])
+	parseable.WriteString(source[last:])
+	words := displayed.String()
+	return headingInnerText(applySafeMarkup(words, headingFormattingGate(words, parseable.String())))
 }
 
 // The two halves of a place inside a document, as this package writes them:

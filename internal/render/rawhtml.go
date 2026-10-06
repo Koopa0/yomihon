@@ -163,9 +163,9 @@ func safeMarkupEnd(raw []byte) int {
 // by the time the page stamps an id, and escaping them here would fold a
 // second pass of `&amp;` into a different slug. A blanket escape of the whole
 // source would also turn the ruby the reduction is meant to strip into words.
-func applySafeMarkup(raw string) string {
+func applySafeMarkup(raw string, gate *formattingGate) string {
 	var b strings.Builder
-	err := visitSafeMarkup([]byte(raw), pairFormatting([]byte(raw)),
+	err := visitSafeMarkup([]byte(raw), gate,
 		func(p []byte) error { b.Write(p); return nil },
 		func(p []byte) error { b.Write(p); return nil },
 		func(p []byte) error { b.Write(util.EscapeHTML(p)); return nil },
