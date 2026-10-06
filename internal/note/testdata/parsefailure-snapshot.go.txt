@@ -1,0 +1,26 @@
+package snapshot
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/vault"
+)
+
+// InstallParseFailureHTTPFixture poisons only the marked fixture, delegating
+// other files to the actual parser. The child runs no background scanner.
+func InstallParseFailureHTTPFixture(t testing.TB) {
+	t.Helper()
+	original := parsers
+	t.Cleanup(func() { parsers = original })
+	parsers.note = func(rel string, data []byte) *vault.Note {
+		if strings.Contains(string(data), "PARSE_FAILURE_HTTP_POISON") {
+			panic("<script>alert(1)</script> & parser token")
+		}
+		return original.note(rel, data)
+	}
+}
+
+// RescanParseFailureHTTPFixture rebuilds the captured fixture synchronously.
+func RescanParseFailureHTTPFixture(ctx context.Context, store *Store) { store.rescan(ctx) }

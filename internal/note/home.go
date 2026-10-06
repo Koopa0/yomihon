@@ -72,7 +72,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		PrivacyRestart:    privacyRestart,
 		Degraded:          degradedNotice(&fresh, lang),
 		DegradedDetail:    blockedDetail(fresh.Blocked),
-		Notices:           folderNotices(fresh.Collision, lang),
+		Notices:           folderNotices(fresh.Collision, fresh.Root, lang),
 		Blocks:            blocks,
 		ReadmeMissing:     !hasReadme,
 		Continue:          continueRow(&kept, hasMark, snap, lang),

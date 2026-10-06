@@ -1,5 +1,7 @@
 # 範例書庫
 
+[English](README.md) | 繁體中文
+
 執行 `yomihon examples/vault`。首頁提供兩本教材：
 
 - [Go 並行入門](vault/Notes/Books/Go%20並行入門.md)：五課主線，從啟動 goroutine 到固定數量的 worker；逾時處理為選讀。

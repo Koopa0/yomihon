@@ -1,7 +1,6 @@
 package note_test
 
 import (
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -37,23 +36,11 @@ func deskOverNote(t *testing.T, name, body string, kept *mark.Continuation, has 
 	srv := newServerWithMark(t, root, nil, schema.Ungoverned(),
 		func() (mark.Continuation, bool) { return *kept, has })
 
-	response, err := http.Get(srv.URL + "/") //nolint:noctx // the test server is torn down by the helper
-	if err != nil {
-		t.Fatalf("GET the desk: %v", err)
+	code, page := get(t, srv.Client(), srv.URL+"/")
+	if code != http.StatusOK {
+		t.Fatalf("GET the desk = %d, want 200", code)
 	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			t.Error(closeErr)
-		}
-	}()
-	page, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatalf("read the desk: %v", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("GET the desk = %d, want 200", response.StatusCode)
-	}
-	return string(page)
+	return page
 }
 
 const aNote = "---\ntitle: Alpha\n---\n\n# Alpha\n\nSome words.\n"
