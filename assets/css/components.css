@@ -5737,6 +5737,16 @@ samp,
   font-family: var(--font-read);
 }
 
+/* Prose components keep their declared serif or sans role when their
+   authored language asks for Japanese glyph shapes. */
+.y-prose :where(.footnotes, th, .embed__source, .embed__note, .callout-title):lang(ja) {
+  font-family: var(--font-sans-ja);
+}
+
+.y-prose :where(td, .callout-body):lang(ja) {
+  font-family: var(--font-serif-ja);
+}
+
 /* Arrival echo — a brief wash on the heading a jump lands on, whether the
    reader came from the table of contents, a footnote, or a link in another
    note. The eye arrives the moment the jump does, so the echo plays at once;

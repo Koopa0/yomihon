@@ -11,6 +11,17 @@ const READING_CHOICES = ['serif', 'sans', 'kai'];
 const EXCLUDED = 'code, pre, kbd, samp, button, input, select, textarea, code *, pre *, kbd *, samp *, button *, select *, textarea *';
 const FAMILY_SELECTOR = `.y-prose :where(p, rt, [data-level], [lang]):lang(ja):not(:where(${EXCLUDED}))`;
 const RESET_SELECTOR = `.y-prose [lang]:not(:lang(ja)):not(:where(${EXCLUDED}))`;
+const SANS_PROSE_SELECTOR = '.y-prose :where(.footnotes, th, .embed__source, .embed__note, .callout-title):lang(ja)';
+const SERIF_PROSE_SELECTOR = '.y-prose :where(td, .callout-body):lang(ja)';
+const PROSE_FACES = [
+  ['.callout-body', 'serif'],
+  ['.callout-title', 'sans'],
+  ['.embed__note', 'sans'],
+  ['.embed__source', 'sans'],
+  ['.footnotes', 'sans'],
+  ['td', 'serif'],
+  ['th', 'sans'],
+];
 const MODES = {
   'drop-japanese-family': { selector: FAMILY_SELECTOR, property: 'font-family', value: 'inherit', font: 'serif', target: 'japanese-paragraph-and-reading' },
   'use-serif-for-sans': { selector: ":root[data-font='sans']", property: '--font-read-ja', value: 'var(--font-serif-ja)', font: 'sans', target: 'japanese-paragraph-and-reading' },
@@ -18,6 +29,9 @@ const MODES = {
   'drop-nonjapanese-reset': { selector: RESET_SELECTOR, property: 'font-family', value: 'inherit', font: 'serif', target: 'nested-language-returns-to-ordinary-face' },
   'drop-code-and-control-exclusions': { selector: FAMILY_SELECTOR, property: 'font-family', font: 'serif', target: 'code-and-controls-keep-their-faces', removeExclusions: true },
   'add-unchecked-typeface': { catalog: true, target: 'whole-font-choice-catalog' },
+  'drop-japanese-sans-prose': { selector: SANS_PROSE_SELECTOR, property: 'font-family', removeRule: true, font: 'serif', target: 'japanese-authored-prose-roles' },
+  'drop-japanese-serif-prose': { selector: SERIF_PROSE_SELECTOR, property: 'font-family', removeRule: true, font: 'serif', target: 'japanese-authored-prose-roles' },
+  'add-unchecked-prose-family': { selector: SANS_PROSE_SELECTOR, property: 'font-family', proseCatalog: true, font: 'serif', target: 'whole-prose-family-catalog' },
 };
 class NotApplied extends Error {}
 class LockFired extends Error {
@@ -52,7 +66,10 @@ const mutate = async (page, mode) => {
             await route.fulfill({ response });
             return;
           }
-          const changed = mode.removeExclusions ? block.replace(exclusion, '') : block.replace(declaration, `$1${mode.property}: ${mode.value};`);
+          let changed;
+          if (mode.removeRule) changed = '';
+          else if (mode.proseCatalog) changed = `${block}\n.y-prose .unchecked-prose-family { font-family: var(--font-sans); }\n`;
+          else changed = mode.removeExclusions ? block.replace(exclusion, '') : block.replace(declaration, `$1${mode.property}: ${mode.value};`);
           if (changed !== block) proof.changes += 1;
           body = css.replace(block, changed);
         }
@@ -153,6 +170,46 @@ try {
       await page.evaluate(() => document.fonts.ready);
       await arrived(page);
       if (proof) proof();
+      // Inspect authored components before moving the paragraph's language
+      // boundary. Their original family declarations own the complete set;
+      // the expected role catalog is independent of the coverage selectors.
+      const proseFacts = await page.evaluate((roles) => {
+        const article = document.querySelector('.y-article');
+        const prose = article?.querySelector('.y-prose');
+        if (!article || !prose || !article.matches(':lang(ja)')) throw new Error('original authored lesson is not Japanese');
+        const declared = [];
+        const walkRules = (rules) => {
+          for (const rule of rules) {
+            const ordinary = rule.style?.fontFamily;
+            if (rule.selectorText?.includes('.y-prose') && ['var(--font-sans)', 'var(--font-serif)'].includes(ordinary)) {
+              for (const selector of rule.selectorText.split(',').map((value) => value.trim())) {
+                const match = /^\.y-prose (\.[\w-]+|th|td)$/.exec(selector);
+                if (!match) throw new Error(`unreadable prose family declaration ${selector}`);
+                declared.push([match[1], ordinary === 'var(--font-sans)' ? 'sans' : 'serif']);
+              }
+            }
+            if (rule.cssRules) walkRules(rule.cssRules);
+          }
+        };
+        for (const sheet of document.styleSheets) {
+          if ((sheet.href || '').includes('/static/app.css')) walkRules(sheet.cssRules);
+        }
+        declared.sort(([a], [b]) => a.localeCompare(b, 'en'));
+        const sites = roles.flatMap(([selector, role]) => {
+          const nodes = [...prose.querySelectorAll(selector)];
+          if (!nodes.length) throw new Error(`missing authored prose component ${selector}`);
+          return nodes.map((node) => ({ selector, role, tag: node.tagName, japanese: node.matches(':lang(ja)'), family: getComputedStyle(node).fontFamily, text: node.textContent }));
+        });
+        return { declared, sites };
+      }, PROSE_FACES);
+      console.log(`invoked: authored prose family catalog ${JSON.stringify(proseFacts)}`);
+      if (JSON.stringify(proseFacts.declared) !== JSON.stringify(PROSE_FACES)) throw new LockFired('whole-prose-family-catalog', `actual declarations ${JSON.stringify(proseFacts.declared)}, expected every case ${JSON.stringify(PROSE_FACES)}`);
+      const expectedRoles = {
+        sans: ['Geist', 'Noto Sans JP', 'Hiragino Sans', 'Noto Sans TC', 'PingFang TC', 'system-ui', 'sans-serif'],
+        serif: ['Newsreader', 'Noto Serif JP', 'Hiragino Mincho ProN', 'Noto Serif TC', 'Songti TC', 'Georgia', 'serif'],
+      };
+      const mismatches = proseFacts.sites.filter((site) => !site.japanese || JSON.stringify(family(site.family)) !== JSON.stringify(expectedRoles[site.role]));
+      if (mismatches.length) throw new LockFired('japanese-authored-prose-roles', JSON.stringify(mismatches));
       // The original lesson supplies the paragraph and ruby; only its language
       // boundary is moved to exercise whole-note and mixed-note inheritance.
       for (const boundary of ['article', 'div', 'paragraph', 'subtag']) {
@@ -202,7 +259,7 @@ try {
       }
     } finally { await context.close(); }
   }
-  console.log(`PASS japanese-reading-face: ${measured} complete computed paragraph/rt/preference/language-boundary cases`);
+  console.log(`PASS japanese-reading-face: ${measured} complete computed paragraph/rt/preference/language-boundary cases plus seven authored prose roles`);
 } catch (error) {
   console.error(error.message || error);
   if (error instanceof NotApplied) { console.log(`MUTATE-RESULT: not-applied ${MUTATE}`); process.exitCode = 2; }
