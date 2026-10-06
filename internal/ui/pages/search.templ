@@ -44,7 +44,7 @@ type SearchView struct {
 
 	// LiteralOperators names terms searched as words despite their operator
 	// shape. FolderSuggestions repairs a basename to a counted full-path query.
-	LiteralOperators []string
+	LiteralOperators  []string
 	FolderSuggestions []SearchStepBack
 
 	// Facets is the column beside the results: what the current answer is made
@@ -376,7 +376,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 								<a href={ templ.URL(searchHref(step.Query)) }>{ wording.StepBackOpen.In(lang) }{ step.Query }{ wording.StepBackClose.In(lang) }</a>
 								{ fmt.Sprintf(wording.StepBackCountFmt.In(lang), step.Count) }
 							}
-							</p>
+						</p>
 					}
 					if len(v.StepBacks) > 0 {
 						<p class="y-nothing__hint">
