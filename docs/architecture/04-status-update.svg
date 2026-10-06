@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1180" viewBox="0 0 1600 1180" role="img" aria-labelledby="title description">
+<title id="title">Status update</title><desc id="description">The successful status path validates a live file, prepares a surgical replacement, checks authority again, installs with filesystem-specific protection, and confirms after directory synchronization.</desc>
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#5B7081" stroke-width="1.8"/></marker>
+<marker id="write-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#986626" stroke-width="1.8"/></marker>
+</defs>
+<rect width="1600" height="1180" fill="#FFFFFF"/>
+<g font-family="DejaVu Sans, Arial, sans-serif" fill="#152B3C">
+<rect x="80" y="50" width="320" height="100" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M81,64 V136" stroke="#23699A" stroke-width="3.5"/>
+<text x="103" y="108.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Browser</text>
+<rect x="620" y="50" width="360" height="100" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M621,64 V136" stroke="#986626" stroke-width="3.5"/>
+<text x="643" y="108.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Status writer</text>
+<rect x="1190" y="50" width="345" height="100" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1191,64 V136" stroke="#237869" stroke-width="3.5"/>
+<text x="1213" y="108.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Vault filesystem</text>
+<path d="M240,150 V1135" stroke="#C9D6DE" stroke-width="1.5" stroke-dasharray="7 7"/>
+<path d="M800,150 V1135" stroke="#C9D6DE" stroke-width="1.5" stroke-dasharray="7 7"/>
+<path d="M1362,150 V1135" stroke="#C9D6DE" stroke-width="1.5" stroke-dasharray="7 7"/>
+<polyline points="240,250 800,250" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="520" y="199" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">POST /status</text>
+<text x="520" y="229" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">path · from · to · content identity</text>
+<polyline points="800,345 1362,345" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1081" y="326" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">Read source + validate target</text>
+<polyline points="1362,410 800,410" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<text x="1081" y="392" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">Bytes + file identity</text>
+<rect x="563" y="460" width="474" height="95" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M564,474 V541" stroke="#986626" stroke-width="3.5"/>
+<text x="586" y="498.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Compare state and content</text>
+<text x="586" y="533.5" font-size="19" font-weight="400" fill="#506574" text-anchor="start">Check contract transition</text>
+<polyline points="800,620 1362,620" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="1081" y="601" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">Prepare replacement + sync file</text>
+<polyline points="800,715 1362,715" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1081" y="696" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">Recheck source + authority</text>
+<polyline points="800,810 1362,810" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="1081" y="791" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">Install replacement</text>
+<text x="1120" y="844" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">Exchange / retained hardlink / rename</text>
+<polyline points="800,935 1362,935" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="1081" y="916" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">Sync parent directory</text>
+<polyline points="1362,1005 800,1005" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<text x="1081" y="986" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">Durable success</text>
+<polyline points="800,1090 240,1090" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="520" y="1071" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">303 redirect</text>
+</g></svg>

@@ -22,9 +22,8 @@ type toolPin struct {
 }
 
 type toolInputs struct {
-	makefile  string
-	workflow  string
-	bootstrap string
+	makefile string
+	workflow string
 }
 
 func shippedToolInputs(t *testing.T) (toolInputs, []toolPin) {
@@ -46,7 +45,7 @@ func shippedToolInputs(t *testing.T) (toolInputs, []toolPin) {
 		}
 		return string(data)
 	}
-	inputs := toolInputs{makefile: read("Makefile"), workflow: read(".github/workflows/ci.yml"), bootstrap: read(".cursor/install.sh")}
+	inputs := toolInputs{makefile: read("Makefile"), workflow: read(".github/workflows/ci.yml")}
 	pins, parseErr := declaredToolPins(inputs.makefile)
 	if parseErr != nil {
 		t.Fatal(parseErr)
@@ -149,7 +148,7 @@ func runToolChecker(t *testing.T, inputs toolInputs) (exit int, output string) {
 	dir := t.TempDir()
 	var paths []string
 	for _, file := range []struct{ name, text string }{
-		{"Makefile", inputs.makefile}, {"ci.yml", inputs.workflow}, {"install.sh", inputs.bootstrap},
+		{"Makefile", inputs.makefile}, {"ci.yml", inputs.workflow},
 	} {
 		name := filepath.Join(dir, file.name)
 		if err := os.WriteFile(name, []byte(file.text), 0o600); err != nil {
@@ -192,7 +191,7 @@ func TestCIToolPinsCoverEveryDeclaration(t *testing.T) {
 		if exit != 0 {
 			t.Fatalf("caught: valid declared tool set rejected: exit=%d, output=%s", exit, out)
 		}
-		const prefix = "check-ci-tools: every declared tool pin agrees with CI and bootstrap:"
+		const prefix = "check-ci-tools: every declared tool pin agrees with CI:"
 		if !strings.HasPrefix(out, prefix) {
 			t.Fatalf("caught: incomplete success report: %q", out)
 		}
@@ -217,30 +216,25 @@ func TestCIToolPinsCoverEveryDeclaration(t *testing.T) {
 	}
 }
 
-func TestCIToolPinsIncludeBootstrapAndFutureTools(t *testing.T) {
+func TestCIToolPinsIncludeFutureTools(t *testing.T) {
 	t.Parallel()
 	inputs, _ := shippedToolInputs(t)
 	inputs.makefile += "\nNEUTRAL_PROBE_VERSION := v3.2.1\n"
-	inputs.workflow += "\n  NEUTRAL_PROBE_VERSION: 3.2.1\n  install: tool@${NEUTRAL_PROBE_VERSION}\n"
 	for _, tc := range []struct {
-		name, copy string
-		want       int
+		name, workflow string
+		want           int
 	}{
-		{"no bootstrap copy", "", 0},
-		{"bare equivalent", "NEUTRAL_PROBE_VERSION=3.2.1\n", 0},
-		{"quoted exported equivalent", "export NEUTRAL_PROBE_VERSION='v3.2.1' # release\n", 0},
-		{"double quoted equivalent", "NEUTRAL_PROBE_VERSION=\"3.2.1\"\n", 0},
-		{"drift", "NEUTRAL_PROBE_VERSION=v3.2.2\n", 1},
-		{"empty", "NEUTRAL_PROBE_VERSION=\n", 1},
-		{"second copy drift", "NEUTRAL_PROBE_VERSION=3.2.1\nNEUTRAL_PROBE_VERSION=3.2.2\n", 1},
+		{"equivalent", "\n  NEUTRAL_PROBE_VERSION: 3.2.1\n  install: tool@${NEUTRAL_PROBE_VERSION}\n", 0},
+		{"drift", "\n  NEUTRAL_PROBE_VERSION: 3.2.2\n  install: tool@${NEUTRAL_PROBE_VERSION}\n", 1},
+		{"unused", "\n  NEUTRAL_PROBE_VERSION: 3.2.1\n", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fixture := inputs
-			fixture.bootstrap += "\n" + tc.copy
+			fixture.workflow += tc.workflow
 			exit, out := runToolChecker(t, fixture)
 			if exit != tc.want || !strings.Contains(out, "NEUTRAL_PROBE_VERSION") {
-				t.Errorf("caught: future tool/bootstrap mismatch: exit=%d,want=%d,output=%s", exit, tc.want, out)
+				t.Errorf("caught: future tool pin mismatch: exit=%d,want=%d,output=%s", exit, tc.want, out)
 			}
 		})
 	}
@@ -257,7 +251,7 @@ func TestCIToolPinsRejectMissingAndCollectFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			exit, out := runToolChecker(t, toolInputs{makefile: tc.makefile, workflow: tc.workflow, bootstrap: inputs.bootstrap})
+			exit, out := runToolChecker(t, toolInputs{makefile: tc.makefile, workflow: tc.workflow})
 			if exit != 1 || strings.Contains(out, "every declared tool pin agrees") {
 				t.Errorf("caught: missing pin prerequisite escaped: exit=%d,output=%s", exit, out)
 			}
@@ -283,12 +277,12 @@ func TestCIToolPinsRejectMissingAndCollectFailures(t *testing.T) {
 
 func TestCIToolPinsRejectMissingInputs(t *testing.T) {
 	t.Parallel()
-	for missing := range 3 {
-		t.Run([]string{"Makefile", "workflow", "bootstrap"}[missing], func(t *testing.T) {
+	for missing := range 2 {
+		t.Run([]string{"Makefile", "workflow"}[missing], func(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
 			var paths []string
-			for index, name := range []string{"Makefile", "ci.yml", "install.sh"} {
+			for index, name := range []string{"Makefile", "ci.yml"} {
 				p := filepath.Join(dir, name)
 				if index != missing {
 					if err := os.WriteFile(p, []byte("# present\n"), 0o600); err != nil {
@@ -319,15 +313,14 @@ func FuzzCIToolPinEquivalence(f *testing.F) {
 			}
 		}
 		inputs := toolInputs{
-			makefile:  "NEUTRAL_VERSION := " + version + "\n",
-			workflow:  "  NEUTRAL_VERSION: v" + version + "\n  install: tool@${NEUTRAL_VERSION}\n",
-			bootstrap: "export NEUTRAL_VERSION='v" + version + "'\n",
+			makefile: "NEUTRAL_VERSION := " + version + "\n",
+			workflow: "  NEUTRAL_VERSION: v" + version + "\n  install: tool@${NEUTRAL_VERSION}\n",
 		}
 		exit, out := runToolChecker(t, inputs)
 		if exit != 0 || !strings.Contains(out, "NEUTRAL_VERSION="+version) {
 			t.Fatalf("caught: equivalent pin rejected: exit=%d,output=%s", exit, out)
 		}
-		inputs.bootstrap = "NEUTRAL_VERSION=" + version + ".drift\n"
+		inputs.workflow = "  NEUTRAL_VERSION: " + version + ".drift\n  install: tool@${NEUTRAL_VERSION}\n"
 		exit, out = runToolChecker(t, inputs)
 		if exit != 1 || !strings.Contains(out, "pins NEUTRAL_VERSION at") {
 			t.Errorf("caught: unequal fuzz pin escaped: exit=%d,output=%s", exit, out)
@@ -393,12 +386,11 @@ func TestCIToolPinsDeclarationSyntax(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			inputs := toolInputs{
-				makefile:  "BASE_VERSION := 1\n" + tc.text,
-				workflow:  "  BASE_VERSION: 1\n  NEUTRAL_VERSION: 3.2.1\n  use: tool@${BASE_VERSION} tool@${NEUTRAL_VERSION}\n",
-				bootstrap: "# no copies\n",
+				makefile: "BASE_VERSION := 1\n" + tc.text,
+				workflow: "  BASE_VERSION: 1\n  NEUTRAL_VERSION: 3.2.1\n  use: tool@${BASE_VERSION} tool@${NEUTRAL_VERSION}\n",
 			}
 			exit, out := runToolChecker(t, inputs)
-			const prefix = "check-ci-tools: every declared tool pin agrees with CI and bootstrap:"
+			const prefix = "check-ci-tools: every declared tool pin agrees with CI:"
 			if tc.wantErr != "" {
 				pin := tc.pin
 				if pin == "" {
@@ -462,9 +454,8 @@ func TestCIToolPinFixtureGrammar(t *testing.T) {
 func TestCIToolPinsUnsupportedCollectFailures(t *testing.T) {
 	t.Parallel()
 	inputs := toolInputs{
-		makefile:  "BASE_VERSION := 1\nNEW_A_VERSION = 9\nNEW_B_VERSION ?= 9\n",
-		workflow:  "  BASE_VERSION: 2\n  use: tool@${BASE_VERSION}\n",
-		bootstrap: "# no copies\n",
+		makefile: "BASE_VERSION := 1\nNEW_A_VERSION = 9\nNEW_B_VERSION ?= 9\n",
+		workflow: "  BASE_VERSION: 2\n  use: tool@${BASE_VERSION}\n",
 	}
 	exit, out := runToolChecker(t, inputs)
 	if exit != 1 || strings.Contains(out, "every declared tool pin agrees") {

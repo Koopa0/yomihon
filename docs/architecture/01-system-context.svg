@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="930" viewBox="0 0 1600 930" role="img" aria-labelledby="title description">
+<title id="title">System context</title><desc id="description">The editor maintains the vault. Yomihon reads captured generations, serves a loopback browser, changes status values, and stores reader marks outside the vault.</desc>
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#5B7081" stroke-width="1.8"/></marker>
+<marker id="write-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1,1 L8,5 L1,9" fill="none" stroke="#986626" stroke-width="1.8"/></marker>
+</defs>
+<rect width="1600" height="930" fill="#FFFFFF"/>
+<g font-family="DejaVu Sans, Arial, sans-serif" fill="#152B3C">
+<rect x="430" y="60" width="755" height="775" rx="14" fill="#F5F8FA" stroke="#C9D6DE" stroke-width="1.5"/>
+<text x="458" y="101" font-size="25" font-weight="600" fill="#152B3C" text-anchor="start">Yomihon</text>
+<rect x="55" y="155" width="295" height="115" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M56,169 V256" stroke="#237869" stroke-width="3.5"/>
+<text x="78" y="203.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Editor</text>
+<text x="78" y="238.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Markdown + sidecars</text>
+<rect x="55" y="385" width="295" height="255" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M56,399 V626" stroke="#237869" stroke-width="3.5"/>
+<text x="78" y="476.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Vault</text>
+<text x="78" y="511.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Notes</text>
+<text x="78" y="538.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Attachments</text>
+<text x="78" y="565.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">Contract</text>
+<rect x="480" y="185" width="220" height="125" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M481,199 V296" stroke="#23699A" stroke-width="3.5"/>
+<text x="503" y="238.5" font-size="23" font-weight="600" fill="#152B3C" text-anchor="start">Vault reader</text>
+<text x="503" y="273.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Rooted file access</text>
+<rect x="800" y="185" width="330" height="125" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M801,199 V296" stroke="#23699A" stroke-width="3.5"/>
+<text x="823" y="238.5" font-size="23" font-weight="600" fill="#152B3C" text-anchor="start">Reading generation</text>
+<text x="823" y="273.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Graph · search · navigation</text>
+<rect x="800" y="395" width="330" height="125" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M801,409 V506" stroke="#23699A" stroke-width="3.5"/>
+<text x="823" y="448.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">HTTP + rendering</text>
+<text x="823" y="483.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">templ · Markdown pipeline</text>
+<rect x="480" y="665" width="260" height="110" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M481,679 V761" stroke="#986626" stroke-width="3.5"/>
+<text x="503" y="728.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Status writer</text>
+<rect x="1260" y="395" width="285" height="125" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1261,409 V506" stroke="#23699A" stroke-width="3.5"/>
+<text x="1283" y="448.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Browser</text>
+<text x="1283" y="483.5" font-size="18" font-weight="400" fill="#506574" text-anchor="start">Reading + preferences</text>
+<rect x="1260" y="665" width="285" height="125" rx="9" fill="#FFFFFF" stroke="#C9D6DE" stroke-width="1.6"/>
+<path d="M1261,679 V776" stroke="#237869" stroke-width="3.5"/>
+<text x="1283" y="718.5" font-size="24" font-weight="600" fill="#152B3C" text-anchor="start">Reader marks</text>
+<text x="1283" y="753.5" font-size="20" font-weight="400" fill="#506574" text-anchor="start">User configuration</text>
+<polyline points="202,270 202,385" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="233" y="334" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">edit</text>
+<polyline points="350,455 387,455 387,247 480,247" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="414" y="229" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">read</text>
+<polyline points="700,247 800,247" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="965,310 965,395" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1130,457 1260,457" fill="none" stroke="#5B7081" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<text x="1195" y="438" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">127.0.0.1</text>
+<polyline points="965,520 965,590 610,590 610,665" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="788" y="575" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">status update</text>
+<polyline points="480,720 390,720 390,610 350,610" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="378" y="754" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">status only</text>
+<polyline points="1130,495 1218,495 1218,727 1260,727" fill="none" stroke="#986626" stroke-width="1.9" stroke-linejoin="round" marker-end="url(#write-arrow)"/>
+<text x="1276" y="617" font-size="18" font-weight="400" fill="#506574" text-anchor="middle">read / write</text>
+</g></svg>
