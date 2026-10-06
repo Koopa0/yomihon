@@ -233,6 +233,8 @@
   --fs-18: 1.125rem;
 
   /* Editorial scale */
+  --fs-ed-13: 0.8125rem;
+  --fs-ed-15: 0.9375rem;
   --fs-ed-17: 1.0625rem;
   --fs-ed-20: 1.25rem;
   --fs-ed-24: 1.5rem;
@@ -337,21 +339,31 @@
      keeps its name apart from the measures above. */
   --notice-column: 480px;
 
-  /* Motion — two durations and one curve, because motion here exists so a
-     state change can be read. --dur-base is what the pointer and the keyboard
-     touch: a hover, a focus ring, a chevron turning, a fold opening.
-     --dur-slow is for a surface the reader summoned and will send away again —
-     the palette, the concept sheet, the navigation drawer — where the longer
-     arrival says where the surface came from and where it will go back to.
-     The hover preview card looks like the second group and belongs to the
-     first: it is born of a pointer resting on a link rather than of a press,
-     so it takes --dur-base, and at the slow one it would still be arriving
-     after the pointer had moved on. --dur-dwell is not a third tempo but a
-     dwell — how long the wash on a jumped-to heading stays legible before it
-     leaves — which is a reading time rather than an interface one. */
+  /* Motion — motion here exists so a state change can be read. --dur-base is
+     what the pointer and the keyboard touch: a hover, a focus ring, a chevron
+     turning, a fold opening. --dur-slow is for a surface the reader summoned
+     and will send away again — the palette, the concept sheet, the navigation
+     drawer — where the longer arrival says where the surface came from and
+     where it will go back to. Both run over --ease-standard. The hover preview
+     card looks like the second group and belongs to the first: it is born of a
+     pointer resting on a link rather than of a press, so it takes --dur-base,
+     and at the slow one it would still be arriving after the pointer had moved
+     on. --dur-dwell is not a tempo but a dwell — how long the wash on a
+     jumped-to heading stays legible before it leaves — which is a reading time
+     rather than an interface one.
+     A page arriving is the one motion that is none of these. It answers a
+     press in place instead of coming from an edge, so it keeps a duration and
+     a curve of its own. --ease-arrival starts moving at once but not at a
+     jump, and settles slowly, so the arrival reads as the page coming forward
+     rather than snapping in; --dur-arrival is how long that settling is
+     allowed to take. Tuning how a page arrives therefore moves neither the
+     drawer, the sheet nor the palette, which share the summoned surfaces'
+     pair. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-arrival: cubic-bezier(0.33, 1, 0.68, 1);
   --dur-base: 120ms;
   --dur-slow: 200ms;
+  --dur-arrival: 320ms;
   --dur-dwell: 1100ms;
 }
 
@@ -359,6 +371,8 @@
    ed tokens move: the chrome keeps its own type, because the preference tunes
    the reading, never the furniture around it. */
 :root[data-textsize='l'] {
+  --fs-ed-13: 0.9375rem;
+  --fs-ed-15: 1.0625rem;
   --fs-ed-17: 1.1875rem;
   --fs-ed-20: 1.375rem;
   --fs-ed-24: 1.625rem;
@@ -367,6 +381,8 @@
 }
 
 :root[data-textsize='xl'] {
+  --fs-ed-13: 1.0625rem;
+  --fs-ed-15: 1.1875rem;
   --fs-ed-17: 1.3125rem;
   --fs-ed-20: 1.5rem;
   --fs-ed-24: 1.75rem;

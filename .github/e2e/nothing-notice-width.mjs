@@ -118,6 +118,25 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
+// The page has arrived: the block of content under the header has finished
+// coming forward. That arrival scales the block while it plays, so a box read
+// from inside it is narrower than the one it settles at, by a few pixels that
+// the unscaled scroll widths beside it do not share. A page the arrival is
+// gated off has no such animation, and only once the stylesheet is applied can
+// the answer be that there is none. The wait names the arrival and not every
+// animation, because the shimmer and the spinner never finish.
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 // laidOut hands back what the browser made of every notice on the page.
 const laidOut = (page, run) =>
   page.evaluate((text) => {
@@ -148,6 +167,7 @@ try {
   for (const target of [PAGE, MISSING]) {
     await page.goto(BASE + target, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => document.fonts.ready);
+    await arrived(page);
     if (proof) {
       const issue = await proof();
       if (issue) notApplied(`${MUTATE}: ${issue}`);

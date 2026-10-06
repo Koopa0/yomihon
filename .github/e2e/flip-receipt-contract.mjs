@@ -1,4 +1,4 @@
-// Behavior lock for the flip receipt's arrival: a short entrance slide and a
+// Behavior lock for the flip receipt's arrival: a short entrance fade and a
 // clean address once the sentence has landed. The server mints the receipt from
 // ?from=; the client drops that token so a copied URL does not suggest a replay
 // the write path has already refused.

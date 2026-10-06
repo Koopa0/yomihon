@@ -160,7 +160,7 @@ const MUTATIONS = {
   'restore-search-open-only': {
     target: 'search-exit-has-frames',
     apply: appendStylesheet(
-      '.y-searchdialog{transition:none;opacity:1;transform:none}.y-searchdialog[open]{transition:opacity 200ms,transform 200ms}',
+      '.y-searchdialog{transition:none;opacity:1;scale:none}.y-searchdialog[open]{transition:opacity 200ms,scale 200ms}',
     ),
   },
   'restore-sheet-open-only': {
