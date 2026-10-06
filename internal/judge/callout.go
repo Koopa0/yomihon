@@ -20,14 +20,6 @@ type calloutTitle struct {
 	line  int
 }
 
-// extractCalloutTitles walks a note body the way the page classifies a
-// callout: fences and comments are not titles, an unknown type is a
-// blockquote, and a recognised opening's title is the text after `[!type]`.
-func extractCalloutTitles(body string, bodyStartLine int) []calloutTitle {
-	facts := inspectBody(body, nil)
-	return extractCalloutTitlesFrom(body, bodyStartLine, facts.comments)
-}
-
 func extractCalloutTitlesFrom(body string, bodyStartLine int, skip []byteRange) []calloutTitle {
 	var out []calloutTitle
 	inFence, fenceByte, fenceLen := false, byte(0), 0

@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -17,10 +18,37 @@ func sharedBodyFixture() string {
 func TestParseNoteSharesBodyStructure(t *testing.T) {
 	body := sharedBodyFixture()
 	data := []byte(body)
-	allocations := testing.AllocsPerRun(10, func() { parseNote("Notes/source.md", data) })
-	t.Logf("parseNote allocations = %.0f", allocations)
-	if allocations > 14000 {
-		t.Errorf("parseNote allocations = %.0f, want at most 14000 for the shared body", allocations)
+	marks := defaultPlannedMarks()
+	want := separateBodyExtractions(data, marks)
+	got := parseNoteWithMarks("Notes/source.md", data, marks)
+	if diff := cmp.Diff(want, got, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, calloutTitle{})); diff != "" {
+		t.Fatalf("parseNoteWithMarks differs from independent harvests (-want +got):\n%s", diff)
+	}
+	separate := testing.AllocsPerRun(100, func() {
+		n := separateBodyExtractions(data, marks)
+		runtime.KeepAlive(n)
+	})
+	shared := testing.AllocsPerRun(100, func() {
+		n := parseNoteWithMarks("Notes/source.md", data, marks)
+		runtime.KeepAlive(n)
+	})
+	repeatedStructure := testing.AllocsPerRun(100, func() {
+		code, headings := structure(body, marks.heading)
+		runtime.KeepAlive(code)
+		runtime.KeepAlive(headings)
+		for range 3 {
+			code, headings := structure(body, nil)
+			runtime.KeepAlive(code)
+			runtime.KeepAlive(headings)
+		}
+	})
+	saved := separate - shared
+	t.Logf("allocations: separate = %.0f, shared = %.0f, saved = %.0f, required structure savings = %.0f", separate, shared, saved, repeatedStructure)
+	if repeatedStructure <= 0 {
+		t.Fatal("repeated structure allocations = 0, want positive measured cost")
+	}
+	if saved < repeatedStructure {
+		t.Errorf("saved allocations = %.0f, want at least %.0f for one marked and three unmarked structures", saved, repeatedStructure)
 	}
 }
 
@@ -87,4 +115,37 @@ func FuzzSharedJudgeBodyStructure(f *testing.F) {
 			t.Errorf("parseNoteWithMarks(%q) differs from independent harvests (-want +got):\n%s", data, diff)
 		}
 	})
+}
+
+// extractCalloutTitles walks a note body the way the page classifies a
+// callout: fences and comments are not titles, an unknown type is a
+// blockquote, and a recognised opening's title is the text after `[!type]`.
+func extractCalloutTitles(body string, bodyStartLine int) []calloutTitle {
+	facts := inspectBody(body, nil)
+	return extractCalloutTitlesFrom(body, bodyStartLine, facts.comments)
+}
+
+// extractPathRefs returns every checkable file reference in body: markdown
+// [text](path.md) links and backticked path.md tokens. URLs, anchors, and
+// percent-encoded or glob paths are left out, so only plain in-vault file
+// references remain. A reference inside an Obsidian %%...%% comment is skipped,
+// the same way a commented-out wikilink is: commented-out content is not a live
+// reference, so it is not checked.
+func extractPathRefs(body string, bodyStartLine int) []pathRef {
+	facts := inspectBody(body, nil)
+	return extractPathRefsFrom(body, bodyStartLine, facts.comments)
+}
+
+// anchorSurface reads one body into what its page answers a fragment with:
+// the set of section ids a link could be sent to, the set the excerpt scan
+// cuts a transclusion to, and the folded lines that could carry a "^name"
+// block address. Obsidian comments come off first, the way the page strips
+// them before it looks, because a heading or an address hidden in a comment
+// is not on the page a reader arrives at. A study path's branch is named the
+// way the page names it too: the role it declares at the end of its heading is
+// grammar the course parser consumes, so the id is stamped from the words
+// without it, and a citation reaches the branch by the name a reader sees.
+func anchorSurface(body string) (sections, excerptSections map[string]bool, blockLines []string) {
+	facts := inspectBody(body, nil)
+	return anchorSurfaceFrom(body, facts.comments)
 }

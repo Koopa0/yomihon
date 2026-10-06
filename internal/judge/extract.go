@@ -154,17 +154,6 @@ func extractWikilinksFrom(body string, bodyStartLine int, facts *bodyStructure) 
 	return links
 }
 
-// extractPathRefs returns every checkable file reference in body: markdown
-// [text](path.md) links and backticked path.md tokens. URLs, anchors, and
-// percent-encoded or glob paths are left out, so only plain in-vault file
-// references remain. A reference inside an Obsidian %%...%% comment is skipped,
-// the same way a commented-out wikilink is: commented-out content is not a live
-// reference, so it is not checked.
-func extractPathRefs(body string, bodyStartLine int) []pathRef {
-	facts := inspectBody(body, nil)
-	return extractPathRefsFrom(body, bodyStartLine, facts.comments)
-}
-
 func extractPathRefsFrom(body string, bodyStartLine int, comments []byteRange) []pathRef {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))

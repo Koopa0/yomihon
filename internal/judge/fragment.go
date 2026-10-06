@@ -33,20 +33,6 @@ func headingWords(raw string) string {
 	return render.HeadingWords(raw)
 }
 
-// anchorSurface reads one body into what its page answers a fragment with:
-// the set of section ids a link could be sent to, the set the excerpt scan
-// cuts a transclusion to, and the folded lines that could carry a "^name"
-// block address. Obsidian comments come off first, the way the page strips
-// them before it looks, because a heading or an address hidden in a comment
-// is not on the page a reader arrives at. A study path's branch is named the
-// way the page names it too: the role it declares at the end of its heading is
-// grammar the course parser consumes, so the id is stamped from the words
-// without it, and a citation reaches the branch by the name a reader sees.
-func anchorSurface(body string) (sections, excerptSections map[string]bool, blockLines []string) {
-	facts := inspectBody(body, nil)
-	return anchorSurfaceFrom(body, facts.comments)
-}
-
 func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSections map[string]bool, blockLines []string) {
 	stripped := withoutCommentZones(body, comments)
 	sections = make(map[string]bool)
