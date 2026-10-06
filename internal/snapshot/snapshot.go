@@ -1000,7 +1000,7 @@ func buildGeneration(
 		// One unusable sidecar costs one lesson its practice panel, not the rest.
 		entry, ok := observations[problem.Source]
 		if !ok {
-			panic("snapshot: sidecar problem lacks its captured source: " + problem.Source)
+			panic("snapshot: unknown sidecar source: " + problem.Source)
 		}
 		if g.warnings.record(entry, warningSidecar, problem.Message) {
 			log.Warn("slot sidecar unusable in snapshot generation",
