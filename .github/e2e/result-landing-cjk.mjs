@@ -24,6 +24,18 @@
 // Env: YOMIHON_BASE, PAGE_PATH, and MUTATE.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8';
 const MUTATE = process.env.MUTATE || '';
@@ -156,6 +168,7 @@ try {
   await link.click();
   await page.waitForURL(/%E7%81%B0%E5%B8%83%E5%B8%B3%E5%86%8A/);
   await page.waitForLoadState('load');
+  await arrived(page);
   // Settling is watched rather than assumed, because a directive that is
   // never honoured leaves the scroll at rest immediately and would otherwise
   // be measured before a working one had moved.

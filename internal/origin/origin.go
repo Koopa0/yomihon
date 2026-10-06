@@ -27,6 +27,8 @@ const (
 	corpHeader          = "Cross-Origin-Resource-Policy"
 	corpValue           = "same-origin"
 	cspHeader           = "Content-Security-Policy"
+	permissionsPolicy   = "Permissions-Policy"
+	permissionsRefused  = "camera=(), microphone=(), geolocation=(), usb=(), serial=(), payment=(), display-capture=()"
 	referrerPolicy      = "Referrer-Policy"
 	contentTypeOptions  = "X-Content-Type-Options"
 	dnsPrefetchControl  = "X-DNS-Prefetch-Control"
@@ -99,9 +101,10 @@ func finalResponseStatus(statusCode int) bool {
 }
 
 // Protect stamps every final response with the refusal to be embedded by any
-// origin but yomihon's own, the reading shell's content policy, the referrer
-// and sniffing headers, and the cache headers that tell a store the cookie
-// mattered. Every path that commits a response reasserts them first — a named
+// origin but yomihon's own, the reading shell's content policy, the permissions
+// it never requests, the referrer and sniffing headers, and the cache headers
+// that tell a store the cookie mattered. Every path that commits a response
+// reasserts them first — a named
 // status, a body written without one, a ReadFrom copy, a flush, and the
 // implicit 200 after a handler writes nothing — and a new commit path has to
 // do the same.
@@ -168,6 +171,7 @@ func (w *writer) applyHeaders() {
 		policy = w.explicitCSP
 	}
 	w.Header().Set(cspHeader, policy)
+	w.Header().Set(permissionsPolicy, permissionsRefused)
 	w.Header().Set(referrerPolicy, referrerPolicyValue)
 	w.Header().Set(contentTypeOptions, contentTypeNoSniff)
 	w.Header().Set(dnsPrefetchControl, dnsPrefetchOff)

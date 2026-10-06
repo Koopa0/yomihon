@@ -11,11 +11,12 @@ import (
 // TestComponentMotionIsWrittenInTokens holds the interface to the speeds it
 // chose. Motion here exists so a state change can be read: an overlay says
 // where it came from and will go back to, a fold says the hidden thing was
-// here. Two durations carry all of that, and both are declared once as tokens,
-// so a reader's whole sense of how fast this interface moves can be read and
-// changed in one place. A number written straight into a rule is invisible
-// from there — it is a speed nobody chose, and it is how the overlays came to
-// arrive at three different tempos and the hovers at two.
+// here, a page says it is a new one. A handful of durations carry all of that,
+// and each is declared once as a token, so a reader's whole sense of how fast
+// this interface moves can be read and changed in one place. A number written
+// straight into a rule is invisible from there — it is a speed nobody chose,
+// and it is how the overlays came to arrive at three different tempos and the
+// hovers at two.
 //
 // Three values are deliberately not tokens and are named below with the exact
 // declaration each belongs to. Two are indeterminate waits — a diagram being
@@ -70,7 +71,7 @@ func TestComponentMotionIsWrittenInTokens(t *testing.T) {
 	}
 
 	for _, found := range timeLiterals(css) {
-		t.Errorf("%s:%d sets a duration of %s in %q; the interface moves at --dur-base and --dur-slow, and dwells at --dur-dwell, so a rule reaches for one of those rather than writing a number of its own", path, found.line, found.text, found.context)
+		t.Errorf("%s:%d sets a duration of %s in %q; the interface moves at --dur-base and --dur-slow, a page arrives over --dur-arrival, and a jumped-to heading dwells at --dur-dwell, so a rule reaches for one of those rather than writing a number of its own", path, found.line, found.text, found.context)
 	}
 }
 

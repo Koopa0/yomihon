@@ -36,7 +36,8 @@ type Health struct {
 	TitleOnly []HealthTitleLink
 	// Islands are notes nothing cites in the body, grouped by the folder they
 	// live in so the shape of the number is visible before the rows are read. A
-	// based_on declaration is not a citation here. No row is dropped.
+	// based_on declaration is not a citation here. Contract-declared paths and
+	// maps are entry points and need no citation to stay off this list.
 	Islands []HealthIslandGroup
 	// Collisions are names more than one file answers to, where a citation
 	// resolves to none of them because the vault refuses to guess.
@@ -152,7 +153,7 @@ func (h *Health) Empty() bool {
 // newHealth gathers the whole-folder view from projections this generation
 // already built, through the same extractor as every other link answer here.
 // links is what each note cites, by path, as it was read when the note was.
-func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef) Health {
+func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef, roles schema.NavigationRoles) Health {
 	var h Health
 	var uncited []nav.NoteRef
 	titleReferenced := make(map[string]bool)
@@ -197,7 +198,7 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 				h.Unwritten = append(h.Unwritten, HealthLink{From: from, Target: target})
 			}
 		}
-		if back.Citing(n.RelPath) == 0 {
+		if back.Citing(n.RelPath) == 0 && !roles.IsPathType(n.Type()) && !roles.IsMapType(n.Type()) {
 			uncited = append(uncited, from)
 		}
 	}

@@ -3,5 +3,3 @@
 # diagram renderer and the generated assets must not classify it otherwise.
 assets/js/mermaid/** linguist-vendored
 *_templ.go linguist-generated
-internal/search/semantic/catalog/** linguist-generated
-internal/search/evalset/recording/testdata/*.json -diff linguist-generated

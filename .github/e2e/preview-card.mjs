@@ -16,6 +16,18 @@
 import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const MUTATE = process.env.MUTATE || '';
@@ -560,6 +572,7 @@ try {
 
 	const page = await context.newPage();
 	const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+	await arrived(page);
 	if (!response || response.status() !== 200) broken(`the source note returned ${response?.status() ?? 'no response'}, want 200`);
 	{
 		const state = await cardState(page);
@@ -789,6 +802,7 @@ try {
 	{
 		const lesson = await context.newPage();
 		const lessonResponse = await lesson.goto(BASE + LESSON_PATH, { waitUntil: 'networkidle' });
+		await arrived(lesson);
 		if (!lessonResponse || lessonResponse.status() !== 200) {
 			broken(`the lesson returned ${lessonResponse?.status() ?? 'no response'}, want 200`);
 		}
@@ -872,6 +886,7 @@ try {
 	watch(touch);
 	const tapping = await touch.newPage();
 	const touchResponse = await tapping.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+	await arrived(tapping);
 	if (!touchResponse || touchResponse.status() !== 200) broken(`the source note returned ${touchResponse?.status() ?? 'no response'} to the touch context`);
 	const coarse = await tapping.evaluate(() => matchMedia('(pointer: coarse)').matches);
 	if (!coarse) broken('the touch context still reports a fine pointer, so this check would pass over an emulation that never happened');

@@ -16,6 +16,18 @@
 // MUTATE.
 import { chromium } from 'playwright-core';
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/search?q=e';
 const HEALTH = '/health?sort=severity';
@@ -214,6 +226,7 @@ const stepOn = async (page) => {
   await next.click();
   await page.waitForURL((url) => url.toString() !== asked, { timeout: 15000 });
   await page.waitForLoadState('domcontentloaded');
+  if (new URL(page.url()).pathname === '/health') await arrived(page);
 };
 
 const overlap = (before, after) => before.filter((value) => after.includes(value));
@@ -295,6 +308,7 @@ try {
 
   // --- the findings table ---------------------------------------------------
   await page.goto(BASE + HEALTH, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   const ordered = await orderedColumn(page);
   if (ordered.length !== 1) broken(`the table marks ${ordered.length} columns as the ordering in force, want 1`);
   const tableStrip = await readStrip(page);
@@ -322,6 +336,7 @@ try {
   // --- a phone's width ------------------------------------------------------
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(BASE + HEALTH, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
   const narrow = await readStrip(page);
   if (!narrow) broken('the report draws no strip at a phone width');
   if (narrow.documentWidth > narrow.viewportWidth + 1) {
