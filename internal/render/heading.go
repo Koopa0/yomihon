@@ -65,8 +65,7 @@ func HeadingWords(raw string) string {
 	}
 	displayed.WriteString(source[last:])
 	parseable.WriteString(source[last:])
-	words := displayed.String()
-	return headingInnerText(applySafeMarkup(words, headingFormattingGate(words, parseable.String())))
+	return headingInnerText(applySafeMarkup(headingMarkup(displayed.String(), parseable.String())))
 }
 
 // The two halves of a place inside a document, as this package writes them:

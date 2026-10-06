@@ -175,45 +175,54 @@ func (c *formattingContainer) markUnpaired() {
 // keeps nothing between parses.
 var headingParser = goldmark.New(goldmark.WithExtensions(extension.GFM, safeMarkupExtension{})).Parser()
 
-// headingFormattingGate decides each formatting tag in a heading's words, closer
-// and opener alike, by whether the page's parse of that heading reads it as a
-// tag, and an opener also by whether the parse paired it. A tag the page shows
-// as text is escaped here too, so the words name the section the way the page
-// stamps its id. parseable is words with every byte a link displays replaced by
-// a letter: the page writes a link's label as text, so nothing in it is a tag
-// or opens a code span around one.
-func headingFormattingGate(words, parseable string) *formattingGate {
+// headingMarkup prepares a heading's words for the allowlist walk the way the
+// page's parse of that heading reads them, and returns the gate that decides
+// each formatting tag left in them. Every '<' the parse reads as text, in a
+// code span, after a backslash, in a link's label, or standing bare, is
+// escaped, so the walk meets exactly the tags the page writes and cannot read
+// a bare '<' and the tag after it as one. A formatting tag then
+// stays markup only if the page writes it as markup: read as a tag, and for an
+// opener, paired. parseable is words with every byte a link displays replaced
+// by a letter: the page writes a link's label as text, so nothing in it is a
+// tag or opens a code span around one.
+func headingMarkup(words, parseable string) (string, *formattingGate) {
 	gate := &formattingGate{everyTag: true}
-	if !strings.Contains(parseable, "<") {
-		return gate
+	if !strings.Contains(words, "<") {
+		return words, gate
 	}
-	const prefix = "# "
-	source := []byte(prefix + parseable)
-	parsed := map[int]bool{}
+	// An underlined heading's words run over several lines, so they are read
+	// as the one heading they are rather than a marked line and a paragraph.
+	prefix, suffix := "# ", ""
+	if strings.Contains(parseable, "\n") {
+		prefix, suffix = "", "\n==="
+	}
+	source := []byte(prefix + parseable + suffix)
+	written := map[int]bool{}
 	_ = ast.Walk(headingParser.Parse(text.NewReader(source)), func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
+		// The page writes a tag broken over two lines one line at a time, so
+		// neither part is a complete tag there and its '<' is text.
 		raw, ok := n.(*ast.RawHTML)
 		if !entering || !ok || raw.Segments.Len() != 1 {
 			return ast.WalkContinue, nil
 		}
-		segment := raw.Segments.At(0)
-		if safeFormattingTag.Match(segment.Value(source)) {
-			_, unpaired := raw.AttributeString(unpairedFormattingAttribute)
-			parsed[segment.Start-len(prefix)] = !unpaired
-		}
+		_, unpaired := raw.AttributeString(unpairedFormattingAttribute)
+		written[raw.Segments.At(0).Start-len(prefix)] = !unpaired
 		return ast.WalkContinue, nil
 	})
-	offset := 0
-	_ = visitSafeMarkup([]byte(words), admitAllFormatting, //nolint:errcheck // none of the callbacks returns an error
-		func(p []byte) error { offset += len(p); return nil },
-		func(tag []byte) error {
-			if safeFormattingTag.Match(tag) {
-				gate.paired = append(gate.paired, parsed[offset])
-			}
-			offset += len(tag)
-			return nil
-		},
-		func(tag []byte) error { offset += len(tag); return nil },
-		func(tag []byte) { offset += len(tag) },
-	)
-	return gate
+	// Each '<' left opens a tag the parse read, so the walk meets the tags in
+	// the parse's order and its n-th formatting tag is the parse's n-th.
+	var prepared strings.Builder
+	for i := range len(words) {
+		keep, tag := written[i]
+		switch {
+		case words[i] != '<':
+		case !tag:
+			prepared.WriteString("&lt;")
+			continue
+		case safeFormattingTag.MatchString(words[i : i+strings.IndexByte(words[i:], '>')+1]):
+			gate.paired = append(gate.paired, keep)
+		}
+		prepared.WriteByte(words[i])
+	}
+	return prepared.String(), gate
 }

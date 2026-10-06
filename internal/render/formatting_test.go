@@ -128,20 +128,78 @@ func TestAFormattingOpenerNeedsItsCloser(t *testing.T) {
 // inside a link's label is text on the page, not a tag, so it cannot claim an
 // opener there; a name that paired over the raw bytes would drop words the
 // reader sees and send a link copied off the contents list to the top of the
-// note.
+// note. A bare '<' is text on the page too, so it cannot swallow the tag after
+// it, and an underlined heading pairs across all of its lines. A name with a
+// line break is written as an underlined heading.
 func TestAHeadingPairsOnlyTheTagsThePageParses(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, nil, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Other.md"}}, nil, nil)
 	stamped := regexp.MustCompile(`<h[1-6][^>]* id="([^"]*)"`)
 	for _, heading := range []string{
+		// A closer the page reads as text.
 		"<u>head `</u>`",
 		"`<u>` head </u>",
 		`<u>a \</u>`,
+		`<u>a \</u></u>`,
+		`<u>a\\</u>`,
+		`\<u>a</u>`,
+		"``a`</u>`` <u>b</u>",
+		"<u>a <!-- < --> b</u>",
+		// A bare '<' before a tag.
+		"<kbd>Shift</kbd> + <kbd><</kbd>",
+		"<kbd><</kbd>",
+		"<kbd>Ctrl</kbd>+<kbd><</kbd>+<kbd>></kbd>",
+		"<u>a < b</u>",
+		"<u>x<y</u>",
+		"<u>a</u> < b > c",
+		"<<u>a</u>",
+		"<u>a</u> <",
+		"<sub>i</sub> < <sup>2</sup> <u>t < s</u>",
+		"x < <ruby>漢<rt>かん</rt></ruby>",
+		`<kbd>\<</kbd>`,
+		"a <b> c",
+		// Autolinks.
+		"<u>a <http://x/</u>> b",
+		"<u>see <http://x/></u>",
+		"x <https://example.com> y",
+		// Underlined headings over several lines.
+		"Setext <u>a\n</u>",
+		"Setext <u>a</u>\nsecond line",
+		"Setext `<u>a\n</u>`",
+		"Setext <u>a <\n</u>",
+		"Setext <kbd><</kbd>\n<u>b</u>",
+		"Setext <u\n    >a</u>",
+		// Code spans.
+		"`<kbd>x</kbd>` text",
+		"<kbd>`x`</kbd>",
+		"`<ruby>x<rt>y</rt></ruby>` z",
+		// Link labels.
 		"<u>[[Other|x</u>]]",
+		"[[Other|<u>x</u>]]",
+		"<u>a [[Other|b]] c</u>",
+		"[[Other|a < b]] <u>c</u>",
+		"[[Other|<ruby>漢<rt>かん</rt></ruby>]]",
+		// Character references.
+		"&lt;u&gt;a</u>",
+		"&#60;u>a</u> <u>b</u>",
+		"<u>a &lt; b</u>",
+		"<kbd>&lt;</kbd>",
+		// Pairing on its own.
+		"<U>a</U>",
+		"<u >a</u >",
+		"<u>a</u> <u>b",
+		"<u/>a",
+		"<mark>a<sub>2</sub></mark>",
+		"a *<u>b*</u>",
+		"==<u>a</u>==",
 	} {
 		t.Run(heading, func(t *testing.T) {
 			t.Parallel()
-			page := r.HTML("Note.md", "", "## "+heading, wording.En).HTML
+			body := "## " + heading
+			if strings.Contains(heading, "\n") {
+				body = heading + "\n==="
+			}
+			page := r.HTML("Note.md", "", body, wording.En).HTML
 			m := stamped.FindStringSubmatch(page)
 			if m == nil {
 				t.Fatalf("the page stamped no heading id: %s", page)
