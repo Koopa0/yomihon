@@ -5,16 +5,18 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lexical"
 )
 
-// The exists oracle answers "does a note for this name already exist?" for a
-// dedup check before writing. It is deliberately wider than the resolver,
-// matching filename, title, alias and English title, and each hit reports which
-// field matched. A false "no" would make a caller write a duplicate, so it
-// over-recalls. Fold-equal names — a fullwidth colon beside its ASCII twin —
-// are reported as near matches, distinct from an exact hit, and do not flip
-// the exit code. The shape is part of the frozen output.
+// The exists oracle answers "does a note for this name, including a vault
+// path or path suffix, already exist?" for a dedup check before writing. It
+// is deliberately wider than the resolver, matching filename, path, title,
+// alias and English title, and each hit reports which field matched. A false
+// "no" would make a caller write a duplicate, so it over-recalls. Fold-equal
+// names — a fullwidth colon beside its ASCII twin — are reported as near
+// matches, distinct from an exact hit, and do not flip the exit code. The
+// shape is part of the frozen output.
 
 // existsMatch is one note that exposes the queried name, and the field it
 // matched on.
@@ -88,6 +90,39 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 	sortExistsMatches(matches)
 	sortExistsMatches(near)
 	return existsReport{Query: query, Matches: matches, NearMatches: near, Withheld: withheld}
+}
+
+// appendExistsPaths projects the complete captured resolver's answer onto
+// readable notes. Selection happens before privacy filtering: removing denied
+// or unreadable claimants would manufacture an answer the vault does not give.
+// An existing field row already explains that note, so only a location-only
+// answer gains a path row. Resources and unreadable identities supply no row.
+func appendExistsPaths(report *existsReport, notes []note, idx *graph.Index, authority scanAuthority) {
+	res := idx.Resolve(report.Query)
+	var paths []string
+	switch res.Kind {
+	case graph.KindUnique:
+		paths = []string{res.RelPath}
+	case graph.KindAmbiguous:
+		paths = res.Candidates
+	case graph.KindUnresolved:
+		return
+	}
+	for i := range notes {
+		n := &notes[i]
+		if !slices.Contains(paths, n.path) {
+			continue
+		}
+		if !authority.egressAllowed(n.path) {
+			report.Withheld = true
+			continue
+		}
+		if slices.ContainsFunc(report.Matches, func(m existsMatch) bool { return m.Path == n.path }) {
+			continue
+		}
+		report.Matches = append(report.Matches, existsMatch{Path: n.path, Field: "path", Value: n.path})
+	}
+	sortExistsMatches(report.Matches)
 }
 
 // noteMatches returns every field of n that exposes the normalized key: its
