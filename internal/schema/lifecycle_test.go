@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/google/go-cmp/cmp"
 )
 
 const lifecycleContract = `schema_version = "1"
@@ -935,4 +936,88 @@ applies_to = ["` + declaredType + `"]
 from = []
 owner = []
 `
+}
+
+func TestJudgedStatusGroup(t *testing.T) {
+	t.Parallel()
+	const declaration = `schema_version = "1"
+[enums]
+type = ["article", "lesson", "system", "café", "empty"]
+[enums.status]
+note = ["note-first", "note-second"]
+lesson = ["lesson-first", "lesson-second"]
+system = ["system-first"]
+custom = ["custom-first", "custom-second"]
+empty = []
+[fields.status_group]
+lesson = ["lesson"]
+system = ["system"]
+custom = ["café"]
+empty = ["empty"]
+[rules]
+slug_pattern = "^[a-z]+$"
+[[lifecycle]]
+status = "note-first"
+applies_to = ["article"]
+from = []
+owner = []
+`
+	contract := decodeLifecycleFixture(t, declaration)
+	for _, tc := range []struct {
+		name, kind, group string
+		values            []string
+	}{
+		{"default declared", "article", "note", []string{"note-first", "note-second"}},
+		{"lesson", "lesson", "lesson", []string{"lesson-first", "lesson-second"}},
+		{"system", "system", "system", []string{"system-first"}},
+		{"custom", "café", "custom", []string{"custom-first", "custom-second"}},
+		{"normalized custom", "cafe\u0301", "custom", []string{"custom-first", "custom-second"}},
+		{"empty declared", "empty", "empty", []string{}},
+		{"aggregate", "", "note", []string{"note-first", "note-second"}},
+		{"undeclared", "unknown", "note", []string{"note-first", "note-second"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			group := contract.JudgedStatusGroup(tc.kind)
+			t.Log("hit: judging group producer reached")
+			if group != tc.group {
+				t.Errorf("caught: JudgedStatusGroup(%q) = %q, want %q", tc.kind, group, tc.group)
+			}
+			values := contract.StatusesInGroup(group)
+			if diff := cmp.Diff(tc.values, values); diff != "" {
+				t.Errorf("caught: judged full vocabulary (-want +got):\n%s", diff)
+			}
+			if len(values) > 0 {
+				values[0] = "changed"
+			}
+			if diff := cmp.Diff(tc.values, contract.StatusesInGroup(group)); diff != "" {
+				t.Errorf("caught: detached vocabulary (-want +got):\n%s", diff)
+			}
+		})
+	}
+	var absent *Contract
+	var zero Contract
+	for _, tc := range []struct {
+		name     string
+		contract *Contract
+	}{{"nil", absent}, {"zero", &zero}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, kind := range []string{"", "article", "unknown"} {
+				group := tc.contract.JudgedStatusGroup(kind)
+				if group != "" {
+					t.Errorf("caught: ungoverned JudgedStatusGroup(%q) = %q, want empty", kind, group)
+				}
+				if values := tc.contract.StatusesInGroup(group); values != nil {
+					t.Errorf("caught: ungoverned vocabulary = %q, want nil", values)
+				}
+			}
+		})
+	}
+	if got := contract.StatusGroup("unknown"); got != "" {
+		t.Errorf("caught: lifecycle group = %q, want unavailable", got)
+	}
+	if got := contract.Statuses("unknown"); got != nil {
+		t.Errorf("caught: lifecycle statuses = %q, want nil", got)
+	}
 }

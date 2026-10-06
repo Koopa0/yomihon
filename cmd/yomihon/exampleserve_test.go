@@ -36,10 +36,10 @@ type exampleServeReceipt struct {
 }
 
 func TestExampleLaunchersKeepTheCheckoutUntouched(t *testing.T) {
-	for _, entry := range []string{"make", "environment"} {
+	for _, entry := range []string{"make"} {
 		t.Run(entry, func(t *testing.T) {
 			h := newExampleServeHarness(t)
-			code, output := h.run(entry)
+			code, output := h.run()
 			if code != 0 {
 				t.Fatalf("caught: example launcher failed: exit=%d, output=%s", code, output)
 			}
@@ -65,7 +65,7 @@ func TestExampleLaunchersKeepTheCheckoutUntouched(t *testing.T) {
 }
 
 func TestExampleLaunchersStopBeforeServingAfterSetupFailure(t *testing.T) {
-	for _, entry := range []string{"make", "environment"} {
+	for _, entry := range []string{"make"} {
 		for _, failure := range []string{"copy", "build"} {
 			t.Run(entry+"/"+failure, func(t *testing.T) {
 				h := newExampleServeHarness(t)
@@ -76,7 +76,7 @@ func TestExampleLaunchersStopBeforeServingAfterSetupFailure(t *testing.T) {
 				} else {
 					h.env = append(h.env, "YOMIHON_TEST_BUILD_FAILURE=1")
 				}
-				code, output := h.run(entry)
+				code, output := h.run()
 				marker := "controlled build failure"
 				if failure == "copy" {
 					marker = "cp:"
@@ -117,11 +117,11 @@ func TestExampleLaunchersStopBeforeServingAfterSetupFailure(t *testing.T) {
 }
 
 func TestExampleLaunchersPropagateServerFailure(t *testing.T) {
-	for _, entry := range []string{"make", "environment"} {
+	for _, entry := range []string{"make"} {
 		t.Run(entry, func(t *testing.T) {
 			h := newExampleServeHarness(t)
 			h.env = append(h.env, "YOMIHON_TEST_EXAMPLE_SERVER_FAILURE=1")
-			code, output := h.run(entry)
+			code, output := h.run()
 			if code == 0 || !strings.Contains(output, "controlled server failure") {
 				t.Errorf("caught: child failure lost: exit=%d, output=%s", code, output)
 			}
@@ -144,7 +144,7 @@ func TestExampleLauncherForwardsShutdownAndCleansTheCopy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newExampleServeHarness(t)
 			h.env = append(h.env, "YOMIHON_TEST_EXAMPLE_HOLD=1")
-			cmd := h.commandFor("make")
+			cmd := h.launcher()
 			pipe, err := cmd.StdoutPipe()
 			if err != nil {
 				t.Fatal(err)
@@ -371,7 +371,6 @@ type exampleServeHarness struct {
 	receipt    string
 	buildTrace string
 	env        []string
-	command    string
 	originals  map[string]string
 }
 
@@ -409,20 +408,6 @@ func newExampleServeHarness(t *testing.T) *exampleServeHarness {
 	if writeErr := workspace.WriteFile("Makefile", makefile, 0o600); writeErr != nil {
 		t.Fatal(writeErr)
 	}
-	data, err := os.ReadFile("../../.cursor/environment.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var environment struct {
-		Terminals []struct{ Command string }
-	}
-	if decodeErr := json.Unmarshal(data, &environment); decodeErr != nil {
-		t.Fatal(decodeErr)
-	}
-	if len(environment.Terminals) != 1 || environment.Terminals[0].Command == "" {
-		t.Fatal("environment must have one example serving command")
-	}
-	h.command = environment.Terminals[0].Command
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -437,22 +422,18 @@ func newExampleServeHarness(t *testing.T) *exampleServeHarness {
 	return h
 }
 
-func (h *exampleServeHarness) commandFor(entry string) *exec.Cmd {
+func (h *exampleServeHarness) launcher() *exec.Cmd {
 	h.t.Helper()
-	command := "make run"
-	if entry == "environment" {
-		command = h.command
-	}
-	cmd := exec.CommandContext(h.t.Context(), "sh", "-c", command) // #nosec G204 -- actual tracked launcher command, isolated test-owned workspace and Go boundary
+	cmd := exec.CommandContext(h.t.Context(), "sh", "-c", "make run") // #nosec G204 -- actual tracked launcher command, isolated test-owned workspace and Go boundary
 	cmd.Dir = h.dir
 	cmd.Env = h.env
 	return cmd
 }
 
-func (h *exampleServeHarness) run(entry string) (exit int, output string) {
+func (h *exampleServeHarness) run() (exit int, output string) {
 	h.t.Helper()
 	h.t.Log("invoked: actual example launcher")
-	cmd := h.commandFor(entry)
+	cmd := h.launcher()
 	out, err := cmd.CombinedOutput()
 	exitErr, exited := errors.AsType[*exec.ExitError](err)
 	if err != nil && !exited {

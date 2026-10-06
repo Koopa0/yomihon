@@ -252,19 +252,15 @@ func TestWikilinkBroken(t *testing.T) {
 	}
 }
 
-func TestWikilinkBareAnchorIsPlainText(t *testing.T) {
+func TestWikilinkBareBlockAnchorRemainsPlainText(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
-
-	got := r.HTML("note.md", "", "jump [[#Section]] here\n", wording.ZhHant)
-	if strings.Contains(got.HTML, "wikilink") {
-		t.Errorf("a same-file anchor must not become any wikilink markup:\n%s", got.HTML)
-	}
-	if !strings.Contains(got.HTML, "#Section") {
-		t.Errorf("HTML().HTML missing literal display text %q:\n%s", "#Section", got.HTML)
+	got := r.HTML("note.md", "", "jump [[#^address]] here\n", wording.ZhHant)
+	if diff := cmp.Diff("<p>jump #^address here</p>\n", got.HTML); diff != "" {
+		t.Errorf("same-file block control (-want +got):\n%s", diff)
 	}
 	if len(got.Diagnostics) != 0 {
-		t.Errorf("Diagnostics = %+v, want none — a same-file anchor is not resolved at all", got.Diagnostics)
+		t.Errorf("block anchor diagnostics = %+v, want none", got.Diagnostics)
 	}
 }
 

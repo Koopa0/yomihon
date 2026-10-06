@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 )
 
@@ -36,6 +37,10 @@ func main() {
 		}
 		log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 		if err := run(log, root); err != nil {
+			if portErr, ok := errors.AsType[*portError](err); ok {
+				fmt.Fprintf(os.Stderr, "yomihon: %v\n", portErr)
+				os.Exit(2)
+			}
 			log.Error("yomihon exited", "error", err)
 			os.Exit(1)
 		}
@@ -134,6 +139,14 @@ type config struct {
 	noConfigDir string
 }
 
+// portError identifies a setting the operator can correct before startup,
+// rather than a failure of the listener or the vault it was asked to read.
+type portError struct{ value string }
+
+func (e *portError) Error() string {
+	return fmt.Sprintf("YOMIHON_PORT %q must be an integer from 0 to 65535", e.value)
+}
+
 func loadConfig(root string) (config, error) {
 	cfg := config{root: root, port: os.Getenv("YOMIHON_PORT")}
 	if cfg.port == "" {
@@ -150,6 +163,10 @@ func loadConfig(root string) (config, error) {
 	}
 	if !info.IsDir() {
 		return config{}, fmt.Errorf("vault root %q is not a directory", cfg.root)
+	}
+	port, err := strconv.Atoi(cfg.port)
+	if err != nil || port < 0 || port > 65535 {
+		return config{}, &portError{value: cfg.port}
 	}
 	return cfg, nil
 }

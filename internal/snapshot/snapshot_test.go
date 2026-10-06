@@ -315,7 +315,7 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 }
 
 type recordingSource struct {
-	Source
+	ObservedSource
 
 	scans int
 	reads map[string]int
@@ -324,7 +324,7 @@ type recordingSource struct {
 
 func (s *recordingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) {
 	s.scans++
-	return s.Source.ScanAvailable(ctx)
+	return s.ObservedSource.ScanAvailable(ctx)
 }
 
 func (s *recordingSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
@@ -334,7 +334,7 @@ func (s *recordingSource) ReadFile(ctx context.Context, entry vault.Entry) ([]by
 		s.fail[path]--
 		return nil, errors.New("injected read failure")
 	}
-	return s.Source.ReadFile(ctx, entry)
+	return s.ObservedSource.ReadFile(ctx, entry)
 }
 
 func TestNewScansOnceAndReadsOnlyGenerationInputs(t *testing.T) {
@@ -363,9 +363,9 @@ patterns:
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -426,9 +426,9 @@ func TestRescanRetriesTransientReadWithoutMetadataChange(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   map[string]int{path: 1},
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           map[string]int{path: 1},
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -465,9 +465,9 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), nil, schema.Ungoverned())
 	if err != nil {
@@ -1152,9 +1152,9 @@ func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
 	t.Cleanup(func() { closeReader(t, reader) })
 	// A read that never succeeds, on a file that is not a note.
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   map[string]int{"notes.txt": 1 << 30},
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           map[string]int{"notes.txt": 1 << 30},
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1197,9 +1197,9 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1282,9 +1282,9 @@ func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1356,9 +1356,9 @@ func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1471,9 +1471,9 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1557,9 +1557,9 @@ func TestAFolderBeingWrittenInStillDegrades(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1608,9 +1608,9 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   map[string]int{blocked: 1},
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           map[string]int{blocked: 1},
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1695,9 +1695,9 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   map[string]int{blocked: 1},
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           map[string]int{blocked: 1},
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1836,9 +1836,9 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
@@ -1952,9 +1952,9 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
 	source := &recordingSource{
-		Source: reader,
-		reads:  make(map[string]int),
-		fail:   make(map[string]int),
+		ObservedSource: reader,
+		reads:          make(map[string]int),
+		fail:           make(map[string]int),
 	}
 	store, err := New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {

@@ -104,18 +104,19 @@ func TestTheSentenceIsSaidInTheLanguageOfThePage(t *testing.T) {
 // TestALinkThatStaysInTheLibraryIsLeftAlone holds the other half. A note, a
 // section of this one, a path, an address with no scheme, an address that names
 // another scheme, a wikilink and an image that is a link already are written as
-// they were: no target, no new relation, no sentence. A renderer that marked
+// they were, apart from resolving a captured note path: no new tab, no
+// new relation, no sentence. A renderer that marked
 // every link would pass the test above and tell a reader nothing.
 func TestALinkThatStaysInTheLibraryIsLeftAlone(t *testing.T) {
 	t.Parallel()
-	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, nil)
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}, {RelPath: "Notes/Other.md"}}, nil, nil)
 
 	for _, tt := range []struct {
 		name string
 		body string
 		want string
 	}{
-		{"another note by path", "[n](Notes/Other.md)\n", `<a href="Notes/Other.md">n</a>`},
+		{"another note by path", "[n](Notes/Other.md)\n", `<a href="/notes/Notes/Other.md">n</a>`},
 		{"a section of this note", "[s](#section)\n", `<a href="#section">s</a>`},
 		{"a path from the root", "[p](/notes/Other.md)\n", `<a href="/notes/Other.md">p</a>`},
 		{"an address with no scheme", "[h](//example.org/x)\n", `<a href="//example.org/x">h</a>`},
