@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
-func TestSectionIDKeepsEveryUnicodeMarkCategory(t *testing.T) {
+func TestSectionIDKeepsTheMarksWrittenOnALetter(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ name, heading, id string }{
 		{"Hindi short vowel", "कि", "कि"},
