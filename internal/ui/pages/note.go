@@ -17,7 +17,7 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
 	case render.DiagImageMissing:
 		return wording.DiagImageMissing.In(lang)
-	case render.DiagWikilinkBroken:
+	case render.DiagWikilinkBroken, render.DiagMarkdownBroken:
 		return wording.DiagLinkNoTarget.In(lang)
 	case render.DiagWikilinkTitleOnly:
 		return wording.DiagLinkTitleOnly.In(lang)
@@ -164,6 +164,17 @@ const speakButtonMarker = `data-tts="`
 // takes the speaking state but keeps its idle label, which reads as a control
 // that half works.
 const practiceSpeakMarker = `data-slot-action="speak"`
+
+// hasUnclosedComment keeps a hidden draft distinct from a note with no words:
+// its diagnostic already explains why the reader cannot see its content.
+func (v *NoteView) hasUnclosedComment() bool {
+	for _, diagnostic := range v.RenderDiagnostics {
+		if diagnostic.Kind == render.DiagCommentUnclosed {
+			return true
+		}
+	}
+	return false
+}
 
 // diagCount is the diagnostics rail's badge number: the frontmatter diagnostic
 // (0 or 1) plus every render diagnostic.

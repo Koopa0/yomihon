@@ -15,6 +15,9 @@ import (
 func FuzzParse(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("plain body\n"))
+	f.Add([]byte("\xef\xbb\xbf# Title\n"))
+	f.Add([]byte("\xef\xbb\xbf\xef\xbb\xbf# Title\n"))
+	f.Add([]byte("\xef\xbb\xbf---\r\nstatus: draft\r\n---\r\nbody\r\n"))
 	f.Add([]byte("---\ntitle: Note\nstatus: draft\n---\nbody\n"))
 	f.Add([]byte("---\ntitle: \"unterminated\n---\nbody\n"))
 	f.Add([]byte("---\na: 1\na: 2\n---\nbody\n"))
@@ -76,8 +79,12 @@ func FuzzParse(f *testing.F) {
 func checkFrontmatterSplit(t *testing.T, data []byte, block FrontmatterSplit, found bool) {
 	t.Helper()
 	if !found {
-		if !bytes.Equal(block.Body, data) {
-			t.Errorf("SplitFrontmatter(%q) body = %q, want whole input", data, block.Body)
+		want := data
+		if bytes.HasPrefix(data, []byte{0xef, 0xbb, 0xbf}) {
+			want = data[3:]
+		}
+		if !bytes.Equal(block.Body, want) {
+			t.Errorf("SplitFrontmatter(%q) body = %q, want input after one leading byte-order mark %q", data, block.Body, want)
 		}
 		return
 	}

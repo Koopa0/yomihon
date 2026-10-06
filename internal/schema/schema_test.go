@@ -193,6 +193,9 @@ func TestZeroContractCarriesNoAuthority(t *testing.T) {
 	if got := contract.StatusGroup(""); got != "" {
 		t.Errorf(`StatusGroup("") = %q, want empty`, got)
 	}
+	if got := contract.JudgedStatusGroup("unknown"); got != "" {
+		t.Errorf("JudgedStatusGroup(unknown) = %q, want empty", got)
+	}
 	if got := contract.Statuses(""); got != nil {
 		t.Errorf(`Statuses("") = %v, want nil`, got)
 	}
@@ -2306,6 +2309,14 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"Statuses": func() string {
 			if got := c.Statuses("lesson"); got != nil {
 				return fmt.Sprintf("Statuses() = %v, want nil", got)
+			}
+			return ""
+		},
+		"JudgedStatusGroup": func() string {
+			for _, kind := range []string{"", "lesson", "undeclared"} {
+				if got := c.JudgedStatusGroup(kind); got != "" {
+					return fmt.Sprintf("JudgedStatusGroup(%q) = %q, want empty", kind, got)
+				}
 			}
 			return ""
 		},

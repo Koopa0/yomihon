@@ -35,8 +35,12 @@ const HELP = '#_y-kbd-help';
 const SHEET = '[data-concept-sheet]';
 const SHEET_CLOSE = '[data-concept-sheet] .y-conceptsheet__head button';
 const CONCEPT = '[data-concept]';
+const SCRIPT_ONLY = ['.y-rubybtn', '.y-textsizebtn', '.y-themebtn'];
+const SCRIPT_ONLY_RULE = /html:not\(\[data-js\]\)\s+\.y-rubybtn\s*,\s*html:not\(\[data-js\]\)\s+\.y-textsizebtn\s*,\s*html:not\(\[data-js\]\)\s+\.y-themebtn\s*\{\s*display:\s*none;\s*\}/g;
 
 const SITES = [
+  'script-only-header-controls-stay-out-of-the-way',
+  'scriptless-preferences-remains-a-keyboard-destination',
   'the-palette-opens-with-no-script',
   'search-remains-reachable-with-neither-feature',
   'the-keyboard-help-opens-with-no-script',
@@ -124,7 +128,41 @@ const distortScriptlessHeader = (selector, css) => async (page) => {
     ? `scriptless header rule matched [${perLoad}]` : '');
 };
 
+// Change only the capability rule in the served stylesheet. Each load must
+// contain that one rule, so a missing rule cannot look like a caught mutant.
+const rewriteCapabilityRule = (replace) => async (page) => {
+  const perLoad = [];
+  await page.route('**/app.css', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    const hits = [...body.matchAll(SCRIPT_ONLY_RULE)].length;
+    perLoad.push(hits);
+    await route.fulfill({ response, body: hits === 1 ? body.replace(SCRIPT_ONLY_RULE, replace) : body });
+  });
+  return () => perLoad.length === 0 || perLoad.some((hits) => hits !== 1)
+    ? `script-only capability rule matched [${perLoad}], want exactly 1 per load` : '';
+};
+
 const MUTATIONS = {
+  'remove-the-script-only-header-gate': {
+    target: 'script-only-header-controls-stay-out-of-the-way',
+    apply: rewriteCapabilityRule(''),
+  },
+  ...Object.fromEntries(SCRIPT_ONLY.map((selector) => [
+    `leave-${selector.slice(1)}-outside-the-gate`,
+    {
+      target: 'script-only-header-controls-stay-out-of-the-way',
+      apply: rewriteCapabilityRule((rule) => rule.replace(selector, '.y-retired-control')),
+    },
+  ])),
+  'take-away-the-scriptless-preferences-destination': {
+    target: 'scriptless-preferences-remains-a-keyboard-destination',
+    apply: rewriteMarkup(
+      'class="y-prefslink" href="/preferences',
+      'class="y-prefslink" href="/',
+      'the native preferences destination',
+    ),
+  },
   'remove-the-scriptless-search-destination': {
     target: 'search-remains-reachable-with-neither-feature',
     apply: rewriteMarkup(
@@ -226,6 +264,64 @@ const isOpen = (page, selector) => page.$eval(selector, (element) => (
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
+  // Ask the wide row and the positively opened native fold. A closed fold
+  // would hide its children even if their capability rule had disappeared.
+  for (const width of [1280, 390]) for (const language of ['zh-Hant', 'en']) for (const theme of ['light', 'dark']) {
+    const site = 'script-only-header-controls-stay-out-of-the-way';
+    const destinationSite = 'scriptless-preferences-remains-a-keyboard-destination';
+    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width, height: 800 } });
+    await context.addCookies([
+      { name: 'yomihon_lang', value: language, url: BASE },
+      { name: 'yomihon_theme', value: theme, url: BASE },
+    ]);
+    const page = await context.newPage();
+    const proof = await applyMutation(page, site);
+    const destinationProof = await applyMutation(page, destinationSite);
+    await page.goto(BASE + PAGE, { waitUntil: 'load' });
+    if (await page.$eval('html', (root) => root.hasAttribute('data-js'))) broken('script ran in the header capability fixture');
+    if (await page.locator('html').getAttribute('lang') !== language) broken(`the capability fixture did not select ${language}`);
+    if (await page.locator('html').getAttribute('data-theme') !== theme) broken(`the capability fixture did not select ${theme}`);
+    for (const selector of SCRIPT_ONLY) {
+      if (await page.locator(`header ${selector}`).count() !== 1) broken(`the header does not carry exactly one ${selector}`);
+    }
+    if (width === 390) {
+      await page.locator('.y-foldbtn').click();
+      if (!(await isOpen(page, '#_y-header-fold'))) broken('the native header fold did not open');
+    }
+    const controls = await page.evaluate((selectors) => selectors.map((selector) => {
+      const button = document.querySelector(`header ${selector}`);
+      button.focus();
+      return { selector, drawn: button.getClientRects().length > 0, focused: button === document.activeElement };
+    }), SCRIPT_ONLY);
+    checkProof(proof);
+    if (controls.some((control) => control.drawn || control.focused)) {
+      fail(site, `${language}/${theme} at ${width}px exposes script-only controls: ${JSON.stringify(controls)}`);
+    }
+    const preferences = page.locator('header .y-prefslink');
+    checkProof(destinationProof);
+    if (!(await preferences.isVisible()) || !(await preferences.innerText()).trim()
+        || await preferences.evaluate((link) => new URL(link.href).pathname) !== '/preferences') {
+      fail(destinationSite, `${language}/${theme} at ${width}px offers no visible, named native preferences destination`);
+    }
+    let reached = false;
+    for (let step = 0; step < 24; step += 1) {
+      await page.keyboard.press('Tab');
+      const focused = await page.evaluate((selectors) => ({
+        control: selectors.find((selector) => document.activeElement?.matches(selector)),
+        preferences: document.activeElement?.matches('header .y-prefslink'),
+      }), SCRIPT_ONLY);
+      if (focused.control) fail(site, `Tab reached ${focused.control} with scripting disabled`);
+      if (focused.preferences) { reached = true; break; }
+    }
+    if (!reached) fail(destinationSite, `${language}/${theme} at ${width}px: Tab never reached the native preferences link`);
+    await Promise.all([
+      page.waitForURL((url) => url.pathname !== new URL(BASE + PAGE).pathname),
+      page.keyboard.press('Enter'),
+    ]);
+    if (new URL(page.url()).pathname !== '/preferences') fail(destinationSite, 'the native preferences link did not reach /preferences');
+    await context.close();
+  }
+
   // --- The palette, on a page running no script of ours -----------------
   {
     const site = 'the-palette-opens-with-no-script';
@@ -295,6 +391,9 @@ try {
       checkProof(proof);
       if (row.overflow > 1 || row.nameLost > 1 || !row.linkFits) {
         fail(site, `${language} at ${width}px: the scriptless header does not fit: ${JSON.stringify(row)}`);
+      }
+      if (language === 'en' && width === 375 && row.nameLost !== 0) {
+        fail(site, `en at 375px: the scriptless wordmark loses ${row.nameLost}px, want 0`);
       }
     }
     // Tab to the link from the document; do not supply focus the reader cannot reach.
@@ -392,7 +491,8 @@ try {
   console.log(
     'PASS overlay-commands: the palette and the keyboard help open from a press on a page running no script,'
     + ' the concept sheet closes on a press nothing listens for, and an engine without the markup form of a'
-    + ' press still has a way into the palette; with neither feature a keyboard link reaches /search',
+    + ' press still has a way into the palette; with neither feature a keyboard link reaches /search'
+    + '; script-only header controls stay hidden and unfocusable while native preferences remains keyboard reachable',
   );
 } catch (error) {
   if (error instanceof NotApplied) {

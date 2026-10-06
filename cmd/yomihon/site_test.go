@@ -574,6 +574,7 @@ func TestTheSiteRefusesARequestAddressedElsewhere(t *testing.T) {
 			req.Host = tt.host
 			recorder := httptest.NewRecorder()
 			site.ServeHTTP(recorder, req)
+			assertPermissionsPolicy(t, recorder.Result().Header)
 			if recorder.Code != tt.want {
 				t.Errorf("GET / addressed to %q = %d, want %d", tt.host, recorder.Code, tt.want)
 			}
@@ -613,6 +614,7 @@ func TestTheStoppingRefusalSpeaksTheReadersLanguage(t *testing.T) {
 			}
 			response := httptest.NewRecorder()
 			site.ServeHTTP(response, request)
+			assertPermissionsPolicy(t, response.Result().Header)
 
 			if response.Code != http.StatusServiceUnavailable {
 				t.Fatalf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
@@ -622,5 +624,14 @@ func TestTheStoppingRefusalSpeaksTheReadersLanguage(t *testing.T) {
 				t.Errorf("refusal = %q, want %q", got, want)
 			}
 		})
+	}
+}
+
+func assertPermissionsPolicy(t *testing.T, header http.Header) {
+	t.Helper()
+	const want = "camera=(), microphone=(), geolocation=(), usb=(), serial=(), payment=(), display-capture=()"
+	t.Log("invoked: production response permissions policy")
+	if got := header.Get("Permissions-Policy"); got != want {
+		t.Errorf("caught: production Permissions-Policy = %q, want %q", got, want)
 	}
 }

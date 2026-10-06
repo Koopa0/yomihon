@@ -1,5 +1,5 @@
-// Browser lock for GFM task-list markers. Goldmark emits a checkbox and no
-// task-list class, in two ul shapes: the input on the li (tight), or wrapped
+// Browser lock for GFM task-list markers. The renderer emits a named checkbox
+// in two ul shapes: the native label on the li (tight), or wrapped
 // in a p (loose / multi-paragraph). The disc inherited from `.y-prose ul`
 // sits beside either unless a CSS exception hides it. An ordered task is
 // different: the number is what the author wrote, so it stays. Go tests
@@ -12,14 +12,15 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['task-item-has-no-disc', 'ordinary-item-keeps-disc', 'ordered-task-keeps-decimal'];
+const SITES = ['task-item-has-no-disc', 'ordinary-item-keeps-disc', 'ordered-task-keeps-decimal', 'task-checkbox-has-name', 'neutral-markers-render-as-tasks', 'task-block-name-keeps-own-words', 'task-link-stays-independent'];
 
 // The production exception, both goldmark shapes. Mutations that restore the
 // disc have to name this, or a rewrite that only hits the tight item would
 // leave the loose case unproved.
-const UL_TASK_TIGHT = '.y-prose ul > li:has(> input[type="checkbox"]:first-child)';
-const UL_TASK_LOOSE = '.y-prose ul > li:has(> p:first-child > input[type="checkbox"]:first-child)';
+const UL_TASK_TIGHT = '.y-prose ul > li:has(> .y-task:first-child > input[type="checkbox"]:first-child)';
+const UL_TASK_LOOSE = '.y-prose ul > li:has(> p:first-child > .y-task:first-child > input[type="checkbox"]:first-child)';
 const UL_TASK_ITEM = `${UL_TASK_TIGHT}, ${UL_TASK_LOOSE}`;
+const NEUTRAL_MARKERS = ['-', '/', '>'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -54,7 +55,29 @@ const restoreTaskDisc = async (page) => {
   await page.addStyleTag({ content: `${UL_TASK_ITEM} { list-style: disc }` });
 };
 
+const mutateUnique = async (page, selector, edit) => {
+  const count = await page.locator(selector).count();
+  if (count !== 1) notApplied(`${selector} matched ${count} elements, want exactly one`);
+  await page.locator(selector).evaluate(edit);
+};
+
 const MUTATIONS = {
+  'rename-block-task': {
+    target: 'task-block-name-keeps-own-words',
+    apply: (page) => mutateUnique(page, 'label.y-task > span.y-offscreen:text-is("Before own after independent link")', (span) => { span.textContent = 'Borrowed inner words'; }),
+  },
+  'disable-task-link': {
+    target: 'task-link-stays-independent',
+    apply: (page) => mutateUnique(page, 'a.wikilink:text-is("independent link")', (link) => { link.href = '#'; }),
+  },
+  'drop-task-label': {
+    target: 'task-checkbox-has-name',
+    apply: (page) => mutateUnique(page, 'label.y-task:text-is("Unfinished task")', (label) => label.replaceWith(...label.childNodes)),
+  },
+  'drop-neutral-checkbox': {
+    target: 'neutral-markers-render-as-tasks',
+    apply: (page) => mutateUnique(page, '.y-prose input[data-task="/"]', (input) => input.remove()),
+  },
   'restore-task-disc': {
     target: 'task-item-has-no-disc',
     apply: restoreTaskDisc,
@@ -65,7 +88,7 @@ const MUTATIONS = {
   },
   'hide-ordered-task-number': {
     target: 'ordered-task-keeps-decimal',
-    apply: (page) => injectRule(page, '.y-prose ol > li:has(> input[type="checkbox"]:first-child)', 'list-style: none'),
+    apply: (page) => injectRule(page, '.y-prose ol > li:has(> .y-task:first-child > input[type="checkbox"]:first-child)', 'list-style: none'),
   },
 };
 
@@ -94,8 +117,8 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 const readMarkers = (page) =>
   page.evaluate(() => {
     const classify = (li) => {
-      const direct = li.querySelector(':scope > input[type="checkbox"]:first-child');
-      const wrapped = li.querySelector(':scope > p:first-child > input[type="checkbox"]:first-child');
+      const direct = li.querySelector(':scope > .y-task:first-child > input[type="checkbox"]:first-child');
+      const wrapped = li.querySelector(':scope > p:first-child > .y-task:first-child > input[type="checkbox"]:first-child');
       const box = direct || wrapped;
       return {
         listStyleType: getComputedStyle(li).listStyleType,
@@ -123,13 +146,45 @@ const requirePolarity = (items, shape) => {
   }
 };
 
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) broken(`navigation returned ${response?.status() ?? 'no response'}, want 200`);
 
-  if (MUTATE) await MUTATIONS[MUTATE].apply(page);
+  await arrived(page);
+  if (MUTATE && MUTATE !== 'disable-task-link') await MUTATIONS[MUTATE].apply(page);
+  const taskNames = await page.locator('.y-prose input[type="checkbox"]').evaluateAll((inputs) => inputs.map((input) => ({ disabled: input.disabled, labels: input.labels.length, text: [...input.labels].map((label) => label.textContent.trim()).join(' '), marker: input.dataset.task ?? null, checked: input.checked })));
+  const cdp = await page.context().newCDPSession(page);
+  const ax = await cdp.send('Accessibility.getFullAXTree');
+  const checkboxes = ax.nodes.filter((node) => !node.ignored && node.role?.value === 'checkbox');
+  if (taskNames.length === 0 || checkboxes.length !== taskNames.length) broken('the DOM/AX checkbox set is empty or differs');
+  if (taskNames.some((task) => !task.disabled || task.labels !== 1 || task.text === '') || checkboxes.some((node) => !(node.name?.value ?? '').trim())) {
+    fail('task-checkbox-has-name', 'every disabled task checkbox must have one native text label and a nonempty accessibility-tree name');
+  }
+  const actualMarkers = taskNames.filter((task) => task.marker !== null).map((task) => task.marker).sort();
+  if (JSON.stringify(actualMarkers) !== JSON.stringify([...NEUTRAL_MARKERS].sort()) || taskNames.some((task) => task.marker !== null && task.checked)) {
+    fail('neutral-markers-render-as-tasks', `neutral marker inputs ${JSON.stringify(actualMarkers)} differ from the whole fixture set ${JSON.stringify(NEUTRAL_MARKERS)}, or claim completion`);
+  }
+
+  const names = checkboxes.map((node) => node.name.value.trim());
+  const ownNames = ['Before own after independent link', 'Loose own after', 'Repeated own after'];
+  const labelsArePhrasing = await page.locator('label.y-task').evaluateAll((labels) => labels.every((label) => label.querySelectorAll('input').length === 1 && !label.querySelector('div, p, ul, ol, label')));
+  if (!labelsArePhrasing || ownNames.some((name) => names.filter((value) => value === name).length !== 1) || names.filter((name) => name === 'Inner task').length !== 5) {
+    fail('task-block-name-keeps-own-words', 'a block-containing task must name only its own inline words, with every embedded task independently named and outside its label');
+  }
 
   const reading = await readMarkers(page);
   requirePolarity(reading.tight, 'tight');
@@ -162,7 +217,22 @@ try {
     fail('ordered-task-keeps-decimal', `an ordered task item computed list-style-type=${JSON.stringify(numbered.listStyleType)}, want "decimal"`);
   }
 
-  console.log('PASS task-list-marker: tight and loose task items compute no disc; ordinary items keep theirs; ordered tasks keep their number');
+  const ordinaryLink = page.locator('a.wikilink:text-is("ordinary task link")');
+  if (await ordinaryLink.count() !== 1) broken('the ordinary inline task link is absent or duplicated');
+  await ordinaryLink.click();
+  await arrived(page);
+  if (!page.url().endsWith('/notes/Notes/task-child.md')) fail('task-link-stays-independent', 'the ordinary task label swallowed its authored link navigation');
+  await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await arrived(page);
+  if (MUTATE === 'disable-task-link') await MUTATIONS[MUTATE].apply(page);
+  const authoredLink = page.locator('a.wikilink:text-is("independent link")');
+  if (await authoredLink.count() !== 1) broken('the independent authored task link is absent or duplicated');
+  if (await authoredLink.evaluate((link) => !!link.closest('label'))) fail('task-link-stays-independent', 'the block task link must remain outside its detached label');
+  await authoredLink.click();
+  await arrived(page);
+  if (!page.url().endsWith('/notes/Notes/task-child.md')) fail('task-link-stays-independent', 'the authored task link did not navigate to its own note');
+
+  console.log('PASS task-list-marker: all native checkboxes have AX names; every neutral marker renders unchecked; tight/loose/ordinary/ordered list styles are retained');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

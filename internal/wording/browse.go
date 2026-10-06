@@ -28,6 +28,7 @@ var (
 	FileSize       = both("大小", "Size")
 	FileType       = both("類型", "Type")
 	OpenRawBytes   = both("開啟原始位元組", "Open the raw bytes")
+	DownloadFile   = both("下載檔案", "Download the file")
 	FileNotIndexed = both("這個檔案的內容不會被搜尋讀取。", "This file's contents are not read by search.")
 )
 
@@ -55,6 +56,16 @@ var ReportAsIs = both(
 // The page for an address that named nothing, and for a file that exists and
 // could not be read. They are different repairs, so they are different pages.
 var (
+	ParseFailedKicker = both("解析失敗", "Parse failed")
+	ParseFailedTitle  = both("這篇筆記的文字無法解析", "This note's text could not be parsed")
+	ParseFailedLede   = both(
+		"檔案已開啟，但 yomihon 解析這篇筆記的文字時失敗了。請依解析器的訊息檢查筆記內容。",
+		"The file opened, but yomihon could not parse this note's text. Check the note's content against the parser's message.",
+	)
+	ParseFailedNext = both(
+		"在原本的編輯器檢查這篇筆記的內容。修正並存檔後，重新整理這一頁。",
+		"Check this note's content in your editor. After saving a correction, reload this page.",
+	)
 	NotReadableKicker = both("讀不進來", "Unreadable")
 	NotReadableTitle  = both("這個檔案目前讀不進來", "This file cannot be read right now")
 	NotReadableLede   = both(
