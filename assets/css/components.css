@@ -1972,17 +1972,8 @@ details.y-metarow {
 
 .y-prose img {
   border-radius: var(--r-lg);
-  height: revert-layer;
+  height: auto;
   max-width: 100%;
-}
-
-/* The reset makes image height automatic. An authored height rolls back that
-   layer as well, leaving its HTML dimension; other pictures keep the reset's
-   intrinsic ratio. Width is still capped in the product rule above. */
-@layer base {
-  .y-prose img[height] {
-    height: revert-layer;
-  }
 }
 
 /* A link is ink with a quiet underline, so it is findable without colour and

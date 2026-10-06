@@ -113,7 +113,9 @@ a size or absent alias keeps the filename as alternative text. A local
 Markdown image uses `![alt|300](pic.png)` or `![alt|300x200](pic.png)`:
 only a valid final size suffix comes off its alternative text. An ordinary
 pipe in Markdown alternative text stays text. The reading column caps image
-width, and an explicitly declared height remains the author's height.
+width. Width and height remain HTML dimension hints; after the image loads,
+automatic height keeps its natural aspect ratio, including when the hints
+declare a different ratio.
 Note embeds keep their existing alias behavior. Remote images remain explicit
 links and are never loaded.
 

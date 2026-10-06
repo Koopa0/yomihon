@@ -19,3 +19,15 @@ Markdown
 Column cap
 
 ![[pic.svg|1200]]
+
+Real 800x600 image
+
+![[ratio.svg|800x600]]
+
+Width only 300
+
+![[pic.svg|300]]
+
+Different requested ratio
+
+![[pic.svg|800x600]]
