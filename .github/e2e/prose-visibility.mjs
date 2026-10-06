@@ -89,7 +89,7 @@ try {
     let matches = 0;
     if (MUTATE) {
       const mode = MUTATIONS[MUTATE];
-      await page.route(`**/static/${mode.asset || 'app.css'}`, async (route) => {
+      await page.route(`**/static/${mode.asset || 'app.css'}{,?*}`, async (route) => {
         const response = await route.fetch();
         const original = await response.text();
         served += 1;

@@ -295,7 +295,7 @@ const MUTATIONS = {
   // laid out at the old width, so the paragraph being read moves.
   'defer-prose-through-the-fold': {
     target: 'reading-position-survives',
-    apply: rewriteAsset('**/app.css', 'html[data-rail-moving] .y-prose > *,\n', ''),
+    apply: rewriteAsset('**/app.css{,?*}', 'html[data-rail-moving] .y-prose > *,\n', ''),
   },
   // Only the note shell folding.
   'fold-only-the-note-shell': {
