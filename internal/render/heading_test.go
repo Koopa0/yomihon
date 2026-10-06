@@ -45,19 +45,16 @@ func TestEmbedSpans(t *testing.T) {
 	}
 }
 
-// TestHeadingWordsDropsAnUnspokenReadAloudMarker locks the read-aloud
-// branch of the shared tag walk. An instruction the renderer cannot carry
-// out is dropped from the body; a heading that names a section must drop
-// it too, or the marker becomes part of the id. The ja form is
-// allowlisted and then stripped as a tag; this row is the unmarked
-// language, which only the drop arm handles. Deleting that arm leaves
-// the escaped comment in the heading's words.
+// Marker instructions are never words in a heading, including malformed
+// values that carry angles. Body and heading share this markup boundary.
 func TestHeadingWordsDropsAnUnspokenReadAloudMarker(t *testing.T) {
 	t.Parallel()
 
-	got := HeadingWords("Spoken <!-- read-aloud: fr --> title")
-	if got != "Spoken  title" {
-		t.Errorf("an unspoken read-aloud marker stayed in the heading name: got %q", got)
+	for _, marker := range []string{"ja", "zh-Hant", "fr", "en_US", "en>US", "en<script>"} {
+		got := HeadingWords("Spoken <!-- read-aloud: " + marker + " --> title")
+		if got != "Spoken  title" {
+			t.Errorf("caught: marker stayed in heading words: tag %q got %q", marker, got)
+		}
 	}
 }
 
@@ -97,5 +94,34 @@ func TestAssignHeadingIDsDemotesBodyHeadingsUnderTheTitle(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, toc); diff != "" {
 		t.Errorf("TOC mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestNestHeadingsPreservesEverythingExceptTagLevels(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "the full outline keeps its addresses and authored levels",
+			body: `<h2 id="a-one" data-level="1"><em>One</em></h2><h3 id="a-two" data-level="2">Two</h3><h4 id="a-three" data-level="3">Three</h4><h5 id="a-four" data-level="4">Four</h5><h6 id="a-five" data-level="5">Five</h6><h6 id="a-six" data-level="6">Six</h6><a href="#a-one">back</a>`,
+			want: `<h3 id="a-one" data-level="1"><em>One</em></h3><h4 id="a-two" data-level="2">Two</h4><h5 id="a-three" data-level="3">Three</h5><h6 id="a-four" data-level="4">Four</h6><h6 id="a-five" data-level="5">Five</h6><h6 id="a-six" data-level="6">Six</h6><a href="#a-one">back</a>`,
+		},
+		{
+			name: "literal code and unrelated element names stay text",
+			body: `<p><code>&lt;h2&gt;literal&lt;/h2&gt;</code></p><hr><header>head</header><hgroup>group</hgroup>`,
+			want: `<p><code>&lt;h2&gt;literal&lt;/h2&gt;</code></p><hr><header>head</header><hgroup>group</hgroup>`,
+		},
+		{name: "empty body"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if diff := cmp.Diff(tt.want, NestHeadings(tt.body)); diff != "" {
+				t.Errorf("caught: nested heading bytes (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

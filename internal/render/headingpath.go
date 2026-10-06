@@ -34,7 +34,7 @@ func (r *Pipeline) HeadingPath(relPath, heading string) (id string, found bool) 
 	}
 	stripped, _ := stripBody(body)
 	page := &composition{lang: wording.ZhHant, headingLookup: true}
-	res := r.renderBody(stripped.text, stripped.address, embedsAllowed, page, hostRegion)
+	res := r.renderBody(bodyInput{path: relPath, text: stripped.text, address: stripped.address}, embedsAllowed, page, hostRegion)
 	var headings []TOCEntry
 	_, _ = stampHeadings(res.HTML, "", &headings)
 	matches := matchingHeadingPath(headings, heading)
