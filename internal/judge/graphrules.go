@@ -126,8 +126,7 @@ func linkHealth(
 			// path suffix several files end with is a name none of them
 			// carries, so no collision reports it; the page links nothing and
 			// check reports the same broken link it always has.
-			res := idx.Resolve(link.target)
-			if res.Kind == graph.KindUnique || (res.Kind == graph.KindAmbiguous && idx.Claimed(link.target)) {
+			if idx.Names(link.target) {
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
@@ -403,9 +402,7 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	if !ok {
 		return true
 	}
-	// Several path suffixes matching is no name the collision rule reports,
-	// so the reference resolves to nothing here just as it did before.
-	if res := idx.Resolve(target); res.Kind == graph.KindUnique || (res.Kind == graph.KindAmbiguous && idx.Claimed(target)) {
+	if idx.Names(target) {
 		return true
 	}
 	if _, listed := slugs[target]; listed {

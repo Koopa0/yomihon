@@ -182,12 +182,8 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 		from := nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath}
 		seen := make(map[string]bool)
 		for _, target := range links[n.RelPath] {
-			res := idx.Resolve(target)
-			// Several path suffixes matching is no name the collision list
-			// shows, so such a link is unwritten here, as check reports it.
-			resolved := res.Kind == graph.KindUnique || (res.Kind == graph.KindAmbiguous && idx.Claimed(target))
 			switch {
-			case resolved || planned.Has(target) || seen[target]:
+			case idx.Names(target) || planned.Has(target) || seen[target]:
 				// Resolved, owed, or already reported for this note.
 			// One holder only: naming a note out of several would be a guess.
 			case len(titles[graph.NormalizeKey(target)]) == 1:
