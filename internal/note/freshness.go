@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -30,8 +31,8 @@ const (
 	// status it printed included, when it carried one — and the published
 	// generation agrees.
 	freshUnchanged freshness = "unchanged"
-	// freshStale: the note changed and the published generation already holds
-	// its content, so reloading now shows the new version. A flip of the
+	// freshStale: reloading now shows the new version, or the file information
+	// page once the published generation excludes an oversized body. A flip of the
 	// status value alone also lands here: that value sits outside the content
 	// the identity covers, and a fresh render prints it anew while an open
 	// page keeps what it printed.
@@ -169,6 +170,15 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 		}
 		h.noteFreshnessFailure(rel, "lookup", err)
 		return freshUnreadable
+	}
+	if entry.Size() > render.MaxSourceBytes {
+		// A generation that still holds a body predates the size change. Once
+		// it excludes the body, reloading can show the file information page.
+		snap := h.sources.Snapshot().Capture()
+		if _, ok := snap.Note(rel); ok {
+			return freshPreparing
+		}
+		return freshStale
 	}
 	data, err := h.sources.Source.ReadFile(ctx, entry)
 	if err != nil {

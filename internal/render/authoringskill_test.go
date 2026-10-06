@@ -9,6 +9,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // authoringSkillPath is the callout vocabulary's other reader: a person
@@ -17,6 +20,42 @@ import (
 // relative to this package's own directory, the way go test always runs
 // regardless of where the test command itself was invoked from.
 const authoringSkillPath = "../../skills/yomihon/SKILL.md"
+
+func TestAuthoringSkillExplainsTeXAndOffersALosslessCodeExample(t *testing.T) {
+	t.Parallel()
+	r := New(graph.BuildFromNotes(nil, nil), fuzzTransclusions{}, internalNoTitles{}, holdsEverything{})
+	ordinary := r.HTML("Notes/Math.md", "", `Inline $a\,b\;c\{d\}e\\f$ end.`, wording.En).HTML
+	if diff := cmp.Diff("<p>Inline $a,b;c{d}e\\f$ end.</p>\n", ordinary); diff != "" {
+		t.Fatalf("HTML(ordinary TeX) mismatch (-want +got):\n%s", diff)
+	}
+	data, err := os.ReadFile(authoringSkillPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", authoringSkillPath, err)
+	}
+	var rows []string
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if strings.HasPrefix(line, "| TeX math ") {
+			rows = append(rows, line)
+		}
+	}
+	if len(rows) != 1 {
+		t.Fatalf("authoring skill has %d TeX math rows, want exactly one", len(rows))
+	}
+	for _, fact := range []string{"`$…$`", "`$$…$$`", "not rendered", "ordinary Markdown", "backslash escapes", "fenced code block"} {
+		if !strings.Contains(rows[0], fact) {
+			t.Errorf("authoring skill's TeX row is missing %q", fact)
+		}
+	}
+	const source = `a\,b\;c\{d\}e\\f`
+	const recipe = "```text\n" + source + "\n```"
+	if strings.Count(string(data), recipe) != 1 {
+		t.Fatal("authoring skill must show one fenced TeX recipe preserving every source escape")
+	}
+	got := r.HTML("Notes/Math.md", "", recipe, wording.En).HTML
+	if !strings.Contains(got, source) || PlainText(recipe) != source {
+		t.Errorf("documented TeX recipe lost source: HTML = %q, PlainText = %q", got, PlainText(recipe))
+	}
+}
 
 // calloutToken matches one inline-code span: the unit both the guide's list
 // and this test operate on.

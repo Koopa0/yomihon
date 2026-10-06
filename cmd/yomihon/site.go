@@ -130,9 +130,8 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// reads from the current generation, captured together. Two calls could
 	// straddle a rebuild, and a page assembled from two generations states
 	// things about a vault that never existed at once.
-	// The folder the server was pointed at cannot change under a running
-	// process, so the name every rail's foot shows is taken once here rather
-	// than derived again at each surface that states it.
+	// The opened object and its startup name stay fixed even when the selecting
+	// path changes. The scanner reports that divergence separately.
 	vaultName := shell.VaultName(source.Name())
 	shellProvider := func() nav.Shell {
 		return shell.Project(vaultName, writer.Authority(), store.Current().Capture())
@@ -217,10 +216,12 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	report.New(source, reportProvider, log).Register(mux)
 	asset.Register(mux)
 
-	handler := http.NewCrossOriginProtection().Handler(mux)
+	crossOrigin := http.NewCrossOriginProtection()
+	crossOrigin.SetDenyHandler(http.HandlerFunc(readers.CrossOriginDenied))
+	handler := crossOrigin.Handler(readers.LocalizedRouter(mux))
 	watchCtx, cancel := context.WithCancel(ctx)
 	site := &readingSite{
-		handler:   origin.LoopbackOnly(origin.Protect(handler)),
+		handler:   origin.LoopbackOnly(handler),
 		snapshots: store,
 		writer:    writer,
 		source:    source,
@@ -231,6 +232,12 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 }
 
 func (site *readingSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	origin.Protect(http.HandlerFunc(site.serveHTTP)).ServeHTTP(w, r)
+}
+
+// serveHTTP admits a request only while its reading capabilities remain open.
+// The public entry wraps admission too, so refusals carry the browser policy.
+func (site *readingSite) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	site.requestMu.Lock()
 	if site.closing {
 		site.requestMu.Unlock()

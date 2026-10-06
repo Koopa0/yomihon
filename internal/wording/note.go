@@ -30,12 +30,22 @@ var (
 	FileChangedOn = both("檔案變更於", "File changed")
 )
 
+// NoteEmptyBody states what the article would otherwise leave blank after the
+// renderer has consumed metadata and any duplicate opening title.
+var NoteEmptyBody = both("這篇筆記還沒有內容。", "This note has no content yet.")
+
 // NoteStale says the words below are the last ones that could be read, which a
 // reader comparing them against what they just wrote would otherwise read as a
 // lost edit.
 var NoteStale = both(
 	"這個檔案這一次讀不進來，下面是上一次讀到的內容，可能不是檔案現在的樣子。排除之後，過幾秒重新整理就會讀到新的。",
 	"This file could not be read this time. What follows is the last version that could be, and may not be what the file says now. Once that clears, reloading in a few seconds picks up the newer one.",
+)
+
+// NoteParseStale distinguishes content a parser rejected from a failed file read.
+var NoteParseStale = both(
+	"檔案已開啟，但目前的筆記內容無法解析。下面保留上一次讀到的內容。請依解析器的訊息檢查筆記內容，修正並存檔後重新整理。",
+	"The file opened, but its current note content could not be parsed. What follows is the last readable version. Check the note's content against the parser's message, save a correction, and reload.",
 )
 
 // The right rail and the blocks in it. CitedBy names body wikilinks only;
@@ -67,6 +77,13 @@ var (
 	NoFrontmatterRequired = both("沒有 frontmatter（契約要求必須有）。", "No frontmatter (the contract requires one).")
 	NoLegalTransitions    = both("目前沒有合法的狀態轉換。", "No status transition is legal from here.")
 	FrontmatterNotYAML    = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
+)
+
+// FrontmatterUnsupportedYAML names the authored forms that can make the YAML
+// decoder fail at runtime, without quoting its Go implementation details.
+var FrontmatterUnsupportedYAML = both(
+	"frontmatter 使用了 yomihon 讀不進來的 YAML 寫法：合併鍵（<<），或把串列、對應表當作鍵。請直接編輯 frontmatter，改用一般的文字鍵。",
+	"The frontmatter uses a YAML form yomihon cannot read: a merge key (<<), or a list or mapping used as a key. Edit the frontmatter directly to use ordinary text keys.",
 )
 
 // StatusFrontmatterNeverCloses is the status face for a note whose first line
