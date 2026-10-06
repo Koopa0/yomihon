@@ -41,8 +41,9 @@ type wikiLink struct {
 }
 
 // pathRef is one file reference that is not a wikilink: a markdown [text](path)
-// link (resolved relative to the citing note) or a backticked path token
-// (resolved relative to the vault root). code distinguishes the two.
+// link (resolved relative to its note after one percent-decode) or a backticked
+// path token (resolved from the root or its note). code distinguishes the two;
+// target keeps the authored spelling for the diagnostic's identity.
 type pathRef struct {
 	target string
 	line   int
@@ -90,6 +91,24 @@ type heading struct {
 	gap   bool
 }
 
+// bodyStructure holds one body's code, comments and spoken headings. Its
+// slices stay read-only while the independent extractors borrow them.
+type bodyStructure struct {
+	skip     []byteRange
+	comments []byteRange
+	headings []heading
+}
+
+func inspectBody(body string, headingMarks []string) bodyStructure {
+	codeZones, headings := structure(body, headingMarks)
+	comments := graph.CommentZones(body, codeZones)
+	return bodyStructure{
+		skip:     slices.Concat(codeZones, comments),
+		comments: comments,
+		headings: spokenHeadings(headings, comments),
+	}
+}
+
 // rawLink is one [[...]] pair from the raw scan: the byte offset of the opening
 // bracket and the inner text between the brackets.
 type rawLink struct {
@@ -106,10 +125,12 @@ func extractWikilinks(body string, bodyStartLine int) []wikiLink {
 }
 
 func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string) []wikiLink {
-	codeZones, headings := structure(body, headingMarks)
-	comments := graph.CommentZones(body, codeZones)
-	headings = spokenHeadings(headings, comments)
-	skip := slices.Concat(codeZones, comments)
+	facts := inspectBody(body, headingMarks)
+	return extractWikilinksFrom(body, bodyStartLine, &facts)
+}
+
+func extractWikilinksFrom(body string, bodyStartLine int, facts *bodyStructure) []wikiLink {
+	headings, skip := facts.headings, facts.skip
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
 		if graph.In(skip, raw.offset) || graph.EscapedWikilinkAt(body, raw.offset) {
@@ -134,17 +155,9 @@ func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string)
 	return links
 }
 
-// extractPathRefs returns every checkable file reference in body: markdown
-// [text](path.md) links and backticked path.md tokens. URLs, anchors, and
-// percent-encoded or glob paths are left out, so only plain in-vault file
-// references remain. A reference inside an Obsidian %%...%% comment is skipped,
-// the same way a commented-out wikilink is: commented-out content is not a live
-// reference, so it is not checked.
-func extractPathRefs(body string, bodyStartLine int) []pathRef {
+func extractPathRefsFrom(body string, bodyStartLine int, comments []byteRange) []pathRef {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
-	codeZones, _ := structure(body, nil)
-	comments := graph.CommentZones(body, codeZones)
 	var refs []pathRef
 	walkNodes(doc, func(n ast.Node) {
 		switch node := n.(type) {
@@ -179,10 +192,13 @@ func extractPlannedNames(body string) []string {
 // is content the author took back, exactly as the link extraction reads them,
 // so a declaration that is merely shown cannot soften another note's link.
 func extractPlannedNamesWith(body string, marks plannedMarks) []string {
-	codeZones, headings := structure(body, marks.heading)
-	comments := graph.CommentZones(body, codeZones)
-	headings = spokenHeadings(headings, comments)
-	spoken := blankZones(body, slices.Concat(codeZones, comments))
+	facts := inspectBody(body, marks.heading)
+	return extractPlannedNamesFrom(body, marks, &facts)
+}
+
+func extractPlannedNamesFrom(body string, marks plannedMarks, facts *bodyStructure) []string {
+	headings := facts.headings
+	spoken := blankZones(body, facts.skip)
 	var names []string
 	var item *string
 	offset := 0
@@ -535,19 +551,15 @@ func codeSpanText(n *ast.CodeSpan, src []byte) string {
 	return b.String()
 }
 
-// fileLink reports a markdown link destination that is a plain relative vault
-// note reference: it drops a #fragment or ?query, trims, and accepts only a
-// relative .md path.
+// fileLink admits a Markdown note path after decoding it once, retaining its
+// original spelling for later findings. A raw #fragment or ?query is omitted
+// before decoding so encoded delimiters remain filename characters.
 func fileLink(dest string) (string, bool) {
-	path := dest
-	if i := strings.IndexAny(dest, "#?"); i >= 0 {
-		path = dest[:i]
+	result := graph.ParseMarkdownPath("source.md", dest)
+	if !result.Checkable {
+		return "", false
 	}
-	path = strings.TrimSpace(path)
-	if isRelativeMdRef(path) {
-		return path, true
-	}
-	return "", false
+	return strings.TrimSuffix(dest, result.Suffix), true
 }
 
 // backtickPath reports a backticked token that is a relative vault .md path.
@@ -562,18 +574,21 @@ func backtickPath(token string) (string, bool) {
 }
 
 // isRelativeMdRef reports whether path is a plain relative .md file reference
-// worth stat-ing: it names a Markdown note by the vault's one extension test
+// checked as a code token: it names a Markdown note by the vault's extension test
 // and is not a URL, a site-absolute or home path, a glob or placeholder, or
 // percent-encoded. An uppercase spelling such as "Note.MD" names a resource
 // here as it does to every other reader; a private fold on this one path made
 // the judge count references no other face called notes.
 func isRelativeMdRef(path string) bool {
+	return !strings.Contains(path, "%") && isMarkdownPathRef(path)
+}
+
+func isMarkdownPathRef(path string) bool {
 	return path != "" &&
 		vault.IsMarkdown(path) &&
 		!strings.HasPrefix(path, "/") &&
 		!strings.HasPrefix(path, "~") &&
 		!strings.Contains(path, "://") &&
-		!strings.Contains(path, "%") &&
 		!strings.Contains(path, "*") &&
 		!strings.Contains(path, "<") &&
 		!strings.Contains(path, ">")

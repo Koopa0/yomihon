@@ -25,10 +25,12 @@ import (
 // the flag spellings, the working directory, the paragraph after a refusal —
 // belongs to the binary.
 
-// commandArgs holds the common flags parsed from a check, coverage, or exists
+// commandArgs holds the common flags parsed from a serve, check, coverage, or exists
 // invocation and the positionals owned by that invocation.
 type commandArgs struct {
-	root        string
+	root string
+	// serve refuses repeated roots; the adjudicating commands keep the last.
+	rootCount   int
 	format      *judge.Format
 	all         bool
 	deny        []string
@@ -165,12 +167,17 @@ func scopeIsNotTheVaultItself(positionals []string) error {
 const vaultRelativeScope = `"Notes" or "Notes/topic.md"`
 
 // parseCommandArgs accepts both --flag value and --flag=value spellings. An
-// unknown flag, a missing value, or an empty value is an error.
+// unknown flag, a missing value, or an empty value is an error. A -- argument
+// ends flag parsing; every remaining argument is positional.
 func parseCommandArgs(args []string) (commandArgs, error) {
 	var parsed commandArgs
 	for len(args) > 0 {
 		arg := args[0]
 		args = args[1:]
+		if arg == "--" {
+			parsed.positionals = append(parsed.positionals, args...)
+			return parsed, nil
+		}
 		name, inline, hasInline := strings.Cut(arg, "=")
 		switch name {
 		case "--all":
@@ -216,6 +223,7 @@ func (args *commandArgs) setFlag(name, value string) error {
 	switch name {
 	case "--root":
 		args.root = value
+		args.rootCount++
 	case "--baseline":
 		args.baseline = value
 	case "--deny":
@@ -241,7 +249,10 @@ func contractGuidance(err error) string {
 			"  lifecycle that check, coverage and exists judge against, and for the directories\n" +
 			"  whose contents must never leave this machine. A folder carrying no such file has\n" +
 			"  declared nothing, and these three commands have no vocabulary to answer in.\n" +
-			"  Reading and search need none of it: yomihon <dir>\n"
+			"  Reading and search need none of it: yomihon <dir>\n" +
+			"  /health shows link findings even when the folder has no contract.\n" +
+			"  A starter is examples/vault/System/schemas/vault-schema.toml in the source archive\n" +
+			"  at https://github.com/koopa0/yomihon/releases; choose your binary's release.\n"
 	case errors.Is(err, judge.ErrPrivacyAuthorityUnavailable):
 		return "  The contract is at " + schema.ContractRelPath + " and yomihon could not use it.\n" +
 			"  The reason is not printed here: this command's output is written for a program to\n" +

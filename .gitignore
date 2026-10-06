@@ -38,4 +38,12 @@ tests/
 # own — which also means anything added under either directory ships.
 !/docs/privacy/
 !/docs/security/
+# The architecture overview's images describe the code as it is, for a reader
+# of the source, so they ship beside it.
+!/docs/architecture/
 /.github/CODEOWNERS
+
+# Kept on the maintainer's machine, not distributed with the source.
+/.cursor/
+/AGENTS.md
+/THIRD_PARTY_NOTICES.md

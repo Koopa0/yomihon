@@ -12,14 +12,14 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 	switch kind {
 	case render.DiagImageMissing:
 		return wording.DiagImageMissingNote.In(lang)
-	case render.DiagWikilinkBroken:
-		return wording.DiagUnwrittenNote.In(lang)
+	case render.DiagWikilinkBroken, render.DiagMarkdownBroken:
+		return pathDiagnosticSummary(kind, lang)
 	case render.DiagWikilinkTitleOnly:
 		return wording.DiagTitleOnlyNote.In(lang)
 	case render.DiagTitleTruncatedAtHash:
 		return wording.DiagTitleCutNote.In(lang)
 	case render.DiagWikilinkAmbiguous:
-		return wording.DiagAmbiguousNote.In(lang)
+		return pathDiagnosticSummary(kind, lang)
 	case render.DiagUnknownCallout:
 		return wording.DiagCalloutNote.In(lang)
 	case render.DiagRiskyFence, render.DiagHighlightFailed:
@@ -51,4 +51,17 @@ func fenceDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) strin
 		return wording.DiagHighlightFailedNote.In(lang)
 	}
 	return wording.DiagFenceNote.In(lang)
+}
+
+func pathDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string {
+	switch kind {
+	case render.DiagMarkdownBroken:
+		return wording.DiagMarkdownMissingNote.In(lang)
+	case render.DiagWikilinkBroken:
+		return wording.DiagUnwrittenNote.In(lang)
+	case render.DiagWikilinkAmbiguous:
+		return wording.DiagAmbiguousNote.In(lang)
+	default:
+		panic("pages: unknown path diagnostic kind: " + string(kind))
+	}
 }

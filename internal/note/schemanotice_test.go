@@ -423,13 +423,13 @@ func TestFrontmatterSchemaNoticesQuoteTheCapturedParser(t *testing.T) {
 				root := writeNotes(t, map[string]string{"Writing/Bad.md": tc.body})
 				server := newServerWithContract(t, root, loadContract(t))
 				page := frontmatterNoticePage(t, server, chrome.lang, "Writing/Bad.md")
-				_, notice, ok := strings.Cut(page, `id="schema-notices"`)
+				_, notice, ok := strings.Cut(page, `id="_y-schema-notices"`)
 				if !ok {
-					t.Fatal("invalid YAML has no schema-notices panel")
+					t.Fatal("invalid YAML has no _y-schema-notices panel")
 				}
 				notice, _, ok = strings.Cut(notice, "</div>")
 				if !ok {
-					t.Fatal("schema-notices panel has no closing tag")
+					t.Fatal("_y-schema-notices panel has no closing tag")
 				}
 				for _, want := range []string{chrome.want, "<code>" + html.EscapeString(tc.diagnostic) + "</code>"} {
 					if !strings.Contains(notice, want) {
@@ -469,9 +469,9 @@ func TestFrontmatterSchemaNoticeDistinguishesMissingAndUnclosedBlocks(t *testing
 				root := writeNotes(t, map[string]string{"Writing/Bad.md": tc.body})
 				server := newServerWithContract(t, root, tc.contract(t))
 				page := frontmatterNoticePage(t, server, chrome.lang, "Writing/Bad.md")
-				_, notice, hasNotice := strings.Cut(page, `id="schema-notices"`)
+				_, notice, hasNotice := strings.Cut(page, `id="_y-schema-notices"`)
 				if hasNotice != tc.hasNotice {
-					t.Fatalf("schema-notices present=%v, want %v", hasNotice, tc.hasNotice)
+					t.Fatalf("_y-schema-notices present=%v, want %v", hasNotice, tc.hasNotice)
 				}
 				if hasNotice {
 					notice, _, _ = strings.Cut(notice, "</div>")

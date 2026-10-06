@@ -47,7 +47,7 @@ const rewriteDocument = (needle, replacement, label) => async (page) => {
 };
 
 // Match the declared anchor and its attributes, never the render blocker
-// that also names #main-content. The tag scan consumes quoted attribute values
+// that also names #_y-main. The tag scan consumes quoted attribute values
 // as a unit, so text inside another attribute cannot masquerade as href.
 const skipTarget = (document) => {
   const sites = [];
@@ -57,7 +57,7 @@ const skipTarget = (document) => {
     const targets = attributes.filter((attribute) => attribute[1].toLowerCase() === 'href');
     if (classes.length !== 1 || targets.length !== 1) continue;
     const value = (attribute) => attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
-    if (!value(classes[0]).split(/\s+/).includes('y-skiplink') || value(targets[0]) !== '#main-content') continue;
+    if (!value(classes[0]).split(/\s+/).includes('y-skiplink') || value(targets[0]) !== '#_y-main') continue;
     const target = targets[0];
     const changed = tag[0].slice(0, target.index)
       + target[0].replace(/=[\s\S]*$/, '="#missing-content"')
@@ -139,7 +139,7 @@ try {
   }
 
   const skip = page.locator('body > a.y-skiplink');
-  const main = page.locator('main#main-content[tabindex="-1"]');
+  const main = page.locator('main#_y-main[tabindex="-1"]');
   if (await skip.count() !== 1) broken(`the page has ${await skip.count()} body-first skip links, want 1`);
   if (await main.count() !== 1) broken(`the page has ${await main.count()} focusable main targets, want 1`);
   const firstElement = await page.locator('body a, body button, body input, body select, body textarea, body [tabindex]:not([tabindex="-1"])').first().getAttribute('class');
@@ -172,8 +172,8 @@ try {
     active: document.activeElement === element,
     hash: location.hash,
   }));
-  if (!activation.active || activation.hash !== '#main-content') {
-    fail('main-receives-focus', `activating the skip link produced ${JSON.stringify(activation)}, want focused #main-content`);
+  if (!activation.active || activation.hash !== '#_y-main') {
+    fail('main-receives-focus', `activating the skip link produced ${JSON.stringify(activation)}, want focused #_y-main`);
   }
 
   console.log('PASS skip-link-contract: the first Tab reveals the skip link and activation focuses main content');

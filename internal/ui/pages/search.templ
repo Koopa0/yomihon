@@ -93,6 +93,9 @@ type SearchResult struct {
 	// the query word appears nowhere on the row.
 	TopicRuns []SnippetRun
 
+	// TagRuns names the frontmatter tag that answered a tag-only query.
+	TagRuns []SnippetRun
+
 	// File marks a hit that is a vault file rather than a note, named on the row
 	// so a missing status does not read as a note's status gone missing.
 	File bool
@@ -209,7 +212,7 @@ templ Search(v SearchView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main">
+			<main id="_y-main" tabindex="-1" class="y-main">
 				// data-live-search-sync-url marks the one live region whose
 				// results the address bar describes. This page is the form's
 				// own target, so after a live refresh the URL is rewritten to
@@ -328,6 +331,13 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 										<span class="y-result__topic">
 											{ wording.ResultTopicLabel.In(lang) }
 											@hitRuns(r.TopicRuns)
+										</span>
+									}
+									if len(r.TagRuns) > 0 {
+										<span class="y-result__sep" aria-hidden="true">·</span>
+										<span class="y-result__tag">
+											{ wording.ResultTagLabel.In(lang) }
+											@hitRuns(r.TagRuns)
 										</span>
 									}
 									if len(r.AliasRuns) > 0 {

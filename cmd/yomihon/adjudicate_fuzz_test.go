@@ -22,6 +22,8 @@ func FuzzParseCommandArgs(f *testing.F) {
 		{"--format\x00yaml", false},
 		{"--mystery", false},
 		{"--\x00note", false},
+		{"--\x00-name", false},
+		{"--root=first\x00--root=second\x00--\x00--root=third", false},
 		{"--deny=warn\x00--deny\x00link.broken", false},
 		{"--root\x00日本語の保管庫\x00資料", false},
 		{"-position", false},
@@ -66,6 +68,9 @@ func FuzzParseCommandArgs(f *testing.F) {
 		}
 		if stored > len(args) {
 			t.Fatalf("parseCommandArgs() retained %d values from %d arguments", stored, len(args))
+		}
+		if first.rootCount < 0 || first.rootCount > len(args) {
+			t.Fatalf("parseCommandArgs() root count = %d, want within 0..%d", first.rootCount, len(args))
 		}
 	})
 }

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	htmlnode "golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -170,12 +171,122 @@ func TestShippedJapaneseLessonsCarryTheirPractice(t *testing.T) {
 			if len(trigger) != 2 {
 				t.Fatal("lesson lost its navigable concept-sheet trigger")
 			}
-			sheet := libraryElement(t, page, `<template id="concept-`+trigger[1]+`"`, "</template>")
+			sheet := libraryElement(t, page, `<template id="_y-concept-`+trigger[1]+`"`, "</template>")
 			if !strings.Contains(sheet, "句子是在安放一件物品，還是在說某個動作？") {
 				t.Error("concept trigger has no matching explanation in its sheet")
 			}
 		})
 	}
+}
+
+func TestShippedJapaneseLessonRubyAnnotatesOnlyItsKanji(t *testing.T) {
+	t.Parallel()
+	srv := newServerWithContract(t, readingLibraryRoot, readingLibraryContract(t))
+	code, page := get(t, srv.Client(), srv.URL+pages.VaultHref("/notes/", "Lessons/japanese/J01 找到書的位置.md"))
+	if code != http.StatusOK {
+		t.Fatalf("lesson returned %d, want 200", code)
+	}
+	document, err := htmlnode.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bodies []*htmlnode.Node
+	for node := range document.Descendants() {
+		if node.Type != htmlnode.ElementNode || node.Data != "div" || node.Parent.Data != "article" {
+			continue
+		}
+		for _, attr := range node.Attr {
+			if attr.Key == "class" && attr.Val == "y-prose" {
+				bodies = append(bodies, node)
+			}
+		}
+	}
+	if len(bodies) != 1 {
+		t.Fatalf("lesson has %d prose bodies, want 1", len(bodies))
+	}
+	var got [][2]string
+	for node := range bodies[0].Descendants() {
+		if node.Type != htmlnode.ElementNode || node.Data != "ruby" {
+			continue
+		}
+		var base, reading strings.Builder
+		for text := range node.Descendants() {
+			if text.Type != htmlnode.TextNode {
+				continue
+			}
+			annotation, fallback := false, false
+			for parent := text.Parent; parent != node; parent = parent.Parent {
+				annotation = annotation || parent.Data == "rt"
+				fallback = fallback || parent.Data == "rp"
+			}
+			if fallback {
+				continue
+			}
+			if annotation {
+				reading.WriteString(text.Data)
+			} else {
+				base.WriteString(text.Data)
+			}
+		}
+		got = append(got, [2]string{base.String(), reading.String()})
+	}
+	want := [][2]string{
+		{"辞書", "じしょ"},
+		{"辞書", "じしょ"}, {"本棚", "ほんだな"}, {"雑誌", "ざっし"}, {"机", "つくえ"}, {"上", "うえ"},
+		{"辞書", "じしょ"}, {"本棚", "ほんだな"},
+		{"辞書", "じしょ"}, {"本棚", "ほんだな"},
+		{"雑誌", "ざっし"}, {"机", "つくえ"}, {"上", "うえ"},
+		{"本", "ほん"}, {"中", "なか"},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("caught: lesson ruby base/readings (-want +got):\n%s", diff)
+	}
+	var dialogue, cells []string
+	for node := range bodies[0].Descendants() {
+		if node.Type != htmlnode.ElementNode {
+			continue
+		}
+		switch node.Data {
+		case "p":
+			if text := libraryBaseText(node); strings.HasPrefix(text, "辞書は") {
+				dialogue = append(dialogue, text)
+			}
+		case "td":
+			cells = append(cells, libraryBaseText(node))
+		}
+	}
+	if diff := cmp.Diff([]string{"辞書は本棚にあります。雑誌は机の上にあります。", "辞書は本棚にあります。"}, dialogue); diff != "" {
+		t.Errorf("caught: lesson dialogue base text (-want +got):\n%s", diff)
+	}
+	wantCells := []string{
+		"問位置", "物品 は どこ に ありますか", "辞書はどこにありますか。",
+		"答位置", "物品 は 場所 に あります", "辞書は本棚にあります。",
+		"辞書", "辭典", "本棚", "書架",
+		"雑誌", "雜誌", "机の上", "桌上",
+		"本", "書", "かばんの中", "包包裡",
+	}
+	if diff := cmp.Diff(wantCells, cells); diff != "" {
+		t.Errorf("caught: lesson table base text (-want +got):\n%s", diff)
+	}
+}
+
+// The base text excludes pronunciation and fallback parentheses, including
+// their text wrapped by the reading page's span annotations.
+func libraryBaseText(node *htmlnode.Node) string {
+	var base strings.Builder
+	for text := range node.Descendants() {
+		if text.Type != htmlnode.TextNode {
+			continue
+		}
+		annotation := false
+		for parent := text.Parent; parent != node; parent = parent.Parent {
+			annotation = annotation || parent.Data == "rt" || parent.Data == "rp"
+		}
+		if !annotation {
+			base.WriteString(text.Data)
+		}
+	}
+	return strings.Join(strings.Fields(base.String()), " ")
 }
 
 func libraryElement(t *testing.T, page, opening, closing string) string {

@@ -159,7 +159,7 @@ export function initPreferences() {
   // column can be folded passes through here, a key, a click, a setting, and a
   // page restored from the cache.
   function keepFocusOutOfFoldedRail(value) {
-    const column = document.querySelector('#nav-rail');
+    const column = document.querySelector('#_y-nav-rail');
     if (value === 'collapsed' && column?.contains(document.activeElement) && document.activeElement !== railToggle) {
       railToggle?.focus();
     }
