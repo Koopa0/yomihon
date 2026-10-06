@@ -110,6 +110,7 @@ func TestTheRenderedBytesAreTheOnesTheGoldensHold(t *testing.T) {
 		// way a heading already does; a line that is only the marker, or a
 		// marker quoted in code, stays.
 		{name: "sequencerow", relPath: "Notes/Sequence Row.md"},
+		{name: "tasklist", relPath: "Notes/Task List.md"},
 	}
 
 	for _, tt := range tests {

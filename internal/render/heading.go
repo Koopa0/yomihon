@@ -127,6 +127,7 @@ func shellHeadingLevel(level int) int {
 func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
+	next := map[string]int{}
 	if reserved != "" {
 		seen[reserved] = true
 	}
@@ -163,9 +164,12 @@ func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 
 		id := graph.SectionID(text)
 		if seen[id] {
-			for n := 2; ; n++ {
+			// Claimed ids never become free, so this base can resume after its
+			// last suffix without changing which available id wins.
+			for n := max(2, next[id]); ; n++ {
 				cand := fmt.Sprintf("%s-%d", id, n)
 				if !seen[cand] {
+					next[id] = n + 1
 					id = cand
 					break
 				}
