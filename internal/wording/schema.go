@@ -175,7 +175,7 @@ func AllowedEnumValues(lang Lang, field string, values []string) []SchemaPart {
 	}
 	for i, value := range values {
 		if i > 0 {
-			parts = append(parts, SchemaPart{Text: ", "})
+			parts = append(parts, SchemaPart{Text: schemaAllowedSeparator.In(lang)})
 		}
 		parts = append(parts, SchemaPart{Text: value, Code: true})
 	}
@@ -183,8 +183,9 @@ func AllowedEnumValues(lang Lang, field string, values []string) []SchemaPart {
 }
 
 var (
-	schemaAllowedStart  = both(" 允許的 ", " Allowed ")
-	schemaAllowedMiddle = both(" 值：", " values: ")
-	schemaAllowedEnd    = both("。", ".")
-	schemaAllowedNone   = both("無。", "none.")
+	schemaAllowedSeparator = both("、", ", ")
+	schemaAllowedStart     = both(" 允許的 ", " Allowed ")
+	schemaAllowedMiddle    = both(" 值：", " values: ")
+	schemaAllowedEnd       = both("。", ".")
+	schemaAllowedNone      = both("無。", "none.")
 )

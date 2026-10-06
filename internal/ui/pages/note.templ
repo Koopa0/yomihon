@@ -830,8 +830,9 @@ templ statusFrontmatterUnclosedFlag(v NoteView, noticeClass string, lang wording
 // would imply the contract defines nothing onward from a value it never
 // defined.
 templ statusUnknownFlag(v NoteView, noticeClass string, lang wording.Lang) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }@schemaParts(wording.AllowedEnumValues(lang, "status", v.AllowedStatuses))
-</p>
+	<p class={ noticeClass, "y-statusflag" }>
+		{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }@schemaParts(wording.AllowedEnumValues(lang, "status", v.AllowedStatuses))
+	</p>
 }
 
 // statusUnreadableFlag states that this note's frontmatter yielded no status to

@@ -271,8 +271,9 @@ templ healthShapeLine(shape healthShape, lang wording.Lang) {
 // everywhere else, and a note the evidence names is reachable from it.
 templ healthEvidence(detail healthDetail) {
 	if len(detail.Parts) > 0 {
-		<span>@schemaParts(detail.Parts)
-</span>
+		<span>
+			@schemaParts(detail.Parts)
+		</span>
 	}
 	if detail.Text != "" {
 		if detail.Machine {

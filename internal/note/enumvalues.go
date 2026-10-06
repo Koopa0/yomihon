@@ -1,8 +1,6 @@
 package note
 
 import (
-	"cmp"
-
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/status"
 )
@@ -25,7 +23,7 @@ func enumValues(contract *schema.Contract, field, noteType string) []string {
 	}
 	switch field {
 	case "status":
-		return contract.StatusesInGroup(cmp.Or(contract.StatusGroup(noteType), "note"))
+		return contract.StatusesInGroup(contract.JudgedStatusGroup(noteType))
 	case "type":
 		return contract.Definition().Enums.Type
 	case "domain":

@@ -41,16 +41,28 @@ func TestEnumGuidanceReadsTheContractOnEveryReadingSurface(t *testing.T) {
 						var want []string
 						switch tc.field {
 						case "status":
-							group := contract.StatusGroup(tc.kind)
-							if group == "" {
-								group = contract.StatusGroup("")
+							want = []string{"captured", "cleaned", "seedling", "growing", "evergreen", "imported", "draft", "ready", "published", "archived"}
+							if tc.kind == "lesson" {
+								want = []string{"imported", "draft", "ready", "published", "archived"}
+								if variant {
+									want = append(want, "extra-status")
+								}
 							}
-							want = contract.StatusesInGroup(group)
+							if tc.kind == "guide" {
+								want = []string{"active", "archived"}
+							}
 						case "type":
-							want = contract.Definition().Enums.Type
+							want = []string{"inbox", "transcript", "source-note", "concept", "writing", "lesson", "system", "guide", "template", "moc", "source-map", "study-path", "topic-map"}
+							if variant {
+								want = append(want, "extra-kind")
+							}
 						case "domain":
-							want = contract.Definition().Enums.Domain
+							want = []string{"golang", "japanese", "meta"}
+							if variant {
+								want = append(want, "<b>literal</b>")
+							}
 						}
+						t.Log("hit: real GET vocabulary consumer reached")
 						page := enumGuidancePage(t, srv.Client(), srv.URL+"/notes/"+rel, lang)
 						notices := enumElements(page, func(n *html.Node) bool { return enumAttribute(n, "id") == "schema-notices" })
 						if len(notices) != 1 {
@@ -346,7 +358,7 @@ owner = ["koopa"]
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		for _, route := range []string{"/notes/" + rel, "/health"} {
 			page := enumGuidancePage(t, srv.Client(), srv.URL+route, lang)
-			assertEnumList(t, page, "status", contract.StatusesInGroup(contract.StatusGroup("empty-type")), lang)
+			assertEnumList(t, page, "status", []string{}, lang)
 			none := "無。"
 			if lang == wording.En {
 				none = "none."
