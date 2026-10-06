@@ -157,7 +157,7 @@ const MUTATIONS = {
   },
   'drop-tts-chrome-lang': {
     target: 'tts-chrome-language',
-    apply: rewritePath(DECLARED_PAGE, ' lang="zh-Hant" aria-label="朗讀這段日文">', ' aria-label="朗讀這段日文">', 'read-aloud control language'),
+    apply: rewritePath(DECLARED_PAGE, 'class="y-tts" type="button" data-tts="今日は晴れ。" lang="zh-Hant"', 'class="y-tts" type="button" data-tts="今日は晴れ。"', 'read-aloud control language'),
   },
   'change-tts-authored-lang': {
     target: 'tts-authored-language',

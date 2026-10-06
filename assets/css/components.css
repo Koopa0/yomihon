@@ -646,6 +646,14 @@ samp {
   color: var(--fg-faint);
   display: inline;
 }
+/* These quick setters depend on script. Without it, the native preferences
+   link remains the way to change the reading choices. */
+html:not([data-js]) .y-rubybtn,
+html:not([data-js]) .y-textsizebtn,
+html:not([data-js]) .y-themebtn {
+  display: none;
+}
+
 /* The readings control is a switch with its name beside it: the track and the
    thumb are drawn on the button itself from the pressed state the page already
    carries, so what a reader sees and what a screen reader is told are one
@@ -1925,21 +1933,21 @@ details.y-metarow {
 .y-prose ol {
   list-style: decimal;
 }
-/* A GFM task item already carries a checkbox. Goldmark emits two
-   shapes and no task-list class: a tight item puts the input on the
-   li, a loose or multi-paragraph item wraps it in a p. The disc
+/* A GFM task item already carries a checkbox. The label has two
+   shapes: a tight item puts it on the li, while a loose or
+   multi-paragraph item wraps it in a p. The disc
    inherited from the ul sits beside either, which reads as two
    markers on one row. Hide the disc on those ul items only; ordinary
    discs stay, and an ordered task keeps the number the author wrote.
    The checkbox then occupies the marker gutter so the text lines up
    with a neighbouring plain list. */
-.y-prose ul > li:has(> input[type='checkbox']:first-child),
-.y-prose ul > li:has(> p:first-child > input[type='checkbox']:first-child) {
+.y-prose ul > li:has(> .y-task:first-child > input[type='checkbox']:first-child),
+.y-prose ul > li:has(> p:first-child > .y-task:first-child > input[type='checkbox']:first-child) {
   list-style: none;
 }
 
-.y-prose ul > li:has(> input[type='checkbox']:first-child) > input[type='checkbox']:first-child,
-.y-prose ul > li:has(> p:first-child > input[type='checkbox']:first-child) > p:first-child > input[type='checkbox']:first-child {
+.y-prose ul > li:has(> .y-task:first-child > input[type='checkbox']:first-child) > .y-task:first-child > input[type='checkbox']:first-child,
+.y-prose ul > li:has(> p:first-child > .y-task:first-child > input[type='checkbox']:first-child) > p:first-child > .y-task:first-child > input[type='checkbox']:first-child {
   margin-inline-end: 0.35em;
   margin-inline-start: -1.4em;
   vertical-align: middle;
@@ -2065,7 +2073,7 @@ details.y-metarow {
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   font-family: var(--font-mono);
-  font-size: var(--fs-13);
+  font-size: var(--fs-ed-13);
   line-height: 1.75;
   margin: var(--sp-block) 0 0;
   overflow-x: auto;
@@ -2118,7 +2126,7 @@ details.y-metarow {
    renderer wraps every table in .y-tablewrap) so the article never scrolls */
 .y-prose table {
   border-collapse: collapse;
-  font-size: var(--fs-14);
+  font-size: var(--fs-ed-15);
   margin: var(--sp-block) 0 0;
   width: 100%;
 }
@@ -2136,7 +2144,7 @@ details.y-metarow {
   border-bottom: 1px solid var(--line-strong);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: inherit;
   font-weight: var(--fw-semibold);
   padding: 8px 14px;
   text-align: left;
@@ -2146,8 +2154,14 @@ details.y-metarow {
   border-bottom: 1px solid var(--line-faint);
   color: var(--fg-muted);
   font-family: var(--font-serif);
-  font-size: var(--fs-15);
+  font-size: inherit;
   padding: 10px 14px;
+}
+
+/* A table reading starts above ten pixels at the smallest editorial step,
+   and its relative size keeps growing with the word it explains. */
+.y-prose td rt {
+  font-size: 0.7em;
 }
 
 /* A table stands on the text's own edges: its first column starts where a
@@ -5274,10 +5288,12 @@ a.y-facetrow:hover {
 
 .y-module__name {
   color: var(--fg-muted);
-  flex: none;
+  flex: 0 1 auto;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .y-module__rule {

@@ -421,6 +421,7 @@ try {
   await severity.click();
   await page.waitForURL((url) => url.toString() !== asked, { timeout: 15000 });
   await page.waitForLoadState('domcontentloaded');
+  await arrived(page);
   if (await page.locator('.y-findings tbody tr').count() === 0) {
     broken(`following the weight heading landed on ${page.url()}, which carries no findings table at all`);
   }
@@ -455,6 +456,7 @@ try {
   await shapeLink.click();
   await page.waitForURL((url) => url.toString() !== askedShape, { timeout: 15000 });
   await page.waitForLoadState('domcontentloaded');
+  await arrived(page);
   const afterShape = await readRows(page);
   if (afterShape.length !== beforeShape.length) broken(`the reordered page holds ${afterShape.length} findings, was ${beforeShape.length}`);
   if (afterShape.every((row, i) => row.subject === beforeShape[i].subject)) {

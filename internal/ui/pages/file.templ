@@ -92,7 +92,13 @@ templ fileInfo(v FileView, lang wording.Lang) {
 			<dt>{ wording.FileType.In(lang) }</dt>
 			<dd>{ v.ContentType }</dd>
 		</dl>
-		<a class="y-fileinfo__raw" href={ templ.URL(rawHref(v.RelPath)) }>{ wording.OpenRawBytes.In(lang) }</a>
+		<a class="y-fileinfo__raw" href={ templ.URL(rawHref(v.RelPath)) }>
+			if v.RawDownload {
+				{ wording.DownloadFile.In(lang) }
+			} else {
+				{ wording.OpenRawBytes.In(lang) }
+			}
+		</a>
 		<p class="y-fileinfo__note">{ wording.FileNotIndexed.In(lang) }</p>
 	</div>
 }

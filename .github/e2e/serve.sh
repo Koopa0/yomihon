@@ -284,6 +284,8 @@ if ! reason="$(contract_log_error "$(<"$log")")"; then
   exit 1
 fi
 
+# Browser probes may change notes only inside this owned disposable copy.
+export YOMIHON_FIXTURE_ROOT="$vault"
 export YOMIHON_BASE="$base" YOMIHON_PORT="$port"
 # Only developer probes receive the disposable fixture path, never the server.
 export YOMIHON_FIXTURE_ROOT="$vault"
