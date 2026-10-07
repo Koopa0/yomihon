@@ -18,6 +18,49 @@ export function initLesson(enhanceCodeCopy) {
   let speechGeneration = 0;
   let activeSpeakButton = null;
   let speechStatus = null;
+  let voiceReadiness = null;
+
+  function voicesReady() {
+    voiceReadiness ??= speechSynthesis.getVoices().length
+      ? Promise.resolve()
+      : new Promise((resolve) => {
+        const finish = () => {
+          speechSynthesis.removeEventListener('voiceschanged', finish);
+          clearTimeout(deadline);
+          resolve();
+        };
+        const deadline = setTimeout(finish, 1000);
+        speechSynthesis.addEventListener('voiceschanged', finish, { once: true });
+      });
+    return voiceReadiness;
+  }
+
+  function speechLocale(tag) {
+    try {
+      return new Intl.Locale(tag.replaceAll('_', '-')).maximize();
+    } catch {
+      return null;
+    }
+  }
+
+  function localVoice(tag) {
+    const voices = speechSynthesis.getVoices().filter((voice) => voice.localService === true);
+    if (tag === 'und') return voices.find((voice) => voice.default && speechLocale(voice.lang)) ?? null;
+    const requested = speechLocale(tag);
+    if (!requested) return null;
+    let selected = null;
+    let bestRank = -1;
+    for (const voice of voices) {
+      const candidate = speechLocale(voice.lang);
+      if (!candidate || !(candidate.language === requested.language && candidate.script === requested.script)) continue;
+      const rank = (candidate.region === requested.region ? 2 : 0) + (voice.default ? 1 : 0);
+      if (rank > bestRank) {
+        selected = voice;
+        bestRank = rank;
+      }
+    }
+    return selected;
+  }
   // The read-aloud bar's words come from the page, in the language its reader
   // asked for. A sentence written here would be written in one language for
   // everyone, on a page that is otherwise theirs. Each is named in full rather
@@ -127,7 +170,7 @@ export function initLesson(enhanceCodeCopy) {
   // paragraph this is, and the voice starting is not news on top of that. The
   // giving up is the default, so a speaker added later has to say it belongs to
   // the walk before it can keep one alive.
-  function speakText(text, trigger = null, passage = trigger?.parentElement, fromBar = false) {
+  async function speakText(text, trigger = null, passage = trigger?.parentElement, fromBar = false) {
     if (!text || !('speechSynthesis' in window)) return;
     if (!fromBar) {
       endRun();
@@ -150,6 +193,20 @@ export function initLesson(enhanceCodeCopy) {
       if (stopThisLabel) trigger.setAttribute('aria-label', stopThisLabel);
       markReading(trigger.closest('.y-reading'));
     }
+    await voicesReady();
+    if (generation !== speechGeneration) return;
+    const unavailable = () => {
+      if (generation !== speechGeneration) return;
+      endRun();
+      announce(unavailableLabel);
+      resetSpeakButton();
+    };
+    const voice = localVoice(utterance.lang);
+    if (!voice) {
+      unavailable();
+      return;
+    }
+    utterance.voice = voice;
     utterance.addEventListener('start', () => {
       if (generation === speechGeneration && !fromBar) announce(playingLabel);
     }, { once: true });
@@ -162,14 +219,7 @@ export function initLesson(enhanceCodeCopy) {
       announce(finishedLabel);
       resetSpeakButton();
     }, { once: true });
-    utterance.addEventListener('error', () => {
-      if (generation !== speechGeneration) return;
-      // The walk gives up here, so the sentence about the missing voice is said
-      // once rather than once for every paragraph still ahead.
-      endRun();
-      announce(unavailableLabel);
-      resetSpeakButton();
-    }, { once: true });
+    utterance.addEventListener('error', unavailable, { once: true });
     speechSynthesis.speak(utterance);
   }
 

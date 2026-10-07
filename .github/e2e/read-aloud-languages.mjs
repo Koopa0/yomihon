@@ -1,6 +1,7 @@
 // The initialized lesson hands each authored language to the utterance sink.
 // Controlled speech events prove page recovery, not an installed audible voice.
 import { chromium } from 'playwright-core';
+import { installSpeechVoices } from './support/speech-voices.mjs';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9946';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/languages/Read%20aloud.md';
@@ -76,6 +77,7 @@ try {
     await context.addCookies([{ name: 'yomihon_lang', value: lang, url: BASE }]);
     const page = await context.newPage();
     await page.route('**/*', (route) => route.request().method() === 'GET' ? route.continue() : route.abort());
+    await installSpeechVoices(page);
     await page.addInitScript(installSpeech);
     const proof = MUTATE && lang === 'zh-Hant' ? await MUTATIONS[MUTATE].apply(page) : null;
     const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
