@@ -130,6 +130,7 @@ func extractWikilinksWith(body string, bodyStartLine int, headingMarks []string)
 }
 
 func extractWikilinksFrom(body string, bodyStartLine int, facts *bodyStructure) []wikiLink {
+	_ = inspectBody(body, nil)
 	headings, skip := facts.headings, facts.skip
 	var links []wikiLink
 	for _, raw := range rawWikilinks(body) {
