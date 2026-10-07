@@ -57,7 +57,7 @@ func extractCalloutTitlesFrom(body string, bodyStartLine int, skip []byteRange) 
 // opening line, including unknown types whose neutral shell escapes the title.
 // Opening syntax is independent of the renderer's block-address refusal.
 func recognisedCalloutTitle(line string) (title string, ok bool) {
-	if !render.UnanchorableLine(line) {
+	if !render.IsCalloutOpening(line) {
 		return "", false
 	}
 	open := strings.Index(line, "[!")
