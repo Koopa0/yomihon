@@ -5,15 +5,387 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/BurntSushi/toml"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
+
+// TestEnumGuidanceWholeInventory keeps expected words independent of the
+// Contract's detached Definition and the vocabulary lookup used by the UI.
+func TestEnumGuidanceWholeInventory(t *testing.T) {
+	for _, custom := range []bool{false, true} {
+		t.Run(fmt.Sprintf("custom=%t", custom), func(t *testing.T) {
+			contract, inventory := enumWholeContract(t, custom)
+			for _, kind := range append(slices.Clone(inventory.flat["type"]), "invalid-type") {
+				group := inventory.groupFor(kind)
+				for _, field := range inventory.fields {
+					if field == "type" && kind != "invalid-type" {
+						continue
+					}
+					if field != "type" && field != "status" && (group == schema.SystemDocumentGroup || kind == "invalid-type") {
+						continue
+					}
+					want := inventory.flat[field]
+					if field == "status" {
+						want = inventory.groups[group]
+					}
+					invalid := "invalid-" + field
+					if slices.Contains(want, invalid) {
+						t.Fatalf("fixture declares invalid stimulus %q", invalid)
+					}
+					t.Run(field+"/"+kind+"/invalid", func(t *testing.T) {
+						body := enumWholeBody(kind, field, invalid)
+						findings := enumWholeJudge(t, body, contract, field, kind)
+						targets := 0
+						for _, finding := range findings {
+							if finding.RuleID == "schema.enum" && finding.Field != nil && *finding.Field == field && finding.Target != nil && *finding.Target == invalid {
+								targets++
+							}
+						}
+						if targets != 1 {
+							t.Fatalf("caught: enum-guidance field=%s type=%s judge=missing-target got=%d want=1", field, kind, targets)
+						}
+						enumWholeSurfaces(t, body, contract, field, kind, want, true)
+					})
+					for index, value := range want {
+						acceptedType := kind
+						if field == "type" {
+							acceptedType = value
+						}
+						t.Run(fmt.Sprintf("%s/%s/accepted-%d", field, acceptedType, index), func(t *testing.T) {
+							body := enumWholeBody(acceptedType, field, value)
+							findings := enumWholeJudge(t, body, contract, field, acceptedType)
+							t.Logf("hit: enum-membership field=%s type=%s value=%s judge=returned", field, acceptedType, value)
+							enumWholeAccepted(t, findings, field, acceptedType, value, acceptedType == "invalid-type")
+							enumWholeSurfaces(t, body, contract, field, acceptedType, nil, false)
+						})
+					}
+				}
+				if group == schema.SystemDocumentGroup {
+					t.Run("system-early-return/"+kind, func(t *testing.T) {
+						body := enumWholeBody(kind, "domain", "invalid-optional")
+						for _, field := range inventory.fields {
+							if field != "type" && field != "status" && field != "domain" {
+								body = strings.Replace(body, "\n---\n", "\n"+field+": 'invalid-optional'\n---\n", 1)
+							}
+						}
+						findings := enumWholeJudge(t, body, contract, "optional-fields", kind)
+						for _, finding := range findings {
+							if finding.RuleID == "schema.frontmatter" {
+								t.Fatalf("system optional stimulus failed to parse: %+v", finding)
+							}
+						}
+						enumWholeAccepted(t, findings, "optional-fields", kind, "invalid-optional", false)
+					})
+				}
+			}
+		})
+	}
+}
+
+type enumWholeInventory struct {
+	fields []string
+	flat   map[string][]string
+	groups map[string][]string
+	types  map[string]string
+}
+
+func (iv enumWholeInventory) groupFor(kind string) string {
+	if group, ok := iv.types[kind]; ok {
+		return group
+	}
+	return "note"
+}
+
+func enumWholeContract(t *testing.T, custom bool) (*schema.Contract, enumWholeInventory) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if _, err := toml.Decode(string(data), &raw); err != nil {
+		t.Fatal(err)
+	}
+	enums := enumWholeTable(t, raw["enums"], "enums")
+	inventory := enumWholeInventory{flat: make(map[string][]string), groups: make(map[string][]string), types: make(map[string]string)}
+	seen := make(map[string]bool)
+	for _, field := range reflect.VisibleFields(reflect.TypeFor[schema.Enums]()) {
+		if !field.IsExported() {
+			t.Fatalf("fixture inventory cannot cover unexported enum field %s", field.Name)
+		}
+		tag := field.Tag.Get("toml")
+		value, ok := enums[tag]
+		if tag == "" || seen[tag] || !ok {
+			t.Fatalf("enum tag %q is blank, duplicate, or absent from raw fixture", tag)
+		}
+		seen[tag] = true
+		inventory.fields = append(inventory.fields, tag)
+		if field.Type == reflect.TypeFor[[]string]() {
+			inventory.flat[tag] = enumWholeStrings(t, value, "enums."+tag)
+			continue
+		}
+		if field.Type != reflect.TypeFor[map[string][]string]() || tag != "status" {
+			t.Fatalf("enum tag %q has unsupported declaration shape %s", tag, field.Type)
+		}
+		for group, values := range enumWholeTable(t, value, "enums.status") {
+			inventory.groups[group] = enumWholeStrings(t, values, "enums.status."+group)
+		}
+	}
+	if len(seen) != len(enums) {
+		t.Fatalf("raw enum keys = %v, exported tag inventory = %v", enums, seen)
+	}
+	if custom {
+		data = enumWholeCustomBytes(t, data, inventory)
+		raw = nil
+		if _, err := toml.Decode(string(data), &raw); err != nil {
+			t.Fatal(err)
+		}
+		enums = enumWholeTable(t, raw["enums"], "enums")
+		for key := range inventory.flat {
+			inventory.flat[key] = enumWholeStrings(t, enums[key], "enums."+key)
+		}
+		for key, values := range enumWholeTable(t, enums["status"], "enums.status") {
+			inventory.groups[key] = enumWholeStrings(t, values, "enums.status."+key)
+		}
+	}
+	fields := enumWholeTable(t, raw["fields"], "fields")
+	for group, members := range enumWholeTable(t, fields["status_group"], "fields.status_group") {
+		if _, ok := inventory.groups[group]; !ok {
+			t.Fatalf("type mapping references undeclared status group %q", group)
+		}
+		for _, kind := range enumWholeStrings(t, members, "fields.status_group."+group) {
+			if !slices.Contains(inventory.flat["type"], kind) || inventory.types[kind] != "" {
+				t.Fatalf("mapped type %q is undeclared or assigned more than once", kind)
+			}
+			inventory.types[kind] = group
+		}
+	}
+	covered := make(map[string]bool)
+	for _, kind := range inventory.flat["type"] {
+		covered[inventory.groupFor(kind)] = true
+	}
+	for group := range inventory.groups {
+		if !covered[group] {
+			t.Fatalf("declared status group %q has no exercised declared type", group)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if err := os.WriteFile(path, data, 0o600); err != nil { // #nosec G703 -- fixed basename under t.TempDir
+		t.Fatal(err)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return contract, inventory
+}
+
+// enumWholeCustomBytes extends every declared list without editing its fixture.
+func enumWholeCustomBytes(t *testing.T, data []byte, inventory enumWholeInventory) []byte {
+	t.Helper()
+	lines := strings.Split(string(data), "\n")
+	section := ""
+	replaced := make(map[string]int)
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") {
+			section = trimmed
+			continue
+		}
+		key, _, found := strings.Cut(trimmed, "=")
+		key = strings.TrimSpace(key)
+		if !found || (section != "[enums]" && section != "[enums.status]") {
+			continue
+		}
+		values := inventory.flat[key]
+		if section == "[enums.status]" {
+			values = inventory.groups[key]
+		}
+		if values == nil {
+			t.Fatalf("unknown custom enum declaration %s/%s", section, key)
+		}
+		extra := "<b>literal</b>-" + key
+		if key == "type" {
+			extra = "extra-kind"
+		} else if section == "[enums.status]" {
+			extra = "extra-status-" + key
+		}
+		values = append(slices.Clone(values), extra)
+		quoted := make([]string, len(values))
+		for i, word := range values {
+			quoted[i] = strconv.Quote(word)
+		}
+		lines[index] = key + " = [" + strings.Join(quoted, ", ") + "]"
+		replaced[section+key]++
+	}
+	for key := range inventory.flat {
+		if replaced["[enums]"+key] != 1 {
+			t.Fatalf("custom flat enum %s replacement count = %d, want 1", key, replaced["[enums]"+key])
+		}
+	}
+	for key := range inventory.groups {
+		if replaced["[enums.status]"+key] != 1 {
+			t.Fatalf("custom status enum %s replacement count = %d, want 1", key, replaced["[enums.status]"+key])
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
+func enumWholeTable(t *testing.T, value any, name string) map[string]any {
+	t.Helper()
+	table, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("%s raw shape = %T, want table", name, value)
+	}
+	return table
+}
+
+func enumWholeStrings(t *testing.T, value any, name string) []string {
+	t.Helper()
+	list, ok := value.([]any)
+	if !ok {
+		t.Fatalf("%s raw shape = %T, want list", name, value)
+	}
+	words := make([]string, len(list))
+	for index, item := range list {
+		word, ok := item.(string)
+		if !ok {
+			t.Fatalf("%s[%d] raw shape = %T, want string", name, index, item)
+		}
+		words[index] = word
+	}
+	return words
+}
+
+func enumWholeBody(kind, field, value string) string {
+	values := map[string]string{"title": "Enum guidance", "type": kind, "domain": "golang", "status": "archived", "slug": "enum-guidance", "created": "2026-06-01", "updated": "2026-06-01", "based_on": "[[Enum]]"}
+	if field != "" {
+		values[field] = value
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	var body strings.Builder
+	body.WriteString("---\n")
+	for _, key := range keys {
+		body.WriteString(key + ": '" + strings.ReplaceAll(values[key], "'", "''") + "'\n")
+	}
+	body.WriteString("---\n\n# Body\n")
+	return body.String()
+}
+
+func enumWholeJudge(t *testing.T, body string, contract *schema.Contract, field, kind string) []judge.Finding {
+	t.Helper()
+	findings, err := judge.LintFrontmatter("Writing/Enum.md", []byte(body), contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("hit: enum-guidance field=%s type=%s judge=returned", field, kind)
+	return findings
+}
+
+func enumWholeAccepted(t *testing.T, findings []judge.Finding, field, kind, value string, unknown bool) {
+	t.Helper()
+	typeFaults := 0
+	for _, finding := range findings {
+		if finding.RuleID != "schema.enum" {
+			continue
+		}
+		if unknown && finding.Field != nil && *finding.Field == "type" && finding.Target != nil && *finding.Target == kind {
+			typeFaults++
+			continue
+		}
+		t.Errorf("caught: enum-membership field=%s type=%s value=%s schema.enum rejected=%+v", field, kind, value, finding)
+	}
+	if unknown && typeFaults != 1 {
+		t.Errorf("caught: enum-guidance field=%s type=%s judge=unknown-type-stimulus got=%d want=1", field, kind, typeFaults)
+	}
+}
+
+func enumWholeSurfaces(t *testing.T, body string, contract *schema.Contract, field, kind string, want []string, invalid bool) {
+	t.Helper()
+	srv := newServerWithContract(t, writeOneNote(t, "Writing/Enum.md", body), contract)
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		for _, sink := range []string{"note", "health"} {
+			path := "/notes/Writing/Enum.md"
+			if sink == "health" {
+				path = "/health"
+			}
+			page := enumGuidancePage(t, srv.Client(), srv.URL+path, lang)
+			t.Logf("hit: enum-guidance field=%s type=%s sink=%s lang=%s", field, kind, sink, lang)
+			var nodes []*html.Node
+			if sink == "note" {
+				nodes = enumElements(page, func(n *html.Node) bool { return enumAttribute(n, "id") == "_y-schema-notices" })
+			} else {
+				nodes = enumElements(page, func(n *html.Node) bool {
+					return n.Data == "tr" && len(enumElements(n, func(link *html.Node) bool {
+						return link.Data == "a" && enumAttribute(link, "href") == "/notes/Writing/Enum.md"
+					})) == 1 && len(enumElements(n, func(label *html.Node) bool {
+						return enumHasClass(label, "y-findings__kind") && enumText(label) == wording.HealthSchemaTitle.In(lang)
+					})) == 1
+				})
+			}
+			if invalid && len(nodes) != 1 {
+				t.Errorf("caught: enum-guidance field=%s type=%s sink=%s lang=%s target-container got=%d want=1", field, kind, sink, lang, len(nodes))
+			}
+			matches := 0
+			for _, node := range nodes {
+				advice := enumElements(node, func(n *html.Node) bool {
+					return enumWholeHasAdvice(n, field, lang) && len(enumElements(n, func(child *html.Node) bool {
+						return child != n && enumWholeHasAdvice(child, field, lang)
+					})) == 0
+				})
+				for _, item := range advice {
+					matches++
+					if !invalid {
+						continue
+					}
+					codes := enumElements(item, func(n *html.Node) bool { return n.Data == "code" })
+					listStart := len(codes) - len(want) - 1
+					if listStart < 0 || enumText(codes[listStart]) != field {
+						t.Errorf("caught: enum-guidance field=%s type=%s sink=%s lang=%s allowed-values missing field code", field, kind, sink, lang)
+						continue
+					}
+					got := make([]string, 0, len(want))
+					for _, code := range codes[listStart+1:] {
+						got = append(got, enumText(code))
+					}
+					separator, middle, end := "、", " 值：", "。"
+					if lang == wording.En {
+						separator, middle, end = ", ", " values: ", "."
+					}
+					sentence := enumGuidancePrefix(lang) + field + middle + strings.Join(want, separator) + end
+					text := enumText(item)
+					position := strings.Index(text, enumGuidancePrefix(lang))
+					if !slices.Equal(got, want) || position < 0 || text[position:] != sentence || strings.Count(text, enumGuidancePrefix(lang)) != 1 {
+						t.Errorf("caught: enum-guidance field=%s type=%s sink=%s lang=%s allowed-values got=%q text=%q want=%q sentence=%q", field, kind, sink, lang, got, text, want, sentence)
+					}
+				}
+			}
+			if (invalid && matches != 1) || (!invalid && matches != 0) {
+				t.Errorf("caught: enum-guidance field=%s type=%s sink=%s lang=%s advice-count got=%d invalid=%t", field, kind, sink, lang, matches, invalid)
+			}
+		}
+	}
+}
+
+func enumWholeHasAdvice(node *html.Node, field string, lang wording.Lang) bool {
+	return node.Type == html.ElementNode && strings.Contains(enumText(node), enumGuidancePrefix(lang)) && len(enumElements(node, func(code *html.Node) bool {
+		return code.Data == "code" && enumText(code) == field
+	})) > 0
+}
 
 // TestEnumGuidanceReadsTheContractOnEveryReadingSurface binds the displayed
 // values to the whole declaration rather than to a convenient example list.
@@ -62,8 +434,8 @@ func TestEnumGuidanceReadsTheContractOnEveryReadingSurface(t *testing.T) {
 								want = append(want, "<b>literal</b>")
 							}
 						}
-						t.Log("hit: real GET vocabulary consumer reached")
 						page := enumGuidancePage(t, srv.Client(), srv.URL+"/notes/"+rel, lang)
+						t.Logf("hit: enum-guidance field=%s type=%s sink=note lang=%s", tc.field, tc.kind, lang)
 						notices := enumElements(page, func(n *html.Node) bool { return enumAttribute(n, "id") == "_y-schema-notices" })
 						if len(notices) != 1 {
 							t.Fatalf("schema notice blocks = %d, want 1", len(notices))
@@ -81,6 +453,7 @@ func TestEnumGuidanceReadsTheContractOnEveryReadingSurface(t *testing.T) {
 							}
 						}
 						health := enumGuidancePage(t, srv.Client(), srv.URL+"/health", lang)
+						t.Logf("hit: enum-guidance field=%s type=%s sink=health lang=%s", tc.field, tc.kind, lang)
 						if !contract.DeclaresType(tc.kind) {
 							statusRows := enumElements(health, func(n *html.Node) bool {
 								return n.Data == "tr" && strings.Contains(enumText(n), tc.value) && strings.Contains(enumText(n), tc.kind)
