@@ -178,7 +178,7 @@ func TestStripObsidianCommentsRetainsOrderedSourceRecords(t *testing.T) {
 			body: "> Before\n> <!-- private\n> secret\n\nAfter.\n\n- Item\n  <!-- private\n  secret\n\nFinally.\n%% private",
 			text: "> Before\n> \n> \n\nAfter.\n\n- Item\n  \n\n\nFinally.\n",
 			want: commentReport{
-				bodywide:   unclosedComment{line: 12, marker: "%%"},
+				bodywide: unclosedComment{line: 12, marker: "%%"},
 				containers: []unclosedComment{
 					{line: 2, marker: "<!--"},
 					{line: 8, marker: "<!--"},

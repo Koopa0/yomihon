@@ -115,7 +115,7 @@ func TestHTMLCommentsKeepMarkdownContainerBoundaries(t *testing.T) {
 	r := newRenderer(t, nil, nil, nil)
 	tests := []struct {
 		name, body, want string
-		diagnostics     []render.Diagnostic
+		diagnostics      []render.Diagnostic
 	}{
 		{name: "quoted close", body: "> Before <!-- private\n> secret --> after.", want: "<blockquote>\n<p>Before\nafter.</p>\n</blockquote>\n"},
 		{name: "unclosed quote", body: "> Before\n> <!-- private\n> secret\n\nAfter.", want: "<blockquote>\n<p>Before</p>\n</blockquote>\n<p>After.</p>\n", diagnostics: []render.Diagnostic{{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"}}},
@@ -187,16 +187,16 @@ func TestHTMLContainerCommentsKeepEveryDiagnostic(t *testing.T) {
 		diagnostics []render.Diagnostic
 	}{
 		{
-			name:        "two containers",
-			body:        containers,
+			name: "two containers",
+			body: containers,
 			diagnostics: []render.Diagnostic{
 				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"},
 				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 8 of the note body hides the rest of its Markdown container"},
 			},
 		},
 		{
-			name:        "containers then body-wide HTML",
-			body:        containers + "\n\n<!-- tail\nhidden",
+			name: "containers then body-wide HTML",
+			body: containers + "\n\n<!-- tail\nhidden",
 			diagnostics: []render.Diagnostic{
 				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"},
 				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 8 of the note body hides the rest of its Markdown container"},
@@ -204,8 +204,8 @@ func TestHTMLContainerCommentsKeepEveryDiagnostic(t *testing.T) {
 			},
 		},
 		{
-			name:        "containers then body-wide percent",
-			body:        containers + "\n\n%% tail\nhidden",
+			name: "containers then body-wide percent",
+			body: containers + "\n\n%% tail\nhidden",
 			diagnostics: []render.Diagnostic{
 				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"},
 				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 8 of the note body hides the rest of its Markdown container"},
