@@ -36,7 +36,7 @@ var (
 		"This note shows a picture and the vault holds no file at that path. The picture is left where the author put it and marked in place; yomihon reports and never repairs.")
 	DiagUnwrittenNote  = both("這個 wikilink 或嵌入的目標尚未建立。", "This wikilink or embed points at something that has not been written.")
 	DiagAmbiguousNote  = both("wikilink 或嵌入目標有歧義。", "This wikilink or embed has more than one target.")
-	DiagCalloutNote    = both("未知的 callout 類型；已改以一般引用區塊顯示。", "Unrecognised callout type; shown as an ordinary quote block.")
+	DiagCalloutNote    = both("未知的 callout 類型；已以中性的提示框顯示。", "Unrecognised callout type; shown as a neutral callout.")
 	DiagFenceNote      = both("程式碼區塊含類似筆記語法的文字；已保持原樣。", "A code block holds text that looks like note syntax; it is left as written.")
 	DiagEmbedNote      = both("找不到嵌入指定的段落或區塊；沒有顯示那篇筆記的任何內容，原處只留下告示。", "The embedded section or block was not found; nothing of that note is shown, and a notice stands where the excerpt would.")
 	DiagEmbedManyNote  = both("嵌入指定的名字在來源筆記裡對應到不只一個段落；顯示的是第一個，其餘未顯示。", "The embedded name matches more than one section in the source note; the first is shown and the others are not.")
