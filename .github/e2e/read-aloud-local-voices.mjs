@@ -12,6 +12,7 @@ const PASSAGES = [
   { lang: 'en', text: 'Good morning.' },
   { lang: 'fr', text: 'Bonjour.' },
   { lang: 'und', text: 'Neutral words.' },
+  { lang: 'und-Latn', text: 'Undetermined Latin words.' },
 ];
 const voice = (name, lang, localService = true, isDefault = false) => ({
   name, lang, localService, default: isDefault,
@@ -20,7 +21,7 @@ const JAPANESE = voice('Device Japanese', 'ja-JP');
 const REMOTE = voice('Remote Japanese', 'ja-JP', false, true);
 const ENGLISH = voice('Device English', 'en-US');
 class LockFired extends Error {
-  constructor(site, message) { super(`FAIL read-aloud-local-voices: ${message}`); this.site = site; }
+  constructor(site, message) { super(`caught: read-aloud-local-voices: ${message}`); this.site = site; }
 }
 class NotApplied extends Error {}
 const fail = (site, message) => { throw new LockFired(site, message); };
@@ -38,6 +39,11 @@ const MUTATIONS = {
   },
   'leave-utterance-voice-unset': {
     target: 'bound-voice', needle: 'utterance.voice = voice;', replacement: 'void voice;',
+  },
+  'maximize-undetermined-language': {
+    target: 'undetermined-language',
+    needle: "locale.language === 'und' ? locale : locale.maximize()",
+    replacement: 'locale.maximize()',
   },
 };
 if (MUTATE === 'list') {
@@ -266,6 +272,17 @@ try {
     await press(page, 4);
     await assertUnavailable(page, 'zh-Hant', 'local-service');
   });
+  const LOCAL_DEFAULT = voice('Local Japanese default', 'ja-JP', true, true);
+  for (const chrome of ['zh-Hant', 'en']) {
+    await visit([ENGLISH, LOCAL_DEFAULT], chrome, async (page) => {
+      await press(page, 5);
+      await assertVoice(page, LOCAL_DEFAULT, 5, 'undetermined-language', chrome);
+    });
+    await visit([ENGLISH], chrome, async (page) => {
+      await press(page, 5);
+      await assertUnavailable(page, chrome, 'undetermined-language');
+    });
+  }
   console.log('PASS read-aloud-local-voices: explicit local voice handoffs, authored language, unavailable recovery, readiness, cancellation and locale selection');
 } catch (error) {
   console.error(error.message);

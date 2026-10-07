@@ -20,6 +20,8 @@ export function initLesson(enhanceCodeCopy) {
   let speechStatus = null;
   let voiceReadiness = null;
 
+  // A device with no voices may never announce voiceschanged. Bound the wait
+  // so its reader can hear the refusal instead of keeping a pending control.
   function voicesReady() {
     voiceReadiness ??= speechSynthesis.getVoices().length
       ? Promise.resolve()
@@ -35,6 +37,8 @@ export function initLesson(enhanceCodeCopy) {
     return voiceReadiness;
   }
 
+  // Likely subtags let a region's voice match the passage's language and
+  // script, while accepting the underscore spelling devices also report.
   function speechLocale(tag) {
     try {
       return new Intl.Locale(tag.replaceAll('_', '-')).maximize();
@@ -43,6 +47,8 @@ export function initLesson(enhanceCodeCopy) {
     }
   }
 
+  // Other voices may send the passage off the machine. Only voices the
+  // browser reports as local are eligible for an explicit speech handoff.
   function localVoice(tag) {
     const voices = speechSynthesis.getVoices().filter((voice) => voice.localService === true);
     if (tag === 'und') return voices.find((voice) => voice.default && speechLocale(voice.lang)) ?? null;
@@ -193,6 +199,8 @@ export function initLesson(enhanceCodeCopy) {
       if (stopThisLabel) trigger.setAttribute('aria-label', stopThisLabel);
       markReading(trigger.closest('.y-reading'));
     }
+    // The walk writes its progress while this yields. A missing voice then
+    // ends the walk and says why once, after that progress sentence.
     await voicesReady();
     if (generation !== speechGeneration) return;
     const unavailable = () => {
