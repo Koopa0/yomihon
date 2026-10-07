@@ -101,7 +101,7 @@ func readReport(
 		return nil, err
 	}
 	if entry.Size() > MaxSourceBytes {
-		return nil, &ReadingLimitError{Size: MaxSourceBytes + 1, Limit: MaxSourceBytes}
+		return nil, &ReadingLimitError{Size: entry.Size(), Limit: MaxSourceBytes}
 	}
 	body, err := source.ReadPrefix(ctx, entry, MaxSourceBytes+1)
 	if err != nil {
