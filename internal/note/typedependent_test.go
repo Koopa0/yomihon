@@ -23,10 +23,10 @@ func TestTypeDependentNotePage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read contract: %v", err)
 	}
-	writeNote(t, root, schema.ContractRelPath, string(contractBytes))
+	writeVaultNote(t, root, schema.ContractRelPath, string(contractBytes))
 	const rel = "Notes/InvalidType.md"
 	const target = "Lesson<script>&"
-	writeNote(t, root, rel, "---\ntitle: Invalid type\ntype: 'Lesson<script>&'\nlevel: fundamental\nslug: invalid-type\nextra: yes\n---\n\nBody.\n")
+	writeVaultNote(t, root, rel, "---\ntitle: Invalid type\ntype: 'Lesson<script>&'\nlevel: fundamental\nslug: invalid-type\nextra: yes\n---\n\nBody.\n")
 	contract, err := schema.Load(root)
 	if err != nil {
 		t.Fatalf("schema.Load() error = %v", err)
