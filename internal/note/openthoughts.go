@@ -112,9 +112,6 @@ func (h *Handler) openCandidates(snap *snapshot.Generation, role string, lang wo
 		return candidates, wording.UncertaintyUnavailable.In(lang)
 	}
 	for i := range marks {
-		if !newPlaceResolver(snap).hasPlace(marks[i].RelPath, marks[i].Anchor) {
-			continue
-		}
 		candidates = append(candidates, openThoughtCandidate{
 			openThoughtRow: openThoughtRow{at: marks[i].At},
 			kept:           &marks[i], path: marks[i].RelPath, anchor: marks[i].Anchor,
