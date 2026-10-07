@@ -99,7 +99,7 @@ func TestReferenceSequenceCommandPrivacyAndDeny(t *testing.T) {
 				{source: "System/schemas/vault-schema.toml", destination: "System/schemas/vault-schema.toml"},
 				{source: "Concepts/Probe.md", destination: tt.path},
 			} {
-				data, readErr := os.ReadFile(filepath.Join("testdata/vault-reference-sequence", file.source)) // #nosec G304 -- fixed isolated fixture sources
+				data, readErr := os.ReadFile(filepath.Join("testdata", "vault-reference-sequence", file.source)) // #nosec G304 -- fixed isolated fixture sources
 				if readErr != nil {
 					t.Fatal(readErr)
 				}
@@ -119,27 +119,7 @@ func TestReferenceSequenceCommandPrivacyAndDeny(t *testing.T) {
 				}
 			}
 			if tt.wantRows == 0 {
-				contract, err := schema.Load(root)
-				if err != nil {
-					t.Fatal(err)
-				}
-				data, err := os.ReadFile(filepath.Join("testdata/vault-reference-sequence", "Concepts/Probe.md"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				findings, err := LintFrontmatter(tt.path, data, contract)
-				if err != nil {
-					t.Fatal(err)
-				}
-				var fields []string
-				for _, finding := range findings {
-					if finding.RuleID == "schema.reference_nested_sequence" && finding.Field != nil {
-						fields = append(fields, *finding.Field)
-					}
-				}
-				if diff := cmp.Diff([]string{"based_on", "lineage"}, fields); diff != "" {
-					t.Fatalf("caught: private fixture did not produce reference findings (-want +got):\n%s", diff)
-				}
+				wantPrivateReferenceFindings(t, root, tt.path)
 			}
 			output, exit, runErr := RunCheck(t.Context(), &CheckOptions{Root: root, All: true, Deny: tt.deny, Format: FormatJSON})
 			if runErr != nil {
@@ -157,6 +137,31 @@ func TestReferenceSequenceCommandPrivacyAndDeny(t *testing.T) {
 				wantGolden(t, output, "testdata/golden/reference-sequence.jsonl")
 			}
 		})
+	}
+}
+
+func wantPrivateReferenceFindings(t *testing.T, root, path string) {
+	t.Helper()
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join("testdata", "vault-reference-sequence", "Concepts", "Probe.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	findings, err := LintFrontmatter(path, data, contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields []string
+	for _, finding := range findings {
+		if finding.RuleID == "schema.reference_nested_sequence" && finding.Field != nil {
+			fields = append(fields, *finding.Field)
+		}
+	}
+	if diff := cmp.Diff([]string{"based_on", "lineage"}, fields); diff != "" {
+		t.Fatalf("caught: private fixture did not produce reference findings (-want +got):\n%s", diff)
 	}
 }
 
@@ -189,11 +194,19 @@ func TestReferenceSequenceContractSelection(t *testing.T) {
 				}
 				declaration = strings.ReplaceAll(declaration, replacement[0], replacement[1])
 			}
-			file := filepath.Join(t.TempDir(), "contract.toml")
-			if err := os.WriteFile(file, []byte(declaration), 0o600); err != nil {
+			root, err := os.OpenRoot(t.TempDir())
+			if err != nil {
 				t.Fatal(err)
 			}
-			contract, err := schema.LoadFile(file)
+			t.Cleanup(func() {
+				if closeErr := root.Close(); closeErr != nil {
+					t.Error(closeErr)
+				}
+			})
+			if err := root.WriteFile("contract.toml", []byte(declaration), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			contract, err := schema.LoadFile(filepath.Join(root.Name(), "contract.toml"))
 			if err != nil {
 				t.Fatal(err)
 			}
