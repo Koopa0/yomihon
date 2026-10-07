@@ -170,6 +170,36 @@ try {
     let observedLifecycle;
     let observedReady;
     const handles = new Set();
+    const stateReceipt = async (stage) => {
+      try {
+        const state = await page.evaluate(() => ({
+          url: location.href,
+          readyState: document.readyState,
+          links: [...document.querySelectorAll('link[rel="stylesheet"]')].map((link) => ({
+            url: link.href,
+            href: link.getAttribute('href'),
+            media: link.media,
+            disabled: link.disabled,
+            sheet: Boolean(link.sheet),
+          })),
+          sheets: [...document.styleSheets].map((sheet) => ({ href: sheet.href, disabled: sheet.disabled })),
+          animations: document.getAnimations().filter((animation) => animation.animationName === 'y-come-forward').map((animation) => ({
+            target: animation.effect?.target && {
+              tag: animation.effect.target.tagName,
+              id: animation.effect.target.id,
+              className: animation.effect.target.className,
+            },
+            pending: animation.pending,
+            playState: animation.playState,
+            currentTime: animation.currentTime,
+            timing: animation.effect?.getTiming(),
+          })),
+        }));
+        console.log(`receipt: arrival-readiness no-JS ${initiallyReady ? 'initially-ready control' : 'false-to-ready'} ${stage} route=${routeURL} ${JSON.stringify(state)}`);
+      } catch (error) {
+        console.error(`diagnostic-unavailable: arrival-readiness no-JS ${stage}: ${error.stack || error}`);
+      }
+    };
     const numericWait = async (predicate, argument = null) => {
       const handle = await page.waitForFunction(predicate, argument, { polling: 50, timeout: 3000 });
       handles.add(handle);
@@ -318,7 +348,9 @@ try {
       observedCapture = (async () => {
         await delivery;
         if (routeError) throw routeError;
+        await stateReceipt('after-delivery');
         await numericWait(() => document.getAnimations().some((animation) => animation.animationName === 'y-come-forward'));
+        await stateReceipt('after-capture');
       })().then(() => ({}), (error) => ({ error }));
       observedLifecycle = (async () => {
         const capture = await observedCapture;
@@ -329,19 +361,28 @@ try {
           const outcomes = await Promise.all(animations.map((animation) => animation.finished.then(() => 'finished', () => 'canceled')));
           return { count: animations.length, durations, outcomes };
         });
-      })().then((value) => ({ value }), (error) => ({ error }));
+      })().then((value) => {
+        console.log(`receipt: arrival-readiness no-JS ${initiallyReady ? 'initially-ready control' : 'false-to-ready'} lifecycle-resolved ${JSON.stringify(value)}`);
+        return { value };
+      }, (error) => ({ error }));
       observedReady = (async () => {
         const capture = await observedCapture;
         if (capture.error) throw capture.error;
-        await numericWait(() => {
-          const appCSS = [...document.styleSheets].some((sheet) => {
-            if (!sheet.href) return false;
-            const url = new URL(sheet.href);
-            return url.origin === location.origin && url.pathname === '/static/app.css';
+        await stateReceipt('before-readiness');
+        try {
+          await numericWait(() => {
+            const appCSS = [...document.styleSheets].some((sheet) => {
+              if (!sheet.href) return false;
+              const url = new URL(sheet.href);
+              return url.origin === location.origin && url.pathname === '/static/app.css';
+            });
+            return appCSS && !document.getAnimations().some((animation) => animation.animationName === 'y-come-forward'
+              && (animation.pending || ['running', 'paused'].includes(animation.playState)));
           });
-          return appCSS && !document.getAnimations().some((animation) => animation.animationName === 'y-come-forward'
-            && (animation.pending || ['running', 'paused'].includes(animation.playState)));
-        });
+        } catch (error) {
+          if (error instanceof errors.TimeoutError) await stateReceipt('readiness-timeout');
+          throw error;
+        }
         return performance.now();
       })().then((value) => ({ value }), (error) => ({ error }));
       const ready = await observedReady;
