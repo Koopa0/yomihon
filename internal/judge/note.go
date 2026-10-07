@@ -53,8 +53,8 @@ type note struct {
 	// sectionAnchors, excerptSectionAnchors, and blockAnchorLines are what this
 	// note's body answers a fragment with: the folded ids of every heading a
 	// link could be sent to, the ids the excerpt scan cuts a transclusion to,
-	// and the folded text of every line that could carry a "^name" block
-	// address, collected the way the reading page collects them.
+	// and the extracted, folded "^name" block addresses, collected through
+	// the same grammar and structural exclusions the reading page uses.
 	sectionAnchors        map[string]bool
 	excerptSectionAnchors map[string]bool
 	blockAnchorLines      []string
