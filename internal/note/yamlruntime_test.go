@@ -21,6 +21,11 @@ func TestNoteExplainsUnsupportedYAML(t *testing.T) {
 		{"deep list key", "---\nbase: &b {x: 1}\nouter:\n  middle:\n    inner:\n      <<: *b\n      ? [1]\n      : 2\n---\nReadable body.\n"},
 		{"nested mapping key", "---\nbase: &b {x: 1}\nm:\n  <<: *b\n  ? {a: 1}\n  : 2\n---\nReadable body.\n"},
 		{"mapping inside list", "---\nbase: &b {x: 1}\nitems:\n  - <<: *b\n    ? [1]\n    : 2\n---\nReadable body.\n"},
+		{"list key without merge", "---\nm: {? [1]: 2}\n---\nReadable body.\n"},
+		{"cyclic merge source", "---\nm:\n  c: plain\n  <<:\n    c: &c {self: *c}\n    t:\n      ? [1]\n      : 2\n---\nReadable body.\n"},
+		{"merge in sibling mapping", "---\nbase: &b {x: 1}\nmerged:\n  <<: *b\nm:\n  ? [1]\n  : 2\n---\nReadable body.\n"},
+		{"list key before merge mapping", "---\nbase: &b {x: 1}\nordinary:\n  ? [1]\n  : 2\nunsupported:\n  <<: *b\n  ? [2]\n  : 3\n---\nReadable body.\n"},
+		{"quoted merge key", "---\nm:\n  '<<': {x: 1}\n  ? [1]\n  : 2\n---\nReadable body.\n"},
 	} {
 		for _, governed := range []bool{false, true} {
 			for _, chrome := range []struct {
@@ -43,7 +48,7 @@ func TestNoteExplainsUnsupportedYAML(t *testing.T) {
 						governance = contract.Governance()
 					}
 					server := newServerWithGovernance(t, root, contract, governance)
-					page := frontmatterNoticePage(t, server, chrome.lang, "Writing/Bad.md")
+					page := frontmatterNoticePage(t, server, chrome.lang)
 					if !strings.Contains(page, strings.ReplaceAll(chrome.want, "<<", "&lt;&lt;")) {
 						t.Errorf("caught: note explanation omitted %q", chrome.want)
 					}
@@ -58,17 +63,14 @@ func TestNoteExplainsUnsupportedYAML(t *testing.T) {
 	}
 }
 
-// TestNotePreservesOtherYAMLErrors keeps a non-scalar key's parser evidence
-// when its own mapping has no merge, even if a sibling mapping does.
+// TestNotePreservesOtherYAMLErrors keeps ordinary syntax errors and their
+// library line numbers visible beside the reader's explanation.
 func TestNotePreservesOtherYAMLErrors(t *testing.T) {
 	t.Parallel()
 	for _, authored := range []struct {
 		name, body string
 	}{
-		{"no merge", "---\nm:\n  ? [1]\n  : 2\n---\nReadable body.\n"},
-		{"merge in sibling mapping", "---\nbase: &b {x: 1}\nmerged:\n  <<: *b\nm:\n  ? [1]\n  : 2\n---\nReadable body.\n"},
-		{"ordinary error before unsupported mapping", "---\nbase: &b {x: 1}\nordinary:\n  ? [1]\n  : 2\nunsupported:\n  <<: *b\n  ? [2]\n  : 3\n---\nReadable body.\n"},
-		{"quoted merge key", "---\nm:\n  '<<': {x: 1}\n  ? [1]\n  : 2\n---\nReadable body.\n"},
+		{"ordinary syntax with file line", "---\ntitle: Bad: yaml\n---\nReadable body.\n"},
 	} {
 		for _, governed := range []bool{false, true} {
 			for _, chrome := range []struct {
@@ -91,8 +93,8 @@ func TestNotePreservesOtherYAMLErrors(t *testing.T) {
 						governance = contract.Governance()
 					}
 					server := newServerWithGovernance(t, root, contract, governance)
-					page := frontmatterNoticePage(t, server, chrome.lang, "Writing/Bad.md")
-					for _, want := range []string{chrome.want, "frontmatter is not valid YAML: yaml: invalid map key: []interface {}{1}", "Readable body."} {
+					page := frontmatterNoticePage(t, server, chrome.lang)
+					for _, want := range []string{chrome.want, "frontmatter is not valid YAML: yaml: line 2: mapping values are not allowed in this context", "Readable body."} {
 						if !strings.Contains(page, want) {
 							t.Errorf("caught: ordinary YAML explanation omitted %q", want)
 						}

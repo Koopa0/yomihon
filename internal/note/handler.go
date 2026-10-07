@@ -441,7 +441,6 @@ func (h *Handler) reading(
 		UpdatedFromFile:    updatedFromFile,
 		ObsidianHref:       pages.ObsidianHref(h.sources.Source.Name(), n.RelPath),
 		Diagnostic:         n.FMDiagnostic,
-		UnsupportedYAML:    n.UnsupportedYAML,
 		Stale:              n.Stale,
 		ParsePanic:         cause.ParsePanic,
 		ParseReason:        cause.Reason,
@@ -543,10 +542,6 @@ func schemaNotices(findings []judge.Finding, domainFolder string, reading *snaps
 		}
 		target := deref(f.Target)
 		if f.RuleID == "schema.frontmatter" {
-			if reading.UnsupportedYAML {
-				notices = append(notices, []wording.SchemaPart{{Text: wording.FrontmatterUnsupportedYAML.In(lang)}})
-				continue
-			}
 			target = reading.FMDiagnostic
 		}
 		sentence := wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target, folder)
