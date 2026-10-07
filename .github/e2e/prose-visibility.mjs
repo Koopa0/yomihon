@@ -183,20 +183,36 @@ try {
     if (MUTATE && (served !== 1 || matches !== 1)) {
       throw new NotApplied(`NOT-APPLIED prose-visibility: ${MUTATE} on authored controls matched ${matches} sites over ${served} loads`);
     }
-    // Isolate every actual renderer-emitted control block from its outline
-    // exemption, preserving the native labels and all nested task shapes.
+    // Isolate authored descendants from unrelated address and runtime speech
+    // wrappers. The native task/link content and its classes stay intact; the
+    // separate speech case below continues to use its actual .y-reading owner.
     const controls = await page.evaluate(() => {
       const selector = 'input, select, textarea, button, summary, a[href], audio[controls], video[controls], [contenteditable="true"], [tabindex]';
       const source = document.querySelector('.y-prose');
       const isolated = document.createElement('div');
       isolated.className = 'y-prose';
       for (const block of source.children) {
-        if (block.matches(selector) || block.querySelector(selector)) isolated.append(block.cloneNode(true));
+        const authored = block.matches('.y-reading') ? block.querySelector(':scope > p') : block;
+        if (!authored?.querySelector(selector)) continue;
+        const copy = authored.cloneNode(true);
+        copy.removeAttribute('id');
+        for (const addressed of copy.querySelectorAll('[id]')) addressed.removeAttribute('id');
+        // A nested heading exempts the whole column, so it belongs to the
+        // independent nested-outline case rather than this control stimulus.
+        if (copy.matches('[data-level]') || copy.querySelector('[data-level]')) continue;
+        isolated.append(copy);
       }
       source.after(isolated);
-      return [...isolated.children].map((block) => ({ tag: block.tagName, visibility: getComputedStyle(block).contentVisibility }));
+      return [...isolated.children].map((block) => ({
+        tag: block.tagName,
+        controls: block.querySelectorAll(selector).length,
+        unrelatedExemption: block.matches('.y-reading, [id], [contenteditable="true"], [tabindex]') || Boolean(block.querySelector('[id]')),
+        visibility: getComputedStyle(block).contentVisibility,
+      }));
     });
-    if (controls.length === 0) throw new Error('BROKEN prose-visibility: no authored control blocks to isolate');
+    if (controls.length === 0 || controls.some((block) => block.controls === 0 || block.unrelatedExemption)) {
+      throw new Error(`BROKEN prose-visibility: authored descendants have no independently eligible ancestor: ${JSON.stringify(controls)}`);
+    }
     assert('controls', controls.every((block) => block.visibility === 'visible'), `authored control ancestors defer their initial layout: ${JSON.stringify(controls)}`);
     // The voice control stands in the paragraph's gutter on a wide screen.
     // A clipped button still reports its rectangle, so test the pointer's

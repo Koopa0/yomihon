@@ -861,22 +861,34 @@ try {
       for (const long of [false, true]) {
         const { page, context, checkProof } = await open('reading-position-survives', long ? '/notes/Notes/mark-long-offset.md' : '/notes/Notes/reading-fidelity.md', { width });
         await checkProof();
-        await page.evaluate(async (long) => {
+        if (long) await page.addStyleTag({ content: 'html,body,.y-main{overflow-anchor:none!important}' });
+        await page.evaluate(() => document.fonts.ready);
+        const prefix = await page.evaluate(async (long) => {
           const prose = document.querySelector('.y-prose');
           const kids = [...prose.children];
           if (!long) for (let i = 0; i < 30; i += 1) for (const kid of kids) prose.append(kid.cloneNode(true));
           const paragraphs = [...prose.querySelectorAll(':scope > p')];
-          window.__reading = paragraphs[long ? 50 : Math.floor(paragraphs.length / 2)];
+          window.__reading = paragraphs[long ? 110 : Math.floor(paragraphs.length / 2)];
+          if (!window.__reading) return null;
+          const preceding = [...prose.children].slice(0, [...prose.children].indexOf(window.__reading));
+          if (long && preceding.filter((block) => block.matches('p')).some((block) => block.matches('.y-reading, [id], [contenteditable="true"], [tabindex]')
+            || block.querySelector('[id], input, select, textarea, button, summary, a[href], [data-level]'))) return null;
           if (long) {
             for (const block of prose.children) {
               block.dataset.proseMeasuring = '';
               if (block === window.__reading) break;
             }
             await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            window.__readingPrefix = preceding;
+            window.__readingPrefixHeight = preceding.reduce((sum, block) => sum + block.getBoundingClientRect().height, 0);
             for (const block of prose.children) delete block.dataset.proseMeasuring;
           }
           window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY);
+          return { count: preceding.length, height: window.__readingPrefixHeight, viewport: innerHeight };
         }, long);
+        if (!prefix || (long && (prefix.count < 100 || prefix.height < 20 * prefix.viewport))) {
+          broken(`at ${width}px the long reading has no substantial eligible authored prefix: ${JSON.stringify(prefix)}`);
+        }
         await page.waitForTimeout(150);
         // Revealing auto-layout blocks can settle the first approximate scroll
         // above this paragraph. Align the same paragraph after that layout, so
@@ -909,11 +921,24 @@ try {
           // just leave the current paragraph at a convincing placeholder depth.
           // Revealing that bounded span without automatic anchoring cannot move
           // a reading whose preceding blocks were actually laid out by the fold.
-          const prefixStyle = await page.addStyleTag({ content: 'html,body,.y-main{overflow-anchor:none!important}.y-prose > :nth-child(-n+52){content-visibility:visible}' });
+          await page.evaluate(() => {
+            for (const block of window.__readingPrefix) block.dataset.railProbePrefix = '';
+          });
+          const prefixStyle = await page.addStyleTag({ content: '.y-prose > [data-rail-probe-prefix]{content-visibility:visible}' });
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-          const measuredTop = await page.evaluate(() => window.__reading.getBoundingClientRect().top);
+          const revealed = await page.evaluate(() => ({
+            top: window.__reading.getBoundingClientRect().top,
+            height: window.__readingPrefix.reduce((sum, block) => sum + block.getBoundingClientRect().height, 0),
+          }));
+          if (width === 901 && prefix.height - revealed.height < prefix.viewport) {
+            broken(`the authored prefix changed from ${prefix.height}px to ${revealed.height}px, too little to challenge old-measure heights`);
+          }
+          const measuredTop = revealed.top;
           if (Math.abs(measuredTop - before.top) > 2) fail('reading-position-survives', `at ${width}px the folded long prefix held stale heights and moved the paragraph ${measuredTop - before.top}px when read`);
           await prefixStyle.evaluate((element) => element.remove());
+          await page.evaluate(() => {
+            for (const block of window.__readingPrefix) delete block.dataset.railProbePrefix;
+          });
           const tail = await page.locator('.y-prose > p').last().evaluate((element) => getComputedStyle(element).contentVisibility);
           if (tail !== 'auto') fail('reading-position-survives', 'the single-heading long reading no longer defers its tail');
           await key(page, '[');
