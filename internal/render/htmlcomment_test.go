@@ -93,14 +93,9 @@ func TestUnclosedHTMLCommentNamesItsLine(t *testing.T) {
 			if strings.Contains(got.HTML, "hidden") || strings.Contains(got.HTML, "secret") || strings.Contains(got.HTML, "Ghost") {
 				t.Errorf("unclosed comment words reached the page: %s", got.HTML)
 			}
-			var reported []render.Diagnostic
-			for _, d := range got.Diagnostics {
-				if d.Kind == render.DiagCommentUnclosed {
-					reported = append(reported, d)
-				}
-			}
-			if len(reported) != 1 || reported[0].Target != "<!--" || reported[0].Message != tt.message {
-				t.Errorf("unclosed HTML comment diagnostics = %+v, want one at %q saying %q", got.Diagnostics, "<!--", tt.message)
+			want := []render.Diagnostic{{Kind: render.DiagCommentUnclosed, Target: "<!--", Message: tt.message}}
+			if diff := cmp.Diff(want, got.Diagnostics); diff != "" {
+				t.Errorf("unclosed HTML comment diagnostics (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -118,10 +113,13 @@ func TestHeadingWordsDropsHTMLCommentPayload(t *testing.T) {
 func TestHTMLCommentsKeepMarkdownContainerBoundaries(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
-	tests := []struct{ name, body, want string }{
+	tests := []struct {
+		name, body, want string
+		diagnostics     []render.Diagnostic
+	}{
 		{name: "quoted close", body: "> Before <!-- private\n> secret --> after.", want: "<blockquote>\n<p>Before\nafter.</p>\n</blockquote>\n"},
-		{name: "unclosed quote", body: "> Before\n> <!-- private\n> secret\n\nAfter.", want: "<blockquote>\n<p>Before</p>\n</blockquote>\n<p>After.</p>\n"},
-		{name: "unclosed list", body: "- Item\n  <!-- private\n  secret\n\nAfter.", want: "<ul>\n<li>Item</li>\n</ul>\n<p>After.</p>\n"},
+		{name: "unclosed quote", body: "> Before\n> <!-- private\n> secret\n\nAfter.", want: "<blockquote>\n<p>Before</p>\n</blockquote>\n<p>After.</p>\n", diagnostics: []render.Diagnostic{{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"}}},
+		{name: "unclosed list", body: "- Item\n  <!-- private\n  secret\n\nAfter.", want: "<ul>\n<li>Item</li>\n</ul>\n<p>After.</p>\n", diagnostics: []render.Diagnostic{{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"}}},
 		{name: "indented code", body: "    <!-- literal -->\n\nAfter.", want: "<pre><code>&lt;!-- literal --&gt;\n</code></pre>\n<p>After.</p>\n"},
 		{name: "wrapped code span", body: "`begin\nmiddle <!-- literal --> end`", want: "<p><code>begin middle &lt;!-- literal --&gt; end</code></p>\n"},
 		{name: "indented paragraph continuation", body: "Before\n    <!-- private --> after.", want: "<p>Before\nafter.</p>\n"},
@@ -133,8 +131,8 @@ func TestHTMLCommentsKeepMarkdownContainerBoundaries(t *testing.T) {
 			if diff := cmp.Diff(tt.want, got.HTML); diff != "" {
 				t.Errorf("HTML container boundary (-want +got):\n%s", diff)
 			}
-			if len(got.Diagnostics) != 0 {
-				t.Errorf("HTML container diagnostics = %v, want none", got.Diagnostics)
+			if diff := cmp.Diff(tt.diagnostics, got.Diagnostics); diff != "" {
+				t.Errorf("caught: container comment diagnostics (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -174,5 +172,134 @@ func TestHeadingWordsKeepsLiteralHTMLCommentSyntax(t *testing.T) {
 		if got := render.HeadingWords(raw); got != raw {
 			t.Errorf("HeadingWords literal comment = %q, want %q", got, raw)
 		}
+	}
+}
+
+// Every independently bounded opener keeps its source line and its own record.
+func TestHTMLContainerCommentsKeepEveryDiagnostic(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	const containers = "> Before\n> <!-- private\n> secret\n\nAfter.\n\n- Item\n  <!-- private\n  secret\n\nFinally."
+	const visible = "<blockquote>\n<p>Before</p>\n</blockquote>\n<p>After.</p>\n<ul>\n<li>Item</li>\n</ul>\n<p>Finally.</p>\n"
+	tests := []struct {
+		name        string
+		body        string
+		diagnostics []render.Diagnostic
+	}{
+		{
+			name:        "two containers",
+			body:        containers,
+			diagnostics: []render.Diagnostic{
+				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"},
+				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 8 of the note body hides the rest of its Markdown container"},
+			},
+		},
+		{
+			name:        "containers then body-wide HTML",
+			body:        containers + "\n\n<!-- tail\nhidden",
+			diagnostics: []render.Diagnostic{
+				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"},
+				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 8 of the note body hides the rest of its Markdown container"},
+				{Kind: render.DiagCommentUnclosed, Target: "<!--", Message: "an unclosed <!-- comment opened at line 13 of the note body hides everything after it"},
+			},
+		},
+		{
+			name:        "containers then body-wide percent",
+			body:        containers + "\n\n%% tail\nhidden",
+			diagnostics: []render.Diagnostic{
+				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"},
+				{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 8 of the note body hides the rest of its Markdown container"},
+				{Kind: render.DiagCommentUnclosed, Target: "%%", Message: "an unclosed %% comment opened at line 13 of the note body hides everything after it"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Note.md", "", tt.body, wording.En)
+			if diff := cmp.Diff(visible, got.HTML); diff != "" {
+				t.Errorf("container visible HTML (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.diagnostics, got.Diagnostics); diff != "" {
+				t.Errorf("caught: every container diagnostic (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestEmbeddedHTMLContainerCommentKeepsOriginalLine(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, transclusions{
+		"Target.md": "# Title\n\n## Kept\n> Before\n> <!-- private\n> hidden\n\nAfter. ^kept\n\n## Other\nOutside.",
+	})
+	for _, body := range []string{"![[Target]]", "![[Target#Kept]]", "![[Target#^kept]]"} {
+		t.Run(body, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Host.md", "", body, wording.En)
+			want := []render.Diagnostic{{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 5 of the note body hides the rest of its Markdown container"}}
+			if diff := cmp.Diff(want, got.Diagnostics); diff != "" {
+				t.Errorf("caught: embedded original-line diagnostic (-want +got):\n%s", diff)
+			}
+			visible := []string{"After."}
+			if body != "![[Target#^kept]]" {
+				visible = append(visible, "Before")
+			}
+			for _, text := range visible {
+				if !strings.Contains(got.HTML, text) {
+					t.Errorf("embedded visible HTML = %q, want %q", got.HTML, text)
+				}
+			}
+			if strings.Contains(got.HTML, "private") || strings.Contains(got.HTML, "hidden") {
+				t.Errorf("embedded hidden HTML = %q, want no comment payload", got.HTML)
+			}
+			if body == "![[Target#Kept]]" && strings.Contains(got.HTML, "Outside.") {
+				t.Errorf("section HTML = %q, want no following section", got.HTML)
+			}
+		})
+	}
+	linked := r.HTML("Host.md", "", "[[Target#Kept]]", wording.En)
+	if diff := cmp.Diff([]render.Diagnostic(nil), linked.Diagnostics); diff != "" {
+		t.Errorf("non-embedded target diagnostics (-want +got):\n%s", diff)
+	}
+}
+
+func TestHTMLContainerCommentLiteralControls(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	tests := []struct {
+		name, body, visible string
+		diagnostics         []render.Diagnostic
+	}{
+		{name: "closed list", body: "- Item\n  <!-- private -->\n\nAfter.", visible: "After."},
+		{name: "escaped unclosed", body: `\<!-- literal`, visible: "&lt;!-- literal"},
+		{name: "inline unclosed code", body: "`<!-- literal`", visible: "<code>&lt;!-- literal</code>"},
+		{name: "wrapped unclosed code", body: "`begin\n<!-- literal`", visible: "<code>begin &lt;!-- literal</code>"},
+		{name: "fenced unclosed code", body: "```text\n<!-- literal\n```", visible: "&lt;!-- literal"},
+		{name: "indented unclosed code", body: "    <!-- literal", visible: "<pre><code>&lt;!-- literal"},
+		{name: "read aloud marker", body: "<!-- read-aloud: ja -->\nSpoken.", visible: "Spoken."},
+		{
+			name:        "quote reaches body end",
+			body:        "> Before\n> <!-- private\n> secret",
+			visible:     "Before",
+			diagnostics: []render.Diagnostic{{Kind: render.DiagCommentUnclosed, Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides everything after it"}},
+		},
+		{
+			name:        "list reaches body end",
+			body:        "- Item\n  <!-- private\n  secret",
+			visible:     "Item",
+			diagnostics: []render.Diagnostic{{Kind: render.DiagCommentUnclosed, Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides everything after it"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Note.md", "", tt.body, wording.En)
+			if !strings.Contains(got.HTML, tt.visible) {
+				t.Errorf("literal HTML = %q, want %q", got.HTML, tt.visible)
+			}
+			if diff := cmp.Diff(tt.diagnostics, got.Diagnostics); diff != "" {
+				t.Errorf("literal comment diagnostics (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
