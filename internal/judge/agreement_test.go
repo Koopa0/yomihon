@@ -113,8 +113,8 @@ func TestAgreement(t *testing.T) {
 			want := [4]string{
 				"248884c0dd26f0d98cf8c7956f20f586dffaf52b73c262543ec924ef2c45c1cb",
 				"d3b1e4ef1a423ce44270e2300553d20e9b6a8cf7da34e36e1c3674969088dbb1",
-				"bd082b5cf7195d6bb3c9b4ec5ef4fb84dcc3b26779bd17ca78647901f6110e4d",
 				"10484a58e1bd6f9a4ab0727c42c4ad1be6169b1a232b7765ce681a61a8f43cbb",
+				"bd082b5cf7195d6bb3c9b4ec5ef4fb84dcc3b26779bd17ca78647901f6110e4d",
 			}
 			got := fmt.Sprintf("%x", digest.Sum(nil))
 			if got != want[shard] {
