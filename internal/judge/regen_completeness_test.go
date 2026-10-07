@@ -108,8 +108,8 @@ func unsupportedGoldenCall(call *ast.CallExpr) bool {
 }
 
 func rangedGoldenConsumers(positions *token.FileSet, ancestors []ast.Node, argument ast.Expr) (map[string]bool, error) {
-	for i := len(ancestors) - 1; i >= 0; i-- {
-		loop, ok := ancestors[i].(*ast.RangeStmt)
+	for i, ancestor := range slices.Backward(ancestors) {
+		loop, ok := ancestor.(*ast.RangeStmt)
 		if !ok {
 			continue
 		}
@@ -405,8 +405,8 @@ func goldenErrorGuard(statement ast.Stmt, row, field string, initialized bool) b
 		return false
 	}
 	if initialized {
-		assignment, ok := guard.Init.(*ast.AssignStmt)
-		if !ok || assignment.Tok != token.DEFINE || len(assignment.Lhs) != 1 || !goldenIdent(assignment.Lhs[0], "err") {
+		assignment, assignmentOK := guard.Init.(*ast.AssignStmt)
+		if !assignmentOK || assignment.Tok != token.DEFINE || len(assignment.Lhs) != 1 || !goldenIdent(assignment.Lhs[0], "err") {
 			return false
 		}
 	}
@@ -491,8 +491,8 @@ func goldenRows(positions *token.FileSet, ancestors []ast.Node, loop *ast.RangeS
 		return nil, goldenSourceError(positions, loop, "unsupported table expression")
 	}
 	var table *ast.CompositeLit
-	for i := len(ancestors) - 1; i >= 0; i-- {
-		block, ok := ancestors[i].(*ast.BlockStmt)
+	for _, ancestor := range slices.Backward(ancestors) {
+		block, ok := ancestor.(*ast.BlockStmt)
 		if !ok {
 			continue
 		}
@@ -540,8 +540,8 @@ func literalGoldenRows(positions *token.FileSet, table *ast.CompositeLit) (map[s
 		}
 		fields := make(map[string]ast.Expr)
 		for _, element := range row.Elts {
-			field, ok := element.(*ast.KeyValueExpr)
-			if !ok {
+			field, fieldOK := element.(*ast.KeyValueExpr)
+			if !fieldOK {
 				return nil, goldenSourceError(positions, element, "unkeyed golden row")
 			}
 			key, ok := field.Key.(*ast.Ident)
