@@ -114,7 +114,7 @@ const MUTATIONS = {
   // The fragment is not forwarded, so every row shows the source from the top.
   'drop-the-fragment': {
     target: 'source-card-shows-the-cited-passage',
-    apply: rewriteModule('const fragment = decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
+    apply: rewriteModule('const fragment = link.dataset.previewSection || decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
   },
   // A row whose place the source lacks is asked for as well.
   'preview-the-missing-location': {
