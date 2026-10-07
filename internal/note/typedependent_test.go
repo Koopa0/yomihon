@@ -19,14 +19,33 @@ import (
 func TestTypeDependentNotePage(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
+	fixture, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatalf("open fixture root: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Errorf("close fixture root: %v", err)
+		}
+	})
 	contractBytes, err := os.ReadFile(filepath.Join("..", "judge", "testdata", "vault-type-dependent", schema.ContractRelPath))
 	if err != nil {
 		t.Fatalf("read contract: %v", err)
 	}
-	writeVaultNote(t, root, schema.ContractRelPath, string(contractBytes))
+	if err := fixture.MkdirAll(filepath.Dir(schema.ContractRelPath), 0o750); err != nil {
+		t.Fatalf("create contract directory: %v", err)
+	}
+	if err := fixture.WriteFile(schema.ContractRelPath, contractBytes, 0o600); err != nil {
+		t.Fatalf("write fixture contract: %v", err)
+	}
 	const rel = "Notes/InvalidType.md"
 	const target = "Lesson<script>&"
-	writeVaultNote(t, root, rel, "---\ntitle: Invalid type\ntype: 'Lesson<script>&'\nlevel: fundamental\nslug: invalid-type\nextra: yes\n---\n\nBody.\n")
+	if err := fixture.MkdirAll("Notes", 0o750); err != nil {
+		t.Fatalf("create notes directory: %v", err)
+	}
+	if err := fixture.WriteFile(rel, []byte("---\ntitle: Invalid type\ntype: 'Lesson<script>&'\nlevel: fundamental\nslug: invalid-type\nextra: yes\n---\n\nBody.\n"), 0o600); err != nil {
+		t.Fatalf("write fixture note: %v", err)
+	}
 	contract, err := schema.Load(root)
 	if err != nil {
 		t.Fatalf("schema.Load() error = %v", err)

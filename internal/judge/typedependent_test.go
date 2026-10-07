@@ -121,9 +121,9 @@ func TestTypeDependentPrivacy(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	typeDependentContract(t, root, "")
-	data, err := os.ReadFile(filepath.Join(root, schema.ContractRelPath))
+	data, err := os.ReadFile("testdata/vault-type-dependent/System/schemas/vault-schema.toml")
 	if err != nil {
-		t.Fatalf("read temporary contract: %v", err)
+		t.Fatalf("read fixture contract: %v", err)
 	}
 	const privateDeclaration = `never_egress_dirs = ["Private"]`
 	if strings.Count(string(data), privateDeclaration) != 1 {
