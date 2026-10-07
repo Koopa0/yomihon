@@ -1,0 +1,10 @@
+# The slug joins this card to its lesson; the filenames deliberately differ.
+lesson: Practice only
+slug: jp-e2e-practice-only
+title: わたし
+patterns:
+  - id: p1
+    template: "{A}"
+    gloss_zh: "{A}"
+    slots:
+      A: {label_zh: "主題", color: topic, fills: [{jp: わたし, reading: わたし, zh: 我}]}
