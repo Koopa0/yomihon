@@ -23,7 +23,7 @@ func TestCalloutIdentifierDiagnostics(t *testing.T) {
 			t.Parallel()
 			body := "> [!" + typ + "] Heading\n> detail\n"
 			got := r.HTML("note.md", "", body, wording.ZhHant)
-			wantHTML := "<blockquote>\n<p>[!" + typ + "] Heading\ndetail</p>\n</blockquote>\n"
+			wantHTML := `<div class="callout callout-note"><p class="callout-title">` + unknownCalloutIcon + `Heading</p><div class="callout-body">` + "\n<p>detail</p>\n</div></div>\n"
 			if diff := cmp.Diff(wantHTML, got.HTML); diff != "" {
 				t.Errorf("unknown identifier HTML (-want +got):\n%s", diff)
 			}
@@ -35,7 +35,7 @@ func TestCalloutIdentifierDiagnostics(t *testing.T) {
 				t.Errorf("unknown identifier diagnostic = %+v", diag)
 			}
 			if render.UnanchorableLine("> [!" + typ + "] Heading ^address") {
-				t.Error("unknown identifier refused a blockquote address")
+				t.Error("unknown identifier refused its opening address")
 			}
 		})
 	}
@@ -104,8 +104,8 @@ func TestCalloutIdentifierSeparatesAdjacentBodies(t *testing.T) {
 		t.Run(typ, func(t *testing.T) {
 			t.Parallel()
 			got := r.HTML("note.md", "", "> [!note] Known\n> first body\n> [!"+typ+"] Unknown\n> second body\n\n> [!check] Next\n> third body\n", wording.En)
-			boundary := "<p>first body</p>\n</div></div>\n<blockquote>\n<p>[!" + typ + "] Unknown\nsecond body</p>\n</blockquote>"
-			if !strings.Contains(got.HTML, boundary) || strings.Count(got.HTML, `class="callout callout-note"`) != 2 {
+			boundary := "<p>first body</p>\n</div></div>\n" + `<div class="callout callout-note"><p class="callout-title">` + unknownCalloutIcon + `Unknown</p><div class="callout-body">` + "\n<p>second body</p>\n</div></div>"
+			if !strings.Contains(got.HTML, boundary) || strings.Count(got.HTML, `class="callout callout-note"`) != 3 {
 				t.Errorf("adjacent callout boundary missing %q:\n%s", boundary, got.HTML)
 			}
 			if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagUnknownCallout || got.Diagnostics[0].Target != typ {
