@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -254,31 +256,56 @@ func TestOpenThoughtsSkipsDeclaredNonInstances(t *testing.T) {
 	}
 }
 
-func TestOpenThoughtsNeverShowsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
+// The #996 ruling explicitly reverses the former omission oracle: stored paths
+// remain visible as inert text even when this generation has no matching note.
+// Catches openMarkRow's early return and Home's no-Href filter.
+func TestOpenThoughtsKeepsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	putOpenThoughtFile(t, root, schema.ContractRelPath, openThoughtContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
 	site, marks := openThoughtSite(t, root)
 	const stray = "Visit example dot com for free prizes.md"
-	// The store accepts whatever its admitter does; a file written by an older
-	// build or by hand can hold a path the vault does not.
 	for _, rel := range []string{stray, "Source.md"} {
-		if _, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: rel, At: time.Now()}, admitMark); err != nil {
+		if _, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: rel, At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, admitMark); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, address := range []string{"/", "/open-thoughts"} {
-		page := openThoughtPage(t, site, address, "en")
-		if strings.Contains(page, "free prizes") {
-			t.Errorf("GET %s renders text from a mark whose note is not in the vault", address)
-		}
-		if !strings.Contains(page, "Source") {
-			t.Errorf("GET %s lost the mark on a real note", address)
-		}
-	}
-	if got := strings.Count(openThoughtPage(t, site, "/open-thoughts", "en"), "data-index-row"); got != 1 {
-		t.Errorf("open shelf rows = %d, want only the real mark", got)
+	for _, tt := range []struct {
+		name    string
+		lang    string
+		missing string
+		count   string
+	}{
+		{name: "english", lang: "en", missing: "Note not found", count: "2 items"},
+		{name: "traditional chinese", lang: "zh-Hant", missing: "找不到這篇筆記", count: "2 筆"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			for _, address := range []string{"/", "/open-thoughts"} {
+				page := openThoughtPage(t, site, address, tt.lang)
+				marker := "data-index-row"
+				if address == "/" {
+					page = openThoughtBlock(t, page)
+					marker = "data-desk-item"
+				}
+				got := struct {
+					Rows                                            int
+					StoredPath, Missing, Count, RealMark, FalseLink bool
+				}{
+					Rows: strings.Count(page, marker), StoredPath: strings.Contains(page, stray),
+					Missing: strings.Contains(page, tt.missing), Count: strings.Contains(page, tt.count),
+					RealMark: strings.Contains(page, `href="/notes/Source.md"`), FalseLink: strings.Contains(page, `href="/notes/Visit`),
+				}
+				want := struct {
+					Rows                                            int
+					StoredPath, Missing, Count, RealMark, FalseLink bool
+				}{Rows: 2, StoredPath: true, Missing: true, Count: true, RealMark: true}
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Errorf("caught: GET %s lost-mark projection mismatch (-want +got):\n%s", address, diff)
+				}
+			}
+		})
 	}
 }
 
