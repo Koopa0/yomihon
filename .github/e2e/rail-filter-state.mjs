@@ -177,7 +177,7 @@ try {
   {
     const { page, context } = await open('early-owner', { remembered: 'C02' });
     const value = await page.locator(FILTER).inputValue();
-    check(value === 'C02' && await page.locator('#nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), 'early-owner', `remembered narrowing depends on the deferred entry: input=${JSON.stringify(value)}, want "C02" with the other lesson hidden`);
+    check(value === 'C02' && await page.locator('#_y-nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), 'early-owner', `remembered narrowing depends on the deferred entry: input=${JSON.stringify(value)}, want "C02" with the other lesson hidden`);
     await page.waitForFunction(() => window.railFrames.length >= 3);
     const frames = await page.evaluate(() => ({ frames: window.railFrames, shifts: window.railShifts, paints: performance.getEntriesByType('paint').map((entry) => ({ name: entry.name, startTime: entry.startTime })) }));
     check(frames.frames.every((frame) => frame.value === 'C02' && JSON.stringify(frame.visible) === JSON.stringify(['C02 draft'])), 'early-owner', `a sampled rail frame was unfiltered: ${JSON.stringify(frames)}`);
@@ -195,7 +195,7 @@ try {
     const { page, context } = await open('restore-hold', { remembered: 'C02' });
     const samples = await page.evaluate(() => window.restoreSamples);
     check(samples.some((sample) => sample.type === 'value' && sample.value === 'C02' && sample.held) && samples.some((sample) => sample.type === 'flush' && sample.held && sample.transitions.length > 0 && sample.transitions.every((property) => property === 'none')), 'restore-hold', `remembered restoration did not apply and flush under the declared motion hold: ${JSON.stringify(samples)}`);
-    control(!(await page.locator('#nav-rail').evaluate((rail) => rail.hasAttribute('data-rail-restoring'))), 'restoring hold leaked after initialization');
+    control(!(await page.locator('#_y-nav-rail').evaluate((rail) => rail.hasAttribute('data-rail-restoring'))), 'restoring hold leaked after initialization');
     await context.close();
   }
   {
@@ -203,7 +203,7 @@ try {
     check(await reenterFilter(page), 'clear-state', 'a second initialization replaced the retained filter state');
     await page.evaluate(() => {
       const choices = JSON.parse(sessionStorage.getItem('yomihon.nav'));
-      document.querySelectorAll('#nav-rail details[data-chain]').forEach((group) => { choices[group.dataset.key] = false; });
+      document.querySelectorAll('#_y-nav-rail details[data-chain]').forEach((group) => { choices[group.dataset.key] = false; });
       sessionStorage.setItem('yomihon.nav', JSON.stringify(choices));
     });
     await fill(page, '');
@@ -215,9 +215,9 @@ try {
   {
     const { page, context } = await open('whole-row-set');
     await fill(page, 'C02');
-    check(await page.locator('#nav-rail span.ui-navitem[data-resolution="unresolved"]').evaluate((row) => row.hidden), 'whole-row-set', 'unresolved span rows escaped the original filtering inventory');
+    check(await page.locator('#_y-nav-rail span.ui-navitem[data-resolution="unresolved"]').evaluate((row) => row.hidden), 'whole-row-set', 'unresolved span rows escaped the original filtering inventory');
     await fill(page, 'C04 Unwritten');
-    control(await page.locator('#nav-rail span.ui-navitem[data-resolution="unresolved"]').isVisible(), 'unresolved-only match lost its current ancestry');
+    control(await page.locator('#_y-nav-rail span.ui-navitem[data-resolution="unresolved"]').isVisible(), 'unresolved-only match lost its current ancestry');
     await context.close();
   }
   {
@@ -300,7 +300,7 @@ try {
   for (const refuse of ['read', 'write']) {
     const { page, context } = await open('', { refuse });
     await fill(page, 'C02');
-    control(await page.locator('#nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), `refused ${refuse} prevented current filtering`);
+    control(await page.locator('#_y-nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), `refused ${refuse} prevented current filtering`);
     await context.close();
   }
   // Normal next navigation uses the production footer, with no document input
@@ -336,11 +336,11 @@ try {
     const page = await context.newPage();
     await page.goto(BASE + PAGE);
     control(await page.locator(FILTER).evaluate((element) => element.hidden), 'no-JavaScript filter showed an inert control');
-    const branch = page.locator('#nav-rail details[data-key]:not([data-chain])');
+    const branch = page.locator('#_y-nav-rail details[data-key]:not([data-chain])');
     control(await branch.count() === 1, 'native disclosure control needs one closed side branch');
     await branch.locator(':scope > summary').click();
     control(await branch.evaluate((element) => element.open), 'native disclosure failed without JavaScript');
-    await page.locator('#nav-rail a[href="/notes/Course/C03.md"]').press('Enter');
+    await page.locator('#_y-nav-rail a[href="/notes/Course/C03.md"]').press('Enter');
     await page.waitForURL(BASE + NEXT);
     await context.close();
   }
