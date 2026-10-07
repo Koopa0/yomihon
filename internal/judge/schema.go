@@ -227,7 +227,7 @@ func (r *lintRun) lessonSlug(n *note) []Finding {
 // value is folded here, and a note that composes a word its contract decomposes
 // still names the status the contract declares.
 func (r *lintRun) statusDeclared(noteType, status string) bool {
-	return slices.Contains(r.contract.EnumValues("status", noteType), schema.NormalizeWord(status))
+	return false
 }
 
 // documentStatus reports a document's status outside the status set its own
