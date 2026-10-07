@@ -795,13 +795,12 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 // heading's own words, and on a narrow page it stands above the prose, so any
 // run taken from inside the heading is answered by the list's copy first.
 //
-// The run after the heading is the first words of the next block: the
-// list's copy is followed by the next entry's name instead, or, after its
-// last entry, by the page's other reading aids where it has any and then by
-// the body's first block. Failing that, the run before the
-// heading is the last words of the previous block, where the list's copy
-// follows the previous entry's name. Each is taken only from a block the
-// page shows as written in source and in order (Verbatim), and
+// The last words of the previous block are preferred when a known preceding
+// contents entry cannot answer them. This preserves a proven leading context
+// when decoding makes another following run eligible. Otherwise the first
+// words of the next block provide context: the list's copy is followed by the
+// next entry's name, or its last entry is followed by reading aids and then
+// the body's first block. Each run comes from adjacent page text, and
 // only where the list cannot answer it too. Both empty means the hit keeps
 // the terms any other block gives it. headingStart is where the heading's
 // text begins.
@@ -814,13 +813,6 @@ func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after 
 		if !b.Heading || e.hasInsertion(headingStart, headingEnd) {
 			return headingStart, "", ""
 		}
-		if i+1 < len(e.blocks) && e.shownAsWritten(i+1) {
-			_, openingEnd := e.insertionBounds(headingEnd, headingEnd, e.blocks[i+1].End)
-			opening := landingOpening(e.PlainText[headingEnd:openingEnd])
-			if opening != "" && !e.opensAnotherBlock(opening, i+1) {
-				return headingStart, "", opening
-			}
-		}
 		if i > 0 && e.shownAsWritten(i-1) {
 			closingStart, _ := e.insertionBounds(headingStart-1, e.blockStart(i-1), headingStart)
 			closing := landingPrefix(e.PlainText[closingStart:headingStart])
@@ -828,14 +820,20 @@ func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after 
 				return headingStart, closing, ""
 			}
 		}
+		if i+1 < len(e.blocks) && e.shownAsWritten(i+1) {
+			_, openingEnd := e.insertionBounds(headingEnd, headingEnd, e.blocks[i+1].End)
+			opening := landingOpening(e.PlainText[headingEnd:openingEnd])
+			if opening != "" && !e.opensAnotherBlock(opening, i+1) {
+				return headingStart, "", opening
+			}
+		}
 		return headingStart, "", ""
 	}
 	return 0, "", ""
 }
 
-// shownAsWritten reports that block i's words reach the page as its source
-// shows them and in that order, so they can be named beside a term from
-// another block.
+// shownAsWritten reports that block i's corpus words reach the page in this
+// order. Insertions are clipped separately before the words name context.
 func (e *entry) shownAsWritten(i int) bool {
 	return e.blocks[i].Verbatim
 }

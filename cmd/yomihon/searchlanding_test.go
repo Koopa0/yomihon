@@ -65,7 +65,7 @@ func TestGatedHeadingHitsKeepTheDirectiveMainEmits(t *testing.T) {
 		{"a link opens the section", "## Where the inkwell waits\n\n[Go docs](https://go.dev) explains it.\n", "inkwell", "#:~:text=inkwell%20waits,-Go%20docs"},
 		{"a bare address opens the section", "## Where the inkwell waits\n\nhttps://go.dev explains it.\n", "inkwell", "#:~:text=inkwell%20waits,-https%3A%2F%2Fgo.dev"},
 		{"the heading holds an entity reference", "## X &amp; place\n\nThe shelf keeps it dry.\n", "place", "#:~:text=place,-The%20shelf%20keeps"},
-		{"an entity reference closes the block before", "## First\n\nTom &amp; Jerry run.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=Tom%20%26%20Jerry%20run.-,Where%20the%20inkwell%20waits"},
+		{"an entity reference closes the block before", "## First\n\nTom &amp; Jerry run.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=%26%20Jerry%20run.-,Where%20the%20inkwell%20waits"},
 		{"the opening also starts the body", "Shared opening words.\n\n## Zebra place\n\nShared opening words again.\n", "zebra", "#:~:text=Zebra"},
 		{"the heading is the first entry", "Intro words here.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=inkwell"},
 		{"the closing also ends the previous entry", "## Alpha\n\nIntro Alpha\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=inkwell"},
@@ -292,6 +292,8 @@ func TestDroppedTitleKeepsMainLanding(t *testing.T) {
 	tests := []struct{ name, body, query, href string }{
 		{"comment-before-title", "%% prefatory comment %%\n# comment-before-title\n\nOpening words here.\n", "comment-before-title", "/notes/Notes/comment-before-title.md#:~:text=comment%2Dbefore%2Dtitle"},
 		{"unsafe-next-known-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "/notes/Notes/unsafe-next-known-prior.md#:~:text=Prior%20words%20here.-,Where%20the%20inkwell%20waits"},
+		{"safe-next-known-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry.\n", "inkwell", "/notes/Notes/safe-next-known-prior.md#:~:text=Prior%20words%20here.-,Where%20the%20inkwell%20waits"},
+		{"prefix-budget-control", "## Earlier\n\none two three four five.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "/notes/Notes/prefix-budget-control.md#:~:text=three%20four%20five.-,Where%20the%20inkwell%20waits"},
 		{"safe-plain-control", "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry.\n", "inkwell", "/notes/Notes/safe-plain-control.md#:~:text=inkwell%20waits,-The%20shelf%20keeps"},
 	}
 	for _, tt := range tests {
