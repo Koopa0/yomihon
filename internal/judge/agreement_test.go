@@ -60,6 +60,7 @@ func TestAgreement(t *testing.T) {
 	t.Run("bounded-excerpts", agreementExcerptCuts)
 	t.Run("ordered-occurrences", agreementOrderedOccurrences)
 	t.Run("known-controls", agreementKnownControls)
+	t.Run("notice-projection", agreementNoticeProjection)
 	fixtures := agreementFixtures(t)
 	controls := []agreementCase{
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},

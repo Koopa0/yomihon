@@ -69,6 +69,44 @@ func agreementOrderedOccurrences(t *testing.T) {
 	}
 }
 
+func agreementNoticeProjection(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		reason string
+		want   agreementCitation
+	}{
+		{name: "missing note", reason: `There is no note called "A" yet`, want: agreementCitation{Target: "A", State: "wikilink-broken"}},
+		{name: "missing file", reason: `There is no file called "A.pdf" yet`, want: agreementCitation{Target: "A.pdf", State: "wikilink-broken"}},
+		{name: "missing heading", reason: `There is no note called "A" yet; what follows "#" was read as the section "B"`, want: agreementCitation{Target: "A", Section: "B", State: "wikilink-broken"}},
+		{name: "outside path", reason: `"../../../etc/passwd.md" leaves the vault; the link text remains`, want: agreementCitation{Target: "../../../etc/passwd.md", State: "wikilink-broken"}},
+		{name: "outside raw quotation", reason: `"../a"b\c.md" leaves the vault; the link text remains`, want: agreementCitation{Target: `../a"b\c.md`, State: "wikilink-broken"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := agreementNotice(tc.reason)
+			if err != nil {
+				t.Fatalf("notice setup: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("caught: notice identity (-want +got):\n%s", diff)
+			}
+		})
+	}
+	for _, reason := range []string{
+		`unknown notice`,
+		`There is no note called "A"`,
+		`There is no note called "A" yet extra`,
+		`../../../etc/passwd.md" leaves the vault; the link text remains`,
+		`"" leaves the vault; the link text remains`,
+		`"../../../etc/passwd.md" leaves the vault; the link text remains extra`,
+	} {
+		if got, err := agreementNotice(reason); err == nil {
+			t.Errorf("caught: unsupported notice %q accepted as %+v", reason, got)
+		}
+	}
+}
+
 func agreementKnownControls(t *testing.T) {
 	t.Parallel()
 	t.Run("title is no resolution key", agreementTitleControl)

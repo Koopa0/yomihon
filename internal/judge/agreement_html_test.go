@@ -130,6 +130,13 @@ func agreementCarrierState(n *html.Node) (string, error) {
 // Targets come from actual notice attributes, never Diagnostic.Target. The
 // unresolved corpus deliberately prevents aliases from hiding target identity.
 func agreementNotice(reason string) (agreementCitation, error) {
+	if target, ok := strings.CutSuffix(reason, "\" leaves the vault; the link text remains"); ok {
+		target, quoted := strings.CutPrefix(target, "\"")
+		if !quoted || target == "" {
+			return agreementCitation{}, fmt.Errorf("invalid outside-vault notice %q", reason)
+		}
+		return agreementCitation{Target: target, State: "wikilink-broken"}, nil
+	}
 	var rest string
 	for _, prefix := range []string{"There is no note called ", "There is no file called "} {
 		if strings.HasPrefix(reason, prefix) {
