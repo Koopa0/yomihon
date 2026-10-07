@@ -28,6 +28,10 @@ var (
 		"這篇筆記的大小是 %s，超過 %s 的閱讀上限；原始檔仍可下載。",
 		"This note is %s, over the %s reading limit; the original file can still be downloaded.",
 	)
+	ReportOverReadingLimit = both(
+		"這份簡報的大小是 %s，超過 %s 的閱讀上限；原始檔仍可下載。",
+		"This briefing is %s, over the %s reading limit; the original file can still be downloaded.",
+	)
 	// A Markdown file the contract leaves out of the library is a document,
 	// not a note, even when its size is what keeps it from being read.
 	DocumentOverReadingLimit = both(
