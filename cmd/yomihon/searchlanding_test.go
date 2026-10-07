@@ -94,6 +94,181 @@ func TestGatedHeadingHitsKeepTheDirectiveMainEmits(t *testing.T) {
 
 var resultLink = regexp.MustCompile(`<a class="y-result" href="([^"]+)">`)
 
+// TestSearchDirectivesNameAdjacentReadingText follows production result links
+// into the article, including the localized words external links insert.
+func TestSearchDirectivesNameAdjacentReadingText(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ name, body, query string }{
+		{"entity", "## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell"},
+		{"escape", "## Where the inkwell waits\n\nThe snake\\_case name.\n", "inkwell"},
+		{"external", "## Where the inkwell waits\n\n[Go docs](https://go.dev) explains it.\n", "inkwell"},
+		{"explicit-autolink", "## Where the inkwell waits\n\n<https://go.dev> explains it.\n", "inkwell"},
+		{"bare-https", "## Where the inkwell waits\n\nhttps://go.dev explains it.\n", "inkwell"},
+		{"bare-www", "## Where the inkwell waits\n\nwww.example.com explains it.\n", "inkwell"},
+		{"cjk-link", "甲[乙](https://go.dev)丙丁搜尋戊己。\n", "搜尋"},
+		{"decoded-entity", "Tom &amp; Jerry run.\n", `"Tom & Jerry"`},
+		{"decoded-escape", "The snake\\_case name.\n", "snake_case"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			path := "Notes/" + tt.name + ".md"
+			site := homeSite(t, map[string]string{path: tt.body})
+			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+					page := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
+					rows := resultLink.FindAllStringSubmatch(page, -1)
+					if len(rows) != 1 {
+						t.Fatalf("caught: display search case=%s lang=%s route=%s rows=%d, want one", tt.name, lang, route, len(rows))
+					}
+					href := html.UnescapeString(rows[0][1])
+					address, err := url.Parse(href)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if address.Path != "/notes/"+path {
+						t.Fatalf("result target = %q, want %q", address.Path, "/notes/"+path)
+					}
+					address.Fragment, address.RawFragment = "", ""
+					article := articleSearchText(t, readingPageIn(t, site, address.String(), lang))
+					_, directive, ok := strings.Cut(href, ":~:text=")
+					if !ok {
+						t.Fatalf("caught: result %q has no text directive", href)
+					}
+					assertAdjacentDirective(t, directive, article, tt.name, lang, route)
+				}
+			}
+		})
+	}
+}
+
+func articleSearchText(t *testing.T, page string) string {
+	t.Helper()
+	doc, err := nethtml.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var text strings.Builder
+	articles := 0
+	var walk func(*nethtml.Node, bool)
+	walk = func(n *nethtml.Node, article bool) {
+		for _, attr := range n.Attr {
+			if attr.Key == "class" {
+				for class := range strings.FieldsSeq(attr.Val) {
+					if class == "y-article" {
+						articles++
+						article = true
+					}
+				}
+			}
+		}
+		if article && n.Type == nethtml.TextNode {
+			text.WriteString(n.Data)
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child, article)
+		}
+	}
+	walk(doc, false)
+	if articles != 1 {
+		t.Fatalf("article count = %d, want one", articles)
+	}
+	return strings.Join(strings.Fields(text.String()), " ")
+}
+
+func TestSearchConsumesProseMarkupAndKeepsCodeLiteral(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, body, query string
+		rows              int
+	}{
+		{"prose-entity-display", "Tom &amp; Jerry run.\n", `"Tom & Jerry"`, 1},
+		{"prose-entity-source", "Tom &amp; Jerry run.\n", "&amp;", 0},
+		{"prose-escape-display", "The snake\\_case name.\n", "snake_case", 1},
+		{"prose-escape-source", "The snake\\_case name.\n", `snake\_case`, 0},
+		{"span-entity-source", "`Tom &amp; Jerry`\n", "&amp;", 1},
+		{"span-escape-source", "`snake\\_case`\n", `snake\_case`, 1},
+		{"fence-entity-source", "```\nTom &amp; Jerry\n```\n", "&amp;", 1},
+		{"fence-escape-source", "```\nsnake\\_case\n```\n", `snake\_case`, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			site := homeSite(t, map[string]string{"Notes/Reading.md": tt.body})
+			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+					page := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
+					if rows := len(resultLink.FindAllStringSubmatch(page, -1)); rows != tt.rows {
+						t.Errorf("caught: prose-code corpus case=%s lang=%s route=%s rows=%d, want %d", tt.name, lang, route, rows, tt.rows)
+					}
+				}
+			}
+		})
+	}
+}
+
+func assertAdjacentDirective(t *testing.T, directive, article, name string, lang wording.Lang, route string) {
+	t.Helper()
+	parts := strings.Split(directive, ",")
+	prefix, suffix := "", ""
+	if strings.HasSuffix(parts[0], "-") {
+		prefix = strings.TrimSuffix(parts[0], "-")
+		parts = parts[1:]
+	}
+	if len(parts) > 1 && strings.HasPrefix(parts[len(parts)-1], "-") {
+		suffix = strings.TrimPrefix(parts[len(parts)-1], "-")
+		parts = parts[:len(parts)-1]
+	}
+	decode := func(s string) string {
+		value, err := url.PathUnescape(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Join(strings.Fields(value), " ")
+	}
+	prefix, suffix = decode(prefix), decode(suffix)
+	if len(parts) < 1 || len(parts) > 2 || decode(parts[0]) == "" {
+		t.Fatalf("invalid directive %q", directive)
+	}
+	start := decode(parts[0])
+	end := ""
+	if len(parts) == 2 {
+		end = decode(parts[1])
+		if end == "" {
+			t.Fatalf("caught: empty directive end %q", directive)
+		}
+	}
+	if name != "decoded-entity" && name != "decoded-escape" && prefix == "" && suffix == "" {
+		t.Errorf("caught: nonempty display context case=%s lang=%s route=%s directive=%q", name, lang, route, directive)
+	}
+	found := false
+	for at := 0; at <= len(article); {
+		i := strings.Index(article[at:], start)
+		if i < 0 {
+			break
+		}
+		i += at
+		stop := i + len(start)
+		if end != "" {
+			j := strings.Index(article[stop:], end)
+			if j < 0 {
+				break
+			}
+			stop += j + len(end)
+		}
+		before := strings.TrimRight(article[:i], " ")
+		after := strings.TrimLeft(article[stop:], " ")
+		if strings.HasSuffix(before, prefix) && strings.HasPrefix(after, suffix) {
+			found = true
+			break
+		}
+		at = i + len(start)
+	}
+	if !found {
+		t.Errorf("caught: adjacent reading context case=%s lang=%s route=%s directive=%q article=%q", name, lang, route, directive, article)
+	}
+}
+
 func TestDroppedTitleKeepsMainLanding(t *testing.T) {
 	t.Parallel()
 
