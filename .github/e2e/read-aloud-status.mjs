@@ -7,6 +7,9 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/Practice%20only.md';
 const MUTATE = process.env.MUTATE || '';
 const MODE = 'move-region-below-paragraph-return';
+const LANGUAGE_MODE = 'inherit-authored-language';
+const MODES = [MODE, LANGUAGE_MODE];
+const LANGUAGE = "      speechStatus.setAttribute('lang', document.documentElement.lang);\n";
 const STATUS = '.y-ttsbar__status';
 const CARD = '[data-slot-action="speak"]';
 const UNAVAILABLE = { 'zh-Hant': '目前無法播放語音', en: 'Speech is unavailable right now' };
@@ -18,19 +21,19 @@ const COMPOSITIONS = [
   { name: 'practice', path: PAGE, paragraphs: 0, cards: 1 },
 ];
 class LockFired extends Error {
-  constructor(site, message) { super(`FAIL read-aloud-status [${site}]: ${message}`); this.site = site; }
+  constructor(site, message) { super(`caught: read-aloud-status [${site}]: ${message}`); this.site = site; }
 }
 class Broken extends Error {}
 const check = (condition, site, message) => { if (!condition) throw new LockFired(site, message); };
 const setup = (condition, message) => { if (!condition) throw new Broken(message); };
-if (MUTATE === 'list') { console.log(MODE); process.exit(0); }
-if (MUTATE && MUTATE !== MODE) { console.error(`unknown MUTATE ${MUTATE}`); process.exit(2); }
+if (MUTATE === 'list') { console.log(MODES.join('\n')); process.exit(0); }
+if (MUTATE && !MODES.includes(MUTATE)) { console.error(`unknown MUTATE ${MUTATE}`); process.exit(2); }
 
 const REGION = "    if (column?.querySelector('[data-tts], [data-slot-action=\"speak\"]')) {\n" +
   "      speechStatus = document.createElement('span');\n" +
   "      speechStatus.className = 'y-ttsbar__status';\n" +
   "      speechStatus.setAttribute('aria-live', 'polite');\n" +
-  "      column.append(speechStatus);\n    }\n";
+  LANGUAGE + "      column.append(speechStatus);\n    }\n";
 const RETURN = '    if (readingButtons.length === 0) return;\n';
 let applied = false;
 let hit = false;
@@ -58,9 +61,25 @@ async function composition(browser, width, language, theme, fixture, noAPI) {
       };
       speechSynthesis.cancel = () => {};
     }, noAPI);
+    let requests = 0;
+    let matches = 0;
+    if (MUTATE === LANGUAGE_MODE) {
+      await page.route('**/lesson.js{,?*}', async (route) => {
+        const response = await route.fetch();
+        const original = await response.text();
+        requests += 1;
+        matches += original.split(LANGUAGE).length - 1;
+        await route.fulfill({ response, body: matches === 1 ? original.replace(LANGUAGE, '') : original });
+      });
+    }
     const response = await page.goto(BASE + fixture.path, { waitUntil: 'networkidle' });
     const identity = `${fixture.name}/${width}/${language}/${theme}/${noAPI ? 'no-api' : 'api'}`;
     setup(response?.status() === 200 && errors.length === 0, `${identity} setup: ${response?.status()} ${errors.join('; ')}`);
+    if (MUTATE === LANGUAGE_MODE) {
+      setup(requests === 1 && matches === 1, `not-applied requests=${requests} matches=${matches}`);
+      applied = true;
+      console.log(`MUTATE-APPLIED: ${LANGUAGE_MODE} requests=1 matches=1`);
+    }
     setup(await page.locator('[data-tts]').count() === fixture.paragraphs && await page.locator(CARD).count() === fixture.cards, `${identity} fixture controls differ`);
     const speakers = fixture.paragraphs + fixture.cards;
     check(await page.locator(STATUS).count() === (speakers ? 1 : 0), 'composition-region', `${identity} shared status cardinality`);
@@ -70,6 +89,8 @@ async function composition(browser, width, language, theme, fixture, noAPI) {
       window.__sharedStatus = document.querySelector('.y-ttsbar__status');
       return { text: window.__sharedStatus.textContent, language: window.__sharedStatus.closest('[lang]')?.lang };
     });
+    hit = true;
+    console.log(`INVOCATION-HIT read-aloud-status ${identity}: shared status observed`);
     check(initial.text === '' && initial.language === language, 'composition-initial', `${identity} initial status ${JSON.stringify(initial)}`);
     if (!noAPI && fixture.paragraphs) {
       check(await page.locator('.y-ttsbar .y-ttsbar__status').count() === 1, 'composition-placement', `${identity} status outside toolbar`);
@@ -166,7 +187,7 @@ try {
         });
         let requests = 0;
         let matches = [];
-        if (MUTATE) {
+        if (MUTATE === MODE) {
           await page.route('**/lesson.js{,?*}', async (route) => {
             const response = await route.fetch();
             const original = await response.text();
@@ -180,7 +201,7 @@ try {
         const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
         setup(response?.status() === 200, `practice fixture returned ${response?.status()}`);
         setup(errors.length === 0, `runtime errors: ${errors.join('; ')}`);
-        if (MUTATE) {
+        if (MUTATE === MODE) {
           setup(requests === 1 && matches.every((count) => count === 1), `not-applied requests=${requests} matches=${JSON.stringify(matches)}`);
           applied = true;
         }
@@ -236,11 +257,12 @@ try {
   if (error instanceof LockFired && error.site === 'practice-unavailable' && hit && (!MUTATE || applied)) {
     console.log('caught: read-aloud-status practice-unavailable');
   }
-  if (MUTATE && error instanceof LockFired && error.site === 'practice-unavailable' && applied && hit) {
-    console.log(`MUTATE-RESULT: caught ${MODE}`);
+  const intended = MUTATE === MODE ? 'practice-unavailable' : 'composition-initial';
+  if (MUTATE && error instanceof LockFired && error.site === intended && applied && hit) {
+    console.log(`MUTATE-RESULT: caught ${MUTATE}`);
     process.exitCode = 1;
   } else {
-    if (MUTATE) console.log(`MUTATE-RESULT: not-applied ${MODE}`);
+    if (MUTATE) console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
     process.exitCode = error instanceof LockFired && !MUTATE ? 1 : 2;
   }
 } finally {

@@ -224,6 +224,7 @@ export function initLesson(enhanceCodeCopy) {
       speechStatus = document.createElement('span');
       speechStatus.className = 'y-ttsbar__status';
       speechStatus.setAttribute('aria-live', 'polite');
+      speechStatus.setAttribute('lang', document.documentElement.lang);
       column.append(speechStatus);
     }
     if (!('speechSynthesis' in window)) return;
