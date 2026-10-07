@@ -17,6 +17,7 @@ func TestNoteExplainsUnsupportedYAML(t *testing.T) {
 	}{
 		{"top-level list key", "---\n<<: {a: 1}\n? [1, 2]\n: 3\n---\nReadable body.\n"},
 		{"nested list key", "---\nbase: &b {x: 1}\nm:\n  <<: *b\n  ? [1]\n  : 2\n---\nReadable body.\n"},
+		{"root key type error before nested merge", "---\n? [0]\n: ignored\nbase: &b {x: 1}\nm:\n  <<: *b\n  ? [1]\n  : 2\n---\nReadable body.\n"},
 		{"deep list key", "---\nbase: &b {x: 1}\nouter:\n  middle:\n    inner:\n      <<: *b\n      ? [1]\n      : 2\n---\nReadable body.\n"},
 		{"nested mapping key", "---\nbase: &b {x: 1}\nm:\n  <<: *b\n  ? {a: 1}\n  : 2\n---\nReadable body.\n"},
 		{"mapping inside list", "---\nbase: &b {x: 1}\nitems:\n  - <<: *b\n    ? [1]\n    : 2\n---\nReadable body.\n"},
@@ -44,11 +45,11 @@ func TestNoteExplainsUnsupportedYAML(t *testing.T) {
 					server := newServerWithGovernance(t, root, contract, governance)
 					page := frontmatterNoticePage(t, server, chrome.lang, "Writing/Bad.md")
 					if !strings.Contains(page, strings.ReplaceAll(chrome.want, "<<", "&lt;&lt;")) {
-						t.Errorf("note explanation omitted %q", chrome.want)
+						t.Errorf("caught: note explanation omitted %q", chrome.want)
 					}
 					for _, unwanted := range []string{"runtime error", "interface {}"} {
 						if strings.Contains(page, unwanted) {
-							t.Errorf("note explanation leaks %q", unwanted)
+							t.Errorf("caught: note explanation leaks %q", unwanted)
 						}
 					}
 				})
@@ -66,6 +67,8 @@ func TestNotePreservesOtherYAMLErrors(t *testing.T) {
 	}{
 		{"no merge", "---\nm:\n  ? [1]\n  : 2\n---\nReadable body.\n"},
 		{"merge in sibling mapping", "---\nbase: &b {x: 1}\nmerged:\n  <<: *b\nm:\n  ? [1]\n  : 2\n---\nReadable body.\n"},
+		{"ordinary error before unsupported mapping", "---\nbase: &b {x: 1}\nordinary:\n  ? [1]\n  : 2\nunsupported:\n  <<: *b\n  ? [2]\n  : 3\n---\nReadable body.\n"},
+		{"quoted merge key", "---\nm:\n  '<<': {x: 1}\n  ? [1]\n  : 2\n---\nReadable body.\n"},
 	} {
 		for _, governed := range []bool{false, true} {
 			for _, chrome := range []struct {
@@ -91,12 +94,12 @@ func TestNotePreservesOtherYAMLErrors(t *testing.T) {
 					page := frontmatterNoticePage(t, server, chrome.lang, "Writing/Bad.md")
 					for _, want := range []string{chrome.want, "frontmatter is not valid YAML: yaml: invalid map key: []interface {}{1}", "Readable body."} {
 						if !strings.Contains(page, want) {
-							t.Errorf("ordinary YAML explanation omitted %q", want)
+							t.Errorf("caught: ordinary YAML explanation omitted %q", want)
 						}
 					}
 					for _, unwanted := range []string{"frontmatter 使用了 yomihon 讀不進來的 YAML 寫法", "The frontmatter uses a YAML form yomihon cannot read"} {
 						if strings.Contains(page, unwanted) {
-							t.Errorf("ordinary YAML explanation was replaced by %q", unwanted)
+							t.Errorf("caught: ordinary YAML explanation was replaced by %q", unwanted)
 						}
 					}
 				})

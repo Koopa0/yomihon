@@ -36,6 +36,9 @@ type Note struct {
 	// BodyLine is the 1-based file line Body begins on — 1 for a note with no
 	// frontmatter — so a body parser cites the lines an editor shows.
 	BodyLine int
+	// UnsupportedYAML identifies a merge and a non-scalar key in the mapping
+	// whose decoding failed. The original parser evidence stays unchanged.
+	UnsupportedYAML bool
 }
 
 // Parse splits raw file bytes into frontmatter and body and decodes the
@@ -61,6 +64,7 @@ func Parse(rel string, data []byte) *Note {
 	var fields map[string]any
 	if err := yaml.Unmarshal(content, &fields); err != nil {
 		n.FMDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
+		n.UnsupportedYAML = unsupportedYAML(content, err)
 		return n
 	}
 	n.Frontmatter = fields

@@ -34,6 +34,9 @@ type NoteView struct {
 	// and escaped by ObsidianHref. Empty renders no editor link.
 	ObsidianHref string
 	Diagnostic   string
+	// UnsupportedYAML carries the reader's classification without replacing
+	// the original parser diagnostic.
+	UnsupportedYAML bool
 	// Stale is set where the file could not be read while this page was built,
 	// so the words below are the last ones read rather than the current ones.
 	Stale bool
@@ -934,8 +937,12 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 					<div class="y-diag">
 						<div class="y-diag__label">frontmatter</div>
 						<p class="y-diag__body">
-							{{ summary, detail := wording.FrontmatterExplanation(lang, v.Diagnostic) }}
-							@browserDiagnostic(summary, detail)
+							if v.UnsupportedYAML {
+								@browserDiagnostic(wording.FrontmatterUnsupportedYAML.In(lang), "")
+							} else {
+								{{ summary, detail := wording.FrontmatterExplanation(lang, v.Diagnostic) }}
+								@browserDiagnostic(summary, detail)
+							}
 						</p>
 					</div>
 				}

@@ -20,6 +20,7 @@ type Reading struct {
 	Status             string
 	Slug               string
 	FMDiagnostic       string
+	UnsupportedYAML    bool
 	Language           string
 	LanguageDiagnostic string
 	// HasFrontmatter is whether the source bytes opened a frontmatter block,
@@ -65,6 +66,7 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		Status:             parsed.Status(),
 		Slug:               parsed.Slug(),
 		FMDiagnostic:       parsed.FMDiagnostic,
+		UnsupportedYAML:    parsed.UnsupportedYAML,
 		Language:           language,
 		LanguageDiagnostic: diagnostic,
 		HasFrontmatter:     parsed.HasFrontmatter,
