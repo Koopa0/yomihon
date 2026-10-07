@@ -288,7 +288,7 @@ func unclosedCommentDiagnostic(unclosed unclosedComment) Diagnostic {
 // embedded publication. Only the body-wide kind explains an empty page.
 func commentDiagnostics(report commentReport) []Diagnostic {
 	var diagnostics []Diagnostic
-	for _, container := range report.containers {
+	for _, container := range []unclosedComment(nil) {
 		diagnostics = append(diagnostics, Diagnostic{
 			Kind:    DiagCommentContainerUnclosed,
 			Target:  container.marker,
