@@ -33,6 +33,7 @@ func TestACalloutTitleWithMarkupDrawsAFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
+	t.Log("producer-hit: actual callout title findings through Check")
 
 	var got []Finding
 	for _, f := range findings {
@@ -40,8 +41,8 @@ func TestACalloutTitleWithMarkupDrawsAFinding(t *testing.T) {
 			got = append(got, f)
 		}
 	}
-	if len(got) != 4 {
-		t.Fatalf("callout.title_markup findings = %d (%v), want 4 (ruby, wikilink, emphasis+code, folded)", len(got), findingTargets(got))
+	if len(got) != 5 {
+		t.Fatalf("caught: callout.title_markup findings = %d (%v), want 5 (ruby, wikilink, emphasis+code, folded, unknown)", len(got), findingTargets(got))
 	}
 	for _, f := range got {
 		if f.Severity != SeverityInfo {
@@ -68,9 +69,37 @@ func TestACalloutTitleWithMarkupDrawsAFinding(t *testing.T) {
 		"[[Source]]",
 		"**bold** and `code`",
 		"**folded**",
+		"**not a callout**",
 	}
 	if diff := strings.Join(findingTargets(got), "\n"); diff != strings.Join(wantTargets, "\n") {
 		t.Errorf("targets mismatch\ngot:\n%s\nwant:\n%s", diff, strings.Join(wantTargets, "\n"))
+	}
+}
+
+func TestCalloutTitleUsesEveryValidOpeningType(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name  string
+		line  string
+		title string
+		ok    bool
+	}{
+		{name: "known", line: "> [!note] **known**", title: "**known**", ok: true},
+		{name: "unknown", line: "> [!nonesuch] **unknown** ^address", title: "**unknown** ^address", ok: true},
+		{name: "unknown open fold", line: "> [!CUSTOM_TYPE2]+ **open**  ", title: "**open**", ok: true},
+		{name: "unknown closed fold", line: "> [!my-callout]- **closed**", title: "**closed**", ok: true},
+		{name: "unknown plain", line: "> [!nonesuch] Plain title", title: "Plain title", ok: true},
+		{name: "empty type", line: "> [!] **literal**"},
+		{name: "dot in type", line: "> [!my.callout] **literal**"},
+		{name: "table", line: "| > [!note] **literal** |"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			title, ok := recognisedCalloutTitle(tt.line)
+			if title != tt.title || ok != tt.ok {
+				t.Errorf("recognisedCalloutTitle(%q) = (%q, %v), want (%q, %v)", tt.line, title, ok, tt.title, tt.ok)
+			}
+		})
 	}
 }
 
