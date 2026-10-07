@@ -291,6 +291,18 @@ func humanReport(findings []Finding, roots domainRoots) string {
 			fmt.Fprintf(&s, "  [%s] %s%s%s\n", i.severity.String(), blastPrefix(i.blast), i.message, humanWhere(i.samplePath))
 		}
 	}
+	hiddenHeading := false
+	for i := range findings {
+		f := &findings[i]
+		if f.Severity != SeverityInfo {
+			continue
+		}
+		if !hiddenHeading {
+			s.WriteString("\nhidden (info):\n")
+			hiddenHeading = true
+		}
+		fmt.Fprintf(&s, "  [%s] %s — %s\n", f.RuleID, f.Message, f.Path)
+	}
 	return s.String()
 }
 
