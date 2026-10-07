@@ -130,6 +130,7 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 func agreementPageFailures(body string, result render.Result, actual agreementHTML) []agreementFailure {
 	var failures []agreementFailure
 	var diagnostics []agreementCitation
+	var markdownDiagnostics []agreementCitation
 	for _, d := range result.Diagnostics {
 		if d.Kind == render.DiagRenderFailed {
 			failures = append(failures, agreementFailure{Property: "setup", Identity: "render-failed", Observation: fmt.Sprintf("%+v", d)})
@@ -137,25 +138,43 @@ func agreementPageFailures(body string, result render.Result, actual agreementHT
 		if d.Kind == render.DiagWikilinkBroken {
 			diagnostics = append(diagnostics, agreementCitation{Target: d.Target, Section: d.Section, State: "wikilink-broken"})
 		}
-	}
-	ordered := make([]agreementCitation, 0, len(actual.Citations))
-	for _, citation := range actual.Citations {
-		if citation.State == "wikilink-broken" {
-			ordered = append(ordered, citation)
+		if d.Kind == render.DiagMarkdownBroken {
+			markdownDiagnostics = append(markdownDiagnostics, agreementCitation{SourceRole: agreementOutsideMarkdown, Target: d.Target, Section: d.Section, State: "wikilink-broken"})
 		}
 	}
-	if len(ordered) == 0 {
-		ordered = nil
+	var ordered, markdown []agreementCitation
+	wikiCount, markdownCount := 0, 0
+	for _, citation := range actual.Citations {
+		switch citation.SourceRole {
+		case "":
+			wikiCount++
+			if citation.State == "wikilink-broken" {
+				ordered = append(ordered, citation)
+			}
+		case agreementOutsideMarkdown:
+			markdownCount++
+			markdown = append(markdown, citation)
+		default:
+			failures = append(failures, agreementFailure{Property: "setup", Identity: "unknown-source-role", Observation: fmt.Sprintf("%+v", citation)})
+		}
+	}
+	if wikiCount+markdownCount != len(actual.Citations) {
+		failures = append(failures, agreementFailure{Property: "P0", Identity: "carrier-partition", Observation: fmt.Sprintf("wiki=%d markdown=%d carriers=%d", wikiCount, markdownCount, len(actual.Citations))})
 	}
 	slices.SortFunc(diagnostics, agreementCitationCompare)
 	slices.SortFunc(ordered, agreementCitationCompare)
 	if diff := cmp.Diff(diagnostics, ordered); diff != "" {
 		failures = append(failures, agreementFailure{Property: "P0", Identity: "diagnostic-html", Observation: diff})
 	}
+	slices.SortFunc(markdownDiagnostics, agreementCitationCompare)
+	slices.SortFunc(markdown, agreementCitationCompare)
+	if diff := cmp.Diff(markdownDiagnostics, markdown); diff != "" {
+		failures = append(failures, agreementFailure{Property: "P0", Identity: "markdown-diagnostic-html", Observation: diff})
+	}
 	judgeTargets := judge.LinkTargets(body)
 	pageTargets := make([]string, 0, len(actual.Citations))
 	for _, citation := range actual.Citations {
-		if citation.Target != "" {
+		if citation.SourceRole == "" && citation.Target != "" {
 			pageTargets = append(pageTargets, citation.Target)
 		}
 	}

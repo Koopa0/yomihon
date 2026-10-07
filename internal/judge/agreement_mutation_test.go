@@ -39,6 +39,7 @@ type agreementMutation struct {
 func agreementMutations() []agreementMutation {
 	return []agreementMutation{
 		{Name: "p0-diagnostic", Property: "P0", Identity: "diagnostic-html", File: "internal/render/render.go", Function: "report", Needle: "c.diags = append(c.diags, *d)", Fault: "if d.Kind != DiagWikilinkBroken { c.diags = append(c.diags, *d) }", Body: "[[Absent]]"},
+		{Name: "p0-markdown-diagnostic", Property: "P0", Identity: "markdown-diagnostic-html", File: "internal/render/markdownlink.go", Function: "resolveMarkdownLinks", Needle: "col.report(&Diagnostic{Kind: DiagMarkdownBroken, Target: written, Message: message})", Fault: "if !result.Outside { col.report(&Diagnostic{Kind: DiagMarkdownBroken, Target: written, Message: message}) }", Body: "[out](../../../etc/passwd.md)\n"},
 		{Name: "p1-occurrence", Property: "P1", Identity: "citation-occurrences", File: "internal/judge/planned.go", Function: "LinkTargets", Needle: "return targets", Fault: "if len(targets) > 0 { return targets[:len(targets)-1] }; return targets", Body: "[[A]] [[A]]"},
 		{Name: "p2-code", Property: "P2", Identity: "wikilink-in-code", File: "internal/render/wikilink.go", Function: "convertWikilinks", Needle: "spans := codeSpanRanges(text)", Fault: "_ = codeSpanRanges(text); var spans [][2]int", Body: "`[[A]]`"},
 		{Name: "p3-check", Property: "P3", Identity: "block-three-way", File: "internal/judge/fragment.go", Function: "blockAddressed", Needle: "return true", Fault: "return false", Body: "first ^a\n\nsecond\n"},
@@ -53,6 +54,17 @@ func agreementMutations() []agreementMutation {
 func TestAgreementMutationControl(t *testing.T) {
 	for _, mode := range agreementMutations() {
 		t.Run(mode.Name, func(t *testing.T) {
+			if mode.Name == "p0-markdown-diagnostic" {
+				// Select an independent literal for this Markdown stimulus, never
+				// the generic P0 control's wiki-only Absent expectation.
+				control := agreementProjectionCases()[0]
+				if control.Name != "outside-markdown" || control.Body != mode.Body {
+					t.Fatal("not-applied: outside Markdown literal selection changed")
+				}
+				agreementProjectionControl(t, control)
+				t.Logf("AGREEMENT-INVOKED %s/%s", mode.Property, mode.Name)
+				return
+			}
 			if mode.Identity == "provenance-identity" {
 				bodies := capturedBodies{
 					"Notes/A.md":     "A\n",
@@ -80,7 +92,11 @@ func TestAgreementMutationControl(t *testing.T) {
 				actual = agreementObserve(t, result.HTML)
 			}
 			for _, failure := range agreementPageFailures(mode.Body, result, actual) {
-				t.Errorf("caught: %s %s body=%q observations=%s", failure.Property, failure.Identity, mode.Body, failure.Observation)
+				if mode.Name == "p1-occurrence" && failure.Property == "P1" && failure.Identity == "citation-occurrences" {
+					t.Errorf("caught: P1 citation-occurrences pure-two-a body=%q observations=%s", mode.Body, failure.Observation)
+				} else {
+					t.Errorf("caught: %s %s body=%q observations=%s", failure.Property, failure.Identity, mode.Body, failure.Observation)
+				}
 			}
 			switch mode.Property {
 			case "P0":
@@ -92,10 +108,22 @@ func TestAgreementMutationControl(t *testing.T) {
 					t.Errorf("caught: P0 %s literal carrier (-want +got):\n%s", mode.Identity, diff)
 				}
 			case "P1":
+				if mode.Body != "[[A]] [[A]]" {
+					t.Fatal("not-applied: pure occurrence literal selection changed")
+				}
 				want := []agreementCitation{{Target: "A", State: "wikilink-broken"}, {Target: "A", State: "wikilink-broken"}}
 				if diff := cmp.Diff(want, actual.Citations); diff != "" {
 					t.Errorf("caught: P1 citation-occurrences literal carriers (-want +got):\n%s", diff)
 				}
+				t.Log("AGREEMENT-PURE-INVOKED P1/p1-occurrence")
+				// The original pure two-A control remains above. Offer the mixed
+				// three-carrier boundary unchanged in both overlay states too.
+				mixed := agreementProjectionCases()[1]
+				if mixed.Name != "outside-markdown-with-wiki" || mixed.Body != "[out](../../../etc/passwd.md) [[A]] [[A]]\n" {
+					t.Fatal("not-applied: mixed occurrence literal selection changed")
+				}
+				agreementProjectionControl(t, mixed)
+				t.Log("AGREEMENT-MIXED-INVOKED P1/p1-occurrence")
 			case "P2":
 				if len(actual.Citations) != 0 {
 					t.Errorf("quoted control citations = %+v, want none", actual.Citations)
@@ -242,6 +270,8 @@ func agreementMutationReceipt(t *testing.T, mode agreementMutation, selected, st
 	t.Helper()
 	decoder := json.NewDecoder(bytes.NewReader(child.Output))
 	invoked, sink, caught, terminal := false, false, false, false
+	pureInvoked, pureCaught := false, false
+	mixedInvoked, mixedCaught := false, false
 	for {
 		var event struct {
 			Action string
@@ -264,11 +294,18 @@ func agreementMutationReceipt(t *testing.T, mode agreementMutation, selected, st
 			invoked = invoked || strings.Contains(event.Output, "AGREEMENT-INVOKED "+mode.Property+"/"+mode.Name)
 			sink = sink || strings.Contains(event.Output, "AGREEMENT-SINK "+mode.Name+"/"+state)
 			caught = caught || strings.Contains(event.Output, "caught: "+mode.Property+" "+mode.Identity)
+			pureInvoked = pureInvoked || strings.Contains(event.Output, "AGREEMENT-PURE-INVOKED P1/p1-occurrence")
+			pureCaught = pureCaught || strings.Contains(event.Output, "caught: P1 citation-occurrences pure-two-a ")
+			mixedInvoked = mixedInvoked || strings.Contains(event.Output, "AGREEMENT-MIXED-INVOKED P1/p1-occurrence")
+			mixedCaught = mixedCaught || strings.Contains(event.Output, "caught: P1 citation-occurrences literal check case=outside-markdown-with-wiki")
 			terminal = terminal || (red && event.Action == "fail") || (!red && event.Action == "pass")
 		}
 	}
 	if !invoked || !sink {
 		t.Fatalf("not-applied: %s invoked=%t sink=%t", mode.Name, invoked, sink)
+	}
+	if mode.Name == "p1-occurrence" && (!pureInvoked || !mixedInvoked || (red && (!pureCaught || !mixedCaught))) {
+		t.Fatalf("not-applied: occurrence boundaries pure-invoked=%t mixed-invoked=%t pure-caught=%t mixed-caught=%t", pureInvoked, mixedInvoked, pureCaught, mixedCaught)
 	}
 	want := 0
 	if red {

@@ -79,8 +79,8 @@ func agreementNoticeProjection(t *testing.T) {
 		{name: "missing note", reason: `There is no note called "A" yet`, want: agreementCitation{Target: "A", State: "wikilink-broken"}},
 		{name: "missing file", reason: `There is no file called "A.pdf" yet`, want: agreementCitation{Target: "A.pdf", State: "wikilink-broken"}},
 		{name: "missing heading", reason: `There is no note called "A" yet; what follows "#" was read as the section "B"`, want: agreementCitation{Target: "A", Section: "B", State: "wikilink-broken"}},
-		{name: "outside path", reason: `"../../../etc/passwd.md" leaves the vault; the link text remains`, want: agreementCitation{Target: "../../../etc/passwd.md", State: "wikilink-broken"}},
-		{name: "outside raw quotation", reason: `"../a"b\c.md" leaves the vault; the link text remains`, want: agreementCitation{Target: `../a"b\c.md`, State: "wikilink-broken"}},
+		{name: "outside path", reason: `"../../../etc/passwd.md" leaves the vault; the link text remains`, want: agreementCitation{SourceRole: agreementOutsideMarkdown, Target: "../../../etc/passwd.md", State: "wikilink-broken"}},
+		{name: "outside raw quotation", reason: `"../a"b\c.md" leaves the vault; the link text remains`, want: agreementCitation{SourceRole: agreementOutsideMarkdown, Target: `../a"b\c.md`, State: "wikilink-broken"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -104,6 +104,114 @@ func agreementNoticeProjection(t *testing.T) {
 		if got, err := agreementNotice(reason); err == nil {
 			t.Errorf("caught: unsupported notice %q accepted as %+v", reason, got)
 		}
+	}
+}
+
+type agreementProjectionCase struct {
+	Name        string
+	Body        string
+	Citations   []agreementCitation
+	Diagnostics []render.Diagnostic
+	Elements    []agreementControlElement
+	WikiTargets []string
+}
+
+// Literal expectations cover the whole carrier partition, diagnostic identity,
+// actual noninteractive shape and ordered wiki occurrences independently.
+func agreementProjectionCases() []agreementProjectionCase {
+	return []agreementProjectionCase{
+		{
+			Name:        "outside-markdown",
+			Body:        "[out](../../../etc/passwd.md)\n",
+			Citations:   []agreementCitation{{SourceRole: agreementOutsideMarkdown, Target: "../../../etc/passwd.md", State: "wikilink-broken"}},
+			Diagnostics: []render.Diagnostic{{Kind: render.DiagMarkdownBroken, Target: "../../../etc/passwd.md", Message: `Markdown path "../../../etc/passwd.md" leaves the vault`}},
+			Elements:    []agreementControlElement{{Tag: "span", Class: "wikilink-broken", Title: `"../../../etc/passwd.md" leaves the vault; the link text remains`}},
+			WikiTargets: []string{},
+		},
+		{
+			Name: "outside-markdown-with-wiki",
+			Body: "[out](../../../etc/passwd.md) [[A]] [[A]]\n",
+			Citations: []agreementCitation{
+				{SourceRole: agreementOutsideMarkdown, Target: "../../../etc/passwd.md", State: "wikilink-broken"},
+				{Target: "A", State: "wikilink-broken"},
+				{Target: "A", State: "wikilink-broken"},
+			},
+			Diagnostics: []render.Diagnostic{
+				{Kind: render.DiagWikilinkBroken, Target: "A", Message: `wikilink "A" does not resolve to any note or file`},
+				{Kind: render.DiagWikilinkBroken, Target: "A", Message: `wikilink "A" does not resolve to any note or file`},
+				{Kind: render.DiagMarkdownBroken, Target: "../../../etc/passwd.md", Message: `Markdown path "../../../etc/passwd.md" leaves the vault`},
+			},
+			Elements: []agreementControlElement{
+				{Tag: "span", Class: "wikilink-broken", Title: `"../../../etc/passwd.md" leaves the vault; the link text remains`},
+				{Tag: "span", Class: "wikilink-broken", Title: `There is no note called "A" yet`},
+				{Tag: "span", Class: "wikilink-broken", Title: `There is no note called "A" yet`},
+			},
+			WikiTargets: []string{"A", "A"},
+		},
+		{
+			Name: "outside-markdown-refuter",
+			Body: "[[../../../etc/passwd.md]] [[A]]\n",
+			Citations: []agreementCitation{
+				{Target: "../../../etc/passwd.md", State: "wikilink-broken"},
+				{Target: "A", State: "wikilink-broken"},
+			},
+			Diagnostics: []render.Diagnostic{
+				{Kind: render.DiagWikilinkBroken, Target: "../../../etc/passwd.md", Message: `wikilink "../../../etc/passwd.md" does not resolve to any note or file`},
+				{Kind: render.DiagWikilinkBroken, Target: "A", Message: `wikilink "A" does not resolve to any note or file`},
+			},
+			Elements: []agreementControlElement{
+				{Tag: "span", Class: "wikilink-broken", Title: `There is no note called "../../../etc/passwd.md" yet`},
+				{Tag: "span", Class: "wikilink-broken", Title: `There is no note called "A" yet`},
+			},
+			WikiTargets: []string{"../../../etc/passwd.md", "A"},
+		},
+		{
+			Name:        "outside-envelope-identity",
+			Body:        "[out](<../../../a\"b.md?raw=\\c>)\n",
+			Citations:   []agreementCitation{{SourceRole: agreementOutsideMarkdown, Target: `../../../a"b.md?raw=\c`, State: "wikilink-broken"}},
+			Diagnostics: []render.Diagnostic{{Kind: render.DiagMarkdownBroken, Target: `../../../a"b.md?raw=\c`, Message: `Markdown path "../../../a\"b.md?raw=\\c" leaves the vault`}},
+			Elements:    []agreementControlElement{{Tag: "span", Class: "wikilink-broken", Title: `"../../../a"b.md?raw=\c" leaves the vault; the link text remains`}},
+			WikiTargets: []string{},
+		},
+	}
+}
+
+func TestAgreementProjectionControl(t *testing.T) {
+	for _, tc := range agreementProjectionCases() {
+		t.Run(tc.Name, func(t *testing.T) {
+			agreementProjectionControl(t, tc)
+		})
+	}
+}
+
+func agreementProjectionControl(t *testing.T, tc agreementProjectionCase) {
+	t.Helper()
+	page := render.New(graph.BuildFromNotes(nil, nil), capturedBodies{}, noTitlesDeclared{}, everyFileHeld{})
+	result := page.HTML("Notes/Reading.md", "", tc.Body, wording.En)
+	actual := agreementObserve(t, result.HTML)
+	if diff := cmp.Diff(tc.Citations, actual.Citations); diff != "" {
+		t.Errorf("caught: P0 carrier-partition case=%s (-want +got):\n%s", tc.Name, diff)
+	}
+	if diff := cmp.Diff(tc.Elements, agreementControlElements(t, result.HTML)); diff != "" {
+		t.Errorf("caught: P0 citation-shape case=%s (-want +got):\n%s", tc.Name, diff)
+	}
+	if diff := cmp.Diff(tc.Diagnostics, result.Diagnostics); diff != "" {
+		t.Errorf("caught: P0 projection-diagnostics case=%s (-want +got):\n%s", tc.Name, diff)
+	}
+	pageTargets := make([]string, 0, len(actual.Citations))
+	for _, citation := range actual.Citations {
+		if citation.SourceRole == "" {
+			pageTargets = append(pageTargets, citation.Target)
+		}
+	}
+	if diff := cmp.Diff(tc.WikiTargets, pageTargets); diff != "" {
+		t.Errorf("caught: P1 citation-occurrences literal page case=%s (-want +got):\n%s", tc.Name, diff)
+	}
+	if diff := cmp.Diff(tc.WikiTargets, judge.LinkTargets(tc.Body)); diff != "" {
+		t.Errorf("caught: P1 citation-occurrences literal check case=%s (-want +got):\n%s", tc.Name, diff)
+	}
+	for _, failure := range agreementPageFailures(tc.Body, result, actual) {
+		t.Errorf("caught: %s %s case=%s body=%q observations=%s", failure.Property, failure.Identity, tc.Name, tc.Body, failure.Observation)
 	}
 }
 

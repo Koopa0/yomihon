@@ -19,10 +19,17 @@ import (
 )
 
 type agreementCitation struct {
-	Target  string
-	Section string
-	State   string
+	SourceRole string
+	Target     string
+	Section    string
+	State      string
 }
+
+// The unresolved corpus has no missing local Markdown files (everyFileHeld).
+// Its missing-note/file families and known literal controls therefore use the
+// zero-value wiki role. Only Markdown's unique outside-vault notice changes it;
+// this is not a general classifier for missing local Markdown destinations.
+const agreementOutsideMarkdown = "markdown-outside"
 
 type agreementHTML struct {
 	Citations       []agreementCitation
@@ -32,6 +39,9 @@ type agreementHTML struct {
 }
 
 func agreementCitationCompare(a, b agreementCitation) int {
+	if n := cmp.Compare(a.SourceRole, b.SourceRole); n != 0 {
+		return n
+	}
 	if n := cmp.Compare(a.Target, b.Target); n != 0 {
 		return n
 	}
@@ -135,7 +145,7 @@ func agreementNotice(reason string) (agreementCitation, error) {
 		if !quoted || target == "" {
 			return agreementCitation{}, fmt.Errorf("invalid outside-vault notice %q", reason)
 		}
-		return agreementCitation{Target: target, State: "wikilink-broken"}, nil
+		return agreementCitation{SourceRole: agreementOutsideMarkdown, Target: target, State: "wikilink-broken"}, nil
 	}
 	var rest string
 	for _, prefix := range []string{"There is no note called ", "There is no file called "} {
