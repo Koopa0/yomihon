@@ -363,17 +363,17 @@ func TestHiddenReportRetention(t *testing.T) {
 	}
 	hiddenReportOutput(t, &CheckOptions{Root: root, Format: FormatHuman}, hiddenReportHuman, 0)
 	hiddenReportOutput(t, &CheckOptions{Root: root, All: true, Format: FormatHuman},
-		"8 findings: 0 error, 1 warn, 7 hidden (4 planned forward-refs, 3 external paths)\n" +
-			"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
-			"\nmost leveraged (create one, resolve many):\n  ×3 [[Future]] (planned) — golang\n" +
-			"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n" +
-			"\nhidden (info):\n" +
-			"  [link.broken] [[Outside745]] resolves to no note — Other/Outside.md\n" +
-			"  [link.broken.path] link to ../../outside-other-745.md points outside the vault root — Other/Outside.md\n" +
-			"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md\n" +
-			"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md\n" +
-			"  [link.broken.path] link to ../../../outside-745.md points outside the vault root — Writing/golang/A.md\n" +
-			"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md\n" +
+		"8 findings: 0 error, 1 warn, 7 hidden (4 planned forward-refs, 3 external paths)\n"+
+			"\ndebt by domain:\n  golang               0 error · 1 warn\n"+
+			"\nmost leveraged (create one, resolve many):\n  ×3 [[Future]] (planned) — golang\n"+
+			"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n"+
+			"\nhidden (info):\n"+
+			"  [link.broken] [[Outside745]] resolves to no note — Other/Outside.md\n"+
+			"  [link.broken.path] link to ../../outside-other-745.md points outside the vault root — Other/Outside.md\n"+
+			"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md\n"+
+			"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md\n"+
+			"  [link.broken.path] link to ../../../outside-745.md points outside the vault root — Writing/golang/A.md\n"+
+			"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md\n"+
 			"  [link.broken.path] link to ../../../outside-745.md points outside the vault root — Writing/golang/B.md\n", 0)
 	got, err := runCheckAction(t.Context(), root, []string{"Writing/golang/B.md"}, true)
 	if err != nil {
@@ -383,9 +383,9 @@ func TestHiddenReportRetention(t *testing.T) {
 		t.Fatalf("B scope whole set differs (-want +got):\n%s", diff)
 	}
 	hiddenReportOutput(t, &CheckOptions{Root: root, Paths: []string{"Writing/golang/B.md"}, All: true, Format: FormatHuman},
-		"2 findings: 0 error, 0 warn, 2 hidden (1 planned forward-refs, 1 external paths)\n" +
-			"\nhidden (info):\n" +
-			"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md\n" +
+		"2 findings: 0 error, 0 warn, 2 hidden (1 planned forward-refs, 1 external paths)\n"+
+			"\nhidden (info):\n"+
+			"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md\n"+
 			"  [link.broken.path] link to ../../../outside-745.md points outside the vault root — Writing/golang/B.md\n", 0)
 }
 
