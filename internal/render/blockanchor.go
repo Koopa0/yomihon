@@ -15,7 +15,7 @@ import (
 // this pass sees. The id keeps the caret, which no heading anchor can collide with.
 
 // blockMarkerTail is the token grammar read only by BlockAddress.
-var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^[A-Za-z0-9-]+)\z`)
+var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^[A-Za-z0-9_-]+)\z`)
 
 // BlockAddress returns the authored caret and nonempty ASCII letter, digit,
 // or hyphen token at the end of line, preserving its case. The caret starts
