@@ -120,15 +120,9 @@ machine does not tell you those passed.
 
 The `verify` target in the Makefile is the list of what it runs.
 
-Beyond the Go toolchain, `make verify` needs:
+The test prerequisites above also apply to `make verify`.
 
-- **Race-enabled tests:** On Linux and Windows, `make test` needs cgo enabled
-  and a C compiler for the race detector; macOS needs neither for that detector.
-
-- **Test user:** Run the tests as an unprivileged user: some permission fixtures fail
-  rather than skip when the process can bypass file permissions.
-
-- **Gate JSON:** The full gate also needs `jq` to read its JSON contract.
+Beyond those, the gate needs:
 
 - `make tools`, which installs the pinned Go analysis tools into `GOBIN`.
 - Two tools that `go install` cannot provide. ShellCheck is pinned by version
