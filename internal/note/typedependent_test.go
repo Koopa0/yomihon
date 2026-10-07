@@ -19,32 +19,32 @@ import (
 func TestTypeDependentNotePage(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	fixture, err := os.OpenRoot(root)
-	if err != nil {
-		t.Fatalf("open fixture root: %v", err)
+	fixture, openErr := os.OpenRoot(root)
+	if openErr != nil {
+		t.Fatalf("open fixture root: %v", openErr)
 	}
 	t.Cleanup(func() {
-		if err := fixture.Close(); err != nil {
-			t.Errorf("close fixture root: %v", err)
+		if closeErr := fixture.Close(); closeErr != nil {
+			t.Errorf("close fixture root: %v", closeErr)
 		}
 	})
 	contractBytes, err := os.ReadFile(filepath.Join("..", "judge", "testdata", "vault-type-dependent", schema.ContractRelPath))
 	if err != nil {
 		t.Fatalf("read contract: %v", err)
 	}
-	if err := fixture.MkdirAll(filepath.Dir(schema.ContractRelPath), 0o750); err != nil {
-		t.Fatalf("create contract directory: %v", err)
+	if mkdirErr := fixture.MkdirAll(filepath.Dir(schema.ContractRelPath), 0o750); mkdirErr != nil {
+		t.Fatalf("create contract directory: %v", mkdirErr)
 	}
-	if err := fixture.WriteFile(schema.ContractRelPath, contractBytes, 0o600); err != nil {
-		t.Fatalf("write fixture contract: %v", err)
+	if writeErr := fixture.WriteFile(schema.ContractRelPath, contractBytes, 0o600); writeErr != nil {
+		t.Fatalf("write fixture contract: %v", writeErr)
 	}
 	const rel = "Notes/InvalidType.md"
 	const target = "Lesson<script>&"
-	if err := fixture.MkdirAll("Notes", 0o750); err != nil {
-		t.Fatalf("create notes directory: %v", err)
+	if mkdirErr := fixture.MkdirAll("Notes", 0o750); mkdirErr != nil {
+		t.Fatalf("create notes directory: %v", mkdirErr)
 	}
-	if err := fixture.WriteFile(rel, []byte("---\ntitle: Invalid type\ntype: 'Lesson<script>&'\nlevel: fundamental\nslug: invalid-type\nextra: yes\n---\n\nBody.\n"), 0o600); err != nil {
-		t.Fatalf("write fixture note: %v", err)
+	if writeErr := fixture.WriteFile(rel, []byte("---\ntitle: Invalid type\ntype: 'Lesson<script>&'\nlevel: fundamental\nslug: invalid-type\nextra: yes\n---\n\nBody.\n"), 0o600); writeErr != nil {
+		t.Fatalf("write fixture note: %v", writeErr)
 	}
 	contract, err := schema.Load(root)
 	if err != nil {
