@@ -37,6 +37,8 @@ let applied = false;
 try {
   requireSetup(!MUTATE || MUTATE === MODE, `unknown mutation ${MUTATE}`);
   let source = await readFile(new URL('./support/arrival.mjs', import.meta.url), 'utf8');
+  const originalSource = source;
+  const { arrived: controlArrived } = await import(`data:text/javascript;base64,${Buffer.from(originalSource).toString('base64')}`);
   if (MUTATE) {
     const needle = 'function arrivalReady(';
     requireSetup(source.split(needle).length - 1 === 1 && !source.includes(`async ${needle}`), 'mutation declaration is missing or ambiguous');
@@ -44,10 +46,10 @@ try {
     applied = true;
   }
   const { arrived } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
-  requireSetup(typeof arrived === 'function', 'shared arrival export is missing');
+  requireSetup(typeof arrived === 'function' && typeof controlArrived === 'function', 'shared arrival export is missing');
   browser = await chromium.launch({ channel: 'chrome', headless: true });
 
-  const runCase = async (delayed) => {
+  const runCase = async (delayed, helper = arrived) => {
     const context = await browser.newContext({ reducedMotion: 'no-preference' });
     const page = await context.newPage();
     let release;
@@ -122,7 +124,7 @@ try {
       const invocation = await page.evaluate(snapshot);
       requireSetup(delayed ? !invocation.appCSS : invocation.appCSS && invocation.animations.some((animation) => animation.state === 'running'), 'required stylesheet/arrival stimulus was lost before invocation');
       console.log(`invocation-hit: arrival-readiness ${delayed ? 'delayed-css' : 'CSS-ready-running'} ${JSON.stringify(invocation)}`);
-      const handle = await arrived(page);
+      const handle = await helper(page);
       const returned = await page.evaluate(snapshot);
       const value = await handle.jsonValue();
       await handle.dispose();
@@ -140,7 +142,9 @@ try {
   };
 
   const delayed = await runCase(true);
-  const control = await runCase(false);
+  // The correct helper owns the independent already-running control, so a
+  // selected async fault cannot turn its own regression into broken setup.
+  const control = await runCase(false, controlArrived);
   requireSetup(control.appCSS && control.animations.every((animation) => !animation.pending && !['running', 'paused'].includes(animation.state)), 'CSS-ready running positive control did not wait for the real arrival');
   console.log('PASS arrival-readiness CSS-ready-running positive control');
   if (!delayed.appCSS) {
