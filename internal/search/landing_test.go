@@ -115,8 +115,10 @@ func serverForIndex(t *testing.T, idx *lexical.Index) *httptest.Server {
 // satisfy: that directive fails silently and leaves the reader at the top.
 // The first and last block of the match are still on the page, so that is
 // what the href names. The plain CJK row also names the characters that
-// follow the match up to its full stop, so the match may end inside a word;
-// the other three rows keep the directive they already had.
+// follow the match up to its full stop, so the match may end inside a word.
+// The heading row names the section's first words after the heading, which
+// the contents list's copy of that heading is not followed by; the other two
+// rows keep the directive they already had.
 func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 	t.Parallel()
 
@@ -141,7 +143,7 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 		{
 			name:  "title",
 			query: "長篇觀察",
-			href:  notePath + "#:~:text=%E9%95%B7%E7%AF%87%E8%A7%80%E5%AF%9F",
+			href:  notePath + "#:~:text=%E9%95%B7%E7%AF%87%E8%A7%80%E5%AF%9F,-%E9%80%99%E6%98%AF%E8%A9%A6%E8%AE%80%E7%94%A8%E7%9A%84%E5%B0%8E%E8%A8%80%E3%80%82",
 		},
 		{
 			name:   "cross-paragraph phrase",

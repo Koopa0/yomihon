@@ -48,7 +48,10 @@
           {"context": "e2e-http", "integration_id": 15368},
           {"context": "fuzz", "integration_id": 15368},
           {"context": "e2e-behavior", "integration_id": 15368},
-          {"context": "e2e-mutations", "integration_id": 15368}
+          {"context": "e2e-mutations (1)", "integration_id": 15368},
+          {"context": "e2e-mutations (2)", "integration_id": 15368},
+          {"context": "e2e-mutations (3)", "integration_id": 15368},
+          {"context": "e2e-mutations (4)", "integration_id": 15368}
         ]
       }
     }

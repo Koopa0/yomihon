@@ -123,14 +123,17 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-// articleWord measures a range around one word inside the article, so the
-// answer is where the reader's evidence sits rather than where its paragraph
-// does. It reports every copy: a fixture that grew a second one would let this
-// probe pass on whichever the browser happened to pick.
+// articleWord measures a range around one word inside the note's own text, so
+// the answer is where the reader's evidence sits rather than where its
+// paragraph does. Below the body the article also names the folder's previous
+// and next notes, which are other notes' words rather than this one's, so it
+// reads the note body alone. It reports every copy there: a fixture that grew a
+// second one would let this probe pass on whichever the browser happened to
+// pick.
 const articleWord = (page, word) => page.evaluate((w) => {
-  const article = document.querySelector('main article') || document.querySelector('main');
-  if (!article) return null;
-  const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+  const bodies = document.querySelectorAll('main article .y-prose');
+  if (bodies.length !== 1) return null;
+  const walker = document.createTreeWalker(bodies[0], NodeFilter.SHOW_TEXT);
   const found = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     for (let i = node.textContent.indexOf(w); i >= 0; i = node.textContent.indexOf(w, i + 1)) {
@@ -154,8 +157,8 @@ const articleWord = (page, word) => page.evaluate((w) => {
 
 const oneArticleWord = async (page, word) => {
   const found = await articleWord(page, word);
-  if (!found) broken('the note page rendered no article to measure');
-  if (found.length !== 1) broken(`the article holds ${found.length} copies of ${JSON.stringify(word)}, want exactly 1`);
+  if (!found) broken('the note page does not draw exactly one note body to measure');
+  if (found.length !== 1) broken(`the note body holds ${found.length} copies of ${JSON.stringify(word)}, want exactly 1`);
   return found[0];
 };
 

@@ -381,12 +381,20 @@ func remapPlainOffsets(raw string, blocks []render.Block, fences [][2]int) (mapp
 	if len(blocks) == 0 && len(fences) == 0 {
 		return nil, nil
 	}
-	cur := newNFCCursor(raw, sortedFenceBounds(raw, fences))
+	spans := slices.Clone(fences)
+	for _, b := range blocks {
+		spans = append(spans, b.ContextRanges...)
+	}
+	cur := newNFCCursor(raw, sortedFenceBounds(raw, spans))
+	var contexts []contextMapping
+	nextContext := len(fences)
 	if len(blocks) > 0 {
 		mapped = make([]render.Block, 0, len(blocks)+1)
 	}
 	prevRaw := 0
 	for _, b := range blocks {
+		first := nextContext
+		nextContext += len(b.ContextRanges)
 		end := b.End
 		if end < prevRaw {
 			continue
@@ -395,7 +403,10 @@ func remapPlainOffsets(raw string, blocks []render.Block, fences [][2]int) (mapp
 			end = len(raw)
 		}
 		cur.advanceTo(end)
-		mapped = appendUniqueBlock(mapped, cur.n, b.Verbatim)
+		mapped = appendUniqueBlock(mapped, render.Block{End: cur.n, Verbatim: b.Verbatim, Heading: b.Heading, Literal: b.Literal})
+		if len(b.ContextRanges) > 0 && cur.n > 0 {
+			contexts = append(contexts, contextMapping{block: len(mapped) - 1, first: first, count: len(b.ContextRanges)})
+		}
 		prevRaw = end
 	}
 	if len(blocks) == 0 || prevRaw < len(raw) {
@@ -403,17 +414,27 @@ func remapPlainOffsets(raw string, blocks []render.Block, fences [][2]int) (mapp
 		if len(blocks) > 0 {
 			// Text past the last block named belongs to none of them, so
 			// nothing has said the page reproduces it.
-			mapped = appendUniqueBlock(mapped, cur.n, false)
+			mapped = appendUniqueBlock(mapped, render.Block{End: cur.n})
 		}
 	}
 	cur.finish()
+	mapBlockContexts(mapped, contexts, cur.mapped)
 	if len(mapped) == 0 {
 		mapped = nil
 	}
 	if len(fences) > 0 {
-		fenceRanges = pairedSpans(cur.mapped)
+		fenceRanges = pairedSpans(cur.mapped[:2*len(fences)])
 	}
 	return mapped, fenceRanges
+}
+
+type contextMapping struct{ block, first, count int }
+
+func mapBlockContexts(blocks []render.Block, contexts []contextMapping, offsets []int) {
+	for _, c := range contexts {
+		blocks[c.block].ContextRanges = append(blocks[c.block].ContextRanges,
+			pairedSpans(offsets[2*c.first:2*(c.first+c.count)])...)
+	}
 }
 
 type rawBound struct {
@@ -494,15 +515,17 @@ func (c *nfcCursor) finish() {
 // appendUniqueBlock adds one mapped block, keeping the ends strictly
 // increasing. Two blocks that normalise onto the same character are one block
 // afterwards, and it is reproduced as written only if both halves were.
-func appendUniqueBlock(out []render.Block, end int, verbatim bool) []render.Block {
-	if end <= 0 {
+func appendUniqueBlock(out []render.Block, block render.Block) []render.Block {
+	if block.End <= 0 {
 		return out
 	}
-	if n := len(out); n > 0 && out[n-1].End == end {
-		out[n-1].Verbatim = out[n-1].Verbatim && verbatim
+	if n := len(out); n > 0 && out[n-1].End == block.End {
+		out[n-1].Verbatim = out[n-1].Verbatim && block.Verbatim
+		out[n-1].Heading = false
+		out[n-1].Literal = out[n-1].Literal && block.Literal
 		return out
 	}
-	return append(out, render.Block{End: end, Verbatim: verbatim})
+	return append(out, block)
 }
 
 func clampOff(off, n int) int {
@@ -597,6 +620,12 @@ func pairedSpans(offs []int) [][2]int {
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
 	projection := render.PlainProjection(n.Body)
+	if len(projection.Blocks) > 0 && render.DropsTitleHeading(n.Title(), n.Body) {
+		// That heading opens the body, so it is the first block. The page
+		// shows it as the title instead, and neither the body nor the
+		// contents list carries a copy to tell apart.
+		projection.Blocks[0].Heading = false
+	}
 	return Document{
 		RelPath:      n.RelPath,
 		Title:        n.Title(),
