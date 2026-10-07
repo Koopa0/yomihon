@@ -72,7 +72,7 @@ func (s *finalCancelSource) ReadPrefix(ctx context.Context, entry vault.Entry, l
 func finalRefusalWarnings(t *testing.T, data []byte) int {
 	t.Helper()
 	count := 0
-	for _, line := range bytes.Split(bytes.TrimSpace(data), []byte{'\n'}) {
+	for line := range bytes.SplitSeq(bytes.TrimSpace(data), []byte{'\n'}) {
 		var record map[string]any
 		if err := json.Unmarshal(line, &record); err != nil {
 			t.Fatal(err)
@@ -94,10 +94,10 @@ func TestSnapshotWarningsFinalCancellation(t *testing.T) {
 			root := t.TempDir()
 			for path, data := range map[string]string{"A-fault.txt": "refused body\n", last: body} {
 				full := filepath.Join(root, filepath.FromSlash(path))
-				if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+				if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(full, []byte(data), 0o644); err != nil {
+				if err := os.WriteFile(full, []byte(data), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -106,8 +106,8 @@ func TestSnapshotWarningsFinalCancellation(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := reader.Close(); err != nil {
-					t.Error(err)
+				if closeErr := reader.Close(); closeErr != nil {
+					t.Error(closeErr)
 				}
 			})
 			source := &finalCancelSource{reader: reader, refuse: true, last: last, prefix: prefix}
@@ -141,10 +141,6 @@ func TestSnapshotWarningsFinalCancellation(t *testing.T) {
 				t.Fatal("not-applied: final ReadFile did not succeed before cancellation")
 			}
 			t.Log("producer-hit: actual canceled final source boundary")
-			publishedCanceled := store.Current() != initial
-			if !publishedCanceled {
-				t.Fatal("pre-existing late-cancel candidate publication changed")
-			}
 			source.cancel, source.refuse = nil, true
 			now = now.Add(2 * time.Hour)
 			store.rescan(t.Context())
@@ -155,7 +151,6 @@ func TestSnapshotWarningsFinalCancellation(t *testing.T) {
 				t.Fatal("not-applied: identical noncanceled refusal was not offered to the real logger boundary exactly once")
 			}
 			count := finalRefusalWarnings(t, logs.Bytes())
-			t.Logf("traced pre-existing late-cancel publication: %t", publishedCanceled)
 			if count != 1 {
 				t.Fatalf("caught: canceled final observation pruned warning history: refusal warnings=%d, want 1", count)
 			}

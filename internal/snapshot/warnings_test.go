@@ -101,7 +101,7 @@ func assertWarningSkip(t *testing.T, gen *Generation, size int64) {
 func warningRecords(t *testing.T, data []byte, message string) []map[string]any {
 	t.Helper()
 	var out []map[string]any
-	for _, line := range bytes.Split(bytes.TrimSpace(data), []byte{'\n'}) {
+	for line := range bytes.SplitSeq(bytes.TrimSpace(data), []byte{'\n'}) {
 		var record map[string]any
 		if err := json.Unmarshal(line, &record); err != nil {
 			t.Fatalf("decode logger record: %v", err)
@@ -272,7 +272,7 @@ func TestSnapshotWarningIdentity(t *testing.T) {
 
 func TestSnapshotWarningRecovery(t *testing.T) {
 	const message = "vault note skipped: larger than the source size bound"
-	for _, name := range []string{"shrink", "delete"} {
+	for _, name := range []string{"touch", "shrink", "delete"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			huge := strings.Repeat("x", render.MaxSourceBytes+1)
@@ -282,6 +282,26 @@ func TestSnapshotWarningRecovery(t *testing.T) {
 			setWarningTime(t, root, "huge.md", modified)
 			f := newWarningFixture(t, root, nil)
 			assertWarningSkip(t, f.store.Current(), int64(len(huge)))
+			if name == "touch" {
+				assertWarningCount(t, f, message, 1, "initial oversized warning missing")
+				modified = modified.Add(time.Second)
+				setWarningTime(t, root, "huge.md", modified)
+				f.rescan(t)
+				assertWarningSkip(t, f.store.Current(), int64(len(huge)))
+				entry, ok := f.store.Current().Entry("huge.md")
+				if !ok || !entry.ModTime().Equal(modified) {
+					t.Fatalf("not-applied: captured oversized mtime = %v, present %t, want %v", entry.ModTime(), ok, modified)
+				}
+				assertWarningCount(t, f, message, 2, "changed oversized observation was suppressed")
+				f.rescan(t)
+				assertWarningSkip(t, f.store.Current(), int64(len(huge)))
+				if got := f.source.reads["huge.md"]; got != 0 {
+					t.Fatalf("over-bound ReadFile calls = %d, want 0", got)
+				}
+				t.Log("producer-hit: actual oversized touch and unchanged unrelated rescan")
+				assertWarningCount(t, f, message, 2, "unchanged touched oversized warning was reported again")
+				return
+			}
 			if name == "shrink" {
 				writeNote(t, root, "huge.md", "recovered body\n")
 			} else if err := os.Remove(filepath.Join(root, "huge.md")); err != nil {
@@ -584,7 +604,7 @@ func TestSnapshotWarningPanic(t *testing.T) {
 func assertWarningPanicError(t *testing.T, data []byte, want int) {
 	t.Helper()
 	count := 0
-	for _, line := range bytes.Split(bytes.TrimSpace(data), []byte{'\n'}) {
+	for line := range bytes.SplitSeq(bytes.TrimSpace(data), []byte{'\n'}) {
 		var record map[string]any
 		if err := json.Unmarshal(line, &record); err != nil {
 			t.Fatalf("decode ERROR: %v", err)

@@ -939,10 +939,6 @@ func buildGeneration(
 	g.blocked = blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
-	observations := make(map[string]vault.Entry, len(entries))
-	for _, entry := range entries {
-		observations[entry.Path()] = entry
-	}
 	noteCount := markdownCount(entries)
 	// One contract judges every note of this build, so it is resolved once here
 	// rather than once per note. It is only built here: the verdict itself is
@@ -972,9 +968,7 @@ func buildGeneration(
 			if contextErr := ctx.Err(); contextErr != nil {
 				return nil, nil, contextErr
 			}
-			if g.warnings.record(entry, warningRead, err.Error()) {
-				log.Warn("vault source unavailable in snapshot generation", "path", relPath, "error", err)
-			}
+			g.warnSourceUnavailable(entry, err, log)
 			g.unread(carried, relPath, note, want, err.Error(), false)
 			continue
 		}
@@ -996,17 +990,7 @@ func buildGeneration(
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
-	for _, problem := range slotProblems {
-		// One unusable sidecar costs one lesson its practice panel, not the rest.
-		entry, ok := observations[problem.Source]
-		if !ok {
-			panic("snapshot: unknown sidecar source: " + sidecarSource(problem.Source).String())
-		}
-		if g.warnings.record(entry, warningSidecar, problem.Message) {
-			log.Warn("slot sidecar unusable in snapshot generation",
-				"path", problem.Source, "problem", problem.Message)
-		}
-	}
+	g.warnSlotProblems(scan, slotProblems, log)
 	concepts, err := lesson.NewConceptIndex(g.ordered)
 	if err != nil {
 		log.Warn("concept sheets unavailable in snapshot generation", "error", err)
@@ -1126,6 +1110,26 @@ func newGeneration(entries int) *generation {
 		skippedNotes: make(map[string]struct{}),
 		products:     make(map[string]noteProducts, entries),
 		htmlTitles:   make(map[string]string),
+	}
+}
+
+func (g *generation) warnSourceUnavailable(entry vault.Entry, err error, log *slog.Logger) {
+	if g.warnings.record(entry, warningRead, err.Error()) {
+		log.Warn("vault source unavailable in snapshot generation", "path", entry.Path(), "error", err)
+	}
+}
+
+func (g *generation) warnSlotProblems(scan vault.Scan, problems []lesson.Problem, log *slog.Logger) {
+	for _, problem := range problems {
+		// One unusable sidecar costs one lesson its practice panel, not the rest.
+		entry, ok := scan.Entry(problem.Source)
+		if !ok {
+			panic("snapshot: unknown sidecar source: " + sidecarSource(problem.Source).String())
+		}
+		if g.warnings.record(entry, warningSidecar, problem.Message) {
+			log.Warn("slot sidecar unusable in snapshot generation",
+				"path", problem.Source, "problem", problem.Message)
+		}
 	}
 }
 
