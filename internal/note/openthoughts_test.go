@@ -56,7 +56,7 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 			current := store.Current()
 			handler := note.New(&note.Sources{
 				Source: source, Status: writer.Authority,
-				Snapshot: func() *snapshot.Generation { return current },
+				Snapshot:       func() *snapshot.Generation { return current },
 				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 				Continuation: noMark, Uncertainties: marks.Uncertainties,
 				UncertaintyAddress: mark.UncertaintyAddress, Log: log,
@@ -121,17 +121,17 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 				classes, _, closedClasses := strings.Cut(classes, `"`)
 				gatedRemove := hasClasses && closedClasses && slices.Contains(strings.Fields(classes), "y-markset")
 				got := struct {
-					Rows                                                                                  int
+					Rows                                                                                                  int
 					Text, Missing, Fault, Count, Link, DeadFragment, Remove, Pair, NativeRemove, OutsideLink, GatedRemove bool
 				}{
 					Rows: strings.Count(page, marker), Text: strings.Contains(page, text), Missing: strings.Contains(page, tt.missing), Fault: strings.Contains(page, warning), Count: strings.Contains(page, tt.count),
 					Link: strings.Contains(page, `href="/notes/Lost%20%3Cnote%3E.md"`), DeadFragment: strings.Contains(page, `href="/notes/Lost%20%3Cnote%3E.md#chapter"`),
-					Remove: strings.Contains(page, "data-uncertainty-remove") && strings.Contains(page, tt.remove),
+					Remove:       strings.Contains(page, "data-uncertainty-remove") && strings.Contains(page, tt.remove),
 					NativeRemove: strings.Contains(button, `type="button"`) && strings.Contains(button, "disabled"), OutsideLink: outsideLink, GatedRemove: gatedRemove,
 					Pair: strings.Contains(page, `data-uncertainty-endpoint="/uncertainties"`) && strings.Contains(page, `data-uncertainty-path="Lost &lt;note&gt;.md"`) && strings.Contains(page, `data-uncertainty-anchor="chapter"`),
 				}
 				want := struct {
-					Rows                                                                                  int
+					Rows                                                                                                  int
 					Text, Missing, Fault, Count, Link, DeadFragment, Remove, Pair, NativeRemove, OutsideLink, GatedRemove bool
 				}{Rows: 1, Text: true, Missing: true, Fault: true, Count: true, Link: !tt.noteGone, Remove: true, Pair: true, NativeRemove: true, OutsideLink: true, GatedRemove: true}
 				if diff := cmp.Diff(want, got); diff != "" {
@@ -291,7 +291,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	current := store.Current()
 	handler := note.New(&note.Sources{
 		Source: source, Status: writer.Authority,
-		Snapshot: func() *snapshot.Generation { return current },
+		Snapshot:       func() *snapshot.Generation { return current },
 		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation: noMark, Uncertainties: marks.Uncertainties,
 		UncertaintyAddress: mark.UncertaintyAddress, Log: log,
