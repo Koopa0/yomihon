@@ -1,6 +1,7 @@
 package render
 
 import (
+	"html"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/sequence"
@@ -38,22 +39,84 @@ func stripListRowRoles(htmlOut string) string {
 const listRowLevel = 2
 
 func stripListRowRole(own string) string {
+	start, end, ok := listRowRoleRange(own)
+	if !ok {
+		return own
+	}
+	return own[:start] + own[end:]
+}
+
+// listRowRoleRange measures the declaration in the original row markup. Task
+// controls and their first inline block's label are containers, not wording;
+// later blocks remain outside that label and outside its declaration.
+func listRowRoleRange(own string) (start, end int, ok bool) {
+	if inner, offset, task := taskRowWords(own); task {
+		stripped := sequence.HeadingName(inner, listRowLevel)
+		if stripped == inner {
+			return 0, 0, false
+		}
+		return offset + len(stripped), offset + len(inner), true
+	}
 	if got := sequence.HeadingName(own, listRowLevel); got != own {
-		return got
+		return len(got), len(own), true
 	}
 	// A loose item wraps its own line in <p>, so the marker is no longer the
 	// last thing on the string HeadingName sees. The inner of that one
 	// paragraph is the line; unwrapping anything else — a code span especially
 	// — would hide the closing tag that keeps a quoted marker in place.
-	inner, prefix, suffix, ok := unwrapOwnParagraph(own)
+	inner, prefix, _, ok := unwrapOwnParagraph(own)
 	if !ok {
-		return own
+		return 0, 0, false
 	}
 	stripped := sequence.HeadingName(inner, listRowLevel)
 	if stripped == inner {
-		return own
+		return 0, 0, false
 	}
-	return prefix + stripped + suffix
+	return len(prefix) + len(stripped), len(prefix) + len(inner), true
+}
+
+func taskRowWords(own string) (inner string, offset int, ok bool) {
+	start := 0
+	for start < len(own) && isHTMLSpace(own[start]) {
+		start++
+	}
+	paragraph := strings.HasPrefix(own[start:], "<p>")
+	if paragraph {
+		start += len("<p>")
+	}
+	const label = `<label class="y-task">`
+	if !strings.HasPrefix(own[start:], label) {
+		return "", 0, false
+	}
+	start += len(label)
+	inputEnd := strings.IndexByte(own[start:], '>')
+	if inputEnd < 0 {
+		return "", 0, false
+	}
+	inputEnd += start + 1
+	input := own[start:inputEnd]
+	const checkbox = `<input disabled="" type="checkbox"`
+	valid := input == checkbox+">" || input == `<input checked="" disabled="" type="checkbox">`
+	for _, marker := range neutralTaskMarkers {
+		valid = valid || input == checkbox+` data-task="`+html.EscapeString(string(marker))+`">`
+	}
+	if !valid {
+		return "", 0, false
+	}
+	const closeLabel = "</label>"
+	closeAt := strings.Index(own[inputEnd:], closeLabel)
+	if closeAt < 0 {
+		return "", 0, false
+	}
+	end := inputEnd + closeAt
+	inner = own[inputEnd:end]
+	if strings.Contains(inner, "<label") || strings.Contains(inner, "</li>") {
+		return "", 0, false
+	}
+	if paragraph && !strings.HasPrefix(own[end+len(closeLabel):], "</p>") {
+		return "", 0, false
+	}
+	return inner, inputEnd, true
 }
 
 func unwrapOwnParagraph(own string) (inner, prefix, suffix string, ok bool) {
