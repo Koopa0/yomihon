@@ -394,11 +394,7 @@ func roleDisplayEffects(md goldmark.Markdown, n ast.Node, source []byte, rewritt
 		}
 		start, end = len(stripped), len(inner)
 	} else {
-		var ok bool
-		start, end, ok = listRowRoleRange(inner)
-		if !ok {
-			return nil
-		}
+		return nil
 	}
 	var effects []DisplaySpan
 	for _, unit := range own.units {
