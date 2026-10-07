@@ -284,11 +284,146 @@ const closePreviewAsReader = (page, selector) =>
     };
   }, selector);
 
+// These receipts observe the initial setup only. They never qualify a
+// mutation catch, and a diagnostic failure cannot replace the original error.
+const observePreviewSetup = async (page) => {
+  const network = [];
+  let dropped = 0;
+  const record = (receipt) => {
+    if (network.length === 128) {
+      network.shift();
+      dropped += 1;
+    }
+    network.push({ at: Date.now(), ...receipt });
+  };
+  const relevant = (url) => /\/preview\/|\/static\/[^/?]+\.js(?:\?|$)/.test(url);
+  page.on('request', (request) => {
+    if (relevant(request.url())) record({ kind: 'request', url: request.url() });
+  });
+  page.on('requestfinished', (request) => {
+    if (relevant(request.url())) record({ kind: 'requestfinished', url: request.url() });
+  });
+  page.on('requestfailed', (request) => {
+    if (relevant(request.url())) {
+      record({ kind: 'requestfailed', url: request.url(), error: request.failure()?.errorText });
+    }
+  });
+  page.on('pageerror', (error) => record({ kind: 'pageerror', error: error.message.slice(0, 500) }));
+  page.on('response', (response) => {
+    const url = response.url();
+    if (!relevant(url)) return;
+    record({ kind: 'response', url, status: response.status() });
+  });
+  try {
+    await page.addInitScript(() => {
+      const events = [];
+      const receipts = { events, dropped: 0, installedAt: Date.now() };
+      window.__dialogPreviewSetup = receipts;
+      const describe = (target) => target instanceof Element
+        ? { tag: target.tagName, id: target.id.slice(0, 200), classes: String(target.className).slice(0, 500), href: target.closest('a')?.getAttribute('href')?.slice(0, 500) }
+        : { tag: target === document ? '#document' : null };
+      const observe = (event) => {
+        if (event.type === 'keydown' && event.key !== 'Escape') return;
+        if (['beforetoggle', 'toggle'].includes(event.type) && !event.target.matches?.('[data-preview-card]')) return;
+        if (events.length === 128) {
+          events.shift();
+          receipts.dropped += 1;
+        }
+        events.push({
+          at: Date.now(), type: event.type, target: describe(event.target),
+          related: describe(event.relatedTarget), collapsed: getSelection()?.isCollapsed ?? null,
+          oldState: event.oldState, newState: event.newState,
+          scrollX, scrollY,
+        });
+      };
+      for (const type of ['pointerenter', 'pointerleave', 'focus', 'blur', 'scroll', 'keydown', 'beforetoggle', 'toggle']) {
+        document.addEventListener(type, observe, { capture: true, passive: true });
+      }
+    });
+  } catch (error) {
+    record({ kind: 'init-observer-error', error: String(error).slice(0, 500) });
+  }
+  return () => ({ network: [...network], dropped });
+};
+
+const readPreviewSetup = (page) => page.evaluate(({ linkSelector, cardSelector }) => {
+  const root = document.querySelector('[data-preview-endpoint]');
+  const card = document.querySelector(cardSelector);
+  const links = [...document.querySelectorAll(linkSelector)];
+  const eligible = (link) => link.matches(':not(.wikilink-degraded)[href^="/notes/"]') && link.pathname.endsWith('.md');
+  const candidates = root ? [...root.querySelectorAll('.y-prose a.wikilink:not(.concept-link)')].filter(eligible) : [];
+  candidates.push(...[...document.querySelectorAll('.y-basedon:not([data-declared-by]) a.ui-navitem')].filter(eligible));
+  const rectangle = (element) => {
+    if (!element) return null;
+    const { x, y, width, height } = element.getBoundingClientRect();
+    return { x, y, width, height };
+  };
+  let endpoint = null;
+  let endpointError = null;
+  try {
+    if (root) endpoint = new URL(root.dataset.previewEndpoint, location.href).href;
+  } catch (error) {
+    endpointError = String(error);
+  }
+  return {
+    at: Date.now(), observer: window.__dialogPreviewSetup ?? null,
+    jsDeclared: document.documentElement.hasAttribute('data-js'),
+    rootCount: document.querySelectorAll('[data-preview-endpoint]').length,
+    cardCount: document.querySelectorAll(cardSelector).length,
+    pointerFine: matchMedia('(pointer: fine)').matches,
+    reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    anchorPositioning: CSS.supports('position-area: bottom'),
+    togglePopover: typeof HTMLElement.prototype.togglePopover === 'function',
+    endpoint, endpointError, sameOrigin: endpoint ? new URL(endpoint).origin === location.origin : null,
+    viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+    selectionCollapsed: getSelection()?.isCollapsed ?? null,
+    activeElement: document.activeElement?.tagName,
+    activeHref: document.activeElement?.getAttribute('href'),
+    // Query membership is observable; installed production listeners are not.
+    enrollmentCandidates: candidates.length,
+    linkCount: links.length,
+    links: links.slice(0, 16).map((link) => ({
+      href: link.getAttribute('href'), pathname: link.pathname, classes: link.className,
+      eligible: eligible(link), enrollmentCandidate: candidates.includes(link),
+      samePage: link.pathname === location.pathname, previewOpen: link.hasAttribute('data-preview-open'),
+      box: rectangle(link),
+    })),
+    card: card ? {
+      popover: card.getAttribute('popover'), open: card.matches(':popover-open'),
+      children: card.childElementCount, hasPreviewBody: Boolean(card.querySelector('[data-preview-body]')),
+      box: rectangle(card),
+    } : null,
+  };
+}, { linkSelector: PREVIEW_LINK, cardSelector: PREVIEW });
+
+const boundedPreviewSetup = async (page) => {
+  let timer;
+  try {
+    // Own both outcomes even if the diagnostic budget wins the race. This
+    // budget bounds only supplemental reads, never the product's open wait.
+    const reading = readPreviewSetup(page).then(
+      (value) => value,
+      (error) => ({ unavailable: String(error).slice(0, 500) }),
+    );
+    return await Promise.race([
+      reading,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ unavailable: 'diagnostic read timed out after 250ms' }), 250);
+      }),
+    ]);
+  } catch (error) {
+    return { unavailable: String(error).slice(0, 500) };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
+  const previewNetwork = await observePreviewSetup(page);
   // Each mutation aims at one site, and the named-section site runs on its own
   // pages below, so this page takes every mode except those. Arming on the aim
   // rather than on a mode name keeps a newly added mutation from either missing
@@ -331,10 +466,22 @@ try {
 
   const previewLink = page.locator(PREVIEW_LINK);
   if ((await previewLink.count()) < 1) broken('the lesson paints no Glass Tide wikilink to open a card');
+  const beforeHover = await boundedPreviewSetup(page);
   await previewLink.hover();
-  await page.waitForFunction((sel) => document.querySelector(sel)?.matches(':popover-open'), PREVIEW, {
-    timeout: 4000,
-  });
+  try {
+    await page.waitForFunction((sel) => document.querySelector(sel)?.matches(':popover-open'), PREVIEW, {
+      timeout: 4000,
+    });
+  } catch (error) {
+    try {
+      console.error('DIAGNOSTIC dialog-preview-setup: before-hover', JSON.stringify(beforeHover));
+      console.error('DIAGNOSTIC dialog-preview-setup: network', JSON.stringify(previewNetwork()));
+      console.error('DIAGNOSTIC dialog-preview-setup: after-timeout', JSON.stringify(await boundedPreviewSetup(page)));
+    } catch (diagnosticError) {
+      console.error('DIAGNOSTIC dialog-preview-setup: dump unavailable', diagnosticError);
+    }
+    throw error;
+  }
   await waitSettled(page, PREVIEW);
   const previewExit = await closePreviewAsReader(page, PREVIEW);
   if (previewExit.error) broken(`preview close: ${previewExit.error}`);
