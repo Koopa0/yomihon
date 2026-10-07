@@ -1,20 +1,10 @@
 // A reader can search a word's middle or overlapping tokens and still arrive
 // at the first matching article passage. Later repeated text must not decide
 // the destination, and the probe measures that passage rather than scrollY.
+import { arrived } from './support/arrival.mjs';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';

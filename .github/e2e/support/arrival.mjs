@@ -1,4 +1,4 @@
-export const arrived = (page) => page.waitForFunction(
+export const arrived = (page, timeout = 3000) => page.waitForFunction(
   function arrivalReady() {
     const appCSS = [...document.styleSheets].some((sheet) => {
       if (!sheet.href) return false;
@@ -11,5 +11,5 @@ export const arrived = (page) => page.waitForFunction(
       && (animation.pending || ['running', 'paused'].includes(animation.playState)));
   },
   null,
-  { timeout: 3000 },
+  { timeout },
 );

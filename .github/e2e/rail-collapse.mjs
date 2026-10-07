@@ -14,6 +14,7 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note with a book rail), and MUTATE.
 // MUTATE=list prints every watched regression.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -411,17 +412,6 @@ const recordTransitions = () => {
 // applied can the answer be that there is none. The shimmer and the spinner
 // never finish, which is why the wait names the arrival and not every
 // animation.
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 // Opens a page in a context of its own. The mutation is applied only when the
 // site being run is the one it aims at, so every other page is the real one.

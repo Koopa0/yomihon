@@ -2,6 +2,7 @@
 // the library rail does. Current-note ancestors still win over stored choices.
 // The inline initializer also works when the deferred enhancement is blocked;
 // this checks ownership at DOMContentLoaded, not the timing of the first paint.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -77,11 +78,6 @@ async function seed(page, value) {
   await page.evaluate((stored) => sessionStorage.setItem('yomihon.nav', JSON.stringify(stored)), value);
 }
 // Arrival can scale the page while a click is being aimed at its summary.
-const arrived = (page) => page.waitForFunction(async () => {
-  if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-  await Promise.all(document.getAnimations().filter((a) => a.animationName === 'y-come-forward').map((a) => a.finished.catch(() => {})));
-  return true;
-}, null, { timeout: 3000 });
 
 async function denyStorage(page, kind) {
   await page.addInitScript((denial) => {

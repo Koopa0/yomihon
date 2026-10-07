@@ -9,19 +9,9 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note long enough to scroll and carrying
 // headings to anchor against), and MUTATE.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
@@ -320,6 +310,7 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
   // A transform during the article's arrival makes a fixed descendant
   // relative to the article. Anchor decoys need the settled document, and
   // fonts must finish before its positions are measured.
+  await arrived(page);
   await page.evaluate(async () => {
     await document.fonts.ready;
     const article = document.querySelector('.y-article');
