@@ -44,6 +44,87 @@ func ruleTargets(findings []Finding) []string {
 	return out
 }
 
+type blockAddressFinding struct {
+	Rule     RuleID
+	Path     string
+	Target   string
+	Line     int
+	Resolved string
+}
+
+// checkBlockAddressFindings exercises the public scan and retains every link
+// and embed diagnostic, so a failed resolver cannot masquerade as a good block.
+func checkBlockAddressFindings(t *testing.T, files map[string]string) []blockAddressFinding {
+	t.Helper()
+	root := t.TempDir()
+	for path, body := range files {
+		write(t, root, path, body)
+	}
+	writeTestContract(t, root, nil)
+	findings, err := Check(t.Context(), root)
+	if err != nil {
+		t.Fatalf("Check(block address vault) error = %v", err)
+	}
+	var got []blockAddressFinding
+	for _, f := range findings {
+		if !strings.HasPrefix(string(f.RuleID), "link.") && !strings.HasPrefix(string(f.RuleID), "embed.") {
+			continue
+		}
+		if f.Target == nil || f.Line == nil {
+			t.Fatalf("Check() link/embed finding lacks target or line: %+v", f)
+		}
+		resolved := ""
+		if f.ResolvedTo != nil {
+			resolved = *f.ResolvedTo
+		}
+		got = append(got, blockAddressFinding{Rule: f.RuleID, Path: f.Path, Target: *f.Target, Line: *f.Line, Resolved: resolved})
+	}
+	return got
+}
+
+func TestAdjacentNoteReferenceDoesNotDeclareABlock(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		note bool
+		want []blockAddressFinding
+	}{
+		{
+			name: "known note reference",
+			note: true,
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^ref", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^ref", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+		{
+			name: "same reference with note missing",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^ref", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^ref", Line: 2, Resolved: "Notes/Target.md"},
+				{Rule: "link.broken", Path: "Notes/Target.md", Target: "Note", Line: 1},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			t.Logf("hit: judge adjacent note case %s", tt.name)
+			files := map[string]string{
+				"Notes/Target.md": "Some text ^ref[[Note]]\n",
+				"Notes/Citer.md":  "[[Target#^ref]]\n![[Target#^ref]]\n",
+			}
+			if tt.note {
+				files["Notes/Note.md"] = "A real note.\n"
+			}
+			got := checkBlockAddressFindings(t, files)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("caught: adjacent note reference lost or invented block accepted by judge: Check() (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestFragmentSectionMatchingMirrorsTheReadingPage(t *testing.T) {
 	t.Parallel()
 

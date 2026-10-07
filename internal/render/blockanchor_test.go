@@ -26,6 +26,111 @@ func blockRenderer(t *testing.T) *render.Pipeline {
 	return newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": destBody})
 }
 
+// Authored marker bytes decide whether a block exists. A page id alone is
+// insufficient: the excerpt must cut the same block and keep its authored text.
+func TestSupportedBlockAddressesOnPageAndExcerpt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		line     string
+		fragment string
+		span     string
+		literal  string
+		cut      string
+		found    bool
+	}{
+		{name: "paragraph", line: "Para ^abc-1", fragment: "^abc-1", span: `<span id="^abc-1">^abc-1</span>`, cut: "Para ^abc-1", found: true},
+		{name: "marker only", line: "^abc-1", fragment: "^abc-1", span: `<span id="^abc-1">^abc-1</span>`, cut: "^abc-1", found: true},
+		{name: "tab boundary", line: "Para\t^abc-1", fragment: "^abc-1", span: `<span id="^abc-1">^abc-1</span>`, cut: "Para\t^abc-1", found: true},
+		{name: "trailing spaces and tabs", line: "Para ^abc-1 \t", fragment: "^abc-1", span: `<span id="^abc-1">^abc-1</span>`, cut: "Para ^abc-1 \t", found: true},
+		{name: "ASCII case", line: "Para ^AbC-1", fragment: "^abc-1", span: `<span id="^abc-1">^AbC-1</span>`, cut: "Para ^AbC-1", found: true},
+		{name: "hyphen is significant", line: "Para ^abc-1", fragment: "^abc1", span: `<span id="^abc-1">^abc-1</span>`},
+		{name: "underscore", line: "Para ^a_b", fragment: "^a_b", literal: `<p>Para ^a_b</p>`},
+		{name: "dot", line: "Para ^a.b", fragment: "^a.b", literal: `<p>Para ^a.b</p>`},
+		{name: "Unicode", line: "Para ^\u304c", fragment: "^\u304c", literal: "<p>Para ^\u304c</p>"},
+		{name: "punctuation", line: "Para ^abc!", fragment: "^abc!", literal: `<p>Para ^abc!</p>`},
+		{name: "glued caret", line: "Para^abc-1", fragment: "^abc-1", literal: `<p>Para^abc-1</p>`},
+		{name: "empty token", line: "Para ^", fragment: "^abc-1", literal: `<p>Para ^</p>`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			t.Logf("hit: page and excerpt block-address case %s", tt.name)
+			body := "Outside before.\n\n" + tt.line + "\n\nOutside after.\n"
+			page := newRenderer(t, nil, nil, nil).HTML("B.md", "", body, wording.En)
+			if tt.span != "" {
+				if !strings.Contains(page.HTML, tt.span) {
+					t.Errorf("caught: supported block address lost page anchor: HTML(%q) missing %q:\n%s", tt.line, tt.span, page.HTML)
+				}
+			} else if strings.Contains(page.HTML, `<span id="^`) {
+				t.Errorf("caught: unsupported block address became page anchor: HTML(%q) = %s", tt.line, page.HTML)
+			}
+			if tt.literal != "" && !strings.Contains(page.HTML, tt.literal) {
+				t.Errorf("caught: unsupported block address lost authored text: HTML(%q) missing %q:\n%s", tt.line, tt.literal, page.HTML)
+			}
+			cut, found := render.Excerpt(body, tt.fragment)
+			want := struct {
+				Cut   string
+				Found bool
+			}{Cut: tt.cut, Found: tt.found}
+			got := struct {
+				Cut   string
+				Found bool
+			}{Cut: cut, Found: found}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("caught: unsupported block address answered excerpt or supported cut changed: Excerpt(%q, %q) (-want +got):\n%s", body, tt.fragment, diff)
+			}
+		})
+	}
+}
+
+func TestUnsupportedBlockTailKeepsInlineFootnoteAndAdjacentNoteLink(t *testing.T) {
+	t.Parallel()
+
+	t.Run("inline footnote", func(t *testing.T) {
+		t.Parallel()
+		t.Log("hit: inline footnote block-address boundary")
+		const body = "Para ^[note]\n"
+		page := newRenderer(t, nil, nil, nil).HTML("B.md", "", body, wording.En)
+		for _, want := range []string{`<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>`, `<li id="fn:1">`, "note&#160;"} {
+			if !strings.Contains(page.HTML, want) {
+				t.Errorf("caught: inline footnote lost: HTML(%q) missing %q:\n%s", body, want, page.HTML)
+			}
+		}
+		if strings.Contains(page.HTML, `<span id="^`) {
+			t.Errorf("caught: inline footnote became page anchor: %s", page.HTML)
+		}
+		if cut, found := render.Excerpt(body, "^[note]"); cut != "" || found {
+			t.Errorf("caught: inline footnote answered block excerpt: Excerpt() = (%q, %v), want (%q, false)", cut, found, "")
+		}
+	})
+
+	t.Run("adjacent resolved note", func(t *testing.T) {
+		t.Parallel()
+		t.Log("hit: adjacent resolved note block-address boundary")
+		const body = "Some text ^ref[[Note]]\n"
+		r := newRenderer(t, []graph.NoteInput{{RelPath: "Note.md"}}, nil, transclusions{"Note.md": "A real note.\n"})
+		page := r.HTML("B.md", "", body, wording.En)
+		const want = `<p>Some text ^ref<a href="/notes/Note.md" class="wikilink">Note</a></p>`
+		if !strings.Contains(page.HTML, want) {
+			t.Errorf("caught: adjacent note link lost: HTML(%q) missing %q:\n%s", body, want, page.HTML)
+		}
+		if strings.Contains(page.HTML, `<span id="^`) {
+			t.Errorf("caught: adjacent note tail became page anchor: %s", page.HTML)
+		}
+		if strings.ContainsAny(page.HTML, "\ue000\ue001\ue002\ue003") {
+			t.Errorf("caught: adjacent note leaked private marker: %q", page.HTML)
+		}
+		if diff := cmp.Diff([]render.Diagnostic(nil), page.Diagnostics); diff != "" {
+			t.Errorf("adjacent known note diagnostics (-want +got):\n%s", diff)
+		}
+		if cut, found := render.Excerpt(body, "^ref"); cut != "" || found {
+			t.Errorf("caught: adjacent note tail answered block excerpt: Excerpt() = (%q, %v), want (%q, false)", cut, found, "")
+		}
+	})
+}
+
 // A link written at a block says which paragraph it means. Without an anchor
 // on the destination the reader was told they were going to one block and
 // arrived at the top of the note, with nothing on screen saying so.
