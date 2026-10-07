@@ -329,7 +329,10 @@ jobs:
   # preserve grouping and wayfinding.
   e2e-behavior:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Measured 8 to 9 minutes on main on 2026-10-07, and three branches were
+    # cancelled at 10 with every probe that had run passing. A cancelled run is
+    # no verdict at all, so the ceiling must sit well above the measured length.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -359,13 +362,16 @@ jobs:
   # a needle written against one branch no longer matched the script it landed
   # beside, and only a run by hand revealed it.
   e2e-mutations:
+    name: e2e-mutations (${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
-    # Measured 19 minutes for 48 probes on 2026-09-18. Once the runner finished
-    # every probe and mode instead of stopping at the first failure, 77 probes
-    # outran 40 minutes on 2026-10-06 and the job was cancelled with no verdict.
-    # 75 leaves room until the job is split into shards; a cancelled run is no
-    # verdict at all, so the ceiling must sit above the measured length.
-    timeout-minutes: 75
+    # The whole mutation run outgrew forty minutes on one shared runner, so it is
+    # split into four mode-balanced jobs. Thirty minutes is more than twice a
+    # quarter of that run; a hung browser frees its runner instead of holding it.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -383,4 +389,4 @@ jobs:
         run: google-chrome --version
 
       - name: Prove every probe catches the regression it watches for
-        run: make mutation-check
+        run: make mutation-check MUTATION_SHARD=${{ matrix.shard }}

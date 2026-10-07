@@ -5,6 +5,7 @@
 #
 #   probes.sh            # the locks themselves, all expected to pass
 #   probes.sh --mutate   # each probe's self-tests, all expected to be caught
+#   probes.sh --mutate --shard N   # one of four balanced parts of that run
 #
 # The second form enforces the contract every probe owes. `MUTATE=list` names a
 # probe's modes; running one of them injects the regression that probe exists to
@@ -14,6 +15,25 @@
 # against a rewritten source turns red here, rather than on the day a human next
 # runs it by hand.
 set -euo pipefail
+
+
+usage() {
+  echo "usage: probes.sh [--mutate [--shard 1|2|3|4]]" >&2
+  exit 2
+}
+
+action=""
+shard=""
+case "$#" in
+0) ;;
+1) [ "$1" = --mutate ] || usage; action=--mutate ;;
+3)
+  [ "$1" = --mutate ] && [ "$2" = --shard ] || usage
+  case "$3" in 1|2|3|4) shard="$3" ;; *) usage ;; esac
+  action=--mutate
+  ;;
+*) usage ;;
+esac
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${YOMIHON_BASE:?probes.sh needs a running server; start it with serve.sh}"
@@ -51,6 +71,7 @@ probes=(
   "code-copy.mjs|/notes/Notes/code-copy.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "rail-disclosure-state.mjs|/notes/Course/C02.md"
+  "rail-filter-state.mjs|/notes/Course/C02.md"
   "vault-sidebar.mjs|/search"
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
@@ -98,7 +119,7 @@ probes=(
   "result-landing-suffix.mjs|/search?q=%E3%82%8C%E3%80%81"
   "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
   "search-facets.mjs|/search?q=a"
-  "search-overflow.mjs|/search?q=BROWSER_BOUNDARY_ATTACKER"
+  "search-overflow.mjs|/search?q=stoppedAt"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
@@ -206,8 +227,31 @@ run_locks() {
   finish_run "every lock passed"
 }
 
+# A child only proves its mutation when its real status is one and its whole
+# stdout line names this exact mode. Failures accumulate instead of aborting.
+run_mutation() {
+  local probe="$1" page="$2" mode="$3" out status reason
+  echo "--- ${probe} MUTATE=${mode}"
+  if out="$(PAGE_PATH="$page" MUTATE="$mode" node "${here}/${probe}")"; then status=0; else status=$?; fi
+  printf '%s\n' "$out"
+  reason=""
+  if [ "$status" -ne 1 ]; then
+    reason="exited ${status}, want 1"
+  fi
+  # Whole-line, so the marker names this mode and no other: one mode's name
+  # can be a prefix of another's, and a substring match would let the marker
+  # for palette-fill-partial answer for palette-fill.
+  if ! printf '%s\n' "$out" | grep -xF "MUTATE-RESULT: caught ${mode}" >/dev/null; then
+    if [ -n "$reason" ]; then reason="${reason}; "; fi
+    reason="${reason}missing exact stdout line 'MUTATE-RESULT: caught ${mode}'"
+  fi
+  if [ -n "$reason" ]; then
+    record_failure "${probe} MUTATE=${mode}: ${reason}"
+  fi
+}
+
 run_mutations() {
-  local entry probe page modes mode out status mode_count reason
+  local entry probe page modes mode status mode_count
   for entry in "${probes[@]}"; do
     probe="${entry%%|*}"
     page="${entry#*|}"
@@ -226,23 +270,7 @@ run_mutations() {
     while IFS= read -r mode; do
       [ -n "$mode" ] || continue
       mode_count=$((mode_count + 1))
-      echo "--- ${probe} MUTATE=${mode}"
-      if out="$(PAGE_PATH="$page" MUTATE="$mode" node "${here}/${probe}")"; then status=0; else status=$?; fi
-      printf '%s\n' "$out"
-      reason=""
-      if [ "$status" -ne 1 ]; then
-        reason="exited ${status}, want 1"
-      fi
-      # Whole-line, so the marker names this mode and no other: one mode's name
-      # can be a prefix of another's, and a substring match would let the marker
-      # for palette-fill-partial answer for palette-fill.
-      if ! printf '%s\n' "$out" | grep -xF "MUTATE-RESULT: caught ${mode}" >/dev/null; then
-        if [ -n "$reason" ]; then reason="${reason}; "; fi
-        reason="${reason}missing exact stdout line 'MUTATE-RESULT: caught ${mode}'"
-      fi
-      if [ -n "$reason" ]; then
-        record_failure "${probe} MUTATE=${mode}: ${reason}"
-      fi
+      run_mutation "$probe" "$page" "$mode"
     done <<<"$modes"
     if [ "$mode_count" -eq 0 ]; then
       record_failure "${probe} MUTATE=list names no runnable mutation modes"
@@ -251,11 +279,113 @@ run_mutations() {
   finish_run "every mutation was caught"
 }
 
-case "${1:-}" in
+
+# Discovery is complete before selection. Failed inventories still allow every
+# later list and valid selected item to run, but prevent a successful verdict.
+discover_shard_work() {
+  local entry probe page modes status mode seen_count duplicate j
+  work_probes=(); work_pages=(); work_modes=(); declarations=()
+  work_count=0
+  for entry in "${probes[@]}"; do
+    probe="${entry%%|*}"; page="${entry#*|}"
+    if modes="$(MUTATE=list node "${here}/${probe}")"; then status=0; else status=$?; fi
+    if [ "$status" -ne 0 ]; then
+      record_failure "${probe} MUTATE=list exited ${status}, cannot discover mutation modes"
+      continue
+    fi
+    seen=(); seen_count=0
+    while IFS= read -r mode; do
+      [ -n "$mode" ] || continue
+      duplicate=0
+      for ((j=0; j<seen_count; j++)); do
+        [ "${seen[$j]}" != "$mode" ] || duplicate=1
+      done
+      if [ "$duplicate" -eq 1 ]; then
+        record_failure "${probe} MUTATE=list repeats mutation mode '${mode}'"
+        continue
+      fi
+      seen+=("$mode"); seen_count=$((seen_count + 1))
+      declarations+=("${probe}|${mode}")
+      work_probes+=("$probe"); work_pages+=("$page"); work_modes+=("$mode")
+      work_count=$((work_count + 1))
+    done <<<"$modes"
+    if [ "$seen_count" -eq 0 ]; then
+      record_failure "${probe} MUTATE=list names no runnable mutation modes"
+    fi
+  done
+}
+
+# Tail modes prefill the fourth load; ordinary modes go to the least-loaded
+# shard, with a lower shard number winning a tie. Ownership never reorders work.
+assign_shard_work() {
+  local i j probe tail_count=0 owner
+  owners=(); loads=(0 0 0 0)
+  for ((i=0; i<work_count; i++)); do
+    for probe in "${leaves_a_place[@]}"; do
+      if [ "${work_probes[$i]}" = "$probe" ]; then tail_count=$((tail_count + 1)); fi
+    done
+  done
+  loads[3]="$tail_count"
+  for ((i=0; i<work_count; i++)); do
+    owner=0
+    for probe in "${leaves_a_place[@]}"; do
+      if [ "${work_probes[$i]}" = "$probe" ]; then owner=4; fi
+    done
+    if [ "$owner" -eq 0 ]; then
+      owner=1
+      for ((j=1; j<4; j++)); do
+        if [ "${loads[$j]}" -lt "${loads[$((owner - 1))]}" ]; then owner=$((j + 1)); fi
+      done
+      loads[owner - 1]=$((loads[owner - 1] + 1))
+    fi
+    owners+=("$owner")
+  done
+}
+
+# Each admitted identity/page stays at its discovery position, with exactly one
+# canonical owner. Counts alone would overlook a dropped-and-duplicated item.
+validate_shard_work() {
+  local i probe identity entry page owner
+  [ "$work_count" -gt 0 ] || { record_failure "mutation discovery produced no work"; return; }
+  [ "${#declarations[@]}" -eq "$work_count" ] &&
+    [ "${#work_probes[@]}" -eq "$work_count" ] &&
+    [ "${#work_pages[@]}" -eq "$work_count" ] &&
+    [ "${#work_modes[@]}" -eq "$work_count" ] &&
+    [ "${#owners[@]}" -eq "$work_count" ] || fail "mutation partition lost or duplicated declared work"
+  for ((i=0; i<work_count; i++)); do
+    identity="${work_probes[$i]}|${work_modes[$i]}"
+    [ "$identity" = "${declarations[$i]}" ] || fail "mutation partition changed declared identity ${declarations[$i]}"
+    owner="${owners[$i]}"
+    case "$owner" in 1|2|3|4) ;; *) fail "mutation partition has invalid owner ${owner} for ${identity}" ;; esac
+    page=""
+    for entry in "${probes[@]}"; do
+      if [ "${entry%%|*}" = "${work_probes[$i]}" ]; then page="${entry#*|}"; break; fi
+    done
+    [ -n "$page" ] && [ "$page" = "${work_pages[$i]}" ] || fail "mutation partition changed page for ${identity}"
+    for probe in "${leaves_a_place[@]}"; do
+      if [ "${work_probes[$i]}" = "$probe" ] && [ "$owner" -ne 4 ]; then fail "kept-place mutation ${identity} belongs to shard 4"; fi
+    done
+  done
+}
+
+run_shard_mutations() {
+  local i probe page mode selected_count=0
+  discover_shard_work
+  assign_shard_work
+  validate_shard_work
+  for ((i=0; i<work_count; i++)); do
+    [ "${owners[$i]}" = "$shard" ] || continue
+    probe="${work_probes[$i]}"; page="${work_pages[$i]}"; mode="${work_modes[$i]}"
+    selected_count=$((selected_count + 1))
+    run_mutation "$probe" "$page" "$mode"
+  done
+  if [ "$selected_count" -eq 0 ]; then record_failure "shard ${shard} selected no mutation work"; fi
+  finish_run "every mutation was caught (shard ${shard}: ${selected_count} mode(s))"
+}
+
+case "$action" in
 "") run_locks ;;
---mutate) run_mutations ;;
-*)
-  echo "usage: probes.sh [--mutate]" >&2
-  exit 2
+--mutate)
+  if [ -n "$shard" ]; then run_shard_mutations; else run_mutations; fi
   ;;
 esac

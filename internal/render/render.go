@@ -520,6 +520,15 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
 }
 
+// DropsTitleHeading reports whether the page removes body's leading level-1
+// heading because the page's title already says it. A reader of the page then
+// meets those words only as the title, never as a heading of the body.
+func DropsTitleHeading(title, body string) bool {
+	stripped, _ := stripBody(body)
+	_, _, dropped := removeBodyFirstH1(title, stripped.text)
+	return dropped >= 0
+}
+
 // removeBodyFirstH1 drops a leading level-1 ATX heading when the page already
 // shows that same text as its title. Only the very first non-blank line qualifies,
 // and a note displayed under its filename keeps its heading. The second return is
