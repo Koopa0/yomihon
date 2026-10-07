@@ -26,10 +26,16 @@ type ReportView struct {
 	// script. Scripts never run here, and a chart-shaped hole with nothing
 	// explaining it reads as a broken report rather than the boundary working.
 	NeedsScript bool
+	// Size and SourceLimit describe a refused briefing; a positive SourceLimit
+	// replaces the frame with the refusal and an original-file download.
+	Size        int64
+	SourceLimit int64
+	// RelPath names the original file for the streaming download route.
+	RelPath string
 }
 
-// Report is the report shell page: the shared chrome, a title, and one iframe
-// filling the reading column. The iframe carries a bare sandbox, so authored
+// Report is the report shell page: the shared chrome, a title, and either a
+// reading-limit refusal or one iframe. The iframe carries a bare sandbox, so authored
 // scripts and automatic navigation stay disabled and the content lands in an
 // opaque origin that cannot inherit yomihon's first-party authority. Its src is
 // this report's verbatim /raw endpoint, so the source bytes stay unchanged.
@@ -42,19 +48,27 @@ templ Report(v ReportView, c layouts.Chrome) {
 				<div class="y-reporthead">
 					<h1 class="y-reporttitle">{ v.Title }</h1>
 					<p class="y-reportfile">{ v.Name }</p>
-					<a class="y-reportraw" href={ templ.URL(reportRawHref(v.Name)) }>{ wording.OpenReportAsWritten.In(c.Lang) }</a>
+					if v.SourceLimit > 0 {
+						<a class="y-reportraw" href={ templ.URL(rawHref(v.RelPath)) }>{ wording.DownloadFile.In(c.Lang) }</a>
+					} else {
+						<a class="y-reportraw" href={ templ.URL(reportRawHref(v.Name)) }>{ wording.OpenReportAsWritten.In(c.Lang) }</a>
+					}
 				</div>
 				if v.NeedsScript {
 					<p class="y-homeempty" data-report-inert>
 						{ wording.ReportAsIs.In(c.Lang) }
 					</p>
 				}
-				<iframe
-					class="y-reportframe"
-					src={ templ.URL(reportRawHref(v.Name)) }
-					sandbox=""
-					title={ v.Label }
-				></iframe>
+				if v.SourceLimit > 0 {
+					<p class="y-homeempty">{ ReportReadingLimitMessage(v.Size, v.SourceLimit, c.Lang) }</p>
+				} else {
+					<iframe
+						class="y-reportframe"
+						src={ templ.URL(reportRawHref(v.Name)) }
+						sandbox=""
+						title={ v.Label }
+					></iframe>
+				}
 			</main>
 		</div>
 	}
