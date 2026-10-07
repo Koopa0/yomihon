@@ -31,7 +31,9 @@ func agreementExcerptCuts(t *testing.T) {
 		{name: "multiline bounded paragraph", body: "first line\ncontinued ^a\n\nsecond ^b\n", fragment: "^a", want: "first line\ncontinued ^a", found: true},
 		{name: "first duplicate", body: "first ^a\n\nsecond ^a\n", fragment: "^a", want: "first ^a", found: true},
 		{name: "missing does not widen", body: "first ^a\n\nsecond\n", fragment: "^absent"},
-		{name: "inline footnote is no address", body: "paragraph ^[literal]\n", fragment: "^[literal]"},
+		// Raw helper acceptance grants no rendered block identity or lossless
+		// public address; the inline-footnote control below locks those separately.
+		{name: "raw inline footnote tail", body: "paragraph ^[literal]\n", fragment: "^[literal]", want: "paragraph ^[literal]", found: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cut, found := render.Excerpt(tc.body, tc.fragment)
@@ -721,7 +723,9 @@ func TestAgreementDifferenceControls(t *testing.T) {
 		result := page.HTML("Notes/Reading.md", "", body, wording.En)
 		actual := agreementObserve(t, result.HTML)
 		cut, found := render.Excerpt(body, "^[literal]")
-		if len(actual.Blocks) != 0 || found || cut != "" {
+		// This raw spelling is not a lossless wikilink address. Excerpt's raw
+		// tail reader answers it, but the rendered footnote owns no block id.
+		if len(actual.Blocks) != 0 || !found || cut != "paragraph ^[literal]" {
 			t.Errorf("caught: retired-inline-footnote-defect blocks=%q found=%t cut=%q", actual.Blocks, found, cut)
 		}
 		failures := agreementFragmentFailures(t, []agreementCase{{Name: "retired-inline-footnote", Body: body}}, []agreementHTML{actual})
@@ -870,7 +874,7 @@ func TestAgreementMinimizerFragmentContext(t *testing.T) {
 	t.Parallel()
 	c := agreementCase{
 		Name:       "reducer-fragment-with-owned-context",
-		Body:       "unrelated prefix\n\n![[Notes/Child]]\n\nunrelated suffix\n",
+		Body:       "# A\n\nunrelated prefix\n\n![[Notes/Child]]\n\nunrelated suffix\n",
 		Title:      "A",
 		Companions: capturedBodies{"Notes/Child.md": "## A\n"},
 	}
@@ -897,12 +901,16 @@ func TestAgreementMinimizerFragmentContext(t *testing.T) {
 	if matches(original) != 1 {
 		t.Fatalf("not-applied: actual title/companion fragment context lacks selected a-2: %+v", original)
 	}
-	withoutTitle := c
-	withoutTitle.Title = ""
+	// Only a matching leading H1 lends its address to the page title. The
+	// companion's A heading then has to move to a-2 in the assembled page.
+	result, _ := agreementIsolatedPage(t, c)
+	if result.TitleAnchor != "a" {
+		t.Fatalf("not-applied: matching leading H1 did not give the title its address: %q", result.TitleAnchor)
+	}
 	withoutCompanion := c
 	withoutCompanion.Companions = capturedBodies{}
-	if matches(observe(withoutTitle)) != 0 || matches(observe(withoutCompanion)) != 0 {
-		t.Fatal("not-applied: selected fragment does not depend on both title and companion")
+	if matches(observe(withoutCompanion)) != 0 {
+		t.Fatal("not-applied: selected fragment does not depend on the companion heading")
 	}
 	body, candidates, checks, stop := agreementMinimize(t, agreementCounterexample{Case: c, Failure: want})
 	if body == c.Body || body == "" || candidates == 0 || checks <= 2 {
@@ -913,9 +921,13 @@ func TestAgreementMinimizerFragmentContext(t *testing.T) {
 	if got := observe(reduced); matches(got) != 1 {
 		t.Errorf("caught: minimizer-fragment-context-lost body=%q failures=%+v", body, got)
 	}
+	result, _ = agreementIsolatedPage(t, reduced)
+	if result.TitleAnchor != "a" {
+		t.Errorf("caught: minimizer-title-address-lost body=%q anchor=%q", body, result.TitleAnchor)
+	}
 	wantOriginal := agreementCase{
 		Name:  "reducer-fragment-with-owned-context",
-		Body:  "unrelated prefix\n\n![[Notes/Child]]\n\nunrelated suffix\n",
+		Body:  "# A\n\nunrelated prefix\n\n![[Notes/Child]]\n\nunrelated suffix\n",
 		Title: "A", Companions: capturedBodies{"Notes/Child.md": "## A\n"},
 	}
 	if diff := cmp.Diff(wantOriginal, c); diff != "" {
