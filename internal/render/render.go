@@ -83,8 +83,8 @@ const (
 	// where it is noticed and this is only where it is named.
 	DiagTitleTruncatedAtHash DiagnosticKind = "title-truncated-at-hash"
 	// DiagUnknownCallout means a "> [!type]" callout's type is not one
-	// of the recognized callout types; it was rendered as a plain
-	// blockquote instead of being dropped.
+	// of the recognized callout types; it was rendered as a neutral
+	// note-style callout without dropping its body.
 	DiagUnknownCallout DiagnosticKind = "unknown-callout"
 	// DiagRiskyFence means a fenced code block's content looks like the
 	// wikilink, callout or table syntax the dialect passes would otherwise
@@ -516,8 +516,17 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 	}
 
 	named := nameTaskLabels(buf.String(), marks.inline, page.lang)
-	htmlOut, blocks := substituteMarkedBlocks(named, marks.blocks, marks.inline, marks.anchors)
+	htmlOut, blocks := substituteMarkedBlocks(named, marks)
 	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
+}
+
+// DropsTitleHeading reports whether the page removes body's leading level-1
+// heading because the page's title already says it. A reader of the page then
+// meets those words only as the title, never as a heading of the body.
+func DropsTitleHeading(title, body string) bool {
+	stripped, _ := stripBody(body)
+	_, _, dropped := removeBodyFirstH1(title, stripped.text)
+	return dropped >= 0
 }
 
 // removeBodyFirstH1 drops a leading level-1 ATX heading when the page already

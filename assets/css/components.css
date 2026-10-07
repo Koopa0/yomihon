@@ -1199,10 +1199,10 @@ html:not([data-js]) .y-themebtn {
   height: auto;
 }
 
-/* The remembered filter narrows the rail when the client module runs, which can
-   be a frame after the rail first painted. That is a restore and not the
-   reader folding a group, so the folds and their chevrons are held still while
-   it is written instead of animating the correction. */
+/* The rail's parser boundary applies the remembered filter before the rail
+   paints. That is a restore and not the reader folding a group, so the folds
+   and their chevrons are held still while it is written instead of animating
+   the correction. */
 .y-rail-left[data-rail-restoring] details::details-content,
 .y-rail-left[data-rail-restoring] .y-chevron {
   transition: none;

@@ -41,6 +41,7 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 		{name: "yomihon.js", path: "/static/yomihon.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "preferences.js", path: "/static/preferences.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "drawer.js", path: "/static/drawer.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
+		{name: "rail-filter.js", path: "/static/rail-filter.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "sidebar.js", path: "/static/sidebar.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "contents.js", path: "/static/contents.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},
 		{name: "search.js", path: "/static/search.js", wantType: "text/javascript; charset=utf-8", minBodyLen: 100},

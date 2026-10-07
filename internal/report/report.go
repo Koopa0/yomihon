@@ -7,6 +7,7 @@ package report
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log/slog"
 
@@ -14,6 +15,20 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
 )
+
+// MaxSourceBytes bounds the briefing bytes read for the shell and its frame.
+const MaxSourceBytes int64 = 16 * 1024 * 1024
+
+// ReadingLimitError refuses a briefing while retaining the observed size and
+// the bound the reader applied, so both response surfaces explain it alike.
+type ReadingLimitError struct {
+	Size  int64
+	Limit int64
+}
+
+func (e *ReadingLimitError) Error() string {
+	return fmt.Sprintf("briefing size %d exceeds reading limit %d", e.Size, e.Limit)
+}
 
 // RequestSnapshot is the reading generation and the shell state captured
 // together from one atomic vault generation. Two separate captures could name
@@ -85,5 +100,15 @@ func readReport(
 	if err != nil {
 		return nil, err
 	}
-	return source.ReadFile(ctx, entry)
+	if entry.Size() > MaxSourceBytes {
+		return nil, &ReadingLimitError{Size: entry.Size(), Limit: MaxSourceBytes}
+	}
+	body, err := source.ReadPrefix(ctx, entry, MaxSourceBytes+1)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > MaxSourceBytes {
+		return nil, &ReadingLimitError{Size: int64(len(body)), Limit: MaxSourceBytes}
+	}
+	return body, nil
 }
