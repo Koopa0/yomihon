@@ -18,5 +18,5 @@ func (h *Handler) enumContract(authority status.Authority) *schema.Contract {
 // uses the general note group for the schema finding, as the checker does;
 // the lifecycle panel separately withholds claims about that unknown type.
 func enumValues(contract *schema.Contract, field, noteType string) []string {
-	return nil
+	return contract.EnumValues(field, noteType)
 }
