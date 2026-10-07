@@ -544,8 +544,8 @@ func literalGoldenRows(positions *token.FileSet, table *ast.CompositeLit) (map[s
 			if !fieldOK {
 				return nil, goldenSourceError(positions, element, "unkeyed golden row")
 			}
-			key, ok := field.Key.(*ast.Ident)
-			if !ok || fields[key.Name] != nil {
+			key, keyOK := field.Key.(*ast.Ident)
+			if !keyOK || fields[key.Name] != nil {
 				return nil, goldenSourceError(positions, element, "duplicate or unsupported row field")
 			}
 			fields[key.Name] = field.Value
