@@ -51,7 +51,7 @@ try {
           document.addEventListener('DOMContentLoaded', () => {
             window.__authoredText = () => {
               const article = document.querySelector('article')?.cloneNode(true);
-              article?.querySelectorAll('.y-ttsbar__status').forEach((status) => status.remove());
+              article?.querySelectorAll('.y-ttsbar__status').forEach((status) => { status.remove(); });
               return article?.textContent ?? null;
             };
             new MutationObserver((records) => {
