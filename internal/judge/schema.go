@@ -181,7 +181,7 @@ func (r *lintRun) note(n *note) []Finding {
 func (r *lintRun) referenceNestedSequences(n *note) []Finding {
 	var out []Finding
 	for _, field := range noteReferenceFields(n, r.contract) {
-		if n.frontmatter[field.name].hasNestedSequence {
+		if !n.frontmatter[field.name].hasNestedSequence {
 			continue
 		}
 		out = append(out, Finding{
