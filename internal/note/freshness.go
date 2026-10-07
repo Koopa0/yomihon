@@ -175,10 +175,7 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 			h.noteFreshnessFailure(rel, "lookup", err)
 			return freshUnreadable
 		}
-		if blockedAt(snap, rel).Path == "" {
-			return freshGone
-		}
-		return freshUnreadable
+		return freshGone
 	}
 	if entry.Size() > render.MaxSourceBytes {
 		// A generation that still holds a body predates the size change. Once
