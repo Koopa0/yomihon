@@ -168,6 +168,9 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 		if errors.Is(err, fs.ErrNotExist) {
 			return freshGone
 		}
+		if _, ok := h.sources.Snapshot().Capture().Entry(rel); !ok {
+			return freshGone
+		}
 		h.noteFreshnessFailure(rel, "lookup", err)
 		return freshUnreadable
 	}
