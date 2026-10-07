@@ -75,8 +75,8 @@ func TestClientImportMapFollowsByteChangesWithoutIncludingChunks(t *testing.T) {
 				"not-a-module.js":     fixed("text/plain", []byte("first")),
 			}
 			want := map[string]string{
-				"/static/yomihon.js":         "/static/yomihon.js?v=a7937b64b8ca",
-				"/static/child.js":           tt.want,
+				"/static/yomihon.js":          "/static/yomihon.js?v=a7937b64b8ca",
+				"/static/child.js":            tt.want,
 				"/static/mermaid.esm.min.mjs": "/static/mermaid.esm.min.mjs?v=a7937b64b8ca",
 			}
 			if diff := cmp.Diff(want, decodedModuleImports(t, buildClientImportMap(reg))); diff != "" {
@@ -112,8 +112,8 @@ func TestFixedVersionsPreservePathsAndRegistryMembershipAcrossByteChanges(t *tes
 				"wrong.js":            fixed("text/plain", []byte(body)),
 			}
 			want := map[string]string{
-				"/static/yomihon.js":         "/static/yomihon.js?v=recorded0000",
-				"/static/child.js":           "/static/child.js?v=recorded0000",
+				"/static/yomihon.js":          "/static/yomihon.js?v=recorded0000",
+				"/static/child.js":            "/static/child.js?v=recorded0000",
 				"/static/mermaid.esm.min.mjs": "/static/mermaid.esm.min.mjs?v=recorded0000",
 			}
 			if diff := cmp.Diff(want, decodedModuleImports(t, versions.buildClientImportMap(reg))); diff != "" {

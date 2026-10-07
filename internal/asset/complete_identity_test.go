@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	projectassets "github.com/koopa0/yomihon/assets"
 	"github.com/google/go-cmp/cmp"
+
+	projectassets "github.com/koopa0/yomihon/assets"
 )
 
 func TestImportMapVersionsTheCompleteModuleSet(t *testing.T) {

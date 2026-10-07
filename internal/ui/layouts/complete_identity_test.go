@@ -14,9 +14,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	projectassets "github.com/koopa0/yomihon/assets"
 	"github.com/koopa0/yomihon/internal/asset"
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestBaseAndStylesheetUseCompleteServedByteAddresses(t *testing.T) {
@@ -73,10 +74,10 @@ func TestBaseAndStylesheetUseCompleteServedByteAddresses(t *testing.T) {
 		t.Errorf("Base static link/img/script declarations = %d, want 8", declarations)
 	}
 	wantPaths := map[string]int{
-		"/static/app.css":                              1,
-		"/static/chroma.css":                           1,
-		"/static/yomihon.js":                           1,
-		"/static/yomihon-mark.svg":                     2,
+		"/static/app.css":                               1,
+		"/static/chroma.css":                            1,
+		"/static/yomihon.js":                            1,
+		"/static/yomihon-mark.svg":                      2,
 		"/static/fonts/Geist-Variable.woff2":            1,
 		"/static/fonts/GeistMono-Variable.woff2":        1,
 		"/static/fonts/Newsreader-Latin-Variable.woff2": 1,
