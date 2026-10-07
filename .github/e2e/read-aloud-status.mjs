@@ -105,11 +105,14 @@ async function composition(browser, width, language, theme, fixture, noAPI) {
     for (const selector of triggers) {
       const trigger = page.locator(selector).first();
       const idle = await trigger.getAttribute('aria-label');
-      await trigger.click();
       if (noAPI) {
+        // Without a speech engine the page withholds these affordances. Check
+        // that state through the UI instead of pressing an inaccessible button.
+        check(await page.locator(selector).evaluateAll((controls) => controls.every((control) => getComputedStyle(control).display === 'none')), 'unsupported-hidden', `${identity} unsupported speech control is exposed`);
         check(await page.evaluate(() => window.__utterances.length) === 0 && await page.locator(STATUS).textContent() === '' && await trigger.getAttribute('aria-label') === idle && await page.locator('[data-speaking], [data-reading]').count() === 0, 'unsupported-silent', `${identity} unsupported API changed idle behavior`);
         continue;
       }
+      await trigger.click();
       await page.evaluate(() => window.__utterances.at(-1).dispatchEvent(new Event('error')));
       check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await trigger.getAttribute('aria-label') === idle && await page.locator('[data-speaking], [data-reading]').count() === 0, 'composition-error', `${identity} ${selector} refusal failed`);
       check(await page.evaluate(() => window.__sharedStatus === document.querySelector('.y-ttsbar__status')) && await page.locator(STATUS).count() === 1, 'composition-identity', `${identity} replaced or duplicated status`);

@@ -21,6 +21,9 @@ const DECLARED_RAW = '/raw/Writing/lessons/japanese/L01.md';
 const CONTRACT_RAW = '/raw/System/schemas/vault-schema.toml';
 const SEARCH_DECLARED = '/search?q=L01';
 const FOLDERS = '/folders/Writing/lessons/japanese';
+// The complete Japanese fixture member set, displayed by filename in folders.
+// The code-copy lesson has no language declaration and stays outside this set.
+const JAPANESE_FOLDER_TITLES = ['L01', 'L02', 'Practice only'];
 const SEARCH_UNDECLARED = '/search?q=type%3Aconcept%20%E3%81%AF';
 const UNDECLARED_NOTE = '/notes/Concepts/japanese/%E3%81%AF.md';
 const MUTATE = process.env.MUTATE || '';
@@ -79,6 +82,33 @@ const rewritePath = (path, needle, replacement, label, want = 1) => async (page)
   return () => {
     if (requests !== 1) return `${label} response was requested ${requests} times, want exactly 1`;
     if (matches !== want) return `${label} needle matched ${matches} times, want exactly ${want}`;
+    return '';
+  };
+};
+
+const rewriteFolderTitles = async (page) => {
+  const opening = '<span class="y-row__title" lang="ja">';
+  const needles = JAPANESE_FOLDER_TITLES.map((title) => `${opening}${title}</span>`);
+  let requests = 0;
+  let matches = [];
+  let declarations = 0;
+  await page.route(BASE + FOLDERS, async (route) => {
+    requests += 1;
+    const response = await route.fetch();
+    const original = await response.text();
+    matches = needles.map((needle) => original.split(needle).length - 1);
+    declarations = original.split(opening).length - 1;
+    let body = original;
+    if (declarations === needles.length && matches.every((count) => count === 1)) {
+      for (const needle of needles) body = body.replace(needle, needle.replace(' lang="ja"', ''));
+    }
+    await route.fulfill({ response, body });
+  });
+  return () => {
+    if (requests !== 1) return `folder listing requested ${requests} times, want exactly 1`;
+    if (declarations !== needles.length || matches.length !== needles.length || !matches.every((count) => count === 1)) {
+      return `folder title declarations=${declarations}, member matches=${JSON.stringify(matches)}, want exactly one per ${JSON.stringify(JAPANESE_FOLDER_TITLES)}`;
+    }
     return '';
   };
 };
@@ -199,10 +229,9 @@ const MUTATIONS = {
   },
   'drop-folder-listing-lang': {
     target: 'listing-folder-declared-language',
-    // Two, because the folder lists two lessons and both titles have to lose
-    // their declaration: a listing where one row still declares its language
-    // would leave this site passing for the row that kept it.
-    apply: rewritePath(FOLDERS, '<span class="y-row__title" lang="ja">', '<span class="y-row__title">', 'folder listing title language', 2),
+    // Bind every declared fixture member independently, refusing missing,
+    // duplicated or extra declarations before rewriting the response.
+    apply: rewriteFolderTitles,
   },
   'stamp-search-undeclared-lang': {
     target: 'listing-search-undeclared-language',
@@ -367,11 +396,15 @@ try {
     fail('listing-search-declared-language', `L01 search title declares ${JSON.stringify(declaredSearchTitle.lang)}, want "ja"`);
   }
 
-  const declaredFolderTitle = folderDOM.folderTitles.find((row) => row.text.includes('L01'));
-  if (!declaredFolderTitle) {
-    broken(`folders returned no L01 .y-row__title rows: ${JSON.stringify(folderDOM.folderTitles)}`);
-  } else if (declaredFolderTitle.lang !== 'ja') {
-    fail('listing-folder-declared-language', `L01 folder title declares ${JSON.stringify(declaredFolderTitle.lang)}, want "ja"`);
+  const extraJapaneseTitle = folderDOM.folderTitles.find((row) => row.lang === 'ja' && !JAPANESE_FOLDER_TITLES.includes(row.text));
+  if (extraJapaneseTitle) broken(`folders contain an unenumerated Japanese title: ${JSON.stringify(extraJapaneseTitle)}`);
+  for (const title of JAPANESE_FOLDER_TITLES) {
+    const rows = folderDOM.folderTitles.filter((row) => row.text === title);
+    if (rows.length !== 1) {
+      broken(`folders returned ${rows.length} rows for ${JSON.stringify(title)}, want exactly one: ${JSON.stringify(folderDOM.folderTitles)}`);
+    } else if (rows[0].lang !== 'ja') {
+      fail('listing-folder-declared-language', `${title} folder title declares ${JSON.stringify(rows[0].lang)}, want "ja"`);
+    }
   }
 
   const undeclaredSearchTitle = searchUndeclaredDOM.searchTitles.find((row) => row.href === UNDECLARED_NOTE);
