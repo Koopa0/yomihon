@@ -34,15 +34,22 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 		return wording.DiagBlockNote.In(lang)
 	case render.DiagLinkSectionMissing:
 		return wording.DiagSectionNote.In(lang)
-	case render.DiagCommentUnclosed:
-		return wording.DiagCommentNote.In(lang)
-	case render.DiagCommentContainerUnclosed:
-		return wording.DiagCommentContainerNote.In(lang)
+	case render.DiagCommentUnclosed, render.DiagCommentContainerUnclosed:
+		return commentDiagnosticSummary(kind, lang)
 	case render.DiagRenderFailed:
 		return wording.DiagRenderNote.In(lang)
 	default:
 		return wording.DiagUnknownNote.In(lang)
 	}
+}
+
+// commentDiagnosticSummary distinguishes silence across the note body from a
+// refusal confined to the enclosing Markdown container.
+func commentDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) string {
+	if kind == render.DiagCommentContainerUnclosed {
+		return wording.DiagCommentContainerNote.In(lang)
+	}
+	return wording.DiagCommentNote.In(lang)
 }
 
 // fenceDiagnosticSummary is the sentence for a code-block diagnostic. The
