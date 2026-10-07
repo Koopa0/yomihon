@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
+
+	projectassets "github.com/koopa0/yomihon/assets"
 )
 
 func TestBasePreloadsFirstPaintFonts(t *testing.T) {
@@ -30,8 +32,7 @@ func TestBasePreloadsFirstPaintFonts(t *testing.T) {
 		if !strings.HasPrefix(href, "/static/fonts/") || filepath.Ext(href) != ".woff2" {
 			t.Fatalf("font source = %q, want a local WOFF2 font", href)
 		}
-		asset := filepath.Join("..", "..", "..", "assets", strings.TrimPrefix(href, "/static/"))
-		body, readErr := os.ReadFile(asset)
+		body, readErr := projectassets.Files.ReadFile(strings.TrimPrefix(href, "/static/"))
 		if readErr != nil {
 			t.Fatalf("font source %q has no vendored resource: %v", href, readErr)
 		}

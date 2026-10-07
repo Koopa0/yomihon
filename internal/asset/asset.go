@@ -256,8 +256,11 @@ func serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", e.contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	// Only the current served-byte token authorizes immutable caching.
-	// Recorded/stale/bare URLs revalidate; chunks retain their content-hashed
-	// filenames and revalidate even when supplied with a matching query.
+	// Old pages and bare names keep arriving; no-cache with the strong tag
+	// lets bare or stale addresses revalidate with a bodiless 304.
+	// Chunks keep their content-hashed filename identity: relative imports
+	// never carry the facade's query, so a matching query does not make them
+	// immutable.
 	// The modification time is deliberately zero — bytes baked into the binary
 	// have none, and inventing one would put a second, weaker validator beside
 	// the tag. http.ServeContent owns the conditional request, the byte range

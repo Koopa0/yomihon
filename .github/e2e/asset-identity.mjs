@@ -9,10 +9,14 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['styles', 'entry', 'module-set', 'module-identities', 'nonce', 'order', 'served-bytes'];
+const SITES = ['styles', 'resources', 'css-font-set', 'css-font-identities', 'entry', 'module-set', 'module-identities', 'nonce', 'order', 'served-bytes'];
 const mapElement = /<script type="importmap" nonce="[^"]*">([\s\S]*?)<\/script>/g;
 const MUTATIONS = {
   'drop-stylesheet-version': { target: 'styles', needle: /href="\/static\/app\.css\?v=[a-f0-9]{12}"/g, replacement: 'href="/static/app.css"' },
+  'drop-mark-version': { target: 'resources', needle: /src="\/static\/yomihon-mark\.svg\?v=[a-f0-9]{12}"/g, replacement: 'src="/static/yomihon-mark.svg"' },
+  'drop-preload-version': { target: 'resources', needle: /href="\/static\/fonts\/Geist-Variable\.woff2\?v=[a-f0-9]{12}"/g, replacement: 'href="/static/fonts/Geist-Variable.woff2"' },
+  'omit-css-font-url': { target: 'css-font-set', asset: '/static/app.css', needle: /url\('\/static\/fonts\/Newsreader-Latin-Italic-Variable\.woff2\?v=[a-f0-9]{12}'\)/g, replacement: "url('')" },
+  'drop-font-url-version': { target: 'css-font-identities', asset: '/static/app.css', needle: /url\('\/static\/fonts\/Newsreader-Latin-Italic-Variable\.woff2\?v=[a-f0-9]{12}'\)/g, replacement: "url('/static/fonts/Newsreader-Latin-Italic-Variable.woff2')" },
   'drop-entry-version': { target: 'entry', needle: /src="\/static\/yomihon\.js\?v=[a-f0-9]{12}"/g, replacement: 'src="/static/yomihon.js"' },
   'omit-relative-module': { target: 'module-set', needle: mapElement, map: (data) => { delete data.imports['/static/contents.js']; } },
   'omit-vendored-module': { target: 'module-set', needle: mapElement, map: (data) => { delete data.imports['/static/mermaid.esm.min.mjs']; } },
@@ -137,17 +141,19 @@ try {
   }
   const requestedPaths = [...new Set(responses.filter((response) => modulePaths.includes(response.url.pathname)).map((response) => response.url.pathname))].sort();
   if (JSON.stringify(requestedPaths) !== JSON.stringify(modulePaths)) fail('module-identities', 'native imports did not request the complete module graph and facade');
-  for (const address of declarations.resources) checkAddress(address, new URL(address, BASE).pathname, 'styles');
+  const resourcePaths = ['/static/app.css', '/static/chroma.css', '/static/yomihon.js', '/static/yomihon-mark.svg', '/static/yomihon-mark.svg', '/static/fonts/Geist-Variable.woff2', '/static/fonts/GeistMono-Variable.woff2', '/static/fonts/Newsreader-Latin-Variable.woff2'].sort();
+  if (JSON.stringify(declarations.resources.map((address) => new URL(address, BASE).pathname).sort()) !== JSON.stringify(resourcePaths)) fail('resources', 'page does not declare the complete static link/img/script multiset');
+  for (const address of declarations.resources) checkAddress(address, new URL(address, BASE).pathname, 'resources');
   const appCSS = checkAddress(declarations.styles[0], '/static/app.css', 'styles').bytes.toString('utf8');
   const cssFontURLs = [...appCSS.matchAll(/url\(['"]?(\/static\/fonts\/[^)'"\s]+)['"]?\)/g)].map((match) => match[1]);
   const fontFiles = await readdir(new URL('../../assets/fonts/', import.meta.url), { withFileTypes: true });
   const fontPaths = fontFiles.filter((file) => file.isFile() && file.name.endsWith('.woff2')).map((file) => `/static/fonts/${file.name}`).sort();
-  if (fontPaths.length !== 6 || JSON.stringify(cssFontURLs.map((address) => new URL(address, BASE).pathname).sort()) !== JSON.stringify(fontPaths)) fail('styles', 'served CSS does not address the complete embedded font set');
+  if (fontPaths.length !== 6 || JSON.stringify(cssFontURLs.map((address) => new URL(address, BASE).pathname).sort()) !== JSON.stringify(fontPaths)) fail('css-font-set', 'served CSS does not address the complete embedded font set');
   for (const address of cssFontURLs) {
     const url = new URL(address, BASE);
     const response = await context.request.get(url.href);
     responses.push({ url, status: response.status(), bytes: await response.body() });
-    checkAddress(address, url.pathname, 'styles');
+    checkAddress(address, url.pathname, 'css-font-identities');
   }
   for (const response of responses) {
     if (response.url.search !== `?v=${hash(response.bytes)}`) fail('served-bytes', `${response.url.pathname} returned bytes unlike its requested hash`);

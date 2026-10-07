@@ -34,7 +34,7 @@ func TestClientImportMapCoversEveryRegisteredModuleAndFacade(t *testing.T) {
 	got := decodedModuleImports(t, (Versions{}).ImportMap())
 	want := make(map[string]string)
 	for name, e := range registry {
-		if strings.Contains(name, "/") || !(strings.HasSuffix(name, ".js") || name == "mermaid.esm.min.mjs") {
+		if strings.Contains(name, "/") || !strings.HasSuffix(name, ".js") && name != "mermaid.esm.min.mjs" {
 			continue
 		}
 		if e.contentType != jsContentType {

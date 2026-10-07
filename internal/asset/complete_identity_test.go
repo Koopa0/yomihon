@@ -21,7 +21,7 @@ func TestImportMapVersionsTheCompleteModuleSet(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !(strings.Count(name, "/") == 1 && strings.HasSuffix(name, ".js") || name == "js/mermaid/mermaid.esm.min.mjs") {
+		if d.IsDir() || name != "js/mermaid/mermaid.esm.min.mjs" && (strings.Count(name, "/") != 1 || !strings.HasSuffix(name, ".js")) {
 			return nil
 		}
 		key := strings.TrimPrefix(name, "js/")
