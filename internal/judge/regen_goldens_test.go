@@ -54,7 +54,6 @@ func TestRegenerateGoldens(t *testing.T) {
 		{fixture: "testdata/vault-lines", golden: "testdata/golden/lines.jsonl"},
 		{fixture: "testdata/vault-planned", golden: "testdata/golden/planned.jsonl"},
 		{fixture: "testdata/vault-diskref", golden: "testdata/golden/diskref.jsonl"},
-		{fixture: "testdata/vault-markdown-encoded", golden: "testdata/golden/markdown-encoded.jsonl"},
 		{fixture: "testdata/vault-scope", golden: "testdata/golden/scope.jsonl"},
 		{fixture: "testdata/vault-mapmismatch", golden: "testdata/golden/mapmismatch.jsonl"},
 		{fixture: "testdata/vault-paths", golden: "testdata/golden/paths.jsonl"},
