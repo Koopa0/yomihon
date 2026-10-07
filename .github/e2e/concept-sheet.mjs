@@ -39,7 +39,7 @@ const mutation = async (page) => {
     } else if (MUTATE === 'phone-keeps-browser-cap') {
       const block = /@media\s*\(max-width:\s*720px\)\s*\{\s*\.y-conceptsheet\s*\{[^}]*\}/g;
       const matches = [...source.matchAll(block)];
-      const cap = /max-width:\s*100vw\s*;/g;
+      const cap = /max-width:\s*none\s*;/g;
       counts.push(matches.length === 1 ? [...matches[0][0].matchAll(cap)].length : matches.length);
       source = source.replace(block, (rule) => rule.replace(cap, ''));
     } else {
