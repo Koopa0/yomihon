@@ -32,7 +32,7 @@ export function initUncertainty() {
   for (const button of removals) {
     const { uncertaintyPath: path, uncertaintyAnchor: anchor } = button.dataset;
     const key = keyOf(path, anchor);
-    const said = button.parentElement.querySelector('[role="status"]');
+    const said = button.parentElement.querySelector('.y-uncertainty__said');
     controls.push({ key, button });
     ready.then(() => {
       button.disabled = !available || !keys.has(key);
