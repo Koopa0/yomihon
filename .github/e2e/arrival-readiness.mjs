@@ -38,6 +38,11 @@ let applied = false;
 try {
   requireSetup(!MUTATE || MUTATE === MODE, `unknown mutation ${MUTATE}`);
   let source = await readFile(new URL('./support/arrival.mjs', import.meta.url), 'utf8');
+  // Relative package resolution has no base inside a data URL. Rewrite the
+  // same unique import in control and mutant before either is loaded.
+  const importNeedle = "from 'playwright-core'";
+  requireSetup(source.split(importNeedle).length - 1 === 1, 'helper Playwright import is missing or ambiguous');
+  source = source.replace(importNeedle, `from ${JSON.stringify(import.meta.resolve('playwright-core'))}`);
   const originalSource = source;
   const { arrived: controlArrived } = await import(`data:text/javascript;base64,${Buffer.from(originalSource).toString('base64')}`);
   if (MUTATE) {
@@ -48,6 +53,129 @@ try {
   }
   const { arrived } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
   requireSetup(typeof arrived === 'function' && typeof controlArrived === 'function', 'shared arrival export is missing');
+
+  // These adapters exercise the actual original export at protocol boundaries;
+  // they do not manufacture Home/CSS/animation behavior for the browser oracle.
+  const deferred = () => {
+    let resolve;
+    const promise = new Promise((done) => { resolve = done; });
+    return { promise, resolve };
+  };
+  const protocolControls = async () => {
+    const receipt = async (promise, label) => {
+      let timer;
+      try {
+        await Promise.race([promise, new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new SetupFailure(`${label} receipt was not observed`)), 1000);
+        })]);
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    const expectTimeout = async (page, label) => {
+      const started = performance.now();
+      let error;
+      let timer;
+      try {
+        await Promise.race([controlArrived(page, 30), new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new SetupFailure(`${label} exceeded the control watchdog`)), 1000);
+        })]);
+      } catch (caught) {
+        error = caught;
+      } finally {
+        clearTimeout(timer);
+      }
+      requireSetup(error instanceof errors.TimeoutError && error.constructor === errors.TimeoutError,
+        `${label} did not preserve Playwright TimeoutError identity`);
+      requireSetup(performance.now() - started < 1000, `${label} cleanup extended the bounded timeout`);
+      console.log(`receipt: arrival-readiness protocol ${label} TimeoutError`);
+    };
+    const expectError = async (page, expected, label) => {
+      let error;
+      let timer;
+      try {
+        await Promise.race([controlArrived(page), new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new SetupFailure(`${label} exceeded the control watchdog`)), 1000);
+        })]);
+      } catch (caught) {
+        error = caught;
+      } finally {
+        clearTimeout(timer);
+      }
+      requireSetup(error === expected, `${label} changed ordinary protocol error identity`);
+    };
+
+    const creation = deferred();
+    const lateDisposed = deferred();
+    let lateDisposals = 0;
+    await expectTimeout({ evaluateHandle: () => creation.promise }, 'stalled-handle-creation');
+    creation.resolve({
+      jsonValue: () => { throw new SetupFailure('late handle was read after the deadline'); },
+      dispose: async () => { lateDisposals++; lateDisposed.resolve(); },
+    });
+    await receipt(lateDisposed.promise, 'late-handle-disposal');
+    requireSetup(lateDisposals === 1, 'late protocol handle was not disposed exactly once');
+
+    const valueRead = deferred();
+    const valueDisposed = deferred();
+    let valueDisposals = 0;
+    await expectTimeout({ evaluateHandle: async () => ({
+      jsonValue: () => valueRead.promise,
+      dispose: async () => { valueDisposals++; valueDisposed.resolve(); },
+    }) }, 'stalled-json-value');
+    await receipt(valueDisposed.promise, 'timed-out-value-disposal');
+    valueRead.resolve(true);
+    requireSetup(valueDisposals === 1, 'timed-out value handle was not disposed exactly once');
+
+    const disposal = deferred();
+    let disposalCalls = 0;
+    await expectTimeout({ evaluateHandle: async () => ({
+      jsonValue: async () => false,
+      dispose: () => { disposalCalls++; return disposal.promise; },
+    }) }, 'stalled-false-handle-disposal');
+    disposal.resolve();
+    requireSetup(disposalCalls === 1, 'false handle disposal was retried or skipped');
+
+    let calls = 0;
+    let falseDisposals = 0;
+    let transferredDisposals = 0;
+    const transferred = {
+      jsonValue: async () => true,
+      dispose: async () => { transferredDisposals++; },
+    };
+    const handle = await controlArrived({ evaluateHandle: async () => {
+      calls++;
+      if (calls === 1) return {
+        jsonValue: async () => false,
+        dispose: async () => { falseDisposals++; },
+      };
+      requireSetup(calls === 2 && falseDisposals === 1, 'retry preceded false-handle disposal');
+      return transferred;
+    } });
+    requireSetup(handle === transferred && transferredDisposals === 0, 'successful JSHandle ownership did not transfer to caller');
+    await handle.dispose();
+    requireSetup(transferredDisposals === 1, 'caller could not dispose transferred JSHandle');
+    const override = await controlArrived({ evaluateHandle: async () => transferred }, 5000);
+    requireSetup(override === transferred && transferredDisposals === 1, '5000ms override changed successful ownership');
+    await override.dispose();
+
+    const protocolError = new Error('controlled ordinary protocol failure');
+    await expectError({ evaluateHandle: async () => { throw protocolError; } }, protocolError, 'handle-creation-error');
+    let errorDisposals = 0;
+    const errorDisposed = deferred();
+    await expectError({ evaluateHandle: async () => ({
+      jsonValue: async () => { throw protocolError; },
+      dispose: async () => { errorDisposals++; errorDisposed.resolve(); },
+    }) }, protocolError, 'json-value-error');
+    await receipt(errorDisposed.promise, 'error-handle-disposal');
+    requireSetup(errorDisposals === 1, 'error handle was not disposed exactly once');
+    await expectError({ evaluateHandle: async () => ({
+      jsonValue: async () => false,
+      dispose: async () => { throw protocolError; },
+    }) }, protocolError, 'false-disposal-error');
+    console.log('PASS arrival-readiness actual original helper protocol deadline, disposal and error controls');
+  };
+  await protocolControls();
   browser = await chromium.launch({ channel: 'chrome', headless: true });
 
   const runCase = async (delayed, helper = arrived) => {
@@ -201,13 +329,28 @@ try {
       }
     };
     const numericWait = async (predicate, argument = null) => {
-      const handle = await page.waitForFunction(predicate, argument, { polling: 50, timeout: 3000 });
-      handles.add(handle);
+      // Independent oracle: direct protocol evaluation driven by the host,
+      // never the helper or an in-page RAF/numeric-timer polling loop.
+      const deadline = performance.now() + 3000;
+      const timeoutError = new errors.TimeoutError('independent no-JS readiness timed out after 3000ms');
+      let expired = false;
+      let timer;
+      const polling = async () => {
+        for (;;) {
+          if (expired || performance.now() >= deadline) throw timeoutError;
+          const value = await page.evaluate(predicate, argument);
+          if (expired || performance.now() >= deadline) throw timeoutError;
+          if (value) return value;
+          await new Promise((resolve) => setTimeout(resolve, Math.min(50, deadline - performance.now())));
+        }
+      };
       try {
-        return await handle.jsonValue();
+        return await Promise.race([polling(), new Promise((_, reject) => {
+          timer = setTimeout(() => reject(timeoutError), Math.max(0, Math.ceil(deadline - performance.now())));
+        })]);
       } finally {
-        await handle.dispose();
-        handles.delete(handle);
+        expired = true;
+        clearTimeout(timer);
       }
     };
     const restoreObserver = async () => {
@@ -423,7 +566,7 @@ try {
   requireSetup(noJSControl.valid, 'original helper failed initially-ready no-JS positive control');
   console.log('PASS arrival-readiness initially-ready no-JS positive control');
   // The existing async fault keeps its own assertion and original controls.
-  // The default-RAF baseline is independent of that selected async fault.
+  // The no-JS host-poll control is independent of that selected async fault.
   if (!MUTATE) {
     const noJS = await runNoJS(false, arrived);
     if (noJS.timeout) {
