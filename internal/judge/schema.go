@@ -201,7 +201,7 @@ func (r *lintRun) articleLanguage(n *note) []Finding {
 func (r *lintRun) unknownKeys(n *note, noteType string) []Finding {
 	var out []Finding
 	isLesson := noteType != "" && noteType == r.lessonType
-	invalidType := false
+	invalidType := noteType != "" && !r.contract.DeclaresType(noteType)
 	deferred := false
 	for _, key := range slices.Sorted(maps.Keys(n.frontmatter)) {
 		if slices.Contains(r.definition.Fields.Known, key) {
