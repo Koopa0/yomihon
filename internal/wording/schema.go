@@ -90,7 +90,7 @@ func FrontmatterExplanation(lang Lang, diagnostic string) (summary, detail strin
 
 func unsupportedFrontmatter(diagnostic string) bool {
 	return strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: runtime error:") ||
-		strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: unreachable map key:")
+		strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: invalid map key:")
 }
 
 // The pieces the sentences above are made of. They are fragments rather than
