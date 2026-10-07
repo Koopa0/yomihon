@@ -27,7 +27,7 @@ type agreementProbe struct {
 	Absent     bool
 }
 
-func agreementWrite(t *testing.T, root, path string, data []byte) {
+func agreementWrite(t agreementTB, root, path string, data []byte) {
 	t.Helper()
 	tree, err := os.OpenRoot(root)
 	if err != nil {
@@ -70,6 +70,16 @@ func agreementCandidates(body string, observed *agreementHTML) []string {
 
 func agreementFragments(t *testing.T, cases []agreementCase, actual []agreementHTML) {
 	t.Helper()
+	for index, failures := range agreementFragmentFailures(t, cases, actual) {
+		for _, failure := range failures {
+			t.Errorf("caught: %s %s case=%s body=%q observations=%s", failure.Property, failure.Identity, cases[index].Name, cases[index].Body, failure.Observation)
+		}
+	}
+}
+
+func agreementFragmentFailures(t agreementTB, cases []agreementCase, actual []agreementHTML) [][]agreementFailure {
+	t.Helper()
+	failures := make([][]agreementFailure, len(cases))
 	if len(cases) != len(actual) {
 		t.Fatalf("fragment observation count = %d, want %d", len(actual), len(cases))
 	}
@@ -113,7 +123,15 @@ func agreementFragments(t *testing.T, cases []agreementCase, actual []agreementH
 		for family, fragments := range [][]string{blocks, headings} {
 			for index, fragment := range fragments {
 				if strings.ContainsAny(fragment, "|#]\r\n") || strings.HasSuffix(fragment, "\\") {
-					t.Errorf("caught: P%d candidate-unspellable case=%s fragment=%q body=%q", family+3, c.Name, fragment, c.Body)
+					// Manufactured raw candidates that are not literal addresses do
+					// not assert product behavior. An emitted id must be spellable.
+					emitted := slices.Contains(observed.Blocks, fragment)
+					if family == 1 {
+						emitted = slices.Contains(observed.Headings, fragment)
+					}
+					if emitted {
+						failures[i] = append(failures[i], agreementFailure{Property: fmt.Sprintf("P%d", family+3), Identity: "candidate-unspellable", Fragment: fragment, Direction: "page-unspellable", Multiplicity: 1, Observation: fmt.Sprintf("emitted fragment=%q cannot be losslessly probed", fragment)})
+					}
 					continue
 				}
 				rule := judge.RuleID("link.block_missing")
@@ -164,24 +182,37 @@ func agreementFragments(t *testing.T, cases []agreementCase, actual []agreementH
 		}
 		if probe.Rule == "link.section_missing" {
 			if !probe.Absent && !accepted {
-				t.Errorf("caught: P4 literal-heading-id case=%s id=%q body=%q check=missing", c.Name, probe.Fragment, c.Body)
+				failures[probe.Case] = append(failures[probe.Case], agreementFailure{Property: "P4", Identity: "literal-heading-id", Fragment: probe.Fragment, Direction: "page-only", Multiplicity: 1, PagePresent: true, Observation: fmt.Sprintf("id=%q check=missing", probe.Fragment)})
 			}
 			continue
 		}
 		present := slices.Contains(actual[probe.Case].Blocks, probe.Fragment)
 		excerpt, found := render.Excerpt(c.Body, probe.Fragment)
 		if present != accepted || present != found {
-			t.Errorf("caught: P3 block-three-way case=%s id=%q body=%q page=%t judge=%t excerpt=%t cut=%q", c.Name, probe.Fragment, c.Body, present, accepted, found, excerpt)
+			observations := []struct {
+				name string
+				has  bool
+			}{{name: "page", has: present}, {name: "judge", has: accepted}, {name: "excerpt", has: found}}
+			for _, observation := range observations {
+				if observation.has != present {
+					direction := observation.name + "-only"
+					if present {
+						direction = "page-not-" + observation.name
+					}
+					failures[probe.Case] = append(failures[probe.Case], agreementFailure{Property: "P3", Identity: "block-three-way", Fragment: probe.Fragment, Direction: direction, Multiplicity: 1, Cut: excerpt, PagePresent: present, JudgeAccepted: accepted, ExcerptFound: found, Observation: fmt.Sprintf("id=%q page=%t judge=%t excerpt=%t cut=%q", probe.Fragment, present, accepted, found, excerpt)})
+				}
+			}
 		}
 		if !found && excerpt != "" {
-			t.Errorf("caught: P3 missing-excerpt-widened case=%s id=%q cut=%q", c.Name, probe.Fragment, excerpt)
+			failures[probe.Case] = append(failures[probe.Case], agreementFailure{Property: "P3", Identity: "missing-excerpt-widened", Fragment: probe.Fragment, Direction: "excerpt-widened", Multiplicity: 1, Cut: excerpt, PagePresent: present, JudgeAccepted: accepted, ExcerptFound: found, Observation: fmt.Sprintf("id=%q cut=%q", probe.Fragment, excerpt)})
 		}
 	}
+	return failures
 }
 
-func agreementMissing(t *testing.T, root string, probes []agreementProbe) map[string]int {
+func agreementMissing(t agreementTB, root string, probes []agreementProbe) map[string]int {
 	t.Helper()
-	findings, err := judge.Check(t.Context(), root)
+	findings, err := agreementPublicCheck(t, root)
 	if err != nil {
 		t.Fatalf("public Check setup/refusal: %v", err)
 	}

@@ -494,7 +494,7 @@ func agreementControlElements(t *testing.T, text string) []agreementControlEleme
 	return elements
 }
 
-func agreementAttributionRoot(t *testing.T) string {
+func agreementAttributionRoot(t agreementTB) string {
 	t.Helper()
 	root := t.TempDir()
 	data, err := os.ReadFile("../schema/testdata/contract.toml")
@@ -670,5 +670,255 @@ func agreementEnvelopeIdentity(t *testing.T) {
 		t.Run(body, func(t *testing.T) {
 			agreementEnvelope(t, body)
 		})
+	}
+}
+
+// These rows offer real renderer/LinkTargets/public-Check observations to the
+// classifier. The expected eligibility is independently written per row.
+func TestAgreementDifferenceControls(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		body    string
+		allowed int
+	}{
+		{name: "one title owns one occurrence", body: "> [!note] [[A]]\n", allowed: 1},
+		{name: "title and unrelated code delta", body: "> [!note] [[A]]\n> body\n\n`open\n[[B]]\nclose`", allowed: 1},
+		{name: "repeated target title and body", body: "> [!note] [[A]]\n> [[A]]\n", allowed: 1},
+		{name: "code is no title owner", body: "```\n> [!note] [[A]]\n```\n"},
+		{name: "ambiguous duplicate title ownership", body: "> [!note] [[A]]\n> [!note] [[A]]\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := agreementCase{Name: tc.name, Body: tc.body}
+			page := render.New(graph.BuildFromNotes(nil, nil), capturedBodies{}, noTitlesDeclared{}, everyFileHeld{})
+			result := page.HTML("Notes/Reading.md", "", c.Body, wording.En)
+			actual := agreementObserve(t, result.HTML)
+			failures := agreementPageFailures(c.Body, &result, &actual)
+			allowed := agreementDesignedDifferences(t, c, &actual, failures)
+			if len(allowed) != tc.allowed {
+				t.Errorf("caught: designed-occurrence-ownership allowed=%d want=%d failures=%+v", len(allowed), tc.allowed, failures)
+			}
+			for _, failure := range failures {
+				if !allowed[agreementSignature(failure)] {
+					continue
+				}
+				for _, changed := range []agreementFailure{
+					{Property: "P0", Identity: failure.Identity, Tuple: failure.Tuple, Direction: failure.Direction, Multiplicity: failure.Multiplicity},
+					{Property: failure.Property, Identity: failure.Identity, Tuple: failure.Tuple, Direction: "page-only", Multiplicity: failure.Multiplicity},
+					{Property: failure.Property, Identity: failure.Identity, Tuple: failure.Tuple, Direction: failure.Direction, Multiplicity: failure.Multiplicity + 1},
+					{Property: failure.Property, Identity: failure.Identity, Tuple: failure.Tuple, Fragment: "^different", Direction: failure.Direction, Multiplicity: failure.Multiplicity},
+				} {
+					if got := agreementDesignedDifferences(t, c, &actual, []agreementFailure{changed}); len(got) != 0 {
+						t.Errorf("caught: designed-signature-drift accepted=%+v", changed)
+					}
+				}
+			}
+		})
+	}
+	t.Run("retired inline footnote literal", func(t *testing.T) {
+		body := "paragraph ^[literal]\n"
+		page := render.New(graph.BuildFromNotes(nil, nil), capturedBodies{}, noTitlesDeclared{}, everyFileHeld{})
+		result := page.HTML("Notes/Reading.md", "", body, wording.En)
+		actual := agreementObserve(t, result.HTML)
+		cut, found := render.Excerpt(body, "^[literal]")
+		if len(actual.Blocks) != 0 || found || cut != "" {
+			t.Errorf("caught: retired-inline-footnote-defect blocks=%q found=%t cut=%q", actual.Blocks, found, cut)
+		}
+		failures := agreementFragmentFailures(t, []agreementCase{{Name: "retired-inline-footnote", Body: body}}, []agreementHTML{actual})
+		if len(failures[0]) != 0 {
+			t.Errorf("caught: manufactured-raw-candidate-debt failures=%+v", failures[0])
+		}
+	})
+	t.Run("setup is distinct from behavior", func(t *testing.T) {
+		setup := agreementCapture(t, func(observer agreementTB) {
+			observer.Fatalf("controlled observation setup refusal")
+		})
+		if setup != "controlled observation setup refusal" {
+			t.Errorf("caught: setup-channel got=%q", setup)
+		}
+		c := agreementCounterexample{Case: agreementCase{Body: "[[A]]"}, Failure: agreementFailure{Property: "setup", Observation: setup}}
+		body, candidates, checks, stop := agreementMinimize(t, c)
+		if body != c.Case.Body || candidates != 0 || checks != 0 || stop != "not-attempted setup-failure" {
+			t.Errorf("caught: setup-minimization body=%q candidates=%d checks=%d stop=%q", body, candidates, checks, stop)
+		}
+	})
+}
+
+func TestAgreementWitnessControls(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		body  string
+		known int
+	}{
+		{name: "unused-footnote-2-0332", body: "[^unused]: [[A]]\n", known: 2},
+		{name: "fence-info-2-0984", body: "``` [[A]]\n", known: 1},
+		{name: "multiline-code-1-1357", body: "`open\n[[A]]\nclose`", known: 2},
+		{name: "duplicate-heading-3-1181", body: "## A\n## A\n", known: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := agreementCase{Name: tc.name, Body: tc.body}
+			result, actual := agreementIsolatedPage(t, c)
+			failures := agreementPageFailures(c.Body, &result, &actual)
+			fragments := agreementFragmentFailures(t, []agreementCase{c}, []agreementHTML{actual})
+			failures = append(failures, fragments[0]...)
+			known := 0
+			for _, failure := range failures {
+				kind, authority, wrong := agreementKnownDifference(c, failure)
+				if kind == "" {
+					continue
+				}
+				known++
+				if kind != "debt" || (authority != "#1011 stage 4" && authority != "#1011 stage 8") || wrong == "" {
+					t.Errorf("caught: debt-witness-provenance kind=%q authority=%q wrong=%q", kind, authority, wrong)
+				}
+				changed := failure
+				changed.Direction = "different-direction"
+				if kind, _, _ := agreementKnownDifference(c, changed); kind != "" {
+					t.Errorf("caught: debt-wrong-direction accepted=%+v", changed)
+				}
+				changed = failure
+				changed.Multiplicity++
+				if kind, _, _ := agreementKnownDifference(c, changed); kind != "" {
+					t.Errorf("caught: debt-occurrence-budget accepted=%+v", changed)
+				}
+				companion := c
+				companion.Companions = capturedBodies{"Notes/Other.md": "other"}
+				if kind, _, _ := agreementKnownDifference(companion, failure); kind != "" {
+					t.Errorf("caught: debt-companion-drift accepted=%+v", failure)
+				}
+				budget := agreementReplayBudget{Candidates: 128, Checks: 64}
+				body, candidates, checks, stop := agreementMinimizeBudget(t, agreementCounterexample{Case: c, Failure: failure}, &budget)
+				if body != c.Body || candidates != 0 || checks != 0 || stop != "not-attempted public-check-budget" {
+					t.Errorf("caught: minimizer-budget body=%q candidates=%d checks=%d stop=%q", body, candidates, checks, stop)
+				}
+			}
+			if known != tc.known {
+				t.Errorf("caught: active-debt-witness-membership known=%d want=%d failures=%+v", known, tc.known, failures)
+			}
+		})
+	}
+}
+
+func TestAgreementMinimizerControls(t *testing.T) {
+	t.Parallel()
+	c := agreementCase{
+		Name:       "reducer-selected-code-occurrence",
+		Body:       "unrelated prefix\n\n`open\n[[A]]\nclose`\n\nunrelated suffix\n",
+		Title:      "Preserved Title",
+		Companions: capturedBodies{"Notes/Other.md": "## Protected companion\n"},
+	}
+	want := agreementFailure{
+		Property: "P1", Identity: "citation-occurrences",
+		Tuple: agreementCitation{Target: "A"}, Direction: "page-only", Multiplicity: 1,
+	}
+	result, actual := agreementIsolatedPage(t, c)
+	failures := agreementPageFailures(c.Body, &result, &actual)
+	selected := agreementFailure{}
+	matches := 0
+	for _, failure := range failures {
+		if agreementSignature(failure) == agreementSignature(want) {
+			selected = failure
+			matches++
+		}
+	}
+	if matches != 1 || actual.CitationsInCode != 1 {
+		t.Fatalf("not-applied: minimizer actual selected-code boundary matches=%d code=%d failures=%+v", matches, actual.CitationsInCode, failures)
+	}
+	t.Run("retains selected producer difference", func(t *testing.T) {
+		body, candidates, checks, stop := agreementMinimize(t, agreementCounterexample{Case: c, Failure: selected})
+		if body == c.Body || body == "" || candidates == 0 || checks <= 2 {
+			t.Fatalf("caught: minimizer-no-preserved-reduction original=%q body=%q candidates=%d checks=%d stop=%q", c.Body, body, candidates, checks, stop)
+		}
+		reduced := c
+		reduced.Body = body
+		result, actual := agreementIsolatedPage(t, reduced)
+		observed := agreementPageFailures(body, &result, &actual)
+		fragments := agreementFragmentFailures(t, []agreementCase{reduced}, []agreementHTML{actual})
+		observed = append(observed, fragments[0]...)
+		matches := 0
+		for _, failure := range observed {
+			if agreementSignature(failure) == agreementSignature(want) {
+				matches++
+			}
+		}
+		if matches != 1 || actual.CitationsInCode != 1 {
+			t.Errorf("caught: minimizer-selected-signature-lost body=%q code=%d failures=%+v", body, actual.CitationsInCode, observed)
+		}
+		wantContext := agreementCase{
+			Name: "reducer-selected-code-occurrence", Body: c.Body,
+			Title: "Preserved Title", Companions: capturedBodies{"Notes/Other.md": "## Protected companion\n"},
+		}
+		if diff := cmp.Diff(wantContext, c); diff != "" {
+			t.Errorf("caught: minimizer-original-context-mutated (-want +got):\n%s", diff)
+		}
+		if reduced.Title != "Preserved Title" || len(reduced.Companions) != 1 || reduced.Companions["Notes/Other.md"] != "## Protected companion\n" {
+			t.Errorf("caught: minimizer-replay-context-drift reduced=%+v", reduced)
+		}
+	})
+	t.Run("refuses original defect switch", func(t *testing.T) {
+		switched := selected
+		switched.Tuple.Target = "B"
+		body, candidates, checks, stop := agreementMinimize(t, agreementCounterexample{Case: c, Failure: switched})
+		if body != c.Body || candidates != 0 || checks != 2 || stop != "not-attempted isolated-different-signature" {
+			t.Errorf("caught: minimizer-original-defect-switch body=%q candidates=%d checks=%d stop=%q", body, candidates, checks, stop)
+		}
+	})
+}
+
+func TestAgreementMinimizerFragmentContext(t *testing.T) {
+	t.Parallel()
+	c := agreementCase{
+		Name:       "reducer-fragment-with-owned-context",
+		Body:       "unrelated prefix\n\n![[Notes/Child]]\n\nunrelated suffix\n",
+		Title:      "A",
+		Companions: capturedBodies{"Notes/Child.md": "## A\n"},
+	}
+	want := agreementFailure{
+		Property: "P4", Identity: "literal-heading-id", Fragment: "a-2",
+		Direction: "page-only", Multiplicity: 1, PagePresent: true,
+	}
+	observe := func(c agreementCase) []agreementFailure {
+		result, actual := agreementIsolatedPage(t, c)
+		failures := agreementPageFailures(c.Body, &result, &actual)
+		fragments := agreementFragmentFailures(t, []agreementCase{c}, []agreementHTML{actual})
+		return append(failures, fragments[0]...)
+	}
+	matches := func(failures []agreementFailure) int {
+		count := 0
+		for _, failure := range failures {
+			if agreementSignature(failure) == agreementSignature(want) {
+				count++
+			}
+		}
+		return count
+	}
+	original := observe(c)
+	if matches(original) != 1 {
+		t.Fatalf("not-applied: actual title/companion fragment context lacks selected a-2: %+v", original)
+	}
+	withoutTitle := c
+	withoutTitle.Title = ""
+	withoutCompanion := c
+	withoutCompanion.Companions = capturedBodies{}
+	if matches(observe(withoutTitle)) != 0 || matches(observe(withoutCompanion)) != 0 {
+		t.Fatal("not-applied: selected fragment does not depend on both title and companion")
+	}
+	body, candidates, checks, stop := agreementMinimize(t, agreementCounterexample{Case: c, Failure: want})
+	if body == c.Body || body == "" || candidates == 0 || checks <= 2 {
+		t.Fatalf("caught: minimizer-context-reduction original=%q reduced=%q candidates=%d checks=%d stop=%q", c.Body, body, candidates, checks, stop)
+	}
+	reduced := c
+	reduced.Body = body
+	if got := observe(reduced); matches(got) != 1 {
+		t.Errorf("caught: minimizer-fragment-context-lost body=%q failures=%+v", body, got)
+	}
+	wantOriginal := agreementCase{
+		Name:  "reducer-fragment-with-owned-context",
+		Body:  "unrelated prefix\n\n![[Notes/Child]]\n\nunrelated suffix\n",
+		Title: "A", Companions: capturedBodies{"Notes/Child.md": "## A\n"},
+	}
+	if diff := cmp.Diff(wantOriginal, c); diff != "" {
+		t.Errorf("caught: minimizer-material-context-mutated (-want +got):\n%s", diff)
 	}
 }

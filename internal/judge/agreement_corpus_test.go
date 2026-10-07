@@ -192,7 +192,7 @@ func agreementFuzzArgument(t *testing.T, encoded, wantType string) *ast.BasicLit
 	return literal
 }
 
-func agreementEnvelope(t *testing.T, body string) []byte {
+func agreementEnvelope(t agreementTB, body string) []byte {
 	t.Helper()
 	wrapped := []byte("---\n---\n" + body)
 	split, _ := vault.SplitFrontmatter(wrapped)

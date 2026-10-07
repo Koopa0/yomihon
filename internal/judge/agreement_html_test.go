@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"testing"
 
 	"golang.org/x/net/html"
 
@@ -37,6 +36,9 @@ type agreementHTML struct {
 	CitationsInCode int
 	Blocks          []string
 	Headings        []string
+	Failures        []agreementFailure
+	CodeCitations   []agreementCitation
+	CalloutTitles   []string
 }
 
 func agreementCitationCompare(a, b agreementCitation) int {
@@ -199,12 +201,12 @@ func agreementQuoted(text string) (quoted, remainder string, quoteErr error) {
 	return "", "", fmt.Errorf("unterminated quoted target %q", text)
 }
 
-func agreementObserve(t *testing.T, text string) agreementHTML {
+func agreementObserve(t agreementTB, text string) agreementHTML {
 	t.Helper()
 	return agreementObserveKnown(t, text, nil)
 }
 
-func agreementObserveKnown(t *testing.T, text string, known map[string]string) agreementHTML {
+func agreementObserveKnown(t agreementTB, text string, known map[string]string) agreementHTML {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(text))
 	if err != nil {
@@ -222,6 +224,20 @@ func agreementObserveKnown(t *testing.T, text string, known map[string]string) a
 		if len(n.Data) == 2 && n.Data[0] == 'h' && n.Data[1] >= '1' && n.Data[1] <= '6' && id != "" {
 			result.Headings = append(result.Headings, id)
 		}
+		if agreementClass(n, "callout-title") {
+			var title strings.Builder
+			var words func(*html.Node)
+			words = func(child *html.Node) {
+				if child.Type == html.TextNode {
+					title.WriteString(child.Data)
+				}
+				for next := child.FirstChild; next != nil; next = next.NextSibling {
+					words(next)
+				}
+			}
+			words(n)
+			result.CalloutTitles = append(result.CalloutTitles, title.String())
+		}
 		if !agreementCarrier(n) {
 			return
 		}
@@ -230,7 +246,7 @@ func agreementObserveKnown(t *testing.T, text string, known map[string]string) a
 		}
 		state, shapeErr := agreementCarrierState(n)
 		if shapeErr != nil {
-			t.Errorf("caught: P0 citation-shape tag=%q class=%q href=%q error=%v html=%q", n.Data, agreementAttr(n, "class"), agreementAttr(n, "href"), shapeErr, text)
+			result.Failures = append(result.Failures, agreementFailure{Property: "P0", Identity: "citation-shape", Direction: "page-invalid", Multiplicity: 1, Observation: fmt.Sprintf("tag=%q class=%q href=%q error=%v", n.Data, agreementAttr(n, "class"), agreementAttr(n, "href"), shapeErr)})
 			return
 		}
 		if agreementClass(n, "wikilink") {
@@ -248,7 +264,11 @@ func agreementObserveKnown(t *testing.T, text string, known map[string]string) a
 			if !held {
 				t.Fatalf("unexpected resolved citation carrier: href=%q html=%q", href, text)
 			}
-			result.Citations = append(result.Citations, agreementCitation{Target: target, Section: parsed.Fragment, State: state})
+			citation := agreementCitation{Target: target, Section: parsed.Fragment, State: state}
+			result.Citations = append(result.Citations, citation)
+			if code {
+				result.CodeCitations = append(result.CodeCitations, citation)
+			}
 			return
 		}
 		citation, parseErr := agreementNotice(agreementAttr(n, "title"))
@@ -256,6 +276,9 @@ func agreementObserveKnown(t *testing.T, text string, known map[string]string) a
 			t.Fatalf("observe citation: %v; html=%q", parseErr, text)
 		}
 		result.Citations = append(result.Citations, citation)
+		if code {
+			result.CodeCitations = append(result.CodeCitations, citation)
+		}
 	}
 	var walk func(*html.Node, bool)
 	walk = func(n *html.Node, code bool) {
@@ -269,7 +292,7 @@ func agreementObserveKnown(t *testing.T, text string, known map[string]string) a
 	return result
 }
 
-func agreementTitleHTML(t *testing.T, c agreementCase, result *render.Result) agreementHTML {
+func agreementTitleHTML(t agreementTB, c agreementCase, result *render.Result) agreementHTML {
 	t.Helper()
 	var buf bytes.Buffer
 	view := pages.NoteView{Title: c.Title, RelPath: "Notes/Reading.md", BodyHTML: result.HTML, TitleAnchor: result.TitleAnchor, TOC: result.TOC}
