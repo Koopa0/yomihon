@@ -858,8 +858,18 @@ try {
   // multi-section reading and an eligible long single-heading reading.
   await run('reading-position-survives', async () => {
     for (const width of [901, 1000, 1024]) {
-      for (const long of [false, true]) {
-        const { page, context, checkProof } = await open('reading-position-survives', long ? '/notes/Notes/mark-long-offset.md' : '/notes/Notes/reading-fidelity.md', { width });
+      for (const [long, collapsed] of [[false, false], [true, false], [true, true]]) {
+        const action = collapsed ? 'reopened' : 'folded';
+        const { page, context, checkProof } = await open('reading-position-survives', long ? '/notes/Notes/mark-long-offset.md' : '/notes/Notes/reading-fidelity.md', { width, collapsed });
+        const frames = () => page.evaluate(() => new Promise((resolve) => {
+          let remaining = 8;
+          const next = () => {
+            remaining -= 1;
+            if (remaining === 0) resolve();
+            else requestAnimationFrame(next);
+          };
+          requestAnimationFrame(next);
+        }));
         await checkProof();
         if (long) await page.addStyleTag({ content: 'html,body,.y-main{overflow-anchor:none!important}' });
         await page.evaluate(() => document.fonts.ready);
@@ -903,55 +913,73 @@ try {
         if (long) await page.locator(TOGGLE).click();
         else await key(page, '[');
         await settled(page);
-        await page.waitForFunction(() => document.querySelectorAll('[data-prose-measuring]').length === 0);
+        await page.waitForFunction(({ state, railWidth }) => document.documentElement.dataset.rail === state
+          && Math.abs(document.querySelector('#_y-nav-rail').getBoundingClientRect().width - railWidth) <= 1,
+        { state: collapsed ? 'open' : 'collapsed', railWidth: collapsed ? NOTE_OPEN_NARROW : STRIP });
+        await frames();
         const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
         // Where the text is narrower than its measure the fold widens it and the
         // paragraphs above the reader reflow; the narrowest width has to be such a
         // case, or the assertion below would pass for lack of anything to move. The
         // widths above it are asked whichever way they fall, because the measure's
         // edge sits within a few pixels of one of them and moves with the platform.
-        if (width === 901 && !(before.width < MEASURE && after.width > before.width)) {
+        if (width === 901 && !(collapsed ? after.width < MEASURE && before.width > after.width : before.width < MEASURE && after.width > before.width)) {
           broken(`at 901px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
         }
         if (Math.abs(after.top - before.top) > 2) {
-          fail('reading-position-survives', `at ${width}px the paragraph being read moved ${after.top - before.top}px when the column folded`);
+          fail('reading-position-survives', `at ${width}px the paragraph being read moved ${after.top - before.top}px when the column ${action}`);
         }
         if (long) {
-          // The prefix must remember authored heights at the new measure, not
-          // just leave the current paragraph at a convincing placeholder depth.
-          // Revealing that bounded span without automatic anchoring cannot move
-          // a reading whose preceding blocks were actually laid out by the fold.
+          // A real, non-scrolling key releases any remaining production hold.
+          // Marker absence alone cannot prove release when the mutation removes
+          // the marker write but leaves the compensation loop running.
+          const standing = await page.evaluate(() => ({
+            top: window.__reading.getBoundingClientRect().top,
+            width: window.__reading.getBoundingClientRect().width,
+            rail: document.querySelector('#_y-nav-rail').getBoundingClientRect().width,
+            state: document.documentElement.dataset.rail, scroll: window.scrollY,
+          }));
+          await page.keyboard.down('Shift');
+          await page.keyboard.up('Shift');
+          await frames();
+          const released = await page.evaluate(() => ({
+            top: window.__reading.getBoundingClientRect().top,
+            width: window.__reading.getBoundingClientRect().width,
+            rail: document.querySelector('#_y-nav-rail').getBoundingClientRect().width,
+            state: document.documentElement.dataset.rail, scroll: window.scrollY,
+          }));
+          if (released.state !== standing.state || ['top', 'width', 'rail', 'scroll'].some((name) => Math.abs(released[name] - standing[name]) > 2)) {
+            fail('reading-position-survives', `at ${width}px releasing the ${action} reading changed its coordinates: ${JSON.stringify({ standing, released })}`);
+          }
+          // Reveal only the bounded prefix after release. No scroll correction
+          // follows this action: the original paragraph must retain its place.
           await page.evaluate(() => {
             for (const block of window.__readingPrefix) block.dataset.railProbePrefix = '';
           });
           const prefixStyle = await page.addStyleTag({ content: '.y-prose > [data-rail-probe-prefix]{content-visibility:visible}' });
-          await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          await frames();
           const revealed = await page.evaluate(() => ({
             top: window.__reading.getBoundingClientRect().top,
             height: window.__readingPrefix.reduce((sum, block) => sum + block.getBoundingClientRect().height, 0),
           }));
-          if (width === 901 && prefix.height - revealed.height < prefix.viewport) {
+          if (width === 901 && (collapsed ? revealed.height - prefix.height : prefix.height - revealed.height) < prefix.viewport) {
             broken(`the authored prefix changed from ${prefix.height}px to ${revealed.height}px, too little to challenge old-measure heights`);
           }
           const measuredTop = revealed.top;
-          if (Math.abs(measuredTop - before.top) > 2) fail('reading-position-survives', `at ${width}px the folded long prefix held stale heights and moved the paragraph ${measuredTop - before.top}px when read`);
+          if (Math.abs(measuredTop - before.top) > 2) fail('reading-position-survives', `at ${width}px the ${action} long prefix held stale heights and moved the paragraph ${measuredTop - before.top}px when read`);
           await prefixStyle.evaluate((element) => element.remove());
           await page.evaluate(() => {
             for (const block of window.__readingPrefix) delete block.dataset.railProbePrefix;
           });
           const tail = await page.locator('.y-prose > p').last().evaluate((element) => getComputedStyle(element).contentVisibility);
           if (tail !== 'auto') fail('reading-position-survives', 'the single-heading long reading no longer defers its tail');
-          await key(page, '[');
-          await settled(page);
-          await page.waitForFunction(() => document.querySelectorAll('[data-prose-measuring]').length === 0);
-          const reopened = await page.evaluate(() => window.__reading.getBoundingClientRect().top);
-          if (Math.abs(reopened - before.top) > 2) fail('reading-position-survives', `at ${width}px the long reading moved ${reopened - before.top}px when the column reopened`);
-          await page.addStyleTag({ content: 'html,body,.y-main{overflow-anchor:none!important}' });
-          await context.addCookies([{ name: 'yomihon_rail', value: 'collapsed', url: BASE }]);
-          await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
-          await page.waitForFunction(() => document.querySelectorAll('[data-prose-measuring]').length === 0);
-          const restored = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, state: document.documentElement.dataset.rail }));
-          if (restored.state !== 'collapsed' || Math.abs(restored.top - before.top) > 2) fail('reading-position-survives', `at ${width}px the cached-state writer lost the long reading: ${JSON.stringify(restored)}`);
+          if (collapsed) {
+            await context.addCookies([{ name: 'yomihon_rail', value: 'collapsed', url: BASE }]);
+            await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+            await page.waitForFunction(() => document.querySelectorAll('[data-prose-measuring]').length === 0);
+            const restored = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, state: document.documentElement.dataset.rail }));
+            if (restored.state !== 'collapsed' || Math.abs(restored.top - before.top) > 2) fail('reading-position-survives', `at ${width}px the cached-state writer lost the long reading: ${JSON.stringify(restored)}`);
+          }
 
         }
         await context.close();
