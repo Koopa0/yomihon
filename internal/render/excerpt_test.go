@@ -22,7 +22,7 @@ func TestPlainProjectionDisplay(t *testing.T) {
 		{"nested", "~~**old** `code` ==new==~~", "~~old code ==new==~~", "old code new", "old code new"},
 		{"code", "`~~old~~ ==new==`", "~~old~~ ==new==", "~~old~~ ==new==", ""},
 		{"fence", "```\n~~old~~ ==new==\n```", "~~old~~ ==new==", "~~old~~ ==new==", ""},
-		{"escape", `\~old~ \=new==`, `\~old~ \=new==`, `\~old~ \=new==`, ""},
+		{"escape", `\~old~ \=new==`, `~old~ =new==`, `~old~ =new==`, ""},
 		{"unbalanced", "~~old ==new", "~~old ==new", "~~old ==new", ""},
 		{"unicode", "  ~~旧語~~ ==é==  ", "~~旧語~~ ==é==", "旧語 é", "旧語"},
 		{"heading", "## Name {sequence=primary} ###", "Name {sequence=primary}", "Name", ""},
@@ -49,8 +49,8 @@ func TestPlainProjectionDisplay(t *testing.T) {
 		{"nonterminal", "## Name {sequence=primary} tail", "Name {sequence=primary} tail", "Name {sequence=primary} tail", ""},
 		{"equals single triple", "=one= ===three===", "=one= ===three===", "=one= =three=", ""},
 
-		{"escaped role", `## Name \{sequence=primary\}`, `Name \{sequence=primary\}`, "Name", ""},
-		{"entity role", "## Name &#123;sequence&#61;primary&#125;", "Name &#123;sequence&#61;primary&#125;", "Name", ""},
+		{"escaped role", `## Name \{sequence=primary\}`, `Name {sequence=primary}`, "Name", ""},
+		{"entity role", "## Name &#123;sequence&#61;primary&#125;", "Name {sequence=primary}", "Name", ""},
 		{"callout title", "> [!note] ## Name {sequence=primary}", "Name {sequence=primary}", "Name {sequence=primary}", ""},
 		{"callout list title", "> [!note] - Name {sequence=primary}", "Name {sequence=primary}", "Name {sequence=primary}", ""},
 		{"callout body heading", "> [!note] Title\n> ## Name {sequence=primary}", "Title\nName {sequence=primary}", "Title\nName", ""},
@@ -183,4 +183,39 @@ func TestPageDisplayGrammar(t *testing.T) {
 			t.Errorf("caught: display grammar changed literal code: %q", shown)
 		}
 	})
+}
+
+func TestPlainProjectionDecodedCoordinates(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, body, text, shown, deleted string
+		insertions                      []int
+	}{
+		{name: "decoded strike", body: `~~Tom &amp; Jerry~~`, text: "~~Tom & Jerry~~", shown: "Tom & Jerry", deleted: "Tom & Jerry"},
+		{name: "escaped role", body: `## Name \{sequence=primary\}`, text: "Name {sequence=primary}", shown: "Name"},
+		{name: "decoded role", body: "## Name &#123;sequence&#61;primary&#125;", text: "Name {sequence=primary}", shown: "Name"},
+		{name: "trimmed decoded ruby", body: "  ~~<ruby>&#28450;<rt>&#12363;&#12435;</rt></ruby>字~~", text: "~~漢字~~\nかん", shown: "漢字\nかん", deleted: "漢字かん"},
+		{name: "external decoded label", body: `[Tom &amp; Jerry](https://example.test) tail`, text: "Tom & Jerry tail", shown: "Tom & Jerry tail", insertions: []int{11}},
+		{name: "bare www label", body: "www.example.test tail", text: "www.example.test tail", shown: "www.example.test tail", insertions: []int{16}},
+		{name: "multiple links at body edges", body: `[a](https://a.test)[b](https://b.test)`, text: "ab", shown: "ab", insertions: []int{1, 2}},
+		{name: "local link", body: `[a](#local)`, text: "a", shown: "a"},
+		{name: "literal span", body: "`snake\\_case &amp;`", text: "snake\\_case &amp;", shown: "snake\\_case &amp;"},
+		{name: "literal fence", body: "```\nsnake\\_case &amp;\n```", text: "snake\\_case &amp;", shown: "snake\\_case &amp;"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			projection := PlainProjection(tt.body)
+			if projection.Text != tt.text {
+				t.Fatalf("PlainProjection(%q).Text = %q, want %q", tt.body, projection.Text, tt.text)
+			}
+			shown, deleted := projectionDisplay(t, &projection)
+			if shown != tt.shown || deleted != tt.deleted {
+				t.Errorf("PlainProjection(%q) shown=%q deleted=%q, want %q %q", tt.body, shown, deleted, tt.shown, tt.deleted)
+			}
+			if diff := cmp.Diff(tt.insertions, projection.Insertions); diff != "" {
+				t.Errorf("PlainProjection(%q).Insertions (-want +got):\n%s", tt.body, diff)
+			}
+		})
+	}
 }
