@@ -325,12 +325,21 @@ browser-check: frontend-deps
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
 	bash .github/e2e/serve.sh "$$tmp/yomihon" 19734 -- bash .github/e2e/probes.sh
 
+
+# The complete gate cannot inherit a scoped selector from a developer shell.
+ifneq ($(filter verify,$(MAKECMDGOALS)),)
+override MUTATION_SHARD :=
+endif
+export MUTATION_SHARD
+
 mutation-check: frontend-deps
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-mutations.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
-	bash .github/e2e/serve.sh "$$tmp/yomihon" 19735 -- bash .github/e2e/probes.sh --mutate
+	set --; \
+	if [ -n "$${MUTATION_SHARD:-}" ]; then set -- --shard "$$MUTATION_SHARD"; fi; \
+	bash .github/e2e/serve.sh "$$tmp/yomihon" 19735 -- bash .github/e2e/probes.sh --mutate "$$@"
 
 portable-build-check:
 	@set -eu; \

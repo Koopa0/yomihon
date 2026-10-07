@@ -950,6 +950,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				contract.Capabilities(contract.Governance()),
 				contract,
 				nil,
+				nil,
 			)
 			if err != nil {
 				t.Errorf("buildGeneration: %v", err)

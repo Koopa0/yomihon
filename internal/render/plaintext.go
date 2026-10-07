@@ -7,6 +7,7 @@ package render
 
 import (
 	"bytes"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -18,6 +19,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/sequence"
 )
 
 // plainParser is a minimal goldmark parser used only to walk a note body for
@@ -56,6 +58,26 @@ type Block struct {
 	// does not carry. False is also the answer wherever the walk cannot tell,
 	// so a caller may act on a true and never on a false.
 	Verbatim bool
+
+	// ContextRanges are half-open byte ranges in PlainText whose characters
+	// stay adjacent on the reading page even when the whole block does not.
+	// Their edges are not necessarily word boundaries: removing markup can
+	// join the text on opposite sides of an edge.
+	ContextRanges [][2]int
+
+	// Heading reports that the block is a heading the page shows exactly as
+	// written. The page's contents list repeats those words, so text inside
+	// the heading alone cannot tell the list's copy from the body's. Such a
+	// block offers no ContextRanges for the same reason.
+	Heading bool
+
+	// Literal reports that the block's source holds none of the constructs
+	// whose page text is not their source text: an entity reference, a
+	// backslash escape, a link, an autolink or a bare address the page links,
+	// inline HTML, or a footnote reference. Words read from such a block may
+	// be named beside a match in another block, which Verbatim alone does not
+	// vouch for. False wherever the walk cannot tell.
+	Literal bool
 }
 
 // PlainBlocks returns the searchable text of a note body, one Block per
@@ -85,7 +107,7 @@ func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions
 	src := []byte(source)
 	doc := plainParser.Parse(text.NewReader(src))
 
-	w := plainWalk{blockVerbatim: true, rewritten: rewritten, emissions: emissions}
+	w := plainWalk{blockVerbatim: true, blockContext: true, blockLiteral: true, rewritten: rewritten, emissions: emissions}
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
@@ -157,6 +179,9 @@ type plainWalk struct {
 	// again. rewritten is what the preprocess rewrote, which the text carries
 	// and the page does not.
 	blockVerbatim bool
+	blockContext  bool
+	blockLiteral  bool
+	headingLevel  int
 	rewritten     *rewrittenLines
 	// readings holds <rt>/<rtc> text until the block's base text has been
 	// closed, so a visible phrase is not split by its furigana. ruby is the
@@ -232,9 +257,10 @@ func shiftBlocks(blocks []Block, lead, length int) []Block {
 		}
 		if n := len(out); n > 0 && out[n-1].End >= adj {
 			out[n-1].Verbatim = out[n-1].Verbatim && b.Verbatim
+			out[n-1].Literal = out[n-1].Literal && b.Literal
 			continue
 		}
-		out = append(out, Block{End: adj, Verbatim: b.Verbatim})
+		out = append(out, Block{End: adj, Verbatim: b.Verbatim, ContextRanges: shiftRanges(b.ContextRanges, lead, length), Heading: b.Heading, Literal: b.Literal})
 	}
 	return out
 }
@@ -284,9 +310,73 @@ func (w *plainWalk) closeBlock() {
 		}
 		start = w.blocks[n-1].End
 	}
-	verbatim := w.blockVerbatim && w.readings.Len() == 0 && !spentByPage(s[start:end])
-	w.blocks = append(w.blocks, Block{End: end, Verbatim: verbatim})
+	w.blocks = append(w.blocks, w.completedBlock(s, start, end))
 	w.blockVerbatim = true
+	w.blockContext = true
+	w.blockLiteral = true
+	w.headingLevel = 0
+}
+
+// completedBlock settles page equivalence after the whole block is written.
+// Heading words name the heading itself and never provide nearby context.
+func (w *plainWalk) completedBlock(s string, start, end int) Block {
+	verbatim := w.blockVerbatim && w.readings.Len() == 0 && !spentByPage(s[start:end])
+	var contexts [][2]int
+	if !verbatim && w.blockContext && w.readings.Len() == 0 {
+		contexts = localContextRanges(s, start, end, w.headingLevel)
+	}
+	literal := w.blockLiteral && w.readings.Len() == 0 && !sourceUnlikeItsPage(s[start:end])
+	heading := w.headingLevel > 0 && literal && len(contexts) == 1 && contexts[0] == [2]int{start, end}
+	if w.headingLevel > 0 {
+		// A heading's own words are what its contents-list copy repeats, so
+		// they vouch for nothing beside a match in it.
+		contexts = nil
+	}
+	return Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading, Literal: literal}
+}
+
+// entityReference matches what CommonMark may read as an entity or numeric
+// character reference. It accepts names that are not entities as well, which
+// only ever withholds a Literal verdict.
+var entityReference = regexp.MustCompile(`&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{0,31});`)
+
+// sourceUnlikeItsPage reports that a block's text may hold characters the
+// page shows differently: an entity reference the page decodes, a backslash
+// the page drops from an escape, or an address the page's linkify turns into
+// a link with words of its own. This walk's parser links nothing bare, so
+// the address is looked for in the text; anything resembling one counts.
+func sourceUnlikeItsPage(s string) bool {
+	if strings.ContainsRune(s, '\\') || strings.ContainsRune(s, '@') || entityReference.MatchString(s) {
+		return true
+	}
+	lower := strings.ToLower(s)
+	return strings.Contains(lower, "://") || strings.Contains(lower, "www.")
+}
+
+// localContextRanges keeps text between strike delimiters in its original
+// coordinates. Unknown constructs, highlights and consumed heading roles
+// offer no local context. A caller still has to find a real word boundary
+// inside a range rather than treating a removed delimiter as one.
+func localContextRanges(s string, start, end, headingLevel int) [][2]int {
+	body := s[start:end]
+	if strings.Contains(body, "==") || strings.ContainsAny(body, inlinePlaceholderRunes) ||
+		(headingLevel > 0 && sequence.HeadingName(body, headingLevel) != body) {
+		return nil
+	}
+	var ranges [][2]int
+	for at := start; at < end; {
+		i := strings.Index(s[at:end], "~~")
+		if i < 0 {
+			ranges = append(ranges, [2]int{at, end})
+			break
+		}
+		stop := at + i
+		if stop > at {
+			ranges = append(ranges, [2]int{at, stop})
+		}
+		at = stop + 2
+	}
+	return ranges
 }
 
 // recordFence notes the half-open span just written from a fenced code
@@ -456,6 +546,15 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	// rather than the one it closed.
 	if !reproducedByThePage(kind) {
 		w.blockVerbatim = false
+		if heading, ok := n.(*ast.Heading); ok {
+			w.headingLevel = heading.Level
+		} else {
+			w.blockContext = false
+		}
+	}
+	switch kind {
+	case ast.KindLink, ast.KindAutoLink, ast.KindRawHTML, ast.KindHTMLBlock, east.KindFootnoteLink:
+		w.blockLiteral = false
 	}
 	switch kind {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
@@ -525,6 +624,8 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 	}
 	if w.rewritten.covers(t.Segment.Start) {
 		w.blockVerbatim = false
+		w.blockContext = false
+		w.blockLiteral = false
 	}
 	w.writeSource(t.Segment, source)
 	if t.SoftLineBreak() || t.HardLineBreak() {

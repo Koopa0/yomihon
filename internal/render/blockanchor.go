@@ -50,8 +50,8 @@ func blockAnchorID(address string) string {
 // downstream takes apart: a recognised callout's opening line, which is
 // consumed as the block's title, and a table row, which is cut into cells
 // against its header's column count and drops whatever follows the last. An
-// unknown callout type is a blockquote, not a callout, and can carry an
-// address. The type set is calloutVocabulary; a second copy is how a title
+// unknown callout type preserves its opening-line address in the neutral
+// shell. The type set is calloutVocabulary; a second copy is how a title
 // became an address on one face and missing on the other.
 func UnanchorableLine(line string) bool {
 	if typ, _, _, ok := calloutStart(line); ok {
@@ -228,23 +228,24 @@ func markBlockAnchor(line string, page *composition, marks *markers, claim bool)
 		return line
 	}
 	address := trimmed[m[2]:m[3]]
-	id := blockAnchorID(address)
-	var anchor string
-	if claim && page.claimBlockAnchor(id) {
+	anchor, id := blockAnchorSpan(address, page, claim)
+	if id != "" {
 		if marks.anchors == nil {
 			marks.anchors = make(map[int]string)
 		}
 		marks.anchors[len(marks.inline)] = id
-		anchor = `<span id="` + html.EscapeString(id) + `">` +
-			html.EscapeString(address) + `</span>`
-	} else {
-		// The same classified tail, without an id: a duplicate name, or an
-		// address that belongs to the note it was transcluded from. Speech
-		// reads the span, not a flattened caret word, so an escaped or
-		// entity-spelled caret that goldmark later draws the same way is left
-		// alone.
-		anchor = `<span>` + html.EscapeString(address) + `</span>`
 	}
 	marks.inline = append(marks.inline, anchor)
 	return trimmed[:m[2]] + placeholderFor(len(marks.inline)-1, anchor) + line[len(trimmed):]
+}
+
+// blockAnchorSpan keeps the authored address visible and claims its canonical
+// id only for the first occurrence in the note's own text. An unclaimed span
+// still names an address to speech without promising a fragment on this page.
+func blockAnchorSpan(address string, page *composition, claim bool) (markup, id string) {
+	id = blockAnchorID(address)
+	if claim && page.claimBlockAnchor(id) {
+		return `<span id="` + html.EscapeString(id) + `">` + html.EscapeString(address) + `</span>`, id
+	}
+	return `<span>` + html.EscapeString(address) + `</span>`, ""
 }

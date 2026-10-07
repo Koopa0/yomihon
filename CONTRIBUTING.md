@@ -114,21 +114,15 @@ prerequisites above also apply to this fast loop.
 ### The gate
 
 `make verify` is the gate you run before you push. Continuous integration
-requires eleven checks and `make verify` is one of them; two of the others
+requires fourteen checks and `make verify` is one of them; two of the others
 build, vet, and test on macOS and Windows runners, so a green run on your
 machine does not tell you those passed.
 
 The `verify` target in the Makefile is the list of what it runs.
 
-Beyond the Go toolchain, `make verify` needs:
+The test prerequisites above also apply to `make verify`.
 
-- **Race-enabled tests:** On Linux and Windows, `make test` needs cgo enabled
-  and a C compiler for the race detector; macOS needs neither for that detector.
-
-- **Test user:** Run the tests as an unprivileged user: some permission fixtures fail
-  rather than skip when the process can bypass file permissions.
-
-- **Gate JSON:** The full gate also needs `jq` to read its JSON contract.
+Beyond those, the gate needs:
 
 - `make tools`, which installs the pinned Go analysis tools into `GOBIN`.
 - Two tools that `go install` cannot provide. ShellCheck is pinned by version
@@ -145,7 +139,9 @@ vulnerability database, and `frontend-check`, which runs `npm ci`. Two stages
 drive a browser: `browser-check` and `mutation-check`, each of which installs
 those npm dependencies first and leaves the lint to `frontend-check`.
 
-On a shared Linux runner the same target takes about twenty minutes.
+Local `make verify` includes the complete mutation run, which takes more than
+forty minutes on a shared Linux runner. CI splits it into four jobs, each with a
+fresh fixture copy; the other prerequisites stay in their existing jobs.
 
 Read its exit code, not its last screen. `make verify | tail` reports the exit
 code of `tail`, and a gate whose red you piped away has told you nothing. If you
@@ -241,6 +237,15 @@ to catch, and demands that the probe report catching it by name. A probe that
 lets the regression through fails the run, and so does an injection that matched
 nothing. Read `.github/e2e/probes.sh`.
 
+The full local command remains `make mutation-check`. To inspect one canonical
+shard, use `make mutation-check MUTATION_SHARD=1` (or `2`, `3`, `4`). Each shard
+discovers the whole ordered registry and its declared modes before selecting
+its own work. Ordinary modes balance across four deterministic owners; probes
+that keep a reading place execute last in shard four. Discovery errors and
+mutation failures are collected, later selected work still runs, and the final
+status remains nonzero. Invalid shard values fail with usage status 2. The
+tracked ruleset import declares all four contexts.
+
 Nothing injects a regression for you on the Go side; there the proof is yours to
 run and to paste into the pull request.
 
@@ -315,7 +320,7 @@ rule identifiers and authorities the frozen findings carry.
 A ruleset protects `main`, and nobody can bypass it, including the maintainer:
 
 - Every change arrives through a pull request. GitHub refuses a direct push.
-- All eleven required checks have to be green on the head commit. An approving
+- All fourteen required checks have to be green on the head commit. An approving
   review is not required, except on a pull request carrying a change GitHub
   cannot attribute to an account.
 - History stays linear, so a change lands squashed or rebased and the branch is
