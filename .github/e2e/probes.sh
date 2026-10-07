@@ -99,7 +99,7 @@ probes=(
   "result-landing-suffix.mjs|/search?q=%E3%82%8C%E3%80%81"
   "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
   "search-facets.mjs|/search?q=a"
-  "search-overflow.mjs|/search?q=BROWSER_BOUNDARY_ATTACKER"
+  "search-overflow.mjs|/search?q=stoppedAt"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"

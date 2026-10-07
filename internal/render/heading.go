@@ -29,30 +29,43 @@ var (
 )
 
 // headingInnerText reduces a heading's inner markup to the words the reader sees:
-// a ruby reading and the offscreen explanation of an unwritten link are dropped
-// with their contents before the remaining tags are, so the text keeps the base
-// characters once and names a section by what is on screen. Character references
-// then resolve. Both removals run before the tags, and so before any reference
-// resolves, since authored markup arrives escaped and stays the text it is.
+// a ruby reading, an inline footnote's number and the offscreen explanation of
+// an unwritten link are dropped with their contents before the remaining tags
+// are, so the text keeps the base characters once and names a section by what
+// is on screen. Character references then resolve. Every removal runs before
+// the tags, and so before any reference resolves, since authored markup arrives
+// escaped and stays the text it is.
 func headingInnerText(inner string) string {
 	inner = offscreenNote.ReplaceAllString(inner, "")
+	inner = headingNote.ReplaceAllString(inner, "")
 	inner = rubyReading.ReplaceAllString(inner, "")
 	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(inner, "")))
 }
 
 // HeadingWords reduces a heading's markdown source to the words the page
-// stamps an id from. A wikilink contributes what it displays. Authored markup
-// then takes the same allowlist the body renderer uses: ruby stays a tag so
-// the reading can be dropped, and every other tag is escaped the way the page
-// already received it. The check face reads a heading through here too, so a
-// name copied off the contents list cannot be refused for using a second fold.
+// stamps an id from. A wikilink contributes what it displays, and an inline
+// footnote nothing, since the page names the section without its number.
+// Authored markup then takes the same allowlist the body renderer uses: inert
+// formatting stays markup, ruby readings can be dropped, and other tags remain
+// escaped as the page received them. The check face reads a heading through
+// here too, so a name copied off the contents list cannot be refused for using
+// a second fold.
 func HeadingWords(raw string) string {
-	displayed := wikilinkToken.ReplaceAllStringFunc(raw, func(token string) string {
-		inner := strings.TrimPrefix(token, "!")
+	source := withoutInlineFootnotes(raw)
+	var displayed, parseable strings.Builder
+	last := 0
+	for _, at := range wikilinkToken.FindAllStringIndex(source, -1) {
+		displayed.WriteString(source[last:at[0]])
+		parseable.WriteString(source[last:at[0]])
+		inner := strings.TrimPrefix(source[at[0]:at[1]], "!")
 		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
-		return display
-	})
-	return headingInnerText(applySafeMarkup(displayed))
+		displayed.WriteString(display)
+		parseable.WriteString(strings.Repeat("x", len(display)))
+		last = at[1]
+	}
+	displayed.WriteString(source[last:])
+	parseable.WriteString(source[last:])
+	return headingInnerText(applySafeMarkup(headingMarkup(displayed.String(), parseable.String())))
 }
 
 // The two halves of a place inside a document, as this package writes them:
@@ -125,6 +138,12 @@ func shellHeadingLevel(level int) int {
 // data-level and the contents list keep the authored level, so size, indent and
 // scroll-margin stay where the author wrote them.
 func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
+	return stampHeadings(htmlOut, reserved, nil)
+}
+
+// stampHeadings also keeps headings inside transclusions: a link can land on
+// them even though the page's contents list leaves them out.
+func stampHeadings(htmlOut, reserved string, all *[]TOCEntry) (string, []TOCEntry) {
 	var toc []TOCEntry
 	seen := map[string]bool{}
 	next := map[string]int{}
@@ -178,6 +197,9 @@ func assignHeadingIDs(htmlOut, reserved string) (string, []TOCEntry) {
 		seen[id] = true
 
 		rendered := shellHeadingLevel(level)
+		if all != nil {
+			*all = append(*all, TOCEntry{Level: level, Text: text, ID: id})
+		}
 		if !withinAny(transcluded, m[0], m[1]) {
 			toc = append(toc, TOCEntry{Level: level, Text: text, ID: id})
 		}

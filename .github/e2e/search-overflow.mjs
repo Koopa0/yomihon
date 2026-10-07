@@ -13,12 +13,12 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a search results page whose first screen holds
 // a snippet with an unbreakable path or URL — the browser fixture vault's
-// /search?q=BROWSER_BOUNDARY_ATTACKER does), and MUTATE. MUTATE=list prints
-// every watched regression.
+// /search?q=stoppedAt does), and MUTATE. MUTATE=list prints every watched
+// regression.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/search?q=BROWSER_BOUNDARY_ATTACKER';
+const PAGE = process.env.PAGE_PATH || '/search?q=stoppedAt';
 const MUTATE = process.env.MUTATE || '';
 const WIDTHS = [390, 375];
 const SITES = ['results-list-fits-the-phone-viewport'];
@@ -74,8 +74,10 @@ const overrideProperty = (selector, property, rule, wanted) => async (page) => {
 
 const MUTATIONS = {
   // The snippet is the one element the browser fixture vault's own content
-  // proves this lock over: the indexed report carries an unbroken URL long
-  // enough on its own to push the whole results column past a phone's width.
+  // proves this lock over: the unfinished-notes report spells out an address
+  // whose query runs on unbroken, long enough on its own to push the whole
+  // results column past a phone's width. A snippet shows a report's readable
+  // words, not its markup, so the address has to be written in the text.
   'let-the-snippet-refuse-to-wrap': {
     target: 'results-list-fits-the-phone-viewport',
     before: overrideProperty('.y-result__snippet', 'overflow-wrap', '.y-result__snippet{overflow-wrap:normal}', 'normal'),

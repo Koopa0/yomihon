@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -114,9 +115,10 @@ const (
 	// page is certain to lack. That is why it is a separate kind from a missing
 	// block, which withdraws the author's address.
 	DiagLinkSectionMissing DiagnosticKind = "link-section-missing"
-	// DiagCommentUnclosed means a "%%" comment marker never met a second one, so
-	// everything after it is hidden from the page. Obsidian hides it too, so the
-	// words are not restored; the reader is told where the silence begins.
+	// DiagCommentUnclosed means a "%%" or "<!--" comment marker never met its
+	// closer, so everything after it is hidden from the page. Obsidian hides it
+	// too, so the words are not restored; the reader is told where the silence
+	// begins.
 	DiagCommentUnclosed DiagnosticKind = "comment-unclosed"
 	// DiagImageMissing means a note showed a picture from a path inside the
 	// vault and the vault holds no file there. The image is left where the
@@ -204,6 +206,9 @@ type Pipeline struct {
 	titles        Titles
 	files         Files
 	md            goldmark.Markdown
+	// outlines holds each captured note's displayed headings by path, drawn
+	// the first time a heading path names that note.
+	outlines sync.Map
 }
 
 // New builds a rendering pipeline from one generation's link resolver and
@@ -276,7 +281,7 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 		// beside it: the two are read by line number together.
 		address = slices.Delete(slices.Clone(address), dropped, dropped+1)
 	}
-	res := r.renderBody(bodyInput{path: relPath, text: source, address: address, original: body, onPage: region == hostRegion}, embedsAllowed, page, region)
+	res := r.renderBody(&bodyInput{path: relPath, text: source, address: address, original: body, onPage: region == hostRegion}, embedsAllowed, page, region)
 	res.Diagnostics = appendUnclosedComment(res.Diagnostics, unclosedComment)
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
@@ -306,6 +311,12 @@ type composition struct {
 	base    string
 	regions int
 	blocks  map[string]bool
+	// headingLookup renders a destination's outline without following its
+	// links' fragments back into other outlines, which may cite this one.
+	headingLookup bool
+	// hostOutline is the displayed headings of the note being read, drawn
+	// from its own body the first time one of its links names a path.
+	hostOutline *[]TOCEntry
 	// transcluded records what every embed this assembly read came to, in
 	// document order. Only something the separately parsed bodies share
 	// accounts for all.
@@ -445,7 +456,7 @@ func footnoteRegionPrefix(n ast.Node) []byte {
 func (r *Pipeline) render(body, relPath string, allowEmbed embedPolicy, page *composition) Result {
 	// An excerpt arrives already cut from a body whose comments came off where
 	// that cut was made, so these lines are the geometry this render was handed.
-	return r.renderBody(bodyInput{path: relPath, text: body, address: strings.Split(body, "\n")}, allowEmbed, page, page.nextRegion())
+	return r.renderBody(&bodyInput{path: relPath, text: body, address: strings.Split(body, "\n")}, allowEmbed, page, page.nextRegion())
 }
 
 // bodyInput keeps a body's captured owner beside its text and line geometry.
@@ -466,7 +477,7 @@ type bodyInput struct {
 // instead of the lines this leaves: the neutralisation below can empty a line
 // that held nothing but placeholder runes, and a run edge there is one nobody
 // typed.
-func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *composition, region string) Result {
+func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *composition, region string) Result {
 	body, address := input.text, input.address
 	col := &collector{page: page, relPath: input.path, body: input.original, onPage: input.onPage}
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
@@ -480,6 +491,7 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 		return r
 	}, body)
 	source, marks := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
+	source = expandInlineFootnotes(source)
 
 	// Parse and render as two steps rather than one Convert call, which is
 	// exactly what Convert does, so this region's id prefix can be attached to
@@ -487,6 +499,7 @@ func (r *Pipeline) renderBody(input bodyInput, allowEmbed embedPolicy, page *com
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
 	r.resolveMarkdownLinks(doc, input.path, col)
+	markHeadingNotes(doc)
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
 	doc.SetAttributeString(footnoteLangAttr, []byte(page.lang))
 	attachHighlightReporter(doc, col)

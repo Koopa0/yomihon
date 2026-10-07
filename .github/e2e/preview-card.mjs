@@ -76,6 +76,7 @@ const SITES = [
 	'the-keyboard-waits-the-same-as-the-pointer',
 	'card-anchored-to-its-link',
 	'card-shows-the-section-the-link-addressed',
+	'card-shows-the-child-in-the-authored-path',
 	'the-card-names-the-note-it-shows',
 	'card-scrolls-inside-itself',
 	'a-link-that-cannot-be-previewed-opens-nothing',
@@ -243,7 +244,11 @@ const MUTATIONS = {
 	// destination from the top and the promise the link made goes unkept.
 	'drop-the-fragment': {
 		target: 'card-shows-the-section-the-link-addressed',
-		apply: rewriteModule('const fragment = decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
+		apply: rewriteModule('const fragment = link.dataset.previewSection || decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
+	},
+	'drop-the-authored-heading-path': {
+		target: 'card-shows-the-child-in-the-authored-path',
+		apply: rewriteModule('link.dataset.previewSection || decodeURIComponent(link.hash.slice(1))', 'decodeURIComponent(link.hash.slice(1))'),
 	},
 	// The card grows to whatever it holds, so a long note pushes it off the
 	// screen instead of scrolling inside it.
@@ -746,6 +751,24 @@ try {
 		proveApplied('card-shows-the-section-the-link-addressed', proof);
 		if (!state.proseText.includes(CJK_HEADING)) {
 			fail('card-shows-the-section-the-link-addressed', `the excerpt does not carry ${JSON.stringify(CJK_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.proseText.slice(0, 160))}`);
+		}
+		await page.mouse.move(4, 4);
+		await settles(page, false, 2000);
+	}
+
+	// The href answers the page's suffixed id; the card must still cut the
+	// source by ancestry, rather than ask for a heading called nested-child-2.
+	{
+		const nested = await only(page, 'second nested child');
+		if (await nested.getAttribute('href') !== '/notes/Notes/Glass%20Tide.md#nested-child-2') {
+			broken('the nested fixture does not address the second child id');
+		}
+		await pointerOnto(page, nested);
+		if (!(await settles(page, true, 4000))) broken('the resolved nested link opens no card');
+		const state = await cardState(page);
+		proveApplied('card-shows-the-child-in-the-authored-path', proof);
+		if (!state.proseText.includes('SECOND NESTED PASSAGE') || state.proseText.includes('FIRST NESTED PASSAGE')) {
+			fail('card-shows-the-child-in-the-authored-path', `the card lost the authored parent: ${JSON.stringify(state.proseText)}`);
 		}
 		await page.mouse.move(4, 4);
 		await settles(page, false, 2000);
