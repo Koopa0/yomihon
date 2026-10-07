@@ -45,9 +45,24 @@ type Shelf struct {
 	Rows  []Row
 }
 
+// UncertaintyRemoval identifies the original stored mark a reader may remove.
+// It is a projection of reader state, not authority to add a mark.
+type UncertaintyRemoval struct {
+	Label       string
+	Unavailable string
+	Failed      string
+	Cleared     string
+	Language    string
+	Endpoint    string
+	Path        string
+	Anchor      string
+}
+
 // Row is one document on the shelf.
 type Row struct {
 	Text string
+	// Removal is present only for a lost uncertainty mark.
+	Removal *UncertaintyRemoval
 	// Wrap preserves a location or declaration that must stay readable even
 	// on the narrow desk, rather than shortening the dated row with ellipsis.
 	Wrap bool
@@ -119,9 +134,9 @@ func railRows(s *Shelf, limit int) (window []Row, trimmed int) {
 }
 
 // shelfRows takes the rows a narrow width can show, in the order a reader meets
-// them, and stops once it has limit of them. Only rows that lead somewhere are
-// taken: a narrow shelf is a way in, and a row that is not a stop cannot be
-// one. A limit below zero is read as none rather than trusted into a make.
+// them, and stops once it has limit of them. Linked rows and fault rows are
+// taken: a missing reader-owned place must remain visible even without a link.
+// Ordinary unlinked rows are skipped. A negative limit is read as none.
 func shelfRows(s *Shelf, limit int) []Row {
 	limit = max(limit, 0)
 	rows := make([]Row, 0, limit)
@@ -129,7 +144,7 @@ func shelfRows(s *Shelf, limit int) []Row {
 		if len(rows) == limit {
 			return rows
 		}
-		if row.Href == "" {
+		if row.Href == "" && !row.Fault {
 			continue
 		}
 		rows = append(rows, row)
