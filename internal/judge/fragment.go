@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
@@ -188,12 +189,7 @@ func collectBlockLines(body string, address []string) []string {
 // blockAddressed compares the extracted, folded addresses with the requested
 // folded name. Whole-line suffixes do not declare an address.
 func blockAddressed(lines []string, want string) bool {
-	for _, line := range lines {
-		if line == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(lines, want)
 }
 
 // fragmentFindings judges the fragment half of every link and transclusion

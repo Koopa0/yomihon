@@ -66,12 +66,13 @@ func checkBlockAddressFindings(t *testing.T, files map[string]string) []blockAdd
 		t.Fatalf("Check(block address vault) error = %v", err)
 	}
 	var got []blockAddressFinding
-	for _, f := range findings {
+	for i := range findings {
+		f := &findings[i]
 		if !strings.HasPrefix(string(f.RuleID), "link.") && !strings.HasPrefix(string(f.RuleID), "embed.") {
 			continue
 		}
 		if f.Target == nil || f.Line == nil {
-			t.Fatalf("Check() link/embed finding lacks target or line: %+v", f)
+			t.Fatalf("Check() link/embed finding lacks target or line: %+v", *f)
 		}
 		resolved := ""
 		if f.ResolvedTo != nil {
