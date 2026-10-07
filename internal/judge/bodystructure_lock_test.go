@@ -1,12 +1,14 @@
 package judge
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -38,7 +40,7 @@ func judgeBodyStructureLock(directory string) error {
 
 func checkBodyStructureLock(files map[string]*ast.File) error {
 	if len(files) == 0 {
-		return fmt.Errorf("no production judge source")
+		return errors.New("no production judge source")
 	}
 	functions := make(map[string]*ast.FuncDecl)
 	for name, file := range files {
@@ -105,12 +107,8 @@ func checkBodyStructureLock(files map[string]*ast.File) error {
 			if declaration, ok := parent.(*ast.FuncDecl); ok && declaration.Name == identifier {
 				return true
 			}
-			if field, ok := parent.(*ast.Field); ok {
-				for _, name := range field.Names {
-					if name == identifier {
-						return true
-					}
-				}
+			if field, ok := parent.(*ast.Field); ok && slices.Contains(field.Names, identifier) {
+				return true
 			}
 			caller := "<package>"
 			repeated := false
@@ -197,7 +195,7 @@ func checkBodyStructureLock(files map[string]*ast.File) error {
 		return fmt.Errorf("body inspection callers differ (-want +got):\n%s", diff)
 	}
 	if !bodyReaderReturn(functions["parseNoteWithMarks"], true) || !bodyReaderReturn(functions["parseFrontmatter"], false) {
-		return fmt.Errorf("body readers must return readNote(rel, data, &marks) and readNote(rel, data, nil)")
+		return errors.New("body readers must return readNote(rel, data, &marks) and readNote(rel, data, nil)")
 	}
 	// Pin the one optional body branch and the actual value lent to all five
 	// harvesters, rather than only counting an inspectBody token.
@@ -210,13 +208,13 @@ func checkBodyStructureLock(files map[string]*ast.File) error {
 		condition, ok := candidate.Cond.(*ast.BinaryExpr)
 		if ok && condition.Op == token.NEQ && bodyIdentifier(condition.X, "marks") && bodyIdentifier(condition.Y, "nil") {
 			if branch != nil || candidate.Init != nil || candidate.Else != nil {
-				return fmt.Errorf("body marks branch must occur once without init or else")
+				return errors.New("body marks branch must occur once without init or else")
 			}
 			branch = candidate
 		}
 	}
 	if branch == nil {
-		return fmt.Errorf("missing marks != nil body branch")
+		return errors.New("missing marks != nil body branch")
 	}
 	borrowed := make(map[string]int)
 	inspection := 0
@@ -235,7 +233,7 @@ func checkBodyStructureLock(files map[string]*ast.File) error {
 		}
 		if name.Name == "inspectBody" {
 			if assignment.Tok != token.DEFINE || len(assignment.Lhs) != 1 || !bodyIdentifier(assignment.Lhs[0], "facts") || len(call.Args) != 2 || !bodyIdentifier(call.Args[0], "body") || !bodySelector(call.Args[1], "marks", "heading") {
-				return fmt.Errorf("body inspection must declare facts from body and marks.heading")
+				return errors.New("body inspection must declare facts from body and marks.heading")
 			}
 			inspection++
 		}
