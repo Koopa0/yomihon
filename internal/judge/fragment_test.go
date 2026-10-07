@@ -491,11 +491,25 @@ func headingAttributeCheck(t *testing.T, root string) ([]Finding, int) {
 	var findings []Finding
 	decoder := json.NewDecoder(bytes.NewReader(stdout))
 	for {
-		var finding Finding
-		if err := decoder.Decode(&finding); errors.Is(err, io.EOF) {
+		var record struct {
+			Finding
+			Severity string `json:"severity"`
+		}
+		if err := decoder.Decode(&record); errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			t.Fatalf("decode RunCheck heading attributes: %v", err)
+		}
+		finding := record.Finding
+		switch record.Severity {
+		case "info":
+			finding.Severity = SeverityInfo
+		case "warn":
+			finding.Severity = SeverityWarn
+		case "error":
+			finding.Severity = SeverityError
+		default:
+			t.Fatalf("decode RunCheck heading attributes severity %q", record.Severity)
 		}
 		if finding.RuleID == "link.section_missing" || finding.RuleID == "embed.section_missing" {
 			findings = append(findings, finding)
