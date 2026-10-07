@@ -175,11 +175,6 @@ try {
       await press(page);
       await assertVoice(page, JAPANESE, 0, 'local-service', chrome);
     });
-    await visit([REMOTE], chrome, async (page) => {
-      await page.locator('.y-ttsbar__play').focus();
-      await page.keyboard.press('Enter');
-      await assertUnavailable(page, chrome, 'local-service');
-    });
     await visit([], chrome, async (page) => {
       await press(page);
       await pendingDeadline(page);
@@ -199,6 +194,11 @@ try {
       await publish(page, [JAPANESE], false);
       await press(page);
       await assertVoice(page, JAPANESE, 0, 'voice-readiness', chrome);
+    });
+    await visit([REMOTE], chrome, async (page) => {
+      await page.locator('.y-ttsbar__play').focus();
+      await page.keyboard.press('Enter');
+      await assertUnavailable(page, chrome, 'local-service');
     });
     await visit([ENGLISH], chrome, async (page) => {
       await press(page);
