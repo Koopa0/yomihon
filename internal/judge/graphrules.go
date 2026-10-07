@@ -89,9 +89,6 @@ func slugIndex(notes []note, authority scanAuthority) map[string]string {
 func plannedNamesSet(notes []note, authority scanAuthority) Planned {
 	set := Planned{names: make(map[string]bool)}
 	for i := range notes {
-		if !authority.egressAllowed(notes[i].path) {
-			continue
-		}
 		set.add(notes[i].plannedNames)
 	}
 	return set
