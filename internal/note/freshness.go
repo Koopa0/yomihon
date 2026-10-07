@@ -171,13 +171,13 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 		// A name the published generation never held is no note a page could
 		// have shown; logging it would record a name nobody published.
 		snap := h.sources.Snapshot().Capture()
-		if _, ok := snap.Entry(rel); !ok {
-			if blockedAt(snap, rel).Path != "" {
-				return freshUnreadable
-			}
+		if _, ok := snap.Entry(rel); ok {
+			h.noteFreshnessFailure(rel, "lookup", err)
+			return freshUnreadable
+		}
+		if blockedAt(snap, rel).Path == "" {
 			return freshGone
 		}
-		h.noteFreshnessFailure(rel, "lookup", err)
 		return freshUnreadable
 	}
 	if entry.Size() > render.MaxSourceBytes {
