@@ -43,6 +43,8 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return wording.DiagLinkSectionGone.In(lang)
 	case render.DiagCommentUnclosed:
 		return wording.DiagCommentUnclosed.In(lang)
+	case render.DiagCommentContainerUnclosed:
+		return wording.DiagCommentContainerUnclosed.In(lang)
 	default:
 		return string(kind)
 	}

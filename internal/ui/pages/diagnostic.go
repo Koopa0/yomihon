@@ -36,6 +36,8 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 		return wording.DiagSectionNote.In(lang)
 	case render.DiagCommentUnclosed:
 		return wording.DiagCommentNote.In(lang)
+	case render.DiagCommentContainerUnclosed:
+		return wording.DiagCommentContainerNote.In(lang)
 	case render.DiagRenderFailed:
 		return wording.DiagRenderNote.In(lang)
 	default:

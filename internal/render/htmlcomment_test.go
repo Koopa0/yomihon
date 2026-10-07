@@ -273,7 +273,7 @@ func TestHTMLContainerCommentLiteralControls(t *testing.T) {
 		{name: "closed list", body: "- Item\n  <!-- private -->\n\nAfter.", visible: "After."},
 		{name: "escaped unclosed", body: `\<!-- literal`, visible: "&lt;!-- literal"},
 		{name: "inline unclosed code", body: "`<!-- literal`", visible: "<code>&lt;!-- literal</code>"},
-		{name: "wrapped unclosed code", body: "`begin\n<!-- literal`", visible: "<code>begin &lt;!-- literal</code>"},
+		{name: "wrapped unclosed code", body: "`begin\nmiddle <!-- literal`", visible: "<code>begin middle &lt;!-- literal</code>"},
 		{name: "fenced unclosed code", body: "```text\n<!-- literal\n```", visible: "&lt;!-- literal"},
 		{name: "indented unclosed code", body: "    <!-- literal", visible: "<pre><code>&lt;!-- literal"},
 		{name: "read aloud marker", body: "<!-- read-aloud: ja -->\nSpoken.", visible: "Spoken."},

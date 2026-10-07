@@ -27,6 +27,9 @@ var (
 	DiagCommentUnclosed       = both("沒有配對的註解記號", "Unpaired comment marker")
 )
 
+// DiagCommentContainerUnclosed names silence confined to one Markdown container.
+var DiagCommentContainerUnclosed = both("所在 Markdown 區塊沒有配對的註解記號", "Unpaired comment marker in a Markdown container")
+
 // What each of those faults means, and what the page did about it. A reader
 // who sees only the fault cannot tell whether the page in front of them is
 // missing something.
@@ -54,3 +57,6 @@ var (
 	)
 	DiagUnknownNote = both("內容轉譯產生未識別的診斷。", "Rendering produced a diagnostic nothing here recognises.")
 )
+
+// DiagCommentContainerNote explains that later containers remain readable.
+var DiagCommentContainerNote = both("這個註解記號沒有找到配對，所在 Markdown 區塊剩下的內容被藏了起來。", "This comment marker has no partner, and the rest of its Markdown container is hidden.")
