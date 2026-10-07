@@ -180,7 +180,6 @@ func nameTaskLabels(body string, inline []string, lang wording.Lang) string {
 }
 
 func nameTaskLabel(label string, inline []string, lang wording.Lang) string {
-	label = stripListRowRole(label)
 	parts := taskLabelMarkup.FindStringSubmatch(label)
 	if len(parts) != 3 {
 		return label
