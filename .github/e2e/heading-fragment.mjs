@@ -115,7 +115,7 @@ const rewriteDocuments = (transform) => async (context) => {
 // flag.
 const weakenStylesheet = (rule) => async (context) => {
   const seen = new Set();
-  await context.route('**/static/app.css', async (route) => {
+  await context.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen.add('app.css');

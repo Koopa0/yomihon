@@ -2,7 +2,8 @@
 // vault: four keys per note (filename stem, filename, path stem, path) plus
 // frontmatter aliases, each folded by NormalizeKey — never the frontmatter
 // title, which Obsidian does not resolve either. Two files sharing a key are
-// reported in full and never guessed between.
+// reported in full and never guessed between. A slash-containing target with
+// no key claim resolves by whole path suffix, with the same three outcomes.
 package graph
 
 import (
@@ -57,6 +58,13 @@ func (k Kind) String() string {
 // vault-relative paths holding it. Read-only once built.
 type Index struct {
 	names map[string][]string
+	paths []pathName
+}
+
+type pathName struct {
+	relPath string
+	full    string
+	stem    string
 }
 
 // NoteInput is what BuildFromNotes needs of one markdown note: its
@@ -86,7 +94,9 @@ func New(notes []*vault.Note, resources []string) *Index {
 // aliases, and resource paths, touching no disk.
 func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 	idx := &Index{names: make(map[string][]string)}
+	paths := make(map[string]pathName, len(notes)+len(resources))
 	for _, n := range notes {
+		paths[n.RelPath] = pathName{relPath: n.RelPath, full: NormalizeKey(n.RelPath), stem: NormalizeKey(pathStem(n.RelPath))}
 		for _, key := range noteKeys(n.RelPath) {
 			idx.add(key, n.RelPath)
 		}
@@ -95,6 +105,9 @@ func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 		}
 	}
 	for _, res := range resources {
+		if _, ok := paths[res]; !ok {
+			paths[res] = pathName{relPath: res, full: NormalizeKey(res)}
+		}
 		for _, key := range resourceKeys(res) {
 			idx.add(key, res)
 		}
@@ -103,13 +116,28 @@ func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 		slices.Sort(members)
 		idx.names[key] = members
 	}
+	for _, p := range paths {
+		idx.paths = append(idx.paths, p)
+	}
+	slices.SortFunc(idx.paths, func(a, b pathName) int { return strings.Compare(a.relPath, b.relPath) })
 	return idx
 }
 
 // Resolve looks name up against the index. An anchor is never verified here:
-// [[X#heading]] resolves as long as X exists.
+// [[X#heading]] resolves as long as X exists. Existing keys and aliases take
+// precedence; a slash-containing name with no key claim matches complete path
+// suffixes on segment boundaries. Returned candidates belong to the caller.
 func (idx *Index) Resolve(name string) Resolution {
-	members := idx.names[NormalizeKey(name)]
+	key := NormalizeKey(name)
+	members := idx.names[key]
+	if len(members) == 0 && strings.Contains(key, "/") {
+		suffix := "/" + key
+		for _, p := range idx.paths {
+			if strings.HasSuffix(p.full, suffix) || (p.stem != "" && strings.HasSuffix(p.stem, suffix)) {
+				members = append(members, p.relPath)
+			}
+		}
+	}
 	switch len(members) {
 	case 0:
 		return Resolution{Kind: KindUnresolved}
@@ -118,6 +146,22 @@ func (idx *Index) Resolve(name string) Resolution {
 	default:
 		return Resolution{Kind: KindAmbiguous, Candidates: slices.Clone(members)}
 	}
+}
+
+// Claimed reports whether a location key or an alias claims name. A name that
+// resolves only through path suffixes is not claimed: no file carries it, so
+// several suffix matches are no collision of names.
+func (idx *Index) Claimed(name string) bool {
+	return len(idx.names[NormalizeKey(name)]) > 0
+}
+
+// Names reports whether target names a note: it resolves to one file, or to
+// several that share the name itself, which the collision rule reports.
+// Several path-suffix matches name nothing, so every reader of a link treats
+// them as the broken link check reports.
+func (idx *Index) Names(target string) bool {
+	res := idx.Resolve(target)
+	return res.Kind == KindUnique || (res.Kind == KindAmbiguous && idx.Claimed(target))
 }
 
 // Collisions reports every name more than one file answers to, mapped to the

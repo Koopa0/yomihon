@@ -84,8 +84,8 @@ const rewriteAsset = (route, needle, replacement) => async (context) => {
       ? ''
       : `the needle ${JSON.stringify(needle)} matched ${matched === -1 ? 'nothing, because the asset was never fetched' : `${matched} times, want 1`}`;
 };
-const rewriteModule = (needle, replacement) => rewriteAsset('**/static/preview.js', needle, replacement);
-const rewriteStylesheet = (needle, replacement) => rewriteAsset('**/static/app.css', needle, replacement);
+const rewriteModule = (needle, replacement) => rewriteAsset('**/static/preview.js{,?*}', needle, replacement);
+const rewriteStylesheet = (needle, replacement) => rewriteAsset('**/static/app.css{,?*}', needle, replacement);
 
 const SOURCE_SELECTOR = "'.y-basedon:not([data-declared-by]) a.ui-navitem'";
 
@@ -114,7 +114,7 @@ const MUTATIONS = {
   // The fragment is not forwarded, so every row shows the source from the top.
   'drop-the-fragment': {
     target: 'source-card-shows-the-cited-passage',
-    apply: rewriteModule('const fragment = decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
+    apply: rewriteModule('const fragment = link.dataset.previewSection || decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
   },
   // A row whose place the source lacks is asked for as well.
   'preview-the-missing-location': {

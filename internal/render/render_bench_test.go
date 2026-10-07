@@ -160,3 +160,23 @@ func BenchmarkHTMLLongBodyFewWikilinks(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkPlainProjectionCosts uses the same body for corpus-only extraction
+// and its two-parse display projection, exposing the extra work and allocations.
+func BenchmarkPlainProjectionCosts(b *testing.B) {
+	for _, size := range []int{32, 256} {
+		body := strings.Repeat("## Header {sequence=primary}\n\nBefore ~~old~~ ==new== after.\n\n", size)
+		b.Run(fmt.Sprintf("blocks/%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_, _, _ = render.PlainBlocks(body)
+			}
+		})
+		b.Run(fmt.Sprintf("projection/%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = render.PlainProjection(body)
+			}
+		})
+	}
+}

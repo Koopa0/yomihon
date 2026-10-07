@@ -16,8 +16,10 @@ import (
 
 // blockMarkerTail matches the address a line ends with: a caret opening a word,
 // taking the rest of the line with it. A caret glued to the end of a word is part
-// of that word, the same reading the excerpt scan takes.
-var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^\S+)\z`)
+// of that word, the same reading the excerpt scan takes. A caret followed by a
+// bracket opens an inline footnote, never an address, so `Para ^[note]` is a
+// note whether its text holds a space or not.
+var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^[^\s\[]\S*)\z`)
 
 // blockAddressIn finds the address line ends with. It answers nil when the line
 // ends in none; otherwise m is blockMarkerTail's match on trimmed, the line
@@ -58,6 +60,27 @@ func UnanchorableLine(line string) bool {
 		}
 	}
 	return strings.HasPrefix(strings.TrimLeft(quotePrefix.ReplaceAllString(line, ""), " \t"), "|")
+}
+
+// UnanchorableLines is UnanchorableLine asked of the lines of body, numbered
+// as strings.Split(body, "\n") numbers them. A line an indented code block
+// holds is shown as written, so a callout opener or a table row on it is text
+// on display rather than something taken apart, and the address at its end is
+// stamped like any other. Which lines that is depends on the container around
+// them, so it is the reading page's own parse that is asked, and only once a
+// line the line test refuses makes the answer matter.
+func UnanchorableLines(body string) func(i int, line string) bool {
+	var code map[int]bool
+	parsed := false
+	return func(i int, line string) bool {
+		if !UnanchorableLine(line) {
+			return false
+		}
+		if !parsed {
+			code, parsed = codeBlockLines(pageMarkdown().Parser(), body), true
+		}
+		return !code[i]
+	}
 }
 
 // blockAddressFiller stands on a line whose author filled it and whose text a

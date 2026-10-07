@@ -53,7 +53,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED theme-toggle
 // computed. Both mutations put back a reading of the stored choice alone.
 const rewriteModule = (needle, replacement, label) => async (page) => {
   let matches = 0;
-  await page.route('**/preferences.js', async (route) => {
+  await page.route('**/preferences.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches += original.split(needle).length - 1;
@@ -67,7 +67,7 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
 
 const rewriteCSS = (needle, replacement, label) => async (page) => {
   let matches = 0;
-  await page.route('**/app.css', async (route) => {
+  await page.route('**/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches += original.split(needle).length - 1;

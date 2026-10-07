@@ -35,7 +35,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED language-scr
 
 const rewriteModule = (needle, replacement, label) => async (page) => {
   let matches = 0;
-  await page.route('**/langform.js', async (route) => {
+  await page.route('**/langform.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches += original.split(needle).length - 1;
@@ -52,7 +52,7 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
 // is nothing left to rewrite.
 const restoreNavigationTransition = async (page) => {
   let stylesheets = 0;
-  await page.route('**/app.css', async (route) => {
+  await page.route('**/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     stylesheets += 1;

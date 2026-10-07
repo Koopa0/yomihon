@@ -97,7 +97,7 @@ func plannedNamesSet(notes []note, authority scanAuthority) Planned {
 	return set
 }
 
-// linkHealth classifies every note's unresolved wikilinks. A study-path's links
+// linkHealth classifies every note's unresolved or suffix-ambiguous wikilinks. A study-path's links
 // are its course list, owned by the map rule, so they are not double-reported
 // here. A link whose target is some note's title is the title case; any other
 // unresolved link is broken.
@@ -122,7 +122,11 @@ func linkHealth(
 			if lessons[link.offset] {
 				continue
 			}
-			if idx.Resolve(link.target).Kind != graph.KindUnresolved {
+			// A name two files share is the collision rule's to report. A
+			// path suffix several files end with is a name none of them
+			// carries, so no collision reports it; the page links nothing and
+			// check reports the same broken link it always has.
+			if idx.Names(link.target) {
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
@@ -398,7 +402,7 @@ func provenanceResolves(idx *graph.Index, slugs map[string]string, value string)
 	if !ok {
 		return true
 	}
-	if idx.Resolve(target).Kind != graph.KindUnresolved {
+	if idx.Names(target) {
 		return true
 	}
 	if _, listed := slugs[target]; listed {
@@ -511,7 +515,12 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Fin
 		case graph.KindUnique:
 			listed[res.RelPath] = true
 		case graph.KindAmbiguous:
-			// An ambiguous link resolves to some note; leave it to the collision rule.
+			// A name two files share is the collision rule's to report. A path
+			// suffix several files end with is a name none of them carries, so
+			// no collision reports it and the row lists a note that is missing.
+			if !idx.Claimed(link.target) {
+				out = append(out, syllabusListsMissing(syllabus, link))
+			}
 		case graph.KindUnresolved:
 			out = append(out, syllabusListsMissing(syllabus, link))
 		default:

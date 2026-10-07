@@ -16,7 +16,7 @@ literally true of the vault directory.
 | `System/schemas/vault-schema.toml` | Sole machine authority for lifecycle, instance, artifact and privacy capability; missing, invalid or stale authority fails closed. |
 | The status write | Exactly one legal `status` line changes, the source is not stale, and the replacement is durable before the success response. |
 | The reader's own marks | Kept outside the vault, replaced whole or not at all, and read by no command-line face. Continuation and uncertainty marks occupy independent files. Unreadable uncertainty storage is preserved. Marks have no backup or recovery guarantee and are not held to the status write's durability. |
-| Agent-facing results | Contract-private paths neither appear in nor influence results, with one exception: `exists` answers whether a caller-supplied exact name is taken, disclosing that bit and nothing else. |
+| Agent-facing results | Contract-private paths neither appear in nor influence results, with one exception: `exists` answers whether a caller-supplied name, including a vault path or path suffix, is taken, disclosing that bit and nothing else. |
 | Browser authority | Authored vault bytes stay display input, never first-party script, navigation, form, frame, or automatic remote-resource authority. |
 
 ## Who is trusted
@@ -35,7 +35,7 @@ process that can already read the vault. OS, browser and filesystem are trusted.
 | Boundary | Enforcement |
 |---|---|
 | Network | `cmd/yomihon` creates only `127.0.0.1:<port>`. Requests are bounded in header size and read/write/idle time; final responses carry same-origin CORP, a nonce-bound CSP, `nosniff`, `no-referrer`, and DNS-prefetch refusal. |
-| Rendered vault data | Only the inert authored-HTML subset is admitted. Reports and raw markup use scriptless sandbox or escaped-source boundaries; every `<link` opener in a report, including one that is only text, is served with a relation no browser acts on ahead of the author's, a report marked as UTF-16 is served as plain text, and raw markup is served as a download rather than opened as a page, because a link element can ask the browser for a page outside the sandbox's reach; remote Markdown images become user-activated links. |
+| Rendered vault data | Only bare `ruby`, `rt`, `rp`, `br`, `kbd`, `sub`, `sup`, `mark` and `u` are admitted as authored HTML; only `ruby`, `rt` and `rp` may carry `lang=`. Other tags or attributes remain escaped text. Reports and raw markup use scriptless sandbox or escaped-source boundaries; every `<link` opener in a report, including one that is only text, is served with a relation no browser acts on ahead of the author's, a report marked as UTF-16 is served as plain text, and raw markup is served as a download rather than opened as a page, because a link element can ask the browser for a page outside the sandbox's reach; remote Markdown images become user-activated links. |
 | Process to vault | `vault.Reader` and `os.Root` pin the selected root. Paths are vault-relative and normalized before privileged use; the write path refuses symlinked traversal and rechecks file and parent identity. |
 | Contract to privileged action | `internal/schema` derives capability from the exact contract source. Agent output and status writes both fail closed without valid authority. |
 | Status mutation | `internal/status` alone writes. `POST /status` is capped at 4 KiB; a captured note without owner-write permission is refused before any temporary file or replacement, even in a writable directory. Otherwise it writes a synchronized sibling temporary file, revalidates, renames atomically, then synchronizes the directory. macOS and Linux only. |
@@ -134,8 +134,9 @@ that is not `examples/vault`, is a new decision.
   may lose them. Its independence from `reader.json` prevents an older
   continuation writer from replacing it, without creating a migration or
   recovery promise.
-- Repeated `exists` queries enumerate which exact names answer from withheld
-  directories, one caller-supplied name at a time. Accepted, because every
+- Repeated `exists` queries enumerate which names, including vault paths or
+  path suffixes, answer from withheld directories, one caller-supplied name at
+  a time. Accepted, because every
   alternative answer manufactures a concrete harm: a duplicate note under a
   private name, or links written against a name the page renders ambiguous.
 

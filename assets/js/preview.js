@@ -41,12 +41,14 @@ export function initPreview() {
 
   // The address of the excerpt one link asks for: the note's own path carried
   // over from the link verbatim, and the fragment it addresses read off the
-  // link rather than worked out again here.
+  // link rather than worked out again here. A heading path keeps its authored
+  // ancestry beside the href: its leaf id may carry a duplicate-name suffix
+  // that is an address on the page rather than a name in the source.
   function excerptURL(link) {
     const notes = '/notes/';
     if (!link.pathname.startsWith(notes)) return null;
     const url = new URL(endpoint.pathname + link.pathname.slice(notes.length), endpoint);
-    const fragment = decodeURIComponent(link.hash.slice(1));
+    const fragment = link.dataset.previewSection || decodeURIComponent(link.hash.slice(1));
     if (fragment) url.searchParams.set('section', fragment);
     return url;
   }

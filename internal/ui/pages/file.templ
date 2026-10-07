@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -76,7 +78,18 @@ templ fileHead(v FileView, lang wording.Lang) {
 // it is, and where its bytes are.
 templ fileInfo(v FileView, lang wording.Lang) {
 	<div class="y-fileinfo">
-		<p class="y-fileinfo__lead">{ wording.NoReaderForFile.In(lang) }</p>
+		if v.SourceLimit > 0 {
+			if v.SourceLimitDocument {
+				<p class="y-fileinfo__lead">{ fmt.Sprintf(wording.DocumentOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)) }</p>
+			} else {
+				<p class="y-fileinfo__lead">{ fmt.Sprintf(wording.NoteOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)) }</p>
+			}
+			if v.SourceLimitFinding {
+				<p><a href={ templ.URL(sourceBoundHealthHref(v.RelPath)) }>{ wording.NoteReadingLimitHealth.In(lang) }</a></p>
+			}
+		} else {
+			<p class="y-fileinfo__lead">{ wording.NoReaderForFile.In(lang) }</p>
+		}
 		<dl class="y-fileinfo__list">
 			<dt>{ wording.FileName.In(lang) }</dt>
 			<dd>{ v.Title }</dd>
