@@ -480,7 +480,7 @@ func TestHeadingAttributeFragmentsRunCheck(t *testing.T) {
 	}
 }
 
-func headingAttributeCheck(t *testing.T, root string) ([]Finding, int) {
+func headingAttributeCheck(t *testing.T, root string) (findings []Finding, exit int) {
 	t.Helper()
 	stdout, exit, err := RunCheck(t.Context(), &CheckOptions{
 		Root: root, Format: FormatJSON, Deny: []string{"link.section_missing", "embed.section_missing"},
@@ -488,11 +488,11 @@ func headingAttributeCheck(t *testing.T, root string) ([]Finding, int) {
 	if err != nil {
 		t.Fatalf("RunCheck heading attributes: %v", err)
 	}
-	var findings []Finding
 	decoder := json.NewDecoder(bytes.NewReader(stdout))
 	for {
 		var record struct {
 			Finding
+
 			Severity string `json:"severity"`
 		}
 		if err := decoder.Decode(&record); errors.Is(err, io.EOF) {
