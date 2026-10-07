@@ -19,6 +19,36 @@ type anyTitle struct{}
 
 func (anyTitle) TitledBy(string) []string { return nil }
 
+func TestCalloutOpeningUsesSyntaxRatherThanAddressRefusal(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		line string
+		want bool
+	}{
+		{name: "known", line: "> [!note] Title", want: true},
+		{name: "unknown", line: "> [!nonesuch] Title ^address", want: true},
+		{name: "open fold", line: "> [!CUSTOM_TYPE2]+ Title", want: true},
+		{name: "closed fold", line: "> [!my-callout]- Title", want: true},
+		{name: "numeric", line: "> [!2] Title", want: true},
+		{name: "underscore", line: "> [!_] Title", want: true},
+		{name: "hyphen", line: "> [!-] Title", want: true},
+		{name: "container indent", line: "    > [!note] Title", want: true},
+		{name: "empty type", line: "> [!] Title"},
+		{name: "dot in type", line: "> [!my.callout] Title"},
+		{name: "space in type", line: "> [!my callout] Title"},
+		{name: "missing quote", line: "[!note] Title"},
+		{name: "table", line: "| > [!note] Title |"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsCalloutOpening(tt.line); got != tt.want {
+				t.Errorf("IsCalloutOpening(%q) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestACalloutBodyClosesEveryBlockAnEmptyLineDoesNotEnd enumerates the ways a
 // callout's body can end in the middle of something. A callout is read as part
 // of the note it is written in, so its body's source is laid into the note's
@@ -308,7 +338,7 @@ func TestTheCalloutVocabularyNamesEachTypeOnce(t *testing.T) {
 					"lowercased before the lookup, so nothing will ever match this entry", typ)
 			}
 			if bucket, title := calloutBucketOf(typ); bucket == bucketUnknown {
-				t.Errorf("[!%s] is in the vocabulary and classifies as unknown, so it renders as a plain blockquote", typ)
+				t.Errorf("[!%s] is in the vocabulary and classifies as unknown, so it emits an unexpected diagnostic", typ)
 			} else if title == "" {
 				t.Errorf("[!%s] has no default title", typ)
 			}
@@ -346,7 +376,7 @@ func TestUnanchorableLineFollowsTheCalloutVocabulary(t *testing.T) {
 		probed++
 		line := "> [!" + typ + "] Title ^addr"
 		if UnanchorableLine(line) {
-			t.Errorf("a [!%s] title was refused; the page treats an unknown type as a blockquote and stamps the address", typ)
+			t.Errorf("a [!%s] title was refused; the page preserves an unknown type's opening address", typ)
 		}
 	}
 	if probed == 0 {
@@ -382,11 +412,8 @@ func TestABucketNamesItself(t *testing.T) {
 
 // TestAnUnrecognizedCalloutTypeKeepsTheNoteLook holds the half that must not
 // move. A callout type outside the vocabulary is classified as bucketUnknown
-// and turned back into a plain blockquote before a look is chosen, so nothing
-// asks these two about it today — but that filter sits a long way from here,
-// and a reader who wrote "> [!speculation]" must never meet a stopped page for
-// it. The look bucketUnknown gets if it ever arrives is the note's, which is
-// what it got when both of these ended in a default.
+// and uses the neutral note shell. A reader who wrote "> [!speculation]"
+// still gets its diagnostic without a stopped page or an invented tint.
 func TestAnUnrecognizedCalloutTypeKeepsTheNoteLook(t *testing.T) {
 	t.Parallel()
 

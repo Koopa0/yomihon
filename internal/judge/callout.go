@@ -53,16 +53,11 @@ func extractCalloutTitlesFrom(body string, bodyStartLine int, skip []byteRange) 
 	return out
 }
 
-// recognisedCalloutTitle reports the title of a recognised callout's opening
-// line. Recognition is render.UnanchorableLine's, so a type the page does not
-// answer to stays a blockquote here too. A table row is also unanchorable and
-// is not a callout.
+// recognisedCalloutTitle reports the title of a syntactically valid callout's
+// opening line, including unknown types whose neutral shell escapes the title.
+// Opening syntax is independent of the renderer's block-address refusal.
 func recognisedCalloutTitle(line string) (title string, ok bool) {
-	if !render.UnanchorableLine(line) {
-		return "", false
-	}
-	unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
-	if strings.HasPrefix(strings.TrimLeft(unquoted, " \t"), "|") {
+	if !render.IsCalloutOpening(line) {
 		return "", false
 	}
 	open := strings.Index(line, "[!")

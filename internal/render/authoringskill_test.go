@@ -64,8 +64,8 @@ var calloutToken = regexp.MustCompile("`[^`\n]+`")
 // TestAuthoringSkillListsExactlyTheKnownCalloutTypes pins the callout type
 // list a person reads in the authoring guide to the vocabulary the renderer
 // actually answers to. A type the guide names but calloutVocabulary drops
-// sends an author toward a `[!that-type]` block expecting a tinted box and
-// gets a plain blockquote with a diagnostic instead; a type calloutVocabulary
+// sends an author toward a `[!that-type]` block expecting a recognized type
+// but gets an unknown-type diagnostic instead; a type calloutVocabulary
 // carries but the guide never mentions is invisible to every author who only
 // reads the guide. Reading the guide's own words here, rather than trusting a
 // second copy of the count kept in this test, means an edit to either side is
