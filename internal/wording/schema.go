@@ -77,7 +77,8 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 }
 
 // FrontmatterExplanation keeps ordinary parser evidence intact, while a YAML
-// runtime failure is explained through the authored forms the reader can fix.
+// runtime or invalid-map-key failure is explained through the authored forms
+// the reader can fix.
 // The captured diagnostic includes the vault reader's prefix; an identical
 // phrase inside an ordinary YAML error is still evidence and stays unchanged.
 func FrontmatterExplanation(lang Lang, diagnostic string) (summary, detail string) {
@@ -88,7 +89,8 @@ func FrontmatterExplanation(lang Lang, diagnostic string) (summary, detail strin
 }
 
 func unsupportedFrontmatter(diagnostic string) bool {
-	return strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: runtime error:")
+	return strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: runtime error:") ||
+		strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: invalid map key:")
 }
 
 // The pieces the sentences above are made of. They are fragments rather than
