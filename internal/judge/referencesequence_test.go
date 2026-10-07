@@ -155,7 +155,8 @@ func wantPrivateReferenceFindings(t *testing.T, root, path string) {
 		t.Fatal(err)
 	}
 	var fields []string
-	for _, finding := range findings {
+	for i := range findings {
+		finding := &findings[i]
 		if finding.RuleID == "schema.reference_nested_sequence" && finding.Field != nil {
 			fields = append(fields, *finding.Field)
 		}
@@ -203,8 +204,8 @@ func TestReferenceSequenceContractSelection(t *testing.T) {
 					t.Error(closeErr)
 				}
 			})
-			if err := root.WriteFile("contract.toml", []byte(declaration), 0o600); err != nil {
-				t.Fatal(err)
+			if writeErr := root.WriteFile("contract.toml", []byte(declaration), 0o600); writeErr != nil {
+				t.Fatal(writeErr)
 			}
 			contract, err := schema.LoadFile(filepath.Join(root.Name(), "contract.toml"))
 			if err != nil {
