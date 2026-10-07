@@ -68,7 +68,7 @@ func (r *Pipeline) hostOutline(col *collector) []TOCEntry {
 func (r *Pipeline) outline(relPath, body string) []TOCEntry {
 	stripped, _ := stripBody(body)
 	page := &composition{lang: wording.ZhHant, headingLookup: true}
-	res := r.renderBody(bodyInput{path: relPath, text: stripped.text, address: stripped.address}, embedsAllowed, page, hostRegion)
+	res := r.renderBody(&bodyInput{path: relPath, text: stripped.text, address: stripped.address}, embedsAllowed, page, hostRegion)
 	var headings []TOCEntry
 	_, _ = stampHeadings(res.HTML, "", &headings)
 	return headings

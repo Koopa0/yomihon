@@ -36,13 +36,23 @@ const token = randomUUID();
 const rel = `Notes/Source limit ${token}/A huge 字 # %.md`;
 const noteURL = `${BASE}/notes/${encodeURIComponent(rel)}`;
 
-// Both barriers read the served report, so the next probe cannot inherit a
-// finding from a removed file that the scanner has not yet published away.
+// Both barriers read the served report, so the note is not asked for before the
+// scanner has published it, and the next probe cannot inherit a finding from a
+// removed file that the scanner has not yet published away. The wait is a loop
+// here rather than waitForFunction: that settles on the first truthy return,
+// and an async predicate returns a pending promise, which would let either
+// barrier pass on its first look.
 const published = async (present) => {
-  await control.page.waitForFunction(async ({ address, marker, expected }) => {
-    const response = await fetch(address);
-    return response.ok && (await response.text()).includes(marker) === expected;
-  }, { address: `${BASE}/health?page=all`, marker: token, expected: present }, { timeout: 20000 });
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    const settled = await control.page.evaluate(async ({ address, marker, expected }) => {
+      const response = await fetch(address, { cache: 'no-store' });
+      return response.ok && (await response.text()).includes(marker) === expected;
+    }, { address: `${BASE}/health?page=all`, marker: token, expected: present });
+    if (settled) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Broken(`the health report ${present ? 'never named' : 'still names'} the probe's files after 20s`);
 };
 
 try {
@@ -71,7 +81,7 @@ try {
     try {
       await context.addCookies([{ name: 'yomihon_lang', value: lang, url: BASE }, { name: 'yomihon_theme', value: theme, url: BASE }]);
       let matches = -1;
-      if (MUTATE === 'drop-finding-clearance') await context.route('**/static/app.css', async (route) => {
+      if (MUTATE === 'drop-finding-clearance') await context.route('**/static/app.css{,?*}', async (route) => {
         const response = await route.fetch();
         const original = await response.text();
         const needle = /\.y-findings__target\s*\{[^}]*\}/gu;

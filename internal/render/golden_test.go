@@ -106,11 +106,13 @@ func TestTheRenderedBytesAreTheOnesTheGoldensHold(t *testing.T) {
 		// would send the browser to a different address.
 		{name: "destinations", relPath: "Notes/Destinations.md"},
 		{name: "readaloud", relPath: "Notes/Read Aloud.md", inject: injectReadAloud},
+		{name: "formatting", relPath: "Notes/Formatting.md"},
 		{name: "concept", relPath: "Notes/Concept User.md", inject: injectConcepts},
 		// A list row that declares a role loses it on the reading page, the
 		// way a heading already does; a line that is only the marker, or a
 		// marker quoted in code, stays.
 		{name: "sequencerow", relPath: "Notes/Sequence Row.md"},
+		{name: "htmlcomments", relPath: "Notes/HTML Comments.md"},
 		{name: "tasklist", relPath: "Notes/Task List.md"},
 	}
 

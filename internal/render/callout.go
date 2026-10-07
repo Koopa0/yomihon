@@ -11,8 +11,13 @@ import (
 	"github.com/koopa0/yomihon/internal/graph"
 )
 
+// An opener may stand at any indent, because a callout nested in a list item
+// sits at that item's content column. Whether four spaces or a tab show the
+// line as code depends on the container around it, which only a parse knows,
+// so each reader asks its parser for the indented code lines before treating a
+// match as a callout.
 var (
-	calloutStartPattern = regexp.MustCompile(`^\s*>\s*\[!([A-Za-z]+)\]([+-]?)\s?(.*)$`)
+	calloutStartPattern = regexp.MustCompile(`^\s*>\s*\[!([A-Za-z0-9_-]+)\]([+-]?)\s?(.*)$`)
 	quotePrefix         = graph.QuotePrefix
 )
 
@@ -38,28 +43,24 @@ const (
 	bucketQuote
 )
 
-// calloutGroup is one share of the callout vocabulary: the types that render
-// alike, the bucket they render as, and the English title they carry when
-// their author writes none.
+// calloutGroup holds types that share a tint and icon. An untitled callout
+// takes its own type's name, independently of that shared look.
 type calloutGroup struct {
 	bucket calloutBucket
-	title  string
 	types  []string
 }
 
-// calloutVocabulary is every callout type this renderer answers to, written
-// out as data so one value holds both which types exist and what each of them
-// looks like. The set is closed, as Obsidian's is: a type outside it is not a
-// callout, and the block falls back to a plain blockquote. A quotation is its
-// own group, again as Obsidian reads it — it carries someone's words rather
-// than a remark about the text.
+// calloutVocabulary names the built-in callout types this renderer recognizes.
+// A type outside it produces a diagnostic and remains a plain blockquote.
+// Quotations carry their own icon because they hold someone else's words.
 var calloutVocabulary = []calloutGroup{
-	{bucketNote, "Note", []string{"info", "note", "tip", "hint", "abstract", "summary", "todo"}},
-	{bucketNote, "Question", []string{"question", "help", "faq"}},
-	{bucketNote, "Example", []string{"example"}},
-	{bucketQuote, "Quote", []string{"quote", "cite"}},
-	{bucketWarning, "Warning", []string{"warning", "caution", "attention"}},
-	{bucketWarning, "Danger", []string{"danger", "error", "bug", "fail", "failure", "missing"}},
+	{bucketNote, []string{"info", "note", "tip", "important", "hint", "abstract", "tldr", "summary", "todo"}},
+	{bucketNote, []string{"success", "check", "done"}},
+	{bucketNote, []string{"question", "help", "faq"}},
+	{bucketNote, []string{"example"}},
+	{bucketQuote, []string{"quote", "cite"}},
+	{bucketWarning, []string{"warning", "caution", "attention"}},
+	{bucketWarning, []string{"danger", "error", "bug", "fail", "failure", "missing"}},
 }
 
 // calloutBucketOf maps a lowercased callout type to its bucket and default
@@ -68,7 +69,7 @@ var calloutVocabulary = []calloutGroup{
 func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
 	for _, group := range calloutVocabulary {
 		if slices.Contains(group.types, typ) {
-			return group.bucket, group.title
+			return group.bucket, strings.ToUpper(typ[:1]) + typ[1:]
 		}
 	}
 	return bucketUnknown, ""
