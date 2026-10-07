@@ -10,6 +10,13 @@ const MODE = 'move-region-below-paragraph-return';
 const STATUS = '.y-ttsbar__status';
 const CARD = '[data-slot-action="speak"]';
 const UNAVAILABLE = { 'zh-Hant': '目前無法播放語音', en: 'Speech is unavailable right now' };
+const COMPOSITIONS = [
+  { name: 'mixed', path: '/notes/Writing/lessons/japanese/L01.md', paragraphs: 1, cards: 1 },
+  { name: 'paragraph', path: '/notes/Writing/lessons/japanese/L02.md', paragraphs: 3, cards: 0 },
+  { name: 'listen', path: '/listen/Maps/listen.md', paragraphs: 4, cards: 0 },
+  { name: 'no-controls', path: '/notes/Notes/alpha.md', paragraphs: 0, cards: 0 },
+  { name: 'practice', path: PAGE, paragraphs: 0, cards: 1 },
+];
 class LockFired extends Error {
   constructor(site, message) { super(`FAIL read-aloud-status [${site}]: ${message}`); this.site = site; }
 }
@@ -27,8 +34,101 @@ const REGION = "    if (column?.querySelector('[data-tts], [data-slot-action=\"s
 const RETURN = '    if (readingButtons.length === 0) return;\n';
 let applied = false;
 let hit = false;
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+async function composition(browser, width, language, theme, fixture, noAPI) {
+  const context = await browser.newContext({ viewport: { width, height: 800 } });
+  try {
+    await context.addCookies([
+      { name: 'yomihon_lang', value: language, url: BASE },
+      { name: 'yomihon_theme', value: theme, url: BASE },
+    ]);
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.addInitScript((unsupported) => {
+      window.__utterances = [];
+      if (unsupported) {
+        if (!Reflect.deleteProperty(window, 'speechSynthesis') || 'speechSynthesis' in window) {
+          throw new Error('cannot remove speech API for control');
+        }
+        return;
+      }
+      speechSynthesis.speak = (utterance) => {
+        window.__utterances.push(utterance);
+        utterance.dispatchEvent(new Event('start'));
+      };
+      speechSynthesis.cancel = () => {};
+    }, noAPI);
+    const response = await page.goto(BASE + fixture.path, { waitUntil: 'networkidle' });
+    const identity = `${fixture.name}/${width}/${language}/${theme}/${noAPI ? 'no-api' : 'api'}`;
+    setup(response?.status() === 200 && errors.length === 0, `${identity} setup: ${response?.status()} ${errors.join('; ')}`);
+    setup(await page.locator('[data-tts]').count() === fixture.paragraphs && await page.locator(CARD).count() === fixture.cards, `${identity} fixture controls differ`);
+    const speakers = fixture.paragraphs + fixture.cards;
+    check(await page.locator(STATUS).count() === (speakers ? 1 : 0), 'composition-region', `${identity} shared status cardinality`);
+    check(await page.locator('.y-ttsbar').count() === (!noAPI && fixture.paragraphs ? 1 : 0), 'composition-toolbar', `${identity} toolbar cardinality`);
+    if (!speakers) return;
+    const initial = await page.evaluate(() => {
+      window.__sharedStatus = document.querySelector('.y-ttsbar__status');
+      return { text: window.__sharedStatus.textContent, language: window.__sharedStatus.closest('[lang]')?.lang };
+    });
+    check(initial.text === '' && initial.language === language, 'composition-initial', `${identity} initial status ${JSON.stringify(initial)}`);
+    if (!noAPI && fixture.paragraphs) {
+      check(await page.locator('.y-ttsbar .y-ttsbar__status').count() === 1, 'composition-placement', `${identity} status outside toolbar`);
+    }
+    if (fixture.name === 'listen' && !noAPI) {
+      check(await page.locator('[data-readaloud-bar] .y-ttsbar').count() === 1, 'listen-placement', `${identity} listening anchor changed`);
+    }
+    const triggers = [];
+    if (fixture.cards) triggers.push(CARD);
+    if (fixture.paragraphs) triggers.push('[data-tts]');
+    const shuffle = await page.locator('.y-slotlive').allTextContents();
+    for (const selector of triggers) {
+      const trigger = page.locator(selector).first();
+      const idle = await trigger.getAttribute('aria-label');
+      await trigger.click();
+      if (noAPI) {
+        check(await page.evaluate(() => window.__utterances.length) === 0 && await page.locator(STATUS).textContent() === '' && await trigger.getAttribute('aria-label') === idle && await page.locator('[data-speaking], [data-reading]').count() === 0, 'unsupported-silent', `${identity} unsupported API changed idle behavior`);
+        continue;
+      }
+      await page.evaluate(() => window.__utterances.at(-1).dispatchEvent(new Event('error')));
+      check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await trigger.getAttribute('aria-label') === idle && await page.locator('[data-speaking], [data-reading]').count() === 0, 'composition-error', `${identity} ${selector} refusal failed`);
+      check(await page.evaluate(() => window.__sharedStatus === document.querySelector('.y-ttsbar__status')) && await page.locator(STATUS).count() === 1, 'composition-identity', `${identity} replaced or duplicated status`);
+    }
+    check(JSON.stringify(await page.locator('.y-slotlive').allTextContents()) === JSON.stringify(shuffle), 'shuffle-isolation', `${identity} speech changed shuffle announcements`);
+    if (!noAPI && fixture.paragraphs > 1) {
+      await page.click('.y-ttsbar__play');
+      const count = await page.evaluate(() => window.__utterances.length);
+      await page.evaluate(() => window.__utterances.at(-1).dispatchEvent(new Event('end')));
+      check(await page.evaluate(() => window.__utterances.length) === count + 1, 'automatic-advance', `${identity} end did not advance once`);
+      await page.evaluate(() => window.__utterances.at(-1).dispatchEvent(new Event('error')));
+      check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await page.locator('.y-ttsbar__play').getAttribute('aria-pressed') === 'false' && await page.locator('[data-speaking], [data-reading]').count() === 0 && await page.evaluate(() => window.__utterances.length) === count + 1, 'advance-error', `${identity} error did not end the walk`);
+      for (const selector of ['.y-ttsbar__prev', '.y-ttsbar__next']) {
+        await page.click(selector);
+        await page.evaluate(() => window.__utterances.at(-1).dispatchEvent(new Event('error')));
+        check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await page.locator('[data-speaking], [data-reading]').count() === 0, 'step-error', `${identity} ${selector} refusal failed`);
+      }
+      await page.click('.y-ttsbar__play');
+      await page.click('.y-ttsbar__stop');
+      const stopped = await page.locator(STATUS).textContent();
+      await page.evaluate(() => window.__utterances.at(-1).dispatchEvent(new Event('error')));
+      check(await page.locator(STATUS).textContent() === stopped && await page.locator('[data-speaking], [data-reading]').count() === 0, 'stopped-error', `${identity} stopped callback changed status`);
+      await page.click('.y-ttsbar__play');
+      const beforeHide = await page.locator(STATUS).textContent();
+      const beforeHideCount = await page.evaluate(() => window.__utterances.length);
+      await page.evaluate(() => {
+        window.dispatchEvent(new Event('pagehide'));
+        window.__utterances.at(-1).dispatchEvent(new Event('end'));
+        window.__utterances.at(-1).dispatchEvent(new Event('error'));
+      });
+      check(await page.locator(STATUS).textContent() === beforeHide && await page.evaluate(() => window.__utterances.length) === beforeHideCount, 'pagehide-stale', `${identity} pagehide callback changed status or advanced`);
+    }
+    setup(errors.length === 0, `${identity} runtime errors: ${errors.join('; ')}`);
+  } finally {
+    await context.close();
+  }
+}
+let browser;
 try {
+  browser = await chromium.launch({ channel: 'chrome', headless: true });
   for (const width of [1280, 390]) {
     for (const language of ['zh-Hant', 'en']) {
       for (const theme of ['light', 'dark']) {
@@ -122,10 +222,15 @@ try {
         check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await page.evaluate(() => window.__refusals) === 2, 'later-refusal', 'later generation did not announce its refusal once');
         setup(errors.length === 0, `runtime errors after speech: ${errors.join('; ')}`);
         await context.close();
+        for (const fixture of COMPOSITIONS) {
+          for (const noAPI of [false, true]) {
+            await composition(browser, width, language, theme, fixture, noAPI);
+          }
+        }
       }
     }
   }
-  console.log('PASS read-aloud-status: practice refusal and generation recovery in both languages, themes and viewports');
+  console.log('PASS read-aloud-status: practice refusal, generation recovery and speech compositions in both languages, themes and viewports');
 } catch (error) {
   console.error(error.message);
   if (error instanceof LockFired && error.site === 'practice-unavailable' && hit && (!MUTATE || applied)) {
@@ -139,5 +244,5 @@ try {
     process.exitCode = error instanceof LockFired && !MUTATE ? 1 : 2;
   }
 } finally {
-  await browser.close();
+  await browser?.close();
 }
