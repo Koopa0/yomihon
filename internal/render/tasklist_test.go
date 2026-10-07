@@ -249,3 +249,127 @@ func TestHeadingTasksStayOutsideFollowingLabels(t *testing.T) {
 		}
 	}
 }
+
+func TestTaskSequenceRolesLeaveOnlyAuthoredNames(t *testing.T) {
+	t.Parallel()
+	for _, task := range []struct{ marker, input string }{
+		{marker: " ", input: `<input disabled="" type="checkbox">`},
+		{marker: "x", input: `<input checked="" disabled="" type="checkbox">`},
+		{marker: "X", input: `<input checked="" disabled="" type="checkbox">`},
+		{marker: "/", input: `<input disabled="" type="checkbox" data-task="/">`},
+		{marker: "-", input: `<input disabled="" type="checkbox" data-task="-">`},
+		{marker: ">", input: `<input disabled="" type="checkbox" data-task="&gt;">`},
+	} {
+		for _, role := range []string{"primary", "local", "none"} {
+			t.Run(task.marker+role, func(t *testing.T) {
+				t.Parallel()
+				source := "- [" + task.marker + "] Task {sequence=" + role + "}\n- Plain row {sequence=" + role + "}\n"
+				want := "<ul>\n<li><label class=\"y-task\">" + task.input + " Task</label></li>\n<li>Plain row</li>\n</ul>\n"
+				got := newRenderer(t, nil, nil, nil).HTML("Task.md", "", source, wording.En).HTML
+				t.Logf("invoked: task-role-state marker=%q role=%q", task.marker, role)
+				if got != want {
+					t.Errorf("caught: task role HTML = %q, want %q", got, want)
+				}
+				if strings.Contains(got, "{sequence=") {
+					t.Errorf("caught: task name retains declaration in %q", got)
+				}
+			})
+		}
+	}
+}
+
+func TestTaskSequenceRolesRespectInlineBlockBoundaries(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ name, source, want string }{
+		{
+			name:   "loose",
+			source: "- [x] Task {sequence=local}\n\n- Plain row {sequence=local}\n",
+			want:   "<ul>\n<li>\n<p><label class=\"y-task\"><input checked=\"\" disabled=\"\" type=\"checkbox\"> Task</label></p>\n</li>\n<li>\n<p>Plain row</p>\n</li>\n</ul>\n",
+		},
+		{
+			name:   "nested",
+			source: "- [ ] Parent {sequence=primary}\n  - [x] Child {sequence=local}\n",
+			want:   "<ul>\n<li><label class=\"y-task\"><input disabled=\"\" type=\"checkbox\"> Parent</label>\n<ul>\n<li><label class=\"y-task\"><input checked=\"\" disabled=\"\" type=\"checkbox\"> Child</label></li>\n</ul>\n</li>\n</ul>\n",
+		},
+		{
+			name:   "ordered",
+			source: "1. [x] First {sequence=none}\n2. [ ] Second {sequence=local}\n",
+			want:   "<ol>\n<li><label class=\"y-task\"><input checked=\"\" disabled=\"\" type=\"checkbox\"> First</label></li>\n<li><label class=\"y-task\"><input disabled=\"\" type=\"checkbox\"> Second</label></li>\n</ol>\n",
+		},
+		{
+			name:   "second paragraph",
+			source: "- [x] Own {sequence=local}\n\n  Another paragraph {sequence=local}\n",
+			want:   "<ul>\n<li>\n<p><label class=\"y-task\"><input checked=\"\" disabled=\"\" type=\"checkbox\"> Own</label></p>\n<p>Another paragraph {sequence=local}</p>\n</li>\n</ul>\n",
+		},
+		{
+			name:   "soft continuation",
+			source: "- [ ] Own\n  continuation {sequence=local}\n",
+			want:   "<ul>\n<li><label class=\"y-task\"><input disabled=\"\" type=\"checkbox\"> Own\ncontinuation</label></li>\n</ul>\n",
+		},
+		{
+			name:   "inline formatting retained",
+			source: "- [x] **Own** {sequence=local}\n",
+			want:   "<ul>\n<li><label class=\"y-task\"><input checked=\"\" disabled=\"\" type=\"checkbox\"> <strong>Own</strong></label></li>\n</ul>\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := newRenderer(t, nil, nil, nil).HTML("Task.md", "", tt.source, wording.En).HTML
+			if got != tt.want {
+				t.Errorf("caught: task own-block HTML = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBlockTaskSequenceRoleIsAbsentFromItsEarlyName(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, transclusions{"Target.md": "- [ ] Embedded {sequence=local}\n"})
+	result := r.HTMLIn("compare-a-", "Host.md", "", "- [x] Task ![[Target]] {sequence=local}\n", wording.En)
+	for _, body := range []string{result.HTML, render.StripAnchors(result.HTML)} {
+		t.Log("invoked: early-block-task-role-name")
+		const label = `<label class="y-task"><input checked="" disabled="" type="checkbox"> <span class="y-offscreen">Task</span></label>`
+		if !strings.Contains(body, label) {
+			t.Errorf("caught: early block task name = %q, want %q", body, label)
+		}
+		const visible = label + ` Task <div class="embed">`
+		if !strings.Contains(body, visible) {
+			t.Errorf("caught: block task visible own wording = %q, want %q", body, visible)
+		}
+		const child = `<label class="y-task"><input disabled="" type="checkbox"> Embedded</label>`
+		if !strings.Contains(body, child) || strings.Index(body, child) < strings.Index(body, label)+len(label) {
+			t.Errorf("caught: embedded child task crossed parent name boundary: %q", body)
+		}
+		if strings.Contains(body, "{sequence=") || strings.ContainsAny(body, "\ue000\ue001\ue002\ue003") {
+			t.Errorf("caught: block task display leaked role or placeholder: %q", body)
+		}
+		if strings.Count(body, `<label class="y-task">`) != 2 || strings.Count(body, "</label>") != 2 || strings.Count(body, `type="checkbox"`) != 2 {
+			t.Errorf("caught: block task labels/control counts = %q, want two independent tasks", body)
+		}
+	}
+}
+
+func TestTaskSequenceRoleQuotationAndInvalidDeclarationsStayVisible(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct{ name, source, own string }{
+		{name: "code", source: "Task `{sequence=local}`", own: "Task <code>{sequence=local}</code>"},
+		{name: "emphasis", source: "*Task {sequence=local}*", own: "<em>Task {sequence=local}</em>"},
+		{name: "link", source: "[Task {sequence=local}](https://example.test/)", own: `<a href="https://example.test/" target="_blank" rel="external noopener noreferrer" referrerpolicy="no-referrer">Task {sequence=local}<span class="y-offscreen"> (opens in a new tab)</span></a>`},
+		{name: "unknown", source: "Task {sequence=supplementary}", own: "Task {sequence=supplementary}"},
+		{name: "duplicate", source: "Task {sequence=primary} {sequence=local}", own: "Task {sequence=primary} {sequence=local}"},
+		{name: "incomplete", source: "Task {sequence=local", own: "Task {sequence=local"},
+		{name: "nonterminal", source: "Task {sequence=local} tail", own: "Task {sequence=local} tail"},
+		{name: "marker only", source: "{sequence=local}", own: "{sequence=local}"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			source := "- [x] " + tt.source + "\n- " + tt.source + "\n"
+			want := "<ul>\n<li><label class=\"y-task\"><input checked=\"\" disabled=\"\" type=\"checkbox\"> " + tt.own + "</label></li>\n<li>" + tt.own + "</li>\n</ul>\n"
+			got := newRenderer(t, nil, nil, nil).HTML("Task.md", "", source, wording.En).HTML
+			if got != want {
+				t.Errorf("caught: literal task/plain role HTML = %q, want %q", got, want)
+			}
+		})
+	}
+}
