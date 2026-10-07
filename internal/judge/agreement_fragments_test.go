@@ -1,0 +1,199 @@
+package judge_test
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"unicode"
+
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
+)
+
+type agreementProbe struct {
+	Path       string
+	Target     string
+	ResolvedTo string
+	Fragment   string
+	Rule       judge.RuleID
+	Case       int
+	Absent     bool
+}
+
+func agreementWrite(t *testing.T, root, path string, data []byte) {
+	t.Helper()
+	full := filepath.Join(root, filepath.FromSlash(path))
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatalf("create test directory: %v", err)
+	}
+	if err := os.WriteFile(full, data, 0o600); err != nil {
+		t.Fatalf("write synthetic note %q: %v", path, err)
+	}
+}
+
+func agreementCandidates(body string, html agreementHTML) []string {
+	// This inventory intentionally reads tails inside code/comments too. It
+	// discovers potential addresses; none of its reading grants acceptance.
+	candidates := []string{"^a", "^A", "^é", "^e\u0301", "^a-2"}
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimRight(line, " \t\r")
+		if at := strings.LastIndexByte(trimmed, '^'); at >= 0 {
+			tail := trimmed[at:]
+			if len(tail) > 1 && !strings.ContainsFunc(tail, unicode.IsSpace) && (at == 0 || trimmed[at-1] == ' ' || trimmed[at-1] == '\t') {
+				candidates = append(candidates, tail)
+			}
+		}
+	}
+	candidates = append(candidates, html.Blocks...)
+	for i := range candidates {
+		candidates[i] = graph.FoldFragment(candidates[i])
+	}
+	slices.Sort(candidates)
+	return slices.Compact(candidates)
+}
+
+func agreementFragments(t *testing.T, cases []agreementCase, actual []agreementHTML) {
+	t.Helper()
+	root := t.TempDir()
+	contract, err := os.ReadFile("../schema/testdata/contract.toml")
+	if err != nil {
+		t.Fatalf("read contract: %v", err)
+	}
+	needle := `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	if strings.Count(string(contract), needle) != 1 {
+		t.Fatal("contract knowledge declaration is not unique")
+	}
+	prepared := strings.Replace(string(contract), needle, `knowledge_dirs = ["Notes"]`, 1) + "\n[privacy]\nnever_egress_dirs = []\n"
+	agreementWrite(t, root, schema.ContractRelPath, []byte(prepared))
+	var probes []agreementProbe
+	var inputs []graph.NoteInput
+	for i := range cases {
+		path := fmt.Sprintf("Notes/agree-%04d.md", i)
+		inputs = append(inputs, graph.NoteInput{RelPath: path})
+		agreementWrite(t, root, path, agreementEnvelope(t, ""))
+		for companion := range cases[i].Companions {
+			if len(cases) != 1 {
+				t.Fatal("companion controls must own one isolated batch")
+			}
+			inputs = append(inputs, graph.NoteInput{RelPath: companion})
+			agreementWrite(t, root, companion, agreementEnvelope(t, ""))
+		}
+		absent := "agreement-absent-0"
+		for strings.Contains(cases[i].Body, absent) || slices.Contains(actual[i].Headings, absent) || slices.Contains(actual[i].Blocks, "^"+absent) {
+			absent += "x"
+		}
+		blocks := append(agreementCandidates(cases[i].Body, actual[i]), "^"+absent)
+		headings := append(slices.Clone(actual[i].Headings), absent)
+		slices.Sort(headings)
+		headings = slices.Compact(headings)
+		for family, fragments := range [][]string{blocks, headings} {
+			for index, fragment := range fragments {
+				if strings.ContainsAny(fragment, "|#]\r\n") || strings.HasSuffix(fragment, "\\") {
+					t.Errorf("caught: P%d candidate-unspellable case=%s fragment=%q body=%q", family+3, cases[i].Name, fragment, cases[i].Body)
+					continue
+				}
+				rule := judge.RuleID("link.block_missing")
+				if family == 1 {
+					rule = "link.section_missing"
+				}
+				target := strings.TrimSuffix(path, ".md") + "#" + fragment
+				probePath := fmt.Sprintf("Notes/probe-%04d-%d-%04d.md", i, family, index)
+				probeBody := "[[" + target + "]]\n"
+				wantTarget := strings.TrimSuffix(path, ".md")
+				if diff := cmp.Diff([]string{wantTarget}, judge.LinkTargets(probeBody)); diff != "" {
+					t.Fatalf("probe citation preflight: %s", diff)
+				}
+				link, ok := graph.ParseWikilink(target)
+				if !ok || link.Target != wantTarget || (family == 0 && "^"+link.Block != fragment) || (family == 1 && link.Heading != fragment) {
+					t.Fatalf("probe cannot spell literal fragment %q", fragment)
+				}
+				agreementWrite(t, root, probePath, agreementEnvelope(t, probeBody))
+				probes = append(probes, agreementProbe{Path: probePath, Target: target, ResolvedTo: path, Fragment: fragment, Rule: rule, Case: i, Absent: fragment == absent || fragment == "^"+absent})
+			}
+		}
+	}
+	idx := graph.BuildFromNotes(inputs, nil)
+	for _, probe := range probes {
+		got := idx.Resolve(strings.TrimSuffix(probe.ResolvedTo, ".md"))
+		if got.Kind != graph.KindUnique || got.RelPath != probe.ResolvedTo {
+			t.Fatalf("probe resolution preflight: %+v", got)
+		}
+	}
+	control := agreementMissing(t, root, probes)
+	for _, probe := range probes {
+		if control[probe.Path] != 1 {
+			t.Fatalf("control scan lacks exact receipt: %+v count=%d", probe, control[probe.Path])
+		}
+	}
+	for i, c := range cases {
+		agreementWrite(t, root, fmt.Sprintf("Notes/agree-%04d.md", i), agreementEnvelope(t, c.Body))
+		for companion, body := range c.Companions {
+			agreementWrite(t, root, companion, agreementEnvelope(t, body))
+		}
+	}
+	missing := agreementMissing(t, root, probes)
+	for _, probe := range probes {
+		c := cases[probe.Case]
+		accepted := missing[probe.Path] == 0
+		if probe.Absent && accepted {
+			t.Fatalf("absent fragment accepted: %+v", probe)
+		}
+		if probe.Rule == "link.section_missing" {
+			if !probe.Absent && !accepted {
+				t.Errorf("caught: P4 literal-heading-id case=%s id=%q body=%q check=missing", c.Name, probe.Fragment, c.Body)
+			}
+			continue
+		}
+		present := slices.Contains(actual[probe.Case].Blocks, probe.Fragment)
+		excerpt, found := render.Excerpt(c.Body, probe.Fragment)
+		if present != accepted || present != found {
+			t.Errorf("caught: P3 block-three-way case=%s id=%q body=%q page=%t judge=%t excerpt=%t cut=%q", c.Name, probe.Fragment, c.Body, present, accepted, found, excerpt)
+		}
+		if !found && excerpt != "" {
+			t.Errorf("caught: P3 missing-excerpt-widened case=%s id=%q cut=%q", c.Name, probe.Fragment, excerpt)
+		}
+	}
+}
+
+func agreementMissing(t *testing.T, root string, probes []agreementProbe) map[string]int {
+	t.Helper()
+	findings, err := judge.Check(t.Context(), root)
+	if err != nil {
+		t.Fatalf("public Check setup/refusal: %v", err)
+	}
+	planned := make(map[string]agreementProbe, len(probes))
+	for _, probe := range probes {
+		planned[probe.Path] = probe
+	}
+	counts := make(map[string]int)
+	for _, finding := range findings {
+		if finding.RuleID == "scan.unreadable" || finding.RuleID == "scan.skipped" {
+			t.Fatalf("incomplete Check corpus: %+v", finding)
+		}
+		probe, isProbe := planned[finding.Path]
+		if !isProbe {
+			continue
+		}
+		if strings.HasPrefix(string(finding.RuleID), "link.") && finding.RuleID != "link.block_missing" && finding.RuleID != "link.section_missing" {
+			t.Fatalf("probe did not reach fragment verdict: %+v", finding)
+		}
+		if finding.RuleID != "link.block_missing" && finding.RuleID != "link.section_missing" {
+			continue
+		}
+		if finding.RuleID != probe.Rule || finding.Target == nil || *finding.Target != probe.Target || finding.ResolvedTo == nil || *finding.ResolvedTo != probe.ResolvedTo {
+			t.Fatalf("misattributed receipt: %+v want=%+v", finding, probe)
+		}
+		counts[probe.Path]++
+		if counts[probe.Path] > 1 {
+			t.Fatalf("duplicate probe receipt: %+v", finding)
+		}
+	}
+	return counts
+}
