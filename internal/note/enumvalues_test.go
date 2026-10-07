@@ -113,8 +113,8 @@ func enumWholeContract(t *testing.T, custom bool) (*schema.Contract, enumWholeIn
 		t.Fatal(err)
 	}
 	var raw map[string]any
-	if _, err := toml.Decode(string(data), &raw); err != nil {
-		t.Fatal(err)
+	if _, decodeErr := toml.Decode(string(data), &raw); decodeErr != nil {
+		t.Fatal(decodeErr)
 	}
 	enums := enumWholeTable(t, raw["enums"], "enums")
 	inventory := enumWholeInventory{flat: make(map[string][]string), groups: make(map[string][]string), types: make(map[string]string)}
@@ -147,8 +147,8 @@ func enumWholeContract(t *testing.T, custom bool) (*schema.Contract, enumWholeIn
 	if custom {
 		data = enumWholeCustomBytes(t, data, inventory)
 		raw = nil
-		if _, err := toml.Decode(string(data), &raw); err != nil {
-			t.Fatal(err)
+		if _, customDecodeErr := toml.Decode(string(data), &raw); customDecodeErr != nil {
+			t.Fatal(customDecodeErr)
 		}
 		enums = enumWholeTable(t, raw["enums"], "enums")
 		for key := range inventory.flat {
@@ -180,8 +180,8 @@ func enumWholeContract(t *testing.T, custom bool) (*schema.Contract, enumWholeIn
 		}
 	}
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(path, data, 0o600); err != nil { // #nosec G703 -- fixed basename under t.TempDir
-		t.Fatal(err)
+	if writeErr := os.WriteFile(path, data, 0o600); writeErr != nil { // #nosec G703 -- fixed basename under t.TempDir
+		t.Fatal(writeErr)
 	}
 	contract, err := schema.LoadFile(path)
 	if err != nil {
@@ -299,7 +299,8 @@ func enumWholeJudge(t *testing.T, body string, contract *schema.Contract, field,
 func enumWholeAccepted(t *testing.T, findings []judge.Finding, field, kind, value string, unknown bool) {
 	t.Helper()
 	typeFaults := 0
-	for _, finding := range findings {
+	for i := range findings {
+		finding := &findings[i]
 		if finding.RuleID != "schema.enum" {
 			continue
 		}
@@ -307,7 +308,7 @@ func enumWholeAccepted(t *testing.T, findings []judge.Finding, field, kind, valu
 			typeFaults++
 			continue
 		}
-		t.Errorf("caught: enum-membership field=%s type=%s value=%s schema.enum rejected=%+v", field, kind, value, finding)
+		t.Errorf("caught: enum-membership field=%s type=%s value=%s schema.enum rejected=%+v", field, kind, value, *finding)
 	}
 	if unknown && typeFaults != 1 {
 		t.Errorf("caught: enum-guidance field=%s type=%s judge=unknown-type-stimulus got=%d want=1", field, kind, typeFaults)
