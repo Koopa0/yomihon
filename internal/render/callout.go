@@ -2,7 +2,6 @@ package render
 
 import (
 	"fmt"
-	"html"
 	"regexp"
 	"slices"
 	"strconv"
@@ -32,6 +31,14 @@ func calloutStart(line string) (typ, fold, title string, ok bool) {
 	return strings.ToLower(m[1]), m[2], strings.TrimSpace(m[3]), true
 }
 
+// IsCalloutOpening reports whether line has callout opening syntax, including
+// unknown types rendered in a neutral shell. It does not decide whether the
+// surrounding Markdown makes the line code or whether it can carry an address.
+func IsCalloutOpening(line string) bool {
+	_, _, _, ok := calloutStart(line)
+	return ok
+}
+
 // calloutBucket is one of the visual/semantic groups every known callout
 // type sorts into.
 type calloutBucket int
@@ -51,7 +58,7 @@ type calloutGroup struct {
 }
 
 // calloutVocabulary names the built-in callout types this renderer recognizes.
-// A type outside it produces a diagnostic and remains a plain blockquote.
+// A type outside it produces a diagnostic and uses the neutral note shell.
 // Quotations carry their own icon because they hold someone else's words.
 var calloutVocabulary = []calloutGroup{
 	{bucketNote, []string{"info", "note", "tip", "important", "hint", "abstract", "tldr", "summary", "todo"}},
@@ -64,15 +71,15 @@ var calloutVocabulary = []calloutGroup{
 }
 
 // calloutBucketOf maps a lowercased callout type to its bucket and default
-// title. bucketUnknown means the type is unrecognized and the caller falls
-// back to a plain blockquote.
+// title. An unrecognized type keeps its classification and uses the neutral
+// note shell with its own name as the default title.
 func calloutBucketOf(typ string) (bucket calloutBucket, defaultTitle string) {
 	for _, group := range calloutVocabulary {
 		if slices.Contains(group.types, typ) {
 			return group.bucket, strings.ToUpper(typ[:1]) + typ[1:]
 		}
 	}
-	return bucketUnknown, ""
+	return bucketUnknown, strings.ToUpper(typ[:1]) + typ[1:]
 }
 
 // String names a bucket for a message about a bucket nobody gave a look to. A
@@ -97,11 +104,9 @@ func (b calloutBucket) String() string {
 // the size and stroke of the interface's own icons, written inline so it needs
 // no icon font and no asset of its own, and drawn in the title's colour. A text
 // glyph took whatever shape and weight the reader's fonts gave it, which set an
-// emoji beside one title and a hairline beside the next. A type this renderer
-// does not recognize never reaches here — it is turned back into a plain
-// blockquote before a look is chosen — so bucketUnknown shares the note's mark
-// for the caller that stops recognizing that, and a bucket nobody wrote a look
-// for stops rather than quietly borrowing one.
+// emoji beside one title and a hairline beside the next. An unrecognized type
+// shares the note's neutral mark, while a bucket nobody wrote a look for stops
+// rather than quietly borrowing one.
 func calloutIcon(bucket calloutBucket) string {
 	switch bucket {
 	case bucketWarning:
@@ -140,7 +145,8 @@ func calloutClass(bucket calloutBucket) string {
 
 // calloutShell spells one already-classified callout's markup as the two halves
 // that enclose its body: a fold suffix becomes a native <details>, closed or
-// open, and no suffix a static tinted div.
+// open, and no suffix a static tinted div. The caller escapes the literal
+// title and any address span before passing their markup.
 //
 // The halves are returned apart rather than wrapped around finished HTML
 // because the body is left in the note's own source between them. A callout
@@ -149,12 +155,9 @@ func calloutClass(bucket calloutBucket) string {
 // side reached nothing and stayed on the page as the characters the author
 // typed. One note is one document, so one note is one set of footnotes, one
 // numbering, and one endnote list standing where the reader can reach it.
-func calloutShell(bucket calloutBucket, defaultTitle, fold, title string) (open, closing string) {
-	if title == "" {
-		title = defaultTitle
-	}
+func calloutShell(bucket calloutBucket, fold, titleHTML string) (open, closing string) {
 	bucketClass := calloutClass(bucket)
-	header := calloutIcon(bucket) + html.EscapeString(title)
+	header := calloutIcon(bucket) + titleHTML
 
 	if fold == "-" || fold == "+" {
 		openAttr := ""

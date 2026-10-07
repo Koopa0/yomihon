@@ -1556,16 +1556,13 @@ func TestCalloutSerializationLocks(t *testing.T) {
 	}
 }
 
-func TestCalloutUnknownTypeFallsBackToBlockquote(t *testing.T) {
+func TestCalloutUnknownTypeUsesNeutralShell(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
 
 	got := r.HTML("note.md", "", "> [!banana] Weird\n> body\n", wording.ZhHant)
-	if !strings.Contains(got.HTML, "<blockquote>") {
-		t.Errorf("HTML().HTML missing plain <blockquote> fallback:\n%s", got.HTML)
-	}
-	if strings.Contains(got.HTML, "callout") {
-		t.Errorf("an unknown callout type must not get any callout styling:\n%s", got.HTML)
+	if !strings.Contains(got.HTML, `class="callout callout-note"`) || strings.Contains(got.HTML, "[!banana]") {
+		t.Errorf("HTML().HTML missing neutral callout shell:\n%s", got.HTML)
 	}
 	if len(got.Diagnostics) != 1 || got.Diagnostics[0].Kind != render.DiagUnknownCallout || got.Diagnostics[0].Target != "banana" {
 		t.Errorf("Diagnostics = %+v, want one DiagUnknownCallout for target %q", got.Diagnostics, "banana")
