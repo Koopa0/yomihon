@@ -145,7 +145,9 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 // block address, so a link's "^name" matches the reading the destination page
 // uses. A line inside a fence is code, a recognised callout's opening line is
 // consumed as the title, a row opening with a pipe is table syntax whose tail
-// the renderer drops, and a caret a code span owns is quoted text.
+// the renderer drops — unless an indented code block shows either as written,
+// which the page's own parse answers — and a caret a code span owns is quoted
+// text.
 // Only lines carrying a caret are kept. address is these same lines carrying
 // the blank-or-not shape the author wrote, which is what the code-span question
 // is asked over: this face hides a comment with a different scan than the page
@@ -156,6 +158,7 @@ func collectBlockLines(body string, address []string) []string {
 	inFence, fenceByte, fenceLen := false, byte(0), 0
 	lines := strings.Split(body, "\n")
 	owned := render.CodeSpanOwnedAddresses(address)
+	unanchorable := render.UnanchorableLines(body)
 	for i, line := range lines {
 		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
 		if inFence {
@@ -174,7 +177,7 @@ func collectBlockLines(body string, address []string) []string {
 		if !strings.Contains(trimmed, "^") {
 			continue
 		}
-		if render.UnanchorableLine(line) || owned[i] {
+		if unanchorable(i, line) || owned[i] {
 			continue
 		}
 		out = append(out, graph.FoldFragment(trimmed))
@@ -210,10 +213,17 @@ func fragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Ind
 		unread[entry.path] = true
 	}
 	var out []Finding
+	paths := fragmentPaths{idx: idx, notes: byPath, unread: unread}
 	for i := range notes {
 		n := &notes[i]
 		for l := range n.wikilinks {
 			link := &n.wikilinks[l]
+			if link.block == "" && render.IsHeadingPath(link.heading) {
+				if f, reported := paths.finding(n, link); reported {
+					out = append(out, f)
+				}
+				continue
+			}
 			if f, reported := fragmentFinding(n, link, idx, byPath, unread); reported {
 				out = append(out, f)
 			}

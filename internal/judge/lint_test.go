@@ -226,7 +226,7 @@ func TestFrontmatterOnlyParseAgreesWithTheFullParse(t *testing.T) {
 	// Every field the body extraction fills. A field added to note and filled
 	// there is not listed, so it shows as a difference until someone decides
 	// whether the frontmatter lint reads it.
-	bodyFields := cmpopts.IgnoreFields(note{}, "wikilinks", "pathRefs", "plannedNames", "calloutTitles",
+	bodyFields := cmpopts.IgnoreFields(note{}, "body", "wikilinks", "pathRefs", "plannedNames", "calloutTitles",
 		"sectionAnchors", "excerptSectionAnchors", "blockAnchorLines", "sequence")
 	vaults, linted, findings := 0, 0, 0
 	for _, entry := range entries {

@@ -21,7 +21,7 @@ func TestACalloutTitleWithMarkupDrawsAFinding(t *testing.T) {
 			"> [!quote] **bold** and `code`\n" +
 			"> [!tip]- **folded**\n" +
 			"> [!quote] 松尾芭蕉\n" +
-			"> [!success] **not a callout**\n" +
+			"> [!nonesuch] **not a callout**\n" +
 			"> [!quote] Plain title\n" +
 			"> A citation inside a callout: [[Source]].\n" +
 			"```\n> [!quote] **fenced**\n```\n" +

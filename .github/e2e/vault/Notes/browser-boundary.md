@@ -6,6 +6,10 @@ aliases: [Browser boundary]
 
 <ruby lang="ja">安全<rt lang="ja">あんぜん</rt><rp>（</rp></ruby><br>
 
+<kbd>Ctrl</kbd>, H<sub>2</sub>O, x<sup>2</sup>, <mark>marked</mark>, <u>under</u>.
+
+<kbd onclick=globalThis.noteKbdEventRan=true>attributed key</kbd>
+
 <script>globalThis.noteScriptRan=true</script>
 
 <button onclick="globalThis.noteEventRan=true">unsafe event</button>
