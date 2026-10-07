@@ -29,20 +29,29 @@ type agreementProbe struct {
 
 func agreementWrite(t *testing.T, root, path string, data []byte) {
 	t.Helper()
-	full := filepath.Join(root, filepath.FromSlash(path))
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+	tree, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatalf("open synthetic vault: %v", err)
+	}
+	defer func() {
+		if closeErr := tree.Close(); closeErr != nil {
+			t.Errorf("close synthetic vault: %v", closeErr)
+		}
+	}()
+	name := filepath.FromSlash(path)
+	if err := tree.MkdirAll(filepath.Dir(name), 0o750); err != nil {
 		t.Fatalf("create test directory: %v", err)
 	}
-	if err := os.WriteFile(full, data, 0o600); err != nil {
+	if err := tree.WriteFile(name, data, 0o600); err != nil {
 		t.Fatalf("write synthetic note %q: %v", path, err)
 	}
 }
 
-func agreementCandidates(body string, html agreementHTML) []string {
+func agreementCandidates(body string, observed *agreementHTML) []string {
 	// This inventory intentionally reads tails inside code/comments too. It
 	// discovers potential addresses; none of its reading grants acceptance.
 	candidates := []string{"^a", "^A", "^é", "^e\u0301", "^a-2"}
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		trimmed := strings.TrimRight(line, " \t\r")
 		if at := strings.LastIndexByte(trimmed, '^'); at >= 0 {
 			tail := trimmed[at:]
@@ -51,7 +60,7 @@ func agreementCandidates(body string, html agreementHTML) []string {
 			}
 		}
 	}
-	candidates = append(candidates, html.Blocks...)
+	candidates = append(candidates, observed.Blocks...)
 	for i := range candidates {
 		candidates[i] = graph.FoldFragment(candidates[i])
 	}
@@ -61,6 +70,9 @@ func agreementCandidates(body string, html agreementHTML) []string {
 
 func agreementFragments(t *testing.T, cases []agreementCase, actual []agreementHTML) {
 	t.Helper()
+	if len(cases) != len(actual) {
+		t.Fatalf("fragment observation count = %d, want %d", len(actual), len(cases))
+	}
 	root := t.TempDir()
 	contract, err := os.ReadFile("../schema/testdata/contract.toml")
 	if err != nil {
@@ -75,10 +87,15 @@ func agreementFragments(t *testing.T, cases []agreementCase, actual []agreementH
 	var probes []agreementProbe
 	var inputs []graph.NoteInput
 	for i := range cases {
+		if i >= len(actual) {
+			t.Fatal("fragment observation index outside captured batch")
+		}
+		c := &cases[i]
+		observed := &actual[i]
 		path := fmt.Sprintf("Notes/agree-%04d.md", i)
 		inputs = append(inputs, graph.NoteInput{RelPath: path})
 		agreementWrite(t, root, path, agreementEnvelope(t, ""))
-		for companion := range cases[i].Companions {
+		for companion := range c.Companions {
 			if len(cases) != 1 {
 				t.Fatal("companion controls must own one isolated batch")
 			}
@@ -86,17 +103,17 @@ func agreementFragments(t *testing.T, cases []agreementCase, actual []agreementH
 			agreementWrite(t, root, companion, agreementEnvelope(t, ""))
 		}
 		absent := "agreement-absent-0"
-		for strings.Contains(cases[i].Body, absent) || slices.Contains(actual[i].Headings, absent) || slices.Contains(actual[i].Blocks, "^"+absent) {
+		for strings.Contains(c.Body, absent) || slices.Contains(observed.Headings, absent) || slices.Contains(observed.Blocks, "^"+absent) {
 			absent += "x"
 		}
-		blocks := append(agreementCandidates(cases[i].Body, actual[i]), "^"+absent)
-		headings := append(slices.Clone(actual[i].Headings), absent)
+		blocks := append(agreementCandidates(c.Body, observed), "^"+absent)
+		headings := append(slices.Clone(observed.Headings), absent)
 		slices.Sort(headings)
 		headings = slices.Compact(headings)
 		for family, fragments := range [][]string{blocks, headings} {
 			for index, fragment := range fragments {
 				if strings.ContainsAny(fragment, "|#]\r\n") || strings.HasSuffix(fragment, "\\") {
-					t.Errorf("caught: P%d candidate-unspellable case=%s fragment=%q body=%q", family+3, cases[i].Name, fragment, cases[i].Body)
+					t.Errorf("caught: P%d candidate-unspellable case=%s fragment=%q body=%q", family+3, c.Name, fragment, c.Body)
 					continue
 				}
 				rule := judge.RuleID("link.block_missing")
@@ -173,26 +190,27 @@ func agreementMissing(t *testing.T, root string, probes []agreementProbe) map[st
 		planned[probe.Path] = probe
 	}
 	counts := make(map[string]int)
-	for _, finding := range findings {
+	for i := range findings {
+		finding := &findings[i]
 		if finding.RuleID == "scan.unreadable" || finding.RuleID == "scan.skipped" {
-			t.Fatalf("incomplete Check corpus: %+v", finding)
+			t.Fatalf("incomplete Check corpus: %+v", *finding)
 		}
 		probe, isProbe := planned[finding.Path]
 		if !isProbe {
 			continue
 		}
 		if strings.HasPrefix(string(finding.RuleID), "link.") && finding.RuleID != "link.block_missing" && finding.RuleID != "link.section_missing" {
-			t.Fatalf("probe did not reach fragment verdict: %+v", finding)
+			t.Fatalf("probe did not reach fragment verdict: %+v", *finding)
 		}
 		if finding.RuleID != "link.block_missing" && finding.RuleID != "link.section_missing" {
 			continue
 		}
 		if finding.RuleID != probe.Rule || finding.Target == nil || *finding.Target != probe.Target || finding.ResolvedTo == nil || *finding.ResolvedTo != probe.ResolvedTo {
-			t.Fatalf("misattributed receipt: %+v want=%+v", finding, probe)
+			t.Fatalf("misattributed receipt: %+v want=%+v", *finding, probe)
 		}
 		counts[probe.Path]++
 		if counts[probe.Path] > 1 {
-			t.Fatalf("duplicate probe receipt: %+v", finding)
+			t.Fatalf("duplicate probe receipt: %+v", *finding)
 		}
 	}
 	return counts

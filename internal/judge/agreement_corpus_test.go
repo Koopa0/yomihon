@@ -19,6 +19,15 @@ import (
 
 func agreementFixtures(t *testing.T) []agreementCase {
 	t.Helper()
+	repo, openErr := os.OpenRoot("../..")
+	if openErr != nil {
+		t.Fatalf("open fixture repository: %v", openErr)
+	}
+	t.Cleanup(func() {
+		if closeErr := repo.Close(); closeErr != nil {
+			t.Errorf("close fixture repository: %v", closeErr)
+		}
+	})
 	var paths []string
 	for _, root := range []string{"../../internal", "../../.github/e2e/vault", "../../examples/vault"} {
 		before := len(paths)
@@ -61,7 +70,11 @@ func agreementFixtures(t *testing.T) []agreementCase {
 	}
 	cases := make([]agreementCase, 0, len(paths))
 	for _, path := range paths {
-		data, err := os.ReadFile(path)
+		name, relErr := filepath.Rel("../..", path)
+		if relErr != nil {
+			t.Fatalf("resolve fixture %q: %v", path, relErr)
+		}
+		data, err := repo.ReadFile(name)
 		if err != nil {
 			t.Fatalf("read fixture %q: %v", path, err)
 		}
@@ -167,9 +180,10 @@ func agreementFuzzArgument(t *testing.T, encoded, wantType string) *ast.BasicLit
 		t.Fatalf("fuzz argument %q type = %q, want %q", encoded, actualType, wantType)
 	}
 	wantKind := token.STRING
-	if wantType == "int" {
+	switch wantType {
+	case "int":
 		wantKind = token.INT
-	} else if wantType == "byte" {
+	case "byte":
 		wantKind = token.CHAR
 	}
 	if literal.Kind != wantKind {

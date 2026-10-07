@@ -56,6 +56,7 @@ type agreementFailure struct {
 }
 
 func TestAgreement(t *testing.T) {
+	t.Parallel()
 	t.Run("envelope-identity", agreementEnvelopeIdentity)
 	t.Run("bounded-excerpts", agreementExcerptCuts)
 	t.Run("ordered-occurrences", agreementOrderedOccurrences)
@@ -84,7 +85,7 @@ func TestAgreement(t *testing.T) {
 	for shard, seeds := range agreementSeedPairs() {
 		t.Run(fmt.Sprintf("shard-%d", shard), func(t *testing.T) {
 			t.Parallel()
-			rng := rand.New(rand.NewPCG(seeds[0], seeds[1]))
+			rng := rand.New(rand.NewPCG(seeds[0], seeds[1])) // #nosec G404 -- judge_test owns reproducible corpus generation, not security; crypto randomness changes frozen body digests
 			alphabet := agreementTokens()
 			count := 2048
 			if testing.Short() {
@@ -98,7 +99,9 @@ func TestAgreement(t *testing.T) {
 					body.WriteString(alphabet[rng.IntN(len(alphabet))])
 				}
 				text := body.String()
-				fmt.Fprintf(digest, "%d:%s", len(text), text)
+				if _, err := fmt.Fprintf(digest, "%d:%s", len(text), text); err != nil {
+					t.Fatalf("frame corpus digest: %v", err)
+				}
 				cases = append(cases, agreementCase{Name: fmt.Sprintf("%s/seeds-%016x-%016x/shard-%d/index-%04d", agreementGenerator, seeds[0], seeds[1], shard, index), Body: text})
 			}
 			t.Logf("generator=%s count=%d sha256=%x", agreementGenerator, count, digest.Sum(nil))
@@ -117,9 +120,9 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			result := page.HTML("Notes/Reading.md", c.Title, c.Body, wording.En)
 			observed[i] = agreementObserve(t, result.HTML)
 			if c.Title != "" {
-				observed[i] = agreementTitleHTML(t, c, result)
+				observed[i] = agreementTitleHTML(t, c, &result)
 			}
-			for _, failure := range agreementPageFailures(c.Body, result, observed[i]) {
+			for _, failure := range agreementPageFailures(c.Body, &result, &observed[i]) {
 				t.Errorf("caught: %s %s case=%s body=%q observations=%s", failure.Property, failure.Identity, c.Name, c.Body, failure.Observation)
 			}
 		}
@@ -127,7 +130,7 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 	}
 }
 
-func agreementPageFailures(body string, result render.Result, actual agreementHTML) []agreementFailure {
+func agreementPageFailures(body string, result *render.Result, actual *agreementHTML) []agreementFailure {
 	var failures []agreementFailure
 	var diagnostics []agreementCitation
 	var markdownDiagnostics []agreementCitation

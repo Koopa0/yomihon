@@ -177,14 +177,16 @@ func agreementProjectionCases() []agreementProjectionCase {
 }
 
 func TestAgreementProjectionControl(t *testing.T) {
-	for _, tc := range agreementProjectionCases() {
+	cases := agreementProjectionCases()
+	for i := range cases {
+		tc := &cases[i]
 		t.Run(tc.Name, func(t *testing.T) {
 			agreementProjectionControl(t, tc)
 		})
 	}
 }
 
-func agreementProjectionControl(t *testing.T, tc agreementProjectionCase) {
+func agreementProjectionControl(t *testing.T, tc *agreementProjectionCase) {
 	t.Helper()
 	page := render.New(graph.BuildFromNotes(nil, nil), capturedBodies{}, noTitlesDeclared{}, everyFileHeld{})
 	result := page.HTML("Notes/Reading.md", "", tc.Body, wording.En)
@@ -210,7 +212,7 @@ func agreementProjectionControl(t *testing.T, tc agreementProjectionCase) {
 	if diff := cmp.Diff(tc.WikiTargets, judge.LinkTargets(tc.Body)); diff != "" {
 		t.Errorf("caught: P1 citation-occurrences literal check case=%s (-want +got):\n%s", tc.Name, diff)
 	}
-	for _, failure := range agreementPageFailures(tc.Body, result, actual) {
+	for _, failure := range agreementPageFailures(tc.Body, &result, &actual) {
 		t.Errorf("caught: %s %s case=%s body=%q observations=%s", failure.Property, failure.Identity, tc.Name, tc.Body, failure.Observation)
 	}
 }
@@ -295,7 +297,7 @@ func (titles agreementDeclaredTitles) TitledBy(target string) []string {
 func agreementFactoryShapes(t *testing.T) {
 	idx := graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Notes/A.md"}}, nil)
 	page := render.New(idx, capturedBodies{"Notes/A.md": "## Present\n"}, noTitlesDeclared{}, everyFileHeld{})
-	for _, tc := range []struct {
+	cases := []struct {
 		name string
 		body string
 		want agreementControlElement
@@ -304,7 +306,9 @@ func agreementFactoryShapes(t *testing.T) {
 		{name: "local", body: "## Present\n[[#Present]]", want: agreementControlElement{Tag: "a", Class: "wikilink", Href: "#present"}},
 		{name: "degraded", body: "[[A#Missing]]", want: agreementControlElement{Tag: "a", Class: "wikilink wikilink-degraded", Href: "/notes/Notes/A.md#missing", Title: "No section called \"Missing\" was found; the link lands at the top of the note"}},
 		{name: "broken", body: "[[Absent]]", want: agreementControlElement{Tag: "span", Class: "wikilink-broken", Title: "There is no note called \"Absent\" yet"}},
-	} {
+	}
+	for i := range cases {
+		tc := &cases[i]
 		t.Run(tc.name, func(t *testing.T) {
 			result := page.HTML("Notes/Reading.md", "", tc.body, wording.En)
 			if diff := cmp.Diff([]agreementControlElement{tc.want}, agreementControlElements(t, result.HTML)); diff != "" {
@@ -343,39 +347,42 @@ func agreementTransclusionControl(t *testing.T, hostBody string, bodies captured
 	var containers []agreementControlElement
 	var sources []agreementControlElement
 	var childHTML bytes.Buffer
+	observeEmbed := func(n *html.Node) {
+		containers = append(containers, agreementControlElement{Tag: n.Data, Class: agreementAttr(n, "class")})
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			if !agreementClass(child, "embed__source") {
+				if renderErr := html.Render(&childHTML, child); renderErr != nil {
+					t.Fatalf("serialize owned child HTML: %v", renderErr)
+				}
+				continue
+			}
+			sources = append(sources, agreementControlElement{Tag: child.Data, Class: agreementAttr(child, "class")})
+			for anchor := child.FirstChild; anchor != nil; anchor = anchor.NextSibling {
+				if anchor.Type != html.ElementNode {
+					continue
+				}
+				href := agreementAttr(anchor, "href")
+				parsed, parseErr := url.Parse(href)
+				if parseErr != nil {
+					t.Errorf("caught: P1 provenance-identity malformed href=%q: %v", href, parseErr)
+					continue
+				}
+				provenance = append(provenance, agreementProvenance{
+					SourceTag:   child.Data,
+					SourceClass: agreementAttr(child, "class"),
+					AnchorTag:   anchor.Data,
+					AnchorClass: agreementAttr(anchor, "class"),
+					Href:        href,
+					Path:        strings.TrimPrefix(parsed.Path, "/notes/"),
+					Attributes:  anchor.Attr,
+				})
+			}
+		}
+	}
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode && agreementClass(n, "embed") {
-			containers = append(containers, agreementControlElement{Tag: n.Data, Class: agreementAttr(n, "class")})
-			for child := n.FirstChild; child != nil; child = child.NextSibling {
-				if !agreementClass(child, "embed__source") {
-					if renderErr := html.Render(&childHTML, child); renderErr != nil {
-						t.Fatalf("serialize owned child HTML: %v", renderErr)
-					}
-					continue
-				}
-				sources = append(sources, agreementControlElement{Tag: child.Data, Class: agreementAttr(child, "class")})
-				for anchor := child.FirstChild; anchor != nil; anchor = anchor.NextSibling {
-					if anchor.Type != html.ElementNode {
-						continue
-					}
-					href := agreementAttr(anchor, "href")
-					parsed, parseErr := url.Parse(href)
-					if parseErr != nil {
-						t.Errorf("caught: P1 provenance-identity malformed href=%q: %v", href, parseErr)
-						continue
-					}
-					provenance = append(provenance, agreementProvenance{
-						SourceTag:   child.Data,
-						SourceClass: agreementAttr(child, "class"),
-						AnchorTag:   anchor.Data,
-						AnchorClass: agreementAttr(anchor, "class"),
-						Href:        href,
-						Path:        strings.TrimPrefix(parsed.Path, "/notes/"),
-						Attributes:  anchor.Attr,
-					})
-				}
-			}
+			observeEmbed(n)
 			return
 		}
 		if n.Type == html.ElementNode && agreementCarrier(n) {
@@ -519,9 +526,10 @@ func agreementAttributionFindings(t *testing.T, root, probe, collision string) [
 		t.Fatalf("public attribution Check: %v", err)
 	}
 	var observed []agreementCheckEvidence
-	for _, finding := range findings {
+	for i := range findings {
+		finding := &findings[i]
 		if finding.RuleID == "scan.unreadable" || finding.RuleID == "scan.skipped" {
-			t.Fatalf("attribution Check incomplete: %+v", finding)
+			t.Fatalf("attribution Check incomplete: %+v", *finding)
 		}
 		isProbe := finding.Path == probe && strings.HasPrefix(string(finding.RuleID), "link.")
 		isCollision := collision != "" && finding.RuleID == "collision.name" &&
@@ -530,7 +538,7 @@ func agreementAttributionFindings(t *testing.T, root, probe, collision string) [
 			continue
 		}
 		if finding.Target == nil {
-			t.Fatalf("attribution finding has no target: %+v", finding)
+			t.Fatalf("attribution finding has no target: %+v", *finding)
 		}
 		evidence := agreementCheckEvidence{
 			Rule:    finding.RuleID,

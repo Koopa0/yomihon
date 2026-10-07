@@ -3,6 +3,7 @@ package judge_test
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -61,16 +62,11 @@ func agreementAttr(n *html.Node, name string) string {
 }
 
 func agreementClass(n *html.Node, name string) bool {
-	for _, token := range strings.Fields(agreementAttr(n, "class")) {
-		if token == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(strings.Fields(agreementAttr(n, "class")), name)
 }
 
 func agreementCarrier(n *html.Node) bool {
-	for _, class := range strings.Fields(agreementAttr(n, "class")) {
+	for class := range strings.FieldsSeq(agreementAttr(n, "class")) {
 		if class == "wikilink" || strings.HasPrefix(class, "wikilink-") {
 			return true
 		}
@@ -104,16 +100,16 @@ func agreementCarrierState(n *html.Node) (string, error) {
 		}
 	}
 	if counts["class"] != 1 {
-		return "", fmt.Errorf("citation has no single class attribute")
+		return "", errors.New("citation has no single class attribute")
 	}
 	if !interactive {
 		if n.Data != "span" || counts["title"] != 1 || agreementAttr(n, "title") == "" {
-			return "", fmt.Errorf("notice is not a noninteractive explained span")
+			return "", errors.New("notice is not a noninteractive explained span")
 		}
 		return state, nil
 	}
 	if n.Data != "a" || counts["href"] != 1 {
-		return "", fmt.Errorf("resolved citation is not an anchor with one href")
+		return "", errors.New("resolved citation is not an anchor with one href")
 	}
 	href := agreementAttr(n, "href")
 	parsed, err := url.Parse(href)
@@ -126,13 +122,13 @@ func agreementCarrierState(n *html.Node) (string, error) {
 		return "", fmt.Errorf("citation href %q is not a first-party note or local fragment", href)
 	}
 	if state == "wikilink wikilink-degraded" && (counts["title"] != 1 || agreementAttr(n, "title") == "") {
-		return "", fmt.Errorf("degraded citation has no explanation")
+		return "", errors.New("degraded citation has no explanation")
 	}
 	if state == "wikilink" && counts["title"] != 0 {
-		return "", fmt.Errorf("ordinary citation has a notice title")
+		return "", errors.New("ordinary citation has a notice title")
 	}
 	if state == "wikilink wikilink-degraded" && counts["data-preview-section"] != 0 {
-		return "", fmt.Errorf("degraded citation has ordinary-link preview state")
+		return "", errors.New("degraded citation has ordinary-link preview state")
 	}
 	return state, nil
 }
@@ -140,8 +136,8 @@ func agreementCarrierState(n *html.Node) (string, error) {
 // Targets come from actual notice attributes, never Diagnostic.Target. The
 // unresolved corpus deliberately prevents aliases from hiding target identity.
 func agreementNotice(reason string) (agreementCitation, error) {
-	if target, ok := strings.CutSuffix(reason, "\" leaves the vault; the link text remains"); ok {
-		target, quoted := strings.CutPrefix(target, "\"")
+	if rawTarget, ok := strings.CutSuffix(reason, "\" leaves the vault; the link text remains"); ok {
+		target, quoted := strings.CutPrefix(rawTarget, "\"")
 		if !quoted || target == "" {
 			return agreementCitation{}, fmt.Errorf("invalid outside-vault notice %q", reason)
 		}
@@ -149,8 +145,8 @@ func agreementNotice(reason string) (agreementCitation, error) {
 	}
 	var rest string
 	for _, prefix := range []string{"There is no note called ", "There is no file called "} {
-		if strings.HasPrefix(reason, prefix) {
-			rest = strings.TrimPrefix(reason, prefix)
+		if remainder, ok := strings.CutPrefix(reason, prefix); ok {
+			rest = remainder
 			break
 		}
 	}
@@ -182,7 +178,7 @@ func agreementNotice(reason string) (agreementCitation, error) {
 	return agreementCitation{Target: target, Section: section, State: "wikilink-broken"}, nil
 }
 
-func agreementQuoted(text string) (string, string, error) {
+func agreementQuoted(text string) (quoted, remainder string, quoteErr error) {
 	if !strings.HasPrefix(text, "\"") {
 		return "", "", fmt.Errorf("expected quoted target %q", text)
 	}
@@ -215,52 +211,56 @@ func agreementObserveKnown(t *testing.T, text string, known map[string]string) a
 		t.Fatalf("parse actual HTML: %v", err)
 	}
 	var result agreementHTML
+	observe := func(n *html.Node, code bool) {
+		if n.Type != html.ElementNode {
+			return
+		}
+		id := agreementAttr(n, "id")
+		if n.Data == "span" && strings.HasPrefix(id, "^") {
+			result.Blocks = append(result.Blocks, id)
+		}
+		if len(n.Data) == 2 && n.Data[0] == 'h' && n.Data[1] >= '1' && n.Data[1] <= '6' && id != "" {
+			result.Headings = append(result.Headings, id)
+		}
+		if !agreementCarrier(n) {
+			return
+		}
+		if code {
+			result.CitationsInCode++
+		}
+		state, shapeErr := agreementCarrierState(n)
+		if shapeErr != nil {
+			t.Errorf("caught: P0 citation-shape tag=%q class=%q href=%q error=%v html=%q", n.Data, agreementAttr(n, "class"), agreementAttr(n, "href"), shapeErr, text)
+			return
+		}
+		if agreementClass(n, "wikilink") {
+			// The only resolved destination in this corpus is the host's
+			// own fragment. It cites no other note, but still counts for P2.
+			href := agreementAttr(n, "href")
+			if strings.HasPrefix(href, "#") || strings.HasPrefix(href, "/notes/Notes/Reading.md#") || href == "/notes/Notes/Reading.md" {
+				return
+			}
+			parsed, parseErr := url.Parse(href)
+			if parseErr != nil {
+				t.Fatalf("parse resolved citation URL: %v", parseErr)
+			}
+			target, held := known[strings.TrimPrefix(parsed.Path, "/notes/")]
+			if !held {
+				t.Fatalf("unexpected resolved citation carrier: href=%q html=%q", href, text)
+			}
+			result.Citations = append(result.Citations, agreementCitation{Target: target, Section: parsed.Fragment, State: state})
+			return
+		}
+		citation, parseErr := agreementNotice(agreementAttr(n, "title"))
+		if parseErr != nil {
+			t.Fatalf("observe citation: %v; html=%q", parseErr, text)
+		}
+		result.Citations = append(result.Citations, citation)
+	}
 	var walk func(*html.Node, bool)
 	walk = func(n *html.Node, code bool) {
 		code = code || n.Type == html.ElementNode && n.Data == "code"
-		if n.Type == html.ElementNode {
-			id := agreementAttr(n, "id")
-			if n.Data == "span" && strings.HasPrefix(id, "^") {
-				result.Blocks = append(result.Blocks, id)
-			}
-			if len(n.Data) == 2 && n.Data[0] == 'h' && n.Data[1] >= '1' && n.Data[1] <= '6' && id != "" {
-				result.Headings = append(result.Headings, id)
-			}
-			if agreementCarrier(n) {
-				if code {
-					result.CitationsInCode++
-				}
-				state, shapeErr := agreementCarrierState(n)
-				if shapeErr != nil {
-					t.Errorf("caught: P0 citation-shape tag=%q class=%q href=%q error=%v html=%q", n.Data, agreementAttr(n, "class"), agreementAttr(n, "href"), shapeErr, text)
-					goto children
-				}
-				if agreementClass(n, "wikilink") {
-					// The only resolved destination in this corpus is the host's
-					// own fragment. It cites no other note, but still counts for P2.
-					href := agreementAttr(n, "href")
-					if strings.HasPrefix(href, "#") || strings.HasPrefix(href, "/notes/Notes/Reading.md#") || href == "/notes/Notes/Reading.md" {
-						goto children
-					}
-					parsed, parseErr := url.Parse(href)
-					if parseErr != nil {
-						t.Fatalf("parse resolved citation URL: %v", parseErr)
-					}
-					target, held := known[strings.TrimPrefix(parsed.Path, "/notes/")]
-					if !held {
-						t.Fatalf("unexpected resolved citation carrier: href=%q html=%q", href, text)
-					}
-					result.Citations = append(result.Citations, agreementCitation{Target: target, Section: parsed.Fragment, State: state})
-					goto children
-				}
-				citation, parseErr := agreementNotice(agreementAttr(n, "title"))
-				if parseErr != nil {
-					t.Fatalf("observe citation: %v; html=%q", parseErr, text)
-				}
-				result.Citations = append(result.Citations, citation)
-			}
-		}
-	children:
+		observe(n, code)
 		for child := n.FirstChild; child != nil; child = child.NextSibling {
 			walk(child, code)
 		}
@@ -269,7 +269,7 @@ func agreementObserveKnown(t *testing.T, text string, known map[string]string) a
 	return result
 }
 
-func agreementTitleHTML(t *testing.T, c agreementCase, result render.Result) agreementHTML {
+func agreementTitleHTML(t *testing.T, c agreementCase, result *render.Result) agreementHTML {
 	t.Helper()
 	var buf bytes.Buffer
 	view := pages.NoteView{Title: c.Title, RelPath: "Notes/Reading.md", BodyHTML: result.HTML, TitleAnchor: result.TitleAnchor, TOC: result.TOC}

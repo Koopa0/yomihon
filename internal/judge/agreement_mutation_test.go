@@ -52,7 +52,9 @@ func agreementMutations() []agreementMutation {
 }
 
 func TestAgreementMutationControl(t *testing.T) {
-	for _, mode := range agreementMutations() {
+	modes := agreementMutations()
+	for i := range modes {
+		mode := &modes[i]
 		t.Run(mode.Name, func(t *testing.T) {
 			if mode.Name == "p0-markdown-diagnostic" {
 				// Select an independent literal for this Markdown stimulus, never
@@ -61,7 +63,7 @@ func TestAgreementMutationControl(t *testing.T) {
 				if control.Name != "outside-markdown" || control.Body != mode.Body {
 					t.Fatal("not-applied: outside Markdown literal selection changed")
 				}
-				agreementProjectionControl(t, control)
+				agreementProjectionControl(t, &control)
 				t.Logf("AGREEMENT-INVOKED %s/%s", mode.Property, mode.Name)
 				return
 			}
@@ -91,7 +93,7 @@ func TestAgreementMutationControl(t *testing.T) {
 			} else {
 				actual = agreementObserve(t, result.HTML)
 			}
-			for _, failure := range agreementPageFailures(mode.Body, result, actual) {
+			for _, failure := range agreementPageFailures(mode.Body, &result, &actual) {
 				if mode.Name == "p1-occurrence" && failure.Property == "P1" && failure.Identity == "citation-occurrences" {
 					t.Errorf("caught: P1 citation-occurrences pure-two-a body=%q observations=%s", mode.Body, failure.Observation)
 				} else {
@@ -122,7 +124,7 @@ func TestAgreementMutationControl(t *testing.T) {
 				if mixed.Name != "outside-markdown-with-wiki" || mixed.Body != "[out](../../../etc/passwd.md) [[A]] [[A]]\n" {
 					t.Fatal("not-applied: mixed occurrence literal selection changed")
 				}
-				agreementProjectionControl(t, mixed)
+				agreementProjectionControl(t, &mixed)
 				t.Log("AGREEMENT-MIXED-INVOKED P1/p1-occurrence")
 			case "P2":
 				if len(actual.Citations) != 0 {
@@ -160,7 +162,9 @@ func TestAgreementMutations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("not-applied: resolve repository root: %v", err)
 	}
-	for _, mode := range agreementMutations() {
+	modes := agreementMutations()
+	for i := range modes {
+		mode := &modes[i]
 		t.Run(mode.Name, func(t *testing.T) {
 			for _, red := range []bool{true, false} {
 				state := "green"
@@ -208,10 +212,19 @@ func agreementMutationCommand(t *testing.T, root string, args ...string) agreeme
 	return agreementMutationOutput{Status: status, Output: output}
 }
 
-func agreementMutationOverlay(t *testing.T, root string, mode agreementMutation, red bool) string {
+func agreementMutationOverlay(t *testing.T, root string, mode *agreementMutation, red bool) string {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(mode.File))
-	source, err := os.ReadFile(path)
+	repo, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatalf("not-applied: open production root: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := repo.Close(); closeErr != nil {
+			t.Errorf("not-applied: close production root: %v", closeErr)
+		}
+	})
+	source, err := repo.ReadFile(filepath.FromSlash(mode.File))
 	if err != nil {
 		t.Fatalf("not-applied: read production source: %v", err)
 	}
@@ -249,10 +262,19 @@ func agreementMutationOverlay(t *testing.T, root string, mode agreementMutation,
 	copyPath := filepath.Join(backing, "production.go")
 	alternate := append(bytes.Clone(source[:start]), []byte(body)...)
 	alternate = append(alternate, source[end:]...)
-	if _, err := parser.ParseFile(token.NewFileSet(), copyPath, alternate, 0); err != nil {
-		t.Fatalf("not-applied: alternate Go source: %v", err)
+	if _, parseErr := parser.ParseFile(token.NewFileSet(), copyPath, alternate, 0); parseErr != nil {
+		t.Fatalf("not-applied: alternate Go source: %v", parseErr)
 	}
-	if err := os.WriteFile(copyPath, alternate, 0o600); err != nil {
+	owned, err := os.OpenRoot(backing)
+	if err != nil {
+		t.Fatalf("not-applied: open alternate root: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := owned.Close(); closeErr != nil {
+			t.Errorf("not-applied: close alternate root: %v", closeErr)
+		}
+	})
+	if err := owned.WriteFile("production.go", alternate, 0o600); err != nil {
 		t.Fatalf("not-applied: write alternate source: %v", err)
 	}
 	data, err := json.Marshal(struct{ Replace map[string]string }{Replace: map[string]string{path: copyPath}})
@@ -260,13 +282,13 @@ func agreementMutationOverlay(t *testing.T, root string, mode agreementMutation,
 		t.Fatalf("not-applied: encode overlay: %v", err)
 	}
 	overlay := filepath.Join(backing, "overlay.json")
-	if err := os.WriteFile(overlay, data, 0o600); err != nil {
+	if err := owned.WriteFile("overlay.json", data, 0o600); err != nil {
 		t.Fatalf("not-applied: write overlay: %v", err)
 	}
 	return overlay
 }
 
-func agreementMutationReceipt(t *testing.T, mode agreementMutation, selected, state string, red bool, child agreementMutationOutput) {
+func agreementMutationReceipt(t *testing.T, mode *agreementMutation, selected, state string, red bool, child agreementMutationOutput) {
 	t.Helper()
 	decoder := json.NewDecoder(bytes.NewReader(child.Output))
 	invoked, sink, caught, terminal := false, false, false, false
