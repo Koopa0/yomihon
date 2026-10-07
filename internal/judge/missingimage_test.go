@@ -61,11 +61,25 @@ func TestMissingImageFindings(t *testing.T) {
 	wantBytes := missingImageGolden(t)
 	var want []Finding
 	for line := range strings.SplitSeq(strings.TrimSuffix(string(wantBytes), "\n"), "\n") {
-		var finding Finding
-		if err := json.Unmarshal([]byte(line), &finding); err != nil {
+		var wire struct {
+			Finding
+
+			Severity string `json:"severity"`
+		}
+		if err := json.Unmarshal([]byte(line), &wire); err != nil {
 			t.Fatalf("decode literal golden: %v", err)
 		}
-		want = append(want, finding)
+		switch wire.Severity {
+		case "error":
+			wire.Finding.Severity = SeverityError
+		case "warn":
+			wire.Finding.Severity = SeverityWarn
+		case "info":
+			wire.Finding.Severity = SeverityInfo
+		default:
+			t.Fatalf("unknown literal golden severity %q", wire.Severity)
+		}
+		want = append(want, wire.Finding)
 	}
 	if len(want) != 8 {
 		t.Fatalf("literal golden holds %d records, want 8", len(want))

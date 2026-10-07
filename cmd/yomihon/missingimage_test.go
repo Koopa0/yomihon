@@ -160,10 +160,10 @@ func TestMissingImageCommandPrivacy(t *testing.T) {
 					args := []string{"--format=" + format}
 					args = append(args, scope...)
 					if deny != "" {
-						args = append(args, "--deny=" + deny)
+						args = append(args, "--deny="+deny)
 					}
 					if prior != "" {
-						args = append(args, "--baseline=" + prior)
+						args = append(args, "--baseline="+prior)
 					}
 					var a, b, aErrors, bErrors bytes.Buffer
 					aExit := runCommand(t.Context(), "check", append([]string{"--root=" + absent}, args...), &a, &aErrors, false)
