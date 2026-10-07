@@ -37,6 +37,6 @@
     {"name": "e2e-http", "owns": ["e2e-http-check"]},
     {"name": "fuzz", "owns": ["fuzz-smoke", "performance-smoke"]},
     {"name": "e2e-behavior", "owns": ["browser-check"]},
-    {"name": "e2e-mutations", "owns": ["mutation-check"]}
+    {"name": "e2e-mutations", "matrix": ["1", "2", "3", "4"], "owns": ["mutation-check"]}
   ]
 }
