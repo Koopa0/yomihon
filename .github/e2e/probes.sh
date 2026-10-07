@@ -288,7 +288,6 @@ run_mutations() {
   for entry in "${probes[@]}"; do
     probe="${entry%%|*}"
     page="${entry#*|}"
-    if is_behavior_only "$probe"; then continue; fi
     # Discovery failure leaves this probe's modes unknowable, but the next
     # probe can still name and exercise its own modes.
     if modes="$(MUTATE=list node "${here}/${probe}")"; then
