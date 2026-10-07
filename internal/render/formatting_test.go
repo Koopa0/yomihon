@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -260,7 +261,17 @@ func TestAHeadingPairsOnlyTheTagsThePageParses(t *testing.T) {
 				{Name: headingTag, Attributes: []nethtml.Attribute{{Key: "id", Val: tt.id}, {Key: "data-level", Val: levelAttribute}}, Text: tt.words, Elements: tt.elements},
 				{Name: headingTag, Attributes: []nethtml.Attribute{{Key: "id", Val: "stop"}, {Key: "data-level", Val: levelAttribute}}, Text: "Stop"},
 			}
-			if diff := cmp.Diff(wantHeadings, headings); diff != "" {
+			// Attribute order does not change markup authority; every attribute
+			// and duplicate must still belong to the complete expected set.
+			if diff := cmp.Diff(wantHeadings, headings, cmpopts.SortSlices(func(a, b nethtml.Attribute) bool {
+				if a.Namespace != b.Namespace {
+					return a.Namespace < b.Namespace
+				}
+				if a.Key != b.Key {
+					return a.Key < b.Key
+				}
+				return a.Val < b.Val
+			})); diff != "" {
 				t.Errorf("caught: heading attribute page (-want +got):\n%s", diff)
 			}
 			wantTOC := []render.TOCEntry{{Level: tt.level, Text: tt.words, ID: tt.id}, {Level: tt.level, Text: "Stop", ID: "stop"}}
