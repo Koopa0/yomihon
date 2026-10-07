@@ -41,7 +41,8 @@ export function initLesson(enhanceCodeCopy) {
   // script, while accepting the underscore spelling devices also report.
   function speechLocale(tag) {
     try {
-      return new Intl.Locale(tag.replaceAll('_', '-')).maximize();
+      const locale = new Intl.Locale(tag.replaceAll('_', '-'));
+      return locale.language === 'und' ? locale : locale.maximize();
     } catch {
       return null;
     }
@@ -51,9 +52,9 @@ export function initLesson(enhanceCodeCopy) {
   // browser reports as local are eligible for an explicit speech handoff.
   function localVoice(tag) {
     const voices = speechSynthesis.getVoices().filter((voice) => voice.localService === true);
-    if (tag === 'und') return voices.find((voice) => voice.default && speechLocale(voice.lang)) ?? null;
     const requested = speechLocale(tag);
     if (!requested) return null;
+    if (requested.language === 'und') return voices.find((voice) => voice.default && speechLocale(voice.lang)) ?? null;
     let selected = null;
     let bestRank = -1;
     for (const voice of voices) {
