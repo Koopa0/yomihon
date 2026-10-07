@@ -218,7 +218,7 @@ const MUTATIONS = {
   // Focus left in a panel that has just left the tree.
   'leave-focus-in-the-panel': {
     target: 'focus-leaves-the-hidden-panel',
-    apply: rewriteAsset('**/preferences.js{,?*}', '      railToggle?.focus();\n', ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', '      railToggle?.focus({ preventScroll: true });\n', ''),
   },
   // The panel free to reflow while the column moves, so the position the rail
   // was saved at means something else by the time it is put back.
@@ -286,16 +286,27 @@ const MUTATIONS = {
     target: 'reduced-motion-stops-the-fold',
     apply: injectStyle('html .y-shell:has(> .y-rail-left){transition-duration:120ms!important}', '.y-shell:has(> .y-rail-left)'),
   },
-  // Anchoring off, so a reflow moves the reader.
-  'turn-off-scroll-anchoring': {
+  // The same paragraph must survive even when the browser has no eligible
+  // automatic anchor; the explicit compensation owns this coordinate.
+  'forget-reading-position': {
     target: 'reading-position-survives',
-    apply: injectStyle('html,body,.y-main{overflow-anchor:none!important}', 'html'),
+    apply: async (page) => {
+      const proof = await rewriteAsset('**/preferences.js{,?*}',
+        'const align = () => window.scrollBy(0, paragraph.getBoundingClientRect().top - top);',
+        'const align = () => {};')(page);
+      await injectStyle('html,body,.y-main{overflow-anchor:none!important}', 'html')(page);
+      return proof;
+    },
   },
-  // Blocks above the reader left deferred through the fold, holding heights
-  // laid out at the old width, so the paragraph being read moves.
+  // Prefix blocks remember heights at the old measure without being laid out
+  // at the new one, so an eligible long reading moves after the fold.
   'defer-prose-through-the-fold': {
     target: 'reading-position-survives',
-    apply: rewriteAsset('**/app.css{,?*}', 'html[data-rail-moving] .y-prose > *,\n', ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', "      block.dataset.proseMeasuring = '';\n", ''),
+  },
+  'bypass-reading-position-on-cache': {
+    target: 'reading-position-survives',
+    apply: rewriteAsset('**/preferences.js{,?*}', '    writeRail(rail, false);\n', '    root.dataset.rail = rail;\n    syncRailControl();\n'),
   },
   // Only the note shell folding.
   'fold-only-the-note-shell': {
@@ -338,7 +349,7 @@ const MUTATIONS = {
   // The restore forgetting to move focus out of a panel it hides.
   'restore-strands-focus': {
     target: 'restore-moves-focus-out',
-    apply: rewriteAsset('**/preferences.js{,?*}', '    keepFocusOutOfFoldedRail(rail);\n', ''),
+    apply: rewriteAsset('**/preferences.js{,?*}', '    keepFocusOutOfFoldedRail(value);\n', ''),
   },
   // The key advertised whatever the setting.
   'leave-the-key-advertised': {
@@ -843,57 +854,83 @@ try {
     await context.close();
   });
 
-  // The reader's place in the text survives the fold. Between the two widths
-  // where the text is narrower than its measure, folding widens it and every
-  // paragraph above the reader reflows; the browser's own anchoring has to keep
-  // the paragraph they are reading where it was. The page is lengthened by
-  // repeating its own prose, since no fixture note is long enough to scroll to
-  // the middle of.
-  //
-  // The paragraph read is one from the middle of the page, brought to the top
-  // edge of the window. Anchoring holds still the first thing the browser can
-  // see, so a block left straddling that edge would be held instead, and its
-  // own reflow would move the paragraph under it by a line whichever way the
-  // fold went: an outcome of where the window happened to stop, which a change
-  // to any block's height anywhere in the fixture could turn either way.
+  // Follow the same paragraph through a real measure change, on both a
+  // multi-section reading and an eligible long single-heading reading.
   await run('reading-position-survives', async () => {
     for (const width of [901, 1000, 1024]) {
-      const { page, context, checkProof } = await open('reading-position-survives', '/notes/Notes/reading-fidelity.md', { width });
-      await checkProof();
-      await page.evaluate(() => {
-        const prose = document.querySelector('.y-prose');
-        const kids = [...prose.children];
-        for (let i = 0; i < 30; i += 1) for (const kid of kids) prose.append(kid.cloneNode(true));
-        const paragraphs = [...prose.querySelectorAll(':scope > p')];
-        window.__reading = paragraphs[Math.floor(paragraphs.length / 2)];
-        window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY);
-      });
-      await page.waitForTimeout(150);
-      // Revealing auto-layout blocks can settle the first approximate scroll
-      // above this paragraph. Align the same paragraph after that layout, so
-      // the assertion really follows the read line described by this case.
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        await page.evaluate(() => window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY));
-        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        if (Math.abs(await page.evaluate(() => window.__reading.getBoundingClientRect().top)) <= 2) break;
+      for (const long of [false, true]) {
+        const { page, context, checkProof } = await open('reading-position-survives', long ? '/notes/Notes/mark-long-offset.md' : '/notes/Notes/reading-fidelity.md', { width });
+        await checkProof();
+        await page.evaluate(async (long) => {
+          const prose = document.querySelector('.y-prose');
+          const kids = [...prose.children];
+          if (!long) for (let i = 0; i < 30; i += 1) for (const kid of kids) prose.append(kid.cloneNode(true));
+          const paragraphs = [...prose.querySelectorAll(':scope > p')];
+          window.__reading = paragraphs[long ? 50 : Math.floor(paragraphs.length / 2)];
+          if (long) {
+            for (const block of prose.children) {
+              block.dataset.proseMeasuring = '';
+              if (block === window.__reading) break;
+            }
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            for (const block of prose.children) delete block.dataset.proseMeasuring;
+          }
+          window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY);
+        }, long);
+        await page.waitForTimeout(150);
+        // Revealing auto-layout blocks can settle the first approximate scroll
+        // above this paragraph. Align the same paragraph after that layout, so
+        // the assertion really follows the read line described by this case.
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          await page.evaluate(() => window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY));
+          await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          if (Math.abs(await page.evaluate(() => window.__reading.getBoundingClientRect().top)) <= 2) break;
+        }
+        const before = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
+        if (Math.abs(before.top) > 2) broken(`at ${width}px the paragraph is ${before.top}px from the read line before folding`);
+        if (long) await page.locator(TOGGLE).click();
+        else await key(page, '[');
+        await settled(page);
+        await page.waitForFunction(() => document.querySelectorAll('[data-prose-measuring]').length === 0);
+        const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
+        // Where the text is narrower than its measure the fold widens it and the
+        // paragraphs above the reader reflow; the narrowest width has to be such a
+        // case, or the assertion below would pass for lack of anything to move. The
+        // widths above it are asked whichever way they fall, because the measure's
+        // edge sits within a few pixels of one of them and moves with the platform.
+        if (width === 901 && !(before.width < MEASURE && after.width > before.width)) {
+          broken(`at 901px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
+        }
+        if (Math.abs(after.top - before.top) > 2) {
+          fail('reading-position-survives', `at ${width}px the paragraph being read moved ${after.top - before.top}px when the column folded`);
+        }
+        if (long) {
+          // The prefix must remember authored heights at the new measure, not
+          // just leave the current paragraph at a convincing placeholder depth.
+          // Revealing that bounded span without automatic anchoring cannot move
+          // a reading whose preceding blocks were actually laid out by the fold.
+          const prefixStyle = await page.addStyleTag({ content: 'html,body,.y-main{overflow-anchor:none!important}.y-prose > :nth-child(-n+52){content-visibility:visible}' });
+          await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          const measuredTop = await page.evaluate(() => window.__reading.getBoundingClientRect().top);
+          if (Math.abs(measuredTop - before.top) > 2) fail('reading-position-survives', `at ${width}px the folded long prefix held stale heights and moved the paragraph ${measuredTop - before.top}px when read`);
+          await prefixStyle.evaluate((element) => element.remove());
+          const tail = await page.locator('.y-prose > p').last().evaluate((element) => getComputedStyle(element).contentVisibility);
+          if (tail !== 'auto') fail('reading-position-survives', 'the single-heading long reading no longer defers its tail');
+          await key(page, '[');
+          await settled(page);
+          await page.waitForFunction(() => document.querySelectorAll('[data-prose-measuring]').length === 0);
+          const reopened = await page.evaluate(() => window.__reading.getBoundingClientRect().top);
+          if (Math.abs(reopened - before.top) > 2) fail('reading-position-survives', `at ${width}px the long reading moved ${reopened - before.top}px when the column reopened`);
+          await page.addStyleTag({ content: 'html,body,.y-main{overflow-anchor:none!important}' });
+          await context.addCookies([{ name: 'yomihon_rail', value: 'collapsed', url: BASE }]);
+          await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+          await page.waitForFunction(() => document.querySelectorAll('[data-prose-measuring]').length === 0);
+          const restored = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, state: document.documentElement.dataset.rail }));
+          if (restored.state !== 'collapsed' || Math.abs(restored.top - before.top) > 2) fail('reading-position-survives', `at ${width}px the cached-state writer lost the long reading: ${JSON.stringify(restored)}`);
+
+        }
+        await context.close();
       }
-      const before = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
-      if (Math.abs(before.top) > 2) broken(`at ${width}px the paragraph is ${before.top}px from the read line before folding`);
-      await key(page, '[');
-      await settled(page);
-      const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
-      // Where the text is narrower than its measure the fold widens it and the
-      // paragraphs above the reader reflow; the narrowest width has to be such a
-      // case, or the assertion below would pass for lack of anything to move. The
-      // widths above it are asked whichever way they fall, because the measure's
-      // edge sits within a few pixels of one of them and moves with the platform.
-      if (width === 901 && !(before.width < MEASURE && after.width > before.width)) {
-        broken(`at 901px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
-      }
-      if (Math.abs(after.top - before.top) > 2) {
-        fail('reading-position-survives', `at ${width}px the paragraph being read moved ${after.top - before.top}px when the column folded`);
-      }
-      await context.close();
     }
   });
 

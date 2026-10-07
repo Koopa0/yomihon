@@ -161,15 +161,84 @@ export function initPreferences() {
   function keepFocusOutOfFoldedRail(value) {
     const column = document.querySelector('#_y-nav-rail');
     if (value === 'collapsed' && column?.contains(document.activeElement) && document.activeElement !== railToggle) {
-      railToggle?.focus();
+      railToggle?.focus({ preventScroll: true });
     }
+  }
+
+  // A fold changes the measure above the paragraph the reader sees. Capture
+  // it before revealing any deferred prefix, then keep that same paragraph at
+  // its viewport coordinate until the new measure settles. A later gesture
+  // owns the window and releases this temporary measurement immediately.
+  let releaseRailPosition = () => {};
+  function holdReadingPosition() {
+    releaseRailPosition();
+    let paragraph = null;
+    for (const prose of document.querySelectorAll('.y-prose')) {
+      for (const block of prose.children) {
+        const rect = block.getBoundingClientRect();
+        if (rect.bottom <= 0 || rect.top >= innerHeight) continue;
+        const candidates = block.matches('p') ? [block] : block.querySelectorAll('p');
+        paragraph = [...candidates].find((item) => {
+          const box = item.getBoundingClientRect();
+          return box.bottom > 0 && box.top < innerHeight;
+        });
+        if (paragraph) break;
+      }
+      if (paragraph) break;
+    }
+    if (!paragraph) return;
+    const top = paragraph.getBoundingClientRect().top;
+    const prose = paragraph.closest('.y-prose');
+    const measured = [];
+    for (const block of prose.children) {
+      block.dataset.proseMeasuring = '';
+      measured.push(block);
+      if (block === paragraph || block.contains(paragraph)) break;
+    }
+    const controller = new AbortController();
+    let frame = 0;
+    let timer = 0;
+    const align = () => window.scrollBy(0, paragraph.getBoundingClientRect().top - top);
+    const release = () => {
+      controller.abort();
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      for (const block of measured) delete block.dataset.proseMeasuring;
+    };
+    releaseRailPosition = release;
+    for (const kind of ['wheel', 'touchstart', 'pointerdown', 'keydown', 'pagehide']) {
+      window.addEventListener(kind, release, { once: true, passive: true, signal: controller.signal });
+    }
+    align();
+    const follow = () => {
+      if (controller.signal.aborted) return;
+      align();
+      frame = requestAnimationFrame(follow);
+    };
+    frame = requestAnimationFrame(follow);
+    let finishing = false;
+    const finish = async () => {
+      if (finishing || controller.signal.aborted) return;
+      finishing = true;
+      await document.fonts.ready;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (controller.signal.aborted) return;
+      align();
+      release();
+    };
+    root.addEventListener('transitionend', (event) => {
+      if (event.propertyName === 'grid-template-columns') finish();
+    }, { signal: controller.signal });
+    timer = setTimeout(finish, 450);
   }
 
   // The left column's state reaches the root, the cookie, and the button that
   // reports it through this one door, as the switches above do.
-  function writeRail(value) {
+  function writeRail(value, stored = true) {
+    if (value !== root.dataset.rail) holdReadingPosition();
     keepFocusOutOfFoldedRail(value);
-    setPreference('rail', value);
+    if (stored) setPreference('rail', value);
+    else root.dataset.rail = value;
     syncRailControl();
   }
 
@@ -358,9 +427,7 @@ export function initPreferences() {
     // made to take effect before it is lifted.
     const rail = readCookie('yomihon_rail') === 'collapsed' ? 'collapsed' : 'open';
     root.dataset.railSettling = '';
-    keepFocusOutOfFoldedRail(rail);
-    root.dataset.rail = rail;
-    syncRailControl();
+    writeRail(rail, false);
     void root.offsetWidth;
     delete root.dataset.railSettling;
     // On the page where these choices are set, the radios say which one is in

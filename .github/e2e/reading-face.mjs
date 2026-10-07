@@ -182,6 +182,7 @@ const markServedParagraph = (page) =>
     const paragraph = document.querySelector('.y-prose p');
     if (!paragraph) return null;
     paragraph.setAttribute('data-reading-face', 'served');
+    paragraph.scrollIntoView({ block: 'center', behavior: 'instant' });
     return paragraph.textContent;
   });
 

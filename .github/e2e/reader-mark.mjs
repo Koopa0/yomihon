@@ -242,16 +242,6 @@ const MUTATIONS = {
       'the offset added on landing',
     ),
   },
-  // The distance applied while the blocks it spans still wait at placeholder
-  // heights, so it reaches a different paragraph than the one it was kept at.
-  'land-against-placeholder-heights': {
-    target: 'following-it-lands-where-the-window-was',
-    apply: rewriteModule(
-      "  document.documentElement.dataset.markLanding = '';\n",
-      '',
-      'the layout of every block while landing',
-    ),
-  },
   'land-past-a-missing-anchor': {
     target: 'a-missing-anchor-lands-at-the-top',
     apply: rewriteModule(

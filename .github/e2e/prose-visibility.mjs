@@ -5,7 +5,8 @@
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/notes/Notes/Glass%20Tide.md';
+const PAGE = '/notes/Notes/mark-long-offset.md';
+const OUTLINE_PAGE = process.env.PAGE_PATH || '/notes/Notes/Glass%20Tide.md';
 const MUTATE = process.env.MUTATE || '';
 const CHILDREN = '.y-prose > *';
 
@@ -20,7 +21,7 @@ class NotApplied extends Error {}
 const screen = /(\.y-prose\s*>\s*\*\s*\{[^}]*?)content-visibility:\s*auto\s*;/g;
 const intrinsic = /(\.y-prose\s*>\s*\*\s*\{[^}]*?)contain-intrinsic-block-size:\s*auto\s+[\d.]+em\s*;/g;
 // Indented: the print rule sits inside its media block, unlike the screen
-// rules that lay every block out while the column folds or a mark lands.
+// semantic exceptions and the bounded prefix measurement on screen.
 const paper = /(^[ \t]+\.y-prose\s*>\s*\*\s*\{[^}]*?)content-visibility:\s*visible\s*;/gm;
 const gutter = /(\.y-prose\s+\.y-reading\s*\{[^}]*?)overflow-clip-margin:\s*[\d.]+px\s*;/g;
 const focus = /(\.y-prose\s*>\s*\*\s*\{[^}]*?)overflow-clip-margin:\s*[\d.]+px\s*;/g;
@@ -29,9 +30,9 @@ const preview = /if \(!card.contains\(event.target\) && event.timeStamp >= asked
 const focusQuestion = /link.addEventListener\('focus', \(event\) => schedule\(link, openDelay, event.timeStamp\)\);/g;
 const MUTATIONS = {
   'render-offscreen-blocks': { site: 'screen', needle: screen, replace: '$1' },
-  'omit-list-blocks': {
+  'omit-paragraph-blocks': {
     site: 'screen', needle: screen,
-    replace: (match) => match.replace(/\*\s*\{/, ':not(ul) {'),
+    replace: (match) => match.replace(/\*\s*\{/, ':not(p) {'),
   },
   'forget-block-size': { site: 'intrinsic', needle: intrinsic, replace: '$1' },
   'reserve-inline-size': {
@@ -39,7 +40,7 @@ const MUTATIONS = {
     replace: (match) => match.replace('contain-intrinsic-block-size', 'contain-intrinsic-inline-size'),
   },
   'defer-print-blocks': { site: 'print', needle: paper, replace: '$1' },
-  'clip-speaking-control': { site: 'speech', needle: gutter, replace: '$1' },
+  'clip-speaking-control': { site: 'speech', needle: gutter, replace: '$1contain: paint; overflow-clip-margin: 0px;' },
   'clip-prose-focus': { site: 'focus', needle: focus, replace: '$1' },
   'cancel-new-hover-with-queued-scroll': {
     site: 'preview', asset: 'preview.js', needle: preview,
@@ -53,9 +54,29 @@ const MUTATIONS = {
     site: 'preview-focus', asset: 'preview.js', needle: focusQuestion,
     replace: "link.addEventListener('focus', (event) => schedule(link, openDelay, 0));",
   },
-  'defer-concept-sections': { site: 'sheet', needle: sheet, replace: '$1' },
+  'defer-outline-columns': {
+    site: 'outline',
+    needle: /\.y-prose:has\(> \[data-level\] ~ \[data-level\]\) > \*,\n/g, replace: '',
+  },
+  'defer-nested-outline-column': {
+    site: 'nested-outline',
+    needle: /\.y-prose:has\(> :not\(\[data-level\]\) \[data-level\]\) > \*,\n/g, replace: '',
+  },
+  'defer-addressed-blocks': {
+    site: 'addresses',
+    needle: /\.y-prose > \[id\],\n\.y-prose > :has\(\[id\]\),\n/g, replace: '',
+  },
+  'defer-authored-controls': {
+    site: 'controls',
+    needle: /\.y-prose > :has\(input, select, textarea, button, summary, a\[href\], audio\[controls\], video\[controls\], \[contenteditable='true'\], \[tabindex\]\),\n/g, replace: '',
+  },
+  'defer-preview-passage': {
+    site: 'preview-layout',
+    needle: /(\.y-preview__body,\n\.y-preview \.y-prose > \* \{[^}]*?)content-visibility: visible;/g, replace: '$1content-visibility: auto;',
+  },
+  'defer-concept-sections': { site: 'sheet', needle: sheet, replace: '$1content-visibility: auto !important;' },
 };
-const SITES = ['screen', 'intrinsic', 'print', 'speech', 'sheet', 'focus', 'preview', 'preview-scroll', 'preview-focus'];
+const SITES = ['screen', 'intrinsic', 'print', 'speech', 'sheet', 'focus', 'preview', 'preview-scroll', 'preview-focus', 'outline', 'controls', 'preview-layout', 'addresses', 'nested-outline'];
 if (SITES.some((site) => !Object.values(MUTATIONS).some((mode) => mode.site === site))
   || Object.values(MUTATIONS).some((mode) => !SITES.includes(mode.site))) {
   throw new Error('BROKEN prose-visibility: mutation inventory differs from assertion sites');
@@ -72,7 +93,7 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 const declarations = (page) => page.locator(CHILDREN).evaluateAll((nodes) => nodes.map((element, index) => {
   const style = getComputedStyle(element);
   return {
-    index, tag: element.tagName, visibility: style.contentVisibility,
+    index, tag: element.tagName, addressed: element.hasAttribute('id') || Boolean(element.querySelector('[id]')), visibility: style.contentVisibility,
     block: style.containIntrinsicBlockSize, inline: style.containIntrinsicInlineSize, clip: style.overflowClipMargin,
   };
 }));
@@ -104,14 +125,16 @@ try {
     }
     const workload = await page.evaluate(() => ({ height: innerHeight, document: document.documentElement.scrollHeight }));
     const blocks = await declarations(page);
-    if (MUTATE === 'omit-list-blocks' && !blocks.some((block) => block.tag === 'UL')) {
-      throw new NotApplied('NOT-APPLIED prose-visibility: omit-list-blocks has no list to omit');
+    if (MUTATE === 'omit-paragraph-blocks' && !blocks.some((block) => block.tag === 'P')) {
+      throw new NotApplied('NOT-APPLIED prose-visibility: omit-paragraph-blocks has no paragraph to omit');
     }
     if (blocks.length === 0 || workload.document <= workload.height * 2) {
       throw new Error(`BROKEN prose-visibility: ${PAGE} is not a nonempty multi-viewport reading`);
     }
-    assert('screen', blocks.every((block) => block.visibility === 'auto'),
-      `${width}px screen blocks do not all defer offscreen work: ${JSON.stringify(blocks.filter((block) => block.visibility !== 'auto'))}`);
+    assert('screen', blocks.some((block) => !block.addressed) && blocks.filter((block) => !block.addressed).every((block) => block.visibility === 'auto'),
+      `${width}px screen blocks do not follow addressed-block and eligible-tail declarations: ${JSON.stringify(blocks.filter((block) => block.visibility !== 'auto'))}`);
+    assert('addresses', blocks.some((block) => block.addressed) && blocks.filter((block) => block.addressed).every((block) => block.visibility === 'visible'),
+      `${width}px an addressed authored block defers its geometry`);
     // Engines can serialize the unused axis as "auto none" when the other
     // axis remembers its size. Neither spelling reserves an inline fallback.
     assert('intrinsic', blocks.every((block) => /^auto [\d.]+px$/.test(block.block)
@@ -125,6 +148,56 @@ try {
     const printed = await declarations(page);
     assert('print', printed.length === blocks.length && printed.every((block) => block.visibility === 'visible'),
       `${width}px paper blocks are still deferred: ${JSON.stringify(printed.filter((block) => block.visibility !== 'visible'))}`);
+    await page.emulateMedia({ media: 'screen' });
+    served = 0;
+    matches = 0;
+    await page.goto(BASE + OUTLINE_PAGE, { waitUntil: 'networkidle' });
+    if (MUTATE && (served !== 1 || matches !== 1)) {
+      throw new NotApplied(`NOT-APPLIED prose-visibility: ${MUTATE} on outline matched ${matches} sites over ${served} loads`);
+    }
+    const outlined = await declarations(page);
+    if (await page.locator('.y-prose > [data-level]').count() < 2) throw new Error('BROKEN prose-visibility: outline fixture lacks multiple headings');
+    assert('outline', outlined.every((block) => block.visibility === 'visible'), 'multiple-heading prose leaves placeholder geometry before an outline target');
+    // A heading inside a block still needs every predecessor's authored
+    // height. Use the actual emitted heading and prose, in a separate column,
+    // so its direct-heading exemption cannot conceal a missing nested rule.
+    const nested = await page.evaluate(() => {
+      const source = document.querySelector('.y-prose');
+      const heading = source.querySelector(':scope > [data-level]');
+      const preceding = [...source.children].filter((block) => block.matches('p') && !block.querySelector('[id], a[href], input, button'));
+      if (!heading || preceding.length === 0) return [];
+      const isolated = document.createElement('div');
+      isolated.className = 'y-prose';
+      for (const block of preceding) isolated.append(block.cloneNode(true));
+      const quote = document.createElement('blockquote');
+      quote.append(heading.cloneNode(true));
+      isolated.append(quote);
+      source.after(isolated);
+      return [...isolated.children].map((block) => getComputedStyle(block).contentVisibility);
+    });
+    if (nested.length < 2) throw new Error('BROKEN prose-visibility: nested heading has no real predecessors');
+    assert('nested-outline', nested.every((visibility) => visibility === 'visible'), 'nested heading coordinates still depend on deferred predecessor heights');
+    served = 0;
+    matches = 0;
+    await page.goto(BASE + '/notes/Notes/reading-fidelity.md', { waitUntil: 'networkidle' });
+    if (MUTATE && (served !== 1 || matches !== 1)) {
+      throw new NotApplied(`NOT-APPLIED prose-visibility: ${MUTATE} on authored controls matched ${matches} sites over ${served} loads`);
+    }
+    // Isolate every actual renderer-emitted control block from its outline
+    // exemption, preserving the native labels and all nested task shapes.
+    const controls = await page.evaluate(() => {
+      const selector = 'input, select, textarea, button, summary, a[href], audio[controls], video[controls], [contenteditable="true"], [tabindex]';
+      const source = document.querySelector('.y-prose');
+      const isolated = document.createElement('div');
+      isolated.className = 'y-prose';
+      for (const block of source.children) {
+        if (block.matches(selector) || block.querySelector(selector)) isolated.append(block.cloneNode(true));
+      }
+      source.after(isolated);
+      return [...isolated.children].map((block) => ({ tag: block.tagName, visibility: getComputedStyle(block).contentVisibility }));
+    });
+    if (controls.length === 0) throw new Error('BROKEN prose-visibility: no authored control blocks to isolate');
+    assert('controls', controls.every((block) => block.visibility === 'visible'), `authored control ancestors defer their initial layout: ${JSON.stringify(controls)}`);
     // The voice control stands in the paragraph's gutter on a wide screen.
     // A clipped button still reports its rectangle, so test the pointer's
     // actual destination as well as its size, without starting any speech.
@@ -232,6 +305,8 @@ try {
       focusedOpened = false;
     }
     assert('preview-focus', focusedOpened, `${sheetWidth}px an earlier queued scroll canceled the newer preview focus`);
+    const previewLayout = await page.locator('.y-preview__body').evaluate((element) => getComputedStyle(element).contentVisibility);
+    assert('preview-layout', previewLayout === 'visible', `${sheetWidth}px the imported preview passage is deferred`);
     const focusDismissed = await page.evaluate(() => {
       document.dispatchEvent(new Event('scroll'));
       return !document.querySelector('[data-preview-card]').matches(':popover-open');

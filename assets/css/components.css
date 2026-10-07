@@ -1787,6 +1787,22 @@ details.y-metarow {
   overflow-clip-margin: 4px;
 }
 
+/* An outline measures all of its sections against authored heights. Keeping
+   the whole column laid out prevents earlier placeholders moving a heading.
+   Authored controls and nested headings need their actual accessible tree
+   and coordinates even before a reader scrolls to them. */
+.y-prose:has(> [data-level] ~ [data-level]) > *,
+.y-prose:has(> :not([data-level]) [data-level]) > *,
+.y-prose > :is(input, select, textarea, button, summary, a[href], audio[controls], video[controls]),
+.y-prose > :has(input, select, textarea, button, summary, a[href], audio[controls], video[controls], [contenteditable='true'], [tabindex]),
+.y-prose > .y-reading,
+.y-prose > [id],
+.y-prose > :has([id]),
+.y-prose > [contenteditable='true'],
+.y-prose > [tabindex] {
+  content-visibility: visible;
+}
+
 /* A kept place measures its prefix against authored heights, then releases
    those blocks back to the browser's normal offscreen work deferral. */
 .y-prose > [data-prose-measuring] {
@@ -7736,9 +7752,11 @@ samp,
   }
 }
 
-.y-preview__body {
-  contain-intrinsic-block-size: auto 20rem;
-  content-visibility: auto;
+/* An imported excerpt is already bounded by its scrollable card. Its whole
+   passage stays laid out on both a fresh response and a cached response. */
+.y-preview__body,
+.y-preview .y-prose > * {
+  content-visibility: visible;
 }
 /* The excerpt opens flush: the space a first heading or paragraph normally
    keeps above it belongs to a page, and the card is not one. */

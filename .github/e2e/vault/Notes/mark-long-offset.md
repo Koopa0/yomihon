@@ -1,7 +1,6 @@
 ---
 title: Long reading span
 type: inbox
-status: seedling
 ---
 
 ## Accepted start

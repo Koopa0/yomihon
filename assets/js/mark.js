@@ -164,21 +164,23 @@ function land() {
   let generation = 0;
   const restore = async () => {
     const current = ++generation;
-    await document.fonts.ready;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    if (controller.signal.aborted || current !== generation) return;
-    const blocks = readingColumn()?.querySelector('.y-prose')?.children ?? [];
-    const boundary = () => (anchor ? documentTop(anchor) : 0) + offset;
-    releaseLayout();
-    const release = layOutProse(blocks, boundary);
-    releaseLayout = release;
     try {
+      await document.fonts.ready;
+      await Promise.all(document.getAnimations()
+        .filter((animation) => animation.animationName === 'y-come-forward')
+        .map((animation) => animation.finished.catch(() => {})));
+      if (controller.signal.aborted || current !== generation) return;
+      const blocks = readingColumn()?.querySelector('.y-prose')?.children ?? [];
+      const boundary = () => (anchor ? documentTop(anchor) : 0) + offset;
+      releaseLayout();
+      const release = layOutProse(blocks, boundary);
+      releaseLayout = release;
       await afterLayout();
       if (controller.signal.aborted || current !== generation) return;
       apply();
       await afterLayout();
+    } catch {
+      // A failed layout wait leaves the native fragment arrival in charge.
     } finally {
       if (current === generation) cancel();
     }
