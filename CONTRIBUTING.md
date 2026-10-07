@@ -122,9 +122,6 @@ The `verify` target in the Makefile is the list of what it runs.
 
 The test prerequisites above also apply to `make verify`.
 
-- **Race-enabled tests:** On Linux and Windows, `make test` needs cgo enabled
-  and a C compiler for the race detector; macOS needs neither for that detector.
-
 Beyond those, the gate needs:
 
 - `make tools`, which installs the pinned Go analysis tools into `GOBIN`.
