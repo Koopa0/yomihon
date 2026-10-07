@@ -2,6 +2,7 @@ package report
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 
 	"github.com/koopa0/yomihon/internal/nav"
@@ -43,7 +44,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// The frame refuses scripts, so the shell reads the bytes to say so rather
 	// than leaving the reader a silent hole.
 	body, err := readReport(r.Context(), h.source, snap, rep.RelPath)
-	if err != nil {
+	refusal, overLimit := errors.AsType[*ReadingLimitError](err)
+	if err != nil && !overLimit {
 		h.log.Warn("read report for the shell", "name", rep.Name, "error", err)
 	}
 	view := pages.ReportView{
@@ -52,6 +54,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		Label:       pages.ReportLabel(&rep),
 		ReadingRail: pages.NewReportReadingRail(shell, rep.RelPath),
 		NeedsScript: bytes.Contains(bytes.ToLower(body), []byte("<script")),
+	}
+	if overLimit {
+		view.Size = refusal.Size
+		view.SourceLimit = refusal.Limit
+		view.RelPath = rep.RelPath
 	}
 	if err := pages.Report(view, layouts.ChromeFromRequest(r, view.Label)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write report page", "name", rep.Name, "error", err)
@@ -74,6 +81,11 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	}
 
 	b, err := readReport(r.Context(), h.source, snap, rep.RelPath)
+	if refusal, ok := errors.AsType[*ReadingLimitError](err); ok {
+		w.Header().Set("Cache-Control", "no-store")
+		http.Error(w, pages.ReportReadingLimitMessage(refusal.Size, refusal.Limit, lang), http.StatusForbidden)
+		return
+	}
 	if err != nil {
 		h.log.Warn("read report", "name", rep.Name, "path", rep.RelPath, "error", err)
 		http.Error(w, wording.ReportNotFound.In(lang), http.StatusNotFound)
