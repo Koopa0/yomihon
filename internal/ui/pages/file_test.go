@@ -38,7 +38,7 @@ func TestHumanSize(t *testing.T) {
 				{lang: wording.En, want: tt.en},
 			} {
 				if got := humanSize(tt.n, language.lang); got != language.want {
-					t.Errorf("humanSize(%d, %v) = %q, want %q", tt.n, language.lang, got, language.want)
+					t.Errorf("caught: humanSize(%d, %v) = %q, want %q", tt.n, language.lang, got, language.want)
 				}
 			}
 		})
