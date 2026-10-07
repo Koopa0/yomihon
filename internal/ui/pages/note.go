@@ -171,7 +171,7 @@ const practiceSpeakMarker = `data-slot-action="speak"`
 // its diagnostic already explains why the reader cannot see its content.
 func (v *NoteView) hasUnclosedComment() bool {
 	for _, diagnostic := range v.RenderDiagnostics {
-		if diagnostic.Kind == render.DiagCommentUnclosed || diagnostic.Kind == render.DiagCommentContainerUnclosed {
+		if diagnostic.Kind == render.DiagCommentUnclosed {
 			return true
 		}
 	}
