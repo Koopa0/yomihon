@@ -292,7 +292,7 @@ func humanReport(findings []Finding, roots domainRoots) string {
 		}
 	}
 	hiddenHeading := false
-	for i := range findings[:0] {
+	for i := range findings {
 		f := &findings[i]
 		if f.Severity != SeverityInfo {
 			continue
