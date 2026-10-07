@@ -49,6 +49,7 @@ func allRuleIDs() []RuleID {
 		"schema.domain_folder",
 		"schema.legacy_tag",
 		"schema.provenance",
+		"schema.reference_nested_sequence",
 		"schema.frontmatter",
 		"schema.unmatched_knowledge_dir",
 		"schema.status_unreachable",

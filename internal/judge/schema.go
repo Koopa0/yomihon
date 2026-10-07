@@ -163,6 +163,7 @@ func (r *lintRun) note(n *note) []Finding {
 	if isLesson {
 		out = append(out, r.lessonSlug(n)...)
 	}
+	out = append(out, r.referenceNestedSequences(n)...)
 
 	// The group is resolved once and travels to the rule, so the enum the rule
 	// reads is the group it was routed by. Which group holds working documents
@@ -173,6 +174,29 @@ func (r *lintRun) note(n *note) []Finding {
 		return append(out, r.documentStatus(n, schema.SystemDocumentGroup)...)
 	}
 	return append(out, r.knowledge(n)...)
+}
+
+// referenceNestedSequences reports once per reference field, preserving the
+// parser's list values while explaining items YAML did not read as references.
+func (r *lintRun) referenceNestedSequences(n *note) []Finding {
+	var out []Finding
+	for _, field := range noteReferenceFields(n, r.contract) {
+		if !n.frontmatter[field.name].hasNestedSequence {
+			continue
+		}
+		out = append(out, Finding{
+			RuleID:          "schema.reference_nested_sequence",
+			Severity:        SeverityError,
+			Path:            n.path,
+			Field:           new(field.name),
+			Message:         field.name + " contains a nested YAML list instead of a reference",
+			Evidence:        "a reference item was read as a YAML sequence",
+			SuggestedAction: "quote the reference, for example " + field.name + ": [\"[[Note]]\"] or " + field.name + ": [\"Note\"]",
+			SourceRule:      field.sourceRule,
+			Fingerprint:     fingerprint("schema.reference_nested_sequence", n.path, field.name+"\x1f"),
+		})
+	}
+	return out
 }
 
 // articleLanguage reports a language tag the reader's browser cannot act on,

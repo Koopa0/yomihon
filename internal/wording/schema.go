@@ -60,6 +60,12 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		return []SchemaPart{code(target), text(schemaLegacyTagIn), code(field), text(schemaLegacyTagEnd)}
 	case "schema.required":
 		return []SchemaPart{text(schemaRequiredStart), code(field), text(schemaRequiredEnd)}
+	case "schema.reference_nested_sequence":
+		return []SchemaPart{
+			code(field), text(schemaReferenceNestedSequence),
+			code(field + ": [\"[[Note]]\"]"), text(schemaReferenceOr),
+			code(field + ": [\"Note\"]"), text(schemaReferenceEnd),
+		}
 	case "schema.unknown_key":
 		return []SchemaPart{code(target), text(schemaUnknownKey)}
 	case "schema.provenance":
@@ -124,6 +130,12 @@ var (
 	schemaRequiredEnd   = both("，這篇沒有。", " on a note of this kind, and this one has none.")
 
 	schemaUnknownKey = both(" 不是 schema 認得的欄位。", " is not a field the schema knows.")
+
+	schemaReferenceNestedSequence = both(
+		" 的值被 YAML 讀成巢狀清單，沒有讀成引用。請替連結加上引號，例如 ",
+		" was read as a nested YAML list, not a reference. Quote the link, for example ")
+	schemaReferenceOr  = both(" 或 ", " or ")
+	schemaReferenceEnd = both("。", ".")
 
 	schemaProvenanceStart  = both("這篇 concept 既沒寫 ", "This concept has neither ")
 	schemaProvenanceMiddle = both(" 也沒寫 ", " nor ")

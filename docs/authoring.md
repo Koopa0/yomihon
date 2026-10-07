@@ -102,4 +102,11 @@ Run `yomihon ~/notes`, substituting your folder. Open <http://127.0.0.1:9610/pat
 
 Run `yomihon check --root ~/notes` to find broken links, frontmatter problems and undeclared course branches. Findings do not change your files; correct them in your editor. Without a contract the command refuses with exit 2, but `yomihon ~/notes` still reads the folder and <http://127.0.0.1:9610/health> shows link findings.
 
+Quote references inside YAML lists: write `based_on: ["[[Note]]"]` or
+`based_on: ["Note"]`. An unquoted `based_on: [[Note]]` is a nested YAML list,
+so the command and the reading page report `schema.reference_nested_sequence`
+once for that field. The same diagnostic applies to `related` and the
+replacement fields the contract configures for the note's type. Edit the
+reference in your editor; yomihon leaves its bytes unchanged.
+
 For more authoring shapes, see [the study-path reference](../skills/yomihon/references/study-paths.md).

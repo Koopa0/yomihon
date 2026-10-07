@@ -43,6 +43,8 @@ rules and does not define new behavior.
 | `schema.language` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.legacy_tag` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.provenance` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
+| `schema.reference_nested_sequence` | `vault-schema.toml#supersession` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
+| `schema.reference_nested_sequence` | `yomihon` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.required` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.slug` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.status_unreachable` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
@@ -56,6 +58,16 @@ rules and does not define new behavior.
 If a configured field is also named `based_on` or `related`,
 `appendConfiguredReferences` preserves that field's `yomihon` authority.
 A RuleID prefix alone does not determine authority.
+
+`schema.reference_nested_sequence` uses that same reference-field selection
+and authority. It reports once per field when an item in a reference list is
+itself a YAML list, including aliases to lists. For example, YAML reads
+`based_on: [[Note]]` as nested lists; write `based_on: ["[[Note]]"]` or
+`based_on: ["Note"]` to quote the reference. Quoted scalar references and
+ordinary flat lists retain their existing behavior. `source_locator` and
+additional provenance requirement fields do not become references through
+this rule. The reading page explains the same finding in either language;
+neither surface rewrites the note.
 
 Study-path predicates and IDs belong to
 [`internal/sequence/sequence.go`](../internal/sequence/sequence.go).
