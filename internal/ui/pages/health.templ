@@ -54,8 +54,8 @@ type HealthView struct {
 	// so nothing they declare could be judged at all.
 	FrontmatterUnreadable []HealthNoteFindings
 	// SchemaFaults are the notes whose frontmatter reads and carries something
-	// the schema does not accept. The detail stays on each note's own page,
-	// two accounts of one file being how the two start disagreeing.
+	// the schema does not accept. Enum repair carries the same declared
+	// vocabulary as the note's own page.
 	SchemaFaults []HealthNoteFindings
 	// InstanceScopeUnknown and SchemaScopeUnknown are why a group of the lists
 	// above could not be worked out, empty where it could: an empty list under
@@ -88,23 +88,27 @@ type HealthStatusNote struct {
 	Note   nav.NoteRef
 	Type   string
 	Status string
+	// AllowedStatuses is this type's vocabulary, absent for non-enum findings.
+	AllowedStatuses []string
 }
 
 // HealthNoteFindings is one note the schema had something to say about: how
 // many things it said, and how heavy the heaviest of them was. What it said
-// stays on that note's own page, because one file described twice in two
-// places is how two accounts of it start to disagree.
+// stays on that note's own page, except the enum vocabulary needed for repair.
 type HealthNoteFindings struct {
 	Note     nav.NoteRef
 	Severity judge.Severity
 	Count    int
+	// EnumNotices names the actual field vocabularies for enum faults.
+	EnumNotices [][]wording.SchemaPart
 }
 
 // HealthBlockedSource is one path the snapshot build could not read, with the
 // error it returned.
 type HealthBlockedSource struct {
-	Path   string
-	Reason string
+	Path       string
+	Reason     string
+	ParsePanic bool
 }
 
 // HealthSkippedSource is one path the generation saw and did not index, with
@@ -138,7 +142,7 @@ templ Health(v HealthView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main">
+			<main id="_y-main" tabindex="-1" class="y-main">
 				// A sheet of findings, each a row of four things read across, so
 				// this page is laid out on the shelf the other listing pages take
 				// rather than in the column a note is read in.
@@ -196,7 +200,7 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 			</thead>
 			<tbody>
 				for _, row := range window {
-					<tr>
+					<tr { sourceBoundHealthAttrs(row.ID)... }>
 						<td class="y-findings__file" data-col={ wording.HealthColumnFile.In(c.Lang) }>
 							if row.File.RelPath != "" {
 								<a class="y-healthlink" href={ templ.URL(notesHref(row.File.RelPath)) }><span { authoredLanguageAttrs(row.File.Language)... }>{ row.File.Name }</span></a>
@@ -266,6 +270,11 @@ templ healthShapeLine(shape healthShape, lang wording.Lang) {
 // wrote them chose. A machine's words are set in the face the machinery uses
 // everywhere else, and a note the evidence names is reachable from it.
 templ healthEvidence(detail healthDetail) {
+	if len(detail.Parts) > 0 {
+		<span>
+			@schemaParts(detail.Parts)
+		</span>
+	}
 	if detail.Text != "" {
 		if detail.Machine {
 			<code lang="en">{ detail.Text }</code>

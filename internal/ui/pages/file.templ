@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -14,17 +16,19 @@ templ File(v FileView, c layouts.Chrome) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell y-shell--rail-empty">
 			@sidebar(v.Sidebar, c)
-			<main id="main-content" tabindex="-1" class="y-main">
+			<main id="_y-main" tabindex="-1" class="y-main">
 				<article class="y-article">
 					@fileHead(v, c.Lang)
 					switch v.Kind {
 						case FileSource:
 							<div class="y-prose y-source">
+								@layouts.CodeCopy(c.Lang)
 								@templ.Raw(v.SourceHTML)
 							</div>
 						case FileDocument:
 							<p class="y-fileinfo__note">{ wording.SkippedDocumentNote.In(c.Lang) }</p>
 							<div class="y-prose">
+								@layouts.CodeCopy(c.Lang)
 								@templ.Raw(v.BodyHTML)
 							</div>
 						case FileImage:
@@ -74,7 +78,18 @@ templ fileHead(v FileView, lang wording.Lang) {
 // it is, and where its bytes are.
 templ fileInfo(v FileView, lang wording.Lang) {
 	<div class="y-fileinfo">
-		<p class="y-fileinfo__lead">{ wording.NoReaderForFile.In(lang) }</p>
+		if v.SourceLimit > 0 {
+			if v.SourceLimitDocument {
+				<p class="y-fileinfo__lead">{ fmt.Sprintf(wording.DocumentOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)) }</p>
+			} else {
+				<p class="y-fileinfo__lead">{ fmt.Sprintf(wording.NoteOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)) }</p>
+			}
+			if v.SourceLimitFinding {
+				<p><a href={ templ.URL(sourceBoundHealthHref(v.RelPath)) }>{ wording.NoteReadingLimitHealth.In(lang) }</a></p>
+			}
+		} else {
+			<p class="y-fileinfo__lead">{ wording.NoReaderForFile.In(lang) }</p>
+		}
 		<dl class="y-fileinfo__list">
 			<dt>{ wording.FileName.In(lang) }</dt>
 			<dd>{ v.Title }</dd>

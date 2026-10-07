@@ -242,7 +242,7 @@ func TestStartingOnACollidingPairNamesBothFiles(t *testing.T) {
 // refusingSource answers a scan with the error it is told to, and otherwise
 // leaves the folder to the reader beneath it.
 type refusingSource struct {
-	Source
+	ObservedSource
 
 	refusal error
 }
@@ -251,7 +251,7 @@ func (s *refusingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) 
 	if s.refusal != nil {
 		return vault.Scan{}, s.refusal
 	}
-	return s.Source.ScanAvailable(ctx)
+	return s.ObservedSource.ScanAvailable(ctx)
 }
 
 // refusableFolder is a folder holding one note, read into a store through a
@@ -269,7 +269,7 @@ func refusableFolder(t *testing.T) (store *Store, source *refusingSource) {
 		t.Fatalf("vault.Open: %v", err)
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
-	source = &refusingSource{Source: reader}
+	source = &refusingSource{ObservedSource: reader}
 	store, err = New(t.Context(), source, discardLogger(), contract, contract.Governance())
 	if err != nil {
 		t.Fatalf("snapshot.New: %v", err)

@@ -19,7 +19,9 @@ class NotApplied extends Error {}
 
 const screen = /(\.y-prose\s*>\s*\*\s*\{[^}]*?)content-visibility:\s*auto\s*;/g;
 const intrinsic = /(\.y-prose\s*>\s*\*\s*\{[^}]*?)contain-intrinsic-block-size:\s*auto\s+[\d.]+em\s*;/g;
-const paper = /(\.y-prose\s*>\s*\*\s*\{[^}]*?)content-visibility:\s*visible\s*;/g;
+// Indented: the print rule sits inside its media block, unlike the screen
+// rules that lay every block out while the column folds or a mark lands.
+const paper = /(^[ \t]+\.y-prose\s*>\s*\*\s*\{[^}]*?)content-visibility:\s*visible\s*;/gm;
 const gutter = /(\.y-prose\s+\.y-reading\s*\{[^}]*?)overflow-clip-margin:\s*[\d.]+px\s*;/g;
 const focus = /(\.y-prose\s*>\s*\*\s*\{[^}]*?)overflow-clip-margin:\s*[\d.]+px\s*;/g;
 const sheet = /(\.y-conceptsheet__body\s*>\s*\*\s*\{[^}]*?)content-visibility:\s*visible\s*;/g;
@@ -87,7 +89,7 @@ try {
     let matches = 0;
     if (MUTATE) {
       const mode = MUTATIONS[MUTATE];
-      await page.route(`**/static/${mode.asset || 'app.css'}`, async (route) => {
+      await page.route(`**/static/${mode.asset || 'app.css'}{,?*}`, async (route) => {
         const response = await route.fetch();
         const original = await response.text();
         served += 1;

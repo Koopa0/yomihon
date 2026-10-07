@@ -719,6 +719,11 @@ func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 // line. An unknown type records a diagnostic and reports false, leaving the line
 // to goldmark's own blockquote parsing so nothing is silently dropped.
 func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, col *collector) bool {
+	// A line an indented code block holds is shown as written, so a callout
+	// opener on it is syntax on display: neither a callout nor an unknown type.
+	if st.quoted[st.i] {
+		return false
+	}
 	typ, fold, title, ok := calloutStart(st.lines[st.i])
 	if !ok {
 		return false
@@ -794,10 +799,13 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 		}
 		inner := raw[2 : len(raw)-2]
 		link, ok := graph.ParseWikilink(inner)
-		if !ok {
-			// [[#heading]] or [[^block]] stripped to empty: a same-file
-			// anchor jump, not a cross-file link — render the original
-			// display text as plain text, don't attempt to resolve it.
+		localHeading := !ok && !embed && link.Heading != "" && link.Block == "" && vault.IsMarkdown(col.relPath)
+		if localHeading && link.Display == "" {
+			link.Display = "#" + link.Heading
+		}
+		if !ok && !localHeading {
+			// Local blocks and embeds keep their plain-text fallback. Only a
+			// same-note heading is a page link without a cross-file target.
 			return html.EscapeString(link.Display)
 		}
 		if embed {
@@ -874,6 +882,10 @@ func rawHref(p string) string {
 // uncaptured body, and anything that is not a note gets no fragment at all.
 func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collector) (string, fragmentMiss) {
 	href := notesHref(relPath)
+	localPage := link.Target == "" && relPath == col.relPath && col.onPage
+	if localPage {
+		href = ""
+	}
 	if !vault.IsMarkdown(relPath) {
 		return href, fragmentPlaced
 	}
@@ -898,30 +910,56 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 		}
 		return href + "#" + url.PathEscape(blockAnchorID(address)), fragmentPlaced
 	case link.Heading != "":
-		addressed := href + "#" + graph.SectionID(link.Heading)
-		body, ok := r.transclusions.Transclusion(relPath)
-		if !ok {
-			return addressed, fragmentPlaced
-		}
-		stripped, _ := stripObsidianComments(body)
-		if _, found := headingSlice(stripped, link.Heading); found > 0 {
-			return addressed, fragmentPlaced
-		}
-		if headingAnchorMayExist(stripped, link.Heading) {
-			return addressed, fragmentPlaced
-		}
-		if r.embedBringsHeading(stripped, link.Heading) {
-			return addressed, fragmentPlaced
-		}
-		col.report(&Diagnostic{
-			Kind:    DiagLinkSectionMissing,
-			Target:  link.Target,
-			Section: link.Heading,
-			Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
-		})
-		return addressed, fragmentSectionMissing
+		return r.headingHref(relPath, href, localPage, link, col)
 	}
 	return href, fragmentPlaced
+}
+
+// headingHref uses a path's assigned leaf id and a single name's existing
+// generous reading. Missing headings keep the authored address in either case.
+func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.Wikilink, col *collector) (string, fragmentMiss) {
+	addressed := href + "#" + graph.SectionID(link.Heading)
+	if col.page.headingLookup {
+		return addressed, fragmentPlaced
+	}
+	body, ok := r.transclusions.Transclusion(relPath)
+	if localPage {
+		body, ok = col.body, true
+	}
+	if !ok {
+		return addressed, fragmentPlaced
+	}
+	var found bool
+	if IsHeadingPath(link.Heading) {
+		var id string
+		id, found = r.headingPathLeaf(relPath, localPage, link.Heading, col)
+		if found {
+			addressed = href + "#" + id
+		}
+	} else {
+		stripped, _ := stripObsidianComments(body)
+		_, matches := headingSlice(stripped, link.Heading)
+		found = matches > 0 || headingAnchorMayExist(stripped, link.Heading) || r.embedBringsHeading(stripped, link.Heading)
+	}
+	if found {
+		return addressed, fragmentPlaced
+	}
+	col.report(&Diagnostic{
+		Kind:    DiagLinkSectionMissing,
+		Target:  link.Target,
+		Section: link.Heading,
+		Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
+	})
+	return addressed, fragmentSectionMissing
+}
+
+// headingPathLeaf resolves a heading path within the page being read against
+// that page's own body, and any other against the destination's captured one.
+func (r *Pipeline) headingPathLeaf(relPath string, localPage bool, heading string, col *collector) (id string, found bool) {
+	if localPage {
+		return leafID(r.hostOutline(col), heading)
+	}
+	return r.HeadingPath(relPath, heading)
 }
 
 // renderWikilink renders a plain (non-embed) [[target|display]] as one open/close
@@ -930,15 +968,13 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 // that placed exactly one file gets a fragment; a name placing several is not
 // answered here, since this renderer never picks one of them.
 func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
+	if link.Target == "" {
+		return r.resolvedWikilink(col.relPath, link, col)
+	}
 	res := r.idx.Resolve(link.Target)
 	switch res.Kind {
 	case graph.KindUnique:
-		href, miss := r.sectionHref(res.RelPath, link, col)
-		if miss != fragmentPlaced {
-			return degradedLink(href, link, miss, col.page.lang)
-		}
-		//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
-		return fmt.Sprintf(`<a href="%s" class="wikilink">%s</a>`, attributeEscaper.Replace(href), html.EscapeString(link.Display))
+		return r.resolvedWikilink(res.RelPath, link, col)
 	case graph.KindAmbiguous:
 		col.report(&Diagnostic{
 			Kind: DiagWikilinkAmbiguous, Target: link.Target,
@@ -964,6 +1000,26 @@ func (r *Pipeline) renderWikilink(link graph.Wikilink, col *collector) string {
 	default:
 		panic("render: unknown graph.Kind: " + res.Kind.String())
 	}
+}
+
+// resolvedWikilink renders a link to one known note, including the current
+// body whose identity the caller already holds without a filename lookup.
+func (r *Pipeline) resolvedWikilink(relPath string, link graph.Wikilink, col *collector) string {
+	href, miss := r.sectionHref(relPath, link, col)
+	if miss != fragmentPlaced {
+		return degradedLink(href, link, miss, col.page.lang)
+	}
+	// A heading path's leaf id can carry a suffix the source never wrote, so a
+	// preview of another note is told the authored path. A link within the page
+	// is never previewed.
+	preview := ""
+	if IsHeadingPath(link.Heading) && link.Block == "" && strings.HasPrefix(href, "/notes/") {
+		if _, captured := r.transclusions.Transclusion(relPath); captured && vault.IsMarkdown(relPath) {
+			preview = ` data-preview-section="` + html.EscapeString(link.Heading) + `"`
+		}
+	}
+	//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
+	return fmt.Sprintf(`<a href="%s" class="wikilink"%s>%s</a>`, attributeEscaper.Replace(href), preview, html.EscapeString(link.Display))
 }
 
 // renderEmbed renders ![[target]] for the parsed link. A unique markdown-note
@@ -1007,9 +1063,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 		return ambiguousTarget(target, source, res.Candidates, col.page.lang)
 	case graph.KindUnique:
 		if IsPicture(res.RelPath) {
-			//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; the href is percent-escaped as a URL and then escaped for the attribute, and the name is html.EscapeString'd
-			return fmt.Sprintf(`<img src="%s" alt="%s">`,
-				attributeEscaper.Replace(rawHref(res.RelPath)), html.EscapeString(path.Base(res.RelPath)))
+			return pictureEmbed(res.RelPath, link)
 		}
 		if !vault.IsMarkdown(res.RelPath) {
 			return mediaStub(res.RelPath, col.page.lang)
@@ -1045,7 +1099,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 			matches: matches,
 			slice:   slice,
 		})
-		inner := r.render(slice, embedsDenied, col.page)
+		inner := r.render(slice, res.RelPath, embedsDenied, col.page)
 		col.diags = append(col.diags, inner.Diagnostics...)
 		heldBack := false
 		for _, d := range inner.Diagnostics {
@@ -1075,7 +1129,7 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 // off, so no later pass can reopen a marker this one ruled literal.
 func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped string, matches int) {
 	stripped, unclosed := stripBody(body)
-	if unclosed != 0 {
+	if unclosed.line != 0 {
 		unclosedDiagnostic := unclosedCommentDiagnostic(unclosed)
 		col.report(&unclosedDiagnostic)
 	}

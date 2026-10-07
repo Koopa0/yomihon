@@ -180,3 +180,29 @@ func benchDocs() []Document {
 	}
 	return docs
 }
+
+// BenchmarkShownExcerptCentre separates source length from display-span count.
+// The hidden-prefix case cannot allocate an atom for each hidden source byte.
+func BenchmarkShownExcerptCentre(b *testing.B) {
+	for _, size := range []int{4096, 1 << 20} {
+		for _, shape := range []string{"hidden-prefix", "dense-spans"} {
+			b.Run(fmt.Sprintf("%s/%d", shape, size), func(b *testing.B) {
+				body := "<style>claim" + strings.Repeat("x", size-64) + "</style><p>Our claim survives.</p>"
+				if shape == "dense-spans" {
+					body = strings.Repeat("<b>x</b>", (size-64)/8) + "<p>Our claim survives.</p>"
+				}
+				doc := DocumentFromBriefing("System/reports/daily-briefing/fixture.html", []byte(body))
+				index := NewIndex([]Document{doc}, validArtifactPolicy(b))
+				entry := index.entries[0]
+				centre := entry.shownExcerptCentre([]string{"claim"})
+				if !centre.found || entry.PlainText[centre.start:centre.end] != "claim" {
+					b.Fatal("benchmark must select the shown claim within the source ceiling")
+				}
+				b.ReportAllocs()
+				for b.Loop() {
+					_ = entry.shownExcerptCentre([]string{"claim"})
+				}
+			})
+		}
+	}
+}

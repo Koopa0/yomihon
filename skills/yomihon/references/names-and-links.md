@@ -42,6 +42,34 @@ nothing here shows the title trap — write a note whose `title` and filename
 differ, link it by the title, and you get `link.title_not_alias`, a finding
 that names the note you meant and offers the two repairs.
 
+## Parent folders can distinguish a filename
+
+The four location keys and aliases are checked first, as one union: an exact
+alias or full path wins even when deeper paths end the same way. Only when no
+key claims a slash-containing target does yomihon try complete path suffixes,
+using the same trim, NFC and case fold.
+
+| Written target | Captured files | Answer |
+|---|---|---|
+| `Atlas/README` or `Atlas/README.md` | `Notes/Projects/Atlas/README.md` | that canonical note path |
+| `Projects/Atlas/README` | `Notes/Projects/Atlas/README.md` | that canonical note path |
+| `Atlas/README` | `A/Atlas/README.md`, `B/Atlas/README.md` | ambiguous; no file is chosen |
+| `Atlas/README` | `Notes/NotAtlas/README.md` | no match; a complete `/` boundary is required |
+| `Atlas/chart.svg` | `Assets/Atlas/chart.svg` | that resource; its extension is required |
+
+This does not clean `..`, collapse doubled slashes, decode percent escapes,
+convert backslashes or fold fullwidth letters. A title remains outside link
+resolution. A suffix is a lookup fallback, not a new alias or collision key.
+
+`yomihon exists` keeps its wider metadata answers: filename, title, aliases and
+declared English title. A slash query also uses the shared location resolver;
+a readable public note with no existing exact field row gets `field: "path"`,
+with both `path` and `value` holding its canonical full captured path. An
+existing alias row stays an alias. Resources and unreadable paths participate
+in selection but produce no note row. A denied readable match contributes only
+`withheld: true`; near matches remain near matches, and an incomplete corpus
+still cannot authorize a negative answer.
+
 ## The three answers
 
 A name resolves to exactly one file, to several, or to none. yomihon never
@@ -50,7 +78,7 @@ picks between several:
 | Outcome | What the page shows | What `check` says |
 |---|---|---|
 | one file | an ordinary link | nothing |
-| several | nothing is linked; the name is marked ambiguous and the candidates are listed in place | `collision.name`, once for the whole collision, with every path in `collision_members` |
+| several | nothing is linked; the name is marked ambiguous and the candidates are listed in place | original key collisions produce `collision.name`, once for the whole collision, with every path in `collision_members`; suffix fallback adds no collision keys, so a link several path suffixes match is `link.broken` |
 | none | the link is marked where it sits, with the reason | `link.broken` — or `link.title_not_alias` when the name is some note's title |
 
 Two notes declaring the same alias is `collision.alias`, and has the same
@@ -59,7 +87,9 @@ answer to names neither.
 
 The repairs, in the order to try them: give the note a name unique in the
 vault; add an `aliases` entry when a second spelling genuinely should work;
-link by full vault-relative path when a generic name is unavoidable.
+use enough parent folders to distinguish a suffix, or link by full
+vault-relative path when a generic name is unavoidable. Check that no existing
+key or alias claims the spelling first.
 
 ## Fragments
 
@@ -78,6 +108,17 @@ look identical in the source and behave differently in the browser.
 
 A note's own headings become anchors with CJK intact; a repeated heading slug
 gets `-2`, `-3` appended until it is free.
+
+`[[Note#Parent#Child]]` names Child beneath Parent, rather than a heading
+called `Parent#Child`. Earlier names must occur among the child's active
+ancestors in order; intermediate headings and skipped levels are allowed.
+The link uses the child's actual page id, including a suffix when that name
+already occurs elsewhere. A repeated complete path takes the first match.
+`![[Note#Parent#Child]]` cuts that child's source section, with the same
+top-level heading boundaries as a single-name embed. An absent path keeps the
+existing missing-section diagnostic. Empty path segments retain the literal
+single-name reading, including a heading whose text ends in `#`. Within a
+note, `[[#Parent#Child]]` reads the same way against that note's own headings.
 
 ### What a block address is, exactly
 
@@ -106,27 +147,53 @@ expanded further. An embed whose section or block is not found shows nothing of
 the note — a notice names the address that failed and links the note —
 reporting `embed.section_missing` or `embed.block_missing`.
 
+For a picture, `![[pic.png|300]]` declares its width and
+`![[pic.png|300x200]]` declares width and height in whole pixels. Any other
+nonempty alias, such as `![[pic.png|some alt]]`, is its alternative text;
+a size or absent alias keeps the filename as alternative text. A local
+Markdown image uses `![alt|300](pic.png)` or `![alt|300x200](pic.png)`:
+only a valid final size suffix comes off its alternative text. An ordinary
+pipe in Markdown alternative text stays text. The reading column caps image
+width. Width and height remain HTML dimension hints; after the image loads,
+automatic height keeps its natural aspect ratio, including when the hints
+declare a different ratio.
+Note embeds keep their existing alias behavior. Remote images remain explicit
+links and are never loaded.
+
 ## Links that are not wikilinks
 
-A plain Markdown link to a Markdown file inside the vault is checked too, and so
-is a backticked `Notes/Some note.md` token. A path that is not there is
-`link.broken.path`; one that climbs out of the vault root is `info` instead,
-because it cannot be looked up the same way on every machine. A remote
-destination is never fetched.
+A plain Markdown link resolves only against the folder of the note that wrote
+it. The pathname is percent-decoded exactly once, then dot segments are cleaned
+and Unicode is normalized to NFC. Captured membership is exact and
+case-sensitive. Root, basename and suffix matches, titles and aliases do not
+stand in for the authored relative path. The raw query and fragment retain
+their authored spelling; encoded delimiters remain filename characters.
 
-**Spaces in the destination decide whether it is checked at all,** which matters
-in a vault whose filenames have spaces in them. Three spellings of one dead
-link behave three different ways:
+An existing Markdown note target leads to `/notes/`; an existing resource leads
+to `/raw/`. Embedded bodies use their own source directory. No Markdown link
+adds a wikilink graph edge.
+
+The page and `check` diagnose valid relative Markdown-note paths only. A missing
+target draws `link.broken.path`; a valid `.md` path climbing out of the vault
+retains its informational finding. Malformed escapes, non-note resources,
+site-absolute paths and uppercase `.MD` targets remain outside that diagnostic
+domain. Findings retain the authored target spelling, line and fingerprint.
+Private source findings are filtered before full or scoped CLI output; target
+authorization and scan exclusions precede membership. An unrelated private
+same-named file does not influence a local reference. Remote destinations are
+never fetched. Backticked `Notes/Some note.md` tokens retain their separate
+root-or-note-relative rule; percent-encoded code tokens remain outside it.
+
+Spaces matter to whether CommonMark parses a link:
 
 | Written | On the page | What `check` says |
 |---|---|---|
 | `[label](Nothing here.md)` | **not a link** — the whole thing stays as literal text | nothing, because there is no link to judge |
-| `[label](<Nothing here.md>)` | a link | `link.broken.path` |
-| `[label](Nothing%20here.md)` | a link | **nothing** — a percent-encoded path is left out of this rule |
+| `[label](<Nothing here.md>)` | label with a missing-target explanation | `link.broken.path` |
+| `[label](Nothing%20here.md)` | label with a missing-target explanation | `link.broken.path`, keeping `Nothing%20here.md` as its target |
 
-So the checked spelling is the angle-bracketed one. The other two are the pair
-worth remembering: one is silent because it never became a link, the other is
-silent while looking exactly right on the page.
+The latter two resolve identically when a unique file exists. Malformed percent
+escapes are left as the Markdown renderer emits them and are not diagnosed.
 
 ## Naming a link as owed rather than broken
 

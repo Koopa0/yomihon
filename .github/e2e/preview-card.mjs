@@ -76,6 +76,7 @@ const SITES = [
 	'the-keyboard-waits-the-same-as-the-pointer',
 	'card-anchored-to-its-link',
 	'card-shows-the-section-the-link-addressed',
+	'card-shows-the-child-in-the-authored-path',
 	'the-card-names-the-note-it-shows',
 	'card-scrolls-inside-itself',
 	'a-link-that-cannot-be-previewed-opens-nothing',
@@ -122,7 +123,7 @@ const notApplied = (message) => {
 // than passing as a mutation nobody noticed.
 const rewriteModule = (needle, replacement) => async (context) => {
 	let matched = -1;
-	await context.route('**/static/preview.js', async (route) => {
+	await context.route('**/static/preview.js{,?*}', async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
 		matched = original.split(needle).length - 1;
@@ -137,7 +138,7 @@ const rewriteModule = (needle, replacement) => async (context) => {
 // flag.
 const weakenStylesheet = (rule) => async (context) => {
 	let served = false;
-	await context.route('**/static/app.css', async (route) => {
+	await context.route('**/static/app.css{,?*}', async (route) => {
 		const response = await route.fetch();
 		const original = await response.text();
 		served = true;
@@ -243,7 +244,11 @@ const MUTATIONS = {
 	// destination from the top and the promise the link made goes unkept.
 	'drop-the-fragment': {
 		target: 'card-shows-the-section-the-link-addressed',
-		apply: rewriteModule('const fragment = decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
+		apply: rewriteModule('const fragment = link.dataset.previewSection || decodeURIComponent(link.hash.slice(1));', "const fragment = '';"),
+	},
+	'drop-the-authored-heading-path': {
+		target: 'card-shows-the-child-in-the-authored-path',
+		apply: rewriteModule('link.dataset.previewSection || decodeURIComponent(link.hash.slice(1))', 'decodeURIComponent(link.hash.slice(1))'),
 	},
 	// The card grows to whatever it holds, so a long note pushes it off the
 	// screen instead of scrolling inside it.
@@ -334,7 +339,7 @@ const MUTATIONS = {
 	// shell, so the needle follows that tag.
 	're-anchor-the-excerpt': {
 		target: 'an-open-card-adds-no-second-place-with-one-name',
-		apply: rewriteFragment('<h3', '<h3 id="main-content"'),
+		apply: rewriteFragment('<h3', '<h3 id="_y-main"'),
 	},
 	// The card fills itself instead of asking the route that holds the
 	// excerpts. It looks like a working card and is showing something nothing
@@ -532,7 +537,7 @@ const focusOnto = (page, link, freeze) => bring(page, link, () => link.focus(), 
 const PAUSE_MARGIN_MS = 60_000;
 
 // Freezes the page's own clock at the instant it is called, so a delay the
-// module schedules right after can only be reached by fast-forwarding it —
+// module schedules right after can only be reached by advancing it —
 // never by however long the surrounding awaits take on a loaded machine.
 // install() may run only once per page, so the second and later freeze in a
 // run just re-pins the already-installed clock at its own current instant.
@@ -553,6 +558,20 @@ const freezeClock = async (page) => {
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
 	const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+	// Record the real native fetch invocation before its response can arrive.
+	// A slow response must not hide a dwell timer that fired too soon.
+	await context.addInitScript(() => {
+		const nativeFetch = window.fetch;
+		window.__previewFetchStarts = [];
+
+		window.fetch = (...args) => {
+			const answer = nativeFetch.apply(window, args);
+			if (new URL(args[0], location.href).pathname.startsWith('/preview/')) {
+				window.__previewFetchStarts.push(String(args[0]));
+			}
+			return answer;
+		};
+	});
 	const proof = mutation ? await mutation.apply(context) : null;
 
 	// Every request the whole run makes, so the origin claim is made over what
@@ -667,37 +686,49 @@ try {
 		fail('escape-dismisses-the-card', 'Escape left the card open, so a reader has to move the pointer to get the paragraph under it back');
 	}
 
-	// A passing pointer. The excerpt is already held from the hover above, so
-	// what is being measured here is the wait and not a fetch. It is asked
-	// before the keyboard's own wait, because one constant governs both and
-	// whichever is asked first is the one that reports it. The pointer has been
-	// resting on this link since the card above opened, and a pointer that never
-	// left never arrives again — so it leaves first, which the helper does.
-	//
-	// The wait is the page's own clock fast-forwarded by exactly 120ms, not a
+	// A passing pointer must not start asking for an excerpt before the dwell
+	// expires. The real fetch is recorded synchronously at invocation, so a
+	// response still in flight cannot make an early timer look like a wait.
+	// The eventual card assertions below still read the actual served answer.
+	// The pointer left first, because one that never left never arrives again.
+	// The wait is the page's own clock advanced by exactly 120ms, not a
 	// real sleep: a real sleep only answers how long Node happened to yield the
 	// machine for, which on a loaded one can run well past the module's own
 	// 250ms delay and read a card that opened right on schedule as one that
 	// opened early. Freezing the clock the instant the pointer lands and
-	// advancing it by exactly 120ms of virtual time asks the question this site
+	// running it through exactly 120ms of virtual time asks the question this site
 	// is actually about — has the module's own delay elapsed — without asking
-	// the machine to hold still for it.
-	await pointerOnto(page, section, () => freezeClock(page));
-	await page.clock.fastForward(120);
+	// the machine to hold still for it. runFor preserves timer order;
+	// fastForward moves an earlier open and a later dismissal to one instant.
+	// The cold page gives this arrival no previous card's exit or release timer.
+	await page.mouse.move(4, 4);
+	const refreshed = await page.reload({ waitUntil: 'networkidle' });
+	if (refreshed?.status() !== 200) broken(`the fresh dwell page returned ${refreshed?.status()}, want 200`);
+	await arrived(page);
+	let pointerStarts;
+	await pointerOnto(page, section, async () => {
+		await freezeClock(page);
+		pointerStarts = await page.evaluate(() => window.__previewFetchStarts.length);
+	});
+	await page.clock.runFor(120);
 	proveApplied('card-waits-out-a-passing-pointer', proof);
-	if ((await cardState(page)).open) {
-		fail('card-waits-out-a-passing-pointer', 'the card opened within 120ms of the pointer arriving, so crossing a paragraph of links flashes one for each');
+	if ((await page.evaluate(() => window.__previewFetchStarts.length)) !== pointerStarts) {
+		fail('card-waits-out-a-passing-pointer', 'an excerpt fetch started within 120ms of the pointer arriving, before its dwell elapsed');
 	}
-	// The keyboard. Reaching a link is already deliberate, so it opens at once.
+	// The keyboard waits through the same dwell before asking for an excerpt.
 	// Real time resumes first, so the arrival itself is not raced against a
 	// clock still frozen from the pointer above; the wait after it is frozen
 	// again the same way.
 	await page.clock.resume();
-	await focusOnto(page, section, () => freezeClock(page));
-	await page.clock.fastForward(120);
+	let focusStarts;
+	await focusOnto(page, section, async () => {
+		await freezeClock(page);
+		focusStarts = await page.evaluate(() => window.__previewFetchStarts.length);
+	});
+	await page.clock.runFor(120);
 	proveApplied('the-keyboard-waits-the-same-as-the-pointer', proof);
-	if ((await cardState(page)).open) {
-		fail('the-keyboard-waits-the-same-as-the-pointer', 'the card opened within 120ms of the link taking focus, so tabbing through a paragraph of links throws up one card per link on the way past');
+	if ((await page.evaluate(() => window.__previewFetchStarts.length)) !== focusStarts) {
+		fail('the-keyboard-waits-the-same-as-the-pointer', 'an excerpt fetch started within 120ms of the link taking focus, before its dwell elapsed');
 	}
 	// Real time resumes again so the module's own remaining delay can actually
 	// elapse; the card below never opens on its own while the clock is frozen.
@@ -720,6 +751,24 @@ try {
 		proveApplied('card-shows-the-section-the-link-addressed', proof);
 		if (!state.proseText.includes(CJK_HEADING)) {
 			fail('card-shows-the-section-the-link-addressed', `the excerpt does not carry ${JSON.stringify(CJK_HEADING)}, the section its link addressed; it reads ${JSON.stringify(state.proseText.slice(0, 160))}`);
+		}
+		await page.mouse.move(4, 4);
+		await settles(page, false, 2000);
+	}
+
+	// The href answers the page's suffixed id; the card must still cut the
+	// source by ancestry, rather than ask for a heading called nested-child-2.
+	{
+		const nested = await only(page, 'second nested child');
+		if (await nested.getAttribute('href') !== '/notes/Notes/Glass%20Tide.md#nested-child-2') {
+			broken('the nested fixture does not address the second child id');
+		}
+		await pointerOnto(page, nested);
+		if (!(await settles(page, true, 4000))) broken('the resolved nested link opens no card');
+		const state = await cardState(page);
+		proveApplied('card-shows-the-child-in-the-authored-path', proof);
+		if (!state.proseText.includes('SECOND NESTED PASSAGE') || state.proseText.includes('FIRST NESTED PASSAGE')) {
+			fail('card-shows-the-child-in-the-authored-path', `the card lost the authored parent: ${JSON.stringify(state.proseText)}`);
 		}
 		await page.mouse.move(4, 4);
 		await settles(page, false, 2000);
@@ -912,6 +961,7 @@ try {
 		process.exitCode = 2;
 	} else if (err instanceof LockFired) {
 		console.error(err.message);
+		console.log(`caught: preview-card ${err.site}`);
 		if (MUTATE) {
 			const { target } = MUTATIONS[MUTATE];
 			if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);

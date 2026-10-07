@@ -35,7 +35,9 @@ const arrived = (page) => page.waitForFunction(
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/search?q=%22alpha%20beta%20gamma%22';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['narrow-endpoints-in-view', 'wide-endpoints-in-view'];
+const SITES = ['narrow-endpoints-in-view', 'wide-endpoints-in-view', 'narrow-cleaned-hit-in-view', 'wide-cleaned-hit-in-view'];
+const CLEAN_PAGE = '/search?q=primary';
+const CLEAN_NOTE = '/notes/Notes/Excerpt%20landing.md';
 
 // The article's own copies of the two ends of the match, and the rail label
 // that competes with the first of them.
@@ -87,6 +89,7 @@ const MUTATIONS = {
   // second copy of the same assertion.
   'strip-the-prefix': {
     target: 'wide-endpoints-in-view',
+    page: PAGE,
     apply: rewritePath(PAGE, 'text=entry%20closes%20with-,', 'text=', 1, 'result prefix'),
   },
   // Without any directive the note opens at the top at either width, which is
@@ -95,7 +98,20 @@ const MUTATIONS = {
   // could not tell a working control from an assertion that never ran.
   'strip-the-directive': {
     target: 'narrow-endpoints-in-view',
+    page: PAGE,
     apply: rewritePath(PAGE, '#:~:text=entry%20closes%20with-,alpha,gamma', '', 1, 'result directive'),
+  },
+  'strip-cleaned-narrow-directive': {
+    target: 'narrow-cleaned-hit-in-view',
+    page: CLEAN_PAGE,
+    width: NARROW,
+    apply: rewritePath(CLEAN_PAGE, '#:~:text=landing%20anchor-,primary', '', 1, 'cleaned narrow directive'),
+  },
+  'strip-cleaned-wide-directive': {
+    target: 'wide-cleaned-hit-in-view',
+    page: CLEAN_PAGE,
+    width: 1280,
+    apply: rewritePath(CLEAN_PAGE, '#:~:text=landing%20anchor-,primary', '', 1, 'cleaned wide directive'),
   },
 };
 
@@ -121,14 +137,17 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-// articleWord measures a range around one word inside the article, so the
-// answer is where the reader's evidence sits rather than where its paragraph
-// does. It reports every copy it finds: a fixture that grew a second one would
-// let this probe pass on whichever the browser happened to pick.
+// articleWord measures a range around one word inside the note's own text, so
+// the answer is where the reader's evidence sits rather than where its
+// paragraph does. Below the body the article also names the folder's previous
+// and next notes, which are other notes' words rather than this one's, so it
+// reads the note body alone. It reports every copy there: a fixture that grew a
+// second one would let this probe pass on whichever the browser happened to
+// pick.
 const articleWord = (page, word) => page.evaluate((w) => {
-  const article = document.querySelector('main article') || document.querySelector('main');
-  if (!article) return null;
-  const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+  const bodies = document.querySelectorAll('main article .y-prose');
+  if (bodies.length !== 1) return null;
+  const walker = document.createTreeWalker(bodies[0], NodeFilter.SHOW_TEXT);
   const found = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     for (let i = node.textContent.indexOf(w); i >= 0; i = node.textContent.indexOf(w, i + 1)) {
@@ -151,8 +170,8 @@ const articleWord = (page, word) => page.evaluate((w) => {
 
 const oneArticleWord = async (page, word) => {
   const found = await articleWord(page, word);
-  if (!found) broken('the note page rendered no article to measure');
-  if (found.length !== 1) broken(`the article holds ${found.length} copies of ${JSON.stringify(word)}, want exactly 1`);
+  if (!found) broken('the note page does not draw exactly one note body to measure');
+  if (found.length !== 1) broken(`the note body holds ${found.length} copies of ${JSON.stringify(word)}, want exactly 1`);
   return found[0];
 };
 
@@ -219,10 +238,45 @@ const land = async (browser, width, apply) => {
   return { seen, proof };
 };
 
+// The source's first occurrence is a hidden heading role. The shown occurrence
+// follows retracted/highlighted and decomposed text, so display offsets cannot
+// be handed back to the original corpus as landing coordinates.
+const landCleaned = async (browser, width, mutation) => {
+  const context = await browser.newContext({ viewport: { width, height: 900 } });
+  try {
+    const page = await context.newPage();
+    const apply = mutation && (!mutation.width || mutation.width === width) ? mutation.apply : null;
+    const proof = apply ? await apply(page) : null;
+    await page.goto(BASE + CLEAN_NOTE, { waitUntil: 'load' });
+    await arrived(page);
+    if ((await oneArticleWord(page, 'primary')).inView) broken('the cleaned-hit fixture is already visible at the top');
+    await page.goto(BASE + CLEAN_PAGE, { waitUntil: 'load' });
+    const link = page.locator(`a.y-result[href^="${CLEAN_NOTE}"]`);
+    if (await link.count() !== 1) broken('the results do not offer exactly one cleaned-hit fixture');
+    const href = await link.getAttribute('href');
+    const snippet = await link.locator('.y-result__snippet').textContent();
+    await link.click();
+    await page.waitForURL(/Excerpt%20landing/);
+    await page.waitForLoadState('load');
+    await arrived(page);
+    let last = -1;
+    for (let i = 0; i < 20; i += 1) {
+      await page.waitForTimeout(150);
+      const now = await page.evaluate(() => Math.round(scrollY));
+      if (i > 3 && now === last) break;
+      last = now;
+    }
+    return { seen: { width, href, snippet, scrollY: last, hit: await oneArticleWord(page, 'primary') }, proof };
+  } finally {
+    await context.close();
+  }
+};
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
-  const apply = MUTATE ? MUTATIONS[MUTATE].apply : null;
+  const selected = MUTATE ? MUTATIONS[MUTATE] : null;
+  const apply = selected?.page === PAGE ? selected.apply : null;
 
   // The narrow leg runs first, so a mutation aimed at the wide one has to
   // leave this leg passing to be counted as caught.
@@ -249,6 +303,16 @@ try {
   if (proof) {
     const issue = proof();
     if (issue) notApplied(`${MUTATE}: ${issue}`);
+  }
+  for (const [width, site] of [[NARROW, 'narrow-cleaned-hit-in-view'], [1280, 'wide-cleaned-hit-in-view']]) {
+    const clean = await landCleaned(browser, width, selected?.page === CLEAN_PAGE ? selected : null);
+    proof = clean.proof;
+    if (!clean.seen.hit.inView) fail(site, `the cleaned excerpt did not bring its shown hit on screen: ${JSON.stringify(clean.seen)}`);
+    if (proof) {
+      const issue = proof();
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
+    }
+    console.log(`PASS result-landing-visibility cleaned ${width}: ${JSON.stringify(clean.seen)}`);
   }
   console.log(`PASS result-landing-visibility: a result click puts ${START_WORD} and ${END_WORD} on screen at ${NARROW}px and at ${WIDE}px`);
 } catch (err) {

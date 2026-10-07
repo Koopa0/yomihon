@@ -80,6 +80,7 @@ func countLamps(listing string) int {
 A task list is two markers if the sheet forgets: a disc and a checkbox.
 
 - [ ] Unfinished task
+- [ ] [[task-child|ordinary task link]]
 - [x] Finished task
 
 A blank line between tasks wraps each checkbox in a paragraph.
@@ -87,6 +88,19 @@ A blank line between tasks wraps each checkbox in a paragraph.
 - [ ] Unfinished loose task
 
 - [x] Finished loose task
+
+The other authored markers stay neutral, with the character retained.
+
+- [/] A task in progress
+- [-] A cancelled task
+- [>] A forwarded task
+
+A task with no authored words still has a name.
+
+- [ ]
+- [ ] &nbsp;
+- [ ] &#32;
+- [ ] `&nbsp;`
 
 An ordered task still owes its number.
 
@@ -96,4 +110,19 @@ An ordinary list still owes its disc.
 
 - an ordinary item
 
+A task can quote another task without borrowing its words.
+
+- [ ] Before **own** ![[task-child]] after [[task-child|independent link]]
+
+- [ ] Loose own ![[task-child]] after
+
+  A second paragraph stays outside the task's name.
+
+A repeated quote still gives every child its own control.
+
+- [ ] Repeated own ![[task-child]] ![[task-child]] after
+- [ ] ![[task-child]]
+
 [^scope]: Only the scope of this study is covered.
+
+[[Glass Tide#Second parent#Nested child|second nested child]]

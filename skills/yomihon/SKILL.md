@@ -251,14 +251,16 @@ is refused. It is set by hand.
 
 | | |
 |---|---|
-| Resolves against | four forms of the note's location — filename stem, filename, vault-relative path stem, that path — plus any `aliases` |
+| Exact lookup | four forms of the note's location — filename stem, filename, vault-relative path stem, that path — plus any `aliases` |
+| Slash target with no exact claimant | complete path suffix at a `/` boundary, such as `[[Atlas/README]]` for `Notes/Projects/Atlas/README.md`; one candidate links, several stay ambiguous |
 | Never resolves against | the frontmatter `title`. A link written against a title finds nothing; `check` names it `link.title_not_alias` and tells you which note you meant |
-| Two files, one name | every `[[link]]` to it is ambiguous and yomihon refuses to guess: `collision.name`, nothing links, a span lists the candidates. Two notes declaring one alias is `collision.alias` |
+| Two files, one name | every `[[link]]` to it is ambiguous and yomihon refuses to guess: nothing links, a span lists the candidates. Original key collisions produce `collision.name`; suffix lookup adds no collision keys. Two notes declaring one alias is `collision.alias` |
 | Normalisation | trimmed, NFC, compared without regard to case, so `[[L01]]` and `[[l01]]` are one key and two files differing only in case collide |
 
 Give a note a name unique in the vault; add an alias when a second spelling
-should work; link by full vault-relative path when a generic name is
-unavoidable. Fragments, embeds, and how to mark a link as owed rather than
+should work; use a distinguishing parent-folder suffix or the full vault-relative
+path when a generic name is unavoidable. Existing keys and aliases win before
+suffix lookup. Fragments, embeds, and how to mark a link as owed rather than
 broken are in `references/names-and-links.md`.
 
 ## What the renderer treats specially
@@ -282,15 +284,15 @@ that:
 | `text. ^my-id` | a block address a link can reach | works on a heading, an ordinary paragraph and a callout's body line; refused on a recognised callout's opening line and on a table row; the caret stays in the id |
 | `==text==` | a highlight | exactly two `=` on each side. A single `=` is literal; surplus `=` also stay literal, outside the mark on the left and inside it on the right, so `===x===` gives `=<mark>x=</mark>` |
 | `%%hidden%%` | nothing | unclosed runs to the end of the body, with a diagnostic naming the body line it opened on |
-| `<!-- a remark -->` | **the comment, visible as text** | one word decides the fate of an HTML comment: `read-aloud`. A comment that opens with it is recognised and handled by the row below; every other comment is escaped onto the page and stays visible, so to hide a remark use `%%…%%` |
+| `<!-- a remark -->` | hidden, like `%%…%%` | both spellings hide a remark from the reading page, search text and link extraction. Delimiters shown inside code remain literal. A `read-aloud` marker keeps its handling in the row below |
 | ` ```mermaid ` | a diagram | case-insensitive, and the whole info string must be that word; the source is carried twice so it still reads without JavaScript |
 | ` ```go ` | highlighted code | an unrecognised language falls back to plain text **silently, with no diagnostic** |
 | TeX math (`$…$`, `$$…$$`) | not rendered as math | read as ordinary Markdown, so backslash escapes apply. Use a fenced code block to preserve TeX source |
-| `<ruby>漢<rt>かん</rt></ruby>` | ruby text | `ruby`, `rt`, `rp`, `br` and a `lang=` attribute on the first three are the allowlist; any other tag is escaped and stays visible |
+| `<ruby>漢<rt>かん</rt></ruby>` | ruby text | bare `ruby`, `rt`, `rp`, `br`, `kbd`, `sub`, `sup`, `mark` and `u` are the allowlist; only the first three accept `lang=`. The last five need their closer in the same paragraph, cell, heading or HTML block, so an unclosed or self-closing one stays visible as text. Any other tag or attribute is escaped and stays visible |
 | `![alt](pic.png)` | an image | a remote destination becomes an explicit link, never a request; a destination that is neither local nor http shows the alt text alone |
-| `## 標題` | a heading with an anchor | CJK letters and digits survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
+| `## 標題` | a heading with an anchor | letters and digits, with the marks written on them, survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
 | `<!-- read-aloud: zh-Hant -->` | a speech control on the next paragraph | accepts any well-formed BCP 47 tag, such as `ja`, `zh-Hant`, `en` or `fr`, and gives the paragraph its canonical language. A malformed value is **deleted from the page**, not escaped or visible. Controls appear only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; elsewhere a valid marker remains an invisible HTML comment. A device without an available speech voice uses the existing unavailable message |
-| `[[#Section]]` | **plain text** | a same-file anchor is not implemented and draws no diagnostic. What is left is the display half — `[[#Section]]` leaves `#Section`, and `[[#Section\|see below]]` leaves only `see below` |
+| `[[#Section]]` | **same-page link** | a heading in the current note takes the same id as its contents entry; an alias keeps its authored label. A missing section keeps its address, renders degraded, and draws a page diagnostic. In a transcluded excerpt the link names the source note. Same-note block references and embeds still draw only their display text; the judge does not check same-note links |
 | `> [!quote] [[Note]]` | **plain text** | a recognised callout's title is escaped, not parsed; a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image there draws `callout.title_markup` — move the markup into the body |
 
 For example, this fenced code block keeps every TeX backslash:
@@ -299,14 +301,16 @@ For example, this fenced code block keeps every TeX backslash:
 a\,b\;c\{d\}e\\f
 ```
 
-Recognised callout types, closed; each group separated by · shares one default
-title, used when the opening line names none. The title is plain text. Markdown
-and wikilinks work in a callout body. `success`, `check`, `done`, `important`
-and `tldr` fall through.
+Recognised built-in callout types; each group separated by · shares a tint
+and icon. Without an authored title, the callout uses its own type name with
+an initial capital (Tip, Bug, Faq). Titles are plain text. Markdown and
+wikilinks work in a callout body. Other type identifiers, including names
+with digits, hyphens or underscores, raise a diagnostic and remain plain
+blockquotes.
 
-`info` `note` `tip` `hint` `abstract` `summary` `todo` · `question` `help` `faq`
-· `example` · `quote` `cite` · `warning` `caution` `attention` · `danger`
-`error` `bug` `fail` `failure` `missing`
+`info` `note` `tip` `important` `hint` `abstract` `tldr` `summary` `todo`
+· `success` `check` `done` · `question` `help` `faq` · `example` · `quote` `cite`
+· `warning` `caution` `attention` · `danger` `error` `bug` `fail` `failure` `missing`
 
 ## What a lesson asks its reader
 

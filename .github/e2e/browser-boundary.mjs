@@ -32,6 +32,11 @@ const SITES = [
 ];
 
 const MUTATIONS = {
+	"activate-attributed-kbd": {
+		target: "authored-markup-inert",
+		phase: "reading",
+	},
+	"escape-bare-kbd": { target: "authored-markup-inert", phase: "reading" },
 	"activate-authored-script": {
 		target: "authored-markup-inert",
 		phase: "reading",
@@ -235,6 +240,21 @@ const installReadingResponse = async (page, attacker, phase) => {
 
 		if (phase === "reading" && mutationFor(phase)) {
 			switch (MUTATE) {
+				case "activate-attributed-kbd": {
+					const needle = "&lt;kbd onclick=globalThis.noteKbdEventRan=true&gt;";
+					proof.mutationMatches = occurrences(body, needle);
+					body = body.replace(
+						needle,
+						"<kbd onclick=globalThis.noteKbdEventRan=true>",
+					);
+					break;
+				}
+				case "escape-bare-kbd": {
+					const needle = "<kbd>Ctrl</kbd>";
+					proof.mutationMatches = occurrences(body, needle);
+					body = body.replace(needle, "&lt;kbd&gt;Ctrl&lt;/kbd&gt;");
+					break;
+				}
 				case "activate-authored-script": {
 					const needle =
 						"&lt;script&gt;globalThis.noteScriptRan=true&lt;/script&gt;";
@@ -264,8 +284,8 @@ const installReadingResponse = async (page, attacker, phase) => {
 					break;
 				}
 				case "break-application-entry": {
-					const needle = 'src="/static/yomihon.js"';
-					proof.mutationMatches = occurrences(body, needle);
+					const needle = /src="\/static\/yomihon\.js(?:\?v=[a-f0-9]{12})?"/g;
+					proof.mutationMatches = [...body.matchAll(needle)].length;
 					body = body.replace(
 						needle,
 						'src="/static/missing-browser-boundary.js"',
@@ -486,9 +506,40 @@ try {
 				"the ruled ruby/rt/br subset did not survive rendering",
 			);
 		}
+		const attributedFormatting = await prose
+			.locator("kbd,sub,sup,mark,u")
+			.evaluateAll(
+				(elements) =>
+					elements.filter((element) => element.attributes.length !== 0).length,
+			);
+		if (attributedFormatting !== 0) {
+			fail(
+				"authored-markup-inert",
+				`attributed formatting element count=${attributedFormatting}, want 0`,
+			);
+		}
+		for (const [tag, words] of [
+			["kbd", "Ctrl"],
+			["sub", "2"],
+			["sup", "2"],
+			["mark", "marked"],
+			["u", "under"],
+		]) {
+			const elements = prose.locator(tag);
+			if (
+				(await elements.count()) !== 1 ||
+				(await elements.textContent()) !== words ||
+				(await elements.evaluate((element) => element.attributes.length)) !== 0
+			) {
+				fail(
+					"authored-markup-inert",
+					`the ruled bare ${tag} text/element did not survive rendering`,
+				);
+			}
+		}
 		const activeAuthored = await prose
 			.locator(
-				"script,meta,button[onclick],link,iframe,form,video,source,style",
+				"script,meta,button[onclick],kbd[onclick],sub[onclick],sup[onclick],mark[onclick],u[onclick],link,iframe,form,video,source,style",
 			)
 			.count();
 		const proseText = await prose.textContent();

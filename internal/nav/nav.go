@@ -518,7 +518,7 @@ func newModel(
 		if byTitle := cmp.Compare(a.Title, b.Title); byTitle != 0 {
 			return byTitle
 		}
-		return cmp.Compare(a.RelPath, b.RelPath)
+		return vault.ComparePaths(a.RelPath, b.RelPath)
 	})
 	// Study paths are indexed first, so a note both a course and a map place
 	// answers with its course.

@@ -40,6 +40,7 @@ const MUTATE = process.env.MUTATE || '';
 const COLUMN_B_PREFIX = 'b-';
 
 const SITES = [
+  'one-comparison-heading',
   'columns-side-by-side',
   'columns-scroll-alone',
   'narrow-tabs-switch-columns',
@@ -69,7 +70,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED compare-colu
 // layout rule is taken away without touching the tree.
 const weakenStylesheet = (rule) => async (page) => {
   let seen = 0;
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
@@ -102,7 +103,7 @@ const rewritePage = (needle, replacement, what) => async (page) => {
 const rewriteScript = (needle, replacement, what) => async (page) => {
   let applied = false;
   let served = 0;
-  await page.route('**/static/contents.js', async (route) => {
+  await page.route('**/static/contents.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     served += 1;
@@ -116,7 +117,55 @@ const rewriteScript = (needle, replacement, what) => async (page) => {
   };
 };
 
+// The comparison heading is one page-owned element, independent of the
+// note titles. A dead or ambiguous match leaves the response intact and fails
+// the applied proof after navigation rather than passing as a caught fault.
+const removeComparisonHeading = async (page) => {
+  let matches = 0;
+  let served = 0;
+  await page.route((url) => url.pathname.startsWith('/compare/'), async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    const heading = /<h1 class="y-offscreen" lang="[^"]+">[^<]*<\/h1>/g;
+    const found = [...original.matchAll(heading)];
+    served += 1;
+    matches = found.length;
+    await route.fulfill({ response, body: matches === 1 ? original.replace(found[0][0], '') : original });
+  });
+  return () => (served === 1 && matches === 1 ? '' : `comparison heading matched ${matches} sites in ${served} responses, want one`);
+};
+
+// A heading above the grid cannot take one of its note cells. The fault
+// relocates that one heading into that one grid, with both sites guarded.
+const putHeadingInGrid = async (page) => {
+  let headings = 0;
+  let grids = 0;
+  let served = 0;
+  let above = false;
+  await page.route((url) => url.pathname.startsWith('/compare/'), async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    const heading = [...original.matchAll(/<h1 class="y-offscreen" lang="[^"]+">[^<]*<\/h1>/g)];
+    const grid = [...original.matchAll(/<main\b[^>]*class="y-compare"[^>]*>/g)];
+    served += 1;
+    headings = heading.length;
+    grids = grid.length;
+    above = headings === 1 && grids === 1 && heading[0].index < grid[0].index;
+    const body = above ? original.replace(heading[0][0], '').replace(grid[0][0], grid[0][0] + heading[0][0]) : original;
+    await route.fulfill({ response, body });
+  });
+  return () => (served === 1 && headings === 1 && grids === 1 && above ? '' : `heading/grid sites = ${headings}/${grids}, above = ${above}, responses = ${served}, want one of each above`);
+};
+
 const MUTATIONS = {
+  'let-the-heading-take-a-grid-cell': {
+    target: 'columns-side-by-side',
+    apply: putHeadingInGrid,
+  },
+  'drop-the-comparison-heading': {
+    target: 'one-comparison-heading',
+    apply: removeComparisonHeading,
+  },
   // The grid collapsed to one track: the two notes are still both on the page
   // and no longer beside one another, which is the page's whole claim.
   'merge-the-columns': {
@@ -219,6 +268,11 @@ const boxOf = (locator) => locator.evaluate((element) => {
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
 });
 
+// A note's outline sits below the comparison heading. All other article
+// bytes still have to match the standalone note, including authored levels.
+const nestedArticle = (article) => article.replace(/<\/?h([1-6])(?=[ >])/g,
+  (tag, level) => tag.slice(0, -1) + Math.min(Number(level) + 1, 6));
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   // Short enough that a note of the fixture's length overflows a column, so
@@ -234,6 +288,13 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
+  const pageHeadings = await page.locator('h1').allTextContents();
+  const titles = await page.locator('.y-compare__tabs a').allTextContents();
+  const expectedTitle = `${titles[0]} 與 ${titles[1]} 對照閱讀`;
+  if (pageHeadings.length !== 1 || pageHeadings[0] !== expectedTitle) {
+    fail('one-comparison-heading', `caught: comparison h1 = ${JSON.stringify(pageHeadings)}, want ${JSON.stringify([expectedTitle])}`);
+  }
+
   const columnA = page.locator('#compare-a');
   const columnB = page.locator('#compare-b');
   if ((await columnA.count()) !== 1 || (await columnB.count()) !== 1) {
@@ -241,6 +302,9 @@ try {
   }
 
   const wide = { a: await boxOf(columnA), b: await boxOf(columnB) };
+  if (wide.a.left >= wide.b.left || Math.abs(wide.a.top - wide.b.top) > 1) {
+    fail('columns-side-by-side', `caught: columns are not left-to-right on one row: ${JSON.stringify(wide)}`);
+  }
   if (wide.a.left === wide.b.left) {
     fail('columns-side-by-side', `both columns start at x=${wide.a.left}, so the two notes are stacked where there is room for both`);
   }
@@ -305,7 +369,7 @@ try {
   if (!renamed.includes(columnPrefix) || !aloneHTML.includes(alonePrefix)) {
     fail('column-is-the-note', 'the per-column mark prefix does not match the IDs of that reading');
   }
-  if (upToTheWriteFace(renamed.replace(columnPrefix, alonePrefix)) !== upToTheWriteFace(aloneHTML)) {
+  if (upToTheWriteFace(renamed.replace(columnPrefix, alonePrefix)) !== upToTheWriteFace(nestedArticle(aloneHTML))) {
     fail('column-is-the-note', 'the second column is not what the note reads as on its own page');
   }
 
@@ -394,6 +458,10 @@ try {
   // note one keyboard press away.
   await page.setViewportSize({ width: 390, height: 780 });
   await page.evaluate(() => { window.scrollTo(0, 0); });
+  const narrow = { a: await boxOf(columnA), b: await boxOf(columnB) };
+  if (Math.abs(narrow.a.left - narrow.b.left) > 1 || narrow.a.top >= narrow.b.top) {
+    fail('narrow-tabs-switch-columns', `caught: narrow columns are not stacked in note order: ${JSON.stringify(narrow)}`);
+  }
   const sideways = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,
@@ -429,7 +497,7 @@ try {
   }
 
   await context.close();
-  console.log('PASS compare-columns: two columns beside one another each move alone, the second is the note itself, levelling answers the press, each contents list marks its own note, and at 390px one note is in view with the other a keyboard press away');
+  console.log('PASS compare-columns: two columns beside one another each move alone, the page has one comparison heading, the second is the nested note itself, levelling answers the press, each contents list marks its own note, and at 390px one note is in view with the other a keyboard press away');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

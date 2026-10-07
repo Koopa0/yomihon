@@ -86,7 +86,7 @@ const notApplied = (message) => {
 // edit would land somewhere it was not aimed.
 const repointAtLatinExt = (from, to) => async (page) => {
   const seen = { served: 0, occurrences: 0 };
-  await page.route('**/static/app.css', async (route) => {
+  await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen.served += 1;
