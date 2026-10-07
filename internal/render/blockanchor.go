@@ -38,7 +38,8 @@ func BlockAddress(line string) string {
 // The last pair bounds the authored address; the first includes its boundary
 // space or tab when present. Absence has no positions.
 func blockAddressIn(line string) (trimmed string, m []int) {
-	address := BlockAddress(line)
+	addressReader := BlockAddress
+	address := addressReader(line)
 	if address == "" {
 		return "", nil
 	}
