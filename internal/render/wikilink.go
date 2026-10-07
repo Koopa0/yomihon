@@ -187,14 +187,15 @@ var blockMarkupMarker = regexp.MustCompile("\ue002\\d+\ue003")
 // selects; bytes that merely resemble a marker pass through as written. Redeemed
 // markup is spliced and never rescanned.
 func substituteBlocks(htmlOut string, blocks, inline []string) string {
-	out, _ := substituteMarkedBlocks(htmlOut, blocks, inline, nil)
+	out, _ := substituteMarkedBlocks(htmlOut, &markers{blocks: blocks, inline: inline})
 	return out
 }
 
 // substituteMarkedBlocks returns anchors only when their private marker is
 // redeemed. Parsing may discard a definition or move a footnote, so planting
 // an anchor alone establishes neither its presence nor its document order.
-func substituteMarkedBlocks(htmlOut string, blocks, inline []string, anchors map[int]string) (rendered string, emitted []string) {
+func substituteMarkedBlocks(htmlOut string, marks *markers) (rendered string, emitted []string) {
+	blocks, inline := marks.blocks, marks.inline
 	htmlOut = partParagraphsAtBlockMarkup(htmlOut)
 	if len(blocks) == 0 && len(inline) == 0 {
 		return htmlOut, nil
@@ -230,20 +231,21 @@ func substituteMarkedBlocks(htmlOut string, blocks, inline []string, anchors map
 		// so redeeming one never steps over another's pending opening.
 		switch cand {
 		case nextComment:
-			if markup, end, ok := redeemBlockAt(htmlOut, cand, blocks, usedBlock); ok {
+			if markup, end, idx, ok := redeemBlockAt(htmlOut, cand, blocks, usedBlock); ok {
 				splice(cand, end, markup)
+				emitted = appendEmittedAnchor(emitted, marks.blockAnchors[idx])
 			}
 			nextComment = nextMark(htmlOut, blockMarkOpen, max(pos, cand+1))
 		case nextInline:
 			if markup, end, idx, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, false); ok {
 				splice(cand, end, markup)
-				emitted = appendEmittedAnchor(emitted, anchors[idx])
+				emitted = appendEmittedAnchor(emitted, marks.anchors[idx])
 			}
 			nextInline = nextMark(htmlOut, inlineMarkOpen, max(pos, cand+1))
 		default:
 			if markup, end, idx, ok := redeemInlineAt(htmlOut, cand, inline, usedInline, true); ok {
 				splice(cand, end, markup)
-				emitted = appendEmittedAnchor(emitted, anchors[idx])
+				emitted = appendEmittedAnchor(emitted, marks.anchors[idx])
 			}
 			nextWide = nextMark(htmlOut, wideMarkOpen, max(pos, cand+1))
 		}
@@ -308,13 +310,13 @@ func markerIndex(after, closing string) (idx, end int, ok bool) {
 // redeemBlockAt redeems the block marker opening at cand when it completes
 // with an index that was planted and not yet redeemed, marking it redeemed
 // and returning its markup with the document offset just past the marker.
-func redeemBlockAt(doc string, cand int, blocks []string, used []bool) (markup string, end int, ok bool) {
+func redeemBlockAt(doc string, cand int, blocks []string, used []bool) (markup string, end, index int, ok bool) {
 	idx, n, matched := markerIndex(doc[cand+len(blockMarkOpen):], blockMarkClose)
 	if !matched || idx >= len(blocks) || used[idx] {
-		return "", 0, false
+		return "", 0, 0, false
 	}
 	used[idx] = true
-	return blocks[idx], cand + len(blockMarkOpen) + n, true
+	return blocks[idx], cand + len(blockMarkOpen) + n, idx, true
 }
 
 // redeemInlineAt is redeemBlockAt for the two private-use marker pairs. wide
@@ -506,6 +508,12 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 	// it, so it is answered for the whole body in one pass. Asked line by line it
 	// would read a run of addressed lines once per line.
 	owned := CodeSpanOwnedAddresses(st.address)
+	// A consumed unknown opener may hold the backtick that owns a body's
+	// caret. Removing that opener does not make the authored caret an address.
+	for i := range min(len(st.owned), len(owned)) {
+		owned[i] = owned[i] || st.owned[i]
+	}
+	st.owned = owned
 
 	for st.i < len(st.lines) {
 		switch {
@@ -518,7 +526,7 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 			// handled: either entered a fence, or fully consumed a
 			// mermaid block — see tryOpenFence.
 		case st.htmlEnds == nil && r.tryConsumeCallout(st, allowEmbed, col):
-			// handled: a known-type callout block was consumed.
+			// handled: a callout block was consumed.
 		default:
 			// An indented code block hands its line to the reader as written, so
 			// a bracket pair on it is syntax being shown and stays as typed. The
@@ -540,7 +548,7 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 			// the same kind of quoted text, asked of the author's own lines
 			// because a span can run past the end of one; the answer does not
 			// widen to indented code.
-			if !owned[st.i] {
+			if !st.owned[st.i] {
 				line = markBlockAnchor(line, col.page, st.marks, allowEmbed == embedsAllowed)
 			}
 			st.kept = append(st.kept, line)
@@ -559,6 +567,9 @@ type markers struct {
 	inline []string
 	// anchors binds a claimed block id to the inline marker that emits it.
 	anchors map[int]string
+
+	// blockAnchors binds an opening-line id to the shell marker that emits it.
+	blockAnchors map[int]string
 }
 
 // plantBlock files markup that stands on its own line and answers with the
@@ -586,6 +597,10 @@ type preprocessState struct {
 	// read once per body rather than per line, since answering it needs the
 	// whole body's block structure.
 	quoted map[int]bool
+
+	// owned records address carets inside the original source's code spans,
+	// including ownership inherited from a consumed unknown opener.
+	owned []bool
 
 	kept  []string
 	marks *markers
@@ -715,9 +730,8 @@ func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 	st.kept = append(st.kept, "", blockPlaceholder(st.marks.plantBlock(block)), "")
 }
 
-// tryConsumeCallout consumes a known-type callout block starting at the current
-// line. An unknown type records a diagnostic and reports false, leaving the line
-// to goldmark's own blockquote parsing so nothing is silently dropped.
+// tryConsumeCallout consumes a callout block starting at the current line. An
+// unrecognized type keeps its diagnostic and uses the neutral note shell.
 func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, col *collector) bool {
 	// A line an indented code block holds is shown as written, so a callout
 	// opener on it is syntax on display: neither a callout nor an unknown type.
@@ -733,9 +747,15 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 		col.report(&Diagnostic{
 			Kind:    DiagUnknownCallout,
 			Target:  typ,
-			Message: fmt.Sprintf("unknown callout type %q; rendered as a plain blockquote", typ),
+			Message: fmt.Sprintf("unknown callout type %q; rendered as a neutral callout", typ),
 		})
-		return false
+	}
+	if title == "" {
+		title = defaultTitle
+	}
+	titleHTML, openingID := html.EscapeString(title), ""
+	if bucket == bucketUnknown && !st.owned[st.i] {
+		titleHTML, openingID = calloutOpeningTitle(title, col.page, allowEmbed)
 	}
 
 	st.i++
@@ -756,8 +776,14 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 	// own because it has its own fence state, its own reading of which lines an
 	// indented code block shows as written, and its own diagnostic budget; the
 	// two scans plant into one marker table.
-	open, closing := calloutShell(bucket, defaultTitle, fold, title)
+	open, closing := calloutShell(bucket, fold, titleHTML)
 	openMark := st.marks.plantBlock(open)
+	if openingID != "" {
+		if st.marks.blockAnchors == nil {
+			st.marks.blockAnchors = make(map[int]string)
+		}
+		st.marks.blockAnchors[openMark] = openingID
+	}
 	bodySource := strings.Join(bodyLines, "\n")
 	body := &preprocessState{
 		lines: bodyLines,
@@ -769,11 +795,26 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 		quoted:  r.indentedCodeLines(bodySource),
 		marks:   st.marks,
 	}
+	if bucket == bucketUnknown {
+		body.owned = st.owned[opened:st.i]
+	}
 	r.scan(body, allowEmbed, col)
 	closeMark := st.marks.plantBlock(closing)
 
 	st.kept = append(st.kept, "", blockPlaceholder(openMark), "", body.source(), "", blockPlaceholder(closeMark), "")
 	return true
+}
+
+// calloutOpeningTitle preserves an unknown opening's address while treating
+// the authored title as literal text. Its span is written directly into the
+// shell because inserted marker markup is not scanned for further markers.
+func calloutOpeningTitle(title string, page *composition, allowEmbed embedPolicy) (markup, id string) {
+	trimmed, m := blockAddressIn(title)
+	if m == nil {
+		return html.EscapeString(title), ""
+	}
+	anchor, id := blockAnchorSpan(trimmed[m[2]:m[3]], page, allowEmbed == embedsAllowed)
+	return html.EscapeString(trimmed[:m[2]]) + anchor + html.EscapeString(title[len(trimmed):]), id
 }
 
 // convertWikilinks scans one source line for [[...]] and ![[...]] and replaces
