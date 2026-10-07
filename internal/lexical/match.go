@@ -765,6 +765,12 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 		}
 		return terms
 	}
+	return e.finishCrossingLanding(end, firstEnd, terms)
+}
+
+// finishCrossingLanding measures the last stretch and its following run inside
+// the block that holds the match's far end.
+func (e *entry) finishCrossingLanding(end, firstEnd int, terms landingTerms) landingTerms {
 	lastStart, lastVerbatim := e.blockAt(end - 1)
 	from := max(lastStart, firstEnd)
 	lastEnd := e.blockEndAfter(end - 1)
