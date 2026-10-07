@@ -19,6 +19,36 @@ type anyTitle struct{}
 
 func (anyTitle) TitledBy(string) []string { return nil }
 
+func TestCalloutOpeningUsesSyntaxRatherThanAddressRefusal(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		line string
+		want bool
+	}{
+		{name: "known", line: "> [!note] Title", want: true},
+		{name: "unknown", line: "> [!nonesuch] Title ^address", want: true},
+		{name: "open fold", line: "> [!CUSTOM_TYPE2]+ Title", want: true},
+		{name: "closed fold", line: "> [!my-callout]- Title", want: true},
+		{name: "numeric", line: "> [!2] Title", want: true},
+		{name: "underscore", line: "> [!_] Title", want: true},
+		{name: "hyphen", line: "> [!-] Title", want: true},
+		{name: "container indent", line: "    > [!note] Title", want: true},
+		{name: "empty type", line: "> [!] Title"},
+		{name: "dot in type", line: "> [!my.callout] Title"},
+		{name: "space in type", line: "> [!my callout] Title"},
+		{name: "missing quote", line: "[!note] Title"},
+		{name: "table", line: "| > [!note] Title |"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsCalloutOpening(tt.line); got != tt.want {
+				t.Errorf("IsCalloutOpening(%q) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestACalloutBodyClosesEveryBlockAnEmptyLineDoesNotEnd enumerates the ways a
 // callout's body can end in the middle of something. A callout is read as part
 // of the note it is written in, so its body's source is laid into the note's

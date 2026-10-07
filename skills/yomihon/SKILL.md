@@ -293,7 +293,7 @@ that:
 | `## 標題` | a heading with an anchor | letters and digits, with the marks written on them, survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
 | `<!-- read-aloud: zh-Hant -->` | a speech control on the next paragraph | accepts any well-formed BCP 47 tag, such as `ja`, `zh-Hant`, `en` or `fr`, and gives the paragraph its canonical language. A malformed value is **deleted from the page**, not escaped or visible. Controls appear only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; elsewhere a valid marker remains an invisible HTML comment. A device without an available speech voice uses the existing unavailable message |
 | `[[#Section]]` | **same-page link** | a heading in the current note takes the same id as its contents entry; an alias keeps its authored label. A missing section keeps its address, renders degraded, and draws a page diagnostic. In a transcluded excerpt the link names the source note. Same-note block references and embeds still draw only their display text; the judge does not check same-note links |
-| `> [!quote] [[Note]]` | **plain text** | a recognised callout's title is escaped, not parsed; a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image there draws `callout.title_markup` — move the markup into the body |
+| `> [!quote] [[Note]]` | **plain text** | every callout shell's title is escaped, not parsed, including a neutral shell for an unknown type; a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image there draws `callout.title_markup` — move the markup into the body |
 
 For example, this fenced code block keeps every TeX backslash:
 

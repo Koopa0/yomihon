@@ -31,6 +31,14 @@ func calloutStart(line string) (typ, fold, title string, ok bool) {
 	return strings.ToLower(m[1]), m[2], strings.TrimSpace(m[3]), true
 }
 
+// IsCalloutOpening reports whether line has callout opening syntax, including
+// unknown types rendered in a neutral shell. It does not decide whether the
+// surrounding Markdown makes the line code or whether it can carry an address.
+func IsCalloutOpening(line string) bool {
+	_, _, _, ok := calloutStart(line)
+	return ok
+}
+
 // calloutBucket is one of the visual/semantic groups every known callout
 // type sorts into.
 type calloutBucket int
