@@ -560,8 +560,12 @@ type Store struct {
 	// already logged in full, by path, so a panic that repeats on unchanged
 	// bytes is not logged in full again.
 	reported map[string][sha256.Size]byte
-	prev     vault.Scan
-	retry    bool
+
+	// reportedWarnings belongs to the reconciliation loop, like reported, but
+	// tracks observed diagnostic episodes rather than panicking source bytes.
+	reportedWarnings map[warningKey]struct{}
+	prev             vault.Scan
+	retry            bool
 
 	// consecutiveIncomplete, nextRetry, and incompleteScan bound the retry loop.
 	// While attempts keep coming back incomplete over an unchanged file domain,
@@ -621,20 +625,22 @@ func New(
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
 	reported := make(map[string][sha256.Size]byte)
-	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, generationCaps, contract, reported)
+	reportedWarnings := make(map[warningKey]struct{})
+	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, generationCaps, contract, reported, reportedWarnings)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
 	store := &Store{
-		source:       source,
-		rootObserver: source,
-		log:          log,
-		now:          time.Now,
-		capabilities: capabilities,
-		contract:     contract,
-		reported:     reported,
-		prev:         scan,
-		retry:        len(blocked) != 0,
+		source:           source,
+		rootObserver:     source,
+		log:              log,
+		now:              time.Now,
+		capabilities:     capabilities,
+		contract:         contract,
+		reported:         reported,
+		reportedWarnings: reportedWarnings,
+		prev:             scan,
+		retry:            len(blocked) != 0,
 	}
 	builtAt := store.now()
 	store.lastRebuild = builtAt
@@ -755,6 +761,7 @@ func (s *Store) rescan(ctx context.Context) {
 		capabilities,
 		s.contract,
 		s.reported,
+		s.reportedWarnings,
 	)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -920,6 +927,7 @@ func buildGeneration(
 	capabilities schema.Capabilities,
 	contract *schema.Contract,
 	reported map[string][sha256.Size]byte,
+	reportedWarnings map[warningKey]struct{},
 ) (*Generation, []BlockedSource, error) {
 	// Classification is generation data, so one point-in-time policy builds every
 	// projection; Capture rebinds request-time access to the current authority.
@@ -927,6 +935,7 @@ func buildGeneration(
 	entries := scan.Files()
 	g := newGeneration(len(entries))
 	g.reported = reported
+	g.warnings = newWarningAttempt(reportedWarnings)
 	g.blocked = blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
@@ -951,7 +960,7 @@ func buildGeneration(
 			g.resources = append(g.resources, relPath)
 		}
 		if !want.read {
-			g.skipUnread(relPath, note, entry.Size(), log)
+			g.skipUnread(entry, note, log)
 			continue
 		}
 		data, err := source.ReadFile(ctx, entry)
@@ -959,7 +968,7 @@ func buildGeneration(
 			if contextErr := ctx.Err(); contextErr != nil {
 				return nil, nil, contextErr
 			}
-			log.Warn("vault source unavailable in snapshot generation", "path", relPath, "error", err)
+			g.warnSourceUnavailable(entry, err, log)
 			g.unread(carried, relPath, note, want, err.Error(), false)
 			continue
 		}
@@ -967,7 +976,7 @@ func buildGeneration(
 			g.captureFile(relPath, data, want.indexable)
 			continue
 		}
-		if reason := g.readNote(relPath, data, capabilities.Language, contract, lint, lintErr, log); reason != "" {
+		if reason := g.readNote(entry, data, capabilities.Language, contract, lint, lintErr, log); reason != "" {
 			// The bytes opened and the parse panicked: the note is recorded the
 			// way one the read could not open is, so the rest of the folder is
 			// still read and served.
@@ -981,11 +990,7 @@ func buildGeneration(
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
-	for _, problem := range slotProblems {
-		// One unusable sidecar costs one lesson its practice panel, not the rest.
-		log.Warn("slot sidecar unusable in snapshot generation",
-			"path", problem.Source, "problem", problem.Message)
-	}
+	g.warnSlotProblems(scan, slotProblems, log)
 	concepts, err := lesson.NewConceptIndex(g.ordered)
 	if err != nil {
 		log.Warn("concept sheets unavailable in snapshot generation", "error", err)
@@ -1029,6 +1034,9 @@ func buildGeneration(
 		noteCount:      noteCount,
 	}
 	gen.markdown = render.New(graphIndex, gen, gen, gen)
+	if ctx.Err() == nil {
+		g.warnings.complete()
+	}
 	return gen, g.blocked, nil
 }
 
@@ -1085,6 +1093,7 @@ type generation struct {
 	// reported is the Store's memory of the note parse panics already logged in
 	// full. A reading built outside a Store has none and logs every panic in full.
 	reported map[string][sha256.Size]byte
+	warnings *warningAttempt
 }
 
 // newGeneration opens an empty generation sized for a folder of entries files.
@@ -1101,6 +1110,26 @@ func newGeneration(entries int) *generation {
 		skippedNotes: make(map[string]struct{}),
 		products:     make(map[string]noteProducts, entries),
 		htmlTitles:   make(map[string]string),
+	}
+}
+
+func (g *generation) warnSourceUnavailable(entry vault.Entry, err error, log *slog.Logger) {
+	if g.warnings.record(entry, warningRead, err.Error()) {
+		log.Warn("vault source unavailable in snapshot generation", "path", entry.Path(), "error", err)
+	}
+}
+
+func (g *generation) warnSlotProblems(scan vault.Scan, problems []lesson.Problem, log *slog.Logger) {
+	for _, problem := range problems {
+		// One unusable sidecar costs one lesson its practice panel, not the rest.
+		entry, ok := scan.Entry(problem.Source)
+		if !ok {
+			panic("snapshot: unknown sidecar source: " + sidecarSource(problem.Source).String())
+		}
+		if g.warnings.record(entry, warningSidecar, problem.Message) {
+			log.Warn("slot sidecar unusable in snapshot generation",
+				"path", problem.Source, "problem", problem.Message)
+		}
 	}
 }
 
@@ -1126,12 +1155,15 @@ func (g *generation) omitDeclaredBasenames(entries []vault.Entry, contract *sche
 // nothing of the file is retained. The skip itself is stored so Skipped()
 // can name it on /health; a log line alone is not a face. A non-note that
 // was not wanted is simply absent, as before.
-func (g *generation) skipUnread(relPath string, note bool, size int64, log *slog.Logger) {
+func (g *generation) skipUnread(entry vault.Entry, note bool, log *slog.Logger) {
 	if !note {
 		return
 	}
-	log.Warn("vault note skipped: larger than the source size bound",
-		"path", relPath, "bytes", size)
+	relPath, size := entry.Path(), entry.Size()
+	if g.warnings.record(entry, warningSize, "vault note skipped: larger than the source size bound") {
+		log.Warn("vault note skipped: larger than the source size bound",
+			"path", relPath, "bytes", size)
+	}
 	g.unreadable = append(g.unreadable, vault.Parse(relPath, nil))
 	g.sizeSkipped = append(g.sizeSkipped, Skipped{
 		Path:   relPath,
@@ -1239,7 +1271,7 @@ func deriveNote(
 // filed and the returned reason says what happened, so the caller can treat the
 // file like one it could not open. A note that was filed answers "".
 func (g *generation) readNote(
-	relPath string,
+	entry vault.Entry,
 	data []byte,
 	languages schema.ArticleLanguage,
 	contract *schema.Contract,
@@ -1247,9 +1279,10 @@ func (g *generation) readNote(
 	lintErr error,
 	log *slog.Logger,
 ) (panicked string) {
+	relPath := entry.Path()
 	read, fault := deriveNote(relPath, data, languages, contract, lint, lintErr)
 	if fault != nil {
-		g.reportPanic(relPath, data, fault, log)
+		g.reportPanic(entry, data, fault, log)
 		return "panic while parsing this note: " + fault.value
 	}
 	// A note that parses is forgotten, so these bytes panicking again after it
@@ -1259,7 +1292,7 @@ func (g *generation) readNote(
 	g.ordered = append(g.ordered, read.parsed)
 	g.readings[relPath] = read.reading
 	g.products[relPath] = read.products
-	g.recordVerdict(relPath, read.findings, read.verdictErr, log)
+	g.recordVerdict(entry, read.findings, read.verdictErr, log)
 	return ""
 }
 
@@ -1267,11 +1300,14 @@ func (g *generation) readNote(
 // are seen to do it the record is an ERROR naming the path, the value and the
 // stack. A panic is deterministic for its bytes and an unreadable note is read
 // again on a schedule, so the same bytes panicking again is one WARN line.
-func (g *generation) reportPanic(relPath string, data []byte, fault *notePanic, log *slog.Logger) {
+func (g *generation) reportPanic(entry vault.Entry, data []byte, fault *notePanic, log *slog.Logger) {
+	relPath := entry.Path()
 	identity := vault.ContentIdentity(data)
 	if seen, ok := g.reported[relPath]; ok && seen == identity {
-		log.Warn("vault note parse still panics on bytes already reported; treating the note as unreadable",
-			"path", relPath, "panic", fault.value)
+		if g.warnings.record(entry, warningPanic, fault.value) {
+			log.Warn("vault note parse still panics on bytes already reported; treating the note as unreadable",
+				"path", relPath, "panic", fault.value)
+		}
 		return
 	}
 	if g.reported != nil {
@@ -1306,9 +1342,12 @@ func (g *generation) linkTargets() map[string][]string {
 // and clean read the same at the accessor. The only fault it can meet is a slug
 // pattern nothing can compile, which is said once and leaves that note without
 // a verdict rather than the folder without a generation.
-func (g *generation) recordVerdict(relPath string, findings []judge.Finding, err error, log *slog.Logger) {
+func (g *generation) recordVerdict(entry vault.Entry, findings []judge.Finding, err error, log *slog.Logger) {
+	relPath := entry.Path()
 	if err != nil {
-		log.Warn("schema verdict unavailable for a note", "path", relPath, "error", err)
+		if g.warnings.record(entry, warningVerdict, err.Error()) {
+			log.Warn("schema verdict unavailable for a note", "path", relPath, "error", err)
+		}
 		return
 	}
 	if len(findings) > 0 {
@@ -1444,8 +1483,10 @@ func (g *generation) nameBriefing(ctx context.Context, source Source, entry vaul
 			// The build is being abandoned, and its caller says why.
 			return
 		}
-		log.Warn("briefing head unreadable; it is shown under its file name",
-			"path", entry.Path(), "error", err)
+		if g.warnings.record(entry, warningHead, err.Error()) {
+			log.Warn("briefing head unreadable; it is shown under its file name",
+				"path", entry.Path(), "error", err)
+		}
 		return
 	}
 	if title := nav.HTMLTitle(head); title != "" {
