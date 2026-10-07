@@ -96,6 +96,33 @@ func TestOversizedBriefingKeepsShellAndOriginalDownload(t *testing.T) {
 	}
 }
 
+func TestWellOversizedBriefingReportsExactSize(t *testing.T) {
+	root := vaultWithBriefing(t)
+	writeSizedBriefing(t, root, 32*1024*1024)
+	h := newHandler(t, root)
+	for _, tt := range []struct {
+		name string
+		lang wording.Lang
+		want string
+	}{
+		{name: "zh-Hant", lang: wording.ZhHant, want: "這份簡報的大小是 32.0 MB（33,554,432 位元組），超過 16 MiB 的閱讀上限；原始檔仍可下載。"},
+		{name: "en", lang: wording.En, want: "This briefing is 32.0 MB (33,554,432 bytes), over the 16 MiB reading limit; the original file can still be downloaded."},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			raw := requestBriefing(t.Context(), h, "/reports/"+briefingName+"/raw", tt.lang)
+			t.Log("producer-hit: registered 32 MiB briefing raw request")
+			assertBriefingSizeRefusal(t, raw, tt.want)
+			shell := requestBriefing(t.Context(), h, "/reports/"+briefingName, tt.lang)
+			if shell.Code != http.StatusOK {
+				t.Fatalf("32 MiB shell status = %d, want 200", shell.Code)
+			}
+			if !strings.Contains(shell.Body.String(), tt.want) {
+				t.Errorf("caught: 32 MiB shell does not report its exact size: want %q", tt.want)
+			}
+		})
+	}
+}
+
 func TestBriefingAtReadingBoundServesCompleteBytesAndFrame(t *testing.T) {
 	root := vaultWithBriefing(t)
 	want := writeSizedBriefing(t, root, 16*1024*1024)
@@ -143,9 +170,21 @@ func TestBriefingReadingBoundUsesRefreshedSize(t *testing.T) {
 func writeSizedBriefing(t *testing.T, root string, size int) []byte {
 	t.Helper()
 	prefix := []byte("<!doctype html><title>Bounded briefing</title><body>REPORT-BODY-SENTINEL")
+	path := filepath.Join(root, "System", "reports", "daily-briefing", briefingName)
+	// Oversized fixtures are refused from metadata, so retain the sentinel
+	// prefix and extend sparsely without allocating their body bytes.
+	if size > 16*1024*1024 {
+		if err := os.WriteFile(path, prefix, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Truncate(path, int64(size)); err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}
 	body := bytes.Repeat([]byte("x"), size)
 	copy(body, prefix)
-	if err := os.WriteFile(filepath.Join(root, "System", "reports", "daily-briefing", briefingName), body, 0o600); err != nil {
+	if err := os.WriteFile(path, body, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return body
@@ -153,7 +192,7 @@ func writeSizedBriefing(t *testing.T, root string, size int) []byte {
 
 func requestBriefing(ctx context.Context, h http.Handler, target string, lang wording.Lang) *httptest.ResponseRecorder {
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody)
-	r.AddCookie(&http.Cookie{Name: wording.CookieName, Value: string(lang)})
+	r.Header.Set("Cookie", wording.CookieName+"="+string(lang))
 	rr := httptest.NewRecorder()
 	origin.Protect(h).ServeHTTP(rr, r)
 	return rr

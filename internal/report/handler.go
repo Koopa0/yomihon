@@ -29,7 +29,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 // show renders the report shell: sidebar, title, and a sandboxed iframe whose
-// src is this report's raw endpoint. An unenumerated name is a 404 page.
+// src is this report's raw endpoint. A briefing over the reading bound instead
+// shows a refusal sentence and an original-file download link without a frame.
+// An unenumerated name is a 404 page.
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	request := h.snapshot()
@@ -70,7 +72,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 // that vanished between the snapshot and this request is a 404 rather than a
 // server failure. A briefing marked as UTF-16 is served as plain text: the
 // browser would decode it past the check that disarms its links, so it is not
-// rendered at all.
+// rendered at all. A briefing over the reading bound is refused before reading
+// its body with a localized plain-text 403 response.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	snap := h.snapshot().Generation
