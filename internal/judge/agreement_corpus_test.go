@@ -27,10 +27,18 @@ func agreementFixtures(t *testing.T) []agreementCase {
 				return walkErr
 			}
 			if entry.Type()&os.ModeSymlink != 0 {
-				return fmt.Errorf("symlink fixture %q", path)
+				target, err := os.Readlink(path)
+				if err != nil {
+					return fmt.Errorf("read symlink fixture %q: %w", path, err)
+				}
+				t.Logf("fixture-excluded=%s role=symlink-not-regular-body target=%q sha256=%x", filepath.ToSlash(path), target, sha256.Sum256([]byte(target)))
+				return nil
 			}
 			if entry.IsDir() {
 				return nil
+			}
+			if !entry.Type().IsRegular() {
+				return fmt.Errorf("nonregular fixture %q: %v", path, entry.Type())
 			}
 			if root == "../../internal" && !strings.Contains(filepath.ToSlash(path), "/testdata/") {
 				return nil
