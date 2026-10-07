@@ -243,6 +243,260 @@ func TestProbeRunnerPreflight(t *testing.T) {
 	}
 }
 
+// Classification must not suppress a plain lock or let a behavior-only probe
+// enter discovery. Using existing members keeps the baseline fixture runnable.
+func TestProbeRunnerBehaviorOnly(t *testing.T) {
+	t.Parallel()
+	entries, source := probeRunnerSource(t)
+	first, _, _ := strings.Cut(entries[0], "|")
+	middle, _, _ := strings.Cut(entries[len(entries)/2], "|")
+	later, _, _ := strings.Cut(entries[len(entries)-3], "|")
+	cases := []struct {
+		name       string
+		classified []string
+	}{
+		{name: "single member", classified: []string{first}},
+		{name: "multiple members", classified: []string{first, middle}},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			changed := probeBehaviorOnlySource(t, source, tt.classified)
+			mutable := mutableProbeEntries(entries, tt.classified)
+			for _, path := range []struct {
+				name   string
+				mutate bool
+			}{
+				{name: "plain"},
+				{name: "mutations", mutate: true},
+			} {
+				t.Run(path.name, func(t *testing.T) {
+					t.Parallel()
+					for _, stimulus := range []struct {
+						name    string
+						failing bool
+					}{
+						{name: "success"},
+						{name: "failure continues", failing: true},
+					} {
+						t.Run(stimulus.name, func(t *testing.T) {
+							t.Parallel()
+							fixture := newProbeRunnerFixture(t, entries, changed)
+							// A classified child advertises unusable discovery. Even asking
+							// it for modes violates the classification boundary.
+							for _, probe := range tt.classified {
+								fixture.reply(t, probeReply{probe: probe, mode: "list", status: 2, stdout: new("unusable\n")})
+							}
+							want := probeRunResult{Trace: expectedProbeTrace(entries, false, nil), Success: []string{"probes.sh: every lock passed"}}
+							var args []string
+							if path.mutate {
+								args = []string{"--mutate"}
+								want.Trace = expectedProbeTrace(mutable, true, nil)
+								want.Success = []string{"probes.sh: every mutation was caught"}
+							}
+							if stimulus.failing {
+								want.Status = 1
+								want.Success = nil
+								if path.mutate {
+									probe, _, _ := strings.Cut(mutable[0], "|")
+									fixture.reply(t, probeReply{probe: probe, mode: "zeta", status: 7})
+									fixture.reply(t, probeReply{probe: later, mode: "alpha", status: 0})
+									want.Failures = []string{probe + " MUTATE=zeta: exited 7, want 1", later + " MUTATE=alpha: exited 0, want 1"}
+								} else {
+									fixture.reply(t, probeReply{probe: first, mode: "plain", status: 7})
+									fixture.reply(t, probeReply{probe: later, mode: "plain", status: 2})
+									want.Failures = []string{first + " plain exited 7, want 0", later + " plain exited 2, want 0"}
+								}
+							}
+							got, output := fixture.run(t, args, true)
+							t.Logf("invoked: behavior_only driver mutate=%t failing=%t", path.mutate, stimulus.failing)
+							if diff := cmp.Diff(want, got); diff != "" {
+								t.Errorf("caught: behavior_only verdict and complete trace (-want +got):\n%s\n%s", diff, output)
+							}
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
+// Filtering only the full mutation path leaves shard discovery exposed. The
+// union oracle owns every source declaration, rather than a sample allowlist.
+func TestProbeBehaviorOnlyMutationShards(t *testing.T) {
+	t.Parallel()
+	entries, source := probeRunnerSource(t)
+	first, _, _ := strings.Cut(entries[0], "|")
+	middle, _, _ := strings.Cut(entries[len(entries)/2], "|")
+	cases := []struct {
+		name             string
+		classified       []string
+		discoveryFailure bool
+	}{
+		{name: "single member", classified: []string{first}},
+		{name: "multiple members", classified: []string{first, middle}},
+		{name: "single member discovery failure continues", classified: []string{first}, discoveryFailure: true},
+		{name: "multiple members discovery failure continues", classified: []string{first, middle}, discoveryFailure: true},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			changed := probeBehaviorOnlySource(t, source, tt.classified)
+			mutable := mutableProbeEntries(entries, tt.classified)
+			failedProbe, _, _ := strings.Cut(mutable[0], "|")
+			var discovery, work []string
+			for _, entry := range mutable {
+				probe, page, _ := strings.Cut(entry, "|")
+				discovery = append(discovery, probe+"||list")
+				if tt.discoveryFailure && probe == failedProbe {
+					continue
+				}
+				for _, mode := range []string{"zeta", "alpha"} {
+					work = append(work, probe+"|"+page+"|"+mode)
+				}
+			}
+			counts := map[string]int{}
+			for shard := 1; shard <= 4; shard++ {
+				fixture := newProbeRunnerFixture(t, entries, changed)
+				for _, probe := range tt.classified {
+					fixture.reply(t, probeReply{probe: probe, mode: "list", status: 2, stdout: new("unusable\n")})
+				}
+				var failures []string
+				wantStatus := 0
+				if tt.discoveryFailure {
+					fixture.reply(t, probeReply{probe: failedProbe, mode: "list", status: 9, stdout: new("unusable\n")})
+					failures = []string{failedProbe + " MUTATE=list exited 9, cannot discover mutation modes"}
+					wantStatus = 1
+				}
+				got, output := fixture.run(t, []string{"--mutate", "--shard", strconv.Itoa(shard)}, true)
+				t.Logf("invoked: behavior_only shard driver shard=%d", shard)
+				wantSuccessCount := 1
+				if tt.discoveryFailure {
+					wantSuccessCount = 0
+				}
+				if got.Status != wantStatus || len(got.Success) != wantSuccessCount {
+					t.Errorf("caught: behavior_only shard %d verdict: %#v; %s", shard, got, output)
+				}
+				if diff := cmp.Diff(failures, got.Failures); diff != "" {
+					t.Errorf("caught: behavior_only shard failure propagation (-want +got):\n%s", diff)
+				}
+				if len(got.Trace) < len(discovery) {
+					t.Fatalf("caught: behavior_only shard %d incomplete discovery: %v", shard, got.Trace)
+				}
+				if diff := cmp.Diff(discovery, got.Trace[:len(discovery)]); diff != "" {
+					t.Fatalf("caught: behavior_only shard discovery (-want +got):\n%s", diff)
+				}
+				position := 0
+				for _, item := range got.Trace[len(discovery):] {
+					probe, _, _ := strings.Cut(item, "|")
+					if slices.Contains([]string{"course-cover.mjs", "reader-mark.mjs"}, probe) && shard != 4 {
+						t.Errorf("caught: behavior_only kept-place work %q on shard %d", item, shard)
+					}
+					relative := slices.Index(work[position:], item)
+					if relative < 0 {
+						t.Errorf("caught: behavior_only extra, duplicate or reordered work %q", item)
+					} else {
+						position += relative + 1
+					}
+					counts[item]++
+				}
+			}
+			want := map[string]int{}
+			for _, item := range work {
+				want[item] = 1
+			}
+			if diff := cmp.Diff(want, counts); diff != "" {
+				t.Errorf("caught: behavior_only complete shard union/multiplicity (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// An unknown or repeated classification is invalid before any child runs,
+// including the plain path where skipping mutation work cannot expose it.
+func TestProbeBehaviorOnlyPreflight(t *testing.T) {
+	t.Parallel()
+	entries, source := probeRunnerSource(t)
+	first, _, _ := strings.Cut(entries[0], "|")
+	cases := []struct {
+		name       string
+		classified []string
+	}{
+		{name: "unknown member", classified: []string{"unregistered.mjs"}},
+		{name: "duplicate member", classified: []string{first, first}},
+	}
+	paths := []struct {
+		name string
+		args []string
+	}{
+		{name: "plain"},
+		{name: "mutations", args: []string{"--mutate"}},
+		{name: "shard 1", args: []string{"--mutate", "--shard", "1"}},
+		{name: "shard 2", args: []string{"--mutate", "--shard", "2"}},
+		{name: "shard 3", args: []string{"--mutate", "--shard", "3"}},
+		{name: "shard 4", args: []string{"--mutate", "--shard", "4"}},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			changed := probeBehaviorOnlySource(t, source, tt.classified)
+			for _, path := range paths {
+				t.Run(path.name, func(t *testing.T) {
+					t.Parallel()
+					fixture := newProbeRunnerFixture(t, entries, changed)
+					got, output := fixture.run(t, path.args, true)
+					t.Log("invoked: behavior_only preflight driver")
+					want := probeRunResult{Status: 1}
+					if diff := cmp.Diff(want, got); diff != "" {
+						t.Errorf("caught: invalid behavior_only ran children or succeeded (-want +got):\n%s\n%s", diff, output)
+					}
+					if !strings.Contains(output, "FAIL probes.sh:") || !strings.Contains(output, "behavior_only") {
+						t.Errorf("caught: invalid behavior_only lacks its preflight diagnostic: %s", output)
+					}
+				})
+			}
+		})
+	}
+}
+
+func mutableProbeEntries(entries, classified []string) []string {
+	var mutable []string
+	for _, entry := range entries {
+		probe, _, _ := strings.Cut(entry, "|")
+		if !slices.Contains(classified, probe) {
+			mutable = append(mutable, entry)
+		}
+	}
+	return mutable
+}
+
+func probeBehaviorOnlySource(t *testing.T, source []byte, classified []string) []byte {
+	t.Helper()
+	var lines []string
+	for _, probe := range classified {
+		lines = append(lines, "  \""+probe+"\"")
+	}
+	declaration := "\nbehavior_only=(\n" + strings.Join(lines, "\n") + "\n)\n"
+	original := string(source)
+	const start = "\nbehavior_only=(\n"
+	if strings.Contains(original, "behavior_only=(") {
+		if strings.Count(original, start) != 1 {
+			t.Fatal("behavior_only fixture has no unique readable declaration")
+		}
+		prefix, body, _ := strings.Cut(original, start)
+		_, suffix, found := strings.Cut(body, "\n)\n")
+		if !found {
+			t.Fatal("behavior_only fixture declaration has no end")
+		}
+		return []byte(prefix + declaration + suffix)
+	}
+	const anchor = "\nleaves_a_place=(\n"
+	if strings.Count(original, anchor) != 1 {
+		t.Fatal("behavior_only fixture has no unique existing array anchor")
+	}
+	return []byte(strings.Replace(original, anchor, declaration+anchor, 1))
+}
+
 type probeRunnerFixture struct {
 	dir          string
 	bin          string
