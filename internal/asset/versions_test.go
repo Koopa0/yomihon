@@ -29,12 +29,12 @@ func TestVersionedAssetURLChangesWithTheServedBytes(t *testing.T) {
 	}
 }
 
-func TestClientImportMapCoversEveryRegisteredOwnModule(t *testing.T) {
+func TestClientImportMapCoversEveryRegisteredModuleAndFacade(t *testing.T) {
 	t.Parallel()
 	got := decodedModuleImports(t, (Versions{}).ImportMap())
 	want := make(map[string]string)
 	for name, e := range registry {
-		if strings.Contains(name, "/") || !strings.HasSuffix(name, ".js") {
+		if strings.Contains(name, "/") || !(strings.HasSuffix(name, ".js") || name == "mermaid.esm.min.mjs") {
 			continue
 		}
 		if e.contentType != jsContentType {
@@ -53,7 +53,7 @@ func TestClientImportMapCoversEveryRegisteredOwnModule(t *testing.T) {
 
 // Copies model two builds without altering the process's immutable registry.
 // A change to an indirectly imported module must change only its own address.
-func TestClientImportMapFollowsByteChangesWithoutIncludingVendoredResources(t *testing.T) {
+func TestClientImportMapFollowsByteChangesWithoutIncludingChunks(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
@@ -75,8 +75,9 @@ func TestClientImportMapFollowsByteChangesWithoutIncludingVendoredResources(t *t
 				"not-a-module.js":     fixed("text/plain", []byte("first")),
 			}
 			want := map[string]string{
-				"/static/yomihon.js": "/static/yomihon.js?v=a7937b64b8ca",
-				"/static/child.js":   tt.want,
+				"/static/yomihon.js":         "/static/yomihon.js?v=a7937b64b8ca",
+				"/static/child.js":           tt.want,
+				"/static/mermaid.esm.min.mjs": "/static/mermaid.esm.min.mjs?v=a7937b64b8ca",
 			}
 			if diff := cmp.Diff(want, decodedModuleImports(t, buildClientImportMap(reg))); diff != "" {
 				t.Errorf("caught: changed module byte identity (-want +got):\n%s", diff)
@@ -111,8 +112,9 @@ func TestFixedVersionsPreservePathsAndRegistryMembershipAcrossByteChanges(t *tes
 				"wrong.js":            fixed("text/plain", []byte(body)),
 			}
 			want := map[string]string{
-				"/static/yomihon.js": "/static/yomihon.js?v=recorded0000",
-				"/static/child.js":   "/static/child.js?v=recorded0000",
+				"/static/yomihon.js":         "/static/yomihon.js?v=recorded0000",
+				"/static/child.js":           "/static/child.js?v=recorded0000",
+				"/static/mermaid.esm.min.mjs": "/static/mermaid.esm.min.mjs?v=recorded0000",
 			}
 			if diff := cmp.Diff(want, decodedModuleImports(t, versions.buildClientImportMap(reg))); diff != "" {
 				t.Errorf("caught: fixed complete import map (-want +got):\n%s", diff)

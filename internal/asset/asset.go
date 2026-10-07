@@ -6,9 +6,9 @@
 // Its entire security property rests on one invariant: registry (built
 // once, at package init, from what is compiled into the binary via
 // github.com/koopa0/yomihon/assets' embed.FS, or computed in memory by
-// render.ChromaCSS) is a fixed, closed map. serve does exactly one thing
-// with request input — an exact lookup of r.PathValue("path") against that
-// map — and nothing else. There is no filepath.Join, no os.Open, no
+// render.ChromaCSS) is a fixed, closed map. Request membership is an exact
+// lookup of r.PathValue("path") against that map; the version query selects
+// only cache policy. There is no filepath.Join, no os.Open, no
 // directory listing, and no way for a request to add, remove, or address
 // anything outside the set decided at build time.
 //
@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -119,10 +120,10 @@ func buildRegistry() map[string]entry {
 	} {
 		embedFile(reg, name, "js/"+name, jsContentType)
 	}
-	embedStylesheet(reg, "app.css", stylesheetParts)
 	embedFile(reg, "yomihon-mark.svg", "brand/yomihon-mark.svg", svgContentType)
 	embedTree(reg, "js/mermaid")
 	embedFonts(reg, "fonts")
+	embedStylesheet(reg, "app.css", stylesheetParts)
 	return reg
 }
 
@@ -141,10 +142,9 @@ func embedFile(reg map[string]entry, name, embeddedPath, contentType string) {
 }
 
 // embedStylesheet registers one stylesheet under name, made of the embedded
-// files in parts joined in the order given with a newline between each. It is
-// built once here, like every other entry, so the bytes a browser revalidates
-// against its tag are the bytes of the whole stylesheet and not of any part. A
-// missing part panics for the reason embedFile does.
+// files in parts joined in order with a newline between each. Static URL
+// references are resolved against already registered entries before hashing
+// the final bytes. Missing parts or unregistered references panic at startup.
 func embedStylesheet(reg map[string]entry, name string, parts []string) {
 	var sheet bytes.Buffer
 	for i, part := range parts {
@@ -157,7 +157,23 @@ func embedStylesheet(reg map[string]entry, name string, parts []string) {
 		}
 		sheet.Write(b)
 	}
-	reg[name] = fixed(cssContentType, sheet.Bytes())
+	reg[name] = fixed(cssContentType, rewriteStaticURLs(reg, sheet.Bytes()))
+}
+
+var staticCSSURL = regexp.MustCompile(`url\(\s*['"]?(/static/[^)'"\s]+)['"]?\s*\)`)
+
+// rewriteStaticURLs gives each authored static reference the addressed
+// entry's current byte identity. Unknown names cannot become silent 404s.
+func rewriteStaticURLs(reg map[string]entry, source []byte) []byte {
+	return staticCSSURL.ReplaceAllFunc(source, func(reference []byte) []byte {
+		address := staticCSSURL.FindSubmatch(reference)[1]
+		name := strings.TrimPrefix(string(address), "/static/")
+		e, known := reg[name]
+		if !known {
+			panic("asset: unknown stylesheet URL name: " + urlName(name).String())
+		}
+		return bytes.Replace(reference, address, []byte((Versions{}).versionedURL(name, e)), 1)
+	})
 }
 
 // embedFonts registers every .woff2 under dir (self-hosted, vendored under
@@ -231,25 +247,26 @@ func Register(mux *http.ServeMux) {
 // there is no filesystem access on this path at all, so there is nothing
 // for such a name to traverse into.
 func serve(w http.ResponseWriter, r *http.Request) {
-	e, ok := registry[r.PathValue("path")]
+	name := r.PathValue("path")
+	e, ok := registry[name]
 	if !ok {
 		http.Error(w, wording.AssetNotFound.In(origin.Language(r)), http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", e.contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	// Bare names remain valid for vendored resources and old page references,
-	// so a stored copy has to be asked about rather than trusted for a period:
-	// no-cache keeps the copy and revalidates every time, and the strong tag
-	// turns that question into a bodiless 304. Without this the reader
-	// re-downloads every stylesheet, module and font on each navigation, and
-	// two of those block painting.
+	// Only the current served-byte token authorizes immutable caching.
+	// Recorded/stale/bare URLs revalidate; chunks retain their content-hashed
+	// filenames and revalidate even when supplied with a matching query.
 	// The modification time is deliberately zero — bytes baked into the binary
 	// have none, and inventing one would put a second, weaker validator beside
 	// the tag. http.ServeContent owns the conditional request, the byte range
 	// and the content length from here; hand-rolling that comparison gets the
 	// multi-tag and weak-tag forms wrong.
 	w.Header().Set("Cache-Control", "no-cache")
+	if !strings.HasPrefix(name, "chunks/") && r.URL.Query().Get("v") == versionToken(e) {
+		w.Header().Set("Cache-Control", "max-age=31536000, immutable")
+	}
 	w.Header().Set("ETag", e.etag)
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(e.body))
 }

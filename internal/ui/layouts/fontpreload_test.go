@@ -2,6 +2,8 @@ package layouts
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,14 +26,17 @@ func TestBasePreloadsFirstPaintFonts(t *testing.T) {
 	if len(want) == 0 {
 		t.Fatal("fonts.css declares no first-paint fonts")
 	}
-	for _, href := range want {
+	for i, href := range want {
 		if !strings.HasPrefix(href, "/static/fonts/") || filepath.Ext(href) != ".woff2" {
 			t.Fatalf("font source = %q, want a local WOFF2 font", href)
 		}
 		asset := filepath.Join("..", "..", "..", "assets", strings.TrimPrefix(href, "/static/"))
-		if _, statErr := os.Stat(asset); statErr != nil {
-			t.Fatalf("font source %q has no vendored resource: %v", href, statErr)
+		body, readErr := os.ReadFile(asset)
+		if readErr != nil {
+			t.Fatalf("font source %q has no vendored resource: %v", href, readErr)
 		}
+		sum := sha256.Sum256(body)
+		want[i] = href + "?v=" + hex.EncodeToString(sum[:])[:12]
 	}
 	var buf bytes.Buffer
 	if renderErr := Base(Chrome{Title: "test"}).Render(t.Context(), &buf); renderErr != nil {

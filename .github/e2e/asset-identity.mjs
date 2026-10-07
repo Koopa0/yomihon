@@ -1,4 +1,4 @@
-// The page and every own module it reaches must name the bytes they request.
+// The page and its native modules plus Mermaid facade name the requested bytes.
 // This observes native relative-import resolution in Chrome as well as the
 // served response bodies; it does not simulate a deployed CDN's cache policy.
 // Env: YOMIHON_BASE, PAGE_PATH, MUTATE. MUTATE=list names every watched fault.
@@ -15,7 +15,7 @@ const MUTATIONS = {
   'drop-stylesheet-version': { target: 'styles', needle: /href="\/static\/app\.css\?v=[a-f0-9]{12}"/g, replacement: 'href="/static/app.css"' },
   'drop-entry-version': { target: 'entry', needle: /src="\/static\/yomihon\.js\?v=[a-f0-9]{12}"/g, replacement: 'src="/static/yomihon.js"' },
   'omit-relative-module': { target: 'module-set', needle: mapElement, map: (data) => { delete data.imports['/static/contents.js']; } },
-  'include-vendored-module': { target: 'module-set', needle: mapElement, map: (data) => { data.imports['/static/mermaid.esm.min.mjs'] = '/static/mermaid.esm.min.mjs'; } },
+  'omit-vendored-module': { target: 'module-set', needle: mapElement, map: (data) => { delete data.imports['/static/mermaid.esm.min.mjs']; } },
   'unversioned-relative-module': { target: 'module-identities', needle: mapElement, map: (data) => { data.imports['/static/contents.js'] = '/static/contents.js'; } },
   'wrong-relative-module-version': { target: 'served-bytes', needle: mapElement, map: (data) => { data.imports['/static/contents.js'] = '/static/contents.js?v=000000000000'; } },
   'wrong-map-nonce': { target: 'nonce', needle: /<script type="importmap" nonce="[^"]*">/g, replacement: '<script type="importmap" nonce="wrong-response-nonce">' },
@@ -39,7 +39,11 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) { console.error(`unknown MUTATE
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 12);
 const files = await readdir(new URL('../../assets/js/', import.meta.url), { withFileTypes: true });
 const ownPaths = files.filter((file) => file.isFile() && file.name.endsWith('.js')).map((file) => `/static/${file.name}`).sort();
-if (ownPaths.length === 0) throw new Error('embedded client source inventory is empty');
+const facadePath = '/static/mermaid.esm.min.mjs';
+const facadeFiles = await readdir(new URL('../../assets/js/mermaid/', import.meta.url), { withFileTypes: true });
+if (!facadeFiles.some((file) => file.isFile() && file.name === 'mermaid.esm.min.mjs')) throw new Error('embedded Mermaid facade is missing');
+const modulePaths = [...ownPaths, facadePath].sort();
+if (ownPaths.length !== 18 || modulePaths.length !== 19) throw new Error('embedded client module inventory changed');
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const context = await browser.newContext();
@@ -50,7 +54,7 @@ try {
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('response', (response) => {
     const url = new URL(response.url());
-    if (url.origin !== new URL(BASE).origin || (!ownPaths.includes(url.pathname) && !url.pathname.endsWith('.css'))) return;
+    if (url.origin !== new URL(BASE).origin || (!modulePaths.includes(url.pathname) && !url.pathname.endsWith('.css') && !url.pathname.startsWith('/static/fonts/') && url.pathname !== '/static/yomihon-mark.svg')) return;
     pending.push((async () => responses.push({ url, status: response.status(), bytes: await response.body() }))());
   });
   let seen = 0;
@@ -85,6 +89,9 @@ try {
     });
   }
   const documentResponse = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+  // The fixture has no diagram. Exercise the actual dynamic import boundary
+  // explicitly so facade membership protects a real browser GET as well.
+  await page.evaluate(async () => { await import('/static/mermaid.esm.min.mjs'); });
   await Promise.all(pending);
   if (MUTATE && (issue || seen !== 1)) throw new NotApplied(issue || `target fetched ${seen} times, want one`);
   if (MUTATE) console.log(`mutation-applied: ${MUTATE} matched one site`);
@@ -98,6 +105,10 @@ try {
       entries: entries.map((script) => script.getAttribute('src')),
       maps: maps.map((script) => ({ text: script.textContent, nonce: script.nonce })),
       mapAt: scripts.indexOf(maps[0]), entryAt: scripts.indexOf(entries[0]),
+      resources: [...document.querySelectorAll('link[href], img[src], script[src]')].flatMap((element) => {
+        const address = element.getAttribute(element.tagName === 'LINK' ? 'href' : 'src');
+        return address && new URL(address, location.href).pathname.startsWith('/static/') ? [address] : [];
+      }),
     };
   });
   console.log(`invocation-hit: page declarations and ${responses.length} served asset responses`);
@@ -120,18 +131,30 @@ try {
   if (declarations.maps[0].nonce !== nonces[0]) fail('nonce', 'import map is not signed by the response nonce');
   if (declarations.mapAt >= declarations.entryAt) fail('order', 'import map follows the module entry');
   const data = JSON.parse(declarations.maps[0].text);
-  if (Object.keys(data).join(',') !== 'imports' || JSON.stringify(Object.keys(data.imports).sort()) !== JSON.stringify(ownPaths)) fail('module-set', 'import map differs from the complete embedded own-module set');
-  for (const path of ownPaths) {
+  if (Object.keys(data).join(',') !== 'imports' || JSON.stringify(Object.keys(data.imports).sort()) !== JSON.stringify(modulePaths)) fail('module-set', 'import map differs from the complete embedded native-module and facade set');
+  for (const path of modulePaths) {
     checkAddress(data.imports[path], path, 'module-identities');
   }
-  const requestedPaths = [...new Set(responses.filter((response) => ownPaths.includes(response.url.pathname)).map((response) => response.url.pathname))].sort();
-  if (JSON.stringify(requestedPaths) !== JSON.stringify(ownPaths)) fail('module-identities', 'native relative imports did not request the complete own graph');
+  const requestedPaths = [...new Set(responses.filter((response) => modulePaths.includes(response.url.pathname)).map((response) => response.url.pathname))].sort();
+  if (JSON.stringify(requestedPaths) !== JSON.stringify(modulePaths)) fail('module-identities', 'native imports did not request the complete module graph and facade');
+  for (const address of declarations.resources) checkAddress(address, new URL(address, BASE).pathname, 'styles');
+  const appCSS = checkAddress(declarations.styles[0], '/static/app.css', 'styles').bytes.toString('utf8');
+  const cssFontURLs = [...appCSS.matchAll(/url\(['"]?(\/static\/fonts\/[^)'"\s]+)['"]?\)/g)].map((match) => match[1]);
+  const fontFiles = await readdir(new URL('../../assets/fonts/', import.meta.url), { withFileTypes: true });
+  const fontPaths = fontFiles.filter((file) => file.isFile() && file.name.endsWith('.woff2')).map((file) => `/static/fonts/${file.name}`).sort();
+  if (fontPaths.length !== 6 || JSON.stringify(cssFontURLs.map((address) => new URL(address, BASE).pathname).sort()) !== JSON.stringify(fontPaths)) fail('styles', 'served CSS does not address the complete embedded font set');
+  for (const address of cssFontURLs) {
+    const url = new URL(address, BASE);
+    const response = await context.request.get(url.href);
+    responses.push({ url, status: response.status(), bytes: await response.body() });
+    checkAddress(address, url.pathname, 'styles');
+  }
   for (const response of responses) {
     if (response.url.search !== `?v=${hash(response.bytes)}`) fail('served-bytes', `${response.url.pathname} returned bytes unlike its requested hash`);
   }
   if (pageErrors.length) throw new Error(`browser reported module errors: ${JSON.stringify(pageErrors)}`);
   if (MUTATE) throw new Error(`mutation ${MUTATE} escaped its lock`);
-  console.log(`PASS asset-identity: two stylesheets and all ${ownPaths.length} native modules carry their served-byte identities and a response-bound map`);
+  console.log(`PASS asset-identity: styles, fonts, brand and all ${modulePaths.length} native modules plus facade carry served-byte identities and a response-bound map`);
   await context.close();
 } catch (error) {
   console.error(error.message);

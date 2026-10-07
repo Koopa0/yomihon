@@ -73,12 +73,12 @@ func TestBaseAndStylesheetUseCompleteServedByteAddresses(t *testing.T) {
 		t.Errorf("Base static link/img/script declarations = %d, want 8", declarations)
 	}
 	wantPaths := map[string]int{
-		"/static/app.css": 1,
-		"/static/chroma.css": 1,
-		"/static/yomihon.js": 1,
-		"/static/yomihon-mark.svg": 2,
-		"/static/fonts/Geist-Variable.woff2": 1,
-		"/static/fonts/GeistMono-Variable.woff2": 1,
+		"/static/app.css":                              1,
+		"/static/chroma.css":                           1,
+		"/static/yomihon.js":                           1,
+		"/static/yomihon-mark.svg":                     2,
+		"/static/fonts/Geist-Variable.woff2":            1,
+		"/static/fonts/GeistMono-Variable.woff2":        1,
 		"/static/fonts/Newsreader-Latin-Variable.woff2": 1,
 	}
 	if diff := cmp.Diff(wantPaths, paths); diff != "" {
