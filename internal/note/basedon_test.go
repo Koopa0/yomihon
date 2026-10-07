@@ -113,6 +113,54 @@ func TestDeclaredSourcesOnTheReadingPage(t *testing.T) {
 	})
 }
 
+func TestFragmentNormalizationReadingPage(t *testing.T) {
+	t.Parallel()
+	root := writeNotes(t, map[string]string{
+		"Source.md": "---\ntitle: Y\u030a\n---\n# Y\u030a\n\n## Y\u030a child\n\nAuthored passage. ^QUOTE-1\n",
+		"Claim.md":  "---\nbased_on: ['[[Source#\u1e99|Title evidence]]', '[[Source#\u1e99 child|Child evidence]]', '[[Source#^quote-1|Block evidence]]']\n---\nClaim.\n",
+	})
+	srv := newServerWithContract(t, root, loadHomeContract(t))
+	code, source := get(t, srv.Client(), srv.URL+"/notes/Source.md")
+	if code != http.StatusOK {
+		t.Fatalf("reading source status = %d, want 200", code)
+	}
+	for _, want := range []string{
+		"id=\"\u1e99\" class=\"y-title\"",
+		"id=\"\u1e99-child\"",
+		"href=\"#%E1%BA%99\"",
+		"href=\"#%E1%BA%99-child\"",
+		`href="#%5Equote-1"`,
+		`id="^quote-1"`,
+		"Y\u030a child",
+		"Authored passage.",
+	} {
+		if !strings.Contains(source, want) {
+			t.Errorf("caught: fragment-normalization source page missing %q: %s", want, source)
+		}
+	}
+	if got := strings.Count(source, "href=\"#\u1e99-child\" data-level=\"2\""); got != 2 {
+		t.Errorf("caught: fragment-normalization responsive contents count = %d, want 2", got)
+	}
+	code, claim := get(t, srv.Client(), srv.URL+"/notes/Claim.md")
+	if code != http.StatusOK {
+		t.Fatalf("reading claim status = %d, want 200", code)
+	}
+	block := basedOnBlock(t, claim)
+	for _, want := range []string{
+		`href="/notes/Source.md#%E1%BA%99"`,
+		`href="/notes/Source.md#%E1%BA%99-child"`,
+		`href="/notes/Source.md#%5Equote-1"`,
+		"Title evidence", "Child evidence", "Block evidence",
+	} {
+		if !strings.Contains(block, want) {
+			t.Errorf("caught: fragment-normalization forward source missing %q: %s", want, block)
+		}
+	}
+	if strings.Contains(block, "wikilink-degraded") || strings.Contains(block, "y-basedon__reason") {
+		t.Errorf("caught: fragment-normalization valid source carries a fragment warning: %s", block)
+	}
+}
+
 func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
 	t.Parallel()
 
