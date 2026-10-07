@@ -134,7 +134,7 @@ type sourceEmission struct {
 // proseText uses the same escape/entity writer as the reading page. The
 // resulting HTML escaping is removed once to recover the browser's text.
 func proseText(source []byte) []byte {
-	return source
+	return []byte(html.UnescapeString(html.EscapeString(string(source))))
 }
 
 func (w *plainWalk) writeProse(seg text.Segment, source []byte) {
