@@ -611,9 +611,14 @@ func TestCodeSpanOwnedAddressesAnswersEveryLineOfABody(t *testing.T) {
 			want: []bool{false, false, false, false},
 		},
 		{
-			name: "the addresses either side of a span that holds one",
+			name: "a closing backtick makes the raw address tail unsupported",
 			body: "`a` ^one\n`b` `c ^two`\n`d` ^three",
-			want: []bool{false, true, false},
+			want: []bool{false, false, false},
+		},
+		{
+			name: "the addresses either side of a span that holds a terminal candidate",
+			body: "`a` ^one\n`b` `c ^two\nclose`\n`d` ^three",
+			want: []bool{false, true, false, false},
 		},
 		{
 			name: "a span the author wrapped holds the address inside it and not the one after",
