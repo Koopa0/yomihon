@@ -112,6 +112,12 @@ makes a missing frontmatter block a fault. A block that is present and
 unparseable is `schema.frontmatter` either way, and nothing else about that
 note can be judged until it parses.
 
+`check` does not apply YAML merge keys: a top-level `<<` is
+`schema.unknown_key`, and fields supplied only through a merge are not seen.
+A `title` supplied only by a merge therefore gets `schema.required`. The
+reading page may still show merged values, or say that the frontmatter uses a
+form it cannot read. Write every field out directly.
+
 A block that never closes is not a block to any reader: its opening `---` is
 read as body text and its keys as prose. When line 1 is `---`, line 2 reads as
 `key:`, and no closing `---` or `...` follows, `check` says so under
