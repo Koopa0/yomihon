@@ -763,5 +763,28 @@ func (idx *Index) EachStatusHolder() (iter.Seq[StatusHolder], error) {
 // remapInsertions preserves exact NFC edges. A composed or reordered interior
 // has no provable display position, so the surrounding segment is a barrier.
 func remapInsertions(raw string, offsets []int) (mapped []int, barriers [][2]int) {
-	return nil, nil
+	if len(offsets) == 0 {
+		return nil, nil
+	}
+	positions := nfcDisplayPositions(raw)
+	for _, at := range offsets {
+		if at < 0 || at > len(raw) {
+			continue
+		}
+		if positions[at] >= 0 {
+			mapped = append(mapped, positions[at])
+			continue
+		}
+		low, high := at, at
+		for positions[low] < 0 {
+			low--
+		}
+		for positions[high] < 0 {
+			high++
+		}
+		barriers = append(barriers, [2]int{positions[low], positions[high]})
+		mapped = append(mapped, positions[low], positions[high])
+	}
+	slices.Sort(mapped)
+	return slices.Compact(mapped), barriers
 }
