@@ -59,9 +59,10 @@ type probeRunResult struct {
 
 func TestProbeRunner(t *testing.T) {
 	entries, source := probeRunnerSource(t)
-	middle, _, _ := strings.Cut(entries[len(entries)/2], "|")
-	later, _, _ := strings.Cut(entries[len(entries)/2+2], "|")
-	final, _, _ := strings.Cut(entries[len(entries)/2+4], "|")
+	mutable := mutableProbeEntries(entries, probeBehaviorOnlyMembers(t, source))
+	middle, _, _ := strings.Cut(mutable[len(mutable)/2], "|")
+	later, _, _ := strings.Cut(mutable[len(mutable)/2+2], "|")
+	final, _, _ := strings.Cut(mutable[len(mutable)/2+4], "|")
 	diagnostics := strings.Repeat("diagnostic tail line\n", 1<<14)
 	if len(diagnostics) <= 128<<10 {
 		t.Fatal("large-output control must exceed 128 KiB")
@@ -169,7 +170,11 @@ func TestProbeRunner(t *testing.T) {
 				fixture.reply(t, reply)
 			}
 			var args []string
-			want := probeRunResult{Trace: expectedProbeTrace(entries, tt.mutate, tt.modes), Failures: tt.failures}
+			traceEntries := entries
+			if tt.mutate {
+				traceEntries = mutable
+			}
+			want := probeRunResult{Trace: expectedProbeTrace(traceEntries, tt.mutate, tt.modes), Failures: tt.failures}
 			if tt.mutate {
 				args = []string{"--mutate"}
 			}
@@ -248,9 +253,10 @@ func TestProbeRunnerPreflight(t *testing.T) {
 func TestProbeRunnerBehaviorOnly(t *testing.T) {
 	t.Parallel()
 	entries, source := probeRunnerSource(t)
-	first, _, _ := strings.Cut(entries[0], "|")
-	middle, _, _ := strings.Cut(entries[len(entries)/2], "|")
-	later, _, _ := strings.Cut(entries[len(entries)-3], "|")
+	ordinary := mutableProbeEntries(entries, probeBehaviorOnlyMembers(t, source))
+	first, _, _ := strings.Cut(ordinary[0], "|")
+	middle, _, _ := strings.Cut(ordinary[len(ordinary)/2], "|")
+	later, _, _ := strings.Cut(ordinary[len(ordinary)-3], "|")
 	cases := []struct {
 		name       string
 		classified []string
@@ -261,8 +267,9 @@ func TestProbeRunnerBehaviorOnly(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			changed := probeBehaviorOnlySource(t, source, tt.classified)
-			mutable := mutableProbeEntries(entries, tt.classified)
+			classified := append(probeBehaviorOnlyMembers(t, source), tt.classified...)
+			changed := probeBehaviorOnlySource(t, source, classified)
+			mutable := mutableProbeEntries(entries, classified)
 			for _, path := range []struct {
 				name   string
 				mutate bool
@@ -284,7 +291,7 @@ func TestProbeRunnerBehaviorOnly(t *testing.T) {
 							fixture := newProbeRunnerFixture(t, entries, changed)
 							// A classified child advertises unusable discovery. Even asking
 							// it for modes violates the classification boundary.
-							for _, probe := range tt.classified {
+							for _, probe := range classified {
 								fixture.reply(t, probeReply{probe: probe, mode: "list", status: 2, stdout: new("unusable\n")})
 							}
 							want := probeRunResult{Trace: expectedProbeTrace(entries, false, nil), Success: []string{"probes.sh: every lock passed"}}
@@ -326,8 +333,9 @@ func TestProbeRunnerBehaviorOnly(t *testing.T) {
 func TestProbeBehaviorOnlyMutationShards(t *testing.T) {
 	t.Parallel()
 	entries, source := probeRunnerSource(t)
-	first, _, _ := strings.Cut(entries[0], "|")
-	middle, _, _ := strings.Cut(entries[len(entries)/2], "|")
+	ordinary := mutableProbeEntries(entries, probeBehaviorOnlyMembers(t, source))
+	first, _, _ := strings.Cut(ordinary[0], "|")
+	middle, _, _ := strings.Cut(ordinary[len(ordinary)/2], "|")
 	cases := []struct {
 		name             string
 		classified       []string
@@ -341,8 +349,9 @@ func TestProbeBehaviorOnlyMutationShards(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			changed := probeBehaviorOnlySource(t, source, tt.classified)
-			mutable := mutableProbeEntries(entries, tt.classified)
+			classified := append(probeBehaviorOnlyMembers(t, source), tt.classified...)
+			changed := probeBehaviorOnlySource(t, source, classified)
+			mutable := mutableProbeEntries(entries, classified)
 			failedProbe, _, _ := strings.Cut(mutable[0], "|")
 			var discovery, work []string
 			for _, entry := range mutable {
@@ -358,7 +367,7 @@ func TestProbeBehaviorOnlyMutationShards(t *testing.T) {
 			counts := map[string]int{}
 			for shard := 1; shard <= 4; shard++ {
 				fixture := newProbeRunnerFixture(t, entries, changed)
-				for _, probe := range tt.classified {
+				for _, probe := range classified {
 					fixture.reply(t, probeReply{probe: probe, mode: "list", status: 2, stdout: new("unusable\n")})
 				}
 				var failures []string
@@ -468,6 +477,35 @@ func mutableProbeEntries(entries, classified []string) []string {
 		}
 	}
 	return mutable
+}
+
+// Read every declared member; a new behavior-only probe must immediately join
+// the plain expectations and leave every mutation expectation.
+func probeBehaviorOnlyMembers(t *testing.T, source []byte) []string {
+	t.Helper()
+	const start = "\nbehavior_only=(\n"
+	if strings.Count(string(source), start) != 1 {
+		t.Fatal("production runner has no unique readable behavior_only declaration")
+	}
+	_, body, _ := strings.Cut(string(source), start)
+	body, _, found := strings.Cut(body, "\n)\n")
+	if !found {
+		t.Fatal("production behavior_only declaration has no end")
+	}
+	pattern := regexp.MustCompile(`^"([^"|]+\.mjs)"$`)
+	var members []string
+	for line := range strings.SplitSeq(body, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		match := pattern.FindStringSubmatch(line)
+		if match == nil {
+			t.Fatalf("unreadable behavior_only member %q", line)
+		}
+		members = append(members, match[1])
+	}
+	return members
 }
 
 func probeBehaviorOnlySource(t *testing.T, source []byte, classified []string) []byte {
@@ -680,7 +718,15 @@ func TestProbeMutationShards(t *testing.T) {
 	entries, source := probeRunnerSource(t)
 	t.Run("whole registry", func(t *testing.T) { checkProbeShardUnion(t, entries, source, nil, nil) })
 	t.Run("bounded registry", func(t *testing.T) {
-		bounded := append(slices.Clone(entries[:10]), entries[len(entries)-2:]...)
+		bounded := slices.Clone(entries[:10])
+		classified := probeBehaviorOnlyMembers(t, source)
+		for _, entry := range entries[10 : len(entries)-2] {
+			probe, _, _ := strings.Cut(entry, "|")
+			if slices.Contains(classified, probe) {
+				bounded = append(bounded, entry)
+			}
+		}
+		bounded = append(bounded, entries[len(entries)-2:]...)
 		prefix, body, found := strings.Cut(string(source), "\nprobes=(\n")
 		if !found {
 			t.Fatal("registry start unavailable")
@@ -720,8 +766,9 @@ func TestProbeMutationShards(t *testing.T) {
 
 func checkProbeShardUnion(t *testing.T, entries []string, source []byte, overrides map[string][]string, replies []probeReply) {
 	t.Helper()
+	mutable := mutableProbeEntries(entries, probeBehaviorOnlyMembers(t, source))
 	modes := map[string][]string{}
-	for _, entry := range entries {
+	for _, entry := range mutable {
 		probe, _, _ := strings.Cut(entry, "|")
 		modes[probe] = []string{"zeta", "alpha"}
 	}
@@ -729,7 +776,7 @@ func checkProbeShardUnion(t *testing.T, entries []string, source []byte, overrid
 	modes[first] = []string{"m0", "m1", "m2", "m3", "m4", "m5", "m6"}
 	maps.Copy(modes, overrides)
 	var want, discovery []string
-	for _, entry := range entries {
+	for _, entry := range mutable {
 		probe, page, _ := strings.Cut(entry, "|")
 		discovery = append(discovery, probe+"||list")
 		for _, mode := range modes[probe] {

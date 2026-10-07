@@ -7,7 +7,8 @@
 #   probes.sh --mutate   # each probe's self-tests, all expected to be caught
 #   probes.sh --mutate --shard N   # one of four balanced parts of that run
 #
-# The second form enforces the contract every probe owes. `MUTATE=list` names a
+# The second form enforces the mutation contract of every probe outside the
+# behavior_only classification. `MUTATE=list` names a
 # probe's modes; running one of them injects the regression that probe exists to
 # catch, and the run must then exit 1 and print "MUTATE-RESULT: caught <mode>".
 # Exit 0 means the injected regression walked past the probe. Exit 2 means the
@@ -131,12 +132,19 @@ probes=(
   "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
   "reading-scale.mjs|/notes/Notes/reading-scale.md"
+  "a11y-audit.mjs|/notes/Notes/reading-fidelity.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads
   # either would meet a page the fixture alone does not explain.
   "course-cover.mjs|/syllabus/Maps/branches.md"
   "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
+)
+
+# The audit's plain run includes its canary; mutation jobs retain the targeted
+# probes and do not rediscover this broader development-only audit.
+behavior_only=(
+  "a11y-audit.mjs"
 )
 
 # The probes above that leave a kept reading place behind, in the order the
@@ -177,6 +185,31 @@ undriven="$(comm -23 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${
 absent="$(comm -13 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${listed[@]}" | sort) | tr '\n' ' ')"
 [ -z "${undriven// /}" ] || fail "these probe files are driven by nothing: ${undriven}"
 [ -z "${absent// /}" ] || fail "the table names probes that are not here: ${absent}"
+
+# Behavior-only probes still run as locks, but cannot declare mutation work.
+# Validate the whole classification before either kind of child is invoked.
+classified_seen=()
+classified_count=0
+for probe in ${behavior_only[@]+"${behavior_only[@]}"}; do
+  registered=0
+  for listed_probe in "${listed[@]}"; do
+    [ "$probe" != "$listed_probe" ] || registered=1
+  done
+  [ "$registered" -eq 1 ] || fail "behavior_only names an unregistered probe: ${probe}"
+  for ((i=0; i<classified_count; i++)); do
+    [ "$probe" != "${classified_seen[$i]}" ] || fail "behavior_only repeats a probe: ${probe}"
+  done
+  classified_seen+=("$probe")
+  classified_count=$((classified_count + 1))
+done
+
+is_behavior_only() {
+  local probe
+  for probe in ${behavior_only[@]+"${behavior_only[@]}"}; do
+    if [ "$1" = "$probe" ]; then return 0; fi
+  done
+  return 1
+}
 
 # The comment beside them says these have to be last; this is what holds them
 # there. From the moment one runs, a reading place is kept, and every desk the
@@ -255,6 +288,7 @@ run_mutations() {
   for entry in "${probes[@]}"; do
     probe="${entry%%|*}"
     page="${entry#*|}"
+    if is_behavior_only "$probe"; then continue; fi
     # Discovery failure leaves this probe's modes unknowable, but the next
     # probe can still name and exercise its own modes.
     if modes="$(MUTATE=list node "${here}/${probe}")"; then
@@ -288,6 +322,7 @@ discover_shard_work() {
   work_count=0
   for entry in "${probes[@]}"; do
     probe="${entry%%|*}"; page="${entry#*|}"
+    if is_behavior_only "$probe"; then continue; fi
     if modes="$(MUTATE=list node "${here}/${probe}")"; then status=0; else status=$?; fi
     if [ "$status" -ne 0 ]; then
       record_failure "${probe} MUTATE=list exited ${status}, cannot discover mutation modes"
