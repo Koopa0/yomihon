@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/note"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -51,16 +52,15 @@ func newFreshnessLogFixture(t *testing.T, root string) *freshnessLogFixture {
 	return f
 }
 
-func (f *freshnessLogFixture) ask(t *testing.T, rel, want string) {
+func (f *freshnessLogFixture) ask(t *testing.T, label, rel, want string) {
 	t.Helper()
 	response := httptest.NewRecorder()
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
 		"/freshness/"+rel+"?identity="+strings.Repeat("0", 64), http.NoBody)
 	f.mux.ServeHTTP(response, request)
-	t.Logf("producer-hit: registered freshness request for %q", rel)
 	if response.Code != http.StatusOK || response.Body.String() != want {
 		t.Errorf("caught: freshness of %q = (%d, %q), want (200, %q)",
-			rel, response.Code, response.Body.String(), want)
+			label, response.Code, response.Body.String(), want)
 	}
 	if got := response.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control = %q, want no-store", got)
@@ -75,21 +75,24 @@ func TestFreshnessNeverLogsUnpublishedLookupFailures(t *testing.T) {
 	root := t.TempDir()
 	writeFreshNote(t, root, "# Readable\n")
 	f := newFreshnessLogFixture(t, root)
-	paths := []string{strings.Repeat("x", 3000) + ".md", freshRel + "/x.md"}
-	for _, rel := range paths {
-		if _, ok := f.published.Entry(rel); ok {
-			t.Fatalf("fabricated name %q exists in the generation", rel)
+	paths := []struct{ label, rel string }{
+		{"overlong name", strings.Repeat("x", 3000) + ".md"},
+		{"path through a note", freshRel + "/x.md"},
+	}
+	for _, path := range paths {
+		if _, ok := f.published.Entry(path.rel); ok {
+			t.Fatalf("fabricated %s exists in the generation", path.label)
 		}
-		if _, err := f.source.Lookup(rel); err == nil || errors.Is(err, fs.ErrNotExist) {
-			t.Fatalf("Lookup(%q) error = %v, want a non-absence lookup refusal", rel, err)
+		if _, err := f.source.Lookup(path.rel); err == nil || errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("Lookup(%s) failed with nil or absence, want a non-absence lookup refusal", path.label)
 		}
 	}
 	for range 3 {
-		for _, rel := range paths {
-			f.ask(t, rel, "gone")
+		for _, path := range paths {
+			f.ask(t, path.label, path.rel, "gone")
 		}
 	}
-	f.ask(t, "Writing/missing.md", "gone")
+	f.ask(t, "missing note", "Writing/missing.md", "gone")
 	if f.written.Len() != 0 {
 		t.Errorf("caught: unpublished freshness names reached the log: %s", &f.written)
 	}
@@ -107,7 +110,7 @@ func TestFreshnessStillWarnsForPublishedLookupFailures(t *testing.T) {
 			root := t.TempDir()
 			body := "# Watched\n"
 			if oversized {
-				body = strings.Repeat("x", 1024*1024+1)
+				body = strings.Repeat("x", render.MaxSourceBytes+1)
 			}
 			writeFreshNote(t, root, body)
 			f := newFreshnessLogFixture(t, root)
@@ -127,7 +130,7 @@ func TestFreshnessStillWarnsForPublishedLookupFailures(t *testing.T) {
 			if _, err := f.source.Lookup(freshRel); !errors.Is(err, vault.ErrNotDirectory) {
 				t.Fatalf("Lookup captured name error = %v, want ErrNotDirectory", err)
 			}
-			f.ask(t, freshRel, "unreadable")
+			f.ask(t, name, freshRel, "unreadable")
 			var record struct {
 				Level     string `json:"level"`
 				Path      string `json:"path"`
@@ -140,7 +143,7 @@ func TestFreshnessStillWarnsForPublishedLookupFailures(t *testing.T) {
 				t.Errorf("captured failure log = %+v, want WARN for %s lookup", record, freshRel)
 			}
 			before := f.written.String()
-			f.ask(t, freshRel, "unreadable")
+			f.ask(t, name, freshRel, "unreadable")
 			if got := f.written.String(); got != before {
 				t.Errorf("repeated captured failure was logged twice: %s", got)
 			}
@@ -163,8 +166,56 @@ func TestFreshnessStillReadsUnpublishedArrivals(t *testing.T) {
 	if _, err := f.source.Lookup(rel); err != nil {
 		t.Fatalf("Lookup unpublished arrival: %v", err)
 	}
-	f.ask(t, rel, "preparing")
+	f.ask(t, "unpublished arrival", rel, "preparing")
 	if f.written.Len() != 0 {
 		t.Errorf("a readable unpublished arrival reached the log: %s", &f.written)
+	}
+}
+
+func TestFreshnessNeverLogsBlockedLookupFailures(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for _, rel := range []string{"Closed/x.md", "Closed/a/x.md", "Closed.md/x.md", "Closedx/y.md"} {
+		filename := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(filename), 0o750); err != nil { // #nosec G301 -- a directory needs its search bit
+			t.Fatalf("create fixture folder: %v", err)
+		}
+		if err := os.WriteFile(filename, []byte("# Watched\n"), 0o600); err != nil {
+			t.Fatalf("write fixture note: %v", err)
+		}
+	}
+	for _, name := range []string{"Closed", "Closed.md"} {
+		folder := filepath.Join(root, name)
+		if err := os.Chmod(folder, 0o000); err != nil {
+			t.Fatalf("close fixture folder: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(folder, 0o750); err != nil { // #nosec G302 -- a directory needs its search bit; restores the removed mode
+				t.Errorf("restore fixture folder: %v", err)
+			}
+		})
+		if _, err := os.ReadFile(filepath.Join(folder, "x.md")); err == nil { // #nosec G304 -- probing this test's own TempDir
+			t.Skip("mode 000 does not block a directory here (running as a privileged user)")
+		}
+	}
+	f := newFreshnessLogFixture(t, root)
+	blocked := f.published.Freshness().Blocked
+	if len(blocked) != 2 || blocked[0].Path != "Closed" || blocked[1].Path != "Closed.md" {
+		t.Fatalf("blocked folders = %+v, want Closed and Closed.md", blocked)
+	}
+	for _, rel := range []string{"Closed/x.md", "Closed/a/x.md", "Closed.md"} {
+		if _, ok := f.published.Entry(rel); ok {
+			t.Fatalf("blocked path %q has a captured entry", rel)
+		}
+		if _, err := f.source.Lookup(rel); err == nil || errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("Lookup(%q) error = %v, want a non-absence refusal", rel, err)
+		}
+		f.ask(t, rel, rel, "unreadable")
+	}
+	f.ask(t, "readable sibling", "Closedx/y.md", "stale")
+	f.ask(t, "non-absence sibling refusal", "Closedx/y.md/x.md", "gone")
+	f.ask(t, "missing sibling", "Closedx/missing.md", "gone")
+	if f.written.Len() != 0 {
+		t.Errorf("caught: blocked freshness names reached the log: %s", &f.written)
 	}
 }
