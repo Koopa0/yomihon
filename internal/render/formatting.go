@@ -224,7 +224,7 @@ func headingMarkup(words, parseable string) (string, *formattingGate) {
 		for cursor < len(written) && written[cursor].stop <= i {
 			cursor++
 		}
-		tag := cursor < len(written) && written[cursor].start <= i
+		tag := cursor < len(written) && written[cursor].start == i
 		switch {
 		case words[i] != '<':
 		case !tag:
