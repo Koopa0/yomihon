@@ -553,11 +553,7 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		// searchable (people search for code snippets). A fenced block also
 		// records the span it wrote, so a later excerpt can decline it when
 		// the same words sit in prose. An indented code block is not a fence.
-		start := w.b.Len()
-		w.writeCodeLines(n, source)
-		if kind == ast.KindFencedCodeBlock {
-			w.recordFence(start)
-		}
+		w.writeCodeBlock(n, source)
 		return ast.WalkSkipChildren, nil
 	case ast.KindText:
 		w.writeTextNode(n, source)
@@ -571,6 +567,14 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		}
 	}
 	return ast.WalkContinue, nil
+}
+
+func (w *plainWalk) writeCodeBlock(n ast.Node, source []byte) {
+	start := w.b.Len()
+	w.writeCodeLines(n, source)
+	if n.Kind() == ast.KindFencedCodeBlock {
+		w.recordFence(start)
+	}
 }
 
 // writeSeparator closes the block just written and appends a newline unless

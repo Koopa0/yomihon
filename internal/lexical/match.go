@@ -725,15 +725,8 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 // reproduction decides whether a run beside the term can be read as one.
 func (e *entry) landingAtSource(start, end int) landingTerms {
 	var terms landingTerms
-	for _, at := range e.insertions {
-		if start < at && at < end {
-			return terms
-		}
-	}
-	for _, span := range e.insertionBarriers {
-		if start < span[1] && end > span[0] {
-			return terms
-		}
+	if e.landingBlocked(start, end) {
+		return terms
 	}
 	blockStart, verbatim := e.blockAt(start)
 	blockStart, firstLimit := e.insertionBounds(start, blockStart, e.blockEndAfter(start))
@@ -1640,9 +1633,25 @@ func MarkHits(snippet string, tokens []string) []HitRun {
 	return runs
 }
 
+// landingBlocked reports that inserted page text interrupts a source span.
+// Normalization barriers also withhold any overlapping span.
+func (e *entry) landingBlocked(start, end int) bool {
+	for _, at := range e.insertions {
+		if start < at && at < end {
+			return true
+		}
+	}
+	for _, span := range e.insertionBarriers {
+		if start < span[1] && end > span[0] {
+			return true
+		}
+	}
+	return false
+}
+
 // insertionBounds clips a run to the adjacent text the page keeps on the
 // same side of every inserted label. An edge at the match belongs to its side.
-func (e *entry) insertionBounds(at, low, high int) (int, int) {
+func (e *entry) insertionBounds(at, low, high int) (floor, ceiling int) {
 	for _, edge := range e.insertions {
 		if edge <= at {
 			low = max(low, edge)

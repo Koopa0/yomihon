@@ -228,8 +228,8 @@ func assertAdjacentDirective(t *testing.T, directive, article, name string, lang
 	t.Helper()
 	parts := strings.Split(directive, ",")
 	prefix, suffix := "", ""
-	if strings.HasSuffix(parts[0], "-") {
-		prefix = strings.TrimSuffix(parts[0], "-")
+	if value, ok := strings.CutSuffix(parts[0], "-"); ok {
+		prefix = value
 		parts = parts[1:]
 	}
 	if len(parts) > 1 && strings.HasPrefix(parts[len(parts)-1], "-") {
