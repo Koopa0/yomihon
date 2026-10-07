@@ -51,6 +51,7 @@ probes=(
   "code-copy.mjs|/notes/Notes/code-copy.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "rail-disclosure-state.mjs|/notes/Course/C02.md"
+  "rail-filter-state.mjs|/notes/Course/C02.md"
   "vault-sidebar.mjs|/search"
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
