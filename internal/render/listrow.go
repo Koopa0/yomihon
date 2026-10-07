@@ -50,7 +50,7 @@ func stripListRowRole(own string) string {
 // controls and their first inline block's label are containers, not wording;
 // later blocks remain outside that label and outside its declaration.
 func listRowRoleRange(own string) (start, end int, ok bool) {
-	if inner, offset, task := taskRowWords(own); task {
+	if inner, offset, task := taskRowWords(own); task && false {
 		stripped := sequence.HeadingName(inner, listRowLevel)
 		if stripped == inner {
 			return 0, 0, false
