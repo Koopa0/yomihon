@@ -2,6 +2,9 @@ package judge
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -384,6 +387,122 @@ func TestRunCheckDeniesFragmentRules(t *testing.T) {
 			}
 		})
 	}
+}
+
+// An anchor copied from the rendered heading must resolve through the public
+// check composition. A real missing section keeps both its record and deny exit.
+func TestHeadingAttributeFragmentsRunCheck(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name, body, address string
+	}{
+		{name: "double quoted underline", body: "## <u title=\"<\">a</u>\n", address: "u-title-a"},
+		{name: "single quoted span", body: "## <span title='a<b'>x</span>\n", address: "span-title-a-b-x-span"},
+		{name: "single quoted underline", body: "## <u title='<'>a</u>\n", address: "u-title-a"},
+		{name: "double quoted span", body: "## <span title=\"a<b\">x</span>\n", address: "span-title-a-b-x-span"},
+		{name: "utf8 prefix", body: "## 漢 <u title=\"<\">a</u>\n", address: "漢-u-title-a"},
+		{name: "wikilink alias prefix", body: "## [[Other|日本]] <u title=\"<\">a</u>\n", address: "日本-u-title-a"},
+		{name: "multiline setext", body: "Setext <u title=\"<\">a</u>\nsecond line\n===\n", address: "setext-u-title-a-second-line"},
+	} {
+		for _, kind := range []struct{ name, prefix string }{{name: "link"}, {name: "embed", prefix: "!"}} {
+			t.Run(tt.name+"/"+kind.name, func(t *testing.T) {
+				t.Parallel()
+				root := t.TempDir()
+				write(t, root, "Concepts/golang/Target.md", tt.body+"\nINSIDE\n")
+				write(t, root, "Concepts/golang/Other.md", "Other words.\n")
+				write(t, root, "Concepts/golang/Citer.md", kind.prefix+"[[Target#"+tt.address+"]]\n")
+				writeTestContract(t, root, nil)
+				findings, exit := headingAttributeCheck(t, root)
+				if diff := cmp.Diff(0, exit); diff != "" {
+					t.Errorf("caught: heading attribute check exit (-want +got):\n%s", diff)
+				}
+				if diff := cmp.Diff([]Finding(nil), findings); diff != "" {
+					t.Errorf("caught: heading attribute check records (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+
+	for _, tt := range []struct {
+		name, body string
+		want       Finding
+	}{
+		{
+			name: "missing link",
+			body: "[[Target#Missing Section]]\n",
+			want: Finding{
+				RuleID:          "link.section_missing",
+				Severity:        SeverityWarn,
+				Path:            "Concepts/golang/Citer.md",
+				Line:            new(1),
+				Message:         "[[Target#Missing Section]] resolves, but no heading matches \"Missing Section\"",
+				Evidence:        "the note exists and none of its headings answers the section name",
+				SuggestedAction: "fix the section name after #, or add the heading to the target note",
+				SourceRule:      "yomihon",
+				Target:          new("Target#Missing Section"),
+				ResolvedTo:      new("Concepts/golang/Target.md"),
+				Fingerprint:     "v1:74cee29c287e6a4e",
+			},
+		},
+		{
+			name: "missing embed",
+			body: "![[Target#Missing Section]]\n",
+			want: Finding{
+				RuleID:          "embed.section_missing",
+				Severity:        SeverityWarn,
+				Path:            "Concepts/golang/Citer.md",
+				Line:            new(1),
+				Message:         "![[Target#Missing Section]] resolves, but no heading matches \"Missing Section\"",
+				Evidence:        "the note exists and none of its headings answers the section name, so there is no excerpt to cut",
+				SuggestedAction: "fix the section name after #, or add the heading to the embedded note",
+				SourceRule:      "yomihon",
+				Target:          new("Target#Missing Section"),
+				ResolvedTo:      new("Concepts/golang/Target.md"),
+				Fingerprint:     "v1:1c7a8f34aaaaddcb",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			write(t, root, "Concepts/golang/Target.md", "## <u title=\"<\">a</u>\n\nINSIDE\n")
+			write(t, root, "Concepts/golang/Citer.md", tt.body)
+			writeTestContract(t, root, nil)
+			findings, exit := headingAttributeCheck(t, root)
+			if diff := cmp.Diff(1, exit); diff != "" {
+				t.Errorf("caught: heading attribute check deny exit (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff([]Finding{tt.want}, findings); diff != "" {
+				t.Errorf("caught: heading attribute check deny records (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func headingAttributeCheck(t *testing.T, root string) ([]Finding, int) {
+	t.Helper()
+	stdout, exit, err := RunCheck(t.Context(), &CheckOptions{
+		Root: root, Format: FormatJSON, Deny: []string{"link.section_missing", "embed.section_missing"},
+	})
+	if err != nil {
+		t.Fatalf("RunCheck heading attributes: %v", err)
+	}
+	var findings []Finding
+	decoder := json.NewDecoder(bytes.NewReader(stdout))
+	for {
+		var finding Finding
+		if err := decoder.Decode(&finding); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			t.Fatalf("decode RunCheck heading attributes: %v", err)
+		}
+		if finding.RuleID == "link.section_missing" || finding.RuleID == "embed.section_missing" {
+			findings = append(findings, finding)
+		}
+	}
+	t.Log("producer-hit: heading attribute public check composition")
+	return findings, exit
 }
 
 // The embed rules judge a transclusion's fragment the way the reading page
