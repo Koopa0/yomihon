@@ -58,7 +58,7 @@ type FileView struct {
 
 // byteUnits are the steps humanSize climbs; a vault never needs one above a
 // gibibyte.
-var byteUnits = []string{"KiB", "MB", "GiB"}
+var byteUnits = []string{"KiB", "MiB", "GiB"}
 
 // readingLimit names the binary bound without rounding it into the file's
 // display units. The value comes from the same check that withheld reading.
