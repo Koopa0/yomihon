@@ -189,7 +189,7 @@ func TestPlainProjectionDecodedCoordinates(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, body, text, shown, deleted string
-		insertions                      []int
+		insertions                       []int
 	}{
 		{name: "decoded strike", body: `~~Tom &amp; Jerry~~`, text: "~~Tom & Jerry~~", shown: "Tom & Jerry", deleted: "Tom & Jerry"},
 		{name: "escaped role", body: `## Name \{sequence=primary\}`, text: "Name {sequence=primary}", shown: "Name"},

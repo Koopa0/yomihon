@@ -128,7 +128,7 @@ func displayIntervals(effects []DisplaySpan, hidden bool) []DisplaySpan {
 // Held ruby readings use reading-builder offsets until flushReadings moves them.
 type sourceEmission struct {
 	start, end, out, outEnd int
-	atomic                 bool
+	atomic                  bool
 }
 
 // proseText uses the same escape/entity writer as the reading page. The
