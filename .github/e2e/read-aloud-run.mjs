@@ -8,6 +8,7 @@
 // Env: YOMIHON_BASE, PAGE_PATH (the L02 fixture, three marked paragraphs), and
 // MUTATE. MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
+import { installSpeechVoices } from './support/speech-voices.mjs';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L02.md';
@@ -166,6 +167,7 @@ let proof = null;
 let mutationApplied = false;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await installSpeechVoices(page);
   // Headless Chrome need not produce audio, and whether a Japanese voice is
   // installed is not this lock's business. What the page decides is: the calls
   // it makes at the speech boundary and what it does with the events a voice

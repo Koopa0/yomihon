@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -96,11 +97,11 @@ func TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry(t *testing.T
 func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	if err := Base(Chrome{Title: "測試"}).Render(t.Context(), &buf); err != nil {
+	if err := Base(Chrome{Title: "測試", Assets: asset.Versions{Token: "recorded0000"}}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render base: %v", err)
 	}
 	html := buf.String()
-	const brandAsset = "/static/yomihon-mark.svg"
+	const brandAsset = "/static/yomihon-mark.svg?v=recorded0000"
 	const favicon = `<link rel="icon" type="image/svg+xml" href="` + brandAsset + `">`
 	const headerMark = `<img class="y-brand__mark" src="` + brandAsset + `" width="24" height="24" alt="" aria-hidden="true">`
 	if got := strings.Count(html, favicon); got != 1 {
@@ -122,11 +123,11 @@ func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
 func TestHeaderKeepsWordmarkAsExactAccessibleName(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	if err := header(Chrome{}).Render(t.Context(), &buf); err != nil {
+	if err := header(Chrome{Assets: asset.Versions{Token: "recorded0000"}}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render header: %v", err)
 	}
 	html := buf.String()
-	const brandLink = `<a class="y-brand__name" href="/"><img class="y-brand__mark" src="/static/yomihon-mark.svg" width="24" height="24" alt="" aria-hidden="true"><span>yomihon</span></a>`
+	const brandLink = `<a class="y-brand__name" href="/"><img class="y-brand__mark" src="/static/yomihon-mark.svg?v=recorded0000" width="24" height="24" alt="" aria-hidden="true"><span>yomihon</span></a>`
 	if got := strings.Count(html, brandLink); got != 1 {
 		t.Fatalf("header brand link projections = %d, want one exact accessible wordmark; html = %q", got, html)
 	}

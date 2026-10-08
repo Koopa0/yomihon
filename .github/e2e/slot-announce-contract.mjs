@@ -8,6 +8,7 @@
 // Env: YOMIHON_BASE, PAGE_PATH (the L01 fixture), and MUTATE. MUTATE=list
 // prints every watched regression.
 import { chromium } from 'playwright-core';
+import { installSpeechVoices } from './support/speech-voices.mjs';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
@@ -186,6 +187,7 @@ let proof = null;
 let mutationApplied = false;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await installSpeechVoices(page);
   // Shuffle picks at random, so left alone it cannot be asserted against and,
   // with two fills a slot, would land on the sentence already showing a quarter
   // of the time. Held at the top of every slot's list it picks the second fill
@@ -315,6 +317,7 @@ try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     await context.addCookies([{ name: 'yomihon_lang', value: interfaceLang, url: BASE }]);
     const voicePage = await context.newPage();
+    await installSpeechVoices(voicePage);
     await voicePage.addInitScript(() => {
       window.__spoken = [];
       speechSynthesis.speak = (utterance) => {

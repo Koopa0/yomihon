@@ -85,10 +85,10 @@ templ Base(c Chrome) {
 			// not know the relation ignores it and paints as it always did.
 			<link rel="expect" href="#_y-main" blocking="render"/>
 			<title>{ c.Title } — yomihon</title>
-			<link rel="icon" type="image/svg+xml" href="/static/yomihon-mark.svg"/>
-			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/Geist-Variable.woff2" crossorigin/>
-			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/GeistMono-Variable.woff2" crossorigin/>
-			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/Newsreader-Latin-Variable.woff2" crossorigin/>
+			<link rel="icon" type="image/svg+xml" href={ templ.URL(c.Assets.URL("yomihon-mark.svg")) }/>
+			<link rel="preload" as="font" type="font/woff2" href={ templ.URL(c.Assets.URL("fonts/Geist-Variable.woff2")) } crossorigin/>
+			<link rel="preload" as="font" type="font/woff2" href={ templ.URL(c.Assets.URL("fonts/GeistMono-Variable.woff2")) } crossorigin/>
+			<link rel="preload" as="font" type="font/woff2" href={ templ.URL(c.Assets.URL("fonts/Newsreader-Latin-Variable.woff2")) } crossorigin/>
 			<link rel="stylesheet" href={ templ.URL(c.Assets.URL("app.css")) }/>
 			<link rel="stylesheet" href={ templ.URL(c.Assets.URL("chroma.css")) }/>
 			@importMapScript(c.Nonce, c.Assets)
@@ -131,7 +131,7 @@ templ header(c Chrome) {
 			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
 		</button>
 		<div class="y-brand">
-			<a class="y-brand__name" href="/"><img class="y-brand__mark" src="/static/yomihon-mark.svg" width="24" height="24" alt="" aria-hidden="true"/><span>yomihon</span></a>
+			<a class="y-brand__name" href="/"><img class="y-brand__mark" src={ templ.URL(c.Assets.URL("yomihon-mark.svg")) } width="24" height="24" alt="" aria-hidden="true"/><span>yomihon</span></a>
 			<span class="y-brand__tag">{ wording.BrandTag.In(c.Lang) }</span>
 		</div>
 		<div class="y-header__spacer"></div>
