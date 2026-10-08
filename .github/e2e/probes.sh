@@ -131,6 +131,7 @@ probes=(
   # gives this one a way on to follow. It drives the findings table itself.
   "pager-contract.mjs|/search?q=e"
   "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "concept-sheet.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
   "reading-scale.mjs|/notes/Notes/reading-scale.md"
   "a11y-audit.mjs|/notes/Notes/reading-fidelity.md"
