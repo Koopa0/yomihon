@@ -84,6 +84,9 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/inline-footnote", Body: "paragraph ^[literal]\n"},
 		{Name: "control/footnote", Body: "ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n\n[^unused]: [[A]]\n"},
 		{Name: "control/callout", Body: "> [!note] [[A]]\n> [[B]] ^a\n"},
+		{Name: "control/quoted-fence-info", Body: "> ```[[A]]\n"},
+		{Name: "control/list-fence-info", Body: "1. ```[[A]]\n"},
+		{Name: "control/reference-destination", Body: "[n]: [[A]]\n"},
 		{Name: "control/comments", Body: "%%[[A]]%%\n<!-- [[B]] -->\n[[A]]\n"},
 		{Name: "control/containers", Body: "- item\n\n      [[A]] ^a\n\n> ```\n> [[B]]\n> ```\n"},
 		{Name: "control/quote-fence-outer-address", Body: "> ```\n^a\n"},
@@ -180,6 +183,12 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				failures[i] = append(failures[i], agreementFailure{Property: "setup", Identity: "designed-receipt", Observation: designedSetup})
 			}
 			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
+			var referenceDestinations agreementReferenceDestinations
+			referenceObserved := false
+			var containerFenceDiagnostics map[agreementCitation]int
+			containerFenceObserved := false
+			var standaloneTargets agreementStandaloneTargets
+			standaloneTargetsObserved := false
 			var headingCounts map[string]int
 			headingObserved := false
 			var collisionIDs map[string]bool
@@ -205,6 +214,27 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				classification, authority, wrong := agreementKnownDifference(c, failure)
 				if classification == "" {
 					classification, authority, wrong = agreementUnusedFootnoteDifference(c, failure, unusedTargets)
+				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					if !referenceObserved {
+						referenceDestinations = agreementReferenceDestinationBudget(c.Body)
+						referenceObserved = true
+					}
+					classification, authority, wrong = agreementReferenceDestinationDifference(c, failure, referenceDestinations)
+				}
+				if classification == "" && failure.Property == "P0" {
+					if !containerFenceObserved {
+						containerFenceDiagnostics = agreementContainerFenceDiagnostics(c.Body)
+						containerFenceObserved = true
+					}
+					classification, authority, wrong = agreementContainerFenceDiagnosticDifference(c, failure, containerFenceDiagnostics)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !standaloneTargetsObserved {
+						standaloneTargets = agreementStandaloneTargetDebt(c.Body)
+						standaloneTargetsObserved = true
+					}
+					classification, authority, wrong = agreementStandaloneTargetDifference(c, failure, standaloneTargets)
 				}
 				if classification == "" && failure.Property == "P4" {
 					if !headingObserved {
