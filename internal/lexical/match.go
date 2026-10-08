@@ -725,7 +725,11 @@ func (e *entry) landingAt(foldStart, foldEnd int) landingTerms {
 // reproduction decides whether a run beside the term can be read as one.
 func (e *entry) landingAtSource(start, end int) landingTerms {
 	var terms landingTerms
+	if e.landingBlocked(start, end) {
+		return terms
+	}
 	blockStart, verbatim := e.blockAt(start)
+	blockStart, firstLimit := e.insertionBounds(start, blockStart, e.blockEndAfter(start))
 	if verbatim {
 		terms.prefix = landingPrefix(e.PlainText[blockStart:start])
 	}
@@ -735,11 +739,11 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	if terms.crossing {
 		firstStop = firstEnd
 	}
-	bareStart, bareEnd := wordEdges(e.PlainText, start, firstStop, blockStart, firstEnd)
+	bareStart, bareEnd := wordEdges(e.PlainText, start, firstStop, blockStart, firstLimit)
 	terms.first = collapseFields(e.PlainText[start:bareEnd])
 	terms.bare = collapseFields(e.PlainText[bareStart:bareEnd])
 	if !terms.crossing {
-		if headingStart, before, after := e.sectionContext(firstEnd); terms.first != "" && after != "" {
+		if headingStart, before, after := e.sectionContext(firstEnd); firstLimit == firstEnd && terms.first != "" && after != "" {
 			// The stretch runs on to the heading's end so the run after it
 			// is the section's own opening, which the contents list's copy
 			// of the heading is not followed by.
@@ -747,7 +751,7 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 			terms.bare = collapseFields(e.PlainText[bareStart:firstEnd])
 			terms.suffix = after
 			return terms
-		} else if terms.first != "" && before != "" {
+		} else if terms.first != "" && before != "" && blockStart <= headingStart {
 			// A run named ahead of a term is read only where it ends right
 			// at the term, so the stretch is the whole heading, from the
 			// edge the previous block's words stand against to its end.
@@ -756,14 +760,21 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 			terms.bare = terms.first
 			return terms
 		}
-		if terms.first != "" && (verbatim || e.contextSuffixAt(start, bareEnd, firstEnd)) {
-			terms.suffix = landingSuffix(e.PlainText, bareEnd, firstEnd)
+		if terms.first != "" && (verbatim || e.contextSuffixAt(start, bareEnd, firstLimit)) {
+			terms.suffix = landingSuffix(e.PlainText, bareEnd, firstLimit)
 		}
 		return terms
 	}
+	return e.finishCrossingLanding(end, firstEnd, &terms)
+}
+
+// finishCrossingLanding measures the last stretch and its following run inside
+// the block that holds the match's far end.
+func (e *entry) finishCrossingLanding(end, firstEnd int, terms *landingTerms) landingTerms {
 	lastStart, lastVerbatim := e.blockAt(end - 1)
 	from := max(lastStart, firstEnd)
 	lastEnd := e.blockEndAfter(end - 1)
+	from, lastEnd = e.insertionBounds(end-1, from, lastEnd)
 	// The far end is grown for the reason the first stretch's standalone form
 	// is, and inside its own block for the reason that one is: a word cannot
 	// be assembled out of two blocks the page draws apart. This stretch opens
@@ -774,7 +785,7 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 	if lastVerbatim && terms.last != "" {
 		terms.suffix = landingSuffix(e.PlainText, lastStop, lastEnd)
 	}
-	return terms
+	return *terms
 }
 
 // sectionContext is the run a directive names beside a match inside a
@@ -783,33 +794,32 @@ func (e *entry) landingAtSource(start, end int) landingTerms {
 // heading's own words, and on a narrow page it stands above the prose, so any
 // run taken from inside the heading is answered by the list's copy first.
 //
-// The run after the heading is the first words of the next block: the
-// list's copy is followed by the next entry's name instead, or, after its
-// last entry, by the page's other reading aids where it has any and then by
-// the body's first block. Failing that, the run before the
-// heading is the last words of the previous block, where the list's copy
-// follows the previous entry's name. Each is taken only from a block the
-// page shows as written in source and in order (Verbatim and Literal), and
-// only where the list cannot answer it too. Both empty means the hit keeps
-// the terms any other block gives it. headingStart is where the heading's
-// text begins.
+// The first words of the next block are preferred: the list's copy is
+// followed by the next entry's name, or its last entry is followed by reading
+// aids and then the body's first block. The last words of the previous block
+// provide context when a known preceding contents entry cannot answer them.
+// Each run comes from adjacent page text, and only where the list cannot
+// answer it too. Both empty means the hit keeps the terms any other block
+// gives it. headingStart is where the heading's text begins.
 func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after string) {
 	for i, b := range e.blocks {
 		if b.End != headingEnd {
 			headingStart = b.End
 			continue
 		}
-		if !b.Heading {
+		if !b.Heading || e.hasInsertion(headingStart, headingEnd) {
 			return headingStart, "", ""
 		}
 		if i+1 < len(e.blocks) && e.shownAsWritten(i+1) {
-			opening := landingOpening(e.PlainText[headingEnd:e.blocks[i+1].End])
+			_, openingEnd := e.insertionBounds(headingEnd, headingEnd, e.blocks[i+1].End)
+			opening := landingOpening(e.PlainText[headingEnd:openingEnd])
 			if opening != "" && !e.opensAnotherBlock(opening, i+1) {
 				return headingStart, "", opening
 			}
 		}
 		if i > 0 && e.shownAsWritten(i-1) {
-			closing := landingPrefix(e.PlainText[e.blockStart(i-1):e.blocks[i-1].End])
+			closingStart, _ := e.insertionBounds(headingStart, e.blockStart(i-1), headingStart)
+			closing := landingPrefix(e.PlainText[closingStart:headingStart])
 			if closing != "" && e.closingFollowsAnEntry(closing, i-1) {
 				return headingStart, closing, ""
 			}
@@ -819,11 +829,10 @@ func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after 
 	return 0, "", ""
 }
 
-// shownAsWritten reports that block i's words reach the page as its source
-// spells them and in that order, so they can be named beside a term from
-// another block.
+// shownAsWritten reports that block i's corpus words reach the page in this
+// order. Insertions are clipped separately before the words name context.
 func (e *entry) shownAsWritten(i int) bool {
-	return e.blocks[i].Verbatim && e.blocks[i].Literal
+	return e.blocks[i].Verbatim
 }
 
 // blockStart is where block i's text begins.
@@ -929,7 +938,7 @@ func (e *entry) contextSuffixAt(start, from, blockEnd int) bool {
 		stop += size
 	}
 	for _, b := range e.blocks {
-		if b.End != blockEnd {
+		if b.End < blockEnd {
 			continue
 		}
 		for _, span := range b.ContextRanges {
@@ -1626,4 +1635,42 @@ func MarkHits(snippet string, tokens []string) []HitRun {
 		start = i
 	}
 	return runs
+}
+
+// landingBlocked reports that inserted page text interrupts a source span.
+// Normalization barriers also withhold any overlapping span.
+func (e *entry) landingBlocked(start, end int) bool {
+	for _, at := range e.insertions {
+		if start < at && at < end {
+			return true
+		}
+	}
+	for _, span := range e.insertionBarriers {
+		if start < span[1] && end > span[0] {
+			return true
+		}
+	}
+	return false
+}
+
+// insertionBounds clips a run to the adjacent text the page keeps on the
+// same side of every inserted label. An edge at the match belongs to its side.
+func (e *entry) insertionBounds(at, low, high int) (floor, ceiling int) {
+	for _, edge := range e.insertions {
+		if edge <= at {
+			low = max(low, edge)
+		} else {
+			high = min(high, edge)
+		}
+	}
+	return low, high
+}
+
+func (e *entry) hasInsertion(start, end int) bool {
+	for _, edge := range e.insertions {
+		if start < edge && edge <= end {
+			return true
+		}
+	}
+	return false
 }
