@@ -187,7 +187,7 @@ func TestAgreementMutations(t *testing.T) {
 		t.Fatalf("not-applied: setup-status=2 resolve repository root: %v", err)
 	}
 	modes := agreementMutations()
-	compiler := agreementMutationCompiler{Root: root, Backing: t.TempDir(), Restored: make(map[string]string)}
+	compiler := agreementMutationCompiler{Root: root, Backing: t.TempDir(), Restored: make(map[string]string), Slots: make(chan struct{}, 2)}
 	for i := range modes {
 		mode := &modes[i]
 		t.Run(mode.Name, func(t *testing.T) {
@@ -247,6 +247,7 @@ type agreementMutationCompiler struct {
 	Root, Backing string
 	Mutex         sync.Mutex
 	Restored      map[string]string
+	Slots         chan struct{}
 }
 
 func (compiler *agreementMutationCompiler) binary(t *testing.T, overlay, packagePath, file string, red bool) string {
@@ -265,7 +266,15 @@ func (compiler *agreementMutationCompiler) binary(t *testing.T, overlay, package
 		}
 		binary = filepath.Join(compiler.Backing, fmt.Sprintf("%x.test", sha256.Sum256([]byte(key))))
 	}
-	compile := agreementMutationCommand(t, compiler.Root, "test", "-overlay="+overlay, "-c", "-o="+binary, packagePath)
+	// Controls may run together, but nested compilers must not multiply that
+	// concurrency by their own package workers on a small runner.
+	select {
+	case compiler.Slots <- struct{}{}:
+	case <-t.Context().Done():
+		t.Fatalf("not-applied: setup-status=2 compiler admission canceled: %v", t.Context().Err())
+	}
+	defer func() { <-compiler.Slots }()
+	compile := agreementMutationCommand(t, compiler.Root, "test", "-trimpath", "-p=2", "-overlay="+overlay, "-c", "-o="+binary, packagePath)
 	if compile.Status != 0 {
 		t.Fatalf("not-applied: setup-status=2 compile-only qualification failed status=%d\n%s", compile.Status, compile.Output)
 	}
