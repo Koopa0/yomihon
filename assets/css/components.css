@@ -6378,6 +6378,16 @@ samp,
     background: Highlight;
     forced-color-adjust: none;
   }
+
+  /* A callout's fold chevron is a mask over its background, and the background
+     is what forced colours replaces, leaving no shape. The system text colour
+     keeps it drawn. */
+  /* stylelint-disable-next-line selector-no-qualifying-type -- a callout
+     renders as either a details or a div; only the details folds. */
+  .y-prose details.callout > .callout-title::after {
+    background-color: CanvasText;
+    forced-color-adjust: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left {
@@ -6452,6 +6462,14 @@ samp,
   .y-nothing--fault {
     border: 0;
     padding: 0;
+  }
+
+  /* Paper takes no click and a folded callout prints open, so the chevron that
+     says the title can be opened marks nothing. */
+  /* stylelint-disable-next-line selector-no-qualifying-type -- a callout
+     renders as either a details or a div; only the details folds. */
+  .y-prose details.callout > .callout-title::after {
+    display: none;
   }
 
   /* stylelint-disable declaration-no-important -- print has no later stylesheet

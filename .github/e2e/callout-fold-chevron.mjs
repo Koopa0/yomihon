@@ -4,8 +4,11 @@
 // without a drawn indicator a closed one reads as a title with no body and
 // nothing on screen says it can be opened. The summary therefore carries a
 // chevron in its ::after, and the chevron turns when the fold is opened.
-// Two halves are asserted: the chevron exists on the closed fold with a box
-// and a shape, and its transform differs between closed and open.
+// Four things are asserted: the chevron exists on the closed fold with a box
+// and a shape, its transform differs between closed and open, it keeps a
+// colour under forced colours (a mask over a background is nothing once the
+// background is replaced), and it is gone from paper, where a fold is not a
+// control.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note carrying a closed foldable callout), and
 // MUTATE. MUTATE=list prints every watched regression.
@@ -18,6 +21,8 @@ const MUTATE = process.env.MUTATE || '';
 const SITES = [
   'chevron-drawn',
   'chevron-turns',
+  'chevron-forced-colors',
+  'chevron-not-printed',
 ];
 
 class LockFired extends Error {
@@ -57,6 +62,17 @@ const MUTATIONS = {
   'chevron-never-turns': {
     target: 'chevron-turns',
     apply: weakenStylesheet('.y-prose details.callout > .callout-title::after{transform:none !important}'),
+  },
+  // The forced-colours rule dropped: the mask is painted from a background the
+  // mode replaces, so the adjustment is handed back to the browser.
+  'no-forced-colors-rule': {
+    target: 'chevron-forced-colors',
+    apply: weakenStylesheet('@media (forced-colors: active){.y-prose details.callout > .callout-title::after{forced-color-adjust:auto !important}}'),
+  },
+  // The print rule dropped: the chevron stays on the sheet.
+  'chevron-on-paper': {
+    target: 'chevron-not-printed',
+    apply: weakenStylesheet('@media print{.y-prose details.callout > .callout-title::after{display:block !important}}'),
   },
 };
 
@@ -134,8 +150,27 @@ try {
     fail('chevron-turns', `the indicator looks the same open and closed (transform ${closed.transform})`);
   }
 
+  await page.emulateMedia({ forcedColors: 'active' });
+  // Forced colours replaces an unprotected background with the canvas colour,
+  // which is opaque and so would pass any test for "not transparent" while the
+  // mask paints the page's own ground. The chevron is visible only when its
+  // fill is the text colour the mode gives the title.
+  const forced = await summary.evaluate((element) => ({
+    fill: getComputedStyle(element, '::after').backgroundColor,
+    ink: getComputedStyle(element).color,
+  }));
+  if (forced.fill !== forced.ink) {
+    fail('chevron-forced-colors', `under forced colours the chevron is filled ${forced.fill} and the title is inked ${forced.ink}, so the mask paints the ground`);
+  }
+
+  await page.emulateMedia({ forcedColors: 'none', media: 'print' });
+  const printed = await summary.evaluate((element) => getComputedStyle(element, '::after').display);
+  if (printed !== 'none') {
+    fail('chevron-not-printed', `a callout chevron prints as display ${printed}, a mark with no meaning on paper`);
+  }
+
   await context.close();
-  console.log('PASS callout-fold-chevron: a closed foldable callout draws a chevron that turns when opened');
+  console.log('PASS callout-fold-chevron: a closed foldable callout draws a chevron that turns when opened, keeps its colour under forced colours and stays off paper');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
