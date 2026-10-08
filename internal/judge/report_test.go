@@ -17,39 +17,43 @@ import (
 // reject.
 func TestReportGolden(t *testing.T) {
 	t.Parallel()
-	findings, err := Check(t.Context(), "testdata/vault-report")
-	if err != nil {
-		t.Fatalf("Check: %v", err)
-	}
-	// The roots come from the fixture's own contract, the way the command
-	// takes them, so this golden is produced by the declaration under test
-	// rather than by a list written beside it.
-	contract, err := schema.Load("testdata/vault-report")
-	if err != nil {
-		t.Fatalf("schema.Load: %v", err)
-	}
-	roots := domainRoots(contract.Definition().Rules.DomainEqualsFolderUnder)
-	if len(roots) == 0 {
-		t.Fatal("the report fixture declares no domain roots, so a grouping test over it would prove nothing")
-	}
 	tests := []struct {
-		name   string
-		got    []byte
-		golden string
+		name    string
+		fixture string
+		format  Format
+		golden  string
 	}{
-		{name: "human", got: []byte(humanReport(findings, roots)), golden: "testdata/golden/report-human.golden"},
-		{name: "markdown", got: []byte(markdownReport(findings, roots, contract)), golden: "testdata/golden/report-md.golden"},
+		{name: "human", fixture: "testdata/vault-report", format: FormatHuman, golden: "testdata/golden/report-human.golden"},
+		{name: "markdown", fixture: "testdata/vault-report", format: FormatMarkdown, golden: "testdata/golden/report-md.golden"},
+		{name: "hidden human", fixture: "testdata/vault-report-hidden", format: FormatHuman, golden: "testdata/golden/report-hidden-human.golden"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			findings, err := Check(t.Context(), tt.fixture)
+			if err != nil {
+				t.Fatalf("Check(%q): %v", tt.fixture, err)
+			}
+			contract, err := schema.Load(tt.fixture)
+			if err != nil {
+				t.Fatalf("schema.Load(%q): %v", tt.fixture, err)
+			}
+			roots := domainRoots(contract.Definition().Rules.DomainEqualsFolderUnder)
+			if len(roots) == 0 {
+				t.Fatal("the report fixture declares no domain roots, so a grouping test over it would prove nothing")
+			}
+			got := []byte(humanReport(findings, roots))
+			if tt.format == FormatMarkdown {
+				got = []byte(markdownReport(findings, roots, contract))
+			}
 			want, err := os.ReadFile(tt.golden)
 			if err != nil {
 				t.Fatalf("read golden: %v", err)
 			}
-			if !bytes.Equal(tt.got, want) {
-				t.Errorf("%s report differs from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
-					tt.name, tt.golden, tt.got, want, hex.Dump(tt.got), hex.Dump(want))
+			t.Logf("invoked: %s report golden comparison", tt.name)
+			if !bytes.Equal(got, want) {
+				t.Errorf("caught: %s report differs from golden %s\ngot:\n%s\nwant:\n%s\ngot hex:\n%s\nwant hex:\n%s",
+					tt.name, tt.golden, got, want, hex.Dump(got), hex.Dump(want))
 			}
 		})
 	}

@@ -1,0 +1,17 @@
+6 findings: 0 error, 1 warn, 5 hidden (3 planned forward-refs, 2 external paths)
+
+debt by domain:
+  golang               0 error · 1 warn
+
+most leveraged (create one, resolve many):
+  ×3 [[Future]] (planned) — golang
+
+▌ golang
+  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)
+
+hidden (info):
+  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md
+  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md
+  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md
+  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md
+  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md
