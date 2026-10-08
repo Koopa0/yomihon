@@ -243,13 +243,11 @@ func stage5Literals(t *testing.T, category string, cases []stage5Literal) {
 	page := render.New(graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Notes/N.md"}}, nil), bodies, noTitlesDeclared{}, everyFileHeld{})
 	for i := range cases {
 		tc := &cases[i]
-		t.Run(tc.Name, func(t *testing.T) {
-			result := page.HTML("Notes/Subject.md", "", tc.Body, wording.En)
-			if diff := cmp.Diff(tc.Want, stage5Observe(t, &result), cmpopts.EquateEmpty()); diff != "" {
-				t.Errorf("caught: S5 %s actual HTML and complete rail (-want +got):\n%s\nHTML=%q", category, diff, result.HTML)
-			}
-			stage5PublicCheck(t, category, tc.Body, bodies, tc.Targets, tc.Findings, tc.Wire, tc.WarnExit)
-		})
+		result := page.HTML("Notes/Subject.md", "", tc.Body, wording.En)
+		if diff := cmp.Diff(tc.Want, stage5Observe(t, &result), cmpopts.EquateEmpty()); diff != "" {
+			t.Errorf("caught: S5 %s actual HTML and complete rail case=%s (-want +got):\n%s\nHTML=%q", category, tc.Name, diff, result.HTML)
+		}
+		stage5PublicCheck(t, category, tc.Body, bodies, tc.Targets, tc.Findings, tc.Wire, tc.WarnExit)
 	}
 	if *agreementSource != "" {
 		t.Logf("AGREEMENT-SOURCE-CONSUMED sha256=%s", agreementMutationSourceDigest(t, *agreementSource))

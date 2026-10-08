@@ -860,14 +860,14 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 	})
 }
 
-// replaceOutside applies fn to every match of re lying wholly outside the given
-// ranges, leaving everything else byte-identical. fn receives the match's
+// replaceOutside applies fn when a match opens outside the quoted ranges.
+// Closing brackets in prose cannot make a code-owned opening live. fn receives the match's
 // starting byte offset alongside the matched bytes, so a caller can look behind it.
 func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(start int, m string) string) string {
 	var out strings.Builder
 	last := 0
 	for _, loc := range re.FindAllStringIndex(text, -1) {
-		if withinAny(skip, loc[0], loc[1]) {
+		if withinAny(skip, loc[0], loc[0]+1) {
 			continue
 		}
 		out.WriteString(text[last:loc[0]])

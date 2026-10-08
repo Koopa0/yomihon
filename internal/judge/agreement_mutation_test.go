@@ -53,7 +53,7 @@ func agreementMutations() []agreementMutation {
 		{Name: "p0-citation-shape", Property: "P0", Identity: "citation-shape", File: "internal/render/wikilink.go", Function: "resolvedWikilink", Needle: "`<a href=\"%s\" class=\"wikilink\"%s>%s</a>`", Fault: "`<span href=\"%s\" class=\"wikilink\"%s>%s</span>`", Body: "[[A]]"},
 		{Name: "p1-provenance", Property: "P1", Identity: "provenance-identity", File: "internal/render/wikilink.go", Function: "embedSourceLine", Needle: "`<a href=\"` + attributeEscaper.Replace(notesHref(relPath)) + `\">` + html.EscapeString(noteName(relPath)) + `</a></p>`", Fault: "html.EscapeString(noteName(relPath)) + `</p>`", Body: "![[Notes/Child]]\n"},
 	}
-	return append(append(modes, bodyValueMutations()...), stage4Mutations()...)
+	return append(append(append(modes, bodyValueMutations()...), stage4Mutations()...), stage5Mutations()...)
 }
 
 func TestAgreementMutationControl(t *testing.T) {
@@ -218,7 +218,7 @@ func TestAgreementMutations(t *testing.T) {
 				if packagePath == "./internal/judge" {
 					alternate := agreementMutationSource(t, overlay)
 					args = append(args, "-args", "-agreement-source="+alternate)
-					if mode.Name == "f3-consumer-parse" || strings.HasPrefix(mode.Name, "stage4-") {
+					if mode.Name == "f3-consumer-parse" || (strings.HasPrefix(mode.Name, "stage4-") || strings.HasPrefix(mode.Name, "stage5-")) {
 						sourceDigest = agreementMutationSourceDigest(t, alternate)
 					}
 				}
