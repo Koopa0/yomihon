@@ -53,9 +53,10 @@ every promised owner. The old generation exists in a non-inlined helper frame
 that returns only numeric samples; release does not depend on assigning nil to a
 variable inside `b.Loop`. Fixture and Store overhead remain in all observations.
 These are heap observations, not allocation totals, RSS, or isolated object
-sizes. Release must reduce the observed heap; a contradictory observation fails
-with its actual two-generation and released byte values. No equality with the
-original heap, percentage tolerance, or capacity ceiling is imposed.
+sizes. The released heap must be closer to the one-generation observation than
+to the two-generation observation; a contradictory observation fails with all
+three byte values. No equality with the original heap, percentage tolerance,
+or capacity ceiling is imposed.
 
 `visible` starts one owned `Store.Run` using the real two-second reconciliation
 ticker. A cancellable random delay in `[0, 2s)` samples the edit's position in

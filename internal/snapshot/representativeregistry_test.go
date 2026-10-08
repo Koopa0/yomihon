@@ -66,11 +66,7 @@ func TestRepresentativeBenchmarkEntryAndOptIn(t *testing.T) {
 		t.Fatal("caught: representative benchmark entry missing from compiled inventory")
 	}
 	const selector = "-test.bench=^BenchmarkRepresentativeSnapshot$/^notes=100$/^(initial|rebuild)$"
-	control := "-snapshot-measurement-control=" + *measurementControl
-	disabled := run("-test.bench=^BenchmarkRepresentativeSnapshot$", "-test.benchtime=1x", "-test.benchmem", "-test.v", control)
-	if *measurementControl != "" {
-		t.Log(disabled)
-	}
+	disabled := run("-test.bench=^BenchmarkRepresentativeSnapshot$", "-test.benchtime=1x", "-test.benchmem", "-test.v")
 	if !strings.Contains(disabled, "representative snapshots require -snapshot-bench") {
 		t.Fatalf("caught: representative benchmark was not explicitly skipped: %s", disabled)
 	}

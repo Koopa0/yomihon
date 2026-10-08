@@ -36,14 +36,13 @@ func (s *measuredSource) ScanAvailable(ctx context.Context) (vault.Scan, error) 
 
 func idleObservation(tb testing.TB, before, after *Generation, completed bool, scanErr error) error {
 	tb.Helper()
-	measurementHit(tb, "idle")
 	if !completed {
 		return errors.New("caught: idle scan did not complete")
 	}
 	if scanErr != nil {
 		return fmt.Errorf("caught: idle scan failed: %w", scanErr)
 	}
-	if before != after && !measurementFault("idle-publication") {
+	if before != after {
 		return errors.New("caught: idle published a replacement generation")
 	}
 	return nil
@@ -51,8 +50,7 @@ func idleObservation(tb testing.TB, before, after *Generation, completed bool, s
 
 func overlapObservation(tb testing.TB, before, after *Generation, expected [sha256.Size]byte) error {
 	tb.Helper()
-	measurementHit(tb, "overlap")
-	if before == after && !measurementFault("overlap-no-replacement") {
+	if before == after {
 		return errors.New("caught: overlap did not publish a replacement generation")
 	}
 	reading, ok := after.Note(measurementNote)
@@ -112,7 +110,6 @@ func overlapSample(b *testing.B, f *representativeFixture, store *Store, origina
 // timing. The deadline is an operational failure bound, not a latency budget.
 func awaitVisible(ctx context.Context, tb testing.TB, store *Store, expected [sha256.Size]byte, scannerDone <-chan struct{}) error {
 	tb.Helper()
-	measurementHit(tb, "visible")
 	ticker := time.NewTicker(visiblePollInterval)
 	defer ticker.Stop()
 	for {
@@ -125,7 +122,7 @@ func awaitVisible(ctx context.Context, tb testing.TB, store *Store, expected [sh
 		default:
 		}
 		reading, ok := store.Current().Note(measurementNote)
-		if ok && (reading.ContentIdentity == expected || measurementFault("visible-wrong-identity")) {
+		if ok && reading.ContentIdentity == expected {
 			return nil
 		}
 		select {
@@ -232,8 +229,8 @@ func benchmarkLifecycle(b *testing.B, f *representativeFixture, store *Store, na
 		case "overlap":
 			one, two := overlapSample(b, f, store, original, longer)
 			released := heapSample(f, store, store.Current())
-			if released >= two {
-				b.Fatalf("caught: overlap release did not reduce heap: two=%d released=%d", two, released)
+			if 2*released >= one+two {
+				b.Fatalf("caught: overlap release is not closer to one generation: one=%d two=%d released=%d", one, two, released)
 			}
 			oneTotal += float64(one)
 			twoTotal += float64(two)

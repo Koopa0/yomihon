@@ -3,55 +3,13 @@ package snapshot
 import (
 	"context"
 	"errors"
-	"flag"
 	"io/fs"
-	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-// These controls change compiled benchmark guards in memory. Source files are
-// never rewritten, and normal tests do not perform lifecycle measurements.
-var measurementControl = flag.String("snapshot-measurement-control", "", "compiled measurement control: green or a named semantic fault")
-
-func measurementFault(name string) bool {
-	return *measurementControl == name
-}
-
-func measurementHit(tb testing.TB, name string) {
-	tb.Helper()
-	if *measurementControl != "" {
-		tb.Log("invoked: measurement " + name)
-	}
-}
-
-func registeredRepresentativePhases(tb testing.TB) []string {
-	tb.Helper()
-	measurementHit(tb, "registry")
-	if measurementFault("missing-leaf") {
-		return slices.DeleteFunc(slices.Clone(representativePhases), func(name string) bool { return name == "idle" })
-	}
-	return representativePhases
-}
-
-func representativeEnabled(tb testing.TB, notes int, name string) bool {
-	tb.Helper()
-	measurementHit(tb, "opt-in")
-	if measurementFault("bypass-opt-in") && notes == 100 && name == "initial" {
-		return true
-	}
-	return *representativeBench
-}
-
-func TestMeasurementControlState(t *testing.T) {
-	if !slices.Contains([]string{"", "green", "idle-publication", "overlap-no-replacement", "visible-wrong-identity", "missing-leaf", "bypass-opt-in"}, *measurementControl) {
-		t.Fatalf("not-applied: unknown measurement control %q", *measurementControl)
-	}
-	t.Logf("applied: measurement control %q", *measurementControl)
-}
 
 func TestMeasurementScanObservation(t *testing.T) {
 	t.Parallel()

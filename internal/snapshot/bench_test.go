@@ -59,9 +59,9 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 func BenchmarkRepresentativeSnapshot(b *testing.B) {
 	for _, notes := range representativeSizes {
 		b.Run(fmt.Sprintf("notes=%d", notes), func(b *testing.B) {
-			for _, phase := range registeredRepresentativePhases(b) {
+			for _, phase := range representativePhases {
 				b.Run(phase, func(b *testing.B) {
-					if !representativeEnabled(b, notes, phase) {
+					if !*representativeBench {
 						b.Skip("representative snapshots require -snapshot-bench")
 					}
 					f := representativeBenchmarkFixture(b, notes)
@@ -109,7 +109,9 @@ func BenchmarkRepresentativeSnapshot(b *testing.B) {
 
 func representativeBenchmarkFixture(b *testing.B, notes int) *representativeFixture {
 	b.Helper()
-	b.Log("invoked: representative fixture setup")
+	if testing.Verbose() {
+		b.Log("invoked: representative fixture setup")
+	}
 	return newRepresentativeFixture(b, notes)
 }
 
