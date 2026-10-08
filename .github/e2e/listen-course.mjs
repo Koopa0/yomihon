@@ -9,6 +9,7 @@
 // MUTATE=list prints every watched regression.
 import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
+import { installSpeechVoices } from './support/speech-voices.mjs';
 
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -177,6 +178,7 @@ try {
   // A phone, because that is the width this page has to survive and the one a
   // course listened to is most likely to be read on.
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await installSpeechVoices(page);
   await page.addInitScript(() => {
     speechSynthesis.speak = (utterance) => { setTimeout(() => utterance.dispatchEvent(new Event('start')), 0); };
     speechSynthesis.cancel = () => {};

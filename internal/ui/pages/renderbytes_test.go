@@ -1102,9 +1102,14 @@ func TestRecordedChromeUsesStableAssetVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]int{
-		"app.css":    1,
-		"chroma.css": 1,
-		"yomihon.js": 1,
+		"app.css":                               1,
+		"chroma.css":                            1,
+		"yomihon.js":                            1,
+		"mermaid.esm.min.mjs":                   1,
+		"yomihon-mark.svg":                      2,
+		"fonts/Geist-Variable.woff2":            1,
+		"fonts/GeistMono-Variable.woff2":        1,
+		"fonts/Newsreader-Latin-Variable.woff2": 1,
 	}
 	for _, file := range files {
 		if !file.IsDir() && strings.HasSuffix(file.Name(), ".js") {

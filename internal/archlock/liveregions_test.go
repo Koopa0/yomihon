@@ -31,6 +31,7 @@ var liveRegionOwners = []liveRegionOwner{
 	{"assets/js/lesson.js", "speechStatus/span.y-ttsbar__status", []string{"aria-live=polite"}},
 	{"internal/ui/pages/thought.templ", "Thought/p.y-thought__said", []string{"role=status"}},
 	{"assets/js/uncertainty.js", "said/p.y-uncertainty__said", []string{"role=status"}},
+	{"internal/ui/pages/shelf.templ", "shelfRemoval/p.y-uncertainty__said", []string{"role=status"}},
 	{"assets/js/freshness.js", "banner/p.y-freshness", []string{"role=status"}},
 }
 
