@@ -1,6 +1,7 @@
 package render
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"net/url"
@@ -64,8 +65,30 @@ func renderSafeHTMLBlock(w util.BufWriter, source []byte, node ast.Node, enterin
 		chunks = append(chunks, n.ClosureLine.Value(source))
 	}
 	gate := pairFormatting(chunks...)
+	roleBlock := false
 	for _, chunk := range chunks {
-		if err := writeSafeMarkup(w, chunk, gate); err != nil {
+		roleBlock = roleBlock || bytes.Contains(chunk, []byte(graph.CommentRoleBlockPrefix))
+	}
+	if !roleBlock {
+		for _, chunk := range chunks {
+			if err := writeSafeMarkup(w, chunk, gate); err != nil {
+				return ast.WalkStop, err
+			}
+		}
+		return ast.WalkContinue, nil
+	}
+	var rendered bytes.Buffer
+	buffer := bufio.NewWriter(&rendered)
+	for _, chunk := range chunks {
+		if err := writeSafeMarkup(buffer, chunk, gate); err != nil {
+			return ast.WalkStop, err
+		}
+	}
+	if err := buffer.Flush(); err != nil {
+		return ast.WalkStop, err
+	}
+	if strings.TrimSpace(rendered.String()) != "" {
+		if _, err := w.Write(rendered.Bytes()); err != nil {
 			return ast.WalkStop, err
 		}
 	}

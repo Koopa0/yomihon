@@ -48,9 +48,9 @@ func TestAgreementStage5CodeBoundary(t *testing.T) {
 			Findings: []judge.Finding{stage5MissingFinding(9)}, Wire: stage5Wire9, WarnExit: 1,
 		},
 		{
-			Name: "live prose embed control",
-			Body: "![[N]]\n",
-			Want: stage5Shape{Text: "From N note", Roles: []string{"div.embed", "p.embed__source", "p"}, Transcluded: true},
+			Name:    "live prose embed control",
+			Body:    "![[N]]\n",
+			Want:    stage5Shape{Text: "From N note", Roles: []string{"div.embed", "p.embed__source", "p"}, Transcluded: true},
 			Targets: []string{"N"},
 		},
 	})

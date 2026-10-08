@@ -255,7 +255,6 @@ func (w *plainWalk) writeAutoLink(a *ast.AutoLink, source []byte) {
 	if a.AutoLinkType == ast.AutoLinkURL && leavesTheLibrary(a.URL(source)) {
 		w.recordInsertion()
 	}
-
 }
 
 // delimiterObservation delegates grammar to the existing inline parsers. The

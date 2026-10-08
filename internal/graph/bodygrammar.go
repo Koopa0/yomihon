@@ -159,12 +159,29 @@ type bodyFootnotes struct{ prefix func(ast.Node) []byte }
 func (e bodyFootnotes) Extend(md goldmark.Markdown) {
 	md.Parser().AddOptions(
 		parser.WithBlockParsers(util.Prioritized(bodyBlockParser{delegate: extension.NewFootnoteBlockParser()}, 999)),
-		parser.WithInlineParsers(util.Prioritized(extension.NewFootnoteParser(), 101)),
+		parser.WithInlineParsers(util.Prioritized(bodyFootnoteParser{delegate: extension.NewFootnoteParser()}, 101)),
 		parser.WithASTTransformers(util.Prioritized(extension.NewFootnoteASTTransformer(), 999)),
 	)
 	md.Renderer().AddOptions(renderer.WithNodeRenderers(util.Prioritized(
 		extension.NewFootnoteHTMLRenderer(extension.WithFootnoteIDPrefixFunction(e.prefix)), 500,
 	)))
+}
+
+// A callout title prints its author's punctuation literally. A footnote token
+// there cannot make a definition appear at the end of the reading page.
+type bodyFootnoteParser struct{ delegate parser.InlineParser }
+
+func (p bodyFootnoteParser) Trigger() []byte { return p.delegate.Trigger() }
+func (p bodyFootnoteParser) Parse(parent ast.Node, reader text.Reader, pc parser.Context) ast.Node {
+	return parseBodyFootnote(p.delegate, parent, reader, pc)
+}
+
+func parseBodyFootnote(delegate parser.InlineParser, parent ast.Node, reader text.Reader, pc parser.Context) ast.Node {
+	_, position := reader.Position()
+	if calloutTitleAt(reader.Source(), position.Start) {
+		return nil
+	}
+	return delegate.Parse(parent, reader, pc)
 }
 
 var bodyObservationKey = parser.NewContextKey()

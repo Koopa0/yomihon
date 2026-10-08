@@ -11,6 +11,10 @@ type BodyComment struct {
 	Marker string
 }
 
+// RenderedBlockMarkerOpen belongs to markup the renderer plants after reading
+// authored comments. A source copy is visible spelling with no marker authority.
+const RenderedBlockMarkerOpen = "<!--yomihon-block:"
+
 var bodyReadAloudMarker = regexp.MustCompile(`(?s)^<!--[ \t\r\n]*read-aloud:.*-->$`)
 
 type bodyCommentState struct {
@@ -23,12 +27,12 @@ type bodyCommentState struct {
 	limits     map[int]int
 	containers []BodyComment
 	sourceLine int
+	htmlLine   bool
 }
 
-// stripBodyProjection applies the existing line-role strip exactly once.
-// Original code facts protect HTML comments. Percent quotation retains its
-// line-local presentation policy, independently of canonical multiline facts.
-func stripBodyProjection(body bodyProjection, observation *bodyObservation, additional []Span) (bodyProjection, []Span, BodyComment, []BodyComment) {
+// stripBodyProjection hides private comments exactly once. Both delimiters
+// read canonical code ownership before treating authored bytes as private.
+func stripBodyProjection(body bodyProjection, observation *bodyObservation, additional []Span) (stripped bodyProjection, comments []Span, unclosed BodyComment, containers []BodyComment) {
 	state := bodyCommentState{limits: make(map[int]int), extraCode: additional}
 	for _, code := range observation.codes {
 		state.code = append(state.code, code.Span)
@@ -38,8 +42,6 @@ func stripBodyProjection(body bodyProjection, observation *bodyObservation, addi
 	}
 	state.code = append(state.code, additional...)
 	var output bodyProjectionWriter
-	var comments []Span
-	var unclosed BodyComment
 	offset := 0
 	fence := bodyCommentFence{}
 	for i, line := range strings.Split(body.text, "\n") {
@@ -57,13 +59,17 @@ func stripBodyProjection(body bodyProjection, observation *bodyObservation, addi
 		}
 		before := output.text.Len()
 		state.sourceLine = i + 1
+		state.htmlLine = state.closing == "-->"
 		opened := stripBodyCommentLine(body, at, line, &state, &output, &comments)
 		unclosed = state.unclosedComment(unclosed, opened, i+1)
-		if state.closing == "" {
-			fence.opens(output.text.String()[before:])
+		visible := output.text.String()[before:]
+		prefix := bodyCommentQuotePrefix(visible)
+		authoredPrefix := bodyCommentQuotePrefix(line)
+		if graphBlank := strings.TrimSpace(visible[len(prefix):]) == ""; graphBlank && !state.htmlLine && strings.TrimSpace(line[len(authoredPrefix):]) != "" {
+			output.rolePadding("<u></u>")
 		}
 	}
-	return output.projection(), comments, unclosed, state.containers
+	return output.roleProjection(), comments, unclosed, state.containers
 }
 
 func bodyCommentQuotePrefix(line string) string {
@@ -97,13 +103,12 @@ func stripBodyCommentLine(body bodyProjection, offset int, line string, state *b
 			line = line[end:]
 			continue
 		}
-		tick := strings.IndexByte(line, '`')
 		mark, html := strings.Index(line, "%%"), strings.Index(line, "<!--")
 		if html >= 0 && (mark < 0 || html < mark) {
 			mark = html
 		}
 		switch {
-		case mark >= 0 && (tick < 0 || mark < tick):
+		case mark >= 0:
 			output.copied(body, at, at+mark)
 			open := at + mark
 			var stopLine bool
@@ -111,10 +116,6 @@ func stripBodyCommentLine(body bodyProjection, offset int, line string, state *b
 			if stopLine {
 				return opened
 			}
-		case tick >= 0:
-			end, _ := CodeSpanAt(line, tick)
-			output.copied(body, at, at+end)
-			line = line[end:]
 		default:
 			output.copied(body, at, at+len(line))
 			line = ""
@@ -182,14 +183,18 @@ func stripBodyHTMLComment(body bodyProjection, open, lineStop int, state *bodyCo
 		output.copied(body, open, open+4)
 		return body.text[open+4 : lineStop], false
 	}
+	if neutralizeBodyBlockMarker(body, open, lineStop, span, closed, output) {
+		return body.text[span.Stop:lineStop], false
+	}
 	if stop, ok := state.limits[open]; ok && stop < span.Stop {
 		span.Stop, closed = stop, false
 	}
+	if _, block := state.limits[open]; block && closed && span.Stop <= lineStop && !bodyReadAloudMarker.MatchString(body.text[open:span.Stop]) {
+		output.rolePadding("<!---->")
+	}
 	*comments = append(*comments, span)
 	if closed && span.Stop <= lineStop {
-		if bodyReadAloudMarker.MatchString(body.text[open:span.Stop]) {
-			output.copied(body, open, span.Stop)
-		}
+		copyBodyReadAloudMarker(body, span, output)
 		return body.text[span.Stop:lineStop], false
 	}
 	state.closing, state.stop = "-->", span.Stop
@@ -202,15 +207,40 @@ func stripBodyHTMLComment(body bodyProjection, open, lineStop int, state *bodyCo
 	return "", true
 }
 
+func copyBodyReadAloudMarker(body bodyProjection, span Span, output *bodyProjectionWriter) {
+	if bodyReadAloudMarker.MatchString(body.text[span.Start:span.Stop]) {
+		output.copied(body, span.Start, span.Stop)
+	}
+}
+
 func stripBodyCommentMark(body bodyProjection, open, lineStop int, html bool, state *bodyCommentState, output *bodyProjectionWriter, comments *[]Span) (remaining string, opened, stopLine bool) {
 	if html {
+		state.htmlLine = true
 		remaining, opened = stripBodyHTMLComment(body, open, lineStop, state, output, comments)
 		return remaining, opened, opened
 	}
-	if In(state.extraCode, open) {
+	if In(state.code, open) || In(state.extraCode, open) {
 		output.copied(body, open, open+2)
 		return body.text[open+2 : lineStop], false, false
 	}
+	prefix := body.text[offsetLineStart(body.text, open):open]
+	prefix = prefix[len(bodyCommentQuotePrefix(prefix)):]
+	if strings.TrimSpace(prefix) == "" {
+		output.rolePadding("<u></u>")
+	}
 	state.openPercent(body.text, open, comments)
 	return body.text[open+2 : lineStop], true, false
+}
+
+func offsetLineStart(body string, offset int) int {
+	return strings.LastIndexByte(body[:offset], '\n') + 1
+}
+
+func neutralizeBodyBlockMarker(body bodyProjection, open, lineStop int, span Span, closed bool, output *bodyProjectionWriter) bool {
+	if strings.HasPrefix(body.text[open:], RenderedBlockMarkerOpen) && closed && span.Stop <= lineStop {
+		output.synthetic("&lt;")
+		output.copied(body, open+1, span.Stop)
+		return true
+	}
+	return false
 }

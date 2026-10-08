@@ -246,7 +246,7 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 func pageMarkdown() goldmark.Markdown {
 	markdown := graph.NewBodyMarkdown(footnoteRegionPrefix)
 	for _, extension := range []goldmark.Extender{
-		highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
+		highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{}, authoredTextExtension{},
 	} {
 		extension.Extend(markdown)
 	}
@@ -483,7 +483,7 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
 	// authored copy before placeholders exist prevents source from selecting or
 	// relocating renderer-owned HTML during substituteBlocks.
-	body = strings.ReplaceAll(body, "<!--yomihon-block:", "&lt;!--yomihon-block:")
+	body = strings.ReplaceAll(body, graph.RenderedBlockMarkerOpen, "&lt;!--yomihon-block:")
 	body = strings.Map(func(r rune) rune {
 		if strings.ContainsRune(inlinePlaceholderRunes, r) {
 			return -1
@@ -498,6 +498,7 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 	// the document the footnote extension will ask about.
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
+	removePaddingParagraphs(doc, src)
 	r.resolveMarkdownLinks(doc, input.path, col)
 	markHeadingNotes(doc)
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
@@ -515,8 +516,9 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
 	}
 
-	named := nameTaskLabels(buf.String(), marks.inline, page.lang)
+	named := nameTaskLabels(strings.ReplaceAll(buf.String(), "<u></u>", ""), marks.inline, page.lang)
 	htmlOut, blocks := substituteMarkedBlocks(named, marks)
+	marks.keepEffects(col)
 	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
 }
 
@@ -550,4 +552,28 @@ func removeBodyFirstH1(title, body string) (stripped, anchor string, dropped int
 		return body, "", -1
 	}
 	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), graph.SectionID(heading), i
+}
+
+// A paragraph whose only surviving source is invisible comment-role padding
+// carries no reading block. Other paragraphs keep the grammar's original role.
+func removePaddingParagraphs(doc ast.Node, source []byte) {
+	var empty []ast.Node
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
+		if !entering || n.Kind() != ast.KindParagraph {
+			return ast.WalkContinue, nil
+		}
+		var raw strings.Builder
+		for i := range n.Lines().Len() {
+			line := n.Lines().At(i)
+			raw.Write(line.Value(source))
+		}
+		value := raw.String()
+		if strings.Contains(value, "<u></u>") && strings.TrimSpace(strings.ReplaceAll(value, "<u></u>", "")) == "" {
+			empty = append(empty, n)
+		}
+		return ast.WalkContinue, nil
+	})
+	for _, n := range empty {
+		n.Parent().RemoveChild(n.Parent(), n)
+	}
 }

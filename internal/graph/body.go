@@ -108,6 +108,8 @@ type bodyFactsData struct {
 	htmlLimits        []CommentLimit
 	inlineNotes       []InlineFootnoteFact
 	commentFree       string
+	presentation      string
+	roleGaps          []string
 	comment           BodyComment
 	containerComments []BodyComment
 	structure         bodyStructure
@@ -227,6 +229,23 @@ func (f BodyFacts) CommentFree() string {
 		return ""
 	}
 	return f.data.commentFree
+}
+
+// PresentationSource retains invisible carriers only where hiding private
+// bytes would change an authored block's role. CommentFree contains no carriers.
+func (f BodyFacts) PresentationSource() string {
+	if f.data == nil {
+		return ""
+	}
+	return f.data.presentation
+}
+
+// PresentationRoleGaps yields all carriers absent from surviving authored text.
+func (f BodyFacts) PresentationRoleGaps() iter.Seq[string] {
+	if f.data == nil {
+		return bodyValues([]string(nil))
+	}
+	return bodyValues(f.data.roleGaps)
 }
 
 // UnclosedComment returns the original line of the strip's unpaired delimiter.

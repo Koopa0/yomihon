@@ -246,9 +246,9 @@ func TestAgreementStage4RemainingDebt(t *testing.T) {
 		authority string
 		wrong     string
 	}{
-		{name: "unused footnote P0", body: "[^unused]: [[A]]\n", want: []agreementFailure{{Property: "P0", Identity: "diagnostic-html", Tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, Direction: "diagnostic-only", Multiplicity: 1}}, authority: "#1011 stage 4", wrong: "page-diagnostic"},
+		{name: "unused footnote has no debt", body: "[^unused]: [[A]]\n"},
 		{name: "fence info has no debt", body: "``` [[A]]\n"},
-		{name: "multiline code P1 and P2", body: "`open\n[[A]]\nclose`", want: []agreementFailure{{Property: "P1", Identity: "citation-occurrences", Tuple: agreementCitation{Target: "A"}, Direction: "page-only", Multiplicity: 1}, {Property: "P2", Identity: "wikilink-in-code", Tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, Direction: "page-in-code", Multiplicity: 1}}, authority: "#1011 stage 4", wrong: "page"},
+		{name: "multiline code has no debt", body: "`open\n[[A]]\nclose`"},
 		{name: "duplicate heading P4", body: "## A\n## A\n", want: []agreementFailure{{Property: "P4", Identity: "literal-heading-id", Fragment: "a-2", Direction: "page-only", Multiplicity: 1, PagePresent: true}}, authority: "#1011 stage 8", wrong: "judge"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

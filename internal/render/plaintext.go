@@ -340,7 +340,6 @@ func (w *plainWalk) completedBlock(s string, start, end int) Block {
 	}
 
 	return Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading}
-
 }
 
 // localContextRanges keeps text between strike delimiters in its original
@@ -479,10 +478,10 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 // indented code block holds keeps its marker, because the page shows it as
 // written.
 func plainLine(line string, code bool, wikilinks *[][2]int) string {
-	if m := calloutStartPattern.FindStringSubmatch(line); m != nil && !code {
+	if _, _, title, ok := graph.CalloutStart(line); ok && !code {
 		// Drop the marker, keep the callout's title. The body lines that follow
 		// keep their quote marker and are collected as ordinary quoted text.
-		line = m[3]
+		line = title
 	}
 	return replaceWikilinksPlain(line, wikilinks)
 }

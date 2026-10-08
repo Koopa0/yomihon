@@ -225,9 +225,6 @@ func agreementKnownDifference(c agreementCase, failure *agreementFailure) (kind,
 		stage     int
 	}
 	witnesses := []witness{
-		{body: "[^unused]: [[A]]\n", property: "P0", identity: "diagnostic-html", tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, direction: "diagnostic-only", wrong: "page-diagnostic", stage: 4},
-		{body: "`open\n[[A]]\nclose`", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "A"}, direction: "page-only", wrong: "page", stage: 4},
-		{body: "`open\n[[A]]\nclose`", property: "P2", identity: "wikilink-in-code", tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, direction: "page-in-code", wrong: "page", stage: 4},
 		{body: "## A\n## A\n", property: "P4", identity: "literal-heading-id", fragment: "a-2", direction: "page-only", wrong: "judge", stage: 8},
 	}
 	for i := range witnesses {

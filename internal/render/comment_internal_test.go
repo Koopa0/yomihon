@@ -104,13 +104,11 @@ func TestStripObsidianCommentsReportsUnclosedLine(t *testing.T) {
 			want: "a ``x`y%%z`` b",
 		},
 		{
-			// The stated limit: this scan reads one line at a time, so a span
-			// the author spread over two is not one, and the marker inside it
-			// opens a comment for real.
-			name:     "span across lines is not a span",
-			body:     "`start\n%%end` after",
-			want:     "`start\n",
-			wantLine: 2,
+			// A wrapped span still shows its percent signs as code. Its physical
+			// line break cannot turn quotation into a private comment.
+			name: "wrapped code keeps percent signs literal",
+			body: "`start\n%%end` after",
+			want: "`start\n%%end` after",
 		},
 		{
 			// A backtick that never meets its match is ordinary text, and the

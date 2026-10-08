@@ -2,7 +2,6 @@ package render
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,20 +14,12 @@ import (
 // line as code depends on the container around it, which only a parse knows,
 // so each reader asks its parser for the indented code lines before treating a
 // match as a callout.
-var (
-	calloutStartPattern = regexp.MustCompile(`^\s*>\s*\[!([A-Za-z0-9_-]+)\]([+-]?)\s?(.*)$`)
-	quotePrefix         = graph.QuotePrefix
-)
+var quotePrefix = graph.QuotePrefix
 
-// calloutStart reports whether line opens an Obsidian callout block, optionally
-// with the "-"/"+" that makes it foldable, and if so its lowercased type, fold
-// suffix, and any inline title text.
+// calloutStart borrows the grammar whose opening line consumes a literal title.
 func calloutStart(line string) (typ, fold, title string, ok bool) {
-	m := calloutStartPattern.FindStringSubmatch(line)
-	if m == nil {
-		return "", "", "", false
-	}
-	return strings.ToLower(m[1]), m[2], strings.TrimSpace(m[3]), true
+	typ, fold, title, ok = graph.CalloutStart(line)
+	return typ, fold, strings.TrimSpace(title), ok
 }
 
 // IsCalloutOpening reports whether line has callout opening syntax, including

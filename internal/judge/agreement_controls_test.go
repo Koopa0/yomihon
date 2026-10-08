@@ -2,8 +2,11 @@ package judge_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"flag"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,6 +19,8 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
+
+var agreementMinimizerFault = flag.Bool("agreement-minimizer-fault", false, "run the reducer against an intentional code-recognition fault")
 
 // The corpus's existence comparison cannot detect an excerpt that silently
 // widens while still returning true. These independent literals lock its cut.
@@ -758,9 +763,9 @@ func TestAgreementWitnessControls(t *testing.T) {
 		body  string
 		known int
 	}{
-		{name: "unused-footnote-2-0332", body: "[^unused]: [[A]]\n", known: 1},
+		{name: "unused-footnote-2-0332", body: "[^unused]: [[A]]\n", known: 0},
 		{name: "fence-info-2-0984", body: "``` [[A]]\n", known: 0},
-		{name: "multiline-code-1-1357", body: "`open\n[[A]]\nclose`", known: 2},
+		{name: "multiline-code-1-1357", body: "`open\n[[A]]\nclose`", known: 0},
 		{name: "duplicate-heading-3-1181", body: "## A\n## A\n", known: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -809,6 +814,10 @@ func TestAgreementWitnessControls(t *testing.T) {
 }
 
 func TestAgreementMinimizerControls(t *testing.T) {
+	if !*agreementMinimizerFault {
+		agreementMinimizerFaultControl(t)
+		return
+	}
 	c := agreementCase{
 		Name:       "reducer-selected-code-occurrence",
 		Body:       "unrelated prefix\n\n`open\n[[A]]\nclose`\n\nunrelated suffix\n",
@@ -873,6 +882,55 @@ func TestAgreementMinimizerControls(t *testing.T) {
 			t.Errorf("caught: minimizer-original-defect-switch body=%q candidates=%d checks=%d stop=%q", body, candidates, checks, stop)
 		}
 	})
+	t.Logf("AGREEMENT-SOURCE-CONSUMED sha256=%s", agreementMutationSourceDigest(t, *agreementSource))
+	t.Log("AGREEMENT-MINIMIZER-CONTROL preserved-target-and-context")
+}
+
+// The reducer needs a real difference to preserve even after code recognition
+// is repaired. A compiler overlay restores that difference without changing
+// the production tree or weakening any of the reducer's observations.
+func agreementMinimizerFaultControl(t *testing.T) {
+	t.Helper()
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatalf("not-applied: minimizer repository root: %v", err)
+	}
+	mode := agreementMutation{Name: "minimizer-code", File: "internal/render/wikilink.go", Function: "convertWikilinks", Needle: "return replaceOutside(text, spans, wikilinkToken,", Fault: "return replaceOutside(text, nil, wikilinkToken,"}
+	overlay := agreementMutationOverlay(t, root, &mode, true)
+	compile := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-short", "-run=^$", "./internal/judge")
+	if compile.Status != 0 {
+		t.Fatalf("not-applied: minimizer compiling fault status=%d\n%s", compile.Status, compile.Output)
+	}
+	source := agreementMutationSource(t, overlay)
+	child := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-short", "-count=1", "-json", "-run=^TestAgreementMinimizerControls$", "./internal/judge", "-args", "-agreement-minimizer-fault", "-agreement-source="+source)
+	output, terminal := agreementMinimizerReceipt(t, child.Output)
+	if child.Status != 0 || !terminal || !strings.Contains(output, "AGREEMENT-SINK minimizer-code/red") || !strings.Contains(output, "AGREEMENT-MINIMIZER-CONTROL preserved-target-and-context") || !agreementSourceReceipt(output, agreementMutationSourceDigest(t, source)) {
+		t.Fatalf("caught: minimizer fault qualification status=%d\n%s", child.Status, child.Output)
+	}
+	t.Logf("minimizer intentional fault status=%d\n%s", child.Status, child.Output)
+}
+
+func agreementMinimizerReceipt(t *testing.T, output []byte) (string, bool) {
+	t.Helper()
+	var text strings.Builder
+	terminal := false
+	for line := range bytes.SplitSeq(output, []byte{'\n'}) {
+		if len(line) == 0 {
+			continue
+		}
+		var event struct{ Action, Test, Output string }
+		if err := json.Unmarshal(line, &event); err != nil {
+			t.Fatalf("not-applied: minimizer child receipt: %v", err)
+		}
+		if strings.Contains(event.Output, "not-applied") || event.Action == "fail" {
+			t.Fatalf("caught: minimizer child failed: %s", line)
+		}
+		if event.Test == "TestAgreementMinimizerControls" {
+			text.WriteString(event.Output)
+			terminal = terminal || event.Action == "pass"
+		}
+	}
+	return text.String(), terminal
 }
 
 func TestAgreementMinimizerFragmentContext(t *testing.T) {

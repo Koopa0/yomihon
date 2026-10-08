@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -15,12 +16,41 @@ import (
 // that answer to the note's own source rather than to rendered HTML, because an
 // embed slices the file's own bytes.
 
-// indentedCodeLines reports the transformed presentation lines held by an
-// indented code block. The canonical grammar resolves list indentation and
-// footnote paragraphs; this presentation pass does not strip or expand again.
-// The dialect pass separately tracks fences and its line-local code spans.
-func (r *Pipeline) indentedCodeLines(body string) map[int]bool {
-	return codeBlockLines(body)
+// presentationCodeLines maps the shared grammar's quoted regions onto the
+// exact lines the dialect converter will read. Inline spans may cross lines;
+// fence content is distinguished from its info and closing delimiters.
+func presentationCodeLines(body string) map[int]presentationCodeLine {
+	lines := strings.Split(body, "\n")
+	codeLines := make(map[int]presentationCodeLine)
+	starts := make([]int, len(lines))
+	for i := 1; i < len(lines); i++ {
+		starts[i] = starts[i-1] + len(lines[i-1]) + 1
+	}
+	for code := range graph.PresentationCodes(body) {
+		first := sort.Search(len(lines), func(i int) bool { return starts[i]+len(lines[i]) > code.Span.Start })
+		for i := first; i < len(lines) && starts[i] < code.Span.Stop; i++ {
+			line, at := lines[i], starts[i]
+			end := at + len(line)
+			if at < code.Span.Stop && end > code.Span.Start {
+				reading := codeLines[i]
+				reading.spans = append(reading.spans, [2]int{max(0, code.Span.Start-at), min(len(line), code.Span.Stop-at)})
+				if code.Kind != graph.CodeInline {
+					reading.block = true
+					reading.indented = code.Kind == graph.CodeIndent
+				}
+				if code.Kind == graph.CodeFence && at >= code.Opener.Stop && (code.Closer.Zero() || at < code.Closer.Start) {
+					reading.fenceContent = true
+				}
+				codeLines[i] = reading
+			}
+		}
+	}
+	return codeLines
+}
+
+type presentationCodeLine struct {
+	spans                         [][2]int
+	block, indented, fenceContent bool
 }
 
 // codeBlockLines puts canonical indented-code facts onto body's own lines.
@@ -220,7 +250,7 @@ func ledeBeforeHeading(lines []string, first int) bool {
 func Excerpt(body, fragment string) (slice string, found bool) {
 	stripped, _ := stripBody(body)
 	slice, matches := excerptOf(stripped, fragment)
-	return slice, matches > 0
+	return stripped.sourceSlice(slice), matches > 0
 }
 
 // ExcerptPreview is the hover card's reading of the same address Excerpt
@@ -234,10 +264,10 @@ func ExcerptPreview(body, fragment string) (slice string, found, narrowed bool) 
 	stripped, _ := stripBody(body)
 	if fragment == "" {
 		slice, narrowed = ledeSlice(stripped.text)
-		return slice, true, narrowed
+		return stripped.sourceSlice(slice), true, narrowed
 	}
 	slice, matches := excerptOf(stripped, fragment)
-	return slice, matches > 0, false
+	return stripped.sourceSlice(slice), matches > 0, false
 }
 
 // excerptOf is the one cut every excerpt is made with, over a body whose

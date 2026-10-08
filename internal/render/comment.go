@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -9,14 +10,16 @@ import (
 
 // strippedBody keeps the one strip's text beside authored line geometry.
 type strippedBody struct {
-	text    string
-	address []string
+	text     string
+	address  []string
+	roleGaps []string
 }
 
 // stripBody hides body's comments and retains original diagnostic coordinates.
 func stripBody(body string) (stripped strippedBody, report commentReport) {
-	text, report := stripObsidianComments(body)
-	return strippedBody{text: text, address: BlockAddressLines(strings.Split(body, "\n"), text)}, report
+	facts := graph.ReadBody(body)
+	text := facts.PresentationSource()
+	return strippedBody{text: text, address: BlockAddressLines(strings.Split(body, "\n"), text), roleGaps: slices.Collect(facts.PresentationRoleGaps())}, bodyCommentReport(facts)
 }
 
 // commentReport distinguishes container silence from a body-wide remainder.
@@ -33,12 +36,16 @@ type unclosedComment struct {
 // stripObsidianComments delegates the single graph-owned strip protocol.
 func stripObsidianComments(body string) (stripped string, report commentReport) {
 	facts := graph.ReadBody(body)
+	return facts.CommentFree(), bodyCommentReport(facts)
+}
+
+func bodyCommentReport(facts graph.BodyFacts) (report commentReport) {
 	comment := facts.UnclosedComment()
 	report.bodywide = unclosedComment{line: comment.Line, marker: comment.Marker}
 	for container := range facts.ContainerUnclosedComments() {
 		report.containers = append(report.containers, unclosedComment{line: container.Line, marker: container.Marker})
 	}
-	return facts.CommentFree(), report
+	return report
 }
 
 // htmlCommentCode protects a bounded raw-markup presentation fragment using
@@ -77,4 +84,11 @@ func commentDiagnostics(report commentReport) []Diagnostic {
 		diagnostics = append(diagnostics, unclosedCommentDiagnostic(report.bodywide))
 	}
 	return diagnostics
+}
+
+func (s strippedBody) sourceSlice(value string) string {
+	for _, gap := range s.roleGaps {
+		value = strings.ReplaceAll(value, gap, "")
+	}
+	return value
 }

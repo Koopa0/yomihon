@@ -7,7 +7,7 @@ import (
 )
 
 // bodyPiece maps copied bytes with slope one. Padding and renderer-owned
-// labels have origin -1 and cannot manufacture an authored source identity.
+// labels have negative origins and cannot manufacture an authored identity.
 type bodyPiece struct {
 	start  int
 	stop   int
@@ -15,8 +15,9 @@ type bodyPiece struct {
 }
 
 type bodyProjection struct {
-	text   string
-	pieces []bodyPiece
+	text     string
+	pieces   []bodyPiece
+	roleGaps []string
 }
 
 func originalBody(body string) bodyProjection {
@@ -56,8 +57,67 @@ func (w *bodyProjectionWriter) synthetic(value string) {
 	w.pieces = append(w.pieces, bodyPiece{start: start, stop: w.text.Len(), origin: -1})
 }
 
+// CommentRoleBlockPrefix identifies a private carrier for an authored raw block.
+const CommentRoleBlockPrefix = "<!--yomihon-role-gap"
+
+// rolePadding carries no authored identity or words. Empty inline formatting
+// keeps a hidden prose prefix nonblank; a closed HTML comment keeps a raw block.
+func (w *bodyProjectionWriter) rolePadding(value string) {
+	start := w.text.Len()
+	w.text.WriteString(value)
+	w.pieces = append(w.pieces, bodyPiece{start: start, stop: w.text.Len(), origin: -2})
+}
+
 func (w *bodyProjectionWriter) projection() bodyProjection {
 	return bodyProjection{text: w.text.String(), pieces: w.pieces}
+}
+
+func (p bodyProjection) withoutRolePadding() string {
+	var out strings.Builder
+	for _, piece := range p.pieces {
+		if piece.origin != -2 {
+			out.WriteString(p.text[piece.start:piece.stop])
+		}
+	}
+	return out.String()
+}
+
+// roleProjection chooses a carrier absent from every surviving authored byte,
+// so source-returning consumers can remove it without guessing among copies.
+func (w *bodyProjectionWriter) roleProjection() bodyProjection {
+	p := w.projection()
+	plain := p.withoutRolePadding()
+	gap := "<u></u>"
+	for strings.Contains(plain, gap) {
+		gap += gap
+	}
+	blockName := "yomihon-role-gap"
+	blockGap := "<!--" + blockName + "-->"
+	for strings.Contains(plain, blockGap) {
+		blockName += blockName
+		blockGap = "<!--" + blockName + "-->"
+	}
+	var out bodyProjectionWriter
+	var gaps []string
+	for _, piece := range p.pieces {
+		value := p.text[piece.start:piece.stop]
+		if piece.origin == -2 {
+			if value == "<!---->" {
+				value = blockGap
+			} else {
+				value = gap
+			}
+			if !slices.Contains(gaps, value) {
+				gaps = append(gaps, value)
+			}
+		}
+		start := out.text.Len()
+		out.text.WriteString(value)
+		out.pieces = append(out.pieces, bodyPiece{start: start, stop: out.text.Len(), origin: piece.origin})
+	}
+	result := out.projection()
+	result.roleGaps = gaps
+	return result
 }
 
 func (p bodyProjection) originalOffset(offset int) (int, bool) {
@@ -109,7 +169,7 @@ type bodyReading struct {
 }
 
 func projectedBodyFacts(reading *bodyReading) *bodyFactsData {
-	facts := &bodyFactsData{source: reading.source, comments: reading.comments, commentFree: reading.admissionBody.text, comment: reading.unclosed, containerComments: slices.Clone(reading.containers)}
+	facts := &bodyFactsData{source: reading.source, comments: reading.comments, commentFree: reading.admissionBody.withoutRolePadding(), presentation: reading.admissionBody.text, roleGaps: slices.Clone(reading.admissionBody.roleGaps), comment: reading.unclosed, containerComments: slices.Clone(reading.containers)}
 	facts.projectFootnotes(reading.bootstrap, reading.authority, reading.expanded)
 	facts.projectCodes(reading.authority, reading.expanded)
 	facts.projectProse(reading.authority, reading.expanded)
