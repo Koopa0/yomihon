@@ -9,7 +9,9 @@ const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/Practice%
 const MUTATE = process.env.MUTATE || '';
 const MODE = 'move-region-below-paragraph-return';
 const LANGUAGE_MODE = 'inherit-authored-language';
-const MODES = [MODE, LANGUAGE_MODE];
+const NULL_MODE = 'append-null-status';
+const MODES = [MODE, LANGUAGE_MODE, NULL_MODE];
+const NULL_GUARD = '    if (speechStatus) toolbar.append(speechStatus);\n';
 const LANGUAGE = "      speechStatus.setAttribute('lang', document.documentElement.lang);\n";
 const STATUS = '.y-ttsbar__status';
 const CARD = '[data-slot-action="speak"]';
@@ -67,6 +69,43 @@ async function observePractice(page) {
       }).observe(document.body, { childList: true, subtree: true });
     });
   });
+}
+async function documentWithoutColumn(browser, width, language, theme) {
+  const context = await browser.newContext({ viewport: { width, height: 800 } });
+  try {
+    await context.addCookies([
+      { name: 'yomihon_lang', value: language, url: BASE },
+      { name: 'yomihon_theme', value: theme, url: BASE },
+    ]);
+    const page = await context.newPage();
+    await installSpeechVoices(page, { record: true });
+    let requests = 0;
+    let matches = 0;
+    if (MUTATE === NULL_MODE) {
+      await page.route('**/lesson.js{,?*}', async (route) => {
+        const response = await route.fetch();
+        const original = await response.text();
+        requests += 1;
+        matches = original.split(NULL_GUARD).length - 1;
+        await route.fulfill({ response, body: matches === 1
+          ? original.replace(NULL_GUARD, '    toolbar.append(speechStatus);\n') : original });
+      });
+    }
+    const response = await page.goto(BASE + '/notes/System/templates/Speech%20document.md', { waitUntil: 'networkidle' });
+    setup(response?.status() === 200 && await page.locator('[data-tts]').count() === 1
+      && await page.locator('[data-readaloud-controls]').count() === 0,
+      'document fixture must have a speaker and no read-aloud column');
+    if (MUTATE === NULL_MODE) {
+      setup(requests === 1 && matches === 1, `not-applied requests=${requests} matches=${matches}`);
+      applied = true;
+      console.log(`MUTATE-APPLIED: ${NULL_MODE} requests=1 matches=1`);
+    }
+    const text = await page.locator('.y-ttsbar').textContent();
+    hit = true;
+    check(!text.includes('null'), 'document-status', `${width}/${language}/${theme} document toolbar contains null: ${text}`);
+  } finally {
+    await context.close();
+  }
 }
 async function noLocalVoice(browser, width, language, theme) {
   const context = await browser.newContext({ viewport: { width, height: 800 } });
@@ -250,6 +289,7 @@ try {
   for (const width of [1280, 390]) {
     for (const language of ['zh-Hant', 'en']) {
       for (const theme of ['light', 'dark']) {
+        await documentWithoutColumn(browser, width, language, theme);
         await noLocalVoice(browser, width, language, theme);
         const context = await browser.newContext({ viewport: { width, height: 800 } });
         await context.addCookies([
@@ -316,7 +356,8 @@ try {
   if (error instanceof LockFired && error.site === 'practice-unavailable' && hit && (!MUTATE || applied)) {
     console.log('caught: read-aloud-status practice-unavailable');
   }
-  const intended = MUTATE === MODE ? 'practice-no-local-voice' : 'composition-initial';
+  const intended = MUTATE === MODE ? 'practice-no-local-voice'
+    : MUTATE === NULL_MODE ? 'document-status' : 'composition-initial';
   if (MUTATE && error instanceof LockFired && error.site === intended && applied && hit) {
     console.log(`MUTATE-RESULT: caught ${MUTATE}`);
     process.exitCode = 1;
