@@ -184,3 +184,42 @@ func TestPageDisplayGrammar(t *testing.T) {
 		}
 	})
 }
+
+func TestTaskRoleProjectionKeepsCorpusAndChangesOnlyDisplay(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ name, body, plain, shown string }{
+		{name: "issue rows", body: "- [x] Task {sequence=local}\n- Plain row {sequence=local}\n", plain: "Task {sequence=local}\nPlain row {sequence=local}", shown: "Task\nPlain row"},
+		{name: "primary", body: "- [ ] Task {sequence=primary}\n- Plain {sequence=primary}", plain: "Task {sequence=primary}\nPlain {sequence=primary}", shown: "Task\nPlain"},
+		{name: "none", body: "- [/] Task {sequence=none}\n- Plain {sequence=none}", plain: "Task {sequence=none}\nPlain {sequence=none}", shown: "Task\nPlain"},
+		{name: "loose", body: "- [x] Task {sequence=local}\n\n- Plain {sequence=local}", plain: "Task {sequence=local}\nPlain {sequence=local}", shown: "Task\nPlain"},
+		{name: "nested", body: "- [ ] Parent {sequence=primary}\n  - [x] Child {sequence=local}", plain: "Parent {sequence=primary}\nChild {sequence=local}", shown: "Parent\nChild"},
+		{name: "ordered", body: "1. [x] First {sequence=none}\n2. [ ] Second {sequence=local}", plain: "First {sequence=none}\nSecond {sequence=local}", shown: "First\nSecond"},
+		{name: "second paragraph", body: "- [x] Own {sequence=local}\n\n  Another paragraph {sequence=local}", plain: "Own {sequence=local}\nAnother paragraph {sequence=local}", shown: "Own\nAnother paragraph {sequence=local}"},
+		{name: "soft continuation", body: "- [ ] Own\n  continuation {sequence=local}", plain: "Own\ncontinuation {sequence=local}", shown: "Own\ncontinuation {sequence=local}"},
+		{name: "formatted wording", body: "- [x] **Own** {sequence=local}", plain: "Own {sequence=local}", shown: "Own"},
+		{name: "code quotation", body: "- [x] Task `{sequence=local}`", plain: "Task {sequence=local}", shown: "Task {sequence=local}"},
+		{name: "emphasis quotation", body: "- [x] *Task {sequence=local}*", plain: "Task {sequence=local}", shown: "Task {sequence=local}"},
+		{name: "link quotation", body: "- [x] [Task {sequence=local}](https://example.test/)", plain: "Task {sequence=local}", shown: "Task {sequence=local}"},
+		{name: "unknown", body: "- [x] Task {sequence=supplementary}", plain: "Task {sequence=supplementary}", shown: "Task {sequence=supplementary}"},
+		{name: "duplicate", body: "- [x] Task {sequence=primary} {sequence=local}", plain: "Task {sequence=primary} {sequence=local}", shown: "Task {sequence=primary} {sequence=local}"},
+		{name: "incomplete", body: "- [x] Task {sequence=local", plain: "Task {sequence=local", shown: "Task {sequence=local"},
+		{name: "nonterminal", body: "- [x] Task {sequence=local} tail", plain: "Task {sequence=local} tail", shown: "Task {sequence=local} tail"},
+		{name: "marker only", body: "- [x] {sequence=local}", plain: "{sequence=local}", shown: "{sequence=local}"},
+		{name: "fenced", body: "```\n- [x] Task {sequence=local}\n```", plain: "- [x] Task {sequence=local}", shown: "- [x] Task {sequence=local}"},
+		{name: "non-list", body: "[x] Task {sequence=local}", plain: "[x] Task {sequence=local}", shown: "[x] Task {sequence=local}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			projection := PlainProjection(tt.body)
+			t.Logf("invoked: task-role-projection %s", tt.name)
+			if projection.Text != tt.plain {
+				t.Fatalf("caught: task role corpus = %q, want %q", projection.Text, tt.plain)
+			}
+			shown, deleted := projectionDisplay(t, &projection)
+			if shown != tt.shown || deleted != "" {
+				t.Errorf("caught: task role excerpt display = %q deleted=%q, want %q deleted empty", shown, deleted, tt.shown)
+			}
+		})
+	}
+}
