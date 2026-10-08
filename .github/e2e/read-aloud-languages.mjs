@@ -1,11 +1,12 @@
 // The initialized lesson hands each authored language to the utterance sink.
 // Controlled speech events prove page recovery, not an installed audible voice.
 import { chromium } from 'playwright-core';
+import { installSpeechVoices } from './support/speech-voices.mjs';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9946';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/languages/Read%20aloud.md';
 const MUTATE = process.env.MUTATE || '';
-const PASSAGES = [['ja', '朝です。'], ['zh-Hant', '早安。'], ['en', 'Good morning.'], ['fr', 'Bonjour.'], ['und', 'Neutral words.']];
+const PASSAGES = [['ja', '朝です。'], ['zh-Hant', '早安。'], ['en', 'Good morning.'], ['fr', 'Bonjour.'], ['und', 'Neutral words.'], ['und-Latn', 'Undetermined Latin words.']];
 const SITES = ['wrapper-language', 'paragraph-language', 'control-language', 'utterance-language', 'explicit-und', 'unavailable-message', 'error-ends-run', 'error-resets-speaker'];
 class LockFired extends Error {
   constructor(site, message) { super(`FAIL read-aloud-languages: ${message}`); this.site = site; }
@@ -76,6 +77,7 @@ try {
     await context.addCookies([{ name: 'yomihon_lang', value: lang, url: BASE }]);
     const page = await context.newPage();
     await page.route('**/*', (route) => route.request().method() === 'GET' ? route.continue() : route.abort());
+    await installSpeechVoices(page);
     await page.addInitScript(installSpeech);
     const proof = MUTATE && lang === 'zh-Hant' ? await MUTATIONS[MUTATE].apply(page) : null;
     const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
@@ -86,7 +88,7 @@ try {
       wrapper: element.lang, paragraph: element.querySelector('p')?.lang,
       control: element.querySelector('button')?.lang, label: element.querySelector('button')?.getAttribute('aria-label'),
     })));
-    if (blocks.length !== PASSAGES.length) throw new Error(`fixture produced ${blocks.length} blocks, want 5`);
+    if (blocks.length !== PASSAGES.length) throw new Error(`fixture produced ${blocks.length} blocks, want ${PASSAGES.length}`);
     for (const [index, [tag]] of PASSAGES.entries()) {
       if (blocks[index].wrapper !== tag) fail('wrapper-language', `wrapper ${index} is ${blocks[index].wrapper}, want ${tag}`);
       if (blocks[index].paragraph !== tag) fail('paragraph-language', `paragraph ${index} is ${blocks[index].paragraph}, want ${tag}`);
@@ -101,11 +103,11 @@ try {
     for (const [index, expected] of PASSAGES.entries()) {
       const utterances = await heard(page);
       const actual = utterances[index];
-      const site = expected[0] === 'und' ? 'explicit-und' : 'utterance-language';
+      const site = expected[0].split('-')[0] === 'und' ? 'explicit-und' : 'utterance-language';
       if (!actual || actual[0] !== expected[0] || actual[1] !== expected[1]) fail(site, `actual utterance ${index} = ${JSON.stringify(actual)}, want ${JSON.stringify(expected)}`);
       await page.evaluate(() => window.__utterances.at(-1).dispatchEvent(new Event('end')));
     }
-    if ((await state(page)).spoken !== 5) throw new Error('play-through repeated or omitted a paragraph');
+    if ((await state(page)).spoken !== PASSAGES.length) throw new Error('play-through repeated or omitted a paragraph');
     await page.click('.y-ttsbar__play');
     await page.evaluate(() => {
       window.__announcements = [];
@@ -120,7 +122,7 @@ try {
     if (afterError.status !== unavailable) fail('unavailable-message', `error says ${JSON.stringify(afterError.status)}, want ${unavailable}`);
     const announcements = await page.evaluate(() => window.__announcements);
     if (announcements.filter((entry) => entry === unavailable).length !== 1) fail('unavailable-message', `error announced ${JSON.stringify(announcements)}, want one unavailable message`);
-    if (afterError.running !== 'false' || afterError.spoken !== 6) fail('error-ends-run', `error left run active or advanced: ${JSON.stringify(afterError)}`);
+    if (afterError.running !== 'false' || afterError.spoken !== PASSAGES.length + 1) fail('error-ends-run', `error left run active or advanced: ${JSON.stringify(afterError)}`);
     if (afterError.marked !== 0 || afterError.speaking !== 0 || afterError.idle !== idle) fail('error-resets-speaker', `error left active state: ${JSON.stringify(afterError)}`);
     // An error ends one generation. Replay and stale events use the real owner.
     await page.click('[data-tts]');
@@ -134,7 +136,7 @@ try {
       window.__utterances.at(-2).dispatchEvent(new Event('error'));
     });
     const replayState = await state(page);
-    if (replayState.spoken !== 8 || replayState.speaking !== 1 || replayState.marked !== 1) throw new Error('cancelled generation changed replay');
+    if (replayState.spoken !== PASSAGES.length + 3 || replayState.speaking !== 1 || replayState.marked !== 1) throw new Error('cancelled generation changed replay');
     await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
     if (await page.evaluate(() => window.__cancels) !== cancels + 2) throw new Error('page disposal did not reach speech cancel');
     await context.close();
