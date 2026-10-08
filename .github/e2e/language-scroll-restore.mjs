@@ -160,21 +160,273 @@ const declaredNavigationTransitions = () => {
   return { readable, found };
 };
 
+// This receipt is supplementary: it never supplies an assertion or a catch.
+const captureSwitch = (page) => {
+  const requests = new Map();
+  const records = [];
+  const navigationIDs = new Set();
+  const errors = [];
+  const lost = { requests: 0, records: 0, errors: 0, strings: 0 };
+  let active = true;
+  let order = 0;
+  let budgetHit = false;
+  const text = (value) => {
+    if (value == null) return null;
+    let kept = '';
+    for (const character of String(value)) {
+      if (Buffer.byteLength(kept + character, 'utf8') > 512) {
+        lost.strings += 1;
+        return { value: kept, truncated: true };
+      }
+      kept += character;
+    }
+    return { value: kept, truncated: false };
+  };
+  const address = (value) => {
+    try {
+      const url = new URL(value, BASE);
+      if (url.origin !== new URL(BASE).origin) return { withheld: 'outside fixture origin' };
+      return text(url.pathname + url.search + url.hash);
+    } catch { return { unreadable: 'invalid address' }; }
+  };
+  const put = (kind, record, transport = navigationIDs.has(record.id)) => {
+    const next = { order: ++order, nodeTime: performance.now(), kind, ...record };
+    if (Buffer.byteLength(JSON.stringify({ records: [...records, next], errors }), 'utf8') > (transport ? 8192 : 4096)) {
+      budgetHit = true;
+      lost.records += 1;
+      return;
+    }
+    records.push(next);
+  };
+  const idOf = (request) => requests.get(request) ?? null;
+  const onRequest = (request) => {
+    if (!active) return;
+    try {
+      const url = new URL(request.url());
+      if (url.origin !== new URL(BASE).origin ||
+          (!request.isNavigationRequest() && request.resourceType() !== 'script')) return;
+      if (requests.size >= 64) { lost.requests += 1; return; }
+      const id = requests.size + 1;
+      requests.set(request, id);
+      if (request.isNavigationRequest()) navigationIDs.add(id);
+      let mainFrame = null;
+      try { mainFrame = request.frame() === page.mainFrame(); } catch { /* No inferred frame. */ }
+      const record = { id, address: address(request.url()), method: text(request.method()),
+        resource: text(request.resourceType()), mainFrame, redirectedFrom: request.redirectedFrom() ? (idOf(request.redirectedFrom()) ?? 'unrecorded predecessor') : null };
+      if (request.method() === 'POST' && url.pathname === '/lang') {
+        const body = request.postData();
+        if (body === null) record.form = { unreadable: 'body absent' };
+        else if (Buffer.byteLength(body, 'utf8') > 4096) record.form = { truncated: true, unreadable: 'body exceeds 4096 bytes' };
+        else {
+          const form = new URLSearchParams(body);
+          record.form = Object.fromEntries(['lang', 'next'].map((name) => {
+            const values = form.getAll(name);
+            return [name, { count: values.length, first: text(values[0]), repeated: values.length > 1 }];
+          }));
+        }
+      }
+      put('request', record);
+    } catch { put('request-unreadable', { reason: 'request metadata unavailable' }); }
+  };
+  const onResponse = (response) => {
+    if (!active) return;
+    const id = idOf(response.request());
+    if (id === null) return;
+    try {
+      const location = response.headers().location;
+      put('response', { id, status: response.status(), location: location == null ? null : { raw: text(location), resolved: address(location) } });
+    } catch { put('response-unreadable', { id }); }
+  };
+  const onFinished = (request) => { if (active && idOf(request) !== null) put('finished', { id: idOf(request) }); };
+  const onFailed = (request) => {
+    if (active && idOf(request) !== null) put('failed', { id: idOf(request), reason: text(request.failure()?.errorText) });
+  };
+  const onFrame = (frame) => {
+    if (active && frame === page.mainFrame()) put('main-frame-commit', { address: address(frame.url()) }, true);
+  };
+  const onError = (error) => {
+    if (!active) return;
+    if (errors.length >= 8) { lost.errors += 1; return; }
+    const record = { order: ++order, nodeTime: performance.now(), name: text(error.name), message: text(error.message) };
+    if (Buffer.byteLength(JSON.stringify({ records, errors: [...errors, record] }), 'utf8') > 4096) {
+      budgetHit = true; lost.errors += 1; return;
+    }
+    errors.push(record);
+  };
+  const listeners = { request: onRequest, response: onResponse, requestfinished: onFinished,
+    requestfailed: onFailed, framenavigated: onFrame, pageerror: onError };
+  for (const [event, listener] of Object.entries(listeners)) {
+    listeners[event] = (...args) => {
+      try { listener(...args); } catch { lost.records += 1; }
+    };
+    page.on(event, listeners[event]);
+  }
+  return {
+    stop: () => {
+      active = false;
+      for (const [event, listener] of Object.entries(listeners)) page.removeListener(event, listener);
+    },
+    receipt: () => ({ records, errors, lost, budgetHit,
+      storageBudgetBytes: 8192, nonNavigationBudgetBytes: 4096,
+      documentGap: 'intermediate document buffers not sampled before replacement may be lost',
+      clockScope: 'Node receipt order and per-document time are separate clocks' }),
+  };
+};
+
+let switchPage;
+let capture;
+let switchBefore;
+let switchAfter;
+const selectedDiagnosticText = (value) => {
+  if (value == null) return null;
+  let kept = '';
+  for (const character of String(value)) {
+    if (Buffer.byteLength(kept + character, 'utf8') > 512) return Object.freeze({ value: kept, truncated: true });
+    kept += character;
+  }
+  return kept;
+};
+const switchFailureIdentity = (error) => {
+  const snapshot = (value) => Object.freeze({
+    y: value?.y ?? null,
+    lang: selectedDiagnosticText(value?.lang),
+  });
+  return Object.freeze({
+    mode: MUTATE || 'plain', target: MUTATE ? MUTATIONS[MUTATE].target : null,
+    failedSite: error.site, originalFailure: selectedDiagnosticText(error.message),
+    before: snapshot(switchBefore), failure: snapshot(switchAfter),
+  });
+};
+
+const printSwitchFailure = async (identity, browser) => {
+  const supplemental = [];
+  let deadline = false;
+  let timer;
+  try {
+    const read = switchPage.evaluate(async () => {
+      const sample = () => ({ y: window.scrollY, lang: document.documentElement.getAttribute('lang'),
+        diagnostic: window.__switchDiagnostic?.snapshot() ?? { unreadable: 'document observer absent' } });
+      const immediate = sample();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return [immediate, sample()];
+    }).then((samples) => ({ samples }), () => ({ unreadable: 'supplemental document unavailable' }));
+    const outcome = await Promise.race([read, new Promise((resolve) => {
+      timer = setTimeout(() => { deadline = true; resolve({ unreadable: 'supplemental 1500ms deadline' }); }, 1500);
+    })]);
+    if (outcome.samples) supplemental.push(...outcome.samples);
+    else supplemental.push({ unreadable: outcome.unreadable });
+  } catch { supplemental.push({ unreadable: 'supplemental capture unavailable' }); }
+  finally { clearTimeout(timer); capture?.stop(); }
+  const project = (snapshot) => snapshot ? { ...snapshot, lang: selectedDiagnosticText(snapshot.lang) } : null;
+  const receipt = {
+    ...identity, browserVersion: selectedDiagnosticText(browser.version()),
+    before: { ...identity.before, diagnostic: switchBefore?.diagnostic ?? null },
+    failure: { ...identity.failure, diagnostic: switchAfter?.diagnostic ?? null },
+    supplemental: supplemental.map(project), deadline, passive: capture?.receipt() ?? { unreadable: 'capture absent' },
+    limits: { stringUTF8Bytes: 512, requests: 64, documentEvents: 64, errors: 8,
+      supplemental: 2, storageBytes: 24576, jsonLineBytes: 32768 },
+    limitations: 'native events/transfer completion do not prove initializer execution or identify scroll callers',
+    storageTruncated: false,
+  };
+  // Reserve immutable assertion identity and y/lang first, discard optional
+  // event buffers rather than clip JSON or replace the original verdict.
+  const trimSnapshot = (snapshot) => {
+    if (!snapshot?.diagnostic) return;
+    snapshot.diagnostic.events = [];
+    snapshot.diagnostic.outputTruncated = true;
+  };
+  if (Buffer.byteLength(JSON.stringify(receipt), 'utf8') > 24576) {
+    receipt.storageTruncated = true;
+    for (const snapshot of [receipt.before, receipt.failure, ...receipt.supplemental]) trimSnapshot(snapshot);
+    receipt.passive.records = [];
+    receipt.passive.errors = [];
+    receipt.passive.outputTruncated = true;
+  }
+  const prefix = 'DIAGNOSTIC language-scroll-restore: ';
+  if (Buffer.byteLength(prefix + JSON.stringify(receipt), 'utf8') > 32768) {
+    console.error(prefix + JSON.stringify({ ...identity,
+      unreadable: 'diagnostic output budget exceeded', storageTruncated: true }));
+  } else console.error(prefix + JSON.stringify(receipt));
+};
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  switchPage = page;
+  capture = captureSwitch(page);
   // Every document this page receives records its own arrival, from inside,
   // before anything else runs: whether it was revealed at all, and whether it
   // arrived inside a transition. Nothing outside the document can ask this
   // afterwards — the announcement has already been made or already been missed.
-  await page.addInitScript(() => {
+  await page.addInitScript((notePath) => {
     window.__arrival = { reveal: false, transition: false };
     window.addEventListener('pagereveal', (event) => {
       window.__arrival.reveal = true;
       window.__arrival.transition = Boolean(event.viewTransition);
     }, { once: true });
-  });
+    if (window !== window.top || location.pathname !== notePath) return;
+    const encoder = new TextEncoder();
+    let stringsDropped = 0;
+    const text = (value) => {
+      if (value == null) return null;
+      let kept = '';
+      for (const character of String(value)) {
+        if (encoder.encode(kept + character).length > 256) {
+          stringsDropped += 1;
+          return { value: kept, truncated: true };
+        }
+        kept += character;
+      }
+      return { value: kept, truncated: false };
+    };
+    const initial = { pathname: text(location.pathname), search: text(location.search), hash: text(location.hash),
+      timeOrigin: performance.timeOrigin };
+    const events = [];
+    let dropped = 0;
+    let sequence = 0;
+    let enabled = true;
+    const state = () => ({ documentId: performance.timeOrigin, time: performance.now(),
+      ready: text(document.readyState), lang: text(document.documentElement?.getAttribute('lang')),
+      dataJS: text(document.documentElement?.getAttribute('data-js')), visibility: text(document.visibilityState),
+      hash: text(location.hash), y: document.scrollingElement ? window.scrollY : null });
+    const observe = (event) => {
+      if (!enabled) return;
+      const record = { sequence: ++sequence, event: event.type, ...state() };
+      if (events.length >= 64 || encoder.encode(JSON.stringify([...events, record])).length > 2048) {
+        dropped += 1;
+        return;
+      }
+      events.push(record);
+    };
+    for (const event of ['DOMContentLoaded', 'load', 'pagereveal', 'pageshow', 'hashchange', 'scroll']) {
+      window.addEventListener(event, observe, { passive: true });
+    }
+    window.__switchDiagnostic = {
+      snapshot: () => {
+        try {
+          const snapshot = { initial, ...state(), slack: document.scrollingElement
+            ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight : null,
+          events: events.slice(), dropped, stringsDropped, eventBudgetBytes: 2048, snapshotBudgetBytes: 3072 };
+          if (encoder.encode(JSON.stringify(snapshot)).length > 3072) {
+            snapshot.events = [];
+            snapshot.outputTruncated = true;
+          }
+          if (encoder.encode(JSON.stringify(snapshot)).length > 3072) {
+            return { initial, documentId: performance.timeOrigin, dropped, stringsDropped,
+              unreadable: 'document snapshot exceeds 3072 bytes', outputTruncated: true };
+          }
+          return snapshot;
+        } catch { return { unreadable: 'document diagnostic snapshot failed' }; }
+      },
+      stop: () => {
+        enabled = false;
+        for (const event of ['DOMContentLoaded', 'load', 'pagereveal', 'pageshow', 'hashchange', 'scroll']) {
+          window.removeEventListener(event, observe);
+        }
+      },
+    };
+  }, new URL(PAGE, BASE).pathname);
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 
   const response = await page.goto(BASE + PAGE, { waitUntil: 'load' });
@@ -200,7 +452,9 @@ try {
   const before = await page.evaluate(() => ({
     y: window.scrollY,
     lang: document.documentElement.getAttribute('lang'),
+    diagnostic: window.__switchDiagnostic?.snapshot() ?? { unreadable: 'document observer absent' },
   }));
+  switchBefore = before;
   if (before.y < TARGET_Y - 8) {
     broken(`scrolled to ${before.y}, want near ${TARGET_Y}; the page did not travel`);
   }
@@ -220,7 +474,9 @@ try {
   const after = await page.evaluate(() => ({
     y: window.scrollY,
     lang: document.documentElement.getAttribute('lang'),
+    diagnostic: window.__switchDiagnostic?.snapshot() ?? { unreadable: 'document observer absent' },
   }));
+  switchAfter = after;
   if (after.lang === before.lang) {
     broken(`the language stayed ${JSON.stringify(after.lang)} after the switch, so this run never left the page`);
   }
@@ -230,6 +486,10 @@ try {
       `after switching ${before.lang} → ${after.lang} the page is at scrollY=${after.y}, want near ${before.y} (within ${TOLERANCE}px)`,
     );
   }
+
+  capture.stop();
+  // Bounded page-local observers end with document replacement/browser close;
+  // stopping them must not add an awaited operation to the successful flow.
 
   // A page reached by following a link has to paint. A navigation transition
   // holds the arriving document until it is revealed, and where that reveal
@@ -484,6 +744,15 @@ try {
       else console.error(`no catch: ${MUTATE} targets ${target}, but ${err.site} fired first`);
     }
     process.exitCode = 1;
+    if (err.site === 'position-survives-switch') {
+      const identity = switchFailureIdentity(err);
+      await printSwitchFailure(identity, browser).catch(() => {
+        capture?.stop();
+        console.error('DIAGNOSTIC language-scroll-restore: ' + JSON.stringify({
+          ...identity, unreadable: 'diagnostic capture failed',
+        }));
+      });
+    }
   } else if (err instanceof ProbeBroken) {
     console.error(err.message);
     process.exitCode = 1;
@@ -492,5 +761,6 @@ try {
     process.exitCode = 1;
   }
 } finally {
+  capture?.stop();
   await browser.close();
 }
