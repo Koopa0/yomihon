@@ -1,8 +1,9 @@
 // A mark records a location, never the sentence choices currently on a card.
 export function initUncertainty() {
-  const articles = [...document.querySelectorAll('[data-uncertainty-endpoint]')];
-  if (articles.length === 0) return;
-  const endpoint = articles[0].dataset.uncertaintyEndpoint;
+  const articles = [...document.querySelectorAll('[data-uncertainty-endpoint]:not([data-uncertainty-remove])')];
+  const removals = [...document.querySelectorAll('[data-uncertainty-remove]')];
+  if (articles.length === 0 && removals.length === 0) return;
+  const endpoint = (articles[0] || removals[0]).dataset.uncertaintyEndpoint;
   const keys = new Set();
   let controls = [];
   let available = false;
@@ -15,6 +16,47 @@ export function initUncertainty() {
       available = true;
     })
     .catch(() => {});
+
+  async function toggle(path, anchor) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      body: new URLSearchParams({ path, anchor }),
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) throw new Error('mark was not stored');
+    const result = await response.json();
+    if (typeof result.marked !== 'boolean') throw new Error('invalid mark response');
+    return result;
+  }
+
+  for (const button of removals) {
+    const { uncertaintyPath: path, uncertaintyAnchor: anchor } = button.dataset;
+    const key = keyOf(path, anchor);
+    const said = button.parentElement.querySelector('.y-uncertainty__said');
+    controls.push({ key, button });
+    ready.then(() => {
+      button.disabled = !available || !keys.has(key);
+      if (!available) said.textContent = button.dataset.uncertaintyUnavailable;
+      else if (!keys.has(key)) location.reload();
+    });
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        const result = await toggle(path, anchor);
+        if (result.marked) keys.add(key);
+        else keys.delete(key);
+        if (!result.marked) {
+          said.textContent = button.dataset.uncertaintyCleared;
+          location.reload();
+          return;
+        }
+        said.textContent = button.dataset.uncertaintyFailed;
+      } catch {
+        said.textContent = button.dataset.uncertaintyFailed;
+      }
+      button.disabled = !keys.has(key);
+    });
+  }
 
   function addControl(container, article, path, anchor) {
     const words = {
@@ -62,13 +104,7 @@ export function initUncertainty() {
         if (control.key === key) control.button.disabled = true;
       }
       try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          body: new URLSearchParams({ path, anchor }),
-          headers: { Accept: 'application/json' },
-        });
-        if (!response.ok) throw new Error('mark was not stored');
-        const result = await response.json();
+        const result = await toggle(path, anchor);
         if (result.marked) keys.add(key);
         else keys.delete(key);
         said.textContent = result.marked ? words.uncertaintySaved : words.uncertaintyCleared;

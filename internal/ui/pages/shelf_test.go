@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -281,5 +283,57 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 	}
 	if seen != len(pages) {
 		t.Fatalf("compared %d modes, want %d — a mode with no block compares nothing", seen, len(pages))
+	}
+}
+
+// Catches the no-Href filter hiding a fault and shelfRowLink manufacturing an
+// empty link. The ordinary unlinked row remains skipped on the narrow shelf.
+func TestShelfKeepsAnInertFaultRow(t *testing.T) {
+	t.Parallel()
+	fault := Row{Text: "Lost <note>.md", Mark: "Note not found", Fault: true, Wrap: true}
+	shelf := Shelf{Title: "Open", Href: "/open-thoughts", Rows: []Row{{Text: "unwritten"}, fault, {Text: "next", Href: "/next"}}}
+	if diff := cmp.Diff([]Row{fault}, shelfRows(&shelf, 1)); diff != "" {
+		t.Errorf("caught: shelfRows fault inclusion mismatch (-want +got):\n%s", diff)
+	}
+	for _, tt := range []struct {
+		name    string
+		render  func(*strings.Builder) error
+		marker  string
+		warning string
+	}{
+		{
+			name: "home",
+			render: func(out *strings.Builder) error {
+				return ShelfBlock(shelf, "open-thoughts", 1, wording.En).Render(t.Context(), out)
+			},
+			marker: "data-desk-item", warning: "ui-navitem__count--warn",
+		},
+		{
+			name: "full shelf",
+			render: func(out *strings.Builder) error {
+				return ShelfPage(Shelf{Rows: []Row{fault}}).Render(t.Context(), out)
+			},
+			marker: "data-index-row", warning: "y-row__measure--warn",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var out strings.Builder
+			if err := tt.render(&out); err != nil {
+				t.Fatalf("render fault row: %v", err)
+			}
+			page := out.String()
+			got := struct {
+				Rows                                   int
+				Escaped, Warning, EmptyLink, RawMarkup bool
+			}{Rows: strings.Count(page, tt.marker), Escaped: strings.Contains(page, "Lost &lt;note&gt;.md"), Warning: strings.Contains(page, tt.warning), EmptyLink: strings.Contains(page, `href=""`), RawMarkup: strings.Contains(page, "Lost <note>.md")}
+			want := struct {
+				Rows                                   int
+				Escaped, Warning, EmptyLink, RawMarkup bool
+			}{Rows: 1, Escaped: true, Warning: true}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("caught: inert fault row mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
