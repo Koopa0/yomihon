@@ -64,20 +64,20 @@ func TestHiddenReportRetention(t *testing.T) {
 				"\nmost leveraged (create one, resolve many):\n  ×3 [[Future]] (planned) — golang\n" +
 				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n" +
 				"\nhidden (info):\n" +
-				"  [link.broken] [[Elsewhere]] resolves to no note — Other/Outside.md\n" +
-				"  [link.broken.path] link to ../../outside-other.md points outside the vault root — Other/Outside.md\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md\n",
+				"  [link.broken] [[Elsewhere]] resolves to no note — Other/Outside.md:3\n" +
+				"  [link.broken.path] link to ../../outside-other.md points outside the vault root — Other/Outside.md:7\n" +
+				"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md:3\n" +
+				"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md:4\n" +
+				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md:8\n" +
+				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md:3\n" +
+				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md:7\n",
 		},
 		{
 			name: "path", all: true, paths: []string{"Writing/golang/B.md"},
 			want: "2 findings: 0 error, 0 warn, 2 hidden (1 planned forward-refs, 1 external paths)\n" +
 				"\nhidden (info):\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md\n",
+				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md:3\n" +
+				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md:7\n",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -101,9 +101,9 @@ func TestHiddenReportBaseline(t *testing.T) {
 				"\ndebt by domain:\n  golang               0 error · 1 warn\n" +
 				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n" +
 				"\nhidden (info):\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md\n" +
-				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md\n" +
-				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md\n",
+				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md:8\n" +
+				"  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md:3\n" +
+				"  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md:7\n",
 		},
 		{
 			name:         "no retained info",

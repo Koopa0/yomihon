@@ -10,8 +10,8 @@ most leveraged (create one, resolve many):
   [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)
 
 hidden (info):
-  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md
-  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md
-  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md
-  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md
-  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md
+  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md:3
+  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md:4
+  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/A.md:8
+  [link.broken] [[Future]] resolves to no note — Writing/golang/B.md:3
+  [link.broken.path] link to ../../../outside.md points outside the vault root — Writing/golang/B.md:7
