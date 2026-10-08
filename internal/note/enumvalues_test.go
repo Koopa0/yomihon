@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/judge"
