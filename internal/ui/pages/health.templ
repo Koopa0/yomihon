@@ -208,7 +208,7 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 								<span class="y-findings__path">{ row.FilePath }</span>
 							}
 						</td>
-						<td class="y-findings__finding" data-col={ wording.HealthColumnFinding.In(c.Lang) }>
+						<td data-col={ wording.HealthColumnFinding.In(c.Lang) }>
 							<span class="y-findings__kind">{ row.Kind.title(c.Lang) }</span>
 							if len(row.Detail) > 0 {
 								<span class="y-findings__detail">
@@ -330,7 +330,7 @@ templ healthNotice(n FolderNotice) {
 // this page's guess in front of the account the contract gave.
 templ healthUnknown(title, reason string) {
 	if reason != "" {
-		<section class="y-healthsection y-healthsection--unknown">
+		<section class="y-healthsection">
 			<h2 class="y-healthsection__title">{ title }</h2>
 			<p class="y-healthsection__lede">{ reason }</p>
 		</section>
