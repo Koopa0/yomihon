@@ -13,9 +13,8 @@ import (
 
 var agreementSource = flag.String("agreement-source", "", "temporary production source selected by the agreement overlay")
 
-// Each row names one producer and one independently observable contract.
 func bodyValueMutations() []agreementMutation {
-	return []agreementMutation{
+	modes := []agreementMutation{
 		{Name: "f3-order", Property: "F3", Identity: "outline-order", File: "internal/graph/bodystructure.go", Function: "collectOutline", Needle: "for c := doc.FirstChild(); c != nil; c = c.NextSibling()", Fault: "for c := doc.LastChild(); c != nil; c = c.PreviousSibling()"},
 		{Name: "f3-heading-level", Property: "F3", Identity: "heading-level", File: "internal/graph/bodystructure.go", Function: "collectOutline", Needle: "Level: h.Level", Fault: "Level: h.Level + 1"},
 		{Name: "f3-heading-range", Property: "F3", Identity: "heading-range", File: "internal/graph/bodystructure.go", Function: "collectOutline", Needle: "BodyOutlineHeading{Span: span,", Fault: "BodyOutlineHeading{Span: Span{Start: span.Start + 1, Stop: span.Stop},"},
@@ -63,36 +62,35 @@ func bodyValueMutations() []agreementMutation {
 		{Name: "f3-context-invalid", Property: "F3", Identity: "invalid-context", File: "internal/graph/bodygrammar.go", Function: "bodyObservationIn", Needle: "panic(\"graph: unknown bodyObservation: \" + string(fmt.Appendf(nil, \"%T\", value)))", Fault: "return (*bodyObservation)(nil)", Package: "./internal/graph", ControlTest: "TestBodyFactsF3ContextControl"},
 		{Name: "f3-consumer-parse", Property: "F3", Identity: "consumer-whole-body-parse", File: "internal/sequence/sequence.go", Function: "ParseFacts", Needle: "body := facts.Source()", Fault: "body := facts.Source(); var discarded strings.Builder; _ = graph.NewBodyMarkdown(nil).Convert([]byte(body), &discarded)"},
 	}
+	return bodyNativeMutations(modes)
 }
 
 func bodyValueMutationControl(t *testing.T, mode *agreementMutation) {
 	t.Helper()
-	if slices.ContainsFunc(bodyFieldMutations(), func(field agreementMutation) bool { return field.Name == mode.Name }) {
-		bodyFieldControl(t, mode)
-		return
-	}
 	switch mode.Name {
-	case "f3-rich-raw", "f3-rich-level", "f3-rich-position", "f3-rich-origin", "f3-rich-role", "f3-rich-original", "f3-rich-id", "f3-origin-position", "f3-origin-synthetic", "f3-footnote-placement":
-		bodyRichValueControl(t, mode)
-		bodyRichHeadingControls(t)
-	case "f3-checkbox":
-		bodyCheckboxControl(t, mode)
 	case "f3-consumer-parse":
 		bodySimpleDocumentControl(t, mode, "## P {sequence=primary}\n\n- [[A]]\n", graph.Span{Start: 27, Stop: 32}, "")
 		bodyConsumerOwnershipControl(t, *agreementSource)
-	case "f3-paired", "f3-unpaired", "f3-diagnostic-rule", "f3-diagnostic-line", "f3-diagnostic-message", "f3-diagnostic-evidence":
-		bodyEmphasisControl(t, mode)
-	case "f3-row-span", "f3-target-span", "f3-anchor-span", "f3-candidate-text", "f3-candidate-target", "f3-candidate-aliased", "f3-candidate-fragment", "f3-candidate-state", "f3-candidate-line":
-		bodyCoordinatesControl(t, mode)
-	case "f3-row-role":
-		bodySimpleDocumentControl(t, mode, "## P {sequence=primary}\n\n- [[A]] ^[note]\n", graph.Span{Start: 27, Stop: 40}, "^[note]")
-	case "f3-gloss-text", "f3-gloss-code", "f3-soft-break", "f3-hard-break":
-		bodyGlossControl(t, mode)
-	case "f3-empty-outline":
-		bodyEmptyOutlineControl(t, mode)
+	case "f3-footnote-placement", "f3-origin-position", "f3-origin-synthetic", "f3-rich-id", "f3-rich-level", "f3-rich-origin", "f3-rich-original", "f3-rich-position", "f3-rich-raw", "f3-rich-role":
+		bodyRichValueControl(t, mode)
+		bodyRichHeadingControls(t)
 	default:
-		bodyStructureValueControl(t, mode)
+		t.Fatalf("not-applied: unowned judge body control %q", mode.Name)
 	}
+}
+
+// Value-only controls do not need the judge's page and command fixtures.
+func bodyNativeMutations(modes []agreementMutation) []agreementMutation {
+	for i := range modes {
+		mode := &modes[i]
+		if mode.ControlTest != "" || mode.Name == "f3-consumer-parse" || slices.Contains([]string{"f3-footnote-placement", "f3-origin-position", "f3-origin-synthetic", "f3-rich-id", "f3-rich-level", "f3-rich-origin", "f3-rich-original", "f3-rich-position", "f3-rich-raw", "f3-rich-role"}, mode.Name) {
+			continue
+		}
+		mode.Package = "./internal/sequence"
+		mode.ControlTest = "TestBodyValueMutationControl"
+		mode.ModeFlag = "body-mode"
+	}
+	return modes
 }
 
 func bodyValueCompare[T any](t *testing.T, mode *agreementMutation, want, got T) {
@@ -103,6 +101,7 @@ func bodyValueCompare[T any](t *testing.T, mode *agreementMutation, want, got T)
 }
 
 // No wanted value is obtained from another call to the producer.
+
 func bodySimpleDocumentControl(t *testing.T, mode *agreementMutation, body string, span graph.Span, gloss string) {
 	t.Helper()
 	want := sequence.Document{Groups: []*sequence.Group{{
@@ -113,22 +112,6 @@ func bodySimpleDocumentControl(t *testing.T, mode *agreementMutation, body strin
 		}}},
 	}}}
 	bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody(body), 7))
-}
-
-func bodyGlossControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	for _, tt := range []struct {
-		body  string
-		span  graph.Span
-		gloss string
-	}{
-		{body: "## P {sequence=primary}\n\n- [[A]] one\n  two\n", span: graph.Span{Start: 27, Stop: 42}, gloss: "one two"},
-		{body: "## P {sequence=primary}\n\n- [[A]] one  \n  two\n", span: graph.Span{Start: 27, Stop: 44}, gloss: "one two"},
-		{body: "## P {sequence=primary}\n\n- [[A]] `one\n  two`\n", span: graph.Span{Start: 27, Stop: 44}, gloss: "one\n  two"},
-		{body: "## P {sequence=primary}\n\n- [[A]] one %%hidden%% two\n", span: graph.Span{Start: 27, Stop: 51}, gloss: "one  two"},
-	} {
-		bodySimpleDocumentControl(t, mode, tt.body, tt.span, tt.gloss)
-	}
 }
 
 func bodyRichValueControl(t *testing.T, mode *agreementMutation) {
@@ -148,123 +131,4 @@ func bodyRichValueControl(t *testing.T, mode *agreementMutation) {
 		{ID: 1, Level: 2, Raw: "Main", Span: graph.Span{Start: 3, Stop: 7}, Original: graph.Span{Start: 3, Stop: 7}},
 		{ID: 2, Level: 2, Raw: "Shown", Span: graph.Span{Start: 63, Stop: 68}, Original: graph.Span{Start: 63, Stop: 68}},
 	}, slices.Collect(facts.RichHeadings()))
-}
-
-func bodyStructureValueControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	facts := graph.ReadBody("# Path\n\n- root\n  - child\n\n  tail\n\nend\n")
-	bodyValueCompare(t, mode, []graph.BodyOutline{
-		{Heading: graph.BodyOutlineHeading{Span: graph.Span{Start: 2, Stop: 6}, Level: 1}}, {ListID: 1}, {StrayID: 1},
-	}, slices.Collect(facts.Outline()))
-	bodyValueCompare(t, mode, []graph.BodyRow{{ID: 1, ListID: 1, ChildListID: 2, FirstBlockHasLines: true}}, slices.Collect(facts.ListRows(1)))
-	bodyValueCompare(t, mode, []graph.BodyRow{{ID: 2, ListID: 2, ParentRowID: 1, FirstBlockHasLines: true}}, slices.Collect(facts.ListRows(2)))
-	bodyValueCompare(t, mode, []graph.Span{{Start: 10, Stop: 14}, {Start: 28, Stop: 32}}, slices.Collect(facts.RowBlocks(1)))
-	bodyValueCompare(t, mode, []graph.Span{{Start: 34, Stop: 37}}, slices.Collect(facts.StrayBlocks(1)))
-	bodyValueCompare(t, mode, sequence.Document{Diagnostics: []sequence.Diagnostic{{
-		Rule: sequence.RuleEntryOutsideBranch, Line: 10,
-		Message: "rows nested before the first level-2 heading belong to no part of the course", Evidence: "",
-	}}}, sequence.ParseFacts(facts, 7))
-	bodyCoordinatesControl(t, mode)
-	bodyContinuationControl(t, mode)
-	bodyNestedExclusionControl(t, mode)
-	facts = graph.ReadBody("- > quoted\n  > - nested\n\n  after\n")
-	bodyValueCompare(t, mode, []graph.BodyRow{{ID: 1, ListID: 1}}, slices.Collect(facts.ListRows(1)))
-	bodyValueCompare(t, mode, []graph.Span{{Start: 4, Stop: 10}, {Start: 27, Stop: 32}}, slices.Collect(facts.RowBlocks(1)))
-	// The stray fault must reach the recursive, container-descended branch.
-	facts = graph.ReadBody("> stray {sequence=primary}\n")
-	bodyValueCompare(t, mode, sequence.Document{Diagnostics: []sequence.Diagnostic{{Rule: sequence.RuleRoleMisplaced, Line: 7,
-		Message: "a sequence marker here declares nothing; it is read only on a heading or on a row that opens a list", Evidence: "stray {sequence=primary}"}}}, sequence.ParseFacts(facts, 7))
-}
-
-func bodyEmphasisControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	cases := []struct {
-		body        string
-		candidate   sequence.Candidate
-		diagnostics []sequence.Diagnostic
-	}{
-		{body: "## P {sequence=primary}\n\n- *[[A]]*\n", candidate: sequence.Candidate{Text: "A", Target: "A", Line: 9, Span: graph.Span{Start: 27, Stop: 34}, TargetSpan: graph.Span{Start: 28, Stop: 33}, State: sequence.EntryAccepted}},
-		{body: "## P {sequence=primary}\n\n- *[[A]]\n", candidate: sequence.Candidate{Text: "A", Target: "A", Line: 9, Span: graph.Span{Start: 27, Stop: 33}, TargetSpan: graph.Span{Start: 28, Stop: 33}, State: sequence.EntryNoncanonical}, diagnostics: []sequence.Diagnostic{{Rule: sequence.RuleEntryNoncanonical, Line: 9,
-			Message: "a lesson row opens with its link; move the link to the front, or take the row out of the course", Evidence: "*[[A]]"}}},
-	}
-	for i := range cases {
-		tt := &cases[i]
-		want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary, Items: []sequence.Item{{Entry: &tt.candidate}}}}, Diagnostics: tt.diagnostics}
-		bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody(tt.body), 7))
-	}
-}
-
-func bodyCheckboxControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	for _, marker := range []string{" ", "x", "X", "/", "-", ">"} {
-		own := "[" + marker + "] [[A]]"
-		want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary}}}
-		if marker == "/" || marker == "-" || marker == ">" {
-			want.Groups[0].Items = []sequence.Item{{Entry: &sequence.Candidate{Text: "A", Target: "A", Line: 9, Span: graph.Span{Start: 27, Stop: 36}, TargetSpan: graph.Span{Start: 31, Stop: 36}, State: sequence.EntryNoncanonical}}}
-			want.Diagnostics = []sequence.Diagnostic{{Rule: sequence.RuleEntryNoncanonical, Line: 9,
-				Message: "a lesson row opens with its link; move the link to the front, or take the row out of the course", Evidence: own}}
-		}
-		bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody("## P {sequence=primary}\n\n- "+own+"\n"), 7))
-	}
-	for _, marker := range []string{" ", "x", "X"} {
-		body := "## P {sequence=primary}\n\n- [" + marker + "] [[A]]\n  - Side {sequence=local}\n    - [[B]]\n"
-		want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary, Items: []sequence.Item{{Branch: &sequence.Group{
-			Name: "Side", Line: 10, Role: sequence.RoleLocal, Container: true, Invalid: true,
-			Items: []sequence.Item{{Entry: &sequence.Candidate{Text: "B", Target: "B", Line: 11, Span: graph.Span{Start: 69, Stop: 74}, TargetSpan: graph.Span{Start: 69, Stop: 74}, State: sequence.EntryAccepted}}},
-		}}}}}, Diagnostics: []sequence.Diagnostic{{Rule: sequence.RuleLocalOrphan, Line: 10,
-			Message: "a side branch has nothing to hang from; nest it under the lesson it belongs to", Evidence: "Side {sequence=local}"}}}
-		bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody(body), 7))
-	}
-}
-
-// All coordinates jointly select the second occurrence, independently of its
-// shared target, alias and fragment, and retain the file's CRLF line numbers.
-func bodyCoordinatesControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	body := "## P {sequence=primary}\r\n\r\n- [[A|Alias]]\r\n- [[A#Part|Again]]\r\n  - Side {sequence=local}\r\n    - [[B]]\r\n"
-	want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary, Items: []sequence.Item{
-		{Entry: &sequence.Candidate{Text: "Alias", Target: "A", Aliased: true, Line: 9, Span: graph.Span{Start: 29, Stop: 40}, TargetSpan: graph.Span{Start: 29, Stop: 40}, State: sequence.EntryAccepted}},
-		{Entry: &sequence.Candidate{Text: "Again", Target: "A", Aliased: true, Fragment: true, Line: 10, Span: graph.Span{Start: 44, Stop: 60}, TargetSpan: graph.Span{Start: 44, Stop: 60}, State: sequence.EntryAccepted}},
-		{Branch: &sequence.Group{Name: "Side", Line: 11, Role: sequence.RoleLocal, Container: true, AnchorTarget: "A", AnchorSpan: graph.Span{Start: 44, Stop: 60}, Items: []sequence.Item{
-			{Entry: &sequence.Candidate{Text: "B", Target: "B", Line: 12, Span: graph.Span{Start: 95, Stop: 100}, TargetSpan: graph.Span{Start: 95, Stop: 100}, State: sequence.EntryAccepted}},
-		}}},
-	}}}}
-	bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody(body), 7))
-}
-
-func bodyEmptyOutlineControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	facts := graph.ReadBody("## P {sequence=primary}\n\n##\n\n- [[A]]\n")
-	want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary, Items: []sequence.Item{{Entry: &sequence.Candidate{
-		Text: "A", Target: "A", Line: 11, Span: graph.Span{Start: 31, Stop: 36}, TargetSpan: graph.Span{Start: 31, Stop: 36}, State: sequence.EntryAccepted,
-	}}}}}}
-	bodyValueCompare(t, mode, want, sequence.ParseFacts(facts, 7))
-}
-
-func bodyContinuationControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	cases := []struct {
-		body       string
-		candidate  sequence.Candidate
-		diagnostic sequence.Diagnostic
-	}{
-		{body: "## P {sequence=primary}\n\n- [[A]]\n\n  tail [[B]]\n", candidate: sequence.Candidate{Text: "[[A]]", Line: 9, Span: graph.Span{Start: 27, Stop: 32}, State: sequence.EntryMultiTarget}, diagnostic: sequence.Diagnostic{Rule: sequence.RuleEntryMultiTarget, Line: 9,
-			Message: "a row naming more than one note does not say which lesson it is; give each lesson its own row", Evidence: "[[A]]"}},
-		{body: "## P {sequence=primary}\n\n- [[A]]\n\n  tail {sequence=local}\n", candidate: sequence.Candidate{Text: "A", Target: "A", Line: 9, Span: graph.Span{Start: 27, Stop: 32}, TargetSpan: graph.Span{Start: 27, Stop: 32}, State: sequence.EntryAccepted}, diagnostic: sequence.Diagnostic{Rule: sequence.RuleRoleMisplaced, Line: 11,
-			Message: "a sequence marker is read on the row's own line, not in its continuation", Evidence: "tail {sequence=local}"}},
-	}
-	for i := range cases {
-		tt := &cases[i]
-		want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary, Items: []sequence.Item{{Entry: &tt.candidate}}}}, Diagnostics: []sequence.Diagnostic{tt.diagnostic}}
-		bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody(tt.body), 7))
-	}
-}
-
-func bodyNestedExclusionControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	body := "## P {sequence=primary}\n\n- [[A]]\n\n  > - [[B]]\n\n  > tail\n"
-	want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary, Items: []sequence.Item{{Entry: &sequence.Candidate{
-		Text: "A", Target: "A", Line: 9, Span: graph.Span{Start: 27, Stop: 32}, TargetSpan: graph.Span{Start: 27, Stop: 32}, State: sequence.EntryAccepted,
-	}}}}}}
-	bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody(body), 7))
 }

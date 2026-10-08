@@ -1,57 +1,5 @@
 package judge_test
 
-import (
-	"slices"
-	"testing"
-
-	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/sequence"
-)
-
-// Complete values pin fields even when a consumer happens not to use one.
-// Missing IDs and first-child selection are observed at their public accessors.
-func bodyFieldControl(t *testing.T, mode *agreementMutation) {
-	t.Helper()
-	bodyStructureValueControl(t, mode)
-	bodyRichValueControl(t, mode)
-	bodyGlossControl(t, mode)
-	bodyCheckboxControl(t, mode)
-	bodyEmphasisControl(t, mode)
-	facts := graph.ReadBody("# Path\n\n- root\n  - child\n\n  tail\n\nend\n")
-	for _, want := range []graph.BodyList{{ID: 1}, {ID: 2, ParentRowID: 1}} {
-		got, found := facts.List(want.ID)
-		bodyValueCompare(t, mode, want, got)
-		bodyValueCompare(t, mode, true, found)
-	}
-	for _, want := range []graph.BodyRow{{ID: 1, ListID: 1, ChildListID: 2, FirstBlockHasLines: true}, {ID: 2, ListID: 2, ParentRowID: 1, FirstBlockHasLines: true}} {
-		got, found := facts.Row(want.ID)
-		bodyValueCompare(t, mode, want, got)
-		bodyValueCompare(t, mode, true, found)
-	}
-	for _, id := range []int{-1, 0, 3} {
-		list, found := facts.List(id)
-		bodyValueCompare(t, mode, graph.BodyList{}, list)
-		bodyValueCompare(t, mode, false, found)
-		row, found := facts.Row(id)
-		bodyValueCompare(t, mode, graph.BodyRow{}, row)
-		bodyValueCompare(t, mode, false, found)
-		bodyValueCompare(t, mode, []graph.BodyRow(nil), slices.Collect(facts.ListRows(id)))
-		bodyValueCompare(t, mode, []graph.Span(nil), slices.Collect(facts.RowBlocks(id)))
-		bodyValueCompare(t, mode, []graph.BodyInlinePart(nil), slices.Collect(facts.RowInlineParts(id)))
-		bodyValueCompare(t, mode, []graph.Span(nil), slices.Collect(facts.StrayBlocks(id)))
-		bodyValueCompare(t, mode, []graph.BodyOrigin(nil), slices.Collect(facts.RichHeadingOrigins(id)))
-	}
-	bodyValueCompare(t, mode, []graph.BodyInlinePart{{Span: graph.Span{Start: 10, Stop: 14}}}, slices.Collect(facts.RowInlineParts(1)))
-	bodyValueCompare(t, mode, []graph.BodyInlinePart{{Span: graph.Span{Start: 19, Stop: 24}}}, slices.Collect(facts.RowInlineParts(2)))
-	facts = graph.ReadBody("- `b`\n")
-	bodyValueCompare(t, mode, []graph.BodyInlinePart{{Span: graph.Span{Start: 3, Stop: 4}, Code: true}}, slices.Collect(facts.RowInlineParts(1)))
-	facts = graph.ReadBody("- b\n")
-	bodyValueCompare(t, mode, []graph.BodyInlinePart{{Span: graph.Span{Start: 2, Stop: 3}}}, slices.Collect(facts.RowInlineParts(1)))
-	links, zones := sequence.LiveScanFacts(graph.ReadBody("[[A#Part|Alias]] `[[B]]`\n"))
-	bodyValueCompare(t, mode, []sequence.Link{{Target: "A", Display: "Alias", Aliased: true, Fragment: true, Span: graph.Span{Start: 0, Stop: 16}}}, links)
-	bodyValueCompare(t, mode, []graph.Span{{Start: 18, Stop: 24}}, zones)
-}
-
 func bodyFieldMutations() []agreementMutation {
 	const file = "internal/graph/bodystructure.go"
 	modes := []agreementMutation{
@@ -78,7 +26,7 @@ func bodyFieldMutations() []agreementMutation {
 		{Name: "f3-accessor-rich-origin", Property: "F3", Identity: "accessor-rich-origin", File: file, Function: "RichHeadingOrigins", Needle: "bodyValues(f.data.richOrigins[id-1])", Fault: "bodyValues(f.data.richOrigins[id-1][:0])"},
 		{Name: "f3-accessor-paired", Property: "F3", Identity: "accessor-paired", File: file, Function: "PairedEmphasisOpeners", Needle: "bodyValues(f.data.structure.openers)", Fault: "bodyValues(f.data.structure.openers[:0])"},
 	}
-	return append(modes, bodyGroupMutations()...)
+	return bodyNativeMutations(append(modes, bodyGroupMutations()...))
 }
 
 func bodyGroupMutations() []agreementMutation {

@@ -7,6 +7,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -148,5 +149,85 @@ func bodyStructureFieldOwners() map[string][]string {
 		"Diagnostic.Evidence":               {"f3-diagnostic-evidence"},
 		"Document.Groups":                   {"f3-document-groups"},
 		"Document.Diagnostics":              {"f3-document-diagnostics"},
+	}
+}
+
+// The native declarations and driver must own the same complete set of values.
+func TestBodyValueControlCensus(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "../sequence/bodyvaluecontrol_test.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual := make(map[string]string)
+	matches := 0
+	for _, declaration := range file.Decls {
+		group, ok := declaration.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, definition := range group.Specs {
+			value, ok := definition.(*ast.ValueSpec)
+			if !ok || len(value.Names) != 1 || value.Names[0].Name != "bodyValueCases" {
+				continue
+			}
+			matches++
+			if len(value.Values) != 1 {
+				t.Fatal("native body controls need one declaration")
+			}
+			rows, ok := value.Values[0].(*ast.CompositeLit)
+			if !ok {
+				t.Fatal("native body controls need literal rows")
+			}
+			for _, entry := range rows.Elts {
+				row, ok := entry.(*ast.CompositeLit)
+				if !ok {
+					t.Fatal("native body control is not a literal row")
+				}
+				values := make(map[string]string)
+				for _, entry := range row.Elts {
+					field, ok := entry.(*ast.KeyValueExpr)
+					if !ok {
+						t.Fatal("native body control lacks named fields")
+					}
+					name, ok := field.Key.(*ast.Ident)
+					if !ok {
+						t.Fatal("native body control field is not a name")
+					}
+					if name.Name == "Run" {
+						continue
+					}
+					literal, ok := field.Value.(*ast.BasicLit)
+					if !ok || literal.Kind != token.STRING {
+						t.Fatal("native body control metadata is not literal")
+					}
+					text, err := strconv.Unquote(literal.Value)
+					if err != nil {
+						t.Fatal(err)
+					}
+					values[name.Name] = text
+				}
+				name, identity := values["Name"], values["Identity"]
+				if name == "" || identity == "" || actual[name] != "" {
+					t.Fatalf("native body control has empty or duplicate ownership: %+v", values)
+				}
+				actual[name] = identity
+			}
+		}
+	}
+	if matches != 1 {
+		t.Fatalf("native body control declaration matches=%d", matches)
+	}
+	want := make(map[string]string)
+	for _, mode := range agreementMutations() {
+		if mode.ModeFlag != "body-mode" {
+			continue
+		}
+		if mode.Package != "./internal/sequence" || mode.ControlTest != "TestBodyValueMutationControl" || mode.Property != "F3" || want[mode.Name] != "" {
+			t.Fatalf("native body mode lacks exact ownership: %+v", mode)
+		}
+		want[mode.Name] = mode.Identity
+	}
+	if diff := cmp.Diff(want, actual); diff != "" {
+		t.Fatalf("native body controls differ from the complete registry (-want +got):\n%s", diff)
 	}
 }

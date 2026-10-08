@@ -39,6 +39,7 @@ type agreementMutation struct {
 	Body        string
 	Package     string
 	ControlTest string
+	ModeFlag    string
 }
 
 // Every independently variable block producer has its own compiling fault.
@@ -64,12 +65,17 @@ func agreementMutations() []agreementMutation {
 }
 
 func TestAgreementMutationControl(t *testing.T) {
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatalf("not-applied: resolve control root: %v", err)
+	}
+	compiler := agreementMutationCompiler{Root: root, Backing: t.TempDir(), Restored: make(map[string]string), Slots: make(chan struct{}, 2)}
 	modes := agreementMutations()
 	for i := range modes {
 		mode := &modes[i]
 		t.Run(mode.Name, func(t *testing.T) {
 			if mode.ControlTest != "" {
-				agreementNativeMutationControl(t, mode)
+				agreementNativeMutationControl(t, mode, &compiler)
 				return
 			}
 			if mode.Property == "F3" {
@@ -219,6 +225,9 @@ func TestAgreementMutations(t *testing.T) {
 					run += "/^" + mode.Name + "$"
 				}
 				args := []string{"tool", "test2json", "-t", "-p", packagePath, binary, "-test.short", "-test.count=1", "-test.timeout=90s", "-test.v=test2json", "-test.run=" + run}
+				if mode.ModeFlag != "" {
+					args = append(args, "-"+mode.ModeFlag+"="+mode.Name)
+				}
 				sourceDigest := ""
 				if packagePath == "./internal/judge" {
 					alternate := agreementMutationSource(t, overlay)
@@ -257,7 +266,10 @@ func (compiler *agreementMutationCompiler) binary(t *testing.T, overlay, package
 	if !red {
 		// A restored producer has identical bytes across controls. Its binary
 		// outlives each control; faults always receive their own compilation.
-		key = packagePath + "\x00" + file + "\x00" + agreementMutationSourceDigest(t, agreementMutationSource(t, overlay))
+		key = packagePath + "\x00" + file
+		if overlay != "" {
+			key += "\x00" + agreementMutationSourceDigest(t, agreementMutationSource(t, overlay))
+		}
 		compiler.Mutex.Lock()
 		defer compiler.Mutex.Unlock()
 		if qualified, ok := compiler.Restored[key]; ok {
@@ -274,7 +286,11 @@ func (compiler *agreementMutationCompiler) binary(t *testing.T, overlay, package
 		t.Fatalf("not-applied: setup-status=2 compiler admission canceled: %v", t.Context().Err())
 	}
 	defer func() { <-compiler.Slots }()
-	compile := agreementMutationCommand(t, compiler.Root, "test", "-trimpath", "-p=2", "-overlay="+overlay, "-c", "-o="+binary, packagePath)
+	args := []string{"test", "-trimpath", "-p=2", "-c", "-o=" + binary}
+	if overlay != "" {
+		args = append(args, "-overlay="+overlay)
+	}
+	compile := agreementMutationCommand(t, compiler.Root, append(args, packagePath)...)
 	if compile.Status != 0 {
 		t.Fatalf("not-applied: setup-status=2 compile-only qualification failed status=%d\n%s", compile.Status, compile.Output)
 	}
@@ -490,13 +506,15 @@ func agreementSourceReceipt(output, digest string) bool {
 }
 
 // Registered positive controls reach the native graph or judge boundary directly.
-func agreementNativeMutationControl(t *testing.T, mode *agreementMutation) {
+func agreementNativeMutationControl(t *testing.T, mode *agreementMutation, compiler *agreementMutationCompiler) {
 	t.Helper()
-	root, err := filepath.Abs("../..")
-	if err != nil {
-		t.Fatalf("not-applied: %s/%s setup-status=2 resolve native control root: %v", mode.Property, mode.Name, err)
+	binary := compiler.binary(t, "", mode.Package, "", false)
+	args := []string{"tool", "test2json", "-t", "-p", mode.Package, binary, "-test.short", "-test.count=1", "-test.timeout=90s", "-test.v=test2json", "-test.run=^" + mode.ControlTest + "$"}
+	if mode.ModeFlag != "" {
+		args = append(args, "-"+mode.ModeFlag+"="+mode.Name)
 	}
-	child := agreementMutationCommand(t, root, "test", "-short", "-count=1", "-timeout=90s", "-json", "-run=^"+mode.ControlTest+"$", mode.Package)
+	packageRoot := filepath.Join(compiler.Root, filepath.FromSlash(strings.TrimPrefix(mode.Package, "./")))
+	child := agreementMutationCommand(t, packageRoot, args...)
 	t.Logf("native-positive mode=%s actual-status=%d\n%s", mode.Name, child.Status, child.Output)
 	decoder := json.NewDecoder(bytes.NewReader(child.Output))
 	invoked, terminal, caught, failed := false, false, false, false
