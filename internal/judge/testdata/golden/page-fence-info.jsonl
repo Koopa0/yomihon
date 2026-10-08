@@ -1,0 +1,1 @@
+{"rule_id":"link.broken","severity":"warn","path":"Notes/Control.md","line":9,"message":"[[ControlMissing]] resolves to no note","evidence":"no filename or alias matches the target","suggested_action":"create the target note, or change the link to an existing filename/alias","source_rule":"yomihon","target":"ControlMissing","fingerprint":"v1:9ea92c08613ad294"}

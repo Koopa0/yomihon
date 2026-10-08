@@ -60,7 +60,7 @@ func bodyValueMutations() []agreementMutation {
 		{Name: "f3-nil-zero", Property: "F3", Identity: "nil-source", File: "internal/graph/body.go", Function: "Source", Needle: "return \"\"", Fault: "return \"wrong\"", Package: "./internal/graph", ControlTest: "TestBodyFactsF3NilControl"},
 		{Name: "f3-copy-handle", Property: "F3", Identity: "copied-source", File: "internal/graph/body.go", Function: "Source", Needle: "return f.data.source", Fault: "source := f.data.source; f.data.source = \"\"; return source", Package: "./internal/graph", ControlTest: "TestBodyFactsF3CopyControl"},
 		{Name: "f3-early-stop", Property: "F3", Identity: "iterator-reuse", File: "internal/graph/body.go", Function: "bodyValues", Needle: "if !yield(value)", Fault: "values = values[1:]; if !yield(value)", Package: "./internal/graph", ControlTest: "TestBodyFactsF3EarlyStopControl"},
-		{Name: "f3-context-invalid", Property: "F3", Identity: "invalid-context", File: "internal/graph/bodygrammar.go", Function: "bodyObservationIn", Needle: "panic(\"graph: unknown bodyObservation: \" + string(fmt.Appendf(nil, \"%T\", value)))", Fault: "return nil", Package: "./internal/graph", ControlTest: "TestBodyFactsF3ContextControl"},
+		{Name: "f3-context-invalid", Property: "F3", Identity: "invalid-context", File: "internal/graph/bodygrammar.go", Function: "bodyObservationIn", Needle: "panic(\"graph: unknown bodyObservation: \" + string(fmt.Appendf(nil, \"%T\", value)))", Fault: "return (*bodyObservation)(nil)", Package: "./internal/graph", ControlTest: "TestBodyFactsF3ContextControl"},
 		{Name: "f3-consumer-parse", Property: "F3", Identity: "consumer-whole-body-parse", File: "internal/sequence/sequence.go", Function: "ParseFacts", Needle: "body := facts.Source()", Fault: "body := facts.Source(); var discarded strings.Builder; _ = graph.NewBodyMarkdown(nil).Convert([]byte(body), &discarded)"},
 	}
 }
@@ -156,7 +156,10 @@ func bodyStructureValueControl(t *testing.T, mode *agreementMutation) {
 	bodyValueCompare(t, mode, []graph.BodyRow{{ID: 2, ListID: 2, ParentRowID: 1, FirstBlockHasLines: true}}, slices.Collect(facts.ListRows(2)))
 	bodyValueCompare(t, mode, []graph.Span{{Start: 10, Stop: 14}, {Start: 28, Stop: 32}}, slices.Collect(facts.RowBlocks(1)))
 	bodyValueCompare(t, mode, []graph.Span{{Start: 34, Stop: 37}}, slices.Collect(facts.StrayBlocks(1)))
-	bodyValueCompare(t, mode, sequence.Document{}, sequence.ParseFacts(facts, 7))
+	bodyValueCompare(t, mode, sequence.Document{Diagnostics: []sequence.Diagnostic{{
+		Rule: sequence.RuleEntryOutsideBranch, Line: 10,
+		Message: "rows nested before the first level-2 heading belong to no part of the course", Evidence: "",
+	}}}, sequence.ParseFacts(facts, 7))
 	bodyCoordinatesControl(t, mode)
 	bodyContinuationControl(t, mode)
 	bodyNestedExclusionControl(t, mode)

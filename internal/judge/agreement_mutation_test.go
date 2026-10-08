@@ -46,14 +46,14 @@ func agreementMutations() []agreementMutation {
 		{Name: "p0-markdown-diagnostic", Property: "P0", Identity: "markdown-diagnostic-html", File: "internal/render/markdownlink.go", Function: "resolveMarkdownLinks", Needle: "col.report(&Diagnostic{Kind: DiagMarkdownBroken, Target: written, Message: message})", Fault: "if !result.Outside { col.report(&Diagnostic{Kind: DiagMarkdownBroken, Target: written, Message: message}) }", Body: "[out](../../../etc/passwd.md)\n"},
 		{Name: "p1-occurrence", Property: "P1", Identity: "citation-occurrences", File: "internal/judge/planned.go", Function: "LinkTargets", Needle: "return targets", Fault: "if len(targets) > 0 { return targets[:len(targets)-1] }; return targets", Body: "[[A]] [[A]]"},
 		{Name: "p2-code", Property: "P2", Identity: "wikilink-in-code", File: "internal/render/wikilink.go", Function: "convertWikilinks", Needle: "spans := codeSpanRanges(text)", Fault: "_ = codeSpanRanges(text); var spans [][2]int", Body: "`[[A]]`"},
-		{Name: "p3-check", Property: "P3", Identity: "block-three-way", File: "internal/judge/fragment.go", Function: "blockAddressed", Needle: "return true", Fault: "return false", Body: "first ^a\n\nsecond\n"},
-		{Name: "p3-page", Property: "P3", Identity: "block-three-way", File: "internal/render/blockanchor.go", Function: "blockAnchorSpan", Needle: "`<span id=\"` + html.EscapeString(id) + `\">`", Fault: "`<span>`", Body: "first ^a\n\nsecond\n"},
+		{Name: "p3-check", Property: "P3", Identity: "block-three-way", File: "internal/judge/fragment.go", Function: "blockAddressed", Needle: "return true", Fault: "return !true", Body: "first ^a\n\nsecond\n"},
+		{Name: "p3-page", Property: "P3", Identity: "block-three-way", File: "internal/render/blockanchor.go", Function: "blockAnchorSpan", Needle: "`<span id=\"` + html.EscapeString(id) + `\">`", Fault: "`<span` + `>`", Body: "first ^a\n\nsecond\n"},
 		{Name: "p3-excerpt", Property: "P3", Identity: "block-three-way", File: "internal/render/section.go", Function: "Excerpt", Needle: "return slice, matches > 0", Fault: "return slice, matches < 0", Body: "first ^a\n\nsecond\n"},
 		{Name: "p4-heading", Property: "P4", Identity: "literal-heading-id", File: "internal/judge/note.go", Function: "readNote", Needle: "n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurfaceFrom(body, facts.comments)", Fault: "n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurfaceFrom(body, facts.comments); n.sectionAnchors = nil; n.excerptSectionAnchors = nil", Body: "## A\n"},
 		{Name: "p0-citation-shape", Property: "P0", Identity: "citation-shape", File: "internal/render/wikilink.go", Function: "resolvedWikilink", Needle: "`<a href=\"%s\" class=\"wikilink\"%s>%s</a>`", Fault: "`<span href=\"%s\" class=\"wikilink\"%s>%s</span>`", Body: "[[A]]"},
 		{Name: "p1-provenance", Property: "P1", Identity: "provenance-identity", File: "internal/render/wikilink.go", Function: "embedSourceLine", Needle: "`<a href=\"` + attributeEscaper.Replace(notesHref(relPath)) + `\">` + html.EscapeString(noteName(relPath)) + `</a></p>`", Fault: "html.EscapeString(noteName(relPath)) + `</p>`", Body: "![[Notes/Child]]\n"},
 	}
-	return append(modes, bodyValueMutations()...)
+	return append(append(modes, bodyValueMutations()...), stage4Mutations()...)
 }
 
 func TestAgreementMutationControl(t *testing.T) {
@@ -216,7 +216,7 @@ func TestAgreementMutations(t *testing.T) {
 				if packagePath == "./internal/judge" {
 					alternate := agreementMutationSource(t, overlay)
 					args = append(args, "-args", "-agreement-source="+alternate)
-					if mode.Name == "f3-consumer-parse" {
+					if mode.Name == "f3-consumer-parse" || strings.HasPrefix(mode.Name, "stage4-") {
 						sourceDigest = agreementMutationSourceDigest(t, alternate)
 					}
 				}
@@ -432,12 +432,12 @@ func agreementSourceReceipt(output, digest string) bool {
 	return false
 }
 
-// Registered positive controls reach the native graph fixture directly.
+// Registered positive controls reach the native graph or judge boundary directly.
 func agreementNativeMutationControl(t *testing.T, mode *agreementMutation) {
 	t.Helper()
 	root, err := filepath.Abs("../..")
 	if err != nil {
-		t.Fatalf("not-applied: F3/%s setup-status=2 resolve native control root: %v", mode.Name, err)
+		t.Fatalf("not-applied: %s/%s setup-status=2 resolve native control root: %v", mode.Property, mode.Name, err)
 	}
 	child := agreementMutationCommand(t, root, "test", "-short", "-count=1", "-timeout=90s", "-json", "-run=^"+mode.ControlTest+"$", mode.Package)
 	t.Logf("native-positive mode=%s actual-status=%d\n%s", mode.Name, child.Status, child.Output)
@@ -453,25 +453,25 @@ func agreementNativeMutationControl(t *testing.T, mode *agreementMutation) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			t.Fatalf("not-applied: F3/%s setup-status=2 native control JSON: %v", mode.Name, err)
+			t.Fatalf("not-applied: %s/%s setup-status=2 native control JSON: %v", mode.Property, mode.Name, err)
 		}
 		if strings.Contains(strings.ToLower(event.Output), "not-applied") {
-			t.Fatalf("not-applied: F3/%s setup-status=2 native control setup: %s", mode.Name, event.Output)
+			t.Fatalf("not-applied: %s/%s setup-status=2 native control setup: %s", mode.Property, mode.Name, event.Output)
 		}
 		if event.Test == mode.ControlTest {
-			invoked = invoked || strings.Contains(event.Output, "AGREEMENT-INVOKED F3/"+mode.Name)
+			invoked = invoked || strings.Contains(event.Output, "AGREEMENT-INVOKED "+mode.Property+"/"+mode.Name)
 			terminal = terminal || event.Action == "pass"
 			failed = failed || event.Action == "fail"
-			caught = caught || strings.Contains(event.Output, "caught: F3 "+mode.Identity+" ")
+			caught = caught || strings.Contains(event.Output, "caught: "+mode.Property+" "+mode.Identity+" ")
 		}
 	}
 	if invoked && failed && caught && child.Status == 1 {
-		t.Errorf("caught: F3 %s native positive assertion failed actual-status=1", mode.Identity)
-		t.Logf("AGREEMENT-INVOKED F3/%s", mode.Name)
+		t.Errorf("caught: %s %s native positive assertion failed actual-status=1", mode.Property, mode.Identity)
+		t.Logf("AGREEMENT-INVOKED %s/%s", mode.Property, mode.Name)
 		return
 	}
 	if !invoked || !terminal || child.Status != 0 {
-		t.Fatalf("not-applied: F3/%s setup-status=2 native positive invoked=%t pass=%t actual-status=%d", mode.Name, invoked, terminal, child.Status)
+		t.Fatalf("not-applied: %s/%s setup-status=2 native positive invoked=%t pass=%t actual-status=%d", mode.Property, mode.Name, invoked, terminal, child.Status)
 	}
-	t.Logf("AGREEMENT-INVOKED F3/%s", mode.Name)
+	t.Logf("AGREEMENT-INVOKED %s/%s", mode.Property, mode.Name)
 }

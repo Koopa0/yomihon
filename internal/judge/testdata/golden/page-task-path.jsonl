@@ -1,0 +1,1 @@
+{"rule_id":"link.broken.path","severity":"warn","path":"Notes/Control.md","line":9,"message":"link to ControlMissing.md resolves to no file","evidence":"Notes/ControlMissing.md does not exist in the vault","suggested_action":"fix the path, restore the file, or remove the reference","source_rule":"yomihon","target":"ControlMissing.md","fingerprint":"v1:56c9668eefd5a0a6"}

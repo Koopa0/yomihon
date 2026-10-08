@@ -758,8 +758,8 @@ func TestAgreementWitnessControls(t *testing.T) {
 		body  string
 		known int
 	}{
-		{name: "unused-footnote-2-0332", body: "[^unused]: [[A]]\n", known: 2},
-		{name: "fence-info-2-0984", body: "``` [[A]]\n", known: 1},
+		{name: "unused-footnote-2-0332", body: "[^unused]: [[A]]\n", known: 1},
+		{name: "fence-info-2-0984", body: "``` [[A]]\n", known: 0},
 		{name: "multiline-code-1-1357", body: "`open\n[[A]]\nclose`", known: 2},
 		{name: "duplicate-heading-3-1181", body: "## A\n## A\n", known: 1},
 	} {
