@@ -45,4 +45,7 @@ func TestAgreementUnusedFootnoteContinuation(t *testing.T) {
 		}
 	}
 	t.Log("AGREEMENT-INVOKED S5/stage5-unused-continuation")
+	if *agreementSource != "" {
+		t.Logf("AGREEMENT-SOURCE-CONSUMED sha256=%s", agreementMutationSourceDigest(t, *agreementSource))
+	}
 }

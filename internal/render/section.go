@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"iter"
 	"path"
 	"sort"
 	"strings"
@@ -22,11 +23,12 @@ import (
 func presentationCodeLines(body string) map[int]presentationCodeLine {
 	lines := strings.Split(body, "\n")
 	codeLines := make(map[int]presentationCodeLine)
+	codes, autolinks := graph.PresentationCodesAndAutolinks(body)
 	starts := make([]int, len(lines))
 	for i := 1; i < len(lines); i++ {
 		starts[i] = starts[i-1] + len(lines[i-1]) + 1
 	}
-	for code := range graph.PresentationCodes(body) {
+	for code := range codes {
 		first := sort.Search(len(lines), func(i int) bool { return starts[i]+len(lines[i]) > code.Span.Start })
 		for i := first; i < len(lines) && starts[i] < code.Span.Stop; i++ {
 			line, at := lines[i], starts[i]
@@ -45,7 +47,19 @@ func presentationCodeLines(body string) map[int]presentationCodeLine {
 			}
 		}
 	}
+	addPresentationAutolinks(codeLines, lines, starts, autolinks)
 	return codeLines
+}
+
+func addPresentationAutolinks(codeLines map[int]presentationCodeLine, lines []string, starts []int, autolinks iter.Seq[graph.Span]) {
+	for link := range autolinks {
+		i := sort.Search(len(lines), func(i int) bool { return starts[i]+len(lines[i]) > link.Start })
+		if i < len(lines) {
+			reading := codeLines[i]
+			reading.spans = append(reading.spans, [2]int{link.Start - starts[i], min(len(lines[i]), link.Stop-starts[i])})
+			codeLines[i] = reading
+		}
+	}
 }
 
 type presentationCodeLine struct {

@@ -305,6 +305,9 @@ func structureFrom(facts graph.BodyFacts, headingMarks []string) ([]byteRange, [
 	for code := range facts.Codes() {
 		codeZones = append(codeZones, code.Span)
 	}
+	for link := range facts.Autolinks() {
+		codeZones = append(codeZones, link)
+	}
 	for definition := range facts.Footnotes() {
 		if !definition.Emitted {
 			codeZones = append(codeZones, definition.Span)

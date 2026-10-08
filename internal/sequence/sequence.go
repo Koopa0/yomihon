@@ -1142,6 +1142,9 @@ func skipFacts(facts graph.BodyFacts) []Span {
 	for comment := range facts.Comments() {
 		code = append(code, comment)
 	}
+	for link := range facts.Autolinks() {
+		code = append(code, link)
+	}
 	for definition := range facts.Footnotes() {
 		if !definition.Emitted {
 			code = append(code, definition.Span)

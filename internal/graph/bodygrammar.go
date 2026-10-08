@@ -194,6 +194,7 @@ type bodyObservation struct {
 	footnotes      []FootnoteFact
 	headings       []BodyHeading
 	destinations   []BodyDestination
+	autolinks      []Span
 	literals       []CodeLiteral
 	htmlLimits     []CommentLimit
 	blocks         map[ast.Node]int

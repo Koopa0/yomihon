@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"bytes"
 	"cmp"
 	"iter"
 	"slices"
@@ -104,6 +105,7 @@ type bodyFactsData struct {
 	footnotes         []FootnoteFact
 	headings          []BodyHeading
 	destinations      []BodyDestination
+	autolinks         []Span
 	literals          []CodeLiteral
 	htmlLimits        []CommentLimit
 	inlineNotes       []InlineFootnoteFact
@@ -190,6 +192,11 @@ func observeBodyRequested(body string, grammar parser.Parser, collection bodyCol
 	grammar.Parse(text.NewReader([]byte(body)), parser.WithContext(context))
 	for node, index := range observation.definitions {
 		observation.footnotes[index].Emitted = node.Index >= 0
+		// A lazy paragraph continuation belongs to its definition even when
+		// the block delegate did not consume that line itself.
+		for _, span := range bodyStrayBlocks(node) {
+			observation.footnotes[index].Span.Stop = max(observation.footnotes[index].Span.Stop, span.Stop)
+		}
 	}
 	slices.SortFunc(observation.codes, func(a, b CodeFact) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
 	slices.SortFunc(observation.footnotes, func(a, b FootnoteFact) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
@@ -220,7 +227,16 @@ func CodeProtection(body string) iter.Seq[CodeFact] {
 // PresentationCodes recognizes an already transformed presentation source.
 // It neither strips comments again nor admits another inline expansion.
 func PresentationCodes(body string) iter.Seq[CodeFact] {
-	return bodyValues(observeBody(body, bodyExpandedMarkdown.Parser()).codes)
+	codes, _ := PresentationCodesAndAutolinks(body)
+	return codes
+}
+
+// PresentationCodesAndAutolinks recognizes quotation and URL-owned text in
+// one presentation parse. Replacing brackets inside a URL would change where
+// that URL ends, letting its backticks acquire a different meaning.
+func PresentationCodesAndAutolinks(body string) (codes iter.Seq[CodeFact], autolinks iter.Seq[Span]) {
+	observation := observeBody(body, bodyExpandedMarkdown.Parser())
+	return bodyValues(observation.codes), bodyValues(observation.autolinks)
 }
 
 // CommentFree returns the one comment strip's immutable presentation source.
@@ -363,6 +379,14 @@ func (f BodyFacts) Destinations() iter.Seq[BodyDestination] {
 	return bodyValues(f.data.destinations)
 }
 
+// Autolinks yields original URL-owned spans, distinct from quoted code.
+func (f BodyFacts) Autolinks() iter.Seq[Span] {
+	if f.data == nil {
+		return bodyValues[Span](nil)
+	}
+	return bodyValues(f.data.autolinks)
+}
+
 // CodeLiterals yields displayed inline code words with source provenance.
 func (f BodyFacts) CodeLiterals() iter.Seq[CodeLiteral] {
 	if f.data == nil {
@@ -431,6 +455,20 @@ func (o *bodyObservation) collectSourceNode(node ast.Node, source []byte) {
 		o.destinations = append(o.destinations, BodyDestination{Offset: n.Pos(), Target: string(n.Destination)})
 	case *ast.Image:
 		o.destinations = append(o.destinations, BodyDestination{Offset: n.Pos(), Target: string(n.Destination), Image: true})
+	case *ast.AutoLink:
+		start, label := n.Pos(), n.Label(source)
+		// Linkify may consume a leading separator; an explicit autolink
+		// consumes its opening angle bracket. The label is original text.
+		if start < 0 || start >= len(source) {
+			panic("graph: autolink has no source position")
+		}
+		if !bytes.HasPrefix(source[start:], label) {
+			start++
+		}
+		if !bytes.HasPrefix(source[start:], label) {
+			panic("graph: autolink label has no source span")
+		}
+		o.autolinks = append(o.autolinks, Span{Start: start, Stop: start + len(label)})
 	case *ast.CodeSpan:
 		o.collectCodeLiteral(n, source)
 	case *ast.HTMLBlock:
