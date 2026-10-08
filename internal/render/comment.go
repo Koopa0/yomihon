@@ -92,3 +92,12 @@ func (s strippedBody) sourceSlice(value string) string {
 	}
 	return value
 }
+
+// Cuts are contiguous source lines. Carry their address geometry rather than
+// asking the comment-free spelling to decide its former block roles again.
+func (s strippedBody) cut(value string, line int) strippedBody {
+	end := min(len(s.address), line+strings.Count(value, "\n")+1)
+	s.address = slices.Clone(s.address[line:end])
+	s.text = value
+	return s
+}

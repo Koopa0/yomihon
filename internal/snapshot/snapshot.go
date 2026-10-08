@@ -528,6 +528,14 @@ func (g *Generation) RenderIn(region, relPath, body string, lang wording.Lang) r
 	return g.markdown.HTMLIn(region, relPath, g.notes[relPath].Title, body, lang)
 }
 
+// RenderExcerptIn resolves a role-preserving cut against this generation.
+func (g *Generation) RenderExcerptIn(region, relPath string, excerpt render.ExcerptReading, lang wording.Lang) render.Result {
+	if g == nil || g.markdown == nil {
+		return render.Result{}
+	}
+	return g.markdown.HTMLExcerptIn(region, relPath, g.notes[relPath].Title, excerpt, lang)
+}
+
 // Transclusion returns the immutable body captured for canonicalPath, exposing
 // no parsed note and no mutable map.
 func (g *Generation) Transclusion(canonicalPath string) (string, bool) {

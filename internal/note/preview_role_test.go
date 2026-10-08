@@ -25,29 +25,27 @@ func TestPreviewRetainsCommentBlockRoles(t *testing.T) {
 		{name: "visible continuation control", body: "para\nvisible\n    [[Missing]]\n", text: "para visible Missing (There is no note called \"Missing\" yet)", roles: []string{"p", "span.wikilink-broken", "span.y-offscreen"}},
 		{name: "real code control", body: "para\n\n    [[Missing]]\n", text: "para [[Missing]]", roles: []string{"p", "pre", "code"}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			root := t.TempDir()
-			writeVaultNote(t, root, "Notes/role.md", "---\ntitle: Role\n---\n"+tc.body)
-			srv := newServer(t, root)
-			card := askPreview(t, srv.Client(), srv.URL, "Notes/role.md", "", wording.En)
-			if card.code != http.StatusOK {
-				t.Fatalf("not-applied: preview status=%d body=%q", card.code, card.body)
-			}
-			roles, text := previewRoleShape(t, card.body)
-			want := struct {
-				Roles []string
-				Text  string
-			}{tc.roles, tc.text}
-			got := struct {
-				Roles []string
-				Text  string
-			}{roles, text}
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Errorf("caught: preview original comment block roles (-want +got):\n%s\nHTML=%q", diff, card.body)
-			}
-		})
+		root := t.TempDir()
+		writeVaultNote(t, root, "Notes/role.md", "---\ntitle: Role\n---\n"+tc.body)
+		srv := newServer(t, root)
+		card := askPreview(t, srv.Client(), srv.URL, "Notes/role.md", "", wording.En)
+		if card.code != http.StatusOK {
+			t.Fatalf("not-applied: preview status=%d body=%q", card.code, card.body)
+		}
+		roles, text := previewRoleShape(t, card.body)
+		want := struct {
+			Roles []string
+			Text  string
+		}{tc.roles, tc.text}
+		got := struct {
+			Roles []string
+			Text  string
+		}{roles, text}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("caught: S5 preview-role %s (-want +got):\n%s\nHTML=%q", tc.name, diff, card.body)
+		}
 	}
+	t.Log("AGREEMENT-INVOKED S5/stage5-preview-role")
 }
 
 func previewRoleShape(t *testing.T, source string) (roles []string, words string) {

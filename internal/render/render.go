@@ -272,8 +272,17 @@ func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
 // derived from the page rather than a running process, so two readers of one
 // lesson receive the same bytes.
 func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang) Result {
-	page := &composition{base: region, lang: lang}
 	stripped, comments := stripBody(body)
+	return r.htmlReadingIn(region, relPath, title, body, stripped, comments, lang)
+}
+
+// HTMLExcerptIn renders a cut without reclassifying the private bytes it lost.
+func (r *Pipeline) HTMLExcerptIn(region, relPath, title string, excerpt ExcerptReading, lang wording.Lang) Result {
+	return r.htmlReadingIn(region, relPath, title, excerpt.Source(), excerpt.body, commentReport{}, lang)
+}
+
+func (r *Pipeline) htmlReadingIn(region, relPath, title, body string, stripped strippedBody, comments commentReport, lang wording.Lang) Result {
+	page := &composition{base: region, lang: lang}
 	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text)
 	address := stripped.address
 	if dropped >= 0 {
