@@ -91,7 +91,19 @@ async function documentWithoutColumn(browser, width, language, theme) {
           ? original.replace(NULL_GUARD, '    toolbar.append(speechStatus);\n') : original });
       });
     }
+    // Documents carry no lesson enrichment. Supply the module's paragraph
+    // capability before initialization to exercise its absent chrome owner.
+    let documentMatches = 0;
+    await page.route('**/notes/README.md', async (route) => {
+      const response = await route.fetch();
+      const original = await response.text();
+      documentMatches = original.split('</main>').length - 1;
+      const paragraph = '<div class="y-reading" lang="ja"><button type="button" data-tts="あさ。"></button><p>あさ。</p></div>';
+      await route.fulfill({ response, body: documentMatches === 1
+        ? original.replace('</main>', paragraph + '</main>') : original });
+    });
     const response = await page.goto(BASE + '/notes/README.md', { waitUntil: 'networkidle' });
+    setup(documentMatches === 1, `document paragraph capability matched ${documentMatches} main closers, want 1`);
     const paragraphs = await page.locator('[data-tts]').count();
     const columns = await page.locator('[data-readaloud-controls]').count();
     setup(response?.status() === 200 && paragraphs === 1 && columns === 0,
