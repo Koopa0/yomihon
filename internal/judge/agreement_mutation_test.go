@@ -54,6 +54,7 @@ func agreementMutations() []agreementMutation {
 		{Name: "p1-provenance", Property: "P1", Identity: "provenance-identity", File: "internal/render/wikilink.go", Function: "embedSourceLine", Needle: "`<a href=\"` + attributeEscaper.Replace(notesHref(relPath)) + `\">` + html.EscapeString(noteName(relPath)) + `</a></p>`", Fault: "html.EscapeString(noteName(relPath)) + `</p>`", Body: "![[Notes/Child]]\n"},
 	}
 	modes = append(modes, snapshotBodyMutations()...)
+	modes = append(modes, agreementMutation{Name: "f3-wikilink-target", Property: "F3", Identity: "wikilink-target", File: "internal/graph/wikilink.go", Function: "ParseWikilink", Needle: "beforeBlock = strings.TrimRight(beforeBlock, `\\`)", Fault: "beforeBlock = strings.TrimRight(beforeBlock, \"\")", Package: "./internal/judge", ControlTest: "TestAgreementWikilinkTargets"})
 	modes = append(modes, bodyValueMutations()...)
 	modes = append(modes, bodyFieldMutations()...)
 	modes = append(modes, stage4Mutations()...)

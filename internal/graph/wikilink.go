@@ -113,6 +113,11 @@ func ParseWikilink(inner string) (Wikilink, bool) {
 	if hasBlock && link.Block == "" {
 		link.Block = strings.TrimSpace(block)
 	}
+	// A delimiter escape on a bare name never belongs to its resolution key.
+	// Fragments retain their authored spelling, independently of that key.
+	if !hasFragment && !hasBlock {
+		beforeBlock = strings.TrimRight(beforeBlock, `\`)
+	}
 	link.Target = strings.TrimSpace(beforeBlock)
 
 	return link, link.Target != ""
