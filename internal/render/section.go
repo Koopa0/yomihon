@@ -394,8 +394,8 @@ func blockMarkerLine(lines, address []string, unanchorable func(int, string) boo
 		if unanchorable(i, line) || owned[i] {
 			continue
 		}
-		trimmed := graph.FoldFragment(strings.TrimRight(line, " \t"))
-		if trimmed == want || strings.HasSuffix(trimmed, " "+want) || strings.HasSuffix(trimmed, "\t"+want) {
+		marker := BlockAddress(line)
+		if marker != "" && graph.FoldFragment(marker) == want {
 			return i
 		}
 	}

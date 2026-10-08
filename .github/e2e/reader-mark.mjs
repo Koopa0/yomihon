@@ -9,19 +9,9 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note long enough to scroll and carrying
 // headings to anchor against), and MUTATE.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
@@ -320,6 +310,7 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
   // A transform during the article's arrival makes a fixed descendant
   // relative to the article. Anchor decoys need the settled document, and
   // fonts must finish before its positions are measured.
+  await arrived(page);
   await page.evaluate(async () => {
     await document.fonts.ready;
     const article = document.querySelector('.y-article');
@@ -471,6 +462,29 @@ try {
       await page.evaluate(() => document.fonts.ready);
       const target = ['^a/b?c', '漢'.repeat(100), '^before/start?position'][index];
       const expectedAnchor = index === 2 ? '' : 'accepted-position';
+      // Unsupported block tails stay literal in the renderer. Offer the mark
+      // consumer an unstamped candidate only after checking that clean output.
+      const stimulusError = await page.evaluate(({ id, siteIndex }) => {
+        if (document.getElementById('^a/b?c') || document.getElementById('^before/start?position')) {
+          return 'the renderer emitted an unsupported block ID';
+        }
+        const accepted = document.getElementById('accepted-position');
+        if (!accepted?.closest('.y-prose') || !accepted.hasAttribute('data-mark-anchor')) {
+          return 'the accepted predecessor has no server eligibility stamp';
+        }
+        if (siteIndex === 1) return '';
+        const words = siteIndex === 0
+          ? 'A block with an address the reader can follow. ^a/b?c'
+          : 'Before the first accepted position. ^before/start?position';
+        const paragraphs = [...document.querySelectorAll('.y-prose p')]
+          .filter((node) => node.textContent.trim() === words);
+        if (paragraphs.length !== 1) return `refused block has ${paragraphs.length} literal paragraphs, want 1`;
+        const paragraph = paragraphs[0];
+        if (paragraph.hasAttribute('data-mark-anchor')) return 'the refused block unexpectedly carries eligibility';
+        paragraph.id = id;
+        return '';
+      }, { id: target, siteIndex: index });
+      if (stimulusError) broken(`${site}: ${stimulusError}`);
       const expected = await page.evaluate(({ id, predecessor }) => {
         const element = document.getElementById(id);
         const accepted = predecessor ? document.getElementById(predecessor) : null;

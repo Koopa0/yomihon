@@ -2,6 +2,7 @@
 // supplied Mermaid accessibility metadata. Names survive a theme redraw.
 // The existing note-response harness supplies real Mermaid input before boot;
 // no tracked note or renderer fixture is changed.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -42,11 +43,6 @@ const fail = (site, message) => { throw new LockFired(site, message); };
 const text = (value) => value.replace(/\s+/gu, ' ').trim();
 const escapeHTML = (value) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const html = SOURCES.map((source) => `<div class="mermaid-diagram" data-mermaid-code="${encodeURIComponent(source)}">${escapeHTML(source)}</div>`).join('');
-const arrived = (page) => page.waitForFunction(async () => {
-  if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-  await Promise.all(document.getAnimations().filter((animation) => animation.animationName === 'y-come-forward').map((animation) => animation.finished.catch(() => {})));
-  return true;
-}, null, { timeout: 3000 });
 
 // Read Chrome's committed accessibility tree, rather than treating a nonempty
 // attribute or a guessed ARIA calculation as an accessible name.

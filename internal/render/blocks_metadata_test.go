@@ -2,6 +2,7 @@ package render_test
 
 import (
 	"errors"
+	stdhtml "html"
 	"io"
 	"strings"
 	"testing"
@@ -21,9 +22,11 @@ func TestBlocksListExactlyTheEmittedAnchors(t *testing.T) {
 		body      string
 		want      []string
 		qualified []string
+		kept      []string
 	}{
 		{name: "paragraph list quote and standalone", body: destBody, want: []string{"^quux", "^itm", "^qq", "^under"}, qualified: []string{"right-^quux", "right-^itm", "right-^qq", "right-^under"}},
-		{name: "canonical spelling and duplicate", body: "First ^CAFE\u0301\n\nDuplicate ^CAFÉ\n\nEscaped ^Q&\"\n", want: []string{"^café", "^q&\""}, qualified: []string{"right-^café", "right-^q&\""}},
+		{name: "ASCII case and duplicate", body: "First ^CAFE-1\n\nDuplicate ^cafe-1\n\nAnother ^Q-2\n", want: []string{"^cafe-1", "^q-2"}, qualified: []string{"right-^cafe-1", "right-^q-2"}},
+		{name: "unsupported Unicode and punctuation stay literal", body: "First ^CAFE\u0301\n\nDuplicate ^CAFÉ\n\nEscaped ^Q&\"\n", kept: []string{"First ^CAFE\u0301", "Duplicate ^CAFÉ", "Escaped ^Q&\""}},
 		{name: "callout body", body: "> [!note] Title ^title\n> Body ^inside\n\nAfter ^after\n", want: []string{"^inside", "^after"}, qualified: []string{"right-^inside", "right-^after"}},
 		{name: "fenced inline and commented syntax", body: "```\nShown ^fenced\n```\n\n`shown ^inline`\n\n%% Hidden ^comment %%\n", want: nil},
 		{name: "authored markup and tables", body: "<span id=\"^authored\">^authored</span>\n\n| A | B |\n|---|---|\n| a | b | ^table\n", want: nil},
@@ -45,6 +48,11 @@ func TestBlocksListExactlyTheEmittedAnchors(t *testing.T) {
 				}
 				if diff := cmp.Diff(tt.want, emittedBlockIDs(t, got.HTML)); diff != "" {
 					t.Errorf("emitted span ids mismatch (-want +got):\n%s", diff)
+				}
+				for _, kept := range tt.kept {
+					if !strings.Contains(stdhtml.UnescapeString(got.HTML), kept) {
+						t.Errorf("unsupported authored text lost %q: %s", kept, got.HTML)
+					}
 				}
 				render.Qualify("right-", &got)
 				if diff := cmp.Diff(tt.qualified, got.Blocks); diff != "" {
