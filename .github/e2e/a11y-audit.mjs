@@ -267,7 +267,6 @@ const runHandChild = async () => {
   child.once('spawn', () => {
     console.log('invoked: a11y-audit hand-mode child spawned mode=drop-task-label');
     console.log('invoked: a11y-audit proof plain-owner child-spawn-boundary');
-    process.kill(process.pid, 'SIGTERM');
   });
   child.once('error', (error) => {
     childError = true;
