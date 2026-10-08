@@ -79,6 +79,7 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/block", Body: "first line\ncontinued ^a\n\nsecond ^b\n"},
 		{Name: "control/duplicate-address", Body: "first ^a\n\nsecond ^a\n"},
 		{Name: "control/title", Title: "A", Body: "# A\n\n## A\n## A\n"},
+		{Name: "control/literal-heading", Body: "## `[[B|alias]]`\n"},
 		{Name: "control/headings", Body: "## A\n## A\n\nB\n===\n"},
 		{Name: "control/inline-footnote", Body: "paragraph ^[literal]\n"},
 		{Name: "control/footnote", Body: "ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n\n[^unused]: [[A]]\n"},
@@ -183,6 +184,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			headingObserved := false
 			var collisionIDs map[string]bool
 			collisionObserved := false
+			var literalHeadingIDs map[string]bool
+			literalHeadingObserved := false
 			var codeTargets map[string]int
 			codeObserved := false
 			var continuationTargets map[string]int
@@ -216,6 +219,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						collisionObserved = true
 					}
 					classification, authority, wrong = agreementHeadingCollisionDifference(c, failure, collisionIDs)
+				}
+				if classification == "" && failure.Property == "P4" {
+					if !literalHeadingObserved {
+						literalHeadingIDs = agreementLiteralHeadingIDs(c.Body)
+						literalHeadingObserved = true
+					}
+					classification, authority, wrong = agreementLiteralHeadingDifference(c, failure, literalHeadingIDs)
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !codeObserved {

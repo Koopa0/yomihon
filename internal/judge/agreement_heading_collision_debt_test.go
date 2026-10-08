@@ -78,6 +78,7 @@ func TestAgreementHeadingCollisionDebt(t *testing.T) {
 	}{
 		{name: "authored suffix follows repetition", body: "## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
+		{name: "independent root callout words", body: "show [!note] words\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "authored suffix precedes repetition", body: "## A-2\n## A\n## A\n", want: map[string]bool{"a-3": true}},

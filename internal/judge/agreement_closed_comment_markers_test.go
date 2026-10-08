@@ -24,6 +24,25 @@ func agreementDeclarationMarkers(source []byte, doc ast.Node) bool {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
+		// Root prose and heading words are outside the quote that an opener needs.
+		if _, root := node.Parent().(*ast.Document); root {
+			switch node.(type) {
+			case *ast.Paragraph, *ast.Heading:
+				for i := range node.Lines().Len() {
+					line := node.Lines().At(i)
+					raw := string(line.Value(source))
+					for off := 0; off < len(raw); {
+						rel := strings.Index(raw[off:], "[!")
+						if rel < 0 {
+							break
+						}
+						at := line.Start + off + rel
+						clean[at], clean[at+1] = ' ', ' '
+						off += rel + 2
+					}
+				}
+			}
+		}
 		start, limit := -1, -1
 		switch node := node.(type) {
 		case *ast.Paragraph:
@@ -92,6 +111,14 @@ func TestAgreementDeclarationMarkers(t *testing.T) {
 		name, body string
 		want       bool
 	}{
+		{name: "root prose callout words", body: "show [!note] words\n", want: true},
+		{name: "root heading callout words", body: "## [!note] words\n", want: true},
+		{name: "inline quote is prose", body: "before > [!note] words\n", want: true},
+		{name: "escaped quote is prose", body: "\\> [!note] words\n", want: true},
+		{name: "quoted callout needs ownership", body: "> [!note] words\n"},
+		{name: "nested quoted callout needs ownership", body: "> > [!note] words\n"},
+		{name: "list quoted callout needs ownership", body: "- > [!note] words\n"},
+		{name: "prose words beside live callout", body: "show [!note] words\n\n> [!note] title\n"},
 		{name: "closed block comment", body: "<!--hidden-->\n", want: true},
 		{name: "complete root percent comment", body: "%%[[A]]%%\n", want: true},
 		{name: "percent payload owns other markers", body: "%%<!--[!note]%%\n", want: true},

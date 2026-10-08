@@ -106,6 +106,7 @@ func TestAgreementUnusedFootnoteDebt(t *testing.T) {
 	}{
 		{name: "unused", body: "[^unused]: [[A]]\n", want: 1},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n[^unused]: [[A]]\n", want: 1},
+		{name: "independent root callout words", body: "show [!note] words\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "two occurrences", body: "[^unused]: [[A]] [[A]]\n", want: 2},

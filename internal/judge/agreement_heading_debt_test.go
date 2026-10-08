@@ -75,6 +75,7 @@ func TestAgreementDuplicateHeadingDebt(t *testing.T) {
 		{name: "duplicate atx", body: "## A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n## A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "closed comment inside heading words", body: "## A<!--hidden-->\n## A\n", want: map[string]int{"a": 2}},
+		{name: "independent root callout words", body: "show [!note] words\n\n## A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n## A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n## A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "unrelated inline html", body: "text <em>outside</em>\n\n## A\n## A\n", want: map[string]int{"a": 2}},

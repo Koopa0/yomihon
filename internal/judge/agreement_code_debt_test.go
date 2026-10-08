@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/yomihon/internal/judge"
 )
 
-// Wrapped spans and list-item fences own their literal bytes even where a
+// Wrapped spans and fences inside containers own their literal bytes where a
 // line-by-line replacement currently treats those bytes as prose.
 func agreementCodeDebtTargets(body string) map[string]int {
 	if strings.Contains(body, "://") {
@@ -44,7 +44,11 @@ func agreementCodeDebtTargets(body string) map[string]int {
 			}
 		case *ast.FencedCodeBlock:
 			for parent := node.Parent(); parent != nil; parent = parent.Parent() {
-				if _, ok := parent.(*ast.ListItem); ok {
+				if _, list := parent.(*ast.ListItem); list {
+					literal = string(node.Lines().Value(source))
+					break
+				}
+				if _, quote := parent.(*ast.Blockquote); quote {
 					literal = string(node.Lines().Value(source))
 					break
 				}
@@ -84,6 +88,7 @@ func TestAgreementCodeDebt(t *testing.T) {
 	}{
 		{name: "wrapped span", body: "`open\n[[A]]\nclose`\n", want: 1},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n`open\n[[A]]\nclose`\n", want: 1},
+		{name: "independent root callout words", body: "show [!note] words\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "unrelated inline html", body: "text <em>outside</em>\n\n`open\n[[A]]\nclose`\n", want: 1},
@@ -91,6 +96,15 @@ func TestAgreementCodeDebt(t *testing.T) {
 		{name: "two wrapped occurrences", body: "`open\n[[A]] [[A]]\nclose`\n", want: 2},
 		{name: "independent live occurrence", body: "[[A]]\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "list fence", body: "- item\n\n    ```\n    [[A]]\n    ```\n", want: 1},
+		{name: "quoted fence", body: "> ```\n> [[A]]\n> ```\n", want: 1},
+		{name: "unclosed quoted fence", body: "> ```\n> [[A]]\n", want: 1},
+		{name: "nested quoted fence", body: "> > ```\n> > [[A]]\n> > ```\n", want: 1},
+		{name: "quoted fence whole occurrences", body: "> ```\n> [[A]] [[A]]\n> ```\n", want: 2},
+		{name: "quoted fence excludes info target", body: "> ``` [[B]]\n> [[A]]\n> ```\n", want: 1},
+		{name: "quoted fence excludes distinct outer target", body: "> ```\n> [[A]]\n> ```\n\n[[B]]\n", want: 1},
+		{name: "quoted fence excludes outer target", body: "> ```\n> [[A]]\n> ```\n\n[[A]]\n", want: 1},
+		{name: "quoted fence ends at root paragraph", body: "> ```\n> [[A]]\n\n[[A]]\n", want: 1},
+		{name: "quote without fence", body: "> [[A]]\n"},
 		{name: "ordinary prose", body: "[[A]]\n"},
 		{name: "single line span", body: "`[[A]]`\n"},
 		{name: "ordinary fence", body: "```\n[[A]]\n```\n"},

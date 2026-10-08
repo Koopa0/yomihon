@@ -52,6 +52,7 @@ func TestAgreementFenceInfoDebt(t *testing.T) {
 	}{
 		{name: "info occurrence", body: "``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
+		{name: "independent root callout words", body: "show [!note] words\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "unrelated inline html", body: "text <em>outside</em>\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},

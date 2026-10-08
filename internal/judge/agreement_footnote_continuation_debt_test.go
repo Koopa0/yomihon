@@ -68,6 +68,7 @@ func TestAgreementFootnoteContinuationDebt(t *testing.T) {
 		{name: "used second paragraph", body: "ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "comment closing line owns reference text", body: "<!--%%[!note]--> ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{}},
+		{name: "independent root callout words", body: "show [!note] words\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]` ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "unrelated inline html", body: "text <em>outside</em> ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},

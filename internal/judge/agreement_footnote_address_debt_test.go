@@ -60,6 +60,7 @@ func TestAgreementUnusedFootnoteAddressDebt(t *testing.T) {
 		want            map[string]int
 	}{
 		{name: "unused first paragraph", body: "[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
+		{name: "independent root callout words", body: "show [!note] words\n\n[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
 		{name: "unrelated literal markers", body: "`%%[!note]`\n\n[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
 		{name: "unused continuation", body: "[^n]: first\n\n    second ^a\n", cut: "    second ^a", want: map[string]int{"^a": 1}},

@@ -21,7 +21,7 @@ type agreementQuoteAddresses struct {
 }
 
 func agreementQuoteAddressOwnership(body string) agreementQuoteAddresses {
-	if strings.Contains(body, "<") || strings.Contains(body, "[^") || strings.Contains(body, "\\") {
+	if strings.Contains(body, "[^") || strings.Contains(body, "\\") {
 		return agreementQuoteAddresses{}
 	}
 	source := []byte(body)
@@ -32,9 +32,26 @@ func agreementQuoteAddressOwnership(body string) agreementQuoteAddresses {
 		return agreementQuoteAddresses{}
 	}
 	quotedFence := false
+	var nonProse []graph.Span
 	literal := make(map[string]int)
 	if err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-		if _, ok := node.(*ast.FencedCodeBlock); !entering || !ok {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch typed := node.(type) {
+		case *ast.CodeSpan:
+			first, firstOK := typed.FirstChild().(*ast.Text)
+			last, lastOK := typed.LastChild().(*ast.Text)
+			if firstOK && lastOK {
+				nonProse = append(nonProse, graph.Span{Start: first.Segment.Start, Stop: last.Segment.Stop})
+			}
+		case *ast.RawHTML:
+			for i := range typed.Segments.Len() {
+				segment := typed.Segments.At(i)
+				nonProse = append(nonProse, graph.Span{Start: segment.Start, Stop: segment.Stop})
+			}
+		}
+		if _, fence := node.(*ast.FencedCodeBlock); !fence {
 			return ast.WalkContinue, nil
 		}
 		for parent := node.Parent(); parent != nil; parent = parent.Parent() {
@@ -63,7 +80,8 @@ func agreementQuoteAddressOwnership(body string) agreementQuoteAddresses {
 		}
 		for i := range node.Lines().Len() {
 			line := node.Lines().At(i)
-			if address := render.BlockAddress(strings.TrimSuffix(strings.TrimSuffix(string(line.Value(source)), "\n"), "\r")); address != "" {
+			raw := strings.TrimSuffix(strings.TrimSuffix(string(line.Value(source)), "\n"), "\r")
+			if address := render.BlockAddress(raw); address != "" && !graph.In(nonProse, line.Start+strings.LastIndex(raw, address)) {
 				addresses[graph.FoldFragment(address)]++
 			}
 		}
@@ -108,8 +126,16 @@ func TestAgreementQuoteAddressDebt(t *testing.T) {
 		literal    map[string]int
 	}{
 		{name: "outer prose ends empty quoted fence", body: "> ```\n^a\n", want: map[string]int{"^a": 1}},
+		{name: "independent root callout words", body: "show [!note] words\n\n> ```\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n> ```\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "unrelated literal markers", body: "> ```\n> %%[!note]\n\n^a\n", want: map[string]int{"^a": 1}},
+		{name: "unrelated inline formatting", body: "words <em>outside</em>\n\n> ```\n^a\n", want: map[string]int{"^a": 1}},
+		{name: "literal formatting remains quoted", body: "> ```\n> <em>words</em> ^a\n", want: map[string]int{}, literal: map[string]int{"^a": 1}},
+		{name: "wrapped span owns apparent outer address", body: "> ```\n> code\n\n`open\n^a\nclose`\n", want: map[string]int{}},
+		{name: "span shares outer address", body: "> ```\n> code\n\n`open\n^a\nclose`\n\n^a\n", want: map[string]int{}},
+		{name: "invalid tag fields remain prose", body: "> ```\n> code\n\nwords <span\nattribute ^a\n> tail\n", want: map[string]int{"^a": 1}},
+		{name: "raw tag owns apparent outer address", body: "> ```\n> code\n\nwords <span\ntitle=\"value\n^a\n\"> tail\n", want: map[string]int{}},
+		{name: "tag shares outer address", body: "> ```\n> code\n\nwords <span\ntitle=\"value\n^a\n\"> tail\n\n^a\n", want: map[string]int{}},
 		{name: "outer prose follows quoted content", body: "> ```\n> code\n\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "closed quoted fence", body: "> ```\n> code\n> ```\n\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "folded outer address", body: "> ```\n^A\n", want: map[string]int{"^a": 1}},
