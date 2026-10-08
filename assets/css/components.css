@@ -7890,3 +7890,13 @@ samp,
   line-height: 1.6;
   margin: 8px 0 0;
 }
+
+/* Lost marks keep their original location readable and a native removal action. */
+.y-uncertainty-removal {
+  overflow-wrap: anywhere;
+}
+
+.y-uncertainty-removal button:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
