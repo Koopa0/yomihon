@@ -246,13 +246,13 @@ type agreementReplayBudget struct {
 	Checks     int
 }
 
-func agreementMinimize(t *testing.T, original *agreementCounterexample) (string, int, int, string) {
+func agreementMinimize(t *testing.T, original *agreementCounterexample) (minimizedBody string, candidateAttempts, publicChecks int, stopReason string) {
 	t.Helper()
 	budget := agreementReplayBudget{}
 	return agreementMinimizeBudget(t, original, &budget)
 }
 
-func agreementMinimizeBudget(t *testing.T, original *agreementCounterexample, budget *agreementReplayBudget) (string, int, int, string) {
+func agreementMinimizeBudget(t *testing.T, original *agreementCounterexample, budget *agreementReplayBudget) (minimizedBody string, candidateAttempts, publicChecks int, stopReason string) {
 	t.Helper()
 	body := original.Case.Body
 	if original.Failure.Property == "setup" {

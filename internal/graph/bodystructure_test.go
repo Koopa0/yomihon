@@ -3,6 +3,7 @@ package graph_test
 import (
 	"iter"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -102,12 +103,12 @@ func TestBodyStructureExpandedOriginalGrammar(t *testing.T) {
 		t.Errorf("caught: original grammar lost literal-note emphasis (-want +got):\n%s", diff)
 	}
 	parts := slices.Collect(facts.RowInlineParts(1))
-	var words string
+	var words strings.Builder
 	for _, part := range parts {
-		words += facts.Source()[part.Span.Start:part.Span.Stop]
+		words.WriteString(facts.Source()[part.Span.Start:part.Span.Stop])
 	}
-	if words != "^[words]" {
-		t.Errorf("caught: original grammar words = %q, want literal note", words)
+	if got := words.String(); got != "^[words]" {
+		t.Errorf("caught: original grammar words = %q, want literal note", got)
 	}
 }
 
@@ -208,9 +209,15 @@ func TestBodyFactsHandleCopyIsolation(t *testing.T) {
 	headingValues[0].Raw = "changed"
 	for origin := range borrowed.RichHeadingOrigins(1) {
 		origin.Original = graph.Span{}
+		if origin.Original != (graph.Span{}) {
+			t.Fatal("caught: local origin copy did not accept the mutation stimulus")
+		}
 	}
 	for row := range borrowed.ListRows(1) {
 		row.ChildListID = 99
+		if row.ChildListID != 99 {
+			t.Fatal("caught: local row copy did not accept the mutation stimulus")
+		}
 	}
 	want := slices.Collect(original.RichHeadings())
 	if len(want) != 1 || want[0].Raw != "AB" {

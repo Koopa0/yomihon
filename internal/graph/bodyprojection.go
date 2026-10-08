@@ -107,7 +107,7 @@ type bodyReading struct {
 	unclosed      BodyComment
 }
 
-func projectedBodyFacts(reading bodyReading) *bodyFactsData {
+func projectedBodyFacts(reading *bodyReading) *bodyFactsData {
 	facts := &bodyFactsData{source: reading.source, comments: reading.comments, commentFree: reading.admissionBody.text, comment: reading.unclosed}
 	facts.projectFootnotes(reading.bootstrap, reading.authority, reading.expanded)
 	facts.projectCodes(reading.authority, reading.expanded)

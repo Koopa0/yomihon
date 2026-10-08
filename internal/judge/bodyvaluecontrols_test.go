@@ -171,7 +171,7 @@ func bodyStructureValueControl(t *testing.T, mode *agreementMutation) {
 
 func bodyEmphasisControl(t *testing.T, mode *agreementMutation) {
 	t.Helper()
-	for _, tt := range []struct {
+	cases := []struct {
 		body        string
 		candidate   sequence.Candidate
 		diagnostics []sequence.Diagnostic
@@ -179,7 +179,9 @@ func bodyEmphasisControl(t *testing.T, mode *agreementMutation) {
 		{body: "## P {sequence=primary}\n\n- *[[A]]*\n", candidate: sequence.Candidate{Text: "A", Target: "A", Line: 9, Span: graph.Span{Start: 27, Stop: 34}, TargetSpan: graph.Span{Start: 28, Stop: 33}, State: sequence.EntryAccepted}},
 		{body: "## P {sequence=primary}\n\n- *[[A]]\n", candidate: sequence.Candidate{Text: "A", Target: "A", Line: 9, Span: graph.Span{Start: 27, Stop: 33}, TargetSpan: graph.Span{Start: 28, Stop: 33}, State: sequence.EntryNoncanonical}, diagnostics: []sequence.Diagnostic{{Rule: sequence.RuleEntryNoncanonical, Line: 9,
 			Message: "a lesson row opens with its link; move the link to the front, or take the row out of the course", Evidence: "*[[A]]"}}},
-	} {
+	}
+	for i := range cases {
+		tt := &cases[i]
 		want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary, Items: []sequence.Item{{Entry: &tt.candidate}}}}, Diagnostics: tt.diagnostics}
 		bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody(tt.body), 7))
 	}
@@ -234,7 +236,7 @@ func bodyEmptyOutlineControl(t *testing.T, mode *agreementMutation) {
 
 func bodyContinuationControl(t *testing.T, mode *agreementMutation) {
 	t.Helper()
-	for _, tt := range []struct {
+	cases := []struct {
 		body       string
 		candidate  sequence.Candidate
 		diagnostic sequence.Diagnostic
@@ -243,7 +245,9 @@ func bodyContinuationControl(t *testing.T, mode *agreementMutation) {
 			Message: "a row naming more than one note does not say which lesson it is; give each lesson its own row", Evidence: "[[A]]"}},
 		{body: "## P {sequence=primary}\n\n- [[A]]\n\n  tail {sequence=local}\n", candidate: sequence.Candidate{Text: "A", Target: "A", Line: 9, Span: graph.Span{Start: 27, Stop: 32}, TargetSpan: graph.Span{Start: 27, Stop: 32}, State: sequence.EntryAccepted}, diagnostic: sequence.Diagnostic{Rule: sequence.RuleRoleMisplaced, Line: 11,
 			Message: "a sequence marker is read on the row's own line, not in its continuation", Evidence: "tail {sequence=local}"}},
-	} {
+	}
+	for i := range cases {
+		tt := &cases[i]
 		want := sequence.Document{Groups: []*sequence.Group{{Name: "P", Level: 2, Line: 7, Role: sequence.RolePrimary, Items: []sequence.Item{{Entry: &tt.candidate}}}}, Diagnostics: []sequence.Diagnostic{tt.diagnostic}}
 		bodyValueCompare(t, mode, want, sequence.ParseFacts(graph.ReadBody(tt.body), 7))
 	}

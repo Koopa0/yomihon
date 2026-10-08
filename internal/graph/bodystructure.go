@@ -389,7 +389,7 @@ func bodyEmphasisOpener(n *ast.Emphasis) (Span, bool) {
 	if child == nil {
 		return Span{}, false
 	}
-	content := 0
+	var content int
 	if inner, ok := child.(*ast.Emphasis); ok {
 		span, found := bodyEmphasisOpener(inner)
 		if !found {

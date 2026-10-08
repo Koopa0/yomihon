@@ -392,7 +392,7 @@ func agreementMutationReceipt(t *testing.T, mode *agreementMutation, selected, s
 
 func agreementMutationSource(t *testing.T, overlay string) string {
 	t.Helper()
-	data, err := os.ReadFile(overlay)
+	data, err := os.ReadFile(overlay) // #nosec G304 -- test-owned overlay.json returned by agreementMutationOverlay, never product input
 	if err != nil {
 		t.Fatalf("not-applied: setup-status=2 read overlay: %v", err)
 	}
@@ -412,7 +412,7 @@ func agreementMutationSource(t *testing.T, overlay string) string {
 
 func agreementMutationSourceDigest(t *testing.T, path string) string {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- test-owned production.go selected from the generated mutation overlay, never product input
 	if err != nil {
 		t.Fatalf("not-applied: setup-status=2 read actual alternate source: %v", err)
 	}
@@ -421,7 +421,7 @@ func agreementMutationSourceDigest(t *testing.T, path string) string {
 }
 
 func agreementSourceReceipt(output, digest string) bool {
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		fields := strings.Fields(line)
 		for i := 0; i+1 < len(fields); i++ {
 			if fields[i] == "AGREEMENT-SOURCE-CONSUMED" && fields[i+1] == "sha256="+digest {

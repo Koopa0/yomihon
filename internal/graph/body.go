@@ -141,7 +141,7 @@ func ReadBody(body string) BodyFacts {
 		})
 		expandedAuthority = true
 	}
-	facts := projectedBodyFacts(bodyReading{
+	facts := projectedBodyFacts(&bodyReading{
 		source: body, admissionBody: admissionBody, expanded: expanded,
 		bootstrap: bootstrap, admission: admission, authority: authority,
 		comments: comments, unclosed: unclosed,
@@ -158,11 +158,12 @@ func ReadBody(body string) BodyFacts {
 	}
 	rich := admission
 	if len(admission.inlineNotes) > 0 {
-		if expandedAuthority && expanded.text == admissionBody.text {
+		switch {
+		case expandedAuthority && expanded.text == admissionBody.text:
 			rich = authority
-		} else if body == admissionBody.text && rows.collection.rich {
+		case body == admissionBody.text && rows.collection.rich:
 			rich = rows
-		} else {
+		default:
 			rich = observeBodyRequested(admissionBody.text, bodyExpandedMarkdown.Parser(), bodyCollection{rich: true})
 		}
 	}
