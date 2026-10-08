@@ -134,8 +134,27 @@ func checkBaseVersions(t *testing.T, versions asset.Versions, query string) {
 			t.Errorf("caught: import map maps %q to a different module %q", key, value)
 		}
 	}
+	facade, readErr := assets.Files.ReadFile("js/mermaid/mermaid.esm.min.mjs")
+	if readErr != nil || len(facade) == 0 {
+		t.Fatalf("read embedded Mermaid facade: bytes %d, error %v", len(facade), readErr)
+	}
+	examined++
+	const facadeKey = "/static/mermaid.esm.min.mjs"
+	facadeURL, present := imports[facadeKey]
+	if !present {
+		t.Error("caught: import map omits Mermaid facade")
+	} else {
+		assertServedAssetVersion(t, mux, facadeURL, query)
+		parsed, parseErr := url.Parse(facadeURL)
+		if parseErr != nil {
+			t.Fatal(parseErr)
+		}
+		if parsed.Path != facadeKey {
+			t.Errorf("caught: Mermaid import map path = %q, want %q", parsed.Path, facadeKey)
+		}
+	}
 	if examined == 0 || len(imports) != examined {
-		t.Errorf("caught: import map has %d members, want every one of %d embedded client modules and nothing else", len(imports), examined)
+		t.Errorf("caught: import map has %d members, want every one of %d embedded client modules plus facade and nothing else", len(imports), examined)
 	}
 	t.Log("invoked: complete Base registry asset projection")
 }

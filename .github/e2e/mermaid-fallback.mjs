@@ -266,7 +266,8 @@ try {
     let blocked = false;
     let recordBlocked;
     const blockedRequest = new Promise((resolve) => { recordBlocked = resolve; });
-    await page.route('**/mermaid.esm.min.mjs', (route) => {
+    await page.route('**/mermaid.esm.min.mjs{,?*}', (route) => {
+      if (new URL(route.request().url()).pathname !== '/static/mermaid.esm.min.mjs') return route.continue();
       blocked = true;
       recordBlocked();
       return route.abort('failed');

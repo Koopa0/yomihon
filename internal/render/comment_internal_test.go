@@ -3,6 +3,8 @@ package render
 import (
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestStripObsidianCommentsPreservesFenceOpeningLine(t *testing.T) {
@@ -11,7 +13,7 @@ func TestStripObsidianCommentsPreservesFenceOpeningLine(t *testing.T) {
 	body := "```text %%literal info%%\n%%literal body%%\n```\nafter %%hidden%%"
 	want := "```text %%literal info%%\n%%literal body%%\n```\nafter "
 	got, unclosed := stripObsidianComments(body)
-	line := unclosed.line
+	line := unclosed.bodywide.line
 	if got != want {
 		t.Errorf("stripObsidianComments() = %q, want %q", got, want)
 	}
@@ -152,12 +154,58 @@ func TestStripObsidianCommentsReportsUnclosedLine(t *testing.T) {
 			t.Parallel()
 
 			got, unclosed := stripObsidianComments(tt.body)
-			line := unclosed.line
+			line := unclosed.bodywide.line
 			if got != tt.want {
 				t.Errorf("stripObsidianComments(%q) = %q, want %q", tt.body, got, tt.want)
 			}
 			if line != tt.wantLine {
 				t.Errorf("stripObsidianComments(%q) unclosed line = %d, want %d", tt.body, line, tt.wantLine)
+			}
+		})
+	}
+}
+
+func TestStripObsidianCommentsRetainsOrderedSourceRecords(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		body string
+		text string
+		want commentReport
+	}{
+		{
+			name: "two containers then body-wide percent",
+			body: "> Before\n> <!-- private\n> secret\n\nAfter.\n\n- Item\n  <!-- private\n  secret\n\nFinally.\n%% private",
+			text: "> Before\n> \n> \n\nAfter.\n\n- Item\n  \n\n\nFinally.\n",
+			want: commentReport{
+				bodywide: unclosedComment{line: 12, marker: "%%"},
+				containers: []unclosedComment{
+					{line: 2, marker: "<!--"},
+					{line: 8, marker: "<!--"},
+				},
+			},
+		},
+		{
+			name: "body-wide HTML has no container duplicate",
+			body: "Before\n<!-- private",
+			text: "Before\n",
+			want: commentReport{bodywide: unclosedComment{line: 2, marker: "<!--"}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			t.Log("hit: ordered original comment records")
+			text, report := stripObsidianComments(tt.body)
+			want := struct {
+				Text   string
+				Report commentReport
+			}{Text: tt.text, Report: tt.want}
+			got := struct {
+				Text   string
+				Report commentReport
+			}{Text: text, Report: report}
+			if diff := cmp.Diff(want, got, cmp.AllowUnexported(commentReport{}, unclosedComment{})); diff != "" {
+				t.Errorf("caught: ordered original comment records (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -171,6 +219,8 @@ func FuzzStripObsidianComments(f *testing.F) {
 		"Before <!-- private > [[Ghost]] --> after",
 		"> Before\n> <!-- private\n> secret\n\nAfter",
 		"- Item\n  <!-- private\n  secret\n\nAfter",
+		"> Before\n> <!-- private\n> secret\n\nAfter\n\n- Item\n  <!-- private\n  secret\n\nFinally",
+		"> Before\n> <!-- private\n> secret\n\nAfter\n%% private",
 		"`begin\nmiddle <!-- literal --> end`",
 		"before %%hidden%% after",
 		"%%unclosed",
@@ -196,8 +246,8 @@ func FuzzStripObsidianComments(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, body string) {
 		got, unclosed := stripObsidianComments(body)
-		line := unclosed.line
-		if second, secondUnclosed := stripObsidianComments(body); second != got || secondUnclosed != unclosed {
+		line := unclosed.bodywide.line
+		if second, secondUnclosed := stripObsidianComments(body); second != got || !cmp.Equal(secondUnclosed, unclosed, cmp.AllowUnexported(commentReport{}, unclosedComment{})) {
 			t.Fatalf("stripObsidianComments() is not deterministic: first %q/%v, second %q/%v", got, unclosed, second, secondUnclosed)
 		}
 		if len(got) > len(body) {
@@ -209,6 +259,11 @@ func FuzzStripObsidianComments(f *testing.F) {
 		// a body that reported one legitimately reports none afterwards.
 		if lines := strings.Count(body, "\n") + 1; line < 0 || line > lines {
 			t.Fatalf("stripObsidianComments() unclosed line = %d, want between 0 and %d", line, lines)
+		}
+		for _, container := range unclosed.containers {
+			if lines := strings.Count(body, "\n") + 1; container.line < 1 || container.line > lines {
+				t.Fatalf("stripObsidianComments() container line = %d, want between 1 and %d", container.line, lines)
+			}
 		}
 		// Running the scan over its own output is not asserted to change
 		// nothing, and the seed ``%%``%%%%` is the case that proves it cannot

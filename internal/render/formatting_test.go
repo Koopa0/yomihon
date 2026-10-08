@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lexical"
@@ -154,6 +156,8 @@ func TestAHeadingPairsOnlyTheTagsThePageParses(t *testing.T) {
 		"<u>a</u> < b > c",
 		"<<u>a</u>",
 		"<u>a</u> <",
+		`<u title="<">a</u>`,
+		`<span title='a<b'>x</span>`,
 		"<sub>i</sub> < <sup>2</sup> <u>t < s</u>",
 		"x < <ruby>漢<rt>かん</rt></ruby>",
 		`<kbd>\<</kbd>`,
@@ -209,4 +213,153 @@ func TestAHeadingPairsOnlyTheTagsThePageParses(t *testing.T) {
 			}
 		})
 	}
+
+	// A literal attribute bracket belongs to the parsed tag until the
+	// allowlist escapes it. Its words must survive without gaining authority.
+	for _, tt := range []struct {
+		name     string
+		heading  string
+		words    string
+		id       string
+		cut      string
+		level    int
+		elements []headingElement
+	}{
+		{name: "double quoted underline", heading: `<u title="<">a</u>`, words: `<u title="<">a`, id: "u-title-a", level: 2, cut: "## <u title=\"<\">a</u>\nINSIDE\n"},
+		{name: "single quoted span", heading: `<span title='a<b'>x</span>`, words: `<span title='a<b'>x</span>`, id: "span-title-a-b-x-span", level: 2, cut: "## <span title='a<b'>x</span>\nINSIDE\n"},
+		{name: "single quoted underline", heading: `<u title='<'>a</u>`, words: `<u title='<'>a`, id: "u-title-a", level: 2, cut: "## <u title='<'>a</u>\nINSIDE\n"},
+		{name: "double quoted span", heading: `<span title="a<b">x</span>`, words: `<span title="a<b">x</span>`, id: "span-title-a-b-x-span", level: 2, cut: "## <span title=\"a<b\">x</span>\nINSIDE\n"},
+		{name: "utf8 prefix", heading: `漢 <u title="<">a</u>`, words: `漢 <u title="<">a`, id: "漢-u-title-a", level: 2, cut: "## 漢 <u title=\"<\">a</u>\nINSIDE\n"},
+		{name: "wikilink alias prefix", heading: `[[Other|日本]] <u title="<">a</u>`, words: `日本 <u title="<">a`, id: "日本-u-title-a", level: 2, cut: "## [[Other|日本]] <u title=\"<\">a</u>\nINSIDE\n", elements: []headingElement{{Name: "a", Attributes: []nethtml.Attribute{{Key: "href", Val: "/notes/Other.md"}, {Key: "class", Val: "wikilink"}}, Text: "日本"}}},
+		{name: "multiline setext", heading: "Setext <u title=\"<\">a</u>\nsecond line", words: "Setext <u title=\"<\">a\nsecond line", id: "setext-u-title-a-second-line", level: 1, cut: "Setext <u title=\"<\">a</u>\nsecond line\n===\nINSIDE\n"},
+		{name: "outside bracket after segment", heading: `<u title="<">a</u> <`, words: `<u title="<">a <`, id: "u-title-a", level: 2, cut: "## <u title=\"<\">a</u> <\nINSIDE\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			headingBody := "## " + tt.heading
+			stop := "## Stop"
+			headingTag := "h3"
+			levelAttribute := "2"
+			if tt.level == 1 {
+				headingBody = tt.heading + "\n==="
+				stop, headingTag, levelAttribute = "# Stop", "h2", "1"
+			}
+			body := "BEFORE\n\n" + headingBody + "\nINSIDE\n\n" + stop + "\nOUTSIDE\n"
+			page := r.HTML("Note.md", "", body, wording.En)
+			headings := parsedHeadingRecords(t, page.HTML)
+			words := render.HeadingWords(tt.heading)
+			cut, found := render.Excerpt(body, tt.id)
+			missingCut, missingFound := render.Excerpt(body, "absent-section")
+			t.Log("producer-hit: heading attribute public composition")
+			if diff := cmp.Diff(tt.words, words); diff != "" {
+				t.Errorf("caught: heading attribute words (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.id, graph.SectionID(words)); diff != "" {
+				t.Errorf("caught: heading attribute identity (-want +got):\n%s", diff)
+			}
+			wantHeadings := []headingRecord{
+				{Name: headingTag, Attributes: []nethtml.Attribute{{Key: "id", Val: tt.id}, {Key: "data-level", Val: levelAttribute}}, Text: tt.words, Elements: tt.elements},
+				{Name: headingTag, Attributes: []nethtml.Attribute{{Key: "id", Val: "stop"}, {Key: "data-level", Val: levelAttribute}}, Text: "Stop"},
+			}
+			// Attribute order does not change markup authority; every attribute
+			// and duplicate must still belong to the complete expected set.
+			if diff := cmp.Diff(wantHeadings, headings, cmpopts.SortSlices(func(a, b nethtml.Attribute) bool {
+				if a.Namespace != b.Namespace {
+					return a.Namespace < b.Namespace
+				}
+				if a.Key != b.Key {
+					return a.Key < b.Key
+				}
+				return a.Val < b.Val
+			})); diff != "" {
+				t.Errorf("caught: heading attribute page (-want +got):\n%s", diff)
+			}
+			wantTOC := []render.TOCEntry{{Level: tt.level, Text: tt.words, ID: tt.id}, {Level: tt.level, Text: "Stop", ID: "stop"}}
+			if diff := cmp.Diff(wantTOC, page.TOC); diff != "" {
+				t.Errorf("caught: heading attribute toc (-want +got):\n%s", diff)
+			}
+			for _, h := range headings {
+				for _, element := range h.Elements {
+					if (element.Name == "u" || element.Name == "span") && len(element.Attributes) != 0 {
+						t.Errorf("caught: heading attribute markup authority: %+v", element)
+					}
+				}
+			}
+			wantExcerpt := struct {
+				Cut   string
+				Found bool
+			}{Cut: tt.cut, Found: true}
+			gotExcerpt := struct {
+				Cut   string
+				Found bool
+			}{Cut: cut, Found: found}
+			if diff := cmp.Diff(wantExcerpt, gotExcerpt); diff != "" {
+				t.Errorf("caught: heading attribute excerpt (-want +got):\n%s", diff)
+			}
+			if missingCut != "" || missingFound {
+				t.Errorf("caught: heading attribute absent excerpt: cut = %q, found = %v", missingCut, missingFound)
+			}
+		})
+	}
+}
+
+type headingElement struct {
+	Name       string
+	Attributes []nethtml.Attribute
+	Text       string
+}
+
+type headingRecord struct {
+	Name       string
+	Attributes []nethtml.Attribute
+	Text       string
+	Elements   []headingElement
+}
+
+func parsedHeadingRecords(t *testing.T, htmlOut string) []headingRecord {
+	t.Helper()
+	doc, err := nethtml.Parse(strings.NewReader(htmlOut))
+	if err != nil {
+		t.Fatalf("parse rendered headings: %v", err)
+	}
+	var records []headingRecord
+	var walk func(*nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if n.Type == nethtml.ElementNode && len(n.Data) == 2 && n.Data[0] == 'h' && n.Data[1] >= '1' && n.Data[1] <= '6' {
+			record := headingRecord{Name: n.Data, Attributes: n.Attr, Text: headingNodeText(n)}
+			var descendants func(*nethtml.Node)
+			descendants = func(child *nethtml.Node) {
+				if child.Type == nethtml.ElementNode {
+					record.Elements = append(record.Elements, headingElement{Name: child.Data, Attributes: child.Attr, Text: headingNodeText(child)})
+				}
+				for nested := child.FirstChild; nested != nil; nested = nested.NextSibling {
+					descendants(nested)
+				}
+			}
+			for child := n.FirstChild; child != nil; child = child.NextSibling {
+				descendants(child)
+			}
+			records = append(records, record)
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+	return records
+}
+
+func headingNodeText(n *nethtml.Node) string {
+	var words strings.Builder
+	var walk func(*nethtml.Node)
+	walk = func(node *nethtml.Node) {
+		if node.Type == nethtml.TextNode {
+			words.WriteString(node.Data)
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(n)
+	return words.String()
 }
