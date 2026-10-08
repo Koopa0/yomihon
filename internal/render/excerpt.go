@@ -26,7 +26,9 @@ type Projection struct {
 	FenceRanges  [][2]int
 	DisplaySpans []DisplaySpan
 
-	// Insertions name offsets where the page adds words absent from Text.
+	// Insertions name conservative cuts where the page may add words absent
+	// from Text. A missing local link can add an out-of-sight explanation; the
+	// corpus cannot tell which local destinations exist.
 	Insertions []int
 }
 

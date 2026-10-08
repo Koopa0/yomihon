@@ -517,6 +517,8 @@ func plainWikilink(token string) string {
 func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.WalkStatus, error) {
 	if !entering {
 		if _, ok := n.(*ast.Link); ok {
+			// An unresolved local link adds an out-of-sight explanation. The
+			// corpus cannot resolve files, so every link exit keeps a safe cut.
 			w.recordInsertion()
 		}
 		return ast.WalkContinue, nil

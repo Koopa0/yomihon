@@ -51,7 +51,7 @@ func TestLandingContextInsideChangedBlocks(t *testing.T) {
 // after it, which the list's copy is never followed by, or else the previous
 // block's last words, which it is never preceded by. A heading hit given
 // neither keeps the directive any other heading hit has, and is not pinned
-// here; TestGatedHeadingHitsKeepTheDirectiveMainEmits pins that directive
+// here; TestHeadingHitsRespectDecodedReadingContext pins that directive
 // where the gate is what withheld the context.
 func TestHeadingHitNamesTheSectionOpening(t *testing.T) {
 	t.Parallel()

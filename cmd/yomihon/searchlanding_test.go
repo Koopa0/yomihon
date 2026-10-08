@@ -54,9 +54,9 @@ func TestProductionSearchLandings(t *testing.T) {
 	}
 }
 
-// TestGatedHeadingHitsKeepTheDirectiveMainEmits preserves ambiguity controls
+// TestHeadingHitsRespectDecodedReadingContext preserves ambiguity controls
 // while decoded prose and clipped link labels supply useful section context.
-func TestGatedHeadingHitsKeepTheDirectiveMainEmits(t *testing.T) {
+func TestHeadingHitsRespectDecodedReadingContext(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct{ name, body, query, fragment string }{
@@ -89,24 +89,27 @@ var resultLink = regexp.MustCompile(`<a class="y-result" href="([^"]+)">`)
 // into the article, including the localized words external links insert.
 func TestSearchDirectivesNameAdjacentReadingText(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ name, body, query string }{
-		{"entity", "## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell"},
-		{"escape", "## Where the inkwell waits\n\nThe snake\\_case name.\n", "inkwell"},
-		{"external", "## Where the inkwell waits\n\n[Go docs](https://go.dev) explains it.\n", "inkwell"},
-		{"explicit-autolink", "## Where the inkwell waits\n\n<https://go.dev> explains it.\n", "inkwell"},
-		{"bare-https", "## Where the inkwell waits\n\nhttps://go.dev explains it.\n", "inkwell"},
-		{"bare-www", "## Where the inkwell waits\n\nwww.example.com explains it.\n", "inkwell"},
-		{"cjk-link", "甲[乙](https://go.dev)丙丁搜尋戊己。\n", "搜尋"},
-		{"nfd-before-link", "cafe\u0301 [乙](https://go.dev)丙搜尋尾。\n", "搜尋"},
-		{"multiple-links", "[甲](https://a.test)乙搜尋丙[丁](https://b.test)戊。\n", "搜尋"},
-		{"body-end-link", "搜尋[尾](https://go.dev)\n", "搜尋"},
-		{"prior-block-link-end", "## Earlier\n\nPrior words [x](https://go.dev)\n\n## Where the inkwell waits\n\n## Next\n", "inkwell"},
-		{"prior-block-link-inside", "## Earlier\n\nPrior [x](https://go.dev) words here.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell"},
-		{"heading-link-end", "## Where the inkwell [waits](https://go.dev)\n\nThe shelf keeps it dry.\n", "inkwell"},
-		{"heading-link-after-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell [waits](https://go.dev)\n\n## Next\n", "inkwell"},
-		{"missing-local-link", "## Where the inkwell waits\n\n[notes](Missing.md) explains it.\n", "inkwell"},
-		{"decoded-entity", "Tom &amp; Jerry run.\n", `"Tom & Jerry"`},
-		{"decoded-escape", "The snake\\_case name.\n", "snake_case"},
+	tests := []struct {
+		name, body, query string
+		context           bool
+	}{
+		{"entity", "## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", true},
+		{"escape", "## Where the inkwell waits\n\nThe snake\\_case name.\n", "inkwell", true},
+		{"external", "## Where the inkwell waits\n\n[Go docs](https://go.dev) explains it.\n", "inkwell", true},
+		{"explicit-autolink", "## Where the inkwell waits\n\n<https://go.dev> explains it.\n", "inkwell", true},
+		{"bare-https", "## Where the inkwell waits\n\nhttps://go.dev explains it.\n", "inkwell", true},
+		{"bare-www", "## Where the inkwell waits\n\nwww.example.com explains it.\n", "inkwell", true},
+		{"cjk-link", "甲[乙](https://go.dev)丙丁搜尋戊己。\n", "搜尋", true},
+		{"nfd-before-link", "cafe\u0301 [乙](https://go.dev)丙搜尋尾。\n", "搜尋", true},
+		{"multiple-links", "[甲](https://a.test)乙搜尋丙[丁](https://b.test)戊。\n", "搜尋", true},
+		{"body-end-link", "搜尋[尾](https://go.dev)\n", "搜尋", true},
+		{"prior-block-link-end", "## Earlier\n\nPrior words [x](https://go.dev)\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", false},
+		{"prior-block-link-inside", "## Earlier\n\nPrior [x](https://go.dev) words here.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", true},
+		{"heading-link-end", "## Where the inkwell [waits](https://go.dev)\n\nThe shelf keeps it dry.\n", "inkwell", false},
+		{"heading-link-after-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell [waits](https://go.dev)\n\n## Next\n", "inkwell", false},
+		{"missing-local-link", "## Where the inkwell waits\n\n[notes](Missing.md) explains it.\n", "inkwell", true},
+		{"decoded-entity", "Tom &amp; Jerry run.\n", `"Tom & Jerry"`, false},
+		{"decoded-escape", "The snake\\_case name.\n", "snake_case", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -134,13 +137,12 @@ func TestSearchDirectivesNameAdjacentReadingText(t *testing.T) {
 					if !ok {
 						t.Fatalf("caught: result %q has no text directive", href)
 					}
-					assertAdjacentDirective(t, directive, article, tt.name, lang, route)
+					assertAdjacentDirective(t, directive, article, tt.name, tt.context, lang, route)
 				}
 			}
 		})
 	}
 }
-
 func articleSearchText(t *testing.T, page string) string {
 	t.Helper()
 	doc, err := nethtml.Parse(strings.NewReader(page))
@@ -235,7 +237,7 @@ func TestSearchConsumesProseMarkupAndKeepsCodeLiteral(t *testing.T) {
 	}
 }
 
-func assertAdjacentDirective(t *testing.T, directive, article, name string, lang wording.Lang, route string) {
+func assertAdjacentDirective(t *testing.T, directive, article, name string, context bool, lang wording.Lang, route string) {
 	t.Helper()
 	parts := strings.Split(directive, ",")
 	prefix, suffix := "", ""
@@ -266,7 +268,7 @@ func assertAdjacentDirective(t *testing.T, directive, article, name string, lang
 			t.Fatalf("caught: empty directive end %q", directive)
 		}
 	}
-	if name != "decoded-entity" && name != "decoded-escape" && prefix == "" && suffix == "" {
+	if context && prefix == "" && suffix == "" {
 		t.Errorf("caught: nonempty display context case=%s lang=%s route=%s directive=%q", name, lang, route, directive)
 	}
 	found := false
@@ -297,7 +299,7 @@ func assertAdjacentDirective(t *testing.T, directive, article, name string, lang
 	}
 }
 
-func TestDroppedTitleKeepsMainLanding(t *testing.T) {
+func TestDroppedTitleLandsWithDecodedOpening(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct{ name, body, query, href string }{
