@@ -62,6 +62,8 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		return []SchemaPart{text(schemaRequiredStart), code(field), text(schemaRequiredEnd)}
 	case "schema.unknown_key":
 		return []SchemaPart{code(target), text(schemaUnknownKey)}
+	case "schema.type_dependent":
+		return []SchemaPart{code(field), text(schemaWrittenAs), code(target), text(schemaTypeDependent)}
 	case "schema.provenance":
 		return []SchemaPart{
 			text(schemaProvenanceStart), code("based_on"),
@@ -126,6 +128,10 @@ var (
 	schemaRequiredEnd   = both("，這篇沒有。", " on a note of this kind, and this one has none.")
 
 	schemaUnknownKey = both(" 不是 schema 認得的欄位。", " is not a field the schema knows.")
+
+	schemaTypeDependent = both(
+		"不是有效的類型；類型限定欄位要等 type 有效後才能判斷。",
+		", which is not valid; type-only fields cannot be judged until type is valid.")
 
 	schemaProvenanceStart  = both("這篇 concept 既沒寫 ", "This concept has neither ")
 	schemaProvenanceMiddle = both(" 也沒寫 ", " nor ")

@@ -30,6 +30,8 @@ import "embed"
 //     here, directory structure preserved exactly, so the entry module's
 //     relative imports resolve the same way under internal/asset's
 //     /static/ route as they do in mermaid's own dist/ layout.
+//     The facade receives its served-byte version through the page import map;
+//     relative chunk imports retain their content-hashed filenames.
 //     Source: https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/ (fetched
 //     2026-07-02; update by re-fetching a newer @<version> from the same
 //     path, then regenerate js/mermaid/SHA256SUMS from LICENSE and the
@@ -39,7 +41,8 @@ import "embed"
 //     hand-written stylesheets: the vendored reset, the self-hosted
 //     @font-face rules, the design tokens, and the product's components.
 //     internal/asset joins them in that order, once, into the one
-//     stylesheet it serves at /static/app.css; nothing generates or
+//     stylesheet it serves at /static/app.css, rewriting registered static
+//     references to their byte-versioned URLs before hashing; nothing generates or
 //     minifies it, so `go build ./...` needs no prior css step.
 //
 //   - brand/yomihon-mark.svg — the single canonical, hand-authored brand

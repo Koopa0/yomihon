@@ -197,7 +197,10 @@ func headingMarkup(words, parseable string) (string, *formattingGate) {
 		prefix, suffix = "", "\n==="
 	}
 	source := []byte(prefix + parseable + suffix)
-	written := map[int]bool{}
+	var written []struct {
+		start, stop int
+		keep        bool
+	}
 	_ = ast.Walk(headingParser.Parse(text.NewReader(source)), func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
 		// The page writes a tag broken over two lines one line at a time, so
 		// neither part is a complete tag there and its '<' is text.
@@ -206,21 +209,30 @@ func headingMarkup(words, parseable string) (string, *formattingGate) {
 			return ast.WalkContinue, nil
 		}
 		_, unpaired := raw.AttributeString(unpairedFormattingAttribute)
-		written[raw.Segments.At(0).Start-len(prefix)] = !unpaired
+		segment := raw.Segments.At(0)
+		written = append(written, struct {
+			start, stop int
+			keep        bool
+		}{start: segment.Start - len(prefix), stop: segment.Stop - len(prefix), keep: !unpaired})
 		return ast.WalkContinue, nil
 	})
-	// Each '<' left opens a tag the parse read, so the walk meets the tags in
-	// the parse's order and its n-th formatting tag is the parse's n-th.
+	// A complete parsed tag reaches the allowlist unchanged, including any
+	// '<' in its quoted attributes. Only its opener consumes a pairing decision.
 	var prepared strings.Builder
+	cursor := 0
 	for i := range len(words) {
-		keep, tag := written[i]
+		for cursor < len(written) && written[cursor].stop <= i {
+			cursor++
+		}
+		tag := cursor < len(written) && written[cursor].start <= i
 		switch {
 		case words[i] != '<':
 		case !tag:
 			prepared.WriteString("&lt;")
 			continue
-		case safeFormattingTag.MatchString(words[i : i+strings.IndexByte(words[i:], '>')+1]):
-			gate.paired = append(gate.paired, keep)
+		case i > written[cursor].start:
+		case safeFormattingTag.MatchString(words[i:written[cursor].stop]):
+			gate.paired = append(gate.paired, written[cursor].keep)
 		}
 		prepared.WriteByte(words[i])
 	}
