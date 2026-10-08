@@ -77,6 +77,8 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/unwritten-embed-heading", Body: "![[A]]A\n---\n"},
+		{Name: "control/unwritten-alias-heading-namespace", Body: "## A-B-Alias-C\n## A![[B|alias]]C\n"},
 		{Name: "control/wrapped-heading-widget-code", Body: "`open\n[[A#A]]\nclose`\n"},
 		{Name: "control/wrapped-raw-suffix-code", Body: "`open\n[[A\\]]\nclose`\n"},
 		{Name: "control/plain-opener-wrapped-code", Body: "> [!note] title\n> `open\n> [[A]]\n> close`\n"},
@@ -223,6 +225,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			wrappedHeadingObserved := false
 			var wrappedHeadingNamespaceIDs map[string]bool
 			wrappedHeadingNamespaceObserved := false
+			var embedHeadingIDs map[string]bool
+			embedHeadingObserved := false
 			var codeTargets map[string]int
 			codeObserved := false
 			var localCodeHeadings map[string]int
@@ -329,6 +333,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						wrappedHeadingNamespaceObserved = true
 					}
 					classification, authority, wrong = agreementWrappedHeadingDifference(c, failure, wrappedHeadingNamespaceIDs)
+				}
+				if classification == "" && failure.Property == "P4" {
+					if !embedHeadingObserved {
+						embedHeadingIDs = agreementUnwrittenEmbedHeadingIDs(c.Body)
+						embedHeadingObserved = true
+					}
+					classification, authority, wrong = agreementWrappedHeadingDifference(c, failure, embedHeadingIDs)
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !codeObserved {
