@@ -160,10 +160,58 @@ const declaredNavigationTransitions = () => {
   return { readable, found };
 };
 
+// Observe only the module that carries the position and the navigation it
+// prepares, so unrelated scripts cannot displace the deciding request order.
+const captureSwitch = (page) => {
+  const records = [];
+  const watched = (request) => request.isNavigationRequest()
+    || new URL(request.url()).pathname === '/static/langform.js';
+  const record = (kind, request, extra = {}) => {
+    if (!watched(request)) return;
+    records.push({ kind, url: request.url(), time: performance.now(), ...extra });
+  };
+  const listeners = {
+    request: (request) => record('request', request, request.method() === 'POST'
+      ? { next: new URLSearchParams(request.postData()).get('next') } : {}),
+    response: (response) => record('response', response.request(), {
+      status: response.status(), location: response.headers().location ?? null,
+    }),
+    requestfinished: (request) => record('finished', request),
+    requestfailed: (request) => record('failed', request),
+  };
+  for (const [event, listener] of Object.entries(listeners)) page.on(event, listener);
+  return { records, stop: () => {
+    for (const [event, listener] of Object.entries(listeners)) page.removeListener(event, listener);
+  } };
+};
+let switchPage;
+let capture;
+let switchBefore;
+let switchAfter;
+const printSwitchFailure = async (error) => {
+  const receipt = { mode: MUTATE || 'plain', failedSite: error.site,
+    originalFailure: error.message, before: switchBefore, failure: switchAfter,
+    requests: capture?.records };
+  let timer;
+  try {
+    receipt.later = await Promise.race([
+      switchPage.evaluate(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return { y: scrollY, diagnostic: window.__switchDiagnostic };
+      }),
+      new Promise((resolve) => { timer = setTimeout(() => resolve('unavailable after 1500ms'), 1500); }),
+    ]);
+  } catch { receipt.later = 'document unavailable'; }
+  finally { clearTimeout(timer); capture?.stop(); }
+  console.error('DIAGNOSTIC language-scroll-restore: ' + JSON.stringify(receipt));
+};
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  switchPage = page;
+  capture = captureSwitch(page);
   // Every document this page receives records its own arrival, from inside,
   // before anything else runs: whether it was revealed at all, and whether it
   // arrived inside a transition. Nothing outside the document can ask this
@@ -174,6 +222,14 @@ try {
       window.__arrival.reveal = true;
       window.__arrival.transition = Boolean(event.viewTransition);
     }, { once: true });
+    window.__switchDiagnostic = { hash: location.hash, timeline: [] };
+    for (const event of ['DOMContentLoaded', 'pagereveal', 'scroll']) {
+      window.addEventListener(event, () => {
+        if (window.__switchDiagnostic.timeline.length < 20) {
+          window.__switchDiagnostic.timeline.push({ event, y: scrollY, time: performance.now() });
+        }
+      }, { passive: true });
+    }
   });
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 
@@ -200,7 +256,9 @@ try {
   const before = await page.evaluate(() => ({
     y: window.scrollY,
     lang: document.documentElement.getAttribute('lang'),
+    diagnostic: window.__switchDiagnostic ?? null,
   }));
+  switchBefore = before;
   if (before.y < TARGET_Y - 8) {
     broken(`scrolled to ${before.y}, want near ${TARGET_Y}; the page did not travel`);
   }
@@ -220,7 +278,9 @@ try {
   const after = await page.evaluate(() => ({
     y: window.scrollY,
     lang: document.documentElement.getAttribute('lang'),
+    diagnostic: window.__switchDiagnostic ?? null,
   }));
+  switchAfter = after;
   if (after.lang === before.lang) {
     broken(`the language stayed ${JSON.stringify(after.lang)} after the switch, so this run never left the page`);
   }
@@ -230,6 +290,8 @@ try {
       `after switching ${before.lang} → ${after.lang} the page is at scrollY=${after.y}, want near ${before.y} (within ${TOLERANCE}px)`,
     );
   }
+
+  capture.stop();
 
   // A page reached by following a link has to paint. A navigation transition
   // holds the arriving document until it is revealed, and where that reveal
@@ -484,6 +546,14 @@ try {
       else console.error(`no catch: ${MUTATE} targets ${target}, but ${err.site} fired first`);
     }
     process.exitCode = 1;
+    if (err.site === 'position-survives-switch') {
+      await printSwitchFailure(err).catch(() => {
+        capture?.stop();
+        console.error('DIAGNOSTIC language-scroll-restore: ' + JSON.stringify({
+          failedSite: err.site, originalFailure: err.message, unavailable: true,
+        }));
+      });
+    }
   } else if (err instanceof ProbeBroken) {
     console.error(err.message);
     process.exitCode = 1;
@@ -492,5 +562,6 @@ try {
     process.exitCode = 1;
   }
 } finally {
+  capture?.stop();
   await browser.close();
 }
