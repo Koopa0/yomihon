@@ -12,9 +12,10 @@ import (
 
 // The human and markdown reports pack the same findings into a scannable
 // triage view: a per-domain debt scoreboard, a most-leveraged callout, the
-// actionable findings grouped by domain and folded by identity, and a hidden
-// count of the informational ones. Both renderers share one packing, so they
-// never disagree on the numbers, and both are part of the frozen output.
+// actionable findings grouped by domain and folded by identity, and the
+// retained informational occurrences. Both renderers share one packing, so
+// their counts agree; the human listing also names each occurrence's line
+// when available. Existing output bytes remain frozen.
 
 // domainRoots are the folders under which a note's own folder names its
 // knowledge domain. The contract declares them, under the same key the
@@ -301,7 +302,11 @@ func humanReport(findings []Finding, roots domainRoots) string {
 			s.WriteString("\nhidden (info):\n")
 			hiddenHeading = true
 		}
-		fmt.Fprintf(&s, "  [%s] %s — %s\n", f.RuleID, f.Message, f.Path)
+		fmt.Fprintf(&s, "  [%s] %s — %s", f.RuleID, f.Message, f.Path)
+		if f.Line != nil {
+			fmt.Fprintf(&s, ":%d", *f.Line)
+		}
+		s.WriteByte('\n')
 	}
 	return s.String()
 }
