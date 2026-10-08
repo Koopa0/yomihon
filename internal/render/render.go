@@ -120,6 +120,9 @@ const (
 	// too, so the words are not restored; the reader is told where the silence
 	// begins.
 	DiagCommentUnclosed DiagnosticKind = "comment-unclosed"
+	// DiagCommentContainerUnclosed means an unpaired HTML comment hides the
+	// remainder of its Markdown container; later containers remain visible.
+	DiagCommentContainerUnclosed DiagnosticKind = "comment-container-unclosed"
 	// DiagImageMissing means a note showed a picture from a path inside the
 	// vault and the vault holds no file there. The image is left where the
 	// author put it, marked the way an unwritten citation is: the page says the
@@ -273,7 +276,7 @@ func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
 // lesson receive the same bytes.
 func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang) Result {
 	page := &composition{base: region, lang: lang}
-	stripped, unclosedComment := stripBody(body)
+	stripped, comments := stripBody(body)
 	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text)
 	address := stripped.address
 	if dropped >= 0 {
@@ -282,7 +285,7 @@ func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang
 		address = slices.Delete(slices.Clone(address), dropped, dropped+1)
 	}
 	res := r.renderBody(&bodyInput{path: relPath, text: source, address: address, original: body, onPage: region == hostRegion}, embedsAllowed, page, region)
-	res.Diagnostics = appendUnclosedComment(res.Diagnostics, unclosedComment)
+	res.Diagnostics = append(res.Diagnostics, commentDiagnostics(comments)...)
 	// The anchor the page title inherits is claimed before any body heading is
 	// slugged, so a section further down that reduces to the same name is the
 	// one that has to move aside.

@@ -101,7 +101,7 @@ The contract identifies course and lesson types. `internal/sequence` owns the br
 | `local` | An optional branch with its own sequence; it does not join the main line. |
 | `none` | Reference material outside progression. |
 
-Explicit roles prevent the reader from guessing whether a nested list is required study, an optional detour, or reference material. Lesson sidecars and concept sheets add authored practice and explanations; an unusable sidecar disables its panel rather than the course. The browser can hide furigana and read designated passages aloud through speech synthesis. There is no server-side model or speech service. Browser and operating-system voice behavior is outside the Go process's outbound-request boundary. See [course authoring][authoring], [sequence grammar][sequence], [course handler][syllabus], [lesson projections][lesson], and [browser lesson controls][lesson-js].
+Explicit roles prevent the reader from guessing whether a nested list is required study, an optional detour, or reference material. Lesson sidecars and concept sheets add authored practice and explanations; an unusable sidecar disables its panel rather than the course. The browser can hide furigana and read designated passages aloud through speech synthesis. The page explicitly selects a voice the browser reports as local, matching the passage's language and script, and says speech is unavailable without a match. There is no server-side model or speech service. Browser and operating-system voice behavior is outside the Go process's outbound-request boundary. See [course authoring][authoring], [sequence grammar][sequence], [course handler][syllabus], [lesson projections][lesson], and [browser lesson controls][lesson-js].
 
 ## 6. Status updates
 
