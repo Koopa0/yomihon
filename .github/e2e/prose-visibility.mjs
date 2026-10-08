@@ -180,7 +180,9 @@ async function measureChapters(browser) {
             await page.waitForFunction(() => document.documentElement.dataset.js === 'on');
             await page.evaluate(async () => {
               await document.fonts.ready;
-              await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})));
+              await Promise.all(document.getAnimations()
+                .filter((animation) => animation.animationName === 'y-come-forward')
+                .map((animation) => animation.finished.catch(() => {})));
             });
             const timings = await page.evaluate(async () => {
               const press = async (selector) => {
