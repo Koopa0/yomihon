@@ -63,7 +63,7 @@ func renderedClasses(t *testing.T) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	add := func(list, file string) {
-		for _, c := range strings.Fields(list) {
+		for c := range strings.FieldsSeq(list) {
 			// A literal ending in a hyphen is the stem of a name finished at
 			// render time, not a class of its own.
 			if strings.HasPrefix(c, "y-") && !strings.HasSuffix(c, "-") {
@@ -77,7 +77,7 @@ func renderedClasses(t *testing.T) map[string]string {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".templ") {
 			return err
 		}
-		b, readErr := os.ReadFile(path)
+		b, readErr := os.ReadFile(path) // #nosec G304 -- a template path this walk of the repo's own internal directory produced
 		if readErr != nil {
 			return readErr
 		}
@@ -108,7 +108,7 @@ func styledClasses(t *testing.T) map[string]bool {
 	}
 	out := map[string]bool{}
 	for _, f := range files {
-		b, readErr := os.ReadFile(f)
+		b, readErr := os.ReadFile(f) // #nosec G304 -- a stylesheet path this package's own css directory glob produced
 		if readErr != nil {
 			t.Fatalf("read %s: %v", f, readErr)
 		}
