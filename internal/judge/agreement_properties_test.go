@@ -29,6 +29,7 @@ func TestAgreementPropertyControls(t *testing.T) {
 		{name: "duplicate-occurrences", body: "[[A]] [[A]]", citations: []agreementCitation{{Target: "A", State: "wikilink"}, {Target: "A", State: "wikilink"}}, targets: []string{"A", "A"}},
 		{name: "inline-code", body: "`[[A]]`"},
 		{name: "local-heading-in-code", body: "# A\n\n`[[#A]]`\n", headings: []string{"a"}},
+		{name: "callout-fence-code", body: "> [!note] title\n> ```\n> [[A]]\n> ```\n", broken: 1},
 		{name: "block-address", body: "first ^a\n\nsecond\n", blocks: []string{"^a"}},
 		{name: "heading-id", body: "## A\n", headings: []string{"a"}},
 	} {

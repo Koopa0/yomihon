@@ -77,6 +77,9 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/wrapped-heading-widget-code", Body: "`open\n[[A#A]]\nclose`\n"},
+		{Name: "control/wrapped-raw-suffix-code", Body: "`open\n[[A\\]]\nclose`\n"},
+		{Name: "control/plain-opener-wrapped-code", Body: "> [!note] title\n> `open\n> [[A]]\n> close`\n"},
 		{Name: "control/block", Body: "first line\ncontinued ^a\n\nsecond ^b\n"},
 		{Name: "control/duplicate-address", Body: "first ^a\n\nsecond ^a\n"},
 		{Name: "control/title", Title: "A", Body: "# A\n\n## A\n## A\n"},
@@ -224,6 +227,10 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			codeObserved := false
 			var localCodeHeadings map[string]int
 			localCodeObserved := false
+			var declaredWidgetCode agreementWidgetCodeBudget
+			declaredWidgetCodeObserved := false
+			var calloutWidgetCode agreementWidgetCodeBudget
+			calloutWidgetCodeObserved := false
 			var continuationTargets map[string]int
 			continuationObserved := false
 			var fenceInfoTargets map[string]int
@@ -336,6 +343,20 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						localCodeObserved = true
 					}
 					classification, authority, wrong = agreementLocalCodeDifference(c, failure, localCodeHeadings)
+				}
+				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
+					if !declaredWidgetCodeObserved {
+						declaredWidgetCode = agreementDeclaredWrappedCode(c.Body)
+						declaredWidgetCodeObserved = true
+					}
+					classification, authority, wrong = agreementWidgetCodeDifference(c, failure, declaredWidgetCode, &observed[i])
+				}
+				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
+					if !calloutWidgetCodeObserved {
+						calloutWidgetCode = agreementCalloutWrappedCode(c.Body)
+						calloutWidgetCodeObserved = true
+					}
+					classification, authority, wrong = agreementWidgetCodeDifference(c, failure, calloutWidgetCode, &observed[i])
 				}
 				if classification == "" && failure.Property == "P1" {
 					if !continuationObserved {
