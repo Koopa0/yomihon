@@ -16,6 +16,9 @@ func sharedBodyFixture() string {
 }
 
 func TestParseNoteSharesBodyStructure(t *testing.T) {
+	if err := judgeBodyStructureLock("."); err != nil {
+		t.Fatalf("caught: shared body structure lock: %v", err)
+	}
 	body := sharedBodyFixture()
 	data := []byte(body)
 	marks := defaultPlannedMarks()
@@ -24,39 +27,35 @@ func TestParseNoteSharesBodyStructure(t *testing.T) {
 	if diff := cmp.Diff(want, got, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, calloutTitle{})); diff != "" {
 		t.Fatalf("parseNoteWithMarks differs from independent harvests (-want +got):\n%s", diff)
 	}
-	separate := testing.AllocsPerRun(100, func() {
-		n := separateBodyExtractions(data, marks)
-		runtime.KeepAlive(n)
-	})
-	shared := testing.AllocsPerRun(100, func() {
-		n := parseNoteWithMarks("Notes/source.md", data, marks)
-		runtime.KeepAlive(n)
-	})
-	repeatedStructure := testing.AllocsPerRun(100, func() {
-		code, headings := structure(body, marks.heading)
-		runtime.KeepAlive(code)
-		runtime.KeepAlive(headings)
-		for range 3 {
-			code, headings := structure(body, nil)
-			runtime.KeepAlive(code)
-			runtime.KeepAlive(headings)
-		}
-	})
-	saved := separate - shared
-	t.Logf("allocations: separate = %.0f, shared = %.0f, saved = %.0f, required structure savings = %.0f", separate, shared, saved, repeatedStructure)
-	if repeatedStructure <= 0 {
-		t.Fatal("repeated structure allocations = 0, want positive measured cost")
-	}
-	if saved < repeatedStructure {
-		t.Errorf("saved allocations = %.0f, want at least %.0f for one marked and three unmarked structures", saved, repeatedStructure)
-	}
 }
 
 func BenchmarkParseNoteSharedBody(b *testing.B) {
-	data := []byte(sharedBodyFixture())
-	b.ReportAllocs()
-	for b.Loop() {
-		parseNote("Notes/source.md", data)
+	body := sharedBodyFixture()
+	data := []byte(body)
+	marks := defaultPlannedMarks()
+	for _, bb := range []struct {
+		name string
+		read func()
+	}{
+		{name: "separate", read: func() { runtime.KeepAlive(separateBodyExtractions(data, marks)) }},
+		{name: "shared", read: func() { runtime.KeepAlive(parseNoteWithMarks("Notes/source.md", data, marks)) }},
+		{name: "one marked and three unmarked structures", read: func() {
+			code, headings := structure(body, marks.heading)
+			runtime.KeepAlive(code)
+			runtime.KeepAlive(headings)
+			for range 3 {
+				code, headings := structure(body, nil)
+				runtime.KeepAlive(code)
+				runtime.KeepAlive(headings)
+			}
+		}},
+	} {
+		b.Run(bb.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				bb.read()
+			}
+		})
 	}
 }
 
