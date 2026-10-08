@@ -454,7 +454,7 @@ func TestProbeBehaviorOnlyPreflight(t *testing.T) {
 					t.Parallel()
 					fixture := newProbeRunnerFixture(t, entries, changed)
 					got, output := fixture.run(t, path.args, true)
-					t.Log("invoked: behavior_only preflight driver")
+					t.Logf("invoked: behavior_only preflight driver case=%q path=%q status=%d trace=%d success=%d", tt.name, path.name, got.Status, len(got.Trace), len(got.Success))
 					want := probeRunResult{Status: 1}
 					if diff := cmp.Diff(want, got); diff != "" {
 						t.Errorf("caught: invalid behavior_only ran children or succeeded (-want +got):\n%s\n%s", diff, output)

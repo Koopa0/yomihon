@@ -230,6 +230,7 @@ const confirmEndpointClosed = () => new Promise((resolve) => {
 
 let server;
 let browser;
+let plainClientAcquired = false;
 let chrome;
 let chromePID;
 let chromeClose;
@@ -248,6 +249,7 @@ const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 const onSignal = (signal) => {
   cancelled = true;
   unavailable(`cancelled by ${signal}`);
+  console.log('caught: a11y-audit operational cancellation');
   if (!launchPending) void shutdownPlain();
 };
 
@@ -298,6 +300,7 @@ const runHandChild = async () => {
   childTimer = setTimeout(() => {
     cancelled = true;
     unavailable('hand child deadline exceeded');
+    console.log('caught: a11y-audit operational child-deadline');
     void shutdownPlain();
   }, 120000);
   const close = await childClose;
@@ -350,22 +353,36 @@ const shutdownPlain = () => {
   shutdownPromise = (async () => {
     const cleanupStarted = performance.now();
     let serverSettled = !server;
+    let serverCloseResult = server ? 'pending' : 'not-acquired';
     let chromeObserved = !chrome || chromeClosed;
     let childObserved = !child || childClosed;
     let clientSettled = !browser;
     chromeClose?.then(() => { chromeObserved = true; });
     childClose?.then(() => { childObserved = true; });
     const signalChild = (signal) => {
-      if (!child || childObserved) return;
-      try { child.kill(signal); } catch (error) {
+      if (!child || childObserved) {
+        console.log(`invoked: a11y-audit cleanup hand-child signal=${signal} request=${child ? 'already-closed' : 'not-acquired'}`);
+        return;
+      }
+      try {
+        const accepted = child.kill(signal);
+        console.log(`invoked: a11y-audit cleanup hand-child signal=${signal} request=${accepted ? 'accepted' : 'false'}`);
+      } catch (error) {
+        console.log(`invoked: a11y-audit cleanup hand-child signal=${signal} request=${error.code === 'ESRCH' ? 'already-absent' : 'error'}`);
         if (error.code !== 'ESRCH') unavailable(`hand child ${signal} failed: ${error.message}`);
       }
     };
     // Start both owned teardown paths before awaiting either.
     if (child && !childObserved) signalChild('SIGTERM');
     if (server) {
-      Promise.resolve().then(() => server.close()).then(() => { serverSettled = true; }, (error) => {
+      Promise.resolve().then(() => server.close()).then(() => {
         serverSettled = true;
+        serverCloseResult = 'fulfilled';
+        console.log('invoked: a11y-audit cleanup browser-server close fulfilled');
+      }, (error) => {
+        serverSettled = true;
+        serverCloseResult = 'rejected';
+        console.log('invoked: a11y-audit cleanup browser-server close rejected');
         unavailable(`BrowserServer close failed: ${error.message}`);
       });
     }
@@ -382,6 +399,7 @@ const shutdownPlain = () => {
       if (!escalated && performance.now() - cleanupStarted >= 5000) {
         escalated = true;
         unavailable('owned cleanup required escalation');
+        console.log('caught: a11y-audit operational cleanup-escalation');
         if (!chromeObserved || !serverSettled) {
           console.log('invoked: a11y-audit cleanup escalation owned-browser-server SIGKILL');
           Promise.resolve().then(() => server.kill()).catch((error) => unavailable(`BrowserServer kill failed: ${error.message}`));
@@ -404,6 +422,7 @@ const shutdownPlain = () => {
           if (!groupKillSent) {
             groupKillSent = true;
             unavailable('owned Chrome group remained after root close');
+            console.log('caught: a11y-audit operational group-escalation');
             console.log('invoked: a11y-audit cleanup escalation owned-chrome-group SIGKILL');
             process.kill(-chromePID, 'SIGKILL');
           }
@@ -421,12 +440,16 @@ const shutdownPlain = () => {
       unresolved = true;
       unavailable(`unresolved cleanup chrome-close=${chromeObserved} child-close=${childObserved} server-close=${serverSettled} client-close=${clientSettled} group-absent=${groupAbsent} endpoint-refused=${endpointRefused}`);
     }
+    console.log(`invoked: a11y-audit cleanup terminal chrome=${chrome ? 'acquired' : 'not-acquired'} chrome-close=${chrome ? chromeObserved : 'not-acquired'} child=${child ? 'acquired' : 'not-acquired'} child-close=${child ? childObserved : 'not-acquired'} server=${server ? 'acquired' : 'not-acquired'} server-settled=${server ? serverSettled : 'not-acquired'} server-close-result=${serverCloseResult} client=${plainClientAcquired ? 'acquired' : 'not-acquired'} client-settled=${plainClientAcquired ? clientSettled : 'not-acquired'} group-absent=${chrome ? groupAbsent : 'not-acquired'} endpoint-refused=${server ? endpointRefused : 'not-acquired'} cancelled=${cancelled} child-error=${childError} escalated=${escalated} group-kill-sent=${groupKillSent} unresolved=${unresolved} status=${status}`);
     clearTimeout(workTimer);
     clearTimeout(childTimer);
     for (const signal of signals) process.removeListener(signal, onSignal);
     // A missing close can strand the work await and keep owned handles alive.
     // This terminal branch is explicitly unresolved, never successful cleanup.
-    if (unresolved) process.exit(2);
+    if (unresolved) {
+      console.log('invoked: a11y-audit native-status mode=plain status=2 unresolved=true');
+      process.exit(2);
+    }
   })();
   return shutdownPromise;
 };
@@ -445,6 +468,7 @@ try {
     workTimer = setTimeout(() => {
       cancelled = true;
       unavailable('managed plain work deadline exceeded');
+      console.log('caught: a11y-audit operational work-deadline');
       if (!launchPending) void shutdownPlain();
     }, 300000);
     launchPending = true;
@@ -467,6 +491,7 @@ try {
     if (!Number.isInteger(chromePID) || chromePID <= 0) throw new ProbeBroken('acquired Chrome has no valid PID');
     if (cancelled) throw new ProbeBroken('cancelled during browser launch');
     browser = await chromium.connect(endpoint, { timeout: 5000 });
+    plainClientAcquired = true;
     let violations = 0;
     let incomplete = 0;
     let unavailableCount = 0;
@@ -522,5 +547,6 @@ try {
 if (!MUTATE && status === 0 && summary) {
   console.log(`PASS a11y-audit routes=${JSON.stringify(PAGES)} themes=${JSON.stringify(THEMES)} viewport=1280x900 version=${[...summary.versions].join(',')} runtime-ms=${Math.round(performance.now() - started)} violations=0 incomplete=${summary.incomplete} canary=label`);
 }
+console.log(`invoked: a11y-audit native-status mode=${MUTATE || 'plain'} status=${status !== 0 || !MUTATE ? status : process.exitCode ?? 0} unresolved=${unresolved}`);
 if (status !== 0 || !MUTATE) process.exitCode = status;
 if (unresolved) process.exit(2);
