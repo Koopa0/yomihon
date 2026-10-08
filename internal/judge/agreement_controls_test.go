@@ -904,7 +904,7 @@ func agreementMinimizerFaultControl(t *testing.T) {
 	source := agreementMutationSource(t, overlay)
 	child := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-short", "-count=1", "-json", "-run=^TestAgreementMinimizerControls$", "./internal/judge", "-args", "-agreement-minimizer-fault", "-agreement-source="+source)
 	output, terminal := agreementMinimizerReceipt(t, child.Output)
-	if child.Status != 0 || !terminal || !strings.Contains(output, "AGREEMENT-SINK minimizer-code/red") || !strings.Contains(output, "AGREEMENT-MINIMIZER-CONTROL preserved-target-and-context") || !agreementSourceReceipt(output, agreementMutationSourceDigest(t, source)) {
+	if child.Status != 0 || !terminal || !strings.Contains(output, agreementMutationSink(&mode, "red")) || !strings.Contains(output, "AGREEMENT-MINIMIZER-CONTROL preserved-target-and-context") || !agreementSourceReceipt(output, agreementMutationSourceDigest(t, source)) {
 		t.Fatalf("caught: minimizer fault qualification status=%d\n%s", child.Status, child.Output)
 	}
 	t.Logf("minimizer intentional fault status=%d\n%s", child.Status, child.Output)

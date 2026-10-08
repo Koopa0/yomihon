@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -16,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -185,6 +187,7 @@ func TestAgreementMutations(t *testing.T) {
 		t.Fatalf("not-applied: setup-status=2 resolve repository root: %v", err)
 	}
 	modes := agreementMutations()
+	compiler := agreementMutationCompiler{Root: root, Backing: t.TempDir(), Restored: make(map[string]string)}
 	for i := range modes {
 		mode := &modes[i]
 		t.Run(mode.Name, func(t *testing.T) {
@@ -208,11 +211,7 @@ func TestAgreementMutations(t *testing.T) {
 					state = "red"
 				}
 				overlay := agreementMutationOverlay(t, root, mode, red)
-				binary := filepath.Join(t.TempDir(), "qualified.test")
-				compile := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-c", "-o="+binary, packagePath)
-				if compile.Status != 0 {
-					t.Fatalf("not-applied: setup-status=2 %s compile-only qualification failed status=%d\n%s", state, compile.Status, compile.Output)
-				}
+				binary := compiler.binary(t, overlay, packagePath, mode.File, red)
 				selected := controlTest
 				run := "^" + controlTest + "$"
 				if controlTest == "TestAgreementMutationControl" {
@@ -242,6 +241,38 @@ func TestAgreementMutations(t *testing.T) {
 type agreementMutationOutput struct {
 	Status int
 	Output []byte
+}
+
+type agreementMutationCompiler struct {
+	Root, Backing string
+	Mutex         sync.Mutex
+	Restored      map[string]string
+}
+
+func (compiler *agreementMutationCompiler) binary(t *testing.T, overlay, packagePath, file string, red bool) string {
+	t.Helper()
+	binary := filepath.Join(t.TempDir(), "qualified.test")
+	key := ""
+	if !red {
+		// A restored producer has identical bytes across controls. Its binary
+		// outlives each control; faults always receive their own compilation.
+		key = packagePath + "\x00" + file + "\x00" + agreementMutationSourceDigest(t, agreementMutationSource(t, overlay))
+		compiler.Mutex.Lock()
+		defer compiler.Mutex.Unlock()
+		if qualified, ok := compiler.Restored[key]; ok {
+			t.Log("restored compilation reused for identical package and producer bytes")
+			return qualified
+		}
+		binary = filepath.Join(compiler.Backing, fmt.Sprintf("%x.test", sha256.Sum256([]byte(key))))
+	}
+	compile := agreementMutationCommand(t, compiler.Root, "test", "-overlay="+overlay, "-c", "-o="+binary, packagePath)
+	if compile.Status != 0 {
+		t.Fatalf("not-applied: setup-status=2 compile-only qualification failed status=%d\n%s", compile.Status, compile.Output)
+	}
+	if !red {
+		compiler.Restored[key] = binary
+	}
+	return binary
 }
 
 func agreementMutationCommand(t *testing.T, root string, args ...string) agreementMutationOutput {
@@ -313,7 +344,7 @@ func agreementMutationOverlay(t *testing.T, root string, mode *agreementMutation
 	}
 	// The receipt is produced by the real edited function in both states; the
 	// control's separate receipt proves its observations reached the assertion.
-	marker := "AGREEMENT-SINK " + mode.Name + "/" + state
+	marker := agreementMutationSink(mode, state)
 	body = "{\nprintln(" + strconv.Quote(marker) + ")\n" + body[1:]
 	backing := t.TempDir()
 	copyPath := filepath.Join(backing, "production.go")
@@ -373,7 +404,7 @@ func agreementMutationReceipt(t *testing.T, mode *agreementMutation, selected, s
 		if event.Test == selected {
 			sourceConsumed = sourceConsumed || agreementSourceReceipt(event.Output, sourceDigest)
 			invoked = invoked || strings.Contains(event.Output, "AGREEMENT-INVOKED "+mode.Property+"/"+mode.Name)
-			sink = sink || strings.Contains(event.Output, "AGREEMENT-SINK "+mode.Name+"/"+state)
+			sink = sink || strings.Contains(event.Output, agreementMutationSink(mode, state))
 			caughtNeedle := "caught: " + mode.Property + " " + mode.Identity
 			if mode.Property == "F3" {
 				caughtNeedle += " "
@@ -399,6 +430,12 @@ func agreementMutationReceipt(t *testing.T, mode *agreementMutation, selected, s
 	if child.Status != want || !terminal || (red && !caught) {
 		t.Fatalf("not-applied: setup-status=2 qualification %s/%s status=%d want=%d terminal=%t expected-caught=%t", mode.Name, state, child.Status, want, terminal, caught)
 	}
+}
+
+// The sink names the edited producer. Controls name their own assertions, so
+// restoring the same producer can reuse identical compiler input across them.
+func agreementMutationSink(mode *agreementMutation, state string) string {
+	return "AGREEMENT-SINK " + mode.File + ":" + mode.Function + "/" + state
 }
 
 func agreementMutationSource(t *testing.T, overlay string) string {
