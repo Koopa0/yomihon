@@ -29,7 +29,7 @@ func TestPageGrammarLinkifyCode(t *testing.T) {
 func pageGrammarControl(t *testing.T, category string, rule RuleID, controlTarget string, subjectLine int) {
 	t.Helper()
 	root := judgeFixtureRoot(t, "testdata/vault-page-"+category)
-	wire, err := os.ReadFile("testdata/golden/page-" + category + ".jsonl")
+	wire, err := os.ReadFile("testdata/golden/page-" + category + ".jsonl") // #nosec G304 -- category is a hardcoded page grammar test argument, never product input
 	if err != nil {
 		t.Fatalf("not-applied: page grammar golden: %v", err)
 	}
@@ -75,9 +75,10 @@ func pageGrammarControl(t *testing.T, category string, rule RuleID, controlTarge
 		t.Fatalf("not-applied: public Check category=%s: %v", category, err)
 	}
 	var occurrences []occurrence
-	for _, finding := range got {
+	for i := range got {
+		finding := &got[i]
 		if finding.Line == nil || finding.Target == nil {
-			t.Errorf("caught: S4 %s incomplete finding=%+v", category, finding)
+			t.Errorf("caught: S4 %s incomplete finding=%+v", category, *finding)
 			continue
 		}
 		occurrences = append(occurrences, occurrence{Rule: finding.RuleID, Severity: finding.Severity, Path: finding.Path, Line: *finding.Line, Target: *finding.Target})

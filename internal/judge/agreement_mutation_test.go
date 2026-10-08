@@ -174,6 +174,7 @@ func TestAgreementMutationControl(t *testing.T) {
 // Child selection excludes this driver, so neither corpus shards nor nested
 // overlay processes enter the bounded qualification run.
 func TestAgreementMutations(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatalf("not-applied: setup-status=2 resolve repository root: %v", err)
@@ -182,6 +183,7 @@ func TestAgreementMutations(t *testing.T) {
 	for i := range modes {
 		mode := &modes[i]
 		t.Run(mode.Name, func(t *testing.T) {
+			t.Parallel()
 			t.Cleanup(func() {
 				if t.Failed() {
 					t.Logf("not-applied: %s/%s setup-status=2; Go wrapper failure status is 1", mode.Property, mode.Name)

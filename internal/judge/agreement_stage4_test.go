@@ -49,7 +49,7 @@ func stage4Page(t *testing.T, body string) stage4PageShape {
 	for _, diagnostic := range result.Diagnostics {
 		shape.Diagnostics = append(shape.Diagnostics, stage4Diagnostic{Kind: diagnostic.Kind, Target: diagnostic.Target})
 	}
-	nodes, err := html.ParseFragment(strings.NewReader(result.HTML), nil)
+	doc, err := html.Parse(strings.NewReader(result.HTML))
 	if err != nil {
 		t.Fatalf("not-applied: page HTML parse: %v", err)
 	}
@@ -64,44 +64,46 @@ func stage4Page(t *testing.T, body string) stage4PageShape {
 		}
 		return words.String()
 	}
-	var walk func(*html.Node)
-	walk = func(node *html.Node) {
-		if node.Type == html.ElementNode {
-			switch node.Data {
-			case "code":
-				shape.Code = append(shape.Code, strings.TrimSuffix(text(node), "\n"))
-			case "input":
-				if agreementAttr(node, "type") == "checkbox" {
-					shape.Checkboxes++
+	observe := func(node *html.Node) {
+		if node.Type != html.ElementNode {
+			return
+		}
+		switch node.Data {
+		case "code":
+			shape.Code = append(shape.Code, strings.TrimSuffix(text(node), "\n"))
+		case "input":
+			if agreementAttr(node, "type") == "checkbox" {
+				shape.Checkboxes++
+			}
+		case "a":
+			href := agreementAttr(node, "href")
+			if href != "" && !strings.HasPrefix(href, "#") && !strings.HasPrefix(href, "https://") {
+				shape.LocalHrefs = append(shape.LocalHrefs, href)
+			}
+			if strings.HasPrefix(href, "https://") {
+				decoded, err := url.PathUnescape(href)
+				if err != nil {
+					t.Fatalf("not-applied: external href decode: %v", err)
 				}
-			case "a":
-				href := agreementAttr(node, "href")
-				if href != "" && !strings.HasPrefix(href, "#") && !strings.HasPrefix(href, "https://") {
-					shape.LocalHrefs = append(shape.LocalHrefs, href)
-				}
-				if strings.HasPrefix(href, "https://") {
-					decoded, err := url.PathUnescape(href)
-					if err != nil {
-						t.Fatalf("not-applied: external href decode: %v", err)
+				shape.URLs = append(shape.URLs, decoded)
+				var label strings.Builder
+				for child := node.FirstChild; child != nil; child = child.NextSibling {
+					if child.Type == html.TextNode {
+						label.WriteString(child.Data)
 					}
-					shape.URLs = append(shape.URLs, decoded)
-					var label strings.Builder
-					for child := node.FirstChild; child != nil; child = child.NextSibling {
-						if child.Type == html.TextNode {
-							label.WriteString(child.Data)
-						}
-					}
-					shape.URLLabels = append(shape.URLLabels, label.String())
 				}
+				shape.URLLabels = append(shape.URLLabels, label.String())
 			}
 		}
+	}
+	var walk func(*html.Node)
+	walk = func(node *html.Node) {
+		observe(node)
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
 			walk(child)
 		}
 	}
-	for _, node := range nodes {
-		walk(node)
-	}
+	walk(doc)
 	return shape
 }
 
@@ -136,31 +138,32 @@ func stage4WikiShape(target string) stage4PageShape {
 }
 
 func TestAgreementStage4FenceInfo(t *testing.T) {
-	stage4NativeControl(t, "fence-info", "``` [[Missing]]\nquoted\n```\n", stage4PageShape{Code: []string{"quoted"}})
+	stage4NativeControl(t, "fence-info", "``` [[Missing]]\nquoted\n```\n", &stage4PageShape{Code: []string{"quoted"}})
 }
 
 func TestAgreementStage4FootnoteParagraph(t *testing.T) {
-	stage4NativeControl(t, "footnote-paragraph", "ref[^n].\n\n[^n]: first paragraph.\n\n    [[Missing]]\n", stage4WikiShape("Missing"))
+	want := stage4WikiShape("Missing")
+	stage4NativeControl(t, "footnote-paragraph", "ref[^n].\n\n[^n]: first paragraph.\n\n    [[Missing]]\n", &want)
 }
 
 func TestAgreementStage4TaskPath(t *testing.T) {
-	stage4NativeControl(t, "task-path", "- [ ](Missing.md)\n", stage4PageShape{Checkboxes: 1})
+	stage4NativeControl(t, "task-path", "- [ ](Missing.md)\n", &stage4PageShape{Checkboxes: 1})
 }
 
 func TestAgreementStage4LinkifyCode(t *testing.T) {
-	stage4NativeControl(t, "linkify-code", "https://example.invalid/`Notes/Missing.md`\n", stage4PageShape{URLs: []string{"https://example.invalid/`Notes/Missing.md`"}, URLLabels: []string{"https://example.invalid/`Notes/Missing.md`"}})
+	stage4NativeControl(t, "linkify-code", "https://example.invalid/`Notes/Missing.md`\n", &stage4PageShape{URLs: []string{"https://example.invalid/`Notes/Missing.md`"}, URLLabels: []string{"https://example.invalid/`Notes/Missing.md`"}})
 }
 
-func stage4NativeControl(t *testing.T, category, body string, want stage4PageShape) {
+func stage4NativeControl(t *testing.T, category, body string, want *stage4PageShape) {
 	t.Helper()
-	if diff := cmp.Diff(want, stage4Page(t, body)); diff != "" {
+	if diff := cmp.Diff(*want, stage4Page(t, body)); diff != "" {
 		t.Errorf("caught: S4 %s independent page (-want +got):\n%s", category, diff)
 	}
 	root := agreementAttributionRoot(t)
 	if err := os.CopyFS(root, os.DirFS("testdata/vault-page-"+category)); err != nil {
 		t.Fatalf("not-applied: native fixture copy: %v", err)
 	}
-	wire, err := os.ReadFile("testdata/golden/page-" + category + ".jsonl")
+	wire, err := os.ReadFile("testdata/golden/page-" + category + ".jsonl") // #nosec G304 -- category is a hardcoded Stage 4 test argument, never product input
 	if err != nil {
 		t.Fatalf("not-applied: native golden read: %v", err)
 	}
