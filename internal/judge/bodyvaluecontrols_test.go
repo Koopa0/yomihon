@@ -67,6 +67,10 @@ func bodyValueMutations() []agreementMutation {
 
 func bodyValueMutationControl(t *testing.T, mode *agreementMutation) {
 	t.Helper()
+	if slices.ContainsFunc(bodyFieldMutations(), func(field agreementMutation) bool { return field.Name == mode.Name }) {
+		bodyFieldControl(t, mode)
+		return
+	}
 	switch mode.Name {
 	case "f3-rich-raw", "f3-rich-level", "f3-rich-position", "f3-rich-origin", "f3-rich-role", "f3-rich-original", "f3-rich-id", "f3-origin-position", "f3-origin-synthetic", "f3-footnote-placement":
 		bodyRichValueControl(t, mode)

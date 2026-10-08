@@ -53,7 +53,10 @@ func agreementMutations() []agreementMutation {
 		{Name: "p0-citation-shape", Property: "P0", Identity: "citation-shape", File: "internal/render/wikilink.go", Function: "resolvedWikilink", Needle: "`<a href=\"%s\" class=\"wikilink\"%s>%s</a>`", Fault: "`<span href=\"%s\" class=\"wikilink\"%s>%s</span>`", Body: "[[A]]"},
 		{Name: "p1-provenance", Property: "P1", Identity: "provenance-identity", File: "internal/render/wikilink.go", Function: "embedSourceLine", Needle: "`<a href=\"` + attributeEscaper.Replace(notesHref(relPath)) + `\">` + html.EscapeString(noteName(relPath)) + `</a></p>`", Fault: "html.EscapeString(noteName(relPath)) + `</p>`", Body: "![[Notes/Child]]\n"},
 	}
-	return append(append(append(modes, bodyValueMutations()...), stage4Mutations()...), stage5Mutations()...)
+	modes = append(modes, bodyValueMutations()...)
+	modes = append(modes, bodyFieldMutations()...)
+	modes = append(modes, stage4Mutations()...)
+	return append(modes, stage5Mutations()...)
 }
 
 func TestAgreementMutationControl(t *testing.T) {
