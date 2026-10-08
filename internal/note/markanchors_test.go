@@ -12,16 +12,17 @@ import (
 func TestReadingMarkAnchors(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name, source, id string
-		accepted         bool
+		name, source, id  string
+		present, accepted bool
 	}{
-		{"heading", "## Accepted position\n", "accepted-position", true},
-		{"block", "Paragraph. ^safe\n", "^safe", true},
-		{"slash and query", "Paragraph. ^a/b?c\n", "^a/b?c", false},
-		{"quoted block", "Paragraph. ^q\"x\n", "^q\"x", false},
-		{"ampersand", "Paragraph. ^a&b\n", "^a&b", true},
-		{"unicode boundary", "## " + strings.Repeat("漢", 85) + "a\n", strings.Repeat("漢", 85) + "a", true},
-		{"over boundary", "## " + strings.Repeat("漢", 86) + "\n", strings.Repeat("漢", 86), false},
+		{"heading", "## Accepted position\n", "accepted-position", true, true},
+		{"block", "Paragraph. ^safe\n", "^safe", true, true},
+		{"slash and query", "Paragraph. ^a/b?c\n", "^a/b?c", false, false},
+		{"quoted block", "Paragraph. ^q\"x\n", "^q\"x", false, false},
+		{"ampersand", "Paragraph. ^a&b\n", "^a&b", false, false},
+		{"unicode boundary", "## " + strings.Repeat("漢", 85) + "a\n", strings.Repeat("漢", 85) + "a", true, true},
+		{"over boundary", "## " + strings.Repeat("漢", 86) + "\n", strings.Repeat("漢", 86), true, false},
+		{"block over mark boundary", "Paragraph. ^" + strings.Repeat("a", 256) + "\n", "^" + strings.Repeat("a", 256), true, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -44,8 +45,16 @@ func TestReadingMarkAnchors(t *testing.T) {
 					t.Errorf("anchor %q eligible=%v, want%v", tt.id, got, tt.accepted)
 				}
 			}
-			if !found {
-				t.Fatalf("reading page lost original anchor %q", tt.id)
+			if found != tt.present {
+				t.Errorf("reading page anchor %q present=%v, want%v", tt.id, found, tt.present)
+			}
+			if !tt.present {
+				if !strings.Contains(html.UnescapeString(body), strings.TrimSpace(tt.source)) {
+					t.Errorf("reading page lost unsupported authored text %q", tt.source)
+				}
+				if regexp.MustCompile(`<span[^>]* id="\^`).MatchString(body) {
+					t.Errorf("unsupported block gained an anchor: %s", body)
+				}
 			}
 		})
 	}

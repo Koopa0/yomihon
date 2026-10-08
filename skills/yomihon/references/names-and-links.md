@@ -122,7 +122,8 @@ note, `[[#Parent#Child]]` reads the same way against that note's own headings.
 
 ### What a block address is, exactly
 
-A block address is the caret **and** the word: you end a line with `^my-id`,
+The id after the caret uses `[A-Za-z0-9-]`, as in Obsidian; anything else stays text,
+and a link to it reports `link.block_missing`. You end a line with `^my-id`,
 and the id is `^my-id`, caret included. So the link is `[[Note#^my-id]]` — one
 caret, not two, and the `#^` is not a doubling. The three near-misses each fail
 in their own way, and one run tells them apart:
