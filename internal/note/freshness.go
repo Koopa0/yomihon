@@ -58,8 +58,8 @@ const identityHexLen = 2 * sha256.Size
 // stream of identical lines. One slot rather than a table per path: this is a
 // local tool with one reader, a second failing path simply replaces the first,
 // and what carries information is the change of cause, not its repetition.
-// An absent file is not recorded here at all — it is a legitimate answer, and
-// a file that will not come back would otherwise report itself forever.
+// Absent and unpublished names are not recorded here; blocked names without
+// an entry were already reported by the scan and stay out of this log too.
 type freshnessLog struct {
 	mu    sync.Mutex
 	path  string
@@ -168,7 +168,16 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 		if errors.Is(err, fs.ErrNotExist) {
 			return freshGone
 		}
-		h.noteFreshnessFailure(rel, "lookup", err)
+		// A name the published generation never held is no note a page could
+		// have shown; logging it would record a name nobody published.
+		snap := h.sources.Snapshot().Capture()
+		if _, ok := snap.Entry(rel); ok {
+			h.noteFreshnessFailure(rel, "lookup", err)
+			return freshUnreadable
+		}
+		if blockedAt(snap, rel).Path == "" {
+			return freshGone
+		}
 		return freshUnreadable
 	}
 	if entry.Size() > render.MaxSourceBytes {
