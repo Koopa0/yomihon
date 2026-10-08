@@ -1,5 +1,6 @@
 // Browser-boundary evidence for local read-aloud. Audio is controlled; the initialized
 // lesson still chooses the voice and owns readiness, cancellation and recovery.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 import { installSpeechVoices } from './support/speech-voices.mjs';
 
@@ -52,13 +53,6 @@ if (MUTATE === 'list') {
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) process.exit(2);
 
-const arrived = (page) => page.waitForFunction(async () => {
-  if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-  await Promise.all(document.getAnimations()
-    .filter((animation) => animation.animationName === 'y-come-forward')
-    .map((animation) => animation.finished.catch(() => {})));
-  return true;
-}, null, { timeout: 3000 });
 const settle = (page) => page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
 const observe = (page) => page.evaluate(() => ({
   receipts: window.__speechFixture.receipts,
