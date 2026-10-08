@@ -25,8 +25,8 @@ const stage5TitleWire = `{"rule_id":"callout.title_markup","severity":"info","pa
 
 type stage5Carrier struct {
 	Tag, Class, Href, Title, Text string
-	Explanation                 string
-	InCode                      bool
+	Explanation                   string
+	InCode                        bool
 }
 
 // Shape is read from the actual HTML, independently of the diagnostic rail.
@@ -86,8 +86,8 @@ func stage5Observe(t *testing.T, result *render.Result) stage5Shape {
 		t.Fatalf("not-applied: S5 parse actual HTML: %v", err)
 	}
 	shape := stage5Shape{
-		Text:        strings.Join(strings.Fields(stage5DocumentText(doc)), " "),
-		Blocks:      result.Blocks, Diagnostics: result.Diagnostics,
+		Text:   strings.Join(strings.Fields(stage5DocumentText(doc)), " "),
+		Blocks: result.Blocks, Diagnostics: result.Diagnostics,
 		Transcluded: result.TranscludedIdentity != "",
 	}
 	var walk func(*html.Node, bool)
@@ -156,7 +156,7 @@ func stage5MissingFinding(line int) judge.Finding {
 		RuleID: "link.broken", Severity: judge.SeverityWarn, Path: "Notes/Subject.md", Line: new(line),
 		Message: "[[Missing]] resolves to no note", Evidence: "no filename or alias matches the target",
 		SuggestedAction: "create the target note, or change the link to an existing filename/alias",
-		SourceRule: "yomihon", Target: new("Missing"), Fingerprint: "v1:a1fa3e713737c040",
+		SourceRule:      "yomihon", Target: new("Missing"), Fingerprint: "v1:a1fa3e713737c040",
 	}
 }
 
@@ -424,17 +424,17 @@ func stage5IndentJudge(t *testing.T) {
 			name: "link rejects code address", body: "[[Target#^ind]]\n", targetBody: "para\n\n    sample ^ind\n",
 			want: stage5Shape{
 				Text: "Target", Roles: []string{"p"},
-				Carriers: []stage5Carrier{{Tag: "a", Class: "wikilink wikilink-degraded", Href: "/notes/Notes/Target.md", Title: "That block was not found; the link now points at the whole note", Text: "Target", Explanation: " (That block was not found; the link now points at the whole note)"}},
+				Carriers:    []stage5Carrier{{Tag: "a", Class: "wikilink wikilink-degraded", Href: "/notes/Notes/Target.md", Title: "That block was not found; the link now points at the whole note", Text: "Target", Explanation: " (That block was not found; the link now points at the whole note)"}},
 				Diagnostics: []render.Diagnostic{{Kind: "link-fragment-missing", Target: "Target", Block: "ind", Message: "no block in \"Notes/Target.md\" matched \"^ind\"; the link leads to the note itself"}},
 			},
 			findings: []judge.Finding{{RuleID: "link.block_missing", Severity: judge.SeverityWarn, Path: "Notes/Subject.md", Line: new(9), Message: "[[Target#^ind]] resolves, but no line carries the address ^ind", Evidence: "the note exists and no line in it ends with the block address", SuggestedAction: "fix the block name after ^, or write the address at the end of the intended line", SourceRule: "yomihon", Target: new("Target#^ind"), ResolvedTo: new("Notes/Target.md"), Fingerprint: "v1:6357add4bd5262f2"}},
-			wire: stage5LinkBlockWire, warnExit: 1,
+			wire:     stage5LinkBlockWire, warnExit: 1,
 		},
 		{
 			name: "embed withholds code address", body: "![[Target#^ind]]\n", targetBody: "para\n\n    sample ^ind\n",
-			want: stage5Shape{Text: "From Target Unable to find \"#^ind\" in Target.", Roles: []string{"div.embed embed--withheld", "p.embed__source", "p.embed__note"}, Transcluded: true, Diagnostics: []render.Diagnostic{{Kind: "embed-fragment-missing", Target: "Target", Block: "ind", Message: "no block in \"Notes/Target.md\" matched \"^ind\"; the excerpt is withheld"}}},
+			want:     stage5Shape{Text: "From Target Unable to find \"#^ind\" in Target.", Roles: []string{"div.embed embed--withheld", "p.embed__source", "p.embed__note"}, Transcluded: true, Diagnostics: []render.Diagnostic{{Kind: "embed-fragment-missing", Target: "Target", Block: "ind", Message: "no block in \"Notes/Target.md\" matched \"^ind\"; the excerpt is withheld"}}},
 			findings: []judge.Finding{{RuleID: "embed.block_missing", Severity: judge.SeverityWarn, Path: "Notes/Subject.md", Line: new(9), Message: "![[Target#^ind]] resolves, but no line carries the address ^ind", Evidence: "the note exists and no line in it ends with the block address, so there is no excerpt to cut", SuggestedAction: "fix the block name after ^, or write the address at the end of the line the excerpt should show", SourceRule: "yomihon", Target: new("Target#^ind"), ResolvedTo: new("Notes/Target.md"), Fingerprint: "v1:fd698055d8b9ffed"}},
-			wire: stage5EmbedBlockWire, warnExit: 1,
+			wire:     stage5EmbedBlockWire, warnExit: 1,
 		},
 		{
 			name: "link prose control", body: "[[Target#^ind]]\n", targetBody: "sample ^ind\n",
@@ -475,11 +475,11 @@ func stage5IndentExcerpt(t *testing.T) {
 			cut, found := render.Excerpt(tc.body, "^ind")
 			preview, previewFound, narrowed := render.ExcerptPreview(tc.body, "^ind")
 			want := struct {
-				Cut, Preview                 string
+				Cut, Preview                  string
 				Found, PreviewFound, Narrowed bool
 			}{Cut: tc.cut, Preview: tc.cut, Found: tc.found, PreviewFound: tc.found}
 			got := struct {
-				Cut, Preview                 string
+				Cut, Preview                  string
 				Found, PreviewFound, Narrowed bool
 			}{Cut: cut, Preview: preview, Found: found, PreviewFound: previewFound, Narrowed: narrowed}
 			if diff := cmp.Diff(want, got); diff != "" {
