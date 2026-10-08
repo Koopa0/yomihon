@@ -107,33 +107,44 @@ type bodyReading struct {
 	unclosed      BodyComment
 }
 
-func projectedBodyFacts(reading bodyReading) BodyFacts {
-	admissionBody, expanded := reading.admissionBody, reading.expanded
-	bootstrap, admission, authority := reading.bootstrap, reading.admission, reading.authority
-	facts := BodyFacts{source: reading.source, comments: reading.comments, commentFree: admissionBody.text, comment: reading.unclosed}
-	// Initial accepted definitions retain their original provenance even if the
-	// comment strip removes them. Only the final grammar assigns emission.
+func projectedBodyFacts(reading bodyReading) *bodyFactsData {
+	facts := &bodyFactsData{source: reading.source, comments: reading.comments, commentFree: reading.admissionBody.text, comment: reading.unclosed}
+	facts.projectFootnotes(reading.bootstrap, reading.authority, reading.expanded)
+	facts.projectCodes(reading.authority, reading.expanded)
+	facts.projectProse(reading.authority, reading.expanded)
+	facts.projectInlineNotes(reading.admission, reading.admissionBody)
+	facts.htmlLimits = slices.Clone(reading.bootstrap.htmlLimits)
+	facts.sortSourceFacts()
+	return facts
+}
+
+func (f *bodyFactsData) projectFootnotes(bootstrap, authority *bodyObservation, expanded bodyProjection) {
+	// Initial accepted definitions retain original provenance even when stripped.
+	// Only the final grammar assigns emission.
 	for _, definition := range bootstrap.footnotes {
 		definition.Emitted = false
-		facts.footnotes = append(facts.footnotes, definition)
+		f.footnotes = append(f.footnotes, definition)
 	}
 	for _, definition := range authority.footnotes {
 		if _, authored := expanded.originalOffset(definition.Span.Start); !authored {
 			continue // generated labels are not authored ordinary definitions
 		}
 		definition.Span = expanded.sourceSpan(definition.Span)
-		matched := false
-		for i := range facts.footnotes {
-			if facts.footnotes[i].Span.Start == definition.Span.Start {
-				facts.footnotes[i].Emitted = definition.Emitted
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			facts.footnotes = append(facts.footnotes, definition)
+		f.recordFootnoteEmission(definition)
+	}
+}
+
+func (f *bodyFactsData) recordFootnoteEmission(definition FootnoteFact) {
+	for i := range f.footnotes {
+		if f.footnotes[i].Span.Start == definition.Span.Start {
+			f.footnotes[i].Emitted = definition.Emitted
+			return
 		}
 	}
+	f.footnotes = append(f.footnotes, definition)
+}
+
+func (f *bodyFactsData) projectCodes(authority *bodyObservation, expanded bodyProjection) {
 	for _, code := range authority.codes {
 		span, authored := expanded.originalSpan(code.Span)
 		if !authored {
@@ -143,47 +154,62 @@ func projectedBodyFacts(reading bodyReading) BodyFacts {
 		code.Opener = expanded.sourceSpan(code.Opener)
 		code.Info = expanded.sourceSpan(code.Info)
 		code.Closer = expanded.sourceSpan(code.Closer)
-		facts.codes = append(facts.codes, code)
+		f.codes = append(f.codes, code)
 	}
+}
+
+func (f *bodyFactsData) projectProse(authority *bodyObservation, expanded bodyProjection) {
 	for _, heading := range authority.headings {
-		if span, authored := expanded.originalSpan(heading.Span); authored {
-			heading.Span = span
-			facts.headings = append(facts.headings, heading)
+		span, authored := expanded.originalSpan(heading.Span)
+		if !authored {
+			continue
 		}
+		heading.Span = span
+		f.headings = append(f.headings, heading)
 	}
 	for _, destination := range authority.destinations {
-		if offset, authored := expanded.originalOffset(destination.Offset); authored {
-			destination.Offset = offset
-			facts.destinations = append(facts.destinations, destination)
+		offset, authored := expanded.originalOffset(destination.Offset)
+		if !authored {
+			continue
 		}
+		destination.Offset = offset
+		f.destinations = append(f.destinations, destination)
 	}
 	for _, literal := range authority.literals {
-		if span, authored := expanded.originalSpan(literal.Span); authored {
-			literal.Span = span
-			facts.literals = append(facts.literals, literal)
+		span, authored := expanded.originalSpan(literal.Span)
+		if !authored {
+			continue
 		}
+		literal.Span = span
+		f.literals = append(f.literals, literal)
 	}
+}
+
+func (f *bodyFactsData) projectInlineNotes(admission *bodyObservation, body bodyProjection) {
 	for _, note := range admission.inlineNotes {
-		if span, authored := admissionBody.originalSpan(note.Span); authored {
-			opening, openingAuthored := admissionBody.originalOffset(note.Span.Start + 1)
-			closing, closingAuthored := admissionBody.originalOffset(note.Span.Stop - 1)
-			if !openingAuthored || !closingAuthored || opening < 0 || opening >= closing || closing >= len(reading.source) {
-				continue
-			}
-			if reading.source[opening] != '[' || reading.source[closing] != ']' {
-				continue
-			}
-			note.Span = span
-			note.Content = reading.source[opening+1 : closing]
-			facts.inlineNotes = append(facts.inlineNotes, note)
+		span, authored := body.originalSpan(note.Span)
+		if !authored {
+			continue
 		}
+		opening, openingAuthored := body.originalOffset(note.Span.Start + 1)
+		closing, closingAuthored := body.originalOffset(note.Span.Stop - 1)
+		if !openingAuthored || !closingAuthored || opening < 0 || opening >= closing || closing >= len(f.source) {
+			continue
+		}
+		if f.source[opening] != '[' || f.source[closing] != ']' {
+			continue
+		}
+		note.Span = span
+		note.Content = f.source[opening+1 : closing]
+		f.inlineNotes = append(f.inlineNotes, note)
 	}
-	facts.htmlLimits = slices.Clone(bootstrap.htmlLimits)
-	slices.SortFunc(facts.codes, func(a, b CodeFact) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
-	slices.SortFunc(facts.footnotes, func(a, b FootnoteFact) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
-	slices.SortFunc(facts.headings, func(a, b BodyHeading) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
-	slices.SortFunc(facts.destinations, func(a, b BodyDestination) int { return cmp.Compare(a.Offset, b.Offset) })
-	slices.SortFunc(facts.literals, func(a, b CodeLiteral) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
-	slices.SortFunc(facts.inlineNotes, func(a, b InlineFootnoteFact) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
-	return facts
+}
+
+func (f *bodyFactsData) sortSourceFacts() {
+	slices.SortFunc(f.codes, func(a, b CodeFact) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
+	slices.SortFunc(f.footnotes, func(a, b FootnoteFact) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
+	slices.SortFunc(f.headings, func(a, b BodyHeading) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
+	slices.SortFunc(f.destinations, func(a, b BodyDestination) int { return cmp.Compare(a.Offset, b.Offset) })
+	slices.SortFunc(f.literals, func(a, b CodeLiteral) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
+	slices.SortFunc(f.inlineNotes, func(a, b InlineFootnoteFact) int { return cmp.Compare(a.Span.Start, b.Span.Start) })
 }

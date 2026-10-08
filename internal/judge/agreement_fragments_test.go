@@ -70,9 +70,15 @@ func agreementCandidates(body string, observed *agreementHTML) []string {
 
 func agreementFragments(t *testing.T, cases []agreementCase, actual []agreementHTML) {
 	t.Helper()
-	for index, failures := range agreementFragmentFailures(t, cases, actual) {
-		for _, failure := range failures {
-			t.Errorf("caught: %s %s case=%s body=%q observations=%s", failure.Property, failure.Identity, cases[index].Name, cases[index].Body, failure.Observation)
+	observations := agreementFragmentFailures(t, cases, actual)
+	if len(observations) != len(cases) {
+		t.Fatalf("fragment failure count = %d, want %d", len(observations), len(cases))
+	}
+	for index := range cases {
+		c := &cases[index]
+		for failureIndex := range observations[index] {
+			failure := &observations[index][failureIndex]
+			t.Errorf("caught: %s %s case=%s body=%q observations=%s", failure.Property, failure.Identity, c.Name, c.Body, failure.Observation)
 		}
 	}
 }

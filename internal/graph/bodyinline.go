@@ -97,13 +97,15 @@ func protectBodyInline(body bodyProjection, observation *bodyObservation) {
 		projection := fragment.projection()
 		protected := observeBody(projection.text, bodyExpandedMarkdown.Parser())
 		for _, code := range protected.codes {
-			if span, authored := projection.originalSpan(code.Span); authored {
-				code.Span = span
-				code.Opener = projection.sourceSpan(code.Opener)
-				code.Info = projection.sourceSpan(code.Info)
-				code.Closer = projection.sourceSpan(code.Closer)
-				observation.codes = append(observation.codes, code)
+			span, authored := projection.originalSpan(code.Span)
+			if !authored {
+				continue
 			}
+			code.Span = span
+			code.Opener = projection.sourceSpan(code.Opener)
+			code.Info = projection.sourceSpan(code.Info)
+			code.Closer = projection.sourceSpan(code.Closer)
+			observation.codes = append(observation.codes, code)
 		}
 	}
 }

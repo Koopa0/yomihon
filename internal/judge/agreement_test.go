@@ -3,6 +3,7 @@ package judge_test
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math/rand/v2"
 	"path/filepath"
@@ -116,7 +117,7 @@ func TestAgreement(t *testing.T) {
 				"10484a58e1bd6f9a4ab0727c42c4ad1be6169b1a232b7765ce681a61a8f43cbb",
 				"bd082b5cf7195d6bb3c9b4ec5ef4fb84dcc3b26779bd17ca78647901f6110e4d",
 			}
-			got := fmt.Sprintf("%x", digest.Sum(nil))
+			got := hex.EncodeToString(digest.Sum(nil))
 			if got != want[shard] {
 				t.Fatalf("generator identity shard=%d digest=%s, want %s", shard, got, want[shard])
 			}
@@ -174,7 +175,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			if designedSetup != "" {
 				failures[i] = append(failures[i], agreementFailure{Property: "setup", Identity: "designed-receipt", Observation: designedSetup})
 			}
-			for _, failure := range failures[i] {
+			for failureIndex := range failures[i] {
+				failure := &failures[i][failureIndex]
 				if designed[agreementSignature(failure)] {
 					t.Logf("known=designed authority=#1011 callout.title_markup wrong=none case=%s signature=%s", c.Name, agreementSignature(failure))
 					continue
@@ -184,30 +186,31 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
 					continue
 				}
-				counterexamples = append(counterexamples, agreementCounterexample{Case: c, Failure: failure})
+				counterexamples = append(counterexamples, agreementCounterexample{Case: c, Failure: *failure})
 			}
 		}
 	}
 	// Evaluate the entire lane before spending the bounded diagnostic replay
 	// allowance. Each lane owns its own representatives and candidate budget.
 	budget := agreementReplayBudget{}
-	for i, example := range counterexamples {
+	for i := range counterexamples {
+		example := &counterexamples[i]
 		if i >= 8 {
-			t.Errorf("caught: %s %s case=%s original-sha256=%x signature=%s body=%q observations=%s minimization=not-attempted representative-budget", example.Failure.Property, example.Failure.Identity, example.Case.Name, sha256.Sum256([]byte(example.Case.Body)), agreementSignature(example.Failure), example.Case.Body, example.Failure.Observation)
+			t.Errorf("caught: %s %s case=%s original-sha256=%x signature=%s body=%q observations=%s minimization=not-attempted representative-budget", example.Failure.Property, example.Failure.Identity, example.Case.Name, sha256.Sum256([]byte(example.Case.Body)), agreementSignature(&example.Failure), example.Case.Body, example.Failure.Observation)
 			continue
 		}
 		body, attempts, checks, stop := agreementMinimizeBudget(t, example, &budget)
-		t.Errorf("caught: %s %s case=%s original-sha256=%x signature=%s original=%q minimized=%q observations=%s candidates=%d public-check=%d stop=%s", example.Failure.Property, example.Failure.Identity, example.Case.Name, sha256.Sum256([]byte(example.Case.Body)), agreementSignature(example.Failure), example.Case.Body, body, example.Failure.Observation, attempts, checks, stop)
+		t.Errorf("caught: %s %s case=%s original-sha256=%x signature=%s original=%q minimized=%q observations=%s candidates=%d public-check=%d stop=%s", example.Failure.Property, example.Failure.Identity, example.Case.Name, sha256.Sum256([]byte(example.Case.Body)), agreementSignature(&example.Failure), example.Case.Body, body, example.Failure.Observation, attempts, checks, stop)
 	}
 }
 
-func agreementSignature(failure agreementFailure) string {
+func agreementSignature(failure *agreementFailure) string {
 	return fmt.Sprintf("%s/%s tuple=%+v fragment=%q direction=%s multiplicity=%d cut=%q page=%t judge=%t excerpt=%t", failure.Property, failure.Identity, failure.Tuple, failure.Fragment, failure.Direction, failure.Multiplicity, failure.Cut, failure.PagePresent, failure.JudgeAccepted, failure.ExcerptFound)
 }
 
 // Finite witnessed membership is intentionally narrow. Other bodies or
 // additional tuples remain red, including additional deltas in these bodies.
-func agreementKnownDifference(c agreementCase, failure agreementFailure) (kind, authority, wrong string) {
+func agreementKnownDifference(c agreementCase, failure *agreementFailure) (kind, authority, wrong string) {
 	if c.Title != "" || len(c.Companions) != 0 || failure.Multiplicity != 1 || failure.Cut != "" || failure.JudgeAccepted || failure.ExcerptFound || failure.PagePresent != (failure.Property == "P4") {
 		return "", "", ""
 	}
@@ -229,7 +232,8 @@ func agreementKnownDifference(c agreementCase, failure agreementFailure) (kind, 
 		{body: "`open\n[[A]]\nclose`", property: "P2", identity: "wikilink-in-code", tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, direction: "page-in-code", wrong: "page", stage: 4},
 		{body: "## A\n## A\n", property: "P4", identity: "literal-heading-id", fragment: "a-2", direction: "page-only", wrong: "judge", stage: 8},
 	}
-	for _, witness := range witnesses {
+	for i := range witnesses {
+		witness := &witnesses[i]
 		if c.Body == witness.body && failure.Property == witness.property && failure.Identity == witness.identity && failure.Tuple == witness.tuple && failure.Fragment == witness.fragment && failure.Direction == witness.direction {
 			return "debt", fmt.Sprintf("#1011 stage %d", witness.stage), witness.wrong
 		}
@@ -242,13 +246,13 @@ type agreementReplayBudget struct {
 	Checks     int
 }
 
-func agreementMinimize(t *testing.T, original agreementCounterexample) (string, int, int, string) {
+func agreementMinimize(t *testing.T, original *agreementCounterexample) (string, int, int, string) {
 	t.Helper()
 	budget := agreementReplayBudget{}
 	return agreementMinimizeBudget(t, original, &budget)
 }
 
-func agreementMinimizeBudget(t *testing.T, original agreementCounterexample, budget *agreementReplayBudget) (string, int, int, string) {
+func agreementMinimizeBudget(t *testing.T, original *agreementCounterexample, budget *agreementReplayBudget) (string, int, int, string) {
 	t.Helper()
 	body := original.Case.Body
 	if original.Failure.Property == "setup" {
@@ -274,11 +278,12 @@ func agreementMinimizeBudget(t *testing.T, original agreementCounterexample, bud
 		return body, 0, checks, "not-attempted isolated-setup-failure: " + setup
 	}
 	preserved := false
-	for _, failure := range replay {
+	for failureIndex := range replay {
+		failure := &replay[failureIndex]
 		if failure.Property == "setup" {
 			return body, 0, checks, "not-attempted isolated-setup-failure: " + failure.Observation
 		}
-		preserved = preserved || agreementSignature(failure) == agreementSignature(original.Failure)
+		preserved = preserved || agreementSignature(failure) == agreementSignature(&original.Failure)
 	}
 	if !preserved {
 		return body, 0, checks, "not-attempted isolated-different-signature"
@@ -307,7 +312,8 @@ func agreementMinimizeBudget(t *testing.T, original agreementCounterexample, bud
 			if setup != "" {
 				continue
 			}
-			for _, failure := range failures {
+			for failureIndex := range failures {
+				failure := &failures[failureIndex]
 				if failure.Property == "setup" {
 					setup = failure.Observation
 				}
@@ -316,8 +322,9 @@ func agreementMinimizeBudget(t *testing.T, original agreementCounterexample, bud
 				continue
 			}
 			preserved := false
-			for _, failure := range failures {
-				if agreementSignature(failure) == agreementSignature(original.Failure) {
+			for failureIndex := range failures {
+				failure := &failures[failureIndex]
+				if agreementSignature(failure) == agreementSignature(&original.Failure) {
 					preserved = true
 				}
 			}
@@ -446,7 +453,8 @@ func agreementDesignedDifferences(t agreementTB, c agreementCase, actual *agreem
 		return allowed
 	}
 	eligible := false
-	for _, failure := range failures {
+	for failureIndex := range failures {
+		failure := &failures[failureIndex]
 		eligible = eligible || failure.Property == "P1" && failure.Identity == "citation-occurrences" && failure.Direction == "judge-only"
 	}
 	if !eligible {
@@ -461,15 +469,16 @@ func agreementDesignedDifferences(t agreementTB, c agreementCase, actual *agreem
 	}
 	targetBudget := make(map[string]int)
 	targetOwners := make(map[string]int)
-	for _, finding := range findings {
+	for i := range findings {
+		finding := &findings[i]
 		if finding.RuleID == "scan.unreadable" || finding.RuleID == "scan.skipped" {
-			t.Fatalf("designed receipt incomplete Check: %+v", finding)
+			t.Fatalf("designed receipt incomplete Check: %+v", *finding)
 		}
 		if finding.RuleID != "callout.title_markup" {
 			continue
 		}
 		if finding.Path != path || finding.Line == nil || finding.Target == nil {
-			t.Fatalf("designed receipt missing Path/Line/Target: %+v", finding)
+			t.Fatalf("designed receipt missing Path/Line/Target: %+v", *finding)
 		}
 		title := *finding.Target
 		if count := agreementStringCount(actual.CalloutTitles, title); count != 1 {
@@ -501,7 +510,8 @@ func agreementDesignedDifferences(t agreementTB, c agreementCase, actual *agreem
 			targetBudget[target] += count
 		}
 	}
-	for _, failure := range failures {
+	for failureIndex := range failures {
+		failure := &failures[failureIndex]
 		if failure.Property == "P1" && failure.Identity == "citation-occurrences" && failure.Direction == "judge-only" && failure.Tuple.SourceRole == "" && failure.Tuple.Section == "" && failure.Tuple.State == "" && failure.Fragment == "" && targetOwners[failure.Tuple.Target] == 1 && targetBudget[failure.Tuple.Target] == failure.Multiplicity {
 			allowed[agreementSignature(failure)] = true
 		}
@@ -539,6 +549,7 @@ type agreementSetupFailure struct {
 
 type agreementRecorder struct {
 	*testing.T
+
 	checkCalls *int
 }
 

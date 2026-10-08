@@ -214,7 +214,9 @@ func agreementProjectionControl(t *testing.T, tc *agreementProjectionCase) {
 	if diff := cmp.Diff(tc.WikiTargets, judge.LinkTargets(tc.Body)); diff != "" {
 		t.Errorf("caught: P1 citation-occurrences literal check case=%s (-want +got):\n%s", tc.Name, diff)
 	}
-	for _, failure := range agreementPageFailures(tc.Body, &result, &actual) {
+	failures := agreementPageFailures(tc.Body, &result, &actual)
+	for failureIndex := range failures {
+		failure := &failures[failureIndex]
 		t.Errorf("caught: %s %s case=%s body=%q observations=%s", failure.Property, failure.Identity, tc.Name, tc.Body, failure.Observation)
 	}
 }
@@ -678,7 +680,6 @@ func agreementEnvelopeIdentity(t *testing.T) {
 // These rows offer real renderer/LinkTargets/public-Check observations to the
 // classifier. The expected eligibility is independently written per row.
 func TestAgreementDifferenceControls(t *testing.T) {
-	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		body    string
@@ -700,18 +701,21 @@ func TestAgreementDifferenceControls(t *testing.T) {
 			if len(allowed) != tc.allowed {
 				t.Errorf("caught: designed-occurrence-ownership allowed=%d want=%d failures=%+v", len(allowed), tc.allowed, failures)
 			}
-			for _, failure := range failures {
+			for failureIndex := range failures {
+				failure := &failures[failureIndex]
 				if !allowed[agreementSignature(failure)] {
 					continue
 				}
-				for _, changed := range []agreementFailure{
+				changes := []agreementFailure{
 					{Property: "P0", Identity: failure.Identity, Tuple: failure.Tuple, Direction: failure.Direction, Multiplicity: failure.Multiplicity},
 					{Property: failure.Property, Identity: failure.Identity, Tuple: failure.Tuple, Direction: "page-only", Multiplicity: failure.Multiplicity},
 					{Property: failure.Property, Identity: failure.Identity, Tuple: failure.Tuple, Direction: failure.Direction, Multiplicity: failure.Multiplicity + 1},
 					{Property: failure.Property, Identity: failure.Identity, Tuple: failure.Tuple, Fragment: "^different", Direction: failure.Direction, Multiplicity: failure.Multiplicity},
-				} {
-					if got := agreementDesignedDifferences(t, c, &actual, []agreementFailure{changed}); len(got) != 0 {
-						t.Errorf("caught: designed-signature-drift accepted=%+v", changed)
+				}
+				for changeIndex := range changes {
+					changed := &changes[changeIndex]
+					if got := agreementDesignedDifferences(t, c, &actual, []agreementFailure{*changed}); len(got) != 0 {
+						t.Errorf("caught: designed-signature-drift accepted=%+v", *changed)
 					}
 				}
 			}
@@ -741,7 +745,7 @@ func TestAgreementDifferenceControls(t *testing.T) {
 			t.Errorf("caught: setup-channel got=%q", setup)
 		}
 		c := agreementCounterexample{Case: agreementCase{Body: "[[A]]"}, Failure: agreementFailure{Property: "setup", Observation: setup}}
-		body, candidates, checks, stop := agreementMinimize(t, c)
+		body, candidates, checks, stop := agreementMinimize(t, &c)
 		if body != c.Case.Body || candidates != 0 || checks != 0 || stop != "not-attempted setup-failure" {
 			t.Errorf("caught: setup-minimization body=%q candidates=%d checks=%d stop=%q", body, candidates, checks, stop)
 		}
@@ -749,7 +753,6 @@ func TestAgreementDifferenceControls(t *testing.T) {
 }
 
 func TestAgreementWitnessControls(t *testing.T) {
-	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		body  string
@@ -767,7 +770,8 @@ func TestAgreementWitnessControls(t *testing.T) {
 			fragments := agreementFragmentFailures(t, []agreementCase{c}, []agreementHTML{actual})
 			failures = append(failures, fragments[0]...)
 			known := 0
-			for _, failure := range failures {
+			for failureIndex := range failures {
+				failure := &failures[failureIndex]
 				kind, authority, wrong := agreementKnownDifference(c, failure)
 				if kind == "" {
 					continue
@@ -776,23 +780,23 @@ func TestAgreementWitnessControls(t *testing.T) {
 				if kind != "debt" || (authority != "#1011 stage 4" && authority != "#1011 stage 8") || wrong == "" {
 					t.Errorf("caught: debt-witness-provenance kind=%q authority=%q wrong=%q", kind, authority, wrong)
 				}
-				changed := failure
+				changed := *failure
 				changed.Direction = "different-direction"
-				if kind, _, _ := agreementKnownDifference(c, changed); kind != "" {
+				if kind, _, _ := agreementKnownDifference(c, &changed); kind != "" {
 					t.Errorf("caught: debt-wrong-direction accepted=%+v", changed)
 				}
-				changed = failure
+				changed = *failure
 				changed.Multiplicity++
-				if kind, _, _ := agreementKnownDifference(c, changed); kind != "" {
+				if kind, _, _ := agreementKnownDifference(c, &changed); kind != "" {
 					t.Errorf("caught: debt-occurrence-budget accepted=%+v", changed)
 				}
 				companion := c
 				companion.Companions = capturedBodies{"Notes/Other.md": "other"}
 				if kind, _, _ := agreementKnownDifference(companion, failure); kind != "" {
-					t.Errorf("caught: debt-companion-drift accepted=%+v", failure)
+					t.Errorf("caught: debt-companion-drift accepted=%+v", *failure)
 				}
 				budget := agreementReplayBudget{Candidates: 128, Checks: 64}
-				body, candidates, checks, stop := agreementMinimizeBudget(t, agreementCounterexample{Case: c, Failure: failure}, &budget)
+				body, candidates, checks, stop := agreementMinimizeBudget(t, &agreementCounterexample{Case: c, Failure: *failure}, &budget)
 				if body != c.Body || candidates != 0 || checks != 0 || stop != "not-attempted public-check-budget" {
 					t.Errorf("caught: minimizer-budget body=%q candidates=%d checks=%d stop=%q", body, candidates, checks, stop)
 				}
@@ -805,7 +809,6 @@ func TestAgreementWitnessControls(t *testing.T) {
 }
 
 func TestAgreementMinimizerControls(t *testing.T) {
-	t.Parallel()
 	c := agreementCase{
 		Name:       "reducer-selected-code-occurrence",
 		Body:       "unrelated prefix\n\n`open\n[[A]]\nclose`\n\nunrelated suffix\n",
@@ -820,9 +823,10 @@ func TestAgreementMinimizerControls(t *testing.T) {
 	failures := agreementPageFailures(c.Body, &result, &actual)
 	selected := agreementFailure{}
 	matches := 0
-	for _, failure := range failures {
-		if agreementSignature(failure) == agreementSignature(want) {
-			selected = failure
+	for failureIndex := range failures {
+		failure := &failures[failureIndex]
+		if agreementSignature(failure) == agreementSignature(&want) {
+			selected = *failure
 			matches++
 		}
 	}
@@ -830,7 +834,7 @@ func TestAgreementMinimizerControls(t *testing.T) {
 		t.Fatalf("not-applied: minimizer actual selected-code boundary matches=%d code=%d failures=%+v", matches, actual.CitationsInCode, failures)
 	}
 	t.Run("retains selected producer difference", func(t *testing.T) {
-		body, candidates, checks, stop := agreementMinimize(t, agreementCounterexample{Case: c, Failure: selected})
+		body, candidates, checks, stop := agreementMinimize(t, &agreementCounterexample{Case: c, Failure: selected})
 		if body == c.Body || body == "" || candidates == 0 || checks <= 2 {
 			t.Fatalf("caught: minimizer-no-preserved-reduction original=%q body=%q candidates=%d checks=%d stop=%q", c.Body, body, candidates, checks, stop)
 		}
@@ -841,8 +845,9 @@ func TestAgreementMinimizerControls(t *testing.T) {
 		fragments := agreementFragmentFailures(t, []agreementCase{reduced}, []agreementHTML{actual})
 		observed = append(observed, fragments[0]...)
 		matches := 0
-		for _, failure := range observed {
-			if agreementSignature(failure) == agreementSignature(want) {
+		for failureIndex := range observed {
+			failure := &observed[failureIndex]
+			if agreementSignature(failure) == agreementSignature(&want) {
 				matches++
 			}
 		}
@@ -863,7 +868,7 @@ func TestAgreementMinimizerControls(t *testing.T) {
 	t.Run("refuses original defect switch", func(t *testing.T) {
 		switched := selected
 		switched.Tuple.Target = "B"
-		body, candidates, checks, stop := agreementMinimize(t, agreementCounterexample{Case: c, Failure: switched})
+		body, candidates, checks, stop := agreementMinimize(t, &agreementCounterexample{Case: c, Failure: switched})
 		if body != c.Body || candidates != 0 || checks != 2 || stop != "not-attempted isolated-different-signature" {
 			t.Errorf("caught: minimizer-original-defect-switch body=%q candidates=%d checks=%d stop=%q", body, candidates, checks, stop)
 		}
@@ -890,8 +895,9 @@ func TestAgreementMinimizerFragmentContext(t *testing.T) {
 	}
 	matches := func(failures []agreementFailure) int {
 		count := 0
-		for _, failure := range failures {
-			if agreementSignature(failure) == agreementSignature(want) {
+		for failureIndex := range failures {
+			failure := &failures[failureIndex]
+			if agreementSignature(failure) == agreementSignature(&want) {
 				count++
 			}
 		}
@@ -912,7 +918,7 @@ func TestAgreementMinimizerFragmentContext(t *testing.T) {
 	if matches(observe(withoutCompanion)) != 0 {
 		t.Fatal("not-applied: selected fragment does not depend on the companion heading")
 	}
-	body, candidates, checks, stop := agreementMinimize(t, agreementCounterexample{Case: c, Failure: want})
+	body, candidates, checks, stop := agreementMinimize(t, &agreementCounterexample{Case: c, Failure: want})
 	if body == c.Body || body == "" || candidates == 0 || checks <= 2 {
 		t.Fatalf("caught: minimizer-context-reduction original=%q reduced=%q candidates=%d checks=%d stop=%q", c.Body, body, candidates, checks, stop)
 	}

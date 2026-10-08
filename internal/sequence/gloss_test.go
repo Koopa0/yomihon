@@ -1,6 +1,10 @@
 package sequence
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
 
 // TestARowKeepsTheWordsItsAuthorWroteAfterTheLink holds what a course cover
 // prints beside a lesson's title. The gloss is the author's own sentence, so
@@ -86,5 +90,60 @@ func TestARowOutsideTheCourseKeepsItsGlossToo(t *testing.T) {
 	entries := doc.Groups[0].entries()
 	if len(entries) != 1 || entries[0].Gloss != "— 等待、交接與收尾的關係" {
 		t.Errorf("entries = %+v, want one row carrying its gloss", entries)
+	}
+}
+
+func TestFirstBlockPartsKeepTheWholeDocument(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		body   string
+		span   Span
+		target Span
+		gloss  string
+	}{
+		{
+			name: "soft break", body: "## P {sequence=primary}\n\n- [[A]] one\n  two\n",
+			span: Span{Start: 27, Stop: 42}, target: Span{Start: 27, Stop: 32},
+			gloss: "one two",
+		},
+		{
+			name: "hard break", body: "## P {sequence=primary}\n\n- [[A]] one  \n  two\n",
+			span: Span{Start: 27, Stop: 44}, target: Span{Start: 27, Stop: 32},
+			gloss: "one two",
+		},
+		{
+			name: "CRLF soft break", body: "## P {sequence=primary}\r\n\r\n- [[A]] one\r\n  two\r\n",
+			span: Span{Start: 29, Stop: 45}, target: Span{Start: 29, Stop: 34},
+			gloss: "one two",
+		},
+		{
+			name: "raw multiline code", body: "## P {sequence=primary}\n\n- [[A]] `one\n  two`\n",
+			span: Span{Start: 27, Stop: 44}, target: Span{Start: 27, Stop: 32},
+			gloss: "one\n  two",
+		},
+		{
+			name: "raw comment text parts", body: "## P {sequence=primary}\n\n- [[A]] one %%hidden%% two\n",
+			span: Span{Start: 27, Stop: 51}, target: Span{Start: 27, Stop: 32},
+			gloss: "one  two",
+		},
+		{
+			name: "first container has no own lines", body: "## P {sequence=primary}\n\n- > [[A]] word\n",
+			span: Span{Start: 29, Stop: 39}, target: Span{Start: 29, Stop: 34},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			want := Document{Groups: []*Group{{
+				Name: "P", Level: 2, Line: 7, Role: RolePrimary,
+				Items: []Item{{Entry: &Candidate{
+					Text: "A", Target: "A", Line: 9, Span: tt.span,
+					Gloss: tt.gloss, TargetSpan: tt.target, State: EntryAccepted,
+				}}},
+			}}}
+			if diff := cmp.Diff(want, Parse(tt.body, 7)); diff != "" {
+				t.Errorf("caught: first-block provenance changed Document (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

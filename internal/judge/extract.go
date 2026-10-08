@@ -6,8 +6,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/yuin/goldmark/ast"
-
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -49,8 +47,8 @@ type pathRef struct {
 	code   bool
 }
 
-// mdParser recognizes transformed fragment presentations with the fixed body
-// grammar. Original note extraction uses its one immutable BodyFacts value.
+// mdParser recognizes isolated callout titles with the fixed body grammar.
+// Whole-body extraction and heading recognition borrow immutable BodyFacts.
 var mdParser = graph.NewBodyMarkdown(nil).Parser()
 
 // plannedMarks are the heading and inline marks one extraction reads. They
@@ -317,17 +315,6 @@ func structureFrom(facts graph.BodyFacts, headingMarks []string) ([]byteRange, [
 	return codeZones, headings
 }
 
-// walkNodes visits every node of doc in document order, calling visit as each
-// node is entered. The visitor cannot fail, so neither can the traversal.
-func walkNodes(doc ast.Node, visit func(ast.Node)) {
-	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error, so the walk cannot fail
-		if entering {
-			visit(n)
-		}
-		return ast.WalkContinue, nil
-	})
-}
-
 // rawWikilinks scans body for [[...]] pairs, returning the byte offset of each
 // opening bracket and its inner text. Inner text that spans a newline is
 // dropped: a wikilink is single-line.
@@ -440,16 +427,6 @@ func stripParens(s string) string {
 		}
 	}
 	return b.String()
-}
-
-// linesRange is a block node's source span, from the start of its first line
-// segment to the end of its last, or false when it has none.
-func linesRange(n ast.Node) (byteRange, bool) {
-	ls := n.Lines()
-	if ls == nil || ls.Len() == 0 {
-		return byteRange{}, false
-	}
-	return byteRange{Start: ls.At(0).Start, Stop: ls.At(ls.Len() - 1).Stop}, true
 }
 
 // fileLink admits a Markdown note path after decoding it once, retaining its

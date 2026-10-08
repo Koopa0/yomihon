@@ -90,8 +90,8 @@ func TestBodyFactsUnusedFootnoteProvenance(t *testing.T) {
 func TestBodyFactsValueIsolation(t *testing.T) {
 	const body = "```\nx\n```\n"
 	facts := graph.ReadBody(body)
-	copy := slices.Collect(facts.Codes())
-	copy[0].Span = graph.Span{}
+	copied := slices.Collect(facts.Codes())
+	copied[0].Span = graph.Span{}
 	for code := range facts.Codes() {
 		code.Span.Start = 99
 	}

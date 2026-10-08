@@ -171,7 +171,7 @@ func (w *plainWalk) writeAutoLink(a *ast.AutoLink, source []byte) {
 	}
 	// Linkify can start at the preceding space or delimiter and consume it
 	// before its label. Its canonical parser advances by exactly one byte.
-	if start >= 0 && start+len(label)+1 <= len(source) && !bytes.Equal(source[start:start+len(label)], label) && bytes.Equal(source[start+1:start+1+len(label)], label) {
+	if start >= 0 && start+len(label) < len(source) && !bytes.Equal(source[start:start+len(label)], label) && bytes.Equal(source[start+1:start+1+len(label)], label) {
 		start++
 	}
 	if start >= 0 && start+len(label) <= len(source) && bytes.Equal(source[start:start+len(label)], label) {
@@ -247,21 +247,23 @@ func (p observedDelimiterProcessor) OnMatch(consumes int) ast.Node {
 		// before OnMatch. Every previous match updated those same two records,
 		// so the first known changed downstream run is this match's closer.
 		for closer := opener.NextDelimiter; closer != nil; closer = closer.NextDelimiter {
-			if before, known := p.observation.lengths[closer]; known && before-closer.Length == consumes {
-				if p.observation.corpus != nil {
-					openEnd := opener.Segment.Start + p.observation.left[opener] + previous
-					closeStart := closer.Segment.Start + p.observation.left[closer]
-					p.observation.corpus[node] = [2]text.Segment{
-						text.NewSegment(openEnd-consumes, openEnd),
-						text.NewSegment(closeStart, closeStart+consumes),
-					}
-				}
-				p.observation.recordMatch(opener, closer, consumes)
-				p.observation.left[closer] += consumes
-				p.observation.lengths[opener] = opener.Length
-				p.observation.lengths[closer] = closer.Length
-				break
+			before, known := p.observation.lengths[closer]
+			if !known || before-closer.Length != consumes {
+				continue
 			}
+			if p.observation.corpus != nil {
+				openEnd := opener.Segment.Start + p.observation.left[opener] + previous
+				closeStart := closer.Segment.Start + p.observation.left[closer]
+				p.observation.corpus[node] = [2]text.Segment{
+					text.NewSegment(openEnd-consumes, openEnd),
+					text.NewSegment(closeStart, closeStart+consumes),
+				}
+			}
+			p.observation.recordMatch(opener, closer, consumes)
+			p.observation.left[closer] += consumes
+			p.observation.lengths[opener] = opener.Length
+			p.observation.lengths[closer] = closer.Length
+			break
 		}
 	}
 	return node

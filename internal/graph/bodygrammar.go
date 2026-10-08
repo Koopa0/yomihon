@@ -96,19 +96,8 @@ const (
 )
 
 func newBodyMarkdown(prefix func(ast.Node) []byte, role bodyGrammarRole) goldmark.Markdown {
-	blocks := parser.DefaultBlockParsers()
-	for i := range blocks {
-		switch blocks[i].Priority {
-		case 500, 700:
-			blocks[i].Value = bodyBlockParser{delegate: blocks[i].Value.(parser.BlockParser)}
-		}
-	}
-	inlines := parser.DefaultInlineParsers()
-	for i := range inlines {
-		if inlines[i].Priority == 100 {
-			inlines[i].Value = bodyCodeParser{delegate: inlines[i].Value.(parser.InlineParser)}
-		}
-	}
+	blocks := bodyBlockDelegates()
+	inlines := bodyInlineDelegates()
 	markdown := goldmark.New(
 		goldmark.WithParser(parser.NewParser(
 			parser.WithBlockParsers(blocks...),
@@ -119,12 +108,45 @@ func newBodyMarkdown(prefix func(ast.Node) []byte, role bodyGrammarRole) goldmar
 		goldmark.WithParserOptions(parser.WithInlineParsers(
 			util.Prioritized(NewHighlightParser(), 500),
 			util.Prioritized(bodyTaskParser{}, -100),
-		), parser.WithASTTransformers(util.Prioritized(bodySourceCollector{}, 998))),
+		), parser.WithASTTransformers(
+			util.Prioritized(bodySourceCollector{}, 998),
+			util.Prioritized(bodyStructureCollector{}, 1000),
+		)),
 	)
 	if role == bodyAuthored {
 		markdown.Parser().AddOptions(parser.WithInlineParsers(util.Prioritized(bodyInlineFootnoteParser{}, 100)))
 	}
 	return markdown
+}
+
+func bodyBlockDelegates() []util.PrioritizedValue {
+	blocks := parser.DefaultBlockParsers()
+	for i := range blocks {
+		switch blocks[i].Priority {
+		case 500, 700:
+			delegate, ok := blocks[i].Value.(parser.BlockParser)
+			if !ok {
+				panic("graph: configured block delegate is not a BlockParser")
+			}
+			blocks[i].Value = bodyBlockParser{delegate: delegate}
+		}
+	}
+
+	return blocks
+}
+
+func bodyInlineDelegates() []util.PrioritizedValue {
+	inlines := parser.DefaultInlineParsers()
+	for i := range inlines {
+		if inlines[i].Priority == 100 {
+			delegate, ok := inlines[i].Value.(parser.InlineParser)
+			if !ok {
+				panic("graph: configured code delegate is not an InlineParser")
+			}
+			inlines[i].Value = bodyCodeParser{delegate: delegate}
+		}
+	}
+	return inlines
 }
 
 type bodyFootnotes struct{ prefix func(ast.Node) []byte }
@@ -143,6 +165,9 @@ func (e bodyFootnotes) Extend(md goldmark.Markdown) {
 var bodyObservationKey = parser.NewContextKey()
 
 type bodyObservation struct {
+	collection     bodyCollection
+	structure      bodyStructure
+	rich           []BodyOutlineHeading
 	codes          []CodeFact
 	footnotes      []FootnoteFact
 	headings       []BodyHeading
@@ -150,13 +175,20 @@ type bodyObservation struct {
 	literals       []CodeLiteral
 	htmlLimits     []CommentLimit
 	blocks         map[ast.Node]int
-	definitions    map[ast.Node]int
+	definitions    map[*east.Footnote]int
 	inlineNotes    []InlineFootnoteFact
 	inlineSegments map[int][]text.Segment
 }
 
 func bodyObservationIn(pc parser.Context) *bodyObservation {
-	observation, _ := pc.Get(bodyObservationKey).(*bodyObservation)
+	value := pc.Get(bodyObservationKey)
+	if value == nil {
+		return nil
+	}
+	observation, ok := value.(*bodyObservation)
+	if !ok || observation == nil {
+		panic("graph: invalid body observation context")
+	}
 	return observation
 }
 
@@ -186,7 +218,7 @@ func (p bodyBlockParser) Open(parent ast.Node, reader text.Reader, pc parser.Con
 		observation.blocks[node] = len(observation.codes)
 		observation.codes = append(observation.codes, CodeFact{Kind: CodeIndent, Span: Span{Start: start, Stop: segment.Stop}})
 	case *east.Footnote:
-		observation.definitions[node] = len(observation.footnotes)
+		observation.definitions[n] = len(observation.footnotes)
 		observation.footnotes = append(observation.footnotes, FootnoteFact{Span: Span{Start: start, Stop: segment.Stop}, Label: string(n.Ref)})
 	}
 	return node, state
@@ -208,8 +240,10 @@ func (p bodyBlockParser) Continue(node ast.Node, reader text.Reader, pc parser.C
 			fact.Span.Stop = segment.Stop
 		}
 	}
-	if index, ok := observation.definitions[node]; ok && state&parser.Continue != 0 {
-		observation.footnotes[index].Span.Stop = segment.Stop
+	if definition, isDefinition := node.(*east.Footnote); isDefinition {
+		if index, ok := observation.definitions[definition]; ok && state&parser.Continue != 0 {
+			observation.footnotes[index].Span.Stop = segment.Stop
+		}
 	}
 	return state
 }

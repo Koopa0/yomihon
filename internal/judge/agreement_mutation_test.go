@@ -3,6 +3,8 @@ package judge_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"go/ast"
@@ -25,19 +27,21 @@ import (
 )
 
 type agreementMutation struct {
-	Name     string
-	Property string
-	Identity string
-	File     string
-	Function string
-	Needle   string
-	Fault    string
-	Body     string
+	Name        string
+	Property    string
+	Identity    string
+	File        string
+	Function    string
+	Needle      string
+	Fault       string
+	Body        string
+	Package     string
+	ControlTest string
 }
 
 // Every independently variable block producer has its own compiling fault.
 func agreementMutations() []agreementMutation {
-	return []agreementMutation{
+	modes := []agreementMutation{
 		{Name: "p0-diagnostic", Property: "P0", Identity: "diagnostic-html", File: "internal/render/render.go", Function: "report", Needle: "c.diags = append(c.diags, *d)", Fault: "if d.Kind != DiagWikilinkBroken { c.diags = append(c.diags, *d) }", Body: "[[Absent]]"},
 		{Name: "p0-markdown-diagnostic", Property: "P0", Identity: "markdown-diagnostic-html", File: "internal/render/markdownlink.go", Function: "resolveMarkdownLinks", Needle: "col.report(&Diagnostic{Kind: DiagMarkdownBroken, Target: written, Message: message})", Fault: "if !result.Outside { col.report(&Diagnostic{Kind: DiagMarkdownBroken, Target: written, Message: message}) }", Body: "[out](../../../etc/passwd.md)\n"},
 		{Name: "p1-occurrence", Property: "P1", Identity: "citation-occurrences", File: "internal/judge/planned.go", Function: "LinkTargets", Needle: "return targets", Fault: "if len(targets) > 0 { return targets[:len(targets)-1] }; return targets", Body: "[[A]] [[A]]"},
@@ -49,6 +53,7 @@ func agreementMutations() []agreementMutation {
 		{Name: "p0-citation-shape", Property: "P0", Identity: "citation-shape", File: "internal/render/wikilink.go", Function: "resolvedWikilink", Needle: "`<a href=\"%s\" class=\"wikilink\"%s>%s</a>`", Fault: "`<span href=\"%s\" class=\"wikilink\"%s>%s</span>`", Body: "[[A]]"},
 		{Name: "p1-provenance", Property: "P1", Identity: "provenance-identity", File: "internal/render/wikilink.go", Function: "embedSourceLine", Needle: "`<a href=\"` + attributeEscaper.Replace(notesHref(relPath)) + `\">` + html.EscapeString(noteName(relPath)) + `</a></p>`", Fault: "html.EscapeString(noteName(relPath)) + `</p>`", Body: "![[Notes/Child]]\n"},
 	}
+	return append(modes, bodyValueMutations()...)
 }
 
 func TestAgreementMutationControl(t *testing.T) {
@@ -56,6 +61,15 @@ func TestAgreementMutationControl(t *testing.T) {
 	for i := range modes {
 		mode := &modes[i]
 		t.Run(mode.Name, func(t *testing.T) {
+			if mode.ControlTest != "" {
+				agreementNativeMutationControl(t, mode)
+				return
+			}
+			if mode.Property == "F3" {
+				bodyValueMutationControl(t, mode)
+				t.Logf("AGREEMENT-INVOKED F3/%s", mode.Name)
+				return
+			}
 			if mode.Name == "p0-markdown-diagnostic" {
 				// Select an independent literal for this Markdown stimulus, never
 				// the generic P0 control's wiki-only Absent expectation.
@@ -93,7 +107,9 @@ func TestAgreementMutationControl(t *testing.T) {
 			} else {
 				actual = agreementObserve(t, result.HTML)
 			}
-			for _, failure := range agreementPageFailures(mode.Body, &result, &actual) {
+			failures := agreementPageFailures(mode.Body, &result, &actual)
+			for failureIndex := range failures {
+				failure := &failures[failureIndex]
 				if mode.Name == "p1-occurrence" && failure.Property == "P1" && failure.Identity == "citation-occurrences" {
 					t.Errorf("caught: P1 citation-occurrences pure-two-a body=%q observations=%s", mode.Body, failure.Observation)
 				} else {
@@ -146,7 +162,7 @@ func TestAgreementMutationControl(t *testing.T) {
 				agreementFragments(t, []agreementCase{{Name: mode.Name, Body: mode.Body}}, []agreementHTML{actual})
 			case "P4":
 				if diff := cmp.Diff([]string{"a"}, actual.Headings); diff != "" {
-					t.Fatalf("not-applied: heading control (-want +got):\n%s", diff)
+					t.Fatalf("not-applied: setup-status=2 heading control (-want +got):\n%s", diff)
 				}
 				agreementFragments(t, []agreementCase{{Name: mode.Name, Body: mode.Body}}, []agreementHTML{actual})
 			}
@@ -160,26 +176,53 @@ func TestAgreementMutationControl(t *testing.T) {
 func TestAgreementMutations(t *testing.T) {
 	root, err := filepath.Abs("../..")
 	if err != nil {
-		t.Fatalf("not-applied: resolve repository root: %v", err)
+		t.Fatalf("not-applied: setup-status=2 resolve repository root: %v", err)
 	}
 	modes := agreementMutations()
 	for i := range modes {
 		mode := &modes[i]
 		t.Run(mode.Name, func(t *testing.T) {
+			t.Cleanup(func() {
+				if t.Failed() {
+					t.Logf("not-applied: %s/%s setup-status=2; Go wrapper failure status is 1", mode.Property, mode.Name)
+				}
+			})
+			packagePath := mode.Package
+			controlTest := mode.ControlTest
+			if packagePath == "" {
+				packagePath = "./internal/judge"
+			}
+			if controlTest == "" {
+				controlTest = "TestAgreementMutationControl"
+			}
 			for _, red := range []bool{true, false} {
 				state := "green"
 				if red {
 					state = "red"
 				}
 				overlay := agreementMutationOverlay(t, root, mode, red)
-				compile := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-short", "-run=^$", "./internal/judge")
+				compile := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-short", "-run=^$", packagePath)
 				if compile.Status != 0 {
-					t.Fatalf("not-applied: %s compile-only qualification failed status=%d\n%s", state, compile.Status, compile.Output)
+					t.Fatalf("not-applied: setup-status=2 %s compile-only qualification failed status=%d\n%s", state, compile.Status, compile.Output)
 				}
-				selected := "TestAgreementMutationControl/" + mode.Name
-				child := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-short", "-count=1", "-timeout=90s", "-json", "-run=^TestAgreementMutationControl$/^"+mode.Name+"$", "./internal/judge")
+				selected := controlTest
+				run := "^" + controlTest + "$"
+				if controlTest == "TestAgreementMutationControl" {
+					selected += "/" + mode.Name
+					run += "/^" + mode.Name + "$"
+				}
+				args := []string{"test", "-overlay=" + overlay, "-short", "-count=1", "-timeout=90s", "-json", "-run=" + run, packagePath}
+				sourceDigest := ""
+				if packagePath == "./internal/judge" {
+					alternate := agreementMutationSource(t, overlay)
+					args = append(args, "-args", "-agreement-source=" + alternate)
+					if mode.Name == "f3-consumer-parse" {
+						sourceDigest = agreementMutationSourceDigest(t, alternate)
+					}
+				}
+				child := agreementMutationCommand(t, root, args...)
 				t.Logf("mode=%s state=%s status=%d\n%s", mode.Name, state, child.Status, child.Output)
-				agreementMutationReceipt(t, mode, selected, state, red, child)
+				agreementMutationReceipt(t, mode, selected, state, red, child, sourceDigest)
 			}
 		})
 	}
@@ -198,16 +241,16 @@ func agreementMutationCommand(t *testing.T, root string, args ...string) agreeme
 	cmd.Dir = root
 	cmd.WaitDelay = 5 * time.Second
 	output, err := cmd.CombinedOutput()
-	if ctx.Err() != nil {
-		t.Fatalf("not-applied: qualification command timed out: %v\n%s", ctx.Err(), output)
-	}
 	status := 0
 	if err != nil {
 		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			status = exit.ExitCode()
 		} else {
-			t.Fatalf("not-applied: start qualification command: %v", err)
+			t.Fatalf("not-applied: setup-status=2 start qualification command actual-status=unavailable: %v", err)
 		}
+	}
+	if ctx.Err() != nil {
+		t.Fatalf("not-applied: setup-status=2 qualification command timed out: %v actual-status=%d\n%s", ctx.Err(), status, output)
 	}
 	return agreementMutationOutput{Status: status, Output: output}
 }
@@ -217,21 +260,21 @@ func agreementMutationOverlay(t *testing.T, root string, mode *agreementMutation
 	path := filepath.Join(root, filepath.FromSlash(mode.File))
 	repo, err := os.OpenRoot(root)
 	if err != nil {
-		t.Fatalf("not-applied: open production root: %v", err)
+		t.Fatalf("not-applied: setup-status=2 open production root: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := repo.Close(); closeErr != nil {
-			t.Errorf("not-applied: close production root: %v", closeErr)
+			t.Errorf("not-applied: setup-status=2 close production root: %v", closeErr)
 		}
 	})
 	source, err := repo.ReadFile(filepath.FromSlash(mode.File))
 	if err != nil {
-		t.Fatalf("not-applied: read production source: %v", err)
+		t.Fatalf("not-applied: setup-status=2 read production source: %v", err)
 	}
 	set := token.NewFileSet()
 	parsed, err := parser.ParseFile(set, path, source, 0)
 	if err != nil {
-		t.Fatalf("not-applied: parse production source: %v", err)
+		t.Fatalf("not-applied: setup-status=2 parse production source: %v", err)
 	}
 	var function *ast.FuncDecl
 	count := 0
@@ -242,17 +285,20 @@ func agreementMutationOverlay(t *testing.T, root string, mode *agreementMutation
 		}
 	}
 	if count != 1 || function.Body == nil {
-		t.Fatalf("not-applied: %s function matches=%d", mode.Name, count)
+		t.Fatalf("not-applied: setup-status=2 %s function matches=%d", mode.Name, count)
 	}
 	start, end := set.Position(function.Body.Pos()).Offset, set.Position(function.Body.End()).Offset
 	body := string(source[start:end])
 	if count := strings.Count(body, mode.Needle); count != 1 {
-		t.Fatalf("not-applied: %s needle matches=%d", mode.Name, count)
+		t.Fatalf("not-applied: setup-status=2 %s needle matches=%d", mode.Name, count)
 	}
 	state := "green"
 	if red {
 		state = "red"
 		body = strings.Replace(body, mode.Needle, mode.Fault, 1)
+		if strings.Count(body, mode.Fault) != 1 {
+			t.Fatalf("not-applied: setup-status=2 %s transformed site is ambiguous; setup-status=2", mode.Name)
+		}
 	}
 	// The receipt is produced by the real edited function in both states; the
 	// control's separate receipt proves its observations reached the assertion.
@@ -263,35 +309,36 @@ func agreementMutationOverlay(t *testing.T, root string, mode *agreementMutation
 	alternate := append(bytes.Clone(source[:start]), []byte(body)...)
 	alternate = append(alternate, source[end:]...)
 	if _, parseErr := parser.ParseFile(token.NewFileSet(), copyPath, alternate, 0); parseErr != nil {
-		t.Fatalf("not-applied: alternate Go source: %v", parseErr)
+		t.Fatalf("not-applied: setup-status=2 alternate Go source: %v", parseErr)
 	}
 	owned, err := os.OpenRoot(backing)
 	if err != nil {
-		t.Fatalf("not-applied: open alternate root: %v", err)
+		t.Fatalf("not-applied: setup-status=2 open alternate root: %v", err)
 	}
 	t.Cleanup(func() {
 		if closeErr := owned.Close(); closeErr != nil {
-			t.Errorf("not-applied: close alternate root: %v", closeErr)
+			t.Errorf("not-applied: setup-status=2 close alternate root: %v", closeErr)
 		}
 	})
-	if err := owned.WriteFile("production.go", alternate, 0o600); err != nil {
-		t.Fatalf("not-applied: write alternate source: %v", err)
+	if writeErr := owned.WriteFile("production.go", alternate, 0o600); writeErr != nil {
+		t.Fatalf("not-applied: setup-status=2 write alternate source: %v", writeErr)
 	}
 	data, err := json.Marshal(struct{ Replace map[string]string }{Replace: map[string]string{path: copyPath}})
 	if err != nil {
-		t.Fatalf("not-applied: encode overlay: %v", err)
+		t.Fatalf("not-applied: setup-status=2 encode overlay: %v", err)
 	}
 	overlay := filepath.Join(backing, "overlay.json")
-	if err := owned.WriteFile("overlay.json", data, 0o600); err != nil {
-		t.Fatalf("not-applied: write overlay: %v", err)
+	if writeErr := owned.WriteFile("overlay.json", data, 0o600); writeErr != nil {
+		t.Fatalf("not-applied: setup-status=2 write overlay: %v", writeErr)
 	}
 	return overlay
 }
 
-func agreementMutationReceipt(t *testing.T, mode *agreementMutation, selected, state string, red bool, child agreementMutationOutput) {
+func agreementMutationReceipt(t *testing.T, mode *agreementMutation, selected, state string, red bool, child agreementMutationOutput, sourceDigest string) {
 	t.Helper()
 	decoder := json.NewDecoder(bytes.NewReader(child.Output))
 	invoked, sink, caught, terminal := false, false, false, false
+	sourceConsumed := sourceDigest == ""
 	pureInvoked, pureCaught := false, false
 	mixedInvoked, mixedCaught := false, false
 	for {
@@ -304,18 +351,23 @@ func agreementMutationReceipt(t *testing.T, mode *agreementMutation, selected, s
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			t.Fatalf("not-applied: child JSON events: %v", err)
+			t.Fatalf("not-applied: setup-status=2 child JSON events: %v", err)
 		}
 		if strings.Contains(strings.ToLower(event.Output), "not-applied") {
-			t.Fatalf("not-applied: %s/%s child setup failed: %s", mode.Name, state, event.Output)
+			t.Fatalf("not-applied: setup-status=2 %s/%s child setup failed: %s", mode.Name, state, event.Output)
 		}
 		if event.Action == "fail" && event.Test != "" && event.Test != selected && event.Test != "TestAgreementMutationControl" {
-			t.Fatalf("not-applied: unrelated child failure %q", event.Test)
+			t.Fatalf("not-applied: setup-status=2 unrelated child failure %q", event.Test)
 		}
 		if event.Test == selected {
+			sourceConsumed = sourceConsumed || agreementSourceReceipt(event.Output, sourceDigest)
 			invoked = invoked || strings.Contains(event.Output, "AGREEMENT-INVOKED "+mode.Property+"/"+mode.Name)
 			sink = sink || strings.Contains(event.Output, "AGREEMENT-SINK "+mode.Name+"/"+state)
-			caught = caught || strings.Contains(event.Output, "caught: "+mode.Property+" "+mode.Identity)
+			caughtNeedle := "caught: " + mode.Property + " " + mode.Identity
+			if mode.Property == "F3" {
+				caughtNeedle += " "
+			}
+			caught = caught || strings.Contains(event.Output, caughtNeedle)
 			pureInvoked = pureInvoked || strings.Contains(event.Output, "AGREEMENT-PURE-INVOKED P1/p1-occurrence")
 			pureCaught = pureCaught || strings.Contains(event.Output, "caught: P1 citation-occurrences pure-two-a ")
 			mixedInvoked = mixedInvoked || strings.Contains(event.Output, "AGREEMENT-MIXED-INVOKED P1/p1-occurrence")
@@ -323,17 +375,103 @@ func agreementMutationReceipt(t *testing.T, mode *agreementMutation, selected, s
 			terminal = terminal || (red && event.Action == "fail") || (!red && event.Action == "pass")
 		}
 	}
-	if !invoked || !sink {
-		t.Fatalf("not-applied: %s invoked=%t sink=%t", mode.Name, invoked, sink)
+	if !invoked || !sink || !sourceConsumed {
+		t.Fatalf("not-applied: setup-status=2 %s invoked=%t sink=%t source-consumed=%t", mode.Name, invoked, sink, sourceConsumed)
 	}
 	if mode.Name == "p1-occurrence" && (!pureInvoked || !mixedInvoked || (red && (!pureCaught || !mixedCaught))) {
-		t.Fatalf("not-applied: occurrence boundaries pure-invoked=%t mixed-invoked=%t pure-caught=%t mixed-caught=%t", pureInvoked, mixedInvoked, pureCaught, mixedCaught)
+		t.Fatalf("not-applied: setup-status=2 occurrence boundaries pure-invoked=%t mixed-invoked=%t pure-caught=%t mixed-caught=%t", pureInvoked, mixedInvoked, pureCaught, mixedCaught)
 	}
 	want := 0
 	if red {
 		want = 1
 	}
 	if child.Status != want || !terminal || (red && !caught) {
-		t.Fatalf("qualification %s/%s status=%d want=%d terminal=%t expected-caught=%t", mode.Name, state, child.Status, want, terminal, caught)
+		t.Fatalf("not-applied: setup-status=2 qualification %s/%s status=%d want=%d terminal=%t expected-caught=%t", mode.Name, state, child.Status, want, terminal, caught)
 	}
+}
+
+func agreementMutationSource(t *testing.T, overlay string) string {
+	t.Helper()
+	data, err := os.ReadFile(overlay)
+	if err != nil {
+		t.Fatalf("not-applied: setup-status=2 read overlay: %v", err)
+	}
+	var value struct{ Replace map[string]string }
+	if err := json.Unmarshal(data, &value); err != nil {
+		t.Fatalf("not-applied: setup-status=2 decode overlay: %v", err)
+	}
+	if len(value.Replace) != 1 {
+		t.Fatal("not-applied: setup-status=2 overlay must replace exactly one source")
+	}
+	for _, alternate := range value.Replace {
+		return alternate
+	}
+	t.Fatal("not-applied: setup-status=2 overlay source absent")
+	return ""
+}
+
+func agreementMutationSourceDigest(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("not-applied: setup-status=2 read actual alternate source: %v", err)
+	}
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])
+}
+
+func agreementSourceReceipt(output, digest string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		for i := 0; i+1 < len(fields); i++ {
+			if fields[i] == "AGREEMENT-SOURCE-CONSUMED" && fields[i+1] == "sha256="+digest {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Registered positive controls reach the native graph fixture directly.
+func agreementNativeMutationControl(t *testing.T, mode *agreementMutation) {
+	t.Helper()
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatalf("not-applied: F3/%s setup-status=2 resolve native control root: %v", mode.Name, err)
+	}
+	child := agreementMutationCommand(t, root, "test", "-short", "-count=1", "-timeout=90s", "-json", "-run=^"+mode.ControlTest+"$", mode.Package)
+	t.Logf("native-positive mode=%s actual-status=%d\n%s", mode.Name, child.Status, child.Output)
+	decoder := json.NewDecoder(bytes.NewReader(child.Output))
+	invoked, terminal, caught, failed := false, false, false, false
+	for {
+		var event struct {
+			Action string
+			Test   string
+			Output string
+		}
+		if err := decoder.Decode(&event); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			t.Fatalf("not-applied: F3/%s setup-status=2 native control JSON: %v", mode.Name, err)
+		}
+		if strings.Contains(strings.ToLower(event.Output), "not-applied") {
+			t.Fatalf("not-applied: F3/%s setup-status=2 native control setup: %s", mode.Name, event.Output)
+		}
+		if event.Test == mode.ControlTest {
+			invoked = invoked || strings.Contains(event.Output, "AGREEMENT-INVOKED F3/"+mode.Name)
+			terminal = terminal || event.Action == "pass"
+			failed = failed || event.Action == "fail"
+			caught = caught || strings.Contains(event.Output, "caught: F3 "+mode.Identity+" ")
+		}
+	}
+	if invoked && failed && caught && child.Status == 1 {
+		t.Errorf("caught: F3 %s native positive assertion failed actual-status=1", mode.Identity)
+		t.Logf("AGREEMENT-INVOKED F3/%s", mode.Name)
+		return
+	}
+	if !invoked || !terminal || child.Status != 0 {
+		t.Fatalf("not-applied: F3/%s setup-status=2 native positive invoked=%t pass=%t actual-status=%d", mode.Name, invoked, terminal, child.Status)
+	}
+	t.Logf("AGREEMENT-INVOKED F3/%s", mode.Name)
 }

@@ -39,9 +39,7 @@ func stripBodyProjection(body bodyProjection, observation *bodyObservation, addi
 	var comments []Span
 	var unclosed BodyComment
 	offset := 0
-	inFence := false
-	var fenceByte byte
-	var fenceLen int
+	fence := bodyCommentFence{}
 	for i, line := range strings.Split(body.text, "\n") {
 		at := offset
 		offset += len(line) + 1
@@ -51,35 +49,15 @@ func stripBodyProjection(body bodyProjection, observation *bodyObservation, addi
 		if state.closing == "-->" && at >= state.stop {
 			state.closing = ""
 		}
-		if inFence {
-			if FenceCloses(line, fenceByte, fenceLen) {
-				inFence = false
-			}
+		if fence.protects(line, state.closing) {
 			output.copied(body, at, at+len(line))
 			continue
 		}
-		if state.closing == "" {
-			if marker, n, ok := FenceOpens(line); ok {
-				inFence, fenceByte, fenceLen = true, marker, n
-				output.copied(body, at, at+len(line))
-				continue
-			}
-		}
 		before := output.text.Len()
 		opened := stripBodyCommentLine(body, at, line, &state, &output, &comments)
-		switch {
-		case opened && state.closing == "%%":
-			unclosed = BodyComment{Line: i + 1, Marker: "%%"}
-		case opened && state.closing == "-->" && state.unclosed:
-			unclosed = BodyComment{Line: i + 1, Marker: "<!--"}
-		case state.closing != "%%" && unclosed.Marker == "%%":
-			unclosed = BodyComment{}
-		}
+		unclosed = state.unclosedComment(unclosed, opened, i+1)
 		if state.closing == "" {
-			visible := output.text.String()[before:]
-			if marker, n, ok := FenceOpens(visible); ok {
-				inFence, fenceByte, fenceLen = true, marker, n
-			}
+			fence.opens(output.text.String()[before:])
 		}
 	}
 	return output.projection(), comments, unclosed
@@ -125,43 +103,11 @@ func stripBodyCommentLine(body bodyProjection, offset int, line string, state *b
 		case mark >= 0 && (tick < 0 || mark < tick):
 			output.copied(body, at, at+mark)
 			open := at + mark
-			if mark == html {
-				span, closed := HTMLCommentSpan(body.text, open)
-				if span.Zero() || In(state.code, open) {
-					output.copied(body, open, open+4)
-					line = line[mark+4:]
-					continue
-				}
-				if stop, ok := state.limits[open]; ok && stop < span.Stop {
-					span.Stop, closed = stop, false
-				}
-				if closed && span.Stop <= offset+originalLength {
-					*comments = append(*comments, span)
-					if bodyReadAloudMarker.MatchString(body.text[open:span.Stop]) {
-						output.copied(body, open, span.Stop)
-					}
-					line = body.text[span.Stop : offset+originalLength]
-					continue
-				}
-				*comments = append(*comments, span)
-				state.closing, state.stop = "-->", span.Stop
-				state.unclosed = !closed && span.Stop == len(body.text)
-				start := strings.LastIndex(body.text[:open], "\n") + 1
-				state.quoteDepth = strings.Count(bodyCommentQuotePrefix(body.text[start:open]), ">")
-				return true
+			var stopLine bool
+			line, opened, stopLine = stripBodyCommentMark(body, open, offset+originalLength, mark == html, state, output, comments)
+			if stopLine {
+				return opened
 			}
-			if In(state.extraCode, open) {
-				output.copied(body, open, open+2)
-				line = line[mark+2:]
-				continue
-			}
-			stop := len(body.text)
-			if end := strings.Index(body.text[open+2:], "%%"); end >= 0 {
-				stop = open + 2 + end + 2
-			}
-			*comments = append(*comments, Span{Start: open, Stop: stop})
-			state.closing, opened = "%%", true
-			line = line[mark+2:]
 		case tick >= 0:
 			end, _ := CodeSpanAt(line, tick)
 			output.copied(body, at, at+end)
@@ -172,4 +118,93 @@ func stripBodyCommentLine(body bodyProjection, offset int, line string, state *b
 		}
 	}
 	return opened
+}
+
+// bodyCommentFence preserves the strip's line-local fence policy.
+type bodyCommentFence struct {
+	active bool
+	marker byte
+	width  int
+}
+
+func (f *bodyCommentFence) protects(line, closing string) bool {
+	if f.active {
+		if FenceCloses(line, f.marker, f.width) {
+			f.active = false
+		}
+		return true
+	}
+	if closing != "" {
+		return false
+	}
+	return f.opens(line)
+}
+
+func (f *bodyCommentFence) opens(line string) bool {
+	marker, width, ok := FenceOpens(line)
+	if ok {
+		f.active, f.marker, f.width = true, marker, width
+	}
+	return ok
+}
+
+func (s *bodyCommentState) unclosedComment(previous BodyComment, opened bool, line int) BodyComment {
+	switch {
+	case opened && s.closing == "%%":
+		return BodyComment{Line: line, Marker: "%%"}
+	case opened && s.closing == "-->" && s.unclosed:
+		return BodyComment{Line: line, Marker: "<!--"}
+	case s.closing != "%%" && previous.Marker == "%%":
+		return BodyComment{}
+	default:
+		return previous
+	}
+}
+
+func (s *bodyCommentState) openPercent(body string, open int, comments *[]Span) {
+	stop := len(body)
+	if end := strings.Index(body[open+2:], "%%"); end >= 0 {
+		stop = open + 2 + end + 2
+	}
+	*comments = append(*comments, Span{Start: open, Stop: stop})
+	s.closing = "%%"
+}
+
+// stripBodyHTMLComment returns the remaining physical line, or records a
+// multiline opener and stops this line. Protected and read-aloud bytes retain
+// their original copied-piece attribution.
+func stripBodyHTMLComment(body bodyProjection, open, lineStop int, state *bodyCommentState, output *bodyProjectionWriter, comments *[]Span) (string, bool) {
+	span, closed := HTMLCommentSpan(body.text, open)
+	if span.Zero() || In(state.code, open) {
+		output.copied(body, open, open+4)
+		return body.text[open+4 : lineStop], false
+	}
+	if stop, ok := state.limits[open]; ok && stop < span.Stop {
+		span.Stop, closed = stop, false
+	}
+	*comments = append(*comments, span)
+	if closed && span.Stop <= lineStop {
+		if bodyReadAloudMarker.MatchString(body.text[open:span.Stop]) {
+			output.copied(body, open, span.Stop)
+		}
+		return body.text[span.Stop:lineStop], false
+	}
+	state.closing, state.stop = "-->", span.Stop
+	state.unclosed = !closed && span.Stop == len(body.text)
+	start := strings.LastIndex(body.text[:open], "\n") + 1
+	state.quoteDepth = strings.Count(bodyCommentQuotePrefix(body.text[start:open]), ">")
+	return "", true
+}
+
+func stripBodyCommentMark(body bodyProjection, open, lineStop int, html bool, state *bodyCommentState, output *bodyProjectionWriter, comments *[]Span) (remaining string, opened, stopLine bool) {
+	if html {
+		remaining, opened = stripBodyHTMLComment(body, open, lineStop, state, output, comments)
+		return remaining, opened, opened
+	}
+	if In(state.extraCode, open) {
+		output.copied(body, open, open+2)
+		return body.text[open+2:lineStop], false, false
+	}
+	state.openPercent(body.text, open, comments)
+	return body.text[open+2:lineStop], true, false
 }

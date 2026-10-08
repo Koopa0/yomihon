@@ -206,6 +206,23 @@ func agreementObserve(t agreementTB, text string) agreementHTML {
 	return agreementObserveKnown(t, text, nil)
 }
 
+func agreementResolvedCitation(t agreementTB, n *html.Node, state, text string, known map[string]string) (agreementCitation, bool) {
+	t.Helper()
+	href := agreementAttr(n, "href")
+	if strings.HasPrefix(href, "#") || strings.HasPrefix(href, "/notes/Notes/Reading.md#") || href == "/notes/Notes/Reading.md" {
+		return agreementCitation{}, false
+	}
+	parsed, parseErr := url.Parse(href)
+	if parseErr != nil {
+		t.Fatalf("parse resolved citation URL: %v", parseErr)
+	}
+	target, held := known[strings.TrimPrefix(parsed.Path, "/notes/")]
+	if !held {
+		t.Fatalf("unexpected resolved citation carrier: href=%q html=%q", href, text)
+	}
+	return agreementCitation{Target: target, Section: parsed.Fragment, State: state}, true
+}
+
 func agreementObserveKnown(t agreementTB, text string, known map[string]string) agreementHTML {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(text))
@@ -252,19 +269,10 @@ func agreementObserveKnown(t agreementTB, text string, known map[string]string) 
 		if agreementClass(n, "wikilink") {
 			// The only resolved destination in this corpus is the host's
 			// own fragment. It cites no other note, but still counts for P2.
-			href := agreementAttr(n, "href")
-			if strings.HasPrefix(href, "#") || strings.HasPrefix(href, "/notes/Notes/Reading.md#") || href == "/notes/Notes/Reading.md" {
+			citation, owned := agreementResolvedCitation(t, n, state, text, known)
+			if !owned {
 				return
 			}
-			parsed, parseErr := url.Parse(href)
-			if parseErr != nil {
-				t.Fatalf("parse resolved citation URL: %v", parseErr)
-			}
-			target, held := known[strings.TrimPrefix(parsed.Path, "/notes/")]
-			if !held {
-				t.Fatalf("unexpected resolved citation carrier: href=%q html=%q", href, text)
-			}
-			citation := agreementCitation{Target: target, Section: parsed.Fragment, State: state}
 			result.Citations = append(result.Citations, citation)
 			if code {
 				result.CodeCitations = append(result.CodeCitations, citation)

@@ -565,6 +565,10 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	if delimiters, recognized := w.delimiters[n]; recognized {
 		w.writeSource(delimiters[0], source)
 	}
+	return writePlainNode(w, n, kind, source)
+}
+
+func writePlainNode(w *plainWalk, n ast.Node, kind ast.NodeKind, source []byte) (ast.WalkStatus, error) {
 	switch kind {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
 		// The tags are not content. Text between them arrives as separate text
