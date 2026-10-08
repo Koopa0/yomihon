@@ -175,6 +175,7 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			if designedSetup != "" {
 				failures[i] = append(failures[i], agreementFailure{Property: "setup", Identity: "designed-receipt", Observation: designedSetup})
 			}
+			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
 			for failureIndex := range failures[i] {
 				failure := &failures[i][failureIndex]
 				if designed[agreementSignature(failure)] {
@@ -182,6 +183,9 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					continue
 				}
 				classification, authority, wrong := agreementKnownDifference(c, failure)
+				if classification == "" {
+					classification, authority, wrong = agreementUnusedFootnoteDifference(c, failure, unusedTargets)
+				}
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
 					continue
@@ -229,8 +233,8 @@ func agreementKnownDifference(c agreementCase, failure *agreementFailure) (kind,
 		{body: "[[Trail\\]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "Trail\\"}, direction: "page-only", wrong: "page", stage: 3},
 		{body: "- a list item\n\n    ```\n    [[Nested]]\n    ```\n\n[[Outside List]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "Nested"}, direction: "page-only", wrong: "page", stage: 5},
 		{body: "- a list item\n\n    ```\n    [[Nested]]\n    ```\n\n[[Outside List]]\n", property: "P2", identity: "wikilink-in-code", tuple: agreementCitation{Target: "Nested", State: "wikilink-broken"}, direction: "page-in-code", wrong: "page", stage: 5},
-		{body: "[^unused]: [[A]]\n", property: "P0", identity: "diagnostic-html", tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, direction: "diagnostic-only", wrong: "page-diagnostic", stage: 4},
-		{body: "[^unused]: [[A]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "A"}, direction: "judge-only", wrong: "judge", stage: 4},
+		{body: "[^unused]: [[A]]\n", property: "P0", identity: "diagnostic-html", tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, direction: "diagnostic-only", wrong: "page-diagnostic", stage: 5},
+		{body: "[^unused]: [[A]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "A"}, direction: "judge-only", wrong: "judge", stage: 5},
 		{body: "``` [[A]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "A"}, direction: "judge-only", wrong: "judge", stage: 4},
 		{body: "`open\n[[A]]\nclose`", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "A"}, direction: "page-only", wrong: "page", stage: 5},
 		{body: "`open\n[[A]]\nclose`", property: "P2", identity: "wikilink-in-code", tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, direction: "page-in-code", wrong: "page", stage: 5},
