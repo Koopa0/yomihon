@@ -12,6 +12,60 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
+var checkGoldens = []struct {
+	name    string
+	fixture string
+	golden  string
+}{
+	{name: "graph rules", fixture: "testdata/vault", golden: "testdata/golden/check.jsonl"},
+	{name: "map vs disk", fixture: "testdata/vault-maps", golden: "testdata/golden/maps.jsonl"},
+	{name: "escape surface", fixture: "testdata/vault-escapes", golden: "testdata/golden/escapes.jsonl"},
+	{name: "line arithmetic", fixture: "testdata/vault-lines", golden: "testdata/golden/lines.jsonl"},
+	{name: "planned vs broken", fixture: "testdata/vault-planned", golden: "testdata/golden/planned.jsonl"},
+	{name: "percent-encoded Markdown", fixture: "testdata/vault-markdown-encoded", golden: "testdata/golden/markdown-encoded.jsonl"},
+	{name: "disk references", fixture: "testdata/vault-diskref", golden: "testdata/golden/diskref.jsonl"},
+	{name: "system scope", fixture: "testdata/vault-scope", golden: "testdata/golden/scope.jsonl"},
+	{name: "map mismatch branches", fixture: "testdata/vault-mapmismatch", golden: "testdata/golden/mapmismatch.jsonl"},
+	// The authoring contract's own diagnostics: one course written every
+	// way the grammar refuses, so each rule has a line in the golden.
+	{name: "study-path structure", fixture: "testdata/vault-paths", golden: "testdata/golden/paths.jsonl"},
+	// The same grammar under a vault that calls its courses something else.
+	// This fixture is the evidence that the type comes from the contract:
+	// nothing in it is named "study-path".
+	{name: "a vault that renames its courses", fixture: "testdata/vault-course", golden: "testdata/golden/course.jsonl"},
+	{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
+	// The fragment half of a link: a section and a block address that
+	// place, one of each that does not, a same-file fragment the page
+	// never resolves, a section arriving through a transclusion, a
+	// longer fence whose shorter inner line must not steal the closer
+	// — so ^trapped stays code and ^genuine after the fence answers —
+	// and a caret inside a code span that now draws a broken-fragment
+	// finding.
+	{name: "link fragments", fixture: "testdata/vault-fragments", golden: "testdata/golden/fragments.jsonl"},
+	// The page and the check used to disagree about two kinds of line: a
+	// block address on a recognised callout's title, and a heading after
+	// a self-closing <pre/>. This vault holds those two probes; the golden
+	// is the verdict that matches the page.
+	{name: "page and check agree on a scan", fixture: "testdata/vault-scan-agree", golden: "testdata/golden/scan.jsonl"},
+	// One vault covering all three answers the knowledge-scope question
+	// has: a directory the contract spells in another case, one holding a
+	// file that is not a note, and one that is not there at all.
+	{name: "knowledge scope", fixture: "testdata/vault-knowledge-scope", golden: "testdata/golden/knowledge-scope.jsonl"},
+	// Two files answering to one name, and an alias two notes declare —
+	// the second reported by its own rule and never by both.
+	{name: "name collisions", fixture: "testdata/vault-namecollision", golden: "testdata/golden/namecollision.jsonl"},
+	{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
+	// This fixture covers the local vault contract's configured fields.
+	{name: "configured supersession", fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
+	// A note reached only through a symbolic link. The scan reads nothing
+	// out of it, so without this finding the vault loses the note and the
+	// command says the folder is clean.
+	{name: "a path that is not a file", fixture: "testdata/vault-symlink", golden: "testdata/golden/symlink.jsonl"},
+	// Markup on a recognised callout's title line. Additive fixture for
+	// callout.title_markup; existing goldens stay byte-identical.
+	{name: "callout title markup", fixture: "testdata/vault-callout-title", golden: "testdata/golden/callout-title.jsonl"},
+}
+
 // TestCheckGolden drives the whole check engine — extraction, resolution, the
 // graph rules, the disk-reference rule, and the frontmatter checks — over
 // fixture vaults and asserts the emitted bytes equal each golden. The inherited
@@ -22,60 +76,8 @@ import (
 // below rather than being mislabelled as predecessor output.
 func TestCheckGolden(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name    string
-		fixture string
-		golden  string
-	}{
-		{name: "graph rules", fixture: "testdata/vault", golden: "testdata/golden/check.jsonl"},
-		{name: "map vs disk", fixture: "testdata/vault-maps", golden: "testdata/golden/maps.jsonl"},
-		{name: "escape surface", fixture: "testdata/vault-escapes", golden: "testdata/golden/escapes.jsonl"},
-		{name: "line arithmetic", fixture: "testdata/vault-lines", golden: "testdata/golden/lines.jsonl"},
-		{name: "planned vs broken", fixture: "testdata/vault-planned", golden: "testdata/golden/planned.jsonl"},
-		{name: "percent-encoded Markdown", fixture: "testdata/vault-markdown-encoded", golden: "testdata/golden/markdown-encoded.jsonl"},
-		{name: "disk references", fixture: "testdata/vault-diskref", golden: "testdata/golden/diskref.jsonl"},
-		{name: "system scope", fixture: "testdata/vault-scope", golden: "testdata/golden/scope.jsonl"},
-		{name: "map mismatch branches", fixture: "testdata/vault-mapmismatch", golden: "testdata/golden/mapmismatch.jsonl"},
-		// The authoring contract's own diagnostics: one course written every
-		// way the grammar refuses, so each rule has a line in the golden.
-		{name: "study-path structure", fixture: "testdata/vault-paths", golden: "testdata/golden/paths.jsonl"},
-		// The same grammar under a vault that calls its courses something else.
-		// This fixture is the evidence that the type comes from the contract:
-		// nothing in it is named "study-path".
-		{name: "a vault that renames its courses", fixture: "testdata/vault-course", golden: "testdata/golden/course.jsonl"},
-		{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
-		// The fragment half of a link: a section and a block address that
-		// place, one of each that does not, a same-file fragment the page
-		// never resolves, a section arriving through a transclusion, a
-		// longer fence whose shorter inner line must not steal the closer
-		// — so ^trapped stays code and ^genuine after the fence answers —
-		// and a caret inside a code span that now draws a broken-fragment
-		// finding.
-		{name: "link fragments", fixture: "testdata/vault-fragments", golden: "testdata/golden/fragments.jsonl"},
-		// The page and the check used to disagree about two kinds of line: a
-		// block address on a recognised callout's title, and a heading after
-		// a self-closing <pre/>. This vault holds those two probes; the golden
-		// is the verdict that matches the page.
-		{name: "page and check agree on a scan", fixture: "testdata/vault-scan-agree", golden: "testdata/golden/scan.jsonl"},
-		// One vault covering all three answers the knowledge-scope question
-		// has: a directory the contract spells in another case, one holding a
-		// file that is not a note, and one that is not there at all.
-		{name: "knowledge scope", fixture: "testdata/vault-knowledge-scope", golden: "testdata/golden/knowledge-scope.jsonl"},
-		// Two files answering to one name, and an alias two notes declare —
-		// the second reported by its own rule and never by both.
-		{name: "name collisions", fixture: "testdata/vault-namecollision", golden: "testdata/golden/namecollision.jsonl"},
-		{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
-		// This fixture covers the local vault contract's configured fields.
-		{name: "configured supersession", fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
-		// A note reached only through a symbolic link. The scan reads nothing
-		// out of it, so without this finding the vault loses the note and the
-		// command says the folder is clean.
-		{name: "a path that is not a file", fixture: "testdata/vault-symlink", golden: "testdata/golden/symlink.jsonl"},
-		// Markup on a recognised callout's title line. Additive fixture for
-		// callout.title_markup; existing goldens stay byte-identical.
-		{name: "callout title markup", fixture: "testdata/vault-callout-title", golden: "testdata/golden/callout-title.jsonl"},
-	}
-	for _, tt := range tests {
+
+	for _, tt := range checkGoldens {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			want, err := os.ReadFile(tt.golden)
