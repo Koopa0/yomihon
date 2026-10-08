@@ -322,6 +322,7 @@ discover_shard_work() {
   work_count=0
   for entry in "${probes[@]}"; do
     probe="${entry%%|*}"; page="${entry#*|}"
+    if is_behavior_only "$probe"; then continue; fi
     if modes="$(MUTATE=list node "${here}/${probe}")"; then status=0; else status=$?; fi
     if [ "$status" -ne 0 ]; then
       record_failure "${probe} MUTATE=list exited ${status}, cannot discover mutation modes"
