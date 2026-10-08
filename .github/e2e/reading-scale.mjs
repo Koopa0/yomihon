@@ -1,6 +1,7 @@
 // Code, tables and footnotes follow the reader's type choice, including table
 // readings; code wraps at the two large sizes and scrolls at the smaller ones.
 // The measured elements come from authored Markdown through the real renderer.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -179,8 +180,8 @@ try {
               if (response.status() !== 200) throw new Error(`page HTTP ${response.status()}`);
               await page.evaluate(async () => {
                 await document.fonts.ready;
-                await Promise.all(document.getAnimations().filter((animation) => animation.animationName === 'y-come-forward').map((animation) => animation.finished));
               });
+              await arrived(page);
               applied();
               const row = await page.evaluate(() => {
                 const groups = {
