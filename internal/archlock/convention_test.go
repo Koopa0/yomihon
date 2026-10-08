@@ -960,6 +960,7 @@ func TestOneOwnerScansALine(t *testing.T) {
 		{"an unpaired Obsidian comment running to the end of the body", "Span{Start: start, Stop: len(body)}", "internal/graph/"},
 		{"the pairing of a closed Obsidian comment mark", "stop = open + 2 + end + 2", "internal/graph/"},
 		{"the function that refuses a line no block address can survive on", "func UnanchorableLine(line string) bool", "internal/render/"},
+		{"the grammar that extracts a supported block address", "func BlockAddress(line string) string", "internal/render/"},
 		{"the function that refuses a caret a code span owns as an address", "func CodeSpanOwnedAddresses(lines []string) []bool", "internal/render/"},
 		{"the first group of callout types the page answers to", `"info", "note", "tip", "important", "hint", "abstract", "tldr", "summary", "todo"`, "internal/render/"},
 	} {

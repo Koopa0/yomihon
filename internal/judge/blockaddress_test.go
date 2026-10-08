@@ -4,10 +4,98 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/wording"
 )
+
+func TestSupportedBlockAddressesReachTheJudge(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		body  string
+		citer string
+		want  []blockAddressFinding
+	}{
+		{name: "paragraph", body: "Para ^abc-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
+		{name: "marker only", body: "^abc-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
+		{name: "tab boundary", body: "Para\t^abc-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
+		{name: "trailing spaces and tabs", body: "Para ^abc-1 \t\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
+		{name: "ASCII case", body: "Para ^AbC-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n"},
+		{
+			name: "hyphen is significant", body: "Para ^abc-1\n", citer: "[[Target#^abc1]]\n![[Target#^abc1]]\n",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc1", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc1", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+		{
+			name: "underscore", body: "Para ^a_b\n", citer: "[[Target#^a_b]]\n![[Target#^a_b]]\n",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^a_b", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^a_b", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+		{
+			name: "dot", body: "Para ^a.b\n", citer: "[[Target#^a.b]]\n![[Target#^a.b]]\n",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^a.b", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^a.b", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+		{
+			name: "Unicode", body: "Para ^\u304c\n", citer: "[[Target#^\u304c]]\n![[Target#^\u304c]]\n",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^\u304c", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^\u304c", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+		{
+			name: "punctuation", body: "Para ^abc!\n", citer: "[[Target#^abc!]]\n![[Target#^abc!]]\n",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc!", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc!", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+		{
+			name: "glued caret", body: "Para^abc-1\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc-1", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc-1", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+		{
+			name: "empty token", body: "Para ^\n", citer: "[[Target#^abc-1]]\n![[Target#^abc-1]]\n",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc-1", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^abc-1", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+		{
+			name: "inline footnote", body: "Para ^[note]\n", citer: "[[Target#^[note]|shown]]\n![[Target#^[note]|shown]]\n",
+			want: []blockAddressFinding{
+				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^[note]", Line: 1, Resolved: "Notes/Target.md"},
+				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^[note]", Line: 2, Resolved: "Notes/Target.md"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			t.Logf("hit: judge block-address case %s", tt.name)
+			got := checkBlockAddressFindings(t, map[string]string{
+				"Notes/Target.md": tt.body,
+				"Notes/Citer.md":  tt.citer,
+			})
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("caught: unsupported block address accepted by judge or supported address rejected: Check() (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
 
 // A block address is read by three faces — the page that stamps its anchor, the
 // excerpt that cuts to it, and this one, which reports it missing — and each
@@ -123,8 +211,8 @@ func TestTheThreeBlockAddressFacesAgreeOverAStrippedBody(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, blockLines := anchorSurface(tt.body)
-			if got := blockAddressed(blockLines, "^probe"); got != tt.addressed {
+			_, _, blockAddresses := anchorSurface(tt.body)
+			if got := blockAddressed(blockAddresses, "^probe"); got != tt.addressed {
 				t.Errorf("the check finds the address = %v, want %v", got, tt.addressed)
 			}
 			if _, got := render.Excerpt(tt.body, "^probe"); got != tt.addressed {

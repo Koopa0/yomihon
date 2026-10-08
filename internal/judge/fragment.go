@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -33,7 +34,7 @@ func headingWords(raw string) string {
 // anchorSurfaceFrom recognizes the comment-stripped fragment presentation.
 // Its coordinates belong to that transformed text; original extraction keeps
 // the immutable BodyFacts bound by readNote.
-func anchorSurfaceFrom(body string, comments bodyComments) (sections, excerptSections map[string]bool, blockLines []string) {
+func anchorSurfaceFrom(body string, comments bodyComments) (sections, excerptSections map[string]bool, blockAddresses []string) {
 	stripped := comments.body.CommentFree()
 	sections = make(map[string]bool)
 	collectParsedHeadings(comments.body, sections)
@@ -41,7 +42,7 @@ func anchorSurfaceFrom(body string, comments bodyComments) (sections, excerptSec
 	excerptSections = make(map[string]bool)
 	collectExcerptHeadings(stripped, excerptSections)
 	return sections, excerptSections,
-		collectBlockLines(stripped, render.BlockAddressLines(strings.Split(body, "\n"), stripped))
+		collectBlockAddresses(stripped, render.BlockAddressLines(strings.Split(body, "\n"), stripped))
 }
 
 // collectParsedHeadings adds the id of every rich heading the body facts
@@ -109,19 +110,19 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 	}
 }
 
-// collectBlockLines keeps the folded text of every line that could answer a
+// collectBlockAddresses keeps each extracted, folded address that could answer a
 // block address, so a link's "^name" matches the reading the destination page
 // uses. A line inside a fence is code, a recognised callout's opening line is
 // consumed as the title, a row opening with a pipe is table syntax whose tail
 // the renderer drops — unless an indented code block shows either as written,
 // which the page's own parse answers — and a caret a code span owns is quoted
 // text.
-// Only lines carrying a caret are kept. address is these same lines carrying
+// Only supported addresses are kept. address is these same lines carrying
 // the blank-or-not shape the author wrote, which is what the code-span question
 // is asked over: this face hides a comment with a different scan than the page
 // does, and a run edge read from either strip would be a different edge here
 // than there.
-func collectBlockLines(body string, address []string) []string {
+func collectBlockAddresses(body string, address []string) []string {
 	var out []string
 	inFence, fenceByte, fenceLen := false, byte(0), 0
 	lines := strings.Split(body, "\n")
@@ -139,31 +140,24 @@ func collectBlockLines(body string, address []string) []string {
 			inFence, fenceByte, fenceLen = true, marker, n
 			continue
 		}
-		// Almost no line holds a caret, so the test for one comes before the
-		// two questions that read the line's shape.
-		trimmed := strings.TrimRight(line, " \t")
-		if !strings.Contains(trimmed, "^") {
+		// The shared extractor skips lines without carets before asking its
+		// grammar, so structural questions run only for supported tokens.
+		marker := render.BlockAddress(line)
+		if marker == "" {
 			continue
 		}
 		if unanchorable(i, line) || owned[i] {
 			continue
 		}
-		out = append(out, graph.FoldFragment(trimmed))
+		out = append(out, graph.FoldFragment(marker))
 	}
 	return out
 }
 
-// blockAddressed reports whether any collected line answers the folded
-// address: the line is the address alone, or ends with it after a space or a
-// tab. The suffix reading is the destination page's own, which is what lets
-// an address written in the "#^" spelling keep interior spaces.
-func blockAddressed(lines []string, want string) bool {
-	for _, line := range lines {
-		if line == want || strings.HasSuffix(line, " "+want) || strings.HasSuffix(line, "\t"+want) {
-			return true
-		}
-	}
-	return false
+// blockAddressed compares the extracted, folded addresses with the requested
+// folded name. Whole-line suffixes do not declare an address.
+func blockAddressed(addresses []string, want string) bool {
+	return slices.Contains(addresses, want)
 }
 
 // fragmentFindings judges the fragment half of every link and transclusion
@@ -227,7 +221,7 @@ func fragmentFinding(
 		return Finding{}, false
 	}
 	if link.block != "" {
-		if blockAddressed(target.blockAnchorLines, graph.FoldFragment("^"+link.block)) {
+		if blockAddressed(target.blockAddresses, graph.FoldFragment("^"+link.block)) {
 			return Finding{}, false
 		}
 		return blockMissing(n, link, res.RelPath), true

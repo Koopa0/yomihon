@@ -50,14 +50,14 @@ type note struct {
 	plannedNames  []string
 	calloutTitles []calloutTitle
 
-	// sectionAnchors, excerptSectionAnchors, and blockAnchorLines are what this
+	// sectionAnchors, excerptSectionAnchors, and blockAddresses are what this
 	// note's body answers a fragment with: the folded ids of every heading a
 	// link could be sent to, the ids the excerpt scan cuts a transclusion to,
-	// and the folded text of every line that could carry a "^name" block
-	// address, collected the way the reading page collects them.
+	// and the extracted, folded "^name" block addresses, collected through
+	// the same grammar and structural exclusions the reading page uses.
 	sectionAnchors        map[string]bool
 	excerptSectionAnchors map[string]bool
-	blockAnchorLines      []string
+	blockAddresses        []string
 
 	// sequence is the note's declared course structure, read by the one grammar
 	// navigation reads, so what a course lists is one answer rather than two
@@ -147,7 +147,7 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 		n.plannedNames = extractPlannedNamesFrom(body, *marks, &facts)
 		n.calloutTitles = extractCalloutTitlesFrom(body, block.BodyStartLine, facts.comments)
 		n.sequence = sequence.ParseFacts(facts.body, block.BodyStartLine)
-		n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurfaceFrom(body, facts.comments)
+		n.sectionAnchors, n.excerptSectionAnchors, n.blockAddresses = anchorSurfaceFrom(body, facts.comments)
 	}
 	if !found {
 		n.noFrontmatter = true

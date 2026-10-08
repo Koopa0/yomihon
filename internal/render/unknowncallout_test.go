@@ -1,6 +1,7 @@
 package render_test
 
 import (
+	"html"
 	"strings"
 	"testing"
 
@@ -84,13 +85,17 @@ func TestUnknownCalloutOpeningAddress(t *testing.T) {
 		t.Errorf("link Diagnostics = %+v, want none", link.Diagnostics)
 	}
 	for _, tt := range []struct {
-		name string
-		body string
-		want []string
+		name    string
+		body    string
+		want    []string
+		literal string
+		block   string
 	}{
 		{name: "opening claims before body", body: "> [!zzz] First ^same\n> Duplicate ^same\n", want: []string{"^same"}},
 		{name: "earlier paragraph keeps first claim", body: "First ^same\n\n> [!zzz] Duplicate ^same\n> body\n", want: []string{"^same"}},
-		{name: "canonical folded opening", body: "> [!zzz]- Title ^CAFE\u0301\n> body\n", want: []string{"^café"}},
+		{name: "canonical folded opening", body: "> [!zzz]- Title ^CAFE-1\n> body\n", want: []string{"^cafe-1"}},
+		{name: "unsupported NFD opening stays literal", body: "> [!zzz]- Title ^CAFE\u0301\n> body\n", literal: "Title ^CAFE\u0301", block: "CAFE\u0301"},
+		{name: "unsupported NFC opening stays literal", body: "> [!zzz]- Title ^CAFÉ\n> body\n", literal: "Title ^CAFÉ", block: "CAFÉ"},
 		{name: "source code span owns caret", body: "> [!zzz] `shown ^inside\n> expression`\n", want: nil},
 		{name: "opening code span owns body caret", body: "> [!zzz] `start\n> middle ^fake\n> end`\n", want: nil},
 		{name: "known opening remains refused", body: "> [!note] Known ^known\n> body\n", want: nil},
@@ -106,6 +111,16 @@ func TestUnknownCalloutOpeningAddress(t *testing.T) {
 			if diff := cmp.Diff(tt.want, emittedBlockIDs(t, result.HTML)); diff != "" {
 				t.Errorf("caught: unknown opening address no longer reaches its block; emitted ids (-want +got):\n%s", diff)
 			}
+			if tt.name == "canonical folded opening" {
+				for _, kept := range []string{`<details class="callout callout-note">`, `Title <span id="^cafe-1">^CAFE-1</span>`} {
+					if !strings.Contains(result.HTML, kept) {
+						t.Errorf("canonical opening lost folded shell/address %q: %s", kept, result.HTML)
+					}
+				}
+			}
+			if tt.literal != "" {
+				assertUnsupportedCalloutOpening(t, &result, tt.body, tt.literal, tt.block)
+			}
 			if tt.name == "opening claims before body" && !strings.Contains(result.HTML, `First <span id="^same">^same</span>`) {
 				t.Errorf("caught: unknown opening address no longer reaches its block; first owner HTML = %q", result.HTML)
 			}
@@ -113,5 +128,35 @@ func TestUnknownCalloutOpeningAddress(t *testing.T) {
 				t.Errorf("caught: unknown opening address no longer reaches its block; first owner HTML = %q", result.HTML)
 			}
 		})
+	}
+}
+
+func assertUnsupportedCalloutOpening(t *testing.T, result *render.Result, body, literal, block string) {
+	t.Helper()
+	if !strings.Contains(html.UnescapeString(result.HTML), literal) {
+		t.Errorf("unsupported opening lost authored text %q: %s", literal, result.HTML)
+	}
+	if len(result.Diagnostics) != 1 || result.Diagnostics[0].Kind != render.DiagUnknownCallout {
+		t.Errorf("unsupported opening Diagnostics = %+v, want one unknown-callout", result.Diagnostics)
+	}
+	location := render.DeclaredLocation(result, "", graph.Wikilink{Target: "Target", Block: block}, "", wording.En)
+	wantLocation := render.SourceLocation{
+		Label:  "^" + block,
+		Reason: wording.BlockNotFound.In(wording.En),
+		Diagnostic: &render.Diagnostic{
+			Kind: render.DiagLinkFragmentMissing, Target: "Target", Block: block,
+			Message: "no rendered block matched \"^" + block + "\"; the link leads to the note itself",
+		},
+	}
+	if diff := cmp.Diff(wantLocation, location); diff != "" {
+		t.Errorf("unsupported opening location (-want +got):\n%s", diff)
+	}
+	target := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, transclusions{"Target.md": body})
+	linked := target.HTML("Source.md", "", "[[Target#^"+block+"]]\n", wording.En)
+	if !strings.Contains(linked.HTML, `href="/notes/Target.md" class="wikilink wikilink-degraded"`) || strings.Contains(linked.HTML, "/notes/Target.md#") {
+		t.Errorf("unsupported opening retained a block href: %s", linked.HTML)
+	}
+	if len(linked.Diagnostics) != 1 || linked.Diagnostics[0].Kind != render.DiagLinkFragmentMissing {
+		t.Errorf("unsupported opening link Diagnostics = %+v, want one missing-block", linked.Diagnostics)
 	}
 }
