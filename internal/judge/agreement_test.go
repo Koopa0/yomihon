@@ -77,6 +77,9 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/realized-callout-heading-namespace", Body: "> [!note] title\n> words\n\n## A\n## A\n"},
+		{Name: "control/realized-comment-heading-namespace", Body: "%%\nhidden\n%%\n## A\n## A\n"},
+		{Name: "control/realized-terminal-heading-namespace", Body: "## A\n## A\n<!-- hidden\n"},
 		{Name: "control/unwritten-embed-heading", Body: "![[A]]A\n---\n"},
 		{Name: "control/unwritten-alias-heading-namespace", Body: "## A-B-Alias-C\n## A![[B|alias]]C\n"},
 		{Name: "control/wrapped-heading-widget-code", Body: "`open\n[[A#A]]\nclose`\n"},
@@ -219,6 +222,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			headingObserved := false
 			var collisionIDs map[string]bool
 			collisionObserved := false
+			var realizedNamespaceIDs map[string]bool
+			realizedNamespaceObserved := false
 			var literalHeadingIDs map[string]bool
 			literalHeadingObserved := false
 			var wrappedHeadingIDs map[string]bool
@@ -312,6 +317,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						collisionObserved = true
 					}
 					classification, authority, wrong = agreementHeadingCollisionDifference(c, failure, collisionIDs)
+				}
+				if classification == "" && failure.Property == "P4" {
+					if !realizedNamespaceObserved {
+						realizedNamespaceIDs = agreementRealizedNamespaceIDs(c.Body, &observed[i])
+						realizedNamespaceObserved = true
+					}
+					classification, authority, wrong = agreementWrappedHeadingDifference(c, failure, realizedNamespaceIDs)
 				}
 				if classification == "" && failure.Property == "P4" {
 					if !literalHeadingObserved {
