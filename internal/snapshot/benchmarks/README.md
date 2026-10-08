@@ -37,7 +37,10 @@ and inspect the distributions rather than treating a single row as a budget.
 ## Hosted lifecycle baseline
 
 [lifecycle-baseline.txt](lifecycle-baseline.txt) records the lifecycle measurement
-from source commit `f060d5bde9b72dce3a20093035d03acf7674d1f7` on 2026-10-07.
+on 2026-10-07, using production code at main
+`0372ddf227c92f18e16c2720ec19c7278d78d66e` and the measurement harness at
+`6a2dbccb709a006a9501ed0af9849d378f41d793` on this branch. This PR changes no
+production code.
 The fixture trace lines and their benchmark-log headers have been removed;
 no measured line was changed. The original `baseline.txt` remains unchanged.
 
