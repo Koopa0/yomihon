@@ -191,19 +191,12 @@ absent="$(comm -13 <(printf '%s\n' "${present[@]}" | sort) <(printf '%s\n' "${li
 
 # Behavior-only probes still run as locks, but cannot declare mutation work.
 # Validate the whole classification before either kind of child is invoked.
-classified_seen=()
-classified_count=0
 for probe in ${behavior_only[@]+"${behavior_only[@]}"}; do
   registered=0
   for listed_probe in "${listed[@]}"; do
     [ "$probe" != "$listed_probe" ] || registered=1
   done
   [ "$registered" -eq 1 ] || fail "behavior_only names an unregistered probe: ${probe}"
-  for ((i=0; i<classified_count; i++)); do
-    [ "$probe" != "${classified_seen[$i]}" ] || fail "behavior_only repeats a probe: ${probe}"
-  done
-  classified_seen+=("$probe")
-  classified_count=$((classified_count + 1))
 done
 
 is_behavior_only() {

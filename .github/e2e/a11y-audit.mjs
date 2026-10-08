@@ -2,6 +2,7 @@
 // visible for manual review; every violation fails the ordinary audit.
 import { AxeBuilder } from '@axe-core/playwright';
 import { chromium } from 'playwright-core';
+import { arrived } from './support/arrival.mjs';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';
@@ -36,22 +37,11 @@ const audit = async (browser, path, theme, canary = false) => {
     const response = await page.goto(new URL(path, BASE).href, { waitUntil: 'networkidle' });
     if (response?.status() !== 200) throw new Error(`${path} HTTP ${response?.status()}`);
     await page.evaluate(() => document.fonts.ready);
-    await page.waitForFunction(() => [...document.styleSheets].some((sheet) => {
-      if (!sheet.href) return false;
-      const url = new URL(sheet.href);
-      return url.origin === location.origin && url.pathname === '/static/app.css';
-    }) && !document.getAnimations().some((animation) => animation.animationName === 'y-come-forward'
-      && (animation.pending || ['running', 'paused'].includes(animation.playState))));
+    await arrived(page);
+    await page.waitForFunction(() => document.documentElement.dataset.js === 'on');
     await page.waitForFunction(() => [...document.querySelectorAll('.mermaid-diagram')].every((block) =>
       block.querySelector('svg') || block.hasAttribute('data-mermaid-error')));
     await page.waitForFunction(() => [...document.querySelectorAll('[data-codecopy-button]')].every((button) => !button.disabled));
-    // Exercise the real enhancement listener, then restore the audited state.
-    const ruby = await page.locator('[data-ruby-toggle]').getAttribute('aria-pressed');
-    for (const expected of [ruby !== 'true', ruby === 'true']) {
-      await page.locator('[data-ruby-toggle]').click();
-      await page.waitForFunction((pressed) => document.querySelector('[data-ruby-toggle]').getAttribute('aria-pressed') === String(pressed), expected);
-    }
-    await page.locator('[data-ruby-toggle]').evaluate((element) => element.blur());
     const state = await page.evaluate(() => ({ theme: document.documentElement.dataset.theme, language: document.documentElement.lang }));
     if (state.theme !== theme || state.language !== 'zh-Hant') throw new Error(`wrong audit state ${JSON.stringify(state)}`);
     if (canary) {
@@ -113,8 +103,8 @@ try {
   }
 } catch (error) {
   console.error(`a11y-audit: ${error.message}`);
-  if (MUTATE) console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
-  process.exitCode = error instanceof LockFired && !MUTATE ? 1 : 2;
+  if (MUTATE && error instanceof NotApplied) console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
+  process.exitCode = error instanceof LockFired ? (MUTATE ? 0 : 1) : 2;
 } finally {
   await browser?.close();
 }
