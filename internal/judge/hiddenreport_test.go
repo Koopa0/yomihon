@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -225,7 +226,8 @@ func hiddenReportProducers(t *testing.T, root string) {
 		t.Fatalf("Check(hidden fixture) producers differ (-want +got):\n%s", diff)
 	}
 	planned, external, warnings := 0, 0, 0
-	for _, finding := range got {
+	for i := range got {
+		finding := &got[i]
 		switch {
 		case finding.RuleID == "link.broken" && finding.Severity == SeverityInfo:
 			planned++
@@ -252,7 +254,6 @@ const hiddenReportInfoOnly = "5 findings: 0 error, 0 warn, 5 hidden (3 planned f
 	"  [link.broken.path] link to ../../../outside-745.md points outside the vault root — Writing/golang/B.md\n"
 
 func TestHiddenReportRetention(t *testing.T) {
-	t.Parallel()
 	root := hiddenReportVault(t)
 	base := hiddenReportBase(t, root)
 	hiddenReportWrite(t, root, "Diary/Private.md", "## Gaps\n\n[[Private745]]\n[[Missing]]\n- Private745 / Missing\n\n## Current\n\n[external](../../private-outside-745.md)\n")
@@ -261,8 +262,8 @@ func TestHiddenReportRetention(t *testing.T) {
 		t.Fatalf("openAction(private stimulus): %v", err)
 	}
 	t.Cleanup(func() {
-		if err := a.close(); err != nil {
-			t.Errorf("close(private observation): %v", err)
+		if closeErr := a.close(); closeErr != nil {
+			t.Errorf("close(private observation): %v", closeErr)
 		}
 	})
 	var private *note
@@ -315,14 +316,14 @@ func TestHiddenReportRetention(t *testing.T) {
 	if diff := cmp.Diff(Finding{}, f); diff != "" {
 		t.Fatalf("classifyCapturedPathRef(private) denied finding differs (-want +got):\n%s", diff)
 	}
-	if err := a.finish(); err != nil {
-		t.Fatalf("finish(private observation): %v", err)
+	if finishErr := a.finish(); finishErr != nil {
+		t.Fatalf("finish(private observation): %v", finishErr)
 	}
 	t.Log("HIDDEN745_PRIVATE_STIMULUS_INVOKED planned=2 external-denied=1")
 	for _, all := range []bool{false, true} {
-		got, err := runCheckAction(t.Context(), root, nil, all)
-		if err != nil {
-			t.Fatalf("runCheckAction(private, all=%t): %v", all, err)
+		got, checkErr := runCheckAction(t.Context(), root, nil, all)
+		if checkErr != nil {
+			t.Fatalf("runCheckAction(private, all=%t): %v", all, checkErr)
 		}
 		if diff := cmp.Diff(base, got); diff != "" {
 			t.Fatalf("caught: HIDDEN745_PRIVATE_INFLUENCE_MISMATCH: private note changed retained findings, all=%t (-want +got):\n%s", all, diff)
@@ -339,7 +340,7 @@ func TestHiddenReportRetention(t *testing.T) {
 			Target: new("../../outside-other-745.md"), Fingerprint: "v1:59d6f4e98c36c079",
 		},
 	}
-	allRows := append(other, base...)
+	allRows := slices.Concat(other, base)
 	for _, tt := range []struct {
 		name string
 		all  bool
@@ -349,9 +350,9 @@ func TestHiddenReportRetention(t *testing.T) {
 		{name: "all includes Other and still excludes Diary", all: true, want: allRows},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := runCheckAction(t.Context(), root, nil, tt.all)
-			if err != nil {
-				t.Fatalf("runCheckAction(retention): %v", err)
+			got, checkErr := runCheckAction(t.Context(), root, nil, tt.all)
+			if checkErr != nil {
+				t.Fatalf("runCheckAction(retention): %v", checkErr)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Fatalf("retained whole set differs (-want +got):\n%s", diff)
@@ -390,7 +391,6 @@ func TestHiddenReportRetention(t *testing.T) {
 }
 
 func TestHiddenReportBaseline(t *testing.T) {
-	t.Parallel()
 	root := hiddenReportVault(t)
 	base := hiddenReportBase(t, root)
 	for _, tt := range []struct {
@@ -437,7 +437,6 @@ func TestHiddenReportBaseline(t *testing.T) {
 }
 
 func TestHiddenReportDeny(t *testing.T) {
-	t.Parallel()
 	root := hiddenReportVault(t)
 	base := hiddenReportBase(t, root)
 	hiddenReportReplace(t, root, "Writing/golang/A.md", "[[Missing]]\n", "")
@@ -467,7 +466,6 @@ func TestHiddenReportDeny(t *testing.T) {
 }
 
 func TestHiddenReportAuthority(t *testing.T) {
-	t.Parallel()
 	for _, tt := range []struct {
 		name   string
 		change func(*testing.T, string)
@@ -526,8 +524,8 @@ func TestHiddenReportAuthority(t *testing.T) {
 		}
 		a := prepared.action
 		t.Cleanup(func() {
-			if err := a.close(); err != nil {
-				t.Errorf("close(stale observation): %v", err)
+			if closeErr := a.close(); closeErr != nil {
+				t.Errorf("close(stale observation): %v", closeErr)
 			}
 		})
 		if prepared.exit != 0 {
@@ -538,11 +536,11 @@ func TestHiddenReportAuthority(t *testing.T) {
 			t.Errorf("prepared hidden bytes differ (-want +got):\n%s", diff)
 		}
 		path := filepath.Join(root, schema.ContractRelPath)
-		contract, err := os.ReadFile(path)
+		contract, err := os.ReadFile(path) // #nosec G304 -- fixed contract fixture under this test's temporary root
 		if err != nil {
 			t.Fatalf("read captured contract: %v", err)
 		}
-		if err := os.WriteFile(path, append(contract, '\n'), 0o600); err != nil {
+		if err := os.WriteFile(path, append(contract, '\n'), 0o600); err != nil { // #nosec G703 -- fixed contract fixture under this test's temporary root
 			t.Fatalf("replace captured authority: %v", err)
 		}
 		stdout, exit, err := hiddenReportPublish(&prepared)
@@ -649,7 +647,7 @@ func hiddenReportWrite(t *testing.T, root, rel, body string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("create fixture directory: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil { // #nosec G703 -- fixture paths are constructed by tests under their temporary root
 		t.Fatalf("write fixture %q: %v", rel, err)
 	}
 }
@@ -657,7 +655,7 @@ func hiddenReportWrite(t *testing.T, root, rel, body string) {
 func hiddenReportReplace(t *testing.T, root, rel, old, replacement string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(rel))
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- reads the fixture constructed by this test under its temporary root
 	if err != nil {
 		t.Fatalf("read fixture %q for replacement: %v", rel, err)
 	}
@@ -669,7 +667,7 @@ func hiddenReportReplace(t *testing.T, root, rel, old, replacement string) {
 
 // hiddenReportPublish drives the same finish-before-return boundary as RunCheck
 // while the test controls the interval after the payload was rendered.
-func hiddenReportPublish(prepared *preparedCommand) ([]byte, int, error) {
+func hiddenReportPublish(prepared *preparedCommand) (stdout []byte, exit int, publishErr error) {
 	if err := prepared.finish(); err != nil {
 		return nil, 0, err
 	}

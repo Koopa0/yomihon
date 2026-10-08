@@ -192,7 +192,8 @@ func hiddenCheckProducers(t *testing.T, root string) {
 		t.Fatalf("Check(hidden fixture) producers differ (-want +got):\n%s", diff)
 	}
 	planned, external, warnings := 0, 0, 0
-	for _, finding := range got {
+	for i := range got {
+		finding := &got[i]
 		switch {
 		case finding.RuleID == "link.broken" && finding.Severity == judge.SeverityInfo:
 			planned++
@@ -461,7 +462,7 @@ func TestHiddenCheckMain(t *testing.T) {
 				}
 			}
 			args := append([]string{"-test.run=^TestHiddenCheckMain$", "--", "check", "--root=" + root}, tt.args...)
-			cmd := exec.CommandContext(t.Context(), executable, args...)
+			cmd := exec.CommandContext(t.Context(), executable, args...) // #nosec G204 -- os.Executable and arguments are test-owned; no shell is used
 			cmd.Dir = root
 			cmd.Env = append(os.Environ(), "YOMIHON_TEST_HIDDEN745_MAIN=1")
 			var stdout, stderr bytes.Buffer
@@ -517,7 +518,7 @@ func hiddenCheckWrite(t *testing.T, root, rel, body string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("create fixture directory: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil { // #nosec G703 -- fixture paths are constructed by tests under their temporary root
 		t.Fatalf("write fixture %q: %v", rel, err)
 	}
 }
@@ -525,7 +526,7 @@ func hiddenCheckWrite(t *testing.T, root, rel, body string) {
 func hiddenCheckReplace(t *testing.T, root, rel, old, replacement string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(rel))
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- reads the fixture constructed by this test under its temporary root
 	if err != nil {
 		t.Fatalf("read fixture %q for replacement: %v", rel, err)
 	}
