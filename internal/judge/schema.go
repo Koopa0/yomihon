@@ -167,7 +167,7 @@ func (r *lintRun) noteResult(n *note) FrontmatterResult {
 	}
 
 	isLesson := hasType && ty == r.lessonType
-	out = append(out, r.unknownKeys(n, isLesson)...)
+	out = append(out, r.unknownKeys(n, ty)...)
 	out = append(out, r.articleLanguage(n)...)
 	if isLesson {
 		out = append(out, r.lessonSlug(n)...)
@@ -205,15 +205,32 @@ func (r *lintRun) articleLanguage(n *note) []Finding {
 
 // unknownKeys reports every frontmatter key the contract does not list as
 // known, in sorted key order. A lesson may additionally use the lesson-only
-// keys.
-func (r *lintRun) unknownKeys(n *note, isLesson bool) []Finding {
+// keys. An undeclared non-empty scalar type leaves those keys unjudged and
+// reports that dependency once, without hiding genuinely unknown keys.
+func (r *lintRun) unknownKeys(n *note, noteType string) []Finding {
 	var out []Finding
+	isLesson := noteType != "" && noteType == r.lessonType
+	invalidType := noteType != "" && !r.contract.DeclaresType(noteType)
+	deferred := false
 	for _, key := range slices.Sorted(maps.Keys(n.frontmatter)) {
-		known := slices.Contains(r.definition.Fields.Known, key) ||
-			(isLesson && slices.Contains(r.definition.Fields.LessonOnly, key))
-		if !known {
-			out = append(out, schemaFinding(n, "schema.unknown_key", "", key, "is not a known field"))
+		if slices.Contains(r.definition.Fields.Known, key) {
+			continue
 		}
+		if slices.Contains(r.definition.Fields.LessonOnly, key) {
+			if isLesson {
+				continue
+			}
+			if invalidType {
+				deferred = true
+				continue
+			}
+		}
+		out = append(out, schemaFinding(n, "schema.unknown_key", "", key, "is not a known field"))
+	}
+	if deferred {
+		finding := schemaFinding(n, "schema.type_dependent", "type", noteType, "is not valid, so type-only fields cannot be judged until type is valid")
+		finding.SuggestedAction = "fix type before judging type-only fields"
+		out = append(out, finding)
 	}
 	return out
 }
