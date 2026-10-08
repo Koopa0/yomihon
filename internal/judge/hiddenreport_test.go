@@ -540,8 +540,8 @@ func TestHiddenReportAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read captured contract: %v", err)
 		}
-		if err := os.WriteFile(path, append(contract, '\n'), 0o600); err != nil { // #nosec G703 -- fixed contract fixture under this test's temporary root
-			t.Fatalf("replace captured authority: %v", err)
+		if writeErr := os.WriteFile(path, append(contract, '\n'), 0o600); writeErr != nil { // #nosec G703 -- fixed contract fixture under this test's temporary root
+			t.Fatalf("replace captured authority: %v", writeErr)
 		}
 		stdout, exit, err := hiddenReportPublish(&prepared)
 		if !errors.Is(err, ErrPrivacyAuthorityUnavailable) {
