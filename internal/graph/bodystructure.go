@@ -310,6 +310,9 @@ func (o *bodyObservation) collectOutline(doc *ast.Document, index bodyStructureI
 }
 
 func bodyLinesRange(n ast.Node) (Span, bool) {
+	if n.Type() != ast.TypeBlock {
+		return Span{}, false
+	}
 	lines := n.Lines()
 	if lines == nil || lines.Len() == 0 {
 		return Span{}, false

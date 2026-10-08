@@ -38,8 +38,8 @@ func TestBodyFactsF3ContextControl(t *testing.T) {
 	}{
 		{name: "absent"},
 		{name: "present", set: true, value: observation, want: result{Observation: observation}},
-		{name: "wrong type", set: true, value: "invalid", want: result{Panic: "graph: invalid body observation context", Panicked: true}},
-		{name: "typed nil", set: true, value: (*bodyObservation)(nil), want: result{Panic: "graph: invalid body observation context", Panicked: true}},
+		{name: "wrong type", set: true, value: "invalid", want: result{Panic: "graph: unknown bodyObservation: string", Panicked: true}},
+		{name: "typed nil", set: true, value: (*bodyObservation)(nil), want: result{Panic: "graph: unknown bodyObservation: *graph.bodyObservation", Panicked: true}},
 	} {
 		context := parser.NewContext()
 		if tt.set {

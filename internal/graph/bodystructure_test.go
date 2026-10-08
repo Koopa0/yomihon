@@ -31,10 +31,10 @@ func TestBodyStructureOutlineAndRows(t *testing.T) {
 	if len(children) != 1 || children[0].ID != 2 || children[0].ListID != 2 || children[0].ParentRowID != 1 || children[0].ChildListID != 0 {
 		t.Fatalf("caught: child relationships differ: %+v", children)
 	}
-	if diff := cmp.Diff([]graph.Span{{Start: 10, Stop: 15}, {Start: 28, Stop: 33}}, slices.Collect(facts.RowBlocks(root.ID))); diff != "" {
+	if diff := cmp.Diff([]graph.Span{{Start: 10, Stop: 14}, {Start: 28, Stop: 32}}, slices.Collect(facts.RowBlocks(root.ID))); diff != "" {
 		t.Errorf("caught: owned continuation differs (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]graph.Span{{Start: 34, Stop: 38}}, slices.Collect(facts.StrayBlocks(1))); diff != "" {
+	if diff := cmp.Diff([]graph.Span{{Start: 34, Stop: 37}}, slices.Collect(facts.StrayBlocks(1))); diff != "" {
 		t.Errorf("caught: stray block differs (-want +got):\n%s", diff)
 	}
 	root.ChildListID = 99
@@ -72,7 +72,7 @@ func TestBodyStructureContainerOwnership(t *testing.T) {
 	if !ok || nested.ParentRowID != 0 {
 		t.Fatalf("caught: quote ancestry invented an owning row: %+v", nested)
 	}
-	if diff := cmp.Diff([]graph.Span{{Start: 4, Stop: 11}, {Start: 27, Stop: 33}}, slices.Collect(facts.RowBlocks(rows[0].ID))); diff != "" {
+	if diff := cmp.Diff([]graph.Span{{Start: 4, Stop: 10}, {Start: 27, Stop: 32}}, slices.Collect(facts.RowBlocks(rows[0].ID))); diff != "" {
 		t.Errorf("caught: nested list escaped owned-block exclusion (-want +got):\n%s", diff)
 	}
 }

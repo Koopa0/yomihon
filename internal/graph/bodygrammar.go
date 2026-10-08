@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -126,7 +127,7 @@ func bodyBlockDelegates() []util.PrioritizedValue {
 		case 500, 700:
 			delegate, ok := blocks[i].Value.(parser.BlockParser)
 			if !ok {
-				panic("graph: configured block delegate is not a BlockParser")
+				panic("graph: unknown BlockParser: " + string(fmt.Appendf(nil, "%T", blocks[i].Value)))
 			}
 			blocks[i].Value = bodyBlockParser{delegate: delegate}
 		}
@@ -141,7 +142,7 @@ func bodyInlineDelegates() []util.PrioritizedValue {
 		if inlines[i].Priority == 100 {
 			delegate, ok := inlines[i].Value.(parser.InlineParser)
 			if !ok {
-				panic("graph: configured code delegate is not an InlineParser")
+				panic("graph: unknown InlineParser: " + string(fmt.Appendf(nil, "%T", inlines[i].Value)))
 			}
 			inlines[i].Value = bodyCodeParser{delegate: delegate}
 		}
@@ -187,7 +188,7 @@ func bodyObservationIn(pc parser.Context) *bodyObservation {
 	}
 	observation, ok := value.(*bodyObservation)
 	if !ok || observation == nil {
-		panic("graph: invalid body observation context")
+		panic("graph: unknown bodyObservation: " + string(fmt.Appendf(nil, "%T", value)))
 	}
 	return observation
 }

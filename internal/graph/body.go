@@ -178,7 +178,7 @@ func observeBody(body string, grammar parser.Parser) *bodyObservation {
 func observeBodyRequested(body string, grammar parser.Parser, collection bodyCollection) *bodyObservation {
 	observation := &bodyObservation{
 		collection: collection,
-		blocks: make(map[ast.Node]int), definitions: make(map[*east.Footnote]int),
+		blocks:     make(map[ast.Node]int), definitions: make(map[*east.Footnote]int),
 		inlineSegments: make(map[int][]text.Segment),
 	}
 	context := parser.NewContext()

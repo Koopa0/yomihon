@@ -1487,7 +1487,7 @@ func TestTaskMarkerPolicyKeepsTheWholeDocument(t *testing.T) {
 				}}}
 				want.Diagnostics = []Diagnostic{{
 					Rule: RuleEntryNoncanonical, Line: 3,
-					Message: "a lesson row opens with its link; move the link to the front, or take the row out of the course",
+					Message:  "a lesson row opens with its link; move the link to the front, or take the row out of the course",
 					Evidence: own,
 				}}
 			}
@@ -1509,7 +1509,7 @@ func TestEmptyHeadingKeepsTheWholeDocument(t *testing.T) {
 			Name: "P", Level: 2, Line: 1, Role: RolePrimary,
 			Items: []Item{{Entry: &Candidate{
 				Text: "A", Target: "A", Line: 5,
-				Span: Span{Start: 32, Stop: 37}, TargetSpan: Span{Start: 32, Stop: 37},
+				Span: Span{Start: 31, Stop: 36}, TargetSpan: Span{Start: 31, Stop: 36},
 				State: EntryAccepted,
 			}}},
 		}}}

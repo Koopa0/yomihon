@@ -215,7 +215,7 @@ func TestAgreementMutations(t *testing.T) {
 				sourceDigest := ""
 				if packagePath == "./internal/judge" {
 					alternate := agreementMutationSource(t, overlay)
-					args = append(args, "-args", "-agreement-source=" + alternate)
+					args = append(args, "-args", "-agreement-source="+alternate)
 					if mode.Name == "f3-consumer-parse" {
 						sourceDigest = agreementMutationSourceDigest(t, alternate)
 					}

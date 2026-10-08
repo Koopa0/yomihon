@@ -203,8 +203,8 @@ func stripBodyCommentMark(body bodyProjection, open, lineStop int, html bool, st
 	}
 	if In(state.extraCode, open) {
 		output.copied(body, open, open+2)
-		return body.text[open+2:lineStop], false, false
+		return body.text[open+2 : lineStop], false, false
 	}
 	state.openPercent(body.text, open, comments)
-	return body.text[open+2:lineStop], true, false
+	return body.text[open+2 : lineStop], true, false
 }
