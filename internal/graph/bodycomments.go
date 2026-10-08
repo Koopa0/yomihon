@@ -21,12 +21,14 @@ type bodyCommentState struct {
 	code       []Span
 	extraCode  []Span
 	limits     map[int]int
+	containers []BodyComment
+	sourceLine int
 }
 
 // stripBodyProjection applies the existing line-role strip exactly once.
 // Original code facts protect HTML comments. Percent quotation retains its
 // line-local presentation policy, independently of canonical multiline facts.
-func stripBodyProjection(body bodyProjection, observation *bodyObservation, additional []Span) (bodyProjection, []Span, BodyComment) {
+func stripBodyProjection(body bodyProjection, observation *bodyObservation, additional []Span) (bodyProjection, []Span, BodyComment, []BodyComment) {
 	state := bodyCommentState{limits: make(map[int]int), extraCode: additional}
 	for _, code := range observation.codes {
 		state.code = append(state.code, code.Span)
@@ -54,13 +56,14 @@ func stripBodyProjection(body bodyProjection, observation *bodyObservation, addi
 			continue
 		}
 		before := output.text.Len()
+		state.sourceLine = i + 1
 		opened := stripBodyCommentLine(body, at, line, &state, &output, &comments)
 		unclosed = state.unclosedComment(unclosed, opened, i+1)
 		if state.closing == "" {
 			fence.opens(output.text.String()[before:])
 		}
 	}
-	return output.projection(), comments, unclosed
+	return output.projection(), comments, unclosed, state.containers
 }
 
 func bodyCommentQuotePrefix(line string) string {
@@ -191,6 +194,9 @@ func stripBodyHTMLComment(body bodyProjection, open, lineStop int, state *bodyCo
 	}
 	state.closing, state.stop = "-->", span.Stop
 	state.unclosed = !closed && span.Stop == len(body.text)
+	if !closed && span.Stop < len(body.text) {
+		state.containers = append(state.containers, BodyComment{Line: state.sourceLine, Marker: "<!--"})
+	}
 	start := strings.LastIndex(body.text[:open], "\n") + 1
 	state.quoteDepth = strings.Count(bodyCommentQuotePrefix(body.text[start:open]), ">")
 	return "", true

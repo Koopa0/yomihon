@@ -98,20 +98,21 @@ type BodyFacts struct {
 }
 
 type bodyFactsData struct {
-	source       string
-	codes        []CodeFact
-	comments     []Span
-	footnotes    []FootnoteFact
-	headings     []BodyHeading
-	destinations []BodyDestination
-	literals     []CodeLiteral
-	htmlLimits   []CommentLimit
-	inlineNotes  []InlineFootnoteFact
-	commentFree  string
-	comment      BodyComment
-	structure    bodyStructure
-	richHeadings []RichBodyHeading
-	richOrigins  [][]BodyOrigin
+	source            string
+	codes             []CodeFact
+	comments          []Span
+	footnotes         []FootnoteFact
+	headings          []BodyHeading
+	destinations      []BodyDestination
+	literals          []CodeLiteral
+	htmlLimits        []CommentLimit
+	inlineNotes       []InlineFootnoteFact
+	commentFree       string
+	comment           BodyComment
+	containerComments []BodyComment
+	structure         bodyStructure
+	richHeadings      []RichBodyHeading
+	richOrigins       [][]BodyOrigin
 }
 
 var bodyExpandedMarkdown = NewBodyMarkdown(nil)
@@ -125,7 +126,7 @@ func ReadBody(body string) BodyFacts {
 	original := originalBody(body)
 	bootstrap := observeBodyRequested(body, bodyAuthoredMarkdown.Parser(), bodyCollection{rows: true, rich: true})
 	protectBodyInline(original, bootstrap)
-	admissionBody, comments, unclosed := stripBodyProjection(original, bootstrap, nil)
+	admissionBody, comments, unclosed, containers := stripBodyProjection(original, bootstrap, nil)
 	admission := bootstrap
 	if admissionBody.text != body {
 		admission = observeBodyRequested(admissionBody.text, bodyAuthoredMarkdown.Parser(), bodyCollection{rich: true})
@@ -144,7 +145,7 @@ func ReadBody(body string) BodyFacts {
 	facts := projectedBodyFacts(&bodyReading{
 		source: body, admissionBody: admissionBody, expanded: expanded,
 		bootstrap: bootstrap, admission: admission, authority: authority,
-		comments: comments, unclosed: unclosed,
+		comments: comments, unclosed: unclosed, containers: containers,
 	})
 	// Authored recognition is transferable only without opaque inline tokens.
 	// Matching bytes alone do not make the two grammars interchangeable.
@@ -234,6 +235,15 @@ func (f BodyFacts) UnclosedComment() BodyComment {
 		return BodyComment{}
 	}
 	return f.data.comment
+}
+
+// ContainerUnclosedComments yields original unpaired HTML openers whose
+// Markdown container ends before the body. Values retain source order.
+func (f BodyFacts) ContainerUnclosedComments() iter.Seq[BodyComment] {
+	if f.data == nil {
+		return bodyValues[BodyComment](nil)
+	}
+	return bodyValues(f.data.containerComments)
 }
 
 // CodeAt reports whether an original byte belongs to recognized code.

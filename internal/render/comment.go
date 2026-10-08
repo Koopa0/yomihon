@@ -13,9 +13,16 @@ type strippedBody struct {
 	address []string
 }
 
-func stripBody(body string) (stripped strippedBody, unclosed unclosedComment) {
-	text, unclosed := stripObsidianComments(body)
-	return strippedBody{text: text, address: BlockAddressLines(strings.Split(body, "\n"), text)}, unclosed
+// stripBody hides body's comments and retains original diagnostic coordinates.
+func stripBody(body string) (stripped strippedBody, report commentReport) {
+	text, report := stripObsidianComments(body)
+	return strippedBody{text: text, address: BlockAddressLines(strings.Split(body, "\n"), text)}, report
+}
+
+// commentReport distinguishes container silence from a body-wide remainder.
+type commentReport struct {
+	bodywide   unclosedComment
+	containers []unclosedComment
 }
 
 type unclosedComment struct {
@@ -24,14 +31,18 @@ type unclosedComment struct {
 }
 
 // stripObsidianComments delegates the single graph-owned strip protocol.
-func stripObsidianComments(body string) (stripped string, unclosed unclosedComment) {
+func stripObsidianComments(body string) (stripped string, report commentReport) {
 	facts := graph.ReadBody(body)
 	comment := facts.UnclosedComment()
-	return facts.CommentFree(), unclosedComment{line: comment.Line, marker: comment.Marker}
+	report.bodywide = unclosedComment{line: comment.Line, marker: comment.Marker}
+	for container := range facts.ContainerUnclosedComments() {
+		report.containers = append(report.containers, unclosedComment{line: container.Line, marker: container.Marker})
+	}
+	return facts.CommentFree(), report
 }
 
-// htmlCommentCode is protection for a bounded raw-markup presentation fragment.
-// It uses canonical authored recognition, not a separately configured parser.
+// htmlCommentCode protects a bounded raw-markup presentation fragment using
+// canonical authored recognition, without a separately configured parser.
 func htmlCommentCode(body string) []graph.Span {
 	if !strings.Contains(body, "<!--") {
 		return nil
@@ -51,9 +62,19 @@ func unclosedCommentDiagnostic(unclosed unclosedComment) Diagnostic {
 	}
 }
 
-func appendUnclosedComment(diagnostics []Diagnostic, unclosed unclosedComment) []Diagnostic {
-	if unclosed.line == 0 {
-		return diagnostics
+// commentDiagnostics publishes source-order container records before the
+// body-wide kind, which alone explains an empty page.
+func commentDiagnostics(report commentReport) []Diagnostic {
+	var diagnostics []Diagnostic
+	for _, container := range report.containers {
+		diagnostics = append(diagnostics, Diagnostic{
+			Kind:    DiagCommentContainerUnclosed,
+			Target:  container.marker,
+			Message: fmt.Sprintf("an unclosed %s comment opened at line %d of the note body hides the rest of its Markdown container", container.marker, container.line),
+		})
 	}
-	return append(diagnostics, unclosedCommentDiagnostic(unclosed))
+	if report.bodywide.line != 0 {
+		diagnostics = append(diagnostics, unclosedCommentDiagnostic(report.bodywide))
+	}
+	return diagnostics
 }

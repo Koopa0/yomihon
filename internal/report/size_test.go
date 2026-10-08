@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-const oversizedBriefingZH = "這份簡報的大小是 16.0 MB（16,777,217 位元組），超過 16 MiB 的閱讀上限；原始檔仍可下載。"
-const oversizedBriefingEN = "This briefing is 16.0 MB (16,777,217 bytes), over the 16 MiB reading limit; the original file can still be downloaded."
+const oversizedBriefingZH = "這份簡報的大小是 16.0 MiB（16,777,217 位元組），超過 16 MiB 的閱讀上限；原始檔仍可下載。"
+const oversizedBriefingEN = "This briefing is 16.0 MiB (16,777,217 bytes), over the 16 MiB reading limit; the original file can still be downloaded."
 
 // The source bound is independent of the production declaration so changing
 // that declaration cannot silently move both the reader and its oracle.
@@ -105,8 +105,8 @@ func TestWellOversizedBriefingReportsExactSize(t *testing.T) {
 		lang wording.Lang
 		want string
 	}{
-		{name: "zh-Hant", lang: wording.ZhHant, want: "這份簡報的大小是 32.0 MB（33,554,432 位元組），超過 16 MiB 的閱讀上限；原始檔仍可下載。"},
-		{name: "en", lang: wording.En, want: "This briefing is 32.0 MB (33,554,432 bytes), over the 16 MiB reading limit; the original file can still be downloaded."},
+		{name: "zh-Hant", lang: wording.ZhHant, want: "這份簡報的大小是 32.0 MiB（33,554,432 位元組），超過 16 MiB 的閱讀上限；原始檔仍可下載。"},
+		{name: "en", lang: wording.En, want: "This briefing is 32.0 MiB (33,554,432 bytes), over the 16 MiB reading limit; the original file can still be downloaded."},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			raw := requestBriefing(t.Context(), h, "/reports/"+briefingName+"/raw", tt.lang)

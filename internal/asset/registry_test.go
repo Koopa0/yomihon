@@ -2,6 +2,8 @@ package asset
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -138,6 +140,19 @@ func TestStylesheetIsItsPartsJoinedInOrder(t *testing.T) {
 		if len(b) == 0 {
 			t.Fatalf("embedded %s is empty, so its place in the bundle proves nothing", name)
 		}
+		// Joining preserves every authored byte except registered static URL
+		// identities. Compute those expectations from independently served bytes.
+		b = regexp.MustCompile(`url\('/static/([^']+)'\)`).ReplaceAllFunc(b, func(reference []byte) []byte {
+			match := regexp.MustCompile(`url\('/static/([^']+)'\)`).FindSubmatch(reference)
+			path := "/static/" + string(match[1])
+			font := httptest.NewRecorder()
+			mux.ServeHTTP(font, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
+			if font.Code != http.StatusOK || font.Body.Len() == 0 {
+				t.Fatalf("GET %s status = %d, bytes = %d, want 200 and nonempty bytes", path, font.Code, font.Body.Len())
+			}
+			sum := sha256.Sum256(font.Body.Bytes())
+			return []byte("url('" + path + "?v=" + hex.EncodeToString(sum[:])[:12] + "')")
+		})
 		parts[i] = b
 		total += len(b)
 	}

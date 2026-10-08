@@ -73,6 +73,6 @@ func CommentZones(body string, code []Span) []Span {
 	original := originalBody(body)
 	observation := observeBody(body, bodyAuthoredMarkdown.Parser())
 	protectBodyInline(original, observation)
-	_, comments, _ := stripBodyProjection(original, observation, code)
+	_, comments, _, _ := stripBodyProjection(original, observation, code)
 	return comments
 }
