@@ -439,7 +439,7 @@ try {
     await audit(browser, NOTE, 'light', true);
     console.log('caught: a11y-audit label');
     console.log('MUTATE-RESULT: caught drop-task-label');
-    process.exitCode = 0;
+    process.exitCode = 1;
   } else {
     for (const signal of signals) process.on(signal, onSignal);
     workTimer = setTimeout(() => {
