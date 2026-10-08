@@ -46,6 +46,15 @@ func NewPlanned(bodies iter.Seq[string], contract *schema.Contract) Planned {
 	return set
 }
 
+// NewPlannedFacts harvests one captured body without recognizing it again.
+func NewPlannedFacts(body graph.BodyFacts, contract *schema.Contract) Planned {
+	marks := plannedMarksFrom(contract)
+	facts := inspectBodyFacts(body, marks.heading)
+	set := Planned{names: make(map[string]bool)}
+	set.add(extractPlannedNamesFrom(body.Source(), marks, &facts))
+	return set
+}
+
 // MergePlanned is the union of sets: what NewPlanned would have harvested from
 // every body the sets were harvested from, one note at a time. It exists so a
 // caller that has to attribute a harvesting failure to one note can harvest
@@ -85,6 +94,17 @@ func (p Planned) Has(target string) bool {
 // builds its reverse link graph from this same reading.
 func LinkTargets(body string) []string {
 	links := extractWikilinks(body, 1)
+	targets := make([]string, 0, len(links))
+	for _, link := range links {
+		targets = append(targets, link.target)
+	}
+	return targets
+}
+
+// LinkTargetsFacts reads backlinks from the same captured body as other products.
+func LinkTargetsFacts(body graph.BodyFacts) []string {
+	facts := inspectBodyFacts(body, defaultPlannedMarks().heading)
+	links := extractWikilinksFrom(body.Source(), 1, &facts)
 	targets := make([]string, 0, len(links))
 	for _, link := range links {
 		targets = append(targets, link.target)

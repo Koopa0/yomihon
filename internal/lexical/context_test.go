@@ -108,6 +108,7 @@ func TestDroppedTitleKeepsMainLanding(t *testing.T) {
 		t.Fatalf("Search(%q).RelPath = %q, want %q", title, answer.Results[0].RelPath, path)
 	}
 	t.Log("invoked: dropped title Search")
+	t.Log("AGREEMENT-INVOKED S5/stage5-title-comment-role")
 	want := Result{
 		RelPath:     path,
 		Title:       title,
@@ -116,7 +117,7 @@ func TestDroppedTitleKeepsMainLanding(t *testing.T) {
 		LandingBare: title,
 	}
 	if diff := cmp.Diff(want, answer.Results[0]); diff != "" {
-		t.Errorf("caught: dropped-title tuple (-want +got):\n%s", diff)
+		t.Errorf("caught: S5 title-comment-role dropped-title tuple (-want +got):\n%s", diff)
 	}
 }
 

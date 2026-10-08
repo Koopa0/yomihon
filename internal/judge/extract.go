@@ -104,7 +104,10 @@ type bodyComments struct {
 }
 
 func inspectBody(body string, headingMarks []string) bodyStructure {
-	parsed := graph.ReadBody(body)
+	return inspectBodyFacts(graph.ReadBody(body), headingMarks)
+}
+
+func inspectBodyFacts(parsed graph.BodyFacts, headingMarks []string) bodyStructure {
 	codeZones, headings := structureFrom(parsed, headingMarks)
 	var comments []byteRange
 	for span := range parsed.Comments() {

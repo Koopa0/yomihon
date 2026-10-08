@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/text/width"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -627,7 +628,17 @@ func pairedSpans(offs []int) [][2]int {
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
 	projection := render.PlainProjection(n.Body)
-	if len(projection.Blocks) > 0 && render.DropsTitleHeading(n.Title(), n.Body) {
+	return documentFromProjection(n, &projection, len(projection.Blocks) > 0 && render.DropsTitleHeading(n.Title(), n.Body))
+}
+
+// DocumentFromFacts derives the complete index entry from its captured body.
+func DocumentFromFacts(n *vault.Note, facts graph.BodyFacts) Document {
+	projection := render.PlainProjectionFacts(facts)
+	return documentFromProjection(n, &projection, len(projection.Blocks) > 0 && render.DropsTitleHeadingFacts(n.Title(), facts))
+}
+
+func documentFromProjection(n *vault.Note, projection *render.Projection, dropped bool) Document {
+	if len(projection.Blocks) > 0 && dropped {
 		// That heading opens the body, so it is the first block. The page
 		// shows it as the title instead, and neither the body nor the
 		// contents list carries a copy to tell apart.

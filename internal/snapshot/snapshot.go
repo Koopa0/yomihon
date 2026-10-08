@@ -1185,9 +1185,9 @@ func (g *generation) skipUnread(entry vault.Entry, note bool, log *slog.Logger) 
 // yields, the concept names it declares it owes, and the links it cites.
 type noteParsers struct {
 	note     func(relPath string, data []byte) *vault.Note
-	document func(*vault.Note) lexical.Document
-	planned  func(body string, contract *schema.Contract) judge.Planned
-	links    func(body string) []string
+	document func(*vault.Note, graph.BodyFacts) lexical.Document
+	planned  func(graph.BodyFacts, *schema.Contract) judge.Planned
+	links    func(graph.BodyFacts) []string
 }
 
 // parsers is what a build parses notes with. It is a variable only so a test
@@ -1200,14 +1200,9 @@ type noteParsers struct {
 // read by a build running beside it.
 var parsers = noteParsers{
 	note:     vault.Parse,
-	document: lexical.DocumentFromNote,
-	planned:  plannedNames,
-	links:    judge.LinkTargets,
-}
-
-// plannedNames harvests the concept names one body declares it still owes.
-func plannedNames(body string, contract *schema.Contract) judge.Planned {
-	return judge.NewPlanned(slices.Values([]string{body}), contract)
+	document: lexical.DocumentFromFacts,
+	planned:  judge.NewPlannedFacts,
+	links:    judge.LinkTargetsFacts,
 }
 
 // noteProducts is what the folder-wide projections read out of one note's body,
@@ -1266,10 +1261,11 @@ func deriveNote(
 	read.parsed = parsers.note(relPath, data)
 	read.reading = newReading(read.parsed, data, languages)
 	read.findings, read.verdictErr = lint.Lint(relPath, data), lintErr
+	body := graph.ReadBody(read.parsed.Body)
 	read.products = noteProducts{
-		document: parsers.document(read.parsed),
-		planned:  parsers.planned(read.parsed.Body, contract),
-		links:    parsers.links(read.parsed.Body),
+		document: parsers.document(read.parsed, body),
+		planned:  parsers.planned(body, contract),
+		links:    parsers.links(body),
 	}
 	return read, nil
 }

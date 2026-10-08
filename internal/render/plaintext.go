@@ -429,8 +429,11 @@ func (r *rewrittenLines) literalRoleAt(off int) bool {
 func plainPreprocess(body string) (string, rewrittenLines) {
 	// The retrieval projections report nothing: a corpus entry is not a page,
 	// and a fault in a note is the reading page's news to break.
-	body, _ = stripObsidianComments(body)
-	body = expandInlineFootnotes(body)
+	return plainPreprocessFacts(graph.ReadBody(body))
+}
+
+func plainPreprocessFacts(facts graph.BodyFacts) (string, rewrittenLines) {
+	body := expandInlineFootnotes(facts.CommentFree())
 	lines := strings.Split(body, "\n")
 	rewritten := rewrittenLines{starts: make([]int, len(lines)), changed: make([]bool, len(lines)), literalRoles: make([]bool, len(lines))}
 	wikiLines := make([][][2]int, len(lines))

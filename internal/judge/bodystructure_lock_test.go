@@ -41,7 +41,10 @@ func judgeBodyStructureLock(directory string) error {
 func bodyStructureCallers() map[string]map[string]int {
 	return map[string]map[string]int{
 		"structure":               {},
-		"structureFrom":           {"inspectBody": 1, "structure": 1},
+		"structureFrom":           {"inspectBodyFacts": 1, "structure": 1},
+		"inspectBodyFacts":        {"inspectBody": 1, "NewPlannedFacts": 1, "LinkTargetsFacts": 1},
+		"NewPlannedFacts":         {},
+		"LinkTargetsFacts":        {},
 		"inspectBody":             {"readNote": 1, "extractWikilinksWith": 1, "extractPlannedNamesWith": 1},
 		"readNote":                {"parseNoteWithMarks": 1, "parseFrontmatter": 1},
 		"extractWikilinksWith":    {"extractWikilinks": 1},
@@ -103,7 +106,7 @@ func checkBodyStructureLock(files map[string]*ast.File) error {
 				return true
 			}
 			observed[identifier.Name][caller]++
-			if repeated && (identifier.Name == "structure" || identifier.Name == "structureFrom" || identifier.Name == "inspectBody" || identifier.Name == "readNote") {
+			if repeated && (identifier.Name == "structure" || identifier.Name == "structureFrom" || identifier.Name == "inspectBody" || identifier.Name == "inspectBodyFacts" || identifier.Name == "readNote") {
 				violations = append(violations, fmt.Sprintf("%s: %s calls %s in a loop, go or defer", filename, caller, identifier.Name))
 			}
 			return true
@@ -126,7 +129,10 @@ func TestBodyStructureLock(t *testing.T) {
 	const source = `package judge
 func structure() { structureFrom() }
 func structureFrom() {}
-func inspectBody() { structureFrom() }
+func inspectBody() { inspectBodyFacts() }
+func inspectBodyFacts() { structureFrom() }
+func NewPlannedFacts() { inspectBodyFacts() }
+func LinkTargetsFacts() { inspectBodyFacts() }
 func readNote() { if marks != nil { facts := inspectBody(); harvest(facts) }; return n }
 func parseNoteWithMarks() { return readNote(rel, data, &marks) }
 func parseFrontmatter() { return readNote(rel, data, nil) }
@@ -186,7 +192,7 @@ func harvest(facts any) { first(facts); second(facts) }
 		names = append(names, name)
 	}
 	slices.Sort(names)
-	wantNames := []string{"LinkTargets", "NewPlanned", "extractPlannedNames", "extractPlannedNamesWith", "extractWikilinks", "extractWikilinksWith", "inspectBody", "readNote", "structure", "structureFrom"}
+	wantNames := []string{"LinkTargets", "LinkTargetsFacts", "NewPlanned", "NewPlannedFacts", "extractPlannedNames", "extractPlannedNamesWith", "extractWikilinks", "extractWikilinksWith", "inspectBody", "inspectBodyFacts", "readNote", "structure", "structureFrom"}
 	if diff := cmp.Diff(wantNames, names); diff != "" {
 		t.Fatalf("ruled routes differ (-want +got):\n%s", diff)
 	}

@@ -283,7 +283,7 @@ func (r *Pipeline) HTMLExcerptIn(region, relPath, title string, excerpt ExcerptR
 
 func (r *Pipeline) htmlReadingIn(region, relPath, title, body string, stripped strippedBody, comments commentReport, lang wording.Lang) Result {
 	page := &composition{base: region, lang: lang}
-	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text)
+	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text, stripped.roleGaps...)
 	address := stripped.address
 	if dropped >= 0 {
 		// The heading came out of the text, so it comes out of the geometry
@@ -536,7 +536,13 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 // meets those words only as the title, never as a heading of the body.
 func DropsTitleHeading(title, body string) bool {
 	stripped, _ := stripBody(body)
-	_, _, dropped := removeBodyFirstH1(title, stripped.text)
+	_, _, dropped := removeBodyFirstH1(title, stripped.text, stripped.roleGaps...)
+	return dropped >= 0
+}
+
+// DropsTitleHeadingFacts applies the page title rule to the captured reading.
+func DropsTitleHeadingFacts(title string, facts graph.BodyFacts) bool {
+	_, _, dropped := removeBodyFirstH1(title, facts.PresentationSource(), slices.Collect(facts.PresentationRoleGaps())...)
 	return dropped >= 0
 }
 
@@ -547,10 +553,16 @@ func DropsTitleHeading(title, body string) bool {
 // the title is then the only thing on the page still saying those words. The
 // third return is the line the removal took out, or -1 when it took none, so
 // anything read alongside this body by line number can lose the same one.
-func removeBodyFirstH1(title, body string) (stripped, anchor string, dropped int) {
+func removeBodyFirstH1(title, body string, gaps ...string) (stripped, anchor string, dropped int) {
 	lines := strings.Split(body, "\n")
 	i := 0
-	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+	blank := func(line string) bool {
+		for _, gap := range gaps {
+			line = strings.ReplaceAll(line, gap, "")
+		}
+		return strings.TrimSpace(line) == ""
+	}
+	for i < len(lines) && blank(lines[i]) {
 		i++
 	}
 	if i >= len(lines) || !strings.HasPrefix(lines[i], "# ") {

@@ -44,9 +44,15 @@ type DisplaySpan struct {
 
 // PlainProjection returns the searchable corpus with note display annotations.
 func PlainProjection(body string) Projection {
+	return PlainProjectionFacts(graph.ReadBody(body))
+}
+
+// PlainProjectionFacts borrows the captured body reading for searchable text.
+func PlainProjectionFacts(facts graph.BodyFacts) Projection {
+	body := facts.Source()
 	var emissions []sourceEmission
 	var insertions []int
-	source, rewritten := plainPreprocess(body)
+	source, rewritten := plainPreprocessFacts(facts)
 	plain, blocks, fences := plainSourceBlocks(body, source, &rewritten, &emissions, &insertions)
 	result := Projection{Text: plain, Blocks: blocks, FenceRanges: fences, Insertions: insertions}
 	if plain == "" {
