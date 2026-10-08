@@ -3,6 +3,8 @@
 // declarations, not a transient skipped state or a rendering-time threshold.
 // Env: YOMIHON_BASE, PAGE_PATH, MUTATE (list prints all watched regressions).
 import { chromium } from 'playwright-core';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = '/notes/Notes/mark-long-offset.md';
@@ -12,7 +14,7 @@ const CHILDREN = '.y-prose > *';
 
 class LockFired extends Error {
   constructor(site, message) {
-    super(`FAIL prose-visibility: ${message}`);
+    super(`caught: prose-visibility: ${message}`);
     this.site = site;
   }
 }
@@ -29,6 +31,10 @@ const sheet = /(\.y-conceptsheet__body\s*>\s*\*\s*\{[^}]*?)content-visibility:\s
 const preview = /if \(!card.contains\(event.target\) && event.timeStamp >= askedAt\) close\(\);/g;
 const focusQuestion = /link.addEventListener\('focus', \(event\) => schedule\(link, openDelay, event.timeStamp\)\);/g;
 const MUTATIONS = {
+  'hide-accessible-tail': {
+    site: 'accessibility-tail', needle: screen,
+    replace: '$1content-visibility: auto; }\n.y-prose > :nth-last-child(-n+3) { content-visibility: hidden;',
+  },
   'render-offscreen-blocks': { site: 'screen', needle: screen, replace: '$1' },
   'omit-paragraph-blocks': {
     site: 'screen', needle: screen,
@@ -76,7 +82,7 @@ const MUTATIONS = {
   },
   'defer-concept-sections': { site: 'sheet', needle: sheet, replace: '$1content-visibility: auto !important;' },
 };
-const SITES = ['screen', 'intrinsic', 'print', 'speech', 'sheet', 'focus', 'preview', 'preview-scroll', 'preview-focus', 'outline', 'controls', 'preview-layout', 'addresses', 'nested-outline'];
+const SITES = ['accessibility-tail', 'screen', 'intrinsic', 'print', 'speech', 'sheet', 'focus', 'preview', 'preview-scroll', 'preview-focus', 'outline', 'controls', 'preview-layout', 'addresses', 'nested-outline'];
 if (SITES.some((site) => !Object.values(MUTATIONS).some((mode) => mode.site === site))
   || Object.values(MUTATIONS).some((mode) => !SITES.includes(mode.site))) {
   throw new Error('BROKEN prose-visibility: mutation inventory differs from assertion sites');
@@ -93,6 +99,8 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 const declarations = (page) => page.locator(CHILDREN).evaluateAll((nodes) => nodes.map((element, index) => {
   const style = getComputedStyle(element);
   return {
+    controls: element.matches('.y-reading, input, select, textarea, button, summary, a[href], audio[controls], video[controls], [contenteditable="true"], [tabindex]')
+      || Boolean(element.querySelector('input, select, textarea, button, summary, a[href], audio[controls], video[controls], [contenteditable="true"], [tabindex]')),
     index, tag: element.tagName, addressed: element.hasAttribute('id') || Boolean(element.querySelector('[id]')), visibility: style.contentVisibility,
     block: style.containIntrinsicBlockSize, inline: style.containIntrinsicInlineSize, clip: style.overflowClipMargin,
   };
@@ -101,8 +109,110 @@ const assert = (site, condition, message) => {
   if (!condition) throw new LockFired(site, message);
 };
 
+// Compare exact main asset bytes through in-memory routes. The fixture records
+// only reversible source deltas and both hashes; a changed source is refused.
+async function measureChapters(browser) {
+  const root = process.env.YOMIHON_FIXTURE_ROOT;
+  if (!root) throw new Error('BROKEN prose-visibility: measurement requires the disposable fixture vault');
+  const baseline = JSON.parse(await readFile(new URL('./fixtures/prose-baseline.json', import.meta.url), 'utf8'));
+  const assets = [];
+  for (const asset of baseline.assets) {
+    const head = await readFile(new URL(`../../${asset.path}`, import.meta.url), 'utf8');
+    if (createHash('sha256').update(head).digest('hex') !== asset.headHash) throw new Error(`BROKEN baseline: stale head ${asset.path}`);
+    let main = head;
+    for (const edit of asset.edits) {
+      if (main.split(edit.head).length !== 2) throw new Error(`BROKEN baseline: ambiguous delta ${asset.path}`);
+      main = main.replace(edit.head, edit.main);
+    }
+    if (createHash('sha256').update(main).digest('hex') !== asset.mainHash) throw new Error(`BROKEN baseline: wrong main ${asset.path}`);
+    assets.push({ ...asset, head, main });
+  }
+  console.log(`MEASURE prose-visibility baseline=${baseline.commit} viewport=1280x800 median=3 same rendered documents; exact CSS/mark/preferences/preview source hashes verified`);
+  const owned = [];
+  try {
+    for (const [kb, chaptered] of [[24, true], [79, true], [240, true], [240, false]]) {
+      const name = `prose-measure-${kb}-${chaptered ? 'chapters' : 'single'}.md`;
+      let markdown = '---\ntitle: Measured reading\ntype: inbox\n---\n\n## First section\n\n';
+      let index = 0;
+      while (Buffer.byteLength(markdown) < kb * 1024) {
+        if (chaptered) markdown += `## Section ${index}\n\n`;
+        markdown += `Paragraph ${index} follows [[Glass Tide]] and its footnote.[^note-${index}] The reader changes the measure and light while following authored words.\n\n- First list item\n- Second list item\n\n\`\`\`go\nfunc section${index}() string { return "reading" }\n\`\`\`\n\n| Term | Meaning |\n| --- | --- |\n| Reading | <ruby>読む<rt>よむ</rt></ruby> |\n\n[^note-${index}]: Footnote ${index}.\n\n`;
+        index += 1;
+      }
+      markdown += 'Measurement end.\n';
+      const file = `${root}/Notes/${name}`;
+      await writeFile(file, markdown, { flag: 'wx' });
+      owned.push(file);
+      const address = `${BASE}/notes/Notes/${name}`;
+      let ready = false;
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const response = await browser.newContext();
+        try {
+          const document = await response.request.get(address);
+          ready = document.ok() && (await document.text()).includes('Measurement end.');
+        } finally { await response.close(); }
+        if (ready) break;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      if (!ready) throw new Error(`BROKEN measurement: fixture scan did not admit ${name}`);
+      const samples = { main: [], head: [] };
+      for (let repetition = 0; repetition < 3; repetition += 1) {
+        for (const variant of repetition % 2 ? ['head', 'main'] : ['main', 'head']) {
+          const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' });
+          try {
+            const page = await context.newPage();
+            let routed = 0;
+            if (variant === 'main') {
+              for (const asset of assets) {
+                const endpoint = asset.path.endsWith('.css') ? 'app.css' : asset.path.split('/').at(-1);
+                await page.route(`**/static/${endpoint}{,?*}`, async (route) => {
+                  const response = await route.fetch();
+                  const served = await response.text();
+                  const body = asset.path.endsWith('.css') ? served.replace(asset.head, asset.main) : asset.main;
+                  if (asset.path.endsWith('.css') && served.split(asset.head).length !== 2) throw new Error('BROKEN measurement: served stylesheet differs from source');
+                  routed += 1;
+                  await route.fulfill({ response, body });
+                });
+              }
+            }
+            const response = await page.goto(address, { waitUntil: 'domcontentloaded' });
+            if (response?.status() !== 200) throw new Error(`BROKEN measurement: ${name} HTTP ${response?.status()}`);
+            await page.waitForFunction(() => document.documentElement.dataset.js === 'on');
+            await page.evaluate(async () => {
+              await document.fonts.ready;
+              await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})));
+            });
+            const timings = await page.evaluate(async () => {
+              const press = async (selector) => {
+                const button = document.querySelector(selector);
+                if (!button) throw new Error(`missing real control ${selector}`);
+                const start = performance.now();
+                button.click();
+                await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                return performance.now() - start;
+              };
+              const dcl = performance.getEntriesByType('navigation')[0].domContentLoadedEventEnd;
+              const size = await press('[data-textsize-toggle]');
+              const theme = await press('[data-theme-toggle]');
+              if (document.documentElement.dataset.textsize !== 'l' || document.documentElement.dataset.theme !== 'dark') throw new Error('measurement controls did not change the real preferences');
+              return { dcl, size, theme, nodes: document.querySelectorAll('*').length,
+                deferred: [...document.querySelectorAll('.y-prose > *')].filter((block) => getComputedStyle(block).contentVisibility === 'auto').length };
+            });
+            if (variant === 'main' && routed !== assets.length) throw new Error(`BROKEN measurement: ${routed} baseline assets, want ${assets.length}`);
+            samples[variant].push(timings);
+          } finally { await context.close(); }
+        }
+      }
+      const medians = Object.fromEntries(Object.entries(samples).map(([variant, values]) => [variant,
+        Object.fromEntries(['dcl', 'size', 'theme', 'nodes', 'deferred'].map((key) => [key, values.map((value) => value[key]).sort((a, b) => a - b)[1]]))]));
+      console.log(`MEASURE prose-visibility ${name} bytes=${Buffer.byteLength(markdown)} ${JSON.stringify(medians)}`);
+    }
+  } finally { await Promise.all(owned.map((file) => unlink(file))); }
+}
+
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
+  if (!MUTATE) await measureChapters(browser);
   for (const width of [1280, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 800 } });
     const page = await context.newPage();
@@ -123,6 +233,17 @@ try {
     if (MUTATE && (served !== 1 || matches !== 1)) {
       throw new NotApplied(`NOT-APPLIED prose-visibility: ${MUTATE} served ${served} stylesheets, matched ${matches} sites; want one each`);
     }
+    // Read the unignored AX text before asking for tail geometry or scrolling.
+    console.log(`INVOKED prose-visibility accessibility-tail ${width}px initial document`);
+    const session = await context.newCDPSession(page);
+    try {
+      const { nodes } = await session.send('Accessibility.getFullAXTree');
+      assert('accessibility-tail', nodes.some((node) => !node.ignored
+        && node.name?.value.includes('Reading paragraph 140.')),
+      `${width}px the unread tail is absent from the initial accessibility tree`);
+    } finally { await session.detach(); }
+    const topBeforeTab = await page.evaluate(() => window.scrollY);
+    if (topBeforeTab !== 0) throw new Error('BROKEN prose-visibility: AX tail was inspected after scrolling');
     const workload = await page.evaluate(() => ({ height: innerHeight, document: document.documentElement.scrollHeight }));
     const blocks = await declarations(page);
     if (MUTATE === 'omit-paragraph-blocks' && !blocks.some((block) => block.tag === 'P')) {
@@ -131,7 +252,7 @@ try {
     if (blocks.length === 0 || workload.document <= workload.height * 2) {
       throw new Error(`BROKEN prose-visibility: ${PAGE} is not a nonempty multi-viewport reading`);
     }
-    assert('screen', blocks.some((block) => !block.addressed) && blocks.filter((block) => !block.addressed).every((block) => block.visibility === 'auto'),
+    assert('screen', blocks.some((block) => !block.addressed && !block.controls) && blocks.filter((block) => !block.addressed && !block.controls).every((block) => block.visibility === 'auto'),
       `${width}px screen blocks do not follow addressed-block and eligible-tail declarations: ${JSON.stringify(blocks.filter((block) => block.visibility !== 'auto'))}`);
     assert('addresses', blocks.some((block) => block.addressed) && blocks.filter((block) => block.addressed).every((block) => block.visibility === 'visible'),
       `${width}px an addressed authored block defers its geometry`);
@@ -144,6 +265,23 @@ try {
     // Paint containment must reserve that edge even when a link starts a block.
     assert('focus', blocks.every((block) => Number.parseFloat(block.clip) >= 4),
       `${width}px prose blocks clip the keyboard focus edge: ${JSON.stringify(blocks.filter((block) => Number.parseFloat(block.clip) < 4))}`);
+    // Focus the column entrance, then let native Tab choose the tail scroller.
+    await page.locator('.y-prose').evaluate((prose) => {
+      prose.setAttribute('tabindex', '-1');
+      prose.focus({ preventScroll: true });
+    });
+    for (let step = 0; step < 3; step += 1) {
+      await page.keyboard.press('Tab');
+      if (await page.evaluate(() => document.activeElement === document.querySelector('.y-prose > pre:last-child'))) break;
+    }
+    const keyboardTail = await page.evaluate(() => {
+      const tail = document.querySelector('.y-prose > pre:last-child');
+      return tail && { focused: document.activeElement === tail,
+        overflowing: tail.scrollWidth > tail.clientWidth,
+        inView: tail.getBoundingClientRect().top < innerHeight && tail.getBoundingClientRect().bottom > 0 };
+    });
+    assert('accessibility-tail', keyboardTail?.focused && keyboardTail.overflowing && keyboardTail.inView,
+      `${width}px native Tab cannot reach the overflowing tail: ${JSON.stringify(keyboardTail)}`);
     await page.emulateMedia({ media: 'print' });
     const printed = await declarations(page);
     assert('print', printed.length === blocks.length && printed.every((block) => block.visibility === 'visible'),
@@ -330,7 +468,7 @@ try {
     assert('preview-scroll', focusDismissed, `${sheetWidth}px a newer scroll did not dismiss the focused preview`);
     await context.close();
   }
-  console.log('PASS prose-visibility: chapter blocks defer with remembered sizes and focus edges; paper, speech controls, named concept destinations and newer preview questions remain available');
+  console.log('PASS prose-visibility: eligible blocks defer with remembered sizes and focus edges; initial tail AX text and native keyboard scrolling remain available; paper, speech controls, named concept destinations and newer preview questions remain available');
 } catch (error) {
   console.error(error.message);
   if (error instanceof NotApplied) {

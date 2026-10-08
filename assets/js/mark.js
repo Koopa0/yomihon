@@ -150,6 +150,15 @@ function land() {
   const apply = () => {
     window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
   };
+  apply();
+  const blocks = readingColumn()?.querySelector('.y-prose')?.children ?? [];
+  const boundary = () => (anchor ? documentTop(anchor) : 0) + offset;
+  let deferredPrefix = false;
+  for (const block of blocks) {
+    if (getComputedStyle(block).contentVisibility === 'auto') deferredPrefix = true;
+    if (block.getBoundingClientRect().bottom + window.scrollY >= boundary()) break;
+  }
+  if (!deferredPrefix) return;
   const controller = new AbortController();
   let releaseLayout = () => {};
   const cancel = () => {
@@ -170,8 +179,6 @@ function land() {
         .filter((animation) => animation.animationName === 'y-come-forward')
         .map((animation) => animation.finished.catch(() => {})));
       if (controller.signal.aborted || current !== generation) return;
-      const blocks = readingColumn()?.querySelector('.y-prose')?.children ?? [];
-      const boundary = () => (anchor ? documentTop(anchor) : 0) + offset;
       releaseLayout();
       const release = layOutProse(blocks, boundary);
       releaseLayout = release;

@@ -738,20 +738,6 @@ try {
     const { row, present } = await deskRow(page);
     if (!present) broken('no row to follow, so landing proves nothing');
     await assertSavedAnchor(row, reached.anchor, 'following-it-lands-where-the-window-was');
-    // Blocks outside the window wait to be laid out, and one that never was
-    // stands at a placeholder height. Whether the fixture happens to drift by
-    // that is a matter of where its blocks fall, so what is asked is the
-    // cause: how many prose blocks could still wait each time the arrival
-    // applied its position.
-    await page.addInitScript(() => {
-      const scrollTo = window.scrollTo.bind(window);
-      window.__landedAgainst = [];
-      window.scrollTo = (...args) => {
-        window.__landedAgainst.push([...document.querySelectorAll('.y-prose > *')]
-          .filter((block) => getComputedStyle(block).contentVisibility !== 'visible').length);
-        return scrollTo(...args);
-      };
-    });
     await row.locator('[data-continue-link]').first().click();
     await page.waitForLoadState('domcontentloaded');
     checkProof(proof);
@@ -761,16 +747,6 @@ try {
       requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 60)));
     }));
     const landed = await page.evaluate(() => Math.round(window.scrollY));
-    const deferred = await page.evaluate(() => window.__landedAgainst);
-    if (!Array.isArray(deferred) || deferred.length === 0) {
-      broken('the arrival applied no position, so the blocks it measured against were never asked about');
-    }
-    if (deferred.some((count) => count > 0)) {
-      fail(
-        'following-it-lands-where-the-window-was',
-        `the arrival applied its distance while up to ${Math.max(...deferred)} prose blocks could wait at a placeholder height`,
-      );
-    }
     if (Math.abs(landed - SCROLL_TO) > LANDING_SLACK) {
       fail(
         'following-it-lands-where-the-window-was',

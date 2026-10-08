@@ -1,0 +1,97 @@
+{
+  "commit": "57c938db56deba47d73967cd4c85ff9b15cef539",
+  "assets": [
+    {
+      "path": "assets/css/components.css",
+      "headHash": "f51f1b9ab4700a05b9860ebad5f230a1373ff7219af5468bedd8d46f776e9ae1",
+      "mainHash": "9c7a4e32ff7b969437d4a8f20320d00b6160db5e166698c887aeb8a4c4841217",
+      "edits": [
+        {
+          "head": "  font-family: var(--font-read);\n  font-size: var(--fs-ed-17);\n  line-height: var(--lh-cjk);\n}\n\n/* A long chapter keeps its words available to native find and fragment\n   arrivals while the browser defers work on blocks outside the viewport.\n   Until a block has been read, reserve a short paragraph's height; afterwards\n   use its remembered height without reserving space across the line. */\n.y-prose > * {\n  contain-intrinsic-block-size: auto 6em;\n  content-visibility: auto;\n  /* A keyboard focus ring reaches four pixels beyond the block's edge. */\n  overflow-clip-margin: 4px;\n}\n\n/* An outline measures all of its sections against authored heights. Keeping\n   the whole column laid out prevents earlier placeholders moving a heading.\n   Authored controls and nested headings need their actual accessible tree\n   and coordinates even before a reader scrolls to them. */\n.y-prose:has(> [data-level] ~ [data-level]) > *,\n.y-prose:has(> :not([data-level]) [data-level]) > *,\n.y-prose > :is(input, select, textarea, button, summary, a[href], audio[controls], video[controls]),\n.y-prose > :has(input, select, textarea, button, summary, a[href], audio[controls], video[controls], [contenteditable='true'], [tabindex]),\n.y-prose > .y-reading,\n.y-prose > [id],\n.y-prose > :has([id]),\n.y-prose > [contenteditable='true'],\n.y-prose > [tabindex] {\n  content-visibility: visible;\n}\n\n/* A kept place measures its prefix against authored heights, then releases\n   those blocks back to the browser's normal offscreen work deferral. */\n.y-prose > [data-prose-measuring] {\n  content-visibility: visible;\n}\n\n/* Latin set on a 30px line, where the article says it is not Han, kana or\n",
+          "main": "  font-family: var(--font-read);\n  font-size: var(--fs-ed-17);\n  line-height: var(--lh-cjk);\n}\n\n/* Latin set on a 30px line, where the article says it is not Han, kana or\n"
+        },
+        {
+          "head": "   ============================================================ */\n.y-prose .y-reading {\n  margin: var(--sp-block) 0 0;\n  /* The voice control stands thirty pixels into the gutter, with a four-pixel\n     focus ring outside it. Block containment must keep both available. */\n  overflow-clip-margin: 34px;\n  position: relative;\n}\n\n",
+          "main": "   ============================================================ */\n.y-prose .y-reading {\n  margin: var(--sp-block) 0 0;\n  position: relative;\n}\n\n"
+        },
+        {
+          "head": ".y-conceptsheet__body {\n  overflow-y: auto;\n  padding: 18px 20px;\n}\n/* The sheet places a named section using the blocks' heights when it opens.\n   An offscreen estimate that changes afterward would move that destination. */\n.y-conceptsheet__body > * {\n  content-visibility: visible;\n}\n@media (max-width: 720px) {\n  .y-conceptsheet {\n",
+          "main": ".y-conceptsheet__body {\n  overflow-y: auto;\n  padding: 18px 20px;\n}\n@media (max-width: 720px) {\n  .y-conceptsheet {\n"
+        },
+        {
+          "head": "  .y-prose details::details-content {\n    content-visibility: visible;\n  }\n  /* Paper has no viewport to bring deferred blocks into, so every block of\n     the reading is laid out before the page is divided into sheets. */\n  .y-prose > * {\n    content-visibility: visible;\n  }\n  /* What each finding means goes on the sheet with the findings. A printed\n     table of faults whose words nobody can look up is a list of complaints,\n     and the person holding the paper cannot click the fold open. The arrows\n",
+          "main": "  .y-prose details::details-content {\n    content-visibility: visible;\n  }\n  /* What each finding means goes on the sheet with the findings. A printed\n     table of faults whose words nobody can look up is a list of complaints,\n     and the person holding the paper cannot click the fold open. The arrows\n"
+        },
+        {
+          "head": "  }\n}\n\n/* An imported excerpt is already bounded by its scrollable card. Its whole\n   passage stays laid out on both a fresh response and a cached response. */\n.y-preview__body,\n.y-preview .y-prose > * {\n  content-visibility: visible;\n}\n/* The excerpt opens flush: the space a first heading or paragraph normally\n   keeps above it belongs to a page, and the card is not one. */\n",
+          "main": "  }\n}\n\n.y-preview__body {\n  contain-intrinsic-block-size: auto 20rem;\n  content-visibility: auto;\n}\n/* The excerpt opens flush: the space a first heading or paragraph normally\n   keeps above it belongs to a page, and the card is not one. */\n"
+        }
+      ]
+    },
+    {
+      "path": "assets/js/mark.js",
+      "headHash": "efdf2662ad84a55dc3b6fd0d0a2796cd974589f83544533b6cb2c5ab6144d6e1",
+      "mainHash": "4fe20b32c450466aa0210e75d630811649a887b9b3e75ff138ebf92c089a896e",
+      "edits": [
+        {
+          "head": "  say(control, kept ? control.dataset.markSaved : control.dataset.markFailed, kept);\n}\n\n// A kept offset was measured against real prose. Lay out just its prefix\n// again before using it on a fresh document, leaving the rest deferred.\nfunction layOutProse(blocks, boundary) {\n  const measured = [];\n  for (const block of blocks) {\n    block.dataset.proseMeasuring = '';\n    measured.push(block);\n    if (block.getBoundingClientRect().bottom + window.scrollY >= boundary()) break;\n  }\n  return () => {\n    for (const block of measured) delete block.dataset.proseMeasuring;\n  };\n}\n\nfunction afterLayout() {\n  return new Promise((resolve) => {\n    requestAnimationFrame(() => requestAnimationFrame(resolve));\n  });\n}\n\n// land finishes an arrival the address asked for. The browser has already gone\n// to the fragment; what is left is the distance below it, measured from the\n// same anchor the mark was taken against.\n",
+          "main": "  say(control, kept ? control.dataset.markSaved : control.dataset.markFailed, kept);\n}\n\n// land finishes an arrival the address asked for. The browser has already gone\n// to the fragment; what is left is the distance below it, measured from the\n// same anchor the mark was taken against.\n"
+        },
+        {
+          "head": "    window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);\n  };\n  apply();\n  const blocks = readingColumn()?.querySelector('.y-prose')?.children ?? [];\n  const boundary = () => (anchor ? documentTop(anchor) : 0) + offset;\n  let deferredPrefix = false;\n  for (const block of blocks) {\n    if (getComputedStyle(block).contentVisibility === 'auto') deferredPrefix = true;\n    if (block.getBoundingClientRect().bottom + window.scrollY >= boundary()) break;\n  }\n  if (!deferredPrefix) return;\n  const controller = new AbortController();\n  let releaseLayout = () => {};\n  const cancel = () => {\n    controller.abort();\n    releaseLayout();\n  };\n  // A later reader gesture owns the window; an arrival still waiting for a\n  // font or layout must not put the reader back over that choice.\n  for (const kind of ['wheel', 'touchstart', 'pointerdown', 'keydown', 'pagehide']) {\n    window.addEventListener(kind, cancel, { once: true, passive: true, signal: controller.signal });\n  }\n  let generation = 0;\n  const restore = async () => {\n    const current = ++generation;\n    try {\n      await document.fonts.ready;\n      await Promise.all(document.getAnimations()\n        .filter((animation) => animation.animationName === 'y-come-forward')\n        .map((animation) => animation.finished.catch(() => {})));\n      if (controller.signal.aborted || current !== generation) return;\n      releaseLayout();\n      const release = layOutProse(blocks, boundary);\n      releaseLayout = release;\n      await afterLayout();\n      if (controller.signal.aborted || current !== generation) return;\n      apply();\n      await afterLayout();\n    } catch {\n      // A failed layout wait leaves the native fragment arrival in charge.\n    } finally {\n      if (current === generation) cancel();\n    }\n  };\n  restore();\n  window.addEventListener('pagereveal', restore, { once: true, signal: controller.signal });\n}\n\nexport function initMark() {\n",
+          "main": "    window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);\n  };\n  apply();\n  // The column's own measurements settle a frame or two after this file first\n  // runs \u2014 a web font arrives, a diagram takes its height \u2014 and a position\n  // applied before that lands against a page that has since moved.\n  requestAnimationFrame(() => {\n    requestAnimationFrame(apply);\n  });\n  window.addEventListener(\n    'pagereveal',\n    () => {\n      apply();\n    },\n    { once: true },\n  );\n}\n\nexport function initMark() {\n"
+        }
+      ]
+    },
+    {
+      "path": "assets/js/preferences.js",
+      "headHash": "40940436e4c95e6b53e74432954f417ae1cc55ad4f63897e3e903018a80af845",
+      "mainHash": "e4a34aae0067a1bd536e315e4341e008e3010c4c8a25ad9427e403d01f7593a7",
+      "edits": [
+        {
+          "head": "  function keepFocusOutOfFoldedRail(value) {\n    const column = document.querySelector('#_y-nav-rail');\n    if (value === 'collapsed' && column?.contains(document.activeElement) && document.activeElement !== railToggle) {\n      railToggle?.focus({ preventScroll: true });\n    }\n  }\n\n  // A fold changes the measure above the paragraph the reader sees. Capture\n  // it before revealing any deferred prefix, then keep that same paragraph at\n  // its viewport coordinate until the new measure settles. A later gesture\n  // owns the window and releases this temporary measurement immediately.\n  let releaseRailPosition = () => {};\n  function holdReadingPosition() {\n    releaseRailPosition();\n    let paragraph = null;\n    for (const prose of document.querySelectorAll('.y-prose')) {\n      for (const block of prose.children) {\n        const rect = block.getBoundingClientRect();\n        if (rect.bottom <= 0 || rect.top >= innerHeight) continue;\n        const candidates = block.matches('p') ? [block] : block.querySelectorAll('p');\n        paragraph = [...candidates].find((item) => {\n          const box = item.getBoundingClientRect();\n          return box.bottom > 0 && box.top < innerHeight;\n        });\n        if (paragraph) break;\n      }\n      if (paragraph) break;\n    }\n    if (!paragraph) return;\n    const top = paragraph.getBoundingClientRect().top;\n    const prose = paragraph.closest('.y-prose');\n    const measured = [];\n    for (const block of prose.children) {\n      block.dataset.proseMeasuring = '';\n      measured.push(block);\n      if (block === paragraph || block.contains(paragraph)) break;\n    }\n    const controller = new AbortController();\n    let frame = 0;\n    let timer = 0;\n    const align = () => window.scrollBy(0, paragraph.getBoundingClientRect().top - top);\n    const release = () => {\n      controller.abort();\n      cancelAnimationFrame(frame);\n      clearTimeout(timer);\n      for (const block of measured) delete block.dataset.proseMeasuring;\n    };\n    releaseRailPosition = release;\n    for (const kind of ['wheel', 'touchstart', 'pointerdown', 'keydown', 'pagehide']) {\n      window.addEventListener(kind, release, { once: true, passive: true, signal: controller.signal });\n    }\n    align();\n    const follow = () => {\n      if (controller.signal.aborted) return;\n      align();\n      frame = requestAnimationFrame(follow);\n    };\n    frame = requestAnimationFrame(follow);\n    let finishing = false;\n    const finish = async () => {\n      if (finishing || controller.signal.aborted) return;\n      finishing = true;\n      await document.fonts.ready;\n      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));\n      if (controller.signal.aborted) return;\n      align();\n      release();\n    };\n    root.addEventListener('transitionend', (event) => {\n      if (event.propertyName === 'grid-template-columns') finish();\n    }, { signal: controller.signal });\n    timer = setTimeout(finish, 450);\n  }\n\n  // The left column's state reaches the root, the cookie, and the button that\n  // reports it through this one door, as the switches above do.\n  function writeRail(value, stored = true) {\n    if (value !== root.dataset.rail) holdReadingPosition();\n    keepFocusOutOfFoldedRail(value);\n    if (stored) setPreference('rail', value);\n    else root.dataset.rail = value;\n    syncRailControl();\n  }\n\n",
+          "main": "  function keepFocusOutOfFoldedRail(value) {\n    const column = document.querySelector('#_y-nav-rail');\n    if (value === 'collapsed' && column?.contains(document.activeElement) && document.activeElement !== railToggle) {\n      railToggle?.focus();\n    }\n  }\n\n  // The left column's state reaches the root, the cookie, and the button that\n  // reports it through this one door, as the switches above do.\n  function writeRail(value) {\n    keepFocusOutOfFoldedRail(value);\n    setPreference('rail', value);\n    syncRailControl();\n  }\n\n"
+        },
+        {
+          "head": "    // made to take effect before it is lifted.\n    const rail = readCookie('yomihon_rail') === 'collapsed' ? 'collapsed' : 'open';\n    root.dataset.railSettling = '';\n    writeRail(rail, false);\n    void root.offsetWidth;\n    delete root.dataset.railSettling;\n    // On the page where these choices are set, the radios say which one is in\n",
+          "main": "    // made to take effect before it is lifted.\n    const rail = readCookie('yomihon_rail') === 'collapsed' ? 'collapsed' : 'open';\n    root.dataset.railSettling = '';\n    keepFocusOutOfFoldedRail(rail);\n    root.dataset.rail = rail;\n    syncRailControl();\n    void root.offsetWidth;\n    delete root.dataset.railSettling;\n    // On the page where these choices are set, the radios say which one is in\n"
+        }
+      ]
+    },
+    {
+      "path": "assets/js/preview.js",
+      "headHash": "6ad3a56376ed1b0ae5aa2d83664cc9ac559a8064d2864de94fa79197c235d6ef",
+      "mainHash": "460ad3734822b72efee4156ed45a70c9267a5caf68576ef48d19b93b0eaca077",
+      "edits": [
+        {
+          "head": "  const travelGrace = 120;\n\n  let timer = null;\n  let askedAt = 0;\n  let controller = null;\n  let anchored = null;\n  let exiting = null;\n",
+          "main": "  const travelGrace = 120;\n\n  let timer = null;\n  let controller = null;\n  let anchored = null;\n  let exiting = null;\n"
+        },
+        {
+          "head": "  }\n\n  function close() {\n    askedAt = 0;\n    clearTimeout(timer);\n    timer = null;\n    controller?.abort();\n",
+          "main": "  }\n\n  function close() {\n    clearTimeout(timer);\n    timer = null;\n    controller?.abort();\n"
+        },
+        {
+          "head": "  // A hover is a question only once it has been held; a pointer crossing three\n  // links on its way somewhere asked nothing. Tabbing through six of them is\n  // the same crossing made with a keyboard, so it waits the same.\n  function schedule(link, delay, timeStamp) {\n    if (link === anchored) return;\n    // The note the reader is already on has nothing to preview, and a pointer\n    // resting mid-selection is dragging over words rather than asking about a\n",
+          "main": "  // A hover is a question only once it has been held; a pointer crossing three\n  // links on its way somewhere asked nothing. Tabbing through six of them is\n  // the same crossing made with a keyboard, so it waits the same.\n  function schedule(link, delay) {\n    if (link === anchored) return;\n    // The note the reader is already on has nothing to preview, and a pointer\n    // resting mid-selection is dragging over words rather than asking about a\n"
+        },
+        {
+          "head": "    if (link.pathname === location.pathname) return;\n    if (!getSelection()?.isCollapsed) return;\n    clearTimeout(timer);\n    askedAt = timeStamp;\n    timer = setTimeout(() => {\n      timer = null;\n      open(link);\n",
+          "main": "    if (link.pathname === location.pathname) return;\n    if (!getSelection()?.isCollapsed) return;\n    clearTimeout(timer);\n    timer = setTimeout(() => {\n      timer = null;\n      open(link);\n"
+        },
+        {
+          "head": "  // The grace is what makes the card reachable: the pointer has to be able to\n  // leave the link, cross the gap, and land in the card to scroll it.\n  function release() {\n    askedAt = 0;\n    clearTimeout(timer);\n    timer = setTimeout(close, travelGrace);\n  }\n",
+          "main": "  // The grace is what makes the card reachable: the pointer has to be able to\n  // leave the link, cross the gap, and land in the card to scroll it.\n  function release() {\n    clearTimeout(timer);\n    timer = setTimeout(close, travelGrace);\n  }\n"
+        },
+        {
+          "head": "  links.push(...sources);\n\n  for (const link of links) {\n    link.addEventListener('pointerenter', (event) => schedule(link, openDelay, event.timeStamp));\n    link.addEventListener('pointerleave', release);\n    link.addEventListener('focus', (event) => schedule(link, openDelay, event.timeStamp));\n    link.addEventListener('blur', close);\n  }\n\n",
+          "main": "  links.push(...sources);\n\n  for (const link of links) {\n    link.addEventListener('pointerenter', () => schedule(link, openDelay));\n    link.addEventListener('pointerleave', release);\n    link.addEventListener('focus', () => schedule(link, openDelay));\n    link.addEventListener('blur', close);\n  }\n\n"
+        },
+        {
+          "head": "  document.addEventListener(\n    'scroll',\n    (event) => {\n      // Layout can queue a scroll before a hover that reaches us first. That\n      // earlier movement must not cancel the reader's newer question.\n      if (!card.contains(event.target) && event.timeStamp >= askedAt) close();\n    },\n    { capture: true, passive: true },\n  );\n",
+          "main": "  document.addEventListener(\n    'scroll',\n    (event) => {\n      if (!card.contains(event.target)) close();\n    },\n    { capture: true, passive: true },\n  );\n"
+        }
+      ]
+    }
+  ]
+}
