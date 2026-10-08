@@ -757,6 +757,8 @@ func TestAgreementWitnessControls(t *testing.T) {
 		body  string
 		known int
 	}{
+		{name: "frozen bare backslash", body: "[[Trail\\]]\n", known: 2},
+		{name: "frozen list fence", body: "- a list item\n\n    ```\n    [[Nested]]\n    ```\n\n[[Outside List]]\n", known: 2},
 		{name: "unused-footnote-2-0332", body: "[^unused]: [[A]]\n", known: 2},
 		{name: "fence-info-2-0984", body: "``` [[A]]\n", known: 1},
 		{name: "multiline-code-1-1357", body: "`open\n[[A]]\nclose`", known: 2},
@@ -776,7 +778,7 @@ func TestAgreementWitnessControls(t *testing.T) {
 					continue
 				}
 				known++
-				if kind != "debt" || (authority != "#1011 stage 4" && authority != "#1011 stage 5" && authority != "#1011 stage 8") || wrong == "" {
+				if kind != "debt" || (authority != "#1011 stage 3" && authority != "#1011 stage 4" && authority != "#1011 stage 5" && authority != "#1011 stage 8") || wrong == "" {
 					t.Errorf("caught: debt-witness-provenance kind=%q authority=%q wrong=%q", kind, authority, wrong)
 				}
 				changed := *failure

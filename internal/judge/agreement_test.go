@@ -225,6 +225,10 @@ func agreementKnownDifference(c agreementCase, failure *agreementFailure) (kind,
 		stage     int
 	}
 	witnesses := []witness{
+		{body: "[[Trail\\]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "Trail"}, direction: "judge-only", wrong: "page", stage: 3},
+		{body: "[[Trail\\]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "Trail\\"}, direction: "page-only", wrong: "page", stage: 3},
+		{body: "- a list item\n\n    ```\n    [[Nested]]\n    ```\n\n[[Outside List]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "Nested"}, direction: "page-only", wrong: "page", stage: 5},
+		{body: "- a list item\n\n    ```\n    [[Nested]]\n    ```\n\n[[Outside List]]\n", property: "P2", identity: "wikilink-in-code", tuple: agreementCitation{Target: "Nested", State: "wikilink-broken"}, direction: "page-in-code", wrong: "page", stage: 5},
 		{body: "[^unused]: [[A]]\n", property: "P0", identity: "diagnostic-html", tuple: agreementCitation{Target: "A", State: "wikilink-broken"}, direction: "diagnostic-only", wrong: "page-diagnostic", stage: 4},
 		{body: "[^unused]: [[A]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "A"}, direction: "judge-only", wrong: "judge", stage: 4},
 		{body: "``` [[A]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "A"}, direction: "judge-only", wrong: "judge", stage: 4},
