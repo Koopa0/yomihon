@@ -63,6 +63,7 @@ probes=(
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
   "print-librarian-chrome.mjs|/notes/Notes/reading-fidelity.md"
   "print-fold-open.mjs|/notes/Notes/reading-fidelity.md"
+  "callout-fold-chevron.mjs|/notes/Notes/reading-fidelity.md"
   "heading-fragment.mjs|/notes/Notes/reading-fidelity.md"
   "preview-card.mjs|/notes/Notes/reading-fidelity.md"
   "preview-live.mjs|/notes/Notes/alpha.md"
