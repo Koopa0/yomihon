@@ -1,5 +1,6 @@
 // The copied value is authored here independently of the DOM. A real browser
 // clipboard round trip protects whitespace that a visual comparison cannot.
+import { arrived as waitForArrival } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9934';
@@ -103,8 +104,8 @@ async function arrived(page, path) {
   qualify();
   await page.evaluate(async () => {
     await document.fonts.ready;
-    await Promise.all(document.getAnimations().filter(a => a.animationName === 'y-come-forward').map(a => a.finished));
   });
+  await waitForArrival(page);
 }
 async function controls(page, expected, site = 'reading-controls') {
   console.log(`invoked: ${site} expected=${expected.length}`);

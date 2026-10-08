@@ -7,7 +7,6 @@ package render
 
 import (
 	"bytes"
-	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -23,11 +22,11 @@ import (
 )
 
 // plainParser is a minimal goldmark parser used only to walk a note body for
-// PlainText. Table and TaskList are on so cell and task text arrive as clean text
-// nodes; linkify is off, so a bare URL stays a plain text node indexed verbatim.
+// PlainText. Table and TaskList expose cell and task text. Linkify shares the page
+// parser's bare-link grammar while retaining the authored display label.
 // Footnotes are on because a definition whose text has no spaces — every CJK one —
 // otherwise parses as a link reference definition and no search could find it.
-var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote, taskListExtension{})).Parser()
+var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote, extension.Linkify, taskListExtension{})).Parser()
 
 // PlainText returns the searchable plain text of a note body: prose, headings,
 // table cells, task text, code-fence contents and the base and reading of
@@ -54,8 +53,8 @@ type Block struct {
 	End int
 
 	// Verbatim reports that this block's characters reach the reading page in
-	// this order, with nothing between them that the page shows and this text
-	// does not carry. False is also the answer wherever the walk cannot tell,
+	// this order, apart from separately recorded link Insertions. False is
+	// also the answer wherever the walk cannot tell,
 	// so a caller may act on a true and never on a false.
 	Verbatim bool
 
@@ -70,14 +69,6 @@ type Block struct {
 	// the heading alone cannot tell the list's copy from the body's. Such a
 	// block offers no ContextRanges for the same reason.
 	Heading bool
-
-	// Literal reports that the block's source holds none of the constructs
-	// whose page text is not their source text: an entity reference, a
-	// backslash escape, a link, an autolink or a bare address the page links,
-	// inline HTML, or a footnote reference. Words read from such a block may
-	// be named beside a match in another block, which Verbatim alone does not
-	// vouch for. False wherever the walk cannot tell.
-	Literal bool
 }
 
 // PlainBlocks returns the searchable text of a note body, one Block per
@@ -100,14 +91,14 @@ type Block struct {
 // fence as the excerpt is a decision for the match, not this walk.
 func PlainBlocks(body string) (plain string, blocks []Block, fenceRanges [][2]int) {
 	source, rewritten := plainPreprocess(body)
-	return plainSourceBlocks(body, source, &rewritten, nil)
+	return plainSourceBlocks(body, source, &rewritten, nil, nil)
 }
 
-func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions *[]sourceEmission) (plain string, blocks []Block, fenceRanges [][2]int) {
+func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions *[]sourceEmission, insertions *[]int) (plain string, blocks []Block, fenceRanges [][2]int) {
 	src := []byte(source)
 	doc := plainParser.Parse(text.NewReader(src))
 
-	w := plainWalk{blockVerbatim: true, blockContext: true, blockLiteral: true, rewritten: rewritten, emissions: emissions}
+	w := plainWalk{blockVerbatim: true, blockContext: true, rewritten: rewritten, emissions: emissions, insertions: insertions}
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
@@ -128,7 +119,20 @@ func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions
 		lead := len(raw) - len(strings.TrimLeftFunc(raw, unicode.IsSpace))
 		for i := range *emissions {
 			(*emissions)[i].out -= lead
+			(*emissions)[i].outEnd -= lead
 		}
+	}
+	if insertions != nil {
+		raw := w.b.String()
+		lead := len(raw) - len(strings.TrimLeftFunc(raw, unicode.IsSpace))
+		length := len(strings.TrimSpace(raw))
+		kept := (*insertions)[:0]
+		for _, at := range *insertions {
+			if at >= lead && at-lead <= length {
+				kept = append(kept, at-lead)
+			}
+		}
+		*insertions = kept
 	}
 	return w.result()
 }
@@ -180,7 +184,6 @@ type plainWalk struct {
 	// and the page does not.
 	blockVerbatim bool
 	blockContext  bool
-	blockLiteral  bool
 	headingLevel  int
 	rewritten     *rewrittenLines
 	// readings holds <rt>/<rtc> text until the block's base text has been
@@ -189,10 +192,12 @@ type plainWalk struct {
 	// its children the walk is inside; together they decide where the next
 	// text node goes, and an inner ruby's end restores the state of the one
 	// around it. <rp> is only a parenthesis fallback and is dropped.
-	readings         strings.Builder
-	emissions        *[]sourceEmission
-	readingEmissions []sourceEmission
-	ruby             []rubyChild
+	readings          strings.Builder
+	emissions         *[]sourceEmission
+	insertions        *[]int
+	readingInsertions []int
+	readingEmissions  []sourceEmission
+	ruby              []rubyChild
 }
 
 // rubyChild names which child of an open <ruby> the walk is inside: its base
@@ -257,10 +262,9 @@ func shiftBlocks(blocks []Block, lead, length int) []Block {
 		}
 		if n := len(out); n > 0 && out[n-1].End >= adj {
 			out[n-1].Verbatim = out[n-1].Verbatim && b.Verbatim
-			out[n-1].Literal = out[n-1].Literal && b.Literal
 			continue
 		}
-		out = append(out, Block{End: adj, Verbatim: b.Verbatim, ContextRanges: shiftRanges(b.ContextRanges, lead, length), Heading: b.Heading, Literal: b.Literal})
+		out = append(out, Block{End: adj, Verbatim: b.Verbatim, ContextRanges: shiftRanges(b.ContextRanges, lead, length), Heading: b.Heading})
 	}
 	return out
 }
@@ -313,7 +317,6 @@ func (w *plainWalk) closeBlock() {
 	w.blocks = append(w.blocks, w.completedBlock(s, start, end))
 	w.blockVerbatim = true
 	w.blockContext = true
-	w.blockLiteral = true
 	w.headingLevel = 0
 }
 
@@ -325,32 +328,13 @@ func (w *plainWalk) completedBlock(s string, start, end int) Block {
 	if !verbatim && w.blockContext && w.readings.Len() == 0 {
 		contexts = localContextRanges(s, start, end, w.headingLevel)
 	}
-	literal := w.blockLiteral && w.readings.Len() == 0 && !sourceUnlikeItsPage(s[start:end])
-	heading := w.headingLevel > 0 && literal && len(contexts) == 1 && contexts[0] == [2]int{start, end}
+	heading := w.headingLevel > 0 && len(contexts) == 1 && contexts[0] == [2]int{start, end}
 	if w.headingLevel > 0 {
 		// A heading's own words are what its contents-list copy repeats, so
 		// they vouch for nothing beside a match in it.
 		contexts = nil
 	}
-	return Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading, Literal: literal}
-}
-
-// entityReference matches what CommonMark may read as an entity or numeric
-// character reference. It accepts names that are not entities as well, which
-// only ever withholds a Literal verdict.
-var entityReference = regexp.MustCompile(`&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{0,31});`)
-
-// sourceUnlikeItsPage reports that a block's text may hold characters the
-// page shows differently: an entity reference the page decodes, a backslash
-// the page drops from an escape, or an address the page's linkify turns into
-// a link with words of its own. This walk's parser links nothing bare, so
-// the address is looked for in the text; anything resembling one counts.
-func sourceUnlikeItsPage(s string) bool {
-	if strings.ContainsRune(s, '\\') || strings.ContainsRune(s, '@') || entityReference.MatchString(s) {
-		return true
-	}
-	lower := strings.ToLower(s)
-	return strings.Contains(lower, "://") || strings.Contains(lower, "www.")
+	return Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading}
 }
 
 // localContextRanges keeps text between strike delimiters in its original
@@ -532,6 +516,11 @@ func plainWikilink(token string) string {
 // error (the ast.Walk error path in PlainBlocks is therefore unreachable).
 func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.WalkStatus, error) {
 	if !entering {
+		if _, ok := n.(*ast.Link); ok {
+			// An unresolved local link adds an out-of-sight explanation. The
+			// corpus cannot resolve files, so every link exit keeps a safe cut.
+			w.recordInsertion()
+		}
 		return ast.WalkContinue, nil
 	}
 	kind := n.Kind()
@@ -553,10 +542,6 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		}
 	}
 	switch kind {
-	case ast.KindLink, ast.KindAutoLink, ast.KindRawHTML, ast.KindHTMLBlock, east.KindFootnoteLink:
-		w.blockLiteral = false
-	}
-	switch kind {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
 		// The tags are not content. Text between them arrives as separate text
 		// nodes rather than children, so skipping here drops only the tags.
@@ -570,11 +555,7 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		// searchable (people search for code snippets). A fenced block also
 		// records the span it wrote, so a later excerpt can decline it when
 		// the same words sit in prose. An indented code block is not a fence.
-		start := w.b.Len()
-		w.writeCodeLines(n, source)
-		if kind == ast.KindFencedCodeBlock {
-			w.recordFence(start)
-		}
+		w.writeCodeBlock(n, source)
 		return ast.WalkSkipChildren, nil
 	case ast.KindText:
 		w.writeTextNode(n, source)
@@ -588,6 +569,14 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 		}
 	}
 	return ast.WalkContinue, nil
+}
+
+func (w *plainWalk) writeCodeBlock(n ast.Node, source []byte) {
+	start := w.b.Len()
+	w.writeCodeLines(n, source)
+	if n.Kind() == ast.KindFencedCodeBlock {
+		w.recordFence(start)
+	}
 }
 
 // writeSeparator closes the block just written and appends a newline unless
@@ -625,9 +614,12 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 	if w.rewritten.covers(t.Segment.Start) {
 		w.blockVerbatim = false
 		w.blockContext = false
-		w.blockLiteral = false
 	}
-	w.writeSource(t.Segment, source)
+	if t.IsRaw() || t.Parent() != nil && t.Parent().Kind() == ast.KindCodeSpan {
+		w.writeSource(t.Segment, source)
+	} else {
+		w.writeProse(t.Segment, source)
+	}
 	if t.SoftLineBreak() || t.HardLineBreak() {
 		w.writeSourceBreak(t.Segment.Stop, source)
 	}
@@ -752,9 +744,16 @@ func (w *plainWalk) flushReadings() {
 	if w.emissions != nil {
 		for _, e := range w.readingEmissions {
 			e.out += w.b.Len()
+			e.outEnd += w.b.Len()
 			*w.emissions = append(*w.emissions, e)
 		}
 		w.readingEmissions = nil
+	}
+	if w.insertions != nil {
+		for _, at := range w.readingInsertions {
+			*w.insertions = append(*w.insertions, w.b.Len()+at)
+		}
+		w.readingInsertions = nil
 	}
 	w.b.WriteString(w.readings.String())
 	w.readings.Reset()
