@@ -60,6 +60,8 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		return []SchemaPart{code(target), text(schemaLegacyTagIn), code(field), text(schemaLegacyTagEnd)}
 	case "schema.required":
 		return []SchemaPart{text(schemaRequiredStart), code(field), text(schemaRequiredEnd)}
+	case "schema.reference_nested_sequence":
+		return referenceNestedSentence(lang, field)
 	case "schema.unknown_key":
 		return []SchemaPart{code(target), text(schemaUnknownKey)}
 	case "schema.type_dependent":
@@ -78,8 +80,24 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 	return []SchemaPart{text(schemaUnknownRuleStart), code(ruleID), text(schemaUnknownRuleEnd)}
 }
 
+func referenceNestedSentence(lang Lang, field string) []SchemaPart {
+	prefix, suffix, _ := strings.Cut(schemaReferenceNestedSequence.In(lang), "{field}")
+	parts := make([]SchemaPart, 0, 7)
+	if prefix != "" {
+		parts = append(parts, SchemaPart{Text: prefix})
+	}
+	return append(parts,
+		SchemaPart{Text: field, Code: true}, SchemaPart{Text: suffix},
+		SchemaPart{Text: field + ": [\"[[Note]]\"]", Code: true},
+		SchemaPart{Text: schemaReferenceOr.In(lang)},
+		SchemaPart{Text: field + ": [\"Note\"]", Code: true},
+		SchemaPart{Text: schemaReferenceEnd.In(lang)},
+	)
+}
+
 // FrontmatterExplanation keeps ordinary parser evidence intact, while a YAML
-// runtime failure is explained through the authored forms the reader can fix.
+// runtime or invalid-map-key failure is explained through the authored forms
+// the reader can fix.
 // The captured diagnostic includes the vault reader's prefix; an identical
 // phrase inside an ordinary YAML error is still evidence and stays unchanged.
 func FrontmatterExplanation(lang Lang, diagnostic string) (summary, detail string) {
@@ -90,7 +108,8 @@ func FrontmatterExplanation(lang Lang, diagnostic string) (summary, detail strin
 }
 
 func unsupportedFrontmatter(diagnostic string) bool {
-	return strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: runtime error:")
+	return strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: runtime error:") ||
+		strings.HasPrefix(diagnostic, "frontmatter is not valid YAML: yaml: invalid map key:")
 }
 
 // The pieces the sentences above are made of. They are fragments rather than
@@ -126,6 +145,12 @@ var (
 	schemaRequiredEnd   = both("，這篇沒有。", " on a note of this kind, and this one has none.")
 
 	schemaUnknownKey = both(" 不是 schema 認得的欄位。", " is not a field the schema knows.")
+
+	schemaReferenceNestedSequence = both(
+		"{field} 裡有一項被 YAML 讀成巢狀清單，沒有讀成引用。請替連結加上引號，例如 ",
+		"An item in {field} was read as a nested YAML list, not a reference. Quote the link, for example ")
+	schemaReferenceOr  = both(" 或 ", " or ")
+	schemaReferenceEnd = both("。", ".")
 
 	schemaTypeDependent = both(
 		"不是有效的類型；類型限定欄位要等 type 有效後才能判斷。",

@@ -71,7 +71,7 @@ func separateBodyExtractions(data []byte, marks plannedMarks) note {
 	n.plannedNames = extractPlannedNamesWith(body, marks)
 	n.calloutTitles = extractCalloutTitles(body, block.BodyStartLine)
 	n.sequence = sequence.Parse(body, block.BodyStartLine)
-	n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurface(body)
+	n.sectionAnchors, n.excerptSectionAnchors, n.blockAddresses = anchorSurface(body)
 	return n
 }
 
@@ -145,7 +145,7 @@ func extractPathRefs(body string, bodyStartLine int) []pathRef {
 // way the page names it too: the role it declares at the end of its heading is
 // grammar the course parser consumes, so the id is stamped from the words
 // without it, and a citation reaches the branch by the name a reader sees.
-func anchorSurface(body string) (sections, excerptSections map[string]bool, blockLines []string) {
+func anchorSurface(body string) (sections, excerptSections map[string]bool, blockAddresses []string) {
 	facts := inspectBody(body, nil)
 	return anchorSurfaceFrom(body, facts.comments)
 }
