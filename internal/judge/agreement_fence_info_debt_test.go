@@ -15,7 +15,7 @@ import (
 // A fence's info field is part of its code declaration. Its target-like text
 // does not become a citation in the note's prose.
 func agreementFenceInfoTargets(body string) map[string]int {
-	if strings.Contains(body, "%%") || strings.Contains(body, "<") || strings.Contains(body, "[!") || strings.Contains(body, "\\") {
+	if strings.Contains(body, "%%") || strings.Contains(body, "<") || strings.Contains(body, "[!") {
 		return nil
 	}
 	source := []byte(body)
@@ -56,6 +56,8 @@ func TestAgreementFenceInfoDebt(t *testing.T) {
 		{name: "two targets", body: "``` [[A]] [[B]]\n```\n", want: map[string]int{"A": 1, "B": 1}},
 		{name: "unclosed fence", body: "``` [[A]]\n", want: map[string]int{"A": 1}},
 		{name: "independent live occurrence", body: "[[A]]\n\n``` [[A]]\n[[B]]\n```\n", want: map[string]int{"A": 1}},
+		{name: "unrelated escaped prose", body: "\\[[B]]\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
+		{name: "escaped info target", body: "``` \\[[A]]\n```\n", want: map[string]int{}},
 		{name: "ordinary prose", body: "[[A]]\n", want: map[string]int{}},
 		{name: "fence content", body: "```\n[[A]]\n```\n", want: map[string]int{}},
 		{name: "indented literal opener", body: "    ``` [[A]]\n", want: map[string]int{}},
