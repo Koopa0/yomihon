@@ -21,6 +21,9 @@ Bonjour.
 <!-- read-aloud: und -->
 Neutral words.
 
+<!-- read-aloud: und-Latn -->
+Undetermined Latin words.
+
 <!-- read-aloud: en_US -->
 Malformed marker prose stays readable.
 

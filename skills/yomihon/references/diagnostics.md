@@ -148,15 +148,16 @@ gap is declared and how a heading can declare one by accident.
 
 ## The frontmatter rules
 
-All eleven are `error`. They judge only files inside `[scan] knowledge_dirs`; a
-file outside them is still read and still linked, so silence there is not a
-verdict.
+All frontmatter rules are `error`. They judge only files inside
+`[scan] knowledge_dirs`; a file outside them is still read and still linked,
+so silence there is not a verdict.
 
 | `rule_id` | What it means | `source_rule` |
 |---|---|---|
 | `schema.required` | a key `[fields] required` names is absent. `field` says which | contract |
 | `schema.unknown_key` | a key outside `[fields] known` | contract |
 | `schema.enum` | a value outside the list declared for this note's type. Read the message's own wording: it names the list it judged against | contract |
+| `schema.type_dependent` | a present, non-empty scalar `type` is undeclared and the note carries `[fields] lesson_only` keys. Those keys are unjudged until `type` is valid; this one explanation replaces their false `schema.unknown_key` findings. The type's `schema.enum`, genuinely unknown keys, and independent checks still apply | contract |
 | `schema.status_unreachable` | this note's status is in its type's enum, but no `[[lifecycle]]` row carrying that status applies to its type, so nothing could ever have moved it there. It is a finding about the note that carries the value, not about the contract that declares it: a status no note uses is never reported | contract |
 | `schema.frontmatter` | the frontmatter is not valid YAML, or it opens on line 1 with a `key:` line and never closes (a lost closing `---`). Everything else about the note is unjudgeable until this is fixed | contract |
 | `schema.language` | `lang` is not a valid BCP 47 tag | contract |
