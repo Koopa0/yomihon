@@ -348,7 +348,7 @@ export function initLesson(enhanceCodeCopy) {
       rateButton.dataset.speechRate = String(rate);
       toolbar.append(rateButton);
     });
-    toolbar.append(speechStatus);
+    if (speechStatus) toolbar.append(speechStatus);
     // What the voice cannot be asked for, said where a reader would look for
     // the controls that are missing. Only a page that offers it carries the
     // words, so a note's reading column gains no line of chrome.
