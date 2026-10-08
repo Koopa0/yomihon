@@ -91,10 +91,11 @@ async function documentWithoutColumn(browser, width, language, theme) {
           ? original.replace(NULL_GUARD, '    toolbar.append(speechStatus);\n') : original });
       });
     }
-    const response = await page.goto(BASE + '/notes/System/templates/Speech%20document.md', { waitUntil: 'networkidle' });
-    setup(response?.status() === 200 && await page.locator('[data-tts]').count() === 1
-      && await page.locator('[data-readaloud-controls]').count() === 0,
-      'document fixture must have a speaker and no read-aloud column');
+    const response = await page.goto(BASE + '/notes/Notes/speech-document/README.md', { waitUntil: 'networkidle' });
+    const paragraphs = await page.locator('[data-tts]').count();
+    const columns = await page.locator('[data-readaloud-controls]').count();
+    setup(response?.status() === 200 && paragraphs === 1 && columns === 0,
+      `document fixture status=${response?.status()} paragraphs=${paragraphs} columns=${columns}; want 200/1/0`);
     if (MUTATE === NULL_MODE) {
       setup(requests === 1 && matches === 1, `not-applied requests=${requests} matches=${matches}`);
       applied = true;
