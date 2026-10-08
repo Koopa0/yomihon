@@ -71,6 +71,14 @@ func (agreementFootnoteDeclarations) Transform(doc *ast.Document, reader text.Re
 }
 
 func agreementUnusedFootnoteTargets(body string) map[string]int {
+	return agreementUnusedFootnoteTargetProfile(body, false)
+}
+
+func agreementUnusedFootnoteTailTargets(body string) map[string]int {
+	return agreementUnusedFootnoteTargetProfile(body, true)
+}
+
+func agreementUnusedFootnoteTargetProfile(body string, tail bool) map[string]int {
 	if !strings.Contains(body, "[^") {
 		return nil
 	}
@@ -79,7 +87,11 @@ func agreementUnusedFootnoteTargets(body string) map[string]int {
 	context.Set(agreementFootnoteTargetsKey, targets)
 	source := []byte(body)
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
+	markers := agreementPlainOpenerDeclarationMarkers(source, doc)
+	if tail {
+		markers = agreementTailHTMLCommentMarkers(source, doc)
+	}
+	if !markers || tail && len(targets) == 0 {
 		return nil
 	}
 	return targets

@@ -81,6 +81,8 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/title", Title: "A", Body: "# A\n\n## A\n## A\n"},
 		{Name: "control/literal-heading", Body: "## `[[B|alias]]`\n"},
 		{Name: "control/headings", Body: "## A\n## A\n\nB\n===\n"},
+		{Name: "control/wrapped-widget-heading", Body: "[[A\nB]]A\n=\n"},
+		{Name: "control/wrapped-widget-heading-namespace", Body: "A\n---\n[[A\nB]]A\n===\n"},
 		{Name: "control/headings-beside-opener", Body: "## A\n  > [!note] title\n## A\n## A\n"},
 		{Name: "control/heading-collision-beside-opener", Body: "## A\n> [!note] title\n## A\n## A-2\n"},
 		{Name: "control/unused-and-headings-beside-opener-run", Body: "> [!note] one\n> [!note] two\n> [!note] three\n\n[^unused]: [[A]]\n\n## A\n## A\n"},
@@ -94,8 +96,10 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/compound-reference-destination", Body: "[n]: [[A]][[B]]\n"},
 		{Name: "control/shared-reference-destination", Body: "[n]: [[A]]\n[m]: [[A]][[B]]\n"},
 		{Name: "control/unused-beside-opener", Body: "> [!note] title\n\n[^unused]: [[A]]\n"},
+		{Name: "control/unused-beside-terminal-comment", Body: "[^n]: [[A]]\n\n    [[B]]\n<!--"},
 		{Name: "control/wrapped-code-beside-opener", Body: "> [!note] title\n\n`open\n[[A]]\nclose`\n"},
 		{Name: "control/suffix-beside-opener", Body: "> [!note] title\n\n[[A\\]]\n"},
+		{Name: "control/suffix-beside-prose", Body: "É\n[[A\\]]"},
 		{Name: "control/reference-beside-opener", Body: "> [!note] title\n\n[n]: [[A]]\n"},
 		{Name: "control/comments", Body: "%%[[A]]%%\n<!-- [[B]] -->\n[[A]]\n"},
 		{Name: "control/containers", Body: "- item\n\n      [[A]] ^a\n\n> ```\n> [[B]]\n> ```\n"},
@@ -193,6 +197,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				failures[i] = append(failures[i], agreementFailure{Property: "setup", Identity: "designed-receipt", Observation: designedSetup})
 			}
 			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
+			var unusedTailTargets map[string]int
+			unusedTailObserved := false
 			var referenceDestinations agreementReferenceDestinations
 			referenceObserved := false
 			var compoundReferences agreementReferenceDestinations
@@ -201,12 +207,18 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			containerFenceObserved := false
 			var standaloneTargets agreementStandaloneTargets
 			standaloneTargetsObserved := false
+			var proseTargets agreementStandaloneTargets
+			proseTargetsObserved := false
 			var headingCounts map[string]int
 			headingObserved := false
 			var collisionIDs map[string]bool
 			collisionObserved := false
 			var literalHeadingIDs map[string]bool
 			literalHeadingObserved := false
+			var wrappedHeadingIDs map[string]bool
+			wrappedHeadingObserved := false
+			var wrappedHeadingNamespaceIDs map[string]bool
+			wrappedHeadingNamespaceObserved := false
 			var codeTargets map[string]int
 			codeObserved := false
 			var continuationTargets map[string]int
@@ -226,6 +238,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				classification, authority, wrong := agreementKnownDifference(c, failure)
 				if classification == "" {
 					classification, authority, wrong = agreementUnusedFootnoteDifference(c, failure, unusedTargets)
+				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					if !unusedTailObserved {
+						unusedTailTargets = agreementUnusedFootnoteTailTargets(c.Body)
+						unusedTailObserved = true
+					}
+					classification, authority, wrong = agreementUnusedFootnoteDifference(c, failure, unusedTailTargets)
 				}
 				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
 					if !referenceObserved {
@@ -259,6 +278,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					}
 					classification, authority, wrong = agreementStandaloneTargetDifference(c, failure, standaloneTargets)
 				}
+				if classification == "" && failure.Property == "P1" {
+					if !proseTargetsObserved {
+						proseTargets = agreementProseTargetDebt(c.Body)
+						proseTargetsObserved = true
+					}
+					classification, authority, wrong = agreementStandaloneTargetDifference(c, failure, proseTargets)
+				}
 				if classification == "" && failure.Property == "P4" {
 					if !headingObserved {
 						headingCounts = agreementDeclaredHeadingCounts(c.Body)
@@ -279,6 +305,20 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						literalHeadingObserved = true
 					}
 					classification, authority, wrong = agreementLiteralHeadingDifference(c, failure, literalHeadingIDs)
+				}
+				if classification == "" && failure.Property == "P4" {
+					if !wrappedHeadingObserved {
+						wrappedHeadingIDs = agreementWrappedHeadingIDs(c.Body)
+						wrappedHeadingObserved = true
+					}
+					classification, authority, wrong = agreementWrappedHeadingDifference(c, failure, wrappedHeadingIDs)
+				}
+				if classification == "" && failure.Property == "P4" {
+					if !wrappedHeadingNamespaceObserved {
+						wrappedHeadingNamespaceIDs = agreementWrappedHeadingNamespaceIDs(c.Body)
+						wrappedHeadingNamespaceObserved = true
+					}
+					classification, authority, wrong = agreementWrappedHeadingDifference(c, failure, wrappedHeadingNamespaceIDs)
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !codeObserved {
