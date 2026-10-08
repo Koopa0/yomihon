@@ -260,8 +260,8 @@ func TestReferenceSequenceSystemFindingContract(t *testing.T) {
 	}
 	basedOn, lineage := "based_on", "lineage"
 	want := []Finding{
-		{RuleID: "schema.reference_nested_sequence", Severity: "error", Path: "Concepts/Probe.md", Field: &basedOn, Message: "based_on contains a nested YAML list instead of a reference", Evidence: "a reference item was read as a YAML sequence", SuggestedAction: "quote the reference, for example based_on: [\"[[Note]]\"] or based_on: [\"Note\"]", SourceRule: "yomihon", Fingerprint: "v1:8d1e0a396dea0de3"},
-		{RuleID: "schema.reference_nested_sequence", Severity: "error", Path: "Concepts/Probe.md", Field: &lineage, Message: "lineage contains a nested YAML list instead of a reference", Evidence: "a reference item was read as a YAML sequence", SuggestedAction: "quote the reference, for example lineage: [\"[[Note]]\"] or lineage: [\"Note\"]", SourceRule: "vault-schema.toml#supersession", Fingerprint: "v1:c8642cae83a4d17b"},
+		{RuleID: "schema.reference_nested_sequence", Severity: SeverityError, Path: "Concepts/Probe.md", Field: &basedOn, Message: "based_on contains a nested YAML list instead of a reference", Evidence: "a reference item was read as a YAML sequence", SuggestedAction: "quote the reference, for example based_on: [\"[[Note]]\"] or based_on: [\"Note\"]", SourceRule: "yomihon", Fingerprint: "v1:8d1e0a396dea0de3"},
+		{RuleID: "schema.reference_nested_sequence", Severity: SeverityError, Path: "Concepts/Probe.md", Field: &lineage, Message: "lineage contains a nested YAML list instead of a reference", Evidence: "a reference item was read as a YAML sequence", SuggestedAction: "quote the reference, for example lineage: [\"[[Note]]\"] or lineage: [\"Note\"]", SourceRule: "vault-schema.toml#supersession", Fingerprint: "v1:c8642cae83a4d17b"},
 	}
 	for _, status := range []string{"draft", "archived"} {
 		t.Run(status, func(t *testing.T) {
