@@ -1,13 +1,12 @@
 package judge
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 	"unicode"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -50,10 +49,9 @@ type pathRef struct {
 	code   bool
 }
 
-// mdParser is the shared markdown parser. It is plain CommonMark with no
-// extensions, matching the structure the vault's linker sees, so code spans,
-// code blocks, and headings are located identically.
-var mdParser = goldmark.New().Parser()
+// mdParser recognizes transformed fragment presentations with the fixed body
+// grammar. Original note extraction uses its one immutable BodyFacts value.
+var mdParser = graph.NewBodyMarkdown(nil).Parser()
 
 // plannedMarks are the heading and inline marks one extraction reads. They
 // come from the vault contract through [schema]; a contract that omits the
@@ -94,17 +92,30 @@ type heading struct {
 // bodyStructure holds one body's code, comments and spoken headings. Its
 // slices stay read-only while the independent extractors borrow them.
 type bodyStructure struct {
+	body     graph.BodyFacts
 	skip     []byteRange
-	comments []byteRange
+	comments bodyComments
 	headings []heading
 }
 
+// bodyComments carries the already-bound projection into fragment consumers.
+// Its facts and original zones are immutable for this note's extraction.
+type bodyComments struct {
+	body  graph.BodyFacts
+	zones []byteRange
+}
+
 func inspectBody(body string, headingMarks []string) bodyStructure {
-	codeZones, headings := structure(body, headingMarks)
-	comments := graph.CommentZones(body, codeZones)
+	parsed := graph.ReadBody(body)
+	codeZones, headings := structureFrom(parsed, headingMarks)
+	var comments []byteRange
+	for span := range parsed.Comments() {
+		comments = append(comments, span)
+	}
 	return bodyStructure{
+		body:     parsed,
 		skip:     slices.Concat(codeZones, comments),
-		comments: comments,
+		comments: bodyComments{body: parsed, zones: comments},
 		headings: spokenHeadings(headings, comments),
 	}
 }
@@ -155,26 +166,35 @@ func extractWikilinksFrom(body string, bodyStartLine int, facts *bodyStructure) 
 	return links
 }
 
-func extractPathRefsFrom(body string, bodyStartLine int, comments []byteRange) []pathRef {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
-	var refs []pathRef
-	walkNodes(doc, func(n ast.Node) {
-		switch node := n.(type) {
-		case *ast.Link:
-			if target, ok := fileLink(string(node.Destination)); ok {
-				if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
-					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: false})
-				}
-			}
-		case *ast.CodeSpan:
-			if target, ok := backtickPath(codeSpanText(node, src)); ok {
-				if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
-					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: true})
-				}
-			}
+func extractPathRefsFrom(_ string, bodyStartLine int, comments bodyComments) []pathRef {
+	return extractPathRefsFacts(comments.body, bodyStartLine)
+}
+
+func extractPathRefsFacts(facts graph.BodyFacts, bodyStartLine int) []pathRef {
+	body := facts.Source()
+	type occurrence struct {
+		offset int
+		ref    pathRef
+	}
+	var occurrences []occurrence
+	for destination := range facts.Destinations() {
+		if destination.Image || !facts.EmittedAt(destination.Offset) {
+			continue
 		}
-	})
+		if target, ok := fileLink(destination.Target); ok {
+			occurrences = append(occurrences, occurrence{offset: destination.Offset, ref: pathRef{target: target, line: bodyStartLine + strings.Count(body[:destination.Offset], "\n")}})
+		}
+	}
+	for literal := range facts.CodeLiterals() {
+		if target, ok := backtickPath(literal.Text); ok && facts.EmittedAt(literal.Span.Start) {
+			occurrences = append(occurrences, occurrence{offset: literal.Span.Start, ref: pathRef{target: target, line: bodyStartLine + strings.Count(body[:literal.Span.Start], "\n"), code: true}})
+		}
+	}
+	slices.SortStableFunc(occurrences, func(a, b occurrence) int { return cmp.Compare(a.offset, b.offset) })
+	var refs []pathRef
+	for _, occurrence := range occurrences {
+		refs = append(refs, occurrence.ref)
+	}
 	return refs
 }
 
@@ -275,35 +295,25 @@ func blankZones(body string, zones []byteRange) string {
 // structure locates the code span/block byte ranges to skip and the headings,
 // in document order, using the shared markdown parser.
 func structure(body string, headingMarks []string) ([]byteRange, []heading) {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
+	return structureFrom(graph.ReadBody(body), headingMarks)
+}
+
+func structureFrom(facts graph.BodyFacts, headingMarks []string) ([]byteRange, []heading) {
 	var codeZones []byteRange
 	var headings []heading
-	walkNodes(doc, func(n ast.Node) {
-		switch node := n.(type) {
-		case *ast.FencedCodeBlock:
-			if r, ok := linesRange(node); ok {
-				codeZones = append(codeZones, r)
-			}
-		case *ast.CodeBlock:
-			if r, ok := linesRange(node); ok {
-				codeZones = append(codeZones, r)
-			}
-		case *ast.CodeSpan:
-			if r, ok := inlineRange(node); ok {
-				codeZones = append(codeZones, r)
-			}
-		case *ast.Heading:
-			h := heading{level: node.Level, gap: headingIsGap(node, src, headingMarks)}
-			if r, ok := linesRange(node); ok {
-				h.start = r.Start
-				headings = append(headings, h)
-			} else if r, ok := inlineRange(node); ok {
-				h.start = r.Start
-				headings = append(headings, h)
-			}
+	for code := range facts.Codes() {
+		codeZones = append(codeZones, code.Span)
+	}
+	for definition := range facts.Footnotes() {
+		if !definition.Emitted {
+			codeZones = append(codeZones, definition.Span)
 		}
-	})
+	}
+	for found := range facts.Headings() {
+		if facts.EmittedAt(found.Span.Start) {
+			headings = append(headings, heading{start: found.Span.Start, level: found.Level, gap: containsAnySubstring(found.Text, headingMarks)})
+		}
+	}
 	return codeZones, headings
 }
 
@@ -432,34 +442,6 @@ func stripParens(s string) string {
 	return b.String()
 }
 
-// headingIsGap reports whether a heading's text carries any gap mark.
-func headingIsGap(n *ast.Heading, src []byte, headingMarks []string) bool {
-	return containsAnySubstring(headingText(n, src), headingMarks)
-}
-
-// headingText is a heading's plain text — the text of its inline content with
-// the markup removed. The contents of an inline code span are excluded, because
-// a gap mark inside code is quoted rather than written, and the source text a
-// heading marks itself as a gap only by its prose.
-func headingText(n *ast.Heading, src []byte) string {
-	var b strings.Builder
-	var walk func(ast.Node)
-	walk = func(node ast.Node) {
-		for c := node.FirstChild(); c != nil; c = c.NextSibling() {
-			switch t := c.(type) {
-			case *ast.Text:
-				b.Write(src[t.Segment.Start:t.Segment.Stop])
-			case *ast.CodeSpan:
-				// A code span's content is quoted, not heading prose.
-			default:
-				walk(c)
-			}
-		}
-	}
-	walk(n)
-	return b.String()
-}
-
 // linesRange is a block node's source span, from the start of its first line
 // segment to the end of its last, or false when it has none.
 func linesRange(n ast.Node) (byteRange, bool) {
@@ -468,87 +450,6 @@ func linesRange(n ast.Node) (byteRange, bool) {
 		return byteRange{}, false
 	}
 	return byteRange{Start: ls.At(0).Start, Stop: ls.At(ls.Len() - 1).Stop}, true
-}
-
-// inlineRange is the span covering an inline node's text children, from the
-// earliest child start to the latest child stop, or false when it has none.
-func inlineRange(n ast.Node) (byteRange, bool) {
-	start, stop, found := 0, 0, false
-	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-		t, ok := c.(*ast.Text)
-		if !ok {
-			continue
-		}
-		if !found || t.Segment.Start < start {
-			start = t.Segment.Start
-		}
-		if !found || t.Segment.Stop > stop {
-			stop = t.Segment.Stop
-		}
-		found = true
-	}
-	if !found {
-		return byteRange{}, false
-	}
-	return byteRange{Start: start, Stop: stop}, true
-}
-
-// inlineOffset is a source offset on the line an inline node sits on, for
-// numbering a file reference. It prefers the node's own text, which pins the
-// exact line; an empty-text link (like a markdown link with no label) carries
-// no text, so it falls back to a sibling on the same line, then to the line the
-// enclosing block starts on. It never asks an inline node for its line segments,
-// which only block nodes carry.
-func inlineOffset(n ast.Node) (int, bool) {
-	if off, ok := textDescendantStart(n); ok {
-		return off, true
-	}
-	// An empty-text node lands between its siblings on the same line: the next
-	// sibling's text follows it on that line, and when the node ends the line a
-	// preceding sibling's text shares it.
-	if next := n.NextSibling(); next != nil {
-		if off, ok := textDescendantStart(next); ok {
-			return off, true
-		}
-	}
-	if prev := n.PreviousSibling(); prev != nil {
-		if off, ok := textDescendantStart(prev); ok {
-			return off, true
-		}
-	}
-	// A node alone in its block has no sibling text: the block's first line
-	// holds it.
-	for a := n.Parent(); a != nil; a = a.Parent() {
-		if r, ok := linesRange(a); ok {
-			return r.Start, true
-		}
-	}
-	return 0, false
-}
-
-// textDescendantStart is the source start of a node's first text descendant in
-// document order, or false when it has none.
-func textDescendantStart(n ast.Node) (int, bool) {
-	if t, ok := n.(*ast.Text); ok {
-		return t.Segment.Start, true
-	}
-	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-		if off, ok := textDescendantStart(c); ok {
-			return off, true
-		}
-	}
-	return 0, false
-}
-
-// codeSpanText is the source text between an inline code span's backticks.
-func codeSpanText(n *ast.CodeSpan, src []byte) string {
-	var b strings.Builder
-	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-		if t, ok := c.(*ast.Text); ok {
-			b.Write(src[t.Segment.Start:t.Segment.Stop])
-		}
-	}
-	return b.String()
 }
 
 // fileLink admits a Markdown note path after decoding it once, retaining its

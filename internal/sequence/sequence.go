@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
@@ -297,15 +296,22 @@ type Document struct {
 	Diagnostics []Diagnostic
 }
 
-// mdParser is plain CommonMark, the same dialect the rest of the vault's
-// tooling reads. Task list items are deliberately not enabled: the checkbox is
-// recognized from the row's own text, so "[x]" means one thing everywhere.
-var mdParser = goldmark.New().Parser()
+// mdParser retains the checkbox/list tree needed for row roles under the fixed
+// body grammar. Candidate markers still come from the row's original bytes.
+var mdParser = graph.NewBodyMarkdown(nil).Parser()
 
 // Parse reads one study path body into its declared structure. bodyStartLine
 // is the file line the body begins on, so a note with frontmatter reports the
 // lines an editor shows.
 func Parse(body string, bodyStartLine int) Document {
+	return ParseFacts(graph.ReadBody(body), bodyStartLine)
+}
+
+// ParseFacts binds the original body's recognition facts to its study rows.
+// The private tree pass retains list ancestry and emphasis roles; code and
+// comment recognition comes from facts rather than a second tree observation.
+func ParseFacts(facts graph.BodyFacts, bodyStartLine int) Document {
+	body := facts.Source()
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
 
@@ -313,7 +319,7 @@ func Parse(body string, bodyStartLine int) Document {
 		body:          body,
 		bodyStartLine: bodyStartLine,
 	}
-	p.zones = skipZones(doc, body)
+	p.zones = skipFacts(facts)
 	p.openers = emphasisOpeners(doc)
 	p.rows = make(map[int]*Candidate)
 	p.quietRows = make(map[int]struct{})
@@ -1120,9 +1126,13 @@ func LiveScan(body string) (links []Link, zones []Span) {
 	if body == "" {
 		return nil, nil
 	}
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
-	zones = skipZones(doc, body)
+	return LiveScanFacts(graph.ReadBody(body))
+}
+
+// LiveScanFacts scans live brackets in immutable original-body coordinates.
+func LiveScanFacts(facts graph.BodyFacts) (links []Link, zones []Span) {
+	body := facts.Source()
+	zones = skipFacts(facts)
 	p := &parser{body: body, zones: zones}
 	hits := p.linksIn(Span{Start: 0, Stop: len(body)})
 	if len(hits) == 0 {
@@ -1200,30 +1210,22 @@ func childList(item *ast.ListItem) *ast.List {
 	return nil
 }
 
-// skipZones are the byte ranges whose brackets are not live links: code
-// blocks and code spans, Obsidian comments, and the authored HTML blocks
-// LineScan already hides. It reads the tree the caller already has, because
-// a second parse is a second answer to what the document is.
-func skipZones(doc ast.Node, body string) []Span {
+// skipFacts are canonical code, comment and un-emitted-definition spans,
+// together with the authored HTML blocks the sequence's line policy hides.
+func skipFacts(facts graph.BodyFacts) []Span {
 	var code []Span
-	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never fails, so the walk cannot
-		if !entering {
-			return ast.WalkContinue, nil
+	for region := range facts.Codes() {
+		code = append(code, region.Span)
+	}
+	for comment := range facts.Comments() {
+		code = append(code, comment)
+	}
+	for definition := range facts.Footnotes() {
+		if !definition.Emitted {
+			code = append(code, definition.Span)
 		}
-		switch node := n.(type) {
-		case *ast.FencedCodeBlock, *ast.CodeBlock:
-			if r, ok := linesRange(node); ok {
-				code = append(code, r)
-			}
-		case *ast.CodeSpan:
-			if r, ok := inlineRange(node); ok {
-				code = append(code, r)
-			}
-		}
-		return ast.WalkContinue, nil
-	})
-	code = append(code, graph.CommentZones(body, code)...)
-	return append(code, graph.LineSkipZones(body)...)
+	}
+	return append(code, graph.LineSkipZones(facts.Source())...)
 }
 
 // emphasisOpeners are the opening delimiter runs of every emphasis in the

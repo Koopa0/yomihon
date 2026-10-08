@@ -77,7 +77,7 @@ func UnanchorableLines(body string) func(i int, line string) bool {
 			return false
 		}
 		if !parsed {
-			code, parsed = codeBlockLines(pageMarkdown().Parser(), body), true
+			code, parsed = codeBlockLines(body), true
 		}
 		return !code[i]
 	}

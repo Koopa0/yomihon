@@ -33,8 +33,11 @@ func headingWords(raw string) string {
 	return render.HeadingWords(raw)
 }
 
-func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSections map[string]bool, blockLines []string) {
-	stripped := withoutCommentZones(body, comments)
+// anchorSurfaceFrom recognizes the comment-stripped fragment presentation.
+// Its coordinates belong to that transformed text; original extraction keeps
+// the immutable BodyFacts bound by readNote.
+func anchorSurfaceFrom(body string, comments bodyComments) (sections, excerptSections map[string]bool, blockLines []string) {
+	stripped := comments.body.CommentFree()
 	sections = make(map[string]bool)
 	collectParsedHeadings(stripped, sections)
 	collectGenerousHeadings(stripped, sections)
@@ -42,28 +45,6 @@ func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSect
 	collectExcerptHeadings(stripped, excerptSections)
 	return sections, excerptSections,
 		collectBlockLines(stripped, render.BlockAddressLines(strings.Split(body, "\n"), stripped))
-}
-
-// withoutCommentZones is the body with its comment spans cut out, located by
-// the same zones the link extraction skips, so the two readings of one note
-// hide the same text. A comment the author wrapped over several lines leaves
-// those line endings behind: a note is read by line here and on the page, and
-// gluing the words on either side of a hidden passage into one line would make
-// a paragraph, a heading and the run a block address sits in out of text nobody
-// wrote that way.
-func withoutCommentZones(body string, zones []byteRange) string {
-	if len(zones) == 0 {
-		return body
-	}
-	var b strings.Builder
-	last := 0
-	for _, z := range zones {
-		b.WriteString(body[last:z.Start])
-		b.WriteString(strings.Repeat("\n", strings.Count(body[z.Start:z.Stop], "\n")))
-		last = z.Stop
-	}
-	b.WriteString(body[last:])
-	return b.String()
 }
 
 // collectParsedHeadings adds the id of every heading the markdown parser

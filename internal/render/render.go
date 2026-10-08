@@ -19,7 +19,6 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -242,15 +241,13 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 // pageMarkdown creates each consumer's parser from the page grammar. Parser
 // contexts and delimiter observations belong to that consumer's single parse.
 func pageMarkdown() goldmark.Markdown {
-	return goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM,
-			// The extension is told only what to prefix the ids with, per body,
-			// so several bodies on one page do not share a first note's id.
-			extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-			highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
-		),
-	)
+	markdown := graph.NewBodyMarkdown(footnoteRegionPrefix)
+	for _, extension := range []goldmark.Extender{
+		highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
+	} {
+		extension.Extend(markdown)
+	}
+	return markdown
 }
 
 // HTML renders one note's body: the markdown pipeline, plus the passes that

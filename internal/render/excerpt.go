@@ -14,6 +14,7 @@ import (
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
@@ -163,13 +164,21 @@ func (w *plainWalk) writeCodeLines(n ast.Node, source []byte) {
 }
 
 func (w *plainWalk) writeAutoLink(a *ast.AutoLink, source []byte) {
-	url := a.URL(source)
-	start := a.Pos() + 1
-	if a.Protocol == nil && start >= 0 && start+len(url) <= len(source) && bytes.Equal(source[start:start+len(url)], url) {
-		w.writeSource(text.NewSegment(start, start+len(url)), source)
+	label := a.Label(source)
+	start := a.Pos()
+	if start >= 0 && start < len(source) && source[start] == '<' {
+		start++
+	}
+	// Linkify can start at the preceding space or delimiter and consume it
+	// before its label. Its canonical parser advances by exactly one byte.
+	if start >= 0 && start+len(label)+1 <= len(source) && !bytes.Equal(source[start:start+len(label)], label) && bytes.Equal(source[start+1:start+1+len(label)], label) {
+		start++
+	}
+	if start >= 0 && start+len(label) <= len(source) && bytes.Equal(source[start:start+len(label)], label) {
+		w.writeSource(text.NewSegment(start, start+len(label)), source)
 		return
 	}
-	w.writeVisible(url)
+	w.writeVisible(label)
 }
 
 // delimiterObservation delegates grammar to the existing inline parsers. The
@@ -179,6 +188,7 @@ type delimiterObservation struct {
 	effects   []DisplaySpan
 	lengths   map[*parser.Delimiter]int
 	rewritten *rewrittenLines
+	corpus    map[ast.Node][2]text.Segment
 }
 
 type observedInlineParser struct {
@@ -219,6 +229,14 @@ func (p observedDelimiterProcessor) OnMatch(consumes int) ast.Node {
 		// so the first known changed downstream run is this match's closer.
 		for closer := opener.NextDelimiter; closer != nil; closer = closer.NextDelimiter {
 			if before, known := p.observation.lengths[closer]; known && before-closer.Length == consumes {
+				if p.observation.corpus != nil {
+					openEnd := opener.Segment.Start + previous
+					closeStart := closer.Segment.Start + closer.OriginalLength - before
+					p.observation.corpus[node] = [2]text.Segment{
+						text.NewSegment(openEnd-consumes, openEnd),
+						text.NewSegment(closeStart, closeStart+consumes),
+					}
+				}
 				p.observation.recordMatch(opener, closer, consumes)
 				p.observation.lengths[opener] = opener.Length
 				p.observation.lengths[closer] = closer.Length
@@ -262,7 +280,7 @@ func (o *delimiterObservation) literalMatch(open, closeSpan [2]int) bool {
 func (o *delimiterObservation) SetParserOption(config *parser.Config) {
 	for i, item := range config.InlineParsers {
 		delegate, ok := item.Value.(parser.InlineParser)
-		if ok && (delegate == extension.NewStrikethroughParser() || delegate == defaultHighlightParser) {
+		if ok && (delegate == extension.NewStrikethroughParser() || delegate == graph.NewHighlightParser()) {
 			config.InlineParsers[i].Value = observedInlineParser{delegate: delegate, observation: o}
 		}
 	}

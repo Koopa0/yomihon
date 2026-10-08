@@ -28,11 +28,6 @@ var (
 	// is not admitted.
 	safeFormattingTag = regexp.MustCompile(`^<(/?)(kbd|sub|sup|mark|u)[ \t\r\n]*>$`)
 	safeMarkupLangTag = regexp.MustCompile(`^<(?:ruby|rt|rp)[ \t\r\n]+lang=(?:"[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*"|'[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*')[ \t\r\n]*>$`)
-	// readAloudMarker matches the read-aloud marker by its shape, whatever value
-	// its author wrote after the colon. An invalid declaration is still an
-	// instruction rather than prose, so it is dropped instead of escaped into
-	// the reading column.
-	readAloudMarker = regexp.MustCompile(`(?s)^<!--[ \t\r\n]*read-aloud:.*-->$`)
 	trustedBlockTag = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
 )
 

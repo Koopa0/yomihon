@@ -12,22 +12,14 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	east "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/sequence"
 )
-
-// plainParser is a minimal goldmark parser used only to walk a note body for
-// PlainText. Table and TaskList are on so cell and task text arrive as clean text
-// nodes; linkify is off, so a bare URL stays a plain text node indexed verbatim.
-// Footnotes are on because a definition whose text has no spaces — every CJK one —
-// otherwise parses as a link reference definition and no search could find it.
-var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote, taskListExtension{})).Parser()
 
 // PlainText returns the searchable plain text of a note body: prose, headings,
 // table cells, task text, code-fence contents and the base and reading of
@@ -105,9 +97,18 @@ func PlainBlocks(body string) (plain string, blocks []Block, fenceRanges [][2]in
 
 func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions *[]sourceEmission) (plain string, blocks []Block, fenceRanges [][2]int) {
 	src := []byte(source)
-	doc := plainParser.Parse(text.NewReader(src))
+	// Search retains strike/highlight delimiter bytes even though the page
+	// consumes them. Observe the canonical recognizers' actual matched pairs;
+	// the text walk emits those source segments around each recognized node.
+	observation := delimiterObservation{
+		lengths: make(map[*parser.Delimiter]int), rewritten: rewritten,
+		corpus: make(map[ast.Node][2]text.Segment),
+	}
+	markdown := graph.NewBodyMarkdown(nil)
+	markdown.Parser().AddOptions(&observation)
+	doc := markdown.Parser().Parse(text.NewReader(src))
 
-	w := plainWalk{blockVerbatim: true, blockContext: true, blockLiteral: true, rewritten: rewritten, emissions: emissions}
+	w := plainWalk{blockVerbatim: true, blockContext: true, blockLiteral: true, rewritten: rewritten, emissions: emissions, delimiters: observation.corpus}
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
@@ -154,9 +155,8 @@ func reproducedByThePage(kind ast.NodeKind) bool {
 }
 
 // spentByPage reports that the text carries characters the page consumes
-// rather than shows. The two delimiter pairs are markup this walk's parser
-// has no concept of and so keeps as written, while the page turns them into
-// an element and shows only what was between them; the private-use runes are
+// rather than shows. Search preserves the two recognized delimiter pairs,
+// while the page shows only what was between them; the private-use runes are
 // the ones a body loses before it is rendered at all.
 func spentByPage(s string) bool {
 	if strings.Contains(s, "==") || strings.Contains(s, "~~") {
@@ -191,6 +191,7 @@ type plainWalk struct {
 	// around it. <rp> is only a parenthesis fallback and is dropped.
 	readings         strings.Builder
 	emissions        *[]sourceEmission
+	delimiters       map[ast.Node][2]text.Segment
 	readingEmissions []sourceEmission
 	ruby             []rubyChild
 }
@@ -343,7 +344,7 @@ var entityReference = regexp.MustCompile(`&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|
 // sourceUnlikeItsPage reports that a block's text may hold characters the
 // page shows differently: an entity reference the page decodes, a backslash
 // the page drops from an escape, or an address the page's linkify turns into
-// a link with words of its own. This walk's parser links nothing bare, so
+// a link with words of its own. The corpus retains authored link labels, so
 // the address is looked for in the text; anything resembling one counts.
 func sourceUnlikeItsPage(s string) bool {
 	if strings.ContainsRune(s, '\\') || strings.ContainsRune(s, '@') || entityReference.MatchString(s) {
@@ -466,7 +467,7 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 			}
 			_, _, _, opener := calloutStart(line)
 			if !parsed && opener {
-				code, parsed = codeBlockLines(plainParser, body), true
+				code, parsed = codeBlockLines(body), true
 			}
 			rewritten.literalRoles[i] = opener && !code[i]
 			lines[i] = plainLine(line, code[i], &wikiLines[i])
@@ -532,6 +533,9 @@ func plainWikilink(token string) string {
 // error (the ast.Walk error path in PlainBlocks is therefore unreachable).
 func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.WalkStatus, error) {
 	if !entering {
+		if delimiters, recognized := w.delimiters[n]; recognized {
+			w.writeSource(delimiters[1], source)
+		}
 		return ast.WalkContinue, nil
 	}
 	kind := n.Kind()
@@ -544,7 +548,8 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	}
 	// After the separator, so the doubt lands on the block this node opens
 	// rather than the one it closed.
-	if !reproducedByThePage(kind) {
+	_, corpusDelimiters := w.delimiters[n]
+	if !reproducedByThePage(kind) && !corpusDelimiters {
 		w.blockVerbatim = false
 		if heading, ok := n.(*ast.Heading); ok {
 			w.headingLevel = heading.Level
@@ -555,6 +560,9 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	switch kind {
 	case ast.KindLink, ast.KindAutoLink, ast.KindRawHTML, ast.KindHTMLBlock, east.KindFootnoteLink:
 		w.blockLiteral = false
+	}
+	if delimiters, recognized := w.delimiters[n]; recognized {
+		w.writeSource(delimiters[0], source)
 	}
 	switch kind {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
