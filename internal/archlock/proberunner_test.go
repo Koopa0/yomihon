@@ -212,22 +212,32 @@ func TestProbeRunnerPreflight(t *testing.T) {
 	entries, source := probeRunnerSource(t)
 	firstProbe, _, _ := strings.Cut(entries[0], "|")
 	cases := []struct {
-		name        string
-		args        []string
-		withoutBase bool
-		remove      bool
-		extra       bool
-		status      int
-		message     string
+		name                 string
+		args                 []string
+		withoutBase          bool
+		remove               bool
+		extra                bool
+		unregisteredBehavior bool
+		status               int
+		message              string
 	}{
 		{name: "missing base", withoutBase: true, status: 1, message: "probes.sh needs a running server"},
 		{name: "unknown command", args: []string{"--unknown"}, status: 2, message: "usage: probes.sh [--mutate [--shard 1|2|3|4]]"},
 		{name: "missing probe", remove: true, status: 1, message: "the table names probes that are not here"},
 		{name: "unlisted probe", extra: true, status: 1, message: "these probe files are driven by nothing"},
+		{name: "unregistered behavior-only probe", unregisteredBehavior: true, status: 1, message: "behavior_only names an unregistered probe: retired.mjs"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			fixture := newProbeRunnerFixture(t, entries, source)
+			caseSource := source
+			if tt.unregisteredBehavior {
+				const declaration = "\nbehavior_only=(\n"
+				if strings.Count(string(source), declaration) != 1 {
+					t.Fatal("production runner has no unique behavior_only declaration")
+				}
+				caseSource = []byte(strings.Replace(string(source), declaration, declaration+"  \"retired.mjs\"\n", 1))
+			}
+			fixture := newProbeRunnerFixture(t, entries, caseSource)
 			if tt.remove {
 				if err := os.Remove(filepath.Join(fixture.dir, firstProbe)); err != nil {
 					t.Fatal(err)
