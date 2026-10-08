@@ -77,8 +77,6 @@ async function isOpen(page) { return side(page).evaluate((element) => element.op
 async function seed(page, value) {
   await page.evaluate((stored) => sessionStorage.setItem('yomihon.nav', JSON.stringify(stored)), value);
 }
-// Arrival can scale the page while a click is being aimed at its summary.
-
 async function denyStorage(page, kind) {
   await page.addInitScript((denial) => {
     window.__deniedStorage = { reads: 0, writes: [], removals: [] };

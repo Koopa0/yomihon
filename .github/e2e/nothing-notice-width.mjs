@@ -119,14 +119,6 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-// The page has arrived: the block of content under the header has finished
-// coming forward. That arrival scales the block while it plays, so a box read
-// from inside it is narrower than the one it settles at, by a few pixels that
-// the unscaled scroll widths beside it do not share. A page the arrival is
-// gated off has no such animation, and only once the stylesheet is applied can
-// the answer be that there is none. The wait names the arrival and not every
-// animation, because the shimmer and the spinner never finish.
-
 // laidOut hands back what the browser made of every notice on the page.
 const laidOut = (page, run) =>
   page.evaluate((text) => {

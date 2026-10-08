@@ -173,33 +173,7 @@ try {
               await page.evaluate(async () => {
                 await document.fonts.ready;
               });
-              try {
-                await arrived(page);
-              } catch (error) {
-                const where = `${width}/${lang}/${theme}/js=${javaScriptEnabled}/size=${size}`;
-                try {
-                  const state = await page.evaluate(() => ({
-                    url: location.href,
-                    readyState: document.readyState,
-                    fonts: document.fonts.status,
-                    preferences: { ...document.documentElement.dataset },
-                    sheets: [...document.styleSheets].map((sheet) => ({ href: sheet.href, disabled: sheet.disabled })),
-                    links: [...document.querySelectorAll('link[rel="stylesheet"]')].map((link) => ({ href: link.href, sheet: Boolean(link.sheet), disabled: link.disabled })),
-                    animations: document.getAnimations().map((animation) => ({
-                      name: animation.animationName,
-                      pending: animation.pending,
-                      playState: animation.playState,
-                      currentTime: animation.currentTime === null || typeof animation.currentTime === 'number'
-                        ? animation.currentTime
-                        : String(animation.currentTime),
-                    })),
-                  }));
-                  console.error(`ARRIVAL-FAIL reading-scale ${MUTATE || 'plain'} ${where}: ${JSON.stringify({ assetStatuses, writes, state })}`);
-                } catch (diagnosticError) {
-                  console.error(`ARRIVAL-FAIL reading-scale ${MUTATE || 'plain'} ${where}: diagnostic unavailable: ${diagnosticError.message}`);
-                }
-                throw error;
-              }
+              await arrived(page);
               applied();
               const row = await page.evaluate(() => {
                 const groups = {
