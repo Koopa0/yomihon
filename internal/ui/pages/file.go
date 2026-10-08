@@ -57,8 +57,8 @@ type FileView struct {
 }
 
 // byteUnits are the steps humanSize climbs; a vault never needs one above a
-// gigabyte.
-var byteUnits = []string{"KB", "MB", "GB"}
+// gibibyte.
+var byteUnits = []string{"KiB", "MiB", "GiB"}
 
 // readingLimit names the binary bound without rounding it into the file's
 // display units. The value comes from the same check that withheld reading.
@@ -76,7 +76,7 @@ func readingLimit(n int64) string {
 }
 
 // humanSize renders a byte count the way a person reads one, keeping the exact
-// figure alongside it: "2.4 MB" on its own is a rounding, not a fact.
+// figure alongside it: "2.4 MiB" on its own is a rounding, not a fact.
 func humanSize(n int64, lang wording.Lang) string {
 	if n == 1 {
 		return wording.ByteSingular.In(lang)
