@@ -16,13 +16,16 @@ import (
 // An assigned reference keeps the definition alive. Its later paragraphs
 // remain prose even though their authored indentation resembles code.
 func agreementFootnoteContinuationTargets(body string) map[string]int {
-	if !strings.Contains(body, "[^") || strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") {
+	if !strings.Contains(body, "[^") {
 		return nil
 	}
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	if !agreementLiteralMarkers(source, doc) {
+		return nil
+	}
 	targets := make(map[string]int)
 	if err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		footnote, ok := node.(*extast.Footnote)
@@ -63,6 +66,7 @@ func TestAgreementFootnoteContinuationDebt(t *testing.T) {
 		want       map[string]int
 	}{
 		{name: "used second paragraph", body: "ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
+		{name: "unrelated literal markers", body: "`%%<!--[!note]` ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "unrelated inline html", body: "text <em>outside</em> ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "raw html owns apparent definition", body: "ref[^n]\n\n<div>\n[^n]: [[A]]\n\n    [[B]]\n</div>\n", want: map[string]int{}},
 		{name: "unrelated escaped prose", body: "\\[[B]] ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},

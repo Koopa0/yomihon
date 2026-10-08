@@ -71,15 +71,17 @@ func (agreementFootnoteDeclarations) Transform(doc *ast.Document, reader text.Re
 }
 
 func agreementUnusedFootnoteTargets(body string) map[string]int {
-	// Comment removal and callout layout can change the reference grammar's
-	// input. Those bodies require separate ownership.
-	if !strings.Contains(body, "[^") || strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") {
+	if !strings.Contains(body, "[^") {
 		return nil
 	}
 	targets := make(map[string]int)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, targets)
-	agreementFootnoteGrammar.Parser().Parse(text.NewReader([]byte(body)), parser.WithContext(context))
+	source := []byte(body)
+	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	if !agreementLiteralMarkers(source, doc) {
+		return nil
+	}
 	return targets
 }
 
@@ -103,6 +105,7 @@ func TestAgreementUnusedFootnoteDebt(t *testing.T) {
 		want       int
 	}{
 		{name: "unused", body: "[^unused]: [[A]]\n", want: 1},
+		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "two occurrences", body: "[^unused]: [[A]] [[A]]\n", want: 2},
 		{name: "used", body: "ref[^n]\n\n[^n]: [[A]]\n"},
 		{name: "ordinary prose", body: "[[A]]\n"},

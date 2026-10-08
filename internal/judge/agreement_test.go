@@ -181,6 +181,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
 			var headingCounts map[string]int
 			headingObserved := false
+			var collisionIDs map[string]bool
+			collisionObserved := false
 			var codeTargets map[string]int
 			codeObserved := false
 			var continuationTargets map[string]int
@@ -207,6 +209,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						headingObserved = true
 					}
 					classification, authority, wrong = agreementDuplicateHeadingDifference(c, failure, headingCounts)
+				}
+				if classification == "" && failure.Property == "P4" {
+					if !collisionObserved {
+						collisionIDs = agreementHeadingCollisionIDs(c.Body)
+						collisionObserved = true
+					}
+					classification, authority, wrong = agreementHeadingCollisionDifference(c, failure, collisionIDs)
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !codeObserved {

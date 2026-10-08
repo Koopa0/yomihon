@@ -18,13 +18,13 @@ import (
 // Heading declarations name their base through the canonical source-word
 // reader. Repetition explains a suffix only when no authored name claims it.
 func agreementDeclaredHeadingCounts(body string) map[string]int {
-	if strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") {
-		return nil
-	}
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	if !agreementLiteralMarkers(source, doc) {
+		return nil
+	}
 	counts := make(map[string]int)
 	unclaimed := true
 	if err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -73,6 +73,7 @@ func TestAgreementDuplicateHeadingDebt(t *testing.T) {
 		want       map[string]int
 	}{
 		{name: "duplicate atx", body: "## A\n## A\n", want: map[string]int{"a": 2}},
+		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n## A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "unrelated inline html", body: "text <em>outside</em>\n\n## A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "raw html owns apparent headings", body: "<div>\n## A\n## A\n</div>\n", want: map[string]int{}},
 		{name: "unrelated escaped prose", body: "\\[[A]]\n\n## A\n## A\n", want: map[string]int{"a": 2}},

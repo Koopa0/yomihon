@@ -15,13 +15,16 @@ import (
 // Wrapped spans and list-item fences own their literal bytes even where a
 // line-by-line replacement currently treats those bytes as prose.
 func agreementCodeDebtTargets(body string) map[string]int {
-	if strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") || strings.Contains(body, "://") {
+	if strings.Contains(body, "://") {
 		return nil
 	}
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	if !agreementLiteralMarkers(source, doc) {
+		return nil
+	}
 	targets := make(map[string]int)
 	if err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
@@ -80,6 +83,7 @@ func TestAgreementCodeDebt(t *testing.T) {
 		want       int
 	}{
 		{name: "wrapped span", body: "`open\n[[A]]\nclose`\n", want: 1},
+		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "unrelated inline html", body: "text <em>outside</em>\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "raw html owns apparent literal", body: "<div>\n`open\n[[A]]\nclose`\n</div>\n"},
 		{name: "two wrapped occurrences", body: "`open\n[[A]] [[A]]\nclose`\n", want: 2},

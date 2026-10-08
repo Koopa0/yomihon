@@ -17,14 +17,18 @@ var agreementFootnoteAddressesKey = parser.NewContextKey()
 // A discarded definition cannot own a destination on the page. Every raw
 // declaration of the same address must belong to that discarded region.
 func agreementUnusedFootnoteAddresses(body string) map[string]int {
-	if !strings.Contains(body, "[^") || strings.Contains(body, "%%") || strings.Contains(body, "<") || strings.Contains(body, "[!") || strings.Contains(body, "\\") {
+	if !strings.Contains(body, "[^") || strings.Contains(body, "<") || strings.Contains(body, "\\") {
 		return nil
 	}
 	addresses := make(map[string]int)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	context.Set(agreementFootnoteAddressesKey, addresses)
-	agreementFootnoteGrammar.Parser().Parse(text.NewReader([]byte(body)), parser.WithContext(context))
+	source := []byte(body)
+	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	if !agreementLiteralMarkers(source, doc) {
+		return nil
+	}
 	all := make(map[string]int)
 	for line := range strings.SplitSeq(body, "\n") {
 		if address := render.BlockAddress(strings.TrimSuffix(line, "\r")); address != "" {
@@ -56,6 +60,7 @@ func TestAgreementUnusedFootnoteAddressDebt(t *testing.T) {
 		want            map[string]int
 	}{
 		{name: "unused first paragraph", body: "[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
+		{name: "unrelated literal markers", body: "`%%[!note]`\n\n[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
 		{name: "unused continuation", body: "[^n]: first\n\n    second ^a\n", cut: "    second ^a", want: map[string]int{"^a": 1}},
 		{name: "folded declaration", body: "[^n]: text ^A\n", cut: "[^n]: text ^A", want: map[string]int{"^a": 1}},
 		{name: "distinct address set", body: "[^n]: text ^a\n\n[^m]: other ^b\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1, "^b": 1}},

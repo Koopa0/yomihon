@@ -21,13 +21,16 @@ type agreementQuoteAddresses struct {
 }
 
 func agreementQuoteAddressOwnership(body string) agreementQuoteAddresses {
-	if strings.Contains(body, "%%") || strings.Contains(body, "<") || strings.Contains(body, "[!") || strings.Contains(body, "[^") || strings.Contains(body, "\\") {
+	if strings.Contains(body, "<") || strings.Contains(body, "[^") || strings.Contains(body, "\\") {
 		return agreementQuoteAddresses{}
 	}
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	if !agreementLiteralMarkers(source, doc) {
+		return agreementQuoteAddresses{}
+	}
 	quotedFence := false
 	literal := make(map[string]int)
 	if err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -105,6 +108,7 @@ func TestAgreementQuoteAddressDebt(t *testing.T) {
 		literal    map[string]int
 	}{
 		{name: "outer prose ends empty quoted fence", body: "> ```\n^a\n", want: map[string]int{"^a": 1}},
+		{name: "unrelated literal markers", body: "> ```\n> %%[!note]\n\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "outer prose follows quoted content", body: "> ```\n> code\n\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "closed quoted fence", body: "> ```\n> code\n> ```\n\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "folded outer address", body: "> ```\n^A\n", want: map[string]int{"^a": 1}},

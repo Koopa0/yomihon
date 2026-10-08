@@ -1,7 +1,6 @@
 package judge_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -15,13 +14,13 @@ import (
 // A fence's info field is part of its code declaration. Its target-like text
 // does not become a citation in the note's prose.
 func agreementFenceInfoTargets(body string) map[string]int {
-	if strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") {
-		return nil
-	}
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	if !agreementLiteralMarkers(source, doc) {
+		return nil
+	}
 	targets := make(map[string]int)
 	if err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		fence, ok := node.(*ast.FencedCodeBlock)
@@ -52,6 +51,7 @@ func TestAgreementFenceInfoDebt(t *testing.T) {
 		want       map[string]int
 	}{
 		{name: "info occurrence", body: "``` [[A]]\n```\n", want: map[string]int{"A": 1}},
+		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "unrelated inline html", body: "text <em>outside</em>\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "raw html owns apparent opener", body: "<div>\n``` [[A]]\n```\n</div>\n", want: map[string]int{}},
 		{name: "repeated info occurrences", body: "``` [[A]] [[A]]\n```\n", want: map[string]int{"A": 2}},
