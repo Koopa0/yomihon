@@ -81,7 +81,7 @@ func TestRepresentativeBenchmarkEntryAndOptIn(t *testing.T) {
 	if rows.MatchString(disabled) {
 		t.Fatal("caught: disabled representative benchmark produced measured rows")
 	}
-	leaves := regexp.MustCompile(`(?m)^\s*--- SKIP: (BenchmarkRepresentativeSnapshot/notes=\d+/\w+) \(`)
+	leaves := regexp.MustCompile(`(?m)^[\t ]*--- SKIP: (BenchmarkRepresentativeSnapshot/notes=\d+/\w+)$`)
 	var skipped []string
 	for _, match := range leaves.FindAllStringSubmatch(disabled, -1) {
 		skipped = append(skipped, match[1])
