@@ -64,7 +64,7 @@ func TestHiddenReportRetention(t *testing.T) {
 				"\nmost leveraged (create one, resolve many):\n  ×3 [[Future]] (planned) — golang\n" +
 				"\n▌ golang\n  [warn] [[Missing]] resolves to no note  (Writing/golang/A.md)\n" +
 				"\nhidden (info):\n" +
-				"  [link.broken] [[Outside]] resolves to no note — Other/Outside.md\n" +
+				"  [link.broken] [[Elsewhere]] resolves to no note — Other/Outside.md\n" +
 				"  [link.broken.path] link to ../../outside-other.md points outside the vault root — Other/Outside.md\n" +
 				"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md\n" +
 				"  [link.broken] [[Future]] resolves to no note — Writing/golang/A.md\n" +

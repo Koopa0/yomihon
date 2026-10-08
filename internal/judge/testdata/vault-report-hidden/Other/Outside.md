@@ -1,6 +1,6 @@
 ## Gaps
 
-[[Outside]]
+[[Elsewhere]]
 
 ## Current
 
