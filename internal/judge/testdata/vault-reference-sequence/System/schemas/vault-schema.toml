@@ -1,0 +1,52 @@
+schema_version = "1"
+
+[enums]
+type = ["concept", "lesson", "memo"]
+
+[enums.status]
+note = ["draft", "archived"]
+lesson = ["draft", "archived"]
+
+[fields]
+required = ["title", "type", "status"]
+known = ["title", "type", "status", "based_on", "related", "lineage", "source_locator", "aliases"]
+lesson_only = ["slug", "predecessor", "successors"]
+
+[fields.status_group]
+lesson = ["lesson"]
+
+[rules]
+concept_requires_provenance = ["based_on", "source_locator"]
+slug_pattern = "^[a-z]+$"
+
+[scan]
+knowledge_dirs = ["Concepts"]
+skip_basenames = []
+
+[navigation]
+path_types = []
+map_types = []
+
+[artifacts]
+non_instance_dirs = []
+
+[privacy]
+never_egress_dirs = ["Private"]
+
+[supersession]
+predecessor_field = "predecessor"
+successor_field = "successors"
+general_link_field = "lineage"
+archived_status = "archived"
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+from = []
+owner = []
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+from = ["*"]
+owner = []
