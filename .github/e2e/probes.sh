@@ -84,6 +84,7 @@ probes=(
   "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
   "read-aloud-status.mjs|/notes/Writing/lessons/japanese/Practice%20only.md"
   "read-aloud-languages.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
+  "read-aloud-local-voices.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "branch-title-wrap.mjs|/syllabus/Maps/branches.md"
@@ -130,6 +131,7 @@ probes=(
   # gives this one a way on to follow. It drives the findings table itself.
   "pager-contract.mjs|/search?q=e"
   "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "concept-sheet.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
   "reading-scale.mjs|/notes/Notes/reading-scale.md"
   # Last, and they have to stay last: these keep a reading place, and from then

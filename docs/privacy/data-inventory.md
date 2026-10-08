@@ -103,6 +103,17 @@ fields after the reader saves the note. There are no prompt excerpts,
 before/after templates, or required-field pickers. The reader's editor owns
 the template, words, remaining fields, and save operation.
 
+## Read-aloud
+
+A passage read aloud is handed to the browser's speech synthesis with an
+explicitly selected voice: one the browser reports as running on this device
+(`localService === true`), matching the passage's language and script. An
+authored `und` passage requires a local default voice. When no such voice is
+available, the page says speech is unavailable and hands over nothing. It
+never selects a voice marked as remote or leaves the choice to the browser.
+This boundary rests on the browser's report; it does not independently verify
+the browser or operating system's speech service.
+
 ## Browser state
 
 Cookies and session storage hold the reading choices and where the reader had
