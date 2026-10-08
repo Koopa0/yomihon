@@ -50,14 +50,14 @@ type note struct {
 	plannedNames  []string
 	calloutTitles []calloutTitle
 
-	// sectionAnchors, excerptSectionAnchors, and blockAnchorLines are what this
+	// sectionAnchors, excerptSectionAnchors, and blockAddresses are what this
 	// note's body answers a fragment with: the folded ids of every heading a
 	// link could be sent to, the ids the excerpt scan cuts a transclusion to,
-	// and the folded text of every line that could carry a "^name" block
-	// address, collected the way the reading page collects them.
+	// and the extracted, folded "^name" block addresses, collected through
+	// the same grammar and structural exclusions the reading page uses.
 	sectionAnchors        map[string]bool
 	excerptSectionAnchors map[string]bool
-	blockAnchorLines      []string
+	blockAddresses        []string
 
 	// sequence is the note's declared course structure, read by the one grammar
 	// navigation reads, so what a course lists is one answer rather than two
@@ -70,11 +70,12 @@ type note struct {
 // enum check reads a scalar and skips a list, and a required-field check treats
 // an empty scalar or an empty list as absent.
 type fmValue struct {
-	scalar         string
-	list           []string
-	stringList     []string
-	isList         bool
-	scalarIsString bool
+	scalar            string
+	list              []string
+	stringList        []string
+	isList            bool
+	scalarIsString    bool
+	hasNestedSequence bool
 }
 
 // asScalar reports the scalar text, or false when the value is a list.
@@ -146,7 +147,7 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 		n.plannedNames = extractPlannedNamesFrom(body, *marks, &facts)
 		n.calloutTitles = extractCalloutTitlesFrom(body, block.BodyStartLine, facts.comments)
 		n.sequence = sequence.Parse(body, block.BodyStartLine)
-		n.sectionAnchors, n.excerptSectionAnchors, n.blockAnchorLines = anchorSurfaceFrom(body, facts.comments)
+		n.sectionAnchors, n.excerptSectionAnchors, n.blockAddresses = anchorSurfaceFrom(body, facts.comments)
 	}
 	if !found {
 		n.noFrontmatter = true
@@ -382,13 +383,17 @@ func nodeValue(n *yaml.Node) fmValue {
 	case yaml.SequenceNode:
 		items := make([]string, 0, len(n.Content))
 		stringItems := make([]string, 0, len(n.Content))
+		hasNestedSequence := false
 		for _, item := range n.Content {
+			if resolveAlias(item).Kind == yaml.SequenceNode {
+				hasNestedSequence = true
+			}
 			items = append(items, scalarText(item))
 			if value, ok := asString(item); ok && value != "" {
 				stringItems = append(stringItems, value)
 			}
 		}
-		return fmValue{list: items, stringList: stringItems, isList: true}
+		return fmValue{list: items, stringList: stringItems, isList: true, hasNestedSequence: hasNestedSequence}
 	case yaml.ScalarNode:
 		_, scalarIsString := asString(n)
 		return fmValue{scalar: scalarText(n), scalarIsString: scalarIsString}

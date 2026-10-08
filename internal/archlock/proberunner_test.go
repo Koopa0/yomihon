@@ -59,9 +59,10 @@ type probeRunResult struct {
 
 func TestProbeRunner(t *testing.T) {
 	entries, source := probeRunnerSource(t)
-	middle, _, _ := strings.Cut(entries[len(entries)/2], "|")
-	later, _, _ := strings.Cut(entries[len(entries)/2+2], "|")
-	final, _, _ := strings.Cut(entries[len(entries)/2+4], "|")
+	mutable := mutableProbeEntries(entries, probeBehaviorOnlyMembers(t, source))
+	middle, _, _ := strings.Cut(mutable[len(mutable)/2], "|")
+	later, _, _ := strings.Cut(mutable[len(mutable)/2+2], "|")
+	final, _, _ := strings.Cut(mutable[len(mutable)/2+4], "|")
 	diagnostics := strings.Repeat("diagnostic tail line\n", 1<<14)
 	if len(diagnostics) <= 128<<10 {
 		t.Fatal("large-output control must exceed 128 KiB")
@@ -169,7 +170,11 @@ func TestProbeRunner(t *testing.T) {
 				fixture.reply(t, reply)
 			}
 			var args []string
-			want := probeRunResult{Trace: expectedProbeTrace(entries, tt.mutate, tt.modes), Failures: tt.failures}
+			traceEntries := entries
+			if tt.mutate {
+				traceEntries = mutable
+			}
+			want := probeRunResult{Trace: expectedProbeTrace(traceEntries, tt.mutate, tt.modes), Failures: tt.failures}
 			if tt.mutate {
 				args = []string{"--mutate"}
 			}
@@ -207,22 +212,32 @@ func TestProbeRunnerPreflight(t *testing.T) {
 	entries, source := probeRunnerSource(t)
 	firstProbe, _, _ := strings.Cut(entries[0], "|")
 	cases := []struct {
-		name        string
-		args        []string
-		withoutBase bool
-		remove      bool
-		extra       bool
-		status      int
-		message     string
+		name                 string
+		args                 []string
+		withoutBase          bool
+		remove               bool
+		extra                bool
+		unregisteredBehavior bool
+		status               int
+		message              string
 	}{
 		{name: "missing base", withoutBase: true, status: 1, message: "probes.sh needs a running server"},
 		{name: "unknown command", args: []string{"--unknown"}, status: 2, message: "usage: probes.sh [--mutate [--shard 1|2|3|4]]"},
 		{name: "missing probe", remove: true, status: 1, message: "the table names probes that are not here"},
 		{name: "unlisted probe", extra: true, status: 1, message: "these probe files are driven by nothing"},
+		{name: "unregistered behavior-only probe", unregisteredBehavior: true, status: 1, message: "behavior_only names an unregistered probe: retired.mjs"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			fixture := newProbeRunnerFixture(t, entries, source)
+			caseSource := source
+			if tt.unregisteredBehavior {
+				const declaration = "\nbehavior_only=(\n"
+				if strings.Count(string(source), declaration) != 1 {
+					t.Fatal("production runner has no unique behavior_only declaration")
+				}
+				caseSource = []byte(strings.Replace(string(source), declaration, declaration+"  \"retired.mjs\"\n", 1))
+			}
+			fixture := newProbeRunnerFixture(t, entries, caseSource)
 			if tt.remove {
 				if err := os.Remove(filepath.Join(fixture.dir, firstProbe)); err != nil {
 					t.Fatal(err)
@@ -241,6 +256,46 @@ func TestProbeRunnerPreflight(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mutableProbeEntries(entries, classified []string) []string {
+	var mutable []string
+	for _, entry := range entries {
+		probe, _, _ := strings.Cut(entry, "|")
+		if !slices.Contains(classified, probe) {
+			mutable = append(mutable, entry)
+		}
+	}
+	return mutable
+}
+
+// Read every declared member; a new behavior-only probe must immediately join
+// the plain expectations and leave every mutation expectation.
+func probeBehaviorOnlyMembers(t *testing.T, source []byte) []string {
+	t.Helper()
+	const start = "\nbehavior_only=(\n"
+	if strings.Count(string(source), start) != 1 {
+		t.Fatal("production runner has no unique readable behavior_only declaration")
+	}
+	_, body, _ := strings.Cut(string(source), start)
+	body, _, found := strings.Cut(body, "\n)\n")
+	if !found {
+		t.Fatal("production behavior_only declaration has no end")
+	}
+	pattern := regexp.MustCompile(`^"([^"|]+\.mjs)"$`)
+	var members []string
+	for line := range strings.SplitSeq(body, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		match := pattern.FindStringSubmatch(line)
+		if match == nil {
+			t.Fatalf("unreadable behavior_only member %q", line)
+		}
+		members = append(members, match[1])
+	}
+	return members
 }
 
 type probeRunnerFixture struct {
@@ -426,7 +481,15 @@ func TestProbeMutationShards(t *testing.T) {
 	entries, source := probeRunnerSource(t)
 	t.Run("whole registry", func(t *testing.T) { checkProbeShardUnion(t, entries, source, nil, nil) })
 	t.Run("bounded registry", func(t *testing.T) {
-		bounded := append(slices.Clone(entries[:10]), entries[len(entries)-2:]...)
+		bounded := slices.Clone(entries[:10])
+		classified := probeBehaviorOnlyMembers(t, source)
+		for _, entry := range entries[10 : len(entries)-2] {
+			probe, _, _ := strings.Cut(entry, "|")
+			if slices.Contains(classified, probe) {
+				bounded = append(bounded, entry)
+			}
+		}
+		bounded = append(bounded, entries[len(entries)-2:]...)
 		prefix, body, found := strings.Cut(string(source), "\nprobes=(\n")
 		if !found {
 			t.Fatal("registry start unavailable")
@@ -466,8 +529,9 @@ func TestProbeMutationShards(t *testing.T) {
 
 func checkProbeShardUnion(t *testing.T, entries []string, source []byte, overrides map[string][]string, replies []probeReply) {
 	t.Helper()
+	mutable := mutableProbeEntries(entries, probeBehaviorOnlyMembers(t, source))
 	modes := map[string][]string{}
-	for _, entry := range entries {
+	for _, entry := range mutable {
 		probe, _, _ := strings.Cut(entry, "|")
 		modes[probe] = []string{"zeta", "alpha"}
 	}
@@ -475,7 +539,7 @@ func checkProbeShardUnion(t *testing.T, entries []string, source []byte, overrid
 	modes[first] = []string{"m0", "m1", "m2", "m3", "m4", "m5", "m6"}
 	maps.Copy(modes, overrides)
 	var want, discovery []string
-	for _, entry := range entries {
+	for _, entry := range mutable {
 		probe, page, _ := strings.Cut(entry, "|")
 		discovery = append(discovery, probe+"||list")
 		for _, mode := range modes[probe] {

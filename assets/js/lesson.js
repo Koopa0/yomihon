@@ -279,6 +279,13 @@ export function initLesson(enhanceCodeCopy) {
   }
 
   function initTextToSpeech() {
+    if (column?.querySelector('[data-tts], [data-slot-action="speak"]')) {
+      speechStatus = document.createElement('span');
+      speechStatus.className = 'y-ttsbar__status';
+      speechStatus.setAttribute('aria-live', 'polite');
+      speechStatus.setAttribute('lang', document.documentElement.lang);
+      column.append(speechStatus);
+    }
     if (!('speechSynthesis' in window)) return;
     // Above the test for marked paragraphs, because the practice card can be
     // speaking on a note that marks none. Speech outlives the page it was
@@ -341,10 +348,7 @@ export function initLesson(enhanceCodeCopy) {
       rateButton.dataset.speechRate = String(rate);
       toolbar.append(rateButton);
     });
-    speechStatus = document.createElement('span');
-    speechStatus.className = 'y-ttsbar__status';
-    speechStatus.setAttribute('aria-live', 'polite');
-    toolbar.append(speechStatus);
+    if (speechStatus) toolbar.append(speechStatus);
     // What the voice cannot be asked for, said where a reader would look for
     // the controls that are missing. Only a page that offers it carries the
     // words, so a note's reading column gains no line of chrome.
