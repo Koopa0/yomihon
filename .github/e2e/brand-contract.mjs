@@ -53,7 +53,8 @@ const replacePartPath = (source, part, replacement) => {
 const rewriteSVGPart = (part, replacement, target) => ({
   target,
   before: async (page, state) => {
-    await page.route(`**${BRAND_PATH}`, async (route) => {
+    await page.route(`**${BRAND_PATH}{,?*}`, async (route) => {
+      if (new URL(route.request().url()).pathname !== BRAND_PATH) return route.continue();
       const response = await route.fetch();
       const original = await response.text();
       const rewritten = replacePartPath(original, part, replacement);
@@ -370,7 +371,8 @@ try {
     };
   });
   if (projection.iconCount !== 1 || projection.markCount !== 1 || projection.linkCount !== 1 ||
-      projection.iconSource !== BRAND_PATH || projection.markSource !== BRAND_PATH) {
+      new URL(projection.iconSource, BASE).pathname !== BRAND_PATH || new URL(projection.markSource, BASE).pathname !== BRAND_PATH ||
+      projection.iconSource !== projection.markSource) {
     fail('projection-source', `favicon/header projections are ${JSON.stringify(projection)}`);
   }
   if (projection.markAlt !== '' || projection.markHidden !== 'true') {

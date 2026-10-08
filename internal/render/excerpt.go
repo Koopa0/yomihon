@@ -467,24 +467,20 @@ func roleDisplayEffects(md goldmark.Markdown, n ast.Node, source []byte, rewritt
 		}
 	}
 	inner := own.String()
-	prefix := 0
-	level := listRowLevel
+	var start, end int
 	if heading, ok := n.(*ast.Heading); ok {
-		level = heading.Level
-	} else {
-		if stripListRowRole(inner) == inner {
+		stripped := sequence.HeadingName(inner, heading.Level)
+		if stripped == inner {
 			return nil
 		}
-		if unwrapped, before, _, ok := unwrapOwnParagraph(inner); ok {
-			inner = unwrapped
-			prefix = len(before)
+		start, end = len(stripped), len(inner)
+	} else {
+		var ok bool
+		start, end, ok = listRowRoleRange(inner)
+		if !ok {
+			return nil
 		}
 	}
-	stripped := sequence.HeadingName(inner, level)
-	if stripped == inner {
-		return nil
-	}
-	start, end := prefix+len(stripped), prefix+len(inner)
 	var effects []DisplaySpan
 	for _, unit := range own.units {
 		if unit.markupStart >= start && unit.markupEnd <= end && unit.markupStart < unit.markupEnd && !withinAny(rewritten.wikilinks, unit.sourceStart, unit.sourceEnd) {
