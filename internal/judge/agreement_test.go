@@ -76,6 +76,7 @@ func TestAgreement(t *testing.T) {
 	controls := []agreementCase{
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
+		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
 		{Name: "control/block", Body: "first line\ncontinued ^a\n\nsecond ^b\n"},
 		{Name: "control/duplicate-address", Body: "first ^a\n\nsecond ^a\n"},
 		{Name: "control/title", Title: "A", Body: "# A\n\n## A\n## A\n"},
@@ -221,6 +222,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			wrappedHeadingNamespaceObserved := false
 			var codeTargets map[string]int
 			codeObserved := false
+			var localCodeHeadings map[string]int
+			localCodeObserved := false
 			var continuationTargets map[string]int
 			continuationObserved := false
 			var fenceInfoTargets map[string]int
@@ -326,6 +329,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						codeObserved = true
 					}
 					classification, authority, wrong = agreementCodeDebtDifference(c, failure, codeTargets)
+				}
+				if classification == "" && failure.Property == "P2" {
+					if !localCodeObserved {
+						localCodeHeadings = agreementLocalCodeHeadings(c.Body)
+						localCodeObserved = true
+					}
+					classification, authority, wrong = agreementLocalCodeDifference(c, failure, localCodeHeadings)
 				}
 				if classification == "" && failure.Property == "P1" {
 					if !continuationObserved {
