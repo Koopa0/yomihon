@@ -286,7 +286,9 @@ func (compiler *agreementMutationCompiler) binary(t *testing.T, overlay, package
 		t.Fatalf("not-applied: setup-status=2 compiler admission canceled: %v", t.Context().Err())
 	}
 	defer func() { <-compiler.Slots }()
-	args := []string{"test", "-trimpath", "-p=2", "-c", "-o=" + binary}
+	// The surrounding gate vets the complete source. A fault's compiler only
+	// qualifies the binary that will reach the selected behavioral assertion.
+	args := []string{"test", "-trimpath", "-p=2", "-vet=off", "-c", "-o=" + binary}
 	if overlay != "" {
 		args = append(args, "-overlay="+overlay)
 	}

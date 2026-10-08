@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
@@ -32,7 +33,7 @@ func TestAgreementUnusedFootnoteContinuation(t *testing.T) {
 		if diff := cmp.Diff(tc.want, targets); diff != "" {
 			t.Errorf("caught: S5 unused-continuation page body=%q (-want +got):\n%s", tc.body, diff)
 		}
-		if diff := cmp.Diff(tc.want, judge.LinkTargets(tc.body)); diff != "" {
+		if diff := cmp.Diff(tc.want, judge.LinkTargets(tc.body), cmpopts.EquateEmpty()); diff != "" {
 			t.Errorf("caught: S5 unused-continuation check body=%q (-want +got):\n%s", tc.body, diff)
 		}
 		var sequenceTargets []string

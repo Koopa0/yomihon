@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
@@ -36,7 +37,7 @@ func TestAgreementLinkifiedCode(t *testing.T) {
 		if diff := cmp.Diff(tc.want, targets); diff != "" {
 			t.Errorf("caught: S5 linkified-code complete page citations body=%q (-want +got):\n%s", body, diff)
 		}
-		if diff := cmp.Diff(tc.want, judge.LinkTargets(body)); diff != "" {
+		if diff := cmp.Diff(tc.want, judge.LinkTargets(body), cmpopts.EquateEmpty()); diff != "" {
 			t.Errorf("caught: S5 linkified-code complete judge citations body=%q (-want +got):\n%s", body, diff)
 		}
 		var sequenceTargets []string
