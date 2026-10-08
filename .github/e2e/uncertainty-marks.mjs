@@ -9,6 +9,10 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a lesson with a slot card and a concept link
 // naming a section), and MUTATE.
+import { randomUUID } from 'node:crypto';
+import { lstat, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+import { setTimeout as pause } from 'node:timers/promises';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -20,7 +24,7 @@ const CONCEPT = 'Concepts/japanese/は.md';
 const SLOT = '.y-slotcard [data-uncertainty-control] button';
 const SHEET = '[data-concept-sheet][open] [data-uncertainty-control] button';
 
-const SITES = ['slot-mark-survives-reload', 'concept-mark-names-its-source'];
+const SITES = ['slot-mark-survives-reload', 'concept-mark-names-its-source', 'lost-mark-removes-original-pair'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -54,6 +58,10 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
 };
 
 const MUTATIONS = {
+  'lost-removal-stays-disabled': {
+    target: 'lost-mark-removes-original-pair',
+    apply: rewriteModule('button.disabled = !available || !keys.has(key);', 'button.disabled = true;', 'the initial stored-pair removal gate'),
+  },
   'post-becomes-a-read': {
     target: 'slot-mark-survives-reload',
     apply: rewriteModule("method: 'POST',", "method: 'GET',", 'the method that stores a mark'),
@@ -100,6 +108,19 @@ const settle = async (page, site, selector, wanted, what) => {
   }
 };
 
+// Wait for the page's existing arrival animation before measuring its controls.
+const arrived = (page) => page.waitForFunction(
+  async () => {
+    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
+    await Promise.all(document.getAnimations()
+      .filter((animation) => animation.animationName === 'y-come-forward')
+      .map((animation) => animation.finished.catch(() => {})));
+    return true;
+  },
+  null,
+  { timeout: 3000 },
+);
+
 const ready = async (page, selector) => {
   try {
     await page.waitForFunction((target) => {
@@ -111,22 +132,46 @@ const ready = async (page, selector) => {
   }
 };
 
-// clearMarks empties the store whatever happened above. A failed or mutated run
-// stops with a mark still kept, and every later probe's desk would then list it.
+const owned = [{ path: LESSON }, { path: CONCEPT }];
+let folder;
+let fixturePath;
+let caughtMutation = '';
+let mutationProof = () => '';
+const publication = async (path, present, marker = '') => {
+  const deadline = Date.now() + 12000;
+  while (Date.now() < deadline) {
+    const response = await fetch(BASE + '/notes/' + path.split('/').map(encodeURIComponent).join('/'));
+    const body = await response.text();
+    if ((present && response.status === 200 && body.includes(marker)) || (!present && response.status === 404)) return;
+    await pause(100);
+  }
+  throw new ProbeBroken(`BROKEN uncertainty-marks: fixture publication did not reach ${present} for ${path}`);
+};
+
+// Cleanup touches only the exact pairs this probe owns, never another reader's mark.
 const clearMarks = async () => {
   try {
-    const held = await (await fetch(`${BASE}/uncertainties`)).json();
+    const response = await fetch(`${BASE}/uncertainties`);
+    if (!response.ok) throw new Error(`read cleanup marks: ${response.status}`);
+    const held = await response.json();
     for (const { path, anchor } of held) {
-      await fetch(`${BASE}/uncertainties`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
+      if (!owned.some((pair) => pair.path === path && pair.anchor === anchor)) continue;
+      const removed = await fetch(`${BASE}/uncertainties`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
+      if (!removed.ok || (await removed.json()).marked !== false) throw new Error('owned mark was not removed');
     }
-    const left = await (await fetch(`${BASE}/uncertainties`)).json();
-    if (left.length !== 0) {
-      console.error(`BROKEN uncertainty-marks: ${left.length} mark(s) remain after cleanup`);
-      process.exitCode = 1;
+    const verified = await fetch(`${BASE}/uncertainties`);
+    if (!verified.ok) throw new Error(`verify cleanup marks: ${verified.status}`);
+    const left = await verified.json();
+    if (left.some(({ path, anchor }) => owned.some((pair) => pair.path === path && pair.anchor === anchor))) throw new Error('owned mark remains');
+    if (folder) {
+      await rm(folder, { recursive: true });
+      await publication(fixturePath, false);
     }
+    return true;
   } catch (err) {
     console.error(`BROKEN uncertainty-marks: cleanup failed: ${err}`);
-    process.exitCode = 1;
+    process.exitCode = 2;
+    return false;
   }
 };
 
@@ -135,6 +180,7 @@ try {
   const context = await browser.newContext({ viewport: PHONE });
   const page = await context.newPage();
   const proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : () => '';
+  mutationProof = proof;
   const applied = () => {
     const issue = proof();
     if (issue) throw new NotApplied(`NOT-APPLIED uncertainty-marks: ${MUTATE}: ${issue}`);
@@ -146,6 +192,8 @@ try {
   await ready(page, SLOT);
   applied();
   const anchor = await page.locator('.y-slotcard__abstract[id]').first().getAttribute('id');
+  owned[0].anchor = anchor;
+  owned[1].anchor = 'scheduling-details';
   await page.locator(SLOT).first().click();
   await settle(page, 'slot-mark-survives-reload', SLOT, true, 'after the first press');
   let held = await records(page);
@@ -171,18 +219,89 @@ try {
   await page.locator(SHEET).click();
   await settle(page, 'concept-mark-names-its-source', SHEET, false, 'clearing in the concept sheet');
   if ((await records(page)).length !== 0) fail('concept-mark-names-its-source', 'clearing left the mark stored');
+  // An admitted real place is lost only after a scanner publication. Both
+  // widths must arrive at that state before geometry or native input is tested.
+  const supplied = process.env.YOMIHON_FIXTURE_ROOT;
+  if (!supplied) throw new ProbeBroken('BROKEN uncertainty-marks: no disposable fixture root');
+  const root = await realpath(supplied);
+  if (basename(root) !== 'vault' || !basename(dirname(root)).startsWith('yomihon-serve.')) throw new ProbeBroken('BROKEN uncertainty-marks: unsafe fixture root');
+  const notes = join(root, 'Notes');
+  const info = await lstat(notes);
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new ProbeBroken('BROKEN uncertainty-marks: Notes is not an ordinary directory');
+  const id = randomUUID();
+  folder = join(notes, `uncertainty-${id}`);
+  fixturePath = `Notes/uncertainty-${id}/source.md`;
+  await mkdir(folder);
+  const file = join(folder, 'source.md');
+  await writeFile(file, `---\ntitle: Uncertainty ${id}\n---\n# Uncertainty ${id}\n\n## Original place\n\nBefore ${id}.\n`, { flag: 'wx' });
+  await publication(fixturePath, true, `Before ${id}`);
+  owned.push({ path: fixturePath, anchor: 'original-place' });
+  const admitted = await page.request.post(`${BASE}/uncertainties`, { form: { path: fixturePath, anchor: 'original-place' } });
+  if (admitted.status() !== 200 || (await admitted.json()).marked !== true) throw new ProbeBroken('BROKEN uncertainty-marks: real fixture pair was not admitted');
+  const saved = await records(page);
+  await writeFile(file, `---\ntitle: Uncertainty ${id}\n---\n# Uncertainty ${id}\n\n## Changed place\n\nAfter ${id}.\n`);
+  await publication(fixturePath, true, `After ${id}`);
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const language of ['zh-Hant', 'en']) {
+      for (const theme of ['light', 'dark']) {
+        await context.addCookies([
+          { name: 'yomihon_lang', value: language, url: BASE },
+          { name: 'yomihon_theme', value: theme, url: BASE },
+        ]);
+        for (const address of ['/', '/open-thoughts']) {
+          await page.goto(BASE + address, { waitUntil: 'load' });
+          await arrived(page);
+          applied();
+          const state = await page.evaluate(() => ({
+            language: document.documentElement.lang,
+            theme: document.documentElement.dataset.theme,
+          }));
+          if (state.language !== language || state.theme !== theme) {
+            throw new ProbeBroken(`BROKEN uncertainty-marks: ${address} rendered ${JSON.stringify(state)}, want ${language}/${theme}`);
+          }
+          const selector = `[data-uncertainty-remove][data-uncertainty-path="${fixturePath}"]`;
+          try {
+            await page.locator(selector).waitFor({ state: 'attached', timeout: 4000 });
+            await ready(page, selector);
+          } catch {
+            fail('lost-mark-removes-original-pair', `${address}: lost-pair removal never arrived usable`);
+          }
+          if (JSON.stringify(await records(page)) !== JSON.stringify(saved)) fail('lost-mark-removes-original-pair', 'reading changed stored identities or times');
+          const geometry = await page.locator(selector).evaluate((button) => {
+            const box = button.getBoundingClientRect();
+            return { outside: !button.closest('a'), fits: box.left >= 0 && box.right <= innerWidth, disabled: button.disabled };
+          });
+          if (!geometry.outside || !geometry.fits || geometry.disabled) fail('lost-mark-removes-original-pair', `${address}: native removal is inside a link, clipped, or disabled`);
+        }
+      }
+    }
+  }
+  const removal = page.locator(`[data-uncertainty-remove][data-uncertainty-path="${fixturePath}"]`);
+  await removal.focus();
+  await removal.press('Enter');
+  try {
+    await page.waitForFunction(() => !document.querySelector('[data-uncertainty-remove]'), {}, { timeout: 4000 });
+  } catch {
+    fail('lost-mark-removes-original-pair', 'native removal did not refresh the shelf');
+  }
+  if ((await records(page)).length !== 0) fail('lost-mark-removes-original-pair', 'native removal left the original pair stored');
   await context.close();
-  console.log('PASS uncertainty-marks: a phone-width slot mark survives a reload and clears; a concept mark names its own note');
+  console.log('PASS uncertainty-marks: a phone-width slot mark survives a reload and clears; a concept mark names its own note; lost-pair removal remains usable at both widths, languages, and themes');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
+    console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
+    process.exitCode = 2;
+  } else if (err instanceof LockFired && MUTATE && mutationProof()) {
+    console.error(`NOT-APPLIED uncertainty-marks: ${MUTATE}: ${mutationProof()}`);
     console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
     process.exitCode = 2;
   } else if (err instanceof LockFired) {
     console.error(err.message);
     if (MUTATE) {
       const { target } = MUTATIONS[MUTATE];
-      if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+      if (err.site === target) caughtMutation = MUTATE;
       else console.error(`no catch: ${MUTATE} targets ${target}, but ${err.site} fired first`);
     }
     process.exitCode = 1;
@@ -192,5 +311,6 @@ try {
   }
 } finally {
   await browser.close();
-  await clearMarks();
+  const clean = await clearMarks();
+  if (clean && caughtMutation) console.log(`MUTATE-RESULT: caught ${caughtMutation}`);
 }
