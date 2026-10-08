@@ -266,7 +266,6 @@ const runHandChild = async () => {
   let stderr = Buffer.alloc(0);
   child.once('spawn', () => {
     console.log('invoked: a11y-audit hand-mode child spawned mode=drop-task-label');
-    console.log('invoked: a11y-audit proof plain-owner child-spawn-boundary');
   });
   child.once('error', (error) => {
     childError = true;
@@ -464,9 +463,6 @@ try {
     console.log('caught: a11y-audit label');
     console.log('MUTATE-RESULT: caught drop-task-label');
     process.exitCode = 1;
-    if (endpoint) {
-      console.log('invoked: a11y-audit proof hand-canary-boundary');
-    }
   } else {
     for (const signal of signals) process.on(signal, onSignal);
     workTimer = setTimeout(() => {
