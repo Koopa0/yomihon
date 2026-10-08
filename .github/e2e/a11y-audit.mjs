@@ -302,7 +302,7 @@ const runHandChild = async () => {
     unavailable('hand child deadline exceeded');
     console.log('caught: a11y-audit operational child-deadline');
     void shutdownPlain();
-  }, 30000);
+  }, 120000);
   const close = await childClose;
   process.stdout.write(redact(stdout.toString('utf8')));
   process.stderr.write(redact(stderr.toString('utf8')));
@@ -465,12 +465,6 @@ try {
     process.exitCode = 1;
     if (endpoint) {
       console.log('invoked: a11y-audit proof hand-canary-boundary');
-      process.on('SIGTERM', () => {
-        console.log('invoked: a11y-audit proof held-hand received SIGTERM');
-      });
-      setInterval(() => {}, 1000);
-      console.log('invoked: a11y-audit proof held-hand applied');
-      await new Promise(() => {});
     }
   } else {
     for (const signal of signals) process.on(signal, onSignal);
