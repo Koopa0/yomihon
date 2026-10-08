@@ -732,9 +732,9 @@ func TestAgreementDifferenceControls(t *testing.T) {
 		result := page.HTML("Notes/Reading.md", "", body, wording.En)
 		actual := agreementObserve(t, result.HTML)
 		cut, found := render.Excerpt(body, "^[literal]")
-		// This raw spelling is not a lossless wikilink address. Excerpt's raw
-		// tail reader answers it, but the rendered footnote owns no block id.
-		if len(actual.Blocks) != 0 || !found || cut != "paragraph ^[literal]" {
+		// Inline footnote spelling is not a block name. Refuse the raw cut
+		// as well as the page anchor instead of inventing an address candidate.
+		if len(actual.Blocks) != 0 || found || cut != "" {
 			t.Errorf("caught: retired-inline-footnote-defect blocks=%q found=%t cut=%q", actual.Blocks, found, cut)
 		}
 		failures := agreementFragmentFailures(t, []agreementCase{{Name: "retired-inline-footnote", Body: body}}, []agreementHTML{actual})

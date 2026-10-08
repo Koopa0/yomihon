@@ -207,7 +207,8 @@ func TestAgreementMutations(t *testing.T) {
 					state = "red"
 				}
 				overlay := agreementMutationOverlay(t, root, mode, red)
-				compile := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-short", "-run=^$", packagePath)
+				binary := filepath.Join(t.TempDir(), "qualified.test")
+				compile := agreementMutationCommand(t, root, "test", "-overlay="+overlay, "-c", "-o="+binary, packagePath)
 				if compile.Status != 0 {
 					t.Fatalf("not-applied: setup-status=2 %s compile-only qualification failed status=%d\n%s", state, compile.Status, compile.Output)
 				}
@@ -217,16 +218,19 @@ func TestAgreementMutations(t *testing.T) {
 					selected += "/" + mode.Name
 					run += "/^" + mode.Name + "$"
 				}
-				args := []string{"test", "-overlay=" + overlay, "-short", "-count=1", "-timeout=90s", "-json", "-run=" + run, packagePath}
+				args := []string{"tool", "test2json", "-t", "-p", packagePath, binary, "-test.short", "-test.count=1", "-test.timeout=90s", "-test.v=test2json", "-test.run=" + run}
 				sourceDigest := ""
 				if packagePath == "./internal/judge" {
 					alternate := agreementMutationSource(t, overlay)
-					args = append(args, "-args", "-agreement-source="+alternate)
+					args = append(args, "-agreement-source="+alternate)
 					if mode.Name == "f3-consumer-parse" || (strings.HasPrefix(mode.Name, "stage4-") || strings.HasPrefix(mode.Name, "stage5-")) {
 						sourceDigest = agreementMutationSourceDigest(t, alternate)
 					}
 				}
-				child := agreementMutationCommand(t, root, args...)
+				// The assertion runs the exact binary whose compilation qualified
+				// this overlay, in the package directory its fixtures belong to.
+				packageRoot := filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(packagePath, "./")))
+				child := agreementMutationCommand(t, packageRoot, args...)
 				t.Logf("mode=%s state=%s status=%d\n%s", mode.Name, state, child.Status, child.Output)
 				agreementMutationReceipt(t, mode, selected, state, red, child, sourceDigest)
 			}
