@@ -23,7 +23,7 @@ func agreementFootnoteContinuationTargets(body string) map[string]int {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementLiteralMarkers(source, doc) {
+	if !agreementDeclarationMarkers(source, doc) {
 		return nil
 	}
 	targets := make(map[string]int)
@@ -66,6 +66,9 @@ func TestAgreementFootnoteContinuationDebt(t *testing.T) {
 		want       map[string]int
 	}{
 		{name: "used second paragraph", body: "ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
+		{name: "independent closed comment", body: "<!--%%[!note]-->\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
+		{name: "comment closing line owns reference text", body: "<!--%%[!note]--> ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{}},
+		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]` ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "unrelated inline html", body: "text <em>outside</em> ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "raw html owns apparent definition", body: "ref[^n]\n\n<div>\n[^n]: [[A]]\n\n    [[B]]\n</div>\n", want: map[string]int{}},

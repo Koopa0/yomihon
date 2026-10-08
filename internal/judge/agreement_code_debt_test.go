@@ -22,7 +22,7 @@ func agreementCodeDebtTargets(body string) map[string]int {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementLiteralMarkers(source, doc) {
+	if !agreementDeclarationMarkers(source, doc) {
 		return nil
 	}
 	targets := make(map[string]int)
@@ -83,6 +83,8 @@ func TestAgreementCodeDebt(t *testing.T) {
 		want       int
 	}{
 		{name: "wrapped span", body: "`open\n[[A]]\nclose`\n", want: 1},
+		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n`open\n[[A]]\nclose`\n", want: 1},
+		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "unrelated inline html", body: "text <em>outside</em>\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "raw html owns apparent literal", body: "<div>\n`open\n[[A]]\nclose`\n</div>\n"},

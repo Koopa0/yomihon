@@ -22,7 +22,7 @@ func agreementHeadingCollisionIDs(body string) map[string]bool {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementLiteralMarkers(source, doc) {
+	if !agreementDeclarationMarkers(source, doc) {
 		return nil
 	}
 	var names []string
@@ -77,6 +77,8 @@ func TestAgreementHeadingCollisionDebt(t *testing.T) {
 		want       map[string]bool
 	}{
 		{name: "authored suffix follows repetition", body: "## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
+		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
+		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "authored suffix precedes repetition", body: "## A-2\n## A\n## A\n", want: map[string]bool{"a-3": true}},
 		{name: "multiple prior claims", body: "## A-2\n## A-3\n## A\n## A\n", want: map[string]bool{"a-4": true}},

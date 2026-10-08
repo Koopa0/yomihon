@@ -79,7 +79,7 @@ func agreementUnusedFootnoteTargets(body string) map[string]int {
 	context.Set(agreementFootnoteTargetsKey, targets)
 	source := []byte(body)
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementLiteralMarkers(source, doc) {
+	if !agreementDeclarationMarkers(source, doc) {
 		return nil
 	}
 	return targets
@@ -105,6 +105,8 @@ func TestAgreementUnusedFootnoteDebt(t *testing.T) {
 		want       int
 	}{
 		{name: "unused", body: "[^unused]: [[A]]\n", want: 1},
+		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n[^unused]: [[A]]\n", want: 1},
+		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "unrelated literal markers", body: "`%%<!--[!note]`\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "two occurrences", body: "[^unused]: [[A]] [[A]]\n", want: 2},
 		{name: "used", body: "ref[^n]\n\n[^n]: [[A]]\n"},
