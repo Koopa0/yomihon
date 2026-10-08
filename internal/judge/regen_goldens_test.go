@@ -30,6 +30,7 @@ var engineGoldens = []struct {
 	{fixture: "testdata/vault-knowledge-scope", golden: "testdata/golden/knowledge-scope.jsonl"},
 	{fixture: "testdata/vault-namecollision", golden: "testdata/golden/namecollision.jsonl"},
 	{fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
+	{fixture: "testdata/vault-report-hidden", golden: "testdata/golden/report-hidden.jsonl"},
 	{fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
 	{fixture: "testdata/vault-comment-scope", golden: "testdata/golden/comment-scope.jsonl"},
 	{fixture: "testdata/vault-namecollision-privacy", golden: "testdata/golden/namecollision-privacy.jsonl", private: []string{"Private"}},
@@ -151,6 +152,23 @@ func TestRegenerateGoldens(t *testing.T) {
 		}
 		t.Logf("rewrote %s (%d bytes)", tt.golden, buf.Len())
 	}
+
+	hiddenRoot := "testdata/vault-report-hidden"
+	hiddenFindings, err := Check(t.Context(), hiddenRoot)
+	if err != nil {
+		t.Fatalf("Check(%q): %v", hiddenRoot, err)
+	}
+	hiddenContract, err := schema.Load(hiddenRoot)
+	if err != nil {
+		t.Fatalf("schema.Load(%q): %v", hiddenRoot, err)
+	}
+	hiddenRoots := domainRoots(hiddenContract.Definition().Rules.DomainEqualsFolderUnder)
+	hiddenBody := []byte(humanReport(hiddenFindings, hiddenRoots))
+	const hiddenGolden = "testdata/golden/report-hidden-human.golden"
+	if writeErr := os.WriteFile(hiddenGolden, hiddenBody, 0o600); writeErr != nil {
+		t.Fatalf("write %s: %v", hiddenGolden, writeErr)
+	}
+	t.Logf("rewrote %s (%d bytes)", hiddenGolden, len(hiddenBody))
 
 	reportRoot := "testdata/vault-report"
 	reportFindings, err := Check(t.Context(), reportRoot)

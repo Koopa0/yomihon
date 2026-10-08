@@ -55,6 +55,7 @@ var checkGoldens = []struct {
 	// the second reported by its own rule and never by both.
 	{name: "name collisions", fixture: "testdata/vault-namecollision", golden: "testdata/golden/namecollision.jsonl"},
 	{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
+	{name: "hidden report surface", fixture: "testdata/vault-report-hidden", golden: "testdata/golden/report-hidden.jsonl"},
 	// This fixture covers the local vault contract's configured fields.
 	{name: "configured supersession", fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
 	// A note reached only through a symbolic link. The scan reads nothing
