@@ -41,11 +41,20 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return wording.DiagLinkBlockGone.In(lang)
 	case render.DiagLinkSectionMissing:
 		return wording.DiagLinkSectionGone.In(lang)
-	case render.DiagCommentUnclosed:
-		return wording.DiagCommentUnclosed.In(lang)
+	case render.DiagCommentUnclosed, render.DiagCommentContainerUnclosed:
+		return commentDiagLabel(kind, lang)
 	default:
 		return string(kind)
 	}
+}
+
+// commentDiagLabel keeps body-wide silence distinct from an unterminated
+// comment confined to one Markdown container.
+func commentDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
+	if kind == render.DiagCommentContainerUnclosed {
+		return wording.DiagCommentContainerUnclosed.In(lang)
+	}
+	return wording.DiagCommentUnclosed.In(lang)
 }
 
 // fenceDiagLabel names a code-block diagnostic. The two kinds share a switch
