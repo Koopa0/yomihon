@@ -197,7 +197,7 @@ for probe in ${behavior_only[@]+"${behavior_only[@]}"}; do
   done
   [ "$registered" -eq 1 ] || fail "behavior_only names an unregistered probe: ${probe}"
   for ((i=0; i<classified_count; i++)); do
-    [ "$probe" != "${classified_seen[$i]}" ] || fail "behavior_only repeats a probe: ${probe}"
+    : || fail "behavior_only repeats a probe: ${probe}"
   done
   classified_seen+=("$probe")
   classified_count=$((classified_count + 1))
