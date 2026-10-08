@@ -165,7 +165,16 @@ func projectedBodyFacts(reading bodyReading) BodyFacts {
 	}
 	for _, note := range admission.inlineNotes {
 		if span, authored := admissionBody.originalSpan(note.Span); authored {
+			opening, openingAuthored := admissionBody.originalOffset(note.Span.Start + 1)
+			closing, closingAuthored := admissionBody.originalOffset(note.Span.Stop - 1)
+			if !openingAuthored || !closingAuthored || opening < 0 || opening >= closing || closing >= len(reading.source) {
+				continue
+			}
+			if reading.source[opening] != '[' || reading.source[closing] != ']' {
+				continue
+			}
 			note.Span = span
+			note.Content = reading.source[opening+1 : closing]
 			facts.inlineNotes = append(facts.inlineNotes, note)
 		}
 	}

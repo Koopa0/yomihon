@@ -28,7 +28,7 @@ var (
 	// is not admitted.
 	safeFormattingTag = regexp.MustCompile(`^<(/?)(kbd|sub|sup|mark|u)[ \t\r\n]*>$`)
 	safeMarkupLangTag = regexp.MustCompile(`^<(?:ruby|rt|rp)[ \t\r\n]+lang=(?:"[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*"|'[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*')[ \t\r\n]*>$`)
-	trustedBlockTag = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
+	trustedBlockTag   = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
 )
 
 // safeMarkupRenderer is the note-body authority boundary. Authored HTML is still

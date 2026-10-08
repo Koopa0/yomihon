@@ -162,7 +162,7 @@ func bodyObservationIn(pc parser.Context) *bodyObservation {
 
 type bodyBlockParser struct{ delegate parser.BlockParser }
 
-func (p bodyBlockParser) Trigger() []byte { return p.delegate.Trigger() }
+func (p bodyBlockParser) Trigger() []byte             { return p.delegate.Trigger() }
 func (p bodyBlockParser) CanInterruptParagraph() bool { return p.delegate.CanInterruptParagraph() }
 func (p bodyBlockParser) CanAcceptIndentedLine() bool { return p.delegate.CanAcceptIndentedLine() }
 
@@ -266,7 +266,7 @@ func (bodyInlineFootnoteParser) Parse(_ ast.Node, reader text.Reader, pc parser.
 	_, end := reader.Position()
 	if observation := bodyObservationIn(pc); observation != nil {
 		observation.inlineNotes = append(observation.inlineNotes, InlineFootnoteFact{
-			Span: Span{Start: start.Start, Stop: end.Start}, Content: string(content.Value(reader.Source())),
+			Span: Span{Start: start.Start, Stop: end.Start}, Content: string(reader.Source()[start.Start+2 : end.Start-1]),
 		})
 		for i := range content.Len() {
 			observation.inlineSegments[start.Start] = append(observation.inlineSegments[start.Start], content.At(i))

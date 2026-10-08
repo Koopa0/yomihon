@@ -101,14 +101,14 @@ func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions
 	// consumes them. Observe the canonical recognizers' actual matched pairs;
 	// the text walk emits those source segments around each recognized node.
 	observation := delimiterObservation{
-		lengths: make(map[*parser.Delimiter]int), rewritten: rewritten,
+		lengths: make(map[*parser.Delimiter]int), left: make(map[*parser.Delimiter]int), rewritten: rewritten,
 		corpus: make(map[ast.Node][2]text.Segment),
 	}
 	markdown := graph.NewBodyMarkdown(nil)
 	markdown.Parser().AddOptions(&observation)
 	doc := markdown.Parser().Parse(text.NewReader(src))
 
-	w := plainWalk{blockVerbatim: true, blockContext: true, blockLiteral: true, rewritten: rewritten, emissions: emissions, delimiters: observation.corpus}
+	w := plainWalk{blockVerbatim: true, blockContext: true, blockLiteral: true, rewritten: rewritten, emissions: emissions, delimiters: observation.corpus, remnants: observation.remnants()}
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
@@ -192,6 +192,7 @@ type plainWalk struct {
 	readings         strings.Builder
 	emissions        *[]sourceEmission
 	delimiters       map[ast.Node][2]text.Segment
+	remnants         []delimiterRemnant
 	readingEmissions []sourceEmission
 	ruby             []rubyChild
 }
@@ -635,9 +636,47 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 		w.blockContext = false
 		w.blockLiteral = false
 	}
-	w.writeSource(t.Segment, source)
+	w.writeTextSource(t.Segment, source)
 	if t.SoftLineBreak() || t.HardLineBreak() {
 		w.writeSourceBreak(t.Segment.Stop, source)
+	}
+}
+
+// writeTextSource preserves the actual source coordinates of a remaining
+// delimiter. Goldmark retains its prefix segment even after consuming the
+// closer's left edge; the characters agree, but display effects need its origin.
+func (w *plainWalk) writeTextSource(segment text.Segment, source []byte) {
+	write := func(start, stop, offset int) {
+		part := segment
+		part.Start, part.Stop = start+offset, stop+offset
+		if start != segment.Start {
+			part.Padding = 0
+		}
+		if stop != segment.Stop {
+			part.ForceNewline = false
+		}
+		w.writeSource(part, source)
+	}
+	first, _ := slices.BinarySearchFunc(w.remnants, segment.Start, func(remnant delimiterRemnant, start int) int {
+		if remnant.span.Stop <= start {
+			return -1
+		}
+		return 1
+	})
+	at := segment.Start
+	for _, remnant := range w.remnants[first:] {
+		if remnant.span.Start >= segment.Stop {
+			break
+		}
+		start, stop := max(at, remnant.span.Start), min(segment.Stop, remnant.span.Stop)
+		if at < start {
+			write(at, start, 0)
+		}
+		write(start, stop, remnant.offset)
+		at = stop
+	}
+	if at < segment.Stop || at == segment.Start {
+		write(at, segment.Stop, 0)
 	}
 }
 

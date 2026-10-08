@@ -1215,7 +1215,13 @@ func childList(item *ast.ListItem) *ast.List {
 func skipFacts(facts graph.BodyFacts) []Span {
 	var code []Span
 	for region := range facts.Codes() {
-		code = append(code, region.Span)
+		span := region.Span
+		if region.Kind == graph.CodeInline {
+			// A quoted row still visibly starts with its opening backtick.
+			// Keep that byte outside the scan zone used by firstVisible.
+			span.Start++
+		}
+		code = append(code, span)
 	}
 	for comment := range facts.Comments() {
 		code = append(code, comment)

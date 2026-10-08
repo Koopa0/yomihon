@@ -172,6 +172,25 @@ func TestBodyFactsInlineFootnoteContent(t *testing.T) {
 	}
 }
 
+func TestBodyFactsInlineFootnoteOriginalContent(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "comment inside", body: "^[one %%hidden%% two]", want: "one %%hidden%% two"},
+		{name: "comment joins opener", body: "^%%hidden%%[words]", want: "words"},
+		{name: "quote prefix", body: "> ^[one\n> two]", want: "one\n> two"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			notes := slices.Collect(graph.ReadBody(tt.body).InlineFootnotes())
+			if len(notes) != 1 || notes[0].Content != tt.want {
+				t.Errorf("caught: inline content lost original delimiter provenance: got %+v, want %q", notes, tt.want)
+			}
+		})
+	}
+}
+
 func TestBodyFactsHiddenDuplicateSource(t *testing.T) {
 	const body = "%%\n[^x]: hidden\n%%\nvisible[^x]\n\n[^x]: [[Shown]]\n"
 	facts := graph.ReadBody(body)
@@ -352,11 +371,11 @@ func TestBodyFactsContainerEnds(t *testing.T) {
 }
 
 func TestBodyFactsHeadingsAndDestinations(t *testing.T) {
-	const body = "## Actual `quoted`\n\n[link](Target.md)\n\n`code\n## Literal`\n"
+	const body = "## Actual `quoted`\n\n[link](Target.md)\n\n`code\nliteral ## Literal`\n"
 	facts := graph.ReadBody(body)
 	headings := slices.Collect(facts.Headings())
-	if len(headings) != 1 || headings[0].Level != 2 || headings[0].Text != "Actual " {
-		t.Errorf("caught: heading recognition = %+v", headings)
+	if diff := cmp.Diff([]graph.BodyHeading{{Span: graph.Span{Start: 3, Stop: 18}, Level: 2, Text: "Actual "}}, headings); diff != "" {
+		t.Errorf("caught: heading recognition differs (-want +got):\n%s", diff)
 	}
 	destinations := slices.Collect(facts.Destinations())
 	if diff := cmp.Diff([]graph.BodyDestination{{Offset: 20, Target: "Target.md"}}, destinations); diff != "" {
@@ -364,5 +383,34 @@ func TestBodyFactsHeadingsAndDestinations(t *testing.T) {
 	}
 	if !facts.CodeAt(44) {
 		t.Error("caught: multiline span lost its heading-like code")
+	}
+	if diff := cmp.Diff([]graph.CodeFact{
+		{Kind: graph.CodeInline, Span: graph.Span{Start: 10, Stop: 18}},
+		{Kind: graph.CodeInline, Span: graph.Span{Start: 39, Stop: 64}},
+	}, slices.Collect(facts.Codes())); diff != "" {
+		t.Errorf("caught: multiline code lost its consumed delimiters (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]graph.CodeLiteral{
+		{Span: graph.Span{Start: 10, Stop: 18}, Text: "quoted"},
+		{Span: graph.Span{Start: 39, Stop: 64}, Text: "code literal ## Literal"},
+	}, slices.Collect(facts.CodeLiterals())); diff != "" {
+		t.Errorf("caught: multiline code words changed (-want +got):\n%s", diff)
+	}
+}
+
+func TestBodyFactsATXInterruptsUnclosedCode(t *testing.T) {
+	const body = "## Actual `quoted`\n\n[link](Target.md)\n\n`code\n## Literal`\n"
+	facts := graph.ReadBody(body)
+	if diff := cmp.Diff([]graph.BodyHeading{
+		{Span: graph.Span{Start: 3, Stop: 18}, Level: 2, Text: "Actual "},
+		{Span: graph.Span{Start: 48, Stop: 56}, Level: 2, Text: "Literal`"},
+	}, slices.Collect(facts.Headings())); diff != "" {
+		t.Errorf("caught: ATX heading did not interrupt its paragraph (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]graph.CodeFact{{Kind: graph.CodeInline, Span: graph.Span{Start: 10, Stop: 18}}}, slices.Collect(facts.Codes())); diff != "" {
+		t.Errorf("caught: interrupted backticks manufactured multiline code (-want +got):\n%s", diff)
+	}
+	if facts.CodeAt(39) || facts.CodeAt(48) {
+		t.Error("caught: interrupted paragraph or heading became code")
 	}
 }

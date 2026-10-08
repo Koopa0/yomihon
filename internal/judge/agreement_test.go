@@ -258,7 +258,7 @@ func agreementMinimizeBudget(t *testing.T, original agreementCounterexample, bud
 		return body, 0, 0, "not-attempted invalid-utf8"
 	}
 	attempts, checks := 0, 0
-	if budget.Checks + 2 > 64 {
+	if budget.Checks+2 > 64 {
 		return body, 0, 0, "not-attempted public-check-budget"
 	}
 	before := budget.Checks
@@ -287,7 +287,7 @@ func agreementMinimizeBudget(t *testing.T, original agreementCounterexample, bud
 		changed := false
 		runes := []rune(body)
 		for start := 0; start < len(runes); start += width {
-			if budget.Candidates >= 128 || budget.Checks + 2 > 64 {
+			if budget.Candidates >= 128 || budget.Checks+2 > 64 {
 				return body, attempts, checks, "budget"
 			}
 			candidate := string(runes[:start]) + string(runes[min(start+width, len(runes)):])

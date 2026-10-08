@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"iter"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
@@ -23,6 +24,20 @@ const (
 	// CodeIndent is an indented block recognized in its Markdown container.
 	CodeIndent
 )
+
+// String names a code region for a diagnostic or a log line.
+func (k CodeKind) String() string {
+	switch k {
+	case CodeInline:
+		return "inline"
+	case CodeFence:
+		return "fence"
+	case CodeIndent:
+		return "indent"
+	default:
+		panic("graph: unknown CodeKind: " + strconv.Itoa(int(k)))
+	}
+}
 
 // CodeFact identifies authored code in original byte coordinates. Fence spans
 // include the opener, info and closer, even when there are no content lines.
@@ -45,8 +60,8 @@ type FootnoteFact struct {
 }
 
 // InlineFootnoteFact is one accepted authored token before expansion.
-// Content keeps its admission-source Markdown and container line segments;
-// Source retains the immutable original bytes even when comments were removed.
+// Content retains the original bytes between its delimiters, including authored
+// indentation and comments. Private admission segments drive presentation.
 type InlineFootnoteFact struct {
 	Span    Span
 	Content string
@@ -245,7 +260,7 @@ func (bodySourceCollector) Transform(doc *ast.Document, reader text.Reader, cont
 			if n.Lines().Len() > 0 {
 				lines := n.Lines()
 				observation.headings = append(observation.headings, BodyHeading{
-					Span: Span{Start: lines.At(0).Start, Stop: lines.At(lines.Len()-1).Stop},
+					Span:  Span{Start: lines.At(0).Start, Stop: lines.At(lines.Len() - 1).Stop},
 					Level: n.Level, Text: bodyProse(n, source, observation.inlineNotes),
 				})
 			}
@@ -272,7 +287,7 @@ func (bodySourceCollector) Transform(doc *ast.Document, reader text.Reader, cont
 				line := string(source[first.Start:first.Stop])
 				trimmed := strings.TrimLeft(line, " \t")
 				if strings.HasPrefix(trimmed, "<!--") {
-					stop := n.Lines().At(n.Lines().Len()-1).Stop
+					stop := n.Lines().At(n.Lines().Len() - 1).Stop
 					if n.HasClosure() {
 						stop = n.ClosureLine.Stop
 					}
