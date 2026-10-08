@@ -182,6 +182,10 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			codeObserved := false
 			var continuationTargets map[string]int
 			continuationObserved := false
+			var fenceInfoTargets map[string]int
+			fenceInfoObserved := false
+			var unusedAddresses map[string]int
+			unusedAddressesObserved := false
 			for failureIndex := range failures[i] {
 				failure := &failures[i][failureIndex]
 				if designed[agreementSignature(failure)] {
@@ -212,6 +216,20 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						continuationObserved = true
 					}
 					classification, authority, wrong = agreementFootnoteContinuationDifference(c, failure, continuationTargets)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !fenceInfoObserved {
+						fenceInfoTargets = agreementFenceInfoTargets(c.Body)
+						fenceInfoObserved = true
+					}
+					classification, authority, wrong = agreementFenceInfoDifference(c, failure, fenceInfoTargets)
+				}
+				if classification == "" && failure.Property == "P3" {
+					if !unusedAddressesObserved {
+						unusedAddresses = agreementUnusedFootnoteAddresses(c.Body)
+						unusedAddressesObserved = true
+					}
+					classification, authority, wrong = agreementUnusedFootnoteAddressDifference(c, failure, unusedAddresses)
 				}
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))

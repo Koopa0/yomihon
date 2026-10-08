@@ -12,7 +12,9 @@ import (
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/render"
 )
 
 var agreementFootnoteTargetsKey = parser.NewContextKey()
@@ -31,6 +33,7 @@ func (agreementFootnoteDeclarations) Transform(doc *ast.Document, reader text.Re
 		panic("missing footnote observation context")
 	}
 	source := reader.Source()
+	addresses, addressObservation := context.Get(agreementFootnoteAddressesKey).(map[string]int)
 	if err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		footnote, ok := node.(*extast.Footnote)
 		if !entering || !ok || footnote.Index >= 0 {
@@ -46,6 +49,12 @@ func (agreementFootnoteDeclarations) Transform(doc *ast.Document, reader text.Re
 				for i := range child.Lines().Len() {
 					line := child.Lines().At(i)
 					body.Write(line.Value(source))
+					if addressObservation && addresses != nil {
+						raw := strings.TrimSuffix(strings.TrimSuffix(string(line.Value(source)), "\n"), "\r")
+						if address := render.BlockAddress(raw); address != "" {
+							addresses[graph.FoldFragment(address)]++
+						}
+					}
 				}
 				for _, target := range judge.LinkTargets(body.String()) {
 					targets[target]++
