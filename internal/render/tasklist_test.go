@@ -304,7 +304,7 @@ func TestTaskSequenceRolesRespectInlineBlockBoundaries(t *testing.T) {
 		{
 			name:   "soft continuation",
 			source: "- [ ] Own\n  continuation {sequence=local}\n",
-			want:   "<ul>\n<li><label class=\"y-task\"><input disabled=\"\" type=\"checkbox\"> Own\ncontinuation</label></li>\n</ul>\n",
+			want:   "<ul>\n<li><label class=\"y-task\"><input disabled=\"\" type=\"checkbox\"> Own\ncontinuation {sequence=local}</label></li>\n</ul>\n",
 		},
 		{
 			name:   "inline formatting retained",

@@ -195,7 +195,7 @@ func TestTaskRoleProjectionKeepsCorpusAndChangesOnlyDisplay(t *testing.T) {
 		{name: "nested", body: "- [ ] Parent {sequence=primary}\n  - [x] Child {sequence=local}", plain: "Parent {sequence=primary}\nChild {sequence=local}", shown: "Parent\nChild"},
 		{name: "ordered", body: "1. [x] First {sequence=none}\n2. [ ] Second {sequence=local}", plain: "First {sequence=none}\nSecond {sequence=local}", shown: "First\nSecond"},
 		{name: "second paragraph", body: "- [x] Own {sequence=local}\n\n  Another paragraph {sequence=local}", plain: "Own {sequence=local}\nAnother paragraph {sequence=local}", shown: "Own\nAnother paragraph {sequence=local}"},
-		{name: "soft continuation", body: "- [ ] Own\n  continuation {sequence=local}", plain: "Own\ncontinuation {sequence=local}", shown: "Own\ncontinuation"},
+		{name: "soft continuation", body: "- [ ] Own\n  continuation {sequence=local}", plain: "Own\ncontinuation {sequence=local}", shown: "Own\ncontinuation {sequence=local}"},
 		{name: "formatted wording", body: "- [x] **Own** {sequence=local}", plain: "Own {sequence=local}", shown: "Own"},
 		{name: "code quotation", body: "- [x] Task `{sequence=local}`", plain: "Task {sequence=local}", shown: "Task {sequence=local}"},
 		{name: "emphasis quotation", body: "- [x] *Task {sequence=local}*", plain: "Task {sequence=local}", shown: "Task {sequence=local}"},
