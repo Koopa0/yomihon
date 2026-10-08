@@ -35,8 +35,8 @@ func TestOversizeMarkdownExplainsItsLimit(t *testing.T) {
 	write(t, filepath.Join(root, "Notes", "at-limit.md"), bytes.Repeat([]byte("x"), 1<<20))
 	srv := newServer(t, root)
 	for _, tt := range []struct{ lang, want, generic string }{
-		{lang: "zh-Hant", want: "這篇筆記的大小是 2.0 MB（2,102,802 位元組），超過 1 MiB 的閱讀上限；原始檔仍可下載。", generic: "這裡沒有這種檔案的閱讀器"},
-		{lang: "en", want: "This note is 2.0 MB (2,102,802 bytes), over the 1 MiB reading limit; the original file can still be downloaded.", generic: "There is no reader here for this kind of file"},
+		{lang: "zh-Hant", want: "這篇筆記的大小是 2.0 MiB（2,102,802 位元組），超過 1 MiB 的閱讀上限；原始檔仍可下載。", generic: "這裡沒有這種檔案的閱讀器"},
+		{lang: "en", want: "This note is 2.0 MiB (2,102,802 bytes), over the 1 MiB reading limit; the original file can still be downloaded.", generic: "There is no reader here for this kind of file"},
 	} {
 		t.Run(tt.lang, func(t *testing.T) {
 			t.Parallel()
@@ -104,8 +104,8 @@ func TestExcludedOversizeMarkdownHasNoHealthRow(t *testing.T) {
 		lang       wording.Lang
 		want, note string
 	}{
-		{lang: wording.ZhHant, want: "這份文件的大小是 1.0 MB（1,048,577 位元組），超過 1 MiB 的閱讀上限；原始檔仍可下載。", note: "這篇筆記"},
-		{lang: wording.En, want: "This document is 1.0 MB (1,048,577 bytes), over the 1 MiB reading limit; the original file can still be downloaded.", note: "This note is"},
+		{lang: wording.ZhHant, want: "這份文件的大小是 1.0 MiB（1,048,577 位元組），超過 1 MiB 的閱讀上限；原始檔仍可下載。", note: "這篇筆記"},
+		{lang: wording.En, want: "This document is 1.0 MiB (1,048,577 bytes), over the 1 MiB reading limit; the original file can still be downloaded.", note: "This note is"},
 	} {
 		body := sizeLimitPage(t, srv.Client(), srv.URL+"/notes/Elsewhere/README.md", string(tt.lang))
 		if strings.Contains(body, "health-source-bound-") {

@@ -100,8 +100,8 @@ func TestHealthNamesANoteOverTheSourceBound(t *testing.T) {
 // GET /health speaks when no cookie chose another.
 func humanSizeZhHant(n int64) string {
 	value := float64(n)
-	unit := "KB"
-	for _, u := range []string{"KB", "MB", "GB"} {
+	unit := "KiB"
+	for _, u := range []string{"KiB", "MiB", "GiB"} {
 		value /= 1024
 		unit = u
 		if value < 1024 {

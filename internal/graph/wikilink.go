@@ -12,8 +12,9 @@ import (
 // are the two ways a name differs for reasons its author never chose; every
 // other difference they did choose, and it is kept. A block address folds
 // through here too, which is what keeps "^quote-1" and "^quote1" two names.
+// Lowercase can introduce a composable pair, so the returned form is NFC too.
 func FoldFragment(s string) string {
-	return strings.ToLower(vault.NormalizeNFC(s))
+	return vault.NormalizeNFC(strings.ToLower(vault.NormalizeNFC(s)))
 }
 
 // sectionIDKeep matches every run of characters a section id keeps: Unicode
