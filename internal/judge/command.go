@@ -45,6 +45,7 @@ func allRuleIDs() []RuleID {
 		"schema.enum",
 		"schema.required",
 		"schema.unknown_key",
+		"schema.type_dependent",
 		"schema.slug",
 		"schema.domain_folder",
 		"schema.legacy_tag",

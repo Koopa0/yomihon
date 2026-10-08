@@ -72,6 +72,8 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		return parts
 	case "schema.unknown_key":
 		return []SchemaPart{code(target), text(schemaUnknownKey)}
+	case "schema.type_dependent":
+		return []SchemaPart{code(field), text(schemaWrittenAs), code(target), text(schemaTypeDependent)}
 	case "schema.provenance":
 		return []SchemaPart{
 			text(schemaProvenanceStart), code("based_on"),
@@ -141,6 +143,10 @@ var (
 		" was read as a nested YAML list, not a reference. Quote the link, for example ")
 	schemaReferenceOr  = both(" 或 ", " or ")
 	schemaReferenceEnd = both("。", ".")
+
+	schemaTypeDependent = both(
+		"不是有效的類型；類型限定欄位要等 type 有效後才能判斷。",
+		", which is not valid; type-only fields cannot be judged until type is valid.")
 
 	schemaProvenanceStart  = both("這篇 concept 既沒寫 ", "This concept has neither ")
 	schemaProvenanceMiddle = both(" 也沒寫 ", " nor ")

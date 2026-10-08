@@ -8,8 +8,8 @@ import (
 )
 
 // ShelfBlock is a shelf at its narrowest: what the organisation is called, how
-// much of it there is, its one sentence, and the first few rows that lead
-// somewhere. It is a way in rather than a fifth listing, so it ends by handing
+// much of it there is, its one sentence, and the first few linked or fault
+// rows. It is a way in rather than a fifth listing, so it ends by handing
 // the reader to the shelf's own page instead of going on.
 //
 // What the block shows and what the shelf holds are different questions. A
@@ -80,24 +80,55 @@ templ ShelfRail(s Shelf, limit int, dir, more string) {
 	}
 }
 
-// shelfRowLink is one row wherever a shelf shows rows as links, so a row cannot
-// come to look different for being on a different width. A row read by date
-// leads with its day here too, and a row read by its title follows the title
-// with it; the line the document opens with is left to the full width, a block
-// being a corner of the shelf rather than a listing.
+// shelfRowLink shows a narrow shelf row as a link or inert fault text. Its
+// removal action stays beside the row so it never becomes part of navigation.
+// A row read by date leads with its day here too, and a row read by its title
+// follows the title with it; the line the document opens with is left to the
+// full width, a block being a corner of the shelf rather than a listing.
 templ shelfRowLink(row Row) {
-	<a class={ "ui-navitem", templ.KV("ui-navitem--wrap", row.Wrap), templ.KV("ui-navitem--by-title", row.ByTitle) } href={ templ.URL(row.Href) } data-desk-item>
-		if row.When != "" && !row.ByTitle {
-			<span class="ui-navitem__when">{ row.When }</span>
-		}
-		<span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
-		if row.When != "" && row.ByTitle {
-			<span class="ui-navitem__when">{ row.When }</span>
-		}
-		if row.Mark != "" {
-			<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--warn", row.Fault) }>{ row.Mark }</span>
-		}
-	</a>
+	if row.Href == "" {
+		<span class={ "ui-navitem", templ.KV("ui-navitem--wrap", row.Wrap), templ.KV("ui-navitem--by-title", row.ByTitle) } data-desk-item>
+			@shelfNarrowBody(row)
+		</span>
+	} else {
+		<a class={ "ui-navitem", templ.KV("ui-navitem--wrap", row.Wrap), templ.KV("ui-navitem--by-title", row.ByTitle) } href={ templ.URL(row.Href) } data-desk-item>
+			@shelfNarrowBody(row)
+		</a>
+	}
+	@shelfRemoval(row)
+}
+
+templ shelfNarrowBody(row Row) {
+	if row.When != "" && !row.ByTitle {
+		<span class="ui-navitem__when">{ row.When }</span>
+	}
+	<span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
+	if row.When != "" && row.ByTitle {
+		<span class="ui-navitem__when">{ row.When }</span>
+	}
+	if row.Mark != "" {
+		<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--warn", row.Fault) }>{ row.Mark }</span>
+	}
+}
+
+templ shelfRemoval(row Row) {
+	if row.Removal != nil {
+		<div class="y-uncertainty-removal" lang={ row.Removal.Language }>
+			<button
+				class="y-markset y-xbtn"
+				type="button"
+				disabled
+				data-uncertainty-remove
+				data-uncertainty-endpoint={ row.Removal.Endpoint }
+				data-uncertainty-path={ row.Removal.Path }
+				data-uncertainty-anchor={ row.Removal.Anchor }
+				data-uncertainty-unavailable={ row.Removal.Unavailable }
+				data-uncertainty-failed={ row.Removal.Failed }
+				data-uncertainty-cleared={ row.Removal.Cleared }
+			>{ row.Removal.Label }</button>
+			<p class="y-uncertainty__said" role="status"></p>
+		</div>
+	}
 }
 
 // ShelfPage is a shelf unfolded: everything on it, with a heading over each
@@ -136,6 +167,7 @@ templ shelfPageRow(row Row) {
 			@shelfRowBody(row)
 		</a>
 	}
+	@shelfRemoval(row)
 }
 
 templ shelfRowBody(row Row) {
