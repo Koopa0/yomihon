@@ -18,22 +18,31 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-func missingImageCommandFixture(t *testing.T) (string, []byte) {
+func missingImageCommandFixture(t *testing.T) (root string, want []byte) {
 	t.Helper()
-	root := t.TempDir()
+	root = t.TempDir()
 	if err := os.CopyFS(root, os.DirFS("../../internal/judge/testdata/vault-missing-images")); err != nil {
 		t.Fatalf("copy command fixture: %v", err)
 	}
-	want, err := os.ReadFile("../../internal/judge/testdata/golden/missing-images.jsonl")
+	files, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatalf("open command fixture root: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := files.Close(); closeErr != nil {
+			t.Errorf("close command fixture root: %v", closeErr)
+		}
+	})
+	want, err = os.ReadFile("../../internal/judge/testdata/golden/missing-images.jsonl")
 	if err != nil || len(want) == 0 {
 		t.Fatalf("read command golden: error=%v bytes=%d", err, len(want))
 	}
-	before, err := os.ReadFile(filepath.Join(root, "Notes", "Images.md"))
+	before, err := files.ReadFile("Notes/Images.md")
 	if err != nil {
 		t.Fatalf("read command source: %v", err)
 	}
 	t.Cleanup(func() {
-		after, readErr := os.ReadFile(filepath.Join(root, "Notes", "Images.md"))
+		after, readErr := files.ReadFile("Notes/Images.md")
 		if readErr != nil {
 			t.Errorf("read command source after invocation: %v", readErr)
 			return

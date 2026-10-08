@@ -3,7 +3,6 @@ package judge_test
 import (
 	"log/slog"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -22,7 +21,16 @@ func TestMissingImagePageParity(t *testing.T) {
 	if err := os.CopyFS(root, os.DirFS("testdata/vault-missing-images")); err != nil {
 		t.Fatalf("copy page fixture: %v", err)
 	}
-	before, err := os.ReadFile(filepath.Join(root, "Notes", "Images.md"))
+	files, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatalf("open fixture root: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := files.Close(); closeErr != nil {
+			t.Errorf("close fixture root: %v", closeErr)
+		}
+	})
+	before, err := files.ReadFile("Notes/Images.md")
 	if err != nil {
 		t.Fatalf("read page source: %v", err)
 	}
@@ -50,10 +58,9 @@ func TestMissingImagePageParity(t *testing.T) {
 	page := generation.Render("Notes/Images.md", string(before), wording.En)
 	var markdown, wiki []string
 	for _, d := range page.Diagnostics {
-		switch d.Kind {
-		case render.DiagImageMissing:
+		if d.Kind == render.DiagImageMissing {
 			markdown = append(markdown, d.Target)
-		case render.DiagWikilinkBroken:
+		} else if d.Kind == render.DiagWikilinkBroken {
 			if d.Target == "missing-wiki.png" || d.Target == "missing.pdf" {
 				wiki = append(wiki, d.Target)
 			}
@@ -100,7 +107,7 @@ func TestMissingImagePageParity(t *testing.T) {
 	if diff := cmp.Diff(wantHealth, healthTargets); diff != "" {
 		t.Errorf("caught: missing-image Health wiki-only preservation (-want +got):\n%s", diff)
 	}
-	after, err := os.ReadFile(filepath.Join(root, "Notes", "Images.md"))
+	after, err := files.ReadFile("Notes/Images.md")
 	if err != nil {
 		t.Fatalf("read source after projections: %v", err)
 	}
